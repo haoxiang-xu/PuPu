@@ -22,7 +22,7 @@ def _seed_long_term_profile_if_missing(
     if os.path.exists(profile_path):
         return
 
-    from unchain.memory.manager import JsonFileLongTermProfileStore
+    from unchain.memory import JsonFileLongTermProfileStore
 
     store = JsonFileLongTermProfileStore(
         base_dir=root.memory_factory._long_term_profiles_dir(data_dir),

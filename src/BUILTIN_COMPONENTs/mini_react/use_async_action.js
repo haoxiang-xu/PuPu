@@ -88,7 +88,7 @@ export default function useAsyncAction(action, options = {}) {
       if (mountedRef.current) { setPending(false); setError(err); }
       if (isAbort(err)) return undefined;
       if (onErrorRef.current) onErrorRef.current(err);
-      else toast.error(`${labelRef.current}: ${err?.message || "失败"}`);
+      else toast.reportError(err, { title: labelRef.current });
       return undefined;
     }
   }, [cleanup]);

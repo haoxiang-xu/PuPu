@@ -28,10 +28,25 @@ Providers that do **not** support embeddings: `anthropic`.
 
 ### Default Embedding Models
 
+Embeddings are routed **by provider** (not a single hardcoded model). The defaults live in `_EMBEDDING_DEFAULTS` in `memory_factory.py`:
+
 | Provider | Model | Dimensions |
 |----------|-------|-----------|
-| OpenAI | `text-embedding-3-small` | auto (0) |
-| Ollama | `nomic-embed-text` | 768 |
+| OpenAI (cloud) | `text-embedding-3-small` | `0` (resolved dynamically from model config) |
+| Ollama (local) | `nomic-embed-text` | 768 |
+
+Providers in the no-embedding set (e.g. `anthropic`) cannot serve as the embedding provider and fall through to the resolution order above.
+
+### Qdrant Collection Naming
+
+Collections are named per provider + scope. The prefix is sanitized (non-alphanumeric → `_`) and the session/namespace id is appended:
+
+| Scope | Format | Notes |
+|-------|--------|-------|
+| Session (short-term) | `chat_{tag}_{session_id}` | prefix `chat_{tag}` (or `chat` if no tag); `tag` is an embedding-derived hex tag |
+| Long-term | `long_term_{digest}_{namespace}` | prefix `long_term_{digest}` where `digest` = first 12 chars of `sha1(embedding_signature)` (or `long_term` if none) |
+
+Built by `_session_collection_name()` / the prefix helpers in `memory_embeddings.py`.
 
 ---
 
@@ -89,8 +104,10 @@ During streaming, memory operations emit trace frames:
 
 | Frame Type | Stage | Description |
 |-----------|-------|-------------|
-| `memory_save` | memory | A memory was written to the vector store |
-| `memory_recall` | memory | Memories were retrieved from the vector store |
+| `memory_prepare` | memory | Context was prepared from recalled memory (before the agent run) |
+| `memory_commit` | memory | Messages were committed to the vector store (after the agent run) |
+
+The underlying prepare/commit work is performed by the core library's `MemoryModule` (from the unchain package); PuPu reads `memory_manager._last_prepare_info` / `_last_commit_info` in `unchain_adapter.py` and **re-emits** them as the `memory_prepare` / `memory_commit` runtime-event frames. The authoritative frame names are defined by the runtime_events schema — PuPu is a pass-through consumer, not the source.
 
 These appear as trace frames on assistant messages and can be inspected via the Memory Inspect component.
 
@@ -114,9 +131,12 @@ Memory data is stored in Electron's `userData` directory:
 ```
 {userData}/
   memory/
-    sessions/        # Per-session vector data
-    long_term_profiles/  # Long-term memory by namespace
+    qdrant/              # Local Qdrant vector database (embeddings)
+    sessions/            # Per-session short-term memory JSON
+    long_term_profiles/  # Long-term memory profiles by namespace
 ```
+
+Paths are resolved by `memory_paths.py` (`_qdrant_path()`, `_sessions_dir()`, `_long_term_profiles_dir()`), each created with `mkdir(parents=True, exist_ok=True)`.
 
 Size tracked via `runtimeService.getCharacterStorageSize()`.
 

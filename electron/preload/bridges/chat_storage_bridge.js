@@ -25,7 +25,28 @@ const createChatStorageBridge = (ipcRenderer) => {
     }
   };
 
-  return { bootstrap, write };
+  const readMessages = (chatId) => {
+    try {
+      const value = ipcRenderer.sendSync(
+        CHANNELS.CHAT_STORAGE.READ_MESSAGES,
+        chatId,
+      );
+      return Array.isArray(value) ? value : [];
+    } catch (error) {
+      console.error("[chat-storage] read-messages IPC failed:", error);
+      return [];
+    }
+  };
+
+  const applyOps = (ops) => {
+    try {
+      ipcRenderer.send(CHANNELS.CHAT_STORAGE.APPLY_OPS, ops);
+    } catch (error) {
+      console.error("[chat-storage] apply-ops IPC failed:", error);
+    }
+  };
+
+  return { bootstrap, write, readMessages, applyOps };
 };
 
 module.exports = { createChatStorageBridge };

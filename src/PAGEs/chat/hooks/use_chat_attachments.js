@@ -13,6 +13,9 @@ import {
   readFileAsDataUrl,
 } from "../utils/chat_attachment_utils";
 
+const FYI_HISTORY_WRAPPER = (text) =>
+  `<fyi_message>\n(sent while you were working on the previous response)\n${text}\n</fyi_message>`;
+
 export const useChatAttachments = ({
   chatId,
   initialDraftAttachments = [],
@@ -158,16 +161,23 @@ export const useChatAttachments = ({
         }
         return ["system", "user", "assistant"].includes(message.role);
       })
-      .map((message) => {
+      .flatMap((message) => {
         const role = message.role;
         if (role !== "user") {
+          const fyiMessages =
+            role === "assistant" && Array.isArray(message.interjections)
+              ? message.interjections
+                  .filter((it) => it && it.type === "fyi" && it.text)
+                  .map((it) => ({
+                    role: "user",
+                    content: FYI_HISTORY_WRAPPER(it.text),
+                  }))
+              : [];
+
           if (typeof message.content !== "string" || !message.content.trim()) {
-            return null;
+            return fyiMessages;
           }
-          return {
-            role,
-            content: message.content,
-          };
+          return [...fyiMessages, { role, content: message.content }];
         }
 
         const textContent =
@@ -515,10 +525,10 @@ export const useChatAttachments = ({
       );
       removeAttachmentPayload(chatId, normalizedAttachmentId);
       deleteAttachmentPayload(normalizedAttachmentId).catch((err) => {
-        toast.error(
-          `Attachment storage cleanup failed: ${err?.message || "unknown error"}`,
-          { dedupeKey: "attachment_delete_failed" },
-        );
+        toast.reportError(err, {
+          title: "Attachment storage cleanup failed",
+          dedupeKey: "attachment_delete_failed",
+        });
       });
     },
     [chatId, removeAttachmentPayload, setDraftAttachments],

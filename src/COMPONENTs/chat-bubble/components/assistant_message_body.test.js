@@ -225,7 +225,10 @@ describe("AssistantMessageBody seamless rendering", () => {
     ).not.toBeInTheDocument();
   });
 
-  test("keeps streaming html code fences as plain text before the closing fence arrives", () => {
+  test("renders a streaming html code fence as an escaped code block, never live DOM", () => {
+    // New contract: an open ```html fence is virtually closed and rendered as a
+    // real markdown code block mid-stream. The HTML must appear as ESCAPED code
+    // text — the partial document must never leak into live meta/html DOM.
     const partialHtmlDocumentMarkdown = `下面给你一个**纯前端页面**：
 
 \`\`\`html
@@ -250,10 +253,7 @@ describe("AssistantMessageBody seamless rendering", () => {
 
     expect(screen.getByText(/下面给你一个/)).toBeInTheDocument();
     expect(screen.getByText(/<!DOCTYPE html>/)).toBeInTheDocument();
-    expect(container.querySelector("code.hljs")).not.toBeInTheDocument();
-    expect(
-      container.querySelector("[data-streaming-plain-text]"),
-    ).toBeInTheDocument();
+    // The escaped-text guard is the load-bearing assertion: no real HTML DOM.
     expect(
       container.querySelector("[data-markdown-id] meta"),
     ).not.toBeInTheDocument();
@@ -276,10 +276,11 @@ describe("AssistantMessageBody seamless rendering", () => {
       hasTraceFrames: false,
     });
 
-    expect(container.textContent).toBe("Hello, world");
-    expect(
-      container.querySelector("[data-streaming-plain-text]"),
-    ).toBeInTheDocument();
+    // Small live tail now renders through markdown, not a plain-text span.
+    // (container.textContent includes the injected <style>, so assert the
+    // visible text node rather than the whole subtree.)
+    expect(screen.getByText("Hello, world")).toBeInTheDocument();
+    expect(container.querySelector("[data-markdown-id]")).toBeInTheDocument();
     expect(container.querySelector(".mini-ui-cell-split")).not.toBeInTheDocument();
   });
 

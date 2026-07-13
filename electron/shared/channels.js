@@ -4,6 +4,8 @@ const CHANNELS = Object.freeze({
   }),
   CHAT_STORAGE: Object.freeze({
     BOOTSTRAP_READ: "chat-storage:bootstrap-read",
+    READ_MESSAGES: "chat-storage:read-messages",
+    APPLY_OPS: "chat-storage:apply-ops",
     WRITE: "chat-storage:write",
   }),
   UPDATE: Object.freeze({
@@ -51,6 +53,7 @@ const CHANNELS = Object.freeze({
     APPROVE_MCP_STORE_ENTRY: "unchain:approve-mcp-store-entry",
     REVOKE_MCP_STORE_ENTRY_APPROVAL: "unchain:revoke-mcp-store-entry-approval",
     TOOL_CONFIRMATION: "unchain:tool-confirmation",
+    INTERJECT: "unchain:interject",
     SET_CHROME_TERMINAL_OPEN: "unchain:set-chrome-terminal-open",
     SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT: "unchain:sync-build-feature-flags-snapshot",
     PICK_WORKSPACE_ROOT: "unchain:pick-workspace-root",
@@ -87,7 +90,6 @@ const CHANNELS = Object.freeze({
     READ_FILE: "unchain:read-file",
     STREAM_START: "unchain:stream:start",
     STREAM_START_V2: "unchain:stream:start-v2",
-    STREAM_START_V3: "unchain:stream:start-v3",
     STREAM_START_V4: "unchain:stream:start-v4",
     STREAM_CANCEL: "unchain:stream:cancel",
     STREAM_EVENT: "unchain:stream:event",

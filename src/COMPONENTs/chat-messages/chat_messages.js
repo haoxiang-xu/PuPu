@@ -1,9 +1,8 @@
-import { memo, useContext } from "react";
+import { memo, useContext, useId, useMemo } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import MessageMinimap from "./components/message_minimap";
-import { useMessageMinimap } from "./hooks/use_message_minimap";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
 import { StreamingMessageStoreContext } from "../chat-bubble/components/streaming_message_store_context";
 
@@ -20,6 +19,7 @@ const ChatMessages = ({
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  onClarifyResolve,
   pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
@@ -28,9 +28,16 @@ const ChatMessages = ({
   loadBatchSize = 6,
   topLoadThreshold = 80,
   bootVisibleCount = 3,
+  bottomViewportInset = 0,
+  maxMountedCount = 40,
 }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const scrollHostId = useId();
+  const safeBottomViewportInset =
+    Number.isFinite(bottomViewportInset) && bottomViewportInset > 0
+      ? bottomViewportInset
+      : 0;
 
   const {
     messagesRef,
@@ -39,9 +46,13 @@ const ChatMessages = ({
     safeVisibleStart,
     visibleMessages,
     handleScroll,
+    handlePointerInteraction,
     handleUserScrollIntent,
+    handleWheel,
     notifyStreamingContentCommitted,
+    handleBackToBottom,
     scrollToMessageIndex,
+    scrollViewportByPage,
   } = useMessageWindowScroll({
     chat_id: chatId,
     messages,
@@ -50,15 +61,20 @@ const ChatMessages = ({
     load_batch_size: loadBatchSize,
     top_load_threshold: topLoadThreshold,
     boot_visible_count: bootVisibleCount,
+    bottom_viewport_inset: safeBottomViewportInset,
+    max_mounted_count: maxMountedCount,
   });
 
-  const minimapMessages = isStreaming ? [] : messages;
-  const { segments, total, measure } = useMessageMinimap({
-    chatId,
-    messages: minimapMessages,
-    messageNodeRefs,
-    safeVisibleStart,
-  });
+  // Provider value memo(2026-07 C 批性能):此前每次重渲染新建对象,所有订阅
+  // StreamingMessageStoreContext 的 bubble 都被迫重渲染。依赖不变则引用稳定。
+  const streamingStoreContextValue = useMemo(
+    () => ({
+      chatId,
+      store: streamingMessageStore,
+      notifyStreamingContentCommitted,
+    }),
+    [chatId, streamingMessageStore, notifyStreamingContentCommitted],
+  );
 
   return (
     <div
@@ -66,23 +82,27 @@ const ChatMessages = ({
         flex: 1,
         minHeight: 0,
         position: "relative",
+        /* own stacking context: content z-indexes (e.g. the custom
+           scrollbar overlay at 9999) must not escape and paint over
+           the floating input, which sits at zIndex 5 beside us */
+        isolation: "isolate",
       }}
     >
       <div
+        id={scrollHostId}
         ref={messagesRef}
         className="chat-scroll-host"
         onScroll={handleScroll}
-        onWheel={handleUserScrollIntent}
+        onWheel={handleWheel}
         onTouchMove={handleUserScrollIntent}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) {
-            handleUserScrollIntent();
-          }
-        }}
+        onPointerDown={handlePointerInteraction}
         style={{
           height: "100%",
           overflowY: "auto",
-          padding: messages.length === 0 ? "0" : "28px 0 64px",
+          padding:
+            messages.length === 0
+              ? "0"
+              : `28px 0 ${64 + safeBottomViewportInset}px`,
           position: "relative",
           boxSizing: "border-box",
           scrollBehavior: "auto",
@@ -99,11 +119,7 @@ const ChatMessages = ({
           }}
         >
           <StreamingMessageStoreContext.Provider
-            value={{
-              chatId,
-              store: streamingMessageStore,
-              notifyStreamingContentCommitted,
-            }}
+            value={streamingStoreContextValue}
           >
             {visibleMessages.map((msg, index) => {
               const messageIndex = safeVisibleStart + index;
@@ -137,6 +153,7 @@ const ChatMessages = ({
                       onEditMessage={onEditMessage}
                       onToolConfirmationDecision={onToolConfirmationDecision}
                       toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      onClarifyResolve={onClarifyResolve}
                       pendingToolConfirmationRequests={
                         pendingToolConfirmationRequests
                       }
@@ -161,6 +178,7 @@ const ChatMessages = ({
                       onEditMessage={onEditMessage}
                       onToolConfirmationDecision={onToolConfirmationDecision}
                       toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      onClarifyResolve={onClarifyResolve}
                       pendingToolConfirmationRequests={
                         pendingToolConfirmationRequests
                       }
@@ -186,18 +204,19 @@ const ChatMessages = ({
         </div>
       </div>
 
-      {!isStreaming ? (
-        <MessageMinimap
-          messagesRef={messagesRef}
-          messageNodeRefs={messageNodeRefs}
-          segments={segments}
-          total={total}
-          safeVisibleStart={safeVisibleStart}
-          measure={measure}
-          scrollToMessageIndex={scrollToMessageIndex}
-          isDark={isDark}
-        />
-      ) : null}
+      <MessageMinimap
+        scrollHostId={scrollHostId}
+        messagesRef={messagesRef}
+        messageNodeRefs={messageNodeRefs}
+        messages={messages}
+        safeVisibleStart={safeVisibleStart}
+        scrollToMessageIndex={scrollToMessageIndex}
+        scrollViewportByPage={scrollViewportByPage}
+        onBackToBottom={handleBackToBottom}
+        bottomViewportInset={safeBottomViewportInset}
+        isDark={isDark}
+        isStreaming={isStreaming}
+      />
     </div>
   );
 };

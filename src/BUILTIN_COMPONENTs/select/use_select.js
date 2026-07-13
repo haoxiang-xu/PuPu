@@ -469,13 +469,33 @@ const useSelect = ({
     setHighlightedIndexState(flatSelectable.findIndex((o) => o && !o.disabled));
   }, [mergedOpen, flatSelectable, selectedValue, multi]);
 
-  /* ── focus search input on panel mode ── */
+  /* ── focus search input on panel mode ──
+     The dropdown lives in a Tooltip that stays visibility:hidden until it
+     is positioned, and hidden elements silently refuse focus — so retry
+     across frames until the focus actually lands (keyboard navigation
+     rides the search input's onKeyDown). */
   useEffect(() => {
-    if (!mergedOpen) return;
-    if (filterable && filter_mode === "panel" && searchInputRef.current) {
-      searchInputRef.current.focus();
-      searchInputRef.current.select();
-    }
+    if (!mergedOpen) return undefined;
+    if (!filterable || filter_mode !== "panel") return undefined;
+    let cancelled = false;
+    let attempts = 0;
+    const tryFocus = () => {
+      if (cancelled) return;
+      const el = searchInputRef.current;
+      if (el) {
+        el.focus({ preventScroll: true });
+        if (document.activeElement === el) {
+          el.select();
+          return;
+        }
+      }
+      attempts += 1;
+      if (attempts < 30) requestAnimationFrame(tryFocus);
+    };
+    tryFocus();
+    return () => {
+      cancelled = true;
+    };
   }, [mergedOpen, filterable, filter_mode]);
 
   /* ── scrollIntoView for highlighted option ── */

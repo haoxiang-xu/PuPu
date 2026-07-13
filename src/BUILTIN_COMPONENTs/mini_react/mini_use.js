@@ -11,6 +11,28 @@ const useLayoutEffect =
 /* { BASIC HOOKs } ------------------------------------------------------------------------------------------------ */
 
 /* { ENVIRONMENT LISTENERs } ------------------------------------------------------------------------------------ */
+const detectWebBrowser = () => {
+  const userAgent =
+    typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+  if (userAgent.includes("Firefox")) return "Firefox";
+  if (userAgent.includes("Opera") || userAgent.includes("OPR")) return "Opera";
+  if (userAgent.includes("Trident")) return "Internet Explorer";
+  if (userAgent.includes("Edge")) return "Edge";
+  if (userAgent.includes("Chrome")) return "Chrome";
+  if (userAgent.includes("Safari")) return "Safari";
+  return "Unknown";
+};
+
+const detectDeviceType = () => {
+  const userAgent =
+    typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+  return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    userAgent,
+  )
+    ? "mobile"
+    : "desktop";
+};
+
 const useSystemTheme = () => {
   const [systemTheme, setSystemTheme] = useState(
     window.matchMedia &&
@@ -29,20 +51,41 @@ const useSystemTheme = () => {
   return systemTheme;
 };
 const useWindowSize = () => {
-  const [windowSize, setWindowSize] = useState({
+  const [windowSize, setWindowSize] = useState(() => ({
     width: window.innerWidth || 0,
     height: window.innerHeight || 0,
-  });
+  }));
   useEffect(() => {
+    let frameId = null;
+    const commitSize = () => {
+      frameId = null;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      setWindowSize((previous) =>
+        previous.width === width && previous.height === height
+          ? previous
+          : { width, height },
+      );
+    };
     const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
+      if (frameId != null) return;
+      if (typeof window.requestAnimationFrame === "function") {
+        frameId = window.requestAnimationFrame(commitSize);
+      } else {
+        commitSize();
+      }
     };
     window.addEventListener("resize", handleResize);
     handleResize();
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (
+        frameId != null &&
+        typeof window.cancelAnimationFrame === "function"
+      ) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
   }, []);
   return windowSize;
 };
@@ -117,51 +160,11 @@ const useMouse = () => {
   return mouse;
 };
 const useWebBrowser = () => {
-  const [envBrowser, setEnvBrowser] = useState(null);
-  useEffect(() => {
-    const getBrowserName = () => {
-      const userAgent = navigator.userAgent;
-
-      if (userAgent.indexOf("Firefox") > -1) {
-        return "Firefox";
-      } else if (
-        userAgent.indexOf("Opera") > -1 ||
-        userAgent.indexOf("OPR") > -1
-      ) {
-        return "Opera";
-      } else if (userAgent.indexOf("Trident") > -1) {
-        return "Internet Explorer";
-      } else if (userAgent.indexOf("Edge") > -1) {
-        return "Edge";
-      } else if (userAgent.indexOf("Chrome") > -1) {
-        return "Chrome";
-      } else if (userAgent.indexOf("Safari") > -1) {
-        return "Safari";
-      } else {
-        return "Unknown";
-      }
-    };
-    setEnvBrowser(getBrowserName());
-  }, []);
-  return envBrowser;
+  const [webBrowser] = useState(detectWebBrowser);
+  return webBrowser;
 };
 const useDeviceType = () => {
-  const [deviceType, setDeviceType] = useState("desktop");
-  useEffect(() => {
-    const checkDeviceType = () => {
-      const userAgent = navigator.userAgent;
-      if (
-        /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          userAgent,
-        )
-      ) {
-        setDeviceType("mobile");
-      } else {
-        setDeviceType("desktop");
-      }
-    };
-    checkDeviceType();
-  }, []);
+  const [deviceType] = useState(detectDeviceType);
   return deviceType;
 };
 const useRuntimePlatform = () => {
@@ -198,6 +201,8 @@ const useRuntimePlatform = () => {
 
 export {
   useLayoutEffect,
+  detectWebBrowser,
+  detectDeviceType,
   useSystemTheme,
   useWindowSize,
   useMouse,

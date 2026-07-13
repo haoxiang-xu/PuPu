@@ -194,7 +194,12 @@
     "path_placeholder": "/chemin/vers/espace/de/travail",
     "add_workspace": "+ Ajouter un espace de travail",
     "workspace_select_desc": "Les espaces de travail nommés peuvent être sélectionnés par chat depuis la barre d'outils de saisie.",
-    "applied_desc": "Appliqué à chaque requête Unchain lorsque le toolkit d'espace de travail est activé."
+    "applied_desc": "Appliqué à chaque requête Unchain lorsque le toolkit d'espace de travail est activé.",
+    "esc_to_cancel": "esc pour annuler",
+    "delete_confirm_inline": "Supprimer « {name} » ?",
+    "delete_confirm_note": "le dossier sur le disque n'est pas touché",
+    "clear_confirm_inline": "Effacer l'espace de travail par défaut ?",
+    "clear_confirm_note": "les nouvelles discussions n'auront plus de racine de fichiers par défaut"
   },
   "dev": {
     "chrome_terminal": "Terminal Chrome",
@@ -237,10 +242,31 @@
     "loading": "Chargement...",
     "error": "Erreur",
     "select": "Sélectionner...",
-    "search": "Rechercher..."
+    "search": "Rechercher...",
+    "no_results": "Aucun résultat"
   },
   "chat": {
-    "placeholder": "Message à PuPu..."
+    "placeholder": "Message à PuPu...",
+    "minimap": {
+      "top": "Début",
+      "prev": "Préc.",
+      "next": "Suiv.",
+      "end": "Fin"
+    },
+    "attach": {
+      "select_model": "Choisir un modèle...",
+      "tools": "outils",
+      "workspace": "espace",
+      "clear": "EFFACER",
+      "add": "+ AJOUTER",
+      "search_workspaces": "Rechercher des espaces...",
+      "attach_file": "Joindre une image ou un PDF",
+      "attach_file_unsupported": "Le modèle actuel ne prend pas en charge les fichiers",
+      "screenshot": "Faire une capture d'écran",
+      "screenshot_unsupported": "Le modèle actuel ne prend pas en charge les images",
+      "select_toolkits": "Choisir des outils",
+      "select_workspaces": "Choisir des espaces"
+    }
   },
   "toolkit": {
     "toolkits": "Toolkits",
@@ -279,5 +305,10 @@
     "delete_label": "Supprimer le toolkit",
     "delete_desc": "Supprime ce toolkit de votre installation",
     "delete_desc_builtin": "Les toolkits intégrés ne peuvent pas être supprimés"
+  },
+  "commands": {
+    "btw": "Répond maintenant, sans interrompre la tâche",
+    "fyi": "Ajoute des infos à la tâche en cours",
+    "queue": "Met en file d'attente, s'exécute à la fin de ce tour"
   }
 }

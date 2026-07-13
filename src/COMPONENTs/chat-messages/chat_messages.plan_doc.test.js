@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import ChatMessages from "./chat_messages";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
@@ -39,8 +39,49 @@ describe("ChatMessages minimap integration", () => {
     expect(container.querySelector("[data-mm-track]")).not.toBeNull();
   });
 
-  it("does not render the minimap track while streaming", () => {
+  it("adds the bottom viewport inset to the scroll host padding", () => {
+    const { container } = renderCM({ bottomViewportInset: 32 });
+    const scrollHost = container.querySelector(".chat-scroll-host");
+    expect(scrollHost.style.paddingTop).toBe("28px");
+    expect(scrollHost.style.paddingBottom).toBe("96px");
+  });
+
+  it("keeps the minimap track mounted while streaming (lite mode)", () => {
     const { container } = renderCM({ isStreaming: true });
-    expect(container.querySelector("[data-mm-track]")).toBeNull();
+    expect(container.querySelector("[data-mm-track]")).not.toBeNull();
+  });
+
+  it("bubbles pointer interaction from message content into landing cancellation", () => {
+    const hookModule = require("./hooks/use_message_window_scroll");
+    const handlePointerInteraction = jest.fn();
+    const hookSpy = jest
+      .spyOn(hookModule, "useMessageWindowScroll")
+      .mockReturnValue({
+        messagesRef: { current: null },
+        bottomSentinelRef: { current: null },
+        messageNodeRefs: { current: new Map() },
+        safeVisibleStart: 0,
+        safeVisibleEnd: messages.length,
+        visibleMessages: messages,
+        isAtBottom: true,
+        isAtTop: true,
+        handleScroll: jest.fn(),
+        handlePointerInteraction,
+        handleUserScrollIntent: jest.fn(),
+        handleWheel: jest.fn(),
+        notifyStreamingContentCommitted: jest.fn(),
+        handleBackToBottom: jest.fn(),
+        handleSkipToTop: jest.fn(),
+        handleJumpToPreviousMessage: jest.fn(),
+        scrollToMessageIndex: jest.fn(),
+      });
+
+    try {
+      const { container } = renderCM();
+      fireEvent.pointerDown(container.querySelector('[data-message-id="m0"]'));
+      expect(handlePointerInteraction).toHaveBeenCalledTimes(1);
+    } finally {
+      hookSpy.mockRestore();
+    }
   });
 });

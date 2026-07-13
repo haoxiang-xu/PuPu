@@ -60,7 +60,9 @@ const interpolate = (template, vars) => {
 };
 
 export const useTranslation = () => {
-  const { locale, setLocale } = useContext(LocaleContext);
+  // LocaleContext 默认值为 null(未挂 Provider,如单测直接渲染子组件时)——兜底成空对象,
+  // 回退到 en,避免解构 null 抛异常
+  const { locale, setLocale } = useContext(LocaleContext) || {};
   const currentLocale = locale || "en";
 
   const messages = useMemo(

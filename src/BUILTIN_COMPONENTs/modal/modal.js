@@ -76,7 +76,8 @@ const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => 
       <div
         style={{
           position: "relative",
-          backgroundColor: mt.backgroundColor || "#fff",
+          backgroundColor:
+            theme?.semantic?.surface || mt.backgroundColor || "#fff",
           borderRadius: mt.borderRadius ?? 14,
           boxShadow: mt.boxShadow || "0 24px 80px rgba(0,0,0,0.18)",
           border: mt.border || "none",
@@ -334,7 +335,7 @@ const ErrorModal = ({
             width: 10,
             height: 10,
             borderRadius: "50%",
-            backgroundColor: mt.errorAccent || "#E5484D",
+            backgroundColor: theme?.semantic?.danger || mt.errorAccent || "#E5484D",
             flexShrink: 0,
           }}
         />
@@ -365,7 +366,7 @@ const ErrorModal = ({
         <ModalButton
           label={closeLabel}
           variant="primary"
-          bg={mt.errorAccent || "#E5484D"}
+          bg={theme?.semantic?.danger || mt.errorAccent || "#E5484D"}
           onClick={onClose}
           style={{ color: "#000000" }}
         />
@@ -430,7 +431,7 @@ const AgreementModal = ({
         <ModalButton
           label={agreeLabel}
           variant="primary"
-          bg={mt.successAccent || "#30A46C"}
+          bg={theme?.semantic?.success || mt.successAccent || "#30A46C"}
           onClick={() => {
             onAgree?.();
             onClose?.();

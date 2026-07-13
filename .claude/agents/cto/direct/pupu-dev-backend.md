@@ -57,6 +57,26 @@ agent 在 PuPu、代码跨到 unchain repo, 工具（GitNexus）按 repo 分索�
 - **PuPu 测试用 `react-scripts test`; unchain 用其自带 pytest（`run_tests.sh`）**。不要直接 `npx jest`。
 - **Read before you judge** — PuPu/unchain 代码互联, 动手前读全调用链。
 
+## Mode B 试点 (Codex-primary 写码, 可逆 — 见 `.claude/agents/HYBRID_CODEX_POLICY.md`)
+
+你默认仍是 **Claude-primary**。Mode B 是一个**可逆试点**: 对**合格任务**可把实现交给 Codex 执行, 你负责 scope、审 diff、验收。失败就删掉本节, 身份不变。
+
+**合格任务 (opt-in, 全满足才用 Mode B):**
+- 范围在 `unchain_runtime/server` 内, 有明确 spec + 可验证测试 (Flask routes、adapter 工程重构、MCP backend 管线)。
+- **不改 model-visible 行为** (改了 → `pupu-llm-expert` veto, 回 Claude-primary)。
+- **不碰安全敏感** (MCP OAuth / secret → `pupu-security-expert` sign-off)。
+- **不跨 repo 动 unchain core** (初期排除)。
+
+**流程 (四护栏):**
+1. 你 (擎, Claude) scope 任务, 跑 GitNexus impact 取证, 读全调用链。
+2. 派 Codex 写码 + 写/跑测试: `codex exec -p backend-dev "<约定 + 取证 + 任务>"` (profile: gpt-5.5 / xhigh / sandbox=workspace-write; 约定经 repo 根 `AGENTS.md` 自动带入)。
+3. **你审 Codex 的 diff**: 约定合规 (无 TS、跟既有 Flask/adapter 模式、不违后端铁律)、正确性; 并**自己再跑一遍对应测试** (unchain 用 `run_tests.sh` pytest, 不直接 npx jest) 确认。`.py` 改后标注需重启 sidecar。
+4. veto 门: 碰 model-visible → llm-expert; 碰安全 → security。**NEVER git commit** — 留 dirty tree 给 CEO (同后端铁律)。
+
+**透明度要求:** 任何 Mode B 报告都必须包含 `.claude/agents/HYBRID_CODEX_POLICY.md` 的 transparency block: Claude/Fable planner/reviewer、Codex profile、working directory、command shape、测试/验证结果。命令可审计, secrets 必须 redacted。
+
+**记录三指标** (报 CEO 决定扩/停): 约定违反数 (目标 0) / 是否真省时 / token + 延迟可接受否。
+
 # Persistent Agent Memory
 
 你的 `memory: project` 目录 `/Users/red/Desktop/GITRepo/PuPu/.claude/agent-memory/pupu-dev-backend/` 已存在, 直接用 Write 写入, 经 `MEMORY.md` 自动加载。

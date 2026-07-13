@@ -96,12 +96,8 @@ def _prepare_vector_collection_tag(
     if not session_id:
         return ""
 
-    try:
-        state = store.load(session_id)
-    except Exception:
-        state = {}
-    if not isinstance(state, dict):
-        state = {}
+    session_snapshot = root._load_session_snapshot_compat(store, session_id)
+    state = dict(session_snapshot.state)
 
     previous_signature = str(state.get("vector_embedding_signature", "") or "").strip()
     previous_tag = str(state.get("vector_collection_tag", "") or "").strip()
@@ -115,17 +111,33 @@ def _prepare_vector_collection_tag(
     if previous_signature and previous_signature != embedding_signature:
         existing_messages = root._deepcopy_messages(state.get("messages"))
         state["vector_indexed_until"] = len(existing_messages)
-        if previous_tag:
-            old_collection = _session_collection_name(
-                session_id=session_id,
-                collection_prefix=_vector_collection_prefix(previous_tag),
-            )
-            root._delete_collection_best_effort(client, old_collection)
-
     try:
-        store.save(session_id, state)
-    except Exception:
-        pass
+        root._save_session_snapshot_compat(
+            store,
+            session_id,
+            state,
+            expected_revision=session_snapshot.revision,
+        )
+    except Exception as exc:
+        if str(getattr(exc, "code", "") or "") != "session_revision_conflict":
+            raise
+        winner_snapshot = root._load_session_snapshot_compat(store, session_id)
+        winner_state = dict(winner_snapshot.state)
+        winner_signature = str(
+            winner_state.get("vector_embedding_signature", "") or ""
+        ).strip()
+        raw_winner_tag = winner_state.get("vector_collection_tag")
+        winner_tag = raw_winner_tag.strip() if isinstance(raw_winner_tag, str) else ""
+        if winner_signature == embedding_signature and winner_tag:
+            return winner_tag
+        raise
+
+    if previous_signature and previous_signature != embedding_signature and previous_tag:
+        old_collection = _session_collection_name(
+            session_id=session_id,
+            collection_prefix=_vector_collection_prefix(previous_tag),
+        )
+        root._delete_collection_best_effort(client, old_collection)
 
     return new_tag
 
@@ -188,12 +200,12 @@ def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], 
     provider = config["provider"]
 
     if provider == "openai":
-        from unchain.memory.qdrant import build_openai_embed_fn
+        from unchain.memory import build_openai_embed_fn
 
-        broth_instance = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
+        api_key_source = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
         return build_openai_embed_fn(
             model=str(config.get("model", "") or "").strip(),
-            broth_instance=broth_instance,
+            api_key_source=api_key_source,
         )
 
     if provider == "ollama":

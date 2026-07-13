@@ -12,6 +12,7 @@ describe("preload API contract", () => {
     ipcRenderer = {
       invoke: jest.fn(),
       send: jest.fn(),
+      sendSync: jest.fn(),
       on: jest.fn(),
       removeListener: jest.fn(),
     };
@@ -85,6 +86,7 @@ describe("preload API contract", () => {
       "approveMcpStoreEntry",
       "revokeMcpStoreEntryApproval",
       "respondToolConfirmation",
+      "interject",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
       "pickWorkspaceRoot",
@@ -103,12 +105,36 @@ describe("preload API contract", () => {
       "replaceSessionMemory",
       "startStream",
       "startStreamV2",
-      "startStreamV3",
       "startStreamV4",
       "cancelStream",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");
     });
+    expect(unchain.startStreamV3).toBeUndefined();
+  });
+
+  test("chat storage API keeps required method surface", () => {
+    expect(Object.keys(exposed.chatStorageAPI).sort()).toEqual(
+      ["applyOps", "bootstrap", "readMessages", "write"].sort(),
+    );
+    ["bootstrap", "write", "readMessages", "applyOps"].forEach((method) => {
+      expect(typeof exposed.chatStorageAPI[method]).toBe("function");
+    });
+
+    ipcRenderer.sendSync.mockReturnValueOnce([{ role: "user" }]);
+    const messages = exposed.chatStorageAPI.readMessages("chat-1");
+    expect(ipcRenderer.sendSync).toHaveBeenLastCalledWith(
+      CHANNELS.CHAT_STORAGE.READ_MESSAGES,
+      "chat-1",
+    );
+    expect(messages).toEqual([{ role: "user" }]);
+
+    const ops = [{ type: "delete_chats", chatIds: ["chat-1"] }];
+    exposed.chatStorageAPI.applyOps(ops);
+    expect(ipcRenderer.send).toHaveBeenLastCalledWith(
+      CHANNELS.CHAT_STORAGE.APPLY_OPS,
+      ops,
+    );
   });
 
   test("bridges call expected channels", () => {

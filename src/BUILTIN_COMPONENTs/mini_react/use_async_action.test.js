@@ -55,13 +55,22 @@ describe("useAsyncAction", () => {
     jest.useRealTimers();
   });
 
-  test("错误默认 emit toast", async () => {
+  test("错误默认 emit contextual error toast", async () => {
     const events = [];
     subToast((e) => events.push(e));
     const { result } = renderHook(() =>
       useAsyncAction(async () => { throw new Error("boom"); }, { label: "验证", pendingDelayMs: 0 }));
     await act(async () => { await result.current.run(); });
-    expect(events.some((e) => e.type === "error" && e.message.includes("boom"))).toBe(true);
+    expect(events[0]).toMatchObject({
+      type: "error",
+      title: "验证",
+      message: "验证",
+      description: "boom",
+      position: "top",
+      duration: Infinity,
+      important: true,
+      dedupeKey: "error:验证:boom",
+    });
     expect(result.current.error.message).toBe("boom");
   });
 

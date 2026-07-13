@@ -1,13 +1,21 @@
 /** @jest-environment jsdom */
 
-describe("chat_storage microtask coalescing (IPC path)", () => {
+// V3 ops world: writeStore no longer persists the whole store over IPC.
+// Same-tick mutations coalesce into ONE applyOps (ops deduped by
+// (type, chatId), last write wins) + ONE emit after the microtask flush.
+
+describe("chat_storage microtask coalescing (IPC ops path)", () => {
+  let bridgeApplyOps;
   let bridgeWrite;
 
   const setupIpcBridge = () => {
+    bridgeApplyOps = jest.fn();
     bridgeWrite = jest.fn();
     window.chatStorageAPI = {
       bootstrap: () => null,
       write: bridgeWrite,
+      readMessages: () => [],
+      applyOps: bridgeApplyOps,
     };
   };
 
@@ -22,59 +30,94 @@ describe("chat_storage microtask coalescing (IPC path)", () => {
     delete window.chatStorageAPI;
   });
 
-  test("N sequential mutations produce 1 persist + 1 emit after microtask flush", async () => {
+  test("N sequential mutations produce 1 applyOps + 1 emit after microtask flush", async () => {
     const store = require("./chat_storage_store");
 
-    // Trigger bootstrap seed (persists once to IPC via the "empty bootstrap" branch)
+    // Trigger bootstrap seed (persists once via the "empty bootstrap" whole-store write)
     store.getChatsStore();
-    bridgeWrite.mockClear();
+    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    bridgeApplyOps.mockClear();
 
     const listener = jest.fn();
     const unsubscribe = store.subscribeChatsStore(listener);
 
-    store.createChatInSelectedContext({ title: "A" }, { source: "test" });
-    store.createChatInSelectedContext({ title: "B" }, { source: "test" });
-    store.createChatInSelectedContext({ title: "C" }, { source: "test" });
+    const a = store.createChatInSelectedContext({ title: "A" }, { source: "test" });
+    const b = store.createChatInSelectedContext({ title: "B" }, { source: "test" });
+    const c = store.createChatInSelectedContext({ title: "C" }, { source: "test" });
 
-    // Before microtask: no persist, no emit
-    expect(bridgeWrite).toHaveBeenCalledTimes(0);
+    // Before microtask: no ops sent, no emit
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
 
     await Promise.resolve();
 
-    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
 
-    // The single emit carries the latest store (chat C exists)
-    const [emittedStore] = listener.mock.calls[0];
-    const titles = Object.values(emittedStore.chatsById).map((c) => c.title);
+    // The single applyOps batch carries each created chat's meta once and
+    // exactly one tree meta (the latest one). Titled chats are not transient,
+    // so nothing is cleaned up/deleted.
+    const [ops] = bridgeApplyOps.mock.calls[0];
+    const metaIds = ops
+      .filter((op) => op.type === "put_chat_meta")
+      .map((op) => op.chatId);
+    expect(metaIds).toEqual(
+      expect.arrayContaining([a.chatId, b.chatId, c.chatId]),
+    );
+    expect(ops.filter((op) => op.type === "put_tree_meta")).toHaveLength(1);
+    expect(ops.some((op) => op.type === "delete_chats")).toBe(false);
+
+    // The single emit carries the latest store (all three chats exist)
+    const [emittedStore, emittedEvent] = listener.mock.calls[0];
+    const titles = Object.values(emittedStore.chatsById).map((chat) => chat.title);
     expect(titles).toEqual(expect.arrayContaining(["A", "B", "C"]));
+
+    // Task 2 (spec §2): the coalesced emit carries the UNION dirty of all
+    // same-tick writes — all three created chat ids, no deletions, and the
+    // tree/active flags reflect the tick's real changes.
+    expect(emittedEvent.dirty).toBeDefined();
+    expect(emittedEvent.dirty.chatIds).toEqual(
+      expect.arrayContaining([a.chatId, b.chatId, c.chatId]),
+    );
+    expect(emittedEvent.dirty.deletedChatIds).toEqual([]);
+    expect(emittedEvent.dirty.treeChanged).toBe(true);
+    expect(emittedEvent.dirty.activeChanged).toBe(true);
 
     unsubscribe();
   });
 
-  test("flushStoreEmitSync forces immediate persist and emit", () => {
+  test("flushStoreEmitSync forces immediate applyOps and emit", () => {
     const store = require("./chat_storage_store");
     store.getChatsStore();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
 
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
-    store.createChatInSelectedContext({ title: "A" }, { source: "test" });
-    expect(bridgeWrite).toHaveBeenCalledTimes(0);
+    const created = store.createChatInSelectedContext(
+      { title: "A" },
+      { source: "test" },
+    );
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
 
     store.flushStoreEmitSync();
 
-    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
+    // Task 2: the sync-flushed emit carries the same dirty shape.
+    const [, event] = listener.mock.calls[0];
+    expect(event.dirty).toBeDefined();
+    expect(event.dirty.chatIds).toContain(created.chatId);
+    expect(event.dirty.deletedChatIds).toEqual([]);
+    expect(event.dirty.treeChanged).toBe(true);
+    expect(event.dirty.activeChanged).toBe(true);
   });
 
   test("memory mirror stays consistent for synchronous reads between mutations", async () => {
     const store = require("./chat_storage_store");
     store.getChatsStore();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
 
     const created = store.createChatInSelectedContext(
       { title: "Alpha" },
@@ -86,6 +129,6 @@ describe("chat_storage microtask coalescing (IPC path)", () => {
     expect(snapshot.chatsById[created.chatId].title).toBe("Alpha");
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
   });
 });

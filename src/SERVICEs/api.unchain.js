@@ -534,9 +534,6 @@ export const createUnchainApi = () => {
       hasBridgeMethod("unchainAPI", "startStream") &&
       hasBridgeMethod("unchainAPI", "startStreamV2"),
 
-    isRuntimeEventStreamV3Available: () =>
-      hasBridgeMethod("unchainAPI", "startStreamV3"),
-
     isRuntimeEventStreamV4Available: () =>
       hasBridgeMethod("unchainAPI", "startStreamV4"),
 
@@ -1196,6 +1193,27 @@ export const createUnchainApi = () => {
       }
     },
 
+    interject: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "interject");
+        const threadId = typeof payload.threadId === "string" ? payload.threadId.trim() : "";
+        const text = typeof payload.text === "string" ? payload.text.trim() : "";
+        if (!threadId || !text) {
+          throw new FrontendApiError("invalid_interject_payload", "threadId and text are required");
+        }
+        const requestPayload = {
+          thread_id: threadId,
+          text,
+          channel: typeof payload.channel === "string" && payload.channel ? payload.channel : "auto",
+          ...(isObject(payload.options) ? { options: payload.options } : {}),
+        };
+        const response = await method(requestPayload);
+        return isObject(response) ? response : { resolved_channel: "new_run" };
+      } catch (error) {
+        throw toFrontendApiError(error, "unchain_interject_failed", "Failed to send interject message");
+      }
+    },
+
     startStream: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStream");
@@ -1545,30 +1563,6 @@ export const createUnchainApi = () => {
           error,
           "unchain_stream_v2_start_failed",
           "Failed to start Unchain v2 stream",
-        );
-      }
-    },
-
-    startStreamV3: (payload, handlers = {}) => {
-      try {
-        const method = assertBridgeMethod("unchainAPI", "startStreamV3");
-        const normalizedPayload = normalizeUnchainV2Payload(payload);
-        const streamHandle = method(normalizedPayload, handlers);
-        if (
-          !isObject(streamHandle) ||
-          typeof streamHandle.cancel !== "function"
-        ) {
-          throw new FrontendApiError(
-            "invalid_stream_handle",
-            "Unchain bridge returned an invalid stream handle",
-          );
-        }
-        return streamHandle;
-      } catch (error) {
-        throw toFrontendApiError(
-          error,
-          "unchain_stream_v3_start_failed",
-          "Failed to start Unchain v3 stream",
         );
       }
     },

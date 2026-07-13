@@ -220,7 +220,12 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ 添加工作区",
     "workspace_select_desc": "命名的工作区可以在聊天输入工具栏中按聊天选择。",
-    "applied_desc": "启用工作区工具包时，应用于每个 Unchain 请求。"
+    "applied_desc": "启用工作区工具包时，应用于每个 Unchain 请求。",
+    "esc_to_cancel": "esc 取消",
+    "delete_confirm_inline": "删除“{name}”？",
+    "delete_confirm_note": "不会动到磁盘上的文件夹",
+    "clear_confirm_inline": "清除默认工作区？",
+    "clear_confirm_note": "新会话将不再有默认文件根目录"
   },
   "dev": {
     "chrome_terminal": "Chrome 终端",
@@ -283,10 +288,31 @@
     "loading": "加载中...",
     "error": "错误",
     "select": "选择...",
-    "search": "搜索..."
+    "search": "搜索...",
+    "no_results": "无结果"
   },
   "chat": {
-    "placeholder": "向 PuPu 发送消息..."
+    "placeholder": "向 PuPu 发送消息...",
+    "minimap": {
+      "top": "顶部",
+      "prev": "上一条",
+      "next": "下一条",
+      "end": "底部"
+    },
+    "attach": {
+      "select_model": "选择模型...",
+      "tools": "工具",
+      "workspace": "工作区",
+      "clear": "清空",
+      "add": "+ 添加",
+      "search_workspaces": "搜索工作区...",
+      "attach_file": "附加图片或 PDF",
+      "attach_file_unsupported": "当前模型不支持文件输入",
+      "screenshot": "截图",
+      "screenshot_unsupported": "当前模型不支持图片输入",
+      "select_toolkits": "选择工具集",
+      "select_workspaces": "选择工作区"
+    }
   },
   "toolkit": {
     "toolkits": "工具包",
@@ -366,6 +392,7 @@
     "store_setup": "配置",
     "store_oauth_coming_soon": "OAuth 即将支持",
     "store_connect": "连接",
+    "store_cancel": "取消",
     "store_connect_oauth": "使用 OAuth 连接",
     "store_waiting_for_oauth": "等待 OAuth",
     "store_install_coming": "将在 Phase 2 推出",
@@ -387,6 +414,8 @@
     "store_needs_review_action": "待审核",
     "store_installing": "安装中…",
     "store_install_error": "安装失败",
+    "store_install_success": "{name} 已安装并启用",
+    "store_connect_success": "{name} 已连接并启用",
     "store_enter_required_secrets": "填写必需密钥",
     "store_secret_required": "请先填写必需密钥再安装。",
     "store_workspace_required": "安装 Filesystem MCP 前请先选择 agent 工作区。",
@@ -419,5 +448,10 @@
     "delete_label": "删除工具包",
     "delete_desc": "从您的安装中移除此工具包",
     "delete_desc_builtin": "内置工具包无法移除"
+  },
+  "commands": {
+    "btw": "立即回答，不打断当前任务",
+    "fyi": "补充给当前任务",
+    "queue": "排队，当前任务完成后执行"
   }
 }

@@ -1,15 +1,21 @@
 import {
+  forwardRef,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
 } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import ScaleHighlight from "../../../BUILTIN_COMPONENTs/class/scale_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
+import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
@@ -33,103 +39,59 @@ const isTextEntryTarget = (target) =>
     ),
   );
 
-/* ── shared footer helpers ── */
+/* ── palette header action — small uppercase button in the dropdown's
+   bottom header (CLEAR / + ADD), faint at rest, brightens on hover ── */
 
-const ClearAllFooter = ({ onClear, isDark, theme }) => (
-  <button
-    onMouseDown={(e) => {
-      e.preventDefault();
-      onClear();
-    }}
-    style={{
-      background: "none",
-      border: "none",
-      padding: "2px 4px",
-      cursor: "pointer",
-      fontSize: 11,
-      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-    }}
-  >
-    clear all
-  </button>
-);
-
-const WorkspaceFooter = ({ onClear, hasSelection, onAdd, isDark, theme }) => {
-  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
-
+const HeaderAction = ({ children, onAct, accent = false, isDark, theme }) => {
+  const restColor = accent
+    ? isDark
+      ? "#9ad9a0"
+      : "rgba(25,125,65,0.95)"
+    : isDark
+      ? "rgba(255,255,255,0.35)"
+      : "rgba(0,0,0,0.38)";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {hasSelection && (
-        <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onClear();
-          }}
-          style={{
-            background: "none",
-            border: "none",
-            padding: "2px 4px",
-            cursor: "pointer",
-            fontSize: 11,
-            color: mutedColor,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            textAlign: "left",
-          }}
-        >
-          clear all
-        </button>
-      )}
-      <div
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onAdd();
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          cursor: "pointer",
-          padding: "3px 4px",
-          opacity: 0.55,
-          borderRadius: 4,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.55")}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          style={{ flexShrink: 0 }}
-        >
-          <path
-            d="M7 2.5V11.5M2.5 7H11.5"
-            stroke={textColor}
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span
-          style={{
-            fontSize: 12,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            color: textColor,
-            fontWeight: 500,
-          }}
-        >
-          Add Workspace
-        </span>
-      </div>
-    </div>
+    <button
+      type="button"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onAct();
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = isDark
+          ? "rgba(255,255,255,0.08)"
+          : "rgba(0,0,0,0.06)";
+        if (!accent)
+          e.currentTarget.style.color = isDark
+            ? "rgba(255,255,255,0.7)"
+            : "rgba(0,0,0,0.7)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "transparent";
+        e.currentTarget.style.color = restColor;
+      }}
+      style={{
+        flexShrink: 0,
+        border: "none",
+        background: "transparent",
+        cursor: "pointer",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+        fontSize: 10,
+        letterSpacing: "0.05em",
+        color: restColor,
+        padding: "2px 6px",
+        borderRadius: 7,
+        transition: "background-color 0.13s ease, color 0.13s ease",
+      }}
+    >
+      {children}
+    </button>
   );
 };
 
 /* ── main component ── */
 
-const AttachPanel = ({
+const AttachPanel = forwardRef(({
   color,
   active,
   focused,
@@ -158,11 +120,51 @@ const AttachPanel = ({
   onWorkspaceIdsChange,
   selectedRecipeName = "Default",
   onSelectRecipe,
-}) => {
+  queueItems = [],
+  onQueueUndo,
+  onKeyboardActiveChange = () => {},
+  onRequestInputFocus = () => {},
+  onSelectorOpenChange = () => {},
+}, ref) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+
+  /* Optimistic mirrors for the multi-selects: the checkbox flips against
+     LOCAL state instantly (re-rendering just this panel), while the real
+     update — which lives at the top of the chat page and re-renders the
+     whole message tree — rides a startTransition in the background. */
+  const [localToolkits, setLocalToolkits] = useState(selectedToolkits);
+  useEffect(() => {
+    setLocalToolkits(selectedToolkits);
+  }, [selectedToolkits]);
+  const handleToolkitsValueChange = useCallback(
+    (next) => {
+      setLocalToolkits(next);
+      startTransition(() => {
+        (onToolkitsChange || (() => {}))(next);
+      });
+    },
+    [onToolkitsChange],
+  );
+
+  const [localWorkspaceIds, setLocalWorkspaceIds] = useState(
+    selectedWorkspaceIds,
+  );
+  useEffect(() => {
+    setLocalWorkspaceIds(selectedWorkspaceIds);
+  }, [selectedWorkspaceIds]);
+  const handleWorkspaceIdsValueChange = useCallback(
+    (next) => {
+      setLocalWorkspaceIds(next);
+      startTransition(() => {
+        (onWorkspaceIdsChange || (() => {}))(next);
+      });
+    },
+    [onWorkspaceIdsChange],
+  );
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const lastModelSelectorRefreshAt = useRef(0);
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
@@ -202,6 +204,14 @@ const AttachPanel = ({
     [hasActiveAgentRecipe, onSelectModel, onSelectRecipe],
   );
 
+  /* ── keyboard control (driven by chat_input via ref) ──
+     kbIndex highlights one control in the row; a selector opened via
+     keyboard reports back on close so focus returns to the input. */
+  const [kbIndex, setKbIndex] = useState(-1);
+  const [kbQueueOpen, setKbQueueOpen] = useState(false);
+  const kbOpenedSelectorRef = useRef(null);
+  const kbReturnIndexRef = useRef(-1);
+
   const handleModelSelectorOpenChange = useCallback((next) => {
     setOpenSelector(next ? "model" : null);
     if (next) {
@@ -213,8 +223,12 @@ const AttachPanel = ({
         lastModelSelectorRefreshAt.current = now;
         emitModelCatalogRefresh({ reason: "model_selector_opened" });
       }
+    } else if (kbOpenedSelectorRef.current === "model") {
+      kbOpenedSelectorRef.current = null;
+      onRequestInputFocus();
+      setKbIndex(kbReturnIndexRef.current); // back where the user was
     }
-  }, []);
+  }, [onRequestInputFocus]);
 
   const handleToolsOpenChange = useCallback(
     (next) => {
@@ -225,13 +239,178 @@ const AttachPanel = ({
       }
 
       setOpenSelector(null);
+      if (kbOpenedSelectorRef.current === "tools") {
+        kbOpenedSelectorRef.current = null;
+        onRequestInputFocus();
+        setKbIndex(kbReturnIndexRef.current);
+      }
     },
-    [refreshToolkits],
+    [refreshToolkits, onRequestInputFocus],
   );
 
+  const handleWorkspaceOpenChange = useCallback(
+    (next) => {
+      setOpenSelector(next ? "workspace" : null);
+      if (!next && kbOpenedSelectorRef.current === "workspace") {
+        kbOpenedSelectorRef.current = null;
+        onRequestInputFocus();
+        setKbIndex(kbReturnIndexRef.current);
+      }
+    },
+    [onRequestInputFocus],
+  );
+
+  /* ordered, availability-filtered control list for keyboard navigation */
+  const kbControls = [];
+  if (showModelSelector && modelSelectOptions.length > 0)
+    kbControls.push("model");
+  if (onAttachFile) {
+    kbControls.push("attach");
+    if (onAttachScreenshot) kbControls.push("screenshot");
+    if (showToolSelector && !hasActiveAgentRecipe) kbControls.push("tools");
+    if (showWorkspaceSelector) kbControls.push("workspace");
+  }
+  if (onAttachLink) kbControls.push("link");
+  if (queueItems.length > 0) kbControls.push("queue");
+
+  const kbStateRef = useRef({});
+  kbStateRef.current = { kbIndex, kbQueueOpen, kbControls };
+
+  useEffect(() => {
+    onKeyboardActiveChange(kbIndex >= 0);
+  }, [kbIndex, onKeyboardActiveChange]);
+
+  /* While a dropdown is open, FREEZE the panel's floating state as it was
+     at open time: a floating panel must not retract when the dropdown's
+     search input steals focus, and a resting panel must not pop out from
+     a mouse click. (Keyboard opens always start floated — input focused.) */
   const floating = active || focused;
+  const selectorWasOpenRef = useRef(false);
+  const holdFloatRef = useRef(false);
+  useEffect(() => {
+    const isOpen = openSelector != null;
+    if (isOpen && !selectorWasOpenRef.current) {
+      holdFloatRef.current = floating;
+    }
+    if (!isOpen) holdFloatRef.current = false;
+    selectorWasOpenRef.current = isOpen;
+    onSelectorOpenChange(isOpen && holdFloatRef.current);
+  }, [openSelector, floating, onSelectorOpenChange]);
+
+  /* keep index valid when controls disappear (e.g. queued turns all undone) */
+  useEffect(() => {
+    if (kbIndex >= kbControls.length) {
+      setKbIndex(kbControls.length ? kbControls.length - 1 : -1);
+    }
+    if (kbQueueOpen && !kbControls.includes("queue")) setKbQueueOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kbControls.length]);
+
+  const exitKeyboard = useCallback(() => {
+    setKbIndex(-1);
+    setKbQueueOpen(false);
+  }, []);
+
+  const kbActivate = (id) => {
+    kbReturnIndexRef.current = kbStateRef.current.kbIndex;
+    if (id === "model") {
+      kbOpenedSelectorRef.current = "model";
+      handleModelSelectorOpenChange(true);
+    } else if (id === "tools") {
+      kbOpenedSelectorRef.current = "tools";
+      handleToolsOpenChange(true);
+    } else if (id === "workspace") {
+      kbOpenedSelectorRef.current = "workspace";
+      handleWorkspaceOpenChange(true);
+    } else if (id === "attach") {
+      exitKeyboard();
+      if (attachmentsEnabled && onAttachFile) onAttachFile();
+    } else if (id === "screenshot") {
+      exitKeyboard();
+      if (attachmentsEnabled && onAttachScreenshot) onAttachScreenshot();
+    } else if (id === "link") {
+      exitKeyboard();
+      if (onAttachLink) onAttachLink();
+    } else if (id === "queue") {
+      setKbQueueOpen(true);
+    }
+  };
+  const kbActivateRef = useRef(kbActivate);
+  kbActivateRef.current = kbActivate;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      /* returns true when keyboard mode engaged (controls exist) */
+      enterKeyboard: () => {
+        const { kbControls: controls } = kbStateRef.current;
+        if (!controls.length) return false;
+        setKbIndex(0);
+        return true;
+      },
+      exitKeyboard,
+      /* returns "handled" (host must preventDefault) or "pass" (key falls
+         through to the input; keyboard mode already exited) */
+      handleKeyboardKey: (key) => {
+        const {
+          kbIndex: idx,
+          kbQueueOpen: queueOpen,
+          kbControls: controls,
+        } = kbStateRef.current;
+        if (idx < 0) return "pass";
+        if (queueOpen) {
+          if (key === "Escape") {
+            setKbQueueOpen(false);
+            return "handled";
+          }
+          if (
+            ["ArrowUp", "ArrowDown", "Enter", "Delete", "Backspace"].includes(
+              key,
+            )
+          ) {
+            /* the queue panel's own document listener performs the action */
+            return "handled";
+          }
+          if (key === "ArrowLeft" || key === "ArrowRight") return "handled";
+          exitKeyboard();
+          return "pass";
+        }
+        if (key === "ArrowLeft" || key === "ArrowRight") {
+          const delta = key === "ArrowRight" ? 1 : -1;
+          setKbIndex(
+            (prev) => (prev + delta + controls.length) % controls.length,
+          );
+          return "handled";
+        }
+        if (key === "Enter" || key === " " || key === "ArrowUp") {
+          kbActivateRef.current(controls[idx]);
+          return "handled";
+        }
+        if (key === "Escape" || key === "ArrowDown") {
+          exitKeyboard();
+          return "handled";
+        }
+        exitKeyboard();
+        return "pass";
+      },
+    }),
+    [exitKeyboard],
+  );
+
+  const kbActiveId = kbIndex >= 0 ? kbControls[kbIndex] : null;
+  /* keyboard focus reads as the control's HOVER state: a Button-style
+     scale-in glow behind the control (wrapper must be position:relative) */
+  const kbGlow = (id) => (
+    <ScaleHighlight
+      visible={kbActiveId === id}
+      color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+      borderRadius={999}
+    />
+  );
+
   let panelBg = "transparent";
-  if (floating) panelBg = focusBg || "rgba(255,255,255,0.95)";
+  if (floating)
+    panelBg = isDark ? "rgba(28,28,28,0.85)" : "rgba(252,252,252,0.9)";
 
   const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
 
@@ -244,6 +423,18 @@ const AttachPanel = ({
     borderRadius: floating ? 999 : 16,
     outline: "none",
     padding: "0 10px",
+  };
+
+  /* icon-only buttons: every box is exactly PILL_HEIGHT square so the row's
+     inner ring is a uniform 4px — hover circles (r16) + 4px inset = 20, the
+     row's rendered corner radius (22 clamped at 40px height). Concentric. */
+  const iconBtnStyle = {
+    color,
+    fontSize: 14,
+    iconSize: 16,
+    iconOnlyPaddingVertical: (PILL_HEIGHT - 16) / 2,
+    iconOnlyPaddingHorizontal: (PILL_HEIGHT - 16) / 2,
+    borderRadius: floating ? 999 : 16,
   };
 
   /* badge overlay for icon buttons */
@@ -274,15 +465,21 @@ const AttachPanel = ({
     ) : null;
 
   /* stop-propagation wrapper for selects */
-  const selectWrap = (children) => (
+  const selectWrap = (children, glowId) => (
     <div
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => {
         if (!isTextEntryTarget(e.target)) e.preventDefault();
         e.stopPropagation();
       }}
-      style={{ display: "flex", alignItems: "center" }}
+      style={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        borderRadius: 999,
+      }}
     >
+      {glowId ? kbGlow(glowId) : null}
       {children}
     </div>
   );
@@ -313,9 +510,15 @@ const AttachPanel = ({
           display: "flex",
           alignItems: "center",
           gap: 6,
-          padding: "4px 4px 4px 6px",
+          padding: 4,
           borderRadius: 22,
           backgroundColor: panelBg,
+          ...(floating
+            ? {
+                backdropFilter: "blur(20px) saturate(130%)",
+                WebkitBackdropFilter: "blur(20px) saturate(130%)",
+              }
+            : {}),
           boxShadow: floating ? focusShadow : "none",
           transition: "background-color 0.22s ease, box-shadow 0.22s ease",
         }}
@@ -329,10 +532,10 @@ const AttachPanel = ({
               options={modelSelectOptions}
               value={modelSelectValue}
               set_value={handleSelectValueChange}
-              placeholder="Select model..."
+              placeholder={t("chat.attach.select_model")}
               filterable={true}
               filter_mode="panel"
-              search_placeholder="Search models..."
+              search_placeholder={t("model_providers.search_models")}
               disabled={modelSelectDisabled}
               show_trigger_icon={true}
               on_group_toggle={onGroupToggle}
@@ -340,12 +543,11 @@ const AttachPanel = ({
               on_open_change={handleModelSelectorOpenChange}
               dropdown_position="top"
               style={{ ...pillStyle, maxWidth: 180 }}
-              dropdown_style={{
-                maxWidth: 260,
-                minWidth: 180,
-                maxHeight: 240,
-              }}
+              variant="palette"
+              palette_chip="model"
+              palette_rail
             />,
+            "model",
           )}
 
         {onAttachFile && (
@@ -354,20 +556,22 @@ const AttachPanel = ({
             <div
               title={
                 attachmentsEnabled
-                  ? "Attach image or PDF"
+                  ? t("chat.attach.attach_file")
                   : attachmentsDisabledReason ||
-                    "Current model does not support file inputs"
+                    t("chat.attach.attach_file_unsupported")
               }
+              style={{
+                position: "relative",
+                display: "flex",
+                borderRadius: 999,
+              }}
             >
+              {kbGlow("attach")}
               <Button
                 prefix_icon="attachment"
                 onClick={onAttachFile}
                 disabled={!attachmentsEnabled}
-                style={{
-                  color,
-                  fontSize: 14,
-                  borderRadius: floating ? 22 : 16,
-                }}
+                style={iconBtnStyle}
               />
             </div>
 
@@ -376,68 +580,78 @@ const AttachPanel = ({
               <div
                 title={
                   attachmentsEnabled
-                    ? "Take a screenshot"
+                    ? t("chat.attach.screenshot")
                     : attachmentsDisabledReason ||
-                      "Current model does not support image inputs"
+                      t("chat.attach.screenshot_unsupported")
                 }
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  borderRadius: 999,
+                }}
               >
+                {kbGlow("screenshot")}
                 <Button
                   prefix_icon="screenshot"
                   onClick={onAttachScreenshot}
                   disabled={!attachmentsEnabled}
-                  style={{
-                    color,
-                    fontSize: 14,
-                    borderRadius: floating ? 22 : 16,
-                  }}
+                  style={iconBtnStyle}
                 />
               </div>
             )}
 
             {/* ── Tools selector (icon button + badge trigger) ── */}
             {showToolSelector && !hasActiveAgentRecipe ? (
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+                {kbGlow("tools")}
                 <Select
                   multi
                   options={toolkitOptions}
-                  value={selectedToolkits}
-                  set_value={onToolkitsChange || (() => {})}
+                  value={localToolkits}
+                  set_value={handleToolkitsValueChange}
                   filterable={true}
                   filter_mode="panel"
-                  search_placeholder="Search toolkits..."
+                  search_placeholder={t("toolkit.search_placeholder")}
                   open={openSelector === "tools"}
                   on_open_change={handleToolsOpenChange}
                   dropdown_position="top"
-                  dropdown_style={{
-                    maxWidth: 300,
-                    minWidth: 220,
-                    maxHeight: 280,
-                  }}
-                  dropdown_footer={
-                    selectedToolkits.length > 0 ? (
-                      <ClearAllFooter
-                        onClear={() => (onToolkitsChange || (() => {}))([])}
+                  variant="palette"
+                  palette_chip={
+                    localToolkits.length > 0
+                      ? `${t("chat.attach.tools")} ×${localToolkits.length}`
+                      : t("chat.attach.tools")
+                  }
+                  palette_actions={
+                    localToolkits.length > 0 ? (
+                      <HeaderAction
+                        onAct={() => handleToolkitsValueChange([])}
                         isDark={isDark}
                         theme={theme}
-                      />
+                      >
+                        {t("chat.attach.clear")}
+                      </HeaderAction>
                     ) : null
                   }
+                  dropdown_style={{ maxHeight: 280 }}
                   custom_trigger={
                     <div style={{ position: "relative" }}>
                       <Button
                         prefix_icon="tool"
-                        title="Select toolkits"
+                        title={t("chat.attach.select_toolkits")}
                         style={{
+                          ...iconBtnStyle,
                           color:
-                            selectedToolkits.length > 0
+                            localToolkits.length > 0
                               ? highlight
                               : color,
-                          fontSize: 14,
                           iconSize: TOOL_SELECTOR_TRIGGER_ICON_SIZE,
-                          borderRadius: floating ? 22 : 16,
+                          iconOnlyPaddingVertical:
+                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
+                          iconOnlyPaddingHorizontal:
+                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
                         }}
                       />
-                      <Badge count={selectedToolkits.length} />
+                      <Badge count={localToolkits.length} />
                     </div>
                   }
                 />
@@ -446,52 +660,64 @@ const AttachPanel = ({
 
             {/* ── Workspace selector (icon button + badge trigger) ── */}
             {showWorkspaceSelector ? (
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+                {kbGlow("workspace")}
                 <Select
                   multi
                   options={workspaceOptions}
-                  value={selectedWorkspaceIds}
-                  set_value={onWorkspaceIdsChange || (() => {})}
+                  value={localWorkspaceIds}
+                  set_value={handleWorkspaceIdsValueChange}
                   filterable={true}
                   filter_mode="panel"
-                  search_placeholder="Search workspaces..."
+                  search_placeholder={t("chat.attach.search_workspaces")}
                   open={openSelector === "workspace"}
-                  on_open_change={(next) =>
-                    setOpenSelector(next ? "workspace" : null)
-                  }
+                  on_open_change={handleWorkspaceOpenChange}
                   dropdown_position="top"
-                  dropdown_style={{
-                    maxWidth: 300,
-                    minWidth: 220,
-                    maxHeight: 260,
-                  }}
-                  dropdown_footer={
-                    <WorkspaceFooter
-                      hasSelection={selectedWorkspaceIds.length > 0}
-                      onClear={() => (onWorkspaceIdsChange || (() => {}))([])}
-                      onAdd={() => {
-                        setOpenSelector(null);
-                        setWorkspaceModalOpen(true);
-                      }}
-                      isDark={isDark}
-                      theme={theme}
-                    />
+                  variant="palette"
+                  palette_chip={
+                    localWorkspaceIds.length > 0
+                      ? `${t("chat.attach.workspace")} ×${localWorkspaceIds.length}`
+                      : t("chat.attach.workspace")
                   }
+                  palette_actions={
+                    <>
+                      <HeaderAction
+                        accent
+                        onAct={() => {
+                          setOpenSelector(null);
+                          setWorkspaceModalOpen(true);
+                        }}
+                        isDark={isDark}
+                        theme={theme}
+                      >
+                        {t("chat.attach.add")}
+                      </HeaderAction>
+                      {localWorkspaceIds.length > 0 ? (
+                        <HeaderAction
+                          onAct={() => handleWorkspaceIdsValueChange([])}
+                          isDark={isDark}
+                          theme={theme}
+                        >
+                          {t("chat.attach.clear")}
+                        </HeaderAction>
+                      ) : null}
+                    </>
+                  }
+                  dropdown_style={{ maxHeight: 260 }}
                   custom_trigger={
                     <div style={{ position: "relative" }}>
                       <Button
                         prefix_icon="folder_2"
-                        title="Select workspaces"
+                        title={t("chat.attach.select_workspaces")}
                         style={{
+                          ...iconBtnStyle,
                           color:
-                            selectedWorkspaceIds.length > 0
+                            localWorkspaceIds.length > 0
                               ? highlight
                               : color,
-                          fontSize: 14,
-                          borderRadius: floating ? 22 : 16,
                         }}
                       />
-                      <Badge count={selectedWorkspaceIds.length} />
+                      <Badge count={localWorkspaceIds.length} />
                     </div>
                   }
                 />
@@ -502,12 +728,29 @@ const AttachPanel = ({
         )}
 
         {onAttachLink && (
-          <Button
-            prefix_icon="link"
-            onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
-          />
+          <span
+            style={{ position: "relative", display: "flex", borderRadius: 999 }}
+          >
+            {kbGlow("link")}
+            <Button
+              prefix_icon="link"
+              onClick={onAttachLink}
+              style={iconBtnStyle}
+            />
+          </span>
         )}
+
+        {/* ── Queue segment — the queued turns' one and only home ── */}
+        {queueItems.length > 0 ? (
+          <QueueAttachSection
+            items={queueItems}
+            onUndo={onQueueUndo}
+            isDark={isDark}
+            forceOpen={kbQueueOpen}
+            onForceOpenChange={setKbQueueOpen}
+            highlightRing={kbActiveId === "queue"}
+          />
+        ) : null}
       </div>
 
       <WorkspaceModal
@@ -516,6 +759,8 @@ const AttachPanel = ({
       />
     </div>
   );
-};
+});
+
+AttachPanel.displayName = "AttachPanel";
 
 export default AttachPanel;

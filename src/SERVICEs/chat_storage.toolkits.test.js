@@ -46,31 +46,29 @@ describe("chat_storage selected toolkits persistence", () => {
     ]);
   });
 
-  test("sanitizeSelectedToolkits migrates legacy toolkit ids to current class ids", () => {
+  test("sanitizeSelectedToolkits migrates legacy builtin toolkit ids to core", () => {
     expect(
       sanitizeSelectedToolkits([
         "access_workspace_toolkit",
         "run_terminal_toolkit",
         "interaction_toolkit",
+        "web_toolkit",
+        "external_api",
         "workspace_toolkit",
         "CodeToolkit",
         "code",
         "ask-user-toolkit",
       ]),
-    ).toEqual([
-      "workspace_toolkit",
-      "terminal_toolkit",
-      "core",
-    ]);
+    ).toEqual(["core"]);
   });
 
-  test("sanitizeSelectedToolkits normalizes workspace ids to the real workspace toolkit", () => {
+  test("sanitizeSelectedToolkits normalizes workspace ids to core", () => {
     expect(
       sanitizeSelectedToolkits([
         "workspace",
         "workspace_toolkit",
       ]),
-    ).toEqual(["workspace_toolkit"]);
+    ).toEqual(["core"]);
   });
 
   test("sanitizeSelectedToolkits drops removed MCP toolkit ids", () => {
@@ -80,7 +78,7 @@ describe("chat_storage selected toolkits persistence", () => {
         "mcp",
         "MCPToolkit",
       ]),
-    ).toEqual(["workspace_toolkit"]);
+    ).toEqual(["core"]);
   });
 
   test("persists selected toolkits per chat", () => {

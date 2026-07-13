@@ -194,7 +194,12 @@
     "path_placeholder": "/caminho/para/workspace",
     "add_workspace": "+ Adicionar workspace",
     "workspace_select_desc": "Workspaces nomeados podem ser selecionados por chat na barra de ferramentas de entrada.",
-    "applied_desc": "Aplicado a cada solicitação Unchain quando o toolkit de workspace está ativado."
+    "applied_desc": "Aplicado a cada solicitação Unchain quando o toolkit de workspace está ativado.",
+    "esc_to_cancel": "esc para cancelar",
+    "delete_confirm_inline": "Excluir “{name}”?",
+    "delete_confirm_note": "a pasta no disco não é alterada",
+    "clear_confirm_inline": "Limpar o workspace padrão?",
+    "clear_confirm_note": "novos chats não terão mais uma raiz de arquivos padrão"
   },
   "dev": {
     "chrome_terminal": "Terminal do Chrome",
@@ -237,10 +242,31 @@
     "loading": "Carregando...",
     "error": "Erro",
     "select": "Selecionar...",
-    "search": "Buscar..."
+    "search": "Buscar...",
+    "no_results": "Nenhum resultado"
   },
   "chat": {
-    "placeholder": "Mensagem para PuPu..."
+    "placeholder": "Mensagem para PuPu...",
+    "minimap": {
+      "top": "Início",
+      "prev": "Ant.",
+      "next": "Próx.",
+      "end": "Fim"
+    },
+    "attach": {
+      "select_model": "Selecionar modelo...",
+      "tools": "ferramentas",
+      "workspace": "espaço",
+      "clear": "LIMPAR",
+      "add": "+ ADICIONAR",
+      "search_workspaces": "Buscar espaços...",
+      "attach_file": "Anexar imagem ou PDF",
+      "attach_file_unsupported": "O modelo atual não suporta arquivos",
+      "screenshot": "Fazer uma captura de tela",
+      "screenshot_unsupported": "O modelo atual não suporta imagens",
+      "select_toolkits": "Selecionar ferramentas",
+      "select_workspaces": "Selecionar espaços"
+    }
   },
   "toolkit": {
     "toolkits": "Toolkits",
@@ -279,5 +305,10 @@
     "delete_label": "Excluir toolkit",
     "delete_desc": "Remova este toolkit da sua instalação",
     "delete_desc_builtin": "Os toolkits integrados não podem ser removidos"
+  },
+  "commands": {
+    "btw": "Responde agora, sem interromper a tarefa",
+    "fyi": "Adiciona informações à tarefa atual",
+    "queue": "Entra na fila, executa após este turno"
   }
 }

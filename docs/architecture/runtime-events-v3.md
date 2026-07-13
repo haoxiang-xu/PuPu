@@ -2,19 +2,30 @@
 
 > Frontend state layer for typed runtime events and the existing TraceChain UI.
 
+> **Historical / fallback path.** V4 is now the default runtime-event stream
+> protocol. The renderer selects the stream path by priority **V4 > V3 > V2**:
+> it uses V4 when the bridge exposes `startStreamV4`, falls back to V3, and
+> finally to V2. This document describes the V3 layer, which remains in place as
+> an intermediate fallback. For the current default, see
+> [runtime-events-v4.md](./runtime-events-v4.md).
+
 ---
 
 ## Status
 
-Runtime Events V3 is the default frontend stream path when the Electron bridge
-exposes `startStreamV3`.
+Runtime Events V3 is a historical/fallback frontend stream path. It is selected
+only when the Electron bridge does not expose the V4 stream entrypoint
+(`startStreamV4`) but does expose the V3 entrypoint. The current default is V4
+(see [runtime-events-v4.md](./runtime-events-v4.md)); the selection priority is
+**V4 > V3 > V2**.
 
 V3 does **not** replace the TraceChain visual component. It replaces the
 page-local frame adapter with a service-layer event store, reducer, and adapter
 that can be reused by future permission, sandbox, channel, team, and plan
 features.
 
-V2 remains available as the fallback path when the bridge does not expose V3.
+V2 remains available as the final fallback path when the bridge exposes neither
+V4 nor V3.
 
 ---
 
@@ -139,9 +150,11 @@ synthetic selected/confirmed frame is written back to that same subagent branch.
 
 ## Stream Selection
 
-Runtime Events V3 is enabled by default in the renderer. `use_chat_stream.js`
-uses V3 when the Electron bridge exposes `startStreamV3`; if that bridge method
-is unavailable, it falls back to V2.
+The renderer selects the runtime-event stream path by priority **V4 > V3 > V2**.
+`use_chat_stream.js` uses V4 when the Electron bridge exposes `startStreamV4`
+(the current default — see [runtime-events-v4.md](./runtime-events-v4.md)); if
+V4 is unavailable it falls back to V3, and if neither V4 nor V3 is available it
+falls back to V2.
 
 The retired settings and localStorage gates are ignored.
 

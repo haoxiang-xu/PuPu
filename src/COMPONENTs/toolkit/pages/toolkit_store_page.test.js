@@ -1,5 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import ToolkitStorePage from "./toolkit_store_page";
+import {
+  setMcpStoreEntriesCache,
+  clearMcpStoreEntriesCache,
+} from "../../../SERVICEs/mcp_toolkit_store";
 
 jest.mock("../../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
   __esModule: true,
@@ -21,6 +25,47 @@ jest.mock("../components/toolkit_icon", () => ({
 }));
 
 describe("ToolkitStorePage", () => {
+  afterEach(() => {
+    clearMcpStoreEntriesCache();
+  });
+
+  test("forwards onOAuthConnect so the Connect button fires for oauth entries", () => {
+    // installState resolves to "oauth": auth.oauth present + secrets empty
+    // (setupKindForEntry → "oauth" → entryInstallState → "oauth").
+    const oauthEntry = {
+      id: "dev.figma-remote",
+      toolkitId: "mcp.figma",
+      toolkitName: "Figma",
+      toolkitDescription: "Figma MCP",
+      source: "mcp",
+      installable: false,
+      status: "available",
+      auth: { oauth: { provider: "figma" } },
+      secrets: [],
+      tools: [],
+      mcp: { transport: "http", url: "https://example.com" },
+    };
+    // Render exactly [oauthEntry] by seeding the store-entries cache.
+    setMcpStoreEntriesCache({ entries: [oauthEntry] });
+
+    const onOAuthConnect = jest.fn();
+    render(
+      <ToolkitStorePage
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={jest.fn()}
+        onOAuthConnect={onOAuthConnect}
+        installingIds={new Set()}
+        installError={null}
+      />,
+    );
+
+    // Harness mock: t(key) => key, so the label renders as the raw key.
+    fireEvent.click(screen.getByText("toolkit.store_connect"));
+    expect(onOAuthConnect).toHaveBeenCalledTimes(1);
+    expect(onOAuthConnect.mock.calls[0][0].id).toBe("dev.figma-remote");
+  });
+
   test("renders curated MCP entries without custom MCP CTA", () => {
     render(<ToolkitStorePage isDark={false} onEntryClick={() => {}} />);
 

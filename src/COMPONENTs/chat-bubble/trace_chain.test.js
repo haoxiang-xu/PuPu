@@ -18,6 +18,7 @@ const renderTraceChain = ({
   notifyStreamingContentCommitted = jest.fn(),
   onToolConfirmationDecision = null,
   toolConfirmationUiStateById = {},
+  onClarifyResolve = undefined,
   subagentFrames = undefined,
   subagentMetaByRunId = undefined,
 }) =>
@@ -42,6 +43,7 @@ const renderTraceChain = ({
           streamingContent={streamingContent}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
+          onClarifyResolve={onClarifyResolve}
           subagentFrames={subagentFrames}
           subagentMetaByRunId={subagentMetaByRunId}
         />
@@ -133,26 +135,29 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.queryByText("single final content")).not.toBeInTheDocument();
   });
 
-  test("does not show draft when no tool_call exists", () => {
+  test("routes draft to timeline and terminal to bubble by finality, with no tool_call", () => {
+    // #155-B: ownership is gated by finality, not by tool presence. A no-tool turn
+    // with an explicit draft + terminal must render the draft in the timeline and
+    // the terminal as the bubble body (never both), so the answer is not duplicated.
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
         type: "final_message",
-        payload: { content: "candidate draft" },
+        payload: { content: "candidate draft", finality: "draft" },
       }),
       frame({
         seq: 3,
         type: "final_message",
-        payload: { content: "final answer" },
+        payload: { content: "final answer", finality: "terminal" },
       }),
       frame({ seq: 4, type: "done", payload: {} }),
     ];
 
     renderTraceChain({ frames, status: "done" });
 
-    expect(screen.queryByText("Assistant Draft")).not.toBeInTheDocument();
-    expect(screen.queryByText("candidate draft")).not.toBeInTheDocument();
+    expect(screen.getByText("candidate draft")).toBeInTheDocument();
+    expect(screen.queryByText("final answer")).not.toBeInTheDocument();
   });
 
   test("keeps existing reasoning/tool/error items while inserting draft in sequence", () => {
@@ -230,30 +235,37 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
   });
 
-  test("renders leading whitespace streaming content as plain text", () => {
+  test("renders the live tail through markdown and keeps the content visible", () => {
+    // New contract: the in-progress tail renders through the same Markdown
+    // component as the stable blocks (no plain-text swap on promotion).
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "    const x = 1;\n",
     });
 
-    expect(container.querySelector("code.hljs")).not.toBeInTheDocument();
     expect(
       container.querySelector("[data-streaming-plain-text]"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
+    expect(container.querySelector("[data-markdown-id]")).toBeInTheDocument();
     expect(container).toHaveTextContent("const x = 1;");
   });
 
-  test("uses the same text metrics as the final assistant response while streaming", () => {
+  test("carries the same text metrics as the final assistant response while streaming", () => {
+    // Metrics parity now lives on the streaming markdown root, which passes the
+    // same markdownStyle (fontSize/lineHeight) into every stable + live block.
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "Paragraph one.\n\nParagraph two.",
     });
 
-    const streamingText = container.querySelector("[data-streaming-plain-text]");
-    expect(streamingText).toBeInTheDocument();
-    expect(streamingText).toHaveStyle({ fontSize: "14px", lineHeight: "1.6" });
+    const streamingRoot = container.querySelector(
+      "[data-streaming-markdown-root]",
+    );
+    expect(streamingRoot).toBeInTheDocument();
+    expect(streamingRoot).toHaveStyle({ fontSize: "14px", lineHeight: "1.6" });
+    expect(container).toHaveTextContent("Paragraph two.");
   });
 
   test("reads active streaming response text from the external store", () => {
@@ -383,7 +395,11 @@ describe("TraceChain final_message draft timeline", () => {
     const markdownRoot = container.querySelector("[data-markdown-id]");
     expect(markdownRoot).toBeInTheDocument();
 
-    const styleTag = markdownRoot.querySelector("style");
+    // markdown 的 <style> 现在是全局共享注册表(document.head),按 sid 定位。
+    const sid = markdownRoot.getAttribute("data-markdown-sid");
+    const styleTag = document.head.querySelector(
+      `style[data-markdown-shared="${sid}"]`,
+    );
     expect(styleTag?.textContent).toContain("margin-top: 6px;");
     expect(styleTag?.textContent).toContain("padding-left: 18px;");
     expect(styleTag?.textContent).toContain("margin: 0;");
@@ -1353,5 +1369,329 @@ describe("TraceChain final_message draft timeline", () => {
     expect(
       screen.getByText("This should stay on the main output path."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("TraceChain interject frames", () => {
+  test("renders fyi_injected user messages and skips system back-notes", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "fyi_injected",
+        payload: {
+          count: 2,
+          messages: [
+            { message_id: "m1", origin: "user", text: "also check the logs" },
+            { message_id: "m2", origin: "system", text: "btw back-note" },
+          ],
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("User note added")).toBeInTheDocument();
+    expect(screen.getByText("also check the logs")).toBeInTheDocument();
+    expect(screen.queryByText("btw back-note")).not.toBeInTheDocument();
+  });
+
+  test("does not render a fyi_injected item when every message is a system back-note", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "fyi_injected",
+        payload: {
+          count: 1,
+          messages: [
+            { message_id: "m1", origin: "system", text: "btw back-note only" },
+          ],
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.queryByText("User note added")).not.toBeInTheDocument();
+  });
+
+  test("renders side_answer with collapsible question/answer body", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "side_answer",
+        payload: {
+          question: "what timezone is the server in",
+          answer: "UTC",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Side answer")).toBeInTheDocument();
+    // details start collapsed — the "detail" toggle is present (distinct
+    // from tool rows, which use "details"/KVPanel the same way).
+    expect(screen.getByRole("button", { name: "detail" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /detail/i }));
+
+    expect(screen.getByRole("button", { name: "hide" })).toBeInTheDocument();
+    expect(screen.getByText("what timezone is the server in")).toBeInTheDocument();
+    expect(screen.getByText("UTC")).toBeInTheDocument();
+  });
+
+  test("renders a pending clarify_request via the ask_user_question visual and resolves it", () => {
+    const onClarifyResolve = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "queue" },
+            { label: "只是问一嘴", value: "btw" },
+          ],
+          status: "pending",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "streaming", onClarifyResolve });
+
+    expect(screen.getByText("顺手研究一下这个吗？")).toBeInTheDocument();
+    expect(screen.getByText("加进当前任务")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("做完再研究"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onClarifyResolve).toHaveBeenCalledWith("queue");
+  });
+
+  test("shows a resolved clarify_request without submit controls", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "queue" },
+          ],
+          status: "resolved",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+  });
+
+  // the selected option row gets a non-transparent background (and its Radio
+  // is filled) — resolve the row div carrying the onClick from the label span
+  const clarifyOptionRow = (label) =>
+    screen.getByText(label).parentElement.parentElement;
+
+  test("defaults a resolved_default clarify_request to the queue option", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "queue" },
+          ],
+          status: "resolved_default",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+    expect(clarifyOptionRow("做完再研究").style.background).not.toBe(
+      "transparent",
+    );
+    expect(clarifyOptionRow("加进当前任务").style.background).toBe(
+      "transparent",
+    );
+  });
+
+  test("resolved_default still selects a legacy persisted 'steer' option (read alias for pre-rename frames)", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "steer" },
+          ],
+          status: "resolved_default",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(clarifyOptionRow("做完再研究").style.background).not.toBe(
+      "transparent",
+    );
+  });
+
+  describe("collapsed-subtree unmount (issue #168)", () => {
+    test("unmounts the collapsed timeline subtree once the trace is settled", () => {
+      jest.useFakeTimers();
+      try {
+        renderTraceChain({
+          status: "done",
+          frames: [
+            frame({
+              seq: 1,
+              type: "tool_call",
+              payload: { call_id: "c1", tool_name: "read_file", arguments: {} },
+            }),
+            frame({
+              seq: 2,
+              type: "tool_result",
+              payload: { call_id: "c1", status: "completed" },
+            }),
+          ],
+        });
+
+        // expanded by default → the tool row is mounted
+        expect(screen.getByText("read_file")).toBeInTheDocument();
+
+        // collapse via the summary header
+        act(() => {
+          fireEvent.click(screen.getByText(/Used 1 step/));
+        });
+        // run the collapse animation + the 280ms unmount timer
+        act(() => {
+          jest.advanceTimersByTime(400);
+        });
+
+        expect(screen.queryByText("read_file")).not.toBeInTheDocument();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test("keeps the collapsed timeline mounted while streaming so pending controls stay actionable", () => {
+      jest.useFakeTimers();
+      try {
+        renderTraceChain({
+          status: "streaming",
+          frames: [
+            frame({
+              seq: 1,
+              type: "tool_call",
+              payload: { call_id: "c1", tool_name: "read_file", arguments: {} },
+            }),
+          ],
+        });
+
+        expect(screen.getByText("read_file")).toBeInTheDocument();
+
+        // the first "Thinking…" is the collapse header (rendered above the body)
+        act(() => {
+          fireEvent.click(screen.getAllByText(/Thinking/)[0]);
+        });
+        act(() => {
+          jest.advanceTimersByTime(400);
+        });
+
+        // streaming trace must NOT unmount — a pending confirmation lives here
+        expect(screen.getByText("read_file")).toBeInTheDocument();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe("observation truncation summary (issue #168)", () => {
+    test("renders a coalesced-lines note after the head observations of a truncated call", () => {
+      renderTraceChain({
+        status: "done",
+        frames: [
+          frame({
+            seq: 1,
+            type: "tool_call",
+            payload: { call_id: "c1", tool_name: "bash", arguments: {} },
+          }),
+          frame({
+            seq: 2,
+            type: "observation",
+            payload: { call_id: "c1", text: "line a" },
+          }),
+          frame({
+            seq: 3,
+            type: "observation",
+            payload: { call_id: "c1", text: "line b" },
+          }),
+          frame({
+            seq: 4,
+            type: "tool_result",
+            payload: {
+              call_id: "c1",
+              status: "completed",
+              observation_total: 200,
+              observation_shown: 50,
+              observation_omitted: 140,
+              observation_tail: ["tail-first", "tail-last"],
+            },
+          }),
+        ],
+      });
+
+      expect(
+        screen.getByText("+140 more output lines coalesced"),
+      ).toBeInTheDocument();
+    });
+
+    test("shows no coalesced note for a tool call that was not truncated", () => {
+      renderTraceChain({
+        status: "done",
+        frames: [
+          frame({
+            seq: 1,
+            type: "tool_call",
+            payload: { call_id: "c2", tool_name: "bash", arguments: {} },
+          }),
+          frame({
+            seq: 2,
+            type: "observation",
+            payload: { call_id: "c2", text: "only line" },
+          }),
+          frame({
+            seq: 3,
+            type: "tool_result",
+            payload: { call_id: "c2", status: "completed" },
+          }),
+        ],
+      });
+
+      expect(screen.queryByText(/coalesced/)).not.toBeInTheDocument();
+    });
   });
 });

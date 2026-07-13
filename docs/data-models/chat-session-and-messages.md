@@ -85,11 +85,15 @@ Multiple aliases map to canonical `toolkitId` values:
 
 | Alias | Canonical |
 |-------|----------|
-| `workspace`, `workspace_toolkit`, `WorkspaceToolkit` | `workspace_toolkit` |
-| `terminal`, `terminal_toolkit`, `TerminalToolkit` | `terminal_toolkit` |
+| `workspace`, `workspace_toolkit`, `access_workspace_toolkit`, `WorkspaceToolkit` | `core` |
+| `terminal`, `terminal_toolkit`, `run_terminal_toolkit`, `TerminalToolkit` | `core` |
 | `code`, `code_toolkit`, `CodeToolkit` | `core` |
 | `ask_user`, `ask_user_toolkit`, `ask-user-toolkit`, `AskUserToolkit` | `core` |
-| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api` |
+| `interaction`, `interaction_toolkit`, `InteractionToolkit` | `core` |
+| `web`, `web_toolkit`, `WebToolkit` | `core` |
+| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `core` |
+| `git`, `git_toolkit`, `GitToolkit` | `core` |
+| `plan`, `plan_toolkit`, `PlanToolkit` | `plan` |
 
 Removed IDs (silently stripped): `mcp`, `mcptoolkit`.
 

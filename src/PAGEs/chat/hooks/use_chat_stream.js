@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import { toast } from "../../../SERVICEs/toast";
+import { extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
 import { createLogger } from "../../../SERVICEs/console_logger";
@@ -9,15 +11,15 @@ import {
   settleStreamingAssistantMessages,
 } from "../utils/chat_turn_utils";
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
+import { FINALITY } from "../utils/message_finality";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
-import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tree";
+import {
+  createIncrementalActivityTreeProjector,
+  reduceActivityTree,
+} from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
-import { isRuntimeEventStreamV3Enabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
-import { createRuntimeEventStoreV4 } from "../../../SERVICEs/runtime_events_v4/event_store";
-import { reduceActivityTreeV4 } from "../../../SERVICEs/runtime_events_v4/activity_tree";
-import { adaptActivityTreeToTraceChainV4 } from "../../../SERVICEs/runtime_events_v4/trace_chain_adapter";
-import { isRuntimeEventStreamV4Enabled } from "../../../SERVICEs/runtime_events_v4/runtime_event_stream_gate";
+import { isRuntimeEventStreamEnabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
   clearStreamingMessageText,
@@ -32,6 +34,10 @@ import {
 import { createStreamFlushScheduler } from "./stream_flush_scheduler";
 import { finalizeStreamPersist } from "./finalize_stream_persist";
 import { createRuntimeEventBatcher } from "./runtime_event_batcher";
+import {
+  buildInterjectionRecord,
+  createQueuedTurnBuffer,
+} from "./interject_controller";
 import {
   start as progressStart,
   stop as progressStop,
@@ -237,6 +243,8 @@ export const useChatStream = ({
   const toolConfirmationUiStateByIdRef = useRef({});
   const [pendingContinuationRequest, setPendingContinuationRequest] =
     useState(null);
+  const [interjectStateByChatId, setInterjectStateByChatId] = useState({});
+  const interjectStateByChatIdRef = useRef({});
   const isCharacterChat =
     chatKind === "character" &&
     typeof characterId === "string" &&
@@ -269,6 +277,13 @@ export const useChatStream = ({
   const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
   const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
   const lastTokenRunIdRef = useRef("");
+  // Interject (mid-run "fyi"/"btw"/"queue"/"clarify") bookkeeping — all keyed
+  // by chatId so multiple chats never cross-talk.
+  const activeRunThreadIdByChatIdRef = useRef(new Map()); // chatId -> threadId the active run actually used (character chats use a session_id, not chatId)
+  const queuedTurnsByChatIdRef = useRef(new Map()); // chatId -> createQueuedTurnBuffer() instance for that chat's active run
+  const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
+  const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
+  const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
 
   const buildCharacterRunConfig = useCallback(async () => {
     if (!isCharacterChat) {
@@ -436,6 +451,36 @@ export const useChatStream = ({
     setPendingToolConfirmationRequests(next);
     return next;
   }, []);
+
+  const updateInterjectStateByChatId = useCallback((updater) => {
+    const previous = interjectStateByChatIdRef.current;
+    const next = typeof updater === "function" ? updater(previous) : updater;
+    if (next === previous) {
+      return previous;
+    }
+    interjectStateByChatIdRef.current = next;
+    setInterjectStateByChatId(next);
+    return next;
+  }, []);
+
+  /* Snapshots the current queued-turns buffer + pending-fyi count for
+     targetChatId into React state so the queue pile/UI can render it. Called
+     explicitly (not derived on every render) so a "relayed" status can be
+     shown for one render before the buffer is actually cleared — see the
+     onDone queue relay below. */
+  const syncInterjectStateForChat = useCallback(
+    (targetChatId) => {
+      const queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      const pendingFyiCount =
+        pendingFyiCountByChatIdRef.current.get(targetChatId) || 0;
+      const queueItems = queuedTurns ? queuedTurns.list() : [];
+      updateInterjectStateByChatId((previous) => ({
+        ...previous,
+        [targetChatId]: { pendingFyiCount, queueItems },
+      }));
+    },
+    [updateInterjectStateByChatId],
+  );
 
   const clearConfirmationResolutionTimer = useCallback((confirmationId) => {
     const normalizedId =
@@ -813,6 +858,98 @@ export const useChatStream = ({
       return true;
     },
     [activeChatIdRef, activeStreamsRef, setMessages, storageApi],
+  );
+
+  /* Same commit pattern as appendSyntheticToolConfirmationDecision above:
+     patch the chat's currently-streaming assistant message from outside the
+     runTurnRequest closure (used by the interject dispatch below, which runs
+     from a promise callback, not from inside the active stream's onFrame). */
+  const applyToStreamingAssistantMessage = useCallback(
+    (targetChatId, patch) => {
+      const streamState = activeStreamsRef.current.get(targetChatId);
+      const streamMessages = Array.isArray(streamState?.messages)
+        ? streamState.messages
+        : [];
+      if (streamMessages.length === 0) {
+        return false;
+      }
+
+      let changed = false;
+      const nextStreamMessages = streamMessages.map((message) => {
+        if (message?.role !== "assistant" || message?.status !== "streaming") {
+          return message;
+        }
+        const patched = patch(message);
+        if (!patched || patched === message) {
+          return message;
+        }
+        changed = true;
+        return patched;
+      });
+
+      if (!changed) {
+        return false;
+      }
+
+      activeStreamsRef.current.set(targetChatId, {
+        messages: nextStreamMessages,
+      });
+      if (activeChatIdRef.current === targetChatId) {
+        setMessages(nextStreamMessages);
+      } else {
+        cancelBackgroundPersist(targetChatId);
+        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
+          source: "chat-page",
+        });
+      }
+      return true;
+    },
+    [activeChatIdRef, activeStreamsRef, setMessages, storageApi],
+  );
+
+  const appendLocalTraceFrame = useCallback(
+    (targetChatId, frame) =>
+      applyToStreamingAssistantMessage(targetChatId, (message) => ({
+        ...message,
+        updatedAt: Date.now(),
+        traceFrames: [...(message.traceFrames || []), frame],
+      })),
+    [applyToStreamingAssistantMessage],
+  );
+
+  const appendLocalInterjectionRecord = useCallback(
+    (targetChatId, record) =>
+      applyToStreamingAssistantMessage(targetChatId, (message) => ({
+        ...message,
+        updatedAt: Date.now(),
+        interjections: [...(message.interjections || []), record],
+      })),
+    [applyToStreamingAssistantMessage],
+  );
+
+  const updateLocalClarifyFrame = useCallback(
+    (targetChatId, clarifyId, payloadPatch) =>
+      applyToStreamingAssistantMessage(targetChatId, (message) => {
+        const frames = Array.isArray(message.traceFrames)
+          ? message.traceFrames
+          : [];
+        let found = false;
+        const nextFrames = frames.map((frame) => {
+          if (
+            frame?.type === "clarify_request" &&
+            frame?.payload?.id === clarifyId
+          ) {
+            found = true;
+            return { ...frame, payload: { ...frame.payload, ...payloadPatch } };
+          }
+          return frame;
+        });
+        if (!found) {
+          return message;
+        }
+        return { ...message, updatedAt: Date.now(), traceFrames: nextFrames };
+      }),
+    [applyToStreamingAssistantMessage],
   );
 
   const handleToolConfirmationDecision = useCallback(
@@ -1458,6 +1595,11 @@ export const useChatStream = ({
         }
       }
 
+      // Record the threadId this run actually uses (chatId for normal chats,
+      // the character session_id for character chats) so a mid-run interject
+      // can target the same run instead of guessing.
+      activeRunThreadIdByChatIdRef.current.set(targetChatId, effectiveThreadId);
+
       const memoryEnabled =
         forceHistoryFallback === true
           ? false
@@ -1840,15 +1982,20 @@ export const useChatStream = ({
         const startRuntimeEventStream = ({
           createStore,
           reduceTree,
+          createProjector,
           adaptTree,
           startStream,
           batchRuntimeEvents = false,
           batchFlushMs = 0,
         }) => {
         const runtimeEventStore = createStore();
-        let runtimeEventActivityTree = reduceTree(
-          null,
-          runtimeEventStore.getSnapshot(),
+        const runtimeEventProjector = createProjector?.();
+        const reduceRuntimeEventSnapshot = (snapshot) =>
+          runtimeEventProjector
+            ? runtimeEventProjector.reduce(snapshot)
+            : reduceTree(null, snapshot);
+        let runtimeEventActivityTree = reduceRuntimeEventSnapshot(
+          runtimeEventStore.getReductionSnapshot(),
         );
         const processedRuntimeEventEffectKeys = new Set();
         let runtimeEventStreamFailed = false;
@@ -1883,9 +2030,8 @@ export const useChatStream = ({
           );
         };
         const flushRuntimeEventEffects = () => {
-          runtimeEventActivityTree = reduceTree(
-            runtimeEventActivityTree,
-            runtimeEventStore.getSnapshot(),
+          runtimeEventActivityTree = reduceRuntimeEventSnapshot(
+            runtimeEventStore.getReductionSnapshot(),
           );
           const nextEffects = runtimeEventActivityTree.effects.filter((effect) => {
             const effectKey = runtimeEventEffectKey(effect);
@@ -1909,6 +2055,20 @@ export const useChatStream = ({
           const bucket = isRunSummary
             ? runtimeEventActivityTree?.runArtifactSummary
             : runtimeEventActivityTree?.artifactSummariesByTurnId?.[effect.turnId];
+          if (!bucket && isRunSummary) {
+            const patchTime = Date.now();
+            const nextStreamMessages = streamMessages.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    updatedAt: patchTime,
+                    runArtifactSummary: null,
+                  }
+                : message,
+            );
+            syncStreamMessages(nextStreamMessages);
+            return;
+          }
           if (!bucket || bucket.status !== "completed") return;
           const patchTime = Date.now();
           const nextStreamMessages = streamMessages.map((message) => {
@@ -1971,7 +2131,7 @@ export const useChatStream = ({
         };
 
         const flushRuntimeEventBatch = (events) => {
-          runtimeEventStore.appendMany(events);
+          runtimeEventStore.appendManyForReduction(events);
           const effects = flushRuntimeEventEffects();
           return dispatchRuntimeEventEffects(effects);
         };
@@ -1989,7 +2149,7 @@ export const useChatStream = ({
               runtimeEventBatcher.enqueue(runtimeEvent);
               return;
             }
-            runtimeEventStore.append(runtimeEvent);
+            runtimeEventStore.appendForReduction(runtimeEvent);
             const effects = flushRuntimeEventEffects();
             dispatchRuntimeEventEffects(effects);
           },
@@ -2030,36 +2190,23 @@ export const useChatStream = ({
         return streamHandle;
         };
 
-        const shouldUseRuntimeEventsV4 =
-          isRuntimeEventStreamV4Enabled() &&
+        const shouldUseRuntimeEvents =
+          isRuntimeEventStreamEnabled() &&
           typeof api.unchain.isRuntimeEventStreamV4Available === "function" &&
           api.unchain.isRuntimeEventStreamV4Available();
-        if (shouldUseRuntimeEventsV4) {
+        if (shouldUseRuntimeEvents) {
           return startRuntimeEventStream({
-            createStore: createRuntimeEventStoreV4,
-            reduceTree: reduceActivityTreeV4,
-            adaptTree: adaptActivityTreeToTraceChainV4,
+            createStore: createRuntimeEventStore,
+            reduceTree: reduceActivityTree,
+            createProjector: createIncrementalActivityTreeProjector,
+            adaptTree: adaptActivityTreeToTraceChain,
             startStream: api.unchain.startStreamV4,
             batchRuntimeEvents: true,
             batchFlushMs: RUNTIME_EVENT_BATCH_FLUSH_MS,
           });
         }
 
-        const shouldUseRuntimeEventsV3 =
-          isRuntimeEventStreamV3Enabled() &&
-          typeof api.unchain.isRuntimeEventStreamV3Available === "function" &&
-          api.unchain.isRuntimeEventStreamV3Available();
-        if (!shouldUseRuntimeEventsV3) {
-          return api.unchain.startStreamV2(payload, handlers);
-        }
-
-        return startRuntimeEventStream({
-          createStore: createRuntimeEventStore,
-          reduceTree: reduceActivityTree,
-          adaptTree: adaptActivityTreeToTraceChain,
-          startStream: api.unchain.startStreamV3,
-          batchRuntimeEvents: false,
-        });
+        return api.unchain.startStreamV2(payload, handlers);
       };
 
       let streamHandle = null;
@@ -2079,11 +2226,7 @@ export const useChatStream = ({
             attachments: payloadAttachments,
             options: {
               modelId: effectiveModelId,
-              ...(forceHistoryFallback === true
-                ? { memory_enabled: false }
-                : forceMemoryEnabled === true
-                  ? { memory_enabled: true }
-                  : {}),
+              memory_enabled: memoryEnabled,
               ...(effectiveMemoryNamespace
                 ? { memory_namespace: effectiveMemoryNamespace }
                 : {}),
@@ -2792,10 +2935,24 @@ export const useChatStream = ({
                     });
                   }
 
+                  // #155-A: a real backend final_message is the model's canonical
+                  // answer for this turn — stamp it `terminal` so the bubble reads an
+                  // explicit ownership flag instead of inferring it from the frame list.
+                  // (The renderer takes the latest terminal as the answer; any earlier
+                  //  terminal/draft segments fall to the timeline.)
                   return {
                     ...message,
                     updatedAt: patchTime,
-                    traceFrames: [...(message.traceFrames || []), frame],
+                    traceFrames: [
+                      ...(message.traceFrames || []),
+                      {
+                        ...frame,
+                        payload: {
+                          ...(frame.payload || {}),
+                          finality: FINALITY.TERMINAL,
+                        },
+                      },
+                    ],
                   };
                 });
                 syncStreamMessages(nextStreamMessages);
@@ -2823,6 +2980,10 @@ export const useChatStream = ({
                           currentContentTrimmed,
                     );
 
+                  // #155-A: the pre-tool-call accumulated text is an intermediate
+                  // draft, not the turn's final answer — mark it `draft` so the bubble
+                  // never renders it as the canonical answer (the bug in #155 where a
+                  // no-tool answer showed up as both a tool-call draft and a final).
                   const syntheticFrame = alreadyCaptured
                     ? []
                     : [
@@ -2834,7 +2995,10 @@ export const useChatStream = ({
                           ts: patchTime,
                           type: "final_message",
                           stage: "model",
-                          payload: { content: currentContent },
+                          payload: {
+                            content: currentContent,
+                            finality: FINALITY.DRAFT,
+                          },
                         },
                       ];
 
@@ -2878,6 +3042,47 @@ export const useChatStream = ({
                   updatedAt: patchTime,
                 });
                 syncStreamMessages(nextStreamMessages);
+                return;
+              }
+
+              if (frame.type === "fyi_injected") {
+                const fyiMessages = Array.isArray(frame.payload?.messages)
+                  ? frame.payload.messages
+                  : [];
+                const fyiRecords = fyiMessages
+                  .filter((entry) => entry?.origin === "user")
+                  .map((entry) =>
+                    buildInterjectionRecord({
+                      type: "fyi",
+                      text: typeof entry?.text === "string" ? entry.text : "",
+                      origin: "user",
+                      ts: patchTime,
+                    }),
+                  )
+                  .filter((record) => record.text);
+
+                const nextStreamMessages = streamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+                  return {
+                    ...message,
+                    updatedAt: patchTime,
+                    traceFrames: [...(message.traceFrames || []), frame],
+                    ...(fyiRecords.length > 0
+                      ? {
+                          interjections: [
+                            ...(message.interjections || []),
+                            ...fyiRecords,
+                          ],
+                        }
+                      : {}),
+                  };
+                });
+                syncStreamMessages(nextStreamMessages);
+
+                // The server just injected everything that was pending —
+                // clear the "queued" badge for this chat.
+                pendingFyiCountByChatIdRef.current.delete(targetChatId);
+                syncInterjectStateForChat(targetChatId);
                 return;
               }
 
@@ -2958,7 +3163,7 @@ export const useChatStream = ({
                 targetChatId,
                 streamMessages,
               );
-              const nextStreamMessages = materializedStreamMessages.map((message) => {
+              let nextStreamMessages = materializedStreamMessages.map((message) => {
                 if (message.id !== assistantMessageId) return message;
                 let cleanContent =
                   typeof message.content === "string" ? message.content : "";
@@ -2975,6 +3180,47 @@ export const useChatStream = ({
                   },
                 });
               });
+
+              // Clarify timeout fallback: the run ended before the user picked
+              // a channel — resolve it as a queued turn so the message is
+              // never lost, and mark the frame so the UI stops showing it as
+              // pending.
+              const pendingClarifyOnDone =
+                pendingClarifyByChatIdRef.current.get(targetChatId);
+              if (pendingClarifyOnDone) {
+                pendingClarifyByChatIdRef.current.delete(targetChatId);
+                let queuedTurnsForClarify =
+                  queuedTurnsByChatIdRef.current.get(targetChatId);
+                if (!queuedTurnsForClarify) {
+                  queuedTurnsForClarify = createQueuedTurnBuffer();
+                  queuedTurnsByChatIdRef.current.set(
+                    targetChatId,
+                    queuedTurnsForClarify,
+                  );
+                }
+                queuedTurnsForClarify.push(pendingClarifyOnDone.text);
+                nextStreamMessages = nextStreamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+                  const frames = Array.isArray(message.traceFrames)
+                    ? message.traceFrames
+                    : [];
+                  return {
+                    ...message,
+                    traceFrames: frames.map((frame) =>
+                      frame?.type === "clarify_request" &&
+                      frame?.payload?.id === pendingClarifyOnDone.id
+                        ? {
+                            ...frame,
+                            payload: {
+                              ...frame.payload,
+                              status: "resolved_default",
+                            },
+                          }
+                        : frame,
+                    ),
+                  };
+                });
+              }
               syncStreamMessages(nextStreamMessages);
 
               if (!isCharacterChat && nextAgentOrchestration) {
@@ -3055,6 +3301,51 @@ export const useChatStream = ({
                 storageApi.setChatGeneratedUnread(targetChatId, true, {
                   source: "chat-page",
                 });
+              }
+
+              pendingFyiCountByChatIdRef.current.delete(targetChatId);
+              activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+
+              // Queue relay: anything queued locally (explicit /queue, a
+              // resolved_channel:"queue" from the server, or the clarify
+              // fallback above) merges into one follow-up turn now that this
+              // run has fully ended and persisted.
+              const queuedTurnsOnDone = queuedTurnsByChatIdRef.current.get(targetChatId);
+              if (queuedTurnsOnDone && queuedTurnsOnDone.size() > 0) {
+                queuedTurnsOnDone.markRelayed();
+                syncInterjectStateForChat(targetChatId);
+                const mergedQueueText = queuedTurnsOnDone.drainMerged();
+                if (mergedQueueText) {
+                  const relayBaseMessages = nextStreamMessages;
+                  const relayCharacterConfig = resolvedCharacterConfig;
+                  setTimeout(() => {
+                    void runTurnRequest({
+                      mode: "send",
+                      chatId: targetChatId,
+                      text: mergedQueueText,
+                      attachments: [],
+                      baseMessages: relayBaseMessages,
+                      clearComposer: false,
+                      missingAttachmentPayloadMode: "block",
+                      characterAgentConfig: relayCharacterConfig,
+                    });
+                  }, 0);
+                }
+                // Give the queue pile one render with status:"relayed" before
+                // the buffer disappears; guard against clobbering a *new*
+                // run's fresh buffer that may have replaced this one by then.
+                setTimeout(() => {
+                  if (
+                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
+                    queuedTurnsOnDone
+                  ) {
+                    queuedTurnsByChatIdRef.current.delete(targetChatId);
+                    syncInterjectStateForChat(targetChatId);
+                  }
+                }, 1600);
+              } else if (queuedTurnsOnDone) {
+                queuedTurnsByChatIdRef.current.delete(targetChatId);
+                syncInterjectStateForChat(targetChatId);
               }
             },
             onError: (error) => {
@@ -3150,7 +3441,7 @@ export const useChatStream = ({
                 targetChatId,
                 streamMessages,
               );
-              const nextStreamMessages = materializedStreamMessages.map((message) => {
+              let nextStreamMessages = materializedStreamMessages.map((message) => {
                 if (message.id !== assistantMessageId) {
                   return message;
                 }
@@ -3187,12 +3478,90 @@ export const useChatStream = ({
                   },
                 });
               });
+
+              // Clarify timeout fallback (see onDone) — the run also ends on
+              // error, so resolve any pending clarify into the queued-turns
+              // buffer here too; the message must never be silently dropped.
+              const pendingClarifyOnError =
+                pendingClarifyByChatIdRef.current.get(targetChatId);
+              if (pendingClarifyOnError) {
+                pendingClarifyByChatIdRef.current.delete(targetChatId);
+                let queuedTurnsForClarify =
+                  queuedTurnsByChatIdRef.current.get(targetChatId);
+                if (!queuedTurnsForClarify) {
+                  queuedTurnsForClarify = createQueuedTurnBuffer();
+                  queuedTurnsByChatIdRef.current.set(
+                    targetChatId,
+                    queuedTurnsForClarify,
+                  );
+                }
+                queuedTurnsForClarify.push(pendingClarifyOnError.text);
+                nextStreamMessages = nextStreamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+                  const frames = Array.isArray(message.traceFrames)
+                    ? message.traceFrames
+                    : [];
+                  return {
+                    ...message,
+                    traceFrames: frames.map((frame) =>
+                      frame?.type === "clarify_request" &&
+                      frame?.payload?.id === pendingClarifyOnError.id
+                        ? {
+                            ...frame,
+                            payload: {
+                              ...frame.payload,
+                              status: "resolved_default",
+                            },
+                          }
+                        : frame,
+                    ),
+                  };
+                });
+              }
               syncStreamMessages(nextStreamMessages);
               if (activeChatIdRef.current !== targetChatId) {
                 flushBackgroundPersist(targetChatId);
               }
               clearStreamingMessageStore(targetChatId, assistantMessageId);
               activeStreamsRef.current.delete(targetChatId);
+
+              pendingFyiCountByChatIdRef.current.delete(targetChatId);
+              activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+
+              const queuedTurnsOnError = queuedTurnsByChatIdRef.current.get(targetChatId);
+              if (queuedTurnsOnError && queuedTurnsOnError.size() > 0) {
+                queuedTurnsOnError.markRelayed();
+                syncInterjectStateForChat(targetChatId);
+                const mergedQueueText = queuedTurnsOnError.drainMerged();
+                if (mergedQueueText) {
+                  const relayBaseMessages = nextStreamMessages;
+                  const relayCharacterConfig = resolvedCharacterConfig;
+                  setTimeout(() => {
+                    void runTurnRequest({
+                      mode: "send",
+                      chatId: targetChatId,
+                      text: mergedQueueText,
+                      attachments: [],
+                      baseMessages: relayBaseMessages,
+                      clearComposer: false,
+                      missingAttachmentPayloadMode: "block",
+                      characterAgentConfig: relayCharacterConfig,
+                    });
+                  }, 0);
+                }
+                setTimeout(() => {
+                  if (
+                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
+                    queuedTurnsOnError
+                  ) {
+                    queuedTurnsByChatIdRef.current.delete(targetChatId);
+                    syncInterjectStateForChat(targetChatId);
+                  }
+                }, 1600);
+              } else if (queuedTurnsOnError) {
+                queuedTurnsByChatIdRef.current.delete(targetChatId);
+                syncInterjectStateForChat(targetChatId);
+              }
             },
           },
         );
@@ -3213,6 +3582,7 @@ export const useChatStream = ({
           next.delete(targetChatId);
           return next;
         });
+        activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
         setMessages(
           nextMessages.map((message) =>
@@ -3349,63 +3719,327 @@ export const useChatStream = ({
     [activeChatIdRef, messagesRef, runTurnRequest, streamingChatIdsRef],
   );
 
-  const sendNewTurn = useCallback(() => {
-    const currentChatId = activeChatIdRef.current;
-    const text = inputValueRef.current.trim();
-    const currentDraftAttachments = draftAttachmentsRef.current;
-    const hasAttachments = Array.isArray(currentDraftAttachments)
-      ? currentDraftAttachments.length > 0
-      : false;
-    const normalizedSelectedModelId =
-      typeof selectedModelIdRef.current === "string" ? selectedModelIdRef.current.trim() : "";
-    const hasSelectedModel =
-      isCharacterChat ||
-      (normalizedSelectedModelId &&
-        normalizedSelectedModelId !== "unchain-unset");
-    const thisChatsStreamActive = Boolean(
-      streamingChatIdsRef.current.has(currentChatId) &&
-        streamHandlesRef.current.has(currentChatId),
-    );
-    if (!currentChatId || (!text && !hasAttachments) || thisChatsStreamActive) {
-      return;
-    }
+  /* sendNewTurn(options) — options is optional and only consulted when it is
+     a plain object carrying our own known keys, so the common call sites
+     (onClick={sendNewTurn} handing sendNewTurn a SyntheticEvent, or the
+     plain sendNewTurn() from the input panel) stay exactly as before:
+       - options.text: string   — programmatic send (queue-relay / new_run
+         fallback via handleInterject); bypasses the composer entirely.
+       - options.chatId: string — target chat for a programmatic send
+         (only ever used when it equals the active chat — see
+         dispatchInterjectChannel's new_run branch).
+       - options.bypassInterject: true — used when re-invoking sendNewTurn
+         from the interject fallback path itself, so a race that finds the
+         chat streaming again refuses instead of recursing into
+         handleInterject a second time. */
+  const sendNewTurn = useCallback(
+    (options) => {
+      const overrideText = typeof options?.text === "string" ? options.text : null;
+      const bypassInterject = options?.bypassInterject === true;
+      const isProgrammaticSend = overrideText !== null;
 
-    if (!api.unchain.isBridgeAvailable()) {
-      setStreamError("Unchain bridge is unavailable in this runtime.");
-      return;
-    }
-
-    if (!hasSelectedModel) {
-      setStreamError("Select a model before sending a message.");
-      return;
-    }
-
-    if (hasAttachments && !attachmentsEnabled) {
-      setStreamError(
-        attachmentsDisabledReason ||
-          "Current model does not support image or file inputs.",
+      const currentChatId =
+        isProgrammaticSend && typeof options?.chatId === "string" && options.chatId
+          ? options.chatId
+          : activeChatIdRef.current;
+      const text = isProgrammaticSend
+        ? overrideText.trim()
+        : inputValueRef.current.trim();
+      const currentDraftAttachments = isProgrammaticSend
+        ? []
+        : draftAttachmentsRef.current;
+      const hasAttachments = Array.isArray(currentDraftAttachments)
+        ? currentDraftAttachments.length > 0
+        : false;
+      const normalizedSelectedModelId =
+        typeof selectedModelIdRef.current === "string" ? selectedModelIdRef.current.trim() : "";
+      const hasSelectedModel =
+        isCharacterChat ||
+        (normalizedSelectedModelId &&
+          normalizedSelectedModelId !== "unchain-unset");
+      const thisChatsStreamActive = Boolean(
+        streamingChatIdsRef.current.has(currentChatId) &&
+          streamHandlesRef.current.has(currentChatId),
       );
-      return;
-    }
+      if (!currentChatId || (!text && !hasAttachments)) {
+        return;
+      }
 
-    void runTurnRequest({
-      mode: "send",
-      chatId: currentChatId,
-      text,
-      attachments: currentDraftAttachments,
-      baseMessages: messagesRef.current,
-      clearComposer: true,
-      missingAttachmentPayloadMode: "block",
-    });
-  }, [
-    activeChatIdRef,
-    attachmentsDisabledReason,
-    attachmentsEnabled,
-    isCharacterChat,
-    messagesRef,
-    runTurnRequest,
-    setStreamError,
-  ]);
+      if (thisChatsStreamActive) {
+        if (bypassInterject) {
+          // Should not normally happen — see the comment above — but never
+          // race a concurrent send into an active run.
+          return;
+        }
+        // A send arrived while this chat's run is still active: route it
+        // through the interject channels (fyi/btw/queue/clarify) instead of
+        // silently dropping it.
+        setInputValue("");
+        setDraftAttachments([]);
+        handleInterjectRef.current?.(currentChatId, text);
+        return;
+      }
+
+      if (!api.unchain.isBridgeAvailable()) {
+        setStreamError("Unchain bridge is unavailable in this runtime.");
+        return;
+      }
+
+      if (!hasSelectedModel) {
+        setStreamError("Select a model before sending a message.");
+        return;
+      }
+
+      if (hasAttachments && !attachmentsEnabled) {
+        setStreamError(
+          attachmentsDisabledReason ||
+            "Current model does not support image or file inputs.",
+        );
+        return;
+      }
+
+      void runTurnRequest({
+        mode: "send",
+        chatId: currentChatId,
+        text,
+        attachments: currentDraftAttachments,
+        baseMessages: messagesRef.current,
+        clearComposer: !isProgrammaticSend,
+        missingAttachmentPayloadMode: "block",
+      });
+    },
+    [
+      activeChatIdRef,
+      attachmentsDisabledReason,
+      attachmentsEnabled,
+      isCharacterChat,
+      messagesRef,
+      runTurnRequest,
+      setDraftAttachments,
+      setInputValue,
+      setStreamError,
+    ],
+  );
+
+  const pushQueuedTurn = useCallback(
+    (targetChatId, text) => {
+      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (!queuedTurns) {
+        queuedTurns = createQueuedTurnBuffer();
+        queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
+      }
+      queuedTurns.push(text);
+      syncInterjectStateForChat(targetChatId);
+    },
+    [syncInterjectStateForChat],
+  );
+
+  /* Sends {threadId, text: body, channel} to the server and dispatches on
+     whatever resolved_channel comes back — NOT on the channel we asked for,
+     since the server (not the client) decides how a given run can actually
+     absorb a mid-run message. `channel: "queue"` (explicit /queue) is the
+     one case that never touches the server: it is purely a local buffer. */
+  const dispatchInterjectChannel = useCallback(
+    (targetChatId, body, channel) => {
+      if (channel === "queue") {
+        pushQueuedTurn(targetChatId, body);
+        return;
+      }
+
+      const threadId =
+        activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+
+      api.unchain
+        .interject({ threadId, text: body, channel })
+        .then((result) => {
+          const rawResolvedChannel =
+            result && typeof result.resolved_channel === "string"
+              ? result.resolved_channel
+              : "new_run";
+          // Legacy wire alias — pre-rename servers answer resolved_channel
+          // steer for what is now the queue channel. Normalize at this
+          // single read point so the rest of the client only speaks queue.
+          const resolvedChannel =
+            rawResolvedChannel === "steer" ? "queue" : rawResolvedChannel;
+          const dispatchTime = Date.now();
+
+          if (resolvedChannel === "fyi") {
+            pendingFyiCountByChatIdRef.current.set(
+              targetChatId,
+              (pendingFyiCountByChatIdRef.current.get(targetChatId) || 0) + 1,
+            );
+            syncInterjectStateForChat(targetChatId);
+            toast.success("Queued — will be injected next step", {
+              dedupeKey: "interject-fyi-queued",
+            });
+            return;
+          }
+
+          if (resolvedChannel === "btw") {
+            const answer =
+              typeof result?.answer === "string" ? result.answer : "";
+            appendLocalTraceFrame(targetChatId, {
+              seq: dispatchTime,
+              ts: dispatchTime,
+              type: "side_answer",
+              stage: "client",
+              payload: { question: body, answer },
+            });
+            appendLocalInterjectionRecord(
+              targetChatId,
+              buildInterjectionRecord({
+                type: "btw",
+                text: body,
+                origin: "user",
+                answer,
+                ts: dispatchTime,
+              }),
+            );
+            return;
+          }
+
+          if (resolvedChannel === "queue") {
+            pushQueuedTurn(targetChatId, body);
+            return;
+          }
+
+          if (resolvedChannel === "clarify") {
+            const clarifyId = `clarify-${dispatchTime}-${Math.random()
+              .toString(16)
+              .slice(2)}`;
+            pendingClarifyByChatIdRef.current.set(targetChatId, {
+              id: clarifyId,
+              text: body,
+            });
+            appendLocalTraceFrame(targetChatId, {
+              seq: dispatchTime,
+              ts: dispatchTime,
+              type: "clarify_request",
+              stage: "client",
+              payload: {
+                id: clarifyId,
+                question: body,
+                options: [
+                  { label: "加进当前任务", value: "fyi" },
+                  { label: "做完再研究", value: "queue" },
+                  { label: "只是问一嘴", value: "btw" },
+                ],
+                status: "pending",
+              },
+            });
+            return;
+          }
+
+          // resolved_channel === "new_run": graph-recipe runs never register
+          // an interject channel, so the server can (and will) report
+          // new_run even while the stream is still active — that must be
+          // treated as a queued turn, never a concurrent send. Only fall back
+          // to an actual new send once the stream is genuinely no longer
+          // active.
+          const stillActive = Boolean(
+            streamingChatIdsRef.current.has(targetChatId) &&
+              streamHandlesRef.current.has(targetChatId),
+          );
+          if (stillActive) {
+            pushQueuedTurn(targetChatId, body);
+            return;
+          }
+
+          if (targetChatId === activeChatIdRef.current) {
+            sendNewTurn({
+              text: body,
+              chatId: targetChatId,
+              bypassInterject: true,
+            });
+          } else {
+            // Background chat + no active run to relay into: we have no
+            // reliable snapshot of that chat's persisted messages here (only
+            // the active chat's messagesRef is available), so sending would
+            // risk attaching this turn to the wrong chat. Log and drop
+            // rather than corrupt another chat's history.
+            unchainLogger.warn("interject_new_run_dropped_background", {
+              chatId: targetChatId,
+            });
+          }
+        })
+        .catch((error) => {
+          setStreamError(error?.message || "Failed to send interjection.");
+        });
+    },
+    [
+      activeChatIdRef,
+      appendLocalInterjectionRecord,
+      appendLocalTraceFrame,
+      pushQueuedTurn,
+      sendNewTurn,
+      setStreamError,
+      streamHandlesRef,
+      streamingChatIdsRef,
+      syncInterjectStateForChat,
+    ],
+  );
+
+  const handleInterject = useCallback(
+    (targetChatId, rawText) => {
+      // Inline command tokens can sit anywhere in the text now. extractCommands
+      // pulls the ACTIVE tokens (exclusive-group rule: first per group wins)
+      // out of the text; the interject-channel command decides the channel and
+      // the stripped remainder is the body. No command -> auto routing.
+      const { commands, body } = extractCommands(rawText ?? "", {
+        isStreaming: true,
+      });
+      // The registry's `channel` field is the routing contract — command
+      // NAMES are presentation and may be renamed freely.
+      const channelCommand = commands.find((command) =>
+        Boolean(command?.channel),
+      );
+      const channel = channelCommand ? channelCommand.channel : "auto";
+      const trimmedBody = (body || "").trim();
+      if (!trimmedBody) return;
+      dispatchInterjectChannel(targetChatId, trimmedBody, channel);
+    },
+    [dispatchInterjectChannel],
+  );
+  handleInterjectRef.current = handleInterject;
+
+  const onQueueUndo = useCallback(
+    (id) => {
+      const targetChatId = activeChatIdRef.current;
+      const queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (!queuedTurns) {
+        return;
+      }
+      queuedTurns.remove(id);
+      syncInterjectStateForChat(targetChatId);
+    },
+    [activeChatIdRef, syncInterjectStateForChat],
+  );
+
+  /* onClarifyResolve(value) resolves the active chat's pending clarify, or
+     onClarifyResolve(chatId, value) targets a specific chat explicitly. */
+  const onClarifyResolve = useCallback(
+    (chatIdOrValue, maybeValue) => {
+      const hasExplicitChatId = typeof maybeValue !== "undefined";
+      const targetChatId = hasExplicitChatId
+        ? chatIdOrValue
+        : activeChatIdRef.current;
+      const value = hasExplicitChatId ? maybeValue : chatIdOrValue;
+
+      const pending = pendingClarifyByChatIdRef.current.get(targetChatId);
+      if (!pending) {
+        return;
+      }
+      pendingClarifyByChatIdRef.current.delete(targetChatId);
+      updateLocalClarifyFrame(targetChatId, pending.id, { status: "resolved" });
+      dispatchInterjectChannel(targetChatId, pending.text, value);
+    },
+    [activeChatIdRef, dispatchInterjectChannel, updateLocalClarifyFrame],
+  );
+
+  const interjectState = interjectStateByChatId[chatId] || {
+    pendingFyiCount: 0,
+    queueItems: [],
+  };
 
   const resendTurn = useCallback(
     async (message) => {
@@ -3674,6 +4308,10 @@ export const useChatStream = ({
     const streamHandles = streamHandlesRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
     const activeStreams = activeStreamsRef.current;
+    const activeRunThreadIdByChatId = activeRunThreadIdByChatIdRef.current;
+    const queuedTurnsByChatId = queuedTurnsByChatIdRef.current;
+    const pendingFyiCountByChatId = pendingFyiCountByChatIdRef.current;
+    const pendingClarifyByChatId = pendingClarifyByChatIdRef.current;
 
     return () => {
       clearActiveTokenFlushController("dispose");
@@ -3695,6 +4333,10 @@ export const useChatStream = ({
       confirmationResolveTimerById.clear();
       pendingToolConfirmationRequestsRef.current = {};
       pendingContinuationRequestRef.current = null;
+      activeRunThreadIdByChatId.clear();
+      queuedTurnsByChatId.clear();
+      pendingFyiCountByChatId.clear();
+      pendingClarifyByChatId.clear();
     };
   }, [
     activeStreamsRef,
@@ -3708,7 +4350,10 @@ export const useChatStream = ({
     handleContinuationDecision,
     handleToolConfirmationDecision,
     hasBackgroundStream,
+    interjectState,
     isStreaming,
+    onClarifyResolve,
+    onQueueUndo,
     pendingContinuationRequest,
     pendingToolConfirmationRequests,
     resendTurn,

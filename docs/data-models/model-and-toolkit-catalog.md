@@ -85,7 +85,7 @@ Returned by `api.unchain.getToolkitCatalog()`:
 {
   toolkits: [
     {
-      toolkitId: string,       // canonical toolkitId (e.g. "workspace_toolkit")
+      toolkitId: string,       // canonical toolkitId (e.g. "core")
       toolkitName: string,     // display name
       toolkitDescription: string,
       toolkitIcon?: object,    // icon payload
@@ -107,21 +107,18 @@ Returned by `api.unchain.getToolkitCatalog()`:
 
 ```python
 {
-  "workspace_toolkit:write_file",
-  "workspace_toolkit:delete_file",
-  "workspace_toolkit:move_file",
-  "terminal_toolkit:terminal_exec",
   "core:write",
   "core:edit",
+  "core:shell",
 }
 ```
 
 ### Toolkit Discovery
 
 The backend discovers toolkits via:
-1. Built-in toolkits (`workspace_toolkit`, `terminal_toolkit`, `core`, `external_api`)
+1. Built-in toolkits (`core`, `plan`, `agent_reach`)
 2. `toolkit.toml` files in workspace directories
-3. MCP-based toolkits (removed)
+3. MCP-based toolkits (`mcp.<server>.<toolkit>`)
 
 ### toolkit.toml Format
 

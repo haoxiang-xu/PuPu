@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { runtimeBridge } from "./bridges/unchain_bridge";
 import {
+  getChatMessages,
   getChatsStore,
   createChatWithMessagesInSelectedContext,
   createFolder,
@@ -17,7 +18,10 @@ const buildChatExportPayload = async (chatId, store) => {
     ([, n]) => n.entity === "chat" && n.chatId === chatId,
   );
   const label = nodeEntry?.[1]?.label || chat.title || "Chat";
-  const messages = Array.isArray(chat.messages) ? chat.messages : [];
+  // v3 lazy messages: the store snapshot carries `[]` placeholders for
+  // non-active chats — always read through getChatMessages.
+  const loadedMessages = getChatMessages(chatId);
+  const messages = Array.isArray(loadedMessages) ? loadedMessages : [];
 
   let sessionMemory = null;
   try {
@@ -47,7 +51,9 @@ const buildChatExportPayload = async (chatId, store) => {
 };
 
 const buildFolderExportPayload = async (nodeId, store) => {
-  const snapshot = snapshotSubtreeForCopy(store, nodeId);
+  // Pass getChatMessages so placeholder chats in the subtree get hydrated
+  // (the loader is wired caller-side to keep tree ← store import direction).
+  const snapshot = snapshotSubtreeForCopy(store, nodeId, getChatMessages);
   if (!snapshot) return null;
 
   const rootNode = snapshot.nodesById[snapshot.rootNodeId];

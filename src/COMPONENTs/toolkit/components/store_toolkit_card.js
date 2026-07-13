@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import { SOURCE_CONFIG } from "../constants";
 import {
   entryInstallState,
@@ -22,6 +23,7 @@ const StoreToolkitCard = ({
   installedIds,
   onInstall,
   onOAuthConnect,
+  onCancelOAuth,
   installing = false,
   installError = null,
 }) => {
@@ -62,6 +64,10 @@ const StoreToolkitCard = ({
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const accentColor = isDark ? "#7c8cf8" : "#2563eb";
   const actionBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.055)";
+  const installErrorText =
+    installError?.code === "mcp_workspace_required"
+      ? t("toolkit.store_workspace_required")
+      : installError?.message || t("toolkit.store_install_error");
   const repoMeta = [
     entry.repoFullName,
     entry.repoStars != null ? `${Number(entry.repoStars).toLocaleString()} stars` : "",
@@ -196,15 +202,38 @@ const StoreToolkitCard = ({
               marginTop: 2,
             }}
           >
-            {installError.code === "mcp_workspace_required"
-              ? t("toolkit.store_workspace_required")
-              : t("toolkit.store_install_error")}
+            {installErrorText}
           </div>
         )}
       </div>
 
       {/* install action */}
-      <div onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        {installing && (
+          <span
+            data-testid="store-card-installing-spinner"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              marginRight: 6,
+              verticalAlign: "middle",
+            }}
+          >
+            <ArcSpinner
+              size={12}
+              stroke_width={2}
+              color={isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)"}
+            />
+          </span>
+        )}
         <Button
           label={actionLabel}
           disabled={!actionEnabled}
@@ -236,6 +265,21 @@ const StoreToolkitCard = ({
             },
           }}
         />
+        {installing && installState === "oauth" && (
+          <Button
+            label={t("toolkit.store_cancel")}
+            onClick={() => onCancelOAuth?.(entry)}
+            style={{
+              fontSize: 10.5,
+              fontFamily,
+              paddingVertical: 3,
+              paddingHorizontal: 10,
+              borderRadius: 999,
+              color: mutedColor,
+              root: { background: "transparent" },
+            }}
+          />
+        )}
       </div>
     </div>
   );

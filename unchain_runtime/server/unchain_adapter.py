@@ -54,6 +54,7 @@ _ensure_unchain_on_path()
 # Import unchain agent modules
 try:
     from unchain.agent import Agent as _UnchainAgent
+    from unchain.agent import InteractionModule as _InteractionModule
     from unchain.agent.modules import ToolsModule as _ToolsModule
     from unchain.agent.modules import MemoryModule as _MemoryModule
     from unchain.agent.modules import PoliciesModule as _PoliciesModule
@@ -73,6 +74,7 @@ try:
     )
 except ImportError:
     _UnchainAgent = None  # type: ignore
+    _InteractionModule = None  # type: ignore
     _ToolsModule = None  # type: ignore
     _MemoryModule = None  # type: ignore
     _PoliciesModule = None  # type: ignore
@@ -89,6 +91,19 @@ except ImportError:
     _ToolHistoryCompactionOptimizerConfig = None  # type: ignore
     _ToolPairSafetyOptimizer = None  # type: ignore
 
+try:
+    from unchain.memory import (
+        SessionHistoryOwnershipError as _SessionHistoryOwnershipError,
+    )
+except ImportError:  # pragma: no cover - compatibility with older unchain builds
+    class _SessionHistoryOwnershipError(ValueError):
+        pass
+
+from interaction_channels import (
+    register_interject_channels,
+    release_interject_channels,
+)
+
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
 _ALLOWED_INPUT_SOURCE_TYPES = ("url", "base64")
@@ -97,11 +112,9 @@ _INPUT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
 _KNOWN_TOOLKIT_EXPORTS = {
-    "WorkspaceToolkit": "builtin",
-    "TerminalToolkit": "builtin",
     "CoreToolkit": "builtin",
-    "ExternalAPIToolkit": "builtin",
     "PlanToolkit": "plan",
+    "AgentReachToolkit": "agent_reach",
 }
 _ARTIFACT_FALLBACK_RENDERERS = {"markdown", "text", "table", "kv", "log", "link", "json"}
 _BUILTIN_ARTIFACT_KINDS = (
@@ -169,18 +182,35 @@ _TOOLKIT_EXPORT_ID_ALIASES = {
     "CoreToolkit": "core",
     "CodeToolkit": "core",
     "AskUserToolkit": "core",
+    "InteractionToolkit": "interaction_toolkit",
+    "WebToolkit": "web_toolkit",
     "ExternalAPIToolkit": "external_api",
+    "GitToolkit": "git",
     "PlanToolkit": "plan",
+    "AgentReachToolkit": "agent_reach",
+}
+_REMOVED_PUBLIC_BUILTIN_TOOLKIT_IDS = {
+    "external_api",
+    "git",
+    "interaction_toolkit",
+    "terminal_toolkit",
+    "web_toolkit",
+    "workspace_toolkit",
+}
+_LEGACY_BUILTIN_TOOLKIT_ID_ALIASES = {
+    toolkit_id: "core" for toolkit_id in _REMOVED_PUBLIC_BUILTIN_TOOLKIT_IDS
 }
 _TOOLKIT_NAME_ALIASES = {
-    "workspace": "WorkspaceToolkit",
-    "access_workspace_toolkit": "WorkspaceToolkit",
-    "workspace_toolkit": "WorkspaceToolkit",
-    "WorkspaceToolkit": "WorkspaceToolkit",
-    "terminal": "TerminalToolkit",
-    "run_terminal_toolkit": "TerminalToolkit",
-    "terminal_toolkit": "TerminalToolkit",
-    "TerminalToolkit": "TerminalToolkit",
+    "workspace": "CoreToolkit",
+    "access_workspace_toolkit": "CoreToolkit",
+    "workspace_toolkit": "CoreToolkit",
+    "workspacetoolkit": "CoreToolkit",
+    "WorkspaceToolkit": "CoreToolkit",
+    "terminal": "CoreToolkit",
+    "run_terminal_toolkit": "CoreToolkit",
+    "terminal_toolkit": "CoreToolkit",
+    "terminaltoolkit": "CoreToolkit",
+    "TerminalToolkit": "CoreToolkit",
     "core": "CoreToolkit",
     "core_toolkit": "CoreToolkit",
     "coretoolkit": "CoreToolkit",
@@ -188,21 +218,38 @@ _TOOLKIT_NAME_ALIASES = {
     "code": "CoreToolkit",
     "code_toolkit": "CoreToolkit",
     "CodeToolkit": "CoreToolkit",
-    "external_api": "ExternalAPIToolkit",
-    "external_api_toolkit": "ExternalAPIToolkit",
-    "externalapitoolkit": "ExternalAPIToolkit",
-    "ExternalAPIToolkit": "ExternalAPIToolkit",
+    "external_api": "CoreToolkit",
+    "external_api_toolkit": "CoreToolkit",
+    "externalapitoolkit": "CoreToolkit",
+    "ExternalAPIToolkit": "CoreToolkit",
     "ask_user": "CoreToolkit",
+    "interaction": "CoreToolkit",
     "interaction_toolkit": "CoreToolkit",
     "interaction-toolkit": "CoreToolkit",
+    "InteractionToolkit": "CoreToolkit",
     "ask_user_toolkit": "CoreToolkit",
     "ask-user-toolkit": "CoreToolkit",
     "askusertoolkit": "CoreToolkit",
     "AskUserToolkit": "CoreToolkit",
+    "web": "CoreToolkit",
+    "web_toolkit": "CoreToolkit",
+    "web-toolkit": "CoreToolkit",
+    "webtoolkit": "CoreToolkit",
+    "WebToolkit": "CoreToolkit",
+    "git": "CoreToolkit",
+    "git_toolkit": "CoreToolkit",
+    "gittoolkit": "CoreToolkit",
+    "GitToolkit": "CoreToolkit",
     "plan": "PlanToolkit",
     "plan_toolkit": "PlanToolkit",
     "plantoolkit": "PlanToolkit",
     "PlanToolkit": "PlanToolkit",
+    "agent_reach": "AgentReachToolkit",
+    "agent-reach": "AgentReachToolkit",
+    "agentreach": "AgentReachToolkit",
+    "agent_reach_toolkit": "AgentReachToolkit",
+    "agentreachtoolkit": "AgentReachToolkit",
+    "AgentReachToolkit": "AgentReachToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
@@ -214,18 +261,6 @@ _GENERAL_MODEL_BY_PROVIDER = {
 }
 _DEVELOPER_AGENT_NAME = "pupu_developer"
 _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
-# Originally this list forced legacy confirmation for miso's old
-# workspace/terminal tools. In the standalone unchain repo, CoreToolkit's
-# `write` and `edit` already declare `requires_confirmation=True` at
-# registration time (see unchain core.py), so their entries here are
-# mostly defensive / cleanup. TerminalToolkit's `terminal_exec` still
-# depends on this list via `_should_force_legacy_confirmation`.
-_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
-    "write",
-    "edit",
-    "terminal_exec",
-}
-_WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR = "_pupu_original_tool_name"
 _RUNTIME_TOOLKIT_ID_ATTR = "_pupu_toolkit_id"
 _RUNTIME_TOOLKIT_NAME_ATTR = "_pupu_toolkit_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
@@ -243,6 +278,14 @@ def _is_bare_ask_user_question_tool_call(event: Dict[str, Any]) -> bool:
         return False
     confirmation_id = str(event.get("confirmation_id") or "").strip()
     return not confirmation_id
+
+
+def _should_expose_builtin_toolkit_id(toolkit_id: object) -> bool:
+    return (
+        isinstance(toolkit_id, str)
+        and bool(toolkit_id.strip())
+        and toolkit_id.strip() not in _REMOVED_PUBLIC_BUILTIN_TOOLKIT_IDS
+    )
 
 # ── Unified Prompt Module System ─────────────────────────────────────────────
 #
@@ -464,37 +507,6 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     payload.pop("render_component", None)
 
     return payload
-
-
-def _set_workspace_proxy_tool_metadata(
-    tool_obj: Any,
-    *,
-    original_tool_name: str,
-) -> None:
-    if not isinstance(original_tool_name, str) or not original_tool_name.strip():
-        return
-    try:
-        setattr(
-            tool_obj,
-            _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
-            original_tool_name.strip(),
-        )
-    except Exception:
-        return
-
-
-def _resolve_tool_display_name(
-    tool_name: object,
-    *,
-    tool_obj: Any = None,
-) -> str:
-    original_name = getattr(tool_obj, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
-    if isinstance(original_name, str) and original_name.strip():
-        return original_name.strip()
-
-    if isinstance(tool_name, str):
-        return tool_name
-    return str(tool_name or "")
 
 
 def submit_tool_confirmation(
@@ -869,8 +881,10 @@ def _capability_file_candidates() -> List[Path]:
     candidates: List[Path] = []
 
     # Try to find model_capabilities.json via unchain package
+    _res_pkg = sys.modules.get("unchain.runtime.resources")
     try:
-        import unchain.runtime.resources as _res_pkg
+        if _res_pkg is None:
+            import unchain.runtime.resources as _res_pkg  # type: ignore[no-redef]
         _res_dir = Path(_res_pkg.__file__).parent if hasattr(_res_pkg, "__file__") else None
         if _res_dir is not None:
             candidates.append(_res_dir / "model_capabilities.json")
@@ -1329,6 +1343,8 @@ def _enumerate_builtin_submodule_toolkits(
 
             tools = _enumerate_toolkit_tools(candidate)
             toolkit_name = _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, submodule_name)
+            if not _should_expose_builtin_toolkit_id(toolkit_name):
+                continue
             entries.append({
                 "name": toolkit_name,
                 "class_name": class_name,
@@ -1386,8 +1402,11 @@ def get_toolkit_catalog() -> Dict[str, object]:
                 continue
             seen.add(dedupe_key)
             tools = _enumerate_toolkit_tools(candidate)
+            toolkit_name = _TOOLKIT_EXPORT_ID_ALIASES.get(export_name, export_name)
+            if not _should_expose_builtin_toolkit_id(toolkit_name):
+                continue
             entries.append({
-                "name": _TOOLKIT_EXPORT_ID_ALIASES.get(export_name, export_name),
+                "name": toolkit_name,
                 "class_name": class_name,
                 "module": module_name,
                 "kind": kind,
@@ -1493,6 +1512,20 @@ def _canonical_toolkit_id_for_class_name(class_name: object) -> str:
     return _TOOLKIT_EXPORT_ID_ALIASES.get(normalized, normalized)
 
 
+def _canonical_runtime_toolkit_id(toolkit_id: object) -> str:
+    if not isinstance(toolkit_id, str):
+        return ""
+    normalized = toolkit_id.strip()
+    if not normalized:
+        return ""
+    normalized_name = _TOOLKIT_NAME_ALIASES.get(
+        normalized,
+        _TOOLKIT_NAME_ALIASES.get(normalized.lower(), normalized),
+    )
+    canonical = _canonical_toolkit_id_for_class_name(normalized_name)
+    return _LEGACY_BUILTIN_TOOLKIT_ID_ALIASES.get(canonical, canonical)
+
+
 def _display_toolkit_name_for_class(toolkit_class: type) -> str:
     toml_data = _read_toolkit_toml(toolkit_class)
     toolkit_section = toml_data.get("toolkit") or {}
@@ -1533,12 +1566,6 @@ def _get_runtime_toolkit_metadata(toolkit_obj: Any) -> Dict[str, str]:
         toolkit_class = toolkit_obj.__class__ if toolkit_obj is not None else None
     class_name = str(getattr(toolkit_class, "__name__", "") or "").strip()
 
-    if class_name == "LegacyWorkspaceToolkit":
-        return {
-            "toolkit_id": "workspace_toolkit",
-            "toolkit_name": "Workspace Toolkit",
-        }
-
     if toolkit_class is None:
         return {"toolkit_id": "", "toolkit_name": ""}
 
@@ -1546,16 +1573,6 @@ def _get_runtime_toolkit_metadata(toolkit_obj: Any) -> Dict[str, str]:
         "toolkit_id": _canonical_toolkit_id_for_class_name(class_name),
         "toolkit_name": _display_toolkit_name_for_class(toolkit_class),
     }
-
-
-def _should_force_legacy_confirmation(toolkit_obj: Any, tool_name: str) -> bool:
-    normalized_tool_name = str(tool_name or "").strip()
-    if normalized_tool_name not in _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES:
-        return False
-
-    toolkit_meta = _get_runtime_toolkit_metadata(toolkit_obj)
-    toolkit_id = toolkit_meta.get("toolkit_id", "")
-    return toolkit_id in {"workspace_toolkit", "terminal_toolkit"}
 
 
 def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, str]]:
@@ -1981,10 +1998,7 @@ def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
         if isinstance(requires_confirmation, bool):
             normalized_requires_confirmation = requires_confirmation
         else:
-            normalized_requires_confirmation = _should_force_legacy_confirmation(
-                cls,
-                tool_name,
-            )
+            normalized_requires_confirmation = False
 
         enriched.append({
             "name": tool_name,
@@ -2166,7 +2180,10 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
                         continue
                     seen.add(dedupe_key)
 
-                    entries.append(_build_entry(candidate, "builtin"))
+                    entry = _build_entry(candidate, "builtin")
+                    if not _should_expose_builtin_toolkit_id(entry.get("toolkitId")):
+                        continue
+                    entries.append(entry)
 
     # Exported toolkit classes
     try:
@@ -2192,7 +2209,10 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
                 continue
             seen.add(dedupe_key)
 
-            entries.append(_build_entry(candidate, kind))
+            entry = _build_entry(candidate, kind)
+            if not _should_expose_builtin_toolkit_id(entry.get("toolkitId")):
+                continue
+            entries.append(entry)
 
     # Sort by display order from toolkit.toml
     entries.sort(key=lambda e: (e.get("displayOrder", 999), e.get("toolkitName", "")))
@@ -2235,8 +2255,12 @@ def get_toolkit_metadata(
                 "selectedToolName": tool_name,
             }
 
-    normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(toolkit_id, toolkit_id)
-    canonical_toolkit_id = _canonical_toolkit_id_for_class_name(normalized_toolkit_id)
+    normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(
+        toolkit_id,
+        _TOOLKIT_NAME_ALIASES.get(toolkit_id.lower(), toolkit_id),
+    )
+    canonical_toolkit_id = _canonical_runtime_toolkit_id(normalized_toolkit_id)
+    allow_export_id_match = _canonical_runtime_toolkit_id(toolkit_id) == toolkit_id
 
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
@@ -2271,7 +2295,10 @@ def get_toolkit_metadata(
                         and candidate is not toolkit_base
                         and (
                             candidate.__name__ == normalized_toolkit_id
-                            or _TOOLKIT_EXPORT_ID_ALIASES.get(candidate.__name__) == toolkit_id
+                            or (
+                                allow_export_id_match
+                                and _TOOLKIT_EXPORT_ID_ALIASES.get(candidate.__name__) == toolkit_id
+                            )
                         )
                     ):
                         found_class = candidate
@@ -2293,7 +2320,10 @@ def get_toolkit_metadata(
                     and candidate is not toolkit_base
                     and (
                         candidate.__name__ == normalized_toolkit_id
-                        or _TOOLKIT_EXPORT_ID_ALIASES.get(candidate.__name__) == toolkit_id
+                        or (
+                            allow_export_id_match
+                            and _TOOLKIT_EXPORT_ID_ALIASES.get(candidate.__name__) == toolkit_id
+                        )
                     )
                 ):
                     found_class = candidate
@@ -2728,13 +2758,6 @@ def _extract_toolkit_names(options: Dict[str, object] | None) -> list[str]:
     return names
 
 
-def _is_workspace_toolkit_requested(options: Dict[str, object] | None) -> bool:
-    for toolkit_name in _extract_toolkit_names(options):
-        if _TOOLKIT_NAME_ALIASES.get(toolkit_name, toolkit_name) == "WorkspaceToolkit":
-            return True
-    return False
-
-
 def _should_enable_tools(options: Dict[str, object] | None) -> bool:
     """Return True when the caller explicitly requests tool-enabled mode.
 
@@ -2782,69 +2805,34 @@ def _resolve_workspace_root(workspace_root: str) -> Path:
     return candidate
 
 
-def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
-    tools = getattr(workspace_toolkit, "tools", None)
-    if not isinstance(tools, dict):
-        return
-
-    for tool_name in _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES:
-        if not _should_force_legacy_confirmation(workspace_toolkit, tool_name):
-            continue
-        tool_obj = tools.get(tool_name)
-        if tool_obj is None:
-            continue
-        try:
-            tool_obj.requires_confirmation = True
-        except Exception:
-            continue
-
-
-def _resolve_workspace_toolkit_factory(toolkit_module: Any) -> Any:
-    """Return the WorkspaceToolkit constructor from unchain.toolkits."""
-    workspace_factory = getattr(toolkit_module, "WorkspaceToolkit", None)
-    if callable(workspace_factory):
-        return workspace_factory
-    from adapter_workspace_tools import build_legacy_workspace_toolkit_factory
-
-    legacy_factory = build_legacy_workspace_toolkit_factory(toolkit_module)
-    if callable(legacy_factory):
-        return legacy_factory
-    raise RuntimeError("Miso WorkspaceToolkit is unavailable")
-
-
 def _resolve_workspace_roots(workspace_roots_raw: list[str]) -> list[str]:
     return [str(_resolve_workspace_root(raw)) for raw in workspace_roots_raw]
-
-
-def _build_workspace_toolkit_for_root(
-    toolkit_factory: Any,
-    *,
-    workspace_root: str,
-) -> Any:
-    build_attempts = []
-    build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
-    build_attempts.append(lambda: toolkit_factory(workspace_root))
-
-    last_type_error = None
-    for build_attempt in build_attempts:
-        try:
-            return build_attempt()
-        except TypeError as error:
-            last_type_error = error
-
-    raise last_type_error or RuntimeError("Failed to create workspace toolkit")
 
 
 def _build_generic_toolkit(
     toolkit_factory: Any,
     *,
     workspace_root: str | None,
+    workspace_roots: list[str] | None = None,
     session_store: Any = None,
     session_id: str = "",
 ) -> Any:
     build_attempts = []
     clean_session_id = str(session_id or "").strip()
+    clean_workspace_roots = [
+        str(root).strip()
+        for root in (workspace_roots or [])
+        if str(root).strip()
+    ]
     if session_store is not None and clean_session_id:
+        if clean_workspace_roots:
+            build_attempts.append(
+                lambda: toolkit_factory(
+                    workspace_roots=clean_workspace_roots,
+                    session_store=session_store,
+                    session_id=clean_session_id,
+                )
+            )
         if workspace_root:
             build_attempts.append(
                 lambda: toolkit_factory(
@@ -2859,6 +2847,10 @@ def _build_generic_toolkit(
                 session_id=clean_session_id,
             )
         )
+    if clean_workspace_roots:
+        build_attempts.append(
+            lambda: toolkit_factory(workspace_roots=clean_workspace_roots)
+        )
     if workspace_root:
         build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
         build_attempts.append(lambda: toolkit_factory(workspace_root))
@@ -2872,229 +2864,6 @@ def _build_generic_toolkit(
             last_type_error = error
 
     raise last_type_error or RuntimeError("Failed to create toolkit")
-
-
-def _try_build_workspace_toolkit_for_roots(
-    toolkit_factory: Any,
-    *,
-    workspace_roots: list[str],
-) -> Any | None:
-    build_attempts = []
-    build_attempts.append(lambda: toolkit_factory(workspace_roots=workspace_roots))
-    build_attempts.append(lambda: toolkit_factory(workspace_roots))
-
-    for build_attempt in build_attempts:
-        try:
-            return build_attempt()
-        except TypeError:
-            continue
-
-    return None
-
-
-def _build_workspace_tool_prefix(workspace_root: str, index: int) -> str:
-    label = Path(workspace_root).name or f"workspace_{index}"
-    slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
-    slug = slug[:32] or "workspace"
-    return f"workspace_{index}_{slug}"
-
-
-def _build_multi_workspace_proxy_toolkit(
-    toolkit_factory: Any,
-    *,
-    workspace_roots: list[str],
-) -> Any:
-    try:
-        tools_module = importlib.import_module("unchain.tools")
-    except Exception as import_error:
-        raise RuntimeError(
-            f"Failed to import unchain.tools for multi-workspace fallback: {import_error}"
-        ) from import_error
-
-    toolkit_cls = getattr(tools_module, "Toolkit", None)
-    tool_cls = getattr(tools_module, "Tool", None)
-    if not callable(toolkit_cls) or not callable(tool_cls):
-        raise RuntimeError(
-            "Miso multi-workspace fallback requires Toolkit and Tool exports"
-        )
-
-    merged_toolkit = toolkit_cls()
-    workspace_entries = []
-
-    for index, workspace_root in enumerate(workspace_roots, start=1):
-        source_toolkit = _build_workspace_toolkit_for_root(
-            toolkit_factory,
-            workspace_root=workspace_root,
-        )
-        _set_runtime_toolkit_metadata(
-            source_toolkit,
-            toolkit_id="workspace_toolkit",
-            toolkit_name="Workspace Toolkit",
-        )
-        _mark_workspace_tools_for_confirmation(source_toolkit)
-        workspace_entries.append(
-            {
-                "index": index,
-                "root": workspace_root,
-                "prefix": _build_workspace_tool_prefix(workspace_root, index),
-                "toolkit": source_toolkit,
-            }
-        )
-
-    default_entry = workspace_entries[0]
-    for tool_name, tool_obj in getattr(default_entry["toolkit"], "tools", {}).items():
-        merged_toolkit.tools[tool_name] = tool_obj
-
-    for entry in workspace_entries[1:]:
-        source_toolkit = entry["toolkit"]
-        tool_prefix = entry["prefix"]
-        workspace_root = entry["root"]
-
-        for tool_name, tool_obj in getattr(source_toolkit, "tools", {}).items():
-            proxy_name = f"{tool_prefix}_{tool_name}"
-            proxy_description = (
-                f"{getattr(tool_obj, 'description', '')} "
-                f"Only for workspace '{tool_prefix}' at {workspace_root}."
-            ).strip()
-
-            def _make_proxy(
-                current_toolkit: Any = source_toolkit,
-                current_tool_name: str = tool_name,
-            ) -> Any:
-                def _proxy(**kwargs: Any) -> Any:
-                    return current_toolkit.execute(current_tool_name, kwargs)
-
-                return _proxy
-
-            proxy_tool = tool_cls(
-                name=proxy_name,
-                description=proxy_description,
-                func=_make_proxy(),
-                parameters=list(getattr(tool_obj, "parameters", []) or []),
-                observe=bool(getattr(tool_obj, "observe", False)),
-                requires_confirmation=bool(
-                    getattr(tool_obj, "requires_confirmation", False)
-                    or _should_force_legacy_confirmation(source_toolkit, tool_name)
-                ),
-            )
-            _set_workspace_proxy_tool_metadata(
-                proxy_tool,
-                original_tool_name=tool_name,
-            )
-            merged_toolkit.register(proxy_tool)
-
-    workspace_map = [
-        {
-            "tool_prefix": "default",
-            "workspace_root": default_entry["root"],
-            "default": True,
-        }
-    ]
-    workspace_map.extend(
-        {
-            "tool_prefix": entry["prefix"],
-            "workspace_root": entry["root"],
-            "default": False,
-        }
-        for entry in workspace_entries[1:]
-    )
-
-    def list_available_workspaces() -> dict[str, Any]:
-        return {
-            "workspaces": workspace_map,
-            "note": (
-                "Use the original workspace tool names for the default workspace. "
-                "Use the prefixed tool names for additional workspaces."
-            ),
-        }
-
-    merged_toolkit.register(
-        tool_cls(
-            name="list_available_workspaces",
-            description=(
-                "List every available workspace root and the tool-name prefix "
-                "for each additional workspace."
-            ),
-            func=list_available_workspaces,
-        )
-    )
-
-    _set_runtime_toolkit_metadata(
-        merged_toolkit,
-        toolkit_id="workspace_toolkit",
-        toolkit_name="Workspace Toolkit",
-    )
-    return merged_toolkit
-
-
-def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
-    workspace_roots_raw = _extract_workspace_roots_from_options(options)
-    if not workspace_roots_raw:
-        return []
-
-    if not _is_workspace_toolkit_requested(options):
-        return []
-
-    if not _should_enable_tools(options):
-        return []
-
-    try:
-        toolkit_module = importlib.import_module("unchain.toolkits")
-    except Exception as import_error:
-        raise RuntimeError(
-            f"Failed to import unchain.toolkits for workspace toolkit: {import_error}"
-        ) from import_error
-
-    toolkit_factory = _resolve_workspace_toolkit_factory(toolkit_module)
-    resolved_roots = _resolve_workspace_roots(workspace_roots_raw)
-
-    # Try a native multi-root constructor first if the toolkit supports it.
-    multi_factory = getattr(toolkit_module, "WorkspaceToolkit", None)
-    if callable(multi_factory) and len(resolved_roots) > 1:
-        try:
-            multi_toolkit = multi_factory(workspace_roots=resolved_roots)
-        except TypeError:
-            multi_toolkit = None
-        else:
-            _set_runtime_toolkit_metadata(
-                multi_toolkit,
-                toolkit_id="workspace_toolkit",
-                toolkit_name="Workspace Toolkit",
-            )
-            _mark_workspace_tools_for_confirmation(multi_toolkit)
-            return [multi_toolkit]
-
-    if len(resolved_roots) == 1:
-        workspace_toolkit = _build_workspace_toolkit_for_root(
-            toolkit_factory,
-            workspace_root=resolved_roots[0],
-        )
-        _set_runtime_toolkit_metadata(
-            workspace_toolkit,
-            toolkit_id="workspace_toolkit",
-            toolkit_name="Workspace Toolkit",
-        )
-        _mark_workspace_tools_for_confirmation(workspace_toolkit)
-        return [workspace_toolkit]
-
-    # Multi-root fallback when no native multi_workspace_toolkit.
-    workspace_toolkit = _try_build_workspace_toolkit_for_roots(
-        toolkit_factory,
-        workspace_roots=resolved_roots,
-    )
-    if workspace_toolkit is None:
-        workspace_toolkit = _build_multi_workspace_proxy_toolkit(
-            toolkit_factory,
-            workspace_roots=resolved_roots,
-        )
-
-    _set_runtime_toolkit_metadata(
-        workspace_toolkit,
-        toolkit_id="workspace_toolkit",
-        toolkit_name="Workspace Toolkit",
-    )
-    _mark_workspace_tools_for_confirmation(workspace_toolkit)
-    return [workspace_toolkit]
 
 
 def _build_selected_toolkits(
@@ -3140,9 +2909,10 @@ def _build_selected_toolkits(
         ) from import_error
 
     for toolkit_name in generic_toolkit_names:
-        normalized_toolkit_name = _TOOLKIT_NAME_ALIASES.get(toolkit_name, toolkit_name)
-        if normalized_toolkit_name == "WorkspaceToolkit":
-            continue
+        normalized_toolkit_name = _TOOLKIT_NAME_ALIASES.get(
+            toolkit_name,
+            _TOOLKIT_NAME_ALIASES.get(toolkit_name.lower(), toolkit_name),
+        )
         if toolkit_name == "builtin_toolkit":
             continue
 
@@ -3153,6 +2923,11 @@ def _build_selected_toolkits(
         toolkit_instance = _build_generic_toolkit(
             toolkit_factory,
             workspace_root=workspace_root,
+            workspace_roots=(
+                resolved_roots
+                if normalized_toolkit_name == "CoreToolkit" and len(resolved_roots) > 1
+                else None
+            ),
         )
         toolkit_class = (
             toolkit_factory
@@ -3162,10 +2937,9 @@ def _build_selected_toolkits(
         class_name = str(getattr(toolkit_class, "__name__", "") or "").strip()
         _set_runtime_toolkit_metadata(
             toolkit_instance,
-            toolkit_id=_canonical_toolkit_id_for_class_name(class_name),
+            toolkit_id=_canonical_runtime_toolkit_id(class_name),
             toolkit_name=_display_toolkit_name_for_class(toolkit_class),
         )
-        _mark_workspace_tools_for_confirmation(toolkit_instance)
         result.append(toolkit_instance)
 
     return result
@@ -3382,8 +3156,7 @@ def _build_requested_toolkits(
     *,
     session_id: str = "",
 ) -> list:
-    toolkits = _build_workspace_toolkits(options)
-    toolkits.extend(_build_selected_toolkits(options, session_id=session_id))
+    toolkits = _build_selected_toolkits(options, session_id=session_id)
     _validate_unique_tool_names(toolkits)
     return toolkits
 
@@ -3572,6 +3345,7 @@ def _materialize_recipe_subagents(
     SubagentTemplate,
     options: Dict[str, object] | None = None,
     optimizer_module_factory=None,
+    optimizer_config: Any | None = None,
 ) -> tuple:
     """Build SubagentTemplate instances from a Recipe's subagent_pool.
 
@@ -3649,13 +3423,16 @@ def _materialize_recipe_subagents(
                 effective = tuple(
                     name for name in sorted(main_tool_names) if name not in disabled
                 )
+            child_options = {
+                **(dict(options) if isinstance(options, dict) else {}),
+                "_recipe_ref_stack": list(current_stack),
+                "_recipe_subagent_run": True,
+            }
+            if isinstance(optimizer_config, dict):
+                child_options[_INHERITED_CONTEXT_OPTIMIZER_OPTION] = optimizer_config
             child_agent = _WorkflowRecipeSubagentAgent(
                 recipe=child_recipe,
-                options={
-                    **(dict(options) if isinstance(options, dict) else {}),
-                    "_recipe_ref_stack": list(current_stack),
-                    "_recipe_subagent_run": True,
-                },
+                options=child_options,
                 name=recipe_name,
             )
             built.append(
@@ -3781,6 +3558,29 @@ _AGGRESSIVE_CONTEXT_OPTIMIZER_CONFIG = {
     "context_usage": {"enabled": True},
     "tool_pair_safety": {"enabled": True},
 }
+
+
+_INHERITED_CONTEXT_OPTIMIZER_OPTION = "_inherited_optimizer_config"
+_CONTEXT_OPTIMIZER_OPTION_KEYS = (
+    _INHERITED_CONTEXT_OPTIMIZER_OPTION,
+    "optimizer",
+    "context_optimizer",
+    "contextOptimizer",
+)
+
+
+def _select_agent_optimizer_config(
+    options: Dict[str, object] | None = None,
+    explicit_config: Any | None = None,
+) -> Any | None:
+    if isinstance(explicit_config, dict):
+        return explicit_config
+    raw_options = options if isinstance(options, dict) else {}
+    for key in _CONTEXT_OPTIMIZER_OPTION_KEYS:
+        candidate = raw_options.get(key)
+        if isinstance(candidate, dict):
+            return candidate
+    return None
 
 
 def _optimizer_bool(value: Any, default: bool = True) -> bool:
@@ -4005,10 +3805,15 @@ def _apply_recipe_toolkit_filter(toolkits: list, refs: tuple) -> list:
     :func:`_resolve_recipe_toolkits`.
     """
     import copy as _copy
-    by_id = {_resolve_toolkit_identity(tk): tk for tk in toolkits}
+    by_id: dict[str, Any] = {}
+    for tk in toolkits:
+        tk_id = _resolve_toolkit_identity(tk)
+        if tk_id and tk_id not in by_id:
+            by_id[tk_id] = tk
     result: list = []
     for ref in refs:
-        tk = by_id.get(ref.id)
+        ref_id = _canonical_runtime_toolkit_id(ref.id)
+        tk = by_id.get(ref_id)
         if tk is None:
             _subagent_logger.warning(
                 "[recipe] toolkit %s referenced by recipe is not loaded; skipping",
@@ -4030,18 +3835,18 @@ def _apply_recipe_toolkit_filter(toolkits: list, refs: tuple) -> list:
 def _resolve_toolkit_identity(toolkit_obj: Any) -> str:
     explicit_id = str(getattr(toolkit_obj, _RUNTIME_TOOLKIT_ID_ATTR, "") or "").strip()
     if explicit_id:
-        return explicit_id
+        return _canonical_runtime_toolkit_id(explicit_id)
     direct_id = str(
         getattr(toolkit_obj, "id", None)
         or getattr(toolkit_obj, "name", None)
         or ""
     ).strip()
     if direct_id:
-        return direct_id
+        return _canonical_runtime_toolkit_id(direct_id)
     toolkit_meta = _get_runtime_toolkit_metadata(toolkit_obj)
     toolkit_id = str(toolkit_meta.get("toolkit_id", "") or "").strip()
     if toolkit_id:
-        return toolkit_id
+        return _canonical_runtime_toolkit_id(toolkit_id)
     return ""
 
 
@@ -4058,14 +3863,19 @@ def _build_toolkits_by_ids(
         return []
     out: list = []
     base_options = dict(options) if isinstance(options, dict) else {}
+    seen: set[str] = set()
     for tid in toolkit_ids:
+        canonical_id = _canonical_runtime_toolkit_id(tid)
+        if not canonical_id or canonical_id in seen:
+            continue
+        seen.add(canonical_id)
         synth = dict(base_options)
-        synth["toolkits"] = [tid]
+        synth["toolkits"] = [canonical_id]
         try:
             built = _build_selected_toolkits(synth)
         except RuntimeError as exc:
             _subagent_logger.warning(
-                "[recipe] cannot build toolkit %s: %s", tid, exc,
+                "[recipe] cannot build toolkit %s: %s", canonical_id, exc,
             )
             continue
         out.extend(built)
@@ -4091,13 +3901,20 @@ def _resolve_recipe_toolkits(
     on demand via :func:`_build_toolkits_by_ids`. Refs that cannot be resolved
     in either source are skipped with a warning.
     """
-    user_by_id = {_resolve_toolkit_identity(tk): tk for tk in user_toolkits}
-    needed = [
-        ref.id
-        for ref in recipe.toolkits
-        if ref.id and ref.id not in user_by_id
-    ]
-    extras = _build_toolkits_by_ids(needed, options)
+    user_by_id: dict[str, Any] = {}
+    for tk in user_toolkits:
+        tk_id = _resolve_toolkit_identity(tk)
+        if tk_id and tk_id not in user_by_id:
+            user_by_id[tk_id] = tk
+    needed: list[str] = []
+    seen_needed: set[str] = set()
+    for ref in recipe.toolkits:
+        ref_id = _canonical_runtime_toolkit_id(ref.id)
+        if not ref_id or ref_id in user_by_id or ref_id in seen_needed:
+            continue
+        seen_needed.add(ref_id)
+        needed.append(ref_id)
+    extras = _build_toolkits_by_ids(needed, options) if needed else []
 
     pool = list(user_toolkits) + list(extras)
     recipe_resolved = _apply_recipe_toolkit_filter(pool, recipe.toolkits)
@@ -4294,7 +4111,7 @@ def _graph_toolkit_refs(node: dict) -> tuple:
     for item in node.get("toolkits") or []:
         if not isinstance(item, dict):
             continue
-        tid = str(item.get("id") or "").strip()
+        tid = _canonical_runtime_toolkit_id(str(item.get("id") or "").strip())
         if not tid:
             continue
         enabled = item.get("enabled_tools")
@@ -4422,18 +4239,6 @@ def _attachment_metadata_json(attachments: List[Dict[str, object]] | None, kind:
     return json.dumps(selected, ensure_ascii=False, default=str)
 
 
-def _workspace_display_names_for_toolkits(toolkits: list) -> Dict[str, str]:
-    names: Dict[str, str] = {}
-    for toolkit in toolkits:
-        for tool_name, tool_obj in getattr(toolkit, "tools", {}).items():
-            original = getattr(tool_obj, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
-            if isinstance(original, str) and original.strip() and original != tool_name:
-                prefix = tool_name[: -len(original) - 1] if tool_name.endswith("_" + original) else ""
-                label = prefix.split("_", 2)[2] if prefix.count("_") >= 2 else prefix
-                names[tool_name] = f"{original} @{label}" if label else original
-    return names
-
-
 def _build_developer_agent(
     *,
     UnchainAgent,
@@ -4456,6 +4261,7 @@ def _build_developer_agent(
     options: Dict[str, object] | None = None,
     recipe=None,
     optimizer_config: Any | None = None,
+    fyi_channel: Any | None = None,
 ):
     if recipe is not None:
         toolkits = _resolve_recipe_toolkits(toolkits, recipe, options=options)
@@ -4467,13 +4273,18 @@ def _build_developer_agent(
         modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
 
+    selected_optimizer_config = _select_agent_optimizer_config(
+        options,
+        optimizer_config,
+    )
+
     # ── Context window optimizers ──
-    optimizer_module = _build_context_optimizer_module(optimizer_config)
+    optimizer_module = _build_context_optimizer_module(selected_optimizer_config)
     if optimizer_module is not None:
         modules.append(optimizer_module)
 
     def optimizer_module_factory():
-        return _build_context_optimizer_module(optimizer_config)
+        return _build_context_optimizer_module(selected_optimizer_config)
 
     templates: tuple = ()
     if (
@@ -4497,6 +4308,7 @@ def _build_developer_agent(
                     SubagentTemplate=SubagentTemplate,
                     options=options,
                     optimizer_module_factory=optimizer_module_factory,
+                    optimizer_config=selected_optimizer_config,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -4546,6 +4358,9 @@ def _build_developer_agent(
                 )
             )
 
+    if fyi_channel is not None:
+        modules.append(_InteractionModule(fyi_channel=fyi_channel))
+
     if recipe is not None:
         instructions = _resolve_recipe_prompt(recipe)
     else:
@@ -4569,7 +4384,11 @@ def _build_developer_agent(
     )
 
 
-def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
+def _create_agent(
+    options: Dict[str, object] | None = None,
+    session_id: str = "",
+    fyi_channel: Any | None = None,
+):
     UnchainAgent = _UnchainAgent
     ToolsModule = _ToolsModule
     MemoryModule = _MemoryModule
@@ -4623,6 +4442,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         memory_manager=memory_manager,
         options=options,
         recipe=recipe,
+        fyi_channel=fyi_channel,
     )
     agent._orchestration_role = "developer"
     agent._orchestration_mode = _AGENT_ORCHESTRATION_DEFAULT
@@ -4891,6 +4711,8 @@ def _stream_recipe_graph_events(
     def run_workflow() -> None:
         try:
             memory_namespace = str(options.get("memory_namespace") or "").strip()
+            memory_session_revision: int | None = None
+            memory_commit_allowed = False
             runtime_messages = base_messages
             if memory_manager is not None:
                 try:
@@ -4908,6 +4730,12 @@ def _stream_recipe_graph_events(
                         supports_tools=True,
                     )
                     prepare_info = getattr(memory_manager, "last_prepare_info", {}) or {}
+                    prepared_revision = prepare_info.get("session_revision")
+                    if isinstance(prepared_revision, int) and not isinstance(
+                        prepared_revision, bool
+                    ):
+                        memory_session_revision = prepared_revision
+                    memory_commit_allowed = True
                     emit({
                         "type": "memory_prepare",
                         "run_id": workflow_run_id,
@@ -4917,6 +4745,14 @@ def _stream_recipe_graph_events(
                         **copy.deepcopy(prepare_info),
                     })
                 except Exception as exc:
+                    error_code = str(getattr(exc, "code", "") or "")
+                    if (
+                        isinstance(exc, _SessionHistoryOwnershipError)
+                        or error_code.startswith("execution_checkpoint_")
+                        or error_code
+                        in {"session_revision_conflict", "session_store_corruption"}
+                    ):
+                        raise
                     emit({
                         "type": "memory_prepare",
                         "run_id": workflow_run_id,
@@ -4945,10 +4781,14 @@ def _stream_recipe_graph_events(
                     if isinstance(agent_node.get("override"), dict)
                     else {}
                 )
-                step_optimizer_config = (
+                raw_step_optimizer_config = (
                     override.get("optimizer")
                     if isinstance(override.get("optimizer"), dict)
                     else None
+                )
+                step_optimizer_config = _select_agent_optimizer_config(
+                    options,
+                    raw_step_optimizer_config,
                 )
                 step_config = dict(selected_config)
                 raw_model = str(
@@ -5012,17 +4852,12 @@ def _stream_recipe_graph_events(
                 step_agent._max_context_window_tokens = int(raw_max_ctx * 0.40)
 
                 toolkit_meta = _build_toolkit_tool_index(step_toolkits)
-                workspace_names = _workspace_display_names_for_toolkits(step_toolkits)
                 step_final_holder = {"text": ""}
 
                 def step_emit(event: Dict[str, Any], *, _is_last=is_last, _agent_id=agent_id, _index=index) -> None:
                     if not isinstance(event, dict):
                         return
                     event = _enrich_tool_event_with_toolkit_metadata(event, toolkit_meta)
-                    if event.get("type") == "tool_call" and event.get("tool_name") in workspace_names:
-                        event["tool_display_name"] = workspace_names[event.get("tool_name")]
-                    if event.get("type") == "tool_result" and event.get("tool_name") in workspace_names:
-                        event["tool_display_name"] = workspace_names[event.get("tool_name")]
                     event_run_id = event.get("run_id")
                     event_is_current_step = not isinstance(event_run_id, str) or not event_run_id
                     if event_is_current_step:
@@ -5112,18 +4947,27 @@ def _stream_recipe_graph_events(
                 output_holder["final_text"] = final_text
 
             final_text = str(output_holder.get("final_text") or "")
-            if memory_manager is not None and final_text:
+            if memory_manager is not None and final_text and memory_commit_allowed:
                 try:
                     commit_messages = [
                         *base_messages,
                         {"role": "assistant", "content": final_text},
                     ]
-                    memory_manager.commit_messages(
-                        session_id=session_id,
-                        full_conversation=commit_messages,
-                        memory_namespace=memory_namespace or None,
-                        model=selected_config["model"],
-                    )
+                    commit_kwargs = {
+                        "session_id": session_id,
+                        "full_conversation": commit_messages,
+                        "memory_namespace": memory_namespace or None,
+                        "model": selected_config["model"],
+                    }
+                    try:
+                        commit_parameters = inspect.signature(
+                            memory_manager.commit_messages
+                        ).parameters
+                    except Exception:
+                        commit_parameters = {}
+                    if "expected_revision" in commit_parameters:
+                        commit_kwargs["expected_revision"] = memory_session_revision
+                    memory_manager.commit_messages(**commit_kwargs)
                     commit_info = getattr(memory_manager, "last_commit_info", {}) or {}
                     emit({
                         "type": "memory_commit",
@@ -5343,166 +5187,163 @@ def stream_chat_events(
         )
         return
 
-    agent = _create_agent(options, session_id=session_id)
-    messages = _normalize_messages(history, message, attachments)
-    payload = _build_payload(agent.provider, options)
-    memory_runtime = _memory_runtime_from_agent(agent)
-    if memory_runtime["requested"] and not memory_runtime["available"]:
-        fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
-        yield {
-            "type": "memory_prepare",
-            "run_id": "",
-            "iteration": 0,
-            "timestamp": time.time(),
-            "session_id": session_id,
-            "applied": False,
-            "fallback_reason": fallback_reason,
-        }
-        if not history:
+    event_queue: "queue.Queue[object]" = queue.Queue()
+    done_marker = object()
+    interject_key = session_id or f"session-{id(event_queue)}"
+    interject_channels = register_interject_channels(
+        interject_key, str(message or ""), options=options
+    )
+
+    try:
+        agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)
+        messages = _normalize_messages(history, message, attachments)
+        payload = _build_payload(agent.provider, options)
+        memory_runtime = _memory_runtime_from_agent(agent)
+        if memory_runtime["requested"] and not memory_runtime["available"]:
+            fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
             yield {
-                "type": "error",
+                "type": "memory_prepare",
                 "run_id": "",
                 "iteration": 0,
                 "timestamp": time.time(),
-                "code": _MEMORY_UNAVAILABLE_CODE,
-                "message": "Memory is enabled but unavailable for this request",
+                "session_id": session_id,
+                "applied": False,
                 "fallback_reason": fallback_reason,
             }
-            return
+            if not history:
+                yield {
+                    "type": "error",
+                    "run_id": "",
+                    "iteration": 0,
+                    "timestamp": time.time(),
+                    "code": _MEMORY_UNAVAILABLE_CODE,
+                    "message": "Memory is enabled but unavailable for this request",
+                    "fallback_reason": fallback_reason,
+                }
+                release_interject_channels(interject_key, interject_channels)
+                return
 
-    event_queue: "queue.Queue[object]" = queue.Queue()
-    done_marker = object()
-    output_holder: Dict[str, object] = {
-        "error": None,
-        "messages": None,
-        "seen_final_message": False,
-        "last_run_id": "",
-        "last_iteration": 0,
-        "bundle": None,
-        "developer_handoff": False,  # deprecated: kept for compat, always False in v1
-    }
+        output_holder: Dict[str, object] = {
+            "error": None,
+            "messages": None,
+            "seen_final_message": False,
+            "last_run_id": "",
+            "last_iteration": 0,
+            "bundle": None,
+            "developer_handoff": False,  # deprecated: kept for compat, always False in v1
+        }
 
-    # Build workspace tool display name map for multi-workspace proxy tools
-    _ws_display_names: Dict[str, str] = {}
-    for _tk in getattr(agent, "_toolkits", []):
-        for _tn, _to in getattr(_tk, "tools", {}).items():
-            _orig = getattr(_to, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
-            if isinstance(_orig, str) and _orig.strip() and _orig != _tn:
-                _prefix = _tn[: -len(_orig) - 1] if _tn.endswith("_" + _orig) else ""
-                _ws_label = _prefix.split("_", 2)[2] if _prefix.count("_") >= 2 else _prefix
-                _ws_display_names[_tn] = f"{_orig} @{_ws_label}" if _ws_label else _orig
-    _toolkit_meta_by_tool_name = _build_toolkit_tool_index(
-        getattr(agent, "_toolkits", []),
-    )
-
-    def on_event(event: Dict[str, Any]) -> None:
-        if not isinstance(event, dict):
-            return
-        event = _enrich_tool_event_with_toolkit_metadata(
-            event,
-            _toolkit_meta_by_tool_name,
+        _toolkit_meta_by_tool_name = _build_toolkit_tool_index(
+            getattr(agent, "_toolkits", []),
         )
-        event_type = event.get("type")
-        # Suppress unchain-native events that are replaced by our callbacks
-        if event_type == "human_input_requested":
-            return
-        if event_type == "run_max_iterations":
-            return
-        # Suppress the bare tool_call for ask_user_question — our on_human_input
-        # callback emits the proper PuPu-format tool_call with interact_config
-        if _is_bare_ask_user_question_tool_call(event):
-            return
-        # Enrich tool_call events with workspace display names
-        if event_type == "tool_call" and _ws_display_names:
-            tn = event.get("tool_name", "")
-            if tn in _ws_display_names:
-                event["tool_display_name"] = _ws_display_names[tn]
-        if event_type == "tool_result" and _ws_display_names:
-            tn = event.get("tool_name", "")
-            if tn in _ws_display_names:
-                event["tool_display_name"] = _ws_display_names[tn]
-        if event_type == "final_message":
-            output_holder["seen_final_message"] = True
-        run_id = event.get("run_id")
-        if isinstance(run_id, str):
-            output_holder["last_run_id"] = run_id
-        iteration = event.get("iteration")
-        if isinstance(iteration, int):
-            output_holder["last_iteration"] = iteration
-        event_queue.put(event)
 
-    confirm_cb = _make_tool_confirm_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
-    )
-    human_input_cb = _make_human_input_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
-    )
-    max_iterations_cb = _make_continuation_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-    )
-    if isinstance(cancel_event, threading.Event):
-        def watch_stream_cancel() -> None:
-            cancel_event.wait()
-            cancel_tool_confirmations(cancel_event)
+        def on_event(event: Dict[str, Any]) -> None:
+            if not isinstance(event, dict):
+                return
+            event = _enrich_tool_event_with_toolkit_metadata(
+                event,
+                _toolkit_meta_by_tool_name,
+            )
+            event_type = event.get("type")
+            # Suppress unchain-native events that are replaced by our callbacks
+            if event_type == "human_input_requested":
+                return
+            if event_type == "run_max_iterations":
+                return
+            # Suppress the bare tool_call for ask_user_question — our on_human_input
+            # callback emits the proper PuPu-format tool_call with interact_config
+            if _is_bare_ask_user_question_tool_call(event):
+                return
+            if event_type == "final_message":
+                output_holder["seen_final_message"] = True
+            run_id = event.get("run_id")
+            if isinstance(run_id, str):
+                output_holder["last_run_id"] = run_id
+            iteration = event.get("iteration")
+            if isinstance(iteration, int):
+                output_holder["last_iteration"] = iteration
+            try:
+                interject_channels.digest(event)
+            except Exception:
+                pass
+            event_queue.put(event)
 
-        cancel_watcher = threading.Thread(
-            target=watch_stream_cancel,
-            name="unchain-stream-confirm-cancel",
-            daemon=True,
+        confirm_cb = _make_tool_confirm_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+            toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
         )
-        cancel_watcher.start()
+        human_input_cb = _make_human_input_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+            toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
+        )
+        max_iterations_cb = _make_continuation_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+        )
+        if isinstance(cancel_event, threading.Event):
+            def watch_stream_cancel() -> None:
+                cancel_event.wait()
+                cancel_tool_confirmations(cancel_event)
 
-    def run_agent() -> None:
-        try:
-            memory_namespace = str(options.get("memory_namespace") or "").strip()
-            resolved_max_iterations = int(
-                getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
-                or _DEFAULT_MAX_ITERATIONS
+            cancel_watcher = threading.Thread(
+                target=watch_stream_cancel,
+                name="unchain-stream-confirm-cancel",
+                daemon=True,
             )
-            resolved_max_ctx = int(
-                getattr(agent, "_max_context_window_tokens", 0) or 0
-            )
-            result = agent.run(
-                messages=messages,
-                payload=payload,
-                callback=on_event,
-                max_iterations=resolved_max_iterations,
-                max_context_window_tokens=resolved_max_ctx or None,
-                on_tool_confirm=confirm_cb,
-                on_human_input=human_input_cb,
-                on_max_iterations=max_iterations_cb,
-                **({"session_id": session_id} if session_id else {}),
-                **({"memory_namespace": memory_namespace} if memory_namespace else {}),
-            )
-            output_holder["messages"] = result.messages
-            bundle_model = str(
-                getattr(agent, "_display_model", "")
-                or _format_model_id(getattr(agent, "provider", ""), getattr(agent, "model", ""))
-            )
-            bundle = _build_bundle_from_result(
-                result,
-                agent,
-                model=bundle_model,
-                active_agent="developer",
-                orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
-            )
-            if bundle:
-                output_holder["bundle"] = bundle
-        except Exception as run_error:
-            import traceback as _tb
-            output_holder["error_traceback"] = _tb.format_exc()
-            output_holder["error"] = run_error
-        finally:
-            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
-            event_queue.put(done_marker)
+            cancel_watcher.start()
 
-    worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
-    worker.start()
+        def run_agent() -> None:
+            try:
+                memory_namespace = str(options.get("memory_namespace") or "").strip()
+                resolved_max_iterations = int(
+                    getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
+                    or _DEFAULT_MAX_ITERATIONS
+                )
+                resolved_max_ctx = int(
+                    getattr(agent, "_max_context_window_tokens", 0) or 0
+                )
+                result = agent.run(
+                    messages=messages,
+                    payload=payload,
+                    callback=on_event,
+                    max_iterations=resolved_max_iterations,
+                    max_context_window_tokens=resolved_max_ctx or None,
+                    on_tool_confirm=confirm_cb,
+                    on_human_input=human_input_cb,
+                    on_max_iterations=max_iterations_cb,
+                    **({"session_id": session_id} if session_id else {}),
+                    **({"memory_namespace": memory_namespace} if memory_namespace else {}),
+                )
+                output_holder["messages"] = result.messages
+                bundle_model = str(
+                    getattr(agent, "_display_model", "")
+                    or _format_model_id(getattr(agent, "provider", ""), getattr(agent, "model", ""))
+                )
+                bundle = _build_bundle_from_result(
+                    result,
+                    agent,
+                    model=bundle_model,
+                    active_agent="developer",
+                    orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
+                )
+                if bundle:
+                    output_holder["bundle"] = bundle
+            except Exception as run_error:
+                import traceback as _tb
+                output_holder["error_traceback"] = _tb.format_exc()
+                output_holder["error"] = run_error
+            finally:
+                _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
+                release_interject_channels(interject_key, interject_channels)
+                event_queue.put(done_marker)
+
+        worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
+        worker.start()
+    except BaseException:  # BaseException: also catch GeneratorExit when the SSE consumer abandons us mid-setup
+        release_interject_channels(interject_key, interject_channels)
+        raise
 
     while True:
         item = event_queue.get()

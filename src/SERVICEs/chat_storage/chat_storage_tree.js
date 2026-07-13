@@ -278,9 +278,33 @@ export const ensureUniqueLabel = (
   }
 };
 
-export const snapshotSubtreeForCopy = (store, sourceNodeId) => {
+// loadMessages: optional `(chatId) => message[]` loader (v3 lazy messages).
+// When provided, chats whose in-store messages are a `[]` placeholder but
+// whose stats say they have messages are hydrated through it. The loader is
+// passed by CALLERS (e.g. chat_export passes getChatMessages) instead of being
+// imported here: chat_storage_store.js imports this module, so importing
+// getChatMessages from the store would create a require cycle.
+export const snapshotSubtreeForCopy = (store, sourceNodeId, loadMessages) => {
   const nodesById = {};
   const chatsById = {};
+
+  const hydrateChatCopy = (chatId, chatCopy) => {
+    if (typeof loadMessages !== "function") {
+      return chatCopy;
+    }
+    const inMemory = Array.isArray(chatCopy?.messages) ? chatCopy.messages : [];
+    if (inMemory.length > 0) {
+      return chatCopy;
+    }
+    if (Number(chatCopy?.stats?.messageCount || 0) <= 0) {
+      return chatCopy;
+    }
+    const loaded = loadMessages(chatId);
+    return {
+      ...chatCopy,
+      messages: Array.isArray(loaded) ? loaded : [],
+    };
+  };
 
   const walk = (nodeId, path = new Set()) => {
     const node = store.tree.nodesById[nodeId];
@@ -314,7 +338,10 @@ export const snapshotSubtreeForCopy = (store, sourceNodeId) => {
         chatId: node.chatId,
         label: sanitizeLabel(node.label, DEFAULT_CHAT_TITLE),
       };
-      chatsById[node.chatId] = clone(store.chatsById[node.chatId]);
+      chatsById[node.chatId] = hydrateChatCopy(
+        node.chatId,
+        clone(store.chatsById[node.chatId]),
+      );
       return nodeId;
     }
 
@@ -375,11 +402,17 @@ export const ensureTreeHasNodeForChat = (store, chatId, options = {}) => {
 
   for (const [nodeId, node] of Object.entries(store.tree.nodesById)) {
     if (node.entity === "chat" && node.chatId === chatId) {
-      node.label = sanitizeLabel(
+      const nextLabel = sanitizeLabel(
         store.chatsById[chatId].title,
         DEFAULT_CHAT_TITLE,
       );
-      node.updatedAt = now();
+      /* stamp only on real change — normalizeStore must be idempotent
+         (the ops protocol assumes un-dirtied chats re-normalize to the
+         exact same bytes) */
+      if (node.label !== nextLabel) {
+        node.label = nextLabel;
+        node.updatedAt = now();
+      }
       return nodeId;
     }
   }
@@ -624,15 +657,10 @@ export const buildTreeNodeLookupByChatId = (tree) => {
 const sanitizeExplorerLabel = (label, fallback) =>
   sanitizeLabel(label, fallback);
 
-const isChatGenerating = (chat) => {
-  if (!Array.isArray(chat?.messages)) {
-    return false;
-  }
-  return chat.messages.some(
-    (message) =>
-      message?.role === "assistant" && message?.status === "streaming",
-  );
-};
+// v3: `messages` is a lazy `[]` placeholder for non-active chats, so the tree
+// must NOT scan messages. `isGenerating` is a chat-meta flag maintained by
+// setChatMessages (the single message write entry point).
+const isChatGenerating = (chat) => chat?.isGenerating === true;
 
 export const sanitizeExplorerReorderPayload = ({
   data,
@@ -679,9 +707,36 @@ export const sanitizeExplorerReorderPayload = ({
   };
 };
 
-export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
+// Switch-chain incrementalization Task 3 (spec §3): generation row cache.
+//
+// `cache` is a CALLER-OWNED object ({ rowsByNodeId: Map }). When provided, a
+// node's row object from the previous build is REUSED (reference equality)
+// when everything that feeds it is unchanged, so downstream React.memo rows
+// skip re-rendering. Validity rules (all keys include the handlers OBJECT
+// reference — row closures capture `handlers`, so the caller must keep it
+// identity-stable; see side_menu's stable dispatcher):
+//
+//  - Chat rows: reuse iff node ref + chat ref (T1 identity-preserving store:
+//    untouched ⇔ same reference) + handlers ref + computed `selected` flag +
+//    the recomputed relative-age postfix are ALL unchanged. Reference-gated:
+//    a re-minted chat object re-mints the row even if content is equal.
+//  - Folder rows (documented policy): descendant roll-ups (generating /
+//    unread) are RECOMPUTED every build via the memoized subtree walks —
+//    they are cheap and folders are few — and the row object is reused iff
+//    node ref + handlers ref + `selected` + BOTH roll-up booleans are
+//    unchanged. An ancestor folder's row identity therefore changes exactly
+//    when a descendant flip moves its roll-up, not on every descendant write.
+//  - The cache map is rebuilt on every call (hits carried over), so ids that
+//    leave the tree are evicted automatically.
+//
+// Without `cache` the behavior is byte-identical to the pre-cache version:
+// fresh row objects on every call.
+export const buildExplorerFromTree = (tree, chatsById, handlers = {}, cache = null) => {
   const nodesById = isObject(tree?.nodesById) ? tree.nodesById : {};
   const root = Array.isArray(tree?.root) ? tree.root : [];
+  const prevRows =
+    cache && cache.rowsByNodeId instanceof Map ? cache.rowsByNodeId : null;
+  const nextRows = cache ? new Map() : null;
   const relativeNow = Number.isFinite(Number(handlers.relativeNow))
     ? Number(handlers.relativeNow)
     : now();
@@ -781,6 +836,19 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
     if (node.entity === "folder") {
       const hasGeneratingDescendant = hasGeneratingChatInSubtree(nodeId);
       const hasUnreadGeneratedDescendant = hasUnreadGeneratedInSubtree(nodeId);
+      const prevEntry = prevRows ? prevRows.get(nodeId) : null;
+      if (
+        prevEntry &&
+        prevEntry.nodeRef === node &&
+        prevEntry.handlersRef === handlers &&
+        prevEntry.selected === selected &&
+        prevEntry.generatingDescendant === hasGeneratingDescendant &&
+        prevEntry.unreadDescendant === hasUnreadGeneratedDescendant
+      ) {
+        data[nodeId] = prevEntry.row;
+        nextRows.set(nodeId, prevEntry);
+        continue;
+      }
       data[nodeId] = {
         type: "folder",
         entity: "folder",
@@ -805,6 +873,16 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
           }
         },
       };
+      if (nextRows) {
+        nextRows.set(nodeId, {
+          nodeRef: node,
+          handlersRef: handlers,
+          selected,
+          generatingDescendant: hasGeneratingDescendant,
+          unreadDescendant: hasUnreadGeneratedDescendant,
+          row: data[nodeId],
+        });
+      }
       continue;
     }
 
@@ -826,6 +904,19 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
           ? Number(node.updatedAt)
           : null;
     const updatedAgo = formatRelativeAgeShort(lastUpdatedAt, relativeNow);
+    const prevEntry = prevRows ? prevRows.get(nodeId) : null;
+    if (
+      prevEntry &&
+      prevEntry.nodeRef === node &&
+      prevEntry.chatRef === chat &&
+      prevEntry.handlersRef === handlers &&
+      prevEntry.selected === selected &&
+      prevEntry.postfix === updatedAgo
+    ) {
+      data[nodeId] = prevEntry.row;
+      nextRows.set(nodeId, prevEntry);
+      continue;
+    }
     data[nodeId] = {
       type: "file",
       entity: "chat",
@@ -862,6 +953,20 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
         }
       },
     };
+    if (nextRows) {
+      nextRows.set(nodeId, {
+        nodeRef: node,
+        chatRef: chat,
+        handlersRef: handlers,
+        selected,
+        postfix: updatedAgo,
+        row: data[nodeId],
+      });
+    }
+  }
+
+  if (cache) {
+    cache.rowsByNodeId = nextRows;
   }
 
   return {

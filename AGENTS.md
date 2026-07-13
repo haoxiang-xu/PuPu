@@ -1,24 +1,25 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **PuPu** (16264 symbols, 25027 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **PuPu** (11298 symbols, 25077 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER edit a function, class, or method without first running `impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
 
 ## Resources
 
@@ -41,3 +42,30 @@ This project is indexed by GitNexus as **PuPu** (16264 symbols, 25027 relationsh
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+<!-- The section below is hand-maintained. Keep it OUTSIDE the gitnexus block so `npx gitnexus analyze` does not overwrite it. -->
+
+## PuPu Conventions (for Codex and any agent writing code here)
+
+These are load-bearing — violating them breaks the build or the architecture. Canonical source: `CLAUDE.md` and `.claude/CLAUDE.md`.
+
+**Frontend (`src/`, `electron/`):**
+- JavaScript only — no TypeScript, no PropTypes. Never create `.ts` / `.tsx` files.
+- Inline styles only — no CSS modules, no styled-components. Theme via `isDark` from ConfigContext.
+- All function components — no class components.
+- Custom router `BUILTIN_COMPONENTs/mini_react/mini_router.js` for internal routing — not react-router-dom.
+- React never touches `ipcRenderer`. System access goes through preload bridges (`window.unchainAPI`, `ollamaAPI`, `themeAPI`, etc.). IPC channel constants in `electron/shared/` must match both ends.
+- localStorage writes go only through helpers in `src/SERVICEs/`, never directly from components.
+- Electron tests have both `.js` and `.cjs` variants — keep them in sync.
+
+**Backend (`unchain_runtime/server/`):**
+- Python Flask sidecar. Key files: `routes.py` / `route_chat.py`, `unchain_adapter.py`, `memory_factory.py`, `character_store.py`. Tests in `unchain_runtime/server/tests/`.
+- Run unchain tests with its own pytest (`run_tests.sh`) — do NOT use `npx jest`. Run PuPu/JS tests with `react-scripts test`.
+- After changing unchain `.py`, the sidecar must be restarted to take effect — note this in your report.
+
+**General:**
+- Run GitNexus impact analysis before editing any symbol (see the GitNexus block above). Warn on HIGH / CRITICAL.
+- Match the surrounding code's style and idiom. No unrelated refactoring.
+- Do NOT `git commit` — leave the dirty tree for the CEO to commit.
+
+**Mode B pilot (Codex-primary writing):** When Codex writes code here under the `pupu-dev-backend` Mode B pilot, a Claude agent reviews the diff and reruns the relevant tests before acceptance. Do NOT change model-visible behavior (`pupu-llm-expert` holds veto) or security-sensitive code (MCP OAuth / secrets — `pupu-security-expert`) without sign-off. See `.claude/agents/HYBRID_CODEX_POLICY.md`.

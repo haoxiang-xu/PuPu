@@ -12,7 +12,7 @@ export default function useOptimisticUpdate() {
       if (shouldRollback) {
         try { rollback(err); } catch (e) { console.error("[rollback] threw:", e); }
       }
-      toast.error(`${label}: ${err?.message || "失败"}`);
+      toast.reportError(err, { title: label });
     }
   }, []);
 

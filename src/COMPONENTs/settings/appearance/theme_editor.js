@@ -1,0 +1,298 @@
+import { useContext, useEffect, useState } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
+import Select from "../../../BUILTIN_COMPONENTs/select/select";
+import {
+  SEMANTIC_TOKEN_KEYS,
+  SEMANTIC_PRESETS,
+} from "../../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+import {
+  resolveSemanticPalette,
+  applySemanticCssVars,
+  applySemanticPaletteToTheme,
+} from "../../../CONTAINERs/config/theme_semantic";
+import {
+  readThemeSettings,
+  writeThemePreset,
+  writeThemeCustomColor,
+  writeThemeCustom,
+  resetThemeSettings,
+  clearThemeCustomColor,
+} from "./storage";
+import { ADVANCED_TIERS, advancedTokenState } from "./advanced_state";
+
+const TOKEN_LABELS = {
+  accent: "Accent",
+  background: "Background",
+  sidebar: "Sidebar",
+  surface: "Surface",
+  text: "Text",
+  textMuted: "Muted text",
+  border: "Border",
+  success: "Success",
+  danger: "Danger",
+};
+
+const PRESET_OPTIONS = Object.keys(SEMANTIC_PRESETS).map((name) => ({
+  value: name,
+  label: name,
+}));
+
+const ThemeEditor = () => {
+  const { onThemeMode, theme, setTheme } = useContext(ConfigContext);
+  const isDark = onThemeMode === "dark_mode";
+  const activeMode = onThemeMode === "dark_mode" ? "dark_mode" : "light_mode";
+
+  const [settings, setSettings] = useState(() => readThemeSettings());
+  const [editMode, setEditMode] = useState(activeMode);
+
+  /* Keep the edited mode aligned with the active app theme so that, if the user
+     flips light/dark while this editor is open, edits land on the mode they see.
+     Manual tab clicks still work — this only re-syncs when onThemeMode changes. */
+  useEffect(() => {
+    setEditMode(activeMode);
+  }, [activeMode]);
+
+  const palette = resolveSemanticPalette(editMode, {
+    preset: settings.preset,
+    custom: settings.custom,
+  });
+
+  const previewThemeColor = (mode, key, value) => {
+    if (mode !== activeMode) {
+      return;
+    }
+    const livePalette = resolveSemanticPalette(activeMode, {
+      preset: settings.preset,
+      custom: {
+        ...settings.custom,
+        [mode]: {
+          ...(settings.custom?.[mode] || {}),
+          [key]: value,
+        },
+      },
+    });
+    applySemanticCssVars(livePalette);
+  };
+
+  const syncCommittedSettings = (next) => {
+    const livePalette = resolveSemanticPalette(activeMode, {
+      preset: next.preset,
+      custom: next.custom,
+    });
+    applySemanticCssVars(livePalette);
+    if (setTheme && theme) {
+      setTheme(applySemanticPaletteToTheme(theme, livePalette));
+    }
+  };
+
+  const commitThemeColor = (key, value) => {
+    const next = writeThemeCustomColor(editMode, key, value);
+    setSettings(next);
+    if (editMode === activeMode) {
+      syncCommittedSettings(next);
+    }
+  };
+
+  const onPresetChange = (preset) => {
+    const next = writeThemePreset(preset);
+    setSettings(next);
+    syncCommittedSettings(next);
+  };
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advState = advancedTokenState(settings, editMode, palette);
+
+  const onResetTier = (key) => {
+    const next = clearThemeCustomColor(editMode, key);
+    setSettings(next);
+    if (editMode === activeMode) {
+      syncCommittedSettings(next);
+    }
+  };
+
+  const onReset = () => {
+    const next = resetThemeSettings();
+    setSettings(next);
+    syncCommittedSettings(next);
+  };
+
+  const onExport = () => {
+    const blob = new Blob([JSON.stringify(settings, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pupu-theme.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onImport = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (
+          parsed &&
+          typeof parsed.preset === "string" &&
+          SEMANTIC_PRESETS[parsed.preset]
+        ) {
+          writeThemePreset(parsed.preset);
+        }
+        if (parsed && parsed.custom) {
+          writeThemeCustom(parsed.custom);
+        }
+        const next = readThemeSettings();
+        setSettings(next);
+        syncCommittedSettings(next);
+      } catch (_err) {
+        /* ignore malformed file */
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const tabStyle = (mode) => ({
+    padding: "4px 12px",
+    fontSize: 12,
+    borderRadius: 7,
+    cursor: "pointer",
+    border: "none",
+    backgroundColor:
+      editMode === mode
+        ? isDark
+          ? "rgba(255,255,255,0.12)"
+          : "rgba(0,0,0,0.08)"
+        : "transparent",
+    color: isDark ? "#fff" : "#222",
+  });
+
+  const btnStyle = {
+    padding: "4px 12px",
+    fontSize: 12,
+    borderRadius: 7,
+    cursor: "pointer",
+    border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`,
+    backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+    color: isDark ? "#fff" : "#222",
+  };
+
+  const selectStyle = {
+    minWidth: 140,
+    fontSize: 13,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: isDark
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(0,0,0,0.05)",
+  };
+  const selectOptionStyle = { height: 28, padding: "4px 8px", fontSize: 13 };
+  const selectDropdownStyle = { padding: 4, maxHeight: 220, minWidth: 180 };
+
+  return (
+    <div style={{ padding: "8px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <span style={{ fontSize: 12, opacity: 0.6, color: isDark ? "#fff" : "#222" }}>
+          Preset
+        </span>
+        <Select
+          options={PRESET_OPTIONS}
+          value={settings.preset}
+          set_value={onPresetChange}
+          filterable={false}
+          style={selectStyle}
+          option_style={selectOptionStyle}
+          dropdown_style={selectDropdownStyle}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        <button type="button" style={tabStyle("light_mode")} onClick={() => setEditMode("light_mode")}>
+          Light
+        </button>
+        <button type="button" style={tabStyle("dark_mode")} onClick={() => setEditMode("dark_mode")}>
+          Dark
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {SEMANTIC_TOKEN_KEYS.filter((k) => !ADVANCED_TIERS.includes(k)).map((key) => (
+          <div
+            key={key}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+          >
+            <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
+              {TOKEN_LABELS[key]}
+            </span>
+            <ColorPicker
+              label={TOKEN_LABELS[key]}
+              value={palette[key]}
+              onPreview={(v) => previewThemeColor(editMode, key, v)}
+              onCommit={(v) => commitThemeColor(key, v)}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <button
+          type="button"
+          style={btnStyle}
+          onClick={() => setAdvancedOpen((o) => !o)}
+        >
+          {advancedOpen ? "Hide advanced" : "Advanced background"}
+        </button>
+        {advancedOpen && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+            {ADVANCED_TIERS.map((key) => (
+              <div
+                key={key}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+              >
+                <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
+                  {TOKEN_LABELS[key]}
+                  {advState[key].isAuto && (
+                    <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>auto</span>
+                  )}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {!advState[key].isAuto && (
+                    <button type="button" style={btnStyle} onClick={() => onResetTier(key)}>
+                      Auto
+                    </button>
+                  )}
+                  <ColorPicker
+                    label={TOKEN_LABELS[key]}
+                    value={advState[key].value}
+                    onPreview={(v) => previewThemeColor(editMode, key, v)}
+                    onCommit={(v) => commitThemeColor(key, v)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <label style={{ ...btnStyle, display: "inline-flex", alignItems: "center" }}>
+          Import JSON
+          <input type="file" accept="application/json" onChange={onImport} style={{ display: "none" }} />
+        </label>
+        <button type="button" style={btnStyle} onClick={onExport}>
+          Export JSON
+        </button>
+        <button type="button" style={btnStyle} onClick={onReset}>
+          Reset to default
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default ThemeEditor;

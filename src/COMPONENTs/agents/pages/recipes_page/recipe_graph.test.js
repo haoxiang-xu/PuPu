@@ -46,13 +46,19 @@ test("canonicalizes legacy toolpool nodes to toolkit_pool", () => {
         start,
         agent("a1"),
         end,
-        { id: "tp", type: "toolpool", toolkits: [{ id: "core" }] },
+        {
+          id: "tp",
+          type: "toolpool",
+          toolkits: [
+            { id: "external_api", enabled_tools: ["fetch"] },
+          ],
+        },
       ],
       [flow("start", "a1"), flow("a1", "end"), attach("a1", "tp")],
     ),
   );
   expect(compiled.nodes.find((node) => node.id === "tp").type).toBe("toolkit_pool");
-  expect(compiled.toolkits).toEqual([{ id: "core" }]);
+  expect(compiled.toolkits).toEqual([{ id: "core", enabled_tools: ["fetch"] }]);
 });
 
 test("rejects branching", () => {

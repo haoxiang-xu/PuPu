@@ -33,6 +33,11 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show the Update page in Settings and allow access to in-app update controls.",
     defaultValue: true,
   },
+  enable_theme_color_customization: {
+    description:
+      "Show Theme colors in Appearance and apply saved semantic color presets/customizations.",
+    defaultValue: false,
+  },
 };
 
 const listeners = new Set();

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
+  getChatMessages,
   setChatMessages,
   setChatModel,
   setChatSessionBundle,
@@ -260,10 +261,19 @@ export const useChatSessionState = ({
   }, []);
 
   useEffect(() => {
+    // Bootstrap straggler settle, v3 lazy messages: non-active chats carry
+    // `[]` placeholders, so scanning `chat.messages` would miss them. The
+    // isGenerating META flag (maintained by setChatMessages) marks the only
+    // chats that can hold stranded streaming messages — load just those via
+    // getChatMessages, settle, and write back.
     const chatsById = bootstrapped?.store?.chatsById || {};
     for (const [chatId, chat] of Object.entries(chatsById)) {
+      if (chat?.isGenerating !== true) {
+        continue;
+      }
+
       const { changed, nextMessages } = settleStreamingAssistantMessages(
-        chat?.messages,
+        getChatMessages(chatId),
       );
       if (!changed) {
         continue;
@@ -286,7 +296,17 @@ export const useChatSessionState = ({
       clearTimeout(draftPersistTimerRef.current);
     }
 
-    draftPersistTimerRef.current = setTimeout(() => {
+    // 流式期间 defer(2026-07 B 批性能):draft 落盘 = 整库 persist(实测 53–80ms),
+    // 会顶在流式帧上形成长任务。任何流在跑时置后重查(每 250ms),流结束后的第一拍
+    // 落盘。React 内存态(inputValue)始终即时更新,draft 零丢失,只是落盘时机推迟。
+    const persistDraft = () => {
+      if (activeStreamsRef?.current?.size > 0) {
+        draftPersistTimerRef.current = setTimeout(
+          persistDraft,
+          DRAFT_PERSIST_DELAY_MS,
+        );
+        return;
+      }
       draftPersistTimerRef.current = null;
       updateChatDraft(
         currentChatId,
@@ -296,7 +316,11 @@ export const useChatSessionState = ({
         },
         { source: "chat-page" },
       );
-    }, DRAFT_PERSIST_DELAY_MS);
+    };
+    draftPersistTimerRef.current = setTimeout(
+      persistDraft,
+      DRAFT_PERSIST_DELAY_MS,
+    );
 
     return () => {
       if (draftPersistTimerRef.current) {
@@ -304,7 +328,7 @@ export const useChatSessionState = ({
         draftPersistTimerRef.current = null;
       }
     };
-  }, [draftAttachments, inputValue]);
+  }, [activeStreamsRef, draftAttachments, inputValue]);
 
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;
@@ -327,32 +351,64 @@ export const useChatSessionState = ({
     }
   }, []);
 
+  /* Session-bundle persist is DEFERRED off the interaction's paint path:
+     a synchronous whole-store persist here blocks the main thread for
+     40-80ms right after e.g. a toolkit checkbox click, making the toggle
+     feel sluggish. Debounced writes coalesce rapid toggles; a pending
+     write is flushed when the chat switches under it and on unmount, so
+     nothing is lost. */
+  const pendingSessionBundleRef = useRef(null);
+  const flushPendingSessionBundle = useCallback(() => {
+    const pending = pendingSessionBundleRef.current;
+    pendingSessionBundleRef.current = null;
+    if (pending) {
+      setChatSessionBundle(pending.chatId, pending.bundle, {
+        source: "chat-page",
+      });
+    }
+  }, []);
+
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;
     if (!currentChatId) {
-      return;
+      return undefined;
     }
     if (activeChatKind === "character") {
-      return;
+      return undefined;
     }
 
-    setChatSessionBundle(
-      currentChatId,
-      {
+    const pending = pendingSessionBundleRef.current;
+    if (pending && pending.chatId !== currentChatId) {
+      // don't let a chat switch swallow the previous chat's pending write
+      flushPendingSessionBundle();
+    }
+
+    pendingSessionBundleRef.current = {
+      chatId: currentChatId,
+      bundle: {
         selectedToolkits,
         agentOrchestration,
         selectedWorkspaceIds,
         selectedRecipeName,
       },
-      { source: "chat-page" },
-    );
+    };
+    const timer = setTimeout(flushPendingSessionBundle, 150);
+    return () => clearTimeout(timer);
   }, [
     activeChatKind,
     selectedToolkits,
     agentOrchestration,
     selectedWorkspaceIds,
     selectedRecipeName,
+    flushPendingSessionBundle,
   ]);
+
+  useEffect(
+    () => () => {
+      flushPendingSessionBundle();
+    },
+    [flushPendingSessionBundle],
+  );
 
   useEffect(() => {
     return () => {

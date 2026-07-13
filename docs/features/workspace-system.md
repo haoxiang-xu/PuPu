@@ -6,7 +6,7 @@
 
 ## Overview
 
-Workspaces let users attach local folders as context for AI conversations. The agent can read/write files within selected workspace directories.
+Workspaces let users attach local folders as context for AI conversations. The selected paths are passed to Unchain's `core` toolkit so the agent can use file, search, edit, shell, and LSP tools inside the chosen project.
 
 ---
 
@@ -15,7 +15,7 @@ Workspaces let users attach local folders as context for AI conversations. The a
 | Concept | Description |
 |---------|-------------|
 | **Default workspace root** | Global setting, primary workspace path |
-| **Named workspaces** | User-defined workspace entries with ID, label, and path |
+| **Named workspaces** | User-defined workspace entries with ID, optional name, and path |
 | **Per-chat workspace selection** | Each chat selects which workspaces to include |
 | **Path resolution** | Workspace IDs → absolute paths at stream time |
 
@@ -31,7 +31,7 @@ Stored in `localStorage.settings.runtime`:
   workspaces: [
     {
       id: string,       // unique ID (generated)
-      label: string,    // display name
+      name: string,     // optional display name
       path: string,     // absolute path
     },
   ],
@@ -63,12 +63,49 @@ These reference workspace IDs from settings, **not** raw paths.
 4. At stream time:
    api.unchain.startStreamV2(payload, ...)
      → injectWorkspaceRootIntoPayload(payload)
-       → Resolves IDs to absolute paths from settings
-       → Injects: workspaceRoot, workspace_root, workspace_roots
+       → Resolves selectedWorkspaceIds to absolute paths from settings
+       → Builds allRoots: selected paths first, then the global default
+         root appended as fallback if distinct
+       → Injects the multi-root trio into options:
+           workspace_roots[]   (array — the source of truth, multi-root)
+           workspace_root      (allRoots[0] — back-compat single root)
+           workspaceRoot       (allRoots[0] — back-compat single root)
+       → Strips internal selectedWorkspaceIds from options
 5. Backend receives resolved paths (not IDs)
-6. unchain_adapter.py attaches workspace tools
-   (multi_workspace_toolkit or python_workspace_toolkit)
+6. unchain_adapter.py attaches the `core` toolkit when selected
+   (see Backend Toolkit Resolution below)
 ```
+
+### Injection short-circuit branches
+
+`injectWorkspaceRootIntoPayload` returns early (without injecting the
+trio) in these cases — `selectedWorkspaceIds` is still stripped from
+options in every branch:
+
+| Condition (on `payload.options`) | Behavior |
+|----------------------------------|----------|
+| `disable_workspace_root === true` (or camel `disableWorkspaceRoot`) | Skip injection entirely |
+| `explicitWorkspaceRoot` — caller already set `workspaceRoot`/`workspace_root` | Respect caller's root, skip injection |
+| `allRoots.length === 0` (no selected paths, no default root) | Nothing to inject |
+
+---
+
+## Backend Toolkit Resolution
+
+The backend no longer exposes a public Workspace Toolkit. The active built-in
+for code and project operations is `core`.
+
+Legacy selections such as `workspace`, `workspace_toolkit`,
+`access_workspace_toolkit`, and `WorkspaceToolkit` are compatibility aliases
+that normalize to `core` before the backend constructs toolkits. The backend
+resolves `workspace_roots`, passes the first resolved root as `workspace_root`
+to `CoreToolkit`, and leaves confirmation behavior to the toolkit's own tool
+metadata (`write`, `edit`, and `shell` require confirmation).
+
+Multi-root selection remains part of the UI/storage model, but PuPu no longer
+builds a Workspace proxy toolkit. Additional roots are preserved in the
+payload for compatibility and future runtime/toolkit support; current Core
+construction uses the primary resolved root.
 
 ---
 
@@ -116,5 +153,4 @@ Implemented in `electron/main/services/runtime/service.js`.
 | `src/SERVICEs/api.unchain.js` | `injectWorkspaceRootIntoPayload()` |
 | `src/SERVICEs/bridges/unchain_bridge.js` | Runtime bridge methods |
 | `electron/main/services/runtime/service.js` | Path validation, folder picker |
-| `unchain_runtime/server/unchain_adapter.py` | Workspace tool attachment |
-| `unchain_runtime/server/adapter_workspace_tools.py` | Workspace tool definitions |
+| `unchain_runtime/server/unchain_adapter.py` | Toolkit alias normalization and CoreToolkit construction |

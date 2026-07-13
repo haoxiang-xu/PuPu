@@ -125,6 +125,7 @@ export const splitStreamingMarkdown = (text = "", { baseOffset = 0 } = {}) => {
     stableBlocks,
     liveText,
     liveKind: mode === "fence" ? "code" : "text",
+    liveFence: mode === "fence" ? fenceMarker : "",
     textLength: source.length,
   };
 };
@@ -135,6 +136,7 @@ export const createStreamingMarkdownAccumulator = () => {
   let stableLength = 0;
   let liveText = "";
   let liveKind = "text";
+  let liveFence = "";
 
   const recomputeLiveSegment = () => {
     const segment = text.slice(stableLength);
@@ -150,6 +152,7 @@ export const createStreamingMarkdownAccumulator = () => {
     }
     liveText = snapshot.liveText;
     liveKind = snapshot.liveKind;
+    liveFence = snapshot.liveFence;
   };
 
   const replace = (nextText = "") => {
@@ -162,6 +165,7 @@ export const createStreamingMarkdownAccumulator = () => {
     );
     liveText = snapshot.liveText;
     liveKind = snapshot.liveKind;
+    liveFence = snapshot.liveFence;
   };
 
   replace("");
@@ -180,6 +184,7 @@ export const createStreamingMarkdownAccumulator = () => {
         stableBlocks,
         liveText,
         liveKind,
+        liveFence,
         textLength: text.length,
       };
     },

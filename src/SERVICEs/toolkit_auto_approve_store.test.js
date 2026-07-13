@@ -15,19 +15,18 @@ describe("toolkit_auto_approve_store", () => {
       "toolkit_auto_approve",
       JSON.stringify({
         version: 1,
-        toolkits: ["WorkspaceToolkit", "TerminalToolkit"],
+        toolkits: ["WorkspaceToolkit", "TerminalToolkit", "GitToolkit"],
         tools: ["write_file", "terminal_exec", "unknown_tool"],
       }),
     );
 
-    expect(getAutoApproveToolkits()).toEqual([
-      "workspace_toolkit",
-      "terminal_toolkit",
-    ]);
+    expect(getAutoApproveToolkits()).toEqual(["core"]);
     expect(isToolkitAutoApprove("WorkspaceToolkit")).toBe(true);
+    expect(isToolkitAutoApprove("git_toolkit")).toBe(true);
     expect(isToolAutoApproved("workspace_toolkit", "write_file")).toBe(true);
     expect(isToolAutoApproved("terminal_toolkit", "terminal_exec")).toBe(true);
-    expect(isToolAutoApproved("core", "write_file")).toBe(false);
+    expect(isToolAutoApproved("core", "write_file")).toBe(true);
+    expect(isToolAutoApproved("core", "terminal_exec")).toBe(true);
   });
 
   test("stores and removes toolkitId:toolName keys", () => {
@@ -40,7 +39,7 @@ describe("toolkit_auto_approve_store", () => {
 
     expect(isToolkitAutoApprove("code")).toBe(true);
     expect(isToolAutoApproved("core", "write")).toBe(true);
-    expect(isToolAutoApproved("workspace_toolkit", "write")).toBe(false);
+    expect(isToolAutoApproved("workspace_toolkit", "write")).toBe(true);
 
     expect(setToolkitAutoApprove("core", false)).toEqual({
       toolkits: [],

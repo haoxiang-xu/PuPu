@@ -122,7 +122,48 @@ export const migrateV1ToV2 = (input) => {
   return migrated;
 };
 
-export const normalizeStore = (input) => {
+// 树节点等价判定(身份保持 normalize 的复用门):内容逐字段相同才复用上一
+// 世代的节点对象。sanitizeTree 每次都重建节点对象,且 withStore 的工作副本
+// 对 tree 做深克隆,所以"未动节点"无法靠引用相等判定 —— 等价判定是严格
+// 更安全的实现(内容不同绝不复用),节点体量小,O(节点数) 可忽略。
+const treeNodesEquivalent = (a, b) => {
+  if (a === b) return true;
+  if (!isObject(a) || !isObject(b)) return false;
+  if (
+    a.id !== b.id ||
+    a.entity !== b.entity ||
+    a.type !== b.type ||
+    a.label !== b.label ||
+    (a.chatId ?? null) !== (b.chatId ?? null) ||
+    Number(a.createdAt) !== Number(b.createdAt) ||
+    Number(a.updatedAt) !== Number(b.updatedAt)
+  ) {
+    return false;
+  }
+  const aChildren = Array.isArray(a.children) ? a.children : null;
+  const bChildren = Array.isArray(b.children) ? b.children : null;
+  if (!!aChildren !== !!bChildren) return false;
+  if (aChildren) {
+    if (aChildren.length !== bChildren.length) return false;
+    for (let i = 0; i < aChildren.length; i += 1) {
+      if (aChildren[i] !== bChildren[i]) return false;
+    }
+  }
+  return true;
+};
+
+// normalizeStore(input, { prevStore })
+// prevStore = 上一世代的 memoryStore(其 chat/node 都是上一轮 normalize 的
+// sanitized 产物)。身份保持规则(switch-chain spec §1):
+// - chat:input 里的值与 prevStore 同 id 的值**引用相等**(= 本世代 COW 未
+//   触碰)→ 直接复用,跳过 re-sanitize。安全性由幂等守卫锁死:sanitize 对
+//   已 sanitized 输入是不动点,复用引用语义等价。
+// - tree 节点:sanitize 产物与 prevStore 同 id 节点内容等价 → 换回上一轮
+//   的节点引用(供下游 React.memo / 行缓存命中)。
+export const normalizeStore = (input, options = {}) => {
+  const prevStore = isObject(options?.prevStore) ? options.prevStore : null;
+  const prevChats =
+    prevStore && isObject(prevStore.chatsById) ? prevStore.chatsById : null;
   const migrated =
     input?.schemaVersion === CHATS_SCHEMA_VERSION ? input : migrateV1ToV2(input);
   const next = createEmptyStoreV2();
@@ -133,6 +174,11 @@ export const normalizeStore = (input) => {
 
   const sourceChats = isObject(migrated?.chatsById) ? migrated.chatsById : {};
   for (const [chatId, chat] of Object.entries(sourceChats)) {
+    if (prevChats && prevChats[chatId] === chat) {
+      // 本世代未触碰(COW 引用穿透)→ 复用上一轮 sanitized 对象。
+      next.chatsById[chatId] = chat;
+      continue;
+    }
     const cleaned = sanitizeChatSession(chat, chatId);
     next.chatsById[cleaned.id] = cleaned;
   }
@@ -226,6 +272,20 @@ export const normalizeStore = (input) => {
   next.updatedAt = Number.isFinite(Number(migrated?.updatedAt))
     ? Math.max(Number(migrated.updatedAt), now())
     : now();
+
+  // 身份保持后置遍:tree 的一切修正(sanitizeTree/ensureTreeHasNodeForChat/
+  // selectedNodeId 兜底)都已完成 —— 此刻内容仍与上一世代等价的节点,换回
+  // 上一轮的对象引用。必须放在所有 tree 变更之后,复用进来的对象在 dev 下
+  // 可能已被冻结,后续不允许再有就地写。
+  if (prevStore && isObject(prevStore.tree?.nodesById)) {
+    const prevNodes = prevStore.tree.nodesById;
+    for (const [nodeId, node] of Object.entries(next.tree.nodesById)) {
+      const prevNode = prevNodes[nodeId];
+      if (prevNode && prevNode !== node && treeNodesEquivalent(node, prevNode)) {
+        next.tree.nodesById[nodeId] = prevNode;
+      }
+    }
+  }
 
   next.schemaVersion = CHATS_SCHEMA_VERSION;
   return next;

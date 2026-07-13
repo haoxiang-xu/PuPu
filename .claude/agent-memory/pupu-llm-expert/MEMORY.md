@@ -2,4 +2,15 @@
 - [AI 层工具链](ai-layer-toolchain.md) — claude-api skill 查 Claude、provider 文档查其他、GitNexus 读 unchain 层；绝不凭记忆编造模型事实
 - [扩编立场：backend dev 组](org-backend-dev-position.md) — 2026-06-10 我 recommend 建组；spec vs implementation 边界 + 我的 AI 行为否决权
 - [A2A channel 方向会](a2a-channel-direction.md) — 2026-06-10 CEO 定调多 agent 方向；peer 注入 role spec（user+envelope）+ agent org 分阶段路线
+- [参照系统:agent 通信契约层](ref-agent-comm-contracts.md) — 愿景研究;6框架"agent间如何通信"一手证据(载体/隔离/ownership/回汇/开销)+O(n²)群聊反模式+给PuPu建议
 - [工具进模型的链路](tool-injection-path.md) — MCP/builtin 工具主走 provider tools-API 参数（全 schema）；<tools> system 块是次要 guidance（MCP 仅 name+desc 一行）
+- [参照系统:Codex CLI 内部机制](ref-codex-cli-internals.md) — 愿景研究 B1;codex-rs 的 agent 循环/记忆/prompt 缓存/sandbox/codex exec 取证位置(文件+URL)
+- [参照系统:OpenClaw 心跳](ref-openclaw-heartbeat.md) — 愿景研究 B2;daemon-agent 主参照 repo(openclaw/openclaw)的心跳/cron/SQLite 状态/省 token 实现级文件定位
+- [finality ownership 契约 v0](finality-ownership-contract.md) — 2026-06-20 我签字的 segment 级 finality 枚举(pending/draft/intermediate/terminal/legacy);terminal=v4 payload finality 前向兼容锚点
+- [参照系统:proactivity 校准](ref-proactivity-calibration.md) — 愿景研究 C3;何时该打扰用户的一手论文+HCI证据(PROBE/KnowU/π-Bench/Horvitz/CHI'25)+默认沉默设计原则
+- [参照系统:durable execution](ref-durable-execution-c2.md) — 愿景研究 C2;Temporal/LangGraph/Inngest/Restate/DBOS/OpenHands SDK 让长流程"可恢复而非常驻";原语+URL+对PuPu落地判断
+- [记忆治理挂点](memory-governance-hooks.md) — 读侧:923是检索兼容补丁非重排点(纠偏)、写侧:5158未传治理参数;先读后写顺序+各步eval
+- [listener node AI 语义](listener-node-ai-semantics.md) — 2026-06-20收口;统一事件envelope+cheap-gate挂listener后流程内+各listener对记忆/打扰差异+判定器影子模式红线
+- [参照系统:生成式UI G1](ref-generative-ui-g1.md) — 愿景研究G1;选预制件(Vercel/AdaptiveCards/C1)vs现写代码(make-real)轴+C1双向回流契约+PuPu artifact注册表已站A端起跑线
+- [参照系统:可塑软件 G3](ref-malleable-software-g3.md) — 愿景研究G3;intent→可交互工具UI(Artifacts/Canvas/v0/bolt/websim/Ink&Switch)+一次性vs可演化+Electron沙箱矛盾;artifact现为只读快照=缺产出物范式
+- [参照系统:直接操作 vs 语言界面](ref-g2-direct-manip-vs-nli.md) — 愿景研究G2;Hutchins gulfs理论+GenUI(2508.19227)/DynaVis/Gulfs-UIgen(2601.19171)实证数字与域分化(需复核)

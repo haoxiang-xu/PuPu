@@ -16,6 +16,9 @@ import {
 import { createStreamingMarkdownAccumulator } from "./streaming_markdown_blocks";
 
 const HEAVY_CHAR_THRESHOLD = 8 * 1024;
+// Above this the live tail is NOT re-parsed as markdown every rAF; we fall
+// back to the plain-text tail so a huge in-progress code block stays cheap.
+const LIVE_MARKDOWN_MAX_CHARS = 4 * 1024;
 const HEAVY_LINE_THRESHOLD = 120;
 const LARGE_CODE_BLOCK_PATTERN = /```[\s\S]{1200,}?```/;
 const VIEWPORT_PRELOAD_MARGIN = "320px 0px";
@@ -330,6 +333,39 @@ const StreamingMarkdownBlock = memo(
     previousProps.markdownStyle === nextProps.markdownStyle,
 );
 
+// Build the markdown source for the in-progress live tail. For an open code
+// fence we virtually close it with the same marker so the code block renders
+// with its styling/highlighting mid-stream; then we run the SAME normalize the
+// stable blocks use, so promotion is visually seamless.
+const buildLiveMarkdown = (liveText, liveKind, liveFence) => {
+  if (liveKind === "code" && liveFence) {
+    const closed = `${liveText}${
+      liveText.endsWith("\n") ? "" : "\n"
+    }${liveFence}`;
+    return normalizeHtmlDocumentMarkdown(closed);
+  }
+  return normalizeHtmlDocumentMarkdown(liveText);
+};
+
+// The live tail rendered through the same Markdown component as the stable
+// blocks — the block-promotion no longer swaps a plain-text tail for a styled
+// one, so text stops appearing "section by section".
+const StreamingLiveBlock = memo(
+  ({ text, liveKind, liveFence, className, markdownStyle }) => {
+    const markdown = useMemo(
+      () => buildLiveMarkdown(text, liveKind, liveFence),
+      [text, liveKind, liveFence],
+    );
+    return (
+      <Markdown
+        className={className}
+        style={markdownStyle}
+        markdown={markdown}
+      />
+    );
+  },
+);
+
 const SeamlessMarkdown = ({
   content = "",
   streamingChunks,
@@ -454,12 +490,22 @@ const SeamlessMarkdown = ({
           />
         ))}
         {streamingBlockSnapshot.liveText ? (
-          <StreamingPlainText
-            text={streamingBlockSnapshot.liveText}
-            markdownStyle={markdownStyle}
-            theme={theme}
-            liveKind={streamingBlockSnapshot.liveKind}
-          />
+          streamingBlockSnapshot.liveText.length > LIVE_MARKDOWN_MAX_CHARS ? (
+            <StreamingPlainText
+              text={streamingBlockSnapshot.liveText}
+              markdownStyle={markdownStyle}
+              theme={theme}
+              liveKind={streamingBlockSnapshot.liveKind}
+            />
+          ) : (
+            <StreamingLiveBlock
+              text={streamingBlockSnapshot.liveText}
+              liveKind={streamingBlockSnapshot.liveKind}
+              liveFence={streamingBlockSnapshot.liveFence}
+              className={className}
+              markdownStyle={markdownStyle}
+            />
+          )
         ) : null}
       </div>
     );

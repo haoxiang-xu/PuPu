@@ -4,6 +4,7 @@ import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
 import AnimatedChildren from "../class/animated_children";
 import { get_option_text, render_icon } from "./use_select";
 import Icon from "../icon/icon";
+import { useTranslation } from "../mini_react/use_translation";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *  Checkbox — teal checkbox for multi-select mode
@@ -45,7 +46,7 @@ const Checkbox = ({ checked, isDark, checkColor }) => (
  *  OptionItem — single selectable option
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const OptionItem = ({
+export const OptionItem = ({
   option,
   flatIndex,
   isSelected,
@@ -63,6 +64,8 @@ const OptionItem = ({
   option_theme,
   option_style,
   checkColor,
+  extra_style,
+  group_tag,
 }) => {
   const isDisabled = !!option?.disabled;
   const optionColor = isDisabled
@@ -82,6 +85,25 @@ const OptionItem = ({
     ? (option_theme?.paddingWithDesc ?? "5px 10px")
     : (option_theme?.padding ?? "0 10px");
 
+  /* With option_theme.externalHighlight the hover layer is drawn by the
+     host (a SlidingHighlight gliding between rows) — the row itself only
+     paints the persistent single-select tint. Without it, classic per-row
+     hover/selected backgrounds. */
+  const isSelectedSingle = isSelected && !multi;
+  const backgroundColor = option_theme?.externalHighlight
+    ? isSelectedSingle
+      ? (option_theme?.selectedBackgroundColor ?? "rgba(10, 133, 255, 0.14)")
+      : "transparent"
+    : isHighlighted
+      ? isSelectedSingle
+        ? (option_theme?.selectedHighlightedBackgroundColor ??
+          option_theme?.hoverBackgroundColor ??
+          "rgba(0, 0, 0, 0.06)")
+        : (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
+      : isSelectedSingle
+        ? (option_theme?.selectedBackgroundColor ?? "rgba(10, 133, 255, 0.14)")
+        : "transparent";
+
   return (
     <div
       key={`${option?.value ?? flatIndex}`}
@@ -100,26 +122,32 @@ const OptionItem = ({
         borderRadius: option_theme?.borderRadius ?? 5,
         cursor: isDisabled ? "not-allowed" : "pointer",
         color: optionColor,
-        backgroundColor: isHighlighted
-          ? (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
-          : isSelected && !multi
-            ? (option_theme?.selectedBackgroundColor ??
-              "rgba(10, 133, 255, 0.14)")
-            : "transparent",
+        backgroundColor,
         ...option_style,
         gap: showIcon ? (option_theme?.gap ?? 6) : multi ? 8 : 0,
+        ...extra_style,
       }}
     >
       {/* checkbox for multi-select */}
       {multi && (
-        <Checkbox checked={isSelected} isDark={isDark} checkColor={checkColor} />
+        <span style={{ position: "relative", zIndex: 1, display: "flex" }}>
+          <Checkbox
+            checked={isSelected}
+            isDark={isDark}
+            checkColor={checkColor}
+          />
+        </span>
       )}
 
       {/* icon */}
-      {showIcon ? <>{render_icon(iconValue, fontSize, optionColor)}</> : null}
+      {showIcon ? (
+        <span style={{ position: "relative", zIndex: 1, display: "flex" }}>
+          {render_icon(iconValue, fontSize, optionColor)}
+        </span>
+      ) : null}
 
       {/* label + optional description */}
-      <div style={{ minWidth: 0, flex: 1 }}>
+      <div style={{ minWidth: 0, flex: 1, position: "relative", zIndex: 1 }}>
         <span
           style={{
             position: "relative",
@@ -150,6 +178,24 @@ const OptionItem = ({
           </span>
         )}
       </div>
+
+      {/* faint trailing group tag (e.g. provider during cross-group search) */}
+      {group_tag ? (
+        <span
+          style={{
+            position: "relative",
+            zIndex: 1,
+            flexShrink: 0,
+            fontFamily,
+            fontSize: 9,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.32)",
+          }}
+        >
+          {group_tag}
+        </span>
+      ) : null}
     </div>
   );
 };
@@ -167,6 +213,7 @@ const GroupHeader = ({
   baseColor,
   group_theme,
   isDark,
+  count,
 }) => {
   const [hovered, setHovered] = useState(false);
 
@@ -199,12 +246,13 @@ const GroupHeader = ({
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => onToggle(group.group)}
       style={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: showGroupIcon ? iconGap : 2,
         height: headerHeight,
         padding: headerPadding,
-        borderRadius: 5,
+        borderRadius: group_theme?.headerBorderRadius ?? 5,
         cursor: "pointer",
         backgroundColor: hovered ? hoverBg : "transparent",
         transition: "background-color 0.15s ease",
@@ -217,9 +265,13 @@ const GroupHeader = ({
         src="arrow_down"
         color={headerColor}
         style={{
+          position: "relative",
+          zIndex: 1,
           width: expandIconSize,
           height: expandIconSize,
-          transition: "transform 0.2s cubic-bezier(0.32, 1, 0.32, 1)",
+          transition:
+            group_theme?.expandIconTransition ??
+            "transform 0.2s cubic-bezier(0.32, 1, 0.32, 1)",
           transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
           flex: "none",
           opacity: 0.7,
@@ -230,6 +282,8 @@ const GroupHeader = ({
       {showGroupIcon && (
         <div
           style={{
+            position: "relative",
+            zIndex: 1,
             display: "flex",
             alignItems: "center",
             height: "100%",
@@ -243,6 +297,8 @@ const GroupHeader = ({
       {/* group label */}
       <span
         style={{
+          position: "relative",
+          zIndex: 1,
           fontFamily,
           fontSize: headerFontSize,
           fontWeight: headerFontWeight,
@@ -257,6 +313,27 @@ const GroupHeader = ({
       >
         {group.group}
       </span>
+
+      {/* option count — dyed when collapsed to hint "N items live here" */}
+      {group_theme?.showCount && typeof count === "number" ? (
+        <span
+          style={{
+            position: "relative",
+            zIndex: 1,
+            flex: "none",
+            fontFamily,
+            fontSize: headerFontSize,
+            color: collapsed
+              ? (group_theme?.countCollapsedColor ??
+                (isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)"))
+              : (group_theme?.countColor ??
+                (isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)")),
+            transition: "color 200ms ease",
+          }}
+        >
+          {count}
+        </span>
+      ) : null}
     </div>
   );
 };
@@ -304,6 +381,7 @@ const OptionList = ({
   isDark,
 }) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const checkColor = themeHighlightColor(theme);
   const is_selected = (option) =>
     multi
@@ -321,7 +399,7 @@ const OptionList = ({
             fontSize: fontSize * 0.9,
           }}
         >
-          No results
+          {t("common.no_results")}
         </div>
       );
     }
@@ -377,7 +455,7 @@ const OptionList = ({
           fontSize: fontSize * 0.9,
         }}
       >
-        No results
+        {t("common.no_results")}
       </div>
     );
   }
@@ -412,6 +490,7 @@ const OptionList = ({
               baseColor={baseColor}
               group_theme={group_theme}
               isDark={isDark}
+              count={g.options.length}
             />
             <AnimatedChildren open={!isCollapsed}>
               <div
@@ -427,12 +506,29 @@ const OptionList = ({
                       : "rgba(0, 0, 0, 0.07)")
                   }`,
                   paddingLeft: group_theme?.childBarGap ?? 6,
-                  paddingTop: 3,
+                  paddingTop: group_theme?.childPaddingTop ?? 3,
                   paddingBottom: 0,
                 }}
               >
-                {g.options.map((option) => {
+                {g.options.map((option, oi) => {
                   const fi = optionToFlatIndex.get(option) ?? -1;
+                  /* rowStagger: rows cascade in top-down on expand (the
+                     height morph is AnimatedChildren's), slip up + fade
+                     together on collapse */
+                  const entranceStyle = group_theme?.rowStagger
+                    ? isCollapsed
+                      ? {
+                          opacity: 0,
+                          transform: "translateY(-8px)",
+                          transition:
+                            "transform 160ms cubic-bezier(0.4,0,1,1), opacity 130ms cubic-bezier(0.4,0,1,1)",
+                        }
+                      : {
+                          opacity: 1,
+                          transform: "translateY(0)",
+                          transition: `transform 200ms cubic-bezier(0.22,1,0.36,1) ${60 + oi * 30}ms, opacity 180ms linear ${60 + oi * 30}ms, background-color 0.13s ease`,
+                        }
+                    : null;
                   return (
                     <OptionItem
                       key={`${option?.value ?? fi}`}
@@ -442,6 +538,7 @@ const OptionList = ({
                       isHighlighted={fi === highlightedIndex}
                       multi={multi}
                       isDark={isDark}
+                      extra_style={entranceStyle}
                       onMouseEnter={() => {
                         if (!option?.disabled && fi >= 0)
                           setHighlightedIndexFromHover(fi);

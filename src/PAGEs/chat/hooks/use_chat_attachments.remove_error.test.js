@@ -17,9 +17,10 @@ describe("useChatAttachments.removeDraftAttachment error surfacing", () => {
     jest.clearAllMocks();
   });
 
-  it("emits toast.error when deleteAttachmentPayload rejects", async () => {
-    const errorSpy = jest.spyOn(toast, "error").mockImplementation(() => "id-1");
-    deleteAttachmentPayload.mockRejectedValueOnce(new Error("quota exceeded"));
+  it("reports an attachment cleanup error when deleteAttachmentPayload rejects", async () => {
+    const errorSpy = jest.spyOn(toast, "reportError").mockImplementation(() => "id-1");
+    const cleanupError = new Error("quota exceeded");
+    deleteAttachmentPayload.mockRejectedValueOnce(cleanupError);
 
     const initial = [
       { id: "att-1", name: "x.png", mimeType: "image/png", sizeBytes: 100 },
@@ -44,10 +45,10 @@ describe("useChatAttachments.removeDraftAttachment error surfacing", () => {
       await Promise.resolve();
     });
 
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("quota exceeded"),
-      expect.objectContaining({ dedupeKey: "attachment_delete_failed" }),
-    );
+    expect(errorSpy).toHaveBeenCalledWith(cleanupError, {
+      title: "Attachment storage cleanup failed",
+      dedupeKey: "attachment_delete_failed",
+    });
     expect(result.current.draftAttachments).toEqual([]);
 
     errorSpy.mockRestore();

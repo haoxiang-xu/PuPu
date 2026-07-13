@@ -31,6 +31,14 @@ const FloatingTextField = ({
   content_section,
   functional_section,
   force_content_active = false,
+  /* Optional text-mirror overlay: when provided, the textarea's own text is
+   * rendered transparent (caret/selection stay native) and a pixel-synced
+   * mirror div renders `overlay_render(value)` instead — letting callers dye
+   * arbitrary inline ranges (e.g. slash-command tokens) as pills without
+   * giving up the native textarea (IME, undo, selection, auto-height).
+   * During IME composition the mirror hides and the textarea text is
+   * restored, so composing text is always natively visible. */
+  overlay_render = null,
   on_focus = () => {},
   on_blur = () => {},
   on_key_down = () => {},
@@ -45,7 +53,7 @@ const FloatingTextField = ({
   const lineHeight = style?.lineHeight || tf.lineHeight || 1.5;
   const fontFamily =
     style?.fontFamily || theme?.font?.fontFamily || "Jost, sans-serif";
-  const borderRadius = style?.borderRadius || tf.borderRadius || 7;
+  const borderRadius = style?.borderRadius ?? tf.borderRadius ?? 7;
   const bg =
     style?.backgroundColor ??
     tf.backgroundColor ??
@@ -57,17 +65,20 @@ const FloatingTextField = ({
       ? "1px solid rgba(255,255,255,0.08)"
       : "1px solid rgba(0,0,0,0.06)");
   const shadow =
+    style?.boxShadow ||
     tf.boxShadow ||
     (isDark
       ? "0 4px 24px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)"
       : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)");
   const shadowFocus =
+    style?.boxShadowFocus ||
     tf.boxShadowFocus ||
     (isDark
       ? "0 12px 36px rgba(0,0,0,0.55), 0 3px 8px rgba(0,0,0,0.35)"
       : "0 12px 36px rgba(0,0,0,0.10), 0 3px 8px rgba(0,0,0,0.06)");
   const padding = style?.padding ?? tf.padding ?? 12;
   const baseColor = style?.color || theme?.color || (isDark ? "#CCC" : "#222");
+  const backdropFilter = style?.backdropFilter || tf.backdropFilter || null;
 
   /* ---- parse border width so we can flush the scrollbar to the outer edge ---- */
   const borderWidth = parseInt(border, 10) || 1;
@@ -78,8 +89,10 @@ const FloatingTextField = ({
   const [internalValue, setInternalValue] = useState("");
   const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [composing, setComposing] = useState(false);
   const defaultRef = useRef(null);
   const taRef = textarea_ref || defaultRef;
+  const overlayRef = useRef(null);
   const funcRef = useRef(null);
   const [funcWidth, setFuncWidth] = useState(0);
   const [funcHeight, setFuncHeight] = useState(0);
@@ -173,10 +186,23 @@ const FloatingTextField = ({
   const contentRestLeft =
     contentSectionH > 0 ? contentRestTop - contentSectionH / 2 : padding;
 
+  const overlayActive = typeof overlay_render === "function" && !composing;
+
   /* `padding` in `style` is meant for the textarea's inner padding (already applied
    * via the resolved `padding` token below). Strip it from the outer-wrapper spread
    * so it doesn't double-up as an outer indent that pushes the visible field inward. */
-  const { padding: _outer_padding_ignored, ...outer_style } = style || {};
+  /* strip tokens that are consumed by inner elements: `padding` becomes the
+   * textarea's inner padding, and `backdropFilter` belongs to the main
+   * container only — leaking it onto this outer wrapper would make it a
+   * backdrop root, silently breaking backdrop-filter on anything rendered
+   * in content_section (e.g. the frosted attach pill). */
+  const {
+    padding: _outer_padding_ignored,
+    backdropFilter: _outer_backdrop_ignored,
+    boxShadow: _outer_shadow_ignored,
+    boxShadowFocus: _outer_shadow_focus_ignored,
+    ...outer_style
+  } = style || {};
 
   return (
     <div
@@ -200,6 +226,12 @@ const FloatingTextField = ({
           position: "relative",
           boxSizing: "border-box",
           backgroundColor: bg,
+          ...(backdropFilter
+            ? {
+                backdropFilter,
+                WebkitBackdropFilter: backdropFilter,
+              }
+            : {}),
           border,
           borderRadius,
           boxShadow: hovered || focused ? shadowFocus : shadow,
@@ -251,17 +283,30 @@ const FloatingTextField = ({
             on_blur();
           }}
           onKeyDown={on_key_down}
+          onCompositionStart={() => setComposing(true)}
+          onCompositionEnd={() => setComposing(false)}
+          onScroll={(e) => {
+            if (overlayRef.current)
+              overlayRef.current.scrollTop = e.target.scrollTop;
+          }}
           className={shouldScroll ? "scrollable" : undefined}
           data-sb-edge={Math.max(6, borderRadius)}
+          data-sb-wall={4}
+          data-sb-edge-top={Math.max(6, borderRadius)}
+          data-sb-edge-bottom={Math.max(
+            Math.max(6, borderRadius),
+            funcHeight > 0 ? funcHeight + padding + 12 : 0,
+          )}
           style={{
             position: "absolute",
             top: 0,
             left: 0,
             right: shouldScroll ? -borderWidth : 0,
-            bottom:
-              shouldScroll && functional_section && funcHeight > 0
-                ? padding + funcHeight
-                : 0,
+            /* No bottom reserve in EITHER state: paddingRight already keeps
+             * every text line clear of the functional section horizontally,
+             * so lifting the textarea above it when scrollable (as this used
+             * to do) only created an inconsistent bottom padding (#161). */
+            bottom: 0,
             boxSizing: "border-box",
             fontFamily,
             fontSize,
@@ -269,7 +314,7 @@ const FloatingTextField = ({
               contentHeight <= minH && min_rows === 1
                 ? contentHeight - 2 + "px"
                 : lineHeight,
-            color: baseColor,
+            color: overlayActive ? "transparent" : baseColor,
             caretColor: baseColor,
             background: "transparent",
             border: "none",
@@ -282,8 +327,50 @@ const FloatingTextField = ({
             paddingRight: padding + funcWidth + 8,
             margin: 0,
             overflow: shouldScroll ? "auto" : "hidden",
+            /* keep the caret/selection layer above the mirror */
+            zIndex: 1,
           }}
         />
+
+        {/* ── Text-mirror overlay (dyed inline ranges; behind the textarea) ── */}
+        {overlayActive && (
+          <div
+            ref={overlayRef}
+            aria-hidden="true"
+            data-textfield-overlay=""
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: shouldScroll ? -borderWidth : 0,
+              bottom: 0,
+              boxSizing: "border-box",
+              /* pixel-sync with the textarea — same tokens, same box */
+              fontFamily,
+              fontSize,
+              lineHeight:
+                contentHeight <= minH && min_rows === 1
+                  ? contentHeight - 2 + "px"
+                  : lineHeight,
+              color: baseColor,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              overflowWrap: "break-word",
+              paddingTop:
+                contentHeight <= minH && min_rows === 1 ? 0 : padding,
+              paddingBottom:
+                contentHeight <= minH && min_rows === 1 ? 0 : padding,
+              paddingLeft: padding,
+              paddingRight: padding + funcWidth + 8,
+              margin: 0,
+              overflow: "hidden",
+              pointerEvents: "none",
+              zIndex: 0,
+            }}
+          >
+            {overlay_render(currentValue)}
+          </div>
+        )}
 
         {/* ── Functional section (bottom-right) ── */}
         {functional_section && (
@@ -578,15 +665,22 @@ const TextField = ({
           onKeyDown={on_key_down}
           className={shouldScroll ? "scrollable" : undefined}
           data-sb-edge={Math.max(6, borderRadius)}
+          data-sb-wall={4}
+          data-sb-edge-top={Math.max(6, borderRadius)}
+          data-sb-edge-bottom={Math.max(
+            Math.max(6, borderRadius),
+            funcHeight > 0 ? funcHeight + padding + 12 : 0,
+          )}
           style={{
             position: "absolute",
             top: 0,
             left: 0,
             right: 0,
-            bottom:
-              shouldScroll && functional_section && funcHeight > 0
-                ? padding + funcHeight + 4
-                : 0,
+            /* Same as FloatingTextField: paddingRight already clears the
+             * functional section on every line, so no bottom reserve when
+             * scrollable — a reserve here made the two states' bottom
+             * padding inconsistent (#161). */
+            bottom: 0,
             boxSizing: "border-box",
             fontFamily,
             fontSize,

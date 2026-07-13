@@ -43,7 +43,9 @@ review by the maintainers. After review an entry is promoted to:
 | `verified` | Reviewed; well-known / trusted source |
 | `official` | Maintainer-backed (maintainers only) |
 
-`community` and `needs_review` entries carry a visible badge in the store UI.
+Every trust level except `official` carries a visible badge in the store UI
+(`verified`, `community`, and `needs_review` all render a colored badge);
+`official` entries render no badge.
 
 ## What happens after you submit
 

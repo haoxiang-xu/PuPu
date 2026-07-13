@@ -248,7 +248,9 @@ const SideMenu = () => {
 
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
-  const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const sideMenuBackgroundColor = isDark
+    ? "var(--pupu-sidebar, #151515)"
+    : "var(--pupu-sidebar, rgb(245, 245, 245))";
   const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
   const isCharactersEnabled =
     featureFlags.enable_user_access_to_characters === true;
@@ -377,26 +379,46 @@ const SideMenu = () => {
     setConfirmDelete,
   });
 
+  /* Switch-chain incrementalization Task 3: the handlers object passed to
+     buildExplorerFromTree must keep a CONSTANT reference across renders — it
+     is part of the row cache key (row closures capture it). Stable dispatcher
+     via the latest-ref pattern: the methods never change identity and read
+     the freshest callbacks through a ref. The data fields riding on the
+     object (selectedNodeId / relativeNow) are refreshed in place before each
+     build; their row-level effects are value-checked by the cache itself. */
+  const explorerHandlerCallbacksRef = useRef({});
+  explorerHandlerCallbacksRef.current.onSelect = handleSelectNode;
+  explorerHandlerCallbacksRef.current.onContextMenu = handleContextMenu;
+  explorerHandlerCallbacksRef.current.onStartRename = handleStartRename;
+
+  const explorerHandlersRef = useRef(null);
+  if (explorerHandlersRef.current === null) {
+    explorerHandlersRef.current = {
+      onSelect: (nodeId) =>
+        explorerHandlerCallbacksRef.current.onSelect?.(nodeId),
+      onContextMenu: (node, event) =>
+        explorerHandlerCallbacksRef.current.onContextMenu?.(node, event),
+      onStartRename: (node) =>
+        explorerHandlerCallbacksRef.current.onStartRename?.(node),
+    };
+  }
+
+  /* Caller-owned generation row cache (see buildExplorerFromTree): untouched
+     rows keep reference identity across store writes, so the memo'd explorer
+     rows skip re-rendering — the recompute below is mostly cache hits. */
+  const explorerRowCacheRef = useRef({ rowsByNodeId: new Map() });
+
   const explorerModel = useMemo(() => {
+    const handlers = explorerHandlersRef.current;
+    handlers.selectedNodeId = selectedNodeId;
+    handlers.relativeNow = relativeNow;
     return buildExplorerFromTree(
       chatStore?.tree || {},
       chatStore?.chatsById || {},
-      {
-        selectedNodeId,
-        relativeNow,
-        onSelect: handleSelectNode,
-        onContextMenu: handleContextMenu,
-        onStartRename: handleStartRename,
-      },
+      handlers,
+      explorerRowCacheRef.current,
     );
-  }, [
-    chatStore,
-    handleSelectNode,
-    selectedNodeId,
-    relativeNow,
-    handleContextMenu,
-    handleStartRename,
-  ]);
+  }, [chatStore, selectedNodeId, relativeNow]);
 
   const contextMenuItems = useMemo(
     () =>

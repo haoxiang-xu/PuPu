@@ -10,6 +10,7 @@ const {
   PRELOAD_SEND_SYNC_CHANNELS,
   PRELOAD_EVENT_CHANNELS,
 } = require("../../preload/channels");
+const { CHANNELS } = require("../../shared/channels");
 
 describe("ipc channel parity", () => {
   test("preload invoke/send channels are registered in main handlers", () => {
@@ -37,5 +38,16 @@ describe("ipc channel parity", () => {
     PRELOAD_SEND_SYNC_CHANNELS.forEach((channel) => {
       expect(mainSync.has(channel)).toBe(true);
     });
+  });
+
+  test("chat storage v3 channels are classified on both sides", () => {
+    expect(IPC_ON_SYNC_CHANNELS).toContain(
+      CHANNELS.CHAT_STORAGE.READ_MESSAGES,
+    );
+    expect(IPC_ON_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
+    expect(PRELOAD_SEND_SYNC_CHANNELS).toContain(
+      CHANNELS.CHAT_STORAGE.READ_MESSAGES,
+    );
+    expect(PRELOAD_SEND_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
   });
 });

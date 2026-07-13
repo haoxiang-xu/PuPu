@@ -11,7 +11,7 @@ SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
-UNCHAIN_SRC = SERVER_ROOT.parents[2] / "miso" / "src"
+UNCHAIN_SRC = SERVER_ROOT.parents[2] / "unchain" / "src"
 if UNCHAIN_SRC.exists() and str(UNCHAIN_SRC) not in sys.path:
     sys.path.insert(0, str(UNCHAIN_SRC))
 

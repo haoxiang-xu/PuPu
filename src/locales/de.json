@@ -194,7 +194,12 @@
     "path_placeholder": "/pfad/zum/arbeitsbereich",
     "add_workspace": "+ Arbeitsbereich hinzufügen",
     "workspace_select_desc": "Benannte Arbeitsbereiche können pro Chat aus der Chat-Eingabeleiste ausgewählt werden.",
-    "applied_desc": "Wird auf jede Unchain-Anfrage angewendet, wenn das Arbeitsbereich-Toolkit aktiviert ist."
+    "applied_desc": "Wird auf jede Unchain-Anfrage angewendet, wenn das Arbeitsbereich-Toolkit aktiviert ist.",
+    "esc_to_cancel": "esc zum Abbrechen",
+    "delete_confirm_inline": "„{name}“ löschen?",
+    "delete_confirm_note": "Der Ordner auf der Festplatte bleibt unberührt",
+    "clear_confirm_inline": "Standard-Arbeitsbereich leeren?",
+    "clear_confirm_note": "Neue Chats erhalten keinen Standard-Dateipfad mehr"
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",
@@ -237,10 +242,31 @@
     "loading": "Lädt...",
     "error": "Fehler",
     "select": "Auswählen...",
-    "search": "Suchen..."
+    "search": "Suchen...",
+    "no_results": "Keine Ergebnisse"
   },
   "chat": {
-    "placeholder": "Nachricht an PuPu..."
+    "placeholder": "Nachricht an PuPu...",
+    "minimap": {
+      "top": "Anfang",
+      "prev": "Zurück",
+      "next": "Weiter",
+      "end": "Ende"
+    },
+    "attach": {
+      "select_model": "Modell auswählen...",
+      "tools": "Tools",
+      "workspace": "Bereich",
+      "clear": "LÖSCHEN",
+      "add": "+ HINZUFÜGEN",
+      "search_workspaces": "Bereiche suchen...",
+      "attach_file": "Bild oder PDF anhängen",
+      "attach_file_unsupported": "Aktuelles Modell unterstützt keine Dateieingaben",
+      "screenshot": "Screenshot aufnehmen",
+      "screenshot_unsupported": "Aktuelles Modell unterstützt keine Bildeingaben",
+      "select_toolkits": "Tools auswählen",
+      "select_workspaces": "Bereiche auswählen"
+    }
   },
   "toolkit": {
     "toolkits": "Toolkits",
@@ -279,5 +305,10 @@
     "delete_label": "Toolkit löschen",
     "delete_desc": "Dieses Toolkit aus Ihrer Installation entfernen",
     "delete_desc_builtin": "Integrierte Toolkits können nicht entfernt werden"
+  },
+  "commands": {
+    "btw": "Antwortet sofort, ohne die Aufgabe zu unterbrechen",
+    "fyi": "Ergänzt Infos zur aktuellen Aufgabe",
+    "queue": "Stellt in die Warteschlange, läuft nach dieser Runde"
   }
 }

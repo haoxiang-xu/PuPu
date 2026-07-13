@@ -1,9 +1,12 @@
 export const CHATS_STORAGE_KEY = "chats";
 export const CHATS_SCHEMA_VERSION = 2;
 
+// @deprecated (chat storage V3): the byte-budget LRU eviction was removed —
+// SQLite in the main process has no localStorage quota pressure and user data
+// is never silently dropped anymore. Kept exported only so stray imports
+// don't break; do not add new references.
 export const MAX_TOTAL_BYTES = Math.floor(4.5 * 1024 * 1024);
 export const TARGET_TOTAL_BYTES = Math.floor(4.2 * 1024 * 1024);
-export const MAX_ACTIVE_MESSAGES_WHEN_TRIMMING = 200;
 export const MAX_TEXT_CHARS = 100000;
 export const MAX_TITLE_CHARS = 120;
 export const MAX_TOOLKIT_ID_CHARS = 200;

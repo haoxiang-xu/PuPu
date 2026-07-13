@@ -101,6 +101,7 @@ const StoreToolkitDetailPanel = ({
   installedIds,
   onInstall,
   onOAuthConnect,
+  onCancelOAuth,
   onApproveEntry,
   onRevokeApproval,
   installing = false,
@@ -150,6 +151,10 @@ const StoreToolkitDetailPanel = ({
     .filter((secret) => !String(secretValues[secret.key] || "").trim())
     .map((secret) => secret.key)
     .filter(Boolean);
+  const installErrorText =
+    installError?.code === "mcp_workspace_required"
+      ? t("toolkit.store_workspace_required")
+      : installError?.message || t("toolkit.store_install_error");
   const review = entry?.review || {};
   const riskLevel = String(review.riskLevel || "").trim();
   const permissionGroups = Array.isArray(review.permissionGroups)
@@ -486,6 +491,23 @@ const StoreToolkitDetailPanel = ({
                 },
               }}
             />
+            {installing && installState === "oauth" && (
+              <div style={{ marginTop: 6 }}>
+                <Button
+                  label={t("toolkit.store_cancel")}
+                  onClick={() => onCancelOAuth?.(entry)}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: mutedColor,
+                    paddingVertical: 4,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    root: { background: "transparent", border: "none" },
+                  }}
+                />
+              </div>
+            )}
             {showSecondaryOAuthAction && (
               <div style={{ marginTop: 6 }}>
                 <Button
@@ -601,9 +623,7 @@ const StoreToolkitDetailPanel = ({
                   lineHeight: 1.4,
                 }}
               >
-                {installError.code === "mcp_workspace_required"
-                  ? t("toolkit.store_workspace_required")
-                  : t("toolkit.store_install_error")}
+                {installErrorText}
               </div>
             )}
             {!installError && missingRequiredSecrets && (

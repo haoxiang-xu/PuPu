@@ -6,7 +6,7 @@
 
 ## Overview
 
-PuPu's toolkit system allows agents to use tools (file operations, terminal commands, external APIs, custom functions). Toolkits are discovered, selected per-chat, and can require user confirmation before execution.
+PuPu's toolkit system allows agents to use tools (file operations, shell commands, web fetch, LSP, planning, Agent Reach, MCP tools, and custom functions). Toolkits are discovered, selected per-chat, and can require user confirmation before execution.
 
 ---
 
@@ -30,21 +30,21 @@ Toolkit Discovery (backend)
 
 | ID | Description | Confirmation Required |
 |----|-------------|----------------------|
-| `workspace_toolkit` | File read/write in workspace folders | `write_file`, `delete_file`, `move_file` |
-| `terminal_toolkit` | Shell command execution | `terminal_exec` |
-| `core` | Read, edit, shell, and Ask User tools | Tool metadata controls confirmation; `write` and `edit` are common confirmation-required tools |
-| `external_api` | HTTP requests to external APIs | No |
+| `core` | Read, write, edit, glob, grep, shell, LSP, web fetch, and Ask User tools | `write`, `edit`, `shell` |
+| `plan` | Plan snapshots and planning helpers | Tool metadata controls confirmation |
+| `agent_reach` | External research/reach tools when installed | Tool metadata controls confirmation |
+
+Legacy built-in ids such as `workspace_toolkit`, `terminal_toolkit`,
+`web_toolkit`, `external_api`, and `git` are not public catalog entries. They
+are compatibility aliases that normalize to `core`.
 
 ### Confirmation-Required Tools
 
 ```python
 {
-  "workspace_toolkit:write_file",
-  "workspace_toolkit:delete_file",
-  "workspace_toolkit:move_file",
-  "terminal_toolkit:terminal_exec",
   "core:write",
   "core:edit",
+  "core:shell",
 }
 ```
 
@@ -58,11 +58,15 @@ Multiple aliases map to canonical `toolkitId` values:
 
 | Input | Canonical ID |
 |-------|-------------|
-| `workspace`, `workspace_toolkit`, `WorkspaceToolkit` | `workspace_toolkit` |
-| `terminal`, `terminal_toolkit`, `TerminalToolkit` | `terminal_toolkit` |
+| `workspace`, `workspace_toolkit`, `access_workspace_toolkit`, `WorkspaceToolkit` | `core` |
+| `terminal`, `terminal_toolkit`, `run_terminal_toolkit`, `TerminalToolkit` | `core` |
 | `code`, `code_toolkit`, `CodeToolkit` | `core` |
 | `ask_user`, `ask_user_toolkit`, `ask-user-toolkit`, `AskUserToolkit` | `core` |
-| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api` |
+| `interaction`, `interaction_toolkit`, `InteractionToolkit` | `core` |
+| `web`, `web_toolkit`, `WebToolkit` | `core` |
+| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `core` |
+| `git`, `git_toolkit`, `GitToolkit` | `core` |
+| `plan`, `plan_toolkit`, `PlanToolkit` | `plan` |
 
 Removed IDs (silently stripped): `mcp`, `mcptoolkit`.
 

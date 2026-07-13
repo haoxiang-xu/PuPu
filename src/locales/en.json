@@ -220,7 +220,12 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ Add Workspace",
     "workspace_select_desc": "Named workspaces can be selected per-chat from the chat input toolbar.",
-    "applied_desc": "Applied to every Unchain request when workspace toolkit is enabled."
+    "applied_desc": "Applied to every Unchain request when workspace toolkit is enabled.",
+    "esc_to_cancel": "esc to cancel",
+    "delete_confirm_inline": "Delete “{name}”?",
+    "delete_confirm_note": "the folder on disk is not touched",
+    "clear_confirm_inline": "Clear the default workspace?",
+    "clear_confirm_note": "new chats will no longer get a default file root"
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",
@@ -283,10 +288,31 @@
     "loading": "Loading...",
     "error": "Error",
     "select": "Select...",
-    "search": "Search..."
+    "search": "Search...",
+    "no_results": "No results"
   },
   "chat": {
-    "placeholder": "Message PuPu..."
+    "placeholder": "Message PuPu...",
+    "minimap": {
+      "top": "Top",
+      "prev": "Prev",
+      "next": "Next",
+      "end": "End"
+    },
+    "attach": {
+      "select_model": "Select model...",
+      "tools": "tools",
+      "workspace": "workspace",
+      "clear": "CLEAR",
+      "add": "+ ADD",
+      "search_workspaces": "Search workspaces...",
+      "attach_file": "Attach image or PDF",
+      "attach_file_unsupported": "Current model does not support file inputs",
+      "screenshot": "Take a screenshot",
+      "screenshot_unsupported": "Current model does not support image inputs",
+      "select_toolkits": "Select toolkits",
+      "select_workspaces": "Select workspaces"
+    }
   },
   "toolkit": {
     "toolkits": "Toolkits",
@@ -366,6 +392,7 @@
     "store_setup": "Set up",
     "store_oauth_coming_soon": "OAuth coming soon",
     "store_connect": "Connect",
+    "store_cancel": "Cancel",
     "store_connect_oauth": "Connect with OAuth",
     "store_waiting_for_oauth": "Waiting for OAuth",
     "store_install_coming": "coming in Phase 2",
@@ -387,6 +414,8 @@
     "store_needs_review_action": "Needs review",
     "store_installing": "Installing…",
     "store_install_error": "Install failed",
+    "store_install_success": "{name} installed and enabled",
+    "store_connect_success": "{name} connected and enabled",
     "store_enter_required_secrets": "Enter required secrets",
     "store_secret_required": "Fill required secrets before installing.",
     "store_workspace_required": "Select an agent workspace before installing Filesystem MCP.",
@@ -419,5 +448,10 @@
     "delete_label": "Delete Toolkit",
     "delete_desc": "Remove this toolkit from your installation",
     "delete_desc_builtin": "Built-in toolkits cannot be removed"
+  },
+  "commands": {
+    "btw": "Answer now, without interrupting the task",
+    "fyi": "Add info to the current task",
+    "queue": "Queue for after the current run"
   }
 }

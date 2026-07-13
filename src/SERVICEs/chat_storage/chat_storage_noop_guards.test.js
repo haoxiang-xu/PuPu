@@ -1,13 +1,15 @@
 /** @jest-environment jsdom */
 
 describe("chat_storage setter no-op guards", () => {
-  let bridgeWrite;
+  let bridgeApplyOps;
 
   const setupIpcBridge = () => {
-    bridgeWrite = jest.fn();
+    bridgeApplyOps = jest.fn();
     window.chatStorageAPI = {
       bootstrap: () => null,
-      write: bridgeWrite,
+      write: jest.fn(),
+      readMessages: () => [],
+      applyOps: bridgeApplyOps,
     };
   };
 
@@ -33,20 +35,20 @@ describe("chat_storage setter no-op guards", () => {
   test("setChatSelectedToolkits with identical array is a no-op (no persist, no emit)", async () => {
     const store = require("./chat_storage_store");
     const chatId = createChat(store);
-    store.setChatSelectedToolkits(chatId, ["core", "workspace_toolkit"], {
+    store.setChatSelectedToolkits(chatId, ["core", "mcp.dev.github-remote"], {
       source: "test",
     });
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
-    store.setChatSelectedToolkits(chatId, ["core", "workspace_toolkit"], {
+    store.setChatSelectedToolkits(chatId, ["core", "mcp.dev.github-remote"], {
       source: "test",
     });
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(0);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
   });
 
@@ -55,21 +57,21 @@ describe("chat_storage setter no-op guards", () => {
     const chatId = createChat(store);
     store.setChatSelectedToolkits(chatId, ["core"], { source: "test" });
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
-    store.setChatSelectedToolkits(chatId, ["core", "workspace_toolkit"], {
+    store.setChatSelectedToolkits(chatId, ["core", "mcp.dev.github-remote"], {
       source: "test",
     });
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
     const snapshot = store.getChatsStore();
     expect(snapshot.chatsById[chatId].selectedToolkits).toEqual([
       "core",
-      "workspace_toolkit",
+      "mcp.dev.github-remote",
     ]);
   });
 
@@ -82,7 +84,7 @@ describe("chat_storage setter no-op guards", () => {
       { source: "test" },
     );
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
@@ -93,7 +95,7 @@ describe("chat_storage setter no-op guards", () => {
     );
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(0);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
   });
 
@@ -104,7 +106,7 @@ describe("chat_storage setter no-op guards", () => {
       source: "test",
     });
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
@@ -113,7 +115,7 @@ describe("chat_storage setter no-op guards", () => {
     });
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(0);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
   });
 
@@ -126,7 +128,7 @@ describe("chat_storage setter no-op guards", () => {
       { source: "test" },
     );
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
@@ -137,7 +139,7 @@ describe("chat_storage setter no-op guards", () => {
     );
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(0);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
   });
 
@@ -150,7 +152,7 @@ describe("chat_storage setter no-op guards", () => {
       { source: "test" },
     );
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
@@ -161,7 +163,7 @@ describe("chat_storage setter no-op guards", () => {
     );
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
     const snapshot = store.getChatsStore();
     expect(snapshot.chatsById[chatId].draft.text).toBe("hello world");
@@ -180,7 +182,7 @@ describe("chat_storage setter no-op guards", () => {
       { source: "test" },
     );
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
@@ -195,7 +197,7 @@ describe("chat_storage setter no-op guards", () => {
     );
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(0);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
   });
 
@@ -212,14 +214,14 @@ describe("chat_storage setter no-op guards", () => {
       { source: "test" },
     );
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
     store.setChatSessionBundle(
       chatId,
       {
-        selectedToolkits: ["core", "workspace_toolkit"],
+        selectedToolkits: ["core", "mcp.dev.github-remote"],
         agentOrchestration: { mode: "default" },
         selectedWorkspaceIds: ["ws-a"],
       },
@@ -227,12 +229,12 @@ describe("chat_storage setter no-op guards", () => {
     );
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
     const snapshot = store.getChatsStore();
     expect(snapshot.chatsById[chatId].selectedToolkits).toEqual([
       "core",
-      "workspace_toolkit",
+      "mcp.dev.github-remote",
     ]);
   });
 
@@ -240,7 +242,7 @@ describe("chat_storage setter no-op guards", () => {
     const store = require("./chat_storage_store");
     const chatId = createChat(store);
     await Promise.resolve();
-    bridgeWrite.mockClear();
+    bridgeApplyOps.mockClear();
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
@@ -255,7 +257,7 @@ describe("chat_storage setter no-op guards", () => {
     );
 
     await Promise.resolve();
-    expect(bridgeWrite).toHaveBeenCalledTimes(1);
+    expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
     const snapshot = store.getChatsStore();
     expect(snapshot.chatsById[chatId].selectedToolkits).toEqual(["core"]);

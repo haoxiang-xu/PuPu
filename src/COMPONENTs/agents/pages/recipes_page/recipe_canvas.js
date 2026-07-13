@@ -242,7 +242,7 @@ export default function RecipeCanvas({
             borderRadius: 0,
           }}
           theme={{
-            canvasBackground: isDark ? "#1a1a1a" : "#fafafb",
+            canvasBackground: isDark ? "var(--pupu-background, #1a1a1a)" : "var(--pupu-background, #fafafb)",
             gridColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
             nodeBackground: "transparent",
             nodeShadow: "none",

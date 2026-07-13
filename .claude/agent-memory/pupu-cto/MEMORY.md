@@ -1,8 +1,14 @@
+- [后端量级评估 2026-07-05](backend-sizing-2026-07-05.md) — 排序可吸收不招人；delta-persist 不在擎路径(纯前端+Electron)；复评触发器=0.1.10 结束
+- [路线图 0.1.9→0.2.0 评审 2026-07-05](roadmap-019-020-review.md) — 隐性前置=command registry/delta-persist/agent-runner 抽象；thread 建议后移；agent 装 MCP=CRITICAL 硬门
+- [上线门槛盘点 2026-06-26](prelaunch-gap-analysis-2026-06-26.md) — 四条差异化线全零代码、shipped=扎实通用客户端；记忆是唯一可90天炫耀的锚；MVP-proud定义+首发前4件事；生产冻结二进制无需用户Python
+- [CI 现状诊断 2026-06-26](ci-posture-2026-06-26.md) — CI 已存在且PR上跑三层229测试；真缺口=无branch protection+无push触发(装锁≠新建)；Tier0给COO/Tier1跨平台smoke给dev-electron
+- [项目：agent teams 治理研究](project-agent-teams-governance-research.md) — 2026-06-20 CEO 战略讨论；CTO 线把人类组织治理经验→agent teams 通信治理原则/判定表/反臃肿红线；3 researcher 已派
 - [团队花名册（组织真相源）](team_roster.md) — 2026-06-10 两层结构：CEO→CTO/COO/智；CTO 线内 3 sub-team(chat/配置扩展/平台安全)+横向直挂验造策擎(4)；含 agent 文件目录布局
 - [backend dev「擎」入职契约](backend-dev-onboarding.md) — 擎(2026-06-10)横向直挂 CTO，拥后端唯一真实副本+unchain core 库；三权边界(智定spec/守定级/验端到端)、跨repo双边impact+接口双签、第二人触发条件
 - [Reorg 2026-06-10（已批准并落地）](reorg-proposal-2026-06-10.md) — 顶层收成 3 线(CTO/COO=发收编巡/智平级) + CTO 线内 3 sub-team 各设 lead + 验造策横向直挂；权威以 team-roster 为准
 - [security-expert 入职契约](security-expert-onboarding.md) — 守（2026-06-10 加入）挂平台安全组但安全裁量权越级；安全 ADR 须守 review、HIGH/CRITICAL 上报 CTO 仲裁、发版 sign-off 对 COO
 - [架构工作准则](architecture-operating-principles.md) — 改结构前强制 GitNexus impact、决策标注可逆性、重大决策写 ADR、守护承重铁律
+- [ADR：Trace Chain #155/#66 派发](adr-trace-chain-155-66-dispatch.md) — NOW 修 bug(共享 ownership 标记一条交付线)/LATER 结构改造灰度;关键路径 llm命名→chat-core→bubble;#66 触持久化 MED-HIGH;LATER 门=v4 finality 契约
 - [Dev team + 上线前同步会](dev-team-and-prelaunch-review.md) — 上线前 CTO 召集影响面同步会；reorg 后改 3 sub-team lead 代表各组出席 + 横向验造策 + COO 列席发版会
 - [Dev 花名册招募方案](dev-team-roster-plan.md) — 6 位 pupu-dev-* 分入 3 sub-team(各设 lead) + 功能面 ownership 不变 + 公共区守门权仍留 CTO 不下放
 - [边界：PuPu server vs unchain repo](boundary-pupu-server-vs-unchain.md) — 库消费非镜像；editable 链接 sibling repo；events_v4 跨 repo 契约；unchain 内 unchain_runtime 是空壳
@@ -18,6 +24,9 @@
 - [ADR：SEC-001 仲裁裁决](adr-sec-001-arbitration.md) — Critical×1+High×6 逐条处置；P0=RC-5/RC-3 quick win，P1=SEAM-B/markdown清洗/确认门控，P2=key keychain；RC-1默认翻转=单向门；M-10接线硬门/RC-6过渡accepted risk
 - [Accepted risk：Fetch SSRF = markitdown 同形](accepted-risk-fetch-ssrf.md) — 2026-06-12 CEO 接受；confirmation-gated/off-by-default/verified/无secret/README带SSRF警告；不做硬阻，未来 SSRF 收口须与 markitdown 一并处理
 - [ADR：MCP 版本钉死策略](adr-mcp-version-pinning.md) — 第三方低信任 stdio 条目必须钉版本(needs_review/community)；只有 verified 一方可吃 @latest；钉版=升级即重审的控制点
+- [hybrid 执行分层政策](hybrid-codex-policy.md) — 2026-06-19 三方收敛;A/B/C 三模式(policy 在 .claude/agents/HYBRID_CODEX_POLICY.md);CTO 自身不用 Codex,推理移交 pupu-architect;dev-backend=B 仅试点
+- [pupu-architect 入职](../pupu-architect/onboarding-contract.md) — 新设 chief architect=技术权威,CTO 技术上 defer;架构推理/code-health/refactor 移交它,CTO 转为交付/派活/守约定
 - [铁律：全账号 MCP 禁入商店](invariant-no-mtproto-userauth-mcp.md) — 全用户账号鉴权(Telegram MTProto/Telethon 类)禁入 curated store；读即外泄→门控失效；只收 bot/app-scoped token；FORWARD_MESSAGE 须门控
 - [决策：DB MCP — SQLite收/Postgres延](decision-db-mcp-sqlite-yes-postgres-deferred.md) — SQLite(本地文件,community,钉版,write门控)已收；Postgres延期=网络凭证DB属MTProto外泄类+DSN是SSRF,待CTO定只读角色/host白名单架构问题
 - [License 姿态：MCP 商店指向非捆绑](license-posture-mcp-store.md) — 商店只存元数据+sourceRepo+npx/uvx recipe，第三方server运行时拉取执行于用户机，我们不redistribute；GPL-3.0(netdata)是hosted无command；预捆绑=单向门license变更
+- [ADR：V4 文档化与跨仓契约](adr-v4-doc-and-cross-repo-contract.md) — doc sync 2026-06-19；建 runtime-events-v4.md(electron 主笔+渲染方双签)、v3 文件不重命名、core events_v4 API 双签另立、channel/team/plan_id 标注"暂未启用"

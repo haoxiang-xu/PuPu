@@ -11,7 +11,7 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     window.localStorage.clear();
     window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
-      startStreamV3: jest.fn(() => ({ cancel: jest.fn() })),
+      startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
@@ -46,7 +46,7 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.api_key).toBeUndefined();
   });
 
-  test("normalizes startStreamV3 payload with the same memory/provider options", () => {
+  test("normalizes startStreamV4 payload with the same memory/provider options", () => {
     writeSettings({
       memory: {
         enabled: true,
@@ -63,14 +63,14 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
       },
     });
 
-    api.unchain.startStreamV3({
+    api.unchain.startStreamV4({
       message: "hello",
       options: {
         modelId: "openai:gpt-5",
       },
     });
 
-    const [payload] = window.unchainAPI.startStreamV3.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV4.mock.calls[0];
     expect(payload.options.openaiApiKey).toBe("openai-key-123");
     expect(payload.options.openai_api_key).toBe("openai-key-123");
     expect(payload.options.memory_enabled).toBe(true);

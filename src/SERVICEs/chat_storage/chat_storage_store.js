@@ -1,9 +1,7 @@
 import {
+  CHATS_SCHEMA_VERSION,
   DEFAULT_CHAT_TITLE,
   DEFAULT_FOLDER_LABEL,
-  MAX_ACTIVE_MESSAGES_WHEN_TRIMMING,
-  MAX_TOTAL_BYTES,
-  TARGET_TOTAL_BYTES,
   ensureUniqueNodeId,
   now,
 } from "./chat_storage_constants";
@@ -14,7 +12,6 @@ import {
   computeChatStats,
   computeLastMessageAt,
   createChatSession,
-  estimateBytes,
   isObject,
   isCharacterChatSession,
   sanitizeAttachment,
@@ -61,6 +58,117 @@ const hasIpcBackend = () =>
   typeof window !== "undefined" && !!window.chatStorageAPI;
 let memoryStore = null;
 
+// —— v3 lazy-messages 内存模型 ——
+// memoryStore 形状不变,但非激活 chat 的 `messages` 是 `[]` 占位(stats 仍是
+// 真值,由 sanitizeChatSession 的占位守卫保留);激活 chat 永远持有完整消息。
+// 持久化权威在 main 进程 SQLite,写路径走增量 ops(见 queueOpsForWrite)。
+
+// pending ops(microtask 合并):按 (type, chatId) 去重,后写胜;
+// delete 覆盖同 id 的 pending puts,put 撤销同 id 的 pending delete(重建语义)。
+let pendingOps = null;
+
+const ensurePendingOps = () => {
+  if (!pendingOps) {
+    pendingOps = {
+      treeMeta: null,
+      chatMetas: new Map(),
+      messagesByChatId: new Map(),
+      deletedChatIds: new Set(),
+    };
+  }
+  return pendingOps;
+};
+
+// 该 chat 本 tick 内有未 flush 的消息写/删除 → 内存是唯一真值,
+// 此时绝不能去 main 读(会读到旧行,消息被"复活")。
+const hasPendingMessagesOverride = (chatId) =>
+  !!pendingOps &&
+  (pendingOps.messagesByChatId.has(chatId) ||
+    pendingOps.deletedChatIds.has(chatId));
+
+const chatMetaWithoutMessages = (chat) => {
+  const { messages, ...meta } = chat;
+  return meta;
+};
+
+// v3 复合快照(main 组装):有 chatMetasById 即 v3;否则视为 legacy 整库
+// (localStorage fallback 或首启 localStorage→IPC 迁移回读)。
+const isV3BootstrapSnapshot = (snapshot) =>
+  isObject(snapshot) && isObject(snapshot.chatMetasById);
+
+const assembleStoreFromV3Bootstrap = (snapshot) => {
+  const chatsById = {};
+  for (const [chatId, meta] of Object.entries(snapshot.chatMetasById)) {
+    if (!isObject(meta)) {
+      continue;
+    }
+    chatsById[chatId] = { ...meta, id: meta.id || chatId, messages: [] };
+  }
+
+  const activeChatId =
+    typeof snapshot.activeChatId === "string" && chatsById[snapshot.activeChatId]
+      ? snapshot.activeChatId
+      : null;
+  if (activeChatId) {
+    chatsById[activeChatId].messages = Array.isArray(
+      snapshot.activeChatMessages,
+    )
+      ? snapshot.activeChatMessages
+      : [];
+  }
+
+  return {
+    // renderer store 仍是 v2 形状;v3 只是持久层协议版本。设成当前版本
+    // 以免 normalizeStore 走 v1 迁移把树重建掉。
+    schemaVersion: CHATS_SCHEMA_VERSION,
+    updatedAt: snapshot.updatedAt,
+    chatsById,
+    activeChatId,
+    lruChatIds: [],
+    tree: isObject(snapshot.tree) ? snapshot.tree : undefined,
+    ui: {},
+  };
+};
+
+// 同步保证某 chat 的消息在给定 store 对象里(激活切换/复制前的预载)。
+// 仅 IPC 路径需要;占位为空且 meta 记录有消息时,sendSync 拉取。
+// CONTRACT NOTE (review L1): hydration REPLACES the chat object (identity
+// changes) but is memory-only — it is deliberately NOT named in dirty
+// chatIds / ops, since nothing persisted changed. Consumers keying on chat
+// identity (explorer row cache) will re-mint that one row; that's correct
+// and cheap.
+const ensureChatMessagesLoadedInStore = (store, chatId) => {
+  if (!hasIpcBackend()) {
+    return;
+  }
+  const chat = chatId ? store?.chatsById?.[chatId] : null;
+  if (!chat) {
+    return;
+  }
+  if (Array.isArray(chat.messages) && chat.messages.length > 0) {
+    return;
+  }
+  if (Number(chat?.stats?.messageCount || 0) <= 0) {
+    return;
+  }
+  if (hasPendingMessagesOverride(chatId)) {
+    return;
+  }
+  let loaded = null;
+  try {
+    loaded = storageBackend.readMessages(chatId);
+  } catch {
+    loaded = null;
+  }
+  if (Array.isArray(loaded) && loaded.length > 0) {
+    // COW 纪律:这个 chat 对象可能与上一世代共享(dev 下已冻结)。绝不就地
+    // 写 chat.messages —— 换成携带消息的新对象。这是内存 hydration,不是
+    // 数据变更(消息本就持久化在 main),因此不需要 dirty 声明;代价只是
+    // 该 chat 本世代换一次身份(激活/复制路径,本来就要重渲染)。
+    store.chatsById[chatId] = { ...chat, messages: sanitizeMessages(loaded) };
+  }
+};
+
 const ensureMemoryStoreLoaded = () => {
   // Only cache the memory mirror when running against the IPC backend. In the
   // localStorage-fallback path (jsdom tests, pure web builds) the source of
@@ -83,7 +191,13 @@ const ensureMemoryStoreLoaded = () => {
   }
   if (memoryStore !== null) return memoryStore;
   const bootstrap = storageBackend.readBootstrap();
-  memoryStore = normalizeStore(bootstrap);
+  const bootstrapStore = isV3BootstrapSnapshot(bootstrap)
+    ? assembleStoreFromV3Bootstrap(bootstrap)
+    : bootstrap;
+  memoryStore = normalizeStore(bootstrapStore);
+  // normalize 可能改写 activeChatId(快照里的 active 失效时兜底)——
+  // 无论落在谁头上,激活 chat 必须满载消息。
+  ensureChatMessagesLoadedInStore(memoryStore, memoryStore.activeChatId);
   if (!bootstrap) {
     try {
       storageBackend.persist(memoryStore);
@@ -201,44 +315,6 @@ const removeChatById = (store, chatId) => {
   }
 };
 
-const dropLeastRecentlyUsedChats = (store) => {
-  let totalBytes = estimateBytes(store);
-
-  while (totalBytes > TARGET_TOTAL_BYTES) {
-    const removableChatId = [...store.lruChatIds]
-      .reverse()
-      .find((chatId) => chatId !== store.activeChatId);
-    if (!removableChatId) {
-      break;
-    }
-
-    removeChatById(store, removableChatId);
-    totalBytes = estimateBytes(store);
-  }
-
-  if (
-    totalBytes > MAX_TOTAL_BYTES &&
-    store.activeChatId &&
-    store.chatsById[store.activeChatId]
-  ) {
-    const activeChat = store.chatsById[store.activeChatId];
-    if (activeChat.messages.length > MAX_ACTIVE_MESSAGES_WHEN_TRIMMING) {
-      activeChat.messages = activeChat.messages.slice(
-        -MAX_ACTIVE_MESSAGES_WHEN_TRIMMING,
-      );
-      activeChat.lastMessageAt = computeLastMessageAt(
-        activeChat.messages,
-        activeChat.lastMessageAt,
-      );
-      activeChat.updatedAt = now();
-      activeChat.stats = computeChatStats(activeChat);
-      totalBytes = estimateBytes(store);
-    }
-  }
-
-  return store;
-};
-
 const emitStoreChange = (store, event = {}) => {
   if (storeSubscribers.size === 0) {
     return;
@@ -255,30 +331,167 @@ const emitStoreChange = (store, event = {}) => {
 let pendingEmit = null;
 let microtaskScheduled = false;
 
-const flushPendingEmit = () => {
-  microtaskScheduled = false;
-  if (!pendingEmit) return;
-  const { store, emit, event } = pendingEmit;
-  pendingEmit = null;
-  try {
-    storageBackend.persist(store);
-  } catch (error) {
-    console.error("[chat-storage] backend persist failed:", error);
+// pending ops → 一条 APPLY_OPS(main 侧单事务应用)。顺序:先删后写,
+// put_tree_meta 收尾(同 id 冲突已在入队时消解,这里只求可读)。
+//
+// ORDERING ASSUMPTION (load-bearing, spec §3): APPLY_OPS is fire-and-forget
+// (ipcRenderer.send) while READ_MESSAGES is sendSync — correctness relies on
+// Electron's renderer→main same-channel FIFO delivery: an APPLY_OPS sent
+// before a later sendSync is processed by main first, so a post-flush sync
+// read can never observe pre-flush rows for a chat whose ops were already
+// sent. The not-yet-flushed window (same tick, before this microtask runs)
+// is covered in-renderer by the pending-ops override
+// (hasPendingMessagesOverride), which keeps such reads in memory.
+const flushPendingOps = () => {
+  if (!pendingOps) return;
+  const { treeMeta, chatMetas, messagesByChatId, deletedChatIds } = pendingOps;
+  pendingOps = null;
+
+  const ops = [];
+  if (deletedChatIds.size > 0) {
+    ops.push({ type: "delete_chats", chatIds: [...deletedChatIds] });
   }
-  if (emit) emitStoreChange(store, event);
+  for (const [chatId, meta] of chatMetas) {
+    ops.push({ type: "put_chat_meta", chatId, meta });
+  }
+  for (const [chatId, messages] of messagesByChatId) {
+    ops.push({ type: "put_messages", chatId, messages });
+  }
+  if (treeMeta) {
+    ops.push({ type: "put_tree_meta", ...treeMeta });
+  }
+  if (ops.length === 0) return;
+
+  try {
+    storageBackend.applyOps(ops);
+  } catch (error) {
+    console.error("[chat-storage] backend applyOps failed:", error);
+  }
 };
 
-const schedulePersistAndEmit = (store, options) => {
+// —— emit dirty 提示(switch-chain spec §2,形状冻结:加字段可,改语义不可)——
+// 每个 subscribeChatsStore 事件携带
+//   event.dirty = { chatIds, deletedChatIds, treeChanged, activeChanged }
+// 供下游(explorer 增量等)按 id 增量更新,不必全量重derive。
+// 内部累加用 Set,emit 时转数组;同 tick 多写取并集(见 mergePendingDirty)。
+const createEmptyPendingDirty = () => ({
+  chatIds: new Set(),
+  deletedChatIds: new Set(),
+  treeChanged: false,
+  activeChanged: false,
+});
+
+// 同 tick 并集合并,语义与 pendingOps 对齐:
+// - 后写的 delete 压掉先前的 chatIds 条目(delete wins);
+// - 后写的 put 撤销先前的 delete(同 tick 重建语义)。
+// 单次写内两个集合天然不相交(deleted = next 里已不存在;chatIds = 仍存在)。
+const mergePendingDirty = (acc, add) => {
+  for (const chatId of add.chatIds) {
+    acc.chatIds.add(chatId);
+    acc.deletedChatIds.delete(chatId);
+  }
+  for (const chatId of add.deletedChatIds) {
+    acc.deletedChatIds.add(chatId);
+    acc.chatIds.delete(chatId);
+  }
+  acc.treeChanged = acc.treeChanged || add.treeChanged === true;
+  acc.activeChanged = acc.activeChanged || add.activeChanged === true;
+  return acc;
+};
+
+const dirtyToEventShape = (dirty) => ({
+  chatIds: [...dirty.chatIds],
+  deletedChatIds: [...dirty.deletedChatIds],
+  treeChanged: dirty.treeChanged === true,
+  activeChanged: dirty.activeChanged === true,
+});
+
+// treeChanged 派生(禁止无脑 true):selectedNodeId / root 顺序 / 逐节点引用。
+// Task 1 的身份保持 normalize 让未动节点跨世代引用稳定,因此
+// "引用不等 ⟺ 节点内容真的变了"在这里成立(等价节点已被换回上一轮引用)。
+const hasTreeChanged = (prevStore, nextStore) => {
+  const prevTree = prevStore?.tree;
+  const nextTree = nextStore?.tree;
+  if (prevTree === nextTree) return false;
+  if (!isObject(prevTree) || !isObject(nextTree)) return true;
+  if ((prevTree.selectedNodeId ?? null) !== (nextTree.selectedNodeId ?? null)) {
+    return true;
+  }
+  const prevRoot = Array.isArray(prevTree.root) ? prevTree.root : [];
+  const nextRoot = Array.isArray(nextTree.root) ? nextTree.root : [];
+  if (prevRoot.length !== nextRoot.length) return true;
+  for (let i = 0; i < nextRoot.length; i += 1) {
+    if (prevRoot[i] !== nextRoot[i]) return true;
+  }
+  const prevNodes = isObject(prevTree.nodesById) ? prevTree.nodesById : {};
+  const nextNodes = isObject(nextTree.nodesById) ? nextTree.nodesById : {};
+  const nextKeys = Object.keys(nextNodes);
+  if (Object.keys(prevNodes).length !== nextKeys.length) return true;
+  for (const nodeId of nextKeys) {
+    if (prevNodes[nodeId] !== nextNodes[nodeId]) return true;
+  }
+  return false;
+};
+
+// 单次写世代的 dirty(ops 级信息 → 事件形状):
+// - chatIds:声明的 chatMeta∪messages 中仍存在于 next 的 id,外加 key-diff
+//   新增(prev 无、next 有)。新增即 dirty 是定义使然 —— 也兜住未声明的
+//   创建路径(delete 兜底 seed、normalize seed),消费侧不会漏掉新会话。
+// - deletedChatIds:key-diff 删除,与 queueOpsForWrite 的 delete_chats 同源。
+// - activeChanged:activeChatId 世代间比较。
+const computeWriteDirty = (prevStore, nextStore, declared) => {
+  const chatIds = new Set();
+  for (const chatId of [...declared.chatMeta, ...declared.messages]) {
+    if (chatId && nextStore.chatsById?.[chatId]) {
+      chatIds.add(chatId);
+    }
+  }
+  const prevChats = isObject(prevStore?.chatsById) ? prevStore.chatsById : {};
+  const nextChats = isObject(nextStore?.chatsById) ? nextStore.chatsById : {};
+  for (const chatId of Object.keys(nextChats)) {
+    if (!prevChats[chatId]) chatIds.add(chatId);
+  }
+  const deletedChatIds = new Set();
+  for (const chatId of Object.keys(prevChats)) {
+    if (!nextChats[chatId]) deletedChatIds.add(chatId);
+  }
+  return {
+    chatIds,
+    deletedChatIds,
+    treeChanged: hasTreeChanged(prevStore, nextStore),
+    activeChanged:
+      (prevStore?.activeChatId ?? null) !== (nextStore?.activeChatId ?? null),
+  };
+};
+
+const flushPendingEmit = () => {
+  microtaskScheduled = false;
+  flushPendingOps();
+  if (!pendingEmit) return;
+  const { store, emit, event, dirty } = pendingEmit;
+  pendingEmit = null;
+  if (emit) {
+    emitStoreChange(store, { ...event, dirty: dirtyToEventShape(dirty) });
+  }
+};
+
+const schedulePersistAndEmit = (store, options, writeDirty) => {
   const emit = options.emit !== false;
   const event = {
     type: options.type || "store_write",
     source: options.source || "unknown",
   };
   // 同 tick 内多次 writeStore 只合并为一次 persist + 一次 emit。
-  // 始终保留最新的 store、event；emit=false 不升级 emit=true（bootstrap 等静默写入不应点燃 subscribers）。
+  // 始终保留最新的 store、event；dirty 跨写累加并集(含 emit=false 的静默写,
+  // 订阅者看到的是最终 store,并集必须覆盖全部世代);
+  // emit=false 不升级 emit=true（bootstrap 等静默写入不应点燃 subscribers）。
   pendingEmit = {
     store,
     event,
+    dirty: mergePendingDirty(
+      pendingEmit?.dirty || createEmptyPendingDirty(),
+      writeDirty,
+    ),
     emit: (pendingEmit?.emit ?? false) || emit,
   };
   if (!microtaskScheduled) {
@@ -291,66 +504,103 @@ export const flushStoreEmitSync = () => {
   flushPendingEmit();
 };
 
-const writeStore = (store, options = {}) => {
+// dirty 声明协议:withStore(mutator, { dirty })。
+// dirty = { chatMeta?: string[], messages?: string[] } 或返回该形状的函数
+// (mutator 内部才知道新建 id 时用函数,writeStore 时机求值)。
+const resolveDirtyDeclaration = (dirty) => {
+  const resolved = typeof dirty === "function" ? dirty() : dirty;
+  return {
+    chatMeta: Array.isArray(resolved?.chatMeta) ? resolved.chatMeta : [],
+    messages: Array.isArray(resolved?.messages) ? resolved.messages : [],
+  };
+};
+
+// declared = resolveDirtyDeclaration 的产物(writeStore 统一求值一次,
+// ops 与 event dirty 共用同一份声明,不会二次调用函数式 dirty)。
+const queueOpsForWrite = (prevStore, nextStore, declared) => {
+  const pending = ensurePendingOps();
+
+  // 恒发 tree meta:每次写都带最新 tree/activeChatId/updatedAt(体量小)。
+  pending.treeMeta = {
+    tree: nextStore.tree,
+    activeChatId: nextStore.activeChatId ?? null,
+    updatedAt: nextStore.updatedAt,
+  };
+
+  for (const chatId of declared.chatMeta) {
+    const chat = chatId ? nextStore.chatsById?.[chatId] : null;
+    if (!chat) continue;
+    pending.deletedChatIds.delete(chatId);
+    pending.chatMetas.set(chatId, chatMetaWithoutMessages(chat));
+  }
+
+  for (const chatId of declared.messages) {
+    const chat = chatId ? nextStore.chatsById?.[chatId] : null;
+    if (!chat) continue;
+    pending.deletedChatIds.delete(chatId);
+    pending.messagesByChatId.set(
+      chatId,
+      Array.isArray(chat.messages) ? chat.messages : [],
+    );
+  }
+
+  // 删除靠 key diff(prev 有、next 没有),mutator 不需要声明;
+  // delete 覆盖同 id 的 pending puts。
+  const prevChats = isObject(prevStore?.chatsById) ? prevStore.chatsById : {};
+  for (const chatId of Object.keys(prevChats)) {
+    if (nextStore.chatsById?.[chatId]) continue;
+    pending.chatMetas.delete(chatId);
+    pending.messagesByChatId.delete(chatId);
+    pending.deletedChatIds.add(chatId);
+  }
+};
+
+// prevGenerationStore:本世代之前的 store(withStore 的 current),fallback
+// 路径靠它做 key-diff / 树比较;IPC 路径以 memoryStore 为准(两者同一对象)。
+const writeStore = (store, options = {}, prevGenerationStore = null) => {
+  // 世代完成 → dev 下冻结共享对象(见 freezeStoreObjectsForDev)。
+  // 放在装载/emit 之前:订阅者拿到的就是冻结世代。
+  freezeStoreObjectsForDev(store);
+  const declared = resolveDirtyDeclaration(options.dirty);
   if (hasIpcBackend()) {
-    // IPC 路径：memoryStore 同步更新 → 立即一致性读；persist/emit 合并到 microtask
+    // IPC 路径：memoryStore 同步更新 → 立即一致性读；ops/emit 合并到 microtask
+    const prevStore = memoryStore;
     memoryStore = store;
-    schedulePersistAndEmit(store, options);
+    queueOpsForWrite(prevStore, store, declared);
+    schedulePersistAndEmit(
+      store,
+      options,
+      computeWriteDirty(prevStore, store, declared),
+    );
     return store;
   }
 
   // jsdom / 纯 web fallback：没有 memoryStore，persist 必须同步到 localStorage，
   // 否则下一次 withStore 的 readStore() 会读到旧数据
+  const writeDirty = computeWriteDirty(prevGenerationStore, store, declared);
   try {
     storageBackend.persist(store);
   } catch (error) {
     console.error("[chat-storage] backend persist failed:", error);
   }
   if (options.emit !== false) {
+    // fallback 同步 emit 与 IPC microtask emit 携带同一 dirty 形状。
     emitStoreChange(store, {
       type: options.type || "store_write",
       source: options.source || "unknown",
+      dirty: dirtyToEventShape(writeDirty),
     });
   }
   return store;
 };
 
-// —— Storage GC (LRU 淘汰 + 大小整形) ——
-// 从 writeStore 热路径移除，改为 idle 触发。
-// 调用点：setChatMessages / createChatWithMessagesInSelectedContext / duplicateTreeNodeSubtree
-// (所有"可能新增数据"的 mutation)。热路径 (selectTreeNode / updateChatDraft / renameTreeNode) 不触发。
-let gcScheduled = false;
-
-const runStoreGCNow = () => {
-  gcScheduled = false;
-  const current = memoryStore || readStore();
-  if (!current) return;
-  const working = clone(current) || current;
-  const bounded = dropLeastRecentlyUsedChats(working);
-  const finalized = normalizeStore(bounded);
-  if (hasIpcBackend()) {
-    memoryStore = finalized;
-  }
-  schedulePersistAndEmit(finalized, {
-    type: "store_gc",
-    source: "system",
-  });
-};
-
-const scheduleStoreGC = () => {
-  if (gcScheduled) return;
-  gcScheduled = true;
-  const schedule =
-    typeof window !== "undefined" &&
-    typeof window.requestIdleCallback === "function"
-      ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
-      : (cb) => setTimeout(cb, 500);
-  schedule(runStoreGCNow);
-};
+// GC/LRU 驱逐已随 V3 移除(spec §5):持久化权威在 main SQLite,renderer 只持
+// tree + metas + 激活消息,没有 quota 压力;用户数据不再被静默丢弃。
+// lruChatIds 仍作为 MRU 记录保留(touchLru / normalize 的 active 置顶)。
 
 // 页面关闭前强制 flush pending microtask：保证最后一次 writeStore 的
-// persist (IPC write) 和 emit 都落地。electron main 的 before-quit 会再做一次
-// 磁盘 flushSync，这里只负责把 renderer 侧未发出的 IPC 挤出去。
+// ops (APPLY_OPS) 和 emit 都落地。main 侧 before-quit 负责关库,
+// 这里只负责把 renderer 侧未发出的 IPC 挤出去。
 if (
   typeof window !== "undefined" &&
   typeof window.addEventListener === "function"
@@ -363,24 +613,120 @@ const readStore = () => {
   return ensureMemoryStoreLoaded();
 };
 
-const withStore = (mutate, options = {}) => {
-  const current = readStore();
-  const working = clone(current) || current;
-  const candidate = typeof mutate === "function" ? mutate(working) : working;
-  const next = normalizeStore(candidate || working);
-  next.updatedAt = now();
-  return writeStore(next, options);
+// —— 写时复制(COW)世代模型(switch-chain spec §1)——
+// withStore 不再对整库深克隆:工作副本只新建顶层与容器(chatsById/tree/
+// lruChatIds),chat 对象按引用携带。要就地改某个既有 chat,必须先经
+// claimChatForWrite 换成本世代的私有深克隆;静态 dirty 声明的 chat 在
+// mutator 运行前预先 claim(mutator 可自由就地改)。tree 因其 helper
+// (applySiblingIds/removeNodeFromParent/ensureTreeHasNodeForChat 等)大量
+// 就地改节点且体量小,直接整棵深克隆 —— 未动节点的引用由 normalizeStore
+// 的等价后置遍换回上一世代对象,身份保持不受影响。
+
+// 本世代已私有化的 chat id 集(按工作副本对象隔离)。
+const cowClaimedChatIds = new WeakMap();
+
+const claimChatForWrite = (store, chatId) => {
+  const chat =
+    chatId && isObject(store?.chatsById) ? store.chatsById[chatId] : null;
+  if (!chat) {
+    return null;
+  }
+  let claimed = cowClaimedChatIds.get(store);
+  if (!claimed) {
+    claimed = new Set();
+    cowClaimedChatIds.set(store, claimed);
+  }
+  if (claimed.has(chatId)) {
+    return store.chatsById[chatId];
+  }
+  const copy = clone(chat) || chat;
+  store.chatsById[chatId] = copy;
+  claimed.add(chatId);
+  return copy;
 };
 
-const updateActiveAndSelectedFromChatId = (store, chatId) => {
-  if (!chatId || !store.chatsById[chatId]) {
+const createCowWorkingStore = (current, dirty) => {
+  const base = isObject(current) ? current : createEmptyStoreV2();
+  const working = {
+    ...base,
+    chatsById: isObject(base.chatsById) ? { ...base.chatsById } : {},
+    lruChatIds: Array.isArray(base.lruChatIds) ? [...base.lruChatIds] : [],
+    tree: clone(base.tree) || createEmptyStoreV2().tree,
+    ui: isObject(base.ui) ? { ...base.ui } : {},
+  };
+  // 静态 dirty 声明:进 mutator 前先行深克隆(V3 dirty 表:所有 setter 走
+  // updateChatSessionById,静态声明)。函数式 dirty(创建路径/激活翻标等,
+  // id 在 mutator 内部才知道)由各就地写点自行 claimChatForWrite。
+  if (dirty && typeof dirty !== "function") {
+    const declared = resolveDirtyDeclaration(dirty);
+    for (const chatId of [...declared.chatMeta, ...declared.messages]) {
+      claimChatForWrite(working, chatId);
+    }
+  }
+  return working;
+};
+
+// dev 守卫(仅非 production;jsdom 测试全程 development,让整个套件充当
+// 陈旧引用泄漏探测器):世代落库后冻结 chat 对象/messages 数组/tree 节点。
+// 任何绕过 claim 的就地写(mutator 忘克隆、订阅者改快照)立刻 TypeError,
+// 而不是悄悄污染跨世代共享对象。容器与顶层不冻结(世代内合法替换入口)。
+const freezeStoreObjectsForDev = (store) => {
+  if (process.env.NODE_ENV === "production") {
     return;
   }
+  const chats = isObject(store?.chatsById) ? store.chatsById : null;
+  if (chats) {
+    for (const chat of Object.values(chats)) {
+      if (!isObject(chat)) continue;
+      if (Array.isArray(chat.messages)) Object.freeze(chat.messages);
+      Object.freeze(chat);
+    }
+  }
+  const nodes = isObject(store?.tree?.nodesById) ? store.tree.nodesById : null;
+  if (nodes) {
+    for (const node of Object.values(nodes)) {
+      if (!isObject(node)) continue;
+      if (Array.isArray(node.children)) Object.freeze(node.children);
+      Object.freeze(node);
+    }
+  }
+};
 
+const withStore = (mutate, options = {}) => {
+  const current = readStore();
+  const working = createCowWorkingStore(current, options.dirty);
+  const candidate = typeof mutate === "function" ? mutate(working) : working;
+  // prevStore = 本世代之前的 store:未触碰的 chat(引用穿透)跳过 re-sanitize
+  // 直接复用,未动 tree 节点换回上一轮引用 —— 下游 memo 因此命中。
+  const next = normalizeStore(candidate || working, { prevStore: current });
+  // 切会话安全带:无论 activeChatId 在哪条路径被改(select/delete 兜底/create/
+  // normalize 兜底),写出/emit 前保证新激活 chat 的消息已在内存 ——
+  // use_chat_session_state 的切换缝隙(直接读快照 messages)因此零改动。
+  ensureChatMessagesLoadedInStore(next, next.activeChatId);
+  next.updatedAt = now();
+  return writeStore(next, options, current);
+};
+
+// 返回激活结果 { chatId, metaChanged } (未激活 → null)。
+// metaChanged=true 表示这里真的改了该 chat 的 meta(未读标志 true→false);
+// 调用方(mutator)必须把这类 id 合并进自己的 dirty.chatMeta 声明,否则
+// 清掉的未读标志只活在内存里,重启后从 SQLite 复活(见 lazy_messages 测试)。
+const updateActiveAndSelectedFromChatId = (store, chatId) => {
+  if (!chatId || !store.chatsById[chatId]) {
+    return null;
+  }
+
+  // 激活前同步预载新 chat 的消息(非激活时是 [] 占位)。
+  ensureChatMessagesLoadedInStore(store, chatId);
   store.activeChatId = chatId;
+  let metaChanged = false;
   if (store.chatsById[chatId].hasUnreadGeneratedReply) {
-    store.chatsById[chatId].hasUnreadGeneratedReply = false;
-    store.chatsById[chatId].updatedAt = now();
+    // COW:被激活的 chat 与上一世代共享 —— 翻未读标志前必须先私有化克隆
+    // (metaChanged=true 会被调用方并进 dirty.chatMeta,持久化闭环不变)。
+    const activatedChat = claimChatForWrite(store, chatId);
+    activatedChat.hasUnreadGeneratedReply = false;
+    activatedChat.updatedAt = now();
+    metaChanged = true;
   }
   touchLru(store, chatId);
 
@@ -401,6 +747,8 @@ const updateActiveAndSelectedFromChatId = (store, chatId) => {
   if (selectedNodeId) {
     store.tree.selectedNodeId = selectedNodeId;
   }
+
+  return { chatId, metaChanged };
 };
 
 const isTransientNewChatPending = (chat) => {
@@ -459,25 +807,28 @@ const updateCharacterNodeMetadata = (store, chatId, chat) => {
   return nodeId;
 };
 
+// 返回 { removedChatId, activation };activation 是 updateActiveAndSelectedFromChatId
+// 的结果(兜底激活可能翻掉 fallback chat 的未读标志,调用方要据此声明 dirty)。
 const cleanupTransientActiveChat = (store, preferredNextChatId = null) => {
   const removableChatId = getCleanupCandidateActiveChatId(
     store,
     preferredNextChatId,
   );
   if (!removableChatId) {
-    return null;
+    return { removedChatId: null, activation: null };
   }
 
   removeChatById(store, removableChatId);
   const fallbackChatId = resolveFallbackChatId(store, preferredNextChatId);
+  let activation = null;
   if (fallbackChatId) {
-    updateActiveAndSelectedFromChatId(store, fallbackChatId);
+    activation = updateActiveAndSelectedFromChatId(store, fallbackChatId);
   } else {
     store.activeChatId = null;
     store.tree.selectedNodeId = null;
   }
 
-  return removableChatId;
+  return { removedChatId: removableChatId, activation };
 };
 
 const cleanupPreviousTransientActiveChat = (
@@ -486,10 +837,10 @@ const cleanupPreviousTransientActiveChat = (
   nextChatId,
 ) => {
   if (!previousActiveChatId || previousActiveChatId === nextChatId) {
-    return null;
+    return { removedChatId: null, activation: null };
   }
   if (store.activeChatId !== previousActiveChatId) {
-    return null;
+    return { removedChatId: null, activation: null };
   }
 
   return cleanupTransientActiveChat(store, nextChatId);
@@ -500,6 +851,48 @@ export const getChatsStore = () => {
   return clone(current) || createEmptyStoreV2();
 };
 
+// v3 lazy-messages 读口(同步契约,spec §5/§9 单向门):
+// 激活 chat 或内存已有消息 → 内存克隆;冷的非激活 chat → sendSync READ_MESSAGES
+// (几 ms,仅用户动作触发:切换/导出/复制/测试桥)。
+// fallback 构建(无 IPC)内存持有全部消息,永远不会走 IPC 分支。
+export const getChatMessages = (chatId) => {
+  if (!chatId) {
+    return [];
+  }
+  const current = readStore();
+  const chat = current?.chatsById?.[chatId];
+  if (!chat) {
+    return [];
+  }
+
+  const inMemory = Array.isArray(chat.messages) ? chat.messages : [];
+  if (
+    chatId === current.activeChatId ||
+    inMemory.length > 0 ||
+    !hasIpcBackend() ||
+    hasPendingMessagesOverride(chatId)
+  ) {
+    return clone(inMemory) || [];
+  }
+
+  if (Number(chat?.stats?.messageCount || 0) <= 0) {
+    return [];
+  }
+
+  let loaded = null;
+  try {
+    loaded = storageBackend.readMessages(chatId);
+  } catch {
+    loaded = null;
+  }
+  return Array.isArray(loaded) ? sanitizeMessages(loaded) : [];
+};
+
+// listener(store, event);event = { type, source, dirty }。
+// dirty(spec §2 冻结形状,旧订阅者忽略即可,零破坏):
+//   { chatIds: string[], deletedChatIds: string[],
+//     treeChanged: boolean, activeChanged: boolean }
+// 同 tick 合并 emit 时 dirty 是全部写世代的并集(delete 压过同 id 的 put)。
 export const subscribeChatsStore = (listener, options = {}) => {
   if (typeof listener !== "function") {
     return () => {};
@@ -614,6 +1007,7 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
     {
       source,
       type: "chat_create",
+      dirty: () => ({ chatMeta: createdChatId ? [createdChatId] : [] }),
     },
   );
 
@@ -738,6 +1132,7 @@ export const openCharacterChat = (params = {}, options = {}) => {
     {
       source,
       type: "chat_open_character",
+      dirty: () => ({ chatMeta: result.chatId ? [result.chatId] : [] }),
     },
   );
 
@@ -808,10 +1203,13 @@ export const createChatWithMessagesInSelectedContext = (
     {
       source,
       type: "chat_create_with_messages",
+      dirty: () =>
+        createdChatId
+          ? { chatMeta: [createdChatId], messages: [createdChatId] }
+          : {},
     },
   );
 
-  scheduleStoreGC();
   return {
     chatId: createdChatId,
     nodeId: createdNodeId,
@@ -822,6 +1220,7 @@ export const createChatWithMessagesInSelectedContext = (
 export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
   const source = options.source || "unknown";
   let duplicatedNodeId = null;
+  const duplicatedChatIds = [];
 
   const next = withStore(
     (store) => {
@@ -835,6 +1234,19 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
         store,
         params.parentFolderId,
       );
+      // v3 lazy-messages:快照前把子树里每个源 chat 的消息载入(非激活 chat
+      // 是 [] 占位),否则复制出来的会话是空的。在 store 侧做,
+      // chat_storage_tree.js(Task 4 所辖)保持不动。
+      for (const subtreeNodeId of collectSubtreeNodeIds(
+        store.tree,
+        sourceNodeId,
+        [],
+      )) {
+        const subtreeNode = store.tree.nodesById[subtreeNodeId];
+        if (subtreeNode?.entity === "chat" && subtreeNode.chatId) {
+          ensureChatMessagesLoadedInStore(store, subtreeNode.chatId);
+        }
+      }
       const snapshot = snapshotSubtreeForCopy(store, sourceNodeId);
       if (!snapshot) {
         return store;
@@ -940,6 +1352,7 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
             copiedChat.id,
           );
           store.chatsById[finalizedChat.id] = finalizedChat;
+          duplicatedChatIds.push(finalizedChat.id);
 
           const chatNodeId = ensureTreeHasNodeForChat(store, finalizedChat.id, {
             parentFolderId: destinationParentFolderId,
@@ -972,10 +1385,13 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
     {
       source,
       type: "tree_duplicate_subtree",
+      dirty: () => ({
+        chatMeta: [...duplicatedChatIds],
+        messages: [...duplicatedChatIds],
+      }),
     },
   );
 
-  scheduleStoreGC();
   return {
     nodeId: duplicatedNodeId,
     store: clone(next) || next,
@@ -984,13 +1400,19 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
 
 export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
   const source = options.source || "unknown";
+  // 激活时真的改了 meta(未读标志翻掉)的 chat id —— 必须进 dirty,
+  // 否则清除只在内存,重启后未读标志从 SQLite 复活。
+  const activatedMetaDirtyChatIds = new Set();
 
   const next = withStore(
     (store) => {
       let target =
         typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
       if (target?.entity === "chat") {
-        cleanupTransientActiveChat(store, target.chatId);
+        const cleanup = cleanupTransientActiveChat(store, target.chatId);
+        if (cleanup.activation?.metaChanged) {
+          activatedMetaDirtyChatIds.add(cleanup.activation.chatId);
+        }
         target =
           typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
       }
@@ -1006,7 +1428,13 @@ export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
 
       store.tree.selectedNodeId = nodeId;
       if (target.entity === "chat") {
-        updateActiveAndSelectedFromChatId(store, target.chatId);
+        const activation = updateActiveAndSelectedFromChatId(
+          store,
+          target.chatId,
+        );
+        if (activation?.metaChanged) {
+          activatedMetaDirtyChatIds.add(activation.chatId);
+        }
       }
       store.updatedAt = now();
       return store;
@@ -1014,6 +1442,7 @@ export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
     {
       source,
       type: "tree_select",
+      dirty: () => ({ chatMeta: [...activatedMetaDirtyChatIds] }),
     },
   );
 
@@ -1022,6 +1451,7 @@ export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
 
 export const renameTreeNode = ({ nodeId, label } = {}, options = {}) => {
   const source = options.source || "unknown";
+  let renamedChatId = null;
 
   const next = withStore(
     (store) => {
@@ -1052,12 +1482,21 @@ export const renameTreeNode = ({ nodeId, label } = {}, options = {}) => {
       node.updatedAt = now();
 
       if (node.entity === "chat" && store.chatsById[node.chatId]) {
-        store.chatsById[node.chatId].title = nextLabel;
-        store.chatsById[node.chatId].isTransientNewChat = false;
-        store.chatsById[node.chatId].updatedAt = now();
-        store.chatsById[node.chatId].stats = computeChatStats(
-          store.chatsById[node.chatId],
-        );
+        // COW:改名是对既有 chat 的就地写 —— 先 claim 私有克隆(dirty 已由
+        // renamedChatId 声明)。
+        const renamedChat = claimChatForWrite(store, node.chatId);
+        renamedChat.title = nextLabel;
+        renamedChat.isTransientNewChat = false;
+        renamedChat.updatedAt = now();
+        // v3:非激活 chat 的 messages 是 [] 占位 —— 从占位重算 stats 会把真值
+        // 清零(sanitize 守卫此时救不回来)。只有内存里有消息才重算。
+        if (
+          Array.isArray(renamedChat.messages) &&
+          renamedChat.messages.length > 0
+        ) {
+          renamedChat.stats = computeChatStats(renamedChat);
+        }
+        renamedChatId = node.chatId;
       }
 
       store.updatedAt = now();
@@ -1066,6 +1505,7 @@ export const renameTreeNode = ({ nodeId, label } = {}, options = {}) => {
     {
       source,
       type: "tree_rename",
+      dirty: () => ({ chatMeta: renamedChatId ? [renamedChatId] : [] }),
     },
   );
 
@@ -1232,6 +1672,8 @@ const attachmentIdsEq = (a, b) => {
   return true;
 };
 
+// dirty 粒度:所有走这里的 setter 都是 {chatMeta:[chatId]};只有
+// setChatMessages 额外声明 {messages:[chatId]}(内部 includeMessagesDirty)。
 const updateChatSessionById = (chatId, updater, options = {}) => {
   const source = options.source || "unknown";
 
@@ -1280,6 +1722,12 @@ const updateChatSessionById = (chatId, updater, options = {}) => {
     {
       source,
       type: options.type || "chat_update",
+      dirty: {
+        chatMeta: chatId ? [chatId] : [],
+        ...(options.includeMessagesDirty && chatId
+          ? { messages: [chatId] }
+          : {}),
+      },
     },
   );
 
@@ -1319,7 +1767,7 @@ export const updateChatDraft = (chatId, patch = {}, options = {}) => {
 };
 
 export const setChatMessages = (chatId, messages, options = {}) => {
-  const next = updateChatSessionById(
+  return updateChatSessionById(
     chatId,
     (chat) => {
       const nextMessages = sanitizeMessages(messages);
@@ -1332,16 +1780,26 @@ export const setChatMessages = (chatId, messages, options = {}) => {
         ...chat,
         title: nextTitle,
         messages: nextMessages,
+        // 元数据化的"生成中"标志(树上的小绿点):唯一消息写入口在这里,
+        // 顺手维护,树/启动 settle 不再需要扫消息(消息可能是懒占位)。
+        isGenerating: nextMessages.some(
+          (message) =>
+            message &&
+            message.role === "assistant" &&
+            message.status === "streaming",
+        ),
         isTransientNewChat:
           nextMessages.length > 0 ? false : chat.isTransientNewChat === true,
         lastMessageAt: computeLastMessageAt(nextMessages, chat.lastMessageAt),
         updatedAt: now(),
       };
     },
-    { ...options, type: "chat_update_messages" },
+    {
+      ...options,
+      type: "chat_update_messages",
+      includeMessagesDirty: true,
+    },
   );
-  scheduleStoreGC();
-  return next;
 };
 
 export const setChatGeneratedUnread = (
@@ -1601,6 +2059,8 @@ export const refreshCharacterChatMetadata = (characters, options = {}) => {
     return clone(getChatsStore()) || getChatsStore();
   }
 
+  const touchedChatIds = [];
+
   const next = withStore(
     (store) => {
       for (const [chatId, chat] of Object.entries(store.chatsById || {})) {
@@ -1648,6 +2108,7 @@ export const refreshCharacterChatMetadata = (characters, options = {}) => {
           chatId,
         );
         store.chatsById[chatId] = cleaned;
+        touchedChatIds.push(chatId);
         updateCharacterNodeMetadata(store, chatId, cleaned);
       }
 
@@ -1656,6 +2117,7 @@ export const refreshCharacterChatMetadata = (characters, options = {}) => {
     {
       ...options,
       type: options.type || "chat_refresh_character_metadata",
+      dirty: () => ({ chatMeta: [...touchedChatIds] }),
     },
   );
 
@@ -1669,15 +2131,22 @@ export const cleanupTransientNewChatOnPageLeave = (options = {}) => {
     return clone(snapshot) || snapshot;
   }
 
+  // 兜底激活可能翻掉 fallback chat 的未读标志 → 必须声明 dirty 持久化。
+  const activatedMetaDirtyChatIds = new Set();
+
   const next = withStore(
     (store) => {
-      cleanupTransientActiveChat(store, null);
+      const cleanup = cleanupTransientActiveChat(store, null);
+      if (cleanup.activation?.metaChanged) {
+        activatedMetaDirtyChatIds.add(cleanup.activation.chatId);
+      }
       store.updatedAt = now();
       return store;
     },
     {
       source,
       type: "chat_cleanup_transient_new",
+      dirty: () => ({ chatMeta: [...activatedMetaDirtyChatIds] }),
     },
   );
 

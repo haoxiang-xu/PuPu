@@ -15,6 +15,7 @@ const ChatBubble = ({
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  onClarifyResolve,
   pendingToolConfirmationRequests = {},
   disableActionButtons = false,
   traceFrames = [],
@@ -85,7 +86,10 @@ const ChatBubble = ({
       f.type === "tool_call" ||
       f.type === "tool_result" ||
       f.type === "reasoning" ||
-      f.type === "observation",
+      f.type === "observation" ||
+      f.type === "fyi_injected" ||
+      f.type === "side_answer" ||
+      f.type === "clarify_request",
   );
   const pendingToolConfirmationFrames = hasToolActivity
     ? []
@@ -121,6 +125,7 @@ const ChatBubble = ({
           messageId={message.id}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
+          onClarifyResolve={onClarifyResolve}
           streamingContent={
             message.status === "streaming" ? message.content : ""
           }
@@ -141,8 +146,10 @@ const ChatBubble = ({
           frames={[]}
           status={message.status}
           messageId={message.id}
+          bubbleOwnsLiveText={true}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
+          onClarifyResolve={onClarifyResolve}
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
         />
@@ -238,6 +245,7 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
     nextProps.onToolConfirmationDecision &&
   previousProps.toolConfirmationUiStateById ===
     nextProps.toolConfirmationUiStateById &&
+  previousProps.onClarifyResolve === nextProps.onClarifyResolve &&
   previousProps.pendingToolConfirmationRequests ===
     nextProps.pendingToolConfirmationRequests &&
   previousProps.disableActionButtons === nextProps.disableActionButtons &&

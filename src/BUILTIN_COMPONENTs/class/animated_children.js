@@ -9,23 +9,49 @@ import { useEffect, useRef, useState } from "react";
  *
  * @param {boolean}  open           — whether the container is expanded
  * @param {boolean}  skipAnimation  — skip transition (instant open/close)
+ * @param {boolean}  unmountWhenClosed — unmount children after close animation
  * @param {React.ReactNode} children
  */
-const AnimatedChildren = ({ open, skipAnimation, children }) => {
+const AnimatedChildren = ({
+  open,
+  skipAnimation,
+  unmountWhenClosed = false,
+  children,
+}) => {
   const contentRef = useRef(null);
   const [height, setHeight] = useState(open ? "auto" : 0);
   const [overflow, setOverflow] = useState(open ? "visible" : "hidden");
-  const isFirstRender = useRef(true);
+  const [mountedChildren, setMountedChildren] = useState(open);
+  const prevOpenRef = useRef(open);
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
+    if (!unmountWhenClosed || open) {
+      setMountedChildren(true);
+    }
+
+    /* only a real open/close transition may animate — a skipAnimation
+       flip alone (e.g. drag end) must not replay the collapse animation
+       on an already-closed container */
+    if (prevOpenRef.current === open) {
+      if (skipAnimation) {
+        /* snap to the final state in case an animation was interrupted
+           (the cleanup below cancels a pending expand timer) */
+        setHeight(open ? "auto" : 0);
+        setOverflow(open ? "visible" : "hidden");
+        if (unmountWhenClosed && !open) {
+          setMountedChildren(false);
+        }
+      }
       return;
     }
+    prevOpenRef.current = open;
 
     if (skipAnimation) {
       setHeight(open ? "auto" : 0);
       setOverflow(open ? "visible" : "hidden");
+      if (unmountWhenClosed && !open) {
+        setMountedChildren(false);
+      }
       return;
     }
 
@@ -45,13 +71,30 @@ const AnimatedChildren = ({ open, skipAnimation, children }) => {
       const h = el.scrollHeight;
       setHeight(h);
       setOverflow("hidden");
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      let rafB = null;
+      const rafA = requestAnimationFrame(() => {
+        rafB = requestAnimationFrame(() => {
           setHeight(0);
         });
       });
+      const unmountTimer = unmountWhenClosed
+        ? setTimeout(() => {
+            setMountedChildren(false);
+          }, 280)
+        : null;
+      return () => {
+        cancelAnimationFrame(rafA);
+        if (rafB) {
+          cancelAnimationFrame(rafB);
+        }
+        if (unmountTimer) {
+          clearTimeout(unmountTimer);
+        }
+      };
     }
-  }, [open, skipAnimation]);
+  }, [open, skipAnimation, unmountWhenClosed]);
+
+  const shouldRenderChildren = !unmountWhenClosed || open || mountedChildren;
 
   return (
     <div
@@ -65,7 +108,7 @@ const AnimatedChildren = ({ open, skipAnimation, children }) => {
         willChange: "height",
       }}
     >
-      {children}
+      {shouldRenderChildren ? children : null}
     </div>
   );
 };

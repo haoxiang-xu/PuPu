@@ -1,5 +1,9 @@
 import { memo, useState, useContext, useMemo, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import {
+  colorWithAlpha,
+  themeHighlightColor,
+} from "../../CONTAINERs/config/theme_highlight";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
 import BranchGraph from "../../BUILTIN_COMPONENTs/branch_graph/branch_graph";
@@ -11,21 +15,28 @@ import {
 } from "./components/assistant_markdown_metrics";
 import {
   StreamingMarkdownView,
-  useStreamingMessageSnapshot,
+  useStreamingHasLiveText,
   useStreamingMessageStoreContext,
 } from "./components/streaming_message_store_context";
 import InteractWrapper from "./interact/interact_wrapper";
 import { normalizeStreamingChunks } from "../../SERVICEs/streaming_message_chunks";
+import {
+  FINALITY,
+  getFrameFinality,
+} from "../../PAGEs/chat/utils/message_finality";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
-const DISPLAY_FRAME_TYPES = new Set([
+export const DISPLAY_FRAME_TYPES = new Set([
   "reasoning",
   "observation",
   "tool_call",
   "tool_result",
   "final_message",
   "error",
+  "fyi_injected",
+  "side_answer",
+  "clarify_request",
 ]);
 
 const CONFIRMATION_DECISION_INTERACT_TYPES = new Set([
@@ -544,6 +555,23 @@ const ErrorPoint = () => (
   </div>
 );
 
+/* ─── AccentPoint ────────────────────────────────────────────────────────── */
+
+/* filled dot in the theme highlight color — marks side_answer (btw) rows so
+   they read as visually distinct from tool rows (hollow HammerPoint). */
+const AccentPoint = ({ color }) => (
+  <div
+    style={{
+      width: 10,
+      height: 10,
+      borderRadius: "50%",
+      background: color,
+      flexShrink: 0,
+      boxSizing: "border-box",
+    }}
+  />
+);
+
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
 const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }) => {
@@ -594,21 +622,24 @@ const TraceChain = ({
   streamingChunks,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  onClarifyResolve,
   bundle,
   subagentFrames,
   subagentMetaByRunId,
   showContainerHeader = true,
   bubbleOwnsFinalMessage = true,
+  bubbleOwnsLiveText = false,
   compact = false,
   hideTrack = false,
   _depth = 0,
 }) => {
   const { chatId, store } = useStreamingMessageStoreContext();
-  const streamingStoreSnapshot = useStreamingMessageSnapshot(
-    store,
-    chatId,
-    messageId,
-  );
+  // Subscribe only to the boolean "has (non-whitespace) live text" — this flips
+  // ~once per tool turn, so per-chunk commits no longer re-render TraceChain or
+  // rebuild timelineItems. The per-chunk text upload is consumed inside the
+  // self-subscribed StreamingMarkdownView. Dedup text is read imperatively via
+  // store.getText() inside the memo (see below).
+  const storeHasLiveText = useStreamingHasLiveText(store, chatId, messageId);
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
       if (typeof onToolConfirmationDecision !== "function") return;
@@ -724,22 +755,45 @@ const TraceChain = ({
       );
     }
 
-    const hasToolCall = frames.some((frame) => frame?.type === "tool_call");
-    if (!hasToolCall) {
-      return new Set();
+    // bubbleOwnsFinalMessage === true: decide which final_message frames go to the
+    // timeline as drafts vs. which one the bubble renders as its body. Ownership is
+    // read from the explicit segment-level `finality` flag (#155-B) — NOT inferred
+    // from the presence of a tool_call anywhere in the turn, which was the #155 bug.
+    //
+    //   - The latest non-empty `terminal` final_message = bubble body → NOT in timeline.
+    //   - Every other final_message (drafts, and any earlier terminals) = timeline draft.
+    //   - Legacy frames (missing finality) fall back to the old "last non-empty wins"
+    //     behavior so historical conversations render unchanged.
+    const finalities = finalMessageFrames.map((f) => getFrameFinality(f));
+    const allLegacy = finalities.every((fin) => fin === FINALITY.LEGACY);
+
+    if (allLegacy) {
+      // Legacy history: bubble owns the last non-empty final_message; rest are drafts.
+      // While streaming we have no committed body yet, so every frame is a draft.
+      const legacyIncluded = isStreaming
+        ? finalMessageFrames
+        : finalMessageFrames.slice(0, -1);
+      return new Set(
+        legacyIncluded.map((f) => Number(f.seq)).filter(Number.isFinite),
+      );
     }
 
-    // While streaming, show ALL final_messages in the timeline (more may come).
-    // Once done, keep all except the very last one (which lives in the bubble).
-    const included = isStreaming
-      ? finalMessageFrames
-      : finalMessageFrames.slice(0, -1);
+    // Finality-aware path. The bubble body = the LAST non-empty terminal frame
+    // (finalMessageFrames is already sorted seq-then-ts, empties already filtered).
+    // While streaming, bubbleBodyIndex stays -1: nothing is committed to the bubble
+    // yet, so every final_message (drafts + any premature terminal) is a timeline draft.
+    let bubbleBodyIndex = -1;
+    if (!isStreaming) {
+      for (let i = finalMessageFrames.length - 1; i >= 0; i -= 1) {
+        if (finalities[i] === FINALITY.TERMINAL) {
+          bubbleBodyIndex = i;
+          break;
+        }
+      }
+    }
 
-    return new Set(
-      included
-        .map((frame) => Number(frame.seq))
-        .filter((seq) => Number.isFinite(seq)),
-    );
+    const included = finalMessageFrames.filter((_, i) => i !== bubbleBodyIndex);
+    return new Set(included.map((f) => Number(f.seq)).filter(Number.isFinite));
   }, [bubbleOwnsFinalMessage, frames, isStreaming]);
 
   const displayFrames = useMemo(
@@ -873,20 +927,25 @@ const TraceChain = ({
     const renderedCallIds = new Set();
     const usedRunIds = new Set();
     let prevTs = startFrame?.ts ?? null;
-    const liveChunks =
-      isStreaming &&
-      (streamingStoreSnapshot.textLength > 0 || streamingStoreSnapshot.version > 0)
-        ? streamingStoreSnapshot.chunks
-        : isStreaming
-          ? normalizeStreamingChunks(streamingChunks)
-          : [];
-    const liveContent =
+    const fallbackChunks = isStreaming
+      ? normalizeStreamingChunks(streamingChunks)
+      : [];
+    const fallbackContent =
       isStreaming && typeof streamingContent === "string" ? streamingContent : "";
     const hasLiveContent =
-      liveChunks.some((chunk) => chunk.trim().length > 0) ||
-      liveContent.trim().length > 0;
-    const liveText = liveChunks.length > 0 ? liveChunks.join("") : liveContent;
-    const normalizedLiveText = hasLiveContent ? liveText.trim() : "";
+      (isStreaming && storeHasLiveText) ||
+      fallbackChunks.some((chunk) => chunk.trim().length > 0) ||
+      fallbackContent.trim().length > 0;
+    // Dedup text: read imperatively once. This memo only recomputes on frames
+    // change / boolean flip, and a final_message frame arriving always coincides
+    // with a frames change — so the text read here is the latest live text.
+    const liveTextNow = !isStreaming
+      ? ""
+      : (store && typeof store.getText === "function"
+          ? store.getText({ chatId, messageId })
+          : "") ||
+        (fallbackChunks.length > 0 ? fallbackChunks.join("") : fallbackContent);
+    const normalizedLiveText = hasLiveContent ? liveTextNow.trim() : "";
 
     for (const frame of displayFrames) {
       const delta =
@@ -900,6 +959,7 @@ const TraceChain = ({
         const isObs = frame.type === "observation";
         items.push({
           key: `${frame.seq}-${frame.type}`,
+          ...(isObs ? { _callId: frame.payload?.call_id } : {}),
           title: isObs ? "Observation" : "Reasoning",
           span: spanText,
           status: "done",
@@ -917,6 +977,185 @@ const TraceChain = ({
                 }}
               />
             ) : undefined,
+        });
+      } else if (frame.type === "fyi_injected") {
+        // btw-channel back-notes (origin "system") are already surfaced by
+        // their own side_answer frame — skip them here to avoid showing the
+        // same Q&A twice.
+        const userMessages = Array.isArray(frame.payload?.messages)
+          ? frame.payload.messages.filter((m) => m?.origin === "user")
+          : [];
+        if (userMessages.length === 0) continue;
+
+        const accent = colorWithAlpha(themeHighlightColor(theme), 0.55);
+        items.push({
+          key: `${frame.seq}-fyi-injected`,
+          title: "User note added",
+          span: spanText,
+          status: "done",
+          body: (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 5,
+                marginTop: 3,
+              }}
+            >
+              {userMessages.map((m, idx) => (
+                <div
+                  key={m?.message_id || idx}
+                  style={{
+                    borderLeft: `2px solid ${accent}`,
+                    paddingLeft: 8,
+                    fontSize: 12,
+                    lineHeight: 1.55,
+                    fontFamily: "inherit",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    color: isDark
+                      ? "rgba(255,255,255,0.68)"
+                      : "rgba(0,0,0,0.62)",
+                  }}
+                >
+                  {typeof m?.text === "string" ? m.text : ""}
+                </div>
+              ))}
+            </div>
+          ),
+        });
+      } else if (frame.type === "side_answer") {
+        const question =
+          typeof frame.payload?.question === "string"
+            ? frame.payload.question
+            : "";
+        const answer =
+          typeof frame.payload?.answer === "string"
+            ? frame.payload.answer
+            : "";
+        if (!question && !answer) continue;
+
+        items.push({
+          key: `${frame.seq}-side-answer`,
+          title: "Side answer",
+          span: spanText,
+          status: "done",
+          point: <AccentPoint color={themeHighlightColor(theme)} />,
+          details: (
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 6 }}
+            >
+              {question && (
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    lineHeight: 1.55,
+                    color: isDark
+                      ? "rgba(255,255,255,0.42)"
+                      : "rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {question}
+                </div>
+              )}
+              {answer && (
+                <SeamlessMarkdown
+                  content={answer}
+                  status="done"
+                  fontSize={12}
+                  lineHeight={1.65}
+                  style={{
+                    ...TRACE_DETAIL_MARKDOWN_STYLE,
+                    color: isDark
+                      ? "rgba(255,255,255,0.75)"
+                      : "rgba(0,0,0,0.7)",
+                  }}
+                />
+              )}
+            </div>
+          ),
+        });
+      } else if (frame.type === "clarify_request") {
+        const clarifyStatus =
+          typeof frame.payload?.status === "string"
+            ? frame.payload.status
+            : "pending";
+        const clarifyQuestion =
+          typeof frame.payload?.question === "string"
+            ? frame.payload.question
+            : "";
+        const clarifyOptions = Array.isArray(frame.payload?.options)
+          ? frame.payload.options
+          : [];
+        const isClarifyResolved =
+          clarifyStatus === "resolved" || clarifyStatus === "resolved_default";
+        const canResolveClarify =
+          !isClarifyResolved && typeof onClarifyResolve === "function";
+        // "resolved_default" always means the run ended before the user
+        // picked a channel, and the pending clarify falls back to the queue
+        // channel (see use_chat_stream.js dispatchInterjectChannel) — reflect
+        // that known outcome in the UI instead of leaving nothing selected.
+        // Read alias: clarify frames persisted before the steer→queue rename
+        // carry value:"steer"; treat it as ≡ "queue" (render-side only, no
+        // data migration).
+        const defaultClarifyOption =
+          clarifyStatus === "resolved_default"
+            ? clarifyOptions.find(
+                (opt) => opt?.value === "queue" || opt?.value === "steer",
+              )
+            : undefined;
+        const defaultClarifyResponse = defaultClarifyOption
+          ? { value: defaultClarifyOption.value }
+          : undefined;
+        const clarifyStatusColor = isClarifyResolved
+          ? isDark
+            ? "rgba(110,231,183,0.95)"
+            : "rgba(5,150,105,0.95)"
+          : isDark
+            ? "rgba(255,255,255,0.6)"
+            : "rgba(0,0,0,0.52)";
+
+        items.push({
+          key: `${frame.seq}-clarify`,
+          title: "Needs clarification",
+          span: spanText,
+          status: "done",
+          point: <HammerPoint isDark={isDark} />,
+          body: (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                marginTop: 4,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11.5,
+                  color: clarifyStatusColor,
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                }}
+              >
+                {isClarifyResolved ? "Selected" : "Pending"}
+              </span>
+              <InteractWrapper
+                type="single"
+                config={{ question: clarifyQuestion, options: clarifyOptions }}
+                onSubmit={(data) => {
+                  if (typeof onClarifyResolve === "function") {
+                    onClarifyResolve(data?.value);
+                  }
+                }}
+                uiState={{
+                  resolved: isClarifyResolved,
+                  userResponse: defaultClarifyResponse,
+                }}
+                isDark={isDark}
+                disabled={!canResolveClarify}
+              />
+            </div>
+          ),
         });
       } else if (frame.type === "tool_call") {
         const callId = frame.payload?.call_id;
@@ -1214,6 +1453,7 @@ const TraceChain = ({
                   subagentMetaByRunId={effectiveSubagentMetaByRunId}
                   onToolConfirmationDecision={onToolConfirmationDecision}
                   toolConfirmationUiStateById={toolConfirmationUiStateById}
+                  onClarifyResolve={onClarifyResolve}
                   _depth={_depth + 1}
                 />
               ) : hasWFrames ? (
@@ -1519,26 +1759,33 @@ const TraceChain = ({
 
     if (isStreaming) {
       if (hasLiveContent) {
-        items.push({
-          key: "__streaming_content__",
-          title: "Response",
-          span: null,
-          status: "active",
-          point: "loading",
-          body: (
-            <div style={{ fontFamily: "inherit" }}>
-              <StreamingMarkdownView
-                messageId={messageId}
-                fallbackContent={liveContent}
-                fallbackChunks={liveChunks}
-                fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
-                lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
-                style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
-                priority="high"
-              />
-            </div>
-          ),
-        });
+        // When the bubble body is the sole owner of live text (the no-tool
+        // placeholder case), the timeline must NOT mirror the streaming
+        // response — that double-rendered the answer (regression c417d9c).
+        // Pushing nothing here leaves timelineItems empty once text arrives,
+        // so the placeholder returns null and the bubble body owns the text.
+        if (!bubbleOwnsLiveText) {
+          items.push({
+            key: "__streaming_content__",
+            title: "Response",
+            span: null,
+            status: "active",
+            point: "loading",
+            body: (
+              <div style={{ fontFamily: "inherit" }}>
+                <StreamingMarkdownView
+                  messageId={messageId}
+                  fallbackContent={fallbackContent}
+                  fallbackChunks={streamingChunks}
+                  fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
+                  lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
+                  style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
+                  priority="high"
+                />
+              </div>
+            ),
+          });
+        }
       } else {
         items.push({
           key: "__streaming__",
@@ -1552,6 +1799,58 @@ const TraceChain = ({
 
     /* continuation is now a regular tool_call with tool_name "__continuation__"
        — rendered by the normal tool confirmation path above, no special block needed */
+
+    /* ── observation coalescing summary (issue #168): a tool that streamed
+       thousands of deltas only kept OBSERVATION_HEAD_LIMIT head rows; the rest
+       were folded upstream. The final tool_result carries the omitted count +
+       last lines, so drop a quiet "+N more coalesced" row after the head — its
+       details expand to the preserved tail. ── */
+    for (const frame of displayFrames) {
+      if (
+        frame.type !== "tool_result" ||
+        !frame.payload ||
+        !(Number(frame.payload.observation_omitted) > 0)
+      ) {
+        continue;
+      }
+      const cid = frame.payload.call_id;
+      let lastObsIdx = -1;
+      for (let idx = items.length - 1; idx >= 0; idx -= 1) {
+        if (items[idx]._callId === cid) {
+          lastObsIdx = idx;
+          break;
+        }
+      }
+      if (lastObsIdx < 0) continue;
+      const omitted = Number(frame.payload.observation_omitted);
+      const tail = Array.isArray(frame.payload.observation_tail)
+        ? frame.payload.observation_tail.filter(Boolean)
+        : [];
+      const tailText = tail.join("\n");
+      items.splice(lastObsIdx + 1, 0, {
+        key: `obs-trunc-${cid}`,
+        title: `+${omitted} more output line${omitted === 1 ? "" : "s"} coalesced`,
+        status: "done",
+        ...(tailText
+          ? {
+              details: (
+                <SeamlessMarkdown
+                  content={tailText}
+                  status="done"
+                  fontSize={12}
+                  lineHeight={1.65}
+                  style={{
+                    ...TRACE_DETAIL_MARKDOWN_STYLE,
+                    color: isDark
+                      ? "rgba(255,255,255,0.6)"
+                      : "rgba(0,0,0,0.55)",
+                  }}
+                />
+              ),
+            }
+          : {}),
+      });
+    }
 
     /* ── group consecutive identical tool calls ── */
     const grouped = [];
@@ -1625,10 +1924,13 @@ const TraceChain = ({
   }, [
     displayFrames,
     isStreaming,
+    bubbleOwnsLiveText,
     messageId,
     streamingContent,
     streamingChunks,
-    streamingStoreSnapshot,
+    storeHasLiveText,
+    store,
+    chatId,
     startFrame,
     toolResultByCallId,
     confirmationStatusByCallId,
@@ -1637,8 +1939,10 @@ const TraceChain = ({
     handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,
+    onClarifyResolve,
     isDark,
     color,
+    theme,
     status,
     bundle,
     compact,
@@ -1655,8 +1959,18 @@ const TraceChain = ({
   if (timelineItems.length === 0) return null;
 
   const isBodyVisible = showContainerHeader ? bodyOpen : true;
+  // Issue #168: once a trace is settled and the user collapses it, unmount the
+  // whole timeline subtree so a large run stops holding thousands of hidden DOM
+  // nodes after the collapse animation. Only when settled — never while
+  // streaming (frames still updating) or waiting (a pending confirmation /
+  // continuation keeps the run out of "done", so its controls stay mounted and
+  // actionable). Re-expanding rebuilds losslessly from frames.
+  const bodyUnmountWhenClosed = status === "done" || status === "error";
   const timelineBody = (
-    <AnimatedChildren open={isBodyVisible}>
+    <AnimatedChildren
+      open={isBodyVisible}
+      unmountWhenClosed={showContainerHeader && bodyUnmountWhenClosed}
+    >
       <div
         style={{
           paddingLeft: hideTrack ? 0 : 2,
@@ -1730,7 +2044,7 @@ const TraceChain = ({
                     : "Failed") + (duration ? ` · ${formatDelta(duration)}` : "")
                 : (stepCount > 0
                     ? `Used ${stepCount} step${stepCount !== 1 ? "s" : ""}`
-                    : "Processing") +
+                    : "Done") +
                   (duration ? ` · ${formatDelta(duration)}` : "")}
           </span>
         </div>

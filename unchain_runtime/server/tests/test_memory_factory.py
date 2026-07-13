@@ -239,7 +239,7 @@ class MemoryFactoryTests(unittest.TestCase):
             },
         )
 
-    def _install_fake_miso_modules_for_manager(
+    def _install_fake_unchain_memory_modules_for_manager(
         self,
         *,
         build_openai_embed_fn,
@@ -344,14 +344,21 @@ class MemoryFactoryTests(unittest.TestCase):
 
             return texts, metadatas, next_indexed_until, len(texts)
 
-        fake_pkg = types.ModuleType("miso")
-        fake_pkg.__path__ = []  # type: ignore[attr-defined]
-
-        fake_memory_module = types.ModuleType("miso.memory")
+        fake_memory_module = types.ModuleType("unchain.memory")
         fake_memory_module.MemoryConfig = FakeMemoryConfig
         fake_memory_module.LongTermMemoryConfig = FakeLongTermMemoryConfig
         fake_memory_module.MemoryManager = FakeMemoryManager
-        fake_memory_manager_module = types.ModuleType("miso.memory.manager")
+        fake_memory_module.collect_complete_turns_for_vector_index = (
+            fake_collect_complete_turns_for_vector_index
+        )
+        fake_memory_module.JsonFileLongTermProfileStore = type(
+            "JsonFileLongTermProfileStore", (), {"__init__": lambda self, **kw: None}
+        )
+        fake_memory_module.JsonFileSessionStore = FakeJsonFileSessionStore
+        fake_memory_module.QdrantVectorAdapter = FakeQdrantVectorAdapter
+        fake_memory_module.QdrantLongTermVectorAdapter = FakeQdrantVectorAdapter
+        fake_memory_module.build_openai_embed_fn = build_openai_embed_fn
+        fake_memory_manager_module = types.ModuleType("unchain.memory.manager")
         fake_memory_manager_module._collect_complete_turns_for_vector_index = (
             fake_collect_complete_turns_for_vector_index
         )
@@ -359,17 +366,14 @@ class MemoryFactoryTests(unittest.TestCase):
             "JsonFileLongTermProfileStore", (), {"__init__": lambda self, **kw: None}
         )
 
-        fake_memory_qdrant_module = types.ModuleType("miso.memory.qdrant")
+        fake_memory_qdrant_module = types.ModuleType("unchain.memory.qdrant")
         fake_memory_qdrant_module.JsonFileSessionStore = FakeJsonFileSessionStore
         fake_memory_qdrant_module.QdrantVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_qdrant_module.QdrantLongTermVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_qdrant_module.build_openai_embed_fn = build_openai_embed_fn
 
-        fake_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
         fake_memory_module.qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
-        fake_pkg.memory_qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
 
-        # unchain.* aliases — memory_factory.py imports from unchain.memory.*
         fake_unchain_pkg = types.ModuleType("unchain")
         fake_unchain_pkg.__path__ = []  # type: ignore[attr-defined]
         fake_unchain_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
@@ -381,10 +385,6 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         modules = {
-            "miso": fake_pkg,
-            "miso.memory": fake_memory_module,
-            "miso.memory.manager": fake_memory_manager_module,
-            "miso.memory.qdrant": fake_memory_qdrant_module,
             "unchain": fake_unchain_pkg,
             "unchain.memory": fake_memory_module,
             "unchain.memory.manager": fake_memory_manager_module,
@@ -396,14 +396,14 @@ class MemoryFactoryTests(unittest.TestCase):
     def test_create_memory_manager_uses_dynamic_openai_vector_size(self) -> None:
         openai_embed_calls: dict[str, str] = {}
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
             del payload
             openai_embed_calls["model"] = model
-            openai_embed_calls["api_key"] = getattr(broth_instance, "api_key", "")
+            openai_embed_calls["api_key"] = getattr(api_key_source, "api_key", "")
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, _delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
             )
         )
@@ -456,12 +456,12 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
     def test_create_memory_manager_can_enable_long_term_memory(self) -> None:
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 1536 for _ in texts], 1536)
 
         modules, _fake_store_cls, fake_client, _delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
             )
         )
@@ -555,12 +555,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=old_state,
             )
@@ -623,12 +623,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )
@@ -674,6 +674,91 @@ class MemoryFactoryTests(unittest.TestCase):
         )
         self.assertEqual(delete_calls["collections"], [])
 
+    def test_prepare_vector_collection_tag_adopts_matching_cas_winner(self) -> None:
+        class RevisionConflict(RuntimeError):
+            code = "session_revision_conflict"
+
+        initial_snapshot = types.SimpleNamespace(
+            state={
+                "messages": [{"role": "user", "content": "hello"}],
+                "vector_embedding_signature": "old:model:10",
+                "vector_collection_tag": "oldtag",
+            },
+            revision=4,
+        )
+        winner_snapshot = types.SimpleNamespace(
+            state={
+                "messages": [{"role": "user", "content": "hello"}],
+                "vector_embedding_signature": "new:model:20",
+                "vector_collection_tag": "winnertag",
+            },
+            revision=5,
+        )
+
+        with mock.patch.object(
+            memory_factory,
+            "_load_session_snapshot_compat",
+            side_effect=[initial_snapshot, winner_snapshot],
+        ) as load_snapshot, mock.patch.object(
+            memory_factory,
+            "_save_session_snapshot_compat",
+            side_effect=RevisionConflict("lost CAS race"),
+        ), mock.patch.object(
+            memory_factory,
+            "_delete_collection_best_effort",
+        ) as delete_collection:
+            tag = memory_factory._prepare_vector_collection_tag(
+                store=object(),
+                client=object(),
+                session_id="chat-1",
+                embedding_signature="new:model:20",
+            )
+
+        self.assertEqual(tag, "winnertag")
+        self.assertEqual(load_snapshot.call_count, 2)
+        delete_collection.assert_not_called()
+
+    def test_prepare_vector_collection_tag_rejects_different_cas_winner(self) -> None:
+        class RevisionConflict(RuntimeError):
+            code = "session_revision_conflict"
+
+        initial_snapshot = types.SimpleNamespace(
+            state={
+                "vector_embedding_signature": "old:model:10",
+                "vector_collection_tag": "oldtag",
+            },
+            revision=4,
+        )
+        winner_snapshot = types.SimpleNamespace(
+            state={
+                "vector_embedding_signature": "other:model:30",
+                "vector_collection_tag": "othertag",
+            },
+            revision=5,
+        )
+
+        with mock.patch.object(
+            memory_factory,
+            "_load_session_snapshot_compat",
+            side_effect=[initial_snapshot, winner_snapshot],
+        ), mock.patch.object(
+            memory_factory,
+            "_save_session_snapshot_compat",
+            side_effect=RevisionConflict("lost CAS race"),
+        ), mock.patch.object(
+            memory_factory,
+            "_delete_collection_best_effort",
+        ) as delete_collection:
+            with self.assertRaisesRegex(RevisionConflict, "lost CAS race"):
+                memory_factory._prepare_vector_collection_tag(
+                    store=object(),
+                    client=object(),
+                    session_id="chat-1",
+                    embedding_signature="new:model:20",
+                )
+
+        delete_collection.assert_not_called()
+
     def test_replace_short_term_session_memory_rebuilds_vectors(self) -> None:
         previous_state = {
             "chat-1": {
@@ -689,12 +774,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )
@@ -805,12 +890,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )
@@ -874,12 +959,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, _fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )
@@ -935,6 +1020,39 @@ class MemoryFactoryTests(unittest.TestCase):
             4,
         )
         self.assertEqual(delete_calls["collections"], [])
+
+    def test_replace_short_term_session_memory_clears_checkpoint_with_cas(self) -> None:
+        from unchain.memory import JsonFileSessionStore
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False):
+            store = JsonFileSessionStore(
+                base_dir=memory_factory._sessions_dir(data_dir)
+            )
+            store.save(
+                "chat-1",
+                {
+                    "messages": [{"role": "user", "content": "old"}],
+                    "execution_checkpoint": {"checkpoint_id": "stale"},
+                },
+            )
+
+            result = memory_factory.replace_short_term_session_memory(
+                session_id="chat-1",
+                messages=[{"role": "user", "content": "replacement"}],
+                options={},
+            )
+            persisted = store.load_with_revision("chat-1")
+
+        self.assertTrue(result["execution_checkpoint_cleared"])
+        self.assertEqual(result["session_revision"], 2)
+        self.assertEqual(persisted.revision, 2)
+        self.assertNotIn("execution_checkpoint", persisted.state)
+        self.assertEqual(
+            persisted.state["messages"],
+            [{"role": "user", "content": "replacement"}],
+        )
 
     def test_merge_messages_with_overlap_appends_only_new_tail(self) -> None:
         existing_messages = [
@@ -1113,6 +1231,61 @@ class MemoryFactoryTests(unittest.TestCase):
             },
         )
 
+    def test_patch_memory_commit_forwards_session_revision_and_summary(self) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class FakeManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.store.save(
+                    "chat-test",
+                    {"messages": [{"role": "user", "content": "old"}]},
+                )
+                self.committed_payload = None
+
+            def commit_messages(
+                self,
+                *,
+                session_id: str,
+                full_conversation,
+                expected_revision=None,
+                summary_text=None,
+                clear_execution_checkpoint_id=None,
+            ):
+                self.committed_payload = {
+                    "session_id": session_id,
+                    "full_conversation": full_conversation,
+                    "expected_revision": expected_revision,
+                    "summary_text": summary_text,
+                    "clear_execution_checkpoint_id": clear_execution_checkpoint_id,
+                }
+                return "committed"
+
+        manager = FakeManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "assistant", "content": "new"}],
+            summary_text="summary",
+            clear_execution_checkpoint_id="checkpoint-1",
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(manager.committed_payload["expected_revision"], 1)
+        self.assertEqual(manager.committed_payload["summary_text"], "summary")
+        self.assertEqual(
+            manager.committed_payload["clear_execution_checkpoint_id"],
+            "checkpoint-1",
+        )
+        self.assertEqual(
+            manager.committed_payload["full_conversation"],
+            [
+                {"role": "user", "content": "old"},
+                {"role": "assistant", "content": "new"},
+            ],
+        )
+
     def test_patch_memory_prepare_with_diagnostics_sets_no_match_status(self) -> None:
         class FakeManager:
             def __init__(self):
@@ -1178,7 +1351,7 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(prepared, [{"role": "assistant", "content": "ok"}])
         self.assertEqual(manager._last_prepare_info["vector_recall_status"], "search_failed")
 
-    def test_patch_memory_prepare_with_diagnostics_sanitizes_and_cleans_store(self) -> None:
+    def test_patch_memory_prepare_with_diagnostics_sanitizes_without_prewrite(self) -> None:
         class FakeStore:
             def __init__(self, state):
                 self.state = copy.deepcopy(state)
@@ -1218,6 +1391,19 @@ class MemoryFactoryTests(unittest.TestCase):
                             },
                         ],
                         "session_meta": "keep",
+                        "execution_checkpoint": {
+                            "checkpoint_id": "checkpoint-1",
+                            "replay_frame": {
+                                "format": "openai.responses.v1",
+                                "complete": True,
+                                "items": [
+                                    {
+                                        "type": "reasoning",
+                                        "encrypted_content": "opaque",
+                                    }
+                                ],
+                            },
+                        },
                     }
                 )
                 self.received_incoming = None
@@ -1305,13 +1491,20 @@ class MemoryFactoryTests(unittest.TestCase):
                 {"role": "assistant", "content": [{"type": "text", "text": "reply"}]},
             ],
         )
-        self.assertGreaterEqual(len(manager.store.saved_states), 1)
+        self.assertEqual(manager.store.saved_states, [])
+        self.assertEqual(manager.store.state["session_meta"], "keep")
+        self.assertTrue(
+            any(
+                message.get("role") == "tool"
+                for message in manager.store.state["messages"]
+                if isinstance(message, dict)
+            )
+        )
         self.assertEqual(
-            manager.store.state,
-            {
-                "messages": [{"role": "user", "content": "old"}],
-                "session_meta": "keep",
-            },
+            manager.store.state["execution_checkpoint"]["replay_frame"]["items"][0][
+                "encrypted_content"
+            ],
+            "opaque",
         )
 
     def test_patch_memory_prepare_with_diagnostics_ignores_log_encoding_failures(self) -> None:

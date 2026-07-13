@@ -60,7 +60,41 @@ describe("splitStreamingMarkdown", () => {
   });
 });
 
+describe("splitStreamingMarkdown liveFence", () => {
+  test("exposes the open fence marker while a code fence is unclosed", () => {
+    const snapshot = splitStreamingMarkdown("```js\nconsole.log(1)");
+    expect(snapshot.liveKind).toBe("code");
+    expect(snapshot.liveFence).toBe("```");
+  });
+
+  test("is empty when the live tail is not inside a fence", () => {
+    expect(splitStreamingMarkdown("Hello").liveFence).toBe("");
+    expect(splitStreamingMarkdown("").liveFence).toBe("");
+  });
+
+  test("reflects tilde and extended fence markers verbatim", () => {
+    expect(splitStreamingMarkdown("~~~\ncode").liveFence).toBe("~~~");
+    expect(splitStreamingMarkdown("````\ncode with ``` inside").liveFence).toBe(
+      "````",
+    );
+  });
+
+  test("clears liveFence once the fence closes", () => {
+    const snapshot = splitStreamingMarkdown("```js\nconsole.log(1)\n```\nNext");
+    expect(snapshot.liveKind).toBe("text");
+    expect(snapshot.liveFence).toBe("");
+  });
+});
+
 describe("createStreamingMarkdownAccumulator", () => {
+  test("snapshot exposes liveFence for an open fence in the live tail", () => {
+    const accumulator = createStreamingMarkdownAccumulator();
+    accumulator.append("intro\n\n```js\nconsole.log(1)");
+    const snapshot = accumulator.getSnapshot();
+    expect(snapshot.liveKind).toBe("code");
+    expect(snapshot.liveFence).toBe("```");
+  });
+
   test("keeps old stable block identities while appending a new live tail", () => {
     const accumulator = createStreamingMarkdownAccumulator();
     accumulator.append("First paragraph.\n\nSecond");

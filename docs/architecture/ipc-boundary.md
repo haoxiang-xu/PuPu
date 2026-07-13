@@ -52,7 +52,8 @@ Renderer listens: ipcRenderer.on(channel, callback)
 
 ## Exposed Window APIs
 
-Nine global objects are exposed via `contextBridge.exposeInMainWorld`:
+Eleven production global objects are exposed via `contextBridge.exposeInMainWorld`
+(plus `window.__pupuTestBridge`, which is exposed only outside production):
 
 | Global | Source Bridge | Purpose |
 |--------|-------------|---------|
@@ -62,9 +63,11 @@ Nine global objects are exposed via `contextBridge.exposeInMainWorld`:
 | `window.appUpdateAPI` | `app_update_bridge.js` | Auto-update lifecycle |
 | `window.ollamaAPI` | `ollama_bridge.js` | Ollama status, install, restart |
 | `window.ollamaLibraryAPI` | `ollama_library_bridge.js` | Model library search |
-| `window.unchainAPI` | `unchain_bridge.js` + stream client | Chat, tools, characters, memory, workspace, files |
+| `window.unchainAPI` | `unchain_bridge.js` + stream client | Chat, tools, MCP, characters, memory, workspace, files |
 | `window.themeAPI` | `theme_bridge.js` | System theme detection |
 | `window.windowStateAPI` | `window_state_bridge.js` | Minimize, maximize, close |
+| `window.screenshotAPI` | `screenshot_bridge.js` | Capture window screenshot, check availability |
+| `window.chatStorageAPI` | `chat_storage_bridge.js` | Bootstrap-read and write chat storage |
 
 ---
 
@@ -77,6 +80,12 @@ All IPC channels are defined in `electron/shared/channels.js`.
 |---------|---------|
 | `app:get-version` | invoke/handle |
 
+### CHAT_STORAGE Channels
+| Channel | Pattern |
+|---------|---------|
+| `chat-storage:bootstrap-read` | invoke/handle |
+| `chat-storage:write` | invoke/handle |
+
 ### UPDATE Channels
 | Channel | Pattern |
 |---------|---------|
@@ -84,6 +93,8 @@ All IPC channels are defined in `electron/shared/channels.js`.
 | `update:check-and-download` | invoke/handle |
 | `update:install-now` | invoke/handle |
 | `update:state-changed` | main→renderer event |
+| `update:get-auto-update` | invoke/handle |
+| `update:set-auto-update` | invoke/handle |
 
 ### OLLAMA Channels
 | Channel | Pattern |
@@ -164,6 +175,7 @@ All IPC channels are defined in `electron/shared/channels.js`.
 |---------|---------|
 | `unchain:stream:start` | renderer→main (send/on) |
 | `unchain:stream:start-v2` | renderer→main (send/on) |
+| `unchain:stream:start-v4` | renderer→main (send/on) |
 | `unchain:stream:cancel` | renderer→main (send/on) |
 | `unchain:stream:event` | main→renderer event |
 
@@ -184,19 +196,46 @@ All IPC channels are defined in `electron/shared/channels.js`.
 | `window-state-event-handler` | renderer→main (send/on) |
 | `window-state-event-listener` | main→renderer event |
 
+### SCREENSHOT Channels
+| Channel | Pattern |
+|---------|---------|
+| `screenshot:capture` | invoke/handle |
+| `screenshot:check-availability` | invoke/handle |
+
+### TEST_BRIDGE Channels
+
+Registered only outside production (dev/test). Backs `window.__pupuTestBridge`
+and the dev Test API.
+
+| Channel | Pattern |
+|---------|---------|
+| `test-bridge:invoke` | renderer→main (send/on) |
+| `test-bridge:result` | main→renderer event |
+| `test-bridge:log` | main→renderer event |
+| `test-bridge:event` | main→renderer event |
+| `test-bridge:ready` | renderer→main (send/on) |
+
+> The full, authoritative channel registry (including the MCP toolkit/OAuth/store,
+> recipe, and character-storage channels) lives in
+> [../api-reference/ipc-channels.md](../api-reference/ipc-channels.md). The UNCHAIN
+> list above is an abbreviated overview.
+
 ---
 
 ## Main Process Services
 
-Five services are initialized in `electron/main/index.js`:
+Eight services are initialized in `electron/main/index.js`:
 
 | Service | Factory | Responsibilities |
 |---------|---------|-----------------|
-| `windowService` | `createWindowService` | Main window lifecycle, single-instance lock |
+| `windowService` | `createMainWindowService` | Main window lifecycle, single-instance lock |
 | `runtimeService` | `createRuntimeService` | File system, workspace, dialogs |
+| `chatStorageService` | `createChatStorageService` | Chat-storage bootstrap-read and write |
 | `ollamaService` | `createOllamaService` | Ollama server lifecycle, model install |
 | `unchainService` | `createUnchainService` | Flask sidecar lifecycle, HTTP proxy, SSE relay |
 | `updateService` | `createUpdateService` | electron-updater auto-update |
+| `screenshotService` | `createScreenshotService` | Window screenshot capture + availability |
+| `testApiService` | `createTestApiService` | Dev-only local Test API (non-production) |
 
 ### Service Lifecycle
 

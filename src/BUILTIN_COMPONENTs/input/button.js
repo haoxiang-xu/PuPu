@@ -193,6 +193,7 @@ const Button = ({
   label,
   postfix,
   postfix_icon,
+  children,
   ariaLabel,
   title,
   style,
@@ -226,7 +227,11 @@ const Button = ({
   const contentStyle = resolvedStyle.content || {};
 
   const iconOnly =
-    !label && !prefix && !postfix && (prefix_icon || postfix_icon);
+    !children &&
+    !label &&
+    !prefix &&
+    !postfix &&
+    (prefix_icon || postfix_icon);
 
   const fontSize = rootStyle?.fontSize ?? 16;
   const fontSizeNumber =
@@ -340,7 +345,7 @@ const Button = ({
             deepMerge(contentStyle?.root || {}, contentStyle?.prefixIconWrap || {})
           )}
         >
-          <Icon src={prefix_icon} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
+          <Icon src={prefix_icon} color={contentStyle?.icon?.color} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
         </span>
       )}
       {prefix && (
@@ -380,7 +385,17 @@ const Button = ({
             deepMerge(contentStyle?.root || {}, contentStyle?.postfixIconWrap || {})
           )}
         >
-          <Icon src={postfix_icon} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
+          <Icon src={postfix_icon} color={contentStyle?.icon?.color} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
+        </span>
+      )}
+      {children && (
+        <span
+          style={deepMerge(
+            deepMerge(textWrapBaseStyle, computedContentRootStyle),
+            deepMerge(contentStyle?.root || {}, contentStyle?.children || {})
+          )}
+        >
+          {children}
         </span>
       )}
     </button>

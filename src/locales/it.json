@@ -194,7 +194,12 @@
     "path_placeholder": "/percorso/allo/spazio/di/lavoro",
     "add_workspace": "+ Aggiungi spazio di lavoro",
     "workspace_select_desc": "Gli spazi di lavoro denominati possono essere selezionati per chat dalla barra degli strumenti di input.",
-    "applied_desc": "Applicato ad ogni richiesta Unchain quando il toolkit dello spazio di lavoro è abilitato."
+    "applied_desc": "Applicato ad ogni richiesta Unchain quando il toolkit dello spazio di lavoro è abilitato.",
+    "esc_to_cancel": "esc per annullare",
+    "delete_confirm_inline": "Eliminare “{name}”?",
+    "delete_confirm_note": "la cartella su disco non viene toccata",
+    "clear_confirm_inline": "Cancellare lo spazio di lavoro predefinito?",
+    "clear_confirm_note": "le nuove chat non avranno più una radice file predefinita"
   },
   "dev": {
     "chrome_terminal": "Terminale Chrome",
@@ -237,10 +242,31 @@
     "loading": "Caricamento...",
     "error": "Errore",
     "select": "Seleziona...",
-    "search": "Cerca..."
+    "search": "Cerca...",
+    "no_results": "Nessun risultato"
   },
   "chat": {
-    "placeholder": "Messaggio a PuPu..."
+    "placeholder": "Messaggio a PuPu...",
+    "minimap": {
+      "top": "Inizio",
+      "prev": "Prec.",
+      "next": "Succ.",
+      "end": "Fine"
+    },
+    "attach": {
+      "select_model": "Seleziona modello...",
+      "tools": "strumenti",
+      "workspace": "spazio",
+      "clear": "CANCELLA",
+      "add": "+ AGGIUNGI",
+      "search_workspaces": "Cerca spazi...",
+      "attach_file": "Allega immagine o PDF",
+      "attach_file_unsupported": "Il modello attuale non supporta i file",
+      "screenshot": "Cattura schermata",
+      "screenshot_unsupported": "Il modello attuale non supporta le immagini",
+      "select_toolkits": "Seleziona strumenti",
+      "select_workspaces": "Seleziona spazi"
+    }
   },
   "toolkit": {
     "toolkits": "Toolkit",
@@ -279,5 +305,10 @@
     "delete_label": "Elimina toolkit",
     "delete_desc": "Rimuovi questo toolkit dalla tua installazione",
     "delete_desc_builtin": "I toolkit integrati non possono essere rimossi"
+  },
+  "commands": {
+    "btw": "Risponde subito, senza interrompere l'attività",
+    "fyi": "Aggiunge informazioni all'attività corrente",
+    "queue": "Mette in coda, viene eseguito alla fine di questo turno"
   }
 }

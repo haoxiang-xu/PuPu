@@ -18,7 +18,7 @@ describe("useOptimisticUpdate", () => {
     expect(rollback).not.toHaveBeenCalled();
   });
 
-  test("commit 失败触发 rollback + toast", async () => {
+  test("commit 失败触发 rollback + contextual error toast", async () => {
     const events = [];
     subToast((e) => events.push(e));
     const optimistic = jest.fn();
@@ -29,7 +29,16 @@ describe("useOptimisticUpdate", () => {
       await result.current.apply({ optimistic, commit, rollback, label: "重命名" });
     });
     expect(rollback).toHaveBeenCalledTimes(1);
-    expect(events.some((e) => e.type === "error" && e.message.includes("重命名"))).toBe(true);
+    expect(events[0]).toMatchObject({
+      type: "error",
+      title: "重命名",
+      message: "重命名",
+      description: "net",
+      position: "top",
+      duration: Infinity,
+      important: true,
+      dedupeKey: "error:重命名:net",
+    });
   });
 
   test("guard 返回 false 跳过 rollback", async () => {
@@ -56,6 +65,7 @@ describe("useOptimisticUpdate", () => {
   });
 
   test("rollback 抛错被 swallow", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     const optimistic = jest.fn();
     const commit = () => Promise.reject(new Error("a"));
     const rollback = () => { throw new Error("rollback boom"); };
@@ -63,5 +73,10 @@ describe("useOptimisticUpdate", () => {
     await act(async () => {
       await expect(result.current.apply({ optimistic, commit, rollback, label: "x" })).resolves.not.toThrow();
     });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[rollback] threw:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });

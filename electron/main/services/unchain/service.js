@@ -9,9 +9,9 @@ const UNCHAIN_HEALTH_RETRY_MS = 250;
 const UNCHAIN_RESTART_DELAY_MS = 1500;
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
-const UNCHAIN_STREAM_V3_ENDPOINT = "/chat/stream/v3";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
+const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
@@ -573,6 +573,10 @@ const createUnchainService = ({
   };
 
   const getMisoModelCatalogPayload = async () => {
+    if (unchainStatus === "starting") {
+      return {};
+    }
+
     ensureMisoReady();
 
     const response = await fetch(
@@ -592,6 +596,10 @@ const createUnchainService = ({
   };
 
   const getMisoToolkitCatalogPayload = async () => {
+    if (unchainStatus === "starting") {
+      return { toolkits: [], artifactKinds: [], count: 0, source: "" };
+    }
+
     ensureMisoReady();
 
     const response = await fetch(
@@ -724,6 +732,27 @@ const createUnchainService = ({
       "Miso MCP toolkit install request failed",
       {},
       "Invalid Miso MCP toolkit install response",
+    );
+  };
+
+  const submitMisoInterject = async (payload = {}) => {
+    ensureMisoReady();
+
+    const source = payload && typeof payload === "object" ? payload : {};
+    const response = await fetch(buildMisoUrl(UNCHAIN_INTERJECT_ENDPOINT), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+      },
+      body: JSON.stringify({ ...source }),
+    });
+
+    return readJsonResponse(
+      response,
+      "Miso interject request failed",
+      {},
+      "Invalid Miso interject response",
     );
   };
 
@@ -1380,6 +1409,10 @@ const createUnchainService = ({
   };
 
   const listMisoCharacters = async () => {
+    if (unchainStatus === "starting") {
+      return { characters: [], count: 0 };
+    }
+
     ensureMisoReady();
 
     const response = await fetch(
@@ -2387,9 +2420,6 @@ const createUnchainService = ({
   const startMisoStreamV2 = (args) =>
     startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V2_ENDPOINT });
 
-  const startMisoStreamV3 = (args) =>
-    startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V3_ENDPOINT });
-
   const startMisoStreamV4 = (args) =>
     startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V4_ENDPOINT });
 
@@ -2416,16 +2446,6 @@ const createUnchainService = ({
     const requestId = payload?.requestId;
     const requestPayload = payload?.payload || {};
     void startMisoStreamV2({
-      requestId,
-      payload: requestPayload,
-      sender: event.sender,
-    });
-  };
-
-  const handleStreamStartV3 = (event, payload) => {
-    const requestId = payload?.requestId;
-    const requestPayload = payload?.payload || {};
-    void startMisoStreamV3({
       requestId,
       payload: requestPayload,
       sender: event.sender,
@@ -2499,9 +2519,9 @@ const createUnchainService = ({
     exportMisoCharacter,
     importMisoCharacter,
     submitMisoToolConfirmation,
+    submitMisoInterject,
     handleStreamStart,
     handleStreamStartV2,
-    handleStreamStartV3,
     handleStreamStartV4,
     handleStreamCancel,
   };

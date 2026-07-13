@@ -1,4 +1,5 @@
 import { getDefaultToolkitSelection } from "../default_toolkit_store";
+import { normalizeToolkitIdAlias } from "../toolkit_id_aliases";
 import {
   DEFAULT_CHAT_TITLE,
   DEFAULT_MODEL_ID,
@@ -236,56 +237,12 @@ export const sanitizeAgentOrchestration = (agentOrchestration) => {
   return { mode };
 };
 
-const TOOLKIT_ID_ALIASES = Object.freeze({
-  workspace: "workspace_toolkit",
-  workspace_toolkit: "workspace_toolkit",
-  access_workspace_toolkit: "workspace_toolkit",
-  workspacetoolkit: "workspace_toolkit",
-  WorkspaceToolkit: "workspace_toolkit",
-  terminal: "terminal_toolkit",
-  terminal_toolkit: "terminal_toolkit",
-  run_terminal_toolkit: "terminal_toolkit",
-  terminaltoolkit: "terminal_toolkit",
-  TerminalToolkit: "terminal_toolkit",
-  core: "core",
-  core_toolkit: "core",
-  coretoolkit: "core",
-  CoreToolkit: "core",
-  code: "core",
-  code_toolkit: "core",
-  codetoolkit: "core",
-  CodeToolkit: "core",
-  ask_user: "core",
-  ask_user_toolkit: "core",
-  "ask-user-toolkit": "core",
-  interaction_toolkit: "core",
-  "interaction-toolkit": "core",
-  askusertoolkit: "core",
-  AskUserToolkit: "core",
-  external_api: "external_api",
-  external_api_toolkit: "external_api",
-  externalapitoolkit: "external_api",
-  ExternalAPIToolkit: "external_api",
-});
-
-const REMOVED_TOOLKIT_IDS = new Set(["mcp", "mcptoolkit"]);
-
 const normalizeSelectedToolkitId = (value) => {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  const trimmed = trimText(value.trim(), MAX_TOOLKIT_ID_CHARS);
-  if (!trimmed) {
-    return "";
-  }
-
-  const lowered = trimmed.toLowerCase();
-  if (REMOVED_TOOLKIT_IDS.has(lowered)) {
-    return "";
-  }
-
-  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[lowered] || trimmed;
+  return normalizeToolkitIdAlias(value, {
+    maxLength: MAX_TOOLKIT_ID_CHARS,
+    truncate: true,
+    removedIds: ["mcp", "mcptoolkit"],
+  });
 };
 
 export const sanitizeSelectedToolkits = (selectedToolkits) => {
@@ -501,6 +458,28 @@ const sanitizeTraceFrames = (frames) => {
   return frames.map((frame) => sanitizeTraceFrame(frame)).filter(Boolean);
 };
 
+const INTERJECTION_TYPES = new Set(["fyi", "btw"]);
+
+export const sanitizeInterjections = (value) => {
+  if (!Array.isArray(value)) return undefined;
+  const cleaned = value
+    .filter(
+      (item) =>
+        item && typeof item === "object" && INTERJECTION_TYPES.has(item.type),
+    )
+    .slice(0, 20)
+    .map((item) => ({
+      id: typeof item.id === "string" ? item.id : "",
+      type: item.type,
+      text: trimText(item.text),
+      origin: item.origin === "system" ? "system" : "user",
+      ...(typeof item.answer === "string" ? { answer: trimText(item.answer) } : {}),
+      ...(Number.isFinite(item.ts) ? { ts: item.ts } : {}),
+    }))
+    .filter((item) => item.text);
+  return cleaned.length ? cleaned : undefined;
+};
+
 const sanitizeSubagentMeta = (meta) => {
   if (!isObject(meta)) {
     return null;
@@ -629,6 +608,11 @@ export const sanitizeMessage = (message) => {
     );
     if (cleanedRunArtifactSummary) {
       cleaned.runArtifactSummary = cleanedRunArtifactSummary;
+    }
+
+    const interjections = sanitizeInterjections(message.interjections);
+    if (interjections) {
+      cleaned.interjections = interjections;
     }
   }
 
@@ -791,6 +775,9 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     messages,
     isTransientNewChat: chat?.isTransientNewChat === true,
     hasUnreadGeneratedReply: chat?.hasUnreadGeneratedReply === true,
+    // Meta flag maintained by setChatMessages (v3: the tree reads this instead
+    // of scanning messages, which are lazy placeholders for non-active chats).
+    isGenerating: chat?.isGenerating === true,
     stats: {
       messageCount: 0,
       approxBytes: 0,
@@ -813,6 +800,24 @@ export const sanitizeChatSession = (chat, fallbackId) => {
   }
 
   cleaned.stats = computeChatStats(cleaned);
+
+  // v3 lazy-messages guard: non-active chats keep `messages: []` placeholders
+  // in the renderer while their real stats live in the persisted meta.
+  // Recomputing stats from the placeholder would clobber the real counts
+  // (breaking tree ordering/summaries) — preserve the incoming stats instead.
+  if (
+    messages.length === 0 &&
+    isObject(chat?.stats) &&
+    Number(chat.stats.messageCount) > 0
+  ) {
+    cleaned.stats = {
+      messageCount: Math.floor(Number(chat.stats.messageCount)),
+      approxBytes: Number.isFinite(Number(chat.stats.approxBytes))
+        ? Math.max(0, Number(chat.stats.approxBytes))
+        : cleaned.stats.approxBytes,
+    };
+  }
+
   return cleaned;
 };
 

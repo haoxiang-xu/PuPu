@@ -164,7 +164,7 @@ def import_character(payload: dict[str, Any] | None = None) -> dict[str, Any]:
             self_profile = json.loads(archive.read("self_profile.json"))
             if isinstance(self_profile, dict) and self_profile:
                 self_namespace = api["make_character_self_namespace"](resolved_id)
-                from unchain.memory.manager import JsonFileLongTermProfileStore
+                from unchain.memory import JsonFileLongTermProfileStore
 
                 store = JsonFileLongTermProfileStore(
                     base_dir=root.memory_factory._long_term_profiles_dir(data_dir),

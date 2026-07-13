@@ -99,14 +99,45 @@ After injection, the payload includes:
 
 ## Backend Compilation
 
-In `unchain_adapter.py`, the prompt module system composes sections in this order:
+The prompt module system now lives in the `unchain_runtime/server/prompts/` package (extracted out of `unchain_adapter.py`). The package owns the **data** (module order, headers, merge map, builtin rules, developer sections); `unchain_adapter.py` owns the **composition function** that consumes it.
+
+| File | Role |
+|------|------|
+| `prompts/module_config.py` | `PROMPT_MODULE_ORDER`, `PROMPT_MODULE_HEADERS`, `PROMPT_MODULE_MERGE`, `V2_TO_MODULE_KEY`, `SECTION_ALIASES` |
+| `prompts/builtin_rules.py` | `BUILTIN_RULES` (the only module with builtin content) |
+| `prompts/agents/developer.py` | `DEVELOPER_PROMPT_SECTIONS` (main developer agent) |
+| `prompts/summary.py` | `SUMMARY_SYSTEM_PROMPT` |
+
+### Authoritative Module Order (11 modules)
+
+`PROMPT_MODULE_ORDER` in `prompts/module_config.py`:
 
 ```
 identity → personality → capability → rules → workflow →
 delegation → style → output_format → context → constraints → fallback
 ```
 
-The backend adds its own sections (`identity`, `capability`, `workflow`, `delegation`, `fallback`) around the user-provided sections. Merge strategies per module: `replace`, `prepend`, `append`.
+The backend supplies its own modules (`identity`, `capability`, `workflow`, `delegation`, `fallback`) around the user-provided V2 sections. User-facing V2 section keys map onto module keys via `V2_TO_MODULE_KEY` / `SECTION_ALIASES`.
+
+### Merge Strategy (Fixed Mapping)
+
+`PROMPT_MODULE_MERGE` assigns a **fixed** strategy per module — it is not configurable per request. Only two modules are non-`replace`:
+
+| Module | Strategy | Effect |
+|--------|----------|--------|
+| `rules` | `prepend` | builtin → user → agent (builtin rules come first) |
+| `constraints` | `append` | agent → user (constraints concatenated) |
+| all other 9 | `replace` | first non-empty wins, preference user > agent > builtin |
+
+### Composition Entry Points (`unchain_adapter.py`)
+
+| Function | Purpose |
+|----------|---------|
+| `_build_modular_prompt(*, builtin_modules, agent_modules, user_modules)` | Full 3-source merge using `PROMPT_MODULE_ORDER` + `PROMPT_MODULE_MERGE` |
+| `_compose_agent_prompt(sections)` | Convenience wrapper: agent-only prompt (no user/builtin merge) |
+| `_extract_user_prompt_modules(options)` | Converts wire-format V2 sections into a module dict for merging |
+
+> Builtin modules currently contain only `rules` (joined from `BUILTIN_RULES`). The developer agent's unified prompt is precomposed at import via `_compose_agent_prompt(DEVELOPER_PROMPT_SECTIONS)`.
 
 ### Agent Prompt Template (6 Sections)
 

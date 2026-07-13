@@ -15,6 +15,7 @@ import TRACE_CHAIN_SCENARIOS from "../scenarios/trace_chain_scenarios";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
 import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
+import TestControls from "../test_controls";
 
 /* ── scenario options for Select ── */
 const SCENARIO_OPTIONS = TRACE_CHAIN_SCENARIOS.map((s, i) => ({
@@ -194,18 +195,6 @@ const TraceChainRunner = () => {
     (item) => !isHiddenProgressItem(item),
   ).length;
 
-  /* ── glassmorphism tokens ── */
-  const overlay_bg = isDark
-    ? "rgba(20, 20, 20, 0.72)"
-    : "rgba(255, 255, 255, 0.78)";
-  const overlay_border = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
-  const overlay_backdrop = "blur(16px) saturate(1.4)";
-  const overlay_shadow = isDark
-    ? "0 4px 24px rgba(0,0,0,0.4)"
-    : "0 4px 24px rgba(0,0,0,0.08)";
-
   const mono = {
     fontSize: 10,
     fontFamily: "Menlo, Monaco, Consolas, monospace",
@@ -229,7 +218,7 @@ const TraceChainRunner = () => {
         }}
       >
         {traceFrames.length > 0 ? (
-          <div style={{ padding: "64px 32px 120px 232px" }}>
+          <div style={{ padding: "64px 32px 40px 32px" }}>
             <TraceChain
               frames={traceFrames}
               status={status}
@@ -253,9 +242,9 @@ const TraceChainRunner = () => {
             style={{
               position: "absolute",
               top: 0,
-              left: 232,
+              left: 32,
               right: 32,
-              bottom: 70,
+              bottom: 24,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -270,117 +259,86 @@ const TraceChainRunner = () => {
         )}
       </div>
 
-      {/* ── bottom control bar (glassmorphism, centered within content area) ── */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 16,
-          left: "calc(50% + 100px)",
-          transform: "translateX(-50%)",
-          zIndex: 3,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "6px 10px 6px 6px",
-          maxWidth: "calc(100% - 264px)",
-          borderRadius: 12,
-          background: overlay_bg,
-          border: overlay_border,
-          backdropFilter: overlay_backdrop,
-          WebkitBackdropFilter: overlay_backdrop,
-          boxShadow: overlay_shadow,
-          pointerEvents: "auto",
-        }}
-      >
-        {/* scenario selector */}
-        <div style={{ width: 160 }}>
-          <Select
-            options={SCENARIO_OPTIONS}
-            value={String(scenarioIdx)}
-            set_value={(val) => setScenarioIdx(Number(val))}
-            filterable={false}
+      <TestControls>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* scenario selector */}
+          <div style={{ width: 160 }}>
+            <Select
+              options={SCENARIO_OPTIONS}
+              value={String(scenarioIdx)}
+              set_value={(val) => setScenarioIdx(Number(val))}
+              filterable={false}
+              style={{ fontSize: 12, height: 18, borderRadius: 7 }}
+            />
+          </div>
+          <div
             style={{
-              fontSize: 12,
-              height: 18,
+              width: 1,
+              height: 16,
+              background: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.08)",
+              flexShrink: 0,
+            }}
+          />
+          <Button
+            label={isDone ? "Replay" : playing ? "Pause" : "Play"}
+            onClick={handlePlayPause}
+            style={{
+              fontSize: 11,
+              paddingVertical: 4,
+              paddingHorizontal: 10,
               borderRadius: 7,
             }}
           />
+          <Button
+            label="Reset"
+            onClick={handleReset}
+            disabled={traceFrames.length === 0}
+            style={{
+              fontSize: 11,
+              paddingVertical: 4,
+              paddingHorizontal: 10,
+              borderRadius: 7,
+            }}
+          />
+          <div
+            style={{
+              width: 1,
+              height: 16,
+              background: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.08)",
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ ...mono, flexShrink: 0, marginRight: 6 }}>Speed</span>
+          <Slider
+            value={speed}
+            set_value={setSpeed}
+            min={100}
+            max={2000}
+            step={100}
+            show_tooltip={true}
+            label_format={(v) => `${(v / 1000).toFixed(1)}s`}
+            style={{ width: 140, marginRight: 6 }}
+          />
+          <div
+            style={{
+              width: 1,
+              height: 16,
+              background: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.08)",
+              flexShrink: 0,
+            }}
+          />
+          <span style={mono}>
+            {displayedCount}/{totalCount}
+            {waitingForConfirmation ? " input" : ""}
+          </span>
         </div>
-
-        {/* divider */}
-        <div
-          style={{
-            width: 1,
-            height: 16,
-            background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-            flexShrink: 0,
-          }}
-        />
-
-        {/* play/pause */}
-        <Button
-          label={isDone ? "Replay" : playing ? "Pause" : "Play"}
-          onClick={handlePlayPause}
-          style={{
-            fontSize: 11,
-            paddingVertical: 4,
-            paddingHorizontal: 10,
-            borderRadius: 7,
-          }}
-        />
-
-        {/* reset */}
-        <Button
-          label="Reset"
-          onClick={handleReset}
-          disabled={traceFrames.length === 0}
-          style={{
-            fontSize: 11,
-            paddingVertical: 4,
-            paddingHorizontal: 10,
-            borderRadius: 7,
-          }}
-        />
-
-        {/* divider */}
-        <div
-          style={{
-            width: 1,
-            height: 16,
-            background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-            flexShrink: 0,
-          }}
-        />
-
-        {/* speed */}
-        <span style={{ ...mono, flexShrink: 0, marginRight: 6 }}>Speed</span>
-        <Slider
-          value={speed}
-          set_value={setSpeed}
-          min={100}
-          max={2000}
-          step={100}
-          show_tooltip={true}
-          label_format={(v) => `${(v / 1000).toFixed(1)}s`}
-          style={{ width: 140, marginRight: 6 }}
-        />
-
-        {/* divider */}
-        <div
-          style={{
-            width: 1,
-            height: 16,
-            background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-            flexShrink: 0,
-          }}
-        />
-
-        {/* progress */}
-        <span style={mono}>
-          {displayedCount}/{totalCount}
-          {waitingForConfirmation ? " input" : ""}
-        </span>
-      </div>
+      </TestControls>
     </div>
   );
 };

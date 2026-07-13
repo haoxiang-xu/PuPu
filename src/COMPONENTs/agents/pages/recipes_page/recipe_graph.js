@@ -1,3 +1,5 @@
+import { normalize_recipe_toolkit_entries } from "./recipe_toolkit_ids";
+
 const VAR_REF_RE = /\{\{#([^.}]+)\.([^#}]+)#\}\}/g;
 
 export const TOOLKIT_POOL_TYPE = "toolkit_pool";
@@ -14,7 +16,13 @@ export function is_toolkit_pool_type(type) {
 function normalize_node(node) {
   if (!node || typeof node !== "object") return node;
   const type = normalize_node_type(node.type);
-  return type === node.type ? { ...node } : { ...node, type };
+  const normalized = type === node.type ? { ...node } : { ...node, type };
+  if (type === TOOLKIT_POOL_TYPE) {
+    normalized.toolkits = normalize_recipe_toolkit_entries(node.toolkits, {
+      includeConfig: true,
+    });
+  }
+  return normalized;
 }
 
 function port_kind(port_id) {
@@ -71,22 +79,11 @@ function default_outputs(node) {
 }
 
 function projection_toolkits(pool_nodes) {
-  const seen = new Set();
-  const out = [];
+  const merged = [];
   for (const pool of pool_nodes) {
-    for (const tk of Array.isArray(pool.toolkits) ? pool.toolkits : []) {
-      if (!tk || typeof tk.id !== "string" || !tk.id || seen.has(tk.id)) {
-        continue;
-      }
-      seen.add(tk.id);
-      const next = { id: tk.id };
-      if (Array.isArray(tk.enabled_tools)) {
-        next.enabled_tools = [...tk.enabled_tools];
-      }
-      out.push(next);
-    }
+    merged.push(...(Array.isArray(pool.toolkits) ? pool.toolkits : []));
   }
-  return out;
+  return normalize_recipe_toolkit_entries(merged);
 }
 
 function projection_subagents(pool_nodes) {
