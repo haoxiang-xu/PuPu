@@ -44,6 +44,7 @@ const INSET_BASE = 74; // 轨道上/下内边距:给两颗 pill 让位
 const STACK_W = 36; // 轨道整体内收:贴窗口边会被 overflow:hidden 祖先裁掉透镜/够不着 hover
 const SNAP_W = 236;
 const SCRUB_THRESHOLD_PX = 6;
+const WIN_GLIDE_TAU_MS = 170; // 窗口归中滑动时间常数:大跳 ~0.5s 收敛,与刷新率无关
 const STREAM_PAINT_INTERVAL_MS = 400; // 流式期间兜底重绘(直播膨胀不产生 scroll 事件时透镜仍跟上)
 
 const PALETTE = {
@@ -223,6 +224,13 @@ const MessageMinimap = ({
   const crawlDirRef = useRef(0);
   const crawlClientYRef = useRef(0);
   const paintApiRef = useRef(null);
+  // 窗口归中滑动的连续性状态。必须是组件级 ref:点击跳远消息会触发 chunked
+  // expand → safeVisibleStart 变化 → 大 effect 重初始化;若这些住在 effect 闭包,
+  // 每次重初始化都会重置"首帧直接落位"标记,把进行中的滑动打断成闪跳。
+  const winGlideLastTsRef = useRef(null);
+  const snapNextWinRef = useRef(true);
+  const lastPaintCountRef = useRef(-1);
+  const lastPaintFirstIdRef = useRef(null);
   const flashTimersRef = useRef({
     generation: 0,
     raf: null,
@@ -266,9 +274,11 @@ const MessageMinimap = ({
       const u = usable();
       const windowed = isWindowed(count, u);
       const base = windowed ? winBase() : 0;
+      // 归中滑动期间 base 可为分数:槽位映射取整,位置保留分数位(整组刻度平滑滑动)
+      const slotBase = Math.floor(base);
       tickRefs.current.forEach((tk, k) => {
         if (!tk) return;
-        const idx = base + k;
+        const idx = slotBase + k;
         if (idx >= count) {
           tk.style.display = "none";
           return;
@@ -306,6 +316,16 @@ const MessageMinimap = ({
       ref.current.style.pointerEvents = hidden ? "none" : "auto";
     };
 
+    // 窗口归中滑动:大跳距(点击/瞬时落位)时 winS 逐帧趋近目标,而非一帧重映射。
+    // 挂载首帧与会话切换(首条 id/条数变化)直接落位;连续性状态在组件级 ref 上。
+    let winGlideRaf = null;
+    const stopWinGlide = () => {
+      if (winGlideRaf != null && typeof window.cancelAnimationFrame === "function") {
+        window.cancelAnimationFrame(winGlideRaf);
+      }
+      winGlideRaf = null;
+    };
+
     // paint:视口检测(只遍历已挂载 Map)→ 窗口归中 → 透镜/进度 → 刻度样式 → 计数/pill。
     // 纯读 scroll 与已挂载节点几何,永不回写刻度几何(宪法 §0)。
     let paintQueued = null;
@@ -314,6 +334,12 @@ const MessageMinimap = ({
       const { messages: msgs } = latestRef.current;
       const count = msgs.length;
       if (!count) return;
+      const firstId = msgs[0] && msgs[0].id;
+      if (count !== lastPaintCountRef.current || firstId !== lastPaintFirstIdRef.current) {
+        lastPaintCountRef.current = count;
+        lastPaintFirstIdRef.current = firstId;
+        snapNextWinRef.current = true;
+      }
       const top = el.scrollTop;
       const inset =
         Number.isFinite(bottomViewportInset) && bottomViewportInset > 0
@@ -357,11 +383,46 @@ const MessageMinimap = ({
         `Message ${ariaIndex + 1} of ${count}`,
       );
 
-      // 滑动窗口:非扫播时随视口居中(整数步进;扫播时冻结)
+      // 滑动窗口:非扫播时随视口居中(扫播时冻结)。小步进(≤1)即时落位保持跟手;
+      // 点击/瞬时跳转造成的大位移做归中滑动 —— 选中区域平滑滑入轨道中央,
+      // 而非一帧内瞬间重映射(会读成 bug 般的闪跳)。
       if (isWindowed(count, u) && !scrubbingRef.current && first >= 0) {
-        winSRef.current = recenterWindow({ first, last, count, usable: u });
+        const target = recenterWindow({ first, last, count, usable: u });
+        const diff = target - winSRef.current;
+        const canGlide =
+          !REDUCED &&
+          typeof window !== "undefined" &&
+          typeof window.requestAnimationFrame === "function";
+        if (snapNextWinRef.current || !canGlide || Math.abs(diff) <= 1) {
+          winSRef.current = target;
+          winGlideLastTsRef.current = null;
+          stopWinGlide();
+        } else {
+          // 时间基指数趋近:每帧固定比例在 120Hz 屏上会快一倍,故按真实 dt 推进
+          const now =
+            typeof performance !== "undefined" &&
+            typeof performance.now === "function"
+              ? performance.now()
+              : Date.now();
+          const dt =
+            winGlideLastTsRef.current == null
+              ? 16
+              : Math.min(100, Math.max(8, now - winGlideLastTsRef.current));
+          winGlideLastTsRef.current = now;
+          winSRef.current += diff * (1 - Math.exp(-dt / WIN_GLIDE_TAU_MS));
+          if (Math.abs(target - winSRef.current) < 0.5) {
+            winSRef.current = target;
+            winGlideLastTsRef.current = null;
+          } else if (winGlideRaf == null) {
+            winGlideRaf = window.requestAnimationFrame(winGlideStep);
+          }
+        }
+        snapNextWinRef.current = false;
       }
-      if (!isWindowed(count, u)) winSRef.current = 0;
+      if (!isWindowed(count, u)) {
+        winSRef.current = 0;
+        stopWinGlide();
+      }
 
       let fTop = 0;
       let fBot = 1;
@@ -427,6 +488,11 @@ const MessageMinimap = ({
       } else {
         paintNow();
       }
+    };
+    // 滑动帧:重进 paintNow,由归中块按剩余距离继续推进,直至收敛自停
+    const winGlideStep = () => {
+      winGlideRaf = null;
+      paintNow();
     };
     paintApiRef.current = { paint, paintNow, styleTicks };
 
@@ -561,7 +627,8 @@ const MessageMinimap = ({
 
     const idxAtCursorY = (y) => {
       const count = latestRef.current.messages.length;
-      return indexAtY({ y, winBase: winBase(), count, usable: usable() });
+      // 滑动进行中 base 为分数:命中判定取整,避免落到不存在的分数下标
+      return indexAtY({ y, winBase: Math.round(winBase()), count, usable: usable() });
     };
 
     // 扫播到轨道边缘:窗口自动爬行翻页(仅窗口模式)
@@ -599,7 +666,9 @@ const MessageMinimap = ({
       pressedRef.current = false;
       scrubbingRef.current = false;
       stopCrawl();
-      winFrozenRef.current = null; // 松手:窗口解冻,下一帧平滑归中
+      // 松手:让 winS 接管冻结位再解冻 —— 直接置 null 会先闪回冻结前的 winS 再归中
+      if (winFrozenRef.current != null) winSRef.current = winFrozenRef.current;
+      winFrozenRef.current = null;
       paint();
     };
 
@@ -631,7 +700,10 @@ const MessageMinimap = ({
       ) {
         scrubbingRef.current = true;
         const count = latestRef.current.messages.length;
-        winFrozenRef.current = isWindowed(count, usable()) ? winSRef.current : null;
+        // 冻结位取整:滑动中途起拖时,爬行步进(±1)要落在整数槽位上
+        winFrozenRef.current = isWindowed(count, usable())
+          ? Math.round(winSRef.current)
+          : null;
       }
       if (scrubbingRef.current) {
         scrollToMessageIndex(idx, "auto", { align: "top", settle: false });
@@ -784,7 +856,7 @@ const MessageMinimap = ({
     if (messages.length > prev && tickRefs.current.length) {
       // 池槽位 = 最新消息的窗口内相对位置(窗口模式下 winSRef 非零;非窗口态恒为 0),
       // 而非"最后一个可见槽"——窗口模式下二者不同,错位会让 pop 动画糊到旧刻度上
-      const slot = messages.length - 1 - winSRef.current;
+      const slot = messages.length - 1 - Math.round(winSRef.current);
       const newestTick =
         slot >= 0 && slot < tickRefs.current.length ? tickRefs.current[slot] : null;
       if (newestTick) {
