@@ -42,6 +42,46 @@ _qdrant_clients_lock = threading.Lock()
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+def _load_session_snapshot_compat(store: Any, session_id: str):
+    try:
+        from unchain.memory import load_session_snapshot
+    except ImportError:
+        state = store.load(session_id)
+        if not isinstance(state, dict):
+            raise TypeError("session store must return a dict")
+        return SimpleNamespace(
+            state=copy.deepcopy(state),
+            revision=None,
+            revision_supported=False,
+            consistency="best_effort",
+        )
+    return load_session_snapshot(store, session_id)
+
+
+def _save_session_snapshot_compat(
+    store: Any,
+    session_id: str,
+    state: dict[str, Any],
+    *,
+    expected_revision: int | None,
+):
+    try:
+        from unchain.memory import save_session_snapshot
+    except ImportError:
+        store.save(session_id, copy.deepcopy(state))
+        return SimpleNamespace(
+            state=copy.deepcopy(state),
+            revision=None,
+            revision_supported=False,
+            consistency="best_effort",
+        )
+    return save_session_snapshot(
+        store,
+        session_id,
+        state,
+        expected_revision=expected_revision,
+    )
+
 def _data_dir() -> str:
     return os.environ.get("UNCHAIN_DATA_DIR", "").strip()
 
@@ -1029,8 +1069,22 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         memory_namespace: str | None = None,
         model: str | None = None,
         long_term_extractor: Callable[..., Any] | None = None,
-    ) -> None:
-        existing_state = self.store.load(session_id) if session_id else {}
+        expected_revision: int | None = None,
+        summary_text: str | None = None,
+        return_result: bool = False,
+        clear_execution_checkpoint_id: str | None = None,
+    ):
+        store_snapshot = None
+        if session_id:
+            try:
+                from unchain.memory import load_session_snapshot
+
+                store_snapshot = load_session_snapshot(self.store, session_id)
+                existing_state = store_snapshot.state
+            except ImportError:
+                existing_state = self.store.load(session_id)
+        else:
+            existing_state = {}
         existing_messages = (
             existing_state.get("messages", [])
             if isinstance(existing_state, dict)
@@ -1050,6 +1104,20 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
             commit_kwargs["model"] = model
         if "long_term_extractor" in commit_params:
             commit_kwargs["long_term_extractor"] = long_term_extractor
+        if "expected_revision" in commit_params:
+            commit_kwargs["expected_revision"] = (
+                expected_revision
+                if expected_revision is not None
+                else getattr(store_snapshot, "revision", None)
+            )
+        if "summary_text" in commit_params:
+            commit_kwargs["summary_text"] = summary_text
+        if "return_result" in commit_params:
+            commit_kwargs["return_result"] = return_result
+        if "clear_execution_checkpoint_id" in commit_params:
+            commit_kwargs["clear_execution_checkpoint_id"] = (
+                clear_execution_checkpoint_id
+            )
         return original_commit(**commit_kwargs)
 
     setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))
@@ -1084,25 +1152,6 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
         supports_tools: bool | None = None,
     ) -> list[dict[str, Any]]:
         clean_incoming = _sanitize_dialog_messages(incoming)
-
-        store = getattr(self, "store", None)
-        if (
-            session_id
-            and store is not None
-            and callable(getattr(store, "load", None))
-            and callable(getattr(store, "save", None))
-        ):
-            try:
-                state = store.load(session_id)
-                if isinstance(state, dict):
-                    existing_messages = state.get("messages")
-                    clean_existing_messages = _sanitize_dialog_messages(existing_messages)
-                    if clean_existing_messages != _deepcopy_messages(existing_messages):
-                        next_state = dict(state)
-                        next_state["messages"] = clean_existing_messages
-                        store.save(session_id, next_state)
-            except Exception:
-                pass
 
         prepare_kwargs = {
             "session_id": session_id,
@@ -1379,12 +1428,8 @@ def replace_short_term_session_memory(
     raw_options = options if isinstance(options, dict) else {}
     retained_messages = _sanitize_dialog_messages(messages)
 
-    try:
-        previous_state = store.load(normalized_session_id)
-    except Exception:
-        previous_state = {}
-    if not isinstance(previous_state, dict):
-        previous_state = {}
+    previous_snapshot = _load_session_snapshot_compat(store, normalized_session_id)
+    previous_state = previous_snapshot.state
 
     old_tag = str(previous_state.get("vector_collection_tag", "") or "").strip()
     old_collection_name = _session_collection_name(
@@ -1452,10 +1497,23 @@ def replace_short_term_session_memory(
     next_state = dict(previous_state)
     next_state["messages"] = retained_messages
     next_state.pop("summary", None)
+    checkpoint_cleared = next_state.pop("execution_checkpoint", None) is not None
     next_state["vector_indexed_until"] = vector_indexed_until
     next_state["vector_collection_tag"] = new_tag
     next_state["vector_embedding_signature"] = vector_signature
-    store.save(normalized_session_id, next_state)
+    try:
+        persisted_snapshot = _save_session_snapshot_compat(
+            store,
+            normalized_session_id,
+            next_state,
+            expected_revision=previous_snapshot.revision,
+        )
+    except Exception as exc:
+        if getattr(exc, "code", "") != "session_revision_conflict":
+            raise
+        if qdrant_client is not None:
+            _delete_collection_best_effort(qdrant_client, new_collection_name)
+        raise
 
     if qdrant_client is None and _QDRANT_AVAILABLE:
         try:
@@ -1478,6 +1536,10 @@ def replace_short_term_session_memory(
         "vector_indexed_until": vector_indexed_until,
         "vector_fallback_reason": vector_fallback_reason,
     }
+    if checkpoint_cleared:
+        response["execution_checkpoint_cleared"] = True
+    if isinstance(persisted_snapshot.revision, int):
+        response["session_revision"] = persisted_snapshot.revision
     if cleanup_warning:
         response["cleanup_warning"] = cleanup_warning
     return response

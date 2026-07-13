@@ -2226,11 +2226,7 @@ export const useChatStream = ({
             attachments: payloadAttachments,
             options: {
               modelId: effectiveModelId,
-              ...(forceHistoryFallback === true
-                ? { memory_enabled: false }
-                : forceMemoryEnabled === true
-                  ? { memory_enabled: true }
-                  : {}),
+              memory_enabled: memoryEnabled,
               ...(effectiveMemoryNamespace
                 ? { memory_namespace: effectiveMemoryNamespace }
                 : {}),
@@ -4312,6 +4308,10 @@ export const useChatStream = ({
     const streamHandles = streamHandlesRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
     const activeStreams = activeStreamsRef.current;
+    const activeRunThreadIdByChatId = activeRunThreadIdByChatIdRef.current;
+    const queuedTurnsByChatId = queuedTurnsByChatIdRef.current;
+    const pendingFyiCountByChatId = pendingFyiCountByChatIdRef.current;
+    const pendingClarifyByChatId = pendingClarifyByChatIdRef.current;
 
     return () => {
       clearActiveTokenFlushController("dispose");
@@ -4333,10 +4333,10 @@ export const useChatStream = ({
       confirmationResolveTimerById.clear();
       pendingToolConfirmationRequestsRef.current = {};
       pendingContinuationRequestRef.current = null;
-      activeRunThreadIdByChatIdRef.current.clear();
-      queuedTurnsByChatIdRef.current.clear();
-      pendingFyiCountByChatIdRef.current.clear();
-      pendingClarifyByChatIdRef.current.clear();
+      activeRunThreadIdByChatId.clear();
+      queuedTurnsByChatId.clear();
+      pendingFyiCountByChatId.clear();
+      pendingClarifyByChatId.clear();
     };
   }, [
     activeStreamsRef,
