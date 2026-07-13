@@ -41,6 +41,7 @@ const makeMessageNode = (offsetTop, offsetHeight) => {
 };
 
 const baseProps = (over = {}) => ({
+  scrollHostId: "chat-scroll-host-test",
   messagesRef: { current: makeScrollHost() },
   messageNodeRefs: { current: new Map() },
   messages: [msg("a", "user"), msg("b", "assistant")],
@@ -62,6 +63,22 @@ test("每条消息一根刻度(n ≤ 容量),带 role 标记", () => {
   expect(ticks).toHaveLength(2);
   expect(ticks[0].getAttribute("data-mm-role")).toBe("user");
   expect(ticks[1].getAttribute("data-mm-role")).toBe("assistant");
+});
+
+test("scrollbar 语义指向真实消息容器并暴露当前位置", () => {
+  const props = baseProps({
+    messages: [msg("a", "user"), msg("b", "assistant"), msg("c", "user")],
+    safeVisibleStart: 1,
+  });
+  const { container } = render(<MessageMinimap {...props} />);
+  const track = container.querySelector("[data-mm-track]");
+
+  expect(track).toHaveAttribute("aria-controls", "chat-scroll-host-test");
+  expect(track).toHaveAttribute("aria-orientation", "vertical");
+  expect(track).toHaveAttribute("aria-valuemin", "0");
+  expect(track).toHaveAttribute("aria-valuemax", "2");
+  expect(track).toHaveAttribute("aria-valuenow", "1");
+  expect(track).toHaveAttribute("aria-valuetext", "Message 2 of 3");
 });
 
 test("无消息时不渲染", () => {

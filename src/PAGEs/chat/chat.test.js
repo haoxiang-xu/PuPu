@@ -985,6 +985,32 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("pins the disabled memory snapshot into the stream payload", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        memory: {
+          enabled: false,
+        },
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Memory snapshot test" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.memory_enabled).toBe(false);
+  });
+
   test("retries once with history when memory is unavailable", async () => {
     window.localStorage.setItem(
       "settings",

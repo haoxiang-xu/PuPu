@@ -1,4 +1,4 @@
-import { memo, useContext, useMemo } from "react";
+import { memo, useContext, useId, useMemo } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -33,6 +33,7 @@ const ChatMessages = ({
 }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const scrollHostId = useId();
   const safeBottomViewportInset =
     Number.isFinite(bottomViewportInset) && bottomViewportInset > 0
       ? bottomViewportInset
@@ -88,6 +89,7 @@ const ChatMessages = ({
       }}
     >
       <div
+        id={scrollHostId}
         ref={messagesRef}
         className="chat-scroll-host"
         onScroll={handleScroll}
@@ -203,6 +205,7 @@ const ChatMessages = ({
       </div>
 
       <MessageMinimap
+        scrollHostId={scrollHostId}
         messagesRef={messagesRef}
         messageNodeRefs={messageNodeRefs}
         messages={messages}

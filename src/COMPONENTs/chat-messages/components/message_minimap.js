@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   colorWithAlpha,
   themeHighlightColor,
@@ -99,9 +100,10 @@ const ensureStyle = () => {
     '[data-mm-pill][data-dark="0"]:hover{color:rgba(0,0,0,0.85);}' +
     "[data-mm-pill] svg{transition:transform .15s ease;}" +
     "[data-mm-pill]:hover svg{transform:translateX(-2px);}" +
-    // 注解标签:计数同族排印(等宽/大写/.09em);hover 驻留 300ms 才出现,扫过不闪、离开即收
+    // 注解标签:随语言翻译,排印跟随 locale 正文字体(--pupu-font-family,en=Jost/zh=霞鹜文楷…);
+    // hover 驻留 300ms 才出现,扫过不闪、离开即收
     "[data-mm-lbl]{position:absolute;right:30px;top:50%;transform:translate(5px,-50%);" +
-    "font:600 8.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;" +
+    'font-family:var(--pupu-font-family,"Jost",sans-serif);font-size:10px;font-weight:500;line-height:1;letter-spacing:.02em;' +
     "opacity:0;transition:opacity .18s ease,transform .18s ease;pointer-events:none;white-space:nowrap;}" +
     '[data-mm-pill][data-dark="1"] [data-mm-lbl]{color:rgba(255,255,255,0.52);}' +
     '[data-mm-pill][data-dark="0"] [data-mm-lbl]{color:rgba(0,0,0,0.50);}' +
@@ -155,6 +157,7 @@ const NavPill = ({ nodeRef, edge, offset, icon, label, isDark, onClick }) => (
 );
 
 const MessageMinimap = ({
+  scrollHostId = "chat-scroll-host",
   messagesRef,
   messageNodeRefs,
   messages = [],
@@ -167,6 +170,7 @@ const MessageMinimap = ({
   isStreaming = false,
 }) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const highlightColor = themeHighlightColor(theme);
   const C = useMemo(() => {
     const base = PALETTE[isDark ? "dark" : "light"];
@@ -342,6 +346,16 @@ const MessageMinimap = ({
       viewSetRef.current = viewSet;
       viewFirstRef.current = first;
       viewLastRef.current = last;
+      const ariaIndex = Math.max(
+        0,
+        Math.min(count - 1, first >= 0 ? first : safeVisibleStart),
+      );
+      track.setAttribute("aria-valuenow", String(ariaIndex));
+      track.setAttribute("aria-valuemax", String(Math.max(0, count - 1)));
+      track.setAttribute(
+        "aria-valuetext",
+        `Message ${ariaIndex + 1} of ${count}`,
+      );
 
       // 滑动窗口:非扫播时随视口居中(整数步进;扫播时冻结)
       if (isWindowed(count, u) && !scrubbingRef.current && first >= 0) {
@@ -859,6 +873,18 @@ const MessageMinimap = ({
         tabIndex={0}
         role="scrollbar"
         aria-label="Conversation minimap"
+        aria-controls={scrollHostId}
+        aria-orientation="vertical"
+        aria-valuemin={0}
+        aria-valuemax={Math.max(0, messages.length - 1)}
+        aria-valuenow={Math.max(
+          0,
+          Math.min(messages.length - 1, safeVisibleStart),
+        )}
+        aria-valuetext={`Message ${Math.min(
+          messages.length,
+          safeVisibleStart + 1,
+        )} of ${messages.length}`}
         style={{
           position: "absolute",
           right: 8,
@@ -916,18 +942,18 @@ const MessageMinimap = ({
         }}
       />
 
-      <NavPill nodeRef={topPillRef} edge="top" offset={8} icon={IC_TOP} label="TOP" isDark={isDark}
+      <NavPill nodeRef={topPillRef} edge="top" offset={8} icon={IC_TOP} label={t("chat.minimap.top")} isDark={isDark}
         onClick={() => {
           // 远距离到顶用瞬时落位:长距离 smooth 会被触控板惯性滚轮中断在半路
           // ("底部按 to-top 有时失效"的另一半根因);近距离保留 smooth 的顺滑。
           const far = (viewFirstRef.current < 0 ? safeVisibleStart : viewFirstRef.current) > 8;
           scrollToMessageIndex(0, far ? "auto" : "smooth");
         }} />
-      <NavPill nodeRef={upOnePillRef} edge="top" offset={30} icon={IC_PREV} label="PREV" isDark={isDark}
+      <NavPill nodeRef={upOnePillRef} edge="top" offset={30} icon={IC_PREV} label={t("chat.minimap.prev")} isDark={isDark}
         onClick={() => jumpRelative(-1)} />
-      <NavPill nodeRef={downOnePillRef} edge="bottom" offset={30} icon={IC_NEXT} label="NEXT" isDark={isDark}
+      <NavPill nodeRef={downOnePillRef} edge="bottom" offset={30} icon={IC_NEXT} label={t("chat.minimap.next")} isDark={isDark}
         onClick={() => jumpRelative(1)} />
-      <NavPill nodeRef={botPillRef} edge="bottom" offset={8} icon={IC_END} label="END" isDark={isDark}
+      <NavPill nodeRef={botPillRef} edge="bottom" offset={8} icon={IC_END} label={t("chat.minimap.end")} isDark={isDark}
         onClick={() => {
           if (typeof onBackToBottom === "function") {
             onBackToBottom();
