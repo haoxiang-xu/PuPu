@@ -1558,4 +1558,140 @@ describe("TraceChain interject frames", () => {
       "transparent",
     );
   });
+
+  describe("collapsed-subtree unmount (issue #168)", () => {
+    test("unmounts the collapsed timeline subtree once the trace is settled", () => {
+      jest.useFakeTimers();
+      try {
+        renderTraceChain({
+          status: "done",
+          frames: [
+            frame({
+              seq: 1,
+              type: "tool_call",
+              payload: { call_id: "c1", tool_name: "read_file", arguments: {} },
+            }),
+            frame({
+              seq: 2,
+              type: "tool_result",
+              payload: { call_id: "c1", status: "completed" },
+            }),
+          ],
+        });
+
+        // expanded by default → the tool row is mounted
+        expect(screen.getByText("read_file")).toBeInTheDocument();
+
+        // collapse via the summary header
+        act(() => {
+          fireEvent.click(screen.getByText(/Used 1 step/));
+        });
+        // run the collapse animation + the 280ms unmount timer
+        act(() => {
+          jest.advanceTimersByTime(400);
+        });
+
+        expect(screen.queryByText("read_file")).not.toBeInTheDocument();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test("keeps the collapsed timeline mounted while streaming so pending controls stay actionable", () => {
+      jest.useFakeTimers();
+      try {
+        renderTraceChain({
+          status: "streaming",
+          frames: [
+            frame({
+              seq: 1,
+              type: "tool_call",
+              payload: { call_id: "c1", tool_name: "read_file", arguments: {} },
+            }),
+          ],
+        });
+
+        expect(screen.getByText("read_file")).toBeInTheDocument();
+
+        // the first "Thinking…" is the collapse header (rendered above the body)
+        act(() => {
+          fireEvent.click(screen.getAllByText(/Thinking/)[0]);
+        });
+        act(() => {
+          jest.advanceTimersByTime(400);
+        });
+
+        // streaming trace must NOT unmount — a pending confirmation lives here
+        expect(screen.getByText("read_file")).toBeInTheDocument();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
+  describe("observation truncation summary (issue #168)", () => {
+    test("renders a coalesced-lines note after the head observations of a truncated call", () => {
+      renderTraceChain({
+        status: "done",
+        frames: [
+          frame({
+            seq: 1,
+            type: "tool_call",
+            payload: { call_id: "c1", tool_name: "bash", arguments: {} },
+          }),
+          frame({
+            seq: 2,
+            type: "observation",
+            payload: { call_id: "c1", text: "line a" },
+          }),
+          frame({
+            seq: 3,
+            type: "observation",
+            payload: { call_id: "c1", text: "line b" },
+          }),
+          frame({
+            seq: 4,
+            type: "tool_result",
+            payload: {
+              call_id: "c1",
+              status: "completed",
+              observation_total: 200,
+              observation_shown: 50,
+              observation_omitted: 140,
+              observation_tail: ["tail-first", "tail-last"],
+            },
+          }),
+        ],
+      });
+
+      expect(
+        screen.getByText("+140 more output lines coalesced"),
+      ).toBeInTheDocument();
+    });
+
+    test("shows no coalesced note for a tool call that was not truncated", () => {
+      renderTraceChain({
+        status: "done",
+        frames: [
+          frame({
+            seq: 1,
+            type: "tool_call",
+            payload: { call_id: "c2", tool_name: "bash", arguments: {} },
+          }),
+          frame({
+            seq: 2,
+            type: "observation",
+            payload: { call_id: "c2", text: "only line" },
+          }),
+          frame({
+            seq: 3,
+            type: "tool_result",
+            payload: { call_id: "c2", status: "completed" },
+          }),
+        ],
+      });
+
+      expect(screen.queryByText(/coalesced/)).not.toBeInTheDocument();
+    });
+  });
 });

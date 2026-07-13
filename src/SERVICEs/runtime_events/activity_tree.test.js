@@ -1003,4 +1003,136 @@ describe("runtime events activity tree", () => {
       ]),
     );
   });
+
+  describe("observation coalescing (issue #168)", () => {
+    const toolDelta = (id, seq, callId, text) =>
+      event({
+        id,
+        type: "step.delta",
+        seq,
+        links: { step_id: `tool:${callId}`, tool_call_id: callId },
+        payload: {
+          step_id: `tool:${callId}`,
+          step_type: "tool",
+          tool_name: "bash",
+          call_id: callId,
+          text,
+        },
+      });
+
+    test("bounds observation frames per tool call and records truncation metadata", () => {
+      const events = [
+        event({ id: "evt-run", type: "run.started", seq: 1 }),
+        event({
+          id: "evt-tool",
+          type: "step.started",
+          seq: 2,
+          links: { step_id: "tool:call-1", tool_call_id: "call-1" },
+          payload: {
+            step_id: "tool:call-1",
+            step_type: "tool",
+            tool_name: "bash",
+            call_id: "call-1",
+          },
+        }),
+      ];
+      const TOTAL = 200;
+      for (let i = 0; i < TOTAL; i += 1) {
+        events.push(toolDelta(`evt-delta-${i}`, 3 + i, "call-1", `line ${i}`));
+      }
+      events.push(
+        event({
+          id: "evt-done",
+          type: "step.completed",
+          seq: 3 + TOTAL,
+          links: { step_id: "tool:call-1", tool_call_id: "call-1" },
+          payload: {
+            step_id: "tool:call-1",
+            step_type: "tool",
+            tool_name: "bash",
+            call_id: "call-1",
+            status: "completed",
+          },
+        }),
+      );
+
+      const state = reduceEvents(events);
+
+      const observationFrames = state.frames.filter(
+        (frame) => frame.type === "observation",
+      );
+      // HEAD_LIMIT — 10,000 deltas would NOT create 10,000 rows
+      expect(observationFrames).toHaveLength(50);
+      // first frames are the FIRST deltas (head preserved, in order)
+      expect(observationFrames[0].payload.text).toBe("line 0");
+      expect(observationFrames[49].payload.text).toBe("line 49");
+
+      // lossless: tool_call and final tool_result frames untouched
+      expect(state.frames.some((frame) => frame.type === "tool_call")).toBe(
+        true,
+      );
+      const resultFrame = state.frames.find(
+        (frame) => frame.type === "tool_result",
+      );
+      expect(resultFrame).toBeDefined();
+      // tool_result carries the truncation summary for the UI
+      expect(resultFrame.payload.observation_total).toBe(200);
+      expect(resultFrame.payload.observation_shown).toBe(50);
+      expect(resultFrame.payload.observation_omitted).toBe(140);
+      expect(resultFrame.payload.observation_tail).toHaveLength(10);
+
+      const log = state.observationLogByCallId["call-1"];
+      expect(log.total).toBe(200);
+      expect(log.emitted).toBe(50);
+      expect(log.tail).toHaveLength(10); // TAIL_LIMIT
+      expect(log.omitted).toBe(140); // 200 - 50 - 10
+      // tail keeps the LAST deltas (last/error context preserved)
+      expect(log.tail[log.tail.length - 1]).toContain("line 199");
+      expect(log.tail[0]).toContain("line 190");
+    });
+
+    test("does not bound short tool runs (common case unchanged)", () => {
+      const events = [event({ id: "evt-run", type: "run.started", seq: 1 })];
+      for (let i = 0; i < 10; i += 1) {
+        events.push(toolDelta(`d-${i}`, 2 + i, "call-x", `x${i}`));
+      }
+      const state = reduceEvents(events);
+
+      expect(
+        state.frames.filter((frame) => frame.type === "observation"),
+      ).toHaveLength(10);
+      const log = state.observationLogByCallId["call-x"];
+      expect(log.total).toBe(10);
+      expect(log.emitted).toBe(10);
+      expect(log.omitted).toBe(0);
+      expect(log.tail).toHaveLength(0);
+    });
+
+    test("bounds each call_id independently", () => {
+      const events = [event({ id: "evt-run", type: "run.started", seq: 1 })];
+      let seq = 2;
+      for (let i = 0; i < 60; i += 1) {
+        events.push(toolDelta(`a-${i}`, seq++, "call-a", `a${i}`));
+        events.push(toolDelta(`b-${i}`, seq++, "call-b", `b${i}`));
+      }
+      const state = reduceEvents(events);
+
+      expect(state.observationLogByCallId["call-a"].total).toBe(60);
+      expect(state.observationLogByCallId["call-a"].emitted).toBe(50);
+      expect(state.observationLogByCallId["call-b"].total).toBe(60);
+      expect(state.observationLogByCallId["call-b"].emitted).toBe(50);
+      expect(
+        state.frames.filter(
+          (frame) =>
+            frame.type === "observation" && frame.payload.call_id === "call-a",
+        ),
+      ).toHaveLength(50);
+      expect(
+        state.frames.filter(
+          (frame) =>
+            frame.type === "observation" && frame.payload.call_id === "call-b",
+        ),
+      ).toHaveLength(50);
+    });
+  });
 });

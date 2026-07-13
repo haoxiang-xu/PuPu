@@ -1,6 +1,36 @@
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
 const CONTINUATION_TOOL_NAME = "__continuation__";
 const RUN_PROMOTED_ARTIFACT_KINDS = new Set(["plan"]);
+
+// Observation coalescing (issue #168): a tool that streams thousands of
+// tool.delta events must not become thousands of observation frames/DOM rows.
+// Per call_id we emit at most HEAD_LIMIT observation frames (the head, in
+// order), then stop emitting and keep a bounded TAIL_LIMIT ring plus an
+// omitted count in cumulative state so the trace can show "first N … M omitted
+// … last K". Only delta/log detail is bounded — tool_call, tool_result, error,
+// confirmation, and final frames are separate events and never touched.
+// Common tool runs (< HEAD_LIMIT deltas) are completely unaffected.
+const OBSERVATION_HEAD_LIMIT = 50;
+const OBSERVATION_TAIL_LIMIT = 10;
+const OBSERVATION_TAIL_PREVIEW_CHARS = 240;
+
+// Same field precedence the trace UI's extractText uses, so the tail preview
+// is faithful to what a head observation row would have shown.
+const extractObservationText = (payload) => {
+  if (!isObject(payload)) return "";
+  const raw =
+    payload.content ??
+    payload.text ??
+    payload.message ??
+    payload.reasoning ??
+    payload.observation ??
+    payload.delta ??
+    "";
+  const str = typeof raw === "string" ? raw : String(raw);
+  return str.length > OBSERVATION_TAIL_PREVIEW_CHARS
+    ? `${str.slice(0, OBSERVATION_TAIL_PREVIEW_CHARS)}…`
+    : str;
+};
 const INCREMENTAL_REDUCTION_META = Symbol("runtimeEventReductionMeta");
 const ARTIFACT_SUMMARY_ORDER = Symbol("artifactSummaryOrder");
 
@@ -57,6 +87,7 @@ const createProjectedActivityTreeState = () => ({
   modelTextByRunId: {},
   frames: [],
   framesByRunId: {},
+  observationLogByCallId: {},
   artifactSummariesByTurnId: {},
   effects: [],
   completionBundle: null,
@@ -684,14 +715,38 @@ const applyEvent = (state, event) => {
   }
 
   if (eventType === "tool.delta") {
-    routeFrame(
-      state,
-      event,
-      createFrame(state, event, "observation", {
-        ...payload,
-        call_id: stringValue(links.tool_call_id, stringValue(payload.call_id)),
-      }),
-    );
+    const callId = stringValue(links.tool_call_id, stringValue(payload.call_id));
+    const log =
+      state.observationLogByCallId[callId] ||
+      (state.observationLogByCallId[callId] = {
+        total: 0,
+        emitted: 0,
+        omitted: 0,
+        tail: [],
+      });
+    log.total += 1;
+
+    if (log.emitted < OBSERVATION_HEAD_LIMIT) {
+      log.emitted += 1;
+      routeFrame(
+        state,
+        event,
+        createFrame(state, event, "observation", {
+          ...payload,
+          call_id: callId,
+        }),
+      );
+      return;
+    }
+
+    // Overflow: do NOT emit a frame (would grow DOM unbounded and cannot be
+    // retracted downstream — onFrame appends). Keep the last TAIL_LIMIT deltas
+    // and count the rest as omitted, for the trace's bounded-window summary.
+    log.tail.push(extractObservationText(payload));
+    if (log.tail.length > OBSERVATION_TAIL_LIMIT) {
+      log.tail.shift();
+      log.omitted += 1;
+    }
     return;
   }
 
@@ -709,12 +764,26 @@ const applyEvent = (state, event) => {
       status: stringValue(payload.status, "completed"),
       payload,
     };
+    // Carry the observation truncation summary (issue #168) on the final
+    // tool_result so the trace can render "+N lines coalesced" next to the
+    // bounded head rows without any extra plumbing — this frame already flows.
+    const obsLog = state.observationLogByCallId[callId];
+    const observationTruncation =
+      obsLog && obsLog.total > obsLog.emitted
+        ? {
+            observation_total: obsLog.total,
+            observation_shown: obsLog.emitted,
+            observation_omitted: obsLog.omitted,
+            observation_tail: [...obsLog.tail],
+          }
+        : null;
     routeFrame(
       state,
       routeEvent,
       createFrame(state, routeEvent, "tool_result", {
         ...payload,
         call_id: callId,
+        ...(observationTruncation || {}),
       }),
     );
     return;

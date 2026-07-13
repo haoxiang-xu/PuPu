@@ -959,6 +959,7 @@ const TraceChain = ({
         const isObs = frame.type === "observation";
         items.push({
           key: `${frame.seq}-${frame.type}`,
+          ...(isObs ? { _callId: frame.payload?.call_id } : {}),
           title: isObs ? "Observation" : "Reasoning",
           span: spanText,
           status: "done",
@@ -1799,6 +1800,58 @@ const TraceChain = ({
     /* continuation is now a regular tool_call with tool_name "__continuation__"
        — rendered by the normal tool confirmation path above, no special block needed */
 
+    /* ── observation coalescing summary (issue #168): a tool that streamed
+       thousands of deltas only kept OBSERVATION_HEAD_LIMIT head rows; the rest
+       were folded upstream. The final tool_result carries the omitted count +
+       last lines, so drop a quiet "+N more coalesced" row after the head — its
+       details expand to the preserved tail. ── */
+    for (const frame of displayFrames) {
+      if (
+        frame.type !== "tool_result" ||
+        !frame.payload ||
+        !(Number(frame.payload.observation_omitted) > 0)
+      ) {
+        continue;
+      }
+      const cid = frame.payload.call_id;
+      let lastObsIdx = -1;
+      for (let idx = items.length - 1; idx >= 0; idx -= 1) {
+        if (items[idx]._callId === cid) {
+          lastObsIdx = idx;
+          break;
+        }
+      }
+      if (lastObsIdx < 0) continue;
+      const omitted = Number(frame.payload.observation_omitted);
+      const tail = Array.isArray(frame.payload.observation_tail)
+        ? frame.payload.observation_tail.filter(Boolean)
+        : [];
+      const tailText = tail.join("\n");
+      items.splice(lastObsIdx + 1, 0, {
+        key: `obs-trunc-${cid}`,
+        title: `+${omitted} more output line${omitted === 1 ? "" : "s"} coalesced`,
+        status: "done",
+        ...(tailText
+          ? {
+              details: (
+                <SeamlessMarkdown
+                  content={tailText}
+                  status="done"
+                  fontSize={12}
+                  lineHeight={1.65}
+                  style={{
+                    ...TRACE_DETAIL_MARKDOWN_STYLE,
+                    color: isDark
+                      ? "rgba(255,255,255,0.6)"
+                      : "rgba(0,0,0,0.55)",
+                  }}
+                />
+              ),
+            }
+          : {}),
+      });
+    }
+
     /* ── group consecutive identical tool calls ── */
     const grouped = [];
     let i = 0;
@@ -1906,8 +1959,18 @@ const TraceChain = ({
   if (timelineItems.length === 0) return null;
 
   const isBodyVisible = showContainerHeader ? bodyOpen : true;
+  // Issue #168: once a trace is settled and the user collapses it, unmount the
+  // whole timeline subtree so a large run stops holding thousands of hidden DOM
+  // nodes after the collapse animation. Only when settled — never while
+  // streaming (frames still updating) or waiting (a pending confirmation /
+  // continuation keeps the run out of "done", so its controls stay mounted and
+  // actionable). Re-expanding rebuilds losslessly from frames.
+  const bodyUnmountWhenClosed = status === "done" || status === "error";
   const timelineBody = (
-    <AnimatedChildren open={isBodyVisible}>
+    <AnimatedChildren
+      open={isBodyVisible}
+      unmountWhenClosed={showContainerHeader && bodyUnmountWhenClosed}
+    >
       <div
         style={{
           paddingLeft: hideTrack ? 0 : 2,

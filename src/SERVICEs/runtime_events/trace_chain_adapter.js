@@ -78,10 +78,36 @@ export const adaptActivityTreeToTraceChain = (activityTreeState = {}) => {
     };
   });
 
+  // Observation coalescing (issue #168): expose only truncated tool calls
+  // (total > emitted) as a bounded summary the trace can render as
+  // "showing first N … M omitted … last K". Non-truncated calls are omitted
+  // so the UI shows nothing extra for the common case.
+  const observationLogSource =
+    activityTreeState.observationLogByCallId &&
+    typeof activityTreeState.observationLogByCallId === "object"
+      ? activityTreeState.observationLogByCallId
+      : {};
+  const observationLogByCallId = {};
+  Object.entries(observationLogSource).forEach(([callId, log]) => {
+    if (!log || typeof log !== "object") return;
+    const total = Number.isFinite(Number(log.total)) ? Number(log.total) : 0;
+    const emitted = Number.isFinite(Number(log.emitted))
+      ? Number(log.emitted)
+      : 0;
+    if (total <= emitted) return;
+    observationLogByCallId[callId] = {
+      total,
+      emitted,
+      omitted: Number.isFinite(Number(log.omitted)) ? Number(log.omitted) : 0,
+      tail: Array.isArray(log.tail) ? [...log.tail] : [],
+    };
+  });
+
   return {
     frames: Array.isArray(activityTreeState.frames)
       ? [...activityTreeState.frames]
       : [],
+    observationLogByCallId,
     status: statusForTraceChain(activityTreeState.status),
     streamingContent:
       activityTreeState.status === "running"

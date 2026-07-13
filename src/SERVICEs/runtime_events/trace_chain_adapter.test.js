@@ -72,4 +72,70 @@ describe("runtime event TraceChain adapter", () => {
       ],
     });
   });
+
+  test("exposes bounded observation log with truncation metadata (issue #168)", () => {
+    const events = [
+      event({ id: "evt-run", type: "run.started", seq: 1 }),
+      event({
+        id: "evt-tool",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:c1", tool_call_id: "c1" },
+        payload: {
+          step_id: "tool:c1",
+          step_type: "tool",
+          tool_name: "bash",
+          call_id: "c1",
+        },
+      }),
+    ];
+    for (let i = 0; i < 120; i += 1) {
+      events.push(
+        event({
+          id: `d-${i}`,
+          type: "step.delta",
+          seq: 3 + i,
+          links: { step_id: "tool:c1", tool_call_id: "c1" },
+          payload: {
+            step_id: "tool:c1",
+            step_type: "tool",
+            call_id: "c1",
+            text: `out ${i}`,
+          },
+        }),
+      );
+    }
+
+    const traceProps = adaptEvents(events);
+
+    // frame stream is bounded, not 120 rows
+    expect(
+      traceProps.frames.filter((frame) => frame.type === "observation"),
+    ).toHaveLength(50);
+
+    const log = traceProps.observationLogByCallId.c1;
+    expect(log).toBeDefined();
+    expect(log.total).toBe(120);
+    expect(log.emitted).toBe(50);
+    expect(log.omitted).toBe(60); // 120 - 50 - 10
+    expect(log.tail).toHaveLength(10);
+    expect(log.tail[log.tail.length - 1]).toContain("out 119");
+  });
+
+  test("omits observation log for tool calls that were not truncated", () => {
+    const events = [event({ id: "evt-run", type: "run.started", seq: 1 })];
+    for (let i = 0; i < 5; i += 1) {
+      events.push(
+        event({
+          id: `s-${i}`,
+          type: "step.delta",
+          seq: 2 + i,
+          links: { step_id: "tool:small", tool_call_id: "small" },
+          payload: { step_type: "tool", call_id: "small", text: `s${i}` },
+        }),
+      );
+    }
+    const traceProps = adaptEvents(events);
+    expect(traceProps.observationLogByCallId.small).toBeUndefined();
+  });
 });
