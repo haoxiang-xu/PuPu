@@ -147,6 +147,12 @@ jobs:
           name: release-qa-job-report-deterministic
           path: pupu/release-qa-job-report.json
 
+      - name: Deterministic release gate
+        if: always()
+        working-directory: pupu
+        run: |
+          node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
+
   package-matrix:
     name: Package ${{ matrix.name }}
     if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' }}
@@ -375,8 +381,3 @@ jobs:
                 body,
               });
             }
-
-      - name: Deterministic release gate
-        working-directory: pupu
-        run: |
-          node -e "const r=require('./release-qa-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
