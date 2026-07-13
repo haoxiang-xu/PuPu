@@ -111,7 +111,6 @@ const CommandPalettePanel = ({
           justifyContent: "flex-end",
           overflow: "hidden",
           borderRadius: PANEL_RADIUS,
-          cornerShape: "squircle",
           backgroundColor: on ? panelBg : "transparent",
           border: on ? panelBorder : "1px solid transparent",
           ...(on

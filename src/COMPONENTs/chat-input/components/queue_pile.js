@@ -257,7 +257,6 @@ export const QueuePanel = ({
         gap: 1,
         padding: PANEL_PAD,
         borderRadius: PANEL_RADIUS,
-        cornerShape: "squircle",
         backgroundColor: isDark
           ? "rgba(28,28,28,0.85)"
           : "rgba(252,252,252,0.9)",

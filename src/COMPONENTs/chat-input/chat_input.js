@@ -392,8 +392,7 @@ const ChatInput = ({
               style={{
                 position: "absolute",
                 inset: 0,
-                borderRadius: 28,
-                cornerShape: "squircle",
+                borderRadius: 22,
                 border: `2px dashed ${
                   isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.22)"
                 }`,
@@ -503,10 +502,7 @@ const ChatInput = ({
             style={{
               width: "100%",
               margin: 0,
-              borderRadius: 28,
-              /* Apple-style continuous corner curvature (Chromium 139+;
-                 older engines ignore it and keep round corners) */
-              cornerShape: "squircle",
+              borderRadius: 22,
               /* border: textfield's own default (theme-aware); softness
                  comes from the wider, lower-alpha shadow */
               boxShadow: isDark
