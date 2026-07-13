@@ -242,10 +242,31 @@
     "loading": "Загрузка...",
     "error": "Ошибка",
     "select": "Выбрать...",
-    "search": "Поиск..."
+    "search": "Поиск...",
+    "no_results": "Нет результатов"
   },
   "chat": {
-    "placeholder": "Сообщение для PuPu..."
+    "placeholder": "Сообщение для PuPu...",
+    "minimap": {
+      "top": "Начало",
+      "prev": "Назад",
+      "next": "Вперёд",
+      "end": "Конец"
+    },
+    "attach": {
+      "select_model": "Выбрать модель...",
+      "tools": "инструменты",
+      "workspace": "рабочая область",
+      "clear": "ОЧИСТИТЬ",
+      "add": "+ ДОБАВИТЬ",
+      "search_workspaces": "Поиск рабочих областей...",
+      "attach_file": "Прикрепить изображение или PDF",
+      "attach_file_unsupported": "Текущая модель не поддерживает файлы",
+      "screenshot": "Сделать снимок экрана",
+      "screenshot_unsupported": "Текущая модель не поддерживает изображения",
+      "select_toolkits": "Выбрать инструменты",
+      "select_workspaces": "Выбрать рабочие области"
+    }
   },
   "toolkit": {
     "toolkits": "Наборы",

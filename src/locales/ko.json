@@ -242,10 +242,31 @@
     "loading": "로드 중...",
     "error": "오류",
     "select": "선택...",
-    "search": "검색..."
+    "search": "검색...",
+    "no_results": "결과 없음"
   },
   "chat": {
-    "placeholder": "PuPu에게 메시지 보내기..."
+    "placeholder": "PuPu에게 메시지 보내기...",
+    "minimap": {
+      "top": "처음",
+      "prev": "이전",
+      "next": "다음",
+      "end": "끝"
+    },
+    "attach": {
+      "select_model": "모델 선택...",
+      "tools": "도구",
+      "workspace": "작업 공간",
+      "clear": "지우기",
+      "add": "+ 추가",
+      "search_workspaces": "작업 공간 검색...",
+      "attach_file": "이미지 또는 PDF 첨부",
+      "attach_file_unsupported": "현재 모델은 파일 입력을 지원하지 않습니다",
+      "screenshot": "스크린샷 찍기",
+      "screenshot_unsupported": "현재 모델은 이미지 입력을 지원하지 않습니다",
+      "select_toolkits": "도구 모음 선택",
+      "select_workspaces": "작업 공간 선택"
+    }
   },
   "toolkit": {
     "toolkits": "툴킷",

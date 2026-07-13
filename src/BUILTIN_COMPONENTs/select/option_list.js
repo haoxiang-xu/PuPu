@@ -4,6 +4,7 @@ import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
 import AnimatedChildren from "../class/animated_children";
 import { get_option_text, render_icon } from "./use_select";
 import Icon from "../icon/icon";
+import { useTranslation } from "../mini_react/use_translation";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *  Checkbox — teal checkbox for multi-select mode
@@ -380,6 +381,7 @@ const OptionList = ({
   isDark,
 }) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const checkColor = themeHighlightColor(theme);
   const is_selected = (option) =>
     multi
@@ -397,7 +399,7 @@ const OptionList = ({
             fontSize: fontSize * 0.9,
           }}
         >
-          No results
+          {t("common.no_results")}
         </div>
       );
     }
@@ -453,7 +455,7 @@ const OptionList = ({
           fontSize: fontSize * 0.9,
         }}
       >
-        No results
+        {t("common.no_results")}
       </div>
     );
   }

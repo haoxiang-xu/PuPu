@@ -166,7 +166,7 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    expect(screen.getByTestId("select-Search models...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search models…")).toHaveAttribute(
       "data-dropdown-position",
       "top",
     );

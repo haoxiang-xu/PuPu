@@ -242,10 +242,31 @@
     "loading": "Cargando...",
     "error": "Error",
     "select": "Seleccionar...",
-    "search": "Buscar..."
+    "search": "Buscar...",
+    "no_results": "Sin resultados"
   },
   "chat": {
-    "placeholder": "Mensaje a PuPu..."
+    "placeholder": "Mensaje a PuPu...",
+    "minimap": {
+      "top": "Inicio",
+      "prev": "Ant.",
+      "next": "Sig.",
+      "end": "Fin"
+    },
+    "attach": {
+      "select_model": "Seleccionar modelo...",
+      "tools": "herramientas",
+      "workspace": "espacio",
+      "clear": "BORRAR",
+      "add": "+ AÑADIR",
+      "search_workspaces": "Buscar espacios...",
+      "attach_file": "Adjuntar imagen o PDF",
+      "attach_file_unsupported": "El modelo actual no admite archivos",
+      "screenshot": "Hacer una captura",
+      "screenshot_unsupported": "El modelo actual no admite imágenes",
+      "select_toolkits": "Seleccionar herramientas",
+      "select_workspaces": "Seleccionar espacios"
+    }
   },
   "toolkit": {
     "toolkits": "Toolkits",

@@ -288,10 +288,31 @@
     "loading": "加载中...",
     "error": "错误",
     "select": "选择...",
-    "search": "搜索..."
+    "search": "搜索...",
+    "no_results": "无结果"
   },
   "chat": {
-    "placeholder": "向 PuPu 发送消息..."
+    "placeholder": "向 PuPu 发送消息...",
+    "minimap": {
+      "top": "顶部",
+      "prev": "上一条",
+      "next": "下一条",
+      "end": "底部"
+    },
+    "attach": {
+      "select_model": "选择模型...",
+      "tools": "工具",
+      "workspace": "工作区",
+      "clear": "清空",
+      "add": "+ 添加",
+      "search_workspaces": "搜索工作区...",
+      "attach_file": "附加图片或 PDF",
+      "attach_file_unsupported": "当前模型不支持文件输入",
+      "screenshot": "截图",
+      "screenshot_unsupported": "当前模型不支持图片输入",
+      "select_toolkits": "选择工具集",
+      "select_workspaces": "选择工作区"
+    }
   },
   "toolkit": {
     "toolkits": "工具包",

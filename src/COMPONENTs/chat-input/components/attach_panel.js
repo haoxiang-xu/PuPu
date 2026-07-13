@@ -10,6 +10,7 @@ import {
 } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ScaleHighlight from "../../../BUILTIN_COMPONENTs/class/scale_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
@@ -126,6 +127,7 @@ const AttachPanel = forwardRef(({
   onSelectorOpenChange = () => {},
 }, ref) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
@@ -530,10 +532,10 @@ const AttachPanel = forwardRef(({
               options={modelSelectOptions}
               value={modelSelectValue}
               set_value={handleSelectValueChange}
-              placeholder="Select model..."
+              placeholder={t("chat.attach.select_model")}
               filterable={true}
               filter_mode="panel"
-              search_placeholder="Search models..."
+              search_placeholder={t("model_providers.search_models")}
               disabled={modelSelectDisabled}
               show_trigger_icon={true}
               on_group_toggle={onGroupToggle}
@@ -554,9 +556,9 @@ const AttachPanel = forwardRef(({
             <div
               title={
                 attachmentsEnabled
-                  ? "Attach image or PDF"
+                  ? t("chat.attach.attach_file")
                   : attachmentsDisabledReason ||
-                    "Current model does not support file inputs"
+                    t("chat.attach.attach_file_unsupported")
               }
               style={{
                 position: "relative",
@@ -578,9 +580,9 @@ const AttachPanel = forwardRef(({
               <div
                 title={
                   attachmentsEnabled
-                    ? "Take a screenshot"
+                    ? t("chat.attach.screenshot")
                     : attachmentsDisabledReason ||
-                      "Current model does not support image inputs"
+                      t("chat.attach.screenshot_unsupported")
                 }
                 style={{
                   position: "relative",
@@ -609,15 +611,15 @@ const AttachPanel = forwardRef(({
                   set_value={handleToolkitsValueChange}
                   filterable={true}
                   filter_mode="panel"
-                  search_placeholder="Search toolkits..."
+                  search_placeholder={t("toolkit.search_placeholder")}
                   open={openSelector === "tools"}
                   on_open_change={handleToolsOpenChange}
                   dropdown_position="top"
                   variant="palette"
                   palette_chip={
                     localToolkits.length > 0
-                      ? `tools ×${localToolkits.length}`
-                      : "tools"
+                      ? `${t("chat.attach.tools")} ×${localToolkits.length}`
+                      : t("chat.attach.tools")
                   }
                   palette_actions={
                     localToolkits.length > 0 ? (
@@ -626,7 +628,7 @@ const AttachPanel = forwardRef(({
                         isDark={isDark}
                         theme={theme}
                       >
-                        CLEAR
+                        {t("chat.attach.clear")}
                       </HeaderAction>
                     ) : null
                   }
@@ -635,7 +637,7 @@ const AttachPanel = forwardRef(({
                     <div style={{ position: "relative" }}>
                       <Button
                         prefix_icon="tool"
-                        title="Select toolkits"
+                        title={t("chat.attach.select_toolkits")}
                         style={{
                           ...iconBtnStyle,
                           color:
@@ -667,15 +669,15 @@ const AttachPanel = forwardRef(({
                   set_value={handleWorkspaceIdsValueChange}
                   filterable={true}
                   filter_mode="panel"
-                  search_placeholder="Search workspaces..."
+                  search_placeholder={t("chat.attach.search_workspaces")}
                   open={openSelector === "workspace"}
                   on_open_change={handleWorkspaceOpenChange}
                   dropdown_position="top"
                   variant="palette"
                   palette_chip={
                     localWorkspaceIds.length > 0
-                      ? `workspace ×${localWorkspaceIds.length}`
-                      : "workspace"
+                      ? `${t("chat.attach.workspace")} ×${localWorkspaceIds.length}`
+                      : t("chat.attach.workspace")
                   }
                   palette_actions={
                     <>
@@ -688,7 +690,7 @@ const AttachPanel = forwardRef(({
                         isDark={isDark}
                         theme={theme}
                       >
-                        + ADD
+                        {t("chat.attach.add")}
                       </HeaderAction>
                       {localWorkspaceIds.length > 0 ? (
                         <HeaderAction
@@ -696,7 +698,7 @@ const AttachPanel = forwardRef(({
                           isDark={isDark}
                           theme={theme}
                         >
-                          CLEAR
+                          {t("chat.attach.clear")}
                         </HeaderAction>
                       ) : null}
                     </>
@@ -706,7 +708,7 @@ const AttachPanel = forwardRef(({
                     <div style={{ position: "relative" }}>
                       <Button
                         prefix_icon="folder_2"
-                        title="Select workspaces"
+                        title={t("chat.attach.select_workspaces")}
                         style={{
                           ...iconBtnStyle,
                           color:

@@ -242,10 +242,31 @@
     "loading": "載入中...",
     "error": "錯誤",
     "select": "選擇...",
-    "search": "搜尋..."
+    "search": "搜尋...",
+    "no_results": "無結果"
   },
   "chat": {
-    "placeholder": "傳送訊息給 PuPu..."
+    "placeholder": "傳送訊息給 PuPu...",
+    "minimap": {
+      "top": "頂部",
+      "prev": "上一則",
+      "next": "下一則",
+      "end": "底部"
+    },
+    "attach": {
+      "select_model": "選擇模型...",
+      "tools": "工具",
+      "workspace": "工作區",
+      "clear": "清除",
+      "add": "+ 新增",
+      "search_workspaces": "搜尋工作區...",
+      "attach_file": "附加圖片或 PDF",
+      "attach_file_unsupported": "目前模型不支援檔案輸入",
+      "screenshot": "螢幕截圖",
+      "screenshot_unsupported": "目前模型不支援圖片輸入",
+      "select_toolkits": "選擇工具組",
+      "select_workspaces": "選擇工作區"
+    }
   },
   "toolkit": {
     "toolkits": "工具組",

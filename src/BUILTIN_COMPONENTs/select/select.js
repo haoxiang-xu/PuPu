@@ -10,6 +10,7 @@ import ScaleHighlight from "../class/scale_highlight";
 import SlidingHighlight from "../class/sliding_highlight";
 import useSelect, { render_icon } from "./use_select";
 import OptionList, { OptionItem } from "./option_list";
+import { useTranslation } from "../mini_react/use_translation";
 
 /* ── palette-rail provider icon (Button-style scale-in highlight) ── */
 const RailItem = ({
@@ -815,6 +816,7 @@ const Select = ({
   palette_rail = false,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const isPalette = variant === "palette";
   const tf = theme?.textfield || {};
@@ -1372,7 +1374,7 @@ const Select = ({
                   fontSize: 11,
                 }}
               >
-                No results
+                {t("common.no_results")}
               </div>
             ) : (
               flatSelectable.map((option, fi) => (

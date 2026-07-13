@@ -288,10 +288,31 @@
     "loading": "Loading...",
     "error": "Error",
     "select": "Select...",
-    "search": "Search..."
+    "search": "Search...",
+    "no_results": "No results"
   },
   "chat": {
-    "placeholder": "Message PuPu..."
+    "placeholder": "Message PuPu...",
+    "minimap": {
+      "top": "Top",
+      "prev": "Prev",
+      "next": "Next",
+      "end": "End"
+    },
+    "attach": {
+      "select_model": "Select model...",
+      "tools": "tools",
+      "workspace": "workspace",
+      "clear": "CLEAR",
+      "add": "+ ADD",
+      "search_workspaces": "Search workspaces...",
+      "attach_file": "Attach image or PDF",
+      "attach_file_unsupported": "Current model does not support file inputs",
+      "screenshot": "Take a screenshot",
+      "screenshot_unsupported": "Current model does not support image inputs",
+      "select_toolkits": "Select toolkits",
+      "select_workspaces": "Select workspaces"
+    }
   },
   "toolkit": {
     "toolkits": "Toolkits",
