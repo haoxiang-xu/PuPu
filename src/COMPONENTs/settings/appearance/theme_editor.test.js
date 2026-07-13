@@ -67,23 +67,29 @@ describe("ThemeEditor", () => {
         select: { outline: {} },
       },
     });
+    // Open the color picker for Accent, then move off the default by picking a
+    // swatch from the Nordic rail. The rail emits a live preview only.
     fireEvent.click(screen.getByRole("button", { name: "Accent" }));
-    fireEvent.change(screen.getByDisplayValue("#65c466"), {
-      target: { value: "#abcdef" },
-    });
-    expect(
-      document.documentElement.style.getPropertyValue("--pupu-accent"),
-    ).toBe("#abcdef");
+    fireEvent.click(screen.getByTestId("nordic-swatch-8"));
+
+    const previewed = document.documentElement.style.getPropertyValue(
+      "--pupu-accent",
+    );
+    // Live preview landed on the CSS var and it is genuinely off the default.
+    expect(previewed).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(previewed.toLowerCase()).not.toBe("#65c466");
+    // ...but nothing is persisted and the app theme is untouched until commit.
     expect(readThemeSettings().custom.light_mode.accent).toBeUndefined();
     expect(setTheme).not.toHaveBeenCalled();
 
-    fireEvent.blur(screen.getByDisplayValue("#abcdef"));
+    // Dismissing the popover commits the previewed colour.
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
 
-    expect(readThemeSettings().custom.light_mode.accent).toBe("#abcdef");
+    expect(readThemeSettings().custom.light_mode.accent).toBe(previewed);
     expect(setTheme).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        highlightColor: "#abcdef",
-        semantic: expect.objectContaining({ accent: "#abcdef" }),
+        highlightColor: previewed,
+        semantic: expect.objectContaining({ accent: previewed }),
       }),
     );
   });
@@ -100,18 +106,22 @@ describe("ThemeEditor", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Background" }));
-    fireEvent.change(screen.getByDisplayValue("#ffffff"), {
-      target: { value: "#abcdef" },
-    });
+    fireEvent.click(screen.getByTestId("nordic-swatch-8"));
 
+    const previewed = document.documentElement.style.getPropertyValue(
+      "--pupu-background",
+    );
+    // The edit previews live but must not reach the app theme yet.
+    expect(previewed).toMatch(/^#[0-9a-fA-F]{6}$/);
     expect(setTheme).not.toHaveBeenCalled();
 
-    fireEvent.blur(screen.getByDisplayValue("#abcdef"));
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
 
+    // On commit the edited background is mapped onto the legacy theme fields.
     expect(setTheme).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        backgroundColor: "#abcdef",
-        semantic: expect.objectContaining({ background: "#abcdef" }),
+        backgroundColor: previewed,
+        semantic: expect.objectContaining({ background: previewed }),
       }),
     );
   });
@@ -164,11 +174,12 @@ describe("ThemeEditor", () => {
 
   test("reset clears custom colors", () => {
     renderWithCtx();
+    // Edit + commit a custom Accent so there is something to clear.
     fireEvent.click(screen.getByRole("button", { name: "Accent" }));
-    fireEvent.change(screen.getByDisplayValue("#65c466"), {
-      target: { value: "#abcdef" },
-    });
-    fireEvent.blur(screen.getByDisplayValue("#abcdef"));
+    fireEvent.click(screen.getByTestId("nordic-swatch-8"));
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+    expect(readThemeSettings().custom.light_mode.accent).toBeDefined();
+
     fireEvent.click(screen.getByRole("button", { name: /Reset/i }));
     expect(readThemeSettings().custom.light_mode.accent).toBeUndefined();
   });
