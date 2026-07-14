@@ -88,12 +88,13 @@ const merge = (base, overrides) => ({
   ...overrides,
 });
 
-export const applySemanticPaletteToTheme = (base, semantic) => {
+export const applySemanticPaletteToTheme = (base, semantic, mode) => {
   if (!base || !semantic) return base;
 
   const {
     accent,
     background,
+    sidebar,
     surface,
     text,
     textMuted,
@@ -101,6 +102,9 @@ export const applySemanticPaletteToTheme = (base, semantic) => {
     success,
     danger,
   } = semantic;
+
+  const deepTier =
+    mode === "light_mode" ? sidebar : mode === "dark_mode" ? surface : null;
 
   return {
     ...base,
@@ -137,6 +141,19 @@ export const applySemanticPaletteToTheme = (base, semantic) => {
       errorAccent: danger,
       successAccent: success,
     }),
+    ...(deepTier
+      ? {
+          code: merge(base.code, { backgroundColor: deepTier }),
+          textfield: merge(base.textfield, {
+            backgroundColor: withAlpha(surface, 0.95),
+          }),
+          markdown: {
+            ...(base.markdown || {}),
+            pre: merge(base.markdown?.pre, { backgroundColor: deepTier }),
+            table: merge(base.markdown?.table, { headerBackground: deepTier }),
+          },
+        }
+      : {}),
   };
 };
 

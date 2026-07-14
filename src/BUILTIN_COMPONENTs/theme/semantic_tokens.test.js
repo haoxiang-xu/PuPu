@@ -57,3 +57,56 @@ describe("semantic_tokens", () => {
     }
   });
 });
+
+describe("phase-3 preset library", () => {
+  const HEX6 = /^#[0-9a-f]{6}$/i;
+
+  const luminance = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    const chan = (v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    return (
+      0.2126 * chan((n >> 16) & 255) +
+      0.7152 * chan((n >> 8) & 255) +
+      0.0722 * chan(n & 255)
+    );
+  };
+  const contrast = (a, b) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  const NEW_PRESETS = ["graphite", "violet", "rose", "nord"];
+
+  test("new presets exist with 9 valid hex tokens per mode", () => {
+    for (const name of NEW_PRESETS) {
+      const preset = SEMANTIC_PRESETS[name];
+      expect(preset).toBeDefined();
+      for (const mode of ["light_mode", "dark_mode"]) {
+        for (const key of SEMANTIC_TOKEN_KEYS) {
+          expect(preset[mode][key]).toMatch(HEX6);
+        }
+      }
+    }
+  });
+
+  test("every preset keeps text/background ≥ 4.5:1", () => {
+    for (const name of Object.keys(SEMANTIC_PRESETS)) {
+      for (const mode of ["light_mode", "dark_mode"]) {
+        const p = SEMANTIC_PRESETS[name][mode];
+        expect(contrast(p.text, p.background)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  test("new presets keep accent/background ≥ 3:1", () => {
+    for (const name of NEW_PRESETS) {
+      for (const mode of ["light_mode", "dark_mode"]) {
+        const p = SEMANTIC_PRESETS[name][mode];
+        expect(contrast(p.accent, p.background)).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+});

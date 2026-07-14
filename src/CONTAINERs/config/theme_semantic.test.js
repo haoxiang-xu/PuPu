@@ -143,3 +143,53 @@ describe("resolveSemanticPalette auto-derivation", () => {
     expect(p.surface).toBe("#333333");
   });
 });
+
+describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
+  const BASE = {
+    code: { backgroundColor: "#1E1E1E", fontSize: 12 },
+    textfield: { backgroundColor: "rgba(30, 30, 30, 0.95)" },
+    markdown: {
+      color: "#EAEAEA",
+      pre: { backgroundColor: "#1E1E1E", padding: 10 },
+      table: { headerBackground: "#222222", borderColor: "#333333" },
+    },
+  };
+
+  test("dark mode maps deep sinks to surface tier", () => {
+    const palette = resolveSemanticPalette("dark_mode", {});
+    const out = applySemanticPaletteToTheme(BASE, palette, "dark_mode");
+    expect(out.code.backgroundColor).toBe("#1e1e1e");
+    expect(out.markdown.pre.backgroundColor).toBe("#1e1e1e");
+    expect(out.markdown.table.headerBackground).toBe("#1e1e1e");
+    expect(out.textfield.backgroundColor).toBe("rgba(30,30,30, 0.95)");
+    // non-color keys preserved
+    expect(out.code.fontSize).toBe(12);
+    expect(out.markdown.pre.padding).toBe(10);
+    expect(out.markdown.table.borderColor).toBe("#333333");
+  });
+
+  test("light mode maps deep sinks to sidebar tier", () => {
+    const palette = resolveSemanticPalette("light_mode", {});
+    const out = applySemanticPaletteToTheme(BASE, palette, "light_mode");
+    expect(out.code.backgroundColor).toBe("#f5f5f5");
+    expect(out.markdown.pre.backgroundColor).toBe("#f5f5f5");
+    expect(out.markdown.table.headerBackground).toBe("#f5f5f5");
+    expect(out.textfield.backgroundColor).toBe("rgba(255,255,255, 0.95)");
+  });
+
+  test("custom palette follows through deep sinks", () => {
+    const palette = resolveSemanticPalette("dark_mode", {
+      preset: "ocean",
+    });
+    const out = applySemanticPaletteToTheme(BASE, palette, "dark_mode");
+    expect(out.code.backgroundColor).toBe("#13232f");
+    expect(out.textfield.backgroundColor).toBe("rgba(19,35,47, 0.95)");
+  });
+
+  test("omitting mode keeps legacy behavior (no deep mapping)", () => {
+    const palette = resolveSemanticPalette("dark_mode", {});
+    const out = applySemanticPaletteToTheme(BASE, palette);
+    expect(out.code).toBe(BASE.code);
+    expect(out.textfield).toBe(BASE.textfield);
+  });
+});

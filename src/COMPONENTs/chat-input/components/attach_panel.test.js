@@ -348,3 +348,18 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
   });
 });
+
+describe("attach panel semantic surface binding", () => {
+  test("frosted panel + pill backgrounds derive from semantic vars, not hardcoded rgba", () => {
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "attach_panel.js"),
+      "utf8",
+    );
+    // near-opaque frosted surface must bind to the surface tier
+    expect(src).not.toMatch(/rgba\(28,28,28/);
+    expect(src).not.toMatch(/rgba\(252,252,252/);
+    expect(src).toMatch(/panelBg = isDark[\s\S]{0,140}var\(--pupu-surface-rgb\)/);
+    // pill overlay follows the neutral-overlay policy (text tier + alpha)
+    expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
+  });
+});

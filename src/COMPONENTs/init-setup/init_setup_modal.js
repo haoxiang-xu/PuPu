@@ -42,11 +42,11 @@ const SetupFlow = ({
   const highlight = themeHighlightColor(theme);
   const highlightDim = themeHighlightRgba(theme, 0.7);
   const lineDone = highlightDim;
-  const linePending = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
-  const dotPending = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)";
-  const labelActive = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
-  const labelDone = isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)";
-  const labelPending = isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.22)";
+  const linePending = isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.09)";
+  const dotPending = "rgba(var(--pupu-text-rgb),0.14)";
+  const labelActive = isDark ? "rgba(var(--pupu-text-rgb),0.92)" : "rgba(var(--pupu-text-rgb),0.88)";
+  const labelDone = "rgba(var(--pupu-text-rgb),0.38)";
+  const labelPending = "rgba(var(--pupu-text-rgb),0.22)";
 
   const TRACK_W = 22;
   const DOT_R = 4;
@@ -282,9 +282,9 @@ const InitSetupModal = ({ open, onClose }) => {
     }
   }, [open]);
 
-  const textColor = isDark ? "#ffffff" : "#222222";
-  const skipColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.22)";
-  const skipHoverColor = isDark ? "rgba(255,255,255,0.48)" : "rgba(0,0,0,0.42)";
+  const textColor = "var(--pupu-text)";
+  const skipColor = isDark ? "rgba(var(--pupu-text-rgb),0.25)" : "rgba(var(--pupu-text-rgb),0.22)";
+  const skipHoverColor = isDark ? "rgba(var(--pupu-text-rgb),0.48)" : "rgba(var(--pupu-text-rgb),0.42)";
 
   const handleFinish = () => {
     markSetupComplete();
@@ -339,7 +339,7 @@ const InitSetupModal = ({ open, onClose }) => {
         width: 480,
         height: "85vh",
         padding: 0,
-        backgroundColor: isDark ? "#141414" : "#ffffff",
+        backgroundColor: "var(--pupu-surface)",
         color: textColor,
         overflow: "hidden",
         display: "flex",

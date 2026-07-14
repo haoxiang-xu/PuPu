@@ -1,7 +1,11 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
+import ThemePreviewCard from "./theme_preview_card";
+import { toast } from "../../../SERVICEs/toast";
 import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_PRESETS,
@@ -33,10 +37,28 @@ const TOKEN_LABELS = {
   danger: "Danger",
 };
 
-const PRESET_OPTIONS = Object.keys(SEMANTIC_PRESETS).map((name) => ({
-  value: name,
-  label: name,
-}));
+const PresetDots = ({ palette }) => (
+  <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+    {["accent", "background", "surface", "text"].map((key) => (
+      <span
+        key={key}
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          backgroundColor: palette[key],
+          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.18)",
+        }}
+      />
+    ))}
+  </span>
+);
+
+const prettyPresetLabel = (name) =>
+  name
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 
 const ThemeEditor = () => {
   const { onThemeMode, theme, setTheme } = useContext(ConfigContext);
@@ -58,7 +80,20 @@ const ThemeEditor = () => {
     custom: settings.custom,
   });
 
+  const presetOptions = Object.keys(SEMANTIC_PRESETS).map((name) => ({
+    value: name,
+    label: prettyPresetLabel(name),
+    icon: <PresetDots palette={SEMANTIC_PRESETS[name][editMode]} />,
+  }));
+
+  const [draftColor, setDraftColor] = useState(null);
+
+  const cardPalette = draftColor
+    ? { ...palette, [draftColor.key]: draftColor.value }
+    : palette;
+
   const previewThemeColor = (mode, key, value) => {
+    setDraftColor({ key, value });
     if (mode !== activeMode) {
       return;
     }
@@ -82,11 +117,12 @@ const ThemeEditor = () => {
     });
     applySemanticCssVars(livePalette);
     if (setTheme && theme) {
-      setTheme(applySemanticPaletteToTheme(theme, livePalette));
+      setTheme(applySemanticPaletteToTheme(theme, livePalette, activeMode));
     }
   };
 
   const commitThemeColor = (key, value) => {
+    setDraftColor(null);
     const next = writeThemeCustomColor(editMode, key, value);
     setSettings(next);
     if (editMode === activeMode) {
@@ -95,6 +131,7 @@ const ThemeEditor = () => {
   };
 
   const onPresetChange = (preset) => {
+    setDraftColor(null);
     const next = writeThemePreset(preset);
     setSettings(next);
     syncCommittedSettings(next);
@@ -104,6 +141,7 @@ const ThemeEditor = () => {
   const advState = advancedTokenState(settings, editMode, palette);
 
   const onResetTier = (key) => {
+    setDraftColor(null);
     const next = clearThemeCustomColor(editMode, key);
     setSettings(next);
     if (editMode === activeMode) {
@@ -112,10 +150,29 @@ const ThemeEditor = () => {
   };
 
   const onReset = () => {
+    setDraftColor(null);
     const next = resetThemeSettings();
     setSettings(next);
     syncCommittedSettings(next);
   };
+
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  useEffect(() => {
+    if (!confirmingReset) return undefined;
+    const timer = setTimeout(() => setConfirmingReset(false), 3000);
+    return () => clearTimeout(timer);
+  }, [confirmingReset]);
+
+  const onResetClick = () => {
+    if (!confirmingReset) {
+      setConfirmingReset(true);
+      return;
+    }
+    setConfirmingReset(false);
+    onReset();
+  };
+
+  const importInputRef = useRef(null);
 
   const onExport = () => {
     const blob = new Blob([JSON.stringify(settings, null, 2)], {
@@ -136,50 +193,34 @@ const ThemeEditor = () => {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result));
-        if (
-          parsed &&
-          typeof parsed.preset === "string" &&
-          SEMANTIC_PRESETS[parsed.preset]
-        ) {
-          writeThemePreset(parsed.preset);
+        const hasPreset =
+          parsed && typeof parsed.preset === "string" && SEMANTIC_PRESETS[parsed.preset];
+        const hasCustom =
+          parsed && parsed.custom && typeof parsed.custom === "object";
+        if (!hasPreset && !hasCustom) {
+          toast.error("Theme file not recognized");
+          return;
         }
-        if (parsed && parsed.custom) {
-          writeThemeCustom(parsed.custom);
-        }
+        if (hasPreset) writeThemePreset(parsed.preset);
+        if (hasCustom) writeThemeCustom(parsed.custom);
         const next = readThemeSettings();
         setSettings(next);
         syncCommittedSettings(next);
+        toast.success("Theme imported");
       } catch (_err) {
-        /* ignore malformed file */
+        toast.error("Theme file not recognized");
       }
     };
     reader.readAsText(file);
     e.target.value = "";
   };
 
-  const tabStyle = (mode) => ({
-    padding: "4px 12px",
+  const smallBtnStyle = {
     fontSize: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
     borderRadius: 7,
-    cursor: "pointer",
-    border: "none",
-    backgroundColor:
-      editMode === mode
-        ? isDark
-          ? "rgba(255,255,255,0.12)"
-          : "rgba(0,0,0,0.08)"
-        : "transparent",
-    color: isDark ? "#fff" : "#222",
-  });
-
-  const btnStyle = {
-    padding: "4px 12px",
-    fontSize: 12,
-    borderRadius: 7,
-    cursor: "pointer",
-    border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`,
-    backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
-    color: isDark ? "#fff" : "#222",
+    ...(isDark ? { hoverBackgroundColor: "rgba(255,255,255,0.10)" } : {}),
   };
 
   const selectStyle = {
@@ -201,7 +242,7 @@ const ThemeEditor = () => {
           Preset
         </span>
         <Select
-          options={PRESET_OPTIONS}
+          options={presetOptions}
           value={settings.preset}
           set_value={onPresetChange}
           filterable={false}
@@ -211,13 +252,19 @@ const ThemeEditor = () => {
         />
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        <button type="button" style={tabStyle("light_mode")} onClick={() => setEditMode("light_mode")}>
-          Light
-        </button>
-        <button type="button" style={tabStyle("dark_mode")} onClick={() => setEditMode("dark_mode")}>
-          Dark
-        </button>
+      <ThemePreviewCard palette={cardPalette} />
+
+      <div style={{ marginBottom: 12 }}>
+        <SegmentedButton
+          options={[
+            { label: "Light", value: "light_mode" },
+            { label: "Dark", value: "dark_mode" },
+          ]}
+          value={editMode}
+          on_change={setEditMode}
+          style={{ fontSize: 12, padding: 2 }}
+          button_style={{ padding: "4px 10px" }}
+        />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -232,6 +279,8 @@ const ThemeEditor = () => {
             <ColorPicker
               label={TOKEN_LABELS[key]}
               value={palette[key]}
+              panel="rectangular"
+              show_alpha={false}
               onPreview={(v) => previewThemeColor(editMode, key, v)}
               onCommit={(v) => commitThemeColor(key, v)}
             />
@@ -240,13 +289,11 @@ const ThemeEditor = () => {
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <button
-          type="button"
-          style={btnStyle}
+        <Button
+          label={advancedOpen ? "Hide advanced" : "Advanced background"}
           onClick={() => setAdvancedOpen((o) => !o)}
-        >
-          {advancedOpen ? "Hide advanced" : "Advanced background"}
-        </button>
+          style={smallBtnStyle}
+        />
         {advancedOpen && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
             {ADVANCED_TIERS.map((key) => (
@@ -262,13 +309,17 @@ const ThemeEditor = () => {
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {!advState[key].isAuto && (
-                    <button type="button" style={btnStyle} onClick={() => onResetTier(key)}>
-                      Auto
-                    </button>
+                    <Button
+                      label="Auto"
+                      onClick={() => onResetTier(key)}
+                      style={smallBtnStyle}
+                    />
                   )}
                   <ColorPicker
                     label={TOKEN_LABELS[key]}
                     value={advState[key].value}
+                    panel="rectangular"
+                    show_alpha={false}
                     onPreview={(v) => previewThemeColor(editMode, key, v)}
                     onCommit={(v) => commitThemeColor(key, v)}
                   />
@@ -280,16 +331,27 @@ const ThemeEditor = () => {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <label style={{ ...btnStyle, display: "inline-flex", alignItems: "center" }}>
-          Import JSON
-          <input type="file" accept="application/json" onChange={onImport} style={{ display: "none" }} />
-        </label>
-        <button type="button" style={btnStyle} onClick={onExport}>
-          Export JSON
-        </button>
-        <button type="button" style={btnStyle} onClick={onReset}>
-          Reset to default
-        </button>
+        <Button label="Export JSON" onClick={onExport} style={smallBtnStyle} />
+        <Button
+          label="Import JSON"
+          onClick={() => importInputRef.current && importInputRef.current.click()}
+          style={smallBtnStyle}
+        />
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json"
+          onChange={onImport}
+          style={{ display: "none" }}
+        />
+        <Button
+          label={confirmingReset ? "Confirm reset" : "Reset to default"}
+          onClick={onResetClick}
+          style={{
+            ...smallBtnStyle,
+            ...(confirmingReset ? { color: "var(--pupu-danger)" } : {}),
+          }}
+        />
       </div>
     </div>
   );

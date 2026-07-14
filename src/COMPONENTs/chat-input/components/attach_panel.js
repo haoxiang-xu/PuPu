@@ -410,9 +410,13 @@ const AttachPanel = forwardRef(({
 
   let panelBg = "transparent";
   if (floating)
-    panelBg = isDark ? "rgba(28,28,28,0.85)" : "rgba(252,252,252,0.9)";
+    panelBg = isDark
+      ? "rgba(var(--pupu-surface-rgb),0.85)"
+      : "rgba(var(--pupu-surface-rgb),0.9)";
 
-  const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+  const selectBg = isDark
+    ? "rgba(var(--pupu-text-rgb),0.07)"
+    : "rgba(var(--pupu-text-rgb),0.05)";
 
   /* shared pill style (model selector) */
   const pillStyle = {
