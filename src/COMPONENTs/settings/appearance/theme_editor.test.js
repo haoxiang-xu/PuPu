@@ -1,5 +1,5 @@
 // src/COMPONENTs/settings/appearance/theme_editor.test.js
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ThemeEditor from "./theme_editor";
 import { readThemeSettings } from "./storage";
@@ -256,9 +256,51 @@ describe("ThemeEditor", () => {
     fireEvent.change(input, { target: { files: [good] } });
     await screen.findByTestId("theme-preview-card"); // flush
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(readThemeSettings().preset).toBe("ocean");
 
+    const beforeBad = readThemeSettings();
     const bad = new File(["{not json"], "broken.json", { type: "application/json" });
     fireEvent.change(input, { target: { files: [bad] } });
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(readThemeSettings()).toEqual(beforeBad);
   });
+
+  test("reset confirm falls off after timeout without changing settings", () => {
+    jest.useFakeTimers();
+    try {
+      renderWithCtx();
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
+      expect(
+        screen.getByRole("button", { name: "Confirm reset" }),
+      ).toBeInTheDocument();
+
+      act(() => {
+        jest.advanceTimersByTime(3100);
+      });
+
+      expect(
+        screen.getByRole("button", { name: "Reset to default" }),
+      ).toBeInTheDocument();
+      expect(readThemeSettings().custom?.light_mode?.accent).toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("dismissing the panel without editing does not pin a custom color (F1 regression)", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByRole("button", { name: "Accent" }));
+    expect(screen.getByTestId("color-picker-panel")).toBeInTheDocument();
+
+    // Dismiss without typing anything into the hex field.
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+
+    expect(readThemeSettings().custom?.light_mode?.accent).toBeUndefined();
+  });
+
+  // Sanity for F1/F4 together: an actual edit (type hex + Enter + dismiss)
+  // still persists exactly once. Already covered end-to-end by
+  // "reset requires a second confirming click" above, which performs this
+  // exact sequence and asserts the single committed value.
 });

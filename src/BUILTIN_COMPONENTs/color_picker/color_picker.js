@@ -197,6 +197,7 @@ const ColorPickerPanel = ({
   const [dragging, setDragging] = useState(false);
 
   const svRef = useRef(null);
+  const mountedRef = useRef(false);
 
   const rgb = hsvToRgb(hsv.h, hsv.s, hsv.v);
   const hex = rgbToHex(rgb);
@@ -205,6 +206,10 @@ const ColorPickerPanel = ({
   const selectDropdownTheme = theme?.select?.dropdown || {};
 
   useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
     if (set_value) set_value(hex);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hex]);
@@ -612,6 +617,7 @@ const ColorPicker = ({
     (h) => {
       if (!isControlled) setInternal(h);
       if (onCommit) onCommit(h);
+      lastHexRef.current = null;
     },
     [isControlled, onCommit],
   );
@@ -756,7 +762,10 @@ const ColorPicker = ({
       >
         <Button
           ariaLabel={label || "Open color picker"}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            if (open) commitLatest();
+            setOpen((o) => !o);
+          }}
           style={{
             root: {
               height: 36,
