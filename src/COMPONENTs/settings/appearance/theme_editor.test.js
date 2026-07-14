@@ -67,10 +67,12 @@ describe("ThemeEditor", () => {
         select: { outline: {} },
       },
     });
-    // Open the color picker for Accent, then move off the default by picking a
-    // swatch from the Nordic rail. The rail emits a live preview only.
+    // Open the color picker for Accent, then move off the default by typing
+    // into the rectangular panel's hex field. Typing emits a live preview only.
     fireEvent.click(screen.getByRole("button", { name: "Accent" }));
-    fireEvent.click(screen.getByTestId("nordic-swatch-8"));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#112233" },
+    });
 
     const previewed = document.documentElement.style.getPropertyValue(
       "--pupu-accent",
@@ -106,7 +108,9 @@ describe("ThemeEditor", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Background" }));
-    fireEvent.click(screen.getByTestId("nordic-swatch-8"));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#112233" },
+    });
 
     const previewed = document.documentElement.style.getPropertyValue(
       "--pupu-background",
@@ -176,11 +180,21 @@ describe("ThemeEditor", () => {
     renderWithCtx();
     // Edit + commit a custom Accent so there is something to clear.
     fireEvent.click(screen.getByRole("button", { name: "Accent" }));
-    fireEvent.click(screen.getByTestId("nordic-swatch-8"));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#112233" },
+    });
     fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
     expect(readThemeSettings().custom.light_mode.accent).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: /Reset/i }));
     expect(readThemeSettings().custom.light_mode.accent).toBeUndefined();
+  });
+
+  test("token color pickers open the rectangular panel with hex input", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByRole("button", { name: "Accent" }));
+    expect(screen.getByTestId("color-picker-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("color-picker-value-hex")).toBeInTheDocument();
+    expect(screen.queryByTestId("color-picker-alpha")).toBeNull();
   });
 });

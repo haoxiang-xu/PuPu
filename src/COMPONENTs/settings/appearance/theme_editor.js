@@ -232,6 +232,8 @@ const ThemeEditor = () => {
             <ColorPicker
               label={TOKEN_LABELS[key]}
               value={palette[key]}
+              panel="rectangular"
+              show_alpha={false}
               onPreview={(v) => previewThemeColor(editMode, key, v)}
               onCommit={(v) => commitThemeColor(key, v)}
             />
@@ -269,6 +271,8 @@ const ThemeEditor = () => {
                   <ColorPicker
                     label={TOKEN_LABELS[key]}
                     value={advState[key].value}
+                    panel="rectangular"
+                    show_alpha={false}
                     onPreview={(v) => previewThemeColor(editMode, key, v)}
                     onCommit={(v) => commitThemeColor(key, v)}
                   />
