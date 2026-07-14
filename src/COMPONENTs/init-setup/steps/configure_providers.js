@@ -76,7 +76,7 @@ const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
   const statusLabel =
     status === "ok" ? "Saved" : status === "error" ? "Invalid key" : "";
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
+  const mutedColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.38)";
 
   const handleSave = useCallback(() => {
     const trimmed = value.trim();
@@ -154,7 +154,7 @@ const OllamaSubStep = ({ isDark }) => {
   const [installError, setInstallError] = useState(null);
   const [installDone, setInstallDone] = useState(false);
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
+  const mutedColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.38)";
 
   useEffect(() => {
     const check = async () => {
@@ -286,8 +286,8 @@ const OllamaSubStep = ({ isDark }) => {
                   height: 4,
                   borderRadius: 2,
                   background: isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.07)",
+                    ? "rgba(var(--pupu-text-rgb),0.08)"
+                    : "rgba(var(--pupu-text-rgb),0.07)",
                   overflow: "hidden",
                 }}
               >
@@ -397,9 +397,9 @@ const ConfigureProvidersStep = ({
   const isDark = onThemeMode === "dark_mode";
   const highlight = themeHighlightColor(theme);
 
-  const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
-  const subColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+  const headingColor = isDark ? "rgba(var(--pupu-text-rgb),0.92)" : "rgba(var(--pupu-text-rgb),0.88)";
+  const subColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.38)";
+  const dividerColor = "rgba(var(--pupu-text-rgb),0.07)";
 
   const currentProvider = selectedProviders[providerSubStep];
   const meta = PROVIDER_META[currentProvider] || {};
@@ -490,8 +490,8 @@ const ConfigureProvidersStep = ({
                     color: isActive
                       ? highlight
                       : isDark
-                        ? "rgba(255,255,255,0.40)"
-                        : "rgba(0,0,0,0.35)",
+                        ? "rgba(var(--pupu-text-rgb),0.40)"
+                        : "rgba(var(--pupu-text-rgb),0.35)",
                   },
                 }}
               />

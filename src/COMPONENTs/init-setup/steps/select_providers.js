@@ -40,10 +40,10 @@ const SelectProvidersStep = ({
   const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
-  const nameColor = isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.85)";
-  const descColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
-  const tagBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
-  const tagColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const nameColor = isDark ? "rgba(var(--pupu-text-rgb),0.88)" : "rgba(var(--pupu-text-rgb),0.85)";
+  const descColor = isDark ? "rgba(var(--pupu-text-rgb),0.35)" : "rgba(var(--pupu-text-rgb),0.38)";
+  const tagBg = isDark ? "rgba(var(--pupu-text-rgb),0.06)" : "rgba(var(--pupu-text-rgb),0.05)";
+  const tagColor = "rgba(var(--pupu-text-rgb),0.35)";
 
   const toggle = useCallback(
     (key) =>
@@ -144,10 +144,8 @@ const SelectProvidersStep = ({
                     style={{
                       backgroundColor: selected
                         ? `${accent}12`
-                        : isDark
-                          ? "rgba(30,30,30,0.95)"
-                          : "rgba(255,255,255,0.95)",
-                      border: `1.5px solid ${selected ? accent : isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"}`,
+                        : "rgba(var(--pupu-surface-rgb),0.95)",
+                      border: `1.5px solid ${selected ? accent : isDark ? "rgba(var(--pupu-text-rgb),0.07)" : "rgba(var(--pupu-text-rgb),0.08)"}`,
                       boxShadow: selected
                         ? `0 0 0 3px ${accent}18, 0 4px 24px rgba(0,0,0,${isDark ? 0.5 : 0.08})`
                         : undefined,
@@ -211,8 +209,8 @@ const SelectProvidersStep = ({
                             background: selected
                               ? `${accent}20`
                               : isDark
-                                ? "rgba(255,255,255,0.05)"
-                                : "rgba(0,0,0,0.04)",
+                                ? "rgba(var(--pupu-text-rgb),0.05)"
+                                : "rgba(var(--pupu-text-rgb),0.04)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -228,8 +226,8 @@ const SelectProvidersStep = ({
                                 selected
                                   ? accent
                                   : isDark
-                                    ? "rgba(255,255,255,0.5)"
-                                    : "rgba(0,0,0,0.4)"
+                                    ? "rgba(var(--pupu-text-rgb),0.5)"
+                                    : "rgba(var(--pupu-text-rgb),0.4)"
                               }
                             />
                           </div>

@@ -6,9 +6,9 @@ const WelcomingStep = ({ onNext }) => {
   const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
-  const headingColor = isDark ? "#ffffff" : "#222222";
-  const subColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
-  const bulletColor = isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.15)";
+  const headingColor = "var(--pupu-text)";
+  const subColor = "rgba(var(--pupu-text-rgb),0.45)";
+  const bulletColor = isDark ? "rgba(var(--pupu-text-rgb),0.18)" : "rgba(var(--pupu-text-rgb),0.15)";
 
   return (
     <div

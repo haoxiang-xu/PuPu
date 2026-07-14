@@ -34,10 +34,10 @@ const WorkspaceStep = ({ onNext }) => {
   const [validation, setValidation] = useState(null); // null | { valid: bool, message: string }
   const [validating, setValidating] = useState(false);
 
-  const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
-  const subColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)";
+  const headingColor = isDark ? "rgba(var(--pupu-text-rgb),0.92)" : "rgba(var(--pupu-text-rgb),0.88)";
+  const subColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.38)";
+  const dividerColor = "rgba(var(--pupu-text-rgb),0.07)";
+  const mutedColor = isDark ? "rgba(var(--pupu-text-rgb),0.35)" : "rgba(var(--pupu-text-rgb),0.32)";
 
   /* Validate path after it changes */
   useEffect(() => {
