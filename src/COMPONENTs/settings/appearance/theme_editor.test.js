@@ -1,8 +1,12 @@
 // src/COMPONENTs/settings/appearance/theme_editor.test.js
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ThemeEditor from "./theme_editor";
 import { readThemeSettings } from "./storage";
+
+jest.mock("../../../SERVICEs/toast", () => ({
+  toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() },
+}));
 
 const renderWithCtx = (overrides = {}) => {
   const setTheme = jest.fn();
@@ -186,6 +190,8 @@ describe("ThemeEditor", () => {
     fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
     expect(readThemeSettings().custom.light_mode.accent).toBeDefined();
 
+    // First click only arms the two-step confirm; second click resets.
+    fireEvent.click(screen.getByRole("button", { name: /Reset/i }));
     fireEvent.click(screen.getByRole("button", { name: /Reset/i }));
     expect(readThemeSettings().custom.light_mode.accent).toBeUndefined();
   });
@@ -200,9 +206,52 @@ describe("ThemeEditor", () => {
 
   test("preview card follows the edited (non-active) mode", () => {
     renderWithCtx(); // active = light_mode
-    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
+    // SegmentedButton options render as div cells, not <button> elements —
+    // query by their visible label text instead of role.
+    fireEvent.click(screen.getByText("Dark"));
     expect(screen.getByTestId("theme-preview-card")).toHaveStyle({
       backgroundColor: "#121212",
     });
+  });
+
+  test("reset requires a second confirming click", () => {
+    renderWithCtx();
+    // seed a custom color. "color-picker-value-hex" is the wrapper div; the
+    // actual input lives inside it (see color_picker.js renderValueField).
+    fireEvent.click(screen.getByRole("button", { name: "Accent" }));
+    const hexInput = screen
+      .getByTestId("color-picker-value-hex")
+      .querySelector("input");
+    fireEvent.change(hexInput, {
+      target: { value: "#ff0000" },
+    });
+    fireEvent.keyDown(hexInput, { key: "Enter" });
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+    expect(readThemeSettings().custom.light_mode.accent).toBe("#FF0000");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
+    // first click arms, does NOT reset
+    expect(readThemeSettings().custom.light_mode.accent).toBe("#FF0000");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm reset" }));
+    expect(readThemeSettings().custom?.light_mode?.accent).toBeUndefined();
+  });
+
+  test("import toasts on success and on malformed file", async () => {
+    const { toast } = require("../../../SERVICEs/toast");
+    renderWithCtx();
+    const input = document.querySelector('input[type="file"]');
+
+    const good = new File(
+      [JSON.stringify({ preset: "ocean", custom: {} })],
+      "theme.json",
+      { type: "application/json" },
+    );
+    fireEvent.change(input, { target: { files: [good] } });
+    await screen.findByTestId("theme-preview-card"); // flush
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+
+    const bad = new File(["{not json"], "broken.json", { type: "application/json" });
+    fireEvent.change(input, { target: { files: [bad] } });
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 });
