@@ -20,6 +20,7 @@ describe("command_registry", () => {
       insertText: "/btw ",
       exclusiveGroup: "interject-channel",
       channel: "btw",
+      sourceLabel: "",
     });
     expect(whileStreaming[1].icon).toBe("fyi");
     expect(whileStreaming[1].channel).toBe("fyi");

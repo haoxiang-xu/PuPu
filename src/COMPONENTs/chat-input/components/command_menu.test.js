@@ -67,4 +67,33 @@ describe("CommandMenu", () => {
     expect(onPick).toHaveBeenCalledTimes(1);
     expect(onPick).toHaveBeenCalledWith(makeItems()[1]);
   });
+
+  test("renders a trailing source tag when item.sourceLabel is set", () => {
+    const items = [
+      {
+        name: "/plan",
+        description: "app",
+        insertText: "/plan ",
+        sourceLabel: "Plankit",
+      },
+    ];
+    render(
+      <CommandMenu items={items} activeIndex={0} onPick={() => {}} isDark={false} />,
+    );
+
+    expect(screen.getByText("Plankit")).toBeInTheDocument();
+  });
+
+  test("renders no source tag node when item.sourceLabel is absent", () => {
+    render(
+      <CommandMenu items={makeItems()} activeIndex={0} onPick={() => {}} isDark={false} />,
+    );
+
+    // none of the builtin items (no icon, no sourceLabel) carry a third
+    // trailing span — just the name span + description span per row
+    const rows = screen.getAllByRole("option");
+    rows.forEach((row) => {
+      expect(row.children.length).toBe(2);
+    });
+  });
 });

@@ -35,6 +35,7 @@ import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
 import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
+import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 
 const DEFAULT_DISCLAIMER =
@@ -279,6 +280,8 @@ const ChatInterface = () => {
     : modelSupportsAttachments
       ? ""
       : "Current model does not support image or file inputs.";
+
+  usePluginSkillSync(unchainStatus.ready);
 
   const effectiveSelectedToolkits = useMemo(
     () => (modelSupportsTools ? session.selectedToolkits : []),

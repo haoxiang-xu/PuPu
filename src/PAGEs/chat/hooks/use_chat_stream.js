@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { toast } from "../../../SERVICEs/toast";
-import { extractCommands } from "../../../SERVICEs/command_registry";
+import { expandCommands, extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
 import { createLogger } from "../../../SERVICEs/console_logger";
@@ -258,6 +258,8 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedToolkitsRef = useRef(selectedToolkits);
+  selectedToolkitsRef.current = selectedToolkits;
 
   const streamHandlesRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
@@ -3798,10 +3800,27 @@ export const useChatStream = ({
         return;
       }
 
+      // Composer plugin-skill expansion: only for text actually typed into
+      // the composer. Programmatic sends (interject new_run fallback / queue
+      // relay) already carry a resolved body — expanding them again would
+      // re-run command tokens that were already handled upstream.
+      const outgoingText = isProgrammaticSend
+        ? text
+        : (
+            expandCommands(text, {
+              isStreaming: false,
+              selectedToolkits: selectedToolkitsRef.current,
+            }).body || ""
+          ).trim();
+
+      if (!outgoingText && !hasAttachments) {
+        return;
+      }
+
       void runTurnRequest({
         mode: "send",
         chatId: currentChatId,
-        text,
+        text: outgoingText,
         attachments: currentDraftAttachments,
         baseMessages: messagesRef.current,
         clearComposer: !isProgrammaticSend,

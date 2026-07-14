@@ -113,27 +113,27 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    const toolsSelect = screen.getByTestId("select-Search toolkits...");
+    const toolsSelect = screen.getByTestId("select-Search plugins...");
 
     expect(toolsSelect.getAttribute("data-open")).toBe("false");
 
     fireEvent.click(toolsSelect);
     expect(refreshToolkits).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "true",
     );
 
-    fireEvent.click(screen.getByTestId("select-Search toolkits..."));
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
     expect(refreshToolkits).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "false",
     );
 
-    fireEvent.click(screen.getByTestId("select-Search toolkits..."));
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
     expect(refreshToolkits).toHaveBeenCalledTimes(2);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "true",
     );
@@ -170,7 +170,7 @@ describe("AttachPanel toolkit selector refresh", () => {
       "data-dropdown-position",
       "top",
     );
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-dropdown-position",
       "top",
     );
@@ -234,7 +234,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     );
 
     expect(screen.queryByTestId("select-Select model...")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("select-Search toolkits...")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("select-Search plugins...")).not.toBeInTheDocument();
     expect(screen.queryByTestId("select-Search workspaces...")).not.toBeInTheDocument();
   });
 
@@ -302,7 +302,7 @@ describe("AttachPanel toolkit selector refresh", () => {
 
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
-    expect(screen.getByTestId("select-Search toolkits...")).toBeInTheDocument();
+    expect(screen.getByTestId("select-Search plugins...")).toBeInTheDocument();
     await waitFor(() => {
       expect(onSelectRecipe).toHaveBeenCalledWith("Default");
     });

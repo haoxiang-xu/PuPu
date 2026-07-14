@@ -126,6 +126,9 @@ const CommandRow = ({
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
   const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.44)";
   const iconColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
+  const sourceColor = isDark ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.32)";
+  const hasSource =
+    typeof item.sourceLabel === "string" && item.sourceLabel.length > 0;
 
   /* Elevator Push entrance (bare/palette mode only) */
   const entranceStyle = entrance
@@ -211,6 +214,19 @@ const CommandRow = ({
       >
         {item.description}
       </span>
+      {hasSource ? (
+        <span
+          style={{
+            flex: "none",
+            fontSize: 10,
+            lineHeight: "16px",
+            color: sourceColor,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {item.sourceLabel}
+        </span>
+      ) : null}
     </div>
   );
 };

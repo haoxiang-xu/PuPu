@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { LocaleContext } from "../../CONTAINERs/config/context";
 import ChatInput from "./chat_input";
+import { registerCommand, unregisterBySource } from "../../SERVICEs/command_registry";
 
 // Renders ChatInput as a controlled component so keyboard interaction can
 // actually mutate `value`, the way the real chat page wires onChange.
@@ -9,6 +10,7 @@ const ControlledChatInput = ({
   isStreaming = false,
   onSend = () => {},
   initialValue = "",
+  selectedToolkits = [],
 }) => {
   const [value, setValue] = useState(initialValue);
   return (
@@ -20,6 +22,7 @@ const ControlledChatInput = ({
         onStop={() => {}}
         isStreaming={isStreaming}
         showAttachments={false}
+        selectedToolkits={selectedToolkits}
       />
     </LocaleContext.Provider>
   );
@@ -220,5 +223,48 @@ describe("ChatInput slash-command menu wiring", () => {
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  describe("plugin skill commands (selectedToolkits gating)", () => {
+    const PLUGIN_SOURCE = "plugin:plankit";
+
+    beforeEach(() => {
+      registerCommand({
+        name: "/plan",
+        description: "Plan the task",
+        source: PLUGIN_SOURCE,
+        sourceLabel: "Plankit",
+        availability: (ctx) => ctx.selectedToolkits.includes("plankit"),
+      });
+    });
+
+    afterEach(() => {
+      unregisterBySource(PLUGIN_SOURCE);
+    });
+
+    test("lists a plugin skill command when its toolkit is selected and not streaming", () => {
+      render(
+        <ControlledChatInput
+          isStreaming={false}
+          selectedToolkits={["plankit"]}
+        />,
+      );
+      const textarea = getTextarea();
+
+      fireEvent.change(textarea, { target: { value: "/" } });
+
+      expect(screen.getByText("/plan")).toBeInTheDocument();
+    });
+
+    test("hides the plugin skill command when its toolkit is not selected", () => {
+      render(
+        <ControlledChatInput isStreaming={false} selectedToolkits={[]} />,
+      );
+      const textarea = getTextarea();
+
+      fireEvent.change(textarea, { target: { value: "/" } });
+
+      expect(screen.queryByText("/plan")).not.toBeInTheDocument();
+    });
   });
 });

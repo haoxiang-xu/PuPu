@@ -17,7 +17,7 @@ export const kindConfig = (kind, t) => {
 };
 
 export const toDisplayName = (toolkit, t) => {
-  const fallback = t ? t("toolkit.unknown_toolkit") : "Unknown Toolkit";
+  const fallback = t ? t("toolkit.unknown_toolkit") : "Unknown Plugin";
   const raw = toolkit.class_name || toolkit.name || fallback;
   return raw
     .replace(/([a-z])([A-Z])/g, "$1 $2")
