@@ -98,9 +98,18 @@ except ImportError:
 try:
     from unchain.tools.messages import (
         redact_result_image_data as _redact_result_image_data,
+        iter_result_image_blocks as _iter_result_image_blocks,
     )
 except ImportError:
     _redact_result_image_data = None  # type: ignore
+    _iter_result_image_blocks = None  # type: ignore
+
+# Local per-session temp store for the stripped screenshot bytes (C4). Best-effort
+# and never load-bearing for redaction correctness.
+try:
+    import tool_media_store as _tool_media_store
+except ImportError:  # pragma: no cover - local module, always present
+    _tool_media_store = None  # type: ignore
 
 try:
     from unchain.memory import (
@@ -1638,7 +1647,35 @@ def _validate_unique_tool_names(toolkits: Iterable[Any]) -> None:
             )
 
 
-def _redact_tool_result_images(event: Dict[str, Any]) -> None:
+def _stash_tool_result_media(result: Dict[str, Any], session_id: str) -> None:
+    """Before base64 is stripped, park the bytes in a per-session temp store and
+    tag each image block with a ``media_id`` reference (C4). Best-effort: any
+    failure here leaves the block without a media_id but MUST NOT block the
+    redaction that follows — the fail-closed strip happens regardless.
+    """
+    if _tool_media_store is None or _iter_result_image_blocks is None:
+        return
+    try:
+        blocks = _iter_result_image_blocks(result)
+    except Exception:
+        return
+    for block in blocks:
+        try:
+            data_b64 = block.get("data_b64")
+            if not isinstance(data_b64, str) or not data_b64:
+                continue
+            media_id = _tool_media_store.store_media(
+                session_id,
+                data_b64,
+                str(block.get("media_type") or "image/png"),
+            )
+            if media_id:
+                block["media_id"] = media_id
+        except Exception:
+            continue
+
+
+def _redact_tool_result_images(event: Dict[str, Any], session_id: str = "") -> None:
     """Fail-closed: strip inline base64 image data from a tool_result event in
     place before it reaches the SSE boundary (architect single-direction gate #6).
 
@@ -1646,11 +1683,18 @@ def _redact_tool_result_images(event: Dict[str, Any]) -> None:
     model transcript message is built), so redacting here never corrupts what the
     model sees — it only sanitises the frame the frontend receives and persists.
     Idempotent; a no-op for results without ``content_blocks`` image data.
+
+    Side effect (C4): the stripped bytes are stashed to a per-session temp store
+    and a ``media_id`` reference is left on the block so the frontend can fetch
+    the artifact via ``GET /chat/tool-media/<media_id>``. Media storage runs
+    BEFORE the strip (it needs the base64) but is best-effort — the strip is
+    unconditional, so the fail-closed guarantee never depends on it.
     """
     if _redact_result_image_data is None:
         return
     result = event.get("result")
     if isinstance(result, dict):
+        _stash_tool_result_media(result, session_id)
         try:
             _redact_result_image_data(result)
         except Exception:
@@ -1662,13 +1706,15 @@ def _redact_tool_result_images(event: Dict[str, Any]) -> None:
 def _enrich_tool_event_with_toolkit_metadata(
     event: Dict[str, Any],
     toolkit_meta_by_tool_name: Dict[str, Dict[str, str]],
+    session_id: str = "",
 ) -> Dict[str, Any]:
     event_type = str(event.get("type", "") or "").strip()
     # Fail-closed image redaction runs FIRST, before any early return below, so
     # every tool_result on either emit path (on_event / step_emit) is sanitised
-    # regardless of whether toolkit metadata matches.
+    # regardless of whether toolkit metadata matches. session_id scopes where the
+    # stripped screenshot bytes are stashed (C4 media store).
     if event_type == "tool_result":
-        _redact_tool_result_images(event)
+        _redact_tool_result_images(event, session_id)
     if event_type not in {"tool_call", "tool_result"}:
         return event
 
@@ -4992,7 +5038,7 @@ def _stream_recipe_graph_events(
                 def step_emit(event: Dict[str, Any], *, _is_last=is_last, _agent_id=agent_id, _index=index) -> None:
                     if not isinstance(event, dict):
                         return
-                    event = _enrich_tool_event_with_toolkit_metadata(event, toolkit_meta)
+                    event = _enrich_tool_event_with_toolkit_metadata(event, toolkit_meta, session_id)
                     event_run_id = event.get("run_id")
                     event_is_current_step = not isinstance(event_run_id, str) or not event_run_id
                     if event_is_current_step:
@@ -5378,6 +5424,7 @@ def stream_chat_events(
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
                 _toolkit_meta_by_tool_name,
+                session_id,
             )
             event_type = event.get("type")
             # Suppress unchain-native events that are replaced by our callbacks
