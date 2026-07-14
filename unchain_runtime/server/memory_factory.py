@@ -109,6 +109,18 @@ def _sessions_dir(data_dir: str) -> str:
     return str(p)
 
 
+def _build_session_store(data_dir: str):
+    """F3: the session store PuPu persists transcripts through — a sanitizing
+    JsonFileSessionStore subclass that strips tool-result image base64 before
+    every disk write and re-hydrates it on read (see session_transcript_media).
+    All session persistence (snapshots + execution checkpoints) funnels through
+    the store, so routing every construction site here is the single choke that
+    keeps screenshot base64 off disk."""
+    from session_transcript_media import build_sanitizing_session_store
+
+    return build_sanitizing_session_store(_sessions_dir(data_dir))
+
+
 def _long_term_profiles_dir(data_dir: str) -> str:
     from pathlib import Path
     p = Path(data_dir) / "memory" / "long_term_profiles"
@@ -139,9 +151,7 @@ def _qdrant_meta_path(data_dir: str) -> str:
 
 
 def _session_store_path(data_dir: str, session_id: str) -> str:
-    from unchain.memory import JsonFileSessionStore
-
-    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    store = _build_session_store(data_dir)
     path_getter = getattr(store, "_path", None)
     if not callable(path_getter):
         raise RuntimeError("JsonFileSessionStore path helper is unavailable")
@@ -159,9 +169,7 @@ def _long_term_profile_path(data_dir: str, namespace: str) -> str:
 
 
 def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
-    from unchain.memory import JsonFileSessionStore
-
-    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    store = _build_session_store(data_dir)
     try:
         state = store.load(str(session_id or ""))
     except Exception:
@@ -1286,7 +1294,6 @@ def create_memory_manager_with_diagnostics(
 
     try:
         from unchain.memory import (
-            JsonFileSessionStore,
             LongTermMemoryConfig,
             MemoryConfig,
             MemoryManager,
@@ -1298,7 +1305,7 @@ def create_memory_manager_with_diagnostics(
         embed_fn, vector_size = _build_embed_runtime(embed_config)
         embedding_signature = _vector_embedding_signature(embed_config, vector_size)
 
-        store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+        store = _build_session_store(data_dir)
         collection_tag = _prepare_vector_collection_tag(
             store=store,
             client=qdrant_client,
@@ -1419,12 +1426,11 @@ def replace_short_term_session_memory(
         raise RuntimeError("UNCHAIN_DATA_DIR not configured")
 
     from unchain.memory import (
-        JsonFileSessionStore,
         QdrantVectorAdapter,
         collect_complete_turns_for_vector_index,
     )
 
-    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    store = _build_session_store(data_dir)
     raw_options = options if isinstance(options, dict) else {}
     retained_messages = _sanitize_dialog_messages(messages)
 
