@@ -37,10 +37,28 @@ const TOKEN_LABELS = {
   danger: "Danger",
 };
 
-const PRESET_OPTIONS = Object.keys(SEMANTIC_PRESETS).map((name) => ({
-  value: name,
-  label: name,
-}));
+const PresetDots = ({ palette }) => (
+  <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+    {["accent", "background", "surface", "text"].map((key) => (
+      <span
+        key={key}
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          backgroundColor: palette[key],
+          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.18)",
+        }}
+      />
+    ))}
+  </span>
+);
+
+const prettyPresetLabel = (name) =>
+  name
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 
 const ThemeEditor = () => {
   const { onThemeMode, theme, setTheme } = useContext(ConfigContext);
@@ -61,6 +79,12 @@ const ThemeEditor = () => {
     preset: settings.preset,
     custom: settings.custom,
   });
+
+  const presetOptions = Object.keys(SEMANTIC_PRESETS).map((name) => ({
+    value: name,
+    label: prettyPresetLabel(name),
+    icon: <PresetDots palette={SEMANTIC_PRESETS[name][editMode]} />,
+  }));
 
   const [draftColor, setDraftColor] = useState(null);
 
@@ -218,7 +242,7 @@ const ThemeEditor = () => {
           Preset
         </span>
         <Select
-          options={PRESET_OPTIONS}
+          options={presetOptions}
           value={settings.preset}
           set_value={onPresetChange}
           filterable={false}

@@ -145,12 +145,19 @@ describe("ThemeEditor", () => {
     renderWithCtx();
 
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByText("ocean"));
+    fireEvent.click(screen.getByText("Ocean"));
 
     expect(readThemeSettings().preset).toBe("ocean");
     expect(
       document.documentElement.style.getPropertyValue("--pupu-accent"),
     ).toBe("#0ea5e9");
+  });
+
+  test("preset dropdown shows human-readable labels", () => {
+    renderWithCtx();
+    // trigger shows the selected preset's pretty label
+    expect(screen.getByText("Default")).toBeInTheDocument();
+    expect(screen.queryByText("high_contrast")).toBeNull();
   });
 
   test("edit mode follows the active app theme mode", () => {
