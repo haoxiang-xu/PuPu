@@ -82,7 +82,7 @@ const ThemeEditor = () => {
     });
     applySemanticCssVars(livePalette);
     if (setTheme && theme) {
-      setTheme(applySemanticPaletteToTheme(theme, livePalette));
+      setTheme(applySemanticPaletteToTheme(theme, livePalette, activeMode));
     }
   };
 

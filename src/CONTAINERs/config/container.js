@@ -155,7 +155,7 @@ const applyContainerThemeConfig = (
     custom: themeSettings.custom,
   });
 
-  const themedBase = applySemanticPaletteToTheme(base, semantic);
+  const themedBase = applySemanticPaletteToTheme(base, semantic, themeMode);
 
   return {
     ...themedBase,
