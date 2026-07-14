@@ -19,6 +19,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.OLLAMA.RESTART,
   CHANNELS.OLLAMA.LIBRARY_SEARCH,
   CHANNELS.UNCHAIN.GET_STATUS,
+  CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
+  CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
   CHANNELS.UNCHAIN.GET_MODEL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
   CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG,
@@ -155,6 +157,14 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.handle(CHANNELS.UNCHAIN.GET_STATUS, () =>
     unchainService.getMisoStatusPayload(),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS, async () =>
+    unchainService.getComputerUseStatusPayload(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
+    async (_event, payload = {}) =>
+      unchainService.openComputerUsePrivacySettings(payload?.target),
   );
   ipcMain.handle(CHANNELS.UNCHAIN.GET_MODEL_CATALOG, async () =>
     unchainService.getMisoModelCatalogPayload(),

@@ -1343,3 +1343,134 @@ describe("unchain service session memory replacement", () => {
     });
   });
 });
+
+describe("unchain service computer use surface", () => {
+  const originalFetch = global.fetch;
+  const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalEnvPython == null) {
+      delete process.env.UNCHAIN_PYTHON_BIN;
+    } else {
+      process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
+    }
+    jest.clearAllMocks();
+  });
+
+  const buildReadyService = (shell) => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    return createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      shell,
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+  };
+
+  test("getComputerUseStatusPayload fetches the sidecar status endpoint", async () => {
+    const capabilityPayload = {
+      enabled: true,
+      capabilities: {
+        platform: "macos",
+        display_server: "quartz",
+        screenshot: true,
+        injection: true,
+        multi_display: false,
+        degradation_reason: null,
+        permissions: {
+          screen_recording: "granted",
+          accessibility: "denied",
+        },
+        caveats: [],
+        action_set: ["computer_20251124"],
+      },
+    };
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(capabilityPayload),
+      });
+
+    const service = buildReadyService({ openExternal: jest.fn() });
+    await service.startMiso();
+    const result = await service.getComputerUseStatusPayload();
+
+    expect(global.fetch.mock.calls[1][0]).toBe(
+      "http://127.0.0.1:5879/computer-use/status",
+    );
+    expect(global.fetch.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          "x-unchain-auth": "auth-token-123",
+        }),
+      }),
+    );
+    expect(result).toEqual(capabilityPayload);
+  });
+
+  test("getComputerUseStatusPayload returns disabled payload before ready", async () => {
+    const service = buildReadyService({ openExternal: jest.fn() });
+    const result = await service.getComputerUseStatusPayload();
+    expect(result.enabled).toBe(false);
+    expect(result.capabilities).toBeNull();
+  });
+
+  test("openComputerUsePrivacySettings opens allowlisted deep links only", async () => {
+    const openExternal = jest.fn().mockResolvedValue(undefined);
+    const service = buildReadyService({ openExternal });
+
+    const granted = await service.openComputerUsePrivacySettings(
+      "accessibility",
+    );
+    expect(granted).toEqual({ ok: true, target: "accessibility" });
+    expect(openExternal).toHaveBeenCalledWith(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+    );
+
+    await service.openComputerUsePrivacySettings("screen_recording");
+    expect(openExternal).toHaveBeenLastCalledWith(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+    );
+
+    openExternal.mockClear();
+    const rejected = await service.openComputerUsePrivacySettings(
+      "https://evil.example.com",
+    );
+    expect(rejected.ok).toBe(false);
+    expect(openExternal).not.toHaveBeenCalled();
+  });
+});
