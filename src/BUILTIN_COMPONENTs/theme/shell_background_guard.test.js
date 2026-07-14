@@ -13,6 +13,16 @@ const SHELL_FILES = [
   "src/COMPONENTs/agents/pages/characters_page.js",
   "src/COMPONENTs/agents/pages/recipes_page/recipe_canvas.js",
   "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+  // P3 — settings + init-setup shells (2026-07-13)
+  "src/COMPONENTs/settings/settings_modal.js",
+  "src/COMPONENTs/settings/local_storage/components/confirm_delete_modal.js",
+  "src/COMPONENTs/settings/local_storage/components/confirm_reset_settings_modal.js",
+  "src/COMPONENTs/init-setup/init_setup_modal.js",
+  "src/COMPONENTs/init-setup/steps/welcoming.js",
+  "src/COMPONENTs/init-setup/steps/select_providers.js",
+  "src/COMPONENTs/init-setup/steps/configure_providers.js",
+  "src/COMPONENTs/init-setup/steps/workspace.js",
+  "src/COMPONENTs/init-setup/steps/completion.js",
 ];
 
 // A line is a candidate if it BOTH mentions a background sink (a `background:` /

@@ -11,7 +11,7 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => {
     style={{
       width: 380,
       padding: "28px 28px 20px",
-      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+      backgroundColor: "var(--pupu-surface)",
       display: "flex",
       flexDirection: "column",
       gap: 0,
@@ -51,7 +51,7 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => {
       style={{
         fontSize: 15,
         fontWeight: 600,
-        color: isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)",
+        color: isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)",
         marginBottom: 8,
         lineHeight: 1.3,
       }}
@@ -63,7 +63,7 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => {
       style={{
         fontSize: 13,
         lineHeight: 1.6,
-        color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+        color: "rgba(var(--pupu-text-rgb),0.45)",
         marginBottom: 20,
       }}
     >
@@ -75,9 +75,9 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => {
           padding: "1px 6px",
           borderRadius: 4,
           backgroundColor: isDark
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(0,0,0,0.05)",
-          color: isDark ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.55)",
+            ? "rgba(var(--pupu-text-rgb),0.07)"
+            : "rgba(var(--pupu-text-rgb),0.05)",
+          color: isDark ? "rgba(var(--pupu-text-rgb),0.60)" : "rgba(var(--pupu-text-rgb),0.55)",
         }}
       >
         settings
