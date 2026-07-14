@@ -28,6 +28,7 @@ from mcp_toolkits import (
 
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
+_computer_use_logger = logging.getLogger(__name__ + ".computer_use")
 
 try:
     import httpx as _httpx
@@ -91,6 +92,15 @@ except ImportError:
     _ToolHistoryCompactionOptimizer = None  # type: ignore
     _ToolHistoryCompactionOptimizerConfig = None  # type: ignore
     _ToolPairSafetyOptimizer = None  # type: ignore
+
+# S0 host hook: strip inline base64 image data from tool_result events before
+# they cross the SSE boundary (fail-closed red line for computer-use screenshots).
+try:
+    from unchain.tools.messages import (
+        redact_result_image_data as _redact_result_image_data,
+    )
+except ImportError:
+    _redact_result_image_data = None  # type: ignore
 
 try:
     from unchain.memory import (
@@ -1628,11 +1638,37 @@ def _validate_unique_tool_names(toolkits: Iterable[Any]) -> None:
             )
 
 
+def _redact_tool_result_images(event: Dict[str, Any]) -> None:
+    """Fail-closed: strip inline base64 image data from a tool_result event in
+    place before it reaches the SSE boundary (architect single-direction gate #6).
+
+    The event carries a deepcopy of the visible tool result (emit runs AFTER the
+    model transcript message is built), so redacting here never corrupts what the
+    model sees — it only sanitises the frame the frontend receives and persists.
+    Idempotent; a no-op for results without ``content_blocks`` image data.
+    """
+    if _redact_result_image_data is None:
+        return
+    result = event.get("result")
+    if isinstance(result, dict):
+        try:
+            _redact_result_image_data(result)
+        except Exception:
+            # Never let redaction failure crash the stream; but note a failure
+            # here means base64 could leak — the shape is validated by tests.
+            pass
+
+
 def _enrich_tool_event_with_toolkit_metadata(
     event: Dict[str, Any],
     toolkit_meta_by_tool_name: Dict[str, Dict[str, str]],
 ) -> Dict[str, Any]:
     event_type = str(event.get("type", "") or "").strip()
+    # Fail-closed image redaction runs FIRST, before any early return below, so
+    # every tool_result on either emit path (on_event / step_emit) is sanitised
+    # regardless of whether toolkit metadata matches.
+    if event_type == "tool_result":
+        _redact_tool_result_images(event)
     if event_type not in {"tool_call", "tool_result"}:
         return event
 
@@ -2869,6 +2905,84 @@ def _build_generic_toolkit(
     raise last_type_error or RuntimeError("Failed to create toolkit")
 
 
+# ── builtin (PuPu-native, non-MCP) toolkits ─────────────────────────────────
+_BUILTIN_TOOLKIT_PREFIX = "builtin."
+
+# Feature flag for computer-use (C2). Off by default: the `builtin.` branch skips
+# construction AND ComputerToolkit never enters any catalog (it lives in
+# ``computer_control``, outside the unchain builtin walk), so a disabled flag =
+# zero exposure. Follows the PUPU_* env convention (cf. PUPU_MCP_REGISTRY_PATH).
+_COMPUTER_USE_FLAG = "PUPU_COMPUTER_USE"
+_FLAG_TRUE_VALUES = {"1", "true", "yes", "on", "enabled"}
+
+# Anthropic models that support the computer_20251124 tool + the
+# computer-use-2025-11-24 beta. Prefix match tolerates date/@ suffixes. Older
+# Anthropic models (Sonnet 4.5, Haiku 4.5, Opus 4.1, ...) need the OLD tool type
+# + beta and would 400 on ours, so we do NOT mount the computer tool for them
+# (generic-schema fallback is untested M3 work — deliberately not opened here).
+# List is pupu-llm-expert authored (model-visible authority).
+_COMPUTER_USE_MODEL_PREFIXES = (
+    "claude-sonnet-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-opus-4-5",
+)
+
+
+def _computer_use_enabled() -> bool:
+    return os.environ.get(_COMPUTER_USE_FLAG, "").strip().lower() in _FLAG_TRUE_VALUES
+
+
+def _model_supports_computer_use(provider: str, model: str) -> bool:
+    """True only for an Anthropic session on a computer_20251124-capable model.
+
+    The native spec is Anthropic-keyed, so a non-Anthropic session would fall to
+    the untested generic schema (M3) — treated as unsupported here.
+    """
+    if str(provider or "").strip().lower() != "anthropic":
+        return False
+    normalized = str(model or "").strip().lower()
+    return any(normalized.startswith(prefix) for prefix in _COMPUTER_USE_MODEL_PREFIXES)
+
+
+def _build_builtin_toolkit(
+    toolkit_name: str,
+    *,
+    provider: str = "",
+    model: str = "",
+) -> Any:
+    """Construct a PuPu-native builtin toolkit, or return None to skip it.
+
+    Returning None (unknown builtin, flag off, or an unsupported session model)
+    makes the caller drop the toolkit silently with zero exposure — never raise,
+    so a stale/disabled builtin id can't take down an otherwise-valid tool set.
+    """
+    key = toolkit_name[len(_BUILTIN_TOOLKIT_PREFIX):].strip().lower()
+    if key == "computer":
+        if not _computer_use_enabled():
+            return None
+        if not _model_supports_computer_use(provider, model):
+            # Gate at the model level: sending computer_20251124 to a model that
+            # only supports the older tool type 400s. Skip + log rather than
+            # mount a broken tool.
+            _computer_use_logger.info(
+                "computer-use requested but session model %s:%s does not support "
+                "computer_20251124; skipping tool mount",
+                provider or "?",
+                model or "?",
+            )
+            return None
+        # Lazy import: keeps the computer_control -> unchain dependency and its
+        # optional deps (mss/pynput/Pillow) off the import path unless the flag
+        # is on and the tool is actually requested.
+        from computer_control.toolkit import ComputerToolkit
+
+        return ComputerToolkit()
+    return None
+
+
 def _build_selected_toolkits(
     options: Dict[str, object] | None = None,
     *,
@@ -2886,7 +3000,25 @@ def _build_selected_toolkits(
     result: list = []
     generic_toolkit_names: list[str] = []
 
+    builtin_runtime_config = get_runtime_config(options)
+
     for toolkit_name in toolkit_names:
+        if toolkit_name.startswith(_BUILTIN_TOOLKIT_PREFIX):
+            builtin_instance = _build_builtin_toolkit(
+                toolkit_name,
+                provider=builtin_runtime_config.get("provider", ""),
+                model=builtin_runtime_config.get("model", ""),
+            )
+            if builtin_instance is None:
+                # Flag off or unknown builtin -> zero exposure, no error.
+                continue
+            _set_runtime_toolkit_metadata(
+                builtin_instance,
+                toolkit_id=toolkit_name,
+                toolkit_name=_display_toolkit_name_for_class(builtin_instance.__class__),
+            )
+            result.append(builtin_instance)
+            continue
         if toolkit_name.startswith("mcp."):
             try:
                 toolkit_instance = build_mcp_runtime_toolkit(toolkit_name)
