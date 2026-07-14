@@ -5,3 +5,8 @@ mcp==1.26.0
 openai==2.7.1
 anthropic==0.83.0
 qdrant-client==1.14.3
+# computer_control ("hand") sidecar: screen capture + input injection.
+# pynput is LGPL-3.0 and is used as a dynamic import only (never vendored).
+mss==10.0.0
+pynput==1.8.1
+Pillow==10.2.0
