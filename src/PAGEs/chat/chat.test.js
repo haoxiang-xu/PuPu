@@ -12,6 +12,7 @@ import {
   setChatSelectedToolkits,
 } from "../../SERVICEs/chat_storage";
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
+import { dispatchComposerPrefill } from "../../SERVICEs/composer_prefill";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -252,6 +253,19 @@ describe("ChatInterface stop flow", () => {
     /* jsdom has no layout: the inset stays at the pre-measure fallback;
        in the app a ResizeObserver keeps it synced to the input height */
     expect(lastChatMessagesProps?.bottomViewportInset).toBe(160);
+  });
+
+  test("prefills the composer when the Plugins modal dispatches a Try-in-chat event", async () => {
+    renderChat();
+    await waitForReady();
+
+    act(() => {
+      dispatchComposerPrefill("/plan ");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-input").value).toBe("/plan ");
+    });
   });
 
   test("animates the chat surface offset when the side menu changes", () => {

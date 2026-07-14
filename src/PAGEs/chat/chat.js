@@ -37,6 +37,7 @@ import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
+import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -220,6 +221,24 @@ const ChatInterface = () => {
   const setSelectedModelId = session.setSelectedModelId;
   const setSelectedToolkits = session.setSelectedToolkits;
   const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
+
+  /* "Try in chat" from the Plugins app-store modal (plugin_detail_page.js):
+     the modal has no shared component tree with this page, so it prefills
+     the composer over a plain window event (src/SERVICEs/composer_prefill.js)
+     rather than a new context provider. Mounted once — session.setInputValue
+     is a stable useState setter and always targets whichever chat is
+     currently active. */
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handlePrefill = (event) => {
+      const text = typeof event?.detail?.text === "string" ? event.detail.text : "";
+      if (!text) return;
+      session.setInputValue(text);
+    };
+    window.addEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
+    return () => window.removeEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
+  }, [session.setInputValue]);
+
   const hasSelectedModel = useMemo(() => {
     if (session.isCharacterChat) {
       return true;

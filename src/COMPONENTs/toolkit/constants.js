@@ -1,8 +1,3 @@
-export const SECTIONS = [
-  { key: "toolkits", icon: "tool", labelKey: "toolkit.toolkits" },
-  { key: "skills", icon: "education", labelKey: "toolkit.skills" },
-];
-
 export const BASE_TOOLKIT_IDENTIFIERS = new Set([
   "base",
   "toolkit",

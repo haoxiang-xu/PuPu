@@ -1,12 +1,16 @@
-import { lazy, Suspense, useContext } from "react";
+import { lazy, Suspense, useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import Button from "../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
+import api from "../../SERVICEs/api";
+import { subscribeToolkitCatalogRefresh } from "../../SERVICEs/toolkit_catalog_refresh";
+import { BASE_TOOLKIT_IDENTIFIERS } from "./constants";
 
-const ToolkitModalContent = lazy(() =>
-  import("./toolkit_modal_content").then((m) => ({
-    default: m.ToolkitModalContent,
+const PluginsShell = lazy(() =>
+  import("./plugins_shell").then((m) => ({
+    default: m.PluginsShell,
   })),
 );
 
@@ -29,20 +33,64 @@ const ToolkitModalLoading = () => {
   );
 };
 
+/* Same base-id filter the installed page uses — kept in sync so the sidebar
+   badge count always matches what the Installed screen actually lists. */
+const isBaseById = (toolkitId) => {
+  if (!toolkitId) return false;
+  const lower = toolkitId.trim().toLowerCase();
+  return (
+    BASE_TOOLKIT_IDENTIFIERS.has(lower) ||
+    lower.endsWith(".toolkit") ||
+    lower.endsWith(".builtin_toolkit") ||
+    lower.endsWith(".base_toolkit")
+  );
+};
+
 export const ToolkitModal = ({ open, onClose }) => {
   useModalLifecycle("toolkit-modal", open);
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const panelBg = isDark ? "#141414" : "#ffffff";
+  const [fullscreen, setFullscreen] = useState(false);
+  const [activePage, setActivePage] = useState("discover");
+  const [installedCount, setInstalledCount] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setActivePage("discover");
+      setFullscreen(false);
+    }
+  }, [open]);
+
+  const loadInstalledCount = useCallback(async () => {
+    try {
+      const payload = await api.unchain.listToolModalCatalog();
+      const list = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
+      const visible = list.filter(
+        (tk) => tk.source !== "plugin" && !tk.hidden && !isBaseById(tk.toolkitId),
+      );
+      setInstalledCount(visible.length);
+    } catch {
+      /* keep previous count */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    loadInstalledCount();
+    return subscribeToolkitCatalogRefresh(() => loadInstalledCount());
+  }, [open, loadInstalledCount]);
 
   return (
     <Modal
       open={open}
       onClose={onClose}
+      fullscreen={fullscreen}
       style={{
-        minWidth: 600,
+        width: 920,
+        maxWidth: "92vw",
         height: 600,
-        maxHeight: "80vh",
+        maxHeight: "88vh",
         padding: 0,
         backgroundColor: panelBg,
         color: isDark ? "#fff" : "#222",
@@ -51,8 +99,62 @@ export const ToolkitModal = ({ open, onClose }) => {
         overflow: "hidden",
       }}
     >
+      <Button
+        prefix_icon={fullscreen ? "fullscreen_exit" : "fullscreen"}
+        onClick={() => setFullscreen((f) => !f)}
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 44,
+          paddingVertical: 6,
+          paddingHorizontal: 6,
+          borderRadius: 6,
+          opacity: 0.45,
+          zIndex: 4,
+          WebkitAppRegion: "no-drag",
+          content: {
+            prefixIconWrap: {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 0,
+            },
+            icon: { width: 14, height: 14 },
+          },
+        }}
+      />
+      <Button
+        prefix_icon="close"
+        onClick={onClose}
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 12,
+          paddingVertical: 6,
+          paddingHorizontal: 6,
+          borderRadius: 6,
+          opacity: 0.45,
+          zIndex: 4,
+          WebkitAppRegion: "no-drag",
+          content: {
+            prefixIconWrap: {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 0,
+            },
+            icon: { width: 14, height: 14 },
+          },
+        }}
+      />
+
       <Suspense fallback={<ToolkitModalLoading />}>
-        <ToolkitModalContent open={open} onClose={onClose} />
+        <PluginsShell
+          activePage={activePage}
+          onNavigate={setActivePage}
+          installedCount={installedCount}
+          onCloseModal={onClose}
+        />
       </Suspense>
     </Modal>
   );

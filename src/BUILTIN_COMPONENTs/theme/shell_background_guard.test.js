@@ -9,7 +9,6 @@ const SHELL_FILES = [
   "src/COMPONENTs/chat-input/chat_input.js",
   "src/COMPONENTs/chat-input/components/attach_panel.js",
   // P1 — verified real paths (2026-06-20)
-  "src/COMPONENTs/toolkit/components/toolkit_detail_panel.js",
   "src/COMPONENTs/agents/pages/characters_page.js",
   "src/COMPONENTs/agents/pages/recipes_page/recipe_canvas.js",
   "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",

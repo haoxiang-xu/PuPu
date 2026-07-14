@@ -1,0 +1,26 @@
+{
+  "featured": {
+    "pluginId": "plan",
+    "kicker": "Editor's pick",
+    "headline": "Plan before you build",
+    "blurb": "Turn any request into a step-by-step plan you approve first. Adds the /plan command to your composer.",
+    "gradient": ["#6478f6", "#4a5bd8"]
+  },
+  "essentials": ["mcp.productivity.notion-remote", "mcp.dev.github-remote", "mcp.devops.grafana", "mcp.browser.chrome-devtools"],
+  "collections": [
+    {
+      "id": "web-research-kit",
+      "title": "Web Research Kit",
+      "blurb": "See, browse and extract — the full research loop.",
+      "gradient": ["#4cbe8b", "#2f9a68"],
+      "pluginIds": ["agent_reach", "mcp.browser.chrome-devtools"]
+    },
+    {
+      "id": "ship-it-pack",
+      "title": "Ship-It Pack",
+      "blurb": "Plan, code review, monitor, announce.",
+      "gradient": ["#f6a341", "#ea7547"],
+      "pluginIds": ["plan", "mcp.dev.github-remote", "mcp.devops.grafana", "mcp.productivity.discord"]
+    }
+  ]
+}

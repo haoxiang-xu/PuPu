@@ -7,14 +7,23 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import {
   listMcpStoreEntries,
   searchMcpStoreEntries,
+  resolveMcpIcon,
 } from "../../../SERVICEs/mcp_toolkit_store";
+import { toPluginPresentation } from "../../../SERVICEs/plugin_presentation";
 import { STORE_CATEGORY_CONFIG } from "../constants";
 import PlaceholderBlock from "../components/placeholder_block";
-import StoreToolkitCard from "../components/store_toolkit_card";
+import PluginTile from "../components/plugin_tile";
 
-const ToolkitStorePage = ({
+/* PluginsCategoriesPage — App Store "Categories" screen: search + category
+   pills + a plugin_tile grid. Data flow (fetch / external-registry merge /
+   refresh-metadata) is lifted verbatim from the legacy toolkit_store_page.js
+   — `listMcpStoreEntries()` reads the same merged cache (static registry +
+   any external registry entries the shell has loaded into
+   setMcpStoreEntriesCache), so behavior is identical; only the presentation
+   changed from StoreToolkitCard rows to a plugin_tile grid. */
+const PluginsCategoriesPage = ({
   isDark,
-  onEntryClick,
+  onOpenDetail,
   installedIds,
   onInstall,
   onOAuthConnect,
@@ -24,11 +33,21 @@ const ToolkitStorePage = ({
   metadataRefreshing = false,
   metadataError = null,
   onRefreshMetadata,
+  onOpenCustomMcp,
+  search: controlledSearch,
+  onSearchChange,
 }) => {
   const context = useContext(ConfigContext) || {};
   const { t } = useTranslation();
   const fontFamily = context.theme?.font?.fontFamily || "Jost, sans-serif";
-  const [search, setSearch] = useState("");
+  /* The search box is controlled by the shell when it's reached via the
+     sidebar search input (review I7) — that keeps the sidebar box and this
+     page's own box as one source of truth instead of two states that can
+     drift. Falls back to fully-local state for any other caller (tests
+     included) that doesn't pass `search`/`onSearchChange`. */
+  const [localSearch, setLocalSearch] = useState("");
+  const search = controlledSearch !== undefined ? controlledSearch : localSearch;
+  const setSearch = onSearchChange || setLocalSearch;
   const [category, setCategory] = useState("all");
 
   const categorySections = useMemo(
@@ -46,25 +65,22 @@ const ToolkitStorePage = ({
     [entries, search, category],
   );
 
-  /* Category pill group — mirrors the Ollama model library browser
-     (settings → model providers): flat wrap-able pills, active pill gets a
-     filled background + 1px border, inactive pills are transparent. */
+  /* Category pill group — same visual language as the legacy store page's
+     pill row (mirrors the Ollama model library browser). */
   const pillActiveBg = isDark ? "rgba(255,255,255,0.11)" : "rgba(0,0,0,0.08)";
   const pillHoverBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
   const pillActiveTxt = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
-  const pillInactiveTxt = isDark
-    ? "rgba(255,255,255,0.45)"
-    : "rgba(0,0,0,0.42)";
-  const activePillBorder = isDark
-    ? "rgba(255,255,255,0.15)"
-    : "rgba(0,0,0,0.15)";
+  const pillInactiveTxt = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.42)";
+  const activePillBorder = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+  const warningColor = isDark ? "#fdba74" : "#c2410c";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Input
         prefix_icon="search"
         value={search}
         set_value={(value) => setSearch(value)}
-        placeholder={t("toolkit.store_search_placeholder")}
+        placeholder={t("toolkit.search_placeholder_v2")}
         style={{
           width: "100%",
           fontSize: 13,
@@ -89,9 +105,7 @@ const ToolkitStorePage = ({
                 fontWeight: 500,
                 padding: "3px 10px",
                 borderRadius: 999,
-                border: `1px solid ${
-                  active ? activePillBorder : "transparent"
-                }`,
+                border: `1px solid ${active ? activePillBorder : "transparent"}`,
                 backgroundColor: active ? pillActiveBg : "transparent",
                 color: active ? pillActiveTxt : pillInactiveTxt,
                 cursor: "pointer",
@@ -99,12 +113,10 @@ const ToolkitStorePage = ({
                 transition: "background 0.12s, color 0.12s",
               }}
               onMouseEnter={(e) => {
-                if (!active)
-                  e.currentTarget.style.backgroundColor = pillHoverBg;
+                if (!active) e.currentTarget.style.backgroundColor = pillHoverBg;
               }}
               onMouseLeave={(e) => {
-                if (!active)
-                  e.currentTarget.style.backgroundColor = "transparent";
+                if (!active) e.currentTarget.style.backgroundColor = "transparent";
               }}
             >
               {cat.label}
@@ -131,9 +143,7 @@ const ToolkitStorePage = ({
               <ArcSpinner
                 size={14}
                 stroke_width={2}
-                color={
-                  isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)"
-                }
+                color={isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)"}
               />
             </span>
           ) : (
@@ -146,12 +156,8 @@ const ToolkitStorePage = ({
                 paddingVertical: 4,
                 paddingHorizontal: 4,
                 borderRadius: 999,
-                color: isDark
-                  ? "rgba(255,255,255,0.62)"
-                  : "rgba(0,0,0,0.58)",
-                hoverBackgroundColor: isDark
-                  ? "rgba(255,255,255,0.08)"
-                  : "rgba(0,0,0,0.06)",
+                color: isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)",
+                hoverBackgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
                 content: { icon: { width: 14, height: 14 } },
               }}
             />
@@ -160,39 +166,33 @@ const ToolkitStorePage = ({
       </div>
 
       {metadataError && (
-        <div
-          style={{
-            fontSize: 10.5,
-            fontFamily,
-            color: isDark ? "#fdba74" : "#c2410c",
-            marginTop: -6,
-          }}
-        >
+        <div style={{ fontSize: 10.5, fontFamily, color: warningColor, marginTop: -6 }}>
           {t("toolkit.store_metadata_error")}
         </div>
       )}
 
+      {installError && (
+        <div style={{ fontSize: 10.5, fontFamily, color: warningColor, marginTop: -6 }}>
+          {installError.message || t("toolkit.store_install_error")}
+        </div>
+      )}
+
       {filtered.length > 0 ? (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           {filtered.map((entry) => (
-            <StoreToolkitCard
+            <PluginTile
               key={entry.id}
+              presentation={toPluginPresentation(entry)}
               entry={entry}
+              icon={resolveMcpIcon(entry)}
               isDark={isDark}
-              onClick={onEntryClick}
               installedIds={installedIds}
+              installing={installingIds?.has(entry.id) || false}
               onInstall={onInstall}
               onOAuthConnect={onOAuthConnect}
               onCancelOAuth={onCancelOAuth}
-              installing={installingIds?.has(entry.id) || false}
-              installError={
-                installError?.entryId === entry.id ? installError : null
-              }
+              onClick={() => onOpenDetail?.(entry.id)}
+              testId={`category-tile-${entry.id}`}
             />
           ))}
         </div>
@@ -204,6 +204,24 @@ const ToolkitStorePage = ({
           isDark={isDark}
         />
       )}
+
+      {/* ── Low-key footer: custom MCP entry moved down here from its own
+          store tab (legacy toolkit_store_page.js "Add Custom MCP" card) —
+          T5 demotes it to a footer link on both the Categories and Installed
+          screens, opening the same CustomMcpPage form unchanged. ── */}
+      <div
+        role="button"
+        onClick={() => onOpenCustomMcp?.()}
+        style={{
+          fontSize: 11,
+          fontFamily,
+          color: isDark ? "rgba(255,255,255,0.34)" : "rgba(0,0,0,0.4)",
+          cursor: "pointer",
+          marginTop: 2,
+        }}
+      >
+        {t("toolkit.add_custom_plugin")} ›
+      </div>
 
       <div
         style={{
@@ -221,4 +239,4 @@ const ToolkitStorePage = ({
   );
 };
 
-export default ToolkitStorePage;
+export default PluginsCategoriesPage;
