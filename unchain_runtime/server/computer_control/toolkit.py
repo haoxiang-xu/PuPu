@@ -87,12 +87,45 @@ _DISPATCH_PARAMS = (
     "scroll_amount",
 )
 
+# ── F1 confirmation gate (SEC-001 P0 /守-defined CRITICAL) ───────────────────
+# Every action that writes to the real desktop (clicks, typing, key presses,
+# scrolls, drags, cursor moves) MUST get an explicit server-side user
+# confirmation before it is dispatched to the injection backend. This is
+# enforced via unchain's per-call ``confirmation_resolver`` hook: the tool
+# declares ``requires_confirmation=True`` (base), and the runtime ANDs that with
+# the policy this resolver returns — so a policy can only NARROW confirmation to
+# False, never widen False→True. We narrow to False ONLY for the read-only
+# exempt actions below.
+#
+# ``_CONFIRMATION_EXEMPT_ACTIONS`` is an ALLOWLIST, deliberately (fail-closed):
+# any action NOT listed here — every injection action, plus any unknown/future
+# action name — keeps confirmation ON. The exempt membership and the
+# human-readable summary shown to the user are a security-policy + model-visible
+# surface: pupu-security-expert (守) and pupu-llm-expert hold authority over this
+# list and the summary wording. Backend implements a fail-closed default; the
+# exact set/wording is theirs to ratify.
+_CONFIRMATION_EXEMPT_ACTIONS = frozenset({"screenshot", "wait", "cursor_position"})
+
+# Click-family actions, used only to phrase the confirmation summary.
+_CLICK_ACTIONS = frozenset(
+    {"left_click", "right_click", "middle_click", "double_click", "triple_click"}
+)
+# Longest text preview embedded in the confirmation summary (keeps the frame small).
+_CONFIRM_TEXT_PREVIEW_CHARS = 80
+
 
 def _normalize_action(action: str) -> str:
     cleaned = str(action or "").strip()
     if cleaned in _SPECIAL_ACTIONS:
         return cleaned
     return _ACTION_ALIASES.get(cleaned, cleaned)
+
+
+def _format_point(value: Any, *, fallback: str = "the screen") -> str:
+    """Render an [x, y] coordinate for the confirmation summary, or a fallback."""
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return f"({value[0]}, {value[1]})"
+    return fallback
 
 
 def _resolve_wait_seconds(duration: Any) -> float:
@@ -183,6 +216,12 @@ class ComputerToolkit(Toolkit):
             # defer it, and a tool set that changes between turns busts the
             # provider prompt cache.
             always_load=True,
+            # F1 hard gate: confirm every injection action before dispatch.
+            # Base True + a narrowing per-call resolver (see _resolve_confirmation)
+            # ⇒ read-only actions run directly, injection actions require an
+            # explicit user confirmation. Fail-closed: unknown actions confirm.
+            requires_confirmation=True,
+            confirmation_resolver=self._resolve_confirmation,
         )
         self.register(tool)
 
@@ -240,6 +279,68 @@ class ComputerToolkit(Toolkit):
             "the mouse, click, type, press keys, and scroll. Coordinates are in "
             "the pixel space of the most recent screenshot."
         )
+
+    # ── F1 confirmation resolver ─────────────────────────────────────────────
+    def _resolve_confirmation(
+        self,
+        arguments: Any,
+        execution_context: Any = None,
+    ) -> Dict[str, Any]:
+        """Per-call confirmation policy for the ``computer`` tool (F1 P0 gate).
+
+        Returns a policy dict that unchain ANDs with the tool's base
+        ``requires_confirmation=True``. Read-only exempt actions narrow to
+        ``False`` (run directly); every injection action — and any unknown
+        action name — keeps confirmation ON (fail-closed) and carries a
+        human-readable summary of exactly what the model is about to do.
+
+        Robustness: this runs inside unchain's confirmation layer, which treats
+        a resolver that raises as a hard failure that aborts the call (the action
+        never dispatches). A ``None`` return would also default to
+        confirmation-required. So even a malformed ``arguments`` fails closed.
+        """
+        del execution_context  # policy depends only on the requested action
+        action = ""
+        if isinstance(arguments, dict):
+            action = str(arguments.get("action") or "").strip()
+        normalized = _normalize_action(action)
+        if normalized in _CONFIRMATION_EXEMPT_ACTIONS:
+            return {"requires_confirmation": False}
+        return {
+            "requires_confirmation": True,
+            "description": self._describe_pending_action(normalized, arguments),
+        }
+
+    def _describe_pending_action(self, normalized: str, arguments: Any) -> str:
+        """One-line, user-facing summary of the injection action awaiting consent.
+
+        Coordinates are reported in the screenshot's pixel space (the same space
+        the model sees), so the user can relate the request to what is on screen.
+        """
+        args = arguments if isinstance(arguments, dict) else {}
+        coord_txt = _format_point(args.get("coordinate"))
+        if normalized in _CLICK_ACTIONS:
+            verb = normalized.replace("_", " ")
+            return f"Model wants to {verb} at {coord_txt}."
+        if normalized == "move":
+            return f"Model wants to move the cursor to {coord_txt}."
+        if normalized == "left_click_drag":
+            start_txt = _format_point(args.get("start_coordinate"), fallback="the current position")
+            return f"Model wants to drag from {start_txt} to {coord_txt}."
+        if normalized == "type":
+            text = str(args.get("text") or "")
+            if len(text) > _CONFIRM_TEXT_PREVIEW_CHARS:
+                text = text[: _CONFIRM_TEXT_PREVIEW_CHARS - 3] + "..."
+            return f"Model wants to type: {text!r}"
+        if normalized == "key":
+            return f"Model wants to press the key combo {str(args.get('text') or '')!r}."
+        if normalized == "scroll":
+            direction = str(args.get("scroll_direction") or "").strip() or "?"
+            amount = args.get("scroll_amount")
+            return f"Model wants to scroll {direction} by {amount} at {coord_txt}."
+        # Unknown / unsupported action name: still gated (fail-closed).
+        raw = args.get("action") if isinstance(args, dict) else normalized
+        return f"Model wants to run the computer action {str(raw)!r}."
 
     # ── the tool ───────────────────────────────────────────────────────────
     def _computer(
