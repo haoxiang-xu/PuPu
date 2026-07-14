@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
+from skill_rows import normalize_skill_rows
+
 
 REGISTRY_FILENAME = "mcp_toolkit_registry.json"
 
@@ -304,6 +306,7 @@ def _normalize_entry(raw: Any) -> Dict[str, Any]:
         "setup_preview": str(raw.get("setupPreview") or raw.get("setup_preview") or ""),
         "prerequisites": [str(item) for item in (raw.get("prerequisites") or [])],
         "tools": copy.deepcopy(raw.get("tools") if isinstance(raw.get("tools"), list) else []),
+        "skills": normalize_skill_rows(raw.get("skills")),
         "policy_summary": copy.deepcopy(
             raw.get("policySummary") if isinstance(raw.get("policySummary"), dict) else {}
         ),

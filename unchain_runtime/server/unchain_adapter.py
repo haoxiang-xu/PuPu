@@ -18,6 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List
 
+from skill_rows import normalize_skill_rows
 from mcp_toolkits import (
     McpToolkitError,
     build_mcp_runtime_toolkit,
@@ -2117,6 +2118,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
         hidden = bool(toml_display.get("hidden", False))
 
         tools_v2 = _enumerate_toolkit_tools_v2(candidate)
+        skills_rows = normalize_skill_rows(toml_data.get("skills"))
         toolkit_icon = _get_toolkit_icon_payload(candidate)
         toolkit_id = _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, class_name)
         artifact_kinds = _artifact_kinds_for_toolkit(candidate, toolkit_id)
@@ -2133,6 +2135,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
             "toolCount": len(tools_v2),
             "defaultEnabled": False,
             "tools": tools_v2,
+            "skills": skills_rows,
             "displayOrder": int(display_order),
             "hidden": hidden,
             "tags": [str(t) for t in tags if isinstance(t, str)],
