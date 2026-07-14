@@ -38,6 +38,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
   CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
+  CHANNELS.UNCHAIN.PENDING_INTERACTION,
   CHANNELS.UNCHAIN.INTERJECT,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
@@ -281,6 +282,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
     async (_event, payload = {}) =>
       unchainService.submitMisoToolConfirmation(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.PENDING_INTERACTION,
+    async (_event, payload = {}) =>
+      unchainService.getMisoPendingInteraction(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.INTERJECT,

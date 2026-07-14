@@ -165,6 +165,87 @@ describe("unchain service session memory replacement", () => {
     );
   });
 
+  test("durable interaction bridge queries by session and forwards session on receipt", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({ status: "none", session_id: "chat/with space" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({ status: "ok", disposition: "receipt_recorded" }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await service.getMisoPendingInteraction({ session_id: "chat/with space" });
+    await service.submitMisoToolConfirmation({
+      confirmation_id: "interaction-1",
+      session_id: "chat/with space",
+      approved: true,
+    });
+
+    expect(global.fetch.mock.calls[1][0]).toBe(
+      "http://127.0.0.1:5879/chat/interactions/pending?session_id=chat%2Fwith%20space",
+    );
+    expect(global.fetch.mock.calls[2][0]).toBe(
+      "http://127.0.0.1:5879/chat/tool/confirmation",
+    );
+    expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toEqual({
+      confirmation_id: "interaction-1",
+      approved: true,
+      reason: "",
+      session_id: "chat/with space",
+    });
+
+    await expect(
+      service.submitMisoToolConfirmation({
+        confirmation_id: "interaction-1",
+        approved: "false",
+      }),
+    ).rejects.toThrow("approved must be a boolean");
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+  });
+
   test("submitMisoInterject posts the payload to the interject endpoint", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);

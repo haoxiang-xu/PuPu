@@ -104,6 +104,14 @@ from interaction_channels import (
     register_interject_channels,
     release_interject_channels,
 )
+from durable_interaction_host import (
+    DurableInteractionHostError,
+    DurableInteractionIdTracker,
+    clear_resume_context,
+    get_pending_interaction,
+    resolve_resume_options,
+    save_resume_context,
+)
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -554,11 +562,7 @@ def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> in
             if pending.get("response") is not None:
                 continue
 
-            pending["response"] = {
-                "approved": False,
-                "reason": _CONFIRMATION_CANCELLED_REASON,
-                "modified_arguments": None,
-            }
+            pending["response"] = {"_transport_cancelled": True}
             cancelled += 1
             event = pending.get("event")
             if isinstance(event, threading.Event):
@@ -571,6 +575,8 @@ def _make_tool_confirm_callback(
     emit_event,
     cancel_event: threading.Event | None = None,
     toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
+    interaction_id_tracker: DurableInteractionIdTracker | None = None,
+    require_durable_interaction_id: bool = False,
 ):
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
@@ -583,7 +589,23 @@ def _make_tool_confirm_callback(
             if not str(request_payload.get("toolkit_name", "") or "").strip():
                 request_payload["toolkit_name"] = toolkit_meta.get("toolkit_name", "")
         suppress_event = bool(request_payload.get("_skip_emit_event"))
-        confirmation_id = str(request_payload.get("confirmation_id", "") or "").strip()
+        durable_interaction_id = (
+            interaction_id_tracker.resolve(
+                "tool_approval",
+                str(request_payload.get("call_id") or ""),
+            )
+            if interaction_id_tracker is not None
+            else ""
+        )
+        if require_durable_interaction_id and not durable_interaction_id:
+            raise DurableInteractionHostError(
+                "durable_interaction_id_unavailable",
+                "Durable tool-approval interaction ID was not observed",
+                status_code=500,
+            )
+        confirmation_id = durable_interaction_id or str(
+            request_payload.get("confirmation_id", "") or ""
+        ).strip()
         if not confirmation_id:
             confirmation_id = str(_uuid.uuid4())
         request_payload["confirmation_id"] = confirmation_id
@@ -609,32 +631,23 @@ def _make_tool_confirm_callback(
             event = waiter.get("event")
             if isinstance(event, threading.Event):
                 event.wait()
-        except Exception as callback_error:
-            return {
-                "approved": False,
-                "reason": f"Failed to request confirmation: {callback_error}",
-                "modified_arguments": None,
-            }
         finally:
             with _pending_confirmations_lock:
                 _pending_confirmations.pop(confirmation_id, None)
 
         response = waiter.get("response")
+        if (
+            normalized_cancel_event is not None
+            and normalized_cancel_event.is_set()
+        ) or (
+            isinstance(response, dict)
+            and response.get("_transport_cancelled") is True
+        ):
+            raise RuntimeError("stream cancelled during tool confirmation")
         if isinstance(response, dict):
             return _normalize_tool_confirmation_response(response)
 
-        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-            return {
-                "approved": False,
-                "reason": _CONFIRMATION_CANCELLED_REASON,
-                "modified_arguments": None,
-            }
-
-        return {
-            "approved": False,
-            "reason": "Confirmation ended without a response",
-            "modified_arguments": None,
-        }
+        raise RuntimeError("tool confirmation ended without a response")
 
     return on_tool_confirm
 
@@ -642,10 +655,23 @@ def _make_tool_confirm_callback(
 def _make_continuation_callback(
     emit_event,
     cancel_event: threading.Event | None = None,
+    interaction_id_tracker: DurableInteractionIdTracker | None = None,
+    require_durable_interaction_id: bool = False,
 ):
     def on_continuation_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
-        confirmation_id = str(_uuid.uuid4())
+        durable_interaction_id = (
+            interaction_id_tracker.resolve("max_budget", allow_latest=True)
+            if interaction_id_tracker is not None
+            else ""
+        )
+        if require_durable_interaction_id and not durable_interaction_id:
+            raise DurableInteractionHostError(
+                "durable_interaction_id_unavailable",
+                "Durable max-budget interaction ID was not observed",
+                status_code=500,
+            )
+        confirmation_id = durable_interaction_id or str(_uuid.uuid4())
         waiter: Dict[str, Any] = {
             "event": threading.Event(),
             "response": None,
@@ -674,20 +700,23 @@ def _make_continuation_callback(
             event = waiter.get("event")
             if isinstance(event, threading.Event):
                 event.wait()
-        except Exception:
-            return {"approved": False}
         finally:
             with _pending_confirmations_lock:
                 _pending_confirmations.pop(confirmation_id, None)
 
         response = waiter.get("response")
+        if (
+            normalized_cancel_event is not None
+            and normalized_cancel_event.is_set()
+        ) or (
+            isinstance(response, dict)
+            and response.get("_transport_cancelled") is True
+        ):
+            raise RuntimeError("stream cancelled during continuation request")
         if isinstance(response, dict):
             return {"approved": bool(response.get("approved", False))}
 
-        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-            return {"approved": False}
-
-        return {"approved": False}
+        raise RuntimeError("continuation request ended without a response")
 
     return on_continuation_request
 
@@ -4219,6 +4248,84 @@ def _resolve_graph_agent_prompt(agent_node: dict) -> str:
     return _resolve_recipe_prompt(fake_recipe)
 
 
+def _recipe_supports_durable_flat_projection(recipe: Any) -> bool:
+    """Return whether Default's graph can safely use the durable Agent path.
+
+    Durable interaction checkpoints belong to one Unchain Agent execution.
+    PuPu's seeded Default recipe is represented as a one-agent workflow graph,
+    but also carries a compatibility projection with the same prompt, tools,
+    and subagents.  Only that exact semantic shape may use the flat Agent path;
+    custom or multi-agent workflows remain fail-closed until graph checkpoints
+    have their own durable resume protocol.
+    """
+
+    if str(getattr(recipe, "name", "") or "").strip() != "Default":
+        return False
+    try:
+        compiled = _compile_recipe_graph_for_runtime(recipe)
+    except Exception:
+        return False
+
+    agents = list(compiled.get("agents") or [])
+    if len(agents) != 1:
+        return False
+    agent_node = agents[0]
+    override = (
+        agent_node.get("override")
+        if isinstance(agent_node.get("override"), dict)
+        else {}
+    )
+    if str(override.get("model") or "").strip():
+        return False
+    if override.get("optimizer") is not None:
+        return False
+
+    raw_prompt = str(override.get("prompt") or "")
+    if re.search(r"\{\{#([^.}]+)\.([^#}]+)#\}\}", raw_prompt):
+        return False
+    if _resolve_graph_agent_prompt(agent_node) != _resolve_recipe_prompt(recipe):
+        return False
+
+    attached = list(
+        (compiled.get("attach_by_agent") or {}).get(
+            str(agent_node.get("id") or ""),
+            [],
+        )
+    )
+    toolkit_pools = [
+        node
+        for node in attached
+        if _graph_node_type(node) == "toolkit_pool"
+    ]
+    subagent_pools = [
+        node
+        for node in attached
+        if _graph_node_type(node) == "subagent_pool"
+    ]
+    if (
+        len(attached) != 2
+        or len(toolkit_pools) != 1
+        or len(subagent_pools) != 1
+    ):
+        return False
+
+    toolkit_pool = toolkit_pools[0]
+    subagent_pool = subagent_pools[0]
+    if bool(toolkit_pool.get("merge_with_user_selected") is True) != bool(
+        getattr(recipe, "merge_with_user_selected", False)
+    ):
+        return False
+    if _graph_toolkit_refs(toolkit_pool) != tuple(
+        getattr(recipe, "toolkits", ()) or ()
+    ):
+        return False
+    if _graph_subagent_entries(subagent_pool) != tuple(
+        getattr(recipe, "subagent_pool", ()) or ()
+    ):
+        return False
+    return True
+
+
 def _replace_workflow_variables(text: str, variables: Dict[str, Dict[str, str]]) -> str:
     def repl(match: re.Match) -> str:
         node_id = match.group(1)
@@ -4495,6 +4602,48 @@ def _memory_runtime_from_agent(agent: Any) -> Dict[str, Any]:
     }
 
 
+def _cleanup_durable_resume_contexts(
+    session_id: str,
+    candidate_run_ids: Iterable[str],
+) -> None:
+    normalized_session_id = str(session_id or "").strip()
+    normalized_run_ids = tuple(
+        dict.fromkeys(
+            str(run_id or "").strip()
+            for run_id in candidate_run_ids
+            if str(run_id or "").strip()
+        )
+    )
+    if not normalized_session_id or not normalized_run_ids:
+        return
+    try:
+        pending_state = get_pending_interaction(normalized_session_id)
+    except Exception as cleanup_error:
+        _subagent_logger.warning(
+            "[durable interaction] context cleanup lookup failed: %s",
+            cleanup_error,
+        )
+        return
+    if not isinstance(pending_state, dict):
+        return
+
+    pending_status = str(pending_state.get("status") or "").strip()
+    if pending_status == "none":
+        active_source_run_id = ""
+    elif pending_status in {"awaiting_response", "receipt_recorded"}:
+        active_source_run_id = str(
+            pending_state.get("source_run_id") or ""
+        ).strip()
+        if not active_source_run_id:
+            return
+    else:
+        return
+
+    for run_id in normalized_run_ids:
+        if not active_source_run_id or run_id != active_source_run_id:
+            clear_resume_context(normalized_session_id, run_id)
+
+
 # ---------------------------------------------------------------------------
 # unchain adapter helpers
 # ---------------------------------------------------------------------------
@@ -4530,6 +4679,8 @@ def _make_human_input_callback(
     emit_event,
     cancel_event=None,
     toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
+    interaction_id_tracker: DurableInteractionIdTracker | None = None,
+    require_durable_interaction_id: bool = False,
 ):
     """Create an on_human_input blocking callback for unchain ask_user_question.
 
@@ -4539,7 +4690,19 @@ def _make_human_input_callback(
     normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
 
     def on_human_input(request):
-        confirmation_id = str(_uuid.uuid4())
+        request_id = str(getattr(request, "request_id", "") or "")
+        durable_interaction_id = (
+            interaction_id_tracker.resolve("human_input", request_id)
+            if interaction_id_tracker is not None
+            else ""
+        )
+        if require_durable_interaction_id and not durable_interaction_id:
+            raise DurableInteractionHostError(
+                "durable_interaction_id_unavailable",
+                "Durable human-input interaction ID was not observed",
+                status_code=500,
+            )
+        confirmation_id = durable_interaction_id or str(_uuid.uuid4())
         interact_config = request.to_dict()
         toolkit_meta = (
             toolkit_meta_by_tool_name.get(_ASK_USER_QUESTION_TOOL_NAME, {})
@@ -4587,7 +4750,13 @@ def _make_human_input_callback(
 
         response = waiter.get("response")
 
-        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+        if (
+            normalized_cancel_event is not None
+            and normalized_cancel_event.is_set()
+        ) or (
+            isinstance(response, dict)
+            and response.get("_transport_cancelled") is True
+        ):
             raise RuntimeError("stream cancelled during human input")
 
         if not isinstance(response, dict) or not response.get("approved"):
@@ -5177,8 +5346,21 @@ def stream_chat_events(
     session_id: str = "",
     cancel_event: threading.Event | None = None,
 ) -> Iterable[Dict[str, Any]]:
+    durable_interactions_required = bool(
+        isinstance(options, dict)
+        and options.get("durable_interactions_required") is True
+    )
     recipe = _load_recipe_from_options(options)
-    if _recipe_has_graph(recipe):
+    if _recipe_has_graph(recipe) and not (
+        durable_interactions_required
+        and _recipe_supports_durable_flat_projection(recipe)
+    ):
+        if durable_interactions_required:
+            raise DurableInteractionHostError(
+                "durable_recipe_graph_unsupported",
+                "Durable interactions are not supported for recipe graphs",
+                status_code=422,
+            )
         yield from _stream_recipe_graph_events(
             recipe=recipe,
             message=message,
@@ -5197,11 +5379,23 @@ def stream_chat_events(
         interject_key, str(message or ""), options=options
     )
 
+    durable_context_saved = False
+    execution_run_id = str(_uuid.uuid4())
+    agent = None
     try:
         agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)
         messages = _normalize_messages(history, message, attachments)
         payload = _build_payload(agent.provider, options)
         memory_runtime = _memory_runtime_from_agent(agent)
+        if durable_interactions_required and not memory_runtime["available"]:
+            fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
+            raise DurableInteractionHostError(
+                "durable_memory_unavailable",
+                "Durable interactions require a memory-ready session: "
+                f"{fallback_reason}",
+                status_code=503,
+                retryable=True,
+            )
         if memory_runtime["requested"] and not memory_runtime["available"]:
             fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
             yield {
@@ -5223,8 +5417,25 @@ def stream_chat_events(
                     "message": "Memory is enabled but unavailable for this request",
                     "fallback_reason": fallback_reason,
                 }
+                _disconnect_runtime_toolkits(
+                    getattr(agent, "_toolkits", []),
+                )
                 release_interject_channels(interject_key, interject_channels)
                 return
+
+        if (
+            durable_interactions_required
+            and session_id
+            and memory_runtime["available"]
+        ):
+            save_resume_context(
+                session_id=session_id,
+                run_id=execution_run_id,
+                options=options,
+                provider=str(getattr(agent, "provider", "") or ""),
+                model=str(getattr(agent, "model", "") or ""),
+            )
+            durable_context_saved = True
 
         output_holder: Dict[str, object] = {
             "error": None,
@@ -5240,9 +5451,12 @@ def stream_chat_events(
             getattr(agent, "_toolkits", []),
         )
 
+        interaction_id_tracker = DurableInteractionIdTracker()
+
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
                 return
+            interaction_id_tracker.observe(event)
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
                 _toolkit_meta_by_tool_name,
@@ -5275,15 +5489,21 @@ def stream_chat_events(
             lambda event: event_queue.put(event),
             cancel_event=cancel_event,
             toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
+            interaction_id_tracker=interaction_id_tracker,
+            require_durable_interaction_id=durable_interactions_required,
         )
         human_input_cb = _make_human_input_callback(
             lambda event: event_queue.put(event),
             cancel_event=cancel_event,
             toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
+            interaction_id_tracker=interaction_id_tracker,
+            require_durable_interaction_id=durable_interactions_required,
         )
         max_iterations_cb = _make_continuation_callback(
             lambda event: event_queue.put(event),
             cancel_event=cancel_event,
+            interaction_id_tracker=interaction_id_tracker,
+            require_durable_interaction_id=durable_interactions_required,
         )
         if isinstance(cancel_event, threading.Event):
             def watch_stream_cancel() -> None:
@@ -5316,6 +5536,7 @@ def stream_chat_events(
                     on_tool_confirm=confirm_cb,
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
+                    run_id=execution_run_id,
                     **({"session_id": session_id} if session_id else {}),
                     **({"memory_namespace": memory_namespace} if memory_namespace else {}),
                 )
@@ -5338,6 +5559,11 @@ def stream_chat_events(
                 output_holder["error_traceback"] = _tb.format_exc()
                 output_holder["error"] = run_error
             finally:
+                if durable_context_saved:
+                    _cleanup_durable_resume_contexts(
+                        session_id,
+                        (execution_run_id,),
+                    )
                 _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
                 release_interject_channels(interject_key, interject_channels)
                 event_queue.put(done_marker)
@@ -5345,6 +5571,13 @@ def stream_chat_events(
         worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
         worker.start()
     except BaseException:  # BaseException: also catch GeneratorExit when the SSE consumer abandons us mid-setup
+        if durable_context_saved:
+            _cleanup_durable_resume_contexts(
+                session_id,
+                (execution_run_id,),
+            )
+        if agent is not None:
+            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
         release_interject_channels(interject_key, interject_channels)
         raise
 
@@ -5361,10 +5594,284 @@ def stream_chat_events(
         if tb:
             import sys as _sys
             print(f"[unchain run_agent error]\n{tb}", file=_sys.stderr, flush=True)
+        if isinstance(error, BaseException):
+            raise error
         raise RuntimeError(str(error))
 
     if not output_holder.get("seen_final_message"):
         final_text = _extract_last_assistant_text(output_holder.get("messages") or [])
+        if final_text:
+            yield {
+                "type": "final_message",
+                "run_id": output_holder.get("last_run_id", ""),
+                "iteration": output_holder.get("last_iteration", 0),
+                "timestamp": time.time(),
+                "content": final_text,
+            }
+
+    bundle = output_holder.get("bundle")
+    if isinstance(bundle, dict) and bundle:
+        yield {
+            "type": "stream_summary",
+            "run_id": str(output_holder.get("last_run_id") or ""),
+            "iteration": int(output_holder.get("last_iteration") or 0),
+            "timestamp": time.time(),
+            "bundle": bundle,
+        }
+
+
+def resume_chat_interaction_events(
+    *,
+    session_id: str,
+    interaction_id: str,
+    options: Dict[str, object] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> Iterable[Dict[str, Any]]:
+    normalized_session_id = str(session_id or "").strip()
+    normalized_interaction_id = str(interaction_id or "").strip()
+    if not normalized_session_id or not normalized_interaction_id:
+        raise DurableInteractionHostError(
+            "invalid_resume_request",
+            "session_id and interaction_id are required",
+            status_code=400,
+        )
+
+    pending_state = get_pending_interaction(normalized_session_id)
+    if pending_state.get("interaction_id") != normalized_interaction_id:
+        raise DurableInteractionHostError(
+            "interaction_not_found",
+            "No durable interaction found for this session and ID",
+            status_code=404,
+        )
+    if pending_state.get("status") != "receipt_recorded":
+        raise DurableInteractionHostError(
+            "interaction_receipt_required",
+            "The durable interaction has no submitted response",
+            status_code=409,
+        )
+
+    source_run_id = str(pending_state.get("source_run_id") or "").strip()
+    if not pending_state.get("resume_available") or not source_run_id:
+        reason = str(
+            pending_state.get("resume_unavailable_reason")
+            or "durable_resume_context_missing"
+        )
+        raise DurableInteractionHostError(
+            reason,
+            "The durable interaction has no usable resume context",
+            status_code=409,
+        )
+
+    resolved_options = resolve_resume_options(
+        session_id=normalized_session_id,
+        run_id=source_run_id,
+        fresh_options=options if isinstance(options, dict) else {},
+        expected_provider=str(pending_state.get("provider") or ""),
+        expected_model=str(pending_state.get("model") or ""),
+    )
+    recipe = _load_recipe_from_options(resolved_options)
+    if _recipe_has_graph(recipe) and not _recipe_supports_durable_flat_projection(
+        recipe
+    ):
+        raise DurableInteractionHostError(
+            "durable_recipe_graph_unsupported",
+            "Durable interaction resume is not supported for recipe graphs",
+            status_code=422,
+        )
+
+    event_queue: "queue.Queue[object]" = queue.Queue()
+    done_marker = object()
+    interject_key = normalized_session_id
+    interject_channels = register_interject_channels(
+        interject_key,
+        "",
+        options=resolved_options,
+    )
+
+    agent = None
+    resume_run_id = ""
+    try:
+        agent = _create_agent(
+            resolved_options,
+            session_id=normalized_session_id,
+            fyi_channel=interject_channels.fyi,
+        )
+        memory_runtime = _memory_runtime_from_agent(agent)
+        if not memory_runtime["available"]:
+            raise DurableInteractionHostError(
+                "memory_unavailable",
+                "Durable interaction resume requires a memory-ready session",
+                status_code=503,
+            )
+
+        resume_run_id = str(_uuid.uuid4())
+        save_resume_context(
+            session_id=normalized_session_id,
+            run_id=resume_run_id,
+            options=resolved_options,
+            provider=str(getattr(agent, "provider", "") or ""),
+            model=str(getattr(agent, "model", "") or ""),
+        )
+
+        output_holder: Dict[str, object] = {
+            "error": None,
+            "messages": None,
+            "seen_final_message": False,
+            "last_run_id": "",
+            "last_iteration": 0,
+            "bundle": None,
+        }
+        toolkit_meta_by_tool_name = _build_toolkit_tool_index(
+            getattr(agent, "_toolkits", []),
+        )
+        interaction_id_tracker = DurableInteractionIdTracker()
+
+        def on_event(event: Dict[str, Any]) -> None:
+            if not isinstance(event, dict):
+                return
+            interaction_id_tracker.observe(event)
+            event = _enrich_tool_event_with_toolkit_metadata(
+                event,
+                toolkit_meta_by_tool_name,
+            )
+            event_type = event.get("type")
+            if event_type in {"human_input_requested", "run_max_iterations"}:
+                return
+            if _is_bare_ask_user_question_tool_call(event):
+                return
+            if event_type == "final_message":
+                output_holder["seen_final_message"] = True
+            run_id = event.get("run_id")
+            if isinstance(run_id, str):
+                output_holder["last_run_id"] = run_id
+            iteration = event.get("iteration")
+            if isinstance(iteration, int):
+                output_holder["last_iteration"] = iteration
+            try:
+                interject_channels.digest(event)
+            except Exception:
+                pass
+            event_queue.put(event)
+
+        confirm_cb = _make_tool_confirm_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+            toolkit_meta_by_tool_name=toolkit_meta_by_tool_name,
+            interaction_id_tracker=interaction_id_tracker,
+            require_durable_interaction_id=True,
+        )
+        human_input_cb = _make_human_input_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+            toolkit_meta_by_tool_name=toolkit_meta_by_tool_name,
+            interaction_id_tracker=interaction_id_tracker,
+            require_durable_interaction_id=True,
+        )
+        max_iterations_cb = _make_continuation_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+            interaction_id_tracker=interaction_id_tracker,
+            require_durable_interaction_id=True,
+        )
+
+        if isinstance(cancel_event, threading.Event):
+            def watch_stream_cancel() -> None:
+                cancel_event.wait()
+                cancel_tool_confirmations(cancel_event)
+
+            threading.Thread(
+                target=watch_stream_cancel,
+                name="unchain-resume-confirm-cancel",
+                daemon=True,
+            ).start()
+
+        def run_agent() -> None:
+            try:
+                memory_namespace = str(
+                    resolved_options.get("memory_namespace") or ""
+                ).strip()
+                result = agent.resume_interaction(
+                    session_id=normalized_session_id,
+                    payload=_build_payload(agent.provider, resolved_options),
+                    callback=on_event,
+                    on_tool_confirm=confirm_cb,
+                    on_human_input=human_input_cb,
+                    on_max_iterations=max_iterations_cb,
+                    run_id=resume_run_id,
+                    **(
+                        {"memory_namespace": memory_namespace}
+                        if memory_namespace
+                        else {}
+                    ),
+                )
+                output_holder["messages"] = result.messages
+                bundle_model = str(
+                    getattr(agent, "_display_model", "")
+                    or _format_model_id(
+                        getattr(agent, "provider", ""),
+                        getattr(agent, "model", ""),
+                    )
+                )
+                bundle = _build_bundle_from_result(
+                    result,
+                    agent,
+                    model=bundle_model,
+                    active_agent="developer",
+                    orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
+                )
+                if bundle:
+                    output_holder["bundle"] = bundle
+            except Exception as run_error:
+                import traceback as _tb
+
+                output_holder["error_traceback"] = _tb.format_exc()
+                output_holder["error"] = run_error
+            finally:
+                _cleanup_durable_resume_contexts(
+                    normalized_session_id,
+                    (source_run_id, resume_run_id),
+                )
+                _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
+                release_interject_channels(interject_key, interject_channels)
+                event_queue.put(done_marker)
+
+        threading.Thread(
+            target=run_agent,
+            name="unchain-resume-events",
+            daemon=True,
+        ).start()
+    except BaseException:
+        _cleanup_durable_resume_contexts(
+            normalized_session_id,
+            (source_run_id, resume_run_id),
+        )
+        if agent is not None:
+            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
+        release_interject_channels(interject_key, interject_channels)
+        raise
+
+    while True:
+        item = event_queue.get()
+        if item is done_marker:
+            break
+        if isinstance(item, dict):
+            yield item
+
+    error = output_holder.get("error")
+    if isinstance(error, BaseException):
+        tb = output_holder.get("error_traceback", "")
+        if tb:
+            print(
+                f"[unchain resume_agent error]\n{tb}",
+                file=sys.stderr,
+                flush=True,
+            )
+        raise error
+
+    if not output_holder.get("seen_final_message"):
+        final_text = _extract_last_assistant_text(
+            output_holder.get("messages") or []
+        )
         if final_text:
             yield {
                 "type": "final_message",
