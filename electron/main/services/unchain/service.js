@@ -13,7 +13,17 @@ const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
+const UNCHAIN_COMPUTER_USE_STATUS_ENDPOINT = "/computer-use/status";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
+
+// Allowlisted macOS System Settings deep links. The renderer may only pass a
+// known target key; it can never hand us an arbitrary URL to open.
+const COMPUTER_USE_PRIVACY_DEEP_LINKS = Object.freeze({
+  screen_recording:
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+  accessibility:
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+});
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 const UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
 const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
@@ -593,6 +603,56 @@ const createUnchainService = ({
       {},
       "Invalid Miso model catalog response",
     );
+  };
+
+  const getComputerUseDisabledPayload = (reason = "") => ({
+    enabled: false,
+    reason,
+    capabilities: null,
+  });
+
+  const getComputerUseStatusPayload = async () => {
+    if (unchainStatus === "starting") {
+      return getComputerUseDisabledPayload("starting");
+    }
+    if (unchainStatus !== "ready" || !unchainPort) {
+      return getComputerUseDisabledPayload(unchainStatusReason || "not_ready");
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_COMPUTER_USE_STATUS_ENDPOINT}`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Computer use status request failed",
+      getComputerUseDisabledPayload("empty_response"),
+      "Invalid computer use status response",
+    );
+  };
+
+  const openComputerUsePrivacySettings = async (target = "") => {
+    const key = typeof target === "string" ? target.trim() : "";
+    const url = COMPUTER_USE_PRIVACY_DEEP_LINKS[key];
+    if (!url) {
+      return { ok: false, error: `Unknown privacy target: ${key || "(empty)"}` };
+    }
+    if (!shell || typeof shell.openExternal !== "function") {
+      return { ok: false, error: "openExternal is unavailable" };
+    }
+    try {
+      await shell.openExternal(url);
+      return { ok: true, target: key };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error?.message || "Failed to open System Settings",
+      };
+    }
   };
 
   const getMisoToolkitCatalogPayload = async () => {
@@ -2473,6 +2533,8 @@ const createUnchainService = ({
     startMiso,
     stopMiso,
     getMisoStatusPayload,
+    getComputerUseStatusPayload,
+    openComputerUsePrivacySettings,
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,
     getMisoToolModalCatalogPayload,

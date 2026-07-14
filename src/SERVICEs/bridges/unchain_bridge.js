@@ -55,6 +55,66 @@ export const runtimeBridge = {
     hasBridgeMethod("unchainAPI", "getCharacter") &&
     hasBridgeMethod("unchainAPI", "saveCharacter") &&
     hasBridgeMethod("unchainAPI", "deleteCharacter"),
+  isComputerUseStatusAvailable: () =>
+    hasBridgeMethod("unchainAPI", "getComputerUseStatus"),
+  isComputerUsePrivacySettingsAvailable: () =>
+    hasBridgeMethod("unchainAPI", "openComputerUsePrivacySettings"),
+
+  getComputerUseStatus: async () => {
+    if (!runtimeBridge.isComputerUseStatusAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.getComputerUseStatus is unavailable",
+      );
+    }
+
+    const response = await invokeUnchain("getComputerUseStatus", [], {
+      timeoutMs: 8000,
+      timeoutCode: "unchain_computer_use_status_timeout",
+      timeoutMessage: "Computer use status request timed out",
+      failureCode: "unchain_computer_use_status_failed",
+      failureMessage: "Failed to get computer use status",
+    });
+
+    const payload =
+      response && typeof response === "object" ? response : {};
+    const capabilities =
+      payload.capabilities && typeof payload.capabilities === "object"
+        ? payload.capabilities
+        : null;
+
+    return {
+      enabled: Boolean(payload.enabled),
+      reason: typeof payload.reason === "string" ? payload.reason : "",
+      capabilities,
+    };
+  },
+
+  openComputerUsePrivacySettings: async (target = "") => {
+    if (!runtimeBridge.isComputerUsePrivacySettingsAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.openComputerUsePrivacySettings is unavailable",
+      );
+    }
+
+    const response = await invokeUnchain(
+      "openComputerUsePrivacySettings",
+      [target],
+      {
+        timeoutMs: 8000,
+        timeoutCode: "unchain_computer_use_privacy_timeout",
+        timeoutMessage: "Open System Settings request timed out",
+        failureCode: "unchain_computer_use_privacy_failed",
+        failureMessage: "Failed to open System Settings",
+      },
+    );
+
+    return {
+      ok: Boolean(response?.ok),
+      error: typeof response?.error === "string" ? response.error : "",
+    };
+  },
 
   setChromeTerminalOpen: async (open = false) => {
     if (!runtimeBridge.isChromeTerminalControlAvailable()) {
