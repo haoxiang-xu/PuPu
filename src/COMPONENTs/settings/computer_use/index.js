@@ -4,6 +4,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsRow, SettingsSection } from "../appearance";
+import { useComputerUseConsent } from "./consent_modal";
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  Permission badge — granted / denied / unknown / not_applicable            */
@@ -114,6 +115,12 @@ export const ComputerUseSettings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openError, setOpenError] = useState("");
+
+  // One-time informed-consent gate. In dev this section lets us exercise the
+  // consent flow; the real "enable" switch wires to requireComputerUseConsent
+  // when the pre-release enablement path lands (see consent_modal.js).
+  const { requireComputerUseConsent, resetConsent, consentRecord, consentModal } =
+    useComputerUseConsent();
 
   const errorColor = isDark ? "#ff8a8a" : "#c62828";
   const mutedColor = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
@@ -248,6 +255,40 @@ export const ComputerUseSettings = () => {
             {error}
           </div>
         )}
+      </SettingsSection>
+
+      <SettingsSection title={t("computer_use.consent_section")} icon="shield">
+        <SettingsRow
+          label={
+            consentRecord
+              ? t("computer_use.consent_status_accepted")
+              : t("computer_use.consent_status_none")
+          }
+          description={
+            consentRecord
+              ? t("computer_use.consent_status_accepted_desc", {
+                  date: new Date(consentRecord.acceptedAt).toLocaleString(),
+                })
+              : t("computer_use.consent_status_none_desc")
+          }
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Button
+              label={t("computer_use.consent_review")}
+              onClick={() => {
+                requireComputerUseConsent();
+              }}
+              style={buttonStyle}
+            />
+            {consentRecord && (
+              <Button
+                label={t("computer_use.consent_reset")}
+                onClick={resetConsent}
+                style={buttonStyle}
+              />
+            )}
+          </div>
+        </SettingsRow>
       </SettingsSection>
 
       {!loading && capabilities && (
@@ -411,6 +452,8 @@ export const ComputerUseSettings = () => {
           </div>
         </SettingsSection>
       )}
+
+      {consentModal}
     </div>
   );
 };
