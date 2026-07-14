@@ -197,4 +197,12 @@ describe("ThemeEditor", () => {
     expect(screen.getByTestId("color-picker-value-hex")).toBeInTheDocument();
     expect(screen.queryByTestId("color-picker-alpha")).toBeNull();
   });
+
+  test("preview card follows the edited (non-active) mode", () => {
+    renderWithCtx(); // active = light_mode
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
+    expect(screen.getByTestId("theme-preview-card")).toHaveStyle({
+      backgroundColor: "#121212",
+    });
+  });
 });

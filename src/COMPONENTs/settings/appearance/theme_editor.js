@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
+import ThemePreviewCard from "./theme_preview_card";
 import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_PRESETS,
@@ -58,7 +59,14 @@ const ThemeEditor = () => {
     custom: settings.custom,
   });
 
+  const [draftColor, setDraftColor] = useState(null);
+
+  const cardPalette = draftColor
+    ? { ...palette, [draftColor.key]: draftColor.value }
+    : palette;
+
   const previewThemeColor = (mode, key, value) => {
+    setDraftColor({ key, value });
     if (mode !== activeMode) {
       return;
     }
@@ -87,6 +95,7 @@ const ThemeEditor = () => {
   };
 
   const commitThemeColor = (key, value) => {
+    setDraftColor(null);
     const next = writeThemeCustomColor(editMode, key, value);
     setSettings(next);
     if (editMode === activeMode) {
@@ -95,6 +104,7 @@ const ThemeEditor = () => {
   };
 
   const onPresetChange = (preset) => {
+    setDraftColor(null);
     const next = writeThemePreset(preset);
     setSettings(next);
     syncCommittedSettings(next);
@@ -104,6 +114,7 @@ const ThemeEditor = () => {
   const advState = advancedTokenState(settings, editMode, palette);
 
   const onResetTier = (key) => {
+    setDraftColor(null);
     const next = clearThemeCustomColor(editMode, key);
     setSettings(next);
     if (editMode === activeMode) {
@@ -112,6 +123,7 @@ const ThemeEditor = () => {
   };
 
   const onReset = () => {
+    setDraftColor(null);
     const next = resetThemeSettings();
     setSettings(next);
     syncCommittedSettings(next);
@@ -210,6 +222,8 @@ const ThemeEditor = () => {
           dropdown_style={selectDropdownStyle}
         />
       </div>
+
+      <ThemePreviewCard palette={cardPalette} />
 
       <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
         <button type="button" style={tabStyle("light_mode")} onClick={() => setEditMode("light_mode")}>
