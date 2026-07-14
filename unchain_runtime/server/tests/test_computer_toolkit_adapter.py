@@ -106,6 +106,67 @@ class ModelGatingTests(unittest.TestCase):
         self.assertFalse(unchain_adapter._model_supports_computer_use("openai", "claude-opus-4-8"))
 
 
+class SubagentExclusionTests(unittest.TestCase):
+    """F9 (SEC-001 P0): recipe-subagent runs execute with on_tool_confirm=None,
+    so the F1 confirmation gate can't fire there. The computer tool must be kept
+    OUT of a subagent's tool set entirely (tool-absent, not mount-then-deny)."""
+
+    def _build(self, options):
+        with _with_flag("1"), mock.patch(
+            "computer_control.toolkit.ComputerToolkit", _FakeComputerToolkit
+        ):
+            return unchain_adapter._build_selected_toolkits(options)
+
+    def _computer_options(self, **extra):
+        opts = {
+            "toolkits": ["builtin.computer"],
+            "provider": "anthropic",
+            "model": "claude-opus-4-8",
+        }
+        opts.update(extra)
+        return opts
+
+    def test_main_run_mounts_computer(self):
+        # Baseline: a normal (non-subagent) run with the flag on and a supported
+        # model still mounts the tool.
+        result = self._build(self._computer_options())
+        self.assertEqual(len(result), 1)
+        self.assertIsInstance(result[0], _FakeComputerToolkit)
+
+    def test_subagent_run_does_not_mount_computer(self):
+        # THE F9 RED CASE: same options + _recipe_subagent_run=True ⇒ tool absent.
+        result = self._build(self._computer_options(_recipe_subagent_run=True))
+        self.assertEqual(result, [], "computer tool must be absent in a subagent run")
+
+    def test_subagent_flag_falsey_still_mounts(self):
+        # A falsey flag value must not exclude (only a truthy subagent flag does).
+        for falsey in (False, 0, "", None):
+            with self.subTest(value=falsey):
+                result = self._build(self._computer_options(_recipe_subagent_run=falsey))
+                self.assertEqual(len(result), 1)
+
+    def test_build_builtin_toolkit_subagent_arg_gates_directly(self):
+        # Unit-level: the mount helper returns None for a subagent run regardless
+        # of an otherwise-valid model/flag.
+        with _with_flag("1"), mock.patch(
+            "computer_control.toolkit.ComputerToolkit", _FakeComputerToolkit
+        ):
+            mounted = unchain_adapter._build_builtin_toolkit(
+                "builtin.computer",
+                provider="anthropic",
+                model="claude-opus-4-8",
+                is_subagent_run=False,
+            )
+            skipped = unchain_adapter._build_builtin_toolkit(
+                "builtin.computer",
+                provider="anthropic",
+                model="claude-opus-4-8",
+                is_subagent_run=True,
+            )
+        self.assertIsInstance(mounted, _FakeComputerToolkit)
+        self.assertIsNone(skipped)
+
+
 class RedactionChokePointTests(unittest.TestCase):
     """Hard assertion: base64 image data can never survive the enrich step, so
     it can never reach the SSE frame or the (frontend) persistence path."""

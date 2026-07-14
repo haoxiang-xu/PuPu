@@ -2998,16 +2998,31 @@ def _build_builtin_toolkit(
     *,
     provider: str = "",
     model: str = "",
+    is_subagent_run: bool = False,
 ) -> Any:
     """Construct a PuPu-native builtin toolkit, or return None to skip it.
 
-    Returning None (unknown builtin, flag off, or an unsupported session model)
-    makes the caller drop the toolkit silently with zero exposure — never raise,
-    so a stale/disabled builtin id can't take down an otherwise-valid tool set.
+    Returning None (unknown builtin, flag off, an unsupported session model, or a
+    subagent run for the computer tool) makes the caller drop the toolkit silently
+    with zero exposure — never raise, so a stale/disabled builtin id can't take
+    down an otherwise-valid tool set.
     """
     key = toolkit_name[len(_BUILTIN_TOOLKIT_PREFIX):].strip().lower()
     if key == "computer":
         if not _computer_use_enabled():
+            return None
+        if is_subagent_run:
+            # F9 (SEC-001 P0 hard gate): recipe-subagent runs execute with
+            # on_tool_confirm=None (see _stream_recipe_graph_events), which makes
+            # unchain skip the confirmation block entirely — F1's injection gate
+            # would be silently bypassed. Do NOT mount the computer tool in a
+            # subagent run at all: keep it out of the subagent's tool set so the
+            # model never sees or attempts it (守/智 ruled tool-absent over
+            # mount-then-deny). Un-gated desktop injection is never allowed.
+            _computer_use_logger.info(
+                "computer-use requested inside a recipe-subagent run; skipping "
+                "tool mount (no confirmation path in subagent execution)"
+            )
             return None
         if not _model_supports_computer_use(provider, model):
             # Gate at the model level: sending computer_20251124 to a model that
@@ -3047,6 +3062,10 @@ def _build_selected_toolkits(
     generic_toolkit_names: list[str] = []
 
     builtin_runtime_config = get_runtime_config(options)
+    # F9: recipe-subagent runs have no confirmation callback, so confirmable
+    # builtins (today: computer) must not be mounted there. Flag rides options
+    # to every toolkit-build path through this single funnel.
+    is_subagent_run = bool(isinstance(options, dict) and options.get("_recipe_subagent_run"))
 
     for toolkit_name in toolkit_names:
         if toolkit_name.startswith(_BUILTIN_TOOLKIT_PREFIX):
@@ -3054,6 +3073,7 @@ def _build_selected_toolkits(
                 toolkit_name,
                 provider=builtin_runtime_config.get("provider", ""),
                 model=builtin_runtime_config.get("model", ""),
+                is_subagent_run=is_subagent_run,
             )
             if builtin_instance is None:
                 # Flag off or unknown builtin -> zero exposure, no error.
