@@ -159,11 +159,20 @@ class ResolverClassificationTests(unittest.TestCase):
         self.assertIn("(1, 2)", drag["description"])
         self.assertIn("(3, 4)", drag["description"])
 
-    def test_long_typed_text_is_truncated_in_summary(self):
+    def test_long_typed_text_truncation_annotates_remaining_length(self):
+        # Informed consent: a truncated preview MUST tell the user the confirmed
+        # string is longer than what is shown (else the elided tail is unconfirmed).
         long_text = "A" * 500
         policy = self.tool.confirmation_resolver({"action": "type", "text": long_text}, None)
-        self.assertLess(len(policy["description"]), 200)
-        self.assertIn("...", policy["description"])
+        self.assertLess(len(policy["description"]), 200)  # frame stays small
+        # 500 chars - 80 preview = 420 elided, and the count must be surfaced.
+        self.assertIn("+420", policy["description"])
+        self.assertIn("chars", policy["description"])
+
+    def test_short_typed_text_is_not_annotated(self):
+        policy = self.tool.confirmation_resolver({"action": "type", "text": "hi"}, None)
+        self.assertIn("hi", policy["description"])
+        self.assertNotIn("more chars", policy["description"])
 
 
 class ConfirmationGateIntegrationTests(unittest.TestCase):

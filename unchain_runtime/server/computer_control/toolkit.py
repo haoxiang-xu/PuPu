@@ -330,7 +330,12 @@ class ComputerToolkit(Toolkit):
         if normalized == "type":
             text = str(args.get("text") or "")
             if len(text) > _CONFIRM_TEXT_PREVIEW_CHARS:
-                text = text[: _CONFIRM_TEXT_PREVIEW_CHARS - 3] + "..."
+                # Annotate the elided remainder: the user must know the confirmed
+                # string is LONGER than the preview, or the untruncated tail is
+                # injected without informed consent (informed-consent gap, 智).
+                remaining = len(text) - _CONFIRM_TEXT_PREVIEW_CHARS
+                preview = text[:_CONFIRM_TEXT_PREVIEW_CHARS]
+                return f"Model wants to type: {preview!r}… (+{remaining} more chars)"
             return f"Model wants to type: {text!r}"
         if normalized == "key":
             return f"Model wants to press the key combo {str(args.get('text') or '')!r}."
