@@ -74,7 +74,7 @@ describe("QueueAttachSection", () => {
     expect(segment).toHaveStyle({ backgroundColor: "transparent" });
 
     fireEvent.mouseEnter(segment);
-    expect(segment).toHaveStyle({ backgroundColor: "rgba(0,0,0,0.05)" });
+    expect(segment).toHaveStyle({ backgroundColor: "rgba(var(--pupu-text-rgb),0.05)" });
 
     fireEvent.mouseLeave(segment);
     expect(segment).toHaveStyle({ backgroundColor: "transparent" });

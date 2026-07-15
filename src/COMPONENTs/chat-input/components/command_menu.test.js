@@ -48,7 +48,13 @@ describe("CommandMenu", () => {
     const menu = screen.getByRole("listbox", { name: "斜杠命令" });
     const options = screen.getAllByRole("option");
 
-    expect(menu.style.backgroundColor).toBe("rgba(255, 255, 255, 0.72)");
+    // jsdom CSSOM drops var()-based colors entirely (property AND attribute) —
+    // the surface binding is locked by source scan instead
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "command_menu.js"),
+      "utf8",
+    );
+    expect(src).toContain('rgba(var(--pupu-surface-rgb),0.72)');
     expect(menu.style.backdropFilter).toBe("blur(18px) saturate(1.4)");
     expect(menu.style.maxHeight).toBe("192px");
     expect(menu.style.padding).toBe("3px");
