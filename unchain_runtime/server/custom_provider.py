@@ -33,6 +33,7 @@ Security invariants (design §9):
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Dict, Tuple
@@ -565,13 +566,18 @@ def make_custom_model_io_factory(cfg: CustomProviderConfig, api_key: str):
 _TEST_TIMEOUT_SECONDS = 15
 
 
+def _test_failure(code: str, message: str) -> Dict[str, Any]:
+    """Design §7.6 contract: failures are ``{ok: False, error: {code, message}}``."""
+    return {"ok": False, "error": {"code": code, "message": message}}
+
+
 def test_custom_provider(custom_provider: Dict[str, Any], api_key: str) -> Dict[str, Any]:
     """Send a minimal request to the custom provider's endpoint.
 
     ``custom_provider`` is the (frontend-supplied, untrusted) provider definition;
     ``api_key`` is a one-shot key that is NEVER persisted. Returns
-    ``{"ok": True, "model": <id>}`` on success or ``{"ok": False, "code": ...,
-    "message": <redacted>}`` on failure. The whole thing is bounded by a 15s hard
+    ``{"ok": True, "latency_ms": <int>, "model": <id>}`` on success or
+    ``{"ok": False, "error": {"code": ..., "message": <redacted>}}`` on failure. The whole thing is bounded by a 15s hard
     timeout; every error message is passed through ``redact_text``.
 
     Error codes: provider_unreachable / provider_timeout / provider_auth_failed /
@@ -582,20 +588,19 @@ def test_custom_provider(custom_provider: Dict[str, Any], api_key: str) -> Dict[
     try:
         cfg = parse_custom_provider(options)
     except CustomProviderError as exc:
-        return {"ok": False, "code": exc.code, "message": redact_text(str(exc))}
+        return _test_failure(exc.code, redact_text(str(exc)))
     if cfg is None:
-        return {"ok": False, "code": "custom_provider_invalid", "message": "missing custom_provider"}
+        return _test_failure("custom_provider_invalid", "missing custom_provider")
 
     if cfg.requires_key() and not str(api_key or "").strip():
-        return {
-            "ok": False,
-            "code": "custom_provider_missing_api_key",
-            "message": "custom provider requires an API key",
-        }
+        return _test_failure(
+            "custom_provider_missing_api_key",
+            "custom provider requires an API key",
+        )
 
     model_id = cfg.default_model_id()
     if not model_id:
-        return {"ok": False, "code": "custom_provider_no_models", "message": "no model to test"}
+        return _test_failure("custom_provider_no_models", "no model to test")
 
     resolved_key = str(api_key or "").strip()
     factory = make_custom_model_io_factory(cfg, resolved_key)
@@ -605,9 +610,9 @@ def test_custom_provider(custom_provider: Dict[str, Any], api_key: str) -> Dict[
     try:
         model_io = factory(spec, None)
     except CustomProviderError as exc:
-        return {"ok": False, "code": exc.code, "message": redact_text(str(exc))}
+        return _test_failure(exc.code, redact_text(str(exc)))
     except Exception as exc:  # pragma: no cover - construction errors are rare
-        return {"ok": False, "code": "provider_bad_response", "message": redact_text(str(exc))}
+        return _test_failure("provider_bad_response", redact_text(str(exc)))
 
     return _probe_model_io(cfg, model_io, model_id)
 
@@ -667,14 +672,19 @@ def _probe_model_io(cfg: CustomProviderConfig, model_io: Any, model_id: str) -> 
                 )
                 resp.raise_for_status()
 
+    started = time.monotonic()
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(_do_probe)
             future.result(timeout=_TEST_TIMEOUT_SECONDS)
     except concurrent.futures.TimeoutError:
-        return {"ok": False, "code": "provider_timeout", "message": "The provider did not respond in time."}
+        return _test_failure("provider_timeout", "The provider did not respond in time.")
     except Exception as exc:  # noqa: BLE001 - map every provider failure to a code
         code, message = _classify_probe_error(exc)
-        return {"ok": False, "code": code, "message": message}
+        return _test_failure(code, message)
 
-    return {"ok": True, "model": model_id}
+    return {
+        "ok": True,
+        "latency_ms": int((time.monotonic() - started) * 1000),
+        "model": model_id,
+    }

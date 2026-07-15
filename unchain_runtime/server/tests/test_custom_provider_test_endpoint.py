@@ -38,14 +38,14 @@ class TestConnectionMappingTests(unittest.TestCase):
     def test_missing_key_maps_error(self):
         result = cp.test_custom_provider(_anthropic_provider(), "")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["code"], "custom_provider_missing_api_key")
+        self.assertEqual(result["error"]["code"], "custom_provider_missing_api_key")
 
     def test_invalid_provider_returns_structured_error(self):
         bad = _anthropic_provider()
         bad["protocol"] = "nope"
         result = cp.test_custom_provider(bad, "k")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["code"], "custom_provider_invalid_protocol")
+        self.assertEqual(result["error"]["code"], "custom_provider_invalid_protocol")
 
     def test_success(self):
         class _FakeClient:
@@ -58,6 +58,8 @@ class TestConnectionMappingTests(unittest.TestCase):
             result = cp.test_custom_provider(_anthropic_provider(), "hs-key")
         self.assertTrue(result["ok"])
         self.assertEqual(result["model"], "anthropic--claude-4.5-haiku")
+        self.assertIsInstance(result["latency_ms"], int)
+        self.assertGreaterEqual(result["latency_ms"], 0)
 
     def test_auth_failure_mapped(self):
         class _FakeClient:
@@ -69,7 +71,7 @@ class TestConnectionMappingTests(unittest.TestCase):
         with mock.patch("anthropic.Anthropic", return_value=_FakeClient()):
             result = cp.test_custom_provider(_anthropic_provider(), "bad-key")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["code"], "provider_auth_failed")
+        self.assertEqual(result["error"]["code"], "provider_auth_failed")
 
     def test_timeout_mapped(self):
         class _FakeClient:
@@ -81,7 +83,7 @@ class TestConnectionMappingTests(unittest.TestCase):
         with mock.patch("anthropic.Anthropic", return_value=_FakeClient()):
             result = cp.test_custom_provider(_anthropic_provider(), "k")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["code"], "provider_timeout")
+        self.assertEqual(result["error"]["code"], "provider_timeout")
 
     def test_unreachable_mapped(self):
         class _FakeClient:
@@ -93,7 +95,7 @@ class TestConnectionMappingTests(unittest.TestCase):
         with mock.patch("anthropic.Anthropic", return_value=_FakeClient()):
             result = cp.test_custom_provider(_anthropic_provider(), "k")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["code"], "provider_unreachable")
+        self.assertEqual(result["error"]["code"], "provider_unreachable")
 
     def test_bad_response_mapped_and_redacted(self):
         class _FakeClient:
@@ -105,8 +107,8 @@ class TestConnectionMappingTests(unittest.TestCase):
         with mock.patch("anthropic.Anthropic", return_value=_FakeClient()):
             result = cp.test_custom_provider(_anthropic_provider(), "k")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["code"], "provider_bad_response")
-        self.assertNotIn("sk-should-not-appear", result["message"])
+        self.assertEqual(result["error"]["code"], "provider_bad_response")
+        self.assertNotIn("sk-should-not-appear", result["error"]["message"])
 
 
 if __name__ == "__main__":

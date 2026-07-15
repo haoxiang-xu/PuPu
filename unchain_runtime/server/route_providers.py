@@ -40,7 +40,15 @@ def test_custom_provider_route() -> Response:
         result = test_custom_provider(custom_provider, api_key if isinstance(api_key, str) else "")
     except Exception as exc:  # noqa: BLE001 - never surface a raw (unredacted) trace
         return (
-            jsonify({"ok": False, "code": "provider_bad_response", "message": redact_text(str(exc))}),
+            jsonify(
+                {
+                    "ok": False,
+                    "error": {
+                        "code": "provider_bad_response",
+                        "message": redact_text(str(exc)),
+                    },
+                }
+            ),
             200,
         )
 
