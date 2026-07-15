@@ -84,7 +84,11 @@ export const ToolkitModal = ({ open, onClose }) => {
       open={open}
       onClose={onClose}
       style={{
+        // lock the same rendered aspect as the settings modal: content must
+        // never stretch the shell wider than its 600px square
+        width: 600,
         minWidth: 600,
+        maxWidth: 600,
         height: 600,
         maxHeight: "80vh",
         padding: 0,
