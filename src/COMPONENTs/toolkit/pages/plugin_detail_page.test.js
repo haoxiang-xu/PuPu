@@ -42,11 +42,6 @@ jest.mock("../../../SERVICEs/toolkit_auto_approve_store", () => ({
   setToolkitAutoApprove: jest.fn(),
 }));
 
-jest.mock("../../../BUILTIN_COMPONENTs/markdown/markdown", () => ({
-  __esModule: true,
-  default: ({ content }) => <div data-testid="markdown">{content}</div>,
-}));
-
 /* CRA's default jest config runs with resetMocks:true, which strips any
    mockImplementation between tests — including one set at module-factory
    time — so getToolkitDetail needs a default resolution reinstated before
@@ -113,7 +108,12 @@ describe("PluginDetailPage — install state pill", () => {
     );
   });
 
-  test("shows OPEN for an already-installed plugin and calls onOpen on click", () => {
+  /* T2: the installed pill is now the mockup's quiet gray "Installed"
+     label (reusing toolkit.nav_installed, the same copy the sidebar and
+     Installed-page title already use) instead of "OPEN" — there is nothing
+     to "open" for most callers (see the M-a note below), so the header
+     shell no longer implies a distinct open action visually. */
+  test("shows a quiet Installed label for an already-installed plugin and calls onOpen on click", () => {
     const onOpen = jest.fn();
     const onInstall = jest.fn();
     renderPage({
@@ -123,7 +123,7 @@ describe("PluginDetailPage — install state pill", () => {
       onInstall,
     });
 
-    const pill = screen.getByText("OPEN");
+    const pill = screen.getByText("Installed");
     fireEvent.click(pill);
 
     expect(onOpen).toHaveBeenCalledTimes(1);
@@ -131,13 +131,12 @@ describe("PluginDetailPage — install state pill", () => {
   });
 
   /* M-a: the shell never wires an onOpen handler for most detail branches —
-     OPEN used to render as an enabled-looking button that silently did
-     nothing on click. It must now render as a disabled, quiet label instead
-     of a fake-enabled button. */
-  test("OPEN renders disabled (a quiet label, not a fake-enabled button) when no onOpen is supplied", () => {
+     the installed pill must render as a disabled, quiet label instead of a
+     fake-enabled button when no onOpen is supplied. */
+  test("Installed renders disabled (a quiet label, not a fake-enabled button) when no onOpen is supplied", () => {
     renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
 
-    expect(screen.getByRole("button", { name: "OPEN" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Installed" })).toBeDisabled();
   });
 });
 
@@ -151,15 +150,16 @@ describe("PluginDetailPage — Commands section", () => {
   });
 });
 
-describe("PluginDetailPage — What it can do", () => {
-  test("renders canDo entries with no underscored function names", () => {
+describe("PluginDetailPage — About capability tags", () => {
+  /* T2: the old "What it can do" checklist grid is gone — canDo now renders
+     as the About section's tag cloud, and plugin_presentation.js's canDo
+     shape changed from a bare "label ⚠" string to {label, confirm} so the
+     marker can be styled on its own (see plugin_presentation.test.js). */
+  test("renders canDo entries as tags, marking confirm-required items with a warning suffix", () => {
     const { container } = renderPage({ entry: PLAN_ENTRY });
 
     expect(screen.getByText("Plan Start")).toBeInTheDocument();
-    /* "Plan finalize" legitimately appears twice — once as a capability in
-       "What it can do" and once as the Information section's confirmation
-       row value — both derived from the same presentation.canDo entry. */
-    expect(screen.getAllByText("Plan finalize").length).toBeGreaterThan(0);
+    expect(container.textContent).toContain("Plan finalize ⚠");
     expect(container.textContent).not.toMatch(/plan_/);
   });
 });
@@ -191,22 +191,27 @@ describe("PluginDetailPage — vocabulary", () => {
   });
 });
 
-describe("PluginDetailPage — Information", () => {
-  test("renders provider and requires-confirmation rows", () => {
+describe("PluginDetailPage — About", () => {
+  test("renders the description paragraph and a Provider kv row", () => {
     renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
 
+    expect(screen.getByText("About")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Workspace-backed planning: draft, refine and finalize step-by-step plans.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("Provider")).toBeInTheDocument();
     expect(screen.getByText("PuPu built-in")).toBeInTheDocument();
-    expect(screen.getByText("Requires confirmation")).toBeInTheDocument();
-    expect(screen.getAllByText("Plan finalize").length).toBeGreaterThan(0);
   });
 });
 
-describe("PluginDetailPage — danger zone", () => {
+describe("PluginDetailPage — Permission section", () => {
   test("delete is disabled for a builtin plugin and does not call onDelete", () => {
     const onDelete = jest.fn();
     renderPage({ entry: PLAN_ENTRY, isBuiltin: true, onDelete, forceInstalled: true });
 
+    expect(screen.getByText("Permission")).toBeInTheDocument();
     const deleteButton = screen.getByRole("button", { name: /delete/i });
     expect(deleteButton).toBeDisabled();
 
@@ -226,7 +231,8 @@ describe("PluginDetailPage — danger zone", () => {
    from the old store panel but dropped the secrets sub-form and the
    external-registry approve/revoke workflow — this block ports both back,
    verbatim behavior, from
-   src/COMPONENTs/toolkit/components/store_toolkit_detail_panel.js. */
+   src/COMPONENTs/toolkit/components/store_toolkit_detail_panel.js. T2
+   relocated both into the Setup/Status sections. */
 const SECRET_ENTRY = {
   id: "browser-use-local",
   toolkitId: "mcp.browser.browser-use-local",
@@ -263,12 +269,12 @@ const APPROVED_ENTRY = {
   approvalStatus: "approved",
 };
 
-describe("PluginDetailPage — Secrets section", () => {
+describe("PluginDetailPage — Setup section", () => {
   test("renders a password input per secret key and disables the pill until required secrets are filled", () => {
     const onInstall = jest.fn();
     renderPage({ entry: SECRET_ENTRY, onInstall, forceInstalled: false });
 
-    expect(screen.getByText("Secrets")).toBeInTheDocument();
+    expect(screen.getByText("Setup")).toBeInTheDocument();
     const secretInput = screen.getByPlaceholderText("OpenAI API key");
     expect(secretInput).toHaveAttribute("type", "password");
 
@@ -296,7 +302,7 @@ describe("PluginDetailPage — Secrets section", () => {
   });
 });
 
-describe("PluginDetailPage — external-registry approve/revoke", () => {
+describe("PluginDetailPage — Status section (external-registry approve/revoke)", () => {
   test("needs-review entry shows an approve affordance in the warning color and fires onApproveEntry with the same call shape as the old panel", () => {
     const onApproveEntry = jest.fn();
     renderPage({
@@ -305,6 +311,7 @@ describe("PluginDetailPage — external-registry approve/revoke", () => {
       forceInstalled: false,
     });
 
+    expect(screen.getByText("Status")).toBeInTheDocument();
     const approveButton = screen.getByRole("button", { name: /approve/i });
     expect(approveButton).toHaveStyle({ color: "#c2410c" });
 
@@ -344,9 +351,9 @@ describe("PluginDetailPage — external-registry approve/revoke", () => {
 
 /* T4c restoration: the approvalRiskRows security table (transport, command,
    url, secrets, oauth, workspace, permissions, registry, recipe hash) that
-   store_toolkit_detail_panel.js showed BEFORE the approve action — dropped
-   entirely when this page replaced the old store panel. Ported verbatim
-   field-for-field, restyled to this page's section-header language. */
+   store_toolkit_detail_panel.js showed BEFORE the approve action — ported
+   verbatim field-for-field. T2 moved it into the Risk section's two-column
+   kv grid. */
 const RISK_ENTRY = {
   ...REVIEW_ENTRY,
   recipeHash: "abc123",
@@ -369,11 +376,11 @@ const RISK_ENTRY = {
   },
 };
 
-describe("PluginDetailPage — Approval risk summary", () => {
-  test("external entry renders the risk table before the approve action, with all review fields", () => {
+describe("PluginDetailPage — Risk section", () => {
+  test("external entry renders the risk kv grid before the approve action, with all review fields", () => {
     renderPage({ entry: RISK_ENTRY, forceInstalled: false });
 
-    expect(screen.getByText("Approval risk summary")).toBeInTheDocument();
+    expect(screen.getByText("Risk")).toBeInTheDocument();
     expect(screen.getByText("High risk")).toBeInTheDocument();
     expect(screen.getByText("Transport")).toBeInTheDocument();
     expect(screen.getAllByText("stdio").length).toBeGreaterThan(0);
@@ -401,16 +408,17 @@ describe("PluginDetailPage — Approval risk summary", () => {
     expect(screen.getByText("mcp.url")).toBeInTheDocument();
   });
 
-  test("a regular (non-external-registry) entry never renders the risk table", () => {
+  test("a regular (non-external-registry) entry never renders the risk section", () => {
     renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
-    expect(screen.queryByText("Approval risk summary")).not.toBeInTheDocument();
+    expect(screen.queryByText("Risk")).not.toBeInTheDocument();
   });
 });
 
 /* T4c restoration: the secondary "Connect with OAuth" button for
    dual-auth entries — ones that install via secrets/http but also carry an
    OAuth recipe as an alternative. Ported verbatim from
-   store_toolkit_detail_panel.js's `showSecondaryOAuthAction`. */
+   store_toolkit_detail_panel.js's `showSecondaryOAuthAction`; T2 moved it
+   into the Setup section. */
 const DUAL_AUTH_ENTRY = {
   id: "dual-auth-sample",
   toolkitId: "mcp.productivity.dual-auth-sample",
@@ -452,8 +460,8 @@ describe("PluginDetailPage — dual auth", () => {
    Settings section had it alongside Auto Enable (backgroundColor_on
    "#E5484D", confirm-before-enabling modal); the unified detail page only
    kept Auto Enable. Only meaningful for an already-installed plugin — the
-   old store panel never showed it either. */
-describe("PluginDetailPage — Auto Approve Tools", () => {
+   old store panel never showed it either. T2 moved both into Permission. */
+describe("PluginDetailPage — Auto Approve", () => {
   beforeEach(() => {
     isToolkitAutoApprove.mockReturnValue(false);
     setToolkitAutoApprove.mockClear();
@@ -566,26 +574,25 @@ describe("PluginDetailPage — install error", () => {
   });
 });
 
-/* T4c restoration: README markdown — toolkit_detail_panel.js's core content
-   (fetched via api.unchain.getToolkitDetail for installed plugins that don't
-   carry a readmeMarkdown field in the catalog listing) was entirely dropped
-   by the unified page. Store-registry entries already embed readmeMarkdown
-   statically (see mcp_toolkit_registry.json) and need no fetch — same split
-   as the old panels. */
-describe("PluginDetailPage — README", () => {
+/* T2: the README markdown viewer is gone — the mockup's About section has
+   no inline reader, just a "Docs → README ›" kv row. readmeState still
+   drives whether that row appears (embedded readmeMarkdown, or fetched via
+   api.unchain.getToolkitDetail for installed entries that don't carry
+   one), it just no longer renders the body. */
+describe("PluginDetailPage — About Docs row", () => {
   beforeEach(() => {
     api.unchain.getToolkitDetail.mockReset();
   });
 
-  test("store entries with an embedded readmeMarkdown render it without fetching", async () => {
+  test("store entries with an embedded readmeMarkdown show the Docs row without fetching", async () => {
     const entry = { ...NOTION_ENTRY, readmeMarkdown: "## Notion\n\nRead pages." };
     renderPage({ entry, forceInstalled: false });
 
-    expect(await screen.findByTestId("markdown")).toHaveTextContent("Notion");
+    expect(await screen.findByText("README ›")).toBeInTheDocument();
     expect(api.unchain.getToolkitDetail).not.toHaveBeenCalled();
   });
 
-  test("installed entries without an embedded readme fetch it via getToolkitDetail", async () => {
+  test("installed entries without an embedded readme fetch it via getToolkitDetail and then show the Docs row", async () => {
     api.unchain.getToolkitDetail.mockResolvedValue({
       toolkitId: "plan",
       readmeMarkdown: "## Plan\n\nStep-by-step planning.",
@@ -598,18 +605,18 @@ describe("PluginDetailPage — README", () => {
     await waitFor(() => {
       expect(api.unchain.getToolkitDetail).toHaveBeenCalledWith("plan", null);
     });
-    expect(await screen.findByTestId("markdown")).toHaveTextContent(
-      "Step-by-step planning.",
-    );
+    expect(await screen.findByText("README ›")).toBeInTheDocument();
   });
 
-  test("falls back to a no-documentation placeholder when nothing is available", async () => {
+  test("no Docs row when no readme is available", async () => {
     api.unchain.getToolkitDetail.mockResolvedValue({ toolkitId: "plan", readmeMarkdown: "" });
 
     await act(async () => {
       renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
     });
 
-    expect(await screen.findByText("No documentation")).toBeInTheDocument();
+    await waitFor(() => expect(api.unchain.getToolkitDetail).toHaveBeenCalled());
+    expect(screen.queryByText("README ›")).not.toBeInTheDocument();
+    expect(screen.queryByText("Docs")).not.toBeInTheDocument();
   });
 });

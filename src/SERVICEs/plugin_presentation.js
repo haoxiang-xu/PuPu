@@ -58,12 +58,12 @@ export function toPluginPresentation(entry) {
     description: skill.description || "",
   }));
 
-  // Convert tools to canDo, avoiding function names. Tools that require
-  // confirmation carry a trailing ⚠ — this is the per-item successor to the
-  // old store_toolkit_detail_panel.js "🔒 " prefix on its tool tags; the new
-  // App-Store detail page only has one aggregate "Requires confirmation" row
-  // in Information, so the marker here is what lets a user tell, item by
-  // item, which capability in "What it can do" needs confirmation.
+  // Convert tools to canDo, avoiding function names. Each item is
+  // {label, confirm} — `confirm` is the structured successor to the old
+  // inline "label ⚠" string suffix: the settings-isomorphic About section
+  // (plugin_detail_page.js) renders these as a tag cloud and needs the
+  // confirm flag separately from the label to style the ⚠ marker on its
+  // own (color, spacing) rather than baking it into the text.
   const canDo = (tools || [])
     .map((tool) => {
       const title = tool.title || tool.name || "";
@@ -72,7 +72,7 @@ export function toPluginPresentation(entry) {
       const label = tool.title
         ? tool.title.charAt(0).toUpperCase() + tool.title.slice(1)
         : snakeToCaseTitle(tool.name);
-      return tool.requiresConfirmation ? `${label} ⚠` : label;
+      return { label, confirm: Boolean(tool.requiresConfirmation) };
     })
     .filter((item) => item !== null);
 

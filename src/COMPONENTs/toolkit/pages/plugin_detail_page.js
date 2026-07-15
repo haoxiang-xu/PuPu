@@ -5,9 +5,9 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
-import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { SOURCE_CONFIG, STORE_CATEGORY_CONFIG } from "../constants";
 import { ToolkitIconFrame } from "../components/toolkit_icon";
+import { SettingsSection, SettingsRow } from "../../settings/appearance";
 import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
 import { usePluginInstallState } from "../hooks/use_plugin_install_state";
 import { setupKindForEntry } from "../../../SERVICEs/mcp_install";
@@ -18,37 +18,26 @@ import {
   setToolkitAutoApprove,
 } from "../../../SERVICEs/toolkit_auto_approve_store";
 
-/* App-Store product page — the unified detail surface for both the
-   Installed list and the store (Discover/Categories). Ground truth:
-   docs/superpowers/specs/2026-07-13-plugins-appstore-mockup.html, screen 2
-   (.dhero / .statrow / .cmdcard / .cando / .inforow). Install/OAuth/toggle/
-   delete LOGIC is lifted verbatim from store_toolkit_card.js (via the shared
-   usePluginInstallState hook) and toolkit_detail_panel.js's Settings
-   section — only the shell around it is new.
+/* Settings-isomorphic product page (T2) — the detail surface for both the
+   Installed list and the store (Discover/Categories), rebuilt on top of the
+   REAL SettingsSection/SettingsRow (src/COMPONENTs/settings/appearance.js)
+   so it reads as one system with the Settings modal instead of its own
+   App-Store hero shell. Ground truth:
+   docs/superpowers/specs/2026-07-14-plugins-settings-isomorphic-mockup.html
+   (screens ① Plan detail / ② Grafana MCP detail / ④ Core detail).
 
-   T4b restoration: the secrets sub-form and the external-registry
-   approve/revoke workflow were dropped when this page replaced
-   store_toolkit_detail_panel.js (Task 3) — both are ported back here
-   verbatim (same fields, same onInstall({secrets}) / onApproveEntry /
-   onRevokeApproval call shapes as the old panel), restyled to this page's
-   section-header language instead of the old panel's uppercase SectionTitle.
+   Layout is a fixed header (back + 48px icon + name/source-pill + tagline +
+   Get/Installed action) over a scrollable body of SettingsSections in a
+   fixed order — Commands → Status → Setup → Risk → About → Permission —
+   each one absent entirely when it has nothing to show. The 5-cell stat
+   strip and the old "What it can do" checklist grid are gone; capability
+   tags now live inside About (see plugin_presentation.js's canDo, which
+   this task changed from bare label strings to {label, confirm} objects so
+   the ⚠ marker can be styled on its own).
 
-   T4c restoration: four more capabilities the parity audit found missing —
-   the approvalRiskRows security table + recipe-diff warning (both from
-   store_toolkit_detail_panel.js, shown before the approve action), the
-   dual-auth secondary "Connect with OAuth" action, the Auto Approve Tools
-   toggle (from toolkit_detail_panel.js's Settings section, installed-only —
-   the store panel never had it either), and the README markdown section
-   (store entries embed it statically; installed entries fetch it via
-   api.unchain.getToolkitDetail, same split the old panels used).
-
-   T5 restoration: `ToolkitAutoApproveConfirmModal` and
-   `ToolkitDeleteConfirmModal` used to live in (and be imported from)
-   toolkit_detail_panel.js — that whole file is retired in T5 along with the
-   rest of the legacy toolkit surfaces, so its only two still-live exports
-   move here verbatim (copy wording reworded to plugin vocabulary; no
-   behavior change — same open/onClose/onConfirm contract, same confirm-then-
-   close semantics). */
+   Install/OAuth/toggle/delete/approve/revoke/secrets LOGIC is unchanged —
+   only the shell and section grouping around it moved. See per-section
+   comments below for where each block used to live. */
 const ToolkitAutoApproveConfirmModal = ({ open, onClose, onConfirm, isDark }) => {
   const { t } = useTranslation();
   return (
@@ -310,10 +299,12 @@ const PluginDetailPage = ({
     !approvalBusy && (!requiresRiskAcknowledgement || riskAcknowledged);
 
   /* ── Dual-auth secondary OAuth action (ported from
-     store_toolkit_detail_panel.js's showSecondaryOAuthAction) — entries that
-     install via secrets/http but also carry an OAuth recipe as an
-     alternative get a second "Connect with OAuth" action next to the
-     primary pill. ── */
+     store_toolkit_detail_panel.js's showSecondaryOAuthAction, then moved
+     from the header into the Setup section in T2 — mockup screen ② groups
+     every setup affordance, secrets or OAuth, under one "Setup" section) —
+     entries that install via secrets/http but also carry an OAuth recipe as
+     an alternative get a low-key "Connect with OAuth" link alongside the
+     secret fields. ── */
   const hasOAuthRecipe = Boolean(entry?.auth?.oauth);
   const showSecondaryOAuthAction =
     hasOAuthRecipe &&
@@ -321,10 +312,9 @@ const PluginDetailPage = ({
     Boolean(onOAuthConnect);
 
   /* ── Approval risk summary (ported from store_toolkit_detail_panel.js's
-     approvalRiskRows, ~lines 256-266, and its rendering section) — shown
-     before the approve action so an external-registry entry's transport /
-     command / secrets / oauth / workspace footprint is visible ahead of the
-     click. ── */
+     approvalRiskRows, ~lines 256-266) — now the Risk section's two-column kv
+     grid (T2), showing an external-registry entry's transport / command /
+     secrets / oauth / workspace footprint. ── */
   const review = entry?.review || {};
   const riskLevel = String(review.riskLevel || "").trim();
   const permissionGroups = Array.isArray(review.permissionGroups)
@@ -351,9 +341,10 @@ const PluginDetailPage = ({
   ]
     .filter(Boolean)
     .join(" · ");
+  const commandRowLabel = t("toolkit.store_review_command");
   const approvalRiskRows = [
     [t("toolkit.store_review_transport"), entry?.mcp?.transport || ""],
-    [t("toolkit.store_review_command"), commandSummary],
+    [commandRowLabel, commandSummary],
     [t("toolkit.store_review_url"), urlSummary],
     [t("toolkit.store_review_secrets"), secretSummary],
     [t("toolkit.store_review_oauth"), oauthSummary],
@@ -396,11 +387,12 @@ const PluginDetailPage = ({
     setAutoApprove(true);
   };
 
-  /* ── README markdown (ported from toolkit_detail_panel.js) — store entries
-     already embed readmeMarkdown statically (mcp_toolkit_registry.json);
-     installed entries (builtin/local/already-installed mcp) need the
-     dedicated getToolkitDetail fetch the old installed panel used, since the
-     catalog listing itself never carries the full markdown body. ── */
+  /* ── Docs (About kv row) — store entries already embed readmeMarkdown
+     statically (mcp_toolkit_registry.json); installed entries that don't
+     carry one fetch it via api.unchain.getToolkitDetail, same split the old
+     installed panel used. T2 stopped rendering the markdown body inline
+     (the mockup's About section has no README viewer, just a "Docs → README
+     ›" kv row) — this state now only decides whether that row is present. ── */
   const [readmeState, setReadmeState] = useState(() => ({
     loading: false,
     content: entry?.readmeMarkdown || "",
@@ -438,16 +430,14 @@ const PluginDetailPage = ({
   const mutedColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
   const tertiaryColor = isDark ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.35)";
   const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
-  const cardBg = isDark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.03)";
-  const cardBorder = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
-  const chipColor = isDark ? "#7c8cf8" : "#2563eb";
-  const chipBg = isDark ? "rgba(124,140,248,0.12)" : "rgba(37,99,235,0.08)";
-  const checkColor = "#4cbe8b";
+  const chipColor = isDark ? "#9aa8ff" : "#2563eb";
   const dangerColor = "#E5484D";
   /* Warning tokens ported verbatim from store_toolkit_detail_panel.js —
      used for the needs-review approve affordance and the revoke action. */
-  const warningBg = isDark ? "rgba(251,146,60,0.14)" : "rgba(251,146,60,0.12)";
   const warningColor = isDark ? "#fdba74" : "#c2410c";
+  const warningBg = isDark ? "rgba(251,146,60,0.14)" : "rgba(251,146,60,0.12)";
+  const hotColor = "#fdba74";
+  const tagBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
 
   const sourceConfig = SOURCE_CONFIG[entry?.source] || SOURCE_CONFIG.builtin;
   const sourceBadge = presentation.sourceBadge || { label: "", color: sourceConfig.color };
@@ -460,32 +450,15 @@ const PluginDetailPage = ({
       ? presentation.category.charAt(0).toUpperCase() + presentation.category.slice(1)
       : "";
   const providerName = entry?.source === "builtin" ? "PuPu" : sourceBadge.label;
-
-  /* Permissions stat only has real data for workspace-scoped plugins — we
-     don't fabricate a permission taxonomy for the rest, so the cell is
-     omitted rather than duplicating the Information section's confirmation
-     row text (which already covers per-command confirmation requirements). */
-  const permissionsValue =
-    entry?.requiresWorkspace || entry?.workspace?.required
-      ? t("toolkit.store_category_workspace")
-      : "";
   const versionValue = entry?.version || "";
-
-  const stats = [
-    { key: "stat_source", label: t("toolkit.stat_source"), value: sourceBadge.label, color: sourceBadge.color },
-    { key: "stat_commands", label: t("toolkit.stat_commands"), value: String(presentation.commandCount ?? 0) },
-    { key: "stat_category", label: t("toolkit.stat_category"), value: categoryLabel },
-    { key: "stat_permissions", label: t("toolkit.store_permissions"), value: permissionsValue },
-    { key: "stat_version", label: t("toolkit.stat_version"), value: versionValue },
-  ].filter((stat) => Boolean(stat.value));
 
   const pillIsOpen = installMachine.installState === "installed";
   /* M-a: the shell never wires an onOpen handler (there is nothing to
      "open" for an installed plugin — no separate window/view). Rendering
      the pill as enabled anyway made it look actionable while silently
-     doing nothing on click. Only treat OPEN as a real (enabled) action when
-     a caller actually supplied onOpen; otherwise it's a quiet, disabled
-     label — same visual language the old "Installed" state used. */
+     doing nothing on click. Only treat the installed pill as a real
+     (enabled) action when a caller actually supplied onOpen; otherwise it's
+     the quiet, disabled "Installed" label the mockup shows. */
   const pillEnabled = pillIsOpen
     ? Boolean(onOpen)
     : installMachine.canInstall &&
@@ -532,18 +505,58 @@ const PluginDetailPage = ({
 
   const toolkitLabel = presentation.name || entry?.toolkitId || "";
 
-  const inforows = Array.isArray(presentation.information) ? presentation.information : [];
   const commands = Array.isArray(presentation.commands) ? presentation.commands : [];
   const canDo = Array.isArray(presentation.canDo) ? presentation.canDo : [];
 
-  const subtitle = [presentation.tagline, categoryLabel, providerName && `by ${providerName}`]
+  const subtitle = [presentation.tagline, providerName && `by ${providerName}`, versionValue && `v${versionValue}`]
     .filter(Boolean)
     .join(" · ");
 
+  const sourcePillLabel = String(entry?.source || "").toLowerCase();
+
+  const showSetup =
+    installMachine.installState === "installable" &&
+    (requiresSecretInput || showSecondaryOAuthAction);
+  const showStatus = isExternalEntry && (canApproveExternal || canRevokeExternal);
+  const showRisk = isExternalEntry && approvalRiskRows.length > 0;
+
+  /* About kv — Provider/Version/Docs/Category/Stars, only present fields.
+     Provider prefers the repo identity (matches the mockup's MCP screen,
+     "grafana/mcp-grafana") and falls back to the generic source mapping
+     plugin_presentation.js already computes ("PuPu built-in" / "MCP
+     server" / …). Labels here are short attribute names, not translated —
+     same precedent plugin_presentation.js's own "Provider" row already
+     set. */
+  const informationProvider =
+    (Array.isArray(presentation.information) ? presentation.information : []).find(
+      (row) => row.k === "Provider",
+    )?.v || "";
+  const aboutKvRows = [
+    { k: "Provider", v: entry?.repoFullName || informationProvider },
+    { k: "Version", v: versionValue },
+    { k: "Docs", v: readmeState.content ? "README ›" : "" },
+    { k: "Category", v: categoryLabel },
+    { k: "Stars", v: entry?.repoStars != null ? String(entry.repoStars) : "" },
+  ].filter((row) => String(row.v || "").trim());
+  const aboutDescription = entry?.toolkitDescription || presentation.tagline || "";
+
+  const miniButtonStyle = {
+    fontSize: 11.5,
+    fontFamily,
+    color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)",
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    flexShrink: 0,
+    root: { background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" },
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* ── Fixed header — back link, 48px icon, name + source pill, tagline,
+           right-aligned Get/Installed action. ── */}
       <div style={{ flexShrink: 0, paddingRight: 24 }}>
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 4 }}>
           <Button
             prefix_icon="arrow_left"
             onClick={onBack}
@@ -564,37 +577,48 @@ const PluginDetailPage = ({
             }}
           />
         </div>
-      </div>
 
-      <div
-        className="scrollable"
-        style={{ flex: 1, overflowY: "auto", padding: "0 24px 24px 0" }}
-      >
-        {/* ── dhero ── */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 18,
-            padding: "6px 0 20px",
+            gap: 13,
+            padding: "10px 0 18px",
             borderBottom: `1px solid ${dividerColor}`,
           }}
         >
           <ToolkitIconFrame
             icon={entry?.toolkitIcon}
             isDark={isDark}
-            size={72}
-            iconSize={36}
-            borderRadius={17}
+            size={48}
+            iconSize={24}
+            borderRadius={12}
             fallbackColor={sourceConfig.color}
-            style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.35)" }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", fontFamily, color: textColor }}>
-              {toolkitLabel}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 650, letterSpacing: "-0.01em", fontFamily, color: textColor }}>
+                {toolkitLabel}
+              </span>
+              {sourcePillLabel && (
+                <span
+                  style={{
+                    fontSize: 9.5,
+                    fontWeight: 500,
+                    letterSpacing: "0.4px",
+                    textTransform: "lowercase",
+                    padding: "1px 7px",
+                    borderRadius: 999,
+                    color: sourceConfig.color,
+                    background: sourceConfig.bg,
+                  }}
+                >
+                  {sourcePillLabel}
+                </span>
+              )}
             </div>
             {subtitle && (
-              <div style={{ fontSize: 12.5, color: mutedColor, marginTop: 2, fontFamily }}>{subtitle}</div>
+              <div style={{ fontSize: 11, color: mutedColor, marginTop: 2, fontFamily }}>{subtitle}</div>
             )}
           </div>
 
@@ -607,29 +631,41 @@ const PluginDetailPage = ({
                   color={isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)"}
                 />
               )}
-              <Button
-                label={installMachine.stateLabel}
-                disabled={!pillEnabled}
-                onClick={handlePillClick}
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  fontFamily,
-                  paddingVertical: 6,
-                  paddingHorizontal: 18,
-                  borderRadius: 999,
-                  color: pillIsOpen ? (isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)") : "#fff",
-                  root: {
-                    background: pillIsOpen
-                      ? isDark
-                        ? "rgba(255,255,255,0.08)"
-                        : "rgba(0,0,0,0.06)"
-                      : "#4a5bd8",
-                    boxShadow: pillIsOpen ? "none" : "0 6px 18px rgba(74,91,216,0.4)",
-                  },
-                  state: { disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} } },
-                }}
-              />
+              {pillIsOpen ? (
+                <Button
+                  label={t("toolkit.nav_installed")}
+                  disabled={!pillEnabled}
+                  onClick={handlePillClick}
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 500,
+                    fontFamily,
+                    color: mutedColor,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    root: { background: "transparent" },
+                    state: { disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} } },
+                  }}
+                />
+              ) : (
+                <Button
+                  label={installMachine.stateLabel}
+                  disabled={!pillEnabled}
+                  onClick={handlePillClick}
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    fontFamily,
+                    paddingVertical: 6,
+                    paddingHorizontal: 16,
+                    borderRadius: 8,
+                    color: "#fff",
+                    root: { background: "#4a5bd8" },
+                    state: { disabled: { root: { opacity: 0.45, cursor: "not-allowed" }, background: {} } },
+                  }}
+                />
+              )}
             </div>
             {showOauthCancel && (
               <Button
@@ -644,26 +680,6 @@ const PluginDetailPage = ({
                   paddingHorizontal: 10,
                   borderRadius: 999,
                   root: { background: "transparent" },
-                }}
-              />
-            )}
-            {showSecondaryOAuthAction && (
-              <Button
-                label={t("toolkit.store_connect_oauth")}
-                disabled={installMachine.installing}
-                onClick={() => onOAuthConnect?.(entry)}
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 500,
-                  fontFamily,
-                  color: isDark ? "#93c5fd" : "#2563eb",
-                  paddingVertical: 3,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
-                  root: {
-                    background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.045)",
-                  },
-                  state: { disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} } },
                 }}
               />
             )}
@@ -683,514 +699,409 @@ const PluginDetailPage = ({
             )}
           </div>
         </div>
+      </div>
 
-        {/* ── stat row ── */}
-        {stats.length > 0 && (
-          <div style={{ display: "flex", padding: "14px 0", borderBottom: `1px solid ${dividerColor}` }}>
-            {stats.map((stat, idx) => (
-              <div
-                key={stat.key}
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  borderRight: idx === stats.length - 1 ? "none" : `1px solid ${dividerColor}`,
-                }}
-              >
-                <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: tertiaryColor, fontFamily }}>
-                  {stat.label}
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: stat.color || mutedColor, marginTop: 2, fontFamily }}>
-                  {stat.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
+      {/* ── Scrollable body — Commands → Status → Setup → Risk → About →
+           Permission, each section absent entirely when empty. ── */}
+      <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 24px 24px 0" }}>
         {/* ── Commands ── */}
         {commands.length > 0 && (
-          <div style={{ margin: "20px 0 0" }}>
-            <span style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 10, color: textColor, fontFamily }}>
-              {t("toolkit.section_commands")}
-            </span>
+          <SettingsSection title={t("toolkit.section_commands")}>
             {commands.map((command) => (
-              <div
+              <SettingsRow
                 key={command.name}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  borderRadius: 12,
-                  background: cardBg,
-                  border: `1px solid ${cardBorder}`,
-                  padding: "12px 14px",
-                  marginBottom: 8,
-                }}
+                label={
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span
+                      style={{
+                        fontFamily: "ui-monospace, Menlo, monospace",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: chipColor,
+                      }}
+                    >
+                      {command.name}
+                    </span>
+                    {command.title && (
+                      <span style={{ fontSize: 12, color: textColor, fontFamily }}>{command.title}</span>
+                    )}
+                  </span>
+                }
+                description={command.description}
               >
-                <span
-                  style={{
-                    fontFamily: "ui-monospace, Menlo, monospace",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: chipColor,
-                    background: chipBg,
-                    borderRadius: 8,
-                    padding: "5px 11px",
-                    flexShrink: 0,
-                  }}
-                >
-                  {command.name}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {command.title && (
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.82)", fontFamily }}>
-                      {command.title}
-                    </div>
-                  )}
-                  {command.description && (
-                    <div style={{ fontSize: 11, color: mutedColor, marginTop: 1, fontFamily }}>{command.description}</div>
-                  )}
-                </div>
                 <Button
                   label={t("toolkit.try_in_chat")}
                   onClick={() => handleTryCommand(command)}
-                  style={{
-                    fontSize: 11,
-                    fontFamily,
-                    color: mutedColor,
-                    paddingVertical: 4,
-                    paddingHorizontal: 12,
-                    borderRadius: 999,
-                    flexShrink: 0,
-                    root: { background: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)" },
-                  }}
+                  style={miniButtonStyle}
                 />
-              </div>
+              </SettingsRow>
             ))}
-          </div>
+          </SettingsSection>
         )}
 
-        {/* ── What it can do ── */}
-        {canDo.length > 0 && (
-          <div style={{ margin: "20px 0 0" }}>
-            <span style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 10, color: textColor, fontFamily }}>
-              {t("toolkit.section_can_do")}
-            </span>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 20px" }}>
-              {canDo.map((item, idx) => (
-                <div
-                  key={`${item}-${idx}`}
-                  style={{ fontSize: 12, color: mutedColor, paddingLeft: 20, position: "relative", lineHeight: 1.5, fontFamily }}
-                >
-                  <span style={{ position: "absolute", left: 0, color: checkColor, fontWeight: 700 }} aria-hidden="true">
-                    {"✓"}
+        {/* ── Status (MCP only) — needs-review line + approve, or the
+             revoke action for an already-approved external entry. Ported
+             verbatim from store_toolkit_detail_panel.js's approve/revoke
+             workflow; only the shell (SettingsRow instead of a manual flex
+             row) changed. ── */}
+        {showStatus && (
+          <SettingsSection title={t("toolkit.section_status")}>
+            {canApproveExternal && (
+              <SettingsRow
+                label={
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span
+                      style={{ width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: warningColor, fontFamily }}>
+                      {t("toolkit.store_needs_review_action")}
+                    </span>
                   </span>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Secrets (ported from store_toolkit_detail_panel.js) ── */}
-        {secrets.length > 0 && (
-          <div style={{ margin: "20px 0 0" }}>
-            <span style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 10, color: textColor, fontFamily }}>
-              {t("toolkit.section_secrets")}
-            </span>
-            {requiresSecretInput && installMachine.installState === "installable" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {secrets.map((secret) => (
-                  <Input
-                    key={secret.key}
-                    type="password"
-                    value={secretValues[secret.key] || ""}
-                    set_value={(value) =>
-                      setSecretValues((prev) => ({ ...prev, [secret.key]: value }))
+                }
+                description={t("toolkit.store_needs_review_phase2a")}
+              >
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                  <Button
+                    label={approvalBusy ? t("toolkit.store_approving_entry") : t("toolkit.store_approve_entry")}
+                    disabled={!approveActionEnabled}
+                    onClick={() =>
+                      onApproveEntry?.(entry, {
+                        acknowledgedRisk: riskAcknowledged || !requiresRiskAcknowledgement,
+                      })
                     }
-                    placeholder={secret.label || secret.key}
-                    style={{
-                      width: "100%",
-                      fontSize: 12,
-                      fontFamily,
-                      borderRadius: 10,
-                      color: textColor,
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                    }}
-                  />
-                ))}
-                {!hasRequiredSecrets && (
-                  <span style={{ fontSize: 10.5, lineHeight: 1.4, color: warningColor, fontFamily }}>
-                    {t("toolkit.store_secret_required")}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {secrets.map((secret) => (
-                  <span
-                    key={secret.key}
                     style={{
                       fontSize: 11.5,
+                      fontWeight: 600,
                       fontFamily,
-                      fontWeight: 500,
-                      color: mutedColor,
-                      backgroundColor: cardBg,
-                      border: `1px solid ${cardBorder}`,
-                      padding: "5px 12px",
-                      borderRadius: 999,
+                      color: warningColor,
+                      paddingVertical: 4,
+                      paddingHorizontal: 13,
+                      borderRadius: 8,
+                      flexShrink: 0,
+                      root: {
+                        background: "transparent",
+                        border: `1px solid ${isDark ? "rgba(253,186,116,0.35)" : "rgba(194,65,12,0.35)"}`,
+                      },
+                      state: { disabled: { root: { opacity: 0.55, cursor: "not-allowed" }, background: {} } },
                     }}
-                  >
-                    {secret.label || secret.key}
-                    {secret.optional ? " (optional)" : ""}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Information ── */}
-        {inforows.length > 0 && (
-          <div style={{ margin: "20px 0 0" }}>
-            <span style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 10, color: textColor, fontFamily }}>
-              {t("toolkit.section_information")}
-            </span>
-            {inforows.map((row) => (
-              <div
-                key={row.k}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 12,
-                  padding: "8px 0",
-                  borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}`,
-                  fontFamily,
-                }}
-              >
-                <span style={{ color: tertiaryColor }}>{row.k}</span>
-                <span style={{ color: mutedColor }}>{row.v}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Approval risk summary (ported from store_toolkit_detail_panel.js's
-             approvalRiskRows table) — placed right before the Danger zone's
-             approve action so the transport/command/secrets/oauth/workspace
-             footprint is the last thing a user reads before approving. ── */}
-        {isExternalEntry && approvalRiskRows.length > 0 && (
-          <div
-            style={{
-              margin: "20px 0 0",
-              padding: "12px 14px",
-              borderRadius: 12,
-              background: cardBg,
-              border: `1px solid ${cardBorder}`,
-            }}
-          >
-            <span style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 10, color: textColor, fontFamily }}>
-              {t("toolkit.store_approval_risk_summary")}
-            </span>
-            {riskLevel && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    fontFamily,
-                    color: warningColor,
-                    background: warningBg,
-                    borderRadius: 999,
-                    padding: "3px 10px",
-                  }}
-                >
-                  {t(`toolkit.store_risk_${riskLevel}`)}
-                </span>
-                {riskFlags.map((flag) => (
-                  <span
-                    key={flag}
-                    style={{
-                      fontSize: 11,
-                      fontFamily,
-                      color: mutedColor,
-                      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
-                      borderRadius: 999,
-                      padding: "3px 10px",
-                    }}
-                  >
-                    {flag}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {approvalRiskRows.map(([label, value]) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "96px minmax(0, 1fr)",
-                    gap: 8,
-                    alignItems: "baseline",
-                    fontSize: 11.5,
-                    lineHeight: 1.45,
-                    fontFamily,
-                  }}
-                >
-                  <span style={{ color: tertiaryColor }}>{label}</span>
-                  <span style={{ color: mutedColor, overflowWrap: "anywhere" }}>{value}</span>
+                  />
+                  {requiresRiskAcknowledgement && (
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 10.5,
+                        color: warningColor,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={riskAcknowledged}
+                        onChange={(event) => setRiskAcknowledged(Boolean(event.target.checked))}
+                      />
+                      {t("toolkit.store_acknowledge_risk")}
+                    </label>
+                  )}
                 </div>
-              ))}
-            </div>
-            {permissionGroups.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-                {permissionGroups.map((group) => (
-                  <div key={`${group.kind}-${group.summary}`} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    <span style={{ fontSize: 10.5, color: tertiaryColor, fontFamily, textTransform: "uppercase" }}>
-                      {group.kind}
-                      {group.summary ? ` · ${group.summary}` : ""}
-                    </span>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {(group.items || []).map((item) => (
-                        <span
-                          key={`${group.kind}-${item}`}
-                          style={{
-                            fontSize: 11,
-                            fontFamily,
-                            color: mutedColor,
-                            background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
-                            borderRadius: 6,
-                            padding: "3px 9px",
-                          }}
-                        >
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              </SettingsRow>
             )}
-          </div>
-        )}
 
-        {isExternalEntry && recipeDiff.length > 0 && (
-          <div
-            style={{
-              margin: "12px 0 0",
-              padding: "12px 14px",
-              borderRadius: 12,
-              background: warningBg,
-              color: warningColor,
-            }}
-          >
-            <span style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 8, color: warningColor, fontFamily }}>
-              {t("toolkit.store_recipe_diff")}
-            </span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {recipeDiff.map((item) => (
-                <span
-                  key={`${item.path}-${item.kind}`}
-                  style={{
-                    fontSize: 11,
-                    fontFamily,
-                    color: warningColor,
-                    background: isDark ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.65)",
-                    borderRadius: 6,
-                    padding: "3px 9px",
-                  }}
-                >
-                  {item.path}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Danger zone: approve/revoke + auto-enable + auto-approve +
-             delete (approve/revoke ported from store_toolkit_detail_panel.js,
-             auto-enable/auto-approve/delete from toolkit_detail_panel.js
-             Settings) ── */}
-        <div style={{ margin: "20px 0 0" }}>
-          {canApproveExternal && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                padding: "10px 0",
-                borderBottom: `1px solid ${dividerColor}`,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: warningColor, fontFamily }}>
-                    {t("toolkit.store_needs_review_action")}
-                  </div>
-                  <div style={{ fontSize: 11, color: mutedColor, marginTop: 1, fontFamily }}>
-                    {t("toolkit.store_needs_review_phase2a")}
-                  </div>
-                </div>
+            {canRevokeExternal && (
+              <SettingsRow label={t("toolkit.store_revoke_approval")}>
                 <Button
-                  label={approvalBusy ? t("toolkit.store_approving_entry") : t("toolkit.store_approve_entry")}
-                  disabled={!approveActionEnabled}
-                  onClick={() =>
-                    onApproveEntry?.(entry, {
-                      acknowledgedRisk: riskAcknowledged || !requiresRiskAcknowledgement,
-                    })
-                  }
+                  label={approvalBusy ? t("toolkit.store_revoking_approval") : t("toolkit.store_revoke_approval")}
+                  disabled={approvalBusy}
+                  onClick={() => onRevokeApproval?.(entry)}
                   style={{
                     fontSize: 12,
-                    fontWeight: 600,
+                    fontWeight: 500,
                     fontFamily,
                     color: warningColor,
                     paddingVertical: 6,
                     paddingHorizontal: 14,
-                    borderRadius: 999,
+                    borderRadius: 8,
                     flexShrink: 0,
                     root: { background: warningBg, border: "none" },
                     state: { disabled: { root: { opacity: 0.55, cursor: "not-allowed" }, background: {} } },
                   }}
                 />
-              </div>
-              {requiresRiskAcknowledgement && (
-                <label
+              </SettingsRow>
+            )}
+          </SettingsSection>
+        )}
+
+        {/* ── Setup (MCP only) — secrets as password SettingsRows, plus the
+             dual-auth "Connect with OAuth" link. Gated on the entry's actual
+             setup path (requiresSecretInput / showSecondaryOAuthAction),
+             installable-state only — there is no update-secrets flow for an
+             already-installed entry, and a needs-review/workspace-only
+             entry's secrets (if any) aren't collected here either. ── */}
+        {showSetup && (
+          <SettingsSection title={t("toolkit.section_setup")}>
+            {secrets.map((secret) => (
+              <SettingsRow
+                key={secret.key}
+                label={secret.label || secret.key}
+                description={secret.optional ? "(optional)" : undefined}
+              >
+                <Input
+                  type="password"
+                  value={secretValues[secret.key] || ""}
+                  set_value={(value) => setSecretValues((prev) => ({ ...prev, [secret.key]: value }))}
+                  placeholder={secret.label || secret.key}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: 10.5,
+                    width: 230,
+                    fontSize: 12,
+                    fontFamily,
+                    borderRadius: 7,
+                    color: textColor,
+                    paddingVertical: 7,
+                    paddingHorizontal: 11,
+                  }}
+                />
+              </SettingsRow>
+            ))}
+            {requiresSecretInput && !hasRequiredSecrets && (
+              <div style={{ fontSize: 10.5, lineHeight: 1.4, color: warningColor, fontFamily, paddingBottom: 10 }}>
+                {t("toolkit.store_secret_required")}
+              </div>
+            )}
+            {showSecondaryOAuthAction && (
+              <div style={{ padding: "6px 0 10px" }}>
+                <Button
+                  label={t("toolkit.store_connect_oauth")}
+                  disabled={installMachine.installing}
+                  onClick={() => onOAuthConnect?.(entry)}
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 500,
+                    fontFamily,
+                    color: isDark ? "#93c5fd" : "#2563eb",
+                    paddingVertical: 4,
+                    paddingHorizontal: 0,
+                    borderRadius: 0,
+                    root: { background: "transparent" },
+                    state: { disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} } },
+                  }}
+                />
+              </div>
+            )}
+          </SettingsSection>
+        )}
+
+        {/* ── Risk (MCP only) — two-column kv grid, ported from
+             store_toolkit_detail_panel.js's approvalRiskRows table; the
+             Command row is highlighted (hot) same as the mockup. ── */}
+        {showRisk && (
+          <SettingsSection title={t("toolkit.section_risk")}>
+            <div style={{ padding: "12px 0 14px" }}>
+              {riskLevel && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      fontFamily,
+                      color: warningColor,
+                      background: warningBg,
+                      borderRadius: 999,
+                      padding: "3px 10px",
+                    }}
+                  >
+                    {t(`toolkit.store_risk_${riskLevel}`)}
+                  </span>
+                  {riskFlags.map((flag) => (
+                    <span
+                      key={flag}
+                      style={{
+                        fontSize: 11,
+                        fontFamily,
+                        color: mutedColor,
+                        background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+                        borderRadius: 999,
+                        padding: "3px 10px",
+                      }}
+                    >
+                      {flag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 24px", fontSize: 11 }}>
+                {approvalRiskRows.map(([label, value]) => {
+                  const isHot = label === commandRowLabel;
+                  return (
+                    <div key={label} style={{ display: "flex", gap: 8, padding: "3px 0", lineHeight: 1.5 }}>
+                      <span style={{ color: tertiaryColor, fontFamily, flexShrink: 0 }}>{label}</span>
+                      <span
+                        style={{
+                          color: isHot ? hotColor : mutedColor,
+                          fontWeight: 500,
+                          fontFamily,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {value}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {permissionGroups.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                  {permissionGroups.map((group) => (
+                    <div key={`${group.kind}-${group.summary}`} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <span style={{ fontSize: 10.5, color: tertiaryColor, fontFamily, textTransform: "uppercase" }}>
+                        {group.kind}
+                        {group.summary ? ` · ${group.summary}` : ""}
+                      </span>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {(group.items || []).map((item) => (
+                          <span
+                            key={`${group.kind}-${item}`}
+                            style={{
+                              fontSize: 11,
+                              fontFamily,
+                              color: mutedColor,
+                              background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+                              borderRadius: 6,
+                              padding: "3px 9px",
+                            }}
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {recipeDiff.length > 0 && (
+                <div
+                  style={{
+                    margin: "12px 0 0",
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    background: warningBg,
                     color: warningColor,
-                    lineHeight: 1.35,
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={riskAcknowledged}
-                    onChange={(event) => setRiskAcknowledged(Boolean(event.target.checked))}
-                  />
-                  {t("toolkit.store_acknowledge_risk")}
-                </label>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, display: "block", marginBottom: 8, color: warningColor, fontFamily }}>
+                    {t("toolkit.store_recipe_diff")}
+                  </span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {recipeDiff.map((item) => (
+                      <span
+                        key={`${item.path}-${item.kind}`}
+                        style={{
+                          fontSize: 11,
+                          fontFamily,
+                          color: warningColor,
+                          background: isDark ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.65)",
+                          borderRadius: 6,
+                          padding: "3px 9px",
+                        }}
+                      >
+                        {item.path}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
-          )}
+          </SettingsSection>
+        )}
 
-          {canRevokeExternal && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 0",
-                borderBottom: `1px solid ${dividerColor}`,
-                gap: 12,
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: textColor, fontFamily }}>
-                  {t("toolkit.store_revoke_approval")}
-                </div>
+        {/* ── About — description paragraph + capability tag cloud (canDo,
+             ⚠ suffix on requires-confirmation items) + kv grid. Replaces the
+             old "What it can do" checklist grid and the separate
+             Information section — About now carries both. ── */}
+        <SettingsSection title={t("toolkit.store_about")}>
+          <div style={{ padding: "12px 0 14px" }}>
+            {aboutDescription && (
+              <p style={{ fontSize: 11.5, lineHeight: 1.7, color: mutedColor, margin: 0, maxWidth: "58ch", fontFamily }}>
+                {aboutDescription}
+              </p>
+            )}
+
+            {canDo.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: aboutDescription ? 12 : 0 }}>
+                {canDo.map((item, idx) => (
+                  <span
+                    key={`${item.label}-${idx}`}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 500,
+                      fontFamily,
+                      color: mutedColor,
+                      background: tagBg,
+                      borderRadius: 6,
+                      padding: "3px 10px",
+                    }}
+                  >
+                    {item.label}
+                    {item.confirm && <span style={{ color: "#d9a75a" }}>{" ⚠"}</span>}
+                  </span>
+                ))}
               </div>
-              <Button
-                label={approvalBusy ? t("toolkit.store_revoking_approval") : t("toolkit.store_revoke_approval")}
-                disabled={approvalBusy}
-                onClick={() => onRevokeApproval?.(entry)}
+            )}
+
+            {aboutKvRows.length > 0 && (
+              <div
                 style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  fontFamily,
-                  color: warningColor,
-                  paddingVertical: 6,
-                  paddingHorizontal: 14,
-                  borderRadius: 999,
-                  flexShrink: 0,
-                  root: { background: warningBg, border: "none" },
-                  state: { disabled: { root: { opacity: 0.55, cursor: "not-allowed" }, background: {} } },
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "2px 24px",
+                  fontSize: 11,
+                  marginTop: 14,
                 }}
-              />
-            </div>
-          )}
-
-          {/* I6: only meaningful once the plugin is actually installed AND a
-              caller wired up the toggle — store/Discover details for a
-              not-yet-installed entry used to show this row too, where
-              toggling it silently did nothing (no onToggleAutoEnable). */}
-          {pillIsOpen && onToggleAutoEnable && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 0",
-                borderBottom: `1px solid ${dividerColor}`,
-                gap: 12,
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: textColor, fontFamily }}>
-                  {t("toolkit.auto_enable_label")}
-                </div>
-                <div style={{ fontSize: 11, color: mutedColor, marginTop: 1, fontFamily }}>
-                  {t("toolkit.auto_enable_desc")}
-                </div>
+              >
+                {aboutKvRows.map((row) => (
+                  <div key={row.k} style={{ display: "flex", gap: 8, padding: "3px 0", lineHeight: 1.5 }}>
+                    <span style={{ color: tertiaryColor, fontFamily, flexShrink: 0 }}>{row.k}</span>
+                    <span style={{ color: mutedColor, fontWeight: 500, fontFamily }}>{row.v}</span>
+                  </div>
+                ))}
               </div>
+            )}
+          </div>
+        </SettingsSection>
+
+        {/* ── Permission — rename of the old "Manage" section, identical
+             logic: auto-enable / auto-approve (red on-state + confirm
+             modal) / delete. ── */}
+        <SettingsSection title={t("toolkit.section_permission")}>
+          {pillIsOpen && onToggleAutoEnable && (
+            <SettingsRow label={t("toolkit.auto_enable_label")} description={t("toolkit.auto_enable_desc")}>
               <SemiSwitch
                 on={Boolean(defaultEnabled)}
                 set_on={(val) => onToggleAutoEnable?.(entry?.toolkitId, val)}
                 style={{ width: 44, height: 25 }}
               />
-            </div>
+            </SettingsRow>
           )}
 
-          {/* Auto Approve Tools — only meaningful once installed (pillIsOpen),
-              same split as the old app: the store panel never had this
-              control, only the installed toolkit_detail_panel.js did. */}
           {pillIsOpen && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 0",
-                borderBottom: `1px solid ${dividerColor}`,
-                gap: 12,
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: textColor, fontFamily }}>
-                  {t("toolkit.auto_approve_plugin_label")}
-                </div>
-                <div style={{ fontSize: 11, color: mutedColor, marginTop: 1, fontFamily }}>
-                  {t("toolkit.auto_approve_plugin_desc")}
-                </div>
-              </div>
+            <SettingsRow label={t("toolkit.auto_approve_plugin_label")} description={t("toolkit.auto_approve_plugin_desc")}>
               <SemiSwitch
                 on={autoApprove}
                 set_on={handleAutoApproveToggle}
                 style={{ width: 44, height: 25, backgroundColor_on: "#E5484D" }}
               />
-            </div>
+            </SettingsRow>
           )}
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 0",
-              gap: 12,
-            }}
+          <SettingsRow
+            label={
+              <span style={{ color: isBuiltin ? tertiaryColor : dangerColor }}>{t("toolkit.delete_label")}</span>
+            }
+            description={isBuiltin ? t("toolkit.delete_desc_builtin") : t("toolkit.delete_desc")}
           >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: dangerColor, fontFamily }}>
-                {t("toolkit.delete_label")}
-              </div>
-              <div style={{ fontSize: 11, color: mutedColor, marginTop: 1, fontFamily }}>
-                {isBuiltin ? t("toolkit.delete_desc_builtin") : t("toolkit.delete_desc")}
-              </div>
-            </div>
             <Button
               prefix_icon="delete"
               label={t("toolkit.delete_label")}
@@ -1215,8 +1126,8 @@ const PluginDetailPage = ({
                 state: { disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} } },
               }}
             />
-          </div>
-        </div>
+          </SettingsRow>
+        </SettingsSection>
 
         <ToolkitDeleteConfirmModal
           open={showDeleteConfirm}
@@ -1232,27 +1143,6 @@ const PluginDetailPage = ({
           onConfirm={confirmAutoApprove}
           isDark={isDark}
         />
-
-        {/* ── README (ported from toolkit_detail_panel.js) ── */}
-        <div style={{ margin: "20px 0 0" }}>
-          <span style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 10, color: textColor, fontFamily }}>
-            {t("toolkit.store_about")}
-          </span>
-          {readmeState.loading ? (
-            <ArcSpinner size={16} stroke_width={2} color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"} />
-          ) : readmeState.content ? (
-            <Markdown content={readmeState.content} />
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: mutedColor, fontFamily }}>
-                {t("toolkit.no_documentation_title")}
-              </div>
-              <div style={{ fontSize: 11.5, color: tertiaryColor, fontFamily }}>
-                {t("toolkit.no_documentation_subtitle")}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

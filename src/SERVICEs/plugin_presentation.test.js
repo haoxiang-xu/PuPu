@@ -21,14 +21,18 @@ describe("toPluginPresentation", () => {
       { name: "/plan", title: "Plan First", description: "Draft a plan first." },
     ]);
     expect(p.commandCount).toBe(1);
-    /* Confirmation-required tools carry a ⚠ suffix — restores the old
-       store_toolkit_detail_panel.js per-tool 🔒 warning semantics that this
-       page's canDo list otherwise drops (see plugin_detail_page.js). */
-    expect(p.canDo).toEqual(["Plan Start", "Plan finalize ⚠"]);
+    /* Confirmation-required tools carry `confirm: true` — the structured
+       successor to the old inline "label ⚠" string suffix, so the detail
+       page's About tag cloud can style the ⚠ marker on its own (see
+       plugin_detail_page.js). */
+    expect(p.canDo).toEqual([
+      { label: "Plan Start", confirm: false },
+      { label: "Plan finalize", confirm: true },
+    ]);
     expect(JSON.stringify(p.canDo)).not.toMatch(/plan_/);
   });
 
-  test("marks canDo items for tools requiring confirmation with a ⚠ suffix, leaving others untouched", () => {
+  test("marks canDo items for tools requiring confirmation with confirm:true, leaving others untouched", () => {
     const entry = {
       toolkitId: "x",
       toolkitName: "X",
@@ -39,7 +43,10 @@ describe("toPluginPresentation", () => {
       ],
     };
     const p = toPluginPresentation(entry);
-    expect(p.canDo).toEqual(["Safe Op", "Risky Op ⚠"]);
+    expect(p.canDo).toEqual([
+      { label: "Safe Op", confirm: false },
+      { label: "Risky Op", confirm: true },
+    ]);
   });
   test("tagline is first sentence, capped at 64 chars with an ellipsis", () => {
     /* ENTRY's first sentence is 73 chars — longer than the 64-char cap, so
