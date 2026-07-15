@@ -30,6 +30,7 @@ const SegmentedButtonCell = forwardRef(
       isDark,
       colors,
       indicatorRadius,
+      indicatorRadiusPressed,
       fontSize,
       btnPadding,
       button_style,
@@ -87,9 +88,7 @@ const SegmentedButtonCell = forwardRef(
           style={{
             position: "absolute",
             inset: pressed ? 2 : 0,
-            borderRadius: pressed
-              ? Math.max(indicatorRadius - 1, 2)
-              : indicatorRadius,
+            borderRadius: pressed ? indicatorRadiusPressed : indicatorRadius,
             backgroundColor: pressed ? activeBg : hoverBg,
             transform: showBg ? "scale(1)" : "scale(0.5, 0)",
             opacity: showBg ? 1 : 0,
@@ -265,7 +264,16 @@ const SegmentedButton = ({
   const outerPadX = style?.paddingHorizontal ?? outerPad + 2;
   const gap = style?.gap ?? 3;
   const borderRadius = style?.borderRadius ?? inputTheme?.borderRadius ?? 7;
-  const indicatorRadius = Math.max(borderRadius - 2, 2);
+  /* concentric corners: inner radius = outer radius − inset on that axis
+     (inset = track padding + 1px border); unequal x/y insets need the
+     elliptical radius syntax to stay truly concentric */
+  const indicatorRadiusY = Math.max(borderRadius - (outerPad + 1), 2);
+  const indicatorRadiusX = Math.max(borderRadius - (outerPadX + 1), 2);
+  const indicatorRadius = `${indicatorRadiusX}px / ${indicatorRadiusY}px`;
+  const indicatorRadiusPressed = `${Math.max(indicatorRadiusX - 1, 2)}px / ${Math.max(
+    indicatorRadiusY - 1,
+    2,
+  )}px`;
   const btnPadding = button_style?.padding ?? "6px 14px";
   /* padding is applied asymmetrically above — keep the raw keys out of the
      style passthrough so they can't clobber it back to uniform */
@@ -339,6 +347,7 @@ const SegmentedButton = ({
             isDark={isDark}
             colors={colors}
             indicatorRadius={indicatorRadius}
+            indicatorRadiusPressed={indicatorRadiusPressed}
             fontSize={fontSize}
             btnPadding={btnPadding}
             button_style={button_style}

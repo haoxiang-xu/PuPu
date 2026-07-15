@@ -49,3 +49,28 @@ describe("SegmentedButton track padding", () => {
     expect(track.style.padding).toBe("2px 8px");
   });
 });
+
+describe("SegmentedButton concentric indicator corners", () => {
+  const { render } = require("@testing-library/react");
+  const React = require("react");
+  const { ConfigContext } = require("../../CONTAINERs/config/context");
+  const SegmentedButton = require("./segmented_button").default;
+
+  test("indicator radius = track radius minus per-axis inset (padding + 1px border)", () => {
+    const { container } = render(
+      React.createElement(
+        ConfigContext.Provider,
+        { value: { onThemeMode: "light_mode", theme: {} } },
+        React.createElement(SegmentedButton, {
+          options: [{ label: "A", value: "a" }, { label: "B", value: "b" }],
+          value: "a",
+          on_change: () => {},
+          style: { padding: 2, borderRadius: 7 },
+        }),
+      ),
+    );
+    const indicator = container.firstChild.querySelector("div");
+    // insets: x = 4+1, y = 2+1 → radii 7-5=2 / 7-3=4
+    expect(indicator.style.borderRadius).toBe("2px / 4px");
+  });
+});
