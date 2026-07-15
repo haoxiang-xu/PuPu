@@ -31,8 +31,6 @@ const SettingsModalLoading = () => {
 
 export const SettingsModal = ({ open, onClose }) => {
   useModalLifecycle("settings-modal", open);
-  const { onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
 
   return (
     <Modal

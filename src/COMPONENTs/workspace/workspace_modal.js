@@ -31,8 +31,6 @@ const WorkspaceModalLoading = () => {
 
 export const WorkspaceModal = ({ open, onClose }) => {
   useModalLifecycle("workspace-modal", open);
-  const { onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
 
   return (
     <Modal

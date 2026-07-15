@@ -220,6 +220,7 @@ const ChatInterface = () => {
   });
   const activeChatIdRef = session.activeChatIdRef;
   const modelIdRef = session.modelIdRef;
+  const setInputValue = session.setInputValue;
   const setSelectedModelId = session.setSelectedModelId;
   const setSelectedToolkits = session.setSelectedToolkits;
   const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
@@ -235,11 +236,11 @@ const ChatInterface = () => {
     const handlePrefill = (event) => {
       const text = typeof event?.detail?.text === "string" ? event.detail.text : "";
       if (!text) return;
-      session.setInputValue(text);
+      setInputValue(text);
     };
     window.addEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
     return () => window.removeEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
-  }, [session.setInputValue]);
+  }, [setInputValue]);
 
   const hasSelectedModel = useMemo(() => {
     if (session.isCharacterChat) {
