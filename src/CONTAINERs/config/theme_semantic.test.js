@@ -126,11 +126,11 @@ describe("resolveThemeDetails", () => {
 
   test("preset details override defaults (high_contrast chipBorder)", () => {
     const resolved = resolveThemeDetails("light_mode", { preset: "high_contrast" });
-    expect(resolved.chipBorder).toBe("rgba(107,107,107,0.35)");
+    expect(resolved.chipBorder).toBe("rgba(107,107,107,0.25)");
     expect(resolved.borderAlphaStrong).toBe(BORDER_TIER_ALPHA.strong);
 
     const darkResolved = resolveThemeDetails("dark_mode", { preset: "high_contrast" });
-    expect(darkResolved.chipBorder).toBe("rgba(138,138,138,0.35)");
+    expect(darkResolved.chipBorder).toBe("rgba(138,138,138,0.25)");
   });
 
   test("presets without details fall back to global defaults", () => {
