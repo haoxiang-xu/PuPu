@@ -362,7 +362,7 @@ const SinkingSelect = ({
           dropdown_theme?.backgroundColor ??
           theme?.backgroundColor ??
           "white",
-        border: "1px solid var(--pupu-border-mid)",
+        border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
         boxShadow:
@@ -714,7 +714,7 @@ const FloatingSelect = ({
           dropdown_theme?.backgroundColor ??
           theme?.backgroundColor ??
           "white",
-        border: "1px solid var(--pupu-border-mid)",
+        border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
         boxShadow:
@@ -1262,7 +1262,7 @@ const Select = ({
               backgroundColor: isDark
                 ? "rgba(var(--pupu-surface-rgb),0.85)"
                 : "rgba(var(--pupu-surface-rgb),0.9)",
-              border: "1px solid var(--pupu-border-mid)",
+              border: "1px solid var(--pupu-menu-border, transparent)",
               borderRadius: 22,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
@@ -1288,7 +1288,7 @@ const Select = ({
                 dropdown_style?.backgroundColor ??
                 dropdown_theme?.backgroundColor ??
                 "rgba(var(--pupu-surface-rgb),0.95)",
-              border: "1px solid var(--pupu-border-mid)",
+              border: "1px solid var(--pupu-menu-border, transparent)",
               borderRadius:
                 dropdown_style?.borderRadius ??
                 dropdown_theme?.borderRadius ??

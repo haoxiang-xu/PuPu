@@ -110,6 +110,7 @@ describe("DETAIL_DEFAULTS", () => {
   test("holds the fallback details values (chipBorder transparent + tier alphas)", () => {
     expect(DETAIL_DEFAULTS).toEqual({
       chipBorder: "transparent",
+      menuBorder: "transparent",
       borderAlphaStrong: BORDER_TIER_ALPHA.strong,
       borderAlphaMid: BORDER_TIER_ALPHA.mid,
       borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,

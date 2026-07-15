@@ -28,7 +28,7 @@ describe("select.js palette-variant dropdown follows semantic tiers", () => {
   });
 
   test("isPalette dropdown panel: hairline border binds to the mid border-strength tier (three-tier border strength)", () => {
-    expect(src).toMatch(/border: "1px solid var\(--pupu-border-mid\)"/);
+    expect(src).toMatch(/border: "1px solid var\(--pupu-menu-border, transparent\)"/);
   });
 
   test("isPalette dropdown panel: boxShadow stays black-based (unaffected by theme)", () => {
@@ -65,12 +65,12 @@ describe("select.js palette-variant dropdown follows semantic tiers", () => {
 });
 
 describe("dropdown panels carry the mid-tier border", () => {
-  test("all three variant panels bind var(--pupu-border-mid)", () => {
+  test("all four variant panels bind var(--pupu-menu-border)", () => {
     const src = require("fs").readFileSync(
       require("path").join(__dirname, "select.js"),
       "utf8",
     );
-    const hits = src.match(/border: "1px solid var\(--pupu-border-mid\)"/g) || [];
+    const hits = src.match(/border: "1px solid var\(--pupu-menu-border, transparent\)"/g) || [];
     expect(hits.length).toBeGreaterThanOrEqual(4);
   });
 });

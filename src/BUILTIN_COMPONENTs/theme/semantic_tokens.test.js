@@ -59,8 +59,14 @@ describe("semantic_tokens", () => {
 
   test("only high_contrast opts into a details bag (chipBorder for the softened border family)", () => {
     expect(SEMANTIC_PRESETS.high_contrast.details).toEqual({
-      light_mode: { chipBorder: "rgba(107,107,107,0.55)" },
-      dark_mode: { chipBorder: "rgba(138,138,138,0.55)" },
+      light_mode: {
+        chipBorder: "rgba(107,107,107,0.55)",
+        menuBorder: "rgba(107,107,107,0.7)",
+      },
+      dark_mode: {
+        chipBorder: "rgba(138,138,138,0.55)",
+        menuBorder: "rgba(138,138,138,0.7)",
+      },
     });
     for (const name of Object.keys(SEMANTIC_PRESETS)) {
       if (name === "high_contrast") continue;
