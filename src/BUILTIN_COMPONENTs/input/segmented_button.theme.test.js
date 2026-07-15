@@ -39,9 +39,9 @@ describe("SegmentedButton track padding", () => {
     return container.firstChild;
   };
 
-  test("horizontal padding gets +2 breathing room by default", () => {
-    expect(renderTrack({ padding: 2 }).style.padding).toBe("2px 4px");
-    expect(renderTrack(undefined).style.padding).toBe("3px 5px");
+  test("horizontal padding defaults symmetric (override via paddingHorizontal)", () => {
+    expect(renderTrack({ padding: 2 }).style.padding).toBe("2px 2px");
+    expect(renderTrack(undefined).style.padding).toBe("3px 3px");
   });
 
   test("paddingHorizontal override wins and never leaks into the style passthrough", () => {
@@ -70,7 +70,7 @@ describe("SegmentedButton concentric indicator corners", () => {
       ),
     );
     const indicator = container.firstChild.querySelector("div");
-    // insets: x = 4+1, y = 2+1 → radii 7-5=2 / 7-3=4
-    expect(indicator.style.borderRadius).toBe("2px / 4px");
+    // insets: x=2+1, y=2+1; concentric baseline +1 → radii (7-3)+1=5 both axes
+    expect(indicator.style.borderRadius).toBe("5px / 5px");
   });
 });

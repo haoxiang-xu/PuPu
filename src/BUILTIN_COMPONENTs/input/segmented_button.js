@@ -181,7 +181,10 @@ const SegmentedButton = ({
     const cRect = container.getBoundingClientRect();
     const bRect = btn.getBoundingClientRect();
     setIndicator({
-      left: bRect.left - cRect.left,
+      /* cRect.left is the border OUTER edge but absolute `left` is measured
+         from the border INNER edge — subtract the border width or the
+         indicator sits 1px right of true (left gap fat, right gap thin) */
+      left: bRect.left - cRect.left - container.clientLeft,
       width: bRect.width,
     });
     return true;
@@ -261,14 +264,23 @@ const SegmentedButton = ({
   const outerPad = style?.padding ?? 3;
   /* horizontal breathing room reads tighter than vertical inside the
      bordered track — give the ends a little extra by default */
-  const outerPadX = style?.paddingHorizontal ?? outerPad + 2;
+  const outerPadX = style?.paddingHorizontal ?? outerPad;
   const gap = style?.gap ?? 3;
   const borderRadius = style?.borderRadius ?? inputTheme?.borderRadius ?? 7;
   /* concentric corners: inner radius = outer radius − inset on that axis
      (inset = track padding + 1px border); unequal x/y insets need the
      elliptical radius syntax to stay truly concentric */
-  const indicatorRadiusY = Math.max(borderRadius - (outerPad + 1), 2);
-  const indicatorRadiusX = Math.max(borderRadius - (outerPadX + 1), 2);
+  /* CEO-tuned: strict concentric reads too square at these sizes — sit a
+     touch rounder than the geometric baseline */
+  const INDICATOR_RADIUS_EXTRA = 1;
+  const indicatorRadiusY = Math.max(
+    borderRadius - (outerPad + 1) + INDICATOR_RADIUS_EXTRA,
+    3,
+  );
+  const indicatorRadiusX = Math.max(
+    borderRadius - (outerPadX + 1) + INDICATOR_RADIUS_EXTRA,
+    3,
+  );
   const indicatorRadius = `${indicatorRadiusX}px / ${indicatorRadiusY}px`;
   const indicatorRadiusPressed = `${Math.max(indicatorRadiusX - 1, 2)}px / ${Math.max(
     indicatorRadiusY - 1,
