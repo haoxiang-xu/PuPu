@@ -517,6 +517,14 @@ const AttachPanel = forwardRef(({
           padding: 4,
           borderRadius: 22,
           backgroundColor: panelBg,
+          /* constant 1px keeps geometry stable across the floating toggle */
+          border: floating
+            ? `1px solid ${
+                isDark
+                  ? "rgba(var(--pupu-text-rgb),0.10)"
+                  : "rgba(var(--pupu-text-rgb),0.09)"
+              }`
+            : "1px solid transparent",
           ...(floating
             ? {
                 backdropFilter: "blur(20px) saturate(130%)",
@@ -524,7 +532,8 @@ const AttachPanel = forwardRef(({
               }
             : {}),
           boxShadow: floating ? focusShadow : "none",
-          transition: "background-color 0.22s ease, box-shadow 0.22s ease",
+          transition:
+            "background-color 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease",
         }}
       >
         {/* ── Model selector ── */}
