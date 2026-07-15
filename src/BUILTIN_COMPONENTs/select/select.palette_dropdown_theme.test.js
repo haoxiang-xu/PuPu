@@ -71,6 +71,6 @@ describe("dropdown panels carry the mid-tier border", () => {
       "utf8",
     );
     const hits = src.match(/border: "1px solid var\(--pupu-border-mid\)"/g) || [];
-    expect(hits.length).toBeGreaterThanOrEqual(3);
+    expect(hits.length).toBeGreaterThanOrEqual(4);
   });
 });

@@ -1287,7 +1287,8 @@ const Select = ({
               backgroundColor:
                 dropdown_style?.backgroundColor ??
                 dropdown_theme?.backgroundColor ??
-                (isDark ? "rgba(30,30,30,0.95)" : "rgba(255,255,255,0.95)"),
+                "rgba(var(--pupu-surface-rgb),0.95)",
+              border: "1px solid var(--pupu-border-mid)",
               borderRadius:
                 dropdown_style?.borderRadius ??
                 dropdown_theme?.borderRadius ??
