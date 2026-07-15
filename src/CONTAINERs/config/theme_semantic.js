@@ -29,6 +29,11 @@ export const hexToRgbTriplet = (color) => {
   return null;
 };
 
+/* three-tier border strength (CEO design ruling, follow-up to phases 3/4):
+   single `border` semantic token stays — these are derived strength vars
+   layered on top for different sink families. */
+export const BORDER_TIER_ALPHA = { strong: 0.9, mid: 0.55, subtle: 0.3 };
+
 const VAR_NAME = {
   accent: "accent",
   background: "background",
@@ -73,7 +78,14 @@ export const semanticCssVars = (palette) => {
     const value = palette[key];
     vars[`--pupu-${name}`] = value;
     const rgb = hexToRgbTriplet(value);
-    if (rgb) vars[`--pupu-${name}-rgb`] = rgb;
+    if (rgb) {
+      vars[`--pupu-${name}-rgb`] = rgb;
+      if (key === "border") {
+        vars["--pupu-border-strong"] = `rgba(${rgb}, ${BORDER_TIER_ALPHA.strong})`;
+        vars["--pupu-border-mid"] = `rgba(${rgb}, ${BORDER_TIER_ALPHA.mid})`;
+        vars["--pupu-border-subtle"] = `rgba(${rgb}, ${BORDER_TIER_ALPHA.subtle})`;
+      }
+    }
   }
   return vars;
 };
@@ -134,7 +146,7 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
     }),
     modal: merge(base.modal, {
       backgroundColor: background,
-      border: `1px solid ${withAlpha(border, 0.9)}`,
+      border: `1px solid ${withAlpha(border, BORDER_TIER_ALPHA.strong)}`,
       bodyColor: textMuted,
       closeButtonColor: withAlpha(textMuted, 0.9),
       closeButtonHoverColor: text,

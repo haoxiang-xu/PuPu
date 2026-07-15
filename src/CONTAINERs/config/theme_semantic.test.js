@@ -4,6 +4,7 @@ import {
   semanticCssVars,
   applySemanticCssVars,
   applySemanticPaletteToTheme,
+  BORDER_TIER_ALPHA,
 } from "./theme_semantic";
 import { SEMANTIC_DEFAULTS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 
@@ -51,6 +52,55 @@ describe("semanticCssVars", () => {
   test("uses kebab var name for textMuted", () => {
     const vars = semanticCssVars({ textMuted: "#8c8c8c" });
     expect(vars["--pupu-text-muted"]).toBe("#8c8c8c");
+  });
+});
+
+describe("semanticCssVars border strength tiers", () => {
+  test("border key emits three additional strength vars as exact rgba strings", () => {
+    const vars = semanticCssVars({ border: "#2e2e2e" });
+    expect(vars["--pupu-border"]).toBe("#2e2e2e");
+    expect(vars["--pupu-border-rgb"]).toBe("46,46,46");
+    expect(vars["--pupu-border-strong"]).toBe(
+      `rgba(46,46,46, ${BORDER_TIER_ALPHA.strong})`,
+    );
+    expect(vars["--pupu-border-mid"]).toBe(
+      `rgba(46,46,46, ${BORDER_TIER_ALPHA.mid})`,
+    );
+    expect(vars["--pupu-border-subtle"]).toBe(
+      `rgba(46,46,46, ${BORDER_TIER_ALPHA.subtle})`,
+    );
+  });
+
+  test("BORDER_TIER_ALPHA holds the CEO-approved tier values", () => {
+    expect(BORDER_TIER_ALPHA).toEqual({ strong: 0.9, mid: 0.55, subtle: 0.3 });
+  });
+
+  test("does not emit strength vars for other palette keys", () => {
+    const vars = semanticCssVars({ accent: "#65c466" });
+    expect(vars["--pupu-accent-strong"]).toBeUndefined();
+    expect(vars["--pupu-accent-mid"]).toBeUndefined();
+    expect(vars["--pupu-accent-subtle"]).toBeUndefined();
+  });
+});
+
+describe("applySemanticPaletteToTheme modal border uses BORDER_TIER_ALPHA.strong", () => {
+  test("modal border alpha matches the strong tier constant (single source of truth)", () => {
+    const themed = applySemanticPaletteToTheme(
+      { modal: {} },
+      {
+        accent: "#112233",
+        background: "#abcdef",
+        surface: "#fedcba",
+        text: "#010203",
+        textMuted: "#445566",
+        border: "#2e2e2e",
+        success: "#00aa00",
+        danger: "#aa0000",
+      },
+    );
+    expect(themed.modal.border).toBe(
+      `1px solid rgba(46,46,46, ${BORDER_TIER_ALPHA.strong})`,
+    );
   });
 });
 
