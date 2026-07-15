@@ -40,6 +40,7 @@ export const BORDER_TIER_ALPHA = { strong: 0.9, mid: 0.55, subtle: 0.3 };
 export const DETAIL_DEFAULTS = {
   chipBorder: "transparent",
   menuBorder: "transparent",
+  cardBorder: "transparent",
   borderAlphaStrong: BORDER_TIER_ALPHA.strong,
   borderAlphaMid: BORDER_TIER_ALPHA.mid,
   borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
@@ -122,6 +123,7 @@ export const semanticCssVars = (palette, detailsResolved) => {
   if (detailsResolved) {
     vars["--pupu-chip-border"] = detailsResolved.chipBorder ?? DETAIL_DEFAULTS.chipBorder;
     vars["--pupu-menu-border"] = detailsResolved.menuBorder ?? DETAIL_DEFAULTS.menuBorder;
+    vars["--pupu-card-border"] = detailsResolved.cardBorder ?? DETAIL_DEFAULTS.cardBorder;
   }
   return vars;
 };

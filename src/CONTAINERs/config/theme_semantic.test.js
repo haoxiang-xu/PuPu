@@ -111,6 +111,7 @@ describe("DETAIL_DEFAULTS", () => {
     expect(DETAIL_DEFAULTS).toEqual({
       chipBorder: "transparent",
       menuBorder: "transparent",
+      cardBorder: "transparent",
       borderAlphaStrong: BORDER_TIER_ALPHA.strong,
       borderAlphaMid: BORDER_TIER_ALPHA.mid,
       borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
@@ -176,6 +177,14 @@ describe("semanticCssVars with details (chipBorder + border tier alpha overrides
       { ...DETAIL_DEFAULTS, chipBorder: "#ff0000" },
     );
     expect(vars["--pupu-chip-border"]).toBe("#ff0000");
+  });
+
+  test("with a details arg, emits --pupu-card-border", () => {
+    const vars = semanticCssVars(
+      { border: "#2e2e2e" },
+      { ...DETAIL_DEFAULTS, cardBorder: "#00ffee" },
+    );
+    expect(vars["--pupu-card-border"]).toBe("#00ffee");
   });
 
   test("with a details arg, uses the alpha overrides for the three border tier vars", () => {

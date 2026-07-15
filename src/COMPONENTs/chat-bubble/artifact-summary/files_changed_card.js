@@ -148,6 +148,7 @@ const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
         boxSizing: "border-box",
         backgroundColor: cardBg,
         borderRadius: 10,
+        border: "1px solid var(--pupu-card-border, transparent)",
         color: primary,
         overflow: "hidden",
       }}

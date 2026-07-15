@@ -60,6 +60,7 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
         borderRadius: 12,
         padding: 10,
         backgroundColor: "var(--pupu-surface)",
+        border: "1px solid var(--pupu-card-border, transparent)",
         color: "var(--pupu-text)",
         opacity: resolved ? 0.75 : 1,
         fontFamily: FONT,

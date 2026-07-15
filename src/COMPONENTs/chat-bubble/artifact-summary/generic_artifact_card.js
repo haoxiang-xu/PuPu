@@ -257,6 +257,7 @@ const GenericArtifactCard = ({ artifact, kindMeta, isDark }) => {
       style={{
         backgroundColor: palette.cardBg,
         borderRadius: 10,
+        border: "1px solid var(--pupu-card-border, transparent)",
         color: palette.primary,
         overflow: "hidden",
       }}

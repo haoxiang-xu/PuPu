@@ -62,10 +62,12 @@ describe("semantic_tokens", () => {
       light_mode: {
         chipBorder: "rgba(107,107,107,0.55)",
         menuBorder: "rgba(107,107,107,0.7)",
+        cardBorder: "rgba(107,107,107,0.6)",
       },
       dark_mode: {
         chipBorder: "rgba(138,138,138,0.55)",
         menuBorder: "rgba(138,138,138,0.7)",
+        cardBorder: "rgba(138,138,138,0.6)",
       },
     });
     for (const name of Object.keys(SEMANTIC_PRESETS)) {

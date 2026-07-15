@@ -382,6 +382,7 @@ const TimelineNode = ({
                   padding: compact ? "6px 0 6px 8px" : "8px 0 8px 10px",
                   borderRadius: compact ? 6 : 8,
                   background: tl.detailsBackground ?? "rgba(0,0,0,0.025)",
+                  border: "1px solid var(--pupu-card-border, transparent)",
                   fontSize: tl.fontSize ?? (compact ? "12px" : "13px"),
                   color: tl.spanColor ?? "rgba(0,0,0,0.45)",
                   minWidth: 0,
