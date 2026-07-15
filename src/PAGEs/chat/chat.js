@@ -15,6 +15,7 @@ import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
+  getChatMessages,
   refreshCharacterChatMetadata,
   setChatAgentOrchestration,
   setChatGeneratedUnread,
@@ -200,6 +201,7 @@ const ChatInterface = () => {
 
   const storageApi = useMemo(
     () => ({
+      getChatMessages,
       setChatAgentOrchestration,
       setChatGeneratedUnread,
       setChatMessages,
@@ -584,15 +586,50 @@ const ChatInterface = () => {
     };
   }, [unchainStatus.ready, refreshModelCatalog]);
 
+  const isModelSelectionDisabled =
+    stream.isStreaming ||
+    session.isCharacterChat ||
+    stream.isDurableInteractionBlocked;
+
   const onSelectModel = useCallback(
     (modelId) => {
+      if (stream.isDurableInteractionBlocked) {
+        return;
+      }
       session.handleSelectModel(modelId, stream.isStreaming);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session.handleSelectModel, stream.isStreaming],
+    [
+      session.handleSelectModel,
+      stream.isDurableInteractionBlocked,
+      stream.isStreaming,
+    ],
   );
 
   const effectiveDisclaimer = useMemo(() => {
+    if (
+      stream.durableInteractionStatus === "awaiting" ||
+      stream.durableInteractionStatus === "awaiting_response"
+    ) {
+      return "This run is waiting for your confirmation.";
+    }
+    if (stream.durableInteractionStatus === "checking") {
+      return "Checking for an interrupted Unchain run...";
+    }
+    if (
+      stream.durableInteractionStatus === "resuming" ||
+      stream.durableInteractionStatus === "receipt_recorded"
+    ) {
+      return "Restoring an interrupted Unchain run...";
+    }
+    if (stream.durableInteractionStatus === "retry_wait") {
+      return "Waiting to retry restoring the interrupted run...";
+    }
+    if (stream.durableInteractionStatus === "resume_failed") {
+      return stream.streamError
+        ? `Unchain could not restore the interrupted run: ${stream.streamError}`
+        : "Unchain could not restore the interrupted run.";
+    }
     if (stream.streamError) {
       return `Unchain error: ${stream.streamError}`;
     }
@@ -615,11 +652,13 @@ const ChatInterface = () => {
     hasSelectedModel,
     attachmentsDisabledReason,
     unchainStatus,
+    stream.durableInteractionStatus,
     stream.isStreaming,
     stream.streamError,
   ]);
 
   const isSendDisabled =
+    stream.isDurableInteractionBlocked ||
     (!unchainStatus.ready && !stream.isStreaming) ||
     !hasSelectedModel;
 
@@ -718,7 +757,7 @@ const ChatInterface = () => {
       modelCatalog,
       selectedModelId: session.selectedModelId,
       onSelectModel,
-      modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
+      modelSelectDisabled: isModelSelectionDisabled,
       showModelSelector: !session.isCharacterChat,
       showToolSelector: !session.isCharacterChat && modelSupportsTools,
       showWorkspaceSelector: !session.isCharacterChat && modelSupportsTools,
@@ -739,6 +778,7 @@ const ChatInterface = () => {
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.isStreaming,
       stream.interjectState, stream.onQueueUndo,
+      isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
@@ -855,6 +895,7 @@ const ChatInterface = () => {
                     return (
                       <button
                         key={chip.id}
+                        disabled={isModelSelectionDisabled}
                         onClick={() => onSelectModel(chip.id)}
                         style={{
                           display: "inline-flex",
@@ -865,7 +906,9 @@ const ChatInterface = () => {
                           fontSize: 12.5,
                           fontWeight: active ? 550 : 450,
                           fontFamily: theme?.font?.fontFamily || "inherit",
-                          cursor: "pointer",
+                          cursor: isModelSelectionDisabled
+                            ? "not-allowed"
+                            : "pointer",
                           outline: "none",
                           whiteSpace: "nowrap",
                           transition:
@@ -897,9 +940,10 @@ const ChatInterface = () => {
                               ? "0 6px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25)"
                               : "0 6px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.07)"
                             : "none",
+                          opacity: isModelSelectionDisabled ? 0.45 : 1,
                         }}
                         onMouseEnter={(event) => {
-                          if (active) return;
+                          if (active || isModelSelectionDisabled) return;
                           event.currentTarget.style.background = isDark
                             ? "rgba(255,255,255,0.08)"
                             : "rgba(0,0,0,0.06)";
@@ -911,7 +955,7 @@ const ChatInterface = () => {
                             : "rgba(0,0,0,0.70)";
                         }}
                         onMouseLeave={(event) => {
-                          if (active) return;
+                          if (active || isModelSelectionDisabled) return;
                           event.currentTarget.style.background = isDark
                             ? "rgba(255,255,255,0.04)"
                             : "rgba(0,0,0,0.03)";

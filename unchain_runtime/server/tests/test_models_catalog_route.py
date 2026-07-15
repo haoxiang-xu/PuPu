@@ -209,7 +209,15 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"status": "ok"})
+        self.assertEqual(
+            response.get_json(),
+            {
+                "status": "ok",
+                "disposition": "live_only",
+                "durable": False,
+                "interaction_id": "confirm-1",
+            },
+        )
         submit_mock.assert_called_once_with(
             confirmation_id="confirm-1",
             approved=True,

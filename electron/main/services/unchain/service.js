@@ -11,6 +11,7 @@ const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
+const UNCHAIN_PENDING_INTERACTION_ENDPOINT = "/chat/interactions/pending";
 const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
@@ -1747,14 +1748,24 @@ const createUnchainService = ({
     if (!confirmationId) {
       throw new Error("confirmation_id is required");
     }
+    if (typeof payload?.approved !== "boolean") {
+      throw new Error("approved must be a boolean");
+    }
 
     const reasonRaw = payload?.reason;
     const requestBody = {
       confirmation_id: confirmationId,
-      approved: Boolean(payload?.approved),
+      approved: payload.approved,
       reason:
         typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
     };
+
+    const sessionIdRaw = payload?.session_id || payload?.sessionId;
+    const sessionId =
+      typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+    if (sessionId) {
+      requestBody.session_id = sessionId;
+    }
 
     const modifiedArguments = payload?.modified_arguments;
     if (modifiedArguments != null) {
@@ -1784,6 +1795,34 @@ const createUnchainService = ({
       "Miso tool confirmation request failed",
       { status: "ok" },
       "Invalid Miso tool confirmation response",
+    );
+  };
+
+  const getMisoPendingInteraction = async (payload = {}) => {
+    ensureMisoReady();
+
+    const sessionIdRaw = payload?.session_id || payload?.sessionId;
+    const sessionId =
+      typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+    if (!sessionId) {
+      throw new Error("session_id is required");
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_PENDING_INTERACTION_ENDPOINT}?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        method: "GET",
+        headers: {
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso pending interaction request failed",
+      { status: "none", session_id: sessionId },
+      "Invalid Miso pending interaction response",
     );
   };
 
@@ -2519,6 +2558,7 @@ const createUnchainService = ({
     exportMisoCharacter,
     importMisoCharacter,
     submitMisoToolConfirmation,
+    getMisoPendingInteraction,
     submitMisoInterject,
     handleStreamStart,
     handleStreamStartV2,

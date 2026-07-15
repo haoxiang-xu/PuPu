@@ -16,7 +16,13 @@ from unchain_adapter import (
     get_toolkit_metadata,
     stream_chat,
     stream_chat_events,
+    resume_chat_interaction_events,
     submit_tool_confirmation,
+)
+from durable_interaction_host import (
+    DurableInteractionHostError,
+    get_pending_interaction,
+    record_interaction_receipt,
 )
 from mcp_toolkits import (
     check_mcp_toolkit_health,
@@ -98,7 +104,11 @@ __all__ = [
     "start_mcp_oauth",
     "stream_chat",
     "stream_chat_events",
+    "resume_chat_interaction_events",
     "submit_tool_confirmation",
+    "DurableInteractionHostError",
+    "get_pending_interaction",
+    "record_interaction_receipt",
     "delete_mcp_store_registry",
     "import_mcp_store_registry",
     "approve_mcp_store_entry",

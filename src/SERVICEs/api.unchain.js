@@ -537,6 +537,11 @@ export const createUnchainApi = () => {
     isRuntimeEventStreamV4Available: () =>
       hasBridgeMethod("unchainAPI", "startStreamV4"),
 
+    isDurableInteractionBridgeAvailable: () =>
+      hasBridgeMethod("unchainAPI", "getPendingInteraction") &&
+      hasBridgeMethod("unchainAPI", "respondToolConfirmation") &&
+      hasBridgeMethod("unchainAPI", "startStreamV4"),
+
     getStatus: async () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "getStatus");
@@ -1149,6 +1154,39 @@ export const createUnchainApi = () => {
       }
     },
 
+    getPendingInteraction: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod(
+          "unchainAPI",
+          "getPendingInteraction",
+        );
+        const sessionIdRaw = payload?.session_id || payload?.sessionId;
+        const sessionId =
+          typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+        if (!sessionId) {
+          throw new FrontendApiError(
+            "invalid_pending_interaction_request",
+            "session_id is required",
+          );
+        }
+        const response = await withTimeout(
+          () => method({ session_id: sessionId }),
+          8000,
+          "unchain_pending_interaction_timeout",
+          "Pending interaction request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { status: "none", session_id: sessionId };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_pending_interaction_failed",
+          "Failed to query pending interaction",
+        );
+      }
+    },
+
     respondToolConfirmation: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");
@@ -1161,14 +1199,27 @@ export const createUnchainApi = () => {
             "confirmation_id is required",
           );
         }
+        if (typeof payload?.approved !== "boolean") {
+          throw new FrontendApiError(
+            "invalid_confirmation_request",
+            "approved must be a boolean",
+          );
+        }
 
         const reasonRaw = payload?.reason;
         const requestPayload = {
           confirmation_id: confirmationId,
-          approved: Boolean(payload?.approved),
+          approved: payload.approved,
           reason:
             typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
         };
+
+        const sessionIdRaw = payload?.session_id || payload?.sessionId;
+        const sessionId =
+          typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+        if (sessionId) {
+          requestPayload.session_id = sessionId;
+        }
 
         const modifiedArguments = payload?.modified_arguments;
         if (modifiedArguments != null) {

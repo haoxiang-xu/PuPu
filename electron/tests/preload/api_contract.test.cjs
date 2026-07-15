@@ -86,6 +86,7 @@ describe("preload API contract", () => {
       "approveMcpStoreEntry",
       "revokeMcpStoreEntryApproval",
       "respondToolConfirmation",
+      "getPendingInteraction",
       "interject",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -180,6 +181,12 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
       { sessionId: "chat-1", messages: [] },
+    );
+
+    exposed.unchainAPI.getPendingInteraction({ session_id: "chat-1" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.PENDING_INTERACTION,
+      { session_id: "chat-1" },
     );
 
     exposed.unchainAPI.installMcpToolkit({

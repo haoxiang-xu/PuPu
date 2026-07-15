@@ -39,6 +39,15 @@ import {
   createQueuedTurnBuffer,
 } from "./interject_controller";
 import {
+  buildDurableResumePayload,
+  buildRecoveredConfirmationRequest,
+  durableInteractionRetryDelayMs,
+  ensureDurableInteractionMessage,
+  isRetryableDurableInteractionError,
+  normalizePendingInteraction,
+  prepareDurableInteractionResumeMessages,
+} from "./durable_interaction_recovery";
+import {
   start as progressStart,
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
@@ -48,7 +57,9 @@ const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 const STREAM_TRACE_LEVEL = "minimal";
 const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
 const SUBAGENT_STATE_FLUSH_MS = 100;
+const DURABLE_RESUME_MAX_RETRIES = 7;
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
+const EMPTY_CONFIRMATION_STATE = Object.freeze({});
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -116,9 +127,14 @@ const buildToolConfirmationRequest = ({
   callId,
   toolName,
   requestedAt,
+  ownerMessageId,
+  chatId,
+  sessionId,
 }) => ({
   confirmationId,
   callId,
+  chatId,
+  sessionId,
   toolName,
   toolDisplayName:
     typeof frame.payload?.tool_display_name === "string"
@@ -143,6 +159,8 @@ const buildToolConfirmationRequest = ({
       ? frame.payload.interact_config
       : {},
   requestedAt,
+  ownerMessageId:
+    typeof ownerMessageId === "string" ? ownerMessageId.trim() : "",
 });
 
 const normalizeAgentOrchestration = (value) => {
@@ -235,12 +253,15 @@ export const useChatStream = ({
     typeof controlledSetStreamError === "function"
       ? controlledSetStreamError
       : setInternalStreamError;
-  const [pendingToolConfirmationRequests, setPendingToolConfirmationRequests] =
+  const [pendingToolConfirmationRequestsByChatId, setPendingToolConfirmationRequestsByChatId] =
     useState({});
-  const pendingToolConfirmationRequestsRef = useRef({});
-  const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
+  const pendingToolConfirmationRequestsByChatIdRef = useRef({});
+  const [toolConfirmationUiStateByChatId, setToolConfirmationUiStateByChatId] =
     useState({});
-  const toolConfirmationUiStateByIdRef = useRef({});
+  const toolConfirmationUiStateByChatIdRef = useRef({});
+  const [durableInteractionByChatId, setDurableInteractionByChatId] =
+    useState({});
+  const durableInteractionByChatIdRef = useRef({});
   const [pendingContinuationRequest, setPendingContinuationRequest] =
     useState(null);
   const [interjectStateByChatId, setInterjectStateByChatId] = useState({});
@@ -270,10 +291,10 @@ export const useChatStream = ({
     streamingMessageStore || fallbackStreamingMessageStoreRef.current;
   const streamingChatIdsRef = useRef(new Set());
   const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
-  const confirmationIdByCallIdRef = useRef(new Map());
-  const confirmationCallIdByIdRef = useRef(new Map());
-  const confirmationFollowupSignalByIdRef = useRef(new Map());
-  const confirmationResolveTimerByIdRef = useRef(new Map());
+  const confirmationRuntimeByChatIdRef = useRef(new Map());
+  const durableInteractionLookupRef = useRef(null);
+  const durableResumeStartedKeysRef = useRef(new Set());
+  const durableResumeRetryTimersRef = useRef(new Map());
   const activeTokenFlushControllerRef = useRef(null);
   const parentRunIdRef = useRef("");
   const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
@@ -286,6 +307,30 @@ export const useChatStream = ({
   const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
   const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
   const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
+
+  const getConfirmationRuntimeForChat = useCallback(
+    (targetChatId, { create = true } = {}) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return null;
+      }
+
+      let runtime = confirmationRuntimeByChatIdRef.current.get(normalizedChatId);
+      if (!runtime && create) {
+        runtime = {
+          confirmationIdByCallId: new Map(),
+          confirmationCallIdById: new Map(),
+          sessionIdByConfirmationId: new Map(),
+          followupSignalById: new Map(),
+          resolveTimerById: new Map(),
+        };
+        confirmationRuntimeByChatIdRef.current.set(normalizedChatId, runtime);
+      }
+      return runtime || null;
+    },
+    [],
+  );
 
   const buildCharacterRunConfig = useCallback(async () => {
     if (!isCharacterChat) {
@@ -306,17 +351,23 @@ export const useChatStream = ({
   }, [characterId, isCharacterChat, threadIdRef]);
 
   const findToolCallFrameByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId) => {
       const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
       if (!normalizedCallId) {
         return null;
       }
 
-      const currentChatId = activeChatIdRef.current;
-      const streamState = activeStreamsRef.current.get(currentChatId);
+      const normalizedChatId =
+        typeof targetChatId === "string" && targetChatId.trim()
+          ? targetChatId.trim()
+          : activeChatIdRef.current;
+      const streamState = activeStreamsRef.current.get(normalizedChatId);
       const streamMessages = Array.isArray(streamState?.messages)
         ? streamState.messages
-        : [];
+        : activeChatIdRef.current === normalizedChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : [];
 
       for (const message of streamMessages) {
         const traceFrames = Array.isArray(message?.traceFrames)
@@ -352,12 +403,8 @@ export const useChatStream = ({
 
       return null;
     },
-    [activeChatIdRef, activeStreamsRef],
+    [activeChatIdRef, activeStreamsRef, messagesRef],
   );
-
-  useEffect(() => {
-    toolConfirmationUiStateByIdRef.current = toolConfirmationUiStateById;
-  }, [toolConfirmationUiStateById]);
 
   /* Session-scoped "Don't ask again" list is reset whenever the active
    * chat changes, matching the semantics of "only in this session". */
@@ -368,6 +415,16 @@ export const useChatStream = ({
   const isStreaming = streamingChatIds.has(chatId);
   const hasBackgroundStream =
     streamingChatIds.size > 0 && !streamingChatIds.has(chatId);
+  const pendingToolConfirmationRequests =
+    pendingToolConfirmationRequestsByChatId[chatId] || EMPTY_CONFIRMATION_STATE;
+  const toolConfirmationUiStateById =
+    toolConfirmationUiStateByChatId[chatId] || EMPTY_CONFIRMATION_STATE;
+  const durableInteractionState = durableInteractionByChatId[chatId] || null;
+  const durableInteractionStatus =
+    typeof durableInteractionState?.status === "string"
+      ? durableInteractionState.status
+      : "";
+  const isDurableInteractionBlocked = Boolean(durableInteractionStatus);
 
   const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
     const controller = activeTokenFlushControllerRef.current;
@@ -432,27 +489,100 @@ export const useChatStream = ({
     [activeStreamingMessageStore],
   );
 
-  const updateToolConfirmationUiState = useCallback((updater) => {
-    const previous = toolConfirmationUiStateByIdRef.current;
-    const next = typeof updater === "function" ? updater(previous) : updater;
-    if (next === previous) {
-      return previous;
-    }
-    toolConfirmationUiStateByIdRef.current = next;
-    setToolConfirmationUiStateById(next);
-    return next;
-  }, []);
+  const updateToolConfirmationUiState = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return EMPTY_CONFIRMATION_STATE;
+      }
 
-  const updatePendingToolConfirmationRequests = useCallback((updater) => {
-    const previous = pendingToolConfirmationRequestsRef.current;
-    const next = typeof updater === "function" ? updater(previous) : updater;
-    if (next === previous) {
-      return previous;
-    }
-    pendingToolConfirmationRequestsRef.current = next;
-    setPendingToolConfirmationRequests(next);
-    return next;
-  }, []);
+      const previousByChatId = toolConfirmationUiStateByChatIdRef.current;
+      const previous =
+        previousByChatId[normalizedChatId] || EMPTY_CONFIRMATION_STATE;
+      const updated =
+        typeof updater === "function" ? updater(previous) : updater;
+      const next =
+        updated && typeof updated === "object"
+          ? updated
+          : EMPTY_CONFIRMATION_STATE;
+      if (next === previous) {
+        return previous;
+      }
+
+      const nextByChatId = { ...previousByChatId };
+      if (Object.keys(next).length > 0) {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      toolConfirmationUiStateByChatIdRef.current = nextByChatId;
+      setToolConfirmationUiStateByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
+
+  const updatePendingToolConfirmationRequests = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return EMPTY_CONFIRMATION_STATE;
+      }
+
+      const previousByChatId =
+        pendingToolConfirmationRequestsByChatIdRef.current;
+      const previous =
+        previousByChatId[normalizedChatId] || EMPTY_CONFIRMATION_STATE;
+      const updated =
+        typeof updater === "function" ? updater(previous) : updater;
+      const next =
+        updated && typeof updated === "object"
+          ? updated
+          : EMPTY_CONFIRMATION_STATE;
+      if (next === previous) {
+        return previous;
+      }
+
+      const nextByChatId = { ...previousByChatId };
+      if (Object.keys(next).length > 0) {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      pendingToolConfirmationRequestsByChatIdRef.current = nextByChatId;
+      setPendingToolConfirmationRequestsByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
+
+  const updateDurableInteractionForChat = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return null;
+      }
+      const previousByChatId = durableInteractionByChatIdRef.current;
+      const previous = previousByChatId[normalizedChatId] || null;
+      const next = typeof updater === "function" ? updater(previous) : updater;
+      if (next === previous) {
+        return previous;
+      }
+      const nextByChatId = { ...previousByChatId };
+      if (next && typeof next === "object") {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      durableInteractionByChatIdRef.current = nextByChatId;
+      setDurableInteractionByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
 
   const updateInterjectStateByChatId = useCallback((updater) => {
     const previous = interjectStateByChatIdRef.current;
@@ -484,30 +614,39 @@ export const useChatStream = ({
     [updateInterjectStateByChatId],
   );
 
-  const clearConfirmationResolutionTimer = useCallback((confirmationId) => {
-    const normalizedId =
-      typeof confirmationId === "string" ? confirmationId.trim() : "";
-    if (!normalizedId) {
-      return;
-    }
-
-    const timerId = confirmationResolveTimerByIdRef.current.get(normalizedId);
-    if (timerId != null) {
-      clearTimeout(timerId);
-    }
-    confirmationResolveTimerByIdRef.current.delete(normalizedId);
-  }, []);
-
-  const resolveSubmittedConfirmationFromSignal = useCallback(
-    (confirmationId) => {
+  const clearConfirmationResolutionTimer = useCallback(
+    (targetChatId, confirmationId) => {
       const normalizedId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!normalizedId) {
         return;
       }
-      clearConfirmationResolutionTimer(normalizedId);
 
-      updateToolConfirmationUiState((previous) => {
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      if (!runtime) {
+        return;
+      }
+      const timerId = runtime.resolveTimerById.get(normalizedId);
+      if (timerId != null) {
+        clearTimeout(timerId);
+      }
+      runtime.resolveTimerById.delete(normalizedId);
+    },
+    [getConfirmationRuntimeForChat],
+  );
+
+  const resolveSubmittedConfirmationFromSignal = useCallback(
+    (targetChatId, confirmationId) => {
+      const normalizedId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedId) {
+        return;
+      }
+      clearConfirmationResolutionTimer(targetChatId, normalizedId);
+
+      updateToolConfirmationUiState(targetChatId, (previous) => {
         const current = previous[normalizedId];
         if (!current || current.resolved === true) {
           return previous;
@@ -536,47 +675,56 @@ export const useChatStream = ({
   );
 
   const markConfirmationFollowupSignalByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId) => {
       const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
       if (!normalizedCallId) {
         return;
       }
 
-      const confirmationId =
-        confirmationIdByCallIdRef.current.get(normalizedCallId);
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      const confirmationId = runtime?.confirmationIdByCallId.get(normalizedCallId);
       if (!confirmationId) {
         return;
       }
-      confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
-      resolveSubmittedConfirmationFromSignal(confirmationId);
+      runtime.followupSignalById.set(confirmationId, true);
+      resolveSubmittedConfirmationFromSignal(targetChatId, confirmationId);
     },
-    [resolveSubmittedConfirmationFromSignal],
+    [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal],
   );
 
-  const markAllPendingConfirmationFollowupSignals = useCallback(() => {
-    confirmationIdByCallIdRef.current.forEach((confirmationId) => {
+  const markAllPendingConfirmationFollowupSignals = useCallback((targetChatId) => {
+    const runtime = getConfirmationRuntimeForChat(targetChatId, {
+      create: false,
+    });
+    runtime?.confirmationIdByCallId.forEach((confirmationId) => {
       if (confirmationId) {
-        confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
-        resolveSubmittedConfirmationFromSignal(confirmationId);
+        runtime.followupSignalById.set(confirmationId, true);
+        resolveSubmittedConfirmationFromSignal(targetChatId, confirmationId);
       }
     });
-  }, [resolveSubmittedConfirmationFromSignal]);
+  }, [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal]);
 
   const clearResolvedToolConfirmationByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId) => {
       if (typeof callId !== "string" || !callId.trim()) {
         return;
       }
-      const confirmationId = confirmationIdByCallIdRef.current.get(callId);
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      const confirmationId = runtime?.confirmationIdByCallId.get(callId);
       if (!confirmationId) {
         return;
       }
 
-      confirmationIdByCallIdRef.current.delete(callId);
-      confirmationCallIdByIdRef.current.delete(confirmationId);
-      confirmationFollowupSignalByIdRef.current.delete(confirmationId);
-      clearConfirmationResolutionTimer(confirmationId);
-      updatePendingToolConfirmationRequests((previous) => {
+      runtime.confirmationIdByCallId.delete(callId);
+      runtime.confirmationCallIdById.delete(confirmationId);
+      runtime.sessionIdByConfirmationId.delete(confirmationId);
+      runtime.followupSignalById.delete(confirmationId);
+      clearConfirmationResolutionTimer(targetChatId, confirmationId);
+      updatePendingToolConfirmationRequests(targetChatId, (previous) => {
         if (!previous || !previous[confirmationId]) {
           return previous;
         }
@@ -584,7 +732,7 @@ export const useChatStream = ({
         delete next[confirmationId];
         return next;
       });
-      updateToolConfirmationUiState((previous) => {
+      updateToolConfirmationUiState(targetChatId, (previous) => {
         if (!previous || !previous[confirmationId]) {
           return previous;
         }
@@ -595,57 +743,44 @@ export const useChatStream = ({
     },
     [
       clearConfirmationResolutionTimer,
+      getConfirmationRuntimeForChat,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
   );
 
-  const clearAllPendingToolConfirmations = useCallback(() => {
-    const activeConfirmationIds = [
-      ...new Set([
-        ...confirmationIdByCallIdRef.current.values(),
-        ...confirmationCallIdByIdRef.current.keys(),
-        ...Object.keys(pendingToolConfirmationRequestsRef.current),
-      ]),
-    ];
-    confirmationIdByCallIdRef.current.clear();
-    confirmationCallIdByIdRef.current.clear();
-    confirmationFollowupSignalByIdRef.current.clear();
-    activeConfirmationIds.forEach((confirmationId) => {
-      clearConfirmationResolutionTimer(confirmationId);
-    });
-    if (activeConfirmationIds.length === 0) {
-      return;
-    }
+  const clearAllPendingToolConfirmations = useCallback(
+    (targetChatId) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
 
-    updatePendingToolConfirmationRequests((previous) => {
-      const next = { ...previous };
-      let changed = false;
-      activeConfirmationIds.forEach((confirmationId) => {
-        if (confirmationId && next[confirmationId]) {
-          delete next[confirmationId];
-          changed = true;
-        }
+      const runtime = getConfirmationRuntimeForChat(normalizedChatId, {
+        create: false,
       });
-      return changed ? next : previous;
-    });
-
-    updateToolConfirmationUiState((previous) => {
-      const next = { ...previous };
-      let changed = false;
-      activeConfirmationIds.forEach((confirmationId) => {
-        if (confirmationId && next[confirmationId]) {
-          delete next[confirmationId];
-          changed = true;
-        }
-      });
-      return changed ? next : previous;
-    });
-  }, [
-    clearConfirmationResolutionTimer,
-    updatePendingToolConfirmationRequests,
-    updateToolConfirmationUiState,
-  ]);
+      if (runtime) {
+        runtime.resolveTimerById.forEach((timerId) => {
+          clearTimeout(timerId);
+        });
+        confirmationRuntimeByChatIdRef.current.delete(normalizedChatId);
+      }
+      updatePendingToolConfirmationRequests(
+        normalizedChatId,
+        EMPTY_CONFIRMATION_STATE,
+      );
+      updateToolConfirmationUiState(
+        normalizedChatId,
+        EMPTY_CONFIRMATION_STATE,
+      );
+    },
+    [
+      getConfirmationRuntimeForChat,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
+  );
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
@@ -663,17 +798,7 @@ export const useChatStream = ({
       next.delete(currentChatId);
       return next;
     });
-    confirmationIdByCallIdRef.current.clear();
-    confirmationCallIdByIdRef.current.clear();
-    confirmationFollowupSignalByIdRef.current.clear();
-    confirmationResolveTimerByIdRef.current.forEach((timerId) => {
-      clearTimeout(timerId);
-    });
-    confirmationResolveTimerByIdRef.current.clear();
-    pendingToolConfirmationRequestsRef.current = {};
-    setPendingToolConfirmationRequests({});
-    toolConfirmationUiStateByIdRef.current = {};
-    setToolConfirmationUiStateById({});
+    clearAllPendingToolConfirmations(currentChatId);
     pendingContinuationRequestRef.current = null;
     setPendingContinuationRequest(null);
     const materializedMessages = materializeStreamingMessages(
@@ -703,6 +828,7 @@ export const useChatStream = ({
     activeStreamsRef,
     activeStreamingMessageStore,
     clearActiveTokenFlushController,
+    clearAllPendingToolConfirmations,
     materializeStreamingMessages,
     messagesRef,
     setMessages,
@@ -714,21 +840,33 @@ export const useChatStream = ({
   }, [cancelCurrentStreamAndSettleMessages]);
 
   const appendSyntheticToolConfirmationDecision = useCallback(
-    ({ confirmationId, approved, userResponse }) => {
+    ({ targetChatId, confirmationId, approved, userResponse }) => {
+      const normalizedTargetChatId =
+        typeof targetChatId === "string" && targetChatId.trim()
+          ? targetChatId.trim()
+          : activeChatIdRef.current;
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedConfirmationId) {
+      if (!normalizedTargetChatId || !normalizedConfirmationId) {
         return false;
       }
 
+      const runtime = getConfirmationRuntimeForChat(normalizedTargetChatId, {
+        create: false,
+      });
       const callId =
-        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const targetChatId = activeChatIdRef.current;
-      const streamState = activeStreamsRef.current.get(targetChatId);
-      const streamMessages = Array.isArray(streamState?.messages)
+        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
+      const streamState = activeStreamsRef.current.get(normalizedTargetChatId);
+      const hasActiveStreamMessages = Array.isArray(streamState?.messages);
+      const streamMessages = hasActiveStreamMessages
         ? streamState.messages
-        : [];
-      if (!callId || !targetChatId || streamMessages.length === 0) {
+        : activeChatIdRef.current === normalizedTargetChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : typeof storageApi.getChatMessages === "function"
+            ? storageApi.getChatMessages(normalizedTargetChatId)
+            : [];
+      if (!callId || streamMessages.length === 0) {
         return false;
       }
 
@@ -843,23 +981,38 @@ export const useChatStream = ({
         return false;
       }
 
-      activeStreamsRef.current.set(targetChatId, {
-        messages: nextStreamMessages,
-      });
+      if (hasActiveStreamMessages) {
+        activeStreamsRef.current.set(normalizedTargetChatId, {
+          messages: nextStreamMessages,
+        });
+      }
 
-      if (activeChatIdRef.current === targetChatId) {
+      if (activeChatIdRef.current === normalizedTargetChatId) {
+        messagesRef.current = nextStreamMessages;
         setMessages(nextStreamMessages);
+        if (!hasActiveStreamMessages) {
+          storageApi.setChatMessages(normalizedTargetChatId, nextStreamMessages, {
+            source: "chat-page",
+          });
+        }
       } else {
         // Tool confirmation is infrequent + user-visible — bypass the throttle.
-        cancelBackgroundPersist(targetChatId);
-        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
+        cancelBackgroundPersist(normalizedTargetChatId);
+        storageApi.setChatMessages(normalizedTargetChatId, nextStreamMessages, {
           source: "chat-page",
         });
       }
 
       return true;
     },
-    [activeChatIdRef, activeStreamsRef, setMessages, storageApi],
+    [
+      activeChatIdRef,
+      activeStreamsRef,
+      getConfirmationRuntimeForChat,
+      messagesRef,
+      setMessages,
+      storageApi,
+    ],
   );
 
   /* Same commit pattern as appendSyntheticToolConfirmationDecision above:
@@ -954,17 +1107,64 @@ export const useChatStream = ({
     [applyToStreamingAssistantMessage],
   );
 
+  const submitToolConfirmationWithRetry = useCallback(async (payload) => {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await api.unchain.respondToolConfirmation(payload);
+      } catch (error) {
+        if (
+          attempt >= DURABLE_RESUME_MAX_RETRIES ||
+          !isRetryableDurableInteractionError(error)
+        ) {
+          throw error;
+        }
+        const delayMs = durableInteractionRetryDelayMs(attempt);
+        attempt += 1;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }, []);
+
+  const continueFromRecordedReceipt = useCallback(
+    (targetChatId, sessionId, response) => {
+      if (response?.disposition !== "receipt_recorded") {
+        return;
+      }
+      const lookup = durableInteractionLookupRef.current;
+      if (typeof lookup === "function") {
+        void lookup(targetChatId, sessionId, { autoResume: true });
+      }
+    },
+    [],
+  );
+
   const handleToolConfirmationDecision = useCallback(
     async ({ confirmationId, approved, userResponse, scope }) => {
+      const targetChatId = activeChatIdRef.current;
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedConfirmationId) {
+      if (!targetChatId || !normalizedConfirmationId) {
         return;
       }
 
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
       const callId =
-        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const requestFrame = findToolCallFrameByCallId(callId);
+        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
+      const confirmationRequest =
+        pendingToolConfirmationRequestsByChatIdRef.current[targetChatId]?.[
+          normalizedConfirmationId
+        ] || null;
+      const sessionId =
+        runtime?.sessionIdByConfirmationId.get(normalizedConfirmationId) ||
+        (typeof confirmationRequest?.sessionId === "string"
+          ? confirmationRequest.sessionId.trim()
+          : "") ||
+        activeRunThreadIdByChatIdRef.current.get(targetChatId) ||
+        targetChatId;
+      const requestFrame = findToolCallFrameByCallId(targetChatId, callId);
       const toolName =
         typeof requestFrame?.payload?.tool_name === "string"
           ? requestFrame.payload.tool_name
@@ -1025,12 +1225,14 @@ export const useChatStream = ({
       }
 
       const current =
-        toolConfirmationUiStateByIdRef.current[normalizedConfirmationId] || {};
+        toolConfirmationUiStateByChatIdRef.current[targetChatId]?.[
+          normalizedConfirmationId
+        ] || {};
       if (current.status === "submitting" || current.status === "submitted") {
         return;
       }
 
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [normalizedConfirmationId]: {
           ...(previous[normalizedConfirmationId] || {}),
@@ -1046,28 +1248,25 @@ export const useChatStream = ({
           confirmation_id: normalizedConfirmationId,
           approved: Boolean(approved),
           reason: "",
+          session_id: sessionId,
         };
         if (userResponse !== undefined && userResponse !== null) {
           payload.modified_arguments = { user_response: userResponse };
         }
-        await api.unchain.respondToolConfirmation(payload);
+        const response = await submitToolConfirmationWithRetry(payload);
         if (
-          confirmationFollowupSignalByIdRef.current.get(
-            normalizedConfirmationId,
-          ) !== true
+          runtime?.followupSignalById.get(normalizedConfirmationId) !== true
         ) {
-          confirmationFollowupSignalByIdRef.current.set(
-            normalizedConfirmationId,
-            false,
-          );
+          runtime?.followupSignalById.set(normalizedConfirmationId, false);
         }
-        clearConfirmationResolutionTimer(normalizedConfirmationId);
+        clearConfirmationResolutionTimer(targetChatId, normalizedConfirmationId);
         appendSyntheticToolConfirmationDecision({
+          targetChatId,
           confirmationId: normalizedConfirmationId,
           approved: Boolean(approved),
           userResponse,
         });
-        updateToolConfirmationUiState((previous) => ({
+        updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
@@ -1078,12 +1277,13 @@ export const useChatStream = ({
             userResponse: userResponse ?? null,
           },
         }));
+        continueFromRecordedReceipt(targetChatId, sessionId, response);
       } catch (error) {
-        clearConfirmationResolutionTimer(normalizedConfirmationId);
+        clearConfirmationResolutionTimer(targetChatId, normalizedConfirmationId);
         const errorMessage =
           (typeof error?.message === "string" && error.message) ||
           "Failed to submit confirmation";
-        updateToolConfirmationUiState((previous) => ({
+        updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
@@ -1096,17 +1296,22 @@ export const useChatStream = ({
     },
     [
       appendSyntheticToolConfirmationDecision,
+      activeChatIdRef,
       clearConfirmationResolutionTimer,
+      continueFromRecordedReceipt,
       findToolCallFrameByCallId,
+      getConfirmationRuntimeForChat,
+      submitToolConfirmationWithRetry,
       updateToolConfirmationUiState,
     ],
   );
 
   const handleContinuationDecision = useCallback(
     async ({ confirmationId, approved }) => {
+      const targetChatId = activeChatIdRef.current;
       const normalizedId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedId) return;
+      if (!targetChatId || !normalizedId) return;
 
       const current = pendingContinuationRequestRef.current;
       if (!current || current.status === "submitting") return;
@@ -1120,13 +1325,17 @@ export const useChatStream = ({
       );
 
       try {
-        await api.unchain.respondToolConfirmation({
+        const sessionId =
+          activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+        const response = await submitToolConfirmationWithRetry({
           confirmation_id: normalizedId,
           approved: Boolean(approved),
           reason: "",
+          session_id: sessionId,
         });
         pendingContinuationRequestRef.current = null;
         setPendingContinuationRequest(null);
+        continueFromRecordedReceipt(targetChatId, sessionId, response);
       } catch (_error) {
         pendingContinuationRequestRef.current = { ...current, status: "idle" };
         setPendingContinuationRequest((prev) =>
@@ -1134,7 +1343,11 @@ export const useChatStream = ({
         );
       }
     },
-    [],
+    [
+      activeChatIdRef,
+      continueFromRecordedReceipt,
+      submitToolConfirmationWithRetry,
+    ],
   );
 
   const isToolCallAutoApprovable = useCallback((frame) => {
@@ -1161,12 +1374,12 @@ export const useChatStream = ({
   }, []);
 
   const restoreManualToolConfirmationRequest = useCallback(
-    ({ confirmationId, request, error }) => {
+    ({ targetChatId, confirmationId, request, error }) => {
       const errorMessage =
         (typeof error?.message === "string" && error.message) ||
         "Failed to submit confirmation";
 
-      updatePendingToolConfirmationRequests((previous) =>
+      updatePendingToolConfirmationRequests(targetChatId, (previous) =>
         previous[confirmationId]
           ? previous
           : {
@@ -1174,7 +1387,7 @@ export const useChatStream = ({
               [confirmationId]: request,
             },
       );
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [confirmationId]: {
           ...(previous[confirmationId] || {}),
@@ -1189,8 +1402,9 @@ export const useChatStream = ({
   );
 
   const submitAutoApprovedToolConfirmation = useCallback(
-    ({ confirmationId, request }) => {
-      updatePendingToolConfirmationRequests((previous) => {
+    ({ targetChatId, confirmationId, request }) => {
+      const runtime = getConfirmationRuntimeForChat(targetChatId);
+      updatePendingToolConfirmationRequests(targetChatId, (previous) => {
         if (!previous[confirmationId]) {
           return previous;
         }
@@ -1198,7 +1412,7 @@ export const useChatStream = ({
         delete next[confirmationId];
         return next;
       });
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [confirmationId]: {
           ...(previous[confirmationId] || {}),
@@ -1213,37 +1427,43 @@ export const useChatStream = ({
         confirmation_id: confirmationId,
         approved: true,
         reason: "",
+        session_id:
+          runtime?.sessionIdByConfirmationId.get(confirmationId) || targetChatId,
       };
 
       try {
-        Promise.resolve(api.unchain.respondToolConfirmation(autoPayload))
-          .then(() => {
+        Promise.resolve(submitToolConfirmationWithRetry(autoPayload))
+          .then((response) => {
             if (
-              confirmationFollowupSignalByIdRef.current.get(confirmationId) !==
-              true
+              runtime?.followupSignalById.get(confirmationId) !== true
             ) {
-              confirmationFollowupSignalByIdRef.current.set(
-                confirmationId,
-                false,
-              );
+              runtime?.followupSignalById.set(confirmationId, false);
             }
-            clearConfirmationResolutionTimer(confirmationId);
+            clearConfirmationResolutionTimer(targetChatId, confirmationId);
             appendSyntheticToolConfirmationDecision({
+              targetChatId,
               confirmationId,
               approved: true,
             });
+            continueFromRecordedReceipt(
+              targetChatId,
+              autoPayload.session_id,
+              response,
+            );
           })
           .catch((error) => {
-            clearConfirmationResolutionTimer(confirmationId);
+            clearConfirmationResolutionTimer(targetChatId, confirmationId);
             restoreManualToolConfirmationRequest({
+              targetChatId,
               confirmationId,
               request,
               error,
             });
           });
       } catch (error) {
-        clearConfirmationResolutionTimer(confirmationId);
+        clearConfirmationResolutionTimer(targetChatId, confirmationId);
         restoreManualToolConfirmationRequest({
+          targetChatId,
           confirmationId,
           request,
           error,
@@ -1253,7 +1473,10 @@ export const useChatStream = ({
     [
       appendSyntheticToolConfirmationDecision,
       clearConfirmationResolutionTimer,
+      continueFromRecordedReceipt,
+      getConfirmationRuntimeForChat,
       restoreManualToolConfirmationRequest,
+      submitToolConfirmationWithRetry,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
@@ -1316,7 +1539,18 @@ export const useChatStream = ({
       forceHistoryFallback = false,
       historyOverride = null,
       characterAgentConfig = null,
+      durableInteraction = null,
+      durableResumeAttempt = 0,
+      durableOwnerMessageId = "",
     }) => {
+      const isDurableResume = Boolean(
+        mode === "resume_interaction" &&
+        durableInteraction?.status === "receipt_recorded" &&
+        typeof durableInteraction?.sessionId === "string" &&
+        durableInteraction.sessionId.trim() &&
+        typeof durableInteraction?.interactionId === "string" &&
+        durableInteraction.interactionId.trim(),
+      );
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachments)
         ? attachments
@@ -1326,7 +1560,10 @@ export const useChatStream = ({
         trimmedText ||
         (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
 
-      if (!targetChatId || (!promptText && !hasAttachments)) {
+      if (
+        !targetChatId ||
+        (!isDurableResume && !promptText && !hasAttachments)
+      ) {
         return false;
       }
 
@@ -1344,17 +1581,7 @@ export const useChatStream = ({
           ? reuseUserMessage
           : null;
 
-      confirmationIdByCallIdRef.current.clear();
-      confirmationCallIdByIdRef.current.clear();
-      confirmationFollowupSignalByIdRef.current.clear();
-      confirmationResolveTimerByIdRef.current.forEach((timerId) => {
-        clearTimeout(timerId);
-      });
-      confirmationResolveTimerByIdRef.current.clear();
-      pendingToolConfirmationRequestsRef.current = {};
-      setPendingToolConfirmationRequests({});
-      toolConfirmationUiStateByIdRef.current = {};
-      setToolConfirmationUiStateById({});
+      clearAllPendingToolConfirmations(targetChatId);
       pendingContinuationRequestRef.current = null;
       setPendingContinuationRequest(null);
       parentRunIdRef.current = "";
@@ -1362,64 +1589,79 @@ export const useChatStream = ({
       subagentFramesByRunIdRef.current.clear();
       lastTokenRunIdRef.current = "";
 
-      const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
+      const durableResumeMessages = isDurableResume
+        ? prepareDurableInteractionResumeMessages(
+            normalizedBaseMessages,
+            durableInteraction,
+            durableOwnerMessageId || durableInteraction.ownerMessageId,
+            timestamp,
+          )
+        : null;
+      const assistantMessageId =
+        durableResumeMessages?.ownerMessageId ||
+        `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-      const userMessageSeed = normalizedReuseUserMessage
-        ? {
-            ...normalizedReuseUserMessage,
-            role: "user",
-            content: promptText,
-            updatedAt: timestamp,
-          }
-        : {
-            id: `user-${Date.now()}`,
-            role: "user",
-            content: promptText,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          };
-      if (
-        typeof userMessageSeed.createdAt !== "number" ||
-        !Number.isFinite(userMessageSeed.createdAt)
-      ) {
-        userMessageSeed.createdAt = timestamp;
-      }
-
-      await hydrateAttachmentPayloads(targetChatId, [
-        ...normalizedAttachments,
-        ...normalizedBaseMessages.flatMap((message) =>
-          message.role === "user" && Array.isArray(message.attachments)
-            ? message.attachments
-            : [],
-        ),
-      ]);
-
-      const { payloads: attachmentPayloads, missingAttachmentNames } =
-        resolveAttachmentPayloads(targetChatId, normalizedAttachments);
-      let persistedAttachments = normalizedAttachments;
-      let payloadAttachments = attachmentPayloads;
-
-      if (missingAttachmentNames.length > 0) {
-        if (missingAttachmentPayloadMode === "degrade") {
-          persistedAttachments = [];
-          payloadAttachments = [];
-          setStreamError(
-            "Some attachment payloads are unavailable in this session. Resending text only.",
-          );
-        } else {
-          setStreamError(
-            "Some attachment payloads are unavailable. Please re-attach your files and try again.",
-          );
-          return false;
+      let persistedAttachments = [];
+      let payloadAttachments = [];
+      let userMessage = null;
+      if (!isDurableResume) {
+        const userMessageSeed = normalizedReuseUserMessage
+          ? {
+              ...normalizedReuseUserMessage,
+              role: "user",
+              content: promptText,
+              updatedAt: timestamp,
+            }
+          : {
+              id: `user-${Date.now()}`,
+              role: "user",
+              content: promptText,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            };
+        if (
+          typeof userMessageSeed.createdAt !== "number" ||
+          !Number.isFinite(userMessageSeed.createdAt)
+        ) {
+          userMessageSeed.createdAt = timestamp;
         }
-      }
 
-      const userMessage = { ...userMessageSeed };
-      if (persistedAttachments.length > 0) {
-        userMessage.attachments = persistedAttachments;
-      } else if ("attachments" in userMessage) {
-        delete userMessage.attachments;
+        await hydrateAttachmentPayloads(targetChatId, [
+          ...normalizedAttachments,
+          ...normalizedBaseMessages.flatMap((message) =>
+            message.role === "user" && Array.isArray(message.attachments)
+              ? message.attachments
+              : [],
+          ),
+        ]);
+
+        const { payloads: attachmentPayloads, missingAttachmentNames } =
+          resolveAttachmentPayloads(targetChatId, normalizedAttachments);
+        persistedAttachments = normalizedAttachments;
+        payloadAttachments = attachmentPayloads;
+
+        if (missingAttachmentNames.length > 0) {
+          if (missingAttachmentPayloadMode === "degrade") {
+            persistedAttachments = [];
+            payloadAttachments = [];
+            setStreamError(
+              "Some attachment payloads are unavailable in this session. Resending text only.",
+            );
+          } else {
+            setStreamError(
+              "Some attachment payloads are unavailable. Please re-attach your files and try again.",
+            );
+            return false;
+          }
+        }
+
+        userMessage = { ...userMessageSeed };
+        if (persistedAttachments.length > 0) {
+          userMessage.attachments = persistedAttachments;
+        } else if ("attachments" in userMessage) {
+          delete userMessage.attachments;
+        }
       }
 
       const persistImmediateMessages = (nextImmediateMessages) => {
@@ -1444,6 +1686,14 @@ export const useChatStream = ({
       );
       let forceMemoryEnabled = false;
 
+      if (isDurableResume) {
+        effectiveThreadId = durableInteraction.sessionId;
+        const resumeModelId = durableInteraction.resumeOptions?.modelId;
+        if (typeof resumeModelId === "string" && resumeModelId.trim()) {
+          effectiveModelId = resumeModelId.trim();
+        }
+      }
+
       /* Optimistic UI: push user message + assistant placeholder BEFORE any await.
          For character chats, buildCharacterRunConfig() below can be a slow IPC round-trip;
          we don't want Send to feel frozen during that wait. Rollback on failure. */
@@ -1461,11 +1711,13 @@ export const useChatStream = ({
           model: effectiveModelId,
         },
       };
-      const optimisticMessages = [
-        ...normalizedBaseMessages,
-        userMessage,
-        optimisticAssistantPlaceholder,
-      ];
+      const optimisticMessages = isDurableResume
+        ? durableResumeMessages.messages
+        : [
+            ...normalizedBaseMessages,
+            userMessage,
+            optimisticAssistantPlaceholder,
+          ];
       const previousInputValue = inputValue;
       const previousDraftAttachments = draftAttachments;
 
@@ -1480,6 +1732,12 @@ export const useChatStream = ({
       activeStreamingMessageStore.begin({
         chatId: targetChatId,
         messageId: assistantMessageId,
+        seedText: isDurableResume
+          ? optimisticMessages.find(
+              (message) => message?.id === assistantMessageId,
+            )?.content || ""
+          : "",
+        updatedAt: timestamp,
       });
       activeStreamsRef.current.set(targetChatId, {
         messages: optimisticMessages,
@@ -1502,7 +1760,7 @@ export const useChatStream = ({
       };
 
       let resolvedCharacterConfig = characterAgentConfig;
-      if (isCharacterChat) {
+      if (isCharacterChat && !isDurableResume) {
         if (!resolvedCharacterConfig) {
           try {
             resolvedCharacterConfig = await buildCharacterRunConfig();
@@ -1603,15 +1861,19 @@ export const useChatStream = ({
       activeRunThreadIdByChatIdRef.current.set(targetChatId, effectiveThreadId);
 
       const memoryEnabled =
-        forceHistoryFallback === true
+        isDurableResume
+          ? durableInteraction.resumeOptions?.memory_enabled === true
+          : forceHistoryFallback === true
           ? false
           : forceMemoryEnabled === true ||
             readMemorySettings().enabled === true;
-      const historyForModel = Array.isArray(historyOverride)
-        ? historyOverride
+      const historyForModel = isDurableResume
+        ? []
+        : Array.isArray(historyOverride)
+          ? historyOverride
           : memoryEnabled
-          ? []
-          : buildHistoryForModel(normalizedBaseMessages, targetChatId);
+            ? []
+            : buildHistoryForModel(normalizedBaseMessages, targetChatId);
 
       /* Optimistic push already happened before the character block.
          `nextMessages` is the same value; keep the binding so downstream code
@@ -2192,10 +2454,19 @@ export const useChatStream = ({
         return streamHandle;
         };
 
-        const shouldUseRuntimeEvents =
-          isRuntimeEventStreamEnabled() &&
+        const runtimeEventStreamAvailable =
           typeof api.unchain.isRuntimeEventStreamV4Available === "function" &&
           api.unchain.isRuntimeEventStreamV4Available();
+        if (isDurableResume && !runtimeEventStreamAvailable) {
+          const error = new Error(
+            "Durable interaction recovery requires the V4 runtime event bridge.",
+          );
+          error.code = "durable_resume_bridge_unavailable";
+          throw error;
+        }
+        const shouldUseRuntimeEvents =
+          isDurableResume ||
+          (isRuntimeEventStreamEnabled() && runtimeEventStreamAvailable);
         if (shouldUseRuntimeEvents) {
           return startRuntimeEventStream({
             createStore: createRuntimeEventStore,
@@ -2211,6 +2482,124 @@ export const useChatStream = ({
         return api.unchain.startStreamV2(payload, handlers);
       };
 
+      const durableResumeKey = isDurableResume
+        ? [
+            durableInteraction.sessionId,
+            durableInteraction.interactionId,
+            durableInteraction.receiptId || "",
+          ].join(":")
+        : "";
+      const scheduleDurableResumeRetry = (error, sourceMessages) => {
+        if (!isDurableResume) {
+          return false;
+        }
+
+        const errorMessage = error?.message || "Failed to resume this run";
+        if (
+          durableResumeAttempt >= DURABLE_RESUME_MAX_RETRIES ||
+          !isRetryableDurableInteractionError(error)
+        ) {
+          updateDurableInteractionForChat(targetChatId, {
+            ...durableInteraction,
+            ownerMessageId: assistantMessageId,
+            status: "resume_failed",
+            resumeAttempt: durableResumeAttempt,
+            lastError: errorMessage,
+          });
+          return false;
+        }
+
+        const retryMessages = (Array.isArray(sourceMessages)
+          ? sourceMessages
+          : normalizedBaseMessages
+        ).map((message) =>
+          message?.id === assistantMessageId
+            ? {
+                ...message,
+                updatedAt: Date.now(),
+                status: "done",
+              }
+            : message,
+        );
+        messagesRef.current = retryMessages;
+        if (activeChatIdRef.current === targetChatId) {
+          setMessages(retryMessages);
+        }
+        storageApi.setChatMessages(targetChatId, retryMessages, {
+          source: "chat-page",
+        });
+
+        const nextAttempt = durableResumeAttempt + 1;
+        updateDurableInteractionForChat(targetChatId, {
+          ...durableInteraction,
+          ownerMessageId: assistantMessageId,
+          status: "retry_wait",
+          resumeAttempt: nextAttempt,
+          lastError: errorMessage,
+        });
+        const existingTimer = durableResumeRetryTimersRef.current.get(
+          targetChatId,
+        );
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+        const timerId = setTimeout(async () => {
+          durableResumeRetryTimersRef.current.delete(targetChatId);
+          let refreshedInteraction = durableInteraction;
+          try {
+            const rawPending = await api.unchain.getPendingInteraction({
+              session_id: durableInteraction.sessionId,
+            });
+            const refreshedPending = normalizePendingInteraction(
+              rawPending,
+              durableInteraction.sessionId,
+            );
+            if (refreshedPending?.status === "none") {
+              if (durableResumeKey) {
+                durableResumeStartedKeysRef.current.delete(durableResumeKey);
+              }
+              clearAllPendingToolConfirmations(targetChatId);
+              updateDurableInteractionForChat(targetChatId, null);
+              return;
+            }
+            if (
+              refreshedPending?.status === "receipt_recorded" &&
+              refreshedPending.interactionId ===
+                durableInteraction.interactionId
+            ) {
+              refreshedInteraction = {
+                ...refreshedPending,
+                ownerMessageId: assistantMessageId,
+              };
+            }
+          } catch (_lookupError) {
+            // The resume stream already gave us a retryable lease error. If
+            // the reconciliation lookup is temporarily unavailable, keep the
+            // original durable receipt and let the bounded retry proceed.
+          }
+          updateDurableInteractionForChat(targetChatId, {
+            ...refreshedInteraction,
+            ownerMessageId: assistantMessageId,
+            status: "resuming",
+            resumeAttempt: nextAttempt,
+            lastError: "",
+          });
+          void runTurnRequest({
+            mode: "resume_interaction",
+            chatId: targetChatId,
+            text: "",
+            attachments: [],
+            baseMessages: retryMessages,
+            clearComposer: false,
+            durableInteraction: refreshedInteraction,
+            durableResumeAttempt: nextAttempt,
+            durableOwnerMessageId: assistantMessageId,
+          });
+        }, durableInteractionRetryDelayMs(durableResumeAttempt));
+        durableResumeRetryTimersRef.current.set(targetChatId, timerId);
+        return true;
+      };
+
       let streamHandle = null;
       try {
         const systemPromptOverridesObject =
@@ -2220,49 +2609,67 @@ export const useChatStream = ({
             ? systemPromptOverrides
             : {};
 
-        streamHandle = startChatStream(
-          {
-            threadId: effectiveThreadId,
-            message: promptText,
-            history: historyForModel,
-            attachments: payloadAttachments,
-            options: {
-              modelId: effectiveModelId,
-              memory_enabled: memoryEnabled,
-              ...(effectiveMemoryNamespace
-                ? { memory_namespace: effectiveMemoryNamespace }
-                : {}),
-              ...(effectiveToolkits.length > 0 && {
-                toolkits: effectiveToolkits,
-              }),
-              ...(effectiveWorkspaceIds.length > 0 && {
-                selectedWorkspaceIds: effectiveWorkspaceIds,
-              }),
-              ...(!isCharacterChat &&
-                selectedRecipeName &&
-                selectedRecipeName !== "Default" && {
-                  recipe_name: selectedRecipeName,
+        const durableInteractionsRequired =
+          !isDurableResume &&
+          memoryEnabled &&
+          typeof api.unchain.isDurableInteractionBridgeAvailable ===
+            "function" &&
+          api.unchain.isDurableInteractionBridgeAvailable() &&
+          (isCharacterChat ||
+            (!selectedRecipeName || selectedRecipeName === "Default")) &&
+          effectiveAgentOrchestration.mode === "default";
+
+        const streamPayload = isDurableResume
+          ? buildDurableResumePayload(durableInteraction)
+          : {
+              threadId: effectiveThreadId,
+              message: promptText,
+              history: historyForModel,
+              attachments: payloadAttachments,
+              options: {
+                modelId: effectiveModelId,
+                memory_enabled: memoryEnabled,
+                ...(durableInteractionsRequired
+                  ? { durable_interactions_required: true }
+                  : {}),
+                ...(effectiveMemoryNamespace
+                  ? { memory_namespace: effectiveMemoryNamespace }
+                  : {}),
+                ...(effectiveToolkits.length > 0 && {
+                  toolkits: effectiveToolkits,
                 }),
-              ...(!isCharacterChat && {
-                agent_orchestration: effectiveAgentOrchestration,
-              }),
-              ...(isCharacterChat
-                ? {
-                    agent_instructions:
-                      typeof resolvedCharacterConfig?.instructions === "string"
-                        ? resolvedCharacterConfig.instructions
-                        : "",
-                    disable_workspace_root: true,
-                  }
-                : {}),
-              ...(Object.keys(systemPromptOverridesObject).length > 0 && {
-                system_prompt_v2: {
-                  overrides: systemPromptOverridesObject,
-                },
-              }),
-            },
-            trace_level: STREAM_TRACE_LEVEL,
-          },
+                ...(effectiveWorkspaceIds.length > 0 && {
+                  selectedWorkspaceIds: effectiveWorkspaceIds,
+                }),
+                ...(!isCharacterChat &&
+                  selectedRecipeName &&
+                  selectedRecipeName !== "Default" && {
+                    recipe_name: selectedRecipeName,
+                  }),
+                ...(!isCharacterChat && {
+                  agent_orchestration: effectiveAgentOrchestration,
+                }),
+                ...(isCharacterChat
+                  ? {
+                      agent_instructions:
+                        typeof resolvedCharacterConfig?.instructions ===
+                        "string"
+                          ? resolvedCharacterConfig.instructions
+                          : "",
+                      disable_workspace_root: true,
+                    }
+                  : {}),
+                ...(Object.keys(systemPromptOverridesObject).length > 0 && {
+                  system_prompt_v2: {
+                    overrides: systemPromptOverridesObject,
+                  },
+                }),
+              },
+              trace_level: STREAM_TRACE_LEVEL,
+            };
+
+        streamHandle = startChatStream(
+          streamPayload,
           {
             onFrame: (frame) => {
               /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
@@ -2547,14 +2954,25 @@ export const useChatStream = ({
                   }
 
                   if (callId && confirmationId && requiresConfirmation) {
-                    confirmationIdByCallIdRef.current.set(callId, confirmationId);
-                    confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                    const confirmationRuntime =
+                      getConfirmationRuntimeForChat(targetChatId);
+                    confirmationRuntime.confirmationIdByCallId.set(
+                      callId,
+                      confirmationId,
+                    );
+                    confirmationRuntime.confirmationCallIdById.set(
+                      confirmationId,
+                      callId,
+                    );
+                    confirmationRuntime.sessionIdByConfirmationId.set(
+                      confirmationId,
+                      effectiveThreadId,
+                    );
                     if (
-                      confirmationFollowupSignalByIdRef.current.get(
-                        confirmationId,
-                      ) !== true
+                      confirmationRuntime.followupSignalById.get(confirmationId) !==
+                      true
                     ) {
-                      confirmationFollowupSignalByIdRef.current.set(
+                      confirmationRuntime.followupSignalById.set(
                         confirmationId,
                         false,
                       );
@@ -2565,14 +2983,18 @@ export const useChatStream = ({
                       callId,
                       toolName,
                       requestedAt: patchTime,
+                      ownerMessageId: assistantMessageId,
+                      chatId: targetChatId,
+                      sessionId: effectiveThreadId,
                     });
                     if (isToolCallAutoApprovable(frame)) {
                       submitAutoApprovedToolConfirmation({
+                        targetChatId,
                         confirmationId,
                         request: confirmationRequest,
                       });
                     } else {
-                      updatePendingToolConfirmationRequests((previous) =>
+                      updatePendingToolConfirmationRequests(targetChatId, (previous) =>
                         previous[confirmationId]
                           ? previous
                           : {
@@ -2580,7 +3002,7 @@ export const useChatStream = ({
                               [confirmationId]: confirmationRequest,
                             },
                       );
-                      updateToolConfirmationUiState((previous) =>
+                      updateToolConfirmationUiState(targetChatId, (previous) =>
                         previous[confirmationId]
                           ? previous
                           : {
@@ -2602,7 +3024,7 @@ export const useChatStream = ({
                     typeof frame.payload?.call_id === "string"
                       ? frame.payload.call_id
                       : "";
-                  clearResolvedToolConfirmationByCallId(callId);
+                  clearResolvedToolConfirmationByCallId(targetChatId, callId);
                 } else if (frame.type === "tool_result") {
                   const callId =
                     typeof frame.payload?.call_id === "string"
@@ -2620,7 +3042,7 @@ export const useChatStream = ({
                       result: frame.payload?.result,
                     });
                   }
-                  markConfirmationFollowupSignalByCallId(callId);
+                  markConfirmationFollowupSignalByCallId(targetChatId, callId);
                 }
               };
 
@@ -2822,14 +3244,25 @@ export const useChatStream = ({
                   });
                 }
                 if (callId && confirmationId && requiresConfirmation) {
-                  confirmationIdByCallIdRef.current.set(callId, confirmationId);
-                  confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                  const confirmationRuntime =
+                    getConfirmationRuntimeForChat(targetChatId);
+                  confirmationRuntime.confirmationIdByCallId.set(
+                    callId,
+                    confirmationId,
+                  );
+                  confirmationRuntime.confirmationCallIdById.set(
+                    confirmationId,
+                    callId,
+                  );
+                  confirmationRuntime.sessionIdByConfirmationId.set(
+                    confirmationId,
+                    effectiveThreadId,
+                  );
                   if (
-                    confirmationFollowupSignalByIdRef.current.get(
-                      confirmationId,
-                    ) !== true
+                    confirmationRuntime.followupSignalById.get(confirmationId) !==
+                    true
                   ) {
-                    confirmationFollowupSignalByIdRef.current.set(
+                    confirmationRuntime.followupSignalById.set(
                       confirmationId,
                       false,
                     );
@@ -2840,14 +3273,18 @@ export const useChatStream = ({
                     callId,
                     toolName,
                     requestedAt: patchTime,
+                    ownerMessageId: assistantMessageId,
+                    chatId: targetChatId,
+                    sessionId: effectiveThreadId,
                   });
                   if (isToolCallAutoApprovable(frame)) {
                     submitAutoApprovedToolConfirmation({
+                      targetChatId,
                       confirmationId,
                       request: confirmationRequest,
                     });
                   } else {
-                    updatePendingToolConfirmationRequests((previous) =>
+                    updatePendingToolConfirmationRequests(targetChatId, (previous) =>
                       previous[confirmationId]
                         ? previous
                         : {
@@ -2855,7 +3292,7 @@ export const useChatStream = ({
                             [confirmationId]: confirmationRequest,
                           },
                     );
-                    updateToolConfirmationUiState((previous) =>
+                    updateToolConfirmationUiState(targetChatId, (previous) =>
                       previous[confirmationId]
                         ? previous
                         : {
@@ -2877,7 +3314,7 @@ export const useChatStream = ({
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
                     : "";
-                clearResolvedToolConfirmationByCallId(callId);
+                clearResolvedToolConfirmationByCallId(targetChatId, callId);
               } else if (frame.type === "tool_result") {
                 const callId =
                   typeof frame.payload?.call_id === "string"
@@ -2895,9 +3332,9 @@ export const useChatStream = ({
                     result: frame.payload?.result,
                   });
                 }
-                markConfirmationFollowupSignalByCallId(callId);
+                markConfirmationFollowupSignalByCallId(targetChatId, callId);
               } else if (frame.type === "error" || frame.type === "done") {
-                markAllPendingConfirmationFollowupSignals();
+                markAllPendingConfirmationFollowupSignals(targetChatId);
                 pendingContinuationRequestRef.current = null;
                 setPendingContinuationRequest(null);
               }
@@ -3294,7 +3731,20 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
-              clearAllPendingToolConfirmations();
+              clearAllPendingToolConfirmations(targetChatId);
+              if (isDurableResume) {
+                const retryTimer = durableResumeRetryTimersRef.current.get(
+                  targetChatId,
+                );
+                if (retryTimer) {
+                  clearTimeout(retryTimer);
+                  durableResumeRetryTimersRef.current.delete(targetChatId);
+                }
+                if (durableResumeKey) {
+                  durableResumeStartedKeysRef.current.delete(durableResumeKey);
+                }
+                updateDurableInteractionForChat(targetChatId, null);
+              }
               flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
@@ -3368,7 +3818,33 @@ export const useChatStream = ({
               const errorCode = error?.code || "stream_error";
               const errorTime = Date.now();
 
+              if (isDurableResume) {
+                const retrySourceMessages = materializeStreamingMessages(
+                  targetChatId,
+                  streamMessages,
+                );
+                if (scheduleDurableResumeRetry(error, retrySourceMessages)) {
+                  cancelBackgroundPersist(targetChatId);
+                  streamHandlesRef.current.delete(targetChatId);
+                  streamingChatIdsRef.current.delete(targetChatId);
+                  activeStreamsRef.current.delete(targetChatId);
+                  clearStreamingMessageStore(targetChatId, assistantMessageId);
+                  setStreamingChatIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(targetChatId);
+                    return next;
+                  });
+                  activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+                  flushSubagentState(Date.now());
+                  activeFlushScheduler.flushSync();
+                  disposeBufferedTokenFlush();
+                  releaseTokenFlushController();
+                  return;
+                }
+              }
+
               if (
+                !isDurableResume &&
                 errorCode === "memory_unavailable" &&
                 memoryFallbackAttempted !== true
               ) {
@@ -3386,7 +3862,7 @@ export const useChatStream = ({
                   next.delete(targetChatId);
                   return next;
                 });
-                clearAllPendingToolConfirmations();
+                clearAllPendingToolConfirmations(targetChatId);
                 flushSubagentState(Date.now());
                 activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
@@ -3433,7 +3909,7 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
-              clearAllPendingToolConfirmations();
+              clearAllPendingToolConfirmations(targetChatId);
               flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
@@ -3573,6 +4049,20 @@ export const useChatStream = ({
         disposeBufferedTokenFlush();
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
+        if (scheduleDurableResumeRetry(error, nextMessages)) {
+          cancelBackgroundPersist(targetChatId);
+          streamHandlesRef.current.delete(targetChatId);
+          streamingChatIdsRef.current.delete(targetChatId);
+          activeStreamsRef.current.delete(targetChatId);
+          clearStreamingMessageStore(targetChatId, assistantMessageId);
+          setStreamingChatIds((prev) => {
+            const next = new Set(prev);
+            next.delete(targetChatId);
+            return next;
+          });
+          activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+          return true;
+        }
         setStreamError(errorMessage);
         cancelBackgroundPersist(targetChatId);
         streamHandlesRef.current.delete(targetChatId);
@@ -3632,6 +4122,7 @@ export const useChatStream = ({
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
       clearResolvedToolConfirmationByCallId,
+      getConfirmationRuntimeForChat,
       hydrateAttachmentPayloads,
       agentOrchestration,
       isCharacterChat,
@@ -3658,6 +4149,324 @@ export const useChatStream = ({
     ],
   );
 
+  const lookupDurableInteraction = useCallback(
+    async (
+      targetChatId,
+      targetSessionId,
+      { autoResume = true, lookupAttempt = 0 } = {},
+    ) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      const normalizedSessionId =
+        typeof targetSessionId === "string" ? targetSessionId.trim() : "";
+      if (!normalizedChatId || !normalizedSessionId) {
+        return null;
+      }
+      if (
+        typeof api.unchain.isDurableInteractionBridgeAvailable !==
+          "function" ||
+        !api.unchain.isDurableInteractionBridgeAvailable()
+      ) {
+        updateDurableInteractionForChat(normalizedChatId, null);
+        return null;
+      }
+
+      try {
+        const rawPending = await api.unchain.getPendingInteraction({
+          session_id: normalizedSessionId,
+        });
+        const pending = normalizePendingInteraction(
+          rawPending,
+          normalizedSessionId,
+        );
+        if (!pending) {
+          const error = new Error(
+            "Unchain returned an invalid durable interaction record.",
+          );
+          error.code = "invalid_durable_interaction_record";
+          throw error;
+        }
+
+        if (pending.status === "none") {
+          const retryTimer = durableResumeRetryTimersRef.current.get(
+            normalizedChatId,
+          );
+          if (retryTimer) {
+            clearTimeout(retryTimer);
+            durableResumeRetryTimersRef.current.delete(normalizedChatId);
+          }
+          clearAllPendingToolConfirmations(normalizedChatId);
+          updateDurableInteractionForChat(normalizedChatId, null);
+          return pending;
+        }
+
+        clearAllPendingToolConfirmations(normalizedChatId);
+        const sourceMessages =
+          activeChatIdRef.current === normalizedChatId &&
+          Array.isArray(messagesRef.current)
+            ? messagesRef.current
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedChatId)
+              : [];
+        const ensured = ensureDurableInteractionMessage(
+          sourceMessages,
+          pending,
+        );
+        if (ensured.created) {
+          messagesRef.current = ensured.messages;
+          if (activeChatIdRef.current === normalizedChatId) {
+            setMessages(ensured.messages);
+          }
+          storageApi.setChatMessages(normalizedChatId, ensured.messages, {
+            source: "chat-page",
+          });
+        }
+
+        const runtime = getConfirmationRuntimeForChat(normalizedChatId);
+        runtime.confirmationIdByCallId.set(
+          pending.callId,
+          pending.interactionId,
+        );
+        runtime.confirmationCallIdById.set(
+          pending.interactionId,
+          pending.callId,
+        );
+        runtime.sessionIdByConfirmationId.set(
+          pending.interactionId,
+          pending.sessionId,
+        );
+        runtime.followupSignalById.set(pending.interactionId, false);
+
+        const confirmationRequest = buildRecoveredConfirmationRequest({
+          pending,
+          chatId: normalizedChatId,
+          ownerMessageId: ensured.ownerMessageId,
+        });
+        updatePendingToolConfirmationRequests(normalizedChatId, {
+          [pending.interactionId]: confirmationRequest,
+        });
+        updateToolConfirmationUiState(normalizedChatId, {
+          [pending.interactionId]: {
+            status:
+              pending.status === "receipt_recorded" ? "submitted" : "idle",
+            error: "",
+            resolved: pending.status === "receipt_recorded",
+            decision:
+              pending.resolution?.outcome === "approved"
+                ? "approved"
+                : pending.resolution?.outcome === "denied"
+                  ? "denied"
+                  : "",
+          },
+        });
+
+        const pendingWithOwner = {
+          ...pending,
+          ownerMessageId: ensured.ownerMessageId,
+        };
+        updateDurableInteractionForChat(normalizedChatId, pendingWithOwner);
+
+        if (pending.status !== "receipt_recorded") {
+          return pendingWithOwner;
+        }
+
+        const resolutionResponse = pending.resolution?.response;
+        const approved =
+          pending.resolution?.outcome === "approved" ||
+          resolutionResponse?.approved === true;
+        const recoveredUserResponse =
+          resolutionResponse?.user_response ??
+          resolutionResponse?.modified_arguments?.user_response ??
+          (Array.isArray(resolutionResponse?.selected_values)
+            ? resolutionResponse
+            : undefined);
+        appendSyntheticToolConfirmationDecision({
+          targetChatId: normalizedChatId,
+          confirmationId: pending.interactionId,
+          approved,
+          userResponse: recoveredUserResponse,
+        });
+
+        if (!pending.resumeAvailable) {
+          const unavailableMessage = pending.resumeUnavailableReason
+            ? `This interrupted run cannot be resumed (${pending.resumeUnavailableReason}).`
+            : "This interrupted run cannot be resumed.";
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...pendingWithOwner,
+            status: "resume_failed",
+            lastError: unavailableMessage,
+          });
+          if (activeChatIdRef.current === normalizedChatId) {
+            setStreamError(unavailableMessage);
+          }
+          return pendingWithOwner;
+        }
+
+        if (!autoResume || streamingChatIdsRef.current.has(normalizedChatId)) {
+          return pendingWithOwner;
+        }
+
+        const resumeKey = [
+          pending.sessionId,
+          pending.interactionId,
+          pending.receiptId || "",
+        ].join(":");
+        if (durableResumeStartedKeysRef.current.has(resumeKey)) {
+          return pendingWithOwner;
+        }
+        durableResumeStartedKeysRef.current.add(resumeKey);
+        updateDurableInteractionForChat(normalizedChatId, {
+          ...pendingWithOwner,
+          status: "resuming",
+          resumeAttempt: 0,
+          lastError: "",
+        });
+
+        const resumeMessages =
+          activeChatIdRef.current === normalizedChatId &&
+          Array.isArray(messagesRef.current)
+            ? messagesRef.current
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedChatId)
+              : ensured.messages;
+        void runTurnRequest({
+          mode: "resume_interaction",
+          chatId: normalizedChatId,
+          text: "",
+          attachments: [],
+          baseMessages: resumeMessages,
+          clearComposer: false,
+          durableInteraction: pendingWithOwner,
+          durableResumeAttempt: 0,
+          durableOwnerMessageId: ensured.ownerMessageId,
+        });
+        return pendingWithOwner;
+      } catch (error) {
+        const errorMessage =
+          error?.message || "Failed to inspect this chat for interrupted work.";
+        if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
+          const nextAttempt = lookupAttempt + 1;
+          updateDurableInteractionForChat(normalizedChatId, {
+            status: "retry_wait",
+            sessionId: normalizedSessionId,
+            resumeAttempt: nextAttempt,
+            lastError: errorMessage,
+          });
+          const existingTimer = durableResumeRetryTimersRef.current.get(
+            normalizedChatId,
+          );
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+          const timerId = setTimeout(() => {
+            durableResumeRetryTimersRef.current.delete(normalizedChatId);
+            void lookupDurableInteraction(normalizedChatId, normalizedSessionId, {
+              autoResume,
+              lookupAttempt: nextAttempt,
+            });
+          }, durableInteractionRetryDelayMs(lookupAttempt));
+          durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);
+          return null;
+        }
+
+        updateDurableInteractionForChat(normalizedChatId, {
+          status: "resume_failed",
+          sessionId: normalizedSessionId,
+          resumeAttempt: lookupAttempt,
+          lastError: errorMessage,
+        });
+        if (activeChatIdRef.current === normalizedChatId) {
+          setStreamError(errorMessage);
+        }
+        return null;
+      }
+    },
+    [
+      activeChatIdRef,
+      appendSyntheticToolConfirmationDecision,
+      clearAllPendingToolConfirmations,
+      getConfirmationRuntimeForChat,
+      messagesRef,
+      runTurnRequest,
+      setMessages,
+      setStreamError,
+      storageApi,
+      updateDurableInteractionForChat,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
+  );
+  durableInteractionLookupRef.current = lookupDurableInteraction;
+
+  useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (
+      !targetChatId ||
+      isStreaming ||
+      typeof api.unchain.isDurableInteractionBridgeAvailable !== "function" ||
+      !api.unchain.isDurableInteractionBridgeAvailable()
+    ) {
+      return undefined;
+    }
+    const existingState = durableInteractionByChatIdRef.current[targetChatId];
+    if (
+      ["retry_wait", "resume_failed", "resuming"].includes(
+        existingState?.status,
+      )
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    updateDurableInteractionForChat(targetChatId, {
+      ...(existingState || {}),
+      status: "checking",
+      lastError: "",
+    });
+    void (async () => {
+      let sessionId = targetChatId;
+      if (isCharacterChat) {
+        try {
+          const config = await buildCharacterRunConfig();
+          sessionId =
+            typeof config?.session_id === "string" && config.session_id.trim()
+              ? config.session_id.trim()
+              : "";
+        } catch (error) {
+          if (!cancelled) {
+            const errorMessage =
+              error?.message || "Failed to prepare durable recovery.";
+            updateDurableInteractionForChat(targetChatId, {
+              status: "resume_failed",
+              sessionId: "",
+              lastError: errorMessage,
+            });
+            setStreamError(errorMessage);
+          }
+          return;
+        }
+      }
+      if (!cancelled && sessionId) {
+        await lookupDurableInteraction(targetChatId, sessionId, {
+          autoResume: true,
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    buildCharacterRunConfig,
+    chatId,
+    isCharacterChat,
+    isStreaming,
+    lookupDurableInteraction,
+    setStreamError,
+    updateDurableInteractionForChat,
+  ]);
+
   const sendForTest = useCallback(
     ({ text = "", attachments = [] } = {}) => {
       const chatId = activeChatIdRef.current;
@@ -3666,6 +4475,14 @@ export const useChatStream = ({
           Object.assign(new Error("no active chat"), {
             code: "no_active_chat",
           }),
+        );
+      }
+      if (durableInteractionByChatIdRef.current[chatId]?.status) {
+        return Promise.reject(
+          Object.assign(
+            new Error("This chat is restoring an interrupted run."),
+            { code: "durable_interaction_in_progress" },
+          ),
         );
       }
       const baseLen = (messagesRef.current || []).length;
@@ -3764,6 +4581,16 @@ export const useChatStream = ({
           streamHandlesRef.current.has(currentChatId),
       );
       if (!currentChatId || (!text && !hasAttachments)) {
+        return;
+      }
+
+      const durableState =
+        durableInteractionByChatIdRef.current[currentChatId] || null;
+      if (durableState?.status) {
+        setStreamError(
+          durableState.lastError ||
+            "This chat is restoring an interrupted run. Please wait.",
+        );
         return;
       }
 
@@ -4318,12 +5145,8 @@ export const useChatStream = ({
   );
 
   useEffect(() => {
-    const confirmationIdByCallId = confirmationIdByCallIdRef.current;
-    const confirmationCallIdById = confirmationCallIdByIdRef.current;
-    const confirmationFollowupSignalById =
-      confirmationFollowupSignalByIdRef.current;
-    const confirmationResolveTimerById =
-      confirmationResolveTimerByIdRef.current;
+    const confirmationRuntimeByChatId =
+      confirmationRuntimeByChatIdRef.current;
     const streamHandles = streamHandlesRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
     const activeStreams = activeStreamsRef.current;
@@ -4331,6 +5154,8 @@ export const useChatStream = ({
     const queuedTurnsByChatId = queuedTurnsByChatIdRef.current;
     const pendingFyiCountByChatId = pendingFyiCountByChatIdRef.current;
     const pendingClarifyByChatId = pendingClarifyByChatIdRef.current;
+    const durableResumeRetryTimers = durableResumeRetryTimersRef.current;
+    const durableResumeStartedKeys = durableResumeStartedKeysRef.current;
 
     return () => {
       clearActiveTokenFlushController("dispose");
@@ -4343,19 +5168,23 @@ export const useChatStream = ({
       streamingChatIds.clear();
       activeStreams.clear();
       clearAttachmentPayloads();
-      confirmationIdByCallId.clear();
-      confirmationCallIdById.clear();
-      confirmationFollowupSignalById.clear();
-      confirmationResolveTimerById.forEach((timerId) => {
-        clearTimeout(timerId);
+      confirmationRuntimeByChatId.forEach((runtime) => {
+        runtime.resolveTimerById.forEach((timerId) => {
+          clearTimeout(timerId);
+        });
       });
-      confirmationResolveTimerById.clear();
-      pendingToolConfirmationRequestsRef.current = {};
+      confirmationRuntimeByChatId.clear();
+      pendingToolConfirmationRequestsByChatIdRef.current = {};
+      toolConfirmationUiStateByChatIdRef.current = {};
       pendingContinuationRequestRef.current = null;
       activeRunThreadIdByChatId.clear();
       queuedTurnsByChatId.clear();
       pendingFyiCountByChatId.clear();
       pendingClarifyByChatId.clear();
+      durableResumeRetryTimers.forEach((timerId) => clearTimeout(timerId));
+      durableResumeRetryTimers.clear();
+      durableResumeStartedKeys.clear();
+      durableInteractionByChatIdRef.current = {};
     };
   }, [
     activeStreamsRef,
@@ -4370,6 +5199,8 @@ export const useChatStream = ({
     handleToolConfirmationDecision,
     hasBackgroundStream,
     interjectState,
+    durableInteractionStatus,
+    isDurableInteractionBlocked,
     isStreaming,
     onClarifyResolve,
     onQueueUndo,

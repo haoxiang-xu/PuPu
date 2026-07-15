@@ -12,6 +12,8 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
       startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
+      getPendingInteraction: jest.fn(async () => ({ status: "none" })),
+      respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
@@ -76,6 +78,37 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_embedding_provider).toBe("openai");
     expect(payload.options.memory_vector_top_k).toBe(3);
+  });
+
+  test("forwards durable interaction session identifiers", async () => {
+    await api.unchain.getPendingInteraction({ session_id: "chat-1" });
+    await api.unchain.respondToolConfirmation({
+      confirmation_id: "interaction-1",
+      session_id: "chat-1",
+      approved: true,
+    });
+
+    expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({
+      session_id: "chat-1",
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: "interaction-1",
+      session_id: "chat-1",
+      approved: true,
+      reason: "",
+    });
+  });
+
+  test("rejects non-boolean confirmation decisions", async () => {
+    await expect(
+      api.unchain.respondToolConfirmation({
+        confirmation_id: "interaction-1",
+        approved: "false",
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_confirmation_request",
+    });
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
   });
 
   test("respects explicit memory_enabled=false even when memory setting is enabled", () => {

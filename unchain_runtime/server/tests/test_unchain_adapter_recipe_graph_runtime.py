@@ -1,3 +1,4 @@
+import copy
 import threading
 import sys
 import unittest
@@ -10,6 +11,7 @@ if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
 from recipe import parse_recipe_json
+from recipe_seeds import DEFAULT_RECIPE
 
 
 def _recipe_dict():
@@ -55,6 +57,219 @@ class FakeAgent:
 
 
 class RecipeGraphRuntimeTests(unittest.TestCase):
+    def test_seeded_default_graph_supports_exact_durable_flat_projection(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(copy.deepcopy(DEFAULT_RECIPE))
+
+        self.assertTrue(ua._recipe_supports_durable_flat_projection(recipe))
+
+    def test_durable_flat_projection_rejects_graph_semantic_drift(self):
+        import unchain_adapter as ua
+
+        mutations = {
+            "custom-name": lambda payload: payload.update({"name": "Custom"}),
+            "prompt-mismatch": lambda payload: payload.update(
+                {"agent": {"prompt_format": "soul", "prompt": "different"}}
+            ),
+            "workflow-variable": lambda payload: payload["nodes"][1][
+                "override"
+            ].update(
+                {
+                    "prompt_format": "soul",
+                    "prompt": "{{#start.text#}}",
+                }
+            ),
+            "model-override": lambda payload: payload["nodes"][1][
+                "override"
+            ].update({"model": "ollama:test"}),
+            "optimizer-override": lambda payload: payload["nodes"][1][
+                "override"
+            ].update({"optimizer": {}}),
+            "toolkit-projection": lambda payload: payload.update(
+                {"toolkits": []}
+            ),
+            "subagent-projection": lambda payload: payload.update(
+                {"subagent_pool": []}
+            ),
+            "merge-projection": lambda payload: payload.update(
+                {"merge_with_user_selected": False}
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                payload = copy.deepcopy(DEFAULT_RECIPE)
+                mutate(payload)
+                recipe = parse_recipe_json(payload)
+                self.assertFalse(
+                    ua._recipe_supports_durable_flat_projection(recipe)
+                )
+
+        multi_agent = _recipe_dict()
+        multi_agent["name"] = "Default"
+        self.assertFalse(
+            ua._recipe_supports_durable_flat_projection(
+                parse_recipe_json(multi_agent)
+            )
+        )
+
+    def test_durable_default_graph_routes_through_real_agent_path(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(copy.deepcopy(DEFAULT_RECIPE))
+
+        class DurableAgent:
+            provider = "openai"
+            model = "gpt-5"
+            _display_model = "openai:gpt-5"
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+            _memory_runtime = {
+                "requested": True,
+                "available": True,
+                "reason": "",
+            }
+
+            def run(self, *, callback=None, run_id="", **_kwargs):
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": run_id,
+                            "iteration": 0,
+                            "content": "flat durable",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[
+                        {"role": "assistant", "content": "flat durable"}
+                    ],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        agent = DurableAgent()
+        with mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+        ) as graph_stream, mock.patch.object(
+            ua,
+            "_create_agent",
+            return_value=agent,
+        ) as create_agent, mock.patch.object(
+            ua,
+            "save_resume_context",
+        ) as save_context, mock.patch.object(
+            ua,
+            "get_pending_interaction",
+            return_value={"status": "none", "session_id": "chat-1"},
+        ), mock.patch.object(
+            ua,
+            "clear_resume_context",
+        ):
+            events = list(
+                ua.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "modelId": "openai:gpt-5",
+                        "memory_enabled": True,
+                        "durable_interactions_required": True,
+                    },
+                    session_id="chat-1",
+                )
+            )
+
+        graph_stream.assert_not_called()
+        create_agent.assert_called_once()
+        save_context.assert_called_once()
+        self.assertTrue(
+            any(event.get("type") == "final_message" for event in events)
+        )
+
+    def test_non_durable_default_graph_stays_on_workflow_runtime(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(copy.deepcopy(DEFAULT_RECIPE))
+        expected = {
+            "type": "final_message",
+            "run_id": "workflow-1",
+            "iteration": 0,
+            "content": "workflow",
+        }
+        with mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+            return_value=iter([expected]),
+        ) as graph_stream, mock.patch.object(
+            ua,
+            "_create_agent",
+        ) as create_agent:
+            events = list(
+                ua.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertEqual(events, [expected])
+        graph_stream.assert_called_once()
+        create_agent.assert_not_called()
+
+    def test_custom_durable_graph_remains_fail_closed(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        with mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+        ) as graph_stream, mock.patch.object(
+            ua,
+            "_create_agent",
+        ) as create_agent:
+            with self.assertRaises(ua.DurableInteractionHostError) as raised:
+                list(
+                    ua.stream_chat_events(
+                        message="hello",
+                        history=[],
+                        attachments=[],
+                        options={
+                            "modelId": "openai:gpt-5",
+                            "memory_enabled": True,
+                            "durable_interactions_required": True,
+                        },
+                        session_id="chat-1",
+                    )
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "durable_recipe_graph_unsupported",
+        )
+        graph_stream.assert_not_called()
+        create_agent.assert_not_called()
+
     def test_stream_recipe_graph_rejects_memory_owned_full_history_before_agent_run(self):
         import unchain_adapter as ua
         from unchain.memory import InMemorySessionStore, MemoryManager
