@@ -14,3 +14,5 @@
 - [参照系统:生成式UI G1](ref-generative-ui-g1.md) — 愿景研究G1;选预制件(Vercel/AdaptiveCards/C1)vs现写代码(make-real)轴+C1双向回流契约+PuPu artifact注册表已站A端起跑线
 - [参照系统:可塑软件 G3](ref-malleable-software-g3.md) — 愿景研究G3;intent→可交互工具UI(Artifacts/Canvas/v0/bolt/websim/Ink&Switch)+一次性vs可演化+Electron沙箱矛盾;artifact现为只读快照=缺产出物范式
 - [参照系统:直接操作 vs 语言界面](ref-g2-direct-manip-vs-nli.md) — 愿景研究G2;Hutchins gulfs理论+GenUI(2508.19227)/DynaVis/Gulfs-UIgen(2601.19171)实证数字与域分化(需复核)
+- [S0/S1 rich-tool-result 评审](s0-s1-rich-tool-result-review.md) — 已放行(155363a修复复核通过);budget毁截图曾是veto条件;OpenAI官方已支持image-in-tool-output;DP1/DP2裁决
+- [computer use 调研](computer-use-research.md) — 2026-07-13;unchain tool_result 纯文本=核心缺口;浏览器捆绑 Playwright MCP、GUI 手自建;Anthropic 先行
