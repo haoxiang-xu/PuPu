@@ -65,6 +65,9 @@ const REJECTED_HEADER_NAMES = new Set([
 /** Prototype-pollution guard: keys forbidden at ANY level (§2.3). */
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+/** extra_headers count cap — mirrors schema maxProperties:10 and backend reject (§2.3). */
+const MAX_EXTRA_HEADERS = 10;
+
 /** Secret-shaped field names stripped at any level of imported payloads (§2.3). */
 const SECRET_FIELD_PATTERN = /^(api[_-]?key|apikey|token|secret)$/i;
 
@@ -334,6 +337,40 @@ export const readCustomProviders = () => {
   return result;
 };
 
+/**
+ * Read the custom providers that exist in storage but are UNAVAILABLE in this
+ * PuPu build because they were authored by a newer version (config_version
+ * above the supported ceiling). readCustomProviders() intentionally omits
+ * these (they can't be rendered as usable models); this companion surfaces
+ * them so the settings UI can show an "upgrade PuPu" placeholder row instead
+ * of them vanishing silently (design §3, C10 layer 2).
+ *
+ * Returns a list of `{ id, display_name, config_version, unavailable: true,
+ * reason: "config_version_too_new" }`. No secret, no other field values — just
+ * enough for a placeholder row. Corrupt/missing storage returns [].
+ */
+export const readUnavailableCustomProviders = () => {
+  return readPreservedRawEntries().map((raw) => {
+    const slug =
+      isObject(raw) && typeof raw.id === "string" ? raw.id.trim() : "";
+    const displayName =
+      isObject(raw) && typeof raw.display_name === "string" && raw.display_name
+        ? raw.display_name
+        : slug;
+    const version =
+      isObject(raw) && Number.isInteger(raw.config_version)
+        ? raw.config_version
+        : null;
+    return {
+      id: slug,
+      display_name: displayName,
+      config_version: version,
+      unavailable: true,
+      reason: "config_version_too_new",
+    };
+  });
+};
+
 /** Find a single stored definition by slug (normalized-on-read). */
 export const findCustomProvider = (slug) => {
   const cleaned = typeof slug === "string" ? slug.trim() : "";
@@ -343,10 +380,65 @@ export const findCustomProvider = (slug) => {
   return readCustomProviders().find((p) => p.id === cleaned) || null;
 };
 
-/** Persist the full definition list back to storage (internal helper). */
+/**
+ * True when a raw stored entry was authored by a NEWER PuPu than we support
+ * (config_version above the supported ceiling). readCustomProviders() skips
+ * these from the usable list (they can't be rendered as models), but a WRITE
+ * must NOT drop them — doing so permanently deletes a config the user can only
+ * recover by upgrading, and orphans its secret (design §3, C10). Such entries
+ * are preserved verbatim across every rewrite.
+ */
+const isHighVersionRawEntry = (raw) => {
+  if (!isObject(raw)) {
+    return false;
+  }
+  const version = Number.isInteger(raw.config_version) ? raw.config_version : 1;
+  return version > CUSTOM_PROVIDER_CONFIG_VERSION;
+};
+
+/**
+ * Read the raw entries that must survive a rewrite untouched: today, entries
+ * authored by a newer PuPu (high config_version). Returned verbatim (never
+ * normalized) so no field is lost when we persist them again. Keyed by a
+ * best-effort slug so we can skip any that collide with a slug in the
+ * caller's clean list (the clean list wins for an addressable slug).
+ */
+const readPreservedRawEntries = () => {
+  const branch = readModelProvidersBranch(readSettingsRoot());
+  const rawList = Array.isArray(branch.custom_providers)
+    ? branch.custom_providers
+    : [];
+  return rawList.filter(isHighVersionRawEntry);
+};
+
+/**
+ * Persist the full definition list back to storage (internal helper).
+ *
+ * `list` carries only the CURRENT-version, normalized entries. Before writing,
+ * we re-attach any preserved raw entries (high config_version) that are not
+ * shadowed by a slug already present in `list`, so an unrelated write can
+ * never silently delete a newer-PuPu config (C10 / §3). Preserved entries are
+ * appended after the clean list; ordering among them is unchanged.
+ */
 const persistCustomProviders = (root, list) => {
   const branch = readModelProvidersBranch(root);
-  root.model_providers = { ...branch, custom_providers: list };
+  const cleanSlugs = new Set(
+    (Array.isArray(list) ? list : [])
+      .map((entry) =>
+        isObject(entry) && typeof entry.id === "string" ? entry.id.trim() : "",
+      )
+      .filter(Boolean),
+  );
+  const preserved = readPreservedRawEntries().filter((raw) => {
+    const rawSlug =
+      isObject(raw) && typeof raw.id === "string" ? raw.id.trim() : "";
+    // A clean entry for the same slug supersedes the preserved raw one.
+    return !(rawSlug && cleanSlugs.has(rawSlug));
+  });
+  root.model_providers = {
+    ...branch,
+    custom_providers: [...(Array.isArray(list) ? list : []), ...preserved],
+  };
   writeSettingsRoot(root);
 };
 
@@ -431,8 +523,21 @@ export const removeCustomProvider = (slug) => {
   const nextList = list.filter((p) => p.id !== cleaned);
   const removed = nextList.length !== list.length;
 
-  // Remove the secret map entry in the same write to avoid an orphan.
+  // Preserve high-version raw entries authored by a newer PuPu (C10 / §3), but
+  // honor an explicit removal of that very slug — the user asked to delete it.
   const branch = readModelProvidersBranch(root);
+  const preserved = readPreservedRawEntries().filter((raw) => {
+    const rawSlug =
+      isObject(raw) && typeof raw.id === "string" ? raw.id.trim() : "";
+    return rawSlug !== cleaned;
+  });
+  const removedHighVersion = readPreservedRawEntries().some((raw) => {
+    const rawSlug =
+      isObject(raw) && typeof raw.id === "string" ? raw.id.trim() : "";
+    return rawSlug === cleaned;
+  });
+
+  // Remove the secret map entry in the same write to avoid an orphan.
   const secrets = isObject(branch.custom_provider_secrets)
     ? { ...branch.custom_provider_secrets }
     : {};
@@ -442,15 +547,15 @@ export const removeCustomProvider = (slug) => {
   }
   root.model_providers = {
     ...branch,
-    custom_providers: nextList,
+    custom_providers: [...nextList, ...preserved],
     custom_provider_secrets: secrets,
   };
   writeSettingsRoot(root);
 
-  if (removed || hadSecret) {
+  if (removed || hadSecret || removedHighVersion) {
     emitModelCatalogRefresh();
   }
-  return removed;
+  return removed || removedHighVersion;
 };
 
 /** Toggle a provider's enabled flag. Throws provider_not_found on unknown slug. */
@@ -763,6 +868,18 @@ const normalizeExtraHeaders = (rawHeaders, diagnostics) => {
       "warning",
     );
     return undefined;
+  }
+  // Count cap mirrors the schema `maxProperties: 10` and the backend
+  // `too many extra_headers` reject (C3): without this, a definition with >10
+  // headers validates client-side but fails on every chat/test request.
+  if (Object.keys(rawHeaders).length > MAX_EXTRA_HEADERS) {
+    pushDiag(
+      diagnostics,
+      "custom_provider_invalid_headers",
+      "provider.extra_headers",
+      `extra_headers 最多 ${MAX_EXTRA_HEADERS} 个`,
+    );
+    return { __error: true };
   }
   const out = {};
   for (const key of Object.keys(rawHeaders)) {

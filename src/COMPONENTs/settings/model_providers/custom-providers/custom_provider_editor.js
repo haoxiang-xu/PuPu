@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react";
+import { useContext, useRef, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
@@ -49,6 +49,15 @@ const CAPABILITY_NUMBERS = [
   },
 ];
 
+/**
+ * Soft UI cap on extra-header rows, mirroring the schema's maxProperties: 10
+ * (§2.1). This is a UX signal only — the authoritative enforcement lives in the
+ * store's normalizeCustomProvider / schema (C3 belongs to the store). We only
+ * grey out the "Add header" button and show a hint so the user can't blow past
+ * the limit and hit a confusing validation error later.
+ */
+const MAX_EXTRA_HEADER_ROWS = 10;
+
 let modelRowSeq = 1;
 const nextRowId = () => `mrow-${modelRowSeq++}`;
 
@@ -73,6 +82,7 @@ const defToForm = (def) => {
     return {
       id: "",
       display_name: "",
+      description: "",
       notes: "",
       protocol: "anthropic",
       base_url: "",
@@ -83,6 +93,10 @@ const defToForm = (def) => {
       auth_key_label: "",
       auth_key_hint: "",
       models: [emptyModelRow()],
+      default_model: "",
+      // Opaque pass-through fields with no UI: carried verbatim so an
+      // edit/Save round-trip never drops them (C4). null = absent.
+      metadata: null,
     };
   }
   const headerRows = Object.entries(def.extra_headers || {}).map(
@@ -91,6 +105,7 @@ const defToForm = (def) => {
   return {
     id: def.id || "",
     display_name: def.display_name || "",
+    description: def.description || "",
     notes: def.notes || "",
     protocol: def.protocol || "anthropic",
     base_url: def.base_url || "",
@@ -111,6 +126,13 @@ const defToForm = (def) => {
           ? JSON.stringify(m.default_payload, null, 0)
           : "",
     })),
+    // §2.3: default_model is one of the model ids (surfaced as a per-row radio).
+    default_model:
+      typeof def.default_model === "string" ? def.default_model : "",
+    // metadata (e.g. { revision }) has no editor UI but MUST survive the
+    // round-trip (C4): carry the whole object through verbatim.
+    metadata:
+      def.metadata && typeof def.metadata === "object" ? def.metadata : null,
   };
 };
 
@@ -170,6 +192,9 @@ const formToRaw = (form) => {
     auth: { mode: form.auth_mode },
     models,
   };
+  if ((form.description || "").trim()) {
+    raw.description = form.description.trim();
+  }
   if (form.auth_mode === "header" && (form.auth_header_name || "").trim()) {
     raw.auth.header_name = form.auth_header_name.trim();
   }
@@ -185,6 +210,17 @@ const formToRaw = (form) => {
   const timeout = (form.timeout_seconds || "").trim();
   if (timeout && Number.isFinite(Number(timeout))) {
     raw.timeout_seconds = Math.floor(Number(timeout));
+  }
+  // default_model: emit only when it still names one of the current model ids
+  // (normalize re-checks this too and clears it with a warning otherwise).
+  const defaultModel = (form.default_model || "").trim();
+  if (defaultModel && models.some((m) => m.id === defaultModel)) {
+    raw.default_model = defaultModel;
+  }
+  // metadata pass-through (no UI) — carried verbatim so a form round-trip
+  // preserves e.g. metadata.revision (C4). normalize whitelists its contents.
+  if (form.metadata && typeof form.metadata === "object") {
+    raw.metadata = form.metadata;
   }
   if ((form.notes || "").trim()) {
     raw.notes = form.notes.trim();
@@ -211,7 +247,16 @@ const hasInvalidPayloadJson = (form) =>
 
 /* ──────────────────────────────────────────────────────────────────────── */
 
-const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
+const CustomProviderEditor = ({
+  open,
+  slug,
+  onClose,
+  onSaved,
+  // C12 / §6.2(c) / §8.3: when the editor is opened right after importing a
+  // provider that needs a key, scroll to + focus the API-key input so the user
+  // lands on the one field they still have to fill.
+  autoFocusKey = false,
+}) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
@@ -244,6 +289,48 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
   const [diagnostics, setDiagnostics] = useState([]);
   const [testState, setTestState] = useState(null); // {ok, latency_ms} | {error}
   const [testing, setTesting] = useState(false);
+
+  /* ── C12: scroll to + focus the API-key input on request ── */
+  // The key input lives inside Modal, which mounts its children on a LATER tick
+  // than the editor (Modal flips its own `mounted` state after mount), and that
+  // internal Modal state change does NOT re-render this editor. So a plain
+  // effect can't reliably see the input. Instead a "focus pending" flag is
+  // armed once per open, and a ref CALLBACK on the input fires exactly when the
+  // DOM node is inserted — the one moment we're guaranteed the node exists.
+  const keyInputRef = useRef(null);
+  const focusPendingRef = useRef(false);
+  const [focusSeedKey, setFocusSeedKey] = useState(null);
+  if (
+    open &&
+    autoFocusKey &&
+    form.auth_mode !== "none" &&
+    focusSeedKey !== currentSeedKey
+  ) {
+    // Arm exactly once per (open, slug) — subsequent renders won't re-arm.
+    focusPendingRef.current = true;
+    setFocusSeedKey(currentSeedKey);
+  }
+
+  const focusKeyInputNode = (node) => {
+    if (!node) {
+      return;
+    }
+    if (typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+    if (typeof node.focus === "function") {
+      node.focus();
+    }
+  };
+
+  // Ref callback for the API-key input: focus on the mount that follows an arm.
+  const setKeyInputRef = (node) => {
+    keyInputRef.current = node;
+    if (node && focusPendingRef.current) {
+      focusPendingRef.current = false;
+      focusKeyInputNode(node);
+    }
+  };
 
   /* ── palette ── */
   const textColor = isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.82)";
@@ -302,12 +389,26 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   const setModelField = (rowId, key, value) =>
-    setForm((f) => ({
-      ...f,
-      models: f.models.map((row) =>
-        row.rowId === rowId ? { ...row, [key]: value } : row,
-      ),
-    }));
+    setForm((f) => {
+      const prevRow = f.models.find((row) => row.rowId === rowId);
+      const next = {
+        ...f,
+        models: f.models.map((row) =>
+          row.rowId === rowId ? { ...row, [key]: value } : row,
+        ),
+      };
+      // Keep default_model pinned to a row even as its id text is edited: if the
+      // renamed row WAS the default, follow the id to its new value (C4).
+      if (
+        key === "id" &&
+        prevRow &&
+        f.default_model &&
+        f.default_model === (prevRow.id || "").trim()
+      ) {
+        next.default_model = (value || "").trim();
+      }
+      return next;
+    });
   const setModelCapability = (rowId, capKey, value) =>
     setForm((f) => ({
       ...f,
@@ -317,16 +418,34 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
           : row,
       ),
     }));
+  // §2.3: mark one model row as the provider default (a single-choice toggle —
+  // clicking the current default clears it back to "no explicit default").
+  const setDefaultModel = (rowId) =>
+    setForm((f) => {
+      const row = f.models.find((r) => r.rowId === rowId);
+      const id = row ? (row.id || "").trim() : "";
+      return { ...f, default_model: f.default_model === id ? "" : id };
+    });
   const addModelRow = () =>
     setForm((f) => ({ ...f, models: [...f.models, emptyModelRow()] }));
   const removeModelRow = (rowId) =>
-    setForm((f) => ({
-      ...f,
-      models:
-        f.models.length > 1
-          ? f.models.filter((row) => row.rowId !== rowId)
-          : f.models,
-    }));
+    setForm((f) => {
+      if (f.models.length <= 1) {
+        return f;
+      }
+      const removed = f.models.find((row) => row.rowId === rowId);
+      const models = f.models.filter((row) => row.rowId !== rowId);
+      const next = { ...f, models };
+      // Clear default_model if the row that held it was removed (C4 / §2.3).
+      if (
+        removed &&
+        f.default_model &&
+        f.default_model === (removed.id || "").trim()
+      ) {
+        next.default_model = "";
+      }
+      return next;
+    });
 
   const setHeaderField = (rowId, key, value) =>
     setForm((f) => ({
@@ -336,10 +455,11 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
       ),
     }));
   const addHeaderRow = () =>
-    setForm((f) => ({
-      ...f,
-      extra_headers: [...f.extra_headers, emptyHeaderRow()],
-    }));
+    setForm((f) =>
+      f.extra_headers.length >= MAX_EXTRA_HEADER_ROWS
+        ? f // soft cap; store/schema is the authority
+        : { ...f, extra_headers: [...f.extra_headers, emptyHeaderRow()] },
+    );
   const removeHeaderRow = (rowId) =>
     setForm((f) => ({
       ...f,
@@ -350,6 +470,7 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
   const invalidPayload = hasInvalidPayloadJson(form);
   const hasAtLeastOneModel = form.models.some((m) => (m.id || "").trim());
   const requiresKey = form.auth_mode !== "none";
+  const atHeaderCap = form.extra_headers.length >= MAX_EXTRA_HEADER_ROWS;
   const canSave =
     (form.id || "").trim() &&
     (form.display_name || "").trim() &&
@@ -597,6 +718,19 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
           </div>
           <div>
             <label style={fieldLabelStyle}>
+              {t("model_providers.custom.field_description")}
+            </label>
+            <Input
+              value={form.description}
+              set_value={(v) => setField("description", v)}
+              placeholder={t(
+                "model_providers.custom.field_description_placeholder",
+              )}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={fieldLabelStyle}>
               {t("model_providers.custom.field_notes")}
             </label>
             <textarea
@@ -720,7 +854,15 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
           <Button
             label={t("model_providers.custom.add_header")}
             prefix_icon="add"
+            disabled={atHeaderCap}
             onClick={addHeaderRow}
+            title={
+              atHeaderCap
+                ? t("model_providers.custom.header_cap_hint", {
+                    max: MAX_EXTRA_HEADER_ROWS,
+                  })
+                : undefined
+            }
             style={{
               marginTop: 8,
               fontSize: 11.5,
@@ -730,8 +872,27 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
               borderRadius: 7,
               color: mutedColor,
               content: { icon: { width: 13, height: 13 } },
+              state: {
+                disabled: { root: { opacity: 0.5, cursor: "not-allowed" } },
+              },
             }}
           />
+          {atHeaderCap && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontFamily,
+                color: mutedColor,
+                marginTop: 5,
+                display: "block",
+                lineHeight: 1.4,
+              }}
+            >
+              {t("model_providers.custom.header_cap_hint", {
+                max: MAX_EXTRA_HEADER_ROWS,
+              })}
+            </span>
+          )}
         </div>
 
         <div style={dividerStyle} />
@@ -806,6 +967,7 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
               {form.auth_key_label || t("model_providers.custom.field_api_key")}
             </label>
             <Input
+              input_ref={setKeyInputRef}
               value={secret}
               set_value={setSecret}
               type={secretVisible ? "text" : "password"}
@@ -887,19 +1049,69 @@ const CustomProviderEditor = ({ open, slug, onClose, onSaved }) => {
                   >
                     {t("model_providers.custom.model_index", { index: idx + 1 })}
                   </span>
-                  {form.models.length > 1 && (
-                    <Button
-                      ariaLabel={t("model_providers.custom.remove_model")}
-                      prefix_icon="delete"
-                      onClick={() => removeModelRow(row.rowId)}
-                      style={{
-                        paddingVertical: 3,
-                        paddingHorizontal: 3,
-                        borderRadius: 6,
-                        content: { icon: { width: 13, height: 13 } },
-                      }}
-                    />
-                  )}
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    {(() => {
+                      const rowId = (row.id || "").trim();
+                      const isDefault =
+                        !!rowId && form.default_model === rowId;
+                      return (
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={isDefault}
+                          disabled={!rowId}
+                          title={t(
+                            "model_providers.custom.set_default_model_hint",
+                          )}
+                          onClick={() =>
+                            rowId && setDefaultModel(row.rowId)
+                          }
+                          style={{
+                            fontSize: 10.5,
+                            fontFamily,
+                            fontWeight: 500,
+                            padding: "3px 9px",
+                            borderRadius: 999,
+                            border: `1px solid ${
+                              isDefault ? accentColor : borderColor
+                            }`,
+                            backgroundColor: isDefault
+                              ? isDark
+                                ? "rgba(124,140,248,0.16)"
+                                : "rgba(37,99,235,0.10)"
+                              : "transparent",
+                            color: isDefault
+                              ? accentColor
+                              : rowId
+                                ? mutedColor
+                                : sectionColor,
+                            cursor: rowId ? "pointer" : "not-allowed",
+                            opacity: rowId ? 1 : 0.55,
+                            outline: "none",
+                          }}
+                        >
+                          {isDefault
+                            ? t("model_providers.custom.default_model_on")
+                            : t("model_providers.custom.set_default_model")}
+                        </button>
+                      );
+                    })()}
+                    {form.models.length > 1 && (
+                      <Button
+                        ariaLabel={t("model_providers.custom.remove_model")}
+                        prefix_icon="delete"
+                        onClick={() => removeModelRow(row.rowId)}
+                        style={{
+                          paddingVertical: 3,
+                          paddingHorizontal: 3,
+                          borderRadius: 6,
+                          content: { icon: { width: 13, height: 13 } },
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
                 <div
                   style={{ display: "flex", gap: 7, marginBottom: 9 }}

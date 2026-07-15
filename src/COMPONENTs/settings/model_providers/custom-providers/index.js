@@ -27,6 +27,9 @@ const CustomProvidersSection = () => {
   const [providers, setProviders] = useState(() => readCustomProviders());
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSlug, setEditingSlug] = useState(null);
+  // C12 / §8.3: when the editor is opened right after importing a provider that
+  // still needs a key, tell it to scroll to + focus the API-key input.
+  const [editorAutoFocusKey, setEditorAutoFocusKey] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [presetOpen, setPresetOpen] = useState(false);
   const [presetSeed, setPresetSeed] = useState(null);
@@ -43,15 +46,18 @@ const CustomProvidersSection = () => {
 
   const openAdd = () => {
     setEditingSlug(null);
+    setEditorAutoFocusKey(false);
     setEditorOpen(true);
   };
   const openEdit = (slug) => {
     setEditingSlug(slug);
+    setEditorAutoFocusKey(false);
     setEditorOpen(true);
   };
   const closeEditor = () => {
     setEditorOpen(false);
     setEditingSlug(null);
+    setEditorAutoFocusKey(false);
   };
 
   const openImport = () => {
@@ -76,7 +82,10 @@ const CustomProvidersSection = () => {
   const handleImported = ({ slug, requiresKey }) => {
     refresh();
     if (requiresKey) {
+      // §8.3 / §6.2(c): open the editor focused on the API-key input so the
+      // user lands on the one field an imported provider still needs (C12).
       setEditingSlug(slug);
+      setEditorAutoFocusKey(true);
       setEditorOpen(true);
     }
   };
@@ -171,6 +180,7 @@ const CustomProvidersSection = () => {
       <CustomProviderEditor
         open={editorOpen}
         slug={editingSlug}
+        autoFocusKey={editorAutoFocusKey}
         onClose={closeEditor}
         onSaved={refresh}
       />

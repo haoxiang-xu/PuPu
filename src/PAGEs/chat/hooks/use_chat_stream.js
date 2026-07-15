@@ -54,6 +54,50 @@ import {
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
+/**
+ * Send-time custom-provider fail-closed error codes (thrown by
+ * api.unchain.injectCustomProviderIntoPayload before the stream starts) mapped
+ * to their actionable-toast i18n keys (C12 / FM15 / design §6.2c).
+ *
+ *   custom_provider_missing_api_key -> add a key in settings, or reselect
+ *   custom_provider_not_found       -> the config was deleted; reselect a model
+ *   custom_provider_disabled        -> the provider is off; enable or reselect
+ */
+const CUSTOM_PROVIDER_SEND_ERROR_KEYS = Object.freeze({
+  custom_provider_missing_api_key: {
+    title: "chat.custom_provider_error.missing_api_key.title",
+    description: "chat.custom_provider_error.missing_api_key.description",
+  },
+  custom_provider_not_found: {
+    title: "chat.custom_provider_error.not_found.title",
+    description: "chat.custom_provider_error.not_found.description",
+  },
+  custom_provider_disabled: {
+    title: "chat.custom_provider_error.disabled.title",
+    description: "chat.custom_provider_error.disabled.description",
+  },
+});
+
+/**
+ * Fire an actionable toast for a custom-provider send-time error. No-op when
+ * the error is not one of the three fail-closed custom-provider codes, so the
+ * generic error path still owns everything else. `translate` is the live t()
+ * (falls back to returning the key). Returns the matched code or "".
+ */
+const emitCustomProviderSendErrorToast = (error, translate) => {
+  const code = typeof error?.code === "string" ? error.code : "";
+  const keys = CUSTOM_PROVIDER_SEND_ERROR_KEYS[code];
+  if (!keys) {
+    return "";
+  }
+  const t = typeof translate === "function" ? translate : (key) => key;
+  toast.error(t(keys.title), {
+    description: t(keys.description),
+    dedupeKey: `custom_provider_send_error:${code}`,
+  });
+  return code;
+};
+
 const STREAM_TRACE_LEVEL = "minimal";
 const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
 const SUBAGENT_STATE_FLUSH_MS = 100;
@@ -226,6 +270,7 @@ export const useChatStream = ({
   setAgentOrchestration,
   activeStreamsRef,
   streamingMessageStore,
+  t,
 }) => {
   const {
     buildHistoryForModel,
@@ -281,6 +326,11 @@ export const useChatStream = ({
   selectedModelIdRef.current = selectedModelId;
   const selectedToolkitsRef = useRef(selectedToolkits);
   selectedToolkitsRef.current = selectedToolkits;
+  /* Live translator ref so send-time toasts localize without perturbing the
+     large sendNewTurn useCallback deps. Falls back to the key itself when no
+     t is supplied (parity with useTranslation's last-resort behavior). */
+  const tRef = useRef(null);
+  tRef.current = typeof t === "function" ? t : (key) => key;
 
   const streamHandlesRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
@@ -4049,6 +4099,11 @@ export const useChatStream = ({
         disposeBufferedTokenFlush();
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
+        // C12 / FM15: a custom provider's send-time fail-closed throw carries a
+        // structured code (see api.unchain.injectCustomProviderIntoPayload).
+        // Surface an actionable toast instead of letting it fall into the
+        // generic error bubble with no way forward.
+        emitCustomProviderSendErrorToast(error, tRef.current);
         if (scheduleDurableResumeRetry(error, nextMessages)) {
           cancelBackgroundPersist(targetChatId);
           streamHandlesRef.current.delete(targetChatId);

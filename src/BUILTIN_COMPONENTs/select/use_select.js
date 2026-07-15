@@ -80,6 +80,14 @@ const normalise_options = (options) => {
     if (typeof item.group === "string" && Array.isArray(item.options)) {
       groups.push({
         group: item.group,
+        // Preserve the group's stable collapse key and badge markers so the
+        // dropdown/rail can (a) address collapse state by group_key rather than
+        // display name (C7) and (b) render a "Custom" badge for user-defined
+        // providers (C11). Built-in groups carry none of these — undefined
+        // fields keep their behavior byte-identical.
+        group_key: typeof item.group_key === "string" ? item.group_key : undefined,
+        is_custom: item.is_custom === true ? true : undefined,
+        badge: typeof item.badge === "string" ? item.badge : undefined,
         icon: item.icon ?? null,
         collapsed: !!item.collapsed,
         options: item.options.filter(Boolean),
@@ -135,6 +143,9 @@ export const build_filtered = (options, filterable, normalizedQuery) => {
     const forceOpen = isFiltering && items.length > 0; // auto‑expand matching groups
     filteredGroups.push({
       group: g.group,
+      group_key: g.group_key,
+      is_custom: g.is_custom,
+      badge: g.badge,
       icon: g.icon,
       collapsed: forceOpen ? false : g.collapsed,
       forceOpen,

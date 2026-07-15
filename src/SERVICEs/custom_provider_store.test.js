@@ -11,6 +11,7 @@ import {
   normalizeCustomProvider,
   parseCustomProviderKey,
   readCustomProviders,
+  readUnavailableCustomProviders,
   removeCustomProvider,
   resolveCustomModelCapabilities,
   setCustomProviderEnabled,
@@ -120,6 +121,21 @@ describe("normalizeCustomProvider — security", () => {
     const result = normalizeCustomProvider(raw);
     expect(result.ok).toBe(false);
     expect(diagCodes(result)).toContain("auth_header_in_extra_headers");
+  });
+
+  test("rejects more than 10 extra_headers (C3 — matches schema/backend cap)", () => {
+    const many = {};
+    for (let i = 0; i < 11; i += 1) many[`X-H-${i}`] = "v";
+    const result = normalizeCustomProvider(validRawProvider({ extra_headers: many }));
+    expect(result.ok).toBe(false);
+    expect(diagCodes(result)).toContain("custom_provider_invalid_headers");
+  });
+
+  test("accepts exactly 10 extra_headers", () => {
+    const ten = {};
+    for (let i = 0; i < 10; i += 1) ten[`X-H-${i}`] = "v";
+    const result = normalizeCustomProvider(validRawProvider({ extra_headers: ten }));
+    expect(result.ok).toBe(true);
   });
 
   test("strips secret-shaped fields from default_payload with a warning", () => {
@@ -334,6 +350,154 @@ describe("normalize-on-read robustness", () => {
       }),
     );
     expect(readCustomProviders()).toEqual([]);
+  });
+});
+
+describe("high-version entry preservation on write (C10 / §3)", () => {
+  const HIGH_VERSION_ENTRY = {
+    config_version: 99,
+    id: "future-provider",
+    display_name: "Future Provider",
+    protocol: "ollama",
+    base_url: "http://localhost:11434",
+    auth: { mode: "none" },
+    models: [{ id: "future-model" }],
+    enabled: true,
+    source: "import",
+    custom_field_from_future: "keep me verbatim",
+  };
+
+  const seedWith = (entries, secrets = {}) => {
+    localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        model_providers: {
+          custom_providers: entries,
+          custom_provider_secrets: secrets,
+        },
+      }),
+    );
+  };
+
+  const rawStoredEntries = () => {
+    const root = JSON.parse(localStorage.getItem("settings") || "{}");
+    return root?.model_providers?.custom_providers || [];
+  };
+
+  test("readCustomProviders still omits the high-version entry", () => {
+    seedWith([HIGH_VERSION_ENTRY]);
+    expect(readCustomProviders()).toEqual([]);
+  });
+
+  test("readUnavailableCustomProviders surfaces it as an unavailable placeholder (no field values leaked)", () => {
+    seedWith([HIGH_VERSION_ENTRY]);
+    const unavailable = readUnavailableCustomProviders();
+    expect(unavailable).toHaveLength(1);
+    expect(unavailable[0]).toEqual({
+      id: "future-provider",
+      display_name: "Future Provider",
+      config_version: 99,
+      unavailable: true,
+      reason: "config_version_too_new",
+    });
+    // Placeholder carries no base_url / auth / models / secret-bearing fields.
+    expect(unavailable[0]).not.toHaveProperty("base_url");
+    expect(unavailable[0]).not.toHaveProperty("auth");
+    expect(unavailable[0]).not.toHaveProperty("models");
+    expect(unavailable[0]).not.toHaveProperty("custom_field_from_future");
+  });
+
+  test("adding an unrelated provider does NOT delete the high-version entry", () => {
+    seedWith([HIGH_VERSION_ENTRY]);
+    const norm = normalizeCustomProvider(validRawProvider());
+    addCustomProvider(norm.provider);
+
+    const stored = rawStoredEntries();
+    const future = stored.find((e) => e.id === "future-provider");
+    expect(future).toBeDefined();
+    expect(future.config_version).toBe(99);
+    // Verbatim: an unknown future field survived the rewrite untouched.
+    expect(future.custom_field_from_future).toBe("keep me verbatim");
+    // The new provider was written too.
+    expect(stored.some((e) => e.id === "sap-hyperspace")).toBe(true);
+  });
+
+  test("updating an unrelated provider does NOT delete the high-version entry", () => {
+    const norm = normalizeCustomProvider(validRawProvider());
+    seedWith([]);
+    addCustomProvider(norm.provider);
+    // Now inject a high-version sibling alongside the added one.
+    const stored = rawStoredEntries();
+    seedWith([...stored, HIGH_VERSION_ENTRY]);
+
+    updateCustomProvider("sap-hyperspace", {
+      ...norm.provider,
+      display_name: "Renamed Hyperspace",
+    });
+
+    const after = rawStoredEntries();
+    expect(after.some((e) => e.id === "future-provider")).toBe(true);
+    expect(after.find((e) => e.id === "sap-hyperspace").display_name).toBe(
+      "Renamed Hyperspace",
+    );
+  });
+
+  test("setEnabled on an unrelated provider does NOT delete the high-version entry", () => {
+    const norm = normalizeCustomProvider(validRawProvider());
+    seedWith([]);
+    addCustomProvider(norm.provider);
+    const stored = rawStoredEntries();
+    seedWith([...stored, HIGH_VERSION_ENTRY]);
+
+    setCustomProviderEnabled("sap-hyperspace", true);
+
+    expect(rawStoredEntries().some((e) => e.id === "future-provider")).toBe(
+      true,
+    );
+  });
+
+  test("removing an unrelated provider does NOT delete the high-version entry", () => {
+    const norm = normalizeCustomProvider(validRawProvider());
+    seedWith([]);
+    addCustomProvider(norm.provider);
+    const stored = rawStoredEntries();
+    seedWith([...stored, HIGH_VERSION_ENTRY]);
+
+    removeCustomProvider("sap-hyperspace");
+
+    const after = rawStoredEntries();
+    expect(after.some((e) => e.id === "future-provider")).toBe(true);
+    expect(after.some((e) => e.id === "sap-hyperspace")).toBe(false);
+  });
+
+  test("explicitly removing the high-version slug DOES delete it", () => {
+    seedWith([HIGH_VERSION_ENTRY]);
+    const removed = removeCustomProvider("future-provider");
+    expect(removed).toBe(true);
+    expect(rawStoredEntries().some((e) => e.id === "future-provider")).toBe(
+      false,
+    );
+  });
+
+  test("a clean entry supersedes a preserved raw entry of the same slug", () => {
+    // Same slug at both a supported version and a high version — the clean,
+    // addressable entry wins; no duplicate is written back.
+    seedWith([]);
+    const norm = normalizeCustomProvider(validRawProvider());
+    addCustomProvider(norm.provider);
+    const stored = rawStoredEntries();
+    seedWith([
+      ...stored,
+      { ...HIGH_VERSION_ENTRY, id: "sap-hyperspace" },
+    ]);
+
+    setCustomProviderEnabled("sap-hyperspace", true);
+
+    const after = rawStoredEntries();
+    const matches = after.filter((e) => e.id === "sap-hyperspace");
+    expect(matches).toHaveLength(1);
+    // The surviving entry is the current-version clean one, not the v99 shadow.
+    expect(matches[0].config_version).toBe(CUSTOM_PROVIDER_CONFIG_VERSION);
   });
 });
 

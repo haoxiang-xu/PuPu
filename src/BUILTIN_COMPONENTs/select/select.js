@@ -34,9 +34,20 @@ const RailItem = ({
   onPick,
 }) => {
   const [hovered, setHovered] = useState(false);
+  /* Anti-impersonation marker: a user-defined ("custom") provider carries a
+     is_custom / badge flag. A built-in provider never does. Surfacing it here
+     — the group's visual identity in rail mode — means a shared config named
+     e.g. "OpenAI GPT-5" cannot masquerade as the built-in group (C11, §9.5).
+     Built-in rail items are unchanged (no badge). */
+  const badgeText =
+    group?.is_custom || group?.badge
+      ? typeof group.badge === "string" && group.badge
+        ? group.badge
+        : "Custom"
+      : "";
   return (
     <div
-      title={group.group}
+      title={badgeText ? `${group.group} (${badgeText})` : group.group}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onPick}
       onMouseEnter={() => setHovered(true)}
@@ -116,6 +127,35 @@ const RailItem = ({
             zIndex: 1,
           }}
         />
+      ) : null}
+      {badgeText ? (
+        <span
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: -3,
+            transform: "translateX(-50%)",
+            padding: "0 4px",
+            height: 12,
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 6,
+            fontFamily,
+            fontSize: 8,
+            fontWeight: 700,
+            letterSpacing: "0.02em",
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            color: isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)",
+            backgroundColor: isDark
+              ? "rgba(120,200,150,0.18)"
+              : "rgba(40,150,80,0.14)",
+            border: "1px solid rgb(var(--pupu-surface-rgb))",
+            zIndex: 2,
+          }}
+        >
+          {badgeText}
+        </span>
       ) : null}
     </div>
   );
@@ -1155,11 +1195,25 @@ const Select = ({
       g.options.forEach((o) => railGroupNames.set(o, g.group)),
     );
   }
+  /* Collapse-memory identity a group toggle addresses. A group may render
+     under a display name (group.group) that differs from the stable key the
+     caller stores collapse state under (group.group_key) — e.g. custom
+     providers key by "custom.<slug>" while showing a free display name. The
+     toggle MUST emit that stable key or the caller's seed and its toggle drift
+     apart and the group can never fold (C7). Built-in groups carry no
+     group_key, so this falls back to group.group unchanged. */
+  const group_toggle_key = (item) =>
+    item && typeof item.group_key === "string" && item.group_key
+      ? item.group_key
+      : item?.group;
+
   const rail_pick_group = (target) => {
     (options || []).forEach((item) => {
       if (!item || typeof item !== "object" || !item.group) return;
       const shouldCollapse = item.group !== target;
-      if (!!item.collapsed !== shouldCollapse) on_group_toggle(item.group);
+      if (!!item.collapsed !== shouldCollapse) {
+        on_group_toggle(group_toggle_key(item));
+      }
     });
     if (query) handle_query_change("");
   };

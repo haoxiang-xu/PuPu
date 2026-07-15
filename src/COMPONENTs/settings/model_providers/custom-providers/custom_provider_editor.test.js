@@ -49,11 +49,13 @@ jest.mock("../../../../BUILTIN_COMPONENTs/input/button", () => ({
   ),
 }));
 
-// Render the real Modal (portal) but with a trivial Input so we can drive values.
+// Render the real Modal (portal) but with a trivial Input so we can drive
+// values. input_ref is forwarded so the C12 auto-focus path can be asserted.
 jest.mock("../../../../BUILTIN_COMPONENTs/input/input", () => ({
   __esModule: true,
-  Input: ({ value, set_value = () => {}, placeholder, disabled }) => (
+  Input: ({ value, set_value = () => {}, placeholder, disabled, input_ref }) => (
     <input
+      ref={input_ref}
       disabled={disabled}
       placeholder={placeholder}
       value={value || ""}
@@ -69,6 +71,7 @@ const renderEditor = (props = {}) =>
         <CustomProviderEditor
           open
           slug={props.slug ?? null}
+          autoFocusKey={props.autoFocusKey ?? false}
           onClose={props.onClose || jest.fn()}
           onSaved={props.onSaved || jest.fn()}
         />
@@ -328,5 +331,135 @@ describe("CustomProviderEditor test connection", () => {
       fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
     });
     expect(screen.getByText(/provider_auth_failed/)).toBeTruthy();
+  });
+});
+
+/**
+ * C4: a preset-imported provider carries default_model / description /
+ * metadata.revision. Opening it in the editor and pressing Save must NOT drop
+ * any of them — the wholesale updateCustomProvider replace only survives
+ * because the form re-emits these fields.
+ */
+describe("CustomProviderEditor field round-trip (C4)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getCustomProviderSecret.mockReturnValue("");
+    // Pass-through normalize: echo the raw the editor built so we can assert the
+    // form re-emitted the previously-invisible fields.
+    normalizeCustomProvider.mockImplementation((raw) => ({
+      ok: true,
+      diagnostics: [],
+      provider: { config_version: 1, ...raw },
+    }));
+  });
+
+  const presetDef = {
+    id: "sap-hyperspace",
+    display_name: "SAP Hyperspace (local proxy)",
+    description: "SAP internal LLM proxy",
+    protocol: "anthropic",
+    base_url: "http://localhost:6655/anthropic",
+    auth: { mode: "x-api-key" },
+    timeout_seconds: 600,
+    default_model: "anthropic--claude-4.5-haiku",
+    models: [
+      { id: "anthropic--claude-4.5-haiku", display_name: "Claude 4.5 Haiku" },
+      { id: "anthropic--claude-4.5-sonnet", display_name: "Claude 4.5 Sonnet" },
+    ],
+    metadata: { revision: 1 },
+  };
+
+  test("Save preserves default_model, description and metadata.revision", () => {
+    findCustomProvider.mockReturnValue(presetDef);
+
+    renderEditor({ slug: "sap-hyperspace" });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateCustomProvider).toHaveBeenCalledTimes(1);
+    const [, savedProvider] = updateCustomProvider.mock.calls[0];
+    expect(savedProvider.default_model).toBe("anthropic--claude-4.5-haiku");
+    expect(savedProvider.description).toBe("SAP internal LLM proxy");
+    expect(savedProvider.metadata).toEqual({ revision: 1 });
+  });
+
+  test("the default model row shows the 'Default' state and others show 'Set default'", () => {
+    findCustomProvider.mockReturnValue(presetDef);
+    renderEditor({ slug: "sap-hyperspace" });
+    // The default model (row 1) renders the "Default" pill; the other renders
+    // "Set default".
+    expect(screen.getByText("Default")).toBeTruthy();
+    expect(screen.getByText("Set default")).toBeTruthy();
+  });
+
+  test("re-selecting a different default model updates default_model on Save", () => {
+    findCustomProvider.mockReturnValue(presetDef);
+    renderEditor({ slug: "sap-hyperspace" });
+
+    // Click the "Set default" pill on the second model row.
+    fireEvent.click(screen.getByText("Set default"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const [, savedProvider] = updateCustomProvider.mock.calls[0];
+    expect(savedProvider.default_model).toBe("anthropic--claude-4.5-sonnet");
+  });
+});
+
+/**
+ * C3 companion UX: the editor greys out "Add header" at the schema's
+ * maxProperties: 10 cap. This is a soft signal only — validation stays in the
+ * store. (Starts at 1 blank row, so 9 clicks reach the cap.)
+ */
+describe("CustomProviderEditor extra-header cap (C3 UX)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    findCustomProvider.mockReturnValue(null);
+    getCustomProviderSecret.mockReturnValue("");
+  });
+
+  test("Add header disables at 10 header rows", () => {
+    renderEditor();
+    const addBtn = () => screen.getByRole("button", { name: "Add header" });
+    expect(addBtn().disabled).toBe(false);
+    for (let i = 0; i < 9; i += 1) {
+      fireEvent.click(addBtn());
+    }
+    // 10 rows now -> add is disabled.
+    expect(addBtn().disabled).toBe(true);
+    // Clicking again does not exceed the cap.
+    fireEvent.click(addBtn());
+    expect(addBtn().disabled).toBe(true);
+  });
+});
+
+/**
+ * C12: importing a provider that needs a key opens the editor with
+ * autoFocusKey -> the API-key input receives focus (and is scrolled into view).
+ */
+describe("CustomProviderEditor autoFocusKey (C12)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getCustomProviderSecret.mockReturnValue("");
+    findCustomProvider.mockReturnValue({
+      id: "sap-hyperspace",
+      display_name: "SAP Hyperspace",
+      protocol: "anthropic",
+      base_url: "http://localhost:6655/anthropic",
+      auth: { mode: "x-api-key", key_label: "Hyperspace API Key" },
+      models: [{ id: "model-a" }],
+    });
+  });
+
+  test("focuses the API-key input when autoFocusKey is set", () => {
+    // The ref-callback focuses the input when its DOM node mounts, so no fake
+    // timers / rAF are needed — focus lands during the render commit.
+    renderEditor({ slug: "sap-hyperspace", autoFocusKey: true });
+    const keyInput = screen.getByPlaceholderText("Enter your API key");
+    expect(keyInput).toHaveFocus();
+  });
+
+  test("does NOT auto-focus when autoFocusKey is false", () => {
+    renderEditor({ slug: "sap-hyperspace" });
+    const keyInput = screen.getByPlaceholderText("Enter your API key");
+    expect(keyInput).not.toHaveFocus();
   });
 });

@@ -394,6 +394,7 @@ const ChatInterface = () => {
     setAgentOrchestration: session.setAgentOrchestration,
     activeStreamsRef,
     streamingMessageStore: streamingMessageStoreRef.current,
+    t,
   });
   const {
     sendForTest: streamSendForTest,
