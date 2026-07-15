@@ -292,6 +292,7 @@
     "delete_label": "Elimina plugin",
     "delete_desc": "Rimuovi questo plugin dalla tua installazione",
     "delete_desc_builtin": "I plugin integrati non possono essere rimossi",
+    "nav_title": "Plugin",
     "nav_discover": "Scopri",
     "nav_categories": "Categorie",
     "nav_installed": "Installati",

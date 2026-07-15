@@ -414,6 +414,7 @@
     "delete_label": "删除插件",
     "delete_desc": "从您的安装中移除此插件",
     "delete_desc_builtin": "内置插件无法移除",
+    "nav_title": "插件",
     "nav_discover": "发现",
     "nav_categories": "分类",
     "nav_installed": "已安装",

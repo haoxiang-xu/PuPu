@@ -1,14 +1,12 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import PluginsDiscoverPage from "./pages/plugins_discover_page";
 import PluginsCategoriesPage from "./pages/plugins_categories_page";
 import PluginsInstalledPage from "./pages/plugins_installed_page";
 import PluginDetailPage from "./pages/plugin_detail_page";
 import CustomMcpPage from "./pages/custom_mcp_page";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
-import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import { isBuiltinToolkit } from "./utils/toolkit_helpers";
 import { deletePluginToolkit } from "./utils/plugin_actions";
 import api from "../../SERVICEs/api";
@@ -53,8 +51,9 @@ const NAV_ITEMS = [
 ];
 
 /**
- * PluginsShell — the App Store shell: 196px sidebar (search + nav +
- * installed badge + footer) and a content slot routed by `activePage`.
+ * PluginsShell — settings-isomorphic shell (T1): a 140px settings-modal-clone
+ * sidebar (uppercase eyebrow title + opacity-selected Button nav items, no
+ * search box) and a content slot routed by `activePage`.
  *
  * `activePage` / `onNavigate` are controlled from the outside (toolkit_modal.js
  * owns the page state, mirroring how agents_modal.js owns `selectedSection`).
@@ -443,19 +442,12 @@ export const PluginsShell = ({
     [activePage, onNavigate, detailMounted, closeDetail],
   );
 
-  /* ── Sidebar search (review I7) — used to be a decoy: styled like a search
-     box but not an <input>, with no click/type handler at all. It's now a
-     real input whose value is the SAME state PluginsCategoriesPage's own
-     search box reads (passed down as `search`/`onSearchChange` above), so
-     typing here jumps to Categories pre-filtered instead of doing nothing. */
+  /* ── Categories search (T1: settings-isomorphic restyle) — the sidebar no
+     longer carries a search box (the mockup's 140px settings-clone left rail
+     has none); PluginsCategoriesPage keeps this as its own in-page search,
+     still shell-owned state so it survives detail overlay open/close, just
+     with no sidebar UI writing into it anymore. */
   const [sidebarSearch, setSidebarSearch] = useState("");
-  const handleSidebarSearchChange = useCallback(
-    (value) => {
-      setSidebarSearch(value);
-      handleNavigate("categories");
-    },
-    [handleNavigate],
-  );
 
   /* ── Page content — Discover, Categories and Installed are each dedicated
      App-Store surfaces (Task 4 split Discover/Categories off the legacy
@@ -506,101 +498,77 @@ export const PluginsShell = ({
   };
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const navIdleColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
-  /* I5: was a hardcoded light-indigo hex that read fine on the dark sidebar
-     but washed out to near-invisible on the light one — split by isDark like
-     every other color token in this file. */
-  const navActiveColor = isDark ? "#aab4ff" : "#4a5bd8";
 
   return (
     <div style={{ display: "flex", height: "100%", fontSize: 13, fontFamily }}>
-      {/* ── Sidebar ── */}
+      {/* ── Sidebar — settings-modal clone (T1): 140px, bg .03/.04, hairline
+         right border, uppercase eyebrow title, Button nav items whose
+         selected state is opacity-only (1 vs 0.65), exactly like
+         settings_modal_content.js:93-140. No sidebar search box (removed —
+         Categories/Installed keep their own in-page search). */}
       <div
         style={{
-          width: 196,
-          flex: "none",
-          background: isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.02)",
+          width: 140,
+          flexShrink: 0,
+          backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)",
           borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
-          padding: "16px 10px",
+          padding: "16px 10px 10px",
           display: "flex",
           flexDirection: "column",
           gap: 2,
         }}
       >
-        <Input
-          prefix_icon="search"
-          value={sidebarSearch}
-          set_value={handleSidebarSearchChange}
-          placeholder={t("toolkit.search_placeholder_v2")}
+        <div
           style={{
-            width: "100%",
-            fontSize: 12.5,
-            fontFamily,
-            borderRadius: 8,
-            color: isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.8)",
-            paddingVertical: 6,
-            paddingHorizontal: 10,
-            marginBottom: 12,
+            fontSize: 12,
+            textTransform: "uppercase",
+            letterSpacing: "1.5px",
+            color: isDark ? "#fff" : "#222",
+            opacity: 0.3,
+            padding: "8px 12px 12px",
           }}
-        />
+        >
+          {t("toolkit.nav_title")}
+        </div>
 
         {NAV_ITEMS.map((item) => {
           const isActive = activePage === item.id;
+          const isInstalled = item.id === "installed";
           return (
-            <div
+            <Button
               key={item.id}
-              role="button"
-              aria-current={isActive ? "page" : undefined}
+              prefix_icon={item.icon}
+              label={t(item.labelKey)}
+              postfix={isInstalled ? String(installedCount) : undefined}
               onClick={() => handleNavigate(item.id)}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "7px 10px",
-                borderRadius: 8,
+                width: "100%",
+                justifyContent: "flex-start",
                 fontSize: 13,
-                fontWeight: 500,
-                cursor: "pointer",
-                backgroundColor: isActive ? "rgba(124,140,248,0.14)" : "transparent",
-                color: isActive ? navActiveColor : navIdleColor,
+                opacity: isActive ? 1 : 0.65,
+                padding: "8px 12px",
+                borderRadius: 7,
+                iconSize: 16,
+                ...(isInstalled
+                  ? {
+                      content: {
+                        postfixText: {
+                          marginLeft: "auto",
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          background: isDark
+                            ? "rgba(255,255,255,0.1)"
+                            : "rgba(0,0,0,0.08)",
+                          borderRadius: 999,
+                          padding: "1px 7px",
+                        },
+                      },
+                    }
+                  : {}),
               }}
-            >
-              <Icon
-                src={item.icon}
-                style={{ width: 14, height: 14 }}
-                color={isActive ? navActiveColor : navIdleColor}
-              />
-              <span>{t(item.labelKey)}</span>
-              {item.id === "installed" && (
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    fontSize: 10.5,
-                    fontWeight: 600,
-                    background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
-                    borderRadius: 999,
-                    padding: "1px 7px",
-                    color: isActive ? navActiveColor : navIdleColor,
-                  }}
-                >
-                  {installedCount}
-                </span>
-              )}
-            </div>
+            />
           );
         })}
-
-        <div
-          style={{
-            marginTop: "auto",
-            fontSize: 10.5,
-            color: isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.28)",
-            padding: "0 10px",
-            lineHeight: 1.4,
-          }}
-        >
-          {activePage === "installed" ? t("toolkit.auto_enable_hint") : ""}
-        </div>
       </div>
 
       {/* ── Content ── */}

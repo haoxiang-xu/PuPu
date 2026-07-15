@@ -292,6 +292,7 @@
     "delete_label": "Удалить плагин",
     "delete_desc": "Удалить этот плагин из вашей установки",
     "delete_desc_builtin": "Встроенные плагины нельзя удалить",
+    "nav_title": "Плагины",
     "nav_discover": "Обзор",
     "nav_categories": "Категории",
     "nav_installed": "Установленные",

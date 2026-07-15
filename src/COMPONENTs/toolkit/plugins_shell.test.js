@@ -233,12 +233,13 @@ describe("PluginsShell", () => {
     return rendered;
   };
 
-  test("renders the three nav items with labels", async () => {
+  test("renders the settings-clone sidebar title and the three nav items as Buttons", async () => {
     await renderShell();
 
-    expect(screen.getByText("toolkit.nav_discover")).toBeInTheDocument();
-    expect(screen.getByText("toolkit.nav_categories")).toBeInTheDocument();
-    expect(screen.getByText("toolkit.nav_installed")).toBeInTheDocument();
+    expect(screen.getByText("toolkit.nav_title")).toBeInTheDocument();
+    expect(screen.getByText("toolkit.nav_discover").closest("button")).not.toBeNull();
+    expect(screen.getByText("toolkit.nav_categories").closest("button")).not.toBeNull();
+    expect(screen.getByText("toolkit.nav_installed").closest("button")).not.toBeNull();
   });
 
   test("renders the installedCount badge next to Installed", async () => {
@@ -256,14 +257,14 @@ describe("PluginsShell", () => {
     expect(onNavigate).toHaveBeenCalledWith("installed");
   });
 
-  test("active nav item gets the highlighted background", async () => {
+  test("active nav item gets full opacity, idle items are dimmed (settings-clone selection language)", async () => {
     await renderShell({ activePage: "installed" });
 
-    const activeItem = screen.getByText("toolkit.nav_installed").closest('[role="button"]');
-    const idleItem = screen.getByText("toolkit.nav_discover").closest('[role="button"]');
+    const activeItem = screen.getByText("toolkit.nav_installed").closest("button");
+    const idleItem = screen.getByText("toolkit.nav_discover").closest("button");
 
-    expect(activeItem.style.backgroundColor).toBe("rgba(124, 140, 248, 0.14)");
-    expect(idleItem.style.backgroundColor).toBe("transparent");
+    expect(activeItem.style.opacity).toBe("1");
+    expect(idleItem.style.opacity).toBe("0.65");
   });
 
   test("routes content by activePage — discover, categories and installed each get their own page", async () => {
@@ -417,15 +418,15 @@ describe("PluginsShell", () => {
     expect(screen.getByText("Auto Enabled: true")).toBeInTheDocument();
   });
 
-  /* I5: the active nav item's color used to be a hardcoded light-indigo hex
-     that washed out against the light sidebar background. PluginsShell
-     resolves isDark from ConfigContext, which defaults to "" (no provider
-     in this test file) — i.e. light mode — so the active item should use
-     the light-mode color, not the dark one. */
-  test("active nav item uses a light-mode-legible color, not the dark-mode hex", async () => {
+  /* T1 (settings-isomorphic restyle): the App-Store-era per-item indigo
+     active color (I5) is gone — selection is opacity-only now, exactly like
+     settings_modal_content.js's Button nav items, so there's no separate
+     active-vs-idle color to diverge between light/dark. */
+  test("nav items don't set a per-item active color — selection is opacity-only", async () => {
     await renderShell({ activePage: "installed" });
 
-    const activeItem = screen.getByText("toolkit.nav_installed").closest('[role="button"]');
-    expect(activeItem.style.color).toBe("rgb(74, 91, 216)");
+    const activeItem = screen.getByText("toolkit.nav_installed").closest("button");
+    const idleItem = screen.getByText("toolkit.nav_discover").closest("button");
+    expect(activeItem.style.color).toBe(idleItem.style.color);
   });
 });

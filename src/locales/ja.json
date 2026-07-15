@@ -292,6 +292,7 @@
     "delete_label": "プラグインを削除",
     "delete_desc": "インストールからこのプラグインを削除します",
     "delete_desc_builtin": "組み込みのプラグインは削除できません",
+    "nav_title": "プラグイン",
     "nav_discover": "見つける",
     "nav_categories": "カテゴリ",
     "nav_installed": "インストール済み",

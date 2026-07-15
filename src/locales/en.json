@@ -414,6 +414,7 @@
     "delete_label": "Delete Plugin",
     "delete_desc": "Remove this plugin from your installation",
     "delete_desc_builtin": "Built-in plugins cannot be removed",
+    "nav_title": "Plugins",
     "nav_discover": "Discover",
     "nav_categories": "Categories",
     "nav_installed": "Installed",

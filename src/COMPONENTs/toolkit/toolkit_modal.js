@@ -51,14 +51,12 @@ export const ToolkitModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const panelBg = isDark ? "#141414" : "#ffffff";
-  const [fullscreen, setFullscreen] = useState(false);
   const [activePage, setActivePage] = useState("discover");
   const [installedCount, setInstalledCount] = useState(0);
 
   useEffect(() => {
     if (!open) {
       setActivePage("discover");
-      setFullscreen(false);
     }
   }, [open]);
 
@@ -85,12 +83,10 @@ export const ToolkitModal = ({ open, onClose }) => {
     <Modal
       open={open}
       onClose={onClose}
-      fullscreen={fullscreen}
       style={{
-        width: 920,
-        maxWidth: "92vw",
+        minWidth: 600,
         height: 600,
-        maxHeight: "88vh",
+        maxHeight: "80vh",
         padding: 0,
         backgroundColor: panelBg,
         color: isDark ? "#fff" : "#222",
@@ -99,30 +95,6 @@ export const ToolkitModal = ({ open, onClose }) => {
         overflow: "hidden",
       }}
     >
-      <Button
-        prefix_icon={fullscreen ? "fullscreen_exit" : "fullscreen"}
-        onClick={() => setFullscreen((f) => !f)}
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 44,
-          paddingVertical: 6,
-          paddingHorizontal: 6,
-          borderRadius: 6,
-          opacity: 0.45,
-          zIndex: 4,
-          WebkitAppRegion: "no-drag",
-          content: {
-            prefixIconWrap: {
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              lineHeight: 0,
-            },
-            icon: { width: 14, height: 14 },
-          },
-        }}
-      />
       <Button
         prefix_icon="close"
         onClick={onClose}

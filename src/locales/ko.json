@@ -292,6 +292,7 @@
     "delete_label": "플러그인 삭제",
     "delete_desc": "설치에서 이 플러그인을 제거합니다",
     "delete_desc_builtin": "기본 플러그인은 제거할 수 없습니다",
+    "nav_title": "플러그인",
     "nav_discover": "둘러보기",
     "nav_categories": "카테고리",
     "nav_installed": "설치됨",

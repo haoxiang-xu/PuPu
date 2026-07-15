@@ -292,6 +292,7 @@
     "delete_label": "刪除外掛",
     "delete_desc": "從您的安裝中移除此外掛",
     "delete_desc_builtin": "內建外掛無法移除",
+    "nav_title": "外掛",
     "nav_discover": "探索",
     "nav_categories": "分類",
     "nav_installed": "已安裝",
