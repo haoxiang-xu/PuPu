@@ -1,0 +1,45 @@
+{
+  "format": "pupu-model-provider",
+  "format_version": 1,
+  "exported_at": "2026-07-15T10:00:00Z",
+  "provider": {
+    "config_version": 1,
+    "id": "sap-hyperspace",
+    "display_name": "SAP Hyperspace (local proxy)",
+    "description": "SAP 内部 LLM proxy，经本机 hai CLI 转发 Claude 模型",
+    "protocol": "anthropic",
+    "base_url": "http://localhost:6655/anthropic",
+    "auth": {
+      "mode": "x-api-key",
+      "key_label": "Hyperspace API Key (x-api-key)",
+      "key_hint": "先运行 `hai proxy start`，key 见 `hai proxy status` 或 Hyperspace 账户页。"
+    },
+    "timeout_seconds": 600,
+    "default_model": "anthropic--claude-4.5-haiku",
+    "models": [
+      {
+        "id": "anthropic--claude-4.5-haiku",
+        "display_name": "Claude 4.5 Haiku",
+        "capabilities": {
+          "supports_tools": true,
+          "supports_vision": true,
+          "max_tokens": 8192,
+          "max_context_window_tokens": 200000
+        }
+      },
+      {
+        "id": "anthropic--claude-4.5-sonnet",
+        "display_name": "Claude 4.5 Sonnet",
+        "capabilities": {
+          "supports_tools": true,
+          "supports_vision": true,
+          "supports_reasoning": true,
+          "max_tokens": 16384,
+          "max_context_window_tokens": 200000
+        }
+      }
+    ],
+    "metadata": { "revision": 1 },
+    "notes": "使用前先在终端运行 `hai proxy start`。"
+  }
+}

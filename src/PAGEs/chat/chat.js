@@ -30,7 +30,8 @@ import {
   stop as progressStop,
 } from "../../SERVICEs/progress_bus";
 import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
-import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
+import { resolveCustomModelCapabilities } from "../../SERVICEs/custom_provider_store";
+import { LogoSVGs, UISVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
@@ -52,12 +53,22 @@ const UNCHAIN_STATUS_POLL_INTERVAL_READY_MS = 15000;
 const _OllamaSVG = LogoSVGs.ollama;
 const _OpenAISVG = LogoSVGs.open_ai;
 const _AnthropicSVG = LogoSVGs.Anthropic;
+/* generic fallback glyph for custom / unknown providers */
+const _CustomProviderSVG = UISVGs.server;
 
 const PROVIDER_ICON = {
   ollama: _OllamaSVG,
   openai: _OpenAISVG,
   anthropic: _AnthropicSVG,
 };
+
+/**
+ * Resolve the icon component for a provider chip. Built-in providers use their
+ * brand logo; custom.* (and any unrecognized) provider falls back to a generic
+ * glyph so the chip still renders (design §6.3).
+ */
+const resolveProviderIcon = (provider) =>
+  PROVIDER_ICON[provider] || _CustomProviderSVG;
 
 const HERO_PHRASES = [
   "How can I help you today?",
@@ -262,6 +273,8 @@ const ChatInterface = () => {
         ? session.selectedModelId.trim()
         : null;
 
+    // 1) Catalog hit (built-in models AND custom.* models merged into the
+    //    catalog via mergeCustomProvidersIntoCatalog).
     if (
       selectedModel &&
       modelCatalog?.modelCapabilities &&
@@ -271,10 +284,17 @@ const ChatInterface = () => {
       return modelCatalog.modelCapabilities[selectedModel];
     }
 
-    if (selectedModel && selectedModel === modelCatalog?.activeModel) {
-      return fallbackCapabilities;
+    // 2) Custom-capabilities hit — resolve directly from the definition store
+    //    so tool/attachment gating is correct even before the catalog has
+    //    refreshed after a custom provider change (design §6.4).
+    if (selectedModel) {
+      const customCapabilities = resolveCustomModelCapabilities(selectedModel);
+      if (customCapabilities) {
+        return customCapabilities;
+      }
     }
 
+    // 3) Default.
     return fallbackCapabilities;
   }, [modelCatalog, session.selectedModelId]);
 
@@ -892,7 +912,7 @@ const ChatInterface = () => {
                 >
                   {chips.map((chip) => {
                     const active = session.selectedModelId === chip.id;
-                    const IconComp = PROVIDER_ICON[chip.provider];
+                    const IconComp = resolveProviderIcon(chip.provider);
                     return (
                       <button
                         key={chip.id}

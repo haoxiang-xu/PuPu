@@ -22,6 +22,7 @@ jest.mock("../../settings/model_providers/storage", () => ({
 
 jest.mock("../../../SERVICEs/model_catalog_refresh", () => ({
   subscribeModelCatalogRefresh: jest.fn(() => () => {}),
+  emitModelCatalogRefresh: jest.fn(),
 }));
 
 const HookHarness = ({ modelCatalog, selectedModelId = "" }) => {
@@ -155,5 +156,87 @@ describe("useChatInputModels", () => {
     const options = readOptions();
     expect(options.find((g) => g.group === "OpenAI")).toBeDefined();
     expect(options.find((g) => g.group === "Anthropic")).toBeUndefined();
+  });
+
+  describe("custom provider gating (through the hook)", () => {
+    const {
+      addCustomProvider,
+      normalizeCustomProvider,
+      setCustomProviderEnabled,
+      setCustomProviderSecret,
+    } = require("../../../SERVICEs/custom_provider_store");
+
+    const seed = ({ enabled = true, withSecret = true } = {}) => {
+      const norm = normalizeCustomProvider({
+        format: "pupu-model-provider",
+        format_version: 1,
+        provider: {
+          config_version: 1,
+          id: "sap-hyperspace",
+          display_name: "SAP Hyperspace",
+          protocol: "anthropic",
+          base_url: "http://localhost:6655/anthropic",
+          auth: { mode: "x-api-key" },
+          default_model: "anthropic--claude-4.5-haiku",
+          models: [{ id: "anthropic--claude-4.5-haiku", display_name: "Haiku" }],
+        },
+      });
+      addCustomProvider(norm.provider);
+      if (enabled) {
+        setCustomProviderEnabled("sap-hyperspace", true);
+      }
+      if (withSecret) {
+        setCustomProviderSecret("sap-hyperspace", "hs-key");
+      }
+    };
+
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    afterEach(() => {
+      window.localStorage.clear();
+    });
+
+    test("enabled + keyed custom provider surfaces as a group", async () => {
+      seed();
+      api.ollama.listChatModels.mockResolvedValue([]);
+
+      render(<HookHarness modelCatalog={{ providers: {} }} />);
+
+      await waitFor(() =>
+        expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1),
+      );
+      const custom = readOptions().find((g) => g.is_custom);
+      expect(custom).toBeDefined();
+      expect(custom.group_key).toBe("custom.sap-hyperspace");
+      expect(custom.options[0].value).toBe(
+        "custom.sap-hyperspace:anthropic--claude-4.5-haiku",
+      );
+    });
+
+    test("enabled provider without a key is gated out", async () => {
+      seed({ withSecret: false });
+      api.ollama.listChatModels.mockResolvedValue([]);
+
+      render(<HookHarness modelCatalog={{ providers: {} }} />);
+
+      await waitFor(() =>
+        expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1),
+      );
+      expect(readOptions().find((g) => g.is_custom)).toBeUndefined();
+    });
+
+    test("disabled provider is gated out even with a key", async () => {
+      seed({ enabled: false });
+      api.ollama.listChatModels.mockResolvedValue([]);
+
+      render(<HookHarness modelCatalog={{ providers: {} }} />);
+
+      await waitFor(() =>
+        expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1),
+      );
+      expect(readOptions().find((g) => g.is_custom)).toBeUndefined();
+    });
   });
 });

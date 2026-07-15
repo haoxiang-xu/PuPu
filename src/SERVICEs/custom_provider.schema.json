@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pupu.app/schemas/custom-model-provider-v1.json",
+  "title": "PuPu Custom Model Provider Export",
+  "type": "object",
+  "required": ["format", "format_version", "provider"],
+  "properties": {
+    "format": { "const": "pupu-model-provider" },
+    "format_version": { "const": 1 },
+    "exported_at": { "type": "string" },
+    "provider": { "$ref": "#/definitions/provider" }
+  },
+  "definitions": {
+    "provider": {
+      "type": "object",
+      "required": ["id", "display_name", "protocol", "base_url", "auth", "models"],
+      "properties": {
+        "config_version": { "const": 1 },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+          "not": { "enum": ["openai", "anthropic", "ollama", "hyperspace",
+                            "auto", "custom", "default", "system", "unknown"] }
+        },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "protocol": { "enum": ["anthropic", "openai-responses", "ollama"] },
+        "base_url": { "type": "string", "pattern": "^https?://", "maxLength": 2000 },
+        "auth": {
+          "type": "object",
+          "required": ["mode"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "enum": ["x-api-key", "bearer", "header", "none"] },
+            "header_name": { "type": "string", "pattern": "^[A-Za-z0-9-]{1,64}$" },
+            "key_label": { "type": "string", "maxLength": 120 },
+            "key_hint": { "type": "string", "maxLength": 500 }
+          }
+        },
+        "extra_headers": {
+          "type": "object",
+          "maxProperties": 10,
+          "propertyNames": { "pattern": "^[A-Za-z0-9-]{1,64}$" },
+          "additionalProperties": { "type": "string", "maxLength": 200 }
+        },
+        "timeout_seconds": { "type": "integer", "minimum": 5, "maximum": 900 },
+        "default_model": { "type": "string" },
+        "models": {
+          "type": "array", "minItems": 1, "maxItems": 100,
+          "items": { "$ref": "#/definitions/model" }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "revision": { "type": "integer", "minimum": 1 } }
+        },
+        "notes": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^\\S+$" },
+        "display_name": { "type": "string", "maxLength": 100 },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "supports_tools": { "type": "boolean" },
+            "supports_vision": { "type": "boolean" },
+            "supports_reasoning": { "type": "boolean" },
+            "max_tokens": { "type": "integer", "minimum": 1, "maximum": 400000 },
+            "max_context_window_tokens": { "type": "integer", "minimum": 1024 }
+          }
+        },
+        "default_payload": { "type": "object", "maxProperties": 16 }
+      }
+    }
+  }
+}
