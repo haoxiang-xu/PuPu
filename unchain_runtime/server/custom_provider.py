@@ -76,7 +76,15 @@ _FORBIDDEN_KEYS = frozenset({"__proto__", "constructor", "prototype"})
 
 # Payload key names that look like secrets — stripped from default_payload
 # (defence in depth; design §2.3).
-_SECRET_FIELD_PATTERN = re.compile(r"(api[_-]?key|apikey|token|secret)", re.IGNORECASE)
+#
+# FULLY ANCHORED (^...$) to match the frontend normalizer's
+# ``/^(api[_-]?key|apikey|token|secret)$/i`` exactly (custom_provider_store.js).
+# An unanchored ``re.search`` matched the substring "token" inside legitimate
+# payload keys such as ``max_tokens`` / ``max_output_tokens`` and silently
+# stripped them, so the user's output-length cap never took effect (defect C2).
+# Anchoring strips only exact secret-shaped keys, never keys that merely
+# *contain* a secret-shaped substring.
+_SECRET_FIELD_PATTERN = re.compile(r"^(api[_-]?key|apikey|token|secret)$", re.IGNORECASE)
 
 # Model-capabilities normalizer fallback for context window (design §7.2/§7).
 _DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 32768
@@ -468,7 +476,22 @@ def make_custom_model_io_factory(cfg: CustomProviderConfig, api_key: str):
         # Exact-hit key + forced allowed_payload_keys so user payload is not
         # silently dropped by native._merged_payload (design §7.3).
         merged["provider_model"] = model
-        merged["allowed_payload_keys"] = allowed_payload_keys
+        # Union the protocol's static allowlist with EVERY key the model's own
+        # default_payload declares (design §2.3: any scalar key is allowed).
+        # Without this, keys outside PROTOCOL_ALLOWED_PAYLOAD_KEYS — e.g. openai
+        # ``truncation``, ollama ``repeat_penalty`` / ``seed``, anthropic
+        # ``metadata`` — were silently filtered out by native._merged_payload's
+        # final allowed-key pass (defect C8). Order-preserving de-dup so the
+        # static keys come first and declared extras follow.
+        keys: list[str] = list(allowed_payload_keys)
+        declared_payload = entry.get("default_payload") if isinstance(entry, dict) else {}
+        if isinstance(declared_payload, dict):
+            seen = set(keys)
+            for payload_key in declared_payload:
+                if isinstance(payload_key, str) and payload_key not in seen:
+                    keys.append(payload_key)
+                    seen.add(payload_key)
+        merged["allowed_payload_keys"] = keys
         return {model: merged}
 
     def _payloads_for(model: str, entry: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:

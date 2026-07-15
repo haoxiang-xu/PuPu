@@ -988,6 +988,62 @@ def _resolve_general_runtime_config(options: Dict[str, object] | None = None) ->
     }
 
 
+def build_interject_agent(options: Dict[str, object] | None, *, name: str):
+    """Construct the tiny side-agent used by the interject classifier / btw
+    answer, routed correctly for both built-in and custom providers (C1/C9).
+
+    The interject side-calls run against a snapshot of the live run's options
+    (interaction_channels.options, incl. any custom_provider). Built into the
+    same options-parsing path as the main chat link so a custom session's
+    classifier / btw answer hits the SAME endpoint as the main run:
+
+      - Built-in: unchanged — ``_resolve_general_runtime_config`` (with the
+        ``_GENERAL_MODEL_BY_PROVIDER`` cheap-tier downgrade) + env/options key.
+      - Custom: parse cfg, build the model_io_factory, resolve the key cfg-aware
+        (never the env fallback), and SKIP the downgrade (design §7.2 promises
+        custom providers are not silently downgraded — the twin name is not a
+        real openai/anthropic account, so gpt-4.1 / claude-sonnet-4 do not exist
+        at the custom endpoint anyway).
+
+    Returns a ready-to-run ``unchain.Agent``.
+    """
+    from unchain import Agent
+
+    opts = options or {}
+    cfg = parse_custom_provider(opts)
+
+    if cfg is not None:
+        # No downgrade for custom: get_runtime_config already returns the twin
+        # provider + declared model with no _GENERAL_MODEL_BY_PROVIDER rewrite.
+        # The provider is authoritatively the twin (the factory keys off it);
+        # only trust get_runtime_config for the model selection.
+        selected = get_runtime_config(opts)
+        provider = cfg.twin
+        model = selected.get("model") or cfg.default_model_id()
+        api_key = _resolve_agent_api_key(opts, provider, cfg=cfg)
+        factory = make_custom_model_io_factory(cfg, api_key)
+        return Agent(
+            name=name,
+            provider=provider,
+            model=model,
+            instructions="",
+            api_key=api_key or None,
+            model_io_factory=factory,
+        )
+
+    # Built-in path: byte-for-byte the prior behaviour.
+    config = _resolve_general_runtime_config(opts)
+    provider = config.get("provider") or "openai"
+    api_key = _resolve_agent_api_key(opts, provider)
+    return Agent(
+        name=name,
+        provider=provider,
+        model=config.get("model") or "",
+        instructions="",
+        api_key=api_key or None,
+    )
+
+
 def _default_model_capabilities() -> Dict[str, object]:
     return {
         "input_modalities": ["text"],
@@ -5158,8 +5214,23 @@ def _stream_recipe_graph_events(
                         step_config.update({"provider": provider, "model": model})
                     else:
                         step_config["model"] = raw_model
+                # C0/C5: a recipe graph step may override .model onto a REAL
+                # built-in provider (e.g. "openai:gpt-4o"). The custom graph_cfg
+                # / factory must only ride a step whose provider is the custom
+                # twin — otherwise _resolve_agent_api_key's cfg branch (which
+                # ignores the provider arg) would hand the custom key to a
+                # built-in ModelIO and send it to the official endpoint, and the
+                # factory / context-window lookup would use the wrong config.
+                # When the step is a genuine built-in provider, cfg=None so it
+                # goes through normal built-in assembly with spec/env keys.
+                step_is_custom = (
+                    graph_cfg is not None
+                    and step_config["provider"] == graph_cfg.twin
+                )
+                step_cfg = graph_cfg if step_is_custom else None
+                step_factory = graph_custom_factory if step_is_custom else None
                 step_api_key = _resolve_agent_api_key(
-                    options, step_config["provider"], cfg=graph_cfg
+                    options, step_config["provider"], cfg=step_cfg
                 )
                 step_toolkits = _resolve_graph_agent_toolkits(
                     agent_node,
@@ -5197,7 +5268,7 @@ def _stream_recipe_graph_events(
                     options=options,
                     recipe=step_recipe,
                     optimizer_config=step_optimizer_config,
-                    model_io_factory=graph_custom_factory,
+                    model_io_factory=step_factory,
                 )
                 step_agent._toolkits = step_toolkits
                 step_agent._display_model = _format_model_id(
@@ -5205,10 +5276,12 @@ def _stream_recipe_graph_events(
                     step_config["model"],
                 )
                 step_agent._max_iterations = max_iterations
+                # C5: same gate — a built-in step must not read its context
+                # window from the custom cfg's model table.
                 raw_max_ctx = get_max_context_window_tokens(
                     step_config["provider"],
                     step_config["model"],
-                    cfg=graph_cfg,
+                    cfg=step_cfg,
                 )
                 step_agent._max_context_window_tokens = int(raw_max_ctx * 0.40)
 

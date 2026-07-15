@@ -26,18 +26,13 @@ CLASSIFIER_SYSTEM_PROMPT = (
 def _default_run_classifier(options: dict[str, Any]) -> Callable[[list[dict]], str]:
     def run(messages: list[dict]) -> str:
         import unchain_adapter as adapter
-        from unchain import Agent
 
-        config = adapter._resolve_general_runtime_config(options)
-        provider = config.get("provider") or "openai"
-        api_key = adapter._resolve_agent_api_key(options or {}, provider)
-        agent = Agent(
-            name="interject_router",
-            provider=provider,
-            model=config.get("model") or "",
-            instructions="",
-            api_key=api_key or None,
-        )
+        # C1/C9: route the classifier through the same cfg-aware constructor as
+        # the main chat link. For a custom-provider run this parses the snapshot
+        # options' custom_provider, builds the model_io_factory, resolves the
+        # key cfg-aware and skips the downgrade — so the classifier hits the
+        # user's base_url, not api.openai.com / the official Anthropic endpoint.
+        agent = adapter.build_interject_agent(options or {}, name="interject_router")
         result = agent.run(messages, max_iterations=1)
         from unchain.kernel.lifecycle_events import last_assistant_text
         return last_assistant_text(result.messages)
