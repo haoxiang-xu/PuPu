@@ -65,6 +65,7 @@ describe("preload API contract", () => {
       "getToolkitCatalog",
       "listMcpToolkits",
       "installMcpToolkit",
+      "testCustomProvider",
       "deleteMcpToolkit",
       "reloadMcpToolkits",
       "checkMcpToolkitHealth",
@@ -221,6 +222,28 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
       { toolkitId: "mcp.memory.memory" },
+    );
+
+    exposed.unchainAPI.testCustomProvider(
+      {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      "hs-secret-key",
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
+      {
+        custom_provider: {
+          id: "sap-hyperspace",
+          protocol: "anthropic",
+          base_url: "http://localhost:6655/anthropic",
+          models: [{ id: "anthropic--claude-4.5-haiku" }],
+        },
+        api_key: "hs-secret-key",
+      },
     );
 
     exposed.unchainAPI.configureMcpToolkit("mcp.memory.memory", {

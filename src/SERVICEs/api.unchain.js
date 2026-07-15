@@ -1852,6 +1852,52 @@ export const createUnchainApi = () => {
   unchainApi.retrieveModelList = retrieveUnchainModelList;
   unchainApi.listModels = retrieveUnchainModelList;
 
+  // Custom Model Provider — test-connection facade (design §6.5).
+  //
+  // Sanitizes the raw stored definition through buildProviderInjectionPayload
+  // (strips secrets / enabled / timestamps — the same whitelist the chat
+  // injection path uses) and forwards { sanitizedDefinition, apiKey } to the
+  // preload bridge, which assembles the { custom_provider, api_key } wire body.
+  // The Electron main service answers with a structured
+  // { ok, ... } | { ok:false, error:{ code, message } } result (never throws for
+  // provider-side failures), so the caller can render the outcome inline.
+  // Timeout is 20s to sit just past the backend's 15s hard probe timeout.
+  const testCustomProvider = async (definition, apiKey = "") => {
+    if (!hasBridgeMethod("unchainAPI", "testCustomProvider")) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.testCustomProvider is unavailable",
+      );
+    }
+
+    const sanitized = buildProviderInjectionPayload(definition);
+    if (!sanitized) {
+      throw new FrontendApiError(
+        "custom_provider_invalid",
+        "A valid custom provider definition is required",
+      );
+    }
+
+    try {
+      const method = assertBridgeMethod("unchainAPI", "testCustomProvider");
+      const response = await withTimeout(
+        () => method(sanitized, typeof apiKey === "string" ? apiKey : ""),
+        20000,
+        "custom_provider_test_timeout",
+        "Custom provider test request timed out",
+      );
+      return isObject(response) ? response : {};
+    } catch (error) {
+      throw toFrontendApiError(
+        error,
+        "custom_provider_test_failed",
+        "Failed to test custom provider connection",
+      );
+    }
+  };
+
+  unchainApi.testCustomProvider = testCustomProvider;
+
   return unchainApi;
 };
 
