@@ -19,27 +19,21 @@ import { DiffBody, countPlusMinus } from "../../diff/diff_body";
 
 const FONT = "Menlo, Monaco, Consolas, monospace";
 
-const hexToRgba = (hex, a) => {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-};
+const rgbaVar = (rgbVarName, a) => `rgba(var(${rgbVarName}),${a})`;
 
 const ACTION_BUTTON_WIDTH = 96;
 
-const buildActionStyle = (accent) => ({
+const buildActionStyle = (accent, accentRgbVarName) => ({
   width: ACTION_BUTTON_WIDTH,
   color: accent,
-  backgroundColor: hexToRgba(accent, 0.14),
+  backgroundColor: rgbaVar(accentRgbVarName, 0.14),
   fontSize: 11.5,
   fontFamily: FONT,
   borderRadius: 6,
   paddingVertical: 6,
   paddingHorizontal: 10,
-  hoverBackgroundColor: hexToRgba(accent, 0.18),
-  activeBackgroundColor: hexToRgba(accent, 0.28),
+  hoverBackgroundColor: rgbaVar(accentRgbVarName, 0.18),
+  activeBackgroundColor: rgbaVar(accentRgbVarName, 0.28),
 });
 
 const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
@@ -57,16 +51,16 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
   const resolved = Boolean(uiState?.resolved);
   const decision = uiState?.decision;
 
-  const successAccent = isDark ? "#4ADE80" : "#22C55E";
-  const errorAccent = isDark ? "#F87171" : "#DC3545";
+  const successAccent = "var(--pupu-success)";
+  const errorAccent = "var(--pupu-danger)";
 
   return (
     <div
       style={{
         borderRadius: 12,
         padding: 10,
-        backgroundColor: isDark ? "#161616" : "#ffffff",
-        color: isDark ? "#e8e8e8" : "#1f2328",
+        backgroundColor: "var(--pupu-surface)",
+        color: "var(--pupu-text)",
         opacity: resolved ? 0.75 : 1,
         fontFamily: FONT,
       }}
@@ -87,8 +81,10 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
             borderRadius: 4,
             textTransform: "uppercase",
             letterSpacing: 0.4,
-            backgroundColor: isDark ? "#2d2d2d" : "#eaeef2",
-            color: isDark ? "#cfcfcf" : "#57606a",
+            backgroundColor: isDark
+              ? "rgba(var(--pupu-text-rgb),0.10)"
+              : "rgba(var(--pupu-text-rgb),0.08)",
+            color: "var(--pupu-text-muted)",
           }}
         >
           {operation}
@@ -101,13 +97,13 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
           fontSize: 11,
           marginBottom: 6,
           alignItems: "center",
-          color: isDark ? "#8c959f" : "#656d76",
+          color: "var(--pupu-text-muted)",
         }}
       >
         <span style={{ overflowWrap: "anywhere" }}>{path}</span>
         <span style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
-          <span style={{ color: isDark ? "#3fb950" : "#1a7f37" }}>+{plus}</span>{" "}
-          <span style={{ color: isDark ? "#f85149" : "#cf222e" }}>-{minus}</span>
+          <span style={{ color: "var(--pupu-success)" }}>+{plus}</span>{" "}
+          <span style={{ color: "var(--pupu-danger)" }}>-{minus}</span>
         </span>
       </div>
       <DiffBody unifiedDiff={unifiedDiff} isDark={isDark} />
@@ -115,7 +111,7 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
         <div
           style={{
             fontSize: 11,
-            color: isDark ? "#8c959f" : "#656d76",
+            color: "var(--pupu-text-muted)",
             fontStyle: "italic",
             padding: "4px 0 0 0",
           }}
@@ -128,12 +124,12 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
           <Button
             label="Approve"
             onClick={() => onSubmit && onSubmit({ approved: true, scope: "once" })}
-            style={buildActionStyle(successAccent)}
+            style={buildActionStyle(successAccent, "--pupu-success-rgb")}
           />
           <Button
             label="Reject"
             onClick={() => onSubmit && onSubmit({ approved: false, scope: "once" })}
-            style={buildActionStyle(errorAccent)}
+            style={buildActionStyle(errorAccent, "--pupu-danger-rgb")}
           />
         </div>
       )}
@@ -145,8 +141,8 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
             padding: "4px 10px",
             borderRadius: 4,
             display: "inline-block",
-            backgroundColor: isDark ? "#0f2b14" : "#dafbe1",
-            color: isDark ? "#4ADE80" : "#1a7f37",
+            backgroundColor: "rgba(var(--pupu-success-rgb),0.15)",
+            color: "var(--pupu-success)",
           }}
         >
           ✓ Approved
@@ -160,8 +156,8 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
             padding: "4px 10px",
             borderRadius: 4,
             display: "inline-block",
-            backgroundColor: isDark ? "#2b0f13" : "#ffebe9",
-            color: isDark ? "#F87171" : "#82061e",
+            backgroundColor: "rgba(var(--pupu-danger-rgb),0.15)",
+            color: "var(--pupu-danger)",
           }}
         >
           ✗ Rejected
