@@ -77,7 +77,7 @@ const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => 
         style={{
           position: "relative",
           backgroundColor:
-            theme?.semantic?.surface || mt.backgroundColor || "#fff",
+            theme?.semantic?.background || mt.backgroundColor || "#fff",
           borderRadius: mt.borderRadius ?? 14,
           boxShadow: mt.boxShadow || "0 24px 80px rgba(0,0,0,0.18)",
           border: mt.border || "none",

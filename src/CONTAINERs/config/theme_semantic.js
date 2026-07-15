@@ -133,7 +133,7 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
       }),
     }),
     modal: merge(base.modal, {
-      backgroundColor: surface,
+      backgroundColor: background,
       border: `1px solid ${withAlpha(border, 0.9)}`,
       bodyColor: textMuted,
       closeButtonColor: withAlpha(textMuted, 0.9),
@@ -141,6 +141,7 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
       errorAccent: danger,
       successAccent: success,
     }),
+    switch: merge(base.switch, { backgroundColor_on: accent }),
     ...(deepTier
       ? {
           code: merge(base.code, { backgroundColor: deepTier }),

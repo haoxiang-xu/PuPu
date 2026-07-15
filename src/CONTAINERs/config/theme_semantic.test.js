@@ -97,7 +97,7 @@ describe("applySemanticPaletteToTheme", () => {
     expect(themed.backgroundColor).toBe("#abcdef");
     expect(themed.color).toBe("#010203");
     expect(themed.highlightColor).toBe("#112233");
-    expect(themed.modal.backgroundColor).toBe("#fedcba");
+    expect(themed.modal.backgroundColor).toBe("#abcdef");
     expect(themed.input.outline.onBlur).toBe("2px solid transparent");
     expect(themed.input.outline.onFocus).toBe("2px solid #112233");
     expect(themed.select.option.hoverBackgroundColor).toBe(
@@ -191,5 +191,14 @@ describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
     const out = applySemanticPaletteToTheme(BASE, palette);
     expect(out.code).toBe(BASE.code);
     expect(out.textfield).toBe(BASE.textfield);
+  });
+
+  test("switch on-state follows accent", () => {
+    const base = { switch: { backgroundColor: "#CCCCCC", backgroundColor_on: "#65C467", color: "#FFFFFF" } };
+    const palette = resolveSemanticPalette("dark_mode", { preset: "ocean" });
+    const out = applySemanticPaletteToTheme(base, palette, "dark_mode");
+    expect(out.switch.backgroundColor_on).toBe(palette.accent);
+    expect(out.switch.backgroundColor).toBe("#CCCCCC");
+    expect(out.switch.color).toBe("#FFFFFF");
   });
 });

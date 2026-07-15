@@ -11,7 +11,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => {
     style={{
       width: 360,
       padding: "28px 28px 20px",
-      backgroundColor: "var(--pupu-surface)",
+      backgroundColor: "var(--pupu-background)",
       display: "flex",
       flexDirection: "column",
       gap: 0,

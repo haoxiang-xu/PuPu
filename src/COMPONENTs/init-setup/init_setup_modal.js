@@ -339,7 +339,7 @@ const InitSetupModal = ({ open, onClose }) => {
         width: 480,
         height: "85vh",
         padding: 0,
-        backgroundColor: "var(--pupu-surface)",
+        backgroundColor: "var(--pupu-background)",
         color: textColor,
         overflow: "hidden",
         display: "flex",

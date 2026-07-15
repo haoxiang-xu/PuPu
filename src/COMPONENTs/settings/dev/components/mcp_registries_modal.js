@@ -251,8 +251,7 @@ const McpRegistriesModal = ({ open, onClose, isDark }) => {
         maxHeight: "84vh",
         padding: 0,
         overflow: "hidden",
-        backgroundColor: isDark ? "#141414" : "#ffffff",
-        color: isDark ? "#fff" : "#222",
+        color: "var(--pupu-text)",
         display: "flex",
         flexDirection: "column",
       }}

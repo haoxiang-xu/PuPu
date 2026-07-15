@@ -272,7 +272,7 @@ const SegmentedButton = ({
     const color = theme?.color ?? (isDark ? "#ddd" : "#222");
     const indicatorBg = isDark
       ? "rgba(255,255,255,0.12)"
-      : "rgba(255,255,255,0.92)";
+      : "rgba(var(--pupu-background-rgb),0.92)";
     const indicatorShadow = isDark
       ? "0 2px 6px rgba(0,0,0,0.35), 0 0.5px 1px rgba(0,0,0,0.2)"
       : "0 2px 6px rgba(0,0,0,0.10), 0 0.5px 1px rgba(0,0,0,0.06)";

@@ -47,7 +47,7 @@ const RailItem = ({
     >
       <ScaleHighlight
         visible={active || (hovered && !dimmed)}
-        color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+        color={isDark ? "rgba(var(--pupu-text-rgb),0.10)" : "rgba(var(--pupu-text-rgb),0.06)"}
         borderRadius={12}
       />
       <span
@@ -103,9 +103,7 @@ const RailItem = ({
             height: 6,
             borderRadius: "50%",
             backgroundColor: accentColor,
-            border: `1.5px solid ${
-              isDark ? "rgba(28,28,28,1)" : "rgba(252,252,252,1)"
-            }`,
+            border: "1.5px solid rgb(var(--pupu-surface-rgb))",
             zIndex: 1,
           }}
         />
@@ -1141,8 +1139,8 @@ const Select = ({
 
   /* one hover pill gliding between rows (palette lists) */
   const slidingHoverColor = isDark
-    ? "rgba(255,255,255,0.10)"
-    : "rgba(0,0,0,0.06)";
+    ? "rgba(var(--pupu-text-rgb),0.10)"
+    : "rgba(var(--pupu-text-rgb),0.06)";
   const slidingMeasureKey = `${query}|${flatSelectable.length}|${
     flatSelectable[0]?.value ?? ""
   }`;
@@ -1234,11 +1232,11 @@ const Select = ({
               maxWidth: "calc(100vw - 40px)",
               padding: 8,
               backgroundColor: isDark
-                ? "rgba(28,28,28,0.85)"
-                : "rgba(252,252,252,0.9)",
+                ? "rgba(var(--pupu-surface-rgb),0.85)"
+                : "rgba(var(--pupu-surface-rgb),0.9)",
               border: isDark
-                ? "1px solid rgba(255,255,255,0.10)"
-                : "1px solid rgba(0,0,0,0.09)",
+                ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+                : "1px solid rgba(var(--pupu-text-rgb),0.09)",
               borderRadius: 22,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
@@ -1312,9 +1310,7 @@ const Select = ({
               gap: 4,
               paddingRight: 5,
               marginRight: 7,
-              borderRight: `1px solid ${
-                isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"
-              }`,
+              borderRight: "1px solid rgba(var(--pupu-text-rgb),0.06)",
             }}
           >
             {filteredGroups.map((g) => (

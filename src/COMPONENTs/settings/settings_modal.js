@@ -43,7 +43,7 @@ export const SettingsModal = ({ open, onClose }) => {
         height: 600,
         maxHeight: "80vh",
         padding: 0,
-        backgroundColor: "var(--pupu-surface)",
+        backgroundColor: "var(--pupu-background)",
         color: "var(--pupu-text)",
         display: "flex",
         overflow: "hidden",

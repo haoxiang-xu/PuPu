@@ -22,6 +22,16 @@ const SHELL_FILES = [
   "src/COMPONENTs/init-setup/steps/configure_providers.js",
   "src/COMPONENTs/init-setup/steps/workspace.js",
   "src/COMPONENTs/init-setup/steps/completion.js",
+  // P4 Task 1 — modal card background migration (2026-07-14)
+  "src/COMPONENTs/workspace/workspace_modal.js",
+  "src/COMPONENTs/agents/pages/recipes_page/subagent_picker.js",
+  "src/COMPONENTs/settings/dev/components/mcp_registries_modal.js",
+  "src/COMPONENTs/settings/model_providers/components/confirm_delete_api_key_modal.js",
+  "src/COMPONENTs/settings/settings_modal_content.js",
+  "src/COMPONENTs/ui-testing/ui_testing_modal.js",
+  "src/COMPONENTs/memory-inspect/memory_inspect_modal.js",
+  // F1 — agents modal card, missed in the P4 Task 1 sweep (2026-07-14)
+  "src/COMPONENTs/agents/agents_modal.js",
 ];
 
 // A line is a candidate if it BOTH mentions a background sink (a `background:` /
