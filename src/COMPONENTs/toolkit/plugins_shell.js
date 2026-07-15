@@ -573,15 +573,13 @@ export const PluginsShell = ({
 
       {/* ── Content ── */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        <div
-          className="scrollable"
-          style={{
-            position: "absolute",
-            inset: 0,
-            overflowY: "auto",
-            padding: "22px 26px 26px",
-          }}
-        >
+        {/* T3: the three list pages (Installed/Discover/Categories) now own
+           a fixed-header + scrollable-body split internally (mirrors
+           plugin_detail_page.js's own layout) so a page's title/search/pills
+           can stay pinned while its list scrolls — see mockup screen ③. This
+           wrapper used to own the scroll + padding for all of them; it now
+           just bounds the height and lets each page manage its own. */}
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {renderPage()}
         </div>
 

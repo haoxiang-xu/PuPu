@@ -9,7 +9,8 @@ import { withMcpStoreIcon } from "../../../SERVICEs/mcp_toolkit_store";
 import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 import { toPluginPresentation } from "../../../SERVICEs/plugin_presentation";
 import { isBaseToolkitId } from "../utils/plugin_actions";
-import { ToolkitIconFrame } from "../components/toolkit_icon";
+import PluginListRow from "../components/plugin_list_row";
+import { SettingsSection } from "../../settings/appearance";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
@@ -20,13 +21,20 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 
 /**
- * PluginsInstalledPage — App Store "Installed" screen.
+ * PluginsInstalledPage — settings-isomorphic "Installed" screen (T3).
+ * Ground truth: mockup screen ③ — a fixed 22px/600 title + search, and a
+ * scrollable body of two SettingsSections ("Built-in" / "MCP") grouping
+ * plugin_list_row rows by source, right-slotted with the auto-enable
+ * SemiSwitch. There is no update-detection mechanism in the codebase today
+ * (grepped mcp_toolkit_store.js / mcp_install.js) so the mockup's UPDATE
+ * pill is omitted per the plan's "keep existing detection, else omit"
+ * clause rather than faked.
  *
- * Behavior (install/delete/auto-enable/reload) is lifted verbatim from
- * `toolkit_installed_page.js`; only the presentation changed — plugin
- * vocabulary via `toPluginPresentation`, and a leaner row (icon + name +
- * command chip + tagline + switch, no inline delete — delete now lives in
- * the plugin detail page, reached via `onOpenDetail`).
+ * Behavior (catalog load/filter/toggle-write-back/refresh-subscription) is
+ * unchanged from the App Store version this replaces — only the
+ * presentation (fixed header, source-grouped sections, plugin_list_row
+ * instead of an inline row) changed. Delete still lives entirely in the
+ * plugin detail page, reached via `onOpenDetail`.
  */
 const PluginsInstalledPage = ({
   isDark,
@@ -131,10 +139,18 @@ const PluginsInstalledPage = ({
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const titleFontFamily = theme?.font?.titleFontFamily || fontFamily;
-  const primaryText = isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.85)";
   const tertiaryText = isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.35)";
-  const chipColor = isDark ? "#7c8cf8" : "#2563eb";
   const dividerColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+
+  /* Source grouping (T3) — mockup screen ③ splits Installed into a
+     "Built-in" section (source builtin/local, i.e. everything that isn't
+     an MCP install) and an "MCP" section (source mcp / mcp_registry). */
+  const builtinRows = filteredRows.filter(
+    ({ toolkit: tk }) => !String(tk.source || "").startsWith("mcp"),
+  );
+  const mcpRows = filteredRows.filter(({ toolkit: tk }) =>
+    String(tk.source || "").startsWith("mcp"),
+  );
 
   if (loading) return <SuspenseFallback minHeight={160} />;
 
@@ -160,7 +176,7 @@ const PluginsInstalledPage = ({
         fontFamily,
         color: tertiaryText,
         cursor: "pointer",
-        marginTop: 18,
+        marginTop: 6,
         paddingTop: 12,
         borderTop: `1px solid ${dividerColor}`,
       }}
@@ -183,137 +199,92 @@ const PluginsInstalledPage = ({
     );
   }
 
+  const renderRow = ({ toolkit: tk, presentation }) => (
+    <PluginListRow
+      key={tk.toolkitId}
+      icon={tk.toolkitIcon}
+      isDark={isDark}
+      name={presentation.name}
+      command={presentation.commands[0]?.name}
+      description={presentation.tagline}
+      fallbackColor={presentation.sourceBadge?.color}
+      onOpenDetail={() => onOpenDetail?.({ ...presentation, raw: tk })}
+      testId={`installed-row-${tk.toolkitId}`}
+    >
+      <Tooltip
+        label={t("toolkit.auto_enable_card")}
+        position="top"
+        style={{ whiteSpace: "nowrap" }}
+        wrapper_style={{ flexShrink: 0 }}
+      >
+        <SemiSwitch
+          on={Boolean(tk.defaultEnabled)}
+          set_on={(val) => handleToggleEnabled(tk.toolkitId, val)}
+          style={{ width: 44, height: 25 }}
+        />
+      </Tooltip>
+    </PluginListRow>
+  );
+
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "0 0 16px" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* ── Fixed header — 22px/600 title + search, ported to plugin_list_row
+           semantics but pinned above the scrollable body (settings_modal_content.js's
+           own title+content split). ── */}
+      <div style={{ flexShrink: 0, padding: "20px 26px 0" }}>
         <span
           style={{
-            fontSize: 24,
-            fontWeight: 700,
-            letterSpacing: "-0.02em",
+            fontSize: 22,
+            fontWeight: 600,
+            letterSpacing: "-0.01em",
             fontFamily: titleFontFamily,
             color: isDark ? "#ffffff" : "#1c1c21",
           }}
         >
           {t("toolkit.installed_title")}
         </span>
-        <span style={{ fontSize: 12.5, fontFamily, color: tertiaryText }}>
-          {t("toolkit.installed_count", { count: filteredRows.length })}
-        </span>
+
+        <Input
+          prefix_icon="search"
+          value={search}
+          set_value={(value) => setSearch(value)}
+          placeholder={t("toolkit.search_placeholder")}
+          style={{
+            width: "100%",
+            fontSize: 12.5,
+            fontFamily,
+            borderRadius: 7,
+            color: isDark ? "#fff" : "#222",
+            paddingVertical: 7,
+            paddingHorizontal: 10,
+            marginTop: 12,
+            marginBottom: 4,
+          }}
+        />
       </div>
 
-      <Input
-        prefix_icon="search"
-        value={search}
-        set_value={(value) => setSearch(value)}
-        placeholder={t("toolkit.search_placeholder")}
-        style={{
-          width: "100%",
-          fontSize: 13,
-          fontFamily,
-          borderRadius: 7,
-          color: isDark ? "#fff" : "#222",
-          paddingVertical: 7,
-          paddingHorizontal: 10,
-          marginBottom: 14,
-        }}
-      />
-
-      {filteredRows.length === 0 && (
-        <div style={{ fontSize: 12, fontFamily, color: tertiaryText, padding: "16px 4px" }}>
-          {t("toolkit.installed_no_matches")}
-        </div>
-      )}
-
-      {filteredRows.map(({ toolkit: tk, presentation }, idx) => {
-        const firstCommand = presentation.commands[0];
-        return (
-          <div
-            key={tk.toolkitId}
-            onClick={() => onOpenDetail?.({ ...presentation, raw: tk })}
-            style={{
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 13,
-              padding: "11px 4px",
-              borderBottom:
-                idx === filteredRows.length - 1 ? "none" : `1px solid ${dividerColor}`,
-            }}
-          >
-            <ToolkitIconFrame
-              icon={tk.toolkitIcon}
-              isDark={isDark}
-              size={40}
-              iconSize={20}
-              borderRadius={11}
-              fallbackColor={presentation.sourceBadge?.color}
-            />
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 0 }}>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    fontFamily,
-                    color: primaryText,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {presentation.name}
-                </span>
-                {firstCommand && (
-                  <span
-                    style={{
-                      fontFamily: "ui-monospace, Menlo, monospace",
-                      fontSize: 10,
-                      color: chipColor,
-                      marginLeft: 7,
-                    }}
-                  >
-                    {firstCommand.name}
-                  </span>
-                )}
-              </div>
-              {presentation.tagline && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontFamily,
-                    color: tertiaryText,
-                    marginTop: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {presentation.tagline}
-                </div>
-              )}
-            </div>
-
-            <div onClick={(e) => e.stopPropagation()}>
-              <Tooltip
-                label={t("toolkit.auto_enable_card")}
-                position="top"
-                style={{ whiteSpace: "nowrap" }}
-                wrapper_style={{ flexShrink: 0 }}
-              >
-                <SemiSwitch
-                  on={Boolean(tk.defaultEnabled)}
-                  set_on={(val) => handleToggleEnabled(tk.toolkitId, val)}
-                  style={{ width: 44, height: 25 }}
-                />
-              </Tooltip>
-            </div>
+      {/* ── Scrollable body — Built-in / MCP SettingsSections + footer. ── */}
+      <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 26px 26px" }}>
+        {filteredRows.length === 0 && (
+          <div style={{ fontSize: 12, fontFamily, color: tertiaryText, padding: "16px 0" }}>
+            {t("toolkit.installed_no_matches")}
           </div>
-        );
-      })}
+        )}
 
-      {customMcpFooter}
+        {builtinRows.length > 0 && (
+          <SettingsSection title={t("toolkit.source_builtin")}>
+            {builtinRows.map(renderRow)}
+          </SettingsSection>
+        )}
+
+        {mcpRows.length > 0 && (
+          <SettingsSection title={t("toolkit.source_mcp")}>
+            {mcpRows.map(renderRow)}
+          </SettingsSection>
+        )}
+
+        {customMcpFooter}
+      </div>
     </div>
   );
 };

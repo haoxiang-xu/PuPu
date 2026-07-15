@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import PluginsDiscoverPage from "./plugins_discover_page";
 import api from "../../../SERVICEs/api";
 import { loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
@@ -112,33 +112,43 @@ const renderPage = async (props = {}) => {
   return rendered;
 };
 
-describe("PluginsDiscoverPage — featured hero", () => {
-  beforeEach(() => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
-    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
-    loadStoreCuration.mockReturnValue(FULL_CURATION);
-  });
+/* Finds the SettingsSection container for a given header text — the header
+   span's grandparent div is the section wrapper that also holds the body
+   (see appearance.js's SettingsSection: outer div > [header div, body div]). */
+const sectionFor = (headerText) => screen.getByText(headerText).closest("div").parentElement;
 
-  test("renders the featured headline", async () => {
+describe("PluginsDiscoverPage — title", () => {
+  test("renders the fixed 'Discover' title", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+    listMcpStoreEntries.mockReturnValue([]);
+    loadStoreCuration.mockReturnValue({ featured: null, essentials: [], collections: [] });
+
     await renderPage();
-    expect(screen.getByText("Plan before you build")).toBeInTheDocument();
+
+    expect(screen.getByText("Discover")).toBeInTheDocument();
   });
 });
 
-describe("PluginsDiscoverPage — Essentials order", () => {
+describe("PluginsDiscoverPage — Featured section", () => {
   beforeEach(() => {
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
     listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
     loadStoreCuration.mockReturnValue(FULL_CURATION);
   });
 
-  test("essentials tiles render in curation order (GitHub before Notion)", async () => {
+  test("renders the curated featured plugin and the essentials as rows, in curation order", async () => {
     await renderPage();
-    const rail = screen.getByTestId("essentials-rail");
-    const names = within(rail)
-      .getAllByTestId(/^tile-name-/)
-      .map((el) => el.textContent);
-    expect(names).toEqual(["GitHub", "Notion"]);
+
+    const section = sectionFor("Featured");
+    const names = within(section)
+      .getAllByTestId(/^discover-row-/)
+      .map((row) => row.textContent);
+    /* Featured (Plan) first, then essentials in curated order (GitHub, then
+       Notion) — each row's textContent includes name + description, so
+       assert order via a prefix match. */
+    expect(names[0]).toMatch(/^Plan/);
+    expect(names[1]).toMatch(/^GitHub/);
+    expect(names[2]).toMatch(/^Notion/);
   });
 });
 
@@ -149,20 +159,17 @@ describe("PluginsDiscoverPage — Collections", () => {
     loadStoreCuration.mockReturnValue(FULL_CURATION);
   });
 
-  test("renders one collection card per curated collection with its gradient", async () => {
+  test("renders one SettingsSection per curated collection, with its plugins as rows", async () => {
     await renderPage();
-    const card = screen.getByTestId("collection-web-research-kit");
-    expect(card).toBeInTheDocument();
-    /* jsdom can't parse linear-gradient() in its CSSOM, so the curated
-       gradient is asserted via a data attribute rather than computed style —
-       see the component's comment on `data-gradient`. */
-    expect(card.getAttribute("data-gradient")).toBe("#4cbe8b,#2f9a68");
-    expect(screen.getByText("Web Research Kit")).toBeInTheDocument();
+
+    const section = sectionFor("Web Research Kit");
+    expect(within(section).getByText("Notion")).toBeInTheDocument();
+    expect(within(section).getByText("GitHub")).toBeInTheDocument();
   });
 });
 
 describe("PluginsDiscoverPage — curation tolerance", () => {
-  test("missing curation pluginIds skip silently and an all-missing featured omits the hero", async () => {
+  test("missing curation pluginIds skip silently and an all-missing curation omits every section", async () => {
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
     listMcpStoreEntries.mockReturnValue([]);
     loadStoreCuration.mockReturnValue({
@@ -187,9 +194,9 @@ describe("PluginsDiscoverPage — curation tolerance", () => {
 
     await renderPage();
 
-    expect(screen.queryByText("Should Not Render")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("discover-hero")).not.toBeInTheDocument();
+    expect(screen.queryByText("Featured")).not.toBeInTheDocument();
     expect(screen.queryByText("Ghost")).not.toBeInTheDocument();
+    expect(screen.getByText("Discover")).toBeInTheDocument();
   });
 
   test("empty curation object does not crash the page", async () => {
@@ -199,7 +206,8 @@ describe("PluginsDiscoverPage — curation tolerance", () => {
 
     await renderPage();
 
-    expect(screen.queryByTestId("discover-hero")).not.toBeInTheDocument();
+    expect(screen.queryByText("Featured")).not.toBeInTheDocument();
+    expect(screen.getByText("Discover")).toBeInTheDocument();
   });
 });
 
@@ -216,9 +224,10 @@ describe("PluginsDiscoverPage — vocabulary", () => {
   });
 });
 
-/* C2 regression: a secrets-backed featured entry's hero pill reads
-   "Set up" — clicking it must open detail instead of firing a secretless
-   install (same opensSetup gating the tile pill got restored). */
+/* C2 regression: a secrets-backed featured entry's row pill reads "Set up"
+   — clicking it must open detail instead of firing a secretless install
+   (same opensSetup gating the old tile pill had, now in
+   PluginInstallPill). */
 const SECRET_ENTRY = {
   id: "browser-use-local",
   toolkitId: "mcp.browser.browser-use-local",
@@ -233,8 +242,8 @@ const SECRET_ENTRY = {
   tools: [],
 };
 
-describe("PluginsDiscoverPage — hero Set-up gating", () => {
-  test("a secrets-backed featured entry's hero pill opens detail instead of installing", async () => {
+describe("PluginsDiscoverPage — Set-up gating", () => {
+  test("a secrets-backed featured entry's row pill opens detail instead of installing", async () => {
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
     listMcpStoreEntries.mockReturnValue([SECRET_ENTRY]);
     const onInstall = jest.fn();
@@ -260,40 +269,6 @@ describe("PluginsDiscoverPage — hero Set-up gating", () => {
 
     expect(onInstall).not.toHaveBeenCalled();
     expect(onOpenDetail).toHaveBeenCalledWith("browser-use-local");
-  });
-});
-
-describe("PluginsDiscoverPage — Get all skips Set-up entries", () => {
-  test("installs the plain entries, skips the secrets-backed one, and opens its detail", async () => {
-    const onInstall = jest.fn(() => Promise.resolve());
-    const onOpenDetail = jest.fn();
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([GITHUB_ENTRY, SECRET_ENTRY]);
-    loadStoreCuration.mockReturnValue({
-      featured: null,
-      essentials: [],
-      collections: [
-        {
-          id: "mixed-kit",
-          title: "Mixed Kit",
-          blurb: "b",
-          gradient: ["#111111", "#222222"],
-          pluginIds: ["mcp.dev.github-remote", "mcp.browser.browser-use-local"],
-        },
-      ],
-    });
-
-    await renderPage({ onInstall, onOpenDetail });
-
-    await act(async () => {
-      fireEvent.click(screen.getByText("Get all"));
-    });
-
-    await waitFor(() => expect(onOpenDetail).toHaveBeenCalledWith("browser-use-local"));
-    expect(onInstall).toHaveBeenCalledTimes(1);
-    expect(onInstall).toHaveBeenCalledWith(
-      expect.objectContaining({ toolkitId: "mcp.dev.github-remote" }),
-    );
   });
 });
 

@@ -83,6 +83,17 @@ const renderPage = (props = {}) => {
   );
 };
 
+describe("PluginsCategoriesPage — fixed header", () => {
+  test("renders the 22px title and a row per matched entry", () => {
+    renderPage();
+
+    expect(screen.getByText("Categories")).toBeInTheDocument();
+    expect(screen.getByTestId("category-row-notion")).toBeInTheDocument();
+    expect(screen.getByTestId("category-row-github")).toBeInTheDocument();
+    expect(screen.getByText("/summarize")).toBeInTheDocument();
+  });
+});
+
 describe("PluginsCategoriesPage — pill filter", () => {
   test("category pill narrows the tile grid", () => {
     renderPage();

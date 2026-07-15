@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import PluginsInstalledPage from "./plugins_installed_page";
 import api from "../../../SERVICEs/api";
 import {
@@ -151,20 +151,29 @@ describe("PluginsInstalledPage", () => {
     expect(setDefaultToolkitEnabled).toHaveBeenCalledWith("global", "plan", true);
   });
 
-  /* T4c restoration: search + a count header — toolkit_installed_page.js had
-     both (an Input filtering by name/description/tool-names, and a
-     "{count} toolkits installed" header) and PluginsInstalledPage dropped
-     both when it replaced the old page. Ported behavior, vocabulary-safe
-     copy ("{count} installed" — no "toolkit(s)" word). */
-  describe("PluginsInstalledPage — search and count", () => {
-    test("renders a search input and a count header showing the total", async () => {
+  /* T3: two SettingsSections group rows by source — Built-in (builtin/local)
+     and MCP — matching mockup screen ③'s "Built-in" / "MCP" section
+     headers. */
+  describe("PluginsInstalledPage — source grouping", () => {
+    test("groups rows into a Built-in section and an MCP section", async () => {
+      await renderPage();
+
+      const builtinSection = screen.getByText("Built-in").closest("div").parentElement;
+      expect(within(builtinSection).getByText("Plan")).toBeInTheDocument();
+
+      const mcpSection = screen.getByText("mcp").closest("div").parentElement;
+      expect(within(mcpSection).getByText("Notion")).toBeInTheDocument();
+    });
+  });
+
+  describe("PluginsInstalledPage — search", () => {
+    test("renders a search input", async () => {
       await renderPage();
 
       expect(screen.getByPlaceholderText("Search plugins...")).toBeInTheDocument();
-      expect(screen.getByText("2 installed")).toBeInTheDocument();
     });
 
-    test("typing filters rows by name and updates the count", async () => {
+    test("typing filters rows by name", async () => {
       await renderPage();
 
       fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
@@ -173,7 +182,6 @@ describe("PluginsInstalledPage", () => {
 
       expect(screen.getByText("Notion")).toBeInTheDocument();
       expect(screen.queryByText("Plan")).not.toBeInTheDocument();
-      expect(screen.getByText("1 installed")).toBeInTheDocument();
     });
 
     test("typing filters rows by description and by command/tool name", async () => {
@@ -186,7 +194,7 @@ describe("PluginsInstalledPage", () => {
       expect(screen.queryByText("Plan")).not.toBeInTheDocument();
     });
 
-    test("a query with no matches shows nothing beyond the header", async () => {
+    test("a query with no matches shows no rows", async () => {
       await renderPage();
 
       fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
@@ -195,7 +203,6 @@ describe("PluginsInstalledPage", () => {
 
       expect(screen.queryByText("Plan")).not.toBeInTheDocument();
       expect(screen.queryByText("Notion")).not.toBeInTheDocument();
-      expect(screen.getByText("0 installed")).toBeInTheDocument();
     });
   });
 
