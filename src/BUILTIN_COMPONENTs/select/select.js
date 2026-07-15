@@ -1,4 +1,10 @@
-import { isValidElement, useContext, useEffect, useState } from "react";
+import {
+  isValidElement,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import {
   themeHighlightColor,
@@ -8,7 +14,10 @@ import Tooltip from "../tooltip/tooltip";
 import Icon from "../icon/icon";
 import ScaleHighlight from "../class/scale_highlight";
 import SlidingHighlight from "../class/sliding_highlight";
-import useSelect, { render_icon } from "./use_select";
+import useSelect, {
+  render_icon,
+  useDropdownWheelGuard,
+} from "./use_select";
 import OptionList, { OptionItem } from "./option_list";
 import { useTranslation } from "../mini_react/use_translation";
 
@@ -142,6 +151,8 @@ const SinkingSelect = ({
   const group_theme = select_theme?.group || {};
 
   const [isTriggerFocused, setIsTriggerFocused] = useState(false);
+  const dropdownPanelRef = useRef(null);
+  const dropdownListRef = useRef(null);
 
   const hook = useSelect({
     options,
@@ -179,6 +190,8 @@ const SinkingSelect = ({
     handle_key_down,
     handle_query_change,
   } = hook;
+
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
 
   const baseFontSize =
     style?.fontSize ?? select_theme?.fontSize ?? theme?.input?.fontSize ?? 16;
@@ -336,6 +349,7 @@ const SinkingSelect = ({
 
   const dropdownContent = (
     <div
+      ref={dropdownPanelRef}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -380,6 +394,7 @@ const SinkingSelect = ({
         />
       ) : null}
       <div
+        ref={dropdownListRef}
         id={listboxIdRef.current}
         role="listbox"
         className="scrollable"
@@ -468,6 +483,8 @@ const FloatingSelect = ({
 
   const [isTriggerFocused, setIsTriggerFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const dropdownPanelRef = useRef(null);
+  const dropdownListRef = useRef(null);
 
   const hook = useSelect({
     options,
@@ -505,6 +522,8 @@ const FloatingSelect = ({
     handle_key_down,
     handle_query_change,
   } = hook;
+
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
 
   /* ── card-like derived styles ── */
   const isDark = onThemeMode === "dark_mode";
@@ -682,6 +701,7 @@ const FloatingSelect = ({
 
   const dropdownContent = (
     <div
+      ref={dropdownPanelRef}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -725,6 +745,7 @@ const FloatingSelect = ({
         />
       ) : null}
       <div
+        ref={dropdownListRef}
         id={listboxIdRef.current}
         role="listbox"
         className="scrollable"
@@ -875,6 +896,8 @@ const Select = ({
 
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const dropdownPanelRef = useRef(null);
+  const dropdownListRef = useRef(null);
 
   const hook = useSelect({
     options,
@@ -913,6 +936,8 @@ const Select = ({
     handle_key_down,
     handle_query_change,
   } = hook;
+
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
 
   useEffect(() => {
     if (!disabled) return;
@@ -1221,6 +1246,7 @@ const Select = ({
 
   const dropdownContent = (
     <div
+      ref={dropdownPanelRef}
       style={
         isPalette
           ? {
@@ -1336,6 +1362,7 @@ const Select = ({
           {/* flat rows of the visible pool (= flatSelectable, so keyboard
               highlight indices line up 1:1); provider tag while searching */}
           <div
+            ref={dropdownListRef}
             id={listboxIdRef.current}
             role="listbox"
             className="scrollable"
@@ -1411,6 +1438,7 @@ const Select = ({
         </div>
       ) : (
       <div
+        ref={dropdownListRef}
         id={listboxIdRef.current}
         role="listbox"
         className="scrollable"

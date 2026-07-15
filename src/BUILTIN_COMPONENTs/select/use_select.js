@@ -175,6 +175,60 @@ export const rebuild_flat_selectable = (
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *  useDropdownWheelGuard
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/**
+ * All three Select variants render their dropdown INLINE (no portal),
+ * absolutely positioned inside whatever scroll container hosts the
+ * Select. Wheel input over the open panel must never chain to that host
+ * container — either because the option list has too few rows to
+ * overflow (so it never becomes a scroll boundary) or because the wheel
+ * lands on chrome (padding, group headers, the search row) outside the
+ * list entirely.
+ *
+ * Must attach via a real, non-passive `addEventListener("wheel", ...)`.
+ * React registers its synthetic `onWheel` passively at the delegation
+ * root, so `preventDefault()` inside a JSX `onWheel` handler is a silent
+ * no-op. Attaching directly to the panel DOM node also lets us
+ * `stopPropagation()` — needed because Tooltip's own `onWheel` (an
+ * ancestor of this panel) imperatively forwards any unconsumed wheel
+ * delta to the trigger's nearest scrollable ancestor regardless of
+ * `defaultPrevented` (see tooltip.js `handle_tooltip_wheel`); without
+ * stopping propagation here that forward would still fire and the
+ * chaining bug would persist even though this guard "blocked" it.
+ */
+export const useDropdownWheelGuard = (open, panelRef, listRef) => {
+  useEffect(() => {
+    if (!open) return undefined;
+    const panel = panelRef.current;
+    if (!panel) return undefined;
+    const handle_wheel = (e) => {
+      const list = listRef.current;
+      if (!list || !list.contains(e.target)) {
+        // wheel over dropdown chrome (padding, group headers, search row)
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      const canScroll = list.scrollHeight > list.clientHeight;
+      const atTop = list.scrollTop <= 0 && e.deltaY < 0;
+      const atBottom =
+        list.scrollTop + list.clientHeight >= list.scrollHeight - 1 &&
+        e.deltaY > 0;
+      if (!canScroll || atTop || atBottom) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      // otherwise: list can still scroll in this direction — let the
+      // native scroll happen naturally, no chaining risk either way.
+    };
+    panel.addEventListener("wheel", handle_wheel, { passive: false });
+    return () => panel.removeEventListener("wheel", handle_wheel);
+  }, [open, panelRef, listRef]);
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *  useSelect hook
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
