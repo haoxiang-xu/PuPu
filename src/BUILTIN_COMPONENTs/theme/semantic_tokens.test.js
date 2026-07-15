@@ -60,14 +60,14 @@ describe("semantic_tokens", () => {
   test("only high_contrast opts into a details bag (chipBorder for the softened border family)", () => {
     expect(SEMANTIC_PRESETS.high_contrast.details).toEqual({
       light_mode: {
-        chipBorder: "rgba(107,107,107,0.55)",
-        menuBorder: "rgba(107,107,107,0.7)",
-        cardBorder: "rgba(107,107,107,0.6)",
+        chipBorder: "rgba(107,107,107,0.35)",
+        menuBorder: "rgba(107,107,107,0.45)",
+        cardBorder: "rgba(107,107,107,0.4)",
       },
       dark_mode: {
-        chipBorder: "rgba(138,138,138,0.55)",
-        menuBorder: "rgba(138,138,138,0.7)",
-        cardBorder: "rgba(138,138,138,0.6)",
+        chipBorder: "rgba(138,138,138,0.35)",
+        menuBorder: "rgba(138,138,138,0.45)",
+        cardBorder: "rgba(138,138,138,0.4)",
       },
     });
     for (const name of Object.keys(SEMANTIC_PRESETS)) {
