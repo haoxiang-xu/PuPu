@@ -290,6 +290,7 @@ const SegmentedButton = ({
         padding: outerPad,
         borderRadius,
         backgroundColor: colors.bg,
+        border: "1px solid var(--pupu-border-mid)",
         boxShadow: colors.shadow,
         userSelect: "none",
         WebkitUserSelect: "none",

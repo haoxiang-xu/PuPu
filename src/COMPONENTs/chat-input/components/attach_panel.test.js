@@ -361,7 +361,7 @@ describe("attach panel semantic surface binding", () => {
     expect(src).toMatch(/panelBg = isDark[\s\S]{0,140}var\(--pupu-surface-rgb\)/);
     // pill overlay follows the neutral-overlay policy (text tier + alpha)
     expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
-    // floating pill hairline border binds the text tier (same family as minimap snapLine)
-    expect(src).toMatch(/border: floating[\s\S]{0,200}var\(--pupu-text-rgb\)/);
+    // floating pill hairline border binds the mid border-strength tier (input-family)
+    expect(src).toMatch(/border: floating[\s\S]{0,80}var\(--pupu-border-mid\)/);
   });
 });

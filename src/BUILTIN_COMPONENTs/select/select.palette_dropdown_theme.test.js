@@ -27,10 +27,8 @@ describe("select.js palette-variant dropdown follows semantic tiers", () => {
     );
   });
 
-  test("isPalette dropdown panel: hairline border binds to text tier (neutral overlay)", () => {
-    expect(src).toMatch(
-      /border: isDark\s*\n\s*\? "1px solid rgba\(var\(--pupu-text-rgb\),0\.10\)"\s*\n\s*: "1px solid rgba\(var\(--pupu-text-rgb\),0\.09\)"/,
-    );
+  test("isPalette dropdown panel: hairline border binds to the mid border-strength tier (three-tier border strength)", () => {
+    expect(src).toMatch(/border: "1px solid var\(--pupu-border-mid\)"/);
   });
 
   test("isPalette dropdown panel: boxShadow stays black-based (unaffected by theme)", () => {

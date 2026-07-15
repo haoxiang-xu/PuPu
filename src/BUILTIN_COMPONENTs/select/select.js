@@ -1260,9 +1260,7 @@ const Select = ({
               backgroundColor: isDark
                 ? "rgba(var(--pupu-surface-rgb),0.85)"
                 : "rgba(var(--pupu-surface-rgb),0.9)",
-              border: isDark
-                ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
-                : "1px solid rgba(var(--pupu-text-rgb),0.09)",
+              border: "1px solid var(--pupu-border-mid)",
               borderRadius: 22,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",

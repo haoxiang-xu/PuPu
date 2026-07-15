@@ -18,7 +18,7 @@ const usePalette = (isDark) => {
   const secondary = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
   const cardBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
   const rowBg = isDark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.035)";
-  const border = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const border = "var(--pupu-border-subtle)";
   const hoverBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
   return { primary, secondary, cardBg, rowBg, border, hoverBg };
 };

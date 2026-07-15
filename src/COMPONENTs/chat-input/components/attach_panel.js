@@ -519,11 +519,7 @@ const AttachPanel = forwardRef(({
           backgroundColor: panelBg,
           /* constant 1px keeps geometry stable across the floating toggle */
           border: floating
-            ? `1px solid ${
-                isDark
-                  ? "rgba(var(--pupu-text-rgb),0.10)"
-                  : "rgba(var(--pupu-text-rgb),0.09)"
-              }`
+            ? "1px solid var(--pupu-border-mid)"
             : "1px solid transparent",
           ...(floating
             ? {

@@ -59,11 +59,7 @@ const FloatingTextField = ({
     tf.backgroundColor ??
     (isDark ? "rgba(30,30,30,0.95)" : "rgba(255,255,255,0.95)");
   const border =
-    style?.border ||
-    tf.border ||
-    (isDark
-      ? "1px solid rgba(255,255,255,0.08)"
-      : "1px solid rgba(0,0,0,0.06)");
+    style?.border || tf.border || "1px solid var(--pupu-border-mid)";
   const shadow =
     style?.boxShadow ||
     tf.boxShadow ||
