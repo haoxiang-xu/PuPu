@@ -26,6 +26,11 @@ describe("cardBorder details channel bindings", () => {
     expect(src).toContain(CARD_BORDER_VAR);
   });
 
+  test("code block container binds the card border", () => {
+    const src = read("../../BUILTIN_COMPONENTs/code/code.js");
+    expect(src).toContain(CARD_BORDER_VAR);
+  });
+
   test("files_changed_card outer container binds --pupu-card-border", () => {
     const src = read("artifact-summary/files_changed_card.js");
     expect(src).toContain(CARD_BORDER_VAR);

@@ -237,6 +237,7 @@ const Code = ({
         flexDirection: "column",
         overflow: "hidden",
         backgroundColor: bgColor,
+        border: "1px solid var(--pupu-card-border, transparent)",
         borderRadius,
         margin: 0,
         ...style,
