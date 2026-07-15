@@ -36,6 +36,15 @@ Auth is enforced in **two distinct layers**:
 | GET | `/toolkits/catalog/v2` | Toolkit catalog V2 (richer metadata, per-tool details) |
 | GET | `/toolkits/<toolkit_id>/metadata` | Individual toolkit metadata by ID |
 
+## Custom Model Providers
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/models/custom-providers/test` | Connectivity probe for a user-defined provider (design: `docs/features/custom-model-providers.md` §7.6) |
+
+Request body: `{ "custom_provider": <definition>, "api_key": "<one-shot, never persisted>" }`.
+Response is always HTTP 200 with `{ "ok": true, "latency_ms": <int>, "model": "<id>" }` on success or `{ "ok": false, "error": { "code", "message" } }` on failure (`provider_unreachable` / `provider_timeout` / `provider_auth_failed` / `provider_bad_response` / `custom_provider_*` validation codes). Error messages are secret-redacted server-side.
+
 ---
 
 ## Chat
@@ -246,6 +255,7 @@ The routes are split across module files. `routes.py` is now an **aggregator** (
 | `route_blueprint.py` | (blueprint def) | defines the shared `api_blueprint` |
 | `route_auth.py` | (utilities) | `reject_non_loopback_requests`, `_is_authorized`, `_json_error` |
 | `route_catalog.py` | `/health`, `/models`, `/toolkits` | catalog + health |
+| `route_providers.py` | `/models/custom-providers` | custom provider connectivity test |
 | `route_chat.py` | `/chat/*` | stream v1/v2/v4 + tool confirmation |
 | `route_characters.py` | `/characters/*` | character CRUD + build/import/export |
 | `route_memory.py` | `/memory/*` | session replace/export |
