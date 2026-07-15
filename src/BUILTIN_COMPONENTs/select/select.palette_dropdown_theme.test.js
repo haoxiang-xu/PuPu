@@ -63,3 +63,14 @@ describe("select.js palette-variant dropdown follows semantic tiers", () => {
     );
   });
 });
+
+describe("dropdown panels carry the mid-tier border", () => {
+  test("all three variant panels bind var(--pupu-border-mid)", () => {
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "select.js"),
+      "utf8",
+    );
+    const hits = src.match(/border: "1px solid var\(--pupu-border-mid\)"/g) || [];
+    expect(hits.length).toBeGreaterThanOrEqual(3);
+  });
+});

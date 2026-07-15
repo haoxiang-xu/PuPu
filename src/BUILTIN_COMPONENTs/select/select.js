@@ -362,6 +362,7 @@ const SinkingSelect = ({
           dropdown_theme?.backgroundColor ??
           theme?.backgroundColor ??
           "white",
+        border: "1px solid var(--pupu-border-mid)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
         boxShadow:
@@ -713,6 +714,7 @@ const FloatingSelect = ({
           dropdown_theme?.backgroundColor ??
           theme?.backgroundColor ??
           "white",
+        border: "1px solid var(--pupu-border-mid)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
         boxShadow:
