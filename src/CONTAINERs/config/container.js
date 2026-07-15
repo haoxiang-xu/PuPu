@@ -43,6 +43,7 @@ import {
   resolveSemanticPalette,
   applySemanticCssVars,
   applySemanticPaletteToTheme,
+  resolveThemeDetails,
 } from "./theme_semantic";
 import { readThemeSettings } from "../../COMPONENTs/settings/appearance/storage";
 import {
@@ -259,6 +260,11 @@ const applyInitialSemanticVars = () => {
         preset: themeSettings.preset,
         custom: themeSettings.custom,
       }),
+      undefined,
+      resolveThemeDetails(mode, {
+        preset: themeSettings.preset,
+        details: themeSettings.details,
+      }),
     );
   } catch {}
 };
@@ -342,7 +348,17 @@ const ConfigContainer = ({ children }) => {
       );
       const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
       setTheme(nextTheme);
-      applySemanticCssVars(nextTheme.semantic);
+      const themeSettings = themeColorCustomizationEnabled
+        ? readThemeSettings()
+        : defaultThemeColorSettings();
+      applySemanticCssVars(
+        nextTheme.semantic,
+        undefined,
+        resolveThemeDetails(onThemeMode, {
+          preset: themeSettings.preset,
+          details: themeSettings.details,
+        }),
+      );
       if (typeof document !== "undefined") {
         document.documentElement.style.setProperty(
           "--pupu-font-family",

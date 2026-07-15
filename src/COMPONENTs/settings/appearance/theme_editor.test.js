@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ThemeEditor from "./theme_editor";
-import { readThemeSettings } from "./storage";
+import { readThemeSettings, writeThemeDetails } from "./storage";
 
 jest.mock("../../../SERVICEs/toast", () => ({
   toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() },
@@ -303,4 +303,21 @@ describe("ThemeEditor", () => {
   // still persists exactly once. Already covered end-to-end by
   // "reset requires a second confirming click" above, which performs this
   // exact sequence and asserts the single committed value.
+
+  test("stored JSON details channel survives edits (chipBorder stays applied after a commit)", () => {
+    writeThemeDetails({ dark_mode: { chipBorder: "#ff0000" } });
+    renderWithCtx({ onThemeMode: "dark_mode" });
+
+    // Commit an unrelated color edit — details must not be dropped.
+    fireEvent.click(screen.getByRole("button", { name: "Accent" }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#112233" },
+    });
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+
+    expect(
+      document.documentElement.style.getPropertyValue("--pupu-chip-border"),
+    ).toBe("#ff0000");
+    expect(readThemeSettings().details.dark_mode.chipBorder).toBe("#ff0000");
+  });
 });

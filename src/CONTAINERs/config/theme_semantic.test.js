@@ -5,6 +5,8 @@ import {
   applySemanticCssVars,
   applySemanticPaletteToTheme,
   BORDER_TIER_ALPHA,
+  DETAIL_DEFAULTS,
+  resolveThemeDetails,
 } from "./theme_semantic";
 import { SEMANTIC_DEFAULTS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 
@@ -104,12 +106,109 @@ describe("applySemanticPaletteToTheme modal border uses BORDER_TIER_ALPHA.strong
   });
 });
 
+describe("DETAIL_DEFAULTS", () => {
+  test("holds the fallback details values (chipBorder transparent + tier alphas)", () => {
+    expect(DETAIL_DEFAULTS).toEqual({
+      chipBorder: "transparent",
+      borderAlphaStrong: BORDER_TIER_ALPHA.strong,
+      borderAlphaMid: BORDER_TIER_ALPHA.mid,
+      borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
+    });
+  });
+});
+
+describe("resolveThemeDetails", () => {
+  test("returns defaults when no preset/details given", () => {
+    expect(resolveThemeDetails("light_mode", {})).toEqual(DETAIL_DEFAULTS);
+  });
+
+  test("preset details override defaults (high_contrast chipBorder)", () => {
+    const resolved = resolveThemeDetails("light_mode", { preset: "high_contrast" });
+    expect(resolved.chipBorder).toBe("rgba(107,107,107,0.55)");
+    expect(resolved.borderAlphaStrong).toBe(BORDER_TIER_ALPHA.strong);
+
+    const darkResolved = resolveThemeDetails("dark_mode", { preset: "high_contrast" });
+    expect(darkResolved.chipBorder).toBe("rgba(138,138,138,0.55)");
+  });
+
+  test("presets without details fall back to global defaults", () => {
+    const resolved = resolveThemeDetails("light_mode", { preset: "ocean" });
+    expect(resolved.chipBorder).toBe("transparent");
+  });
+
+  test("user details override preset details, only for provided keys", () => {
+    const resolved = resolveThemeDetails("light_mode", {
+      preset: "high_contrast",
+      details: { light_mode: { chipBorder: "#ff0000" } },
+    });
+    expect(resolved.chipBorder).toBe("#ff0000");
+    expect(resolved.borderAlphaMid).toBe(BORDER_TIER_ALPHA.mid);
+  });
+
+  test("unknown keys in user details pass through untouched (forward compat)", () => {
+    const resolved = resolveThemeDetails("light_mode", {
+      details: { light_mode: { futureKnob: 42 } },
+    });
+    expect(resolved.futureKnob).toBe(42);
+    expect(resolved.chipBorder).toBe("transparent");
+  });
+});
+
+describe("semanticCssVars with details (chipBorder + border tier alpha overrides)", () => {
+  test("without a details arg, output is byte-identical to the legacy call (regression lock)", () => {
+    const legacy = semanticCssVars({ border: "#2e2e2e", accent: "#65c466" });
+    expect(legacy["--pupu-chip-border"]).toBeUndefined();
+    expect(legacy["--pupu-border-strong"]).toBe(
+      `rgba(46,46,46, ${BORDER_TIER_ALPHA.strong})`,
+    );
+    expect(legacy["--pupu-border-mid"]).toBe(
+      `rgba(46,46,46, ${BORDER_TIER_ALPHA.mid})`,
+    );
+    expect(legacy["--pupu-border-subtle"]).toBe(
+      `rgba(46,46,46, ${BORDER_TIER_ALPHA.subtle})`,
+    );
+  });
+
+  test("with a details arg, emits --pupu-chip-border", () => {
+    const vars = semanticCssVars(
+      { border: "#2e2e2e" },
+      { ...DETAIL_DEFAULTS, chipBorder: "#ff0000" },
+    );
+    expect(vars["--pupu-chip-border"]).toBe("#ff0000");
+  });
+
+  test("with a details arg, uses the alpha overrides for the three border tier vars", () => {
+    const vars = semanticCssVars(
+      { border: "#2e2e2e" },
+      {
+        ...DETAIL_DEFAULTS,
+        borderAlphaStrong: 0.99,
+        borderAlphaMid: 0.5,
+        borderAlphaSubtle: 0.1,
+      },
+    );
+    expect(vars["--pupu-border-strong"]).toBe("rgba(46,46,46, 0.99)");
+    expect(vars["--pupu-border-mid"]).toBe("rgba(46,46,46, 0.5)");
+    expect(vars["--pupu-border-subtle"]).toBe("rgba(46,46,46, 0.1)");
+  });
+});
+
 describe("applySemanticCssVars", () => {
   test("writes variables onto the given element", () => {
     const el = document.createElement("div");
     applySemanticCssVars({ accent: "#65c466" }, el);
     expect(el.style.getPropertyValue("--pupu-accent")).toBe("#65c466");
     expect(el.style.getPropertyValue("--pupu-accent-rgb")).toBe("101,196,102");
+  });
+
+  test("threads a details arg through to write --pupu-chip-border", () => {
+    const el = document.createElement("div");
+    applySemanticCssVars(
+      { border: "#2e2e2e" },
+      el,
+      { ...DETAIL_DEFAULTS, chipBorder: "#00ff00" },
+    );
+    expect(el.style.getPropertyValue("--pupu-chip-border")).toBe("#00ff00");
   });
 });
 

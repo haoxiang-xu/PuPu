@@ -34,6 +34,28 @@ export const hexToRgbTriplet = (color) => {
    layered on top for different sink families. */
 export const BORDER_TIER_ALPHA = { strong: 0.9, mid: 0.55, subtle: 0.3 };
 
+/* JSON details channel (CEO-approved): fine-grained knobs the theme editor UI
+   does not render, carried only through JSON import/export + presets.
+   Precedence per mode-key: user details > preset details > this default. */
+export const DETAIL_DEFAULTS = {
+  chipBorder: "transparent",
+  borderAlphaStrong: BORDER_TIER_ALPHA.strong,
+  borderAlphaMid: BORDER_TIER_ALPHA.mid,
+  borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
+};
+
+export const resolveThemeDetails = (mode, options = {}) => {
+  const { preset, details } = options;
+  const presetDetails =
+    (preset &&
+      SEMANTIC_PRESETS[preset] &&
+      SEMANTIC_PRESETS[preset].details &&
+      SEMANTIC_PRESETS[preset].details[mode]) ||
+    {};
+  const userDetails = (details && details[mode]) || {};
+  return { ...DETAIL_DEFAULTS, ...presetDetails, ...userDetails };
+};
+
 const VAR_NAME = {
   accent: "accent",
   background: "background",
@@ -70,7 +92,7 @@ export const resolveSemanticPalette = (mode, options = {}) => {
   return result;
 };
 
-export const semanticCssVars = (palette) => {
+export const semanticCssVars = (palette, detailsResolved) => {
   const vars = {};
   for (const key of Object.keys(palette || {})) {
     const name = VAR_NAME[key];
@@ -81,11 +103,23 @@ export const semanticCssVars = (palette) => {
     if (rgb) {
       vars[`--pupu-${name}-rgb`] = rgb;
       if (key === "border") {
-        vars["--pupu-border-strong"] = `rgba(${rgb}, ${BORDER_TIER_ALPHA.strong})`;
-        vars["--pupu-border-mid"] = `rgba(${rgb}, ${BORDER_TIER_ALPHA.mid})`;
-        vars["--pupu-border-subtle"] = `rgba(${rgb}, ${BORDER_TIER_ALPHA.subtle})`;
+        const strongAlpha = detailsResolved
+          ? (detailsResolved.borderAlphaStrong ?? BORDER_TIER_ALPHA.strong)
+          : BORDER_TIER_ALPHA.strong;
+        const midAlpha = detailsResolved
+          ? (detailsResolved.borderAlphaMid ?? BORDER_TIER_ALPHA.mid)
+          : BORDER_TIER_ALPHA.mid;
+        const subtleAlpha = detailsResolved
+          ? (detailsResolved.borderAlphaSubtle ?? BORDER_TIER_ALPHA.subtle)
+          : BORDER_TIER_ALPHA.subtle;
+        vars["--pupu-border-strong"] = `rgba(${rgb}, ${strongAlpha})`;
+        vars["--pupu-border-mid"] = `rgba(${rgb}, ${midAlpha})`;
+        vars["--pupu-border-subtle"] = `rgba(${rgb}, ${subtleAlpha})`;
       }
     }
+  }
+  if (detailsResolved) {
+    vars["--pupu-chip-border"] = detailsResolved.chipBorder ?? DETAIL_DEFAULTS.chipBorder;
   }
   return vars;
 };
@@ -174,10 +208,10 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
   };
 };
 
-export const applySemanticCssVars = (palette, element) => {
+export const applySemanticCssVars = (palette, element, detailsResolved) => {
   const el = element || (typeof document !== "undefined" ? document.documentElement : null);
   if (!el) return;
-  const vars = semanticCssVars(palette);
+  const vars = semanticCssVars(palette, detailsResolved);
   for (const name of Object.keys(vars)) {
     el.style.setProperty(name, vars[name]);
   }

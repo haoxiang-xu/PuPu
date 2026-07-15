@@ -108,6 +108,10 @@ export const SEMANTIC_PRESETS = {
       success: "#46e046",
       danger: "#ff5a5a",
     },
+    details: {
+      light_mode: { chipBorder: "rgba(107,107,107,0.55)" },
+      dark_mode: { chipBorder: "rgba(138,138,138,0.55)" },
+    },
   },
   graphite: {
     light_mode: {

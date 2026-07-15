@@ -14,12 +14,14 @@ import {
   resolveSemanticPalette,
   applySemanticCssVars,
   applySemanticPaletteToTheme,
+  resolveThemeDetails,
 } from "../../../CONTAINERs/config/theme_semantic";
 import {
   readThemeSettings,
   writeThemePreset,
   writeThemeCustomColor,
   writeThemeCustom,
+  writeThemeDetails,
   resetThemeSettings,
   clearThemeCustomColor,
 } from "./storage";
@@ -107,7 +109,11 @@ const ThemeEditor = () => {
         },
       },
     });
-    applySemanticCssVars(livePalette);
+    const liveDetails = resolveThemeDetails(activeMode, {
+      preset: settings.preset,
+      details: settings.details,
+    });
+    applySemanticCssVars(livePalette, undefined, liveDetails);
   };
 
   const syncCommittedSettings = (next) => {
@@ -115,7 +121,11 @@ const ThemeEditor = () => {
       preset: next.preset,
       custom: next.custom,
     });
-    applySemanticCssVars(livePalette);
+    const details = resolveThemeDetails(activeMode, {
+      preset: next.preset,
+      details: next.details,
+    });
+    applySemanticCssVars(livePalette, undefined, details);
     if (setTheme && theme) {
       setTheme(applySemanticPaletteToTheme(theme, livePalette, activeMode));
     }
@@ -197,12 +207,18 @@ const ThemeEditor = () => {
           parsed && typeof parsed.preset === "string" && SEMANTIC_PRESETS[parsed.preset];
         const hasCustom =
           parsed && parsed.custom && typeof parsed.custom === "object";
+        const hasDetails =
+          parsed &&
+          parsed.details &&
+          typeof parsed.details === "object" &&
+          !Array.isArray(parsed.details);
         if (!hasPreset && !hasCustom) {
           toast.error("Theme file not recognized");
           return;
         }
         if (hasPreset) writeThemePreset(parsed.preset);
         if (hasCustom) writeThemeCustom(parsed.custom);
+        if (hasDetails) writeThemeDetails(parsed.details);
         const next = readThemeSettings();
         setSettings(next);
         syncCommittedSettings(next);

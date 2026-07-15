@@ -56,6 +56,17 @@ describe("semantic_tokens", () => {
       expect(SEMANTIC_PRESETS[name].dark_mode.sidebar).toBeDefined();
     }
   });
+
+  test("only high_contrast opts into a details bag (chipBorder for the softened border family)", () => {
+    expect(SEMANTIC_PRESETS.high_contrast.details).toEqual({
+      light_mode: { chipBorder: "rgba(107,107,107,0.55)" },
+      dark_mode: { chipBorder: "rgba(138,138,138,0.55)" },
+    });
+    for (const name of Object.keys(SEMANTIC_PRESETS)) {
+      if (name === "high_contrast") continue;
+      expect(SEMANTIC_PRESETS[name].details).toBeUndefined();
+    }
+  });
 });
 
 describe("phase-3 preset library", () => {
