@@ -260,10 +260,16 @@ const SegmentedButton = ({
   /* ── sizing — derived from style overrides ─────────── */
   const fontSize = style?.fontSize ?? 14;
   const outerPad = style?.padding ?? 3;
+  /* horizontal breathing room reads tighter than vertical inside the
+     bordered track — give the ends a little extra by default */
+  const outerPadX = style?.paddingHorizontal ?? outerPad + 2;
   const gap = style?.gap ?? 3;
   const borderRadius = style?.borderRadius ?? inputTheme?.borderRadius ?? 7;
   const indicatorRadius = Math.max(borderRadius - 2, 2);
   const btnPadding = button_style?.padding ?? "6px 14px";
+  /* padding is applied asymmetrically above — keep the raw keys out of the
+     style passthrough so they can't clobber it back to uniform */
+  const { padding: _pad, paddingHorizontal: _padX, ...styleRest } = style || {};
 
   /* ── colours ───────────────────────────────────────── */
   const colors = useMemo(() => {
@@ -287,14 +293,14 @@ const SegmentedButton = ({
         display: "inline-flex",
         alignItems: "center",
         gap,
-        padding: outerPad,
+        padding: `${outerPad}px ${outerPadX}px`,
         borderRadius,
         backgroundColor: colors.bg,
         border: "1px solid var(--pupu-border-mid)",
         boxShadow: colors.shadow,
         userSelect: "none",
         WebkitUserSelect: "none",
-        ...style,
+        ...styleRest,
       }}
     >
       {/* ── sliding indicator ────────────────────────── */}
