@@ -18,6 +18,11 @@ jest.mock("../components/toolkit_icon", () => ({
   ToolkitIconFrame: () => <span data-testid="icon" />,
 }));
 
+jest.mock("../../../BUILTIN_COMPONENTs/markdown/markdown", () => ({
+  __esModule: true,
+  default: ({ content }) => <div data-testid="readme-markdown">{content}</div>,
+}));
+
 jest.mock("../../../BUILTIN_COMPONENTs/input/switch", () => ({
   __esModule: true,
   SemiSwitch: ({ on, set_on }) => (
@@ -140,6 +145,22 @@ describe("PluginDetailPage — install state pill", () => {
   });
 });
 
+/* M5: the header source pill used to render the raw source slug
+   ("mcp_registry") verbatim instead of a localized label. */
+describe("PluginDetailPage — source pill", () => {
+  test("renders the localized SOURCE_CONFIG label instead of the raw source slug", () => {
+    renderPage({ entry: NOTION_ENTRY, forceInstalled: false });
+    expect(screen.getByText("mcp")).toBeInTheDocument();
+    expect(screen.queryByText("mcp_registry")).not.toBeInTheDocument();
+  });
+
+  test("mcp_registry source renders its own localized label, not the raw slug", () => {
+    const entry = { ...NOTION_ENTRY, source: "mcp_registry" };
+    renderPage({ entry, forceInstalled: false });
+    expect(screen.getByText("registry")).toBeInTheDocument();
+  });
+});
+
 describe("PluginDetailPage — Commands section", () => {
   test("renders each command as a /chip with title and description", () => {
     renderPage({ entry: PLAN_ENTRY });
@@ -161,6 +182,21 @@ describe("PluginDetailPage — About capability tags", () => {
     expect(screen.getByText("Plan Start")).toBeInTheDocument();
     expect(container.textContent).toContain("Plan finalize ⚠");
     expect(container.textContent).not.toMatch(/plan_/);
+  });
+
+  /* I2: the ⚠ marker used a single dark-mode-only hex regardless of isDark.
+     It now splits like the rest of the warning tokens on this page. */
+  test("the ⚠ marker uses the light warning color in light mode", () => {
+    renderPage({ entry: PLAN_ENTRY, isDark: false });
+    /* getNodeText only reads direct text-node children and the exact-match
+       comparator does not trim the matcher, so the query has to be the
+       already-trimmed form of the rendered " ⚠" text node. */
+    expect(screen.getByText("⚠")).toHaveStyle({ color: "#a06a1f" });
+  });
+
+  test("the ⚠ marker uses the dark warning color in dark mode", () => {
+    renderPage({ entry: PLAN_ENTRY, isDark: true });
+    expect(screen.getByText("⚠")).toHaveStyle({ color: "#d9a75a" });
   });
 });
 
@@ -408,6 +444,21 @@ describe("PluginDetailPage — Risk section", () => {
     expect(screen.getByText("mcp.url")).toBeInTheDocument();
   });
 
+  /* I2: hotColor (the Command row's highlighted value) used to be a single
+     dark-mode-only hex regardless of isDark — invisible against a light
+     background. It now mirrors warningColor's light branch. */
+  test("the highlighted Command value uses the light warning color in light mode", () => {
+    renderPage({ entry: RISK_ENTRY, isDark: false, forceInstalled: false });
+    const commandValue = screen.getAllByText("node server.js")[0];
+    expect(commandValue).toHaveStyle({ color: "#c2410c" });
+  });
+
+  test("the highlighted Command value uses the dark warning color in dark mode", () => {
+    renderPage({ entry: RISK_ENTRY, isDark: true, forceInstalled: false });
+    const commandValue = screen.getAllByText("node server.js")[0];
+    expect(commandValue).toHaveStyle({ color: "#fdba74" });
+  });
+
   test("a regular (non-external-registry) entry never renders the risk section", () => {
     renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
     expect(screen.queryByText("Risk")).not.toBeInTheDocument();
@@ -618,5 +669,29 @@ describe("PluginDetailPage — About Docs row", () => {
     await waitFor(() => expect(api.unchain.getToolkitDetail).toHaveBeenCalled());
     expect(screen.queryByText("README ›")).not.toBeInTheDocument();
     expect(screen.queryByText("Docs")).not.toBeInTheDocument();
+  });
+
+  /* I1: the Docs row is a click-to-expand toggle — the mockup's static
+     "Docs → README ›" kv line now reveals the README body inline (the same
+     BUILTIN Markdown component the pre-T2 page used) on click, flips the
+     chevron, and collapses again on a second click. */
+  test("clicking the Docs row reveals the README content and flips the chevron; clicking again collapses it", async () => {
+    const entry = { ...NOTION_ENTRY, readmeMarkdown: "## Notion\n\nRead pages." };
+    renderPage({ entry, forceInstalled: false });
+
+    const docsRow = await screen.findByText("README ›");
+    expect(screen.queryByTestId("readme-markdown")).not.toBeInTheDocument();
+
+    fireEvent.click(docsRow);
+
+    expect(await screen.findByText("README ⌄")).toBeInTheDocument();
+    expect(screen.getByTestId("readme-markdown")).toHaveTextContent(
+      "## Notion",
+    );
+
+    fireEvent.click(screen.getByText("README ⌄"));
+
+    expect(await screen.findByText("README ›")).toBeInTheDocument();
+    expect(screen.queryByTestId("readme-markdown")).not.toBeInTheDocument();
   });
 });

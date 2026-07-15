@@ -126,11 +126,12 @@ describe("PluginsCategoriesPage — vocabulary", () => {
   });
 });
 
-/* C2 regression (review-mandated): a secrets-backed entry's tile pill reads
+/* C2 regression (review-mandated): a secrets-backed entry's row pill reads
    "Set up" (usePluginInstallState's opensSetup) — clicking it must open the
    detail page to collect the secret, never fire a bare install. Exercises
-   the real PluginTile + usePluginInstallState wiring this page uses (not a
-   mock), so a regression in either would fail this test. */
+   the real PluginListRow + PluginInstallPill + usePluginInstallState wiring
+   this page uses (not a mock), so a regression in any of them would fail
+   this test. */
 describe("PluginsCategoriesPage — Set-up pill", () => {
   const SECRET_ENTRY = {
     id: "browser-use-local",

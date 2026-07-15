@@ -5,6 +5,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
+import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { SOURCE_CONFIG, STORE_CATEGORY_CONFIG } from "../constants";
 import { ToolkitIconFrame } from "../components/toolkit_icon";
 import { SettingsSection, SettingsRow } from "../../settings/appearance";
@@ -390,13 +391,19 @@ const PluginDetailPage = ({
   /* ── Docs (About kv row) — store entries already embed readmeMarkdown
      statically (mcp_toolkit_registry.json); installed entries that don't
      carry one fetch it via api.unchain.getToolkitDetail, same split the old
-     installed panel used. T2 stopped rendering the markdown body inline
-     (the mockup's About section has no README viewer, just a "Docs → README
-     ›" kv row) — this state now only decides whether that row is present. ── */
+     installed panel used. The row itself is an inline expand toggle (I1):
+     clicking "Docs → README ›" flips the chevron and reveals the markdown
+     body below the About kv grid via the same BUILTIN Markdown component
+     the pre-T2 page used; clicking again collapses it. The row is omitted
+     entirely once the fetch resolves with no readme. ── */
   const [readmeState, setReadmeState] = useState(() => ({
     loading: false,
     content: entry?.readmeMarkdown || "",
   }));
+  const [readmeExpanded, setReadmeExpanded] = useState(false);
+  useEffect(() => {
+    setReadmeExpanded(false);
+  }, [entry?.toolkitId]);
   useEffect(() => {
     if (entry?.readmeMarkdown) {
       setReadmeState({ loading: false, content: entry.readmeMarkdown });
@@ -436,7 +443,7 @@ const PluginDetailPage = ({
      used for the needs-review approve affordance and the revoke action. */
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const warningBg = isDark ? "rgba(251,146,60,0.14)" : "rgba(251,146,60,0.12)";
-  const hotColor = "#fdba74";
+  const hotColor = isDark ? "#fdba74" : "#c2410c";
   const tagBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
 
   const sourceConfig = SOURCE_CONFIG[entry?.source] || SOURCE_CONFIG.builtin;
@@ -512,7 +519,14 @@ const PluginDetailPage = ({
     .filter(Boolean)
     .join(" · ");
 
-  const sourcePillLabel = String(entry?.source || "").toLowerCase();
+  /* M5: the pill next to the plugin name used to render the raw source
+     slug ("mcp_registry") verbatim. SOURCE_CONFIG (constants.js) carries a
+     labelKey per source ("toolkit.source_mcp_registry" -> "registry", same
+     i18n vocabulary presentation.sourceBadge.label draws its provider name
+     from) — route the pill through it instead. sourceConfig always
+     resolves (falls back to SOURCE_CONFIG.builtin above), so this is never
+     empty. */
+  const sourcePillLabel = t(sourceConfig.labelKey);
 
   const showSetup =
     installMachine.installState === "installable" &&
@@ -520,13 +534,14 @@ const PluginDetailPage = ({
   const showStatus = isExternalEntry && (canApproveExternal || canRevokeExternal);
   const showRisk = isExternalEntry && approvalRiskRows.length > 0;
 
-  /* About kv — Provider/Version/Docs/Category/Stars, only present fields.
+  /* About kv — Provider/Version/Category/Stars, only present fields.
      Provider prefers the repo identity (matches the mockup's MCP screen,
      "grafana/mcp-grafana") and falls back to the generic source mapping
      plugin_presentation.js already computes ("PuPu built-in" / "MCP
      server" / …). Labels here are short attribute names, not translated —
      same precedent plugin_presentation.js's own "Provider" row already
-     set. */
+     set. Docs is rendered separately below (I1) — it's a click-to-expand
+     row, not a static kv line. */
   const informationProvider =
     (Array.isArray(presentation.information) ? presentation.information : []).find(
       (row) => row.k === "Provider",
@@ -534,11 +549,11 @@ const PluginDetailPage = ({
   const aboutKvRows = [
     { k: "Provider", v: entry?.repoFullName || informationProvider },
     { k: "Version", v: versionValue },
-    { k: "Docs", v: readmeState.content ? "README ›" : "" },
     { k: "Category", v: categoryLabel },
     { k: "Stars", v: entry?.repoStars != null ? String(entry.repoStars) : "" },
   ].filter((row) => String(row.v || "").trim());
   const aboutDescription = entry?.toolkitDescription || presentation.tagline || "";
+  const hasReadme = Boolean(readmeState.content);
 
   const miniButtonStyle = {
     fontSize: 11.5,
@@ -1045,13 +1060,15 @@ const PluginDetailPage = ({
                     }}
                   >
                     {item.label}
-                    {item.confirm && <span style={{ color: "#d9a75a" }}>{" ⚠"}</span>}
+                    {item.confirm && (
+                      <span style={{ color: isDark ? "#d9a75a" : "#a06a1f" }}>{" ⚠"}</span>
+                    )}
                   </span>
                 ))}
               </div>
             )}
 
-            {aboutKvRows.length > 0 && (
+            {(aboutKvRows.length > 0 || hasReadme) && (
               <div
                 style={{
                   display: "grid",
@@ -1067,6 +1084,53 @@ const PluginDetailPage = ({
                     <span style={{ color: mutedColor, fontWeight: 500, fontFamily }}>{row.v}</span>
                   </div>
                 ))}
+
+                {/* ── I1: Docs is a click-to-expand row, not a static kv
+                     line — clicking reveals the README below the grid
+                     (same BUILTIN Markdown component the pre-T2 page used),
+                     clicking again collapses it. Omitted entirely once
+                     readmeState resolves with no content (hasReadme
+                     false). ── */}
+                {hasReadme && (
+                  <div
+                    key="docs"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setReadmeExpanded((prev) => !prev)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setReadmeExpanded((prev) => !prev);
+                      }
+                    }}
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      padding: "3px 0",
+                      lineHeight: 1.5,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span style={{ color: tertiaryColor, fontFamily, flexShrink: 0 }}>Docs</span>
+                    <span style={{ color: mutedColor, fontWeight: 500, fontFamily }}>
+                      {`README ${readmeExpanded ? "⌄" : "›"}`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {hasReadme && readmeExpanded && (
+              <div style={{ marginTop: 12 }}>
+                {readmeState.loading ? (
+                  <ArcSpinner
+                    size={14}
+                    stroke_width={2}
+                    color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
+                  />
+                ) : (
+                  <Markdown content={readmeState.content} />
+                )}
               </div>
             )}
           </div>

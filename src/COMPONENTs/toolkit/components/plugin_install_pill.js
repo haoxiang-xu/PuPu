@@ -1,4 +1,5 @@
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import { usePluginInstallState } from "../hooks/use_plugin_install_state";
 
 /* PluginInstallPill — the Get/Open pill used as a plugin_list_row right slot
@@ -7,7 +8,9 @@ import { usePluginInstallState } from "../hooks/use_plugin_install_state";
    detail (if a click handler is wired), an `opensSetup` entry (secrets /
    http-secret / custom recipe) also opens detail instead of firing a
    secretless install, and everything else installs directly through
-   usePluginInstallState. */
+   usePluginInstallState. M6: a 12px ArcSpinner renders beside the label
+   while installing — ported from plugin_tile.js's own spinner, which this
+   pill dropped when it replaced the tile as the list-row right slot. */
 const PluginInstallPill = ({
   entry,
   isDark,
@@ -52,23 +55,32 @@ const PluginInstallPill = ({
   };
 
   return (
-    <Button
-      label={installMachine.stateLabel}
-      disabled={!pillEnabled}
-      onClick={handleClick}
-      style={{
-        fontSize: 11,
-        fontWeight: 700,
-        paddingVertical: 3,
-        paddingHorizontal: 13,
-        borderRadius: 999,
-        color: isOpen ? pillOpenColor : chipColor,
-        root: { background: isOpen ? pillOpenBg : pillBg },
-        state: {
-          disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} },
-        },
-      }}
-    />
+    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {installMachine.installing && (
+        <ArcSpinner
+          size={12}
+          stroke_width={2}
+          color={isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)"}
+        />
+      )}
+      <Button
+        label={installMachine.stateLabel}
+        disabled={!pillEnabled}
+        onClick={handleClick}
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          paddingVertical: 3,
+          paddingHorizontal: 13,
+          borderRadius: 999,
+          color: isOpen ? pillOpenColor : chipColor,
+          root: { background: isOpen ? pillOpenBg : pillBg },
+          state: {
+            disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} },
+          },
+        }}
+      />
+    </span>
   );
 };
 

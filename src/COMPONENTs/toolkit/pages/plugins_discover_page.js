@@ -196,8 +196,11 @@ const PluginsDiscoverPage = ({
 
         {hasFeaturedSection && (
           <SettingsSection title={t("toolkit.section_featured")}>
-            {featured && renderRow(featured, curation.featured.pluginId)}
-            {essentials.map(({ id, resolved }) => renderRow(resolved, id))}
+            {/* M8: featured.pluginId and an essentials id can collide (both
+                are drawn from the same curated pluginId space) — prefix so
+                the two never produce the same React key/testId. */}
+            {featured && renderRow(featured, `featured-${curation.featured.pluginId}`)}
+            {essentials.map(({ id, resolved }) => renderRow(resolved, `essential-${id}`))}
           </SettingsSection>
         )}
 
