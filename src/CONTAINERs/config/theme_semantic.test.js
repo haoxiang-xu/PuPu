@@ -199,6 +199,7 @@ describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
     const out = applySemanticPaletteToTheme(base, palette, "dark_mode");
     expect(out.switch.backgroundColor_on).toBe(palette.accent);
     expect(out.switch.backgroundColor).toBe("#CCCCCC");
-    expect(out.switch.color).toBe("#FFFFFF");
+    // thumb is a control chip → surface tier (light exact, dark #222222→#1e1e1e ≤4/255)
+    expect(out.switch.color).toBe(palette.surface);
   });
 });

@@ -141,7 +141,11 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
       errorAccent: danger,
       successAccent: success,
     }),
-    switch: merge(base.switch, { backgroundColor_on: accent }),
+    switch: merge(base.switch, {
+      backgroundColor_on: accent,
+      /* thumb: control chip on the track → surface tier */
+      color: surface,
+    }),
     ...(deepTier
       ? {
           code: merge(base.code, { backgroundColor: deepTier }),
