@@ -288,4 +288,45 @@ describe("CustomProviderEditor test connection", () => {
     );
     expect(screen.getByText(/Connected \(42 ms\)/)).toBeTruthy();
   });
+
+  test("Test connection button is enabled once the facade exists and fields are valid (S4b)", () => {
+    normalizeCustomProvider.mockReturnValue({
+      ok: true,
+      diagnostics: [],
+      provider: { id: "myprov" },
+    });
+    renderEditor();
+    fillRequired();
+    expect(
+      screen.getByRole("button", { name: "Test connection" }).disabled,
+    ).toBe(false);
+  });
+
+  test("renders the nested {ok:false, error:{code}} failure shape", async () => {
+    normalizeCustomProvider.mockReturnValue({
+      ok: true,
+      diagnostics: [],
+      provider: {
+        id: "myprov",
+        display_name: "My Provider",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        auth: { mode: "x-api-key" },
+        models: [{ id: "model-a" }],
+      },
+    });
+    api.unchain.testCustomProvider.mockResolvedValue({
+      ok: false,
+      error: { code: "provider_auth_failed", message: "401" },
+    });
+    renderEditor();
+    fillRequired();
+    fireEvent.change(screen.getByPlaceholderText("Enter your API key"), {
+      target: { value: "bad-key" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    });
+    expect(screen.getByText(/provider_auth_failed/)).toBeTruthy();
+  });
 });

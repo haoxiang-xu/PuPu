@@ -38,7 +38,7 @@ const isInsecureRemote = (baseUrl) => {
  * A single custom-provider row. Presentation only: all mutations flow through
  * the store helpers (never localStorage directly) and up through callbacks.
  */
-const CustomProviderRow = ({ provider, isDark, onEdit, onChanged }) => {
+const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -246,6 +246,23 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onChanged }) => {
         }}
       />
 
+      {/* Export */}
+      <Button
+        ariaLabel={t("model_providers.custom.export")}
+        title={t("model_providers.custom.export")}
+        prefix_icon="upload"
+        onClick={() => onExport?.(provider.id)}
+        style={{
+          paddingVertical: 4,
+          paddingHorizontal: 4,
+          borderRadius: 6,
+          content: { icon: { width: 15, height: 15 } },
+          hoverBackgroundColor: isDark
+            ? "rgba(255,255,255,0.08)"
+            : "rgba(0,0,0,0.06)",
+        }}
+      />
+
       {/* Delete */}
       <Button
         ariaLabel={t("model_providers.custom.delete")}
@@ -279,7 +296,7 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onChanged }) => {
  * empty renders a compact hint. Row mutations call `onChanged` so the parent
  * re-reads the store.
  */
-const CustomProviderList = ({ providers, isDark, onEdit, onChanged }) => {
+const CustomProviderList = ({ providers, isDark, onEdit, onExport, onChanged }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
@@ -309,6 +326,7 @@ const CustomProviderList = ({ providers, isDark, onEdit, onChanged }) => {
           provider={provider}
           isDark={isDark}
           onEdit={onEdit}
+          onExport={onExport}
           onChanged={onChanged}
         />
       ))}
