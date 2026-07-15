@@ -25,6 +25,16 @@ from mcp_toolkits import (
     get_installed_mcp_toolkit,
     list_installed_mcp_toolkits,
 )
+from custom_provider import (
+    CustomProviderConfig,
+    CustomProviderError,
+    extract_custom_provider_api_key,
+    is_custom_provider_key,
+    make_custom_model_io_factory,
+    parse_custom_model_id,
+    parse_custom_provider,
+    redact_secrets,
+)
 
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
@@ -745,6 +755,38 @@ def _normalize_provider_model_name(provider: str, model: str) -> str:
     return normalized_model
 
 
+def _custom_override_from_model_id(
+    model_id: str, options: Dict[str, object] | None
+) -> Dict[str, str] | None:
+    """Resolve a ``custom.<slug>:<model>`` modelId to twin-provider overrides.
+
+    Returns ``{"provider": <twin>, "model": <model>}`` when the id is a custom
+    prefix whose cfg is present and declares the model. Raises
+    ``custom_provider_not_found`` when the prefix is custom but no matching cfg is
+    attached (消灭 static ollama fallback, design §7.2/A5). Returns None when the
+    id is not a custom prefix at all (built-in path unchanged).
+    """
+    parsed = parse_custom_model_id(model_id)
+    if parsed is None:
+        if isinstance(model_id, str) and model_id.strip().startswith("custom."):
+            # custom prefix without a resolvable ":<model>" segment.
+            raise CustomProviderError(
+                "custom_provider_not_found",
+                "custom provider model id is malformed",
+            )
+        return None
+    provider_key, model_part = parsed
+    cfg = parse_custom_provider(options)
+    if cfg is None or cfg.provider_key != provider_key:
+        raise CustomProviderError(
+            "custom_provider_not_found",
+            f"no custom provider configuration for {provider_key}",
+        )
+    # model段不过 _normalize_provider_model_name — twin hyperspace 天然跳过；
+    # openai 协议本无该归一化。原样透传 (design §7.2)。
+    return {"provider": cfg.twin, "model": model_part}
+
+
 def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
     if not isinstance(options, dict):
         return {}
@@ -754,6 +796,10 @@ def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
     model_id_raw = options.get("modelId") or options.get("model_id")
     if isinstance(model_id_raw, str) and model_id_raw.strip():
         model_id = model_id_raw.strip()
+        custom_override = _custom_override_from_model_id(model_id, options)
+        if custom_override is not None:
+            overrides.update(custom_override)
+            return overrides
         if ":" in model_id:
             provider_part, model_part = model_id.split(":", 1)
             provider_candidate = provider_part.strip().lower()
@@ -786,11 +832,30 @@ def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
     return overrides
 
 
-def _get_runtime_config(overrides: Dict[str, str] | None = None) -> Dict[str, str]:
+def _get_runtime_config(
+    overrides: Dict[str, str] | None = None,
+    cfg: "CustomProviderConfig | None" = None,
+) -> Dict[str, str]:
     base_provider = os.environ.get("UNCHAIN_PROVIDER", "ollama").strip().lower() or "ollama"
     provider = base_provider if base_provider in {"openai", "anthropic", "ollama"} else "ollama"
 
     provider_override = (overrides or {}).get("provider", "").strip().lower()
+
+    # Custom provider path: overrides carry the twin name (e.g. "hyperspace"),
+    # which is NOT in the built-in whitelist. Accept it only when a matching cfg
+    # is present, and gate the model to the declared model (design §7.2). env
+    # UNCHAIN_PROVIDER/MODEL is never allowed to carry per-request custom config.
+    if cfg is not None and provider_override == cfg.twin:
+        model_override = (overrides or {}).get("model", "").strip()
+        model = model_override or cfg.default_model_id()
+        # No _normalize_provider_model_name: the twin (hyperspace) is skipped
+        # naturally, and openai-responses has no such rewrite — pass through.
+        return {
+            "provider": cfg.twin,
+            "model": model,
+            "source": "",
+        }
+
     if provider_override in {"openai", "anthropic", "ollama"}:
         provider = provider_override
 
@@ -815,7 +880,8 @@ def _get_runtime_config(overrides: Dict[str, str] | None = None) -> Dict[str, st
 
 def get_runtime_config(options: Dict[str, object] | None = None) -> Dict[str, str]:
     overrides = _parse_model_overrides(options)
-    return _get_runtime_config(overrides)
+    cfg = parse_custom_provider(options)
+    return _get_runtime_config(overrides, cfg=cfg)
 
 
 def get_model_name(options: Dict[str, object] | None = None) -> str:
@@ -823,6 +889,28 @@ def get_model_name(options: Dict[str, object] | None = None) -> str:
     if not config.get("model"):
         return "model-unavailable"
     return f"{config['provider']}:{config['model']}"
+
+
+def get_display_model_id(options: Dict[str, object] | None = None) -> str:
+    """Return the model id to echo back to the UI (design §7.5).
+
+    For a custom provider the original ``options.modelId`` (``custom.<slug>:<model>``)
+    is echoed verbatim so the UI model chip stays correct — the internal twin name
+    (``hyperspace:...`` / ``openai:...``) must never overwrite it. For built-in
+    requests this is byte-for-byte ``get_model_name(options)``.
+    """
+    if isinstance(options, dict):
+        raw_model_id = options.get("modelId") or options.get("model_id")
+        if isinstance(raw_model_id, str):
+            candidate = raw_model_id.strip()
+            if is_custom_provider_key(candidate) and parse_custom_model_id(candidate) is not None:
+                # Only echo when the custom cfg actually resolves; otherwise fall
+                # through so the normal (raising) resolution path runs.
+                cfg = parse_custom_provider(options)
+                parsed = parse_custom_model_id(candidate)
+                if cfg is not None and parsed is not None and cfg.provider_key == parsed[0]:
+                    return candidate
+    return get_model_name(options)
 
 
 def _format_model_id(provider: str, model: str) -> str:
@@ -1159,8 +1247,18 @@ def get_embedding_provider_catalog() -> Dict[str, List[str]]:
     return providers
 
 
-def get_max_context_window_tokens(provider: str, model: str) -> int:
-    """Look up max_context_window_tokens for a provider:model pair."""
+def get_max_context_window_tokens(
+    provider: str,
+    model: str,
+    cfg: "CustomProviderConfig | None" = None,
+) -> int:
+    """Look up max_context_window_tokens for a provider:model pair.
+
+    When ``cfg`` is present the value comes from the custom provider's declared
+    model capabilities (normalizer guarantees a fallback, never 0; design §7.2).
+    """
+    if cfg is not None:
+        return cfg.max_context_window_tokens(model)
     raw_catalog = _load_raw_capability_catalog()
     normalized_model = _normalize_provider_model_name(
         str(provider or "").strip().lower(),
@@ -2399,6 +2497,13 @@ def get_toolkit_metadata(
     }
 
 
+_CUSTOM_MAX_TOKENS_PARAM_BY_PROTOCOL = {
+    "anthropic": "max_tokens",
+    "openai-responses": "max_output_tokens",
+    "ollama": "num_predict",
+}
+
+
 def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:
     payload: Dict[str, float] = {}
 
@@ -2406,10 +2511,19 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     if isinstance(temperature, (int, float)):
         payload["temperature"] = float(temperature)
 
+    # Custom provider: the maxTokens parameter name is decided by the declared
+    # protocol, not the twin provider name — the anthropic protocol's twin is
+    # "hyperspace", which would otherwise fall into the ollama (num_predict)
+    # branch below (design §7.4).
+    cfg = parse_custom_provider(options)
+
     max_tokens = options.get("maxTokens")
     if isinstance(max_tokens, (int, float)):
         max_tokens_value = int(max_tokens)
-        if provider == "openai":
+        if cfg is not None:
+            param_name = _CUSTOM_MAX_TOKENS_PARAM_BY_PROTOCOL[cfg.protocol]
+            payload[param_name] = max_tokens_value
+        elif provider == "openai":
             payload["max_output_tokens"] = max_tokens_value
         elif provider == "anthropic":
             payload["max_tokens"] = max_tokens_value
@@ -3024,12 +3138,27 @@ def _format_messages_for_summary(
     return "\n".join(parts)
 
 
-def _build_summary_generator(provider: str, model: str, api_key: str):
+def _build_summary_generator(
+    provider: str,
+    model: str,
+    api_key: str,
+    options: Dict[str, object] | None = None,
+):
     """Build a summary_generator callback for LlmSummaryOptimizer.
 
     Signature: (previous_summary, old_messages, max_chars, model_name) -> str
+
+    NOTE: This helper is currently unwired in the chat path (the memory summary
+    is produced inside unchain's memory manager, which the adapter does not hand a
+    ``summary_generator``). The custom-provider guard below is defensive: if this
+    is ever wired while a custom provider is active, the openai twin branch would
+    otherwise send the conversation + custom key to api.openai.com. When a custom
+    provider is present we no-op and return the previous summary (design §7.7,
+    FM16 — the anthropic twin "hyperspace" already falls through to the else
+    no-op naturally).
     """
     normalized_provider = str(provider or "").strip().lower()
+    _custom_cfg = parse_custom_provider(options)
 
     def generate_summary(
         previous_summary: str,
@@ -3037,6 +3166,11 @@ def _build_summary_generator(provider: str, model: str, api_key: str):
         max_chars: int,
         model_name: str,
     ) -> str:
+        # Custom provider active: never route the summary through an official
+        # endpoint (custom-key leak guard, FM16). Return the old summary as-is.
+        if _custom_cfg is not None:
+            return previous_summary or ""
+
         prompt_text = _format_messages_for_summary(previous_summary, old_messages)
         if not prompt_text.strip():
             return previous_summary or ""
@@ -3129,7 +3263,24 @@ def _resolve_agent_max_iterations(options: Dict[str, object] | None = None) -> i
     return max_iterations
 
 
-def _resolve_agent_api_key(options: Dict[str, object] | None, provider: str) -> str:
+def _resolve_agent_api_key(
+    options: Dict[str, object] | None,
+    provider: str,
+    cfg: "CustomProviderConfig | None" = None,
+) -> str:
+    if cfg is not None:
+        # Custom provider: key comes ONLY from the specialised fields (decision
+        # A8). The env fallback (OPENAI_API_KEY / UNCHAIN_API_KEY / ...) is
+        # deliberately blocked here — under the openai twin it would leak an
+        # official key to the custom endpoint (design §7.2/§9.2).
+        custom_key = extract_custom_provider_api_key(options)
+        if cfg.requires_key() and not custom_key:
+            raise CustomProviderError(
+                "custom_provider_missing_api_key",
+                f"custom provider {cfg.provider_key} requires an API key",
+            )
+        return custom_key
+
     api_key = (
         _extract_api_key_from_options(options, provider)
         or (
@@ -3378,6 +3529,7 @@ def _materialize_recipe_subagents(
     options: Dict[str, object] | None = None,
     optimizer_module_factory=None,
     optimizer_config: Any | None = None,
+    model_io_factory: Any | None = None,
 ) -> tuple:
     """Build SubagentTemplate instances from a Recipe's subagent_pool.
 
@@ -3538,6 +3690,7 @@ def _materialize_recipe_subagents(
             name=parsed.name,
             instructions=parsed.instructions,
             optimizer_module_factory=optimizer_module_factory,
+            model_io_factory=model_io_factory,
         )
         built.append(
             SubagentTemplate(
@@ -4372,6 +4525,7 @@ def _build_developer_agent(
     recipe=None,
     optimizer_config: Any | None = None,
     fyi_channel: Any | None = None,
+    model_io_factory: Any | None = None,
 ):
     if recipe is not None:
         toolkits = _resolve_recipe_toolkits(toolkits, recipe, options=options)
@@ -4419,6 +4573,7 @@ def _build_developer_agent(
                     options=options,
                     optimizer_module_factory=optimizer_module_factory,
                     optimizer_config=selected_optimizer_config,
+                    model_io_factory=model_io_factory,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -4444,6 +4599,7 @@ def _build_developer_agent(
                     PoliciesModule=PoliciesModule,
                     SubagentTemplate=SubagentTemplate,
                     optimizer_module_factory=optimizer_module_factory,
+                    model_io_factory=model_io_factory,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -4484,14 +4640,17 @@ def _build_developer_agent(
         or "(no subagents registered)"
     )
     instructions = instructions.replace("{{SUBAGENT_LIST}}", subagent_list_md)
-    return UnchainAgent(
-        name=_DEVELOPER_AGENT_NAME,
-        instructions=instructions,
-        provider=provider,
-        model=model,
-        api_key=api_key or None,
-        modules=tuple(modules),
-    )
+    agent_kwargs: Dict[str, Any] = {
+        "name": _DEVELOPER_AGENT_NAME,
+        "instructions": instructions,
+        "provider": provider,
+        "model": model,
+        "api_key": api_key or None,
+        "modules": tuple(modules),
+    }
+    if model_io_factory is not None:
+        agent_kwargs["model_io_factory"] = model_io_factory
+    return UnchainAgent(**agent_kwargs)
 
 
 def _create_agent(
@@ -4511,6 +4670,11 @@ def _create_agent(
 
     options = options or {}
 
+    # Custom provider (design §7): parse + fully revalidate. None for built-in
+    # requests — everything below is gated on `cfg is not None` so the built-in
+    # path is byte-for-byte unchanged.
+    cfg = parse_custom_provider(options)
+
     recipe = _load_recipe_from_options(options)
 
     selected_config = get_runtime_config(options)
@@ -4521,6 +4685,15 @@ def _create_agent(
             selected_config["provider"] = prov
             selected_config["model"] = mdl
 
+    custom_factory = None
+    if cfg is not None:
+        # The model must be declared for capability injection to be correct.
+        if not cfg.has_model(selected_config["model"]):
+            raise CustomProviderError(
+                "custom_provider_model_not_declared",
+                f"model {selected_config['model']!r} is not declared for {cfg.provider_key}",
+            )
+
     display_model = _format_model_id(selected_config["provider"], selected_config["model"])
     max_iterations = _resolve_agent_max_iterations(options)
     if (
@@ -4529,7 +4702,9 @@ def _create_agent(
         and not options.get("max_iterations")
     ):
         max_iterations = recipe.max_iterations
-    api_key = _resolve_agent_api_key(options, selected_config["provider"])
+    api_key = _resolve_agent_api_key(options, selected_config["provider"], cfg=cfg)
+    if cfg is not None:
+        custom_factory = make_custom_model_io_factory(cfg, api_key)
     memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
     toolkits = _build_requested_toolkits(options, session_id=session_id)
     user_modules = _extract_user_prompt_modules(options)
@@ -4553,6 +4728,7 @@ def _create_agent(
         options=options,
         recipe=recipe,
         fyi_channel=fyi_channel,
+        model_io_factory=custom_factory,
     )
     agent._orchestration_role = "developer"
     agent._orchestration_mode = _AGENT_ORCHESTRATION_DEFAULT
@@ -4566,7 +4742,7 @@ def _create_agent(
     agent._developer_model_id = display_model
     agent._general_model_id = display_model
     raw_max_ctx = get_max_context_window_tokens(
-        selected_config["provider"], selected_config["model"],
+        selected_config["provider"], selected_config["model"], cfg=cfg,
     )
     # Use 40% of the real context window as the effective budget.
     # This keeps the agent well within the quality zone (~60% is where
@@ -4798,6 +4974,14 @@ def _stream_recipe_graph_events(
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
 
     compiled = _compile_recipe_graph_for_runtime(recipe)
+    # Custom provider factory for graph steps (design §7.3:穿透 recipe graph 构造).
+    graph_cfg = parse_custom_provider(options)
+    graph_custom_factory = None
+    if graph_cfg is not None:
+        graph_custom_factory = make_custom_model_io_factory(
+            graph_cfg,
+            _resolve_agent_api_key(options, graph_cfg.twin, cfg=graph_cfg),
+        )
     selected_config = get_runtime_config(options)
     if (not options.get("modelId")) and getattr(recipe, "model", None):
         recipe_model = str(recipe.model)
@@ -4891,6 +5075,7 @@ def _stream_recipe_graph_events(
                     raw_max_ctx = get_max_context_window_tokens(
                         selected_config["provider"],
                         selected_config["model"],
+                        cfg=graph_cfg,
                     )
                     runtime_messages = memory_manager.prepare_messages(
                         session_id=session_id,
@@ -4973,7 +5158,9 @@ def _stream_recipe_graph_events(
                         step_config.update({"provider": provider, "model": model})
                     else:
                         step_config["model"] = raw_model
-                step_api_key = _resolve_agent_api_key(options, step_config["provider"])
+                step_api_key = _resolve_agent_api_key(
+                    options, step_config["provider"], cfg=graph_cfg
+                )
                 step_toolkits = _resolve_graph_agent_toolkits(
                     agent_node,
                     compiled,
@@ -5010,6 +5197,7 @@ def _stream_recipe_graph_events(
                     options=options,
                     recipe=step_recipe,
                     optimizer_config=step_optimizer_config,
+                    model_io_factory=graph_custom_factory,
                 )
                 step_agent._toolkits = step_toolkits
                 step_agent._display_model = _format_model_id(
@@ -5020,6 +5208,7 @@ def _stream_recipe_graph_events(
                 raw_max_ctx = get_max_context_window_tokens(
                     step_config["provider"],
                     step_config["model"],
+                    cfg=graph_cfg,
                 )
                 step_agent._max_context_window_tokens = int(raw_max_ctx * 0.40)
 

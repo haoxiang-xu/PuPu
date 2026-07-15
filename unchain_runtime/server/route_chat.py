@@ -422,7 +422,7 @@ def chat_stream() -> Response:
                 "meta",
                 {
                     "thread_id": thread_id,
-                    "model": root.get_model_name(options),
+                    "model": root.get_display_model_id(options),
                     "started_at": started_at,
                 },
             )
@@ -514,7 +514,7 @@ def chat_stream_v2() -> Response:
                     seq=seq,
                     event_type="stream_started",
                     payload={
-                        "model": root.get_model_name(options),
+                        "model": root.get_display_model_id(options),
                         "started_at": started_at,
                         "trace_level": trace_level,
                         "thread_id": thread_id,
@@ -706,7 +706,7 @@ def chat_stream_v4() -> Response:
         try:
             session_event = bridge.emit_session_started(
                 {
-                    "model": root.get_model_name(options),
+                    "model": root.get_display_model_id(options),
                     "started_at": started_at,
                     "trace_level": trace_level,
                     "thread_id": thread_id,
