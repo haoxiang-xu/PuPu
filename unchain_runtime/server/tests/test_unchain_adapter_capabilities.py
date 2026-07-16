@@ -1318,6 +1318,64 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         module_names = [type(module).__name__ for module in agent.spec.modules]
         self.assertIn("MemoryModule", module_names)
 
+    def test_create_agent_mounts_application_durable_jobs_module(self) -> None:
+        import durable_job_runtime
+
+        durable_job_runtime._reset_durable_jobs_runtime_for_tests()
+        self.addCleanup(
+            durable_job_runtime._reset_durable_jobs_runtime_for_tests
+        )
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            workspace_root = Path(data_dir) / "workspace"
+            workspace_root.mkdir()
+            agent = unchain_adapter._create_agent(
+                {
+                    "provider": "ollama",
+                    "model": "deepseek-r1:14b",
+                    "workspace_root": str(workspace_root),
+                    "toolkits": ["workspace_toolkit"],
+                },
+                session_id="chat-jobs",
+            )
+            runtime = durable_job_runtime.get_durable_jobs_runtime()
+
+        jobs_modules = [
+            module
+            for module in agent.spec.modules
+            if type(module).__name__ == "JobsModule"
+        ]
+        self.assertEqual(len(jobs_modules), 1)
+        self.assertIsNotNone(runtime)
+        self.assertIs(jobs_modules[0], runtime.module)
+        self.assertEqual(len(agent._toolkits), 1)
+        self.assertIn("shell", agent._toolkits[0].tools)
+        self.assertEqual(
+            runtime.supervisor.store.base_dir,
+            Path(data_dir).resolve() / "jobs",
+        )
+        self.assertFalse(runtime.store_path.is_relative_to(workspace_root))
+
+    def test_create_agent_skips_jobs_module_when_runtime_is_unavailable(self) -> None:
+        with mock.patch.object(
+            unchain_adapter,
+            "get_durable_jobs_runtime",
+            return_value=None,
+        ):
+            agent = unchain_adapter._create_agent(
+                {
+                    "provider": "ollama",
+                    "model": "deepseek-r1:14b",
+                },
+                session_id="chat-no-jobs",
+            )
+
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertNotIn("JobsModule", module_names)
+
     def test_create_agent_skips_memory_module_when_memory_is_not_enabled(self) -> None:
         agent = unchain_adapter._create_agent(
             {
@@ -1457,6 +1515,303 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(fake_agent.last_messages[-1].get("role"), "user")
         self.assertEqual(fake_agent.last_messages[-1].get("content"), "hello")
 
+    def test_stream_chat_events_binds_attempt_to_run_and_lease_owner(self) -> None:
+        class FakeAgent:
+            provider = "openai"
+            max_iterations = 3
+            _memory_runtime = {
+                "requested": False,
+                "available": False,
+                "reason": "",
+            }
+            _toolkits = []
+
+            def __init__(self) -> None:
+                self.run_kwargs = None
+
+            def run(self, **kwargs):
+                self.run_kwargs = kwargs
+                callback = kwargs.get("callback")
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": kwargs.get("run_id"),
+                            "iteration": 0,
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    status="completed",
+                )
+
+        fake_agent = FakeAgent()
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_execution_control_call",
+            return_value=SimpleNamespace(
+                disposition="applied",
+                snapshot=SimpleNamespace(status="running"),
+            ),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_execution_cancellation_token",
+            return_value=None,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={},
+                    session_id="chat-attempt",
+                    attempt_id="attempt-exact",
+                )
+            )
+
+        self.assertEqual(fake_agent.run_kwargs["run_id"], "attempt-exact")
+        self.assertEqual(
+            fake_agent.run_kwargs["execution_owner_id"],
+            "attempt-exact",
+        )
+        self.assertEqual(events[-1]["run_id"], "attempt-exact")
+
+    def test_concurrent_duplicate_attempt_starts_exactly_one_agent_worker(self) -> None:
+        calls = 0
+        calls_lock = threading.Lock()
+
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, **_kwargs):
+                nonlocal calls
+                with calls_lock:
+                    calls += 1
+                time.sleep(0.08)
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    status="completed",
+                )
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            side_effect=lambda *_args, **_kwargs: FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            gate = threading.Barrier(2)
+            errors = []
+
+            def consume() -> None:
+                try:
+                    gate.wait(timeout=2)
+                    list(
+                        unchain_adapter.stream_chat_events(
+                            message="hello",
+                            history=[],
+                            attachments=[],
+                            options={},
+                            session_id="chat-duplicate",
+                            attempt_id="attempt-duplicate",
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - asserted below
+                    errors.append(exc)
+
+            workers = [threading.Thread(target=consume) for _ in range(2)]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join(timeout=3)
+
+        self.assertEqual(errors, [])
+        self.assertTrue(all(not worker.is_alive() for worker in workers))
+        self.assertEqual(calls, 1)
+
+    def test_terminal_duplicate_attempt_never_recreates_agent(self) -> None:
+        import execution_control
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            for terminal_status in ("completed", "failed"):
+                attempt_id = f"attempt-{terminal_status}"
+                execution_control.mark_running("chat-terminal", attempt_id)
+                if terminal_status == "completed":
+                    execution_control.mark_completed("chat-terminal", attempt_id)
+                else:
+                    execution_control.mark_failed(
+                        "chat-terminal",
+                        attempt_id,
+                        reason="provider failed",
+                    )
+                with self.subTest(status=terminal_status), mock.patch.object(
+                    unchain_adapter,
+                    "_create_agent",
+                ) as create_agent:
+                    events = list(
+                        unchain_adapter.stream_chat_events(
+                            message="duplicate",
+                            history=[],
+                            attachments=[],
+                            options={},
+                            session_id="chat-terminal",
+                            attempt_id=attempt_id,
+                        )
+                    )
+                    self.assertEqual(events, [])
+                    create_agent.assert_not_called()
+
+    def test_normal_completion_stops_all_cancel_watcher_threads(self) -> None:
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, **_kwargs):
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    status="completed",
+                )
+
+        watched_names = {
+            "unchain-stream-confirm-cancel",
+            "unchain-stream-execution-cancel",
+        }
+        alive = set(watched_names)
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={},
+                    session_id="chat-watchers",
+                    cancel_event=threading.Event(),
+                    attempt_id="attempt-watchers",
+                )
+            )
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                alive = {
+                    thread.name
+                    for thread in threading.enumerate()
+                    if thread.name in watched_names
+                }
+                if not alive:
+                    break
+                time.sleep(0.02)
+
+        self.assertEqual(alive, set())
+
+    def test_memory_off_cancel_safe_point_prevents_next_tool_or_iteration(self) -> None:
+        from durable_interaction_host import cancel_chat_execution
+
+        release_after_cancel = threading.Event()
+        reached_after_cancelled_event = threading.Event()
+
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, *, callback=None, run_id="", **_kwargs):
+                callback(
+                    {
+                        "type": "token_delta",
+                        "run_id": run_id,
+                        "iteration": 0,
+                        "delta": "started",
+                    }
+                )
+                release_after_cancel.wait(timeout=2)
+                callback(
+                    {
+                        "type": "tool_call",
+                        "run_id": run_id,
+                        "iteration": 1,
+                        "tool_name": "write_file",
+                        "call_id": "must-not-run",
+                    }
+                )
+                reached_after_cancelled_event.set()
+                return SimpleNamespace(messages=[], status="completed")
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            stream = unchain_adapter.stream_chat_events(
+                message="hello",
+                history=[],
+                attachments=[],
+                options={},
+                session_id="chat-memory-off-cancel",
+                attempt_id="attempt-memory-off-cancel",
+            )
+            first = next(stream)
+            self.assertEqual(first["type"], "token_delta")
+            cancel_chat_execution(
+                session_id="chat-memory-off-cancel",
+                attempt_id="attempt-memory-off-cancel",
+            )
+            release_after_cancel.set()
+            remaining = list(stream)
+
+        self.assertEqual(remaining, [])
+        self.assertFalse(reached_after_cancelled_event.is_set())
+
     def test_stream_chat_events_emits_memory_unavailable_and_stops_when_history_empty(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -1475,7 +1830,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         fake_agent = FakeAgent()
 
-        with mock.patch.object(
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
             unchain_adapter,
             "_create_agent",
             return_value=fake_agent,
@@ -1487,7 +1846,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     attachments=[],
                     options={"memory_enabled": True},
                     session_id="chat-1",
+                    attempt_id="attempt-memory-unavailable",
                 )
+            )
+
+            import execution_control
+
+            attempt_snapshot = execution_control.snapshot(
+                "chat-1",
+                "attempt-memory-unavailable",
             )
 
         self.assertFalse(fake_agent.run_called)
@@ -1496,6 +1863,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(events[0]["fallback_reason"], "embedding_provider_unavailable")
         self.assertEqual(events[1]["type"], "error")
         self.assertEqual(events[1]["code"], "memory_unavailable")
+        self.assertEqual(attempt_snapshot.status, "failed")
 
     def test_stream_chat_events_always_reports_developer_active_agent_in_bundle(self) -> None:
         class FakeAgent:

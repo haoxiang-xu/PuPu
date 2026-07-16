@@ -78,6 +78,66 @@ class DurableInteractionHostTests(unittest.TestCase):
         )
         return request
 
+    def _seed_cancellable_request(
+        self,
+        *,
+        session_id: str = "chat-cancel",
+        attempt_id: str = "attempt-cancel",
+    ):
+        from unchain.interaction.durable import (
+            INTERACTION_KIND_TOOL_APPROVAL,
+            build_interaction_request,
+        )
+        from unchain.interaction.runtime import response_contract_for_kind
+        from unchain.kernel import RunState
+        from unchain.memory import KernelMemoryRuntime
+        from unchain.memory.checkpoint_state import build_execution_checkpoint
+
+        memory = KernelMemoryRuntime.from_config(store=host._session_store())
+        state = RunState()
+        state.seed_messages([{"role": "user", "content": "cancel me"}])
+        state.session_state.session_id = session_id
+        state.provider_state.provider = "openai"
+        state.provider_state.model = "gpt-5"
+        state.memory_state["session_revision"] = 0
+        state.iteration = 1
+        state.last_continuation = {
+            "type": "durable_interaction",
+            "occurrence": "cancel-call",
+        }
+        request = build_interaction_request(
+            session_id=session_id,
+            kind=INTERACTION_KIND_TOOL_APPROVAL,
+            source_run_id=attempt_id,
+            occurrence="cancel-call",
+            payload={"tool_name": "write_file", "call_id": "cancel-call"},
+            response_contract=response_contract_for_kind(
+                INTERACTION_KIND_TOOL_APPROVAL
+            ),
+            created_revision=0,
+            subject={"provider": "openai", "model": "gpt-5"},
+        )
+        state.suspend_state.payload = {"interaction_request": request.to_dict()}
+        checkpoint = build_execution_checkpoint(
+            state,
+            status="awaiting_interaction",
+            run_id=attempt_id,
+        )
+        memory.save_execution_checkpoint_snapshot(
+            session_id,
+            checkpoint,
+            interaction_request=request.to_dict(),
+            expected_revision=0,
+        )
+        host.save_resume_context(
+            session_id=session_id,
+            run_id=attempt_id,
+            options={"modelId": "openai:gpt-5", "memory_enabled": True},
+            provider="openai",
+            model="gpt-5",
+        )
+        return request
+
     def test_pending_lookup_returns_real_interaction_id_without_secrets(self) -> None:
         request = self._seed_request()
 
@@ -86,6 +146,7 @@ class DurableInteractionHostTests(unittest.TestCase):
         self.assertEqual(result["status"], "awaiting_response")
         self.assertEqual(result["interaction_id"], request.interaction_id)
         self.assertEqual(result["source_run_id"], "run-1")
+        self.assertEqual(result["active_attempt_id"], "run-1")
         self.assertEqual(
             result["presentation"]["tool_call"]["confirmation_id"],
             request.interaction_id,
@@ -343,6 +404,317 @@ class DurableInteractionHostTests(unittest.TestCase):
             result,
             {"status": "none", "session_id": "empty-chat"},
         )
+
+    def test_cancel_execution_is_idempotent_and_terminalizes_pending(self) -> None:
+        request = self._seed_cancellable_request()
+
+        first = host.cancel_chat_execution(
+            session_id="chat-cancel",
+            attempt_id="attempt-cancel",
+            reason="user_stop",
+        )
+        retry = host.cancel_chat_execution(
+            session_id="chat-cancel",
+            attempt_id="attempt-cancel",
+            reason="user_stop",
+        )
+
+        self.assertEqual(first["status"], "ok")
+        self.assertEqual(first["state"], "cancelled")
+        self.assertTrue(first["durable_interaction_cancelled"])
+        self.assertEqual(retry["state"], "cancelled")
+        self.assertEqual(retry["disposition"], "unchanged")
+        self.assertFalse(retry["durable_interaction_cancelled"])
+        self.assertEqual(
+            host.get_pending_interaction("chat-cancel"),
+            {"status": "none", "session_id": "chat-cancel"},
+        )
+
+        with self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.record_interaction_receipt(
+                session_id="chat-cancel",
+                interaction_id=request.interaction_id,
+                approved=True,
+            )
+        self.assertEqual(raised.exception.code, "execution_cancelled")
+
+    def test_cancel_old_attempt_does_not_consume_newer_pending_interaction(self) -> None:
+        request = self._seed_cancellable_request(
+            session_id="chat-newer",
+            attempt_id="attempt-new",
+        )
+
+        result = host.cancel_chat_execution(
+            session_id="chat-newer",
+            attempt_id="attempt-old",
+            reason="late_stop",
+        )
+
+        self.assertEqual(result["state"], "cancelled")
+        pending = host.get_pending_interaction("chat-newer")
+        self.assertEqual(pending["status"], "awaiting_response")
+        self.assertEqual(pending["interaction_id"], request.interaction_id)
+
+    def test_completed_execution_wins_and_does_not_create_cancel_tombstone(self) -> None:
+        import execution_control
+
+        execution_control.register("chat-completed", "attempt-completed")
+        execution_control.mark_running("chat-completed", "attempt-completed")
+        execution_control.mark_completed("chat-completed", "attempt-completed")
+
+        result = host.cancel_chat_execution(
+            session_id="chat-completed",
+            attempt_id="attempt-completed",
+        )
+
+        self.assertEqual(result["state"], "completed")
+        self.assertEqual(result["disposition"], "already_terminal")
+        self.assertIsNone(result["cancellation"])
+        self.assertIsNone(
+            host._execution_runtime().load_cancellation(
+                "chat-completed",
+                "attempt-completed",
+            )
+        )
+
+    def test_resume_attempt_cancel_precisely_terminalizes_parent_checkpoint(self) -> None:
+        import execution_control
+
+        self._seed_cancellable_request(
+            session_id="chat-resume-cancel",
+            attempt_id="attempt-a",
+        )
+        host.bind_execution_attempt(
+            session_id="chat-resume-cancel",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+        execution_control.mark_running("chat-resume-cancel", "attempt-b")
+
+        result = host.cancel_chat_execution(
+            session_id="chat-resume-cancel",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+
+        self.assertEqual(result["source_attempt_id"], "attempt-a")
+        self.assertTrue(result["durable_interaction_cancelled"])
+        self.assertEqual(
+            host.get_pending_interaction("chat-resume-cancel"),
+            {"status": "none", "session_id": "chat-resume-cancel"},
+        )
+        self.assertIsNotNone(
+            host._execution_runtime().load_cancellation(
+                "chat-resume-cancel",
+                "attempt-b",
+            )
+        )
+
+    def test_cancel_before_resume_binding_reconciles_after_binding(self) -> None:
+        self._seed_cancellable_request(
+            session_id="chat-cancel-before-bind",
+            attempt_id="attempt-a",
+        )
+
+        host.cancel_chat_execution(
+            session_id="chat-cancel-before-bind",
+            attempt_id="attempt-b",
+        )
+        self.assertEqual(
+            host.get_pending_interaction("chat-cancel-before-bind")["status"],
+            "awaiting_response",
+        )
+
+        host.bind_execution_attempt(
+            session_id="chat-cancel-before-bind",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+
+        self.assertEqual(
+            host.get_pending_interaction("chat-cancel-before-bind"),
+            {"status": "none", "session_id": "chat-cancel-before-bind"},
+        )
+
+    def test_cancel_and_resume_binding_concurrency_always_terminalizes_parent(self) -> None:
+        for index in range(8):
+            session_id = f"chat-bind-race-{index}"
+            self._seed_cancellable_request(
+                session_id=session_id,
+                attempt_id="attempt-a",
+            )
+            gate = threading.Barrier(2)
+            errors = []
+
+            def bind() -> None:
+                try:
+                    gate.wait(timeout=2)
+                    host.bind_execution_attempt(
+                        session_id=session_id,
+                        attempt_id="attempt-b",
+                        source_attempt_id="attempt-a",
+                    )
+                except Exception as exc:  # noqa: BLE001 - asserted below
+                    errors.append(exc)
+
+            def cancel() -> None:
+                try:
+                    gate.wait(timeout=2)
+                    host.cancel_chat_execution(
+                        session_id=session_id,
+                        attempt_id="attempt-b",
+                    )
+                except Exception as exc:  # noqa: BLE001 - asserted below
+                    errors.append(exc)
+
+            workers = [threading.Thread(target=bind), threading.Thread(target=cancel)]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join(timeout=3)
+
+            self.assertEqual(errors, [])
+            self.assertTrue(all(not worker.is_alive() for worker in workers))
+            self.assertEqual(
+                host.get_pending_interaction(session_id),
+                {"status": "none", "session_id": session_id},
+            )
+
+    def test_registry_only_cancel_is_reconciled_to_unchain_after_restart(self) -> None:
+        import execution_control
+
+        self._seed_cancellable_request(
+            session_id="chat-split-store",
+            attempt_id="attempt-a",
+        )
+        host.bind_execution_attempt(
+            session_id="chat-split-store",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+        execution_control.request_cancel(
+            "chat-split-store",
+            "attempt-b",
+            reason="crash between stores",
+        )
+        self.assertIsNone(
+            host._execution_runtime().load_cancellation(
+                "chat-split-store",
+                "attempt-b",
+            )
+        )
+
+        # New runtime objects read both durable stores, as a restarted sidecar does.
+        self.assertEqual(
+            host.get_pending_interaction("chat-split-store"),
+            {"status": "none", "session_id": "chat-split-store"},
+        )
+        self.assertIsNotNone(
+            host._execution_runtime().load_cancellation(
+                "chat-split-store",
+                "attempt-b",
+            )
+        )
+
+    def test_completed_resume_attempt_does_not_clear_parent_checkpoint(self) -> None:
+        import execution_control
+
+        request = self._seed_cancellable_request(
+            session_id="chat-resume-completed",
+            attempt_id="attempt-a",
+        )
+        host.bind_execution_attempt(
+            session_id="chat-resume-completed",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+        execution_control.mark_running("chat-resume-completed", "attempt-b")
+        execution_control.mark_completed("chat-resume-completed", "attempt-b")
+
+        result = host.cancel_chat_execution(
+            session_id="chat-resume-completed",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+
+        self.assertEqual(result["state"], "completed")
+        pending = host.get_pending_interaction("chat-resume-completed")
+        self.assertEqual(pending["interaction_id"], request.interaction_id)
+        self.assertEqual(pending["source_run_id"], "attempt-a")
+        self.assertIsNone(
+            host._execution_runtime().load_cancellation(
+                "chat-resume-completed",
+                "attempt-b",
+            )
+        )
+
+    def test_parent_cancel_revokes_bound_resume_lease_before_clearing_checkpoint(self) -> None:
+        import execution_control
+
+        self._seed_cancellable_request(
+            session_id="chat-parent-race",
+            attempt_id="attempt-a",
+        )
+        host.bind_execution_attempt(
+            session_id="chat-parent-race",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+        execution_control.mark_running("chat-parent-race", "attempt-b")
+        guard = host._execution_runtime().acquire(
+            "chat-parent-race",
+            owner_id="attempt-b",
+        )
+
+        result = host.cancel_chat_execution(
+            session_id="chat-parent-race",
+            attempt_id="attempt-a",
+        )
+
+        self.assertTrue(result["durable_interaction_cancelled"])
+        self.assertEqual(
+            execution_control.snapshot(
+                "chat-parent-race",
+                "attempt-b",
+            ).status,
+            "cancelled",
+        )
+        self.assertIsNotNone(
+            host._execution_runtime().load_cancellation(
+                "chat-parent-race",
+                "attempt-b",
+            )
+        )
+        from unchain.execution import ExecutionCancelledError
+
+        with self.assertRaises(ExecutionCancelledError):
+            guard.assert_active()
+
+    def test_receipt_rejects_registry_only_cancel_of_bound_resume_attempt(self) -> None:
+        import execution_control
+
+        request = self._seed_cancellable_request(
+            session_id="chat-receipt-bound-cancel",
+            attempt_id="attempt-a",
+        )
+        host.bind_execution_attempt(
+            session_id="chat-receipt-bound-cancel",
+            attempt_id="attempt-b",
+            source_attempt_id="attempt-a",
+        )
+        execution_control.request_cancel(
+            "chat-receipt-bound-cancel",
+            "attempt-b",
+            reason="stop",
+        )
+
+        with self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.record_interaction_receipt(
+                session_id="chat-receipt-bound-cancel",
+                interaction_id=request.interaction_id,
+                approved=True,
+            )
+        self.assertEqual(raised.exception.code, "execution_cancelled")
 
 
 if __name__ == "__main__":

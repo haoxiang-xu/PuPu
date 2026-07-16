@@ -11,7 +11,6 @@ import {
   addCustomProvider,
   updateCustomProvider,
   normalizeCustomProvider,
-  setCustomProviderEnabled,
   removeCustomProviderSecret,
 } from "../../../../SERVICEs/custom_provider_store";
 

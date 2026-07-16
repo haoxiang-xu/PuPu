@@ -155,6 +155,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.READ_FILE, { filePath }),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
+  cancelExecution: streamClient.cancelExecution,
   startStreamV2: streamClient.startStreamV2,
   startStreamV4: streamClient.startStreamV4,
 });

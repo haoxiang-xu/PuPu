@@ -728,6 +728,9 @@ export const createUnchainApi = () => {
     isRuntimeEventStreamV4Available: () =>
       hasBridgeMethod("unchainAPI", "startStreamV4"),
 
+    isExecutionCancellationBridgeAvailable: () =>
+      hasBridgeMethod("unchainAPI", "cancelExecution"),
+
     isDurableInteractionBridgeAvailable: () =>
       hasBridgeMethod("unchainAPI", "getPendingInteraction") &&
       hasBridgeMethod("unchainAPI", "respondToolConfirmation") &&
@@ -1382,6 +1385,75 @@ export const createUnchainApi = () => {
       }
     },
 
+    cancelExecution: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "cancelExecution");
+        const sessionIdRaw = payload?.session_id || payload?.sessionId;
+        const attemptIdRaw = payload?.attempt_id || payload?.attemptId;
+        const sessionId =
+          typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+        const attemptId =
+          typeof attemptIdRaw === "string" ? attemptIdRaw.trim() : "";
+        if (!sessionId || !attemptId) {
+          throw new FrontendApiError(
+            "invalid_execution_cancel_request",
+            "session_id and attempt_id are required",
+          );
+        }
+        const reasonRaw = payload?.reason;
+        const reason =
+          typeof reasonRaw === "string" && reasonRaw.trim()
+            ? reasonRaw.trim()
+            : "user_stop";
+        const idempotencyKeyRaw =
+          payload?.idempotency_key || payload?.idempotencyKey;
+        const idempotencyKey =
+          typeof idempotencyKeyRaw === "string"
+            ? idempotencyKeyRaw.trim()
+            : "";
+        const sourceAttemptIdRaw =
+          payload?.source_attempt_id || payload?.sourceAttemptId;
+        const sourceAttemptId =
+          typeof sourceAttemptIdRaw === "string"
+            ? sourceAttemptIdRaw.trim()
+            : "";
+        const requestIdRaw = payload?.request_id || payload?.requestId;
+        const requestId =
+          typeof requestIdRaw === "string" ? requestIdRaw.trim() : "";
+        const response = await withTimeout(
+          () =>
+            method({
+              session_id: sessionId,
+              attempt_id: attemptId,
+              reason,
+              ...(sourceAttemptId
+                ? { source_attempt_id: sourceAttemptId }
+                : {}),
+              ...(requestId ? { request_id: requestId } : {}),
+              ...(idempotencyKey
+                ? { idempotency_key: idempotencyKey }
+                : {}),
+            }),
+          4000,
+          "unchain_execution_cancel_timeout",
+          "Execution cancellation request timed out",
+        );
+        return isObject(response)
+          ? response
+          : {
+              status: "cancel_requested",
+              session_id: sessionId,
+              attempt_id: attemptId,
+            };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_execution_cancel_failed",
+          "Failed to cancel execution",
+        );
+      }
+    },
+
     respondToolConfirmation: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");
@@ -1820,7 +1892,8 @@ export const createUnchainApi = () => {
         const streamHandle = method(normalizedPayload, handlers);
         if (
           !isObject(streamHandle) ||
-          typeof streamHandle.cancel !== "function"
+          (typeof streamHandle.disconnect !== "function" &&
+            typeof streamHandle.cancel !== "function")
         ) {
           throw new FrontendApiError(
             "invalid_stream_handle",

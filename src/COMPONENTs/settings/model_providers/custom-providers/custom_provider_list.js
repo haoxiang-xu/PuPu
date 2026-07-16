@@ -1,7 +1,6 @@
 import { useContext, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
-import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   hasCustomProviderSecret,

@@ -48,6 +48,11 @@ import {
   prepareDurableInteractionResumeMessages,
 } from "./durable_interaction_recovery";
 import {
+  enqueueExecutionCancel,
+  readExecutionCancelOutbox,
+  removeExecutionCancel,
+} from "./execution_cancel_outbox";
+import {
   start as progressStart,
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
@@ -102,6 +107,8 @@ const STREAM_TRACE_LEVEL = "minimal";
 const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
 const SUBAGENT_STATE_FLUSH_MS = 100;
 const DURABLE_RESUME_MAX_RETRIES = 7;
+const EXECUTION_CANCEL_DISCONNECT_GRACE_MS = 1500;
+const EXECUTION_CANCEL_OUTBOX_RETRY_MS = 5000;
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
 const EMPTY_CONFIRMATION_STATE = Object.freeze({});
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
@@ -240,6 +247,90 @@ const characterLogger = createLogger(
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
 
+const normalizedExecutionIdentity = (identity) => {
+  const sessionId =
+    typeof identity?.sessionId === "string" ? identity.sessionId.trim() : "";
+  const attemptId =
+    typeof identity?.attemptId === "string" ? identity.attemptId.trim() : "";
+  if (!sessionId || !attemptId) {
+    return null;
+  }
+  return { ...identity, sessionId, attemptId };
+};
+
+const disconnectStreamTransport = (handle) => {
+  if (handle && typeof handle.disconnect === "function") {
+    handle.disconnect();
+    return;
+  }
+  if (handle && typeof handle.cancel === "function") {
+    handle.cancel();
+  }
+};
+
+const requestExecutionCancellationAndDisconnect = ({
+  identity,
+  handle,
+  reason = "user_stop",
+}) => {
+  let disconnected = false;
+  const disconnectOnce = () => {
+    if (disconnected) {
+      return;
+    }
+    disconnected = true;
+    disconnectStreamTransport(handle);
+  };
+  const normalizedIdentity = normalizedExecutionIdentity(identity);
+  if (
+    !normalizedIdentity ||
+    typeof api.unchain.cancelExecution !== "function"
+  ) {
+    disconnectOnce();
+    return Promise.resolve({ ok: false, response: null });
+  }
+
+  const disconnectTimer = setTimeout(
+    disconnectOnce,
+    EXECUTION_CANCEL_DISCONNECT_GRACE_MS,
+  );
+  return Promise.resolve(
+    api.unchain.cancelExecution({
+      session_id: normalizedIdentity.sessionId,
+      attempt_id: normalizedIdentity.attemptId,
+      ...(normalizedIdentity.sourceAttemptId
+        ? { source_attempt_id: normalizedIdentity.sourceAttemptId }
+        : {}),
+      ...(normalizedIdentity.requestId
+        ? { request_id: normalizedIdentity.requestId }
+        : {}),
+      reason,
+      idempotency_key: `stop:${normalizedIdentity.attemptId}`,
+    }),
+  ).then((response) => ({ ok: true, response }))
+    .catch((error) => {
+      unchainLogger.warn("execution_cancel_failed", {
+        sessionId: normalizedIdentity.sessionId,
+        attemptId: normalizedIdentity.attemptId,
+        code: error?.code || "execution_cancel_failed",
+        message: error?.message || "Failed to cancel execution",
+      });
+      return { ok: false, response: null };
+    })
+    .finally(() => {
+      clearTimeout(disconnectTimer);
+      disconnectOnce();
+    });
+};
+
+const createChatRenderRuntime = () => ({
+  tokenFlushController: null,
+  parentRunId: "",
+  subagentMetaByRunId: new Map(),
+  subagentFramesByRunId: new Map(),
+  lastTokenRunId: "",
+});
+
 export const useChatStream = ({
   chatId,
   messages,
@@ -333,6 +424,7 @@ export const useChatStream = ({
   tRef.current = typeof t === "function" ? t : (key) => key;
 
   const streamHandlesRef = useRef(new Map());
+  const executionIdentityByChatIdRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
   if (!fallbackStreamingMessageStoreRef.current) {
     fallbackStreamingMessageStoreRef.current = createStreamingMessageStore();
@@ -344,12 +436,13 @@ export const useChatStream = ({
   const confirmationRuntimeByChatIdRef = useRef(new Map());
   const durableInteractionLookupRef = useRef(null);
   const durableResumeStartedKeysRef = useRef(new Set());
+  const durableResumeStartedKeysByChatIdRef = useRef(new Map());
   const durableResumeRetryTimersRef = useRef(new Map());
-  const activeTokenFlushControllerRef = useRef(null);
-  const parentRunIdRef = useRef("");
-  const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
-  const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
-  const lastTokenRunIdRef = useRef("");
+  const runGenerationByChatIdRef = useRef(new Map());
+  const stoppedRunChatIdsRef = useRef(new Set());
+  const queueRelayTimersByChatIdRef = useRef(new Map());
+  const confirmationRetryWaitersByChatIdRef = useRef(new Map());
+  const renderRuntimeByChatIdRef = useRef(new Map());
   // Interject (mid-run "fyi"/"btw"/"queue"/"clarify") bookkeeping — all keyed
   // by chatId so multiple chats never cross-talk.
   const activeRunThreadIdByChatIdRef = useRef(new Map()); // chatId -> threadId the active run actually used (character chats use a session_id, not chatId)
@@ -357,6 +450,173 @@ export const useChatStream = ({
   const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
   const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
   const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
+
+  const beginRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (!normalizedChatId) {
+      return 0;
+    }
+    const nextGeneration =
+      (runGenerationByChatIdRef.current.get(normalizedChatId) || 0) + 1;
+    runGenerationByChatIdRef.current.set(normalizedChatId, nextGeneration);
+    stoppedRunChatIdsRef.current.delete(normalizedChatId);
+    return nextGeneration;
+  }, []);
+
+  const getRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    return normalizedChatId
+      ? runGenerationByChatIdRef.current.get(normalizedChatId) || 0
+      : 0;
+  }, []);
+
+  const ensureRecoveryRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (
+      !normalizedChatId ||
+      stoppedRunChatIdsRef.current.has(normalizedChatId)
+    ) {
+      return 0;
+    }
+    const currentGeneration =
+      runGenerationByChatIdRef.current.get(normalizedChatId) || 0;
+    if (currentGeneration > 0) {
+      return currentGeneration;
+    }
+    runGenerationByChatIdRef.current.set(normalizedChatId, 1);
+    return 1;
+  }, []);
+
+  const isRunGenerationCurrent = useCallback(
+    (targetChatId, runGeneration) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      return Boolean(
+        normalizedChatId &&
+          Number.isInteger(runGeneration) &&
+          runGeneration > 0 &&
+          !stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+          runGenerationByChatIdRef.current.get(normalizedChatId) ===
+            runGeneration,
+      );
+    },
+    [],
+  );
+
+  const invalidateRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (!normalizedChatId) {
+      return 0;
+    }
+    const nextGeneration =
+      (runGenerationByChatIdRef.current.get(normalizedChatId) || 0) + 1;
+    runGenerationByChatIdRef.current.set(normalizedChatId, nextGeneration);
+    stoppedRunChatIdsRef.current.add(normalizedChatId);
+    return nextGeneration;
+  }, []);
+
+  const clearQueueRelayTimersForChat = useCallback((targetChatId) => {
+    const timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+    timers?.forEach((timerId) => clearTimeout(timerId));
+    queueRelayTimersByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const scheduleQueueRelayTimer = useCallback(
+    (targetChatId, runGeneration, callback, delayMs) => {
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+        return null;
+      }
+      let timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+      if (!timers) {
+        timers = new Set();
+        queueRelayTimersByChatIdRef.current.set(targetChatId, timers);
+      }
+      let timerId = null;
+      timerId = setTimeout(() => {
+        const currentTimers =
+          queueRelayTimersByChatIdRef.current.get(targetChatId);
+        currentTimers?.delete(timerId);
+        if (currentTimers?.size === 0) {
+          queueRelayTimersByChatIdRef.current.delete(targetChatId);
+        }
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
+        callback();
+      }, delayMs);
+      timers.add(timerId);
+      return timerId;
+    },
+    [isRunGenerationCurrent],
+  );
+
+  const clearConfirmationRetryWaitersForChat = useCallback((targetChatId) => {
+    const waiters =
+      confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+    waiters?.forEach((waiter) => {
+      clearTimeout(waiter.timerId);
+      waiter.resolve(false);
+    });
+    confirmationRetryWaitersByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const waitForConfirmationRetry = useCallback(
+    (targetChatId, runGeneration, delayMs) =>
+      new Promise((resolve) => {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          resolve(false);
+          return;
+        }
+        let waiters =
+          confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+        if (!waiters) {
+          waiters = new Set();
+          confirmationRetryWaitersByChatIdRef.current.set(targetChatId, waiters);
+        }
+        const waiter = { timerId: null, resolve };
+        waiter.timerId = setTimeout(() => {
+          const currentWaiters =
+            confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+          currentWaiters?.delete(waiter);
+          if (currentWaiters?.size === 0) {
+            confirmationRetryWaitersByChatIdRef.current.delete(targetChatId);
+          }
+          resolve(isRunGenerationCurrent(targetChatId, runGeneration));
+        }, delayMs);
+        waiters.add(waiter);
+      }),
+    [isRunGenerationCurrent],
+  );
+
+  const trackDurableResumeStartedKey = useCallback(
+    (targetChatId, resumeKey) => {
+      if (!resumeKey) {
+        return;
+      }
+      durableResumeStartedKeysRef.current.add(resumeKey);
+      let keys =
+        durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
+      if (!keys) {
+        keys = new Set();
+        durableResumeStartedKeysByChatIdRef.current.set(targetChatId, keys);
+      }
+      keys.add(resumeKey);
+    },
+    [],
+  );
+
+  const clearDurableResumeStartedKeysForChat = useCallback((targetChatId) => {
+    const keys =
+      durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
+    keys?.forEach((resumeKey) => {
+      durableResumeStartedKeysRef.current.delete(resumeKey);
+    });
+    durableResumeStartedKeysByChatIdRef.current.delete(targetChatId);
+  }, []);
 
   const getConfirmationRuntimeForChat = useCallback(
     (targetChatId, { create = true } = {}) => {
@@ -475,23 +735,45 @@ export const useChatStream = ({
       ? durableInteractionState.status
       : "";
   const isDurableInteractionBlocked = Boolean(durableInteractionStatus);
+  const canStop =
+    isStreaming ||
+    [
+      "awaiting",
+      "awaiting_response",
+      "checking",
+      "receipt_recorded",
+      "resuming",
+      "retry_wait",
+    ].includes(durableInteractionStatus);
 
-  const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
-    const controller = activeTokenFlushControllerRef.current;
-    if (!controller) {
-      return;
-    }
+  const clearActiveTokenFlushController = useCallback(
+    (targetChatId, mode = "dispose") => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
+      const renderRuntime =
+        renderRuntimeByChatIdRef.current.get(normalizedChatId);
+      const controller = renderRuntime?.tokenFlushController;
+      if (!controller) {
+        return;
+      }
 
-    if (mode === "flush" && typeof controller.flushNow === "function") {
-      controller.flushNow();
-    }
+      if (mode === "flush" && typeof controller.flushNow === "function") {
+        controller.flushNow();
+      }
 
-    if (typeof controller.dispose === "function") {
-      controller.dispose();
-    }
+      if (typeof controller.dispose === "function") {
+        controller.dispose();
+      }
 
-    activeTokenFlushControllerRef.current = null;
-  }, []);
+      if (renderRuntime.tokenFlushController === controller) {
+        renderRuntime.tokenFlushController = null;
+      }
+    },
+    [],
+  );
 
   const flushStreamingMessageStore = useCallback(
     (targetChatId, assistantMessageId) => {
@@ -834,11 +1116,53 @@ export const useChatStream = ({
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
-    clearActiveTokenFlushController("flush");
-    const handle = streamHandlesRef.current.get(currentChatId);
-    if (handle && typeof handle.cancel === "function") {
-      handle.cancel();
+    if (!currentChatId) {
+      return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
+
+    // Invalidate first. Any lookup, retry, receipt, or queue callback that was
+    // already in flight must observe the tombstone before transport teardown.
+    invalidateRunGeneration(currentChatId);
+    const durableRetryTimer =
+      durableResumeRetryTimersRef.current.get(currentChatId);
+    if (durableRetryTimer != null) {
+      clearTimeout(durableRetryTimer);
+      durableResumeRetryTimersRef.current.delete(currentChatId);
+    }
+    clearDurableResumeStartedKeysForChat(currentChatId);
+    clearConfirmationRetryWaitersForChat(currentChatId);
+    clearQueueRelayTimersForChat(currentChatId);
+    queuedTurnsByChatIdRef.current.delete(currentChatId);
+    pendingFyiCountByChatIdRef.current.delete(currentChatId);
+    pendingClarifyByChatIdRef.current.delete(currentChatId);
+    syncInterjectStateForChat(currentChatId);
+    updateDurableInteractionForChat(currentChatId, null);
+    clearAllPendingToolConfirmations(currentChatId);
+    pendingContinuationRequestRef.current = null;
+    setPendingContinuationRequest(null);
+
+    clearActiveTokenFlushController(currentChatId, "flush");
+    const handle = streamHandlesRef.current.get(currentChatId);
+    const executionIdentity =
+      executionIdentityByChatIdRef.current.get(currentChatId) || null;
+    executionIdentityByChatIdRef.current.delete(currentChatId);
+    const queuedCancellation = enqueueExecutionCancel({
+      ...(executionIdentity || {}),
+      reason: "user_stop",
+      createdAt: Date.now(),
+    });
+    void requestExecutionCancellationAndDisconnect({
+      identity: queuedCancellation,
+      handle,
+      reason: "user_stop",
+    }).then((result) => {
+      if (result?.ok && queuedCancellation) {
+        removeExecutionCancel(
+          queuedCancellation.sessionId,
+          queuedCancellation.attemptId,
+        );
+      }
+    });
     cancelBackgroundPersist(currentChatId);
     streamHandlesRef.current.delete(currentChatId);
     streamingChatIdsRef.current.delete(currentChatId);
@@ -848,9 +1172,6 @@ export const useChatStream = ({
       next.delete(currentChatId);
       return next;
     });
-    clearAllPendingToolConfirmations(currentChatId);
-    pendingContinuationRequestRef.current = null;
-    setPendingContinuationRequest(null);
     const materializedMessages = materializeStreamingMessages(
       currentChatId,
       messagesRef.current,
@@ -877,17 +1198,59 @@ export const useChatStream = ({
     activeChatIdRef,
     activeStreamsRef,
     activeStreamingMessageStore,
+    clearConfirmationRetryWaitersForChat,
     clearActiveTokenFlushController,
     clearAllPendingToolConfirmations,
+    clearDurableResumeStartedKeysForChat,
+    clearQueueRelayTimersForChat,
+    invalidateRunGeneration,
     materializeStreamingMessages,
     messagesRef,
     setMessages,
     storageApi,
+    syncInterjectStateForChat,
+    updateDurableInteractionForChat,
   ]);
 
   const stopStream = useCallback(() => {
     cancelCurrentStreamAndSettleMessages();
   }, [cancelCurrentStreamAndSettleMessages]);
+
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer = null;
+
+    const drainCancellationOutbox = async () => {
+      const entries = readExecutionCancelOutbox();
+      for (const entry of entries) {
+        if (disposed) {
+          return;
+        }
+        const result = await requestExecutionCancellationAndDisconnect({
+          identity: entry,
+          handle: null,
+          reason: entry.reason || "user_stop",
+        });
+        if (result?.ok) {
+          removeExecutionCancel(entry.sessionId, entry.attemptId);
+        }
+      }
+      if (!disposed) {
+        retryTimer = setTimeout(
+          drainCancellationOutbox,
+          EXECUTION_CANCEL_OUTBOX_RETRY_MS,
+        );
+      }
+    };
+
+    void drainCancellationOutbox();
+    return () => {
+      disposed = true;
+      if (retryTimer != null) {
+        clearTimeout(retryTimer);
+      }
+    };
+  }, []);
 
   const appendSyntheticToolConfirmationDecision = useCallback(
     ({ targetChatId, confirmationId, approved, userResponse }) => {
@@ -1157,36 +1520,64 @@ export const useChatStream = ({
     [applyToStreamingAssistantMessage],
   );
 
-  const submitToolConfirmationWithRetry = useCallback(async (payload) => {
-    let attempt = 0;
-    while (true) {
-      try {
-        return await api.unchain.respondToolConfirmation(payload);
-      } catch (error) {
-        if (
-          attempt >= DURABLE_RESUME_MAX_RETRIES ||
-          !isRetryableDurableInteractionError(error)
-        ) {
-          throw error;
+  const submitToolConfirmationWithRetry = useCallback(
+    async (payload, { targetChatId, runGeneration } = {}) => {
+      const stoppedError = () =>
+        Object.assign(new Error("This run was stopped."), {
+          code: "run_stopped",
+        });
+      let attempt = 0;
+      while (true) {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          throw stoppedError();
         }
-        const delayMs = durableInteractionRetryDelayMs(attempt);
-        attempt += 1;
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        try {
+          const response = await api.unchain.respondToolConfirmation(payload);
+          if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+            throw stoppedError();
+          }
+          return response;
+        } catch (error) {
+          if (
+            error?.code === "run_stopped" ||
+            attempt >= DURABLE_RESUME_MAX_RETRIES ||
+            !isRetryableDurableInteractionError(error)
+          ) {
+            throw error;
+          }
+          const delayMs = durableInteractionRetryDelayMs(attempt);
+          attempt += 1;
+          const shouldContinue = await waitForConfirmationRetry(
+            targetChatId,
+            runGeneration,
+            delayMs,
+          );
+          if (!shouldContinue) {
+            throw stoppedError();
+          }
+        }
       }
-    }
-  }, []);
+    },
+    [isRunGenerationCurrent, waitForConfirmationRetry],
+  );
 
   const continueFromRecordedReceipt = useCallback(
-    (targetChatId, sessionId, response) => {
-      if (response?.disposition !== "receipt_recorded") {
+    (targetChatId, sessionId, response, runGeneration) => {
+      if (
+        response?.disposition !== "receipt_recorded" ||
+        !isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
         return;
       }
       const lookup = durableInteractionLookupRef.current;
       if (typeof lookup === "function") {
-        void lookup(targetChatId, sessionId, { autoResume: true });
+        void lookup(targetChatId, sessionId, {
+          autoResume: true,
+          runGeneration,
+        });
       }
     },
-    [],
+    [isRunGenerationCurrent],
   );
 
   const handleToolConfirmationDecision = useCallback(
@@ -1195,6 +1586,10 @@ export const useChatStream = ({
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!targetChatId || !normalizedConfirmationId) {
+        return;
+      }
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
         return;
       }
 
@@ -1303,7 +1698,13 @@ export const useChatStream = ({
         if (userResponse !== undefined && userResponse !== null) {
           payload.modified_arguments = { user_response: userResponse };
         }
-        const response = await submitToolConfirmationWithRetry(payload);
+        const response = await submitToolConfirmationWithRetry(payload, {
+          targetChatId,
+          runGeneration,
+        });
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
         if (
           runtime?.followupSignalById.get(normalizedConfirmationId) !== true
         ) {
@@ -1327,8 +1728,16 @@ export const useChatStream = ({
             userResponse: userResponse ?? null,
           },
         }));
-        continueFromRecordedReceipt(targetChatId, sessionId, response);
+        continueFromRecordedReceipt(
+          targetChatId,
+          sessionId,
+          response,
+          runGeneration,
+        );
       } catch (error) {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
         clearConfirmationResolutionTimer(targetChatId, normalizedConfirmationId);
         const errorMessage =
           (typeof error?.message === "string" && error.message) ||
@@ -1350,7 +1759,9 @@ export const useChatStream = ({
       clearConfirmationResolutionTimer,
       continueFromRecordedReceipt,
       findToolCallFrameByCallId,
+      getRunGeneration,
       getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
       submitToolConfirmationWithRetry,
       updateToolConfirmationUiState,
     ],
@@ -1362,6 +1773,8 @@ export const useChatStream = ({
       const normalizedId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!targetChatId || !normalizedId) return;
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
 
       const current = pendingContinuationRequestRef.current;
       if (!current || current.status === "submitting") return;
@@ -1377,16 +1790,26 @@ export const useChatStream = ({
       try {
         const sessionId =
           activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
-        const response = await submitToolConfirmationWithRetry({
-          confirmation_id: normalizedId,
-          approved: Boolean(approved),
-          reason: "",
-          session_id: sessionId,
-        });
+        const response = await submitToolConfirmationWithRetry(
+          {
+            confirmation_id: normalizedId,
+            approved: Boolean(approved),
+            reason: "",
+            session_id: sessionId,
+          },
+          { targetChatId, runGeneration },
+        );
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
         pendingContinuationRequestRef.current = null;
         setPendingContinuationRequest(null);
-        continueFromRecordedReceipt(targetChatId, sessionId, response);
+        continueFromRecordedReceipt(
+          targetChatId,
+          sessionId,
+          response,
+          runGeneration,
+        );
       } catch (_error) {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
         pendingContinuationRequestRef.current = { ...current, status: "idle" };
         setPendingContinuationRequest((prev) =>
           prev ? { ...prev, status: "idle" } : prev,
@@ -1396,6 +1819,8 @@ export const useChatStream = ({
     [
       activeChatIdRef,
       continueFromRecordedReceipt,
+      getRunGeneration,
+      isRunGenerationCurrent,
       submitToolConfirmationWithRetry,
     ],
   );
@@ -1453,6 +1878,10 @@ export const useChatStream = ({
 
   const submitAutoApprovedToolConfirmation = useCallback(
     ({ targetChatId, confirmationId, request }) => {
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+        return;
+      }
       const runtime = getConfirmationRuntimeForChat(targetChatId);
       updatePendingToolConfirmationRequests(targetChatId, (previous) => {
         if (!previous[confirmationId]) {
@@ -1482,8 +1911,16 @@ export const useChatStream = ({
       };
 
       try {
-        Promise.resolve(submitToolConfirmationWithRetry(autoPayload))
+        Promise.resolve(
+          submitToolConfirmationWithRetry(autoPayload, {
+            targetChatId,
+            runGeneration,
+          }),
+        )
           .then((response) => {
+            if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+              return;
+            }
             if (
               runtime?.followupSignalById.get(confirmationId) !== true
             ) {
@@ -1499,9 +1936,13 @@ export const useChatStream = ({
               targetChatId,
               autoPayload.session_id,
               response,
+              runGeneration,
             );
           })
           .catch((error) => {
+            if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+              return;
+            }
             clearConfirmationResolutionTimer(targetChatId, confirmationId);
             restoreManualToolConfirmationRequest({
               targetChatId,
@@ -1509,8 +1950,11 @@ export const useChatStream = ({
               request,
               error,
             });
-          });
+        });
       } catch (error) {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
         clearConfirmationResolutionTimer(targetChatId, confirmationId);
         restoreManualToolConfirmationRequest({
           targetChatId,
@@ -1524,7 +1968,9 @@ export const useChatStream = ({
       appendSyntheticToolConfirmationDecision,
       clearConfirmationResolutionTimer,
       continueFromRecordedReceipt,
+      getRunGeneration,
       getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
       restoreManualToolConfirmationRequest,
       submitToolConfirmationWithRetry,
       updatePendingToolConfirmationRequests,
@@ -1592,6 +2038,7 @@ export const useChatStream = ({
       durableInteraction = null,
       durableResumeAttempt = 0,
       durableOwnerMessageId = "",
+      runGeneration: requestedRunGeneration = null,
     }) => {
       const isDurableResume = Boolean(
         mode === "resume_interaction" &&
@@ -1617,7 +2064,25 @@ export const useChatStream = ({
         return false;
       }
 
-      clearActiveTokenFlushController("dispose");
+      const activeRunGeneration =
+        Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
+          ? requestedRunGeneration
+          : beginRunGeneration(targetChatId);
+      if (
+        !Number.isInteger(requestedRunGeneration) ||
+        requestedRunGeneration <= 0
+      ) {
+        executionIdentityByChatIdRef.current.delete(targetChatId);
+      }
+      const isCurrentRun = () =>
+        isRunGenerationCurrent(targetChatId, activeRunGeneration);
+      if (!isCurrentRun()) {
+        return false;
+      }
+
+      clearActiveTokenFlushController(targetChatId, "dispose");
+      const renderRuntime = createChatRenderRuntime();
+      renderRuntimeByChatIdRef.current.set(targetChatId, renderRuntime);
 
       const normalizedBaseMessages = Array.isArray(baseMessages)
         ? baseMessages
@@ -1634,11 +2099,6 @@ export const useChatStream = ({
       clearAllPendingToolConfirmations(targetChatId);
       pendingContinuationRequestRef.current = null;
       setPendingContinuationRequest(null);
-      parentRunIdRef.current = "";
-      subagentMetaByRunIdRef.current.clear();
-      subagentFramesByRunIdRef.current.clear();
-      lastTokenRunIdRef.current = "";
-
       const timestamp = Date.now();
       const durableResumeMessages = isDurableResume
         ? prepareDurableInteractionResumeMessages(
@@ -1685,6 +2145,9 @@ export const useChatStream = ({
               : [],
           ),
         ]);
+        if (!isCurrentRun()) {
+          return false;
+        }
 
         const { payloads: attachmentPayloads, missingAttachmentNames } =
           resolveAttachmentPayloads(targetChatId, normalizedAttachments);
@@ -1814,7 +2277,13 @@ export const useChatStream = ({
         if (!resolvedCharacterConfig) {
           try {
             resolvedCharacterConfig = await buildCharacterRunConfig();
+            if (!isCurrentRun()) {
+              return false;
+            }
           } catch (error) {
+            if (!isCurrentRun()) {
+              return false;
+            }
             rollbackOptimistic();
             setStreamError(
               error?.message || "Failed to prepare this character chat.",
@@ -1965,7 +2434,7 @@ export const useChatStream = ({
           Array.from(runIds)
             .map((runId) => [
               runId,
-              subagentFramesByRunIdRef.current.get(runId),
+              renderRuntime.subagentFramesByRunId.get(runId),
             ])
             .map(([runId, frames]) => [
               runId,
@@ -1976,7 +2445,10 @@ export const useChatStream = ({
       const serializeSubagentMetaByRunId = (runIds) =>
         Object.fromEntries(
           Array.from(runIds)
-            .map((runId) => [runId, subagentMetaByRunIdRef.current.get(runId)])
+            .map((runId) => [
+              runId,
+              renderRuntime.subagentMetaByRunId.get(runId),
+            ])
             .map(([runId, meta]) => [
               runId,
               {
@@ -2000,9 +2472,9 @@ export const useChatStream = ({
       const isKnownSubagentRunId = (runId) =>
         typeof runId === "string" &&
         runId.length > 0 &&
-        (!parentRunIdRef.current || runId !== parentRunIdRef.current) &&
-        (subagentMetaByRunIdRef.current.has(runId) ||
-          subagentFramesByRunIdRef.current.has(runId));
+        (!renderRuntime.parentRunId || runId !== renderRuntime.parentRunId) &&
+        (renderRuntime.subagentMetaByRunId.has(runId) ||
+          renderRuntime.subagentFramesByRunId.has(runId));
 
       const upsertSubagentMeta = (childRunId, updates) => {
         if (typeof childRunId !== "string" || !childRunId.trim()) {
@@ -2010,7 +2482,7 @@ export const useChatStream = ({
         }
 
         const previousMeta =
-          subagentMetaByRunIdRef.current.get(childRunId) || {};
+          renderRuntime.subagentMetaByRunId.get(childRunId) || {};
         const nextMeta = {
           subagentId:
             typeof updates?.subagentId === "string"
@@ -2057,9 +2529,9 @@ export const useChatStream = ({
                 : "",
         };
 
-        subagentMetaByRunIdRef.current.set(childRunId, nextMeta);
-        if (!subagentFramesByRunIdRef.current.has(childRunId)) {
-          subagentFramesByRunIdRef.current.set(childRunId, []);
+        renderRuntime.subagentMetaByRunId.set(childRunId, nextMeta);
+        if (!renderRuntime.subagentFramesByRunId.has(childRunId)) {
+          renderRuntime.subagentFramesByRunId.set(childRunId, []);
         }
         dirtySubagentMetaRunIds.add(childRunId);
         return nextMeta;
@@ -2285,10 +2757,10 @@ export const useChatStream = ({
         flushNow: flushBufferedTokenDelta,
         dispose: disposeBufferedTokenFlush,
       };
-      activeTokenFlushControllerRef.current = tokenFlushController;
+      renderRuntime.tokenFlushController = tokenFlushController;
       const releaseTokenFlushController = () => {
-        if (activeTokenFlushControllerRef.current === tokenFlushController) {
-          activeTokenFlushControllerRef.current = null;
+        if (renderRuntime.tokenFlushController === tokenFlushController) {
+          renderRuntime.tokenFlushController = null;
         }
       };
 
@@ -2459,6 +2931,9 @@ export const useChatStream = ({
 
         const streamHandle = startStream(payload, {
           onRuntimeEvent: (runtimeEvent) => {
+            if (!isCurrentRun()) {
+              return;
+            }
             if (runtimeEventBatcher) {
               runtimeEventBatcher.enqueue(runtimeEvent);
               return;
@@ -2468,6 +2943,10 @@ export const useChatStream = ({
             dispatchRuntimeEventEffects(effects);
           },
           onDone: (done) => {
+            if (!isCurrentRun()) {
+              runtimeEventBatcher?.cancel();
+              return;
+            }
             runtimeEventBatcher?.flushNow();
             if (runtimeEventStreamFailed) {
               return;
@@ -2480,25 +2959,31 @@ export const useChatStream = ({
             handlers.onDone?.(donePayload);
           },
           onError: (error) => {
+            if (!isCurrentRun()) {
+              runtimeEventBatcher?.cancel();
+              return;
+            }
             runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
             handlers.onError?.(error);
           },
         });
 
-        if (
-          runtimeEventBatcher &&
-          streamHandle &&
-          typeof streamHandle.cancel === "function"
-        ) {
-          const originalCancel = streamHandle.cancel;
-          return {
-            ...streamHandle,
-            cancel: (...args) => {
+        if (runtimeEventBatcher && streamHandle) {
+          const wrappedHandle = { ...streamHandle };
+          if (typeof streamHandle.disconnect === "function") {
+            wrappedHandle.disconnect = (...args) => {
               runtimeEventBatcher.cancel();
-              return originalCancel(...args);
-            },
-          };
+              return streamHandle.disconnect(...args);
+            };
+          }
+          if (typeof streamHandle.cancel === "function") {
+            wrappedHandle.cancel = (...args) => {
+              runtimeEventBatcher.cancel();
+              return streamHandle.cancel(...args);
+            };
+          }
+          return wrappedHandle;
         }
 
         return streamHandle;
@@ -2532,15 +3017,8 @@ export const useChatStream = ({
         return api.unchain.startStreamV2(payload, handlers);
       };
 
-      const durableResumeKey = isDurableResume
-        ? [
-            durableInteraction.sessionId,
-            durableInteraction.interactionId,
-            durableInteraction.receiptId || "",
-          ].join(":")
-        : "";
       const scheduleDurableResumeRetry = (error, sourceMessages) => {
-        if (!isDurableResume) {
+        if (!isDurableResume || !isCurrentRun()) {
           return false;
         }
 
@@ -2593,21 +3071,30 @@ export const useChatStream = ({
         if (existingTimer) {
           clearTimeout(existingTimer);
         }
-        const timerId = setTimeout(async () => {
-          durableResumeRetryTimersRef.current.delete(targetChatId);
+        let timerId = null;
+        timerId = setTimeout(async () => {
+          if (
+            durableResumeRetryTimersRef.current.get(targetChatId) === timerId
+          ) {
+            durableResumeRetryTimersRef.current.delete(targetChatId);
+          }
+          if (!isCurrentRun()) {
+            return;
+          }
           let refreshedInteraction = durableInteraction;
           try {
             const rawPending = await api.unchain.getPendingInteraction({
               session_id: durableInteraction.sessionId,
             });
+            if (!isCurrentRun()) {
+              return;
+            }
             const refreshedPending = normalizePendingInteraction(
               rawPending,
               durableInteraction.sessionId,
             );
             if (refreshedPending?.status === "none") {
-              if (durableResumeKey) {
-                durableResumeStartedKeysRef.current.delete(durableResumeKey);
-              }
+              clearDurableResumeStartedKeysForChat(targetChatId);
               clearAllPendingToolConfirmations(targetChatId);
               updateDurableInteractionForChat(targetChatId, null);
               return;
@@ -2627,6 +3114,9 @@ export const useChatStream = ({
             // the reconciliation lookup is temporarily unavailable, keep the
             // original durable receipt and let the bounded retry proceed.
           }
+          if (!isCurrentRun()) {
+            return;
+          }
           updateDurableInteractionForChat(targetChatId, {
             ...refreshedInteraction,
             ownerMessageId: assistantMessageId,
@@ -2644,6 +3134,7 @@ export const useChatStream = ({
             durableInteraction: refreshedInteraction,
             durableResumeAttempt: nextAttempt,
             durableOwnerMessageId: assistantMessageId,
+            runGeneration: activeRunGeneration,
           });
         }, durableInteractionRetryDelayMs(durableResumeAttempt));
         durableResumeRetryTimersRef.current.set(targetChatId, timerId);
@@ -2722,6 +3213,9 @@ export const useChatStream = ({
           streamPayload,
           {
             onFrame: (frame) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
                  writes to activeStreamsRef but cannot update the closure variable). */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
@@ -2732,7 +3226,7 @@ export const useChatStream = ({
               if (!frame) return;
               frame = scrubLegacyPlanToolResultFrame(frame);
               if (frame.type === "token_delta") {
-                lastTokenRunIdRef.current =
+                renderRuntime.lastTokenRunId =
                   frame.run_id || frame.payload?.run_id || "";
                 return;
               }
@@ -2840,8 +3334,9 @@ export const useChatStream = ({
                 frame.type === "response_received" ||
                 frame.type === "run_max_iterations"
               ) {
-                if (frame.type === "run_started" && !parentRunIdRef.current) {
-                  parentRunIdRef.current = frame.run_id || frame.payload?.run_id || "";
+                if (frame.type === "run_started" && !renderRuntime.parentRunId) {
+                  renderRuntime.parentRunId =
+                    frame.run_id || frame.payload?.run_id || "";
                 }
                 const label =
                   frame.type === "run_max_iterations"
@@ -2885,10 +3380,10 @@ export const useChatStream = ({
                           : frame.type ===
                                 "subagent_clarification_requested"
                               ? "needs_clarification"
-                              : typeof subagentMetaByRunIdRef.current.get(
+                              : typeof renderRuntime.subagentMetaByRunId.get(
                                     childRunId,
                                   )?.status === "string"
-                                ? subagentMetaByRunIdRef.current.get(
+                                ? renderRuntime.subagentMetaByRunId.get(
                                     childRunId,
                                   ).status
                                 : "";
@@ -3105,14 +3600,14 @@ export const useChatStream = ({
               const isUnknownChild =
                 !isKnownChild &&
                 frameRunId.length > 0 &&
-                parentRunIdRef.current &&
-                frameRunId !== parentRunIdRef.current;
+                renderRuntime.parentRunId &&
+                frameRunId !== renderRuntime.parentRunId;
 
-              if (frameRunId && frameRunId !== parentRunIdRef.current) {
+              if (frameRunId && frameRunId !== renderRuntime.parentRunId) {
                 unchainLogger.log("subagent_frame_routing", {
                   frameType: frame.type,
                   runId: frameRunId,
-                  parentRunId: parentRunIdRef.current || "",
+                  parentRunId: renderRuntime.parentRunId || "",
                   isKnownSubagentRunId: isKnownChild,
                   isUnknownSubagentRunId: isUnknownChild,
                 });
@@ -3124,18 +3619,18 @@ export const useChatStream = ({
                      frames are also routed here. */
                   upsertSubagentMeta(frameRunId, { status: "running" });
                 }
-                if (!subagentFramesByRunIdRef.current.has(frameRunId)) {
-                  subagentFramesByRunIdRef.current.set(frameRunId, []);
+                if (!renderRuntime.subagentFramesByRunId.has(frameRunId)) {
+                  renderRuntime.subagentFramesByRunId.set(frameRunId, []);
                 }
                 processChildToolInteractionSideEffects();
-                subagentFramesByRunIdRef.current.get(frameRunId).push(frame);
+                renderRuntime.subagentFramesByRunId.get(frameRunId).push(frame);
                 dirtySubagentFrameRunIds.add(frameRunId);
 
                 if (
                   frame.type === "error" &&
-                  typeof subagentMetaByRunIdRef.current.get(frameRunId) ===
+                  typeof renderRuntime.subagentMetaByRunId.get(frameRunId) ===
                     "object" &&
-                  subagentMetaByRunIdRef.current.get(frameRunId) !== null
+                  renderRuntime.subagentMetaByRunId.get(frameRunId) !== null
                 ) {
                   upsertSubagentMeta(frameRunId, {
                     status: "failed",
@@ -3587,6 +4082,9 @@ export const useChatStream = ({
               syncStreamMessages(nextStreamMessages);
             },
             onMeta: (meta) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               if (
                 meta &&
                 typeof meta.thread_id === "string" &&
@@ -3614,14 +4112,17 @@ export const useChatStream = ({
               }
             },
             onToken: (delta) => {
-              if (
-                lastTokenRunIdRef.current &&
-                isKnownSubagentRunId(lastTokenRunIdRef.current)
-              ) {
-                lastTokenRunIdRef.current = "";
+              if (!isCurrentRun()) {
                 return;
               }
-              lastTokenRunIdRef.current = "";
+              if (
+                renderRuntime.lastTokenRunId &&
+                isKnownSubagentRunId(renderRuntime.lastTokenRunId)
+              ) {
+                renderRuntime.lastTokenRunId = "";
+                return;
+              }
+              renderRuntime.lastTokenRunId = "";
               if (typeof delta !== "string" || !delta) {
                 return;
               }
@@ -3629,6 +4130,9 @@ export const useChatStream = ({
               thinkTagParser.feed(delta);
             },
             onDone: (done) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               /* Sync closure with external updates before building final messages. */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
@@ -3790,9 +4294,7 @@ export const useChatStream = ({
                   clearTimeout(retryTimer);
                   durableResumeRetryTimersRef.current.delete(targetChatId);
                 }
-                if (durableResumeKey) {
-                  durableResumeStartedKeysRef.current.delete(durableResumeKey);
-                }
+                clearDurableResumeStartedKeysForChat(targetChatId);
                 updateDurableInteractionForChat(targetChatId, null);
               }
               flushSubagentState(Date.now());
@@ -3820,7 +4322,7 @@ export const useChatStream = ({
                 if (mergedQueueText) {
                   const relayBaseMessages = nextStreamMessages;
                   const relayCharacterConfig = resolvedCharacterConfig;
-                  setTimeout(() => {
+                  scheduleQueueRelayTimer(targetChatId, activeRunGeneration, () => {
                     void runTurnRequest({
                       mode: "send",
                       chatId: targetChatId,
@@ -3836,7 +4338,7 @@ export const useChatStream = ({
                 // Give the queue pile one render with status:"relayed" before
                 // the buffer disappears; guard against clobbering a *new*
                 // run's fresh buffer that may have replaced this one by then.
-                setTimeout(() => {
+                scheduleQueueRelayTimer(targetChatId, activeRunGeneration, () => {
                   if (
                     queuedTurnsByChatIdRef.current.get(targetChatId) ===
                     queuedTurnsOnDone
@@ -3851,6 +4353,9 @@ export const useChatStream = ({
               }
             },
             onError: (error) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               flushStreamingMessageStore(targetChatId, assistantMessageId);
@@ -3936,6 +4441,7 @@ export const useChatStream = ({
                   forceHistoryFallback: true,
                   historyOverride: retryHistory,
                   characterAgentConfig: resolvedCharacterConfig,
+                  runGeneration: activeRunGeneration,
                 });
                 return;
               }
@@ -4056,44 +4562,20 @@ export const useChatStream = ({
               pendingFyiCountByChatIdRef.current.delete(targetChatId);
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-              const queuedTurnsOnError = queuedTurnsByChatIdRef.current.get(targetChatId);
-              if (queuedTurnsOnError && queuedTurnsOnError.size() > 0) {
-                queuedTurnsOnError.markRelayed();
-                syncInterjectStateForChat(targetChatId);
-                const mergedQueueText = queuedTurnsOnError.drainMerged();
-                if (mergedQueueText) {
-                  const relayBaseMessages = nextStreamMessages;
-                  const relayCharacterConfig = resolvedCharacterConfig;
-                  setTimeout(() => {
-                    void runTurnRequest({
-                      mode: "send",
-                      chatId: targetChatId,
-                      text: mergedQueueText,
-                      attachments: [],
-                      baseMessages: relayBaseMessages,
-                      clearComposer: false,
-                      missingAttachmentPayloadMode: "block",
-                      characterAgentConfig: relayCharacterConfig,
-                    });
-                  }, 0);
-                }
-                setTimeout(() => {
-                  if (
-                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
-                    queuedTurnsOnError
-                  ) {
-                    queuedTurnsByChatIdRef.current.delete(targetChatId);
-                    syncInterjectStateForChat(targetChatId);
-                  }
-                }, 1600);
-              } else if (queuedTurnsOnError) {
-                queuedTurnsByChatIdRef.current.delete(targetChatId);
+              const queuedTurnsOnError =
+                queuedTurnsByChatIdRef.current.get(targetChatId);
+              if (queuedTurnsOnError) {
+                // Preserve queued input after an error. Only a normal onDone
+                // may automatically relay it into a new generation.
                 syncInterjectStateForChat(targetChatId);
               }
             },
           },
         );
       } catch (error) {
+        if (!isCurrentRun()) {
+          return false;
+        }
         flushSubagentState(Date.now());
         activeFlushScheduler.flushSync();
         disposeBufferedTokenFlush();
@@ -4148,6 +4630,28 @@ export const useChatStream = ({
 
       streamHandlesRef.current.set(targetChatId, streamHandle);
 
+      const streamAttemptId =
+        typeof streamHandle?.attemptId === "string" &&
+        streamHandle.attemptId.trim()
+          ? streamHandle.attemptId.trim()
+          : typeof streamHandle?.requestId === "string"
+            ? streamHandle.requestId.trim()
+            : "";
+      if (effectiveThreadId && streamAttemptId) {
+        executionIdentityByChatIdRef.current.set(targetChatId, {
+          sessionId: effectiveThreadId,
+          attemptId: streamAttemptId,
+          requestId:
+            typeof streamHandle?.requestId === "string"
+              ? streamHandle.requestId.trim()
+              : "",
+          sourceAttemptId: isDurableResume
+            ? durableInteraction.sourceRunId || ""
+            : "",
+          runGeneration: activeRunGeneration,
+        });
+      }
+
       if (streamHandle?.requestId) {
         const nextStreamMessages = streamMessages.map((message) =>
           message.id === assistantMessageId
@@ -4156,6 +4660,12 @@ export const useChatStream = ({
                 meta: {
                   ...(message.meta || {}),
                   requestId: streamHandle.requestId,
+                  ...(streamAttemptId
+                    ? {
+                        attemptId: streamAttemptId,
+                        executionSessionId: effectiveThreadId,
+                      }
+                    : {}),
                 },
               }
             : message,
@@ -4170,23 +4680,27 @@ export const useChatStream = ({
       activeChatIdRef,
       activeStreamsRef,
       appendSyntheticToolConfirmationDecision,
+      beginRunGeneration,
       buildCharacterRunConfig,
       buildHistoryForModel,
       characterId,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
+      clearDurableResumeStartedKeysForChat,
       clearResolvedToolConfirmationByCallId,
       getConfirmationRuntimeForChat,
       hydrateAttachmentPayloads,
       agentOrchestration,
       isCharacterChat,
+      isRunGenerationCurrent,
       isToolCallAutoApprovable,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
       messagesRef,
       resolveAttachmentPayloads,
+      scheduleQueueRelayTimer,
       selectedToolkits,
       selectedWorkspaceIds,
       selectedRecipeName,
@@ -4208,13 +4722,26 @@ export const useChatStream = ({
     async (
       targetChatId,
       targetSessionId,
-      { autoResume = true, lookupAttempt = 0 } = {},
+      {
+        autoResume = true,
+        lookupAttempt = 0,
+        runGeneration: requestedRunGeneration = null,
+      } = {},
     ) => {
       const normalizedChatId =
         typeof targetChatId === "string" ? targetChatId.trim() : "";
       const normalizedSessionId =
         typeof targetSessionId === "string" ? targetSessionId.trim() : "";
       if (!normalizedChatId || !normalizedSessionId) {
+        return null;
+      }
+      const activeRunGeneration =
+        Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
+          ? requestedRunGeneration
+          : ensureRecoveryRunGeneration(normalizedChatId);
+      const isCurrentLookup = () =>
+        isRunGenerationCurrent(normalizedChatId, activeRunGeneration);
+      if (!isCurrentLookup()) {
         return null;
       }
       if (
@@ -4234,6 +4761,38 @@ export const useChatStream = ({
           rawPending,
           normalizedSessionId,
         );
+        if (!isCurrentLookup()) {
+          if (
+            stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+            pending &&
+            pending.status !== "none"
+          ) {
+            const lateAttemptId =
+              pending.activeAttemptId || pending.sourceRunId || "";
+            if (lateAttemptId) {
+              const queuedCancellation = enqueueExecutionCancel({
+                sessionId: pending.sessionId,
+                attemptId: lateAttemptId,
+                sourceAttemptId: pending.sourceRunId || "",
+                reason: "user_stop",
+                createdAt: Date.now(),
+              });
+              void requestExecutionCancellationAndDisconnect({
+                identity: queuedCancellation,
+                handle: null,
+                reason: "user_stop",
+              }).then((result) => {
+                if (result?.ok && queuedCancellation) {
+                  removeExecutionCancel(
+                    queuedCancellation.sessionId,
+                    queuedCancellation.attemptId,
+                  );
+                }
+              });
+            }
+          }
+          return null;
+        }
         if (!pending) {
           const error = new Error(
             "Unchain returned an invalid durable interaction record.",
@@ -4251,8 +4810,21 @@ export const useChatStream = ({
             durableResumeRetryTimersRef.current.delete(normalizedChatId);
           }
           clearAllPendingToolConfirmations(normalizedChatId);
+          executionIdentityByChatIdRef.current.delete(normalizedChatId);
           updateDurableInteractionForChat(normalizedChatId, null);
           return pending;
+        }
+
+        const pendingAttemptId =
+          pending.activeAttemptId || pending.sourceRunId || "";
+        if (pendingAttemptId) {
+          executionIdentityByChatIdRef.current.set(normalizedChatId, {
+            sessionId: pending.sessionId,
+            attemptId: pendingAttemptId,
+            requestId: "",
+            sourceAttemptId: pending.sourceRunId || "",
+            runGeneration: activeRunGeneration,
+          });
         }
 
         clearAllPendingToolConfirmations(normalizedChatId);
@@ -4369,7 +4941,7 @@ export const useChatStream = ({
         if (durableResumeStartedKeysRef.current.has(resumeKey)) {
           return pendingWithOwner;
         }
-        durableResumeStartedKeysRef.current.add(resumeKey);
+        trackDurableResumeStartedKey(normalizedChatId, resumeKey);
         updateDurableInteractionForChat(normalizedChatId, {
           ...pendingWithOwner,
           status: "resuming",
@@ -4394,9 +4966,13 @@ export const useChatStream = ({
           durableInteraction: pendingWithOwner,
           durableResumeAttempt: 0,
           durableOwnerMessageId: ensured.ownerMessageId,
+          runGeneration: activeRunGeneration,
         });
         return pendingWithOwner;
       } catch (error) {
+        if (!isCurrentLookup()) {
+          return null;
+        }
         const errorMessage =
           error?.message || "Failed to inspect this chat for interrupted work.";
         if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
@@ -4413,11 +4989,21 @@ export const useChatStream = ({
           if (existingTimer) {
             clearTimeout(existingTimer);
           }
-          const timerId = setTimeout(() => {
-            durableResumeRetryTimersRef.current.delete(normalizedChatId);
+          let timerId = null;
+          timerId = setTimeout(() => {
+            if (
+              durableResumeRetryTimersRef.current.get(normalizedChatId) ===
+              timerId
+            ) {
+              durableResumeRetryTimersRef.current.delete(normalizedChatId);
+            }
+            if (!isCurrentLookup()) {
+              return;
+            }
             void lookupDurableInteraction(normalizedChatId, normalizedSessionId, {
               autoResume,
               lookupAttempt: nextAttempt,
+              runGeneration: activeRunGeneration,
             });
           }, durableInteractionRetryDelayMs(lookupAttempt));
           durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);
@@ -4440,12 +5026,15 @@ export const useChatStream = ({
       activeChatIdRef,
       appendSyntheticToolConfirmationDecision,
       clearAllPendingToolConfirmations,
+      ensureRecoveryRunGeneration,
       getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
       messagesRef,
       runTurnRequest,
       setMessages,
       setStreamError,
       storageApi,
+      trackDurableResumeStartedKey,
       updateDurableInteractionForChat,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
@@ -4461,6 +5050,13 @@ export const useChatStream = ({
       isStreaming ||
       typeof api.unchain.isDurableInteractionBridgeAvailable !== "function" ||
       !api.unchain.isDurableInteractionBridgeAvailable()
+    ) {
+      return undefined;
+    }
+    const runGeneration = ensureRecoveryRunGeneration(targetChatId);
+    if (
+      !runGeneration ||
+      !isRunGenerationCurrent(targetChatId, runGeneration)
     ) {
       return undefined;
     }
@@ -4484,12 +5080,21 @@ export const useChatStream = ({
       if (isCharacterChat) {
         try {
           const config = await buildCharacterRunConfig();
+          if (
+            cancelled ||
+            !isRunGenerationCurrent(targetChatId, runGeneration)
+          ) {
+            return;
+          }
           sessionId =
             typeof config?.session_id === "string" && config.session_id.trim()
               ? config.session_id.trim()
               : "";
         } catch (error) {
-          if (!cancelled) {
+          if (
+            !cancelled &&
+            isRunGenerationCurrent(targetChatId, runGeneration)
+          ) {
             const errorMessage =
               error?.message || "Failed to prepare durable recovery.";
             updateDurableInteractionForChat(targetChatId, {
@@ -4502,9 +5107,14 @@ export const useChatStream = ({
           return;
         }
       }
-      if (!cancelled && sessionId) {
+      if (
+        !cancelled &&
+        sessionId &&
+        isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
         await lookupDurableInteraction(targetChatId, sessionId, {
           autoResume: true,
+          runGeneration,
         });
       }
     })();
@@ -4515,7 +5125,9 @@ export const useChatStream = ({
   }, [
     buildCharacterRunConfig,
     chatId,
+    ensureRecoveryRunGeneration,
     isCharacterChat,
+    isRunGenerationCurrent,
     isStreaming,
     lookupDurableInteraction,
     setStreamError,
@@ -4747,12 +5359,21 @@ export const useChatStream = ({
         return;
       }
 
+      const runGeneration = getRunGeneration(targetChatId);
       const threadId =
         activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+      const isCurrentDispatch = () =>
+        isRunGenerationCurrent(targetChatId, runGeneration);
+      if (!isCurrentDispatch()) {
+        return;
+      }
 
       api.unchain
         .interject({ threadId, text: body, channel })
         .then((result) => {
+          if (!isCurrentDispatch()) {
+            return;
+          }
           const rawResolvedChannel =
             result && typeof result.resolved_channel === "string"
               ? result.resolved_channel
@@ -4864,6 +5485,9 @@ export const useChatStream = ({
           }
         })
         .catch((error) => {
+          if (!isCurrentDispatch()) {
+            return;
+          }
           setStreamError(error?.message || "Failed to send interjection.");
         });
     },
@@ -4871,6 +5495,8 @@ export const useChatStream = ({
       activeChatIdRef,
       appendLocalInterjectionRecord,
       appendLocalTraceFrame,
+      getRunGeneration,
+      isRunGenerationCurrent,
       pushQueuedTurn,
       sendNewTurn,
       setStreamError,
@@ -5203,6 +5829,7 @@ export const useChatStream = ({
     const confirmationRuntimeByChatId =
       confirmationRuntimeByChatIdRef.current;
     const streamHandles = streamHandlesRef.current;
+    const executionIdentities = executionIdentityByChatIdRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
     const activeStreams = activeStreamsRef.current;
     const activeRunThreadIdByChatId = activeRunThreadIdByChatIdRef.current;
@@ -5211,15 +5838,29 @@ export const useChatStream = ({
     const pendingClarifyByChatId = pendingClarifyByChatIdRef.current;
     const durableResumeRetryTimers = durableResumeRetryTimersRef.current;
     const durableResumeStartedKeys = durableResumeStartedKeysRef.current;
+    const durableResumeStartedKeysByChatId =
+      durableResumeStartedKeysByChatIdRef.current;
+    const runGenerationsByChatId = runGenerationByChatIdRef.current;
+    const stoppedRunChatIds = stoppedRunChatIdsRef.current;
+    const queueRelayTimersByChatId = queueRelayTimersByChatIdRef.current;
+    const confirmationRetryWaitersByChatId =
+      confirmationRetryWaitersByChatIdRef.current;
+    const renderRuntimeByChatId = renderRuntimeByChatIdRef.current;
 
     return () => {
-      clearActiveTokenFlushController("dispose");
+      runGenerationsByChatId.clear();
+      stoppedRunChatIds.clear();
+      for (const runtimeChatId of renderRuntimeByChatId.keys()) {
+        clearActiveTokenFlushController(runtimeChatId, "dispose");
+      }
+      renderRuntimeByChatId.clear();
+      // Renderer lifecycle is transport lifecycle, not execution intent.
+      // Navigation, reload, and HMR must never silently turn into user Stop.
       for (const handle of streamHandles.values()) {
-        if (handle && typeof handle.cancel === "function") {
-          handle.cancel();
-        }
+        disconnectStreamTransport(handle);
       }
       streamHandles.clear();
+      executionIdentities.clear();
       streamingChatIds.clear();
       activeStreams.clear();
       clearAttachmentPayloads();
@@ -5239,6 +5880,18 @@ export const useChatStream = ({
       durableResumeRetryTimers.forEach((timerId) => clearTimeout(timerId));
       durableResumeRetryTimers.clear();
       durableResumeStartedKeys.clear();
+      durableResumeStartedKeysByChatId.clear();
+      queueRelayTimersByChatId.forEach((timerIds) => {
+        timerIds.forEach((timerId) => clearTimeout(timerId));
+      });
+      queueRelayTimersByChatId.clear();
+      confirmationRetryWaitersByChatId.forEach((waiters) => {
+        waiters.forEach((waiter) => {
+          clearTimeout(waiter.timerId);
+          waiter.resolve(false);
+        });
+      });
+      confirmationRetryWaitersByChatId.clear();
       durableInteractionByChatIdRef.current = {};
     };
   }, [
@@ -5248,6 +5901,7 @@ export const useChatStream = ({
   ]);
 
   return {
+    canStop,
     deleteTurn,
     editTurn,
     handleContinuationDecision,

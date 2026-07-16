@@ -55,6 +55,7 @@ const CHANNELS = Object.freeze({
     TOOL_CONFIRMATION: "unchain:tool-confirmation",
     PENDING_INTERACTION: "unchain:pending-interaction",
     INTERJECT: "unchain:interject",
+    CANCEL_EXECUTION: "unchain:execution:cancel",
     SET_CHROME_TERMINAL_OPEN: "unchain:set-chrome-terminal-open",
     SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT: "unchain:sync-build-feature-flags-snapshot",
     PICK_WORKSPACE_ROOT: "unchain:pick-workspace-root",

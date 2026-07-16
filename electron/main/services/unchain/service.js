@@ -7,9 +7,14 @@ const UNCHAIN_PORT_RANGE_END = 5895;
 const UNCHAIN_BOOT_TIMEOUT_MS = 60000;
 const UNCHAIN_HEALTH_RETRY_MS = 250;
 const UNCHAIN_RESTART_DELAY_MS = 1500;
+const UNCHAIN_RUNTIME_CONTRACT_SCHEMA = "pupu.runtime-capabilities";
+const UNCHAIN_RUNTIME_CONTRACT_VERSION = 1;
+const UNCHAIN_DURABLE_JOBS_VERSION = "D4.1";
+const UNCHAIN_DURABLE_JOB_WORKER_FLAG = "--durable-job-worker";
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
+const UNCHAIN_EXECUTION_CANCEL_ENDPOINT = "/chat/executions/cancel";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_PENDING_INTERACTION_ENDPOINT = "/chat/interactions/pending";
 const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
@@ -43,6 +48,127 @@ const UNCHAIN_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
 const UNCHAIN_CHARACTER_BUILD_ENDPOINT = "/characters/build";
 const UNCHAIN_CHARACTER_IMPORT_ENDPOINT = "/characters/import";
 
+class MisoRuntimeContractError extends Error {
+  constructor(message, contract = null) {
+    super(message);
+    this.name = "MisoRuntimeContractError";
+    this.code = "miso_runtime_contract_incompatible";
+    this.retryable = false;
+    this.contract = contract;
+  }
+}
+
+const cloneRuntimeContract = (contract) => {
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    return null;
+  }
+  return JSON.parse(JSON.stringify(contract));
+};
+
+const readMisoHealthPayload = async (response) => {
+  try {
+    if (typeof response?.json === "function") {
+      return await response.json();
+    }
+    if (typeof response?.text === "function") {
+      const text = await response.text();
+      return JSON.parse(text);
+    }
+  } catch (error) {
+    throw new MisoRuntimeContractError(
+      `Miso health returned invalid JSON: ${error?.message || String(error)}`,
+    );
+  }
+  throw new MisoRuntimeContractError(
+    "Miso health response did not include a JSON body",
+  );
+};
+
+const validateMisoRuntimeContract = (healthPayload) => {
+  const contract = healthPayload?.contract;
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    throw new MisoRuntimeContractError(
+      "Miso runtime contract is missing from /health",
+    );
+  }
+
+  const fail = (reason) => {
+    throw new MisoRuntimeContractError(
+      `Incompatible Miso runtime contract: ${reason}`,
+      contract,
+    );
+  };
+  if (contract.schema !== UNCHAIN_RUNTIME_CONTRACT_SCHEMA) {
+    fail(
+      `expected schema ${UNCHAIN_RUNTIME_CONTRACT_SCHEMA}, received ${String(
+        contract.schema || "missing",
+      )}`,
+    );
+  }
+  if (contract.version !== UNCHAIN_RUNTIME_CONTRACT_VERSION) {
+    fail(
+      `expected version ${UNCHAIN_RUNTIME_CONTRACT_VERSION}, received ${String(
+        contract.version ?? "missing",
+      )}`,
+    );
+  }
+
+  const capabilities = contract.capabilities;
+  if (
+    !capabilities ||
+    typeof capabilities !== "object" ||
+    Array.isArray(capabilities)
+  ) {
+    fail("capabilities are missing");
+  }
+  for (const capability of [
+    "runtime_events_v4",
+    "execution_fencing",
+    "durable_interactions",
+    "exact_cancellation",
+  ]) {
+    if (capabilities[capability] !== true) {
+      const reason = contract.reasons?.[capability];
+      fail(
+        `${capability} is required${
+          typeof reason === "string" && reason.trim()
+            ? ` (${reason.trim()})`
+            : ""
+        }`,
+      );
+    }
+  }
+
+  const durableJobs = capabilities.durable_jobs;
+  if (
+    !durableJobs ||
+    typeof durableJobs !== "object" ||
+    Array.isArray(durableJobs)
+  ) {
+    fail("durable_jobs capability is missing");
+  }
+  if (durableJobs.version !== UNCHAIN_DURABLE_JOBS_VERSION) {
+    fail(
+      `expected durable_jobs ${UNCHAIN_DURABLE_JOBS_VERSION}, received ${String(
+        durableJobs.version || "missing",
+      )}`,
+    );
+  }
+  if (durableJobs.available !== true) {
+    const reason =
+      typeof durableJobs.reason === "string" ? durableJobs.reason.trim() : "";
+    fail(
+      `durable_jobs ${UNCHAIN_DURABLE_JOBS_VERSION} is unavailable${
+        reason ? ` (${reason})` : ""
+      }`,
+    );
+  }
+  if (capabilities.automatic_wake_resume !== false) {
+    fail("automatic_wake_resume must be explicitly false");
+  }
+  return contract;
+};
+
 const createUnchainService = ({
   app,
   fs,
@@ -60,9 +186,11 @@ const createUnchainService = ({
   let unchainPort = null;
   let unchainStatus = "stopped";
   let unchainStatusReason = "";
+  let unchainRuntimeContract = null;
   let unchainAuthToken = "";
   let unchainRestartTimer = null;
   let unchainIsStopping = false;
+  let unchainPreserveStatusOnStop = false;
   let unchainStartPromise = null;
 
   const unchainActiveStreams = new Map();
@@ -123,6 +251,12 @@ const createUnchainService = ({
         continue;
       }
       if (!parsed.command.includes(matchToken)) {
+        continue;
+      }
+      // The frozen durable-job wrapper intentionally outlives the sidecar.
+      // It reuses the same packaged binary, so matching by executable path
+      // alone would destroy a healthy job whenever PuPu restarts.
+      if (parsed.command.includes(UNCHAIN_DURABLE_JOB_WORKER_FLAG)) {
         continue;
       }
       stalePids.push(parsed.pid);
@@ -418,11 +552,25 @@ const createUnchainService = ({
         `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_HEALTH_ENDPOINT}`,
         {
           method: "GET",
-          headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+          headers: unchainAuthToken
+            ? { "x-unchain-auth": unchainAuthToken }
+            : {},
         },
       );
-      return response.ok;
-    } catch {
+      if (!response.ok) {
+        return false;
+      }
+      const healthPayload = await readMisoHealthPayload(response);
+      unchainRuntimeContract = cloneRuntimeContract(healthPayload?.contract);
+      validateMisoRuntimeContract(healthPayload);
+      return true;
+    } catch (error) {
+      if (error?.code === "miso_runtime_contract_incompatible") {
+        unchainRuntimeContract = cloneRuntimeContract(
+          error.contract || unchainRuntimeContract,
+        );
+        throw error;
+      }
       return false;
     }
   };
@@ -432,19 +580,23 @@ const createUnchainService = ({
 
     while (Date.now() - startedAt < UNCHAIN_BOOT_TIMEOUT_MS) {
       if (!unchainProcess || unchainProcess.killed) {
-        return false;
+        return { ready: false, error: null };
       }
 
-      // eslint-disable-next-line no-await-in-loop
-      if (await pingMiso()) {
-        return true;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        if (await pingMiso()) {
+          return { ready: true, error: null };
+        }
+      } catch (error) {
+        return { ready: false, error };
       }
 
       // eslint-disable-next-line no-await-in-loop
       await sleep(UNCHAIN_HEALTH_RETRY_MS);
     }
 
-    return false;
+    return { ready: false, error: null };
   };
 
   const getMisoStatusPayload = () => ({
@@ -454,6 +606,7 @@ const createUnchainService = ({
     pid: unchainProcess?.pid || null,
     port: unchainPort,
     url: unchainPort ? `http://${UNCHAIN_HOST}:${unchainPort}` : null,
+    contract: cloneRuntimeContract(unchainRuntimeContract),
   });
 
   const ensureMisoReady = () => {
@@ -2154,7 +2307,7 @@ const createUnchainService = ({
     }, UNCHAIN_RESTART_DELAY_MS);
   };
 
-  const stopMiso = () => {
+  const stopMiso = ({ preserveStatus = false } = {}) => {
     if (unchainRestartTimer) {
       clearTimeout(unchainRestartTimer);
       unchainRestartTimer = null;
@@ -2167,6 +2320,7 @@ const createUnchainService = ({
 
     if (unchainProcess && !unchainProcess.killed) {
       unchainIsStopping = true;
+      unchainPreserveStatusOnStop = Boolean(preserveStatus);
       unchainProcess.kill("SIGTERM");
       setTimeout(() => {
         if (unchainProcess && !unchainProcess.killed) {
@@ -2174,7 +2328,9 @@ const createUnchainService = ({
         }
       }, 1200);
     } else {
-      unchainStatus = "stopped";
+      if (!preserveStatus) {
+        unchainStatus = "stopped";
+      }
       if (getAppIsQuitting()) {
         unchainStatusReason = "";
       }
@@ -2191,6 +2347,7 @@ const createUnchainService = ({
 
     unchainStatus = "starting";
     unchainStatusReason = "";
+    unchainRuntimeContract = null;
 
     unchainStartPromise = (async () => {
       let entrypoint;
@@ -2283,8 +2440,10 @@ const createUnchainService = ({
         unchainProcess = null;
 
         if (stoppedIntentionally) {
+          const preserveStatus = unchainPreserveStatusOnStop;
           unchainIsStopping = false;
-          if (!getAppIsQuitting()) {
+          unchainPreserveStatusOnStop = false;
+          if (!getAppIsQuitting() && !preserveStatus) {
             unchainStatus = "stopped";
           }
           return;
@@ -2299,22 +2458,29 @@ const createUnchainService = ({
         scheduleMisoRestart();
       });
 
-      const ready = await waitForMisoReady();
-      if (!ready) {
+      const readiness = await waitForMisoReady();
+      if (!readiness.ready) {
         const missingRuntime = unchainStatus === "not_found";
+        const contractError =
+          readiness.error?.code === "miso_runtime_contract_incompatible"
+            ? readiness.error
+            : null;
         if (!missingRuntime) {
           unchainStatus = "error";
           unchainStatusReason =
+            contractError?.message ||
             unchainStatusReason ||
             `Health check timed out after ${UNCHAIN_BOOT_TIMEOUT_MS}ms`;
         }
-        stopMiso();
+        stopMiso({ preserveStatus: Boolean(contractError) });
         if (missingRuntime) {
           unchainStatus = "not_found";
           unchainStatusReason = unchainStatusReason || "Miso runtime not found";
           return;
         }
-        scheduleMisoRestart();
+        if (!contractError) {
+          scheduleMisoRestart();
+        }
         return;
       }
 
@@ -2538,9 +2704,31 @@ const createUnchainService = ({
     }
 
     const controller = new AbortController();
+    const executionIdCandidate =
+      requestPayload.execution_id ??
+      requestPayload.executionId ??
+      requestPayload.session_id ??
+      requestPayload.sessionId ??
+      requestPayload.threadId ??
+      requestPayload.thread_id;
+    const attemptIdCandidate =
+      requestPayload.attempt_id ?? requestPayload.attemptId;
+    const sourceAttemptIdCandidate =
+      requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
     unchainActiveStreams.set(requestId, {
       controller,
       webContentsId: sender.id,
+      executionId:
+        typeof executionIdCandidate === "string"
+          ? executionIdCandidate.trim()
+          : "",
+      attemptId:
+        typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "",
+      sourceAttemptId:
+        typeof sourceAttemptIdCandidate === "string"
+          ? sourceAttemptIdCandidate.trim()
+          : "",
+      requestOptions: { ...requestPayload.options },
     });
 
     try {
@@ -2616,6 +2804,102 @@ const createUnchainService = ({
     }
     streamState.controller.abort();
     return true;
+  };
+
+  const cancelMisoExecution = async (payload = {}) => {
+    ensureMisoReady();
+
+    const requestIdCandidate = payload?.requestId ?? payload?.request_id;
+    const requestId =
+      typeof requestIdCandidate === "string" ? requestIdCandidate.trim() : "";
+    const activeStream = requestId
+      ? unchainActiveStreams.get(requestId)
+      : undefined;
+
+    const executionIdCandidate =
+      payload?.execution_id ??
+      payload?.executionId ??
+      payload?.session_id ??
+      payload?.sessionId ??
+      activeStream?.executionId;
+    const attemptIdCandidate =
+      payload?.attempt_id ?? payload?.attemptId ?? activeStream?.attemptId;
+    const sourceAttemptIdCandidate =
+      payload?.source_attempt_id ??
+      payload?.sourceAttemptId ??
+      activeStream?.sourceAttemptId;
+    const executionId =
+      typeof executionIdCandidate === "string"
+        ? executionIdCandidate.trim()
+        : "";
+    const attemptId =
+      typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "";
+    const sourceAttemptId =
+      typeof sourceAttemptIdCandidate === "string"
+        ? sourceAttemptIdCandidate.trim()
+        : "";
+
+    if (!executionId) {
+      throw new TypeError("execution_id is required to cancel an execution");
+    }
+    if (!attemptId) {
+      throw new TypeError("attempt_id is required to cancel an execution");
+    }
+    if (
+      activeStream &&
+      ((activeStream.executionId && activeStream.executionId !== executionId) ||
+        (activeStream.attemptId && activeStream.attemptId !== attemptId) ||
+        (activeStream.sourceAttemptId &&
+          sourceAttemptId &&
+          activeStream.sourceAttemptId !== sourceAttemptId))
+    ) {
+      throw new Error("Cancel identity does not match the active stream attempt");
+    }
+
+    const cancelPayload = {
+      execution_id: executionId,
+      attempt_id: attemptId,
+    };
+    if (sourceAttemptId) {
+      cancelPayload.source_attempt_id = sourceAttemptId;
+    }
+    const reason =
+      typeof payload?.reason === "string" ? payload.reason.trim() : "";
+    const idempotencyKeyCandidate =
+      payload?.idempotency_key ?? payload?.idempotencyKey;
+    const idempotencyKey =
+      typeof idempotencyKeyCandidate === "string"
+        ? idempotencyKeyCandidate.trim()
+        : "";
+    if (reason) {
+      cancelPayload.reason = reason;
+    }
+    if (idempotencyKey) {
+      cancelPayload.idempotency_key = idempotencyKey;
+    }
+
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_EXECUTION_CANCEL_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-unchain-auth": unchainAuthToken,
+        },
+        body: JSON.stringify(cancelPayload),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Failed to cancel execution",
+      {
+        status: "ok",
+        execution_id: executionId,
+        attempt_id: attemptId,
+      },
+      "Invalid execution cancel response",
+    );
   };
 
   const handleStreamStart = (event, payload) => {
@@ -2708,6 +2992,7 @@ const createUnchainService = ({
     submitMisoToolConfirmation,
     getMisoPendingInteraction,
     submitMisoInterject,
+    cancelMisoExecution,
     handleStreamStart,
     handleStreamStartV2,
     handleStreamStartV4,

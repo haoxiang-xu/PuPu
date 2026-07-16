@@ -762,7 +762,7 @@ const ChatInterface = () => {
       onChange: session.setInputValue,
       onSend: stream.sendNewTurn,
       onStop: stream.stopStream,
-      isStreaming: stream.isStreaming,
+      isStreaming: stream.canStop,
       sendDisabled: isSendDisabled,
       placeholder: unchainStatus.ready
         ? t("chat.placeholder")
@@ -798,7 +798,7 @@ const ChatInterface = () => {
       session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
-      stream.sendNewTurn, stream.stopStream, stream.isStreaming,
+      stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
       isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,

@@ -41,6 +41,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
   CHANNELS.UNCHAIN.PENDING_INTERACTION,
   CHANNELS.UNCHAIN.INTERJECT,
+  CHANNELS.UNCHAIN.CANCEL_EXECUTION,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
   CHANNELS.UNCHAIN.PICK_WORKSPACE_ROOT,
@@ -297,6 +298,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(
     CHANNELS.UNCHAIN.INTERJECT,
     async (_event, payload = {}) => unchainService.submitMisoInterject(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+    async (_event, payload = {}) => unchainService.cancelMisoExecution(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,

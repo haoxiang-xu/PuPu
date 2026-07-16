@@ -35,6 +35,7 @@ from custom_provider import (
     parse_custom_provider,
     redact_secrets,
 )
+from durable_job_runtime import get_durable_jobs_runtime
 
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
@@ -117,11 +118,107 @@ from interaction_channels import (
 from durable_interaction_host import (
     DurableInteractionHostError,
     DurableInteractionIdTracker,
+    bind_execution_attempt,
+    cancel_chat_execution,
+    clear_execution_attempt_binding,
     clear_resume_context,
     get_pending_interaction,
     resolve_resume_options,
     save_resume_context,
 )
+
+
+def _execution_control_call(name: str, *args: Any, **kwargs: Any) -> Any:
+    """Call the optional PuPu execution-control registry without import cycles."""
+
+    try:
+        import execution_control
+    except ImportError:
+        return None
+    operation = getattr(execution_control, name, None)
+    if not callable(operation):
+        return None
+    return operation(*args, **kwargs)
+
+
+def _execution_cancellation_token(session_id: str, attempt_id: str) -> Any:
+    if not str(session_id or "").strip() or not str(attempt_id or "").strip():
+        return None
+    return _execution_control_call(
+        "cancellation_token",
+        str(session_id).strip(),
+        str(attempt_id).strip(),
+    )
+
+
+def _execution_is_cancelled(token: Any) -> bool:
+    if token is None:
+        return False
+    is_cancelled = getattr(token, "is_cancelled", None)
+    if callable(is_cancelled):
+        return bool(is_cancelled())
+    event = getattr(token, "event", None)
+    if isinstance(event, threading.Event):
+        return event.is_set()
+    is_set = getattr(token, "is_set", None)
+    return bool(is_set()) if callable(is_set) else bool(getattr(token, "cancelled", False))
+
+
+def _execution_raise_if_cancelled(token: Any) -> None:
+    if token is None:
+        return
+    raise_if_cancelled = getattr(token, "raise_if_cancelled", None)
+    if callable(raise_if_cancelled):
+        raise_if_cancelled()
+        return
+    if _execution_is_cancelled(token):
+        error = RuntimeError("execution attempt was cancelled")
+        error.code = "execution_cancelled"  # type: ignore[attr-defined]
+        raise error
+
+
+def _execution_cancel_event(token: Any) -> threading.Event | None:
+    event = getattr(token, "event", None)
+    return event if isinstance(event, threading.Event) else None
+
+
+def _execution_result_status(result: Any) -> str:
+    snapshot = getattr(result, "snapshot", None)
+    status = getattr(snapshot, "status", "")
+    if isinstance(status, str):
+        return status.strip().lower()
+    if isinstance(result, dict):
+        value = result.get("state") or result.get("status")
+        return str(value or "").strip().lower()
+    return ""
+
+
+def _execution_result_is_terminal(result: Any) -> bool:
+    return _execution_result_status(result) in {"completed", "failed", "cancelled"}
+
+
+def _wait_for_cancel_or_done(
+    cancel_event: threading.Event,
+    done_event: threading.Event,
+) -> bool:
+    while not done_event.is_set():
+        if cancel_event.wait(0.05):
+            return True
+    return cancel_event.is_set()
+
+
+def _is_execution_cancelled_error(error: BaseException | None) -> bool:
+    return bool(
+        error is not None
+        and (
+            str(getattr(error, "code", "") or "").strip()
+            == "execution_cancelled"
+            or type(error).__name__ in {
+                "ExecutionCancelledError",
+                "ExecutionAttemptCancelled",
+            }
+        )
+    )
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -4575,6 +4672,7 @@ def _build_developer_agent(
     max_iterations: int,
     toolkits: list,
     memory_manager: Any,
+    jobs_module: Any | None = None,
     planning_turn: bool = False,
     enable_subagents: bool = True,
     options: Dict[str, object] | None = None,
@@ -4589,6 +4687,8 @@ def _build_developer_agent(
     modules: list = []
     if toolkits:
         modules.append(ToolsModule(tools=tuple(toolkits)))
+    if jobs_module is not None:
+        modules.append(jobs_module)
     if memory_manager is not None:
         modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
@@ -4763,6 +4863,7 @@ def _create_agent(
         custom_factory = make_custom_model_io_factory(cfg, api_key)
     memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
     toolkits = _build_requested_toolkits(options, session_id=session_id)
+    durable_jobs_runtime = get_durable_jobs_runtime()
     user_modules = _extract_user_prompt_modules(options)
 
     # Developer agent is the sole agent with optional delegate/worker subagents.
@@ -4781,6 +4882,11 @@ def _create_agent(
         max_iterations=max_iterations,
         toolkits=toolkits,
         memory_manager=memory_manager,
+        jobs_module=(
+            durable_jobs_runtime.module
+            if durable_jobs_runtime is not None
+            else None
+        ),
         options=options,
         recipe=recipe,
         fyi_channel=fyi_channel,
@@ -5025,6 +5131,7 @@ def _stream_recipe_graph_events(
     session_id: str = "",
     cancel_event: threading.Event | None = None,
     run_id_override: str = "",
+    execution_token: Any = None,
 ) -> Iterable[Dict[str, Any]]:
     if _UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
@@ -5090,6 +5197,7 @@ def _stream_recipe_graph_events(
     except RuntimeError as exc:
         raise RuntimeError(str(exc)) from exc
     runtime_toolkits_to_disconnect = list(user_toolkits)
+    durable_jobs_runtime = get_durable_jobs_runtime()
 
     workflow_run_id = str(run_id_override or _uuid.uuid4())
     event_queue: "queue.Queue[object]" = queue.Queue()
@@ -5105,11 +5213,14 @@ def _stream_recipe_graph_events(
 
     base_messages = _normalize_messages(history, message, attachments)
     messages_without_attachments = _normalize_messages(history, message, [])
+    confirmation_cancel_signal = threading.Event()
+    run_done_event = threading.Event()
 
     if isinstance(cancel_event, threading.Event):
         def watch_stream_cancel() -> None:
-            cancel_event.wait()
-            cancel_tool_confirmations(cancel_event)
+            if _wait_for_cancel_or_done(cancel_event, run_done_event):
+                confirmation_cancel_signal.set()
+                cancel_tool_confirmations(confirmation_cancel_signal)
 
         threading.Thread(
             target=watch_stream_cancel,
@@ -5117,11 +5228,40 @@ def _stream_recipe_graph_events(
             daemon=True,
         ).start()
 
+    execution_cancel_event = _execution_cancel_event(execution_token)
+    if (
+        isinstance(execution_cancel_event, threading.Event)
+        and execution_cancel_event is not cancel_event
+    ):
+        def watch_execution_cancel() -> None:
+            if _wait_for_cancel_or_done(execution_cancel_event, run_done_event):
+                confirmation_cancel_signal.set()
+                cancel_tool_confirmations(confirmation_cancel_signal)
+
+        threading.Thread(
+            target=watch_execution_cancel,
+            name="unchain-workflow-execution-cancel",
+            daemon=True,
+        ).start()
+
     def emit(event: Dict[str, Any]) -> None:
-        event_queue.put(event)
+        if not _execution_is_cancelled(execution_token):
+            event_queue.put(event)
 
     def run_workflow() -> None:
+        execution_guard = None
         try:
+            if (
+                memory_manager is not None
+                and session_id
+                and str(run_id_override or "").strip()
+            ):
+                from unchain.execution import ExecutionRuntime
+
+                execution_guard = ExecutionRuntime(memory_manager.store).acquire(
+                    session_id,
+                    owner_id=workflow_run_id,
+                )
             memory_namespace = str(options.get("memory_namespace") or "").strip()
             memory_session_revision: int | None = None
             memory_commit_allowed = False
@@ -5187,6 +5327,7 @@ def _stream_recipe_graph_events(
             last_result = None
             last_agent = None
             for index, agent_node in enumerate(agents):
+                _execution_raise_if_cancelled(execution_token)
                 is_last = index == len(agents) - 1
                 agent_id = str(agent_node.get("id") or f"agent_{index + 1}")
                 override = (
@@ -5265,6 +5406,11 @@ def _stream_recipe_graph_events(
                     max_iterations=max_iterations,
                     toolkits=step_toolkits,
                     memory_manager=None,
+                    jobs_module=(
+                        durable_jobs_runtime.module
+                        if durable_jobs_runtime is not None
+                        else None
+                    ),
                     options=options,
                     recipe=step_recipe,
                     optimizer_config=step_optimizer_config,
@@ -5291,6 +5437,12 @@ def _stream_recipe_graph_events(
                 def step_emit(event: Dict[str, Any], *, _is_last=is_last, _agent_id=agent_id, _index=index) -> None:
                     if not isinstance(event, dict):
                         return
+                    _execution_raise_if_cancelled(execution_token)
+                    if (
+                        execution_guard is not None
+                        and event.get("type") != "token_delta"
+                    ):
+                        execution_guard.assert_active()
                     event = _enrich_tool_event_with_toolkit_metadata(event, toolkit_meta)
                     event_run_id = event.get("run_id")
                     event_is_current_step = not isinstance(event_run_id, str) or not event_run_id
@@ -5345,7 +5497,7 @@ def _stream_recipe_graph_events(
 
                 human_input_cb = _make_human_input_callback(
                     step_emit,
-                    cancel_event=cancel_event,
+                    cancel_event=confirmation_cancel_signal,
                     toolkit_meta_by_tool_name=toolkit_meta,
                 )
                 if options.get("_recipe_subagent_run"):
@@ -5354,14 +5506,17 @@ def _stream_recipe_graph_events(
                 else:
                     confirm_cb = _make_tool_confirm_callback(
                         step_emit,
-                        cancel_event=cancel_event,
+                        cancel_event=confirmation_cancel_signal,
                         toolkit_meta_by_tool_name=toolkit_meta,
                     )
                     max_iterations_cb = _make_continuation_callback(
                         step_emit,
-                        cancel_event=cancel_event,
+                        cancel_event=confirmation_cancel_signal,
                     )
                 step_messages = runtime_messages if index == 0 else messages_without_attachments
+                _execution_raise_if_cancelled(execution_token)
+                if execution_guard is not None:
+                    execution_guard.assert_active()
                 result = step_agent.run(
                     messages=step_messages,
                     payload=_build_payload(step_config["provider"], options),
@@ -5372,8 +5527,15 @@ def _stream_recipe_graph_events(
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
                     run_id=workflow_run_id,
+                    execution_owner_id=(
+                        workflow_run_id if str(run_id_override or "").strip() else None
+                    ),
+                    _execution_guard=execution_guard,
                     **({"session_id": session_id} if session_id else {}),
                 )
+                _execution_raise_if_cancelled(execution_token)
+                if execution_guard is not None:
+                    execution_guard.assert_active()
                 last_result = result
                 last_agent = step_agent
                 final_text = step_final_holder["text"] or _extract_last_assistant_text(getattr(result, "messages", []) or [])
@@ -5381,7 +5543,13 @@ def _stream_recipe_graph_events(
                 output_holder["final_text"] = final_text
 
             final_text = str(output_holder.get("final_text") or "")
-            if memory_manager is not None and final_text and memory_commit_allowed:
+            _execution_raise_if_cancelled(execution_token)
+            if (
+                memory_manager is not None
+                and final_text
+                and memory_commit_allowed
+                and not _execution_is_cancelled(execution_token)
+            ):
                 try:
                     commit_messages = [
                         *base_messages,
@@ -5401,6 +5569,12 @@ def _stream_recipe_graph_events(
                         commit_parameters = {}
                     if "expected_revision" in commit_parameters:
                         commit_kwargs["expected_revision"] = memory_session_revision
+                    if execution_guard is not None:
+                        if "execution_fence" not in commit_parameters:
+                            raise RuntimeError(
+                                "graph memory commit does not support execution fencing"
+                            )
+                        commit_kwargs["execution_fence"] = execution_guard.fence
                     memory_manager.commit_messages(**commit_kwargs)
                     commit_info = getattr(memory_manager, "last_commit_info", {}) or {}
                     emit({
@@ -5412,6 +5586,8 @@ def _stream_recipe_graph_events(
                         **copy.deepcopy(commit_info),
                     })
                 except Exception as exc:
+                    if _is_execution_cancelled_error(exc):
+                        raise
                     emit({
                         "type": "memory_commit",
                         "run_id": workflow_run_id,
@@ -5434,10 +5610,48 @@ def _stream_recipe_graph_events(
         except Exception as run_error:
             import traceback as _tb
 
-            output_holder["error_traceback"] = _tb.format_exc()
-            output_holder["error"] = run_error
+            if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
+                execution_token
+            ):
+                output_holder["cancelled"] = True
+            else:
+                output_holder["error_traceback"] = _tb.format_exc()
+                output_holder["error"] = run_error
         finally:
+            if execution_guard is not None:
+                try:
+                    execution_guard.release()
+                except Exception as release_error:
+                    if not (
+                        _is_execution_cancelled_error(release_error)
+                        or _execution_is_cancelled(execution_token)
+                    ) and output_holder.get("error") is None:
+                        output_holder["error"] = release_error
+            token_session_id = str(
+                getattr(execution_token, "session_id", "") or ""
+            ).strip()
+            token_attempt_id = str(
+                getattr(execution_token, "attempt_id", "") or ""
+            ).strip()
+            if token_session_id and token_attempt_id:
+                if output_holder.get("error") is not None:
+                    _execution_control_call(
+                        "mark_failed",
+                        token_session_id,
+                        token_attempt_id,
+                        reason=str(output_holder.get("error") or ""),
+                    )
+                elif not (
+                    output_holder.get("cancelled")
+                    or _execution_is_cancelled(execution_token)
+                ):
+                    _execution_control_call(
+                        "mark_completed",
+                        token_session_id,
+                        token_attempt_id,
+                    )
             _disconnect_runtime_toolkits(runtime_toolkits_to_disconnect)
+            run_done_event.set()
             event_queue.put(done_marker)
 
     threading.Thread(
@@ -5459,6 +5673,9 @@ def _stream_recipe_graph_events(
         if tb:
             print(f"[unchain workflow error]\n{tb}", file=sys.stderr, flush=True)
         raise RuntimeError(str(error))
+
+    if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
+        return
 
     if not output_holder.get("seen_final_message"):
         final_text = str(output_holder.get("final_text") or "")
@@ -5607,7 +5824,35 @@ def stream_chat_events(
     options: Dict[str, object],
     session_id: str = "",
     cancel_event: threading.Event | None = None,
+    attempt_id: str = "",
 ) -> Iterable[Dict[str, Any]]:
+    normalized_session_id = str(session_id or "").strip()
+    normalized_attempt_id = str(attempt_id or "").strip()
+    execution_token = None
+    registration = None
+    if normalized_session_id and normalized_attempt_id:
+        registration = _execution_control_call(
+            "register",
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        execution_token = _execution_cancellation_token(
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        registration_status = _execution_result_status(registration)
+        if registration_status == "cancelled" or _execution_is_cancelled(
+            execution_token
+        ):
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                reason="reconciled cancellation before start",
+            )
+            return
+        if registration_status in {"completed", "failed"}:
+            return
+
     durable_interactions_required = bool(
         isinstance(options, dict)
         and options.get("durable_interactions_required") is True
@@ -5623,15 +5868,64 @@ def stream_chat_events(
                 "Durable interactions are not supported for recipe graphs",
                 status_code=422,
             )
-        yield from _stream_recipe_graph_events(
-            recipe=recipe,
-            message=message,
-            history=history,
-            attachments=attachments,
-            options=options,
-            session_id=session_id,
-            cancel_event=cancel_event,
-        )
+        running = _execution_control_call(
+            "mark_running",
+            normalized_session_id,
+            normalized_attempt_id,
+        ) if normalized_session_id and normalized_attempt_id else None
+        if normalized_session_id and normalized_attempt_id and (
+            str(getattr(running, "disposition", "") or "") != "applied"
+            or _execution_result_is_terminal(running)
+            or _execution_is_cancelled(execution_token)
+        ):
+            return
+        try:
+            yield from _stream_recipe_graph_events(
+                recipe=recipe,
+                message=message,
+                history=history,
+                attachments=attachments,
+                options=options,
+                session_id=session_id,
+                cancel_event=cancel_event,
+                run_id_override=normalized_attempt_id,
+                execution_token=execution_token,
+            )
+        except BaseException as graph_error:
+            if not (
+                isinstance(graph_error, GeneratorExit)
+                or _is_execution_cancelled_error(graph_error)
+                or _execution_is_cancelled(execution_token)
+            ):
+                _execution_control_call(
+                    "mark_failed",
+                    normalized_session_id,
+                    normalized_attempt_id,
+                )
+            if _is_execution_cancelled_error(graph_error) or _execution_is_cancelled(
+                execution_token
+            ):
+                return
+            raise
+        else:
+            if normalized_session_id and normalized_attempt_id:
+                _execution_control_call(
+                    "mark_completed",
+                    normalized_session_id,
+                    normalized_attempt_id,
+                )
+        return
+
+    running = _execution_control_call(
+        "mark_running",
+        normalized_session_id,
+        normalized_attempt_id,
+    ) if normalized_session_id and normalized_attempt_id else None
+    if normalized_session_id and normalized_attempt_id and (
+        str(getattr(running, "disposition", "") or "") != "applied"
+        or _execution_result_is_terminal(running)
+        or _execution_is_cancelled(execution_token)
+    ):
         return
 
     event_queue: "queue.Queue[object]" = queue.Queue()
@@ -5642,7 +5936,7 @@ def stream_chat_events(
     )
 
     durable_context_saved = False
-    execution_run_id = str(_uuid.uuid4())
+    execution_run_id = normalized_attempt_id or str(_uuid.uuid4())
     agent = None
     try:
         agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)
@@ -5683,6 +5977,13 @@ def stream_chat_events(
                     getattr(agent, "_toolkits", []),
                 )
                 release_interject_channels(interject_key, interject_channels)
+                if normalized_session_id and normalized_attempt_id:
+                    _execution_control_call(
+                        "mark_failed",
+                        normalized_session_id,
+                        normalized_attempt_id,
+                        reason=f"memory_unavailable: {fallback_reason}",
+                    )
                 return
 
         if (
@@ -5718,6 +6019,7 @@ def stream_chat_events(
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
                 return
+            _execution_raise_if_cancelled(execution_token)
             interaction_id_tracker.observe(event)
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
@@ -5747,30 +6049,37 @@ def stream_chat_events(
                 pass
             event_queue.put(event)
 
+        def emit_if_active(event: Dict[str, Any]) -> None:
+            _execution_raise_if_cancelled(execution_token)
+            event_queue.put(event)
+
+        confirmation_cancel_signal = threading.Event()
+        run_done_event = threading.Event()
         confirm_cb = _make_tool_confirm_callback(
-            lambda event: event_queue.put(event),
-            cancel_event=cancel_event,
+            emit_if_active,
+            cancel_event=confirmation_cancel_signal,
             toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
         )
         human_input_cb = _make_human_input_callback(
-            lambda event: event_queue.put(event),
-            cancel_event=cancel_event,
+            emit_if_active,
+            cancel_event=confirmation_cancel_signal,
             toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
         )
         max_iterations_cb = _make_continuation_callback(
-            lambda event: event_queue.put(event),
-            cancel_event=cancel_event,
+            emit_if_active,
+            cancel_event=confirmation_cancel_signal,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
         )
         if isinstance(cancel_event, threading.Event):
             def watch_stream_cancel() -> None:
-                cancel_event.wait()
-                cancel_tool_confirmations(cancel_event)
+                if _wait_for_cancel_or_done(cancel_event, run_done_event):
+                    confirmation_cancel_signal.set()
+                    cancel_tool_confirmations(confirmation_cancel_signal)
 
             cancel_watcher = threading.Thread(
                 target=watch_stream_cancel,
@@ -5779,7 +6088,27 @@ def stream_chat_events(
             )
             cancel_watcher.start()
 
+        execution_cancel_event = _execution_cancel_event(execution_token)
+        if (
+            isinstance(execution_cancel_event, threading.Event)
+            and execution_cancel_event is not cancel_event
+        ):
+            def watch_execution_cancel() -> None:
+                if _wait_for_cancel_or_done(
+                    execution_cancel_event,
+                    run_done_event,
+                ):
+                    confirmation_cancel_signal.set()
+                    cancel_tool_confirmations(confirmation_cancel_signal)
+
+            threading.Thread(
+                target=watch_execution_cancel,
+                name="unchain-stream-execution-cancel",
+                daemon=True,
+            ).start()
+
         def run_agent() -> None:
+            result_status = ""
             try:
                 memory_namespace = str(options.get("memory_namespace") or "").strip()
                 resolved_max_iterations = int(
@@ -5799,9 +6128,11 @@ def stream_chat_events(
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
                     run_id=execution_run_id,
+                    execution_owner_id=(normalized_attempt_id or None),
                     **({"session_id": session_id} if session_id else {}),
                     **({"memory_namespace": memory_namespace} if memory_namespace else {}),
                 )
+                result_status = str(getattr(result, "status", "") or "").strip()
                 output_holder["messages"] = result.messages
                 bundle_model = str(
                     getattr(agent, "_display_model", "")
@@ -5818,9 +6149,33 @@ def stream_chat_events(
                     output_holder["bundle"] = bundle
             except Exception as run_error:
                 import traceback as _tb
-                output_holder["error_traceback"] = _tb.format_exc()
-                output_holder["error"] = run_error
+
+                if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
+                    execution_token
+                ):
+                    output_holder["cancelled"] = True
+                else:
+                    output_holder["error_traceback"] = _tb.format_exc()
+                    output_holder["error"] = run_error
             finally:
+                if normalized_session_id and normalized_attempt_id:
+                    if output_holder.get("error") is not None:
+                        _execution_control_call(
+                            "mark_failed",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
+                    elif (
+                        not output_holder.get("cancelled")
+                        and not _execution_is_cancelled(execution_token)
+                        and result_status
+                        not in {"awaiting_human_input", "awaiting_interaction"}
+                    ):
+                        _execution_control_call(
+                            "mark_completed",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
                 if durable_context_saved:
                     _cleanup_durable_resume_contexts(
                         session_id,
@@ -5828,11 +6183,12 @@ def stream_chat_events(
                     )
                 _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
                 release_interject_channels(interject_key, interject_channels)
+                run_done_event.set()
                 event_queue.put(done_marker)
 
         worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
         worker.start()
-    except BaseException:  # BaseException: also catch GeneratorExit when the SSE consumer abandons us mid-setup
+    except BaseException as setup_error:  # also catch GeneratorExit on abandoned SSE setup
         if durable_context_saved:
             _cleanup_durable_resume_contexts(
                 session_id,
@@ -5841,6 +6197,23 @@ def stream_chat_events(
         if agent is not None:
             _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
         release_interject_channels(interject_key, interject_channels)
+        if "run_done_event" in locals():
+            run_done_event.set()
+        if not (
+            isinstance(setup_error, GeneratorExit)
+            or _is_execution_cancelled_error(setup_error)
+            or _execution_is_cancelled(execution_token)
+        ) and normalized_session_id and normalized_attempt_id:
+            _execution_control_call(
+                "mark_failed",
+                normalized_session_id,
+                normalized_attempt_id,
+                reason=str(setup_error),
+            )
+        if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
+            execution_token
+        ):
+            return
         raise
 
     while True:
@@ -5859,6 +6232,9 @@ def stream_chat_events(
         if isinstance(error, BaseException):
             raise error
         raise RuntimeError(str(error))
+
+    if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
+        return
 
     if not output_holder.get("seen_final_message"):
         final_text = _extract_last_assistant_text(output_holder.get("messages") or [])
@@ -5888,9 +6264,13 @@ def resume_chat_interaction_events(
     interaction_id: str,
     options: Dict[str, object] | None = None,
     cancel_event: threading.Event | None = None,
+    attempt_id: str = "",
+    source_attempt_id: str = "",
 ) -> Iterable[Dict[str, Any]]:
     normalized_session_id = str(session_id or "").strip()
     normalized_interaction_id = str(interaction_id or "").strip()
+    normalized_attempt_id = str(attempt_id or "").strip()
+    normalized_source_attempt_id = str(source_attempt_id or "").strip()
     if not normalized_session_id or not normalized_interaction_id:
         raise DurableInteractionHostError(
             "invalid_resume_request",
@@ -5898,7 +6278,40 @@ def resume_chat_interaction_events(
             status_code=400,
         )
 
+    execution_token = None
+    registration = None
+    if normalized_attempt_id and normalized_source_attempt_id:
+        bind_execution_attempt(
+            session_id=normalized_session_id,
+            attempt_id=normalized_attempt_id,
+            source_attempt_id=normalized_source_attempt_id,
+        )
+    if normalized_attempt_id:
+        registration = _execution_control_call(
+            "register",
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        execution_token = _execution_cancellation_token(
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        if _execution_result_status(registration) in {"completed", "failed"}:
+            clear_execution_attempt_binding(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+            return
+
     pending_state = get_pending_interaction(normalized_session_id)
+    if (
+        pending_state.get("status") == "none"
+        and (
+            _execution_result_status(registration) == "cancelled"
+            or _execution_is_cancelled(execution_token)
+        )
+    ):
+        return
     if pending_state.get("interaction_id") != normalized_interaction_id:
         raise DurableInteractionHostError(
             "interaction_not_found",
@@ -5913,6 +6326,16 @@ def resume_chat_interaction_events(
         )
 
     source_run_id = str(pending_state.get("source_run_id") or "").strip()
+    if (
+        normalized_source_attempt_id
+        and source_run_id
+        and normalized_source_attempt_id != source_run_id
+    ):
+        raise DurableInteractionHostError(
+            "execution_attempt_binding_conflict",
+            "Resume request source_attempt_id does not match the pending checkpoint",
+            status_code=409,
+        )
     if not pending_state.get("resume_available") or not source_run_id:
         reason = str(
             pending_state.get("resume_unavailable_reason")
@@ -5923,6 +6346,23 @@ def resume_chat_interaction_events(
             "The durable interaction has no usable resume context",
             status_code=409,
         )
+    if normalized_attempt_id:
+        bind_execution_attempt(
+            session_id=normalized_session_id,
+            attempt_id=normalized_attempt_id,
+            source_attempt_id=source_run_id,
+        )
+        if (
+            _execution_result_status(registration) == "cancelled"
+            or _execution_is_cancelled(execution_token)
+        ):
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                source_attempt_id=source_run_id,
+                reason="cancelled before resume start",
+            )
+            return
 
     resolved_options = resolve_resume_options(
         session_id=normalized_session_id,
@@ -5940,6 +6380,23 @@ def resume_chat_interaction_events(
             "Durable interaction resume is not supported for recipe graphs",
             status_code=422,
         )
+
+    running = _execution_control_call(
+        "mark_running",
+        normalized_session_id,
+        normalized_attempt_id,
+    ) if normalized_attempt_id else None
+    if normalized_attempt_id and (
+        str(getattr(running, "disposition", "") or "") != "applied"
+        or _execution_result_is_terminal(running)
+        or _execution_is_cancelled(execution_token)
+    ):
+        if _execution_result_status(running) in {"completed", "failed"}:
+            clear_execution_attempt_binding(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+        return
 
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
@@ -5966,7 +6423,7 @@ def resume_chat_interaction_events(
                 status_code=503,
             )
 
-        resume_run_id = str(_uuid.uuid4())
+        resume_run_id = normalized_attempt_id or str(_uuid.uuid4())
         save_resume_context(
             session_id=normalized_session_id,
             run_id=resume_run_id,
@@ -5991,6 +6448,7 @@ def resume_chat_interaction_events(
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
                 return
+            _execution_raise_if_cancelled(execution_token)
             interaction_id_tracker.observe(event)
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
@@ -6015,31 +6473,38 @@ def resume_chat_interaction_events(
                 pass
             event_queue.put(event)
 
+        def emit_if_active(event: Dict[str, Any]) -> None:
+            _execution_raise_if_cancelled(execution_token)
+            event_queue.put(event)
+
+        confirmation_cancel_signal = threading.Event()
+        run_done_event = threading.Event()
         confirm_cb = _make_tool_confirm_callback(
-            lambda event: event_queue.put(event),
-            cancel_event=cancel_event,
+            emit_if_active,
+            cancel_event=confirmation_cancel_signal,
             toolkit_meta_by_tool_name=toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
         )
         human_input_cb = _make_human_input_callback(
-            lambda event: event_queue.put(event),
-            cancel_event=cancel_event,
+            emit_if_active,
+            cancel_event=confirmation_cancel_signal,
             toolkit_meta_by_tool_name=toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
         )
         max_iterations_cb = _make_continuation_callback(
-            lambda event: event_queue.put(event),
-            cancel_event=cancel_event,
+            emit_if_active,
+            cancel_event=confirmation_cancel_signal,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
         )
 
         if isinstance(cancel_event, threading.Event):
             def watch_stream_cancel() -> None:
-                cancel_event.wait()
-                cancel_tool_confirmations(cancel_event)
+                if _wait_for_cancel_or_done(cancel_event, run_done_event):
+                    confirmation_cancel_signal.set()
+                    cancel_tool_confirmations(confirmation_cancel_signal)
 
             threading.Thread(
                 target=watch_stream_cancel,
@@ -6047,7 +6512,28 @@ def resume_chat_interaction_events(
                 daemon=True,
             ).start()
 
+        execution_cancel_event = _execution_cancel_event(execution_token)
+        if (
+            isinstance(execution_cancel_event, threading.Event)
+            and execution_cancel_event is not cancel_event
+        ):
+            def watch_execution_cancel() -> None:
+                if _wait_for_cancel_or_done(
+                    execution_cancel_event,
+                    run_done_event,
+                ):
+                    confirmation_cancel_signal.set()
+                    cancel_tool_confirmations(confirmation_cancel_signal)
+
+            threading.Thread(
+                target=watch_execution_cancel,
+                name="unchain-resume-execution-cancel",
+                daemon=True,
+            ).start()
+
         def run_agent() -> None:
+            result_status = ""
+            terminal_transition = None
             try:
                 memory_namespace = str(
                     resolved_options.get("memory_namespace") or ""
@@ -6060,12 +6546,14 @@ def resume_chat_interaction_events(
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
                     run_id=resume_run_id,
+                    execution_owner_id=(normalized_attempt_id or None),
                     **(
                         {"memory_namespace": memory_namespace}
                         if memory_namespace
                         else {}
                     ),
                 )
+                result_status = str(getattr(result, "status", "") or "").strip()
                 output_holder["messages"] = result.messages
                 bundle_model = str(
                     getattr(agent, "_display_model", "")
@@ -6086,15 +6574,48 @@ def resume_chat_interaction_events(
             except Exception as run_error:
                 import traceback as _tb
 
-                output_holder["error_traceback"] = _tb.format_exc()
-                output_holder["error"] = run_error
+                if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
+                    execution_token
+                ):
+                    output_holder["cancelled"] = True
+                else:
+                    output_holder["error_traceback"] = _tb.format_exc()
+                    output_holder["error"] = run_error
             finally:
+                if normalized_attempt_id:
+                    if output_holder.get("error") is not None:
+                        terminal_transition = _execution_control_call(
+                            "mark_failed",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                            reason=str(output_holder.get("error") or ""),
+                        )
+                    elif (
+                        not output_holder.get("cancelled")
+                        and not _execution_is_cancelled(execution_token)
+                        and result_status
+                        not in {"awaiting_human_input", "awaiting_interaction"}
+                    ):
+                        terminal_transition = _execution_control_call(
+                            "mark_completed",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
+                    if _execution_result_status(terminal_transition) in {
+                        "completed",
+                        "failed",
+                    }:
+                        clear_execution_attempt_binding(
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
                 _cleanup_durable_resume_contexts(
                     normalized_session_id,
                     (source_run_id, resume_run_id),
                 )
                 _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
                 release_interject_channels(interject_key, interject_channels)
+                run_done_event.set()
                 event_queue.put(done_marker)
 
         threading.Thread(
@@ -6102,7 +6623,7 @@ def resume_chat_interaction_events(
             name="unchain-resume-events",
             daemon=True,
         ).start()
-    except BaseException:
+    except BaseException as setup_error:
         _cleanup_durable_resume_contexts(
             normalized_session_id,
             (source_run_id, resume_run_id),
@@ -6110,6 +6631,31 @@ def resume_chat_interaction_events(
         if agent is not None:
             _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
         release_interject_channels(interject_key, interject_channels)
+        if "run_done_event" in locals():
+            run_done_event.set()
+        if not (
+            isinstance(setup_error, GeneratorExit)
+            or _is_execution_cancelled_error(setup_error)
+            or _execution_is_cancelled(execution_token)
+        ) and normalized_attempt_id:
+            terminal_transition = _execution_control_call(
+                "mark_failed",
+                normalized_session_id,
+                normalized_attempt_id,
+                reason=str(setup_error),
+            )
+            if _execution_result_status(terminal_transition) in {
+                "completed",
+                "failed",
+            }:
+                clear_execution_attempt_binding(
+                    normalized_session_id,
+                    normalized_attempt_id,
+                )
+        if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
+            execution_token
+        ):
+            return
         raise
 
     while True:
@@ -6129,6 +6675,9 @@ def resume_chat_interaction_events(
                 flush=True,
             )
         raise error
+
+    if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
+        return
 
     if not output_holder.get("seen_final_message"):
         final_text = _extract_last_assistant_text(

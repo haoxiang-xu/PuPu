@@ -97,7 +97,7 @@ describe("phase-3 preset library", () => {
     return (hi + 0.05) / (lo + 0.05);
   };
 
-  const NEW_PRESETS = ["graphite", "violet", "rose", "nord"];
+  const NEW_PRESETS = ["graphite", "violet", "rose", "nord", "midnight"];
 
   test("new presets exist with 9 valid hex tokens per mode", () => {
     for (const name of NEW_PRESETS) {

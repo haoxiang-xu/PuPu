@@ -217,4 +217,28 @@ export const SEMANTIC_PRESETS = {
       danger: "#bf616a",
     },
   },
+  midnight: {
+    light_mode: {
+      accent: "#1f6feb",
+      background: "#fbfcfe",
+      sidebar: "#eef2f7",
+      surface: "#ffffff",
+      text: "#1f2733",
+      textMuted: "#6b7687",
+      border: "#d8dfe9",
+      success: "#1a7f37",
+      danger: "#cf222e",
+    },
+    dark_mode: {
+      accent: "#3b82f6",
+      background: "#161c28",
+      sidebar: "#131824",
+      surface: "#1e2635",
+      text: "#d7dee8",
+      textMuted: "#8a94a6",
+      border: "#2c3648",
+      success: "#3fb950",
+      danger: "#f85149",
+    },
+  },
 };

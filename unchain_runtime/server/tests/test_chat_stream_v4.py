@@ -38,12 +38,24 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             json={
                 "message": " ",
                 "attachments": [],
+                "attempt_id": "attempt-empty-message",
             },
         )
 
         self.assertEqual(response.status_code, 400)
         payload = response.get_json()
         self.assertEqual(payload["error"]["code"], "invalid_request")
+
+    def test_chat_stream_v4_requires_attempt_id_fail_closed(self) -> None:
+        response = self.client.post(
+            "/chat/stream/v4",
+            json={"message": "hello", "threadId": "chat-1"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "invalid_request")
+        self.assertIn("attempt_id", payload["error"]["message"])
 
     def test_pending_interaction_lookup_returns_normal_none_response(self) -> None:
         with mock.patch.object(
@@ -61,6 +73,50 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             {"status": "none", "session_id": "chat-1"},
         )
         lookup.assert_called_once_with("chat-1")
+
+    def test_execution_cancel_route_forwards_exact_attempt_and_is_idempotent(self) -> None:
+        result = {
+            "status": "ok",
+            "execution_id": "chat-1",
+            "attempt_id": "attempt-1",
+            "disposition": "unchanged",
+            "state": "cancelled",
+            "cancellation": {"reason": "user_stop"},
+        }
+        with mock.patch.object(
+            miso_routes,
+            "cancel_chat_execution",
+            return_value=result,
+        ) as cancel:
+            response = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "chat-1",
+                    "attempt_id": "attempt-1",
+                    "reason": "user_stop",
+                    "idempotency_key": "stop:chat-1:attempt-1",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), result)
+        cancel.assert_called_once_with(
+            session_id="chat-1",
+            attempt_id="attempt-1",
+            source_attempt_id="",
+            reason="user_stop",
+        )
+
+    def test_execution_cancel_route_requires_both_identifiers(self) -> None:
+        with mock.patch.object(miso_routes, "cancel_chat_execution") as cancel:
+            response = self.client.post(
+                "/chat/executions/cancel",
+                json={"execution_id": "chat-1"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("attempt_id", response.get_json()["error"]["message"])
+        cancel.assert_not_called()
 
     def test_confirmation_persists_receipt_before_waking_live_waiter(self) -> None:
         call_order = []
@@ -278,11 +334,12 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             miso_routes,
             "stream_chat_events",
             return_value=mocked_events,
-        ):
+        ) as stream_events:
             response = self.client.post(
                 "/chat/stream/v4",
                 json={
                     "message": "hello",
+                    "attempt_id": "attempt-v4-events",
                     "history": [],
                     "options": {"modelId": "openai:gpt-5"},
                     "trace_level": "minimal",
@@ -298,6 +355,11 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         transport_events = [event_name for event_name, _payload in sse_events]
 
         self.assertIn("done", transport_events)
+        self.assertEqual(runtime_events[0]["run_id"], "attempt-v4-events")
+        self.assertEqual(
+            stream_events.call_args.kwargs["attempt_id"],
+            "attempt-v4-events",
+        )
         self.assertTrue(
             all(event.get("schema_version") == "v4" for event in runtime_events)
         )
@@ -344,6 +406,8 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 "/chat/stream/v4",
                 json={
                     "mode": "resume_interaction",
+                    "attempt_id": "attempt-v4-resume",
+                    "source_attempt_id": "attempt-v4-source",
                     "threadId": "chat-1",
                     "interaction_id": "interaction-1",
                     "options": {"modelId": "openai:gpt-5"},
@@ -360,6 +424,14 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(
             resume_events.call_args.kwargs["interaction_id"],
             "interaction-1",
+        )
+        self.assertEqual(
+            resume_events.call_args.kwargs["attempt_id"],
+            "attempt-v4-resume",
+        )
+        self.assertEqual(
+            resume_events.call_args.kwargs["source_attempt_id"],
+            "attempt-v4-source",
         )
         fresh_events.assert_not_called()
         event_types = [
@@ -379,6 +451,7 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 "/chat/stream/v4",
                 json={
                     "mode": "resume_interaction",
+                    "attempt_id": "attempt-v4-missing-thread",
                     "interaction_id": "interaction-1",
                 },
             )
@@ -405,6 +478,7 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 "/chat/stream/v4",
                 json={
                     "message": "hello",
+                    "attempt_id": "attempt-v4-error",
                     "history": [],
                     "options": {"modelId": "openai:gpt-5"},
                 },

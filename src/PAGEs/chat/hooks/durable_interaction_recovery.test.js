@@ -12,6 +12,8 @@ const rawPending = {
   status: "awaiting_response",
   session_id: "chat-a",
   interaction_id: "interaction-1",
+  source_run_id: "attempt-source-1",
+  active_attempt_id: "attempt-active-1",
   kind: "tool_approval",
   presentation: {
     trace_frame: {
@@ -43,6 +45,8 @@ describe("durable interaction recovery helpers", () => {
         sessionId: "chat-a",
         interactionId: "interaction-1",
         callId: "call-1",
+        sourceRunId: "attempt-source-1",
+        activeAttemptId: "attempt-active-1",
       }),
     );
   });
@@ -84,6 +88,7 @@ describe("durable interaction recovery helpers", () => {
       mode: "resume_interaction",
       threadId: "chat-a",
       interaction_id: "interaction-1",
+      source_attempt_id: "attempt-source-1",
       message: "",
       history: [],
       attachments: [],
