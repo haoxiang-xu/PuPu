@@ -38,6 +38,11 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show Theme colors in Appearance and apply saved semantic color presets/customizations.",
     defaultValue: false,
   },
+  enable_custom_model_providers: {
+    description:
+      "Show Custom Model Providers in Settings and allow custom models in catalogs, selectors, connection tests, and chat requests.",
+    defaultValue: false,
+  },
 };
 
 const listeners = new Set();

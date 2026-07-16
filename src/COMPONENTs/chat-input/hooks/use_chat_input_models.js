@@ -9,6 +9,7 @@ import {
   readCustomProviders,
 } from "../../../SERVICEs/custom_provider_store";
 import { subscribeModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
 
 /**
  * Gated custom provider list for the selector: enabled AND
@@ -16,6 +17,10 @@ import { subscribeModelCatalogRefresh } from "../../../SERVICEs/model_catalog_re
  * Returns a compact shape build_model_options understands.
  */
 const read_custom_provider_groups = () => {
+  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+    return [];
+  }
+
   let defs;
   try {
     defs = readCustomProviders();

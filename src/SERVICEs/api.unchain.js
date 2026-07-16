@@ -23,6 +23,7 @@ import {
   parseCustomProviderKey,
   readCustomProviders,
 } from "./custom_provider_store";
+import { isFeatureFlagEnabled } from "./feature_flags";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
@@ -601,6 +602,13 @@ const injectCustomProviderIntoPayload = (payload) => {
     return payload;
   }
 
+  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+    throw new FrontendApiError(
+      "custom_provider_disabled",
+      "Custom model providers are disabled",
+    );
+  }
+
   const parsed = parseCustomProviderKey(modelValue);
   const slug = parsed?.slug || "";
   const definition = slug ? findCustomProvider(slug) : null;
@@ -658,6 +666,9 @@ const injectCustomProviderIntoPayload = (payload) => {
  */
 const mergeCustomProvidersIntoCatalog = (catalog) => {
   if (!isObject(catalog)) {
+    return catalog;
+  }
+  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
     return catalog;
   }
 
@@ -1936,6 +1947,13 @@ export const createUnchainApi = () => {
   // provider-side failures), so the caller can render the outcome inline.
   // Timeout is 20s to sit just past the backend's 15s hard probe timeout.
   const testCustomProvider = async (definition, apiKey = "") => {
+    if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+      throw new FrontendApiError(
+        "custom_provider_disabled",
+        "Custom model providers are disabled",
+      );
+    }
+
     if (!hasBridgeMethod("unchainAPI", "testCustomProvider")) {
       throw new FrontendApiError(
         "bridge_unavailable",

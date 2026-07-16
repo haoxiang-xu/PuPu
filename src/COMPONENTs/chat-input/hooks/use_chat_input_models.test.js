@@ -2,6 +2,7 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import api from "../../../SERVICEs/api";
 import { useChatInputModels } from "./use_chat_input_models";
+import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
@@ -192,6 +193,7 @@ describe("useChatInputModels", () => {
 
     beforeEach(() => {
       window.localStorage.clear();
+      writeFeatureFlags({ enable_custom_model_providers: true });
     });
 
     afterEach(() => {
@@ -229,6 +231,19 @@ describe("useChatInputModels", () => {
 
     test("disabled provider is gated out even with a key", async () => {
       seed({ enabled: false });
+      api.ollama.listChatModels.mockResolvedValue([]);
+
+      render(<HookHarness modelCatalog={{ providers: {} }} />);
+
+      await waitFor(() =>
+        expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1),
+      );
+      expect(readOptions().find((g) => g.is_custom)).toBeUndefined();
+    });
+
+    test("feature flag gates out configured custom providers", async () => {
+      seed();
+      writeFeatureFlags({ enable_custom_model_providers: false });
       api.ollama.listChatModels.mockResolvedValue([]);
 
       render(<HookHarness modelCatalog={{ providers: {} }} />);

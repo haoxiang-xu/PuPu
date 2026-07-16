@@ -5,6 +5,7 @@ import {
   setCustomProviderEnabled,
   setCustomProviderSecret,
 } from "./custom_provider_store";
+import { writeFeatureFlags } from "./feature_flags";
 
 /**
  * S3 injection tests (design §6.2 / §9). Verifies:
@@ -54,6 +55,7 @@ describe("custom provider payload injection", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    writeFeatureFlags({ enable_custom_model_providers: true });
     window.unchainAPI = {
       startStream: jest.fn(() => ({ cancel: jest.fn() })),
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
@@ -164,15 +166,47 @@ describe("custom provider payload injection", () => {
     ).toThrow(expect.objectContaining({ code: "custom_provider_disabled" }));
   });
 
+  test("feature flag blocks a custom provider before send", () => {
+    seedProvider();
+    setCustomProviderSecret("sap-hyperspace", "hs-secret-value");
+    writeFeatureFlags({ enable_custom_model_providers: false });
+
+    expect(() =>
+      api.unchain.startStreamV2({
+        message: "hi",
+        options: {
+          modelId: "custom.sap-hyperspace:anthropic--claude-4.5-haiku",
+        },
+      }),
+    ).toThrow(expect.objectContaining({ code: "custom_provider_disabled" }));
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("feature flag blocks custom provider connection tests", async () => {
+    window.unchainAPI.testCustomProvider = jest.fn();
+    writeFeatureFlags({ enable_custom_model_providers: false });
+
+    await expect(
+      api.unchain.testCustomProvider({ id: "sap-hyperspace" }, "hs-key"),
+    ).rejects.toEqual(
+      expect.objectContaining({ code: "custom_provider_disabled" }),
+    );
+    expect(window.unchainAPI.testCustomProvider).not.toHaveBeenCalled();
+  });
+
   test("built-in official key is NEVER injected into a custom request (§9.2)", () => {
     seedProvider();
     setCustomProviderSecret("sap-hyperspace", "hs-secret-value");
     // Store a real anthropic key that must not leak into the custom request.
+    const settingsRoot = JSON.parse(
+      window.localStorage.getItem("settings") || "{}",
+    );
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
+        ...settingsRoot,
         model_providers: {
-          ...JSON.parse(window.localStorage.getItem("settings")).model_providers,
+          ...settingsRoot.model_providers,
           anthropic_api_key: "sk-ant-official-should-not-leak",
         },
       }),
@@ -219,6 +253,7 @@ describe("getModelCatalog merges custom providers", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    writeFeatureFlags({ enable_custom_model_providers: true });
     window.unchainAPI = {
       getModelCatalog: jest.fn(async () => ({
         providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },
@@ -267,6 +302,15 @@ describe("getModelCatalog merges custom providers", () => {
   test("disabled provider is not merged", async () => {
     seedProvider({ enabled: false });
     setCustomProviderSecret("sap-hyperspace", "hs-secret-value");
+    const catalog = await api.unchain.getModelCatalog();
+    expect(catalog.providers["custom.sap-hyperspace"]).toBeUndefined();
+  });
+
+  test("feature flag keeps custom providers out of the catalog", async () => {
+    seedProvider();
+    setCustomProviderSecret("sap-hyperspace", "hs-secret-value");
+    writeFeatureFlags({ enable_custom_model_providers: false });
+
     const catalog = await api.unchain.getModelCatalog();
     expect(catalog.providers["custom.sap-hyperspace"]).toBeUndefined();
   });
