@@ -87,8 +87,8 @@ const CommandPalettePanel = ({
       ? "rgba(var(--pupu-surface-rgb),0.85)"
       : "rgba(var(--pupu-surface-rgb),0.9)");
   const panelBorder = isDark
-    ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
-    : "1px solid rgba(var(--pupu-text-rgb),0.09)";
+    ? "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.10))"
+    : "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.09))";
   const hintColor = isDark ? "rgba(var(--pupu-text-rgb),0.35)" : "rgba(var(--pupu-text-rgb),0.38)";
   const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
   const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
