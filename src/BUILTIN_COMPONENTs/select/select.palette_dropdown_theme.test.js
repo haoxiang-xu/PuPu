@@ -65,12 +65,12 @@ describe("select.js palette-variant dropdown follows semantic tiers", () => {
 });
 
 describe("dropdown panels carry the mid-tier border", () => {
-  test("the three opaque panels bind var(--pupu-menu-border); palette has a direct hairline", () => {
+  test("sinking/floating panels bind var(--pupu-menu-border); palette + main panels carry direct frosted hairlines", () => {
     const src = require("fs").readFileSync(
       require("path").join(__dirname, "select.js"),
       "utf8",
     );
     const hits = src.match(/var\(--pupu-menu-border/g) || [];
-    expect(hits.length).toBeGreaterThanOrEqual(3);
+    expect(hits.length).toBeGreaterThanOrEqual(2);
   });
 });

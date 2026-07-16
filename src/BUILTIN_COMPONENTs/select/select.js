@@ -1287,19 +1287,29 @@ const Select = ({
               gap: 6,
               minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
               padding: dropdown_theme?.padding ?? 6,
+              /* frosted family — same language as the attach-panel menus.
+                 NOTE: theme.select.dropdown.backgroundColor (solid surface)
+                 is deliberately bypassed here — it would defeat the blur. */
               backgroundColor:
                 dropdown_style?.backgroundColor ??
-                dropdown_theme?.backgroundColor ??
-                "rgba(var(--pupu-surface-rgb),0.95)",
-              border: "1px solid var(--pupu-menu-border, transparent)",
+                (isDark
+                  ? "rgba(var(--pupu-surface-rgb),0.85)"
+                  : "rgba(var(--pupu-surface-rgb),0.9)"),
+              backdropFilter: "blur(20px) saturate(130%)",
+              WebkitBackdropFilter: "blur(20px) saturate(130%)",
+              border: isDark
+                ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+                : "1px solid rgba(var(--pupu-text-rgb),0.09)",
               borderRadius:
                 dropdown_style?.borderRadius ??
                 dropdown_theme?.borderRadius ??
-                10,
+                16,
               boxShadow:
                 dropdown_style?.boxShadow ??
                 dropdown_theme?.boxShadow ??
-                "0 12px 20px rgba(0,0,0,0.12)",
+                (isDark
+                  ? "0 10px 34px rgba(0,0,0,0.5)"
+                  : "0 10px 34px rgba(0,0,0,0.12)"),
               ...dropdown_style,
             }
       }
