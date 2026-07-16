@@ -14,6 +14,7 @@ const createMockIpcRenderer = () => {
   };
 
   return {
+    invoke: jest.fn(),
     send: jest.fn(),
     on: jest.fn((channel, listener) => {
       getBucket(channel).add(listener);
@@ -140,20 +141,28 @@ describe("unchain stream preload client", () => {
     expect(CHANNELS.UNCHAIN.STREAM_START_V3).toBeUndefined();
   });
 
-  test("startStreamV4 forwards v4 runtime_event events and cleans up on done", () => {
+  test("startStreamV4 exposes execution identity and disconnects transport", () => {
     const ipcRenderer = createMockIpcRenderer();
     const client = createMisoStreamClient(ipcRenderer);
     const onRuntimeEvent = jest.fn();
     const onDone = jest.fn();
 
     const handle = client.startStreamV4(
-      { message: "hi" },
+      { threadId: "chat-1", message: "hi" },
       { onRuntimeEvent, onDone },
     );
 
+    expect(handle.executionId).toBe("chat-1");
+    expect(handle.attemptId).toBe(handle.requestId);
+    expect(typeof handle.disconnect).toBe("function");
+    expect(handle.cancel).toBe(handle.disconnect);
     expect(ipcRenderer.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_START_V4, {
       requestId: handle.requestId,
-      payload: { message: "hi" },
+      payload: {
+        threadId: "chat-1",
+        message: "hi",
+        attempt_id: handle.requestId,
+      },
     });
     expect(client.__debug.getActiveListenerCount()).toBe(1);
 
@@ -180,6 +189,47 @@ describe("unchain stream preload client", () => {
       seq: 1,
     });
     expect(onDone).toHaveBeenCalledWith({ ok: true });
+    expect(client.__debug.getActiveListenerCount()).toBe(0);
+  });
+
+  test("cancelExecution invokes semantic cancel without cleaning the listener", async () => {
+    const ipcRenderer = createMockIpcRenderer();
+    const ack = {
+      status: "ok",
+      execution_id: "chat-1",
+      attempt_id: "attempt-1",
+      disposition: "applied",
+      state: "cancelled",
+    };
+    ipcRenderer.invoke.mockResolvedValue(ack);
+    const client = createMisoStreamClient(ipcRenderer);
+    const handle = client.startStreamV4({ threadId: "chat-1" }, {});
+
+    await expect(
+      client.cancelExecution({
+        requestId: handle.requestId,
+        executionId: handle.executionId,
+        attemptId: handle.attemptId,
+        reason: "user_stop",
+      }),
+    ).resolves.toBe(ack);
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+      {
+        requestId: handle.requestId,
+        executionId: "chat-1",
+        attemptId: handle.requestId,
+        reason: "user_stop",
+      },
+    );
+    expect(client.__debug.getActiveListenerCount()).toBe(1);
+
+    handle.disconnect();
+    expect(ipcRenderer.send).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.STREAM_CANCEL,
+      { requestId: handle.requestId },
+    );
     expect(client.__debug.getActiveListenerCount()).toBe(0);
   });
 });

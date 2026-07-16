@@ -90,6 +90,7 @@ export const normalizePendingInteraction = (
     interactionId,
     kind: normalizedString(rawPending.kind),
     sourceRunId: normalizedString(rawPending.source_run_id),
+    activeAttemptId: normalizedString(rawPending.active_attempt_id),
     receiptId: normalizedString(rawPending.receipt_id),
     resumeAvailable: rawPending.resume_available === true,
     resumeUnavailableReason: normalizedString(
@@ -252,6 +253,9 @@ export const buildDurableResumePayload = (pending) => ({
   mode: "resume_interaction",
   threadId: pending.sessionId,
   interaction_id: pending.interactionId,
+  ...(normalizedString(pending.sourceRunId)
+    ? { source_attempt_id: normalizedString(pending.sourceRunId) }
+    : {}),
   message: "",
   history: [],
   attachments: [],

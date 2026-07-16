@@ -108,6 +108,7 @@ describe("preload API contract", () => {
       "startStreamV2",
       "startStreamV4",
       "cancelStream",
+      "cancelExecution",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");
     });
@@ -187,6 +188,18 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.PENDING_INTERACTION,
       { session_id: "chat-1" },
+    );
+
+    exposed.unchainAPI.cancelExecution({
+      executionId: "chat-1",
+      attemptId: "attempt-1",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+      {
+        executionId: "chat-1",
+        attemptId: "attempt-1",
+      },
     );
 
     exposed.unchainAPI.installMcpToolkit({

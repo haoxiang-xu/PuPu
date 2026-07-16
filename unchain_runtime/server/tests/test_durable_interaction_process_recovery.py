@@ -345,6 +345,7 @@ class DurableInteractionProcessRecoveryTests(unittest.TestCase):
                     path="/chat/stream/v4",
                     payload={
                         "message": original_message,
+                        "attempt_id": "d3-initial-attempt",
                         "history": [],
                         "threadId": session_id,
                         "options": {
@@ -491,6 +492,8 @@ class DurableInteractionProcessRecoveryTests(unittest.TestCase):
             path="/chat/stream/v4",
             payload={
                 "mode": "resume_interaction",
+                "attempt_id": "d3-resume-attempt",
+                "source_attempt_id": recorded["source_run_id"],
                 "threadId": session_id,
                 "interaction_id": interaction_id,
                 "options": {"modelId": "openai:gpt-5"},
@@ -606,6 +609,8 @@ class DurableInteractionProcessRecoveryTests(unittest.TestCase):
             path="/chat/stream/v4",
             payload={
                 "mode": "resume_interaction",
+                "attempt_id": "d3-stale-resume-attempt",
+                "source_attempt_id": recorded["source_run_id"],
                 "threadId": session_id,
                 "interaction_id": interaction_id,
                 "options": {"modelId": "openai:gpt-5"},

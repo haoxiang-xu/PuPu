@@ -1,4 +1,5 @@
 const {
+  registerIpcHandlers,
   IPC_HANDLE_CHANNELS,
   IPC_ON_CHANNELS,
   IPC_ON_SYNC_CHANNELS,
@@ -49,5 +50,49 @@ describe("ipc channel parity", () => {
       CHANNELS.CHAT_STORAGE.READ_MESSAGES,
     );
     expect(PRELOAD_SEND_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
+  });
+
+  test("semantic cancel invoke delegates to the unchain service", async () => {
+    const registeredHandlers = new Map();
+    const ipcMain = {
+      handle: jest.fn((channel, handler) => {
+        registeredHandlers.set(channel, handler);
+      }),
+      on: jest.fn(),
+    };
+    const cancelAck = {
+      status: "ok",
+      execution_id: "chat-1",
+      attempt_id: "attempt-1",
+      disposition: "applied",
+      state: "cancelled",
+    };
+    const unchainService = {
+      cancelMisoExecution: jest.fn().mockResolvedValue(cancelAck),
+    };
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService,
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+      },
+    });
+
+    const payload = {
+      executionId: "chat-1",
+      attemptId: "attempt-1",
+      reason: "user_stop",
+    };
+    const handler = registeredHandlers.get(CHANNELS.UNCHAIN.CANCEL_EXECUTION);
+
+    await expect(handler({}, payload)).resolves.toEqual(cancelAck);
+    expect(unchainService.cancelMisoExecution).toHaveBeenCalledWith(payload);
   });
 });

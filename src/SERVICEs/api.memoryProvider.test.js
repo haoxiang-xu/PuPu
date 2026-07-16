@@ -12,6 +12,7 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
       startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
+      cancelExecution: jest.fn(async () => ({ status: "cancel_requested" })),
       getPendingInteraction: jest.fn(async () => ({ status: "none" })),
       respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
@@ -97,6 +98,35 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
       approved: true,
       reason: "",
     });
+  });
+
+  test("forwards an exact execution cancellation identity", async () => {
+    await api.unchain.cancelExecution({
+      sessionId: " chat-1 ",
+      attemptId: " attempt-1 ",
+      reason: " user_stop ",
+      idempotencyKey: " stop-1 ",
+      sourceAttemptId: " attempt-source-1 ",
+      requestId: " request-1 ",
+    });
+
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      session_id: "chat-1",
+      attempt_id: "attempt-1",
+      reason: "user_stop",
+      source_attempt_id: "attempt-source-1",
+      request_id: "request-1",
+      idempotency_key: "stop-1",
+    });
+  });
+
+  test("rejects execution cancellation without an exact attempt", async () => {
+    await expect(
+      api.unchain.cancelExecution({ session_id: "chat-1" }),
+    ).rejects.toMatchObject({
+      code: "invalid_execution_cancel_request",
+    });
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
   });
 
   test("rejects non-boolean confirmation decisions", async () => {

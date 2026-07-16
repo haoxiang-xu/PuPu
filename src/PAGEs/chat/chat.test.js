@@ -133,6 +133,7 @@ describe("ChatInterface stop flow", () => {
         decision: { action: "reply", courtesy_message: null },
       })),
       cancelStream: jest.fn(),
+      cancelExecution: jest.fn(async () => ({ status: "cancel_requested" })),
       getPendingInteraction: jest.fn(async ({ session_id: sessionId } = {}) => ({
         status: "none",
         session_id: sessionId || "",
@@ -186,6 +187,8 @@ describe("ChatInterface stop flow", () => {
     status = "awaiting_response",
     interactionId = "interaction-1",
     callId = "call-1",
+    sourceRunId = `attempt-${interactionId}`,
+    activeAttemptId = sourceRunId,
   }) => {
     const toolCall = {
       call_id: callId,
@@ -208,6 +211,8 @@ describe("ChatInterface stop flow", () => {
       status,
       session_id: sessionId,
       interaction_id: interactionId,
+      source_run_id: sourceRunId,
+      active_attempt_id: activeAttemptId,
       kind: "tool_approval",
       presentation: {
         trace_frame: {
@@ -250,13 +255,20 @@ describe("ChatInterface stop flow", () => {
         },
     );
     window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const attemptId = `attempt-v4-${runs.length + 1}`;
       const run = {
         payload,
         handlers,
+        attemptId,
         cancel: jest.fn(),
       };
       runs.push(run);
-      return { cancel: run.cancel };
+      return {
+        requestId: attemptId,
+        attemptId,
+        disconnect: run.cancel,
+        cancel: run.cancel,
+      };
     });
 
     return {
@@ -358,6 +370,626 @@ describe("ChatInterface stop flow", () => {
       ),
     );
     expect(hasRenderPhaseWarning).toBe(false);
+  });
+
+  test("stopping a V4 run cancels the exact backend attempt before disconnecting transport", async () => {
+    let resolveCancellation;
+    const disconnectSpy = jest.fn();
+    window.unchainAPI.cancelExecution = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveCancellation = resolve;
+        }),
+    );
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers = {}) => {
+      streamV4Handlers = handlers;
+      return {
+        requestId: "attempt-v4-1",
+        attemptId: "attempt-v4-1",
+        disconnect: disconnectSpy,
+        cancel: disconnectSpy,
+      };
+    });
+
+    renderChat();
+    await waitForReady();
+    const activeChatId = getChatsStore().activeChatId;
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Long task" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("stop-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        session_id: activeChatId,
+        attempt_id: "attempt-v4-1",
+        request_id: "attempt-v4-1",
+        reason: "user_stop",
+        idempotency_key: "stop:attempt-v4-1",
+      });
+    });
+    expect(disconnectSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveCancellation({
+        status: "cancelled",
+        session_id: activeChatId,
+        attempt_id: "attempt-v4-1",
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(disconnectSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("a failed V4 cancellation retries the old attempt without disconnecting a newer attempt", async () => {
+    jest.useFakeTimers();
+    const oldDisconnectSpy = jest.fn();
+    const newDisconnectSpy = jest.fn();
+    window.unchainAPI.cancelExecution = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("sidecar restarting"))
+      .mockResolvedValueOnce({ status: "ok", state: "cancelled" });
+    window.unchainAPI.startStreamV4 = jest
+      .fn()
+      .mockImplementationOnce(() => ({
+        requestId: "attempt-v4-retry",
+        attemptId: "attempt-v4-retry",
+        disconnect: oldDisconnectSpy,
+        cancel: oldDisconnectSpy,
+      }))
+      .mockImplementationOnce(() => ({
+        requestId: "attempt-v4-new",
+        attemptId: "attempt-v4-new",
+        disconnect: newDisconnectSpy,
+        cancel: newDisconnectSpy,
+      }));
+
+    try {
+      renderChat();
+      await waitForReady();
+      const activeChatId = getChatsStore().activeChatId;
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Retry my Stop" },
+      });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => {
+        expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+      });
+
+      fireEvent.click(screen.getByTestId("stop-button"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+      expect(oldDisconnectSpy).toHaveBeenCalledTimes(1);
+
+      await waitFor(() => {
+        expect(lastChatInputProps?.sendDisabled).toBe(false);
+      });
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Keep the new attempt running" },
+      });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => {
+        expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2);
+        expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(2);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenNthCalledWith(2, {
+        session_id: activeChatId,
+        attempt_id: "attempt-v4-retry",
+        request_id: "attempt-v4-retry",
+        reason: "user_stop",
+        idempotency_key: "stop:attempt-v4-retry",
+      });
+      expect(oldDisconnectSpy).toHaveBeenCalledTimes(1);
+      expect(newDisconnectSpy).not.toHaveBeenCalled();
+      expect(
+        JSON.parse(
+          window.localStorage.getItem("pupu.execution_cancel_outbox.v1") ||
+            "[]",
+        ),
+      ).toEqual([]);
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
+  test("isolates concurrent V4 token, subagent, Stop, and late-callback state by chat", async () => {
+    const originalRaf = window.requestAnimationFrame;
+    const originalCancelRaf = window.cancelAnimationFrame;
+    const rafCallbacks = new Map();
+    let rafIdSeed = 0;
+    let eventSeq = 0;
+    const runs = [];
+
+    window.requestAnimationFrame = jest.fn((callback) => {
+      rafIdSeed += 1;
+      rafCallbacks.set(rafIdSeed, callback);
+      return rafIdSeed;
+    });
+    window.cancelAnimationFrame = jest.fn((id) => {
+      rafCallbacks.delete(id);
+    });
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const attemptId = `attempt-${payload.threadId}`;
+      const run = {
+        payload,
+        handlers,
+        attemptId,
+        disconnect: jest.fn(),
+      };
+      runs.push(run);
+      return {
+        requestId: attemptId,
+        attemptId,
+        disconnect: run.disconnect,
+        cancel: run.disconnect,
+      };
+    });
+
+    const buildRuntimeEvent = ({
+      chatId,
+      runId,
+      eventId,
+      type,
+      payload = {},
+      links = {},
+      agentId = "developer",
+    }) => ({
+      schema_version: "v4",
+      event_id: eventId,
+      seq: ++eventSeq,
+      type,
+      timestamp: "2026-07-15T12:00:00.000Z",
+      session_id: chatId,
+      run_id: runId,
+      agent_id: agentId,
+      turn_id: `${runId}:turn-1`,
+      links,
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+      payload,
+    });
+    const emitRuntimeEvents = async (run, events, delayMs = 90) => {
+      act(() => {
+        events.forEach((event) => run.handlers.onRuntimeEvent(event));
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      });
+    };
+    const flushPendingAnimationFrames = () => {
+      act(() => {
+        const callbacks = Array.from(rafCallbacks.values());
+        rafCallbacks.clear();
+        callbacks.forEach((callback) => callback(16));
+      });
+    };
+    const latestAssistant = () =>
+      [...(lastChatMessagesProps?.messages || [])]
+        .reverse()
+        .find((message) => message.role === "assistant");
+    const activeStreamingText = () => {
+      const assistant = latestAssistant();
+      return lastChatMessagesProps?.streamingMessageStore?.getText({
+        chatId: lastChatMessagesProps.chatId,
+        messageId: assistant?.id,
+      });
+    };
+
+    try {
+      const chatAId = seedActiveChatMessages([
+        {
+          id: "user-a-seed-v4",
+          role: "user",
+          content: "Seed chat A",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]);
+      const chatANodeId = getChatsStore().tree.selectedNodeId;
+      setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+      const createdB = createChatInSelectedContext(
+        { title: "Chat B V4" },
+        { source: "test" },
+      );
+      setChatMessages(
+        createdB.chatId,
+        [
+          {
+            id: "user-b-seed-v4",
+            role: "user",
+            content: "Seed chat B",
+            createdAt: 2,
+            updatedAt: 2,
+          },
+        ],
+        { source: "test" },
+      );
+      setChatModel(
+        createdB.chatId,
+        { id: "openai:gpt-5" },
+        { source: "test" },
+      );
+      selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+      renderChat();
+      await waitForReady();
+
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Run chat A" },
+      });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => {
+        expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+      });
+      const runA = runs[0];
+      const rootRunA = "run-a-root";
+      const childRunA = "run-a-child";
+      await emitRuntimeEvents(runA, [
+        buildRuntimeEvent({
+          chatId: chatAId,
+          runId: rootRunA,
+          eventId: "evt-a-root",
+          type: "run.started",
+          payload: { status: "running" },
+        }),
+        buildRuntimeEvent({
+          chatId: chatAId,
+          runId: childRunA,
+          eventId: "evt-a-child-start",
+          type: "run.started",
+          links: { parent_run_id: rootRunA },
+          agentId: "developer.analyzer.a",
+          payload: {
+            status: "running",
+            mode: "delegate",
+            template: "analyzer",
+            parent_id: "developer",
+          },
+        }),
+        buildRuntimeEvent({
+          chatId: chatAId,
+          runId: childRunA,
+          eventId: "evt-a-child-done",
+          type: "run.completed",
+          links: { parent_run_id: rootRunA },
+          agentId: "developer.analyzer.a",
+          payload: { status: "completed" },
+        }),
+        buildRuntimeEvent({
+          chatId: chatAId,
+          runId: rootRunA,
+          eventId: "evt-a-token",
+          type: "step.delta",
+          payload: {
+            step_id: "model:a:response",
+            step_type: "model_response",
+            kind: "text",
+            delta: "A token",
+          },
+        }),
+      ]);
+      expect(rafCallbacks.size).toBeGreaterThan(0);
+
+      act(() => {
+        selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+      });
+      await waitFor(() => {
+        expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+        expect(lastChatInputProps?.sendDisabled).toBe(false);
+      });
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Run chat B" },
+      });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => {
+        expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2);
+      });
+      const runB = runs[1];
+      expect(rafCallbacks.size).toBeGreaterThan(0);
+
+      const rootRunB = "run-b-root";
+      const childRunB = "run-b-child";
+      await emitRuntimeEvents(runB, [
+        buildRuntimeEvent({
+          chatId: createdB.chatId,
+          runId: rootRunB,
+          eventId: "evt-b-root",
+          type: "run.started",
+          payload: { status: "running" },
+        }),
+        buildRuntimeEvent({
+          chatId: createdB.chatId,
+          runId: childRunB,
+          eventId: "evt-b-child-start",
+          type: "run.started",
+          links: { parent_run_id: rootRunB },
+          agentId: "developer.analyzer.b",
+          payload: {
+            status: "running",
+            mode: "delegate",
+            template: "analyzer",
+            parent_id: "developer",
+          },
+        }),
+        buildRuntimeEvent({
+          chatId: createdB.chatId,
+          runId: childRunB,
+          eventId: "evt-b-child-done",
+          type: "run.completed",
+          links: { parent_run_id: rootRunB },
+          agentId: "developer.analyzer.b",
+          payload: { status: "completed" },
+        }),
+        buildRuntimeEvent({
+          chatId: createdB.chatId,
+          runId: rootRunB,
+          eventId: "evt-b-token",
+          type: "step.delta",
+          payload: {
+            step_id: "model:b:response",
+            step_type: "model_response",
+            kind: "text",
+            delta: "B token",
+          },
+        }),
+      ]);
+      expect(rafCallbacks.size).toBeGreaterThan(0);
+
+      await emitRuntimeEvents(
+        runA,
+        [
+          buildRuntimeEvent({
+            chatId: chatAId,
+            runId: rootRunA,
+            eventId: "evt-a-root-tool",
+            type: "step.started",
+            links: { tool_call_id: "call-a-root" },
+            payload: {
+              step_id: "tool:a:root",
+              step_type: "tool",
+              call_id: "call-a-root",
+              tool_name: "shell",
+              arguments: { command: "pwd" },
+            },
+          }),
+        ],
+        180,
+      );
+
+      act(() => {
+        selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+      });
+      await waitFor(() => {
+        expect(lastChatMessagesProps?.chatId).toBe(chatAId);
+        expect(latestAssistant()?.subagentMetaByRunId?.[childRunA]).toEqual(
+          expect.objectContaining({ status: "completed" }),
+        );
+        expect(latestAssistant()?.subagentMetaByRunId?.[rootRunA]).toBeUndefined();
+        expect(latestAssistant()?.subagentMetaByRunId?.[childRunB]).toBeUndefined();
+      });
+
+      fireEvent.click(screen.getByTestId("stop-button"));
+      await waitFor(() => {
+        expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+          session_id: chatAId,
+          attempt_id: runA.attemptId,
+          request_id: runA.attemptId,
+          reason: "user_stop",
+          idempotency_key: `stop:${runA.attemptId}`,
+        });
+        expect(runA.disconnect).toHaveBeenCalledTimes(1);
+      });
+      expect(runB.disconnect).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(latestAssistant()).toEqual(
+          expect.objectContaining({ content: "A token", status: "cancelled" }),
+        );
+      });
+
+      act(() => {
+        selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+      });
+      await waitFor(() => {
+        expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+        expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+        expect(activeStreamingText()).toBe("");
+      });
+      flushPendingAnimationFrames();
+      await waitFor(() => {
+        expect(activeStreamingText()).toBe("B token");
+        expect(latestAssistant()?.subagentMetaByRunId?.[childRunB]).toEqual(
+          expect.objectContaining({ status: "completed" }),
+        );
+        expect(latestAssistant()?.subagentMetaByRunId?.[childRunA]).toBeUndefined();
+      });
+
+      act(() => {
+        runA.handlers.onRuntimeEvent(
+          buildRuntimeEvent({
+            chatId: chatAId,
+            runId: rootRunA,
+            eventId: "evt-a-late-token",
+            type: "step.delta",
+            payload: {
+              step_id: "model:a:late",
+              step_type: "model_response",
+              kind: "text",
+              delta: " late A",
+            },
+          }),
+        );
+        runA.handlers.onError({
+          code: "late_a_error",
+          message: "late A transport error",
+        });
+        runA.handlers.onDone({});
+      });
+      await emitRuntimeEvents(runB, [
+        buildRuntimeEvent({
+          chatId: createdB.chatId,
+          runId: rootRunB,
+          eventId: "evt-b-continues",
+          type: "step.delta",
+          payload: {
+            step_id: "model:b:response",
+            step_type: "model_response",
+            kind: "text",
+            delta: " B continues",
+          },
+        }),
+      ]);
+      expect(rafCallbacks.size).toBeGreaterThan(0);
+      flushPendingAnimationFrames();
+      await waitFor(() => {
+        expect(activeStreamingText()).toBe("B token B continues");
+        expect(runB.disconnect).not.toHaveBeenCalled();
+      });
+
+      act(() => {
+        selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+      });
+      await waitFor(() => {
+        expect(lastChatMessagesProps?.chatId).toBe(chatAId);
+        expect(latestAssistant()).toEqual(
+          expect.objectContaining({ content: "A token", status: "cancelled" }),
+        );
+        expect(latestAssistant()?.content).not.toContain("late A");
+        expect(latestAssistant()?.subagentMetaByRunId?.[rootRunA]).toBeUndefined();
+      });
+    } finally {
+      window.requestAnimationFrame = originalRaf;
+      window.cancelAnimationFrame = originalCancelRaf;
+    }
+  });
+
+  test("late callbacks from a stopped run do not affect the next explicit turn", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "First turn" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    });
+    const firstRunHandlers = streamHandlers;
+
+    fireEvent.click(screen.getByTestId("stop-button"));
+    await waitFor(() => {
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Second turn" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    });
+    const secondRunHandlers = streamHandlers;
+    expect(secondRunHandlers).not.toBe(firstRunHandlers);
+
+    act(() => {
+      firstRunHandlers.onError({
+        code: "late_stream_error",
+        message: "the stopped transport reported an error late",
+      });
+      firstRunHandlers.onDone({});
+    });
+
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+
+    await completeAssistantReply("Second reply");
+
+    const currentMessages = lastChatMessagesProps?.messages || [];
+    expect(
+      currentMessages
+        .filter((message) => message.role === "user")
+        .map((message) => message.content),
+    ).toEqual(["First turn", "Second turn"]);
+    expect(
+      currentMessages
+        .filter((message) => message.role === "assistant")
+        .map(({ content, status }) => ({ content, status })),
+    ).toEqual([{ content: "Second reply", status: "done" }]);
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("stopping while an interject is pending ignores a late new-run result", async () => {
+    let resolveInterject;
+    window.unchainAPI.interject = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveInterject = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep this run open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "A deferred follow-up" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.interject).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByTestId("stop-button"));
+    await act(async () => {
+      resolveInterject({ resolved_channel: "new_run" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    expect(lastChatInputProps?.interjectState).toEqual({
+      pendingFyiCount: 0,
+      queueItems: [],
+    });
+    expect(
+      (lastChatMessagesProps?.messages || []).some((message) =>
+        (message.traceFrames || []).some(
+          (frame) => frame.type === "clarify_request",
+        ),
+      ),
+    ).toBe(false);
   });
 
   test("passes the floating input height to ChatMessages as bottom inset", async () => {
@@ -803,6 +1435,56 @@ describe("ChatInterface stop flow", () => {
     ).toHaveLength(1);
   });
 
+  test("stopping a recovered durable wait cancels its source attempt without a live stream handle", async () => {
+    const interactionId = "interaction-awaiting-stop";
+    const sourceRunId = "attempt-paused-source";
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-paused-stop",
+        role: "user",
+        content: "Wait for approval",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const pending = buildPendingInteraction({
+      sessionId,
+      interactionId,
+      callId: "call-awaiting-stop",
+      sourceRunId,
+    });
+    installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? pending
+          : { status: "none", session_id: requestedSessionId },
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          interactionId
+        ],
+      ).toBeTruthy();
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("stop-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        session_id: sessionId,
+        attempt_id: sourceRunId,
+        source_attempt_id: sourceRunId,
+        reason: "user_stop",
+        idempotency_key: `stop:${sourceRunId}`,
+      });
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
   test("automatically resumes a recorded durable receipt exactly once", async () => {
     const interactionId = "interaction-recorded";
     const sessionId = seedActiveChatMessages([
@@ -907,6 +1589,131 @@ describe("ChatInterface stop flow", () => {
         message: "",
       }),
     );
+  });
+
+  test("stopping a durable retry wait cancels its scheduled resume", async () => {
+    jest.useFakeTimers();
+    const beyondAllRetryDelaysMs = 120_000;
+    const interactionId = "interaction-stop-retry";
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-stop-retry",
+        role: "user",
+        content: "Do not resume after I stop this run",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const pending = buildPendingInteraction({
+      sessionId,
+      status: "receipt_recorded",
+      interactionId,
+      callId: "call-stop-retry",
+    });
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? pending
+          : { status: "none", session_id: requestedSessionId },
+    });
+
+    try {
+      renderChat();
+      await waitForBoot();
+      await waitFor(() => {
+        expect(bridge.resumeRuns()).toHaveLength(1);
+      });
+
+      act(() => {
+        bridge.resumeRuns()[0].handlers.onError({
+          code: "execution_lease_conflict",
+          message: "another executor still owns the session lease",
+        });
+      });
+
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("stop-button"));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        session_id: sessionId,
+        attempt_id: bridge.resumeRuns()[0].attemptId,
+        source_attempt_id: pending.source_run_id,
+        request_id: bridge.resumeRuns()[0].attemptId,
+        reason: "user_stop",
+        idempotency_key: `stop:${bridge.resumeRuns()[0].attemptId}`,
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(beyondAllRetryDelaysMs);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(bridge.resumeRuns()).toHaveLength(1);
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
+  test("stopping an in-flight durable lookup ignores a late recorded receipt", async () => {
+    const interactionId = "interaction-stop-late-lookup";
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-stop-late-lookup",
+        role: "user",
+        content: "Do not revive this interrupted run",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const pending = buildPendingInteraction({
+      sessionId,
+      status: "receipt_recorded",
+      interactionId,
+      callId: "call-stop-late-lookup",
+    });
+    let resolveLookup;
+    const pendingLookup = new Promise((resolve) => {
+      resolveLookup = resolve;
+    });
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? pendingLookup
+          : { status: "none", session_id: requestedSessionId },
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({
+        session_id: sessionId,
+      });
+    });
+
+    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("stop-button"));
+    await act(async () => {
+      resolveLookup(pending);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(bridge.resumeRuns()).toHaveLength(0);
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      session_id: sessionId,
+      attempt_id: pending.active_attempt_id,
+      source_attempt_id: pending.source_run_id,
+      reason: "user_stop",
+      idempotency_key: `stop:${pending.active_attempt_id}`,
+    });
   });
 
   test("stops retrying when another executor has already completed the durable run", async () => {

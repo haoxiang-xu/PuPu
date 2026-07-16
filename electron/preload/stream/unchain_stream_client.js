@@ -236,6 +236,9 @@ const createMisoStreamClient = (ipcRenderer) => {
     cleanupMisoStreamListener(requestId);
   };
 
+  const cancelExecution = (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CANCEL_EXECUTION, payload);
+
   const startStreamV2 = (payload, handlers = {}) => {
     const requestId = createRequestId();
     registerMisoStreamV2Listener(requestId, handlers);
@@ -256,25 +259,49 @@ const createMisoStreamClient = (ipcRenderer) => {
 
   const startStreamV4 = (payload, handlers = {}) => {
     const requestId = createRequestId();
+    const attemptId = requestId;
+    const requestPayload =
+      payload && typeof payload === "object" ? { ...payload } : {};
+    const executionIdCandidate =
+      requestPayload.execution_id ??
+      requestPayload.executionId ??
+      requestPayload.session_id ??
+      requestPayload.sessionId ??
+      requestPayload.threadId ??
+      requestPayload.thread_id;
+    const executionId =
+      typeof executionIdCandidate === "string"
+        ? executionIdCandidate.trim()
+        : "";
+
     registerMisoStreamV4Listener(requestId, handlers);
 
     ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_START_V4, {
       requestId,
-      payload,
+      payload: {
+        ...requestPayload,
+        attempt_id: attemptId,
+      },
     });
+
+    const disconnect = () => {
+      ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
+      cleanupMisoStreamListener(requestId);
+    };
 
     return {
       requestId,
-      cancel: () => {
-        ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
-        cleanupMisoStreamListener(requestId);
-      },
+      executionId,
+      attemptId,
+      disconnect,
+      cancel: disconnect,
     };
   };
 
   return {
     startStream,
     cancelStream,
+    cancelExecution,
     startStreamV2,
     startStreamV4,
     __debug: {

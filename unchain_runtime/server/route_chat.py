@@ -112,6 +112,32 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
     return code, message
 
 
+def _execution_attempt_cancelled(session_id: str, attempt_id: str) -> bool:
+    try:
+        import execution_control
+    except ImportError:
+        return False
+    snapshot = getattr(execution_control, "snapshot", None)
+    if not callable(snapshot):
+        return False
+    try:
+        value = snapshot(session_id, attempt_id)
+    except Exception:
+        return False
+    return str(getattr(value, "status", "") or "").strip() == "cancelled"
+
+
+def _is_execution_cancelled_error(error: BaseException) -> bool:
+    return bool(
+        str(getattr(error, "code", "") or "").strip()
+        == "execution_cancelled"
+        or type(error).__name__ in {
+            "ExecutionCancelledError",
+            "ExecutionAttemptCancelled",
+        }
+    )
+
+
 def _durable_host_error_response(exc: Exception):
     code = str(getattr(exc, "code", "durable_interaction_failed") or "")
     status_code = int(getattr(exc, "status_code", 409) or 409)
@@ -390,6 +416,70 @@ def chat_pending_interaction() -> Response:
         )
 
 
+@api_blueprint.post("/chat/executions/cancel")
+def chat_execution_cancel() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    execution_id = str(
+        payload.get("execution_id")
+        or payload.get("session_id")
+        or payload.get("threadId")
+        or ""
+    ).strip()
+    attempt_id = str(payload.get("attempt_id") or "").strip()
+    source_attempt_id = str(payload.get("source_attempt_id") or "").strip()
+    if not execution_id:
+        return root._json_error(
+            "invalid_request",
+            "execution_id is required",
+            400,
+        )
+    if not attempt_id:
+        return root._json_error(
+            "invalid_request",
+            "attempt_id is required",
+            400,
+        )
+
+    reason_raw = payload.get("reason", "user_stop")
+    if not isinstance(reason_raw, str):
+        return root._json_error(
+            "invalid_request",
+            "reason must be a string",
+            400,
+        )
+    reason = reason_raw.strip() or "user_stop"
+
+    idempotency_key = payload.get("idempotency_key")
+    if idempotency_key is not None and not isinstance(idempotency_key, str):
+        return root._json_error(
+            "invalid_request",
+            "idempotency_key must be a string when provided",
+            400,
+        )
+
+    try:
+        return jsonify(
+            root.cancel_chat_execution(
+                session_id=execution_id,
+                attempt_id=attempt_id,
+                source_attempt_id=source_attempt_id,
+                reason=reason,
+            )
+        )
+    except root.DurableInteractionHostError as exc:
+        return _durable_host_error_response(exc)
+    except Exception as exc:
+        return root._json_error(
+            str(getattr(exc, "code", "execution_cancel_failed") or ""),
+            str(exc),
+            int(getattr(exc, "status_code", 500) or 500),
+        )
+
+
 @api_blueprint.post("/chat/stream")
 def chat_stream() -> Response:
     root = _root()
@@ -652,6 +742,13 @@ def chat_stream_v4() -> Response:
         )
 
     payload = request.get_json(silent=True) or {}
+    attempt_id = str(payload.get("attempt_id") or "").strip()
+    if not attempt_id:
+        return root._json_error(
+            "invalid_request",
+            "attempt_id is required for /chat/stream/v4",
+            400,
+        )
     mode = str(payload.get("mode") or "").strip().lower()
     resume_interaction = mode == "resume_interaction"
     message = str(payload.get("message", "")).strip()
@@ -681,6 +778,13 @@ def chat_stream_v4() -> Response:
             "interaction_id is required for resume_interaction mode",
             400,
         )
+    source_attempt_id = str(payload.get("source_attempt_id") or "").strip()
+    if resume_interaction and not source_attempt_id:
+        return root._json_error(
+            "invalid_request",
+            "source_attempt_id is required for resume_interaction mode",
+            400,
+        )
 
     history = _sanitize_history(payload.get("history"))
     options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
@@ -695,6 +799,7 @@ def chat_stream_v4() -> Response:
         confirmation_cancel_event = threading.Event()
         bridge = RuntimeEventBridge(
             session_id=thread_id,
+            root_run_id=attempt_id,
             root_agent_id="developer",
             trace_level=trace_level,
         )
@@ -710,6 +815,8 @@ def chat_stream_v4() -> Response:
                     "started_at": started_at,
                     "trace_level": trace_level,
                     "thread_id": thread_id,
+                    "execution_id": thread_id,
+                    "attempt_id": attempt_id,
                     "resume_interaction": resume_interaction,
                 }
             )
@@ -721,6 +828,8 @@ def chat_stream_v4() -> Response:
                     interaction_id=interaction_id,
                     options=options,
                     cancel_event=confirmation_cancel_event,
+                    attempt_id=attempt_id,
+                    source_attempt_id=source_attempt_id,
                 )
                 if resume_interaction
                 else root.stream_chat_events(
@@ -730,6 +839,7 @@ def chat_stream_v4() -> Response:
                     options=options,
                     session_id=thread_id,
                     cancel_event=confirmation_cancel_event,
+                    attempt_id=attempt_id,
                 )
             )
             for raw_event in event_source:
@@ -740,10 +850,14 @@ def chat_stream_v4() -> Response:
                 for runtime_event in bridge.normalize(raw_event):
                     yield _sse_event("runtime_event", runtime_event.to_dict())
 
+            cancelled = _execution_attempt_cancelled(thread_id, attempt_id)
             yield _sse_event(
                 "done",
                 {
                     "finished_at": int(time.time() * 1000),
+                    "execution_id": thread_id,
+                    "attempt_id": attempt_id,
+                    "cancelled": cancelled,
                     "diagnostics": bridge.diagnostics(),
                 },
             )
@@ -752,6 +866,20 @@ def chat_stream_v4() -> Response:
             return
         except Exception as stream_error:
             cancel_pending_confirmations()
+            if _is_execution_cancelled_error(
+                stream_error
+            ) or _execution_attempt_cancelled(thread_id, attempt_id):
+                yield _sse_event(
+                    "done",
+                    {
+                        "finished_at": int(time.time() * 1000),
+                        "execution_id": thread_id,
+                        "attempt_id": attempt_id,
+                        "cancelled": True,
+                        "diagnostics": bridge.diagnostics(),
+                    },
+                )
+                return
             code, normalized_message = _normalize_stream_error(stream_error)
             failure_event = bridge.emit_transport_failure(
                 normalized_message,
@@ -762,6 +890,9 @@ def chat_stream_v4() -> Response:
                 "done",
                 {
                     "finished_at": int(time.time() * 1000),
+                    "execution_id": thread_id,
+                    "attempt_id": attempt_id,
+                    "cancelled": False,
                     "error": {
                         "code": code,
                         "message": normalized_message,

@@ -1286,6 +1286,200 @@ class MemoryFactoryTests(unittest.TestCase):
             ],
         )
 
+    def test_patch_memory_commit_forwards_execution_fence_by_identity(self) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class FakeManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.received_execution_fence = None
+
+            def commit_messages(
+                self,
+                *,
+                session_id: str,
+                full_conversation,
+                execution_fence=None,
+            ):
+                del session_id, full_conversation
+                self.received_execution_fence = execution_fence
+                return "committed"
+
+        manager = FakeManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+        execution_fence = object()
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "user", "content": "new"}],
+            execution_fence=execution_fence,
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertIs(manager.received_execution_fence, execution_fence)
+
+    def test_patch_memory_commit_accepts_real_fenced_runtime_commit(self) -> None:
+        from unchain.execution import ExecutionRuntime
+        from unchain.memory import (
+            JsonFileSessionStore,
+            KernelMemoryRuntime,
+            MemoryConfig,
+            MemoryManager,
+        )
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            store = JsonFileSessionStore(base_dir=data_dir)
+            manager = MemoryManager(config=MemoryConfig(), store=store)
+            memory_factory._patch_memory_commit_with_overlap(manager)
+            runtime = KernelMemoryRuntime.from_memory_manager(manager)
+
+            with ExecutionRuntime(store).scope("chat-test") as guard:
+                commit_info, stored_state = runtime.commit_transcript(
+                    session_id="chat-test",
+                    transcript=[{"role": "user", "content": "hello"}],
+                    memory_namespace=None,
+                    model="test-model",
+                    summary_text=None,
+                    execution_fence=guard.fence,
+                )
+
+        self.assertTrue(commit_info["applied"])
+        self.assertEqual(
+            stored_state["messages"],
+            [{"role": "user", "content": "hello"}],
+        )
+
+    def test_patch_memory_commit_isolates_concurrent_chat_execution_leases(self) -> None:
+        from unchain.execution import ExecutionRuntime
+        from unchain.memory import (
+            JsonFileSessionStore,
+            KernelMemoryRuntime,
+            MemoryConfig,
+            MemoryManager,
+        )
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            store = JsonFileSessionStore(base_dir=data_dir)
+            manager = MemoryManager(config=MemoryConfig(), store=store)
+            memory_factory._patch_memory_commit_with_overlap(manager)
+            memory_runtime = KernelMemoryRuntime.from_memory_manager(manager)
+            execution_runtime = ExecutionRuntime(store)
+            start_barrier = threading.Barrier(2)
+            results = {}
+            errors = []
+
+            def commit_chat(session_id: str, content: str) -> None:
+                try:
+                    with execution_runtime.scope(session_id) as guard:
+                        start_barrier.wait(timeout=3)
+                        _commit_info, stored_state = memory_runtime.commit_transcript(
+                            session_id=session_id,
+                            transcript=[{"role": "user", "content": content}],
+                            memory_namespace=None,
+                            model="test-model",
+                            summary_text=None,
+                            execution_fence=guard.fence,
+                        )
+                        results[session_id] = stored_state
+                except Exception as error:  # pragma: no cover - asserted below
+                    errors.append(error)
+
+            threads = [
+                threading.Thread(
+                    target=commit_chat,
+                    args=("chat-a", "message-a"),
+                    name="memory-commit-chat-a",
+                ),
+                threading.Thread(
+                    target=commit_chat,
+                    args=("chat-b", "message-b"),
+                    name="memory-commit-chat-b",
+                ),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+
+            self.assertTrue(all(not thread.is_alive() for thread in threads))
+            self.assertEqual(errors, [])
+            self.assertEqual(
+                results["chat-a"]["messages"],
+                [{"role": "user", "content": "message-a"}],
+            )
+            self.assertEqual(
+                results["chat-b"]["messages"],
+                [{"role": "user", "content": "message-b"}],
+            )
+            self.assertEqual(
+                store.load("chat-a")["messages"],
+                results["chat-a"]["messages"],
+            )
+            self.assertEqual(
+                store.load("chat-b")["messages"],
+                results["chat-b"]["messages"],
+            )
+
+    def test_patch_memory_commit_rejects_unforwardable_execution_fence(self) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class LegacyManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.commit_called = False
+
+            def commit_messages(self, *, session_id: str, full_conversation):
+                del session_id, full_conversation
+                self.commit_called = True
+
+        manager = LegacyManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "memory commit execution fencing is unsupported",
+        ):
+            manager.commit_messages(
+                session_id="chat-test",
+                full_conversation=[{"role": "user", "content": "new"}],
+                execution_fence=object(),
+            )
+
+        self.assertFalse(manager.commit_called)
+
+    def test_patch_memory_commit_keeps_legacy_no_fence_call_compatible(self) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class LegacyManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.committed_payload = None
+
+            def commit_messages(self, *, session_id: str, full_conversation):
+                self.committed_payload = {
+                    "session_id": session_id,
+                    "full_conversation": full_conversation,
+                }
+                return "legacy-committed"
+
+        manager = LegacyManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "user", "content": "new"}],
+            execution_fence=None,
+        )
+
+        self.assertEqual(result, "legacy-committed")
+        self.assertEqual(
+            manager.committed_payload,
+            {
+                "session_id": "chat-test",
+                "full_conversation": [{"role": "user", "content": "new"}],
+            },
+        )
+
     def test_patch_memory_prepare_with_diagnostics_sets_no_match_status(self) -> None:
         class FakeManager:
             def __init__(self):

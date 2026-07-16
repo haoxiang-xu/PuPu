@@ -181,7 +181,7 @@ if [[ "${UNCHAIN_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
   "$VENV_PIP" install \
     -r "$ROOT_DIR/unchain_runtime/server/requirements.txt" \
     -e "$UNCHAIN_SOURCE_PATH" \
-    pyinstaller
+    'pyinstaller>=6.10'
 fi
 
 # Validate the resolved Python runtime early to avoid confusing startup failures.
@@ -201,10 +201,19 @@ PY
 
 if ! "$VENV_PY" - <<'PY'
 import importlib.util
+import re
 required_modules = ["flask", "openai", "anthropic", "PyInstaller", "qdrant_client"]
 missing = [name for name in required_modules if importlib.util.find_spec(name) is None]
 if missing:
     print("Missing required Python modules in build environment:", ", ".join(missing))
+    raise SystemExit(1)
+import PyInstaller
+match = re.match(r"^(\d+)\.(\d+)", PyInstaller.__version__)
+if match is None or tuple(map(int, match.groups())) < (6, 10):
+    print(
+        "PyInstaller 6.10+ is required for durable worker process isolation; "
+        f"found {PyInstaller.__version__}"
+    )
     raise SystemExit(1)
 PY
 then

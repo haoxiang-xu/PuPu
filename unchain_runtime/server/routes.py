@@ -21,6 +21,7 @@ from unchain_adapter import (
 )
 from durable_interaction_host import (
     DurableInteractionHostError,
+    cancel_chat_execution,
     get_pending_interaction,
     record_interaction_receipt,
 )
@@ -73,6 +74,7 @@ __all__ = [
     "_json_error",
     "_kmeans_2d_numpy",
     "cancel_tool_confirmations",
+    "cancel_chat_execution",
     "character_defaults",
     "character_store",
     "get_capability_catalog",
