@@ -261,8 +261,8 @@ export const QueuePanel = ({
           ? "rgba(var(--pupu-surface-rgb),0.85)"
           : "rgba(var(--pupu-surface-rgb),0.9)",
         border: isDark
-          ? "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.10))"
-          : "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.09))",
+          ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+          : "1px solid rgba(var(--pupu-text-rgb),0.09)",
         backdropFilter: "blur(20px) saturate(130%)",
         WebkitBackdropFilter: "blur(20px) saturate(130%)",
         boxShadow: isDark

@@ -38,8 +38,8 @@ const CommandMenu = ({
     ? "rgba(var(--pupu-surface-rgb),0.66)"
     : "rgba(var(--pupu-surface-rgb),0.72)";
   const border = isDark
-    ? "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.12))"
-    : "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.10))";
+    ? "1px solid rgba(var(--pupu-text-rgb),0.12)"
+    : "1px solid rgba(var(--pupu-text-rgb),0.10)";
   const shadow = isDark
     ? "0 10px 30px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.22)"
     : "0 10px 30px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)";

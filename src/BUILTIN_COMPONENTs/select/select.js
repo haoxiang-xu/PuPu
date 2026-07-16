@@ -1262,10 +1262,10 @@ const Select = ({
               backgroundColor: isDark
                 ? "rgba(var(--pupu-surface-rgb),0.85)"
                 : "rgba(var(--pupu-surface-rgb),0.9)",
-              /* blurred surfaces always carry an edge; menuBorder overrides */
+              /* blurred surfaces always carry an edge */
               border: isDark
-                ? "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.10))"
-                : "1px solid var(--pupu-menu-border, rgba(var(--pupu-text-rgb),0.09))",
+                ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+                : "1px solid rgba(var(--pupu-text-rgb),0.09)",
               borderRadius: 22,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
