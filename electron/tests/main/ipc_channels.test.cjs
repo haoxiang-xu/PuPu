@@ -41,6 +41,15 @@ describe("ipc channel parity", () => {
     });
   });
 
+  test("custom provider test-connection channel is registered on both sides", () => {
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(
+      CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
+    );
+    expect(IPC_HANDLE_CHANNELS).toContain(
+      CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
+    );
+  });
+
   test("chat storage v3 channels are classified on both sides", () => {
     expect(IPC_ON_SYNC_CHANNELS).toContain(
       CHANNELS.CHAT_STORAGE.READ_MESSAGES,

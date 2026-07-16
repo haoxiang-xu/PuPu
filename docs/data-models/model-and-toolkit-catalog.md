@@ -64,6 +64,25 @@ Injected into the payload at stream time by `injectProviderApiKeyIntoPayload()`.
 
 Supported remote providers: `openai`, `anthropic`.
 
+## Custom Provider Storage
+
+User-defined providers live under the same `localStorage.settings.model_providers` namespace, physically split between shareable definitions and local-only secrets (design: `docs/features/custom-model-providers.md`):
+
+```javascript
+{
+  custom_providers: [           // shareable definitions — never contain a key
+    { config_version, id, display_name, protocol, base_url, auth,
+      extra_headers, timeout_seconds, default_model, models: [...],
+      notes, enabled, source, created_at, updated_at }
+  ],
+  custom_provider_secrets: {    // local-only, keyed by slug
+    "<slug>": "<api key value>"
+  },
+}
+```
+
+Read/write only through `src/SERVICEs/custom_provider_store.js`. Model IDs are addressed as `custom.<slug>:<model_id>`; the definition plus the key (dedicated `custom_provider_api_key` option field) are injected per request by `injectCustomProviderIntoPayload()`. Custom models are merged into the picker catalog client-side — the backend `/models/catalog` does not know about them.
+
 ---
 
 ## Default Models by Provider

@@ -781,6 +781,363 @@ describe("unchain service session memory replacement", () => {
     );
   });
 
+  test("testMisoCustomProvider posts custom_provider/api_key and passes the result through", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            model: "anthropic--claude-4.5-haiku",
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({
+      custom_provider: {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      api_key: "hs-secret-key",
+    });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:5879/models/custom-providers/test",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-unchain-auth": "auth-token-123",
+        }),
+        body: JSON.stringify({
+          custom_provider: {
+            id: "sap-hyperspace",
+            protocol: "anthropic",
+            base_url: "http://localhost:6655/anthropic",
+            models: [{ id: "anthropic--claude-4.5-haiku" }],
+          },
+          api_key: "hs-secret-key",
+        }),
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      model: "anthropic--claude-4.5-haiku",
+    });
+  });
+
+  test("testMisoCustomProvider passes a structured backend failure through unchanged", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: false,
+            code: "provider_auth_failed",
+            message: "The provider rejected the API key.",
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({
+      custom_provider: {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      api_key: "wrong-key",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "provider_auth_failed",
+      message: "The provider rejected the API key.",
+    });
+  });
+
+  test("testMisoCustomProvider returns a structured error when the runtime is unreachable", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockRejectedValueOnce(new Error("ECONNREFUSED"));
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({
+      custom_provider: {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      api_key: "hs-secret-key",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "provider_unreachable",
+        message: "Could not reach the model runtime",
+      },
+    });
+  });
+
+  test("testMisoCustomProvider rejects a missing custom_provider without any request", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({ api_key: "x" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "custom_provider_invalid",
+        message: "custom_provider is required",
+      },
+    });
+    // Only the startup health check ran — no provider-test request was issued.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("testMisoCustomProvider never logs the api_key", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ ok: true, model: "m1" }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const infoSpy = jest.spyOn(console, "info").mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+
+    try {
+      const service = createUnchainService({
+        app: {
+          isPackaged: false,
+          getAppPath: jest.fn(() => "/app"),
+          getPath: jest.fn(() => "/tmp/pupu"),
+          getVersion: jest.fn(() => "0.1.1"),
+        },
+        fs: { existsSync: jest.fn(() => true) },
+        path,
+        spawn,
+        spawnSync,
+        crypto: {
+          randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+        },
+        net: createAvailableNet(),
+        webContents: {
+          fromId: jest.fn(() => null),
+          getAllWebContents: jest.fn(() => []),
+        },
+        runtimeService: {},
+        getAppIsQuitting: () => false,
+      });
+
+      await service.startMiso();
+      await service.testMisoCustomProvider({
+        custom_provider: {
+          id: "sap-hyperspace",
+          protocol: "anthropic",
+          base_url: "http://localhost:6655/anthropic",
+          models: [{ id: "m1" }],
+        },
+        api_key: "hs-super-secret-key",
+      });
+
+      const allLogged = [logSpy, errorSpy, infoSpy, warnSpy, debugSpy]
+        .flatMap((spy) => spy.mock.calls)
+        .flat()
+        .map((entry) =>
+          typeof entry === "string" ? entry : JSON.stringify(entry),
+        )
+        .join("\n");
+
+      expect(allLogged).not.toContain("hs-super-secret-key");
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      infoSpy.mockRestore();
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    }
+  });
+
   test("MCP OAuth methods proxy to unchain and open authorization URL", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);

@@ -31,6 +31,14 @@ _STABLE_RESUME_OPTION_KEYS = frozenset(
         "agent_orchestration_mode",
         "contextOptimizer",
         "context_optimizer",
+        # Custom-provider definition (design §7). Safe to persist: the def
+        # carries NO api key (the key rides the specialised custom_provider_api_key
+        # field and is re-supplied by the renderer via _FRESH_SECRET_OPTION_KEYS).
+        # Without this a durable resume of a custom-provider session lost the cfg
+        # and rebuilt a BUILT-IN agent pointed at the official endpoint (defect
+        # C6): ollama twin → localhost:11434, openai twin → api.openai.com,
+        # hyperspace twin → whitelist fallback to env keys.
+        "custom_provider",
         "disableWorkspaceRoot",
         "disable_workspace_root",
         "durable_interactions_required",
@@ -86,6 +94,12 @@ _FRESH_SECRET_OPTION_KEYS = frozenset(
         "anthropic_api_key",
         "apiKey",
         "api_key",
+        # Custom-provider key (decision A8). Like every other credential it is
+        # NEVER written to disk — the renderer re-supplies it on resume and this
+        # overlay re-injects it so the rebuilt custom agent can authenticate to
+        # the user's endpoint (defect C6).
+        "customProviderApiKey",
+        "custom_provider_api_key",
         "openaiApiKey",
         "openai_api_key",
         "unchainApiKey",
@@ -604,7 +618,21 @@ def resolve_resume_options(
         )
     resolved = copy.deepcopy(stable_options)
     resolved.update(_fresh_secret_overlay(fresh_options or {}))
-    if context_provider and context_model:
+    # C6: for a custom-provider resume, keep the original ``custom.<slug>:<model>``
+    # addressing intact. The persisted context provider/model are the twin
+    # (e.g. "openai" / "hyperspace"), and forcing modelId to the twin form here
+    # would strip the custom prefix — the adapter would then rebuild a built-in
+    # agent instead of resolving the custom cfg. When the stable options carry a
+    # custom_provider def AND a custom modelId, the adapter's custom override
+    # path (_custom_override_from_model_id) reconstructs the twin from the cfg,
+    # so we must NOT clobber it.
+    stable_model_id = resolved.get("modelId")
+    is_custom_resume = (
+        isinstance(resolved.get("custom_provider"), dict)
+        and isinstance(stable_model_id, str)
+        and stable_model_id.strip().startswith("custom.")
+    )
+    if context_provider and context_model and not is_custom_resume:
         resolved.update(
             {
                 "modelId": f"{context_provider}:{context_model}",

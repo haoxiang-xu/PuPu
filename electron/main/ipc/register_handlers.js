@@ -25,6 +25,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
   CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS,
   CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
   CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
   CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS,
   CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
@@ -182,6 +183,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
     async (_event, payload = {}) =>
       unchainService.installMisoMcpToolkit(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
+    async (_event, payload = {}) =>
+      unchainService.testMisoCustomProvider(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,

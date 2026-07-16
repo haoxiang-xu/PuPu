@@ -8,6 +8,7 @@ from unchain_adapter import (
     get_capability_catalog,
     get_default_model_capabilities,
     get_embedding_provider_catalog,
+    get_display_model_id,
     get_model_capability_catalog,
     get_model_name,
     get_runtime_config,
@@ -67,6 +68,7 @@ import route_memory  # noqa: F401
 import route_recipes  # noqa: F401
 import route_mcp  # noqa: F401
 import route_interject  # noqa: F401
+import route_providers  # noqa: F401
 
 __all__ = [
     "api_blueprint",
@@ -80,6 +82,7 @@ __all__ = [
     "get_capability_catalog",
     "get_default_model_capabilities",
     "get_embedding_provider_catalog",
+    "get_display_model_id",
     "get_model_capability_catalog",
     "get_model_name",
     "get_runtime_config",

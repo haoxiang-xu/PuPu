@@ -20,6 +20,8 @@ const UNCHAIN_PENDING_INTERACTION_ENDPOINT = "/chat/interactions/pending";
 const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
+const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
+  "/models/custom-providers/test";
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 const UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
 const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
@@ -887,6 +889,151 @@ const createUnchainService = ({
       {},
       "Invalid Miso MCP toolkit install response",
     );
+  };
+
+  // Custom Model Provider — test-connection relay (design §6.5 / §7.6).
+  //
+  // Contract: forwards { custom_provider, api_key } to Miso's
+  // POST /models/custom-providers/test. The request body carries a one-shot
+  // API key, so this method deliberately performs NO body-level logging
+  // (design §9.4 red line — no api_key may reach any log). It also returns a
+  // structured { ok:false, error:{ code, message } } on transport failure
+  // instead of throwing a raw exception, so the renderer always gets a shape
+  // it can render. Backend success/structured-failure bodies pass through
+  // untouched (Miso answers 200 for both; the `ok` field is the signal).
+  const testMisoCustomProvider = async (payload = {}) => {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const customProvider =
+      source.custom_provider && typeof source.custom_provider === "object"
+        ? source.custom_provider
+        : null;
+    const apiKey =
+      typeof source.api_key === "string" ? source.api_key : "";
+
+    if (!customProvider) {
+      return {
+        ok: false,
+        error: {
+          code: "custom_provider_invalid",
+          message: "custom_provider is required",
+        },
+      };
+    }
+
+    try {
+      ensureMisoReady();
+    } catch {
+      return {
+        ok: false,
+        error: {
+          code: "provider_service_unavailable",
+          message: "The model runtime is not ready",
+        },
+      };
+    }
+
+    // Timeout slightly larger than the backend's 15s hard probe timeout so the
+    // structured `provider_timeout` from Flask wins the race when the provider
+    // is merely slow; this abort only fires if the whole round-trip stalls.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    try {
+      const response = await fetch(
+        buildMisoUrl(UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(unchainAuthToken
+              ? { "x-unchain-auth": unchainAuthToken }
+              : {}),
+          },
+          body: JSON.stringify({
+            custom_provider: customProvider,
+            api_key: apiKey,
+          }),
+          signal: controller.signal,
+        },
+      );
+
+      const bodyText = await response.text();
+
+      if (!response.ok) {
+        let code = "provider_bad_response";
+        let message = `Custom provider test failed (${response.status})`;
+        if (bodyText) {
+          try {
+            const parsed = JSON.parse(bodyText);
+            const serverCode =
+              (typeof parsed?.code === "string" && parsed.code.trim()) ||
+              (typeof parsed?.error?.code === "string" &&
+                parsed.error.code.trim()) ||
+              "";
+            const serverMessage =
+              (typeof parsed?.message === "string" && parsed.message.trim()) ||
+              (typeof parsed?.error?.message === "string" &&
+                parsed.error.message.trim()) ||
+              (typeof parsed?.error === "string" && parsed.error.trim()) ||
+              "";
+            if (serverCode) {
+              code = serverCode;
+            }
+            if (serverMessage) {
+              message = serverMessage;
+            }
+          } catch {
+            // Non-JSON error body: keep the generic code, avoid echoing the
+            // raw body (it could contain redacted-but-sensitive fragments).
+          }
+        }
+        return { ok: false, error: { code, message } };
+      }
+
+      if (!bodyText) {
+        return {
+          ok: false,
+          error: {
+            code: "provider_bad_response",
+            message: "Empty response from model runtime",
+          },
+        };
+      }
+
+      try {
+        return JSON.parse(bodyText);
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "provider_bad_response",
+            message: "Invalid response from model runtime",
+          },
+        };
+      }
+    } catch (error) {
+      const aborted =
+        error &&
+        (error.name === "AbortError" || controller.signal.aborted);
+      if (aborted) {
+        return {
+          ok: false,
+          error: {
+            code: "provider_timeout",
+            message: "The provider did not respond in time.",
+          },
+        };
+      }
+      return {
+        ok: false,
+        error: {
+          code: "provider_unreachable",
+          message: "Could not reach the model runtime",
+        },
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   };
 
   const submitMisoInterject = async (payload = {}) => {
@@ -2802,6 +2949,7 @@ const createUnchainService = ({
     getMisoToolkitDetailPayload,
     listMisoMcpToolkits,
     installMisoMcpToolkit,
+    testMisoCustomProvider,
     deleteMisoMcpToolkit,
     reloadMisoMcpToolkits,
     checkMisoMcpToolkitHealth,

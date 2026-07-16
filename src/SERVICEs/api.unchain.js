@@ -13,6 +13,16 @@ import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 import { sanitizeSystemPromptSections } from "./system_prompt_sections";
 import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
+import {
+  CUSTOM_PROVIDER_PREFIX,
+  buildProviderInjectionPayload,
+  customProviderKey,
+  findCustomProvider,
+  getCustomProviderSecret,
+  mapCustomModelCapabilities,
+  parseCustomProviderKey,
+  readCustomProviders,
+} from "./custom_provider_store";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
@@ -62,10 +72,24 @@ const parseProviderFromModelValue = (modelValue) => {
     return "";
   }
 
-  const providerCandidate = modelValue.split(":", 1)[0].trim().toLowerCase();
-  return SUPPORTED_REMOTE_PROVIDERS.has(providerCandidate)
-    ? providerCandidate
-    : "";
+  // JS split(":", 1) truncates: for "custom.<slug>:model:with:colons" this
+  // still yields the full "custom.<slug>" providerKey (design §4.2).
+  const providerCandidate = modelValue.split(":", 1)[0].trim();
+
+  // Custom provider addressing: only return the prefix when a matching
+  // definition actually exists locally, else "" (design §6.2). We do NOT
+  // lowercase here — slugs are already lowercase and the "custom." prefix
+  // is literal; keeping case-exact avoids a spurious match on odd input.
+  if (providerCandidate.startsWith(CUSTOM_PROVIDER_PREFIX)) {
+    const parsed = parseCustomProviderKey(providerCandidate);
+    if (parsed && parsed.slug && findCustomProvider(parsed.slug)) {
+      return providerCandidate;
+    }
+    return "";
+  }
+
+  const lowered = providerCandidate.toLowerCase();
+  return SUPPORTED_REMOTE_PROVIDERS.has(lowered) ? lowered : "";
 };
 
 const detectProviderFromStreamPayload = (payload) => {
@@ -96,7 +120,15 @@ const detectProviderFromStreamPayload = (payload) => {
     if (typeof candidate !== "string") {
       continue;
     }
-    const normalized = candidate.trim().toLowerCase();
+    const trimmed = candidate.trim();
+    if (trimmed.startsWith(CUSTOM_PROVIDER_PREFIX)) {
+      const parsed = parseCustomProviderKey(trimmed);
+      if (parsed && parsed.slug && findCustomProvider(parsed.slug)) {
+        return trimmed;
+      }
+      continue;
+    }
+    const normalized = trimmed.toLowerCase();
     if (SUPPORTED_REMOTE_PROVIDERS.has(normalized)) {
       return normalized;
     }
@@ -518,13 +550,172 @@ const injectSystemPromptV2IntoPayload = (payload) => {
   };
 };
 
+/**
+ * Read the custom provider modelId (custom.<slug>:<model...>) from a payload's
+ * options, checking the same field aliases as detectProviderFromStreamPayload.
+ * Returns "" when no custom.* modelId is present.
+ */
+const readCustomModelValue = (payload) => {
+  const options = isObject(payload?.options) ? payload.options : {};
+  const candidates = [
+    options.modelId,
+    options.model_id,
+    options.model,
+    payload?.modelId,
+    payload?.model_id,
+    payload?.model,
+  ];
+  for (const candidate of candidates) {
+    if (
+      typeof candidate === "string" &&
+      candidate.startsWith(CUSTOM_PROVIDER_PREFIX)
+    ) {
+      return candidate;
+    }
+  }
+  return "";
+};
+
+/**
+ * Inject a custom provider's sanitized definition + secret into the payload
+ * options when the selected model is a custom.* model (design §6.2).
+ *
+ * Throws a structured error (send-time block) when:
+ *   - definition missing -> {code:"custom_provider_not_found"}
+ *   - definition disabled -> {code:"custom_provider_disabled"}
+ *   - auth required but no key -> {code:"custom_provider_missing_api_key"}
+ *
+ * On success, sets:
+ *   - options.custom_provider = whitelist-sanitized definition (no enabled /
+ *     timestamps / source / secret)
+ *   - options.custom_provider_api_key / customProviderApiKey = the secret value
+ *     via a DEDICATED field, NOT the generic api_key/apiKey channel (A8/§9.1).
+ */
+const injectCustomProviderIntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+
+  const modelValue = readCustomModelValue(payload);
+  if (!modelValue) {
+    return payload;
+  }
+
+  const parsed = parseCustomProviderKey(modelValue);
+  const slug = parsed?.slug || "";
+  const definition = slug ? findCustomProvider(slug) : null;
+
+  if (!definition) {
+    throw new FrontendApiError(
+      "custom_provider_not_found",
+      `Custom provider not found: ${slug || modelValue}`,
+    );
+  }
+  if (definition.enabled === false) {
+    throw new FrontendApiError(
+      "custom_provider_disabled",
+      `Custom provider is disabled: ${slug}`,
+    );
+  }
+
+  const authMode = definition.auth?.mode || "none";
+  const requiresKey = authMode !== "none";
+  const secret = requiresKey ? getCustomProviderSecret(slug) : "";
+  if (requiresKey && !secret) {
+    throw new FrontendApiError(
+      "custom_provider_missing_api_key",
+      `Custom provider requires an API key: ${slug}`,
+    );
+  }
+
+  const sanitizedDefinition = buildProviderInjectionPayload(definition);
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  const nextOptions = {
+    ...currentOptions,
+    custom_provider: sanitizedDefinition,
+  };
+  if (secret) {
+    // Dedicated named channel ONLY — never the generic api_key/apiKey path.
+    nextOptions.custom_provider_api_key = secret;
+    nextOptions.customProviderApiKey = secret;
+  }
+
+  return {
+    ...payload,
+    options: nextOptions,
+  };
+};
+
+/**
+ * Append enabled custom providers to a normalized model catalog (design §6.4).
+ *
+ * Adds catalog.providers["custom.<slug>"] = [model ids] and
+ * catalog.modelCapabilities["custom.<slug>:<id>"] mapped to the same shape as
+ * defaultModelInputCapabilities() via normalizeModelInputCapabilities().
+ *
+ * Only enabled providers with (auth.mode === "none" || a stored secret) are
+ * merged so the selector never lists an unusable model.
+ */
+const mergeCustomProvidersIntoCatalog = (catalog) => {
+  if (!isObject(catalog)) {
+    return catalog;
+  }
+
+  let customDefs;
+  try {
+    customDefs = readCustomProviders();
+  } catch (_error) {
+    return catalog;
+  }
+  if (!Array.isArray(customDefs) || customDefs.length === 0) {
+    return catalog;
+  }
+
+  const providers = isObject(catalog.providers) ? { ...catalog.providers } : {};
+  const modelCapabilities = isObject(catalog.modelCapabilities)
+    ? { ...catalog.modelCapabilities }
+    : {};
+
+  for (const def of customDefs) {
+    if (def.enabled !== true) {
+      continue;
+    }
+    const authMode = def.auth?.mode || "none";
+    if (authMode !== "none" && !getCustomProviderSecret(def.id)) {
+      continue;
+    }
+    const providerKey = customProviderKey(def.id);
+    if (!providerKey) {
+      continue;
+    }
+    const modelIds = def.models.map((m) => m.id);
+    providers[providerKey] = modelIds;
+
+    for (const model of def.models) {
+      const capabilityKey = `${providerKey}:${model.id}`;
+      // Single source of truth for the capability mapping (design §6.4).
+      modelCapabilities[capabilityKey] = mapCustomModelCapabilities(
+        model.capabilities,
+      );
+    }
+  }
+
+  return {
+    ...catalog,
+    providers,
+    modelCapabilities,
+  };
+};
+
 const normalizeUnchainV2Payload = (payload) => {
   const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
   const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
     payloadWithWorkspaceRoot,
   );
   const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
-  return injectProviderApiKeyIntoPayload(payloadWithMemory);
+  const payloadWithProviderKey =
+    injectProviderApiKeyIntoPayload(payloadWithMemory);
+  return injectCustomProviderIntoPayload(payloadWithProviderKey);
 };
 
 export const createUnchainApi = () => {
@@ -566,7 +757,11 @@ export const createUnchainApi = () => {
 
     getModelCatalog: async () => {
       if (!hasBridgeMethod("unchainAPI", "getModelCatalog")) {
-        return normalizeModelCatalog(EMPTY_MODEL_CATALOG);
+        // Custom providers are a pure front-end local merge (design §A7), so
+        // surface them even when the backend catalog bridge is unavailable.
+        return mergeCustomProvidersIntoCatalog(
+          normalizeModelCatalog(EMPTY_MODEL_CATALOG),
+        );
       }
 
       try {
@@ -577,7 +772,7 @@ export const createUnchainApi = () => {
           "unchain_model_catalog_timeout",
           "Unchain model catalog request timed out",
         );
-        return normalizeModelCatalog(payload);
+        return mergeCustomProvidersIntoCatalog(normalizeModelCatalog(payload));
       } catch (error) {
         throw toFrontendApiError(
           error,
@@ -1729,6 +1924,52 @@ export const createUnchainApi = () => {
 
   unchainApi.retrieveModelList = retrieveUnchainModelList;
   unchainApi.listModels = retrieveUnchainModelList;
+
+  // Custom Model Provider — test-connection facade (design §6.5).
+  //
+  // Sanitizes the raw stored definition through buildProviderInjectionPayload
+  // (strips secrets / enabled / timestamps — the same whitelist the chat
+  // injection path uses) and forwards { sanitizedDefinition, apiKey } to the
+  // preload bridge, which assembles the { custom_provider, api_key } wire body.
+  // The Electron main service answers with a structured
+  // { ok, ... } | { ok:false, error:{ code, message } } result (never throws for
+  // provider-side failures), so the caller can render the outcome inline.
+  // Timeout is 20s to sit just past the backend's 15s hard probe timeout.
+  const testCustomProvider = async (definition, apiKey = "") => {
+    if (!hasBridgeMethod("unchainAPI", "testCustomProvider")) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.testCustomProvider is unavailable",
+      );
+    }
+
+    const sanitized = buildProviderInjectionPayload(definition);
+    if (!sanitized) {
+      throw new FrontendApiError(
+        "custom_provider_invalid",
+        "A valid custom provider definition is required",
+      );
+    }
+
+    try {
+      const method = assertBridgeMethod("unchainAPI", "testCustomProvider");
+      const response = await withTimeout(
+        () => method(sanitized, typeof apiKey === "string" ? apiKey : ""),
+        20000,
+        "custom_provider_test_timeout",
+        "Custom provider test request timed out",
+      );
+      return isObject(response) ? response : {};
+    } catch (error) {
+      throw toFrontendApiError(
+        error,
+        "custom_provider_test_failed",
+        "Failed to test custom provider connection",
+      );
+    }
+  };
+
+  unchainApi.testCustomProvider = testCustomProvider;
 
   return unchainApi;
 };

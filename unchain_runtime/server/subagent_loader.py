@@ -355,11 +355,17 @@ def _build_child_agent(
     name: str,
     instructions: str,
     optimizer_module_factory: Any | None = None,
+    model_io_factory: Any | None = None,
 ) -> Any:
     """Construct the inner Agent instance wrapped inside a SubagentTemplate.
 
     Mirrors the inline body in ``load_templates`` so that
     ``unchain_adapter._materialize_recipe_subagents`` can reuse it.
+
+    ``model_io_factory`` is threaded so a custom-provider session propagates its
+    factory to explicitly-constructed subagents; the factory carries a built-in
+    fallback, so openai/anthropic/ollama subagent templates are unaffected and
+    use their own key (design §7.3).
     """
     child_modules: list[Any] = []
     if toolkits:
@@ -369,14 +375,17 @@ def _build_child_agent(
         optimizer_module = optimizer_module_factory()
         if optimizer_module is not None:
             child_modules.append(optimizer_module)
-    return UnchainAgent(
-        name=name,
-        instructions=instructions,
-        provider=provider,
-        model=model,
-        api_key=api_key,
-        modules=tuple(child_modules),
-    )
+    agent_kwargs: dict[str, Any] = {
+        "name": name,
+        "instructions": instructions,
+        "provider": provider,
+        "model": model,
+        "api_key": api_key,
+        "modules": tuple(child_modules),
+    }
+    if model_io_factory is not None:
+        agent_kwargs["model_io_factory"] = model_io_factory
+    return UnchainAgent(**agent_kwargs)
 
 
 def _collect_main_tool_names(toolkits: tuple[Any, ...]) -> set[str]:
@@ -407,6 +416,7 @@ def load_templates(
     PoliciesModule: Any,
     SubagentTemplate: Any,
     optimizer_module_factory: Any | None = None,
+    model_io_factory: Any | None = None,
 ) -> tuple[Any, ...]:
     """Scan user_dir + workspace_dir, parse files, validate, apply precedence,
     intersect allowed_tools against main agent's tools, and return a tuple of
@@ -458,14 +468,17 @@ def load_templates(
             if optimizer_module is not None:
                 child_modules.append(optimizer_module)
 
-        child_agent = UnchainAgent(
-            name=tpl.name,
-            instructions=tpl.instructions,
-            provider=provider,
-            model=tpl.model or model,
-            api_key=api_key,
-            modules=tuple(child_modules),
-        )
+        child_agent_kwargs: dict[str, Any] = {
+            "name": tpl.name,
+            "instructions": tpl.instructions,
+            "provider": provider,
+            "model": tpl.model or model,
+            "api_key": api_key,
+            "modules": tuple(child_modules),
+        }
+        if model_io_factory is not None:
+            child_agent_kwargs["model_io_factory"] = model_io_factory
+        child_agent = UnchainAgent(**child_agent_kwargs)
 
         template = SubagentTemplate(
             name=tpl.name,

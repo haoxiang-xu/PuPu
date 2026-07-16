@@ -244,7 +244,13 @@ const GroupHeader = ({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => onToggle(group.group)}
+      onClick={() =>
+        onToggle(
+          typeof group.group_key === "string" && group.group_key
+            ? group.group_key
+            : group.group,
+        )
+      }
       style={{
         position: "relative",
         display: "flex",
