@@ -93,10 +93,15 @@ const BootOverlay = () => {
         />
       </div>
 
-      {/* single solid Enter button, appears when ready */}
+      {/* bottom "click to enter" text prompt, appears when ready */}
       <div
         style={{
-          position: "relative",
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 40,
+          display: "flex",
+          justifyContent: "center",
           zIndex: 1,
           opacity: ready ? 1 : 0,
           transform: ready ? "translateY(0)" : "translateY(8px)",
@@ -106,22 +111,27 @@ const BootOverlay = () => {
       >
         {ready ? (
           <Button
-            label="Enter"
+            label="Click to enter"
             onClick={handleEnter}
             style={{
               root: {
-                fontSize: 14,
-                fontWeight: 500,
-                letterSpacing: 1,
-                color: background,
-                borderRadius: 999,
-                paddingVertical: 9,
-                paddingHorizontal: 30,
-                background: accent,
+                fontSize: 12,
+                fontWeight: 400,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                color: accent,
+                background: "transparent",
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                borderRadius: 8,
               },
               background: {
-                hoverBackgroundColor: accent,
-                activeBackgroundColor: accent,
+                hoverBackgroundColor: isDark
+                  ? "rgba(255,255,255,0.06)"
+                  : "rgba(0,0,0,0.04)",
+                activeBackgroundColor: isDark
+                  ? "rgba(255,255,255,0.10)"
+                  : "rgba(0,0,0,0.07)",
               },
             }}
           />
