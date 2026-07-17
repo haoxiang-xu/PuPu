@@ -87,7 +87,7 @@ const BootOverlay = () => {
           color={accent}
           cells={5}
           stagger={80}
-          spread={0.78}
+          spread={0.95}
           speed={0.55}
           spin
         />
