@@ -1,7 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import StringSpinner from "../../BUILTIN_COMPONENTs/spinner/string_spinner";
 import ShaderBlobBackground from "../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
 import { deriveBlobScene } from "./derive_blob_palette";
 import bootProgress from "../../SERVICEs/boot_progress";
@@ -17,10 +16,10 @@ const EXIT_MS = 240;
  *
  * Full-screen boot gate. Takes over the static #boot-overlay shell on mount,
  * then owns rendering from bootProgress.subscribe(). Solid theme-colored
- * ground with a faint torus field + string spinner as the loading indicator.
- * Once `ready` (chat reached its first screen, or the 8s failsafe fired) the
- * spinner shrinks to its smallest and a centered "Click anywhere to start"
- * prompt fades in — the whole overlay becomes clickable, and clicking (or
+ * ground with a faint blurred 3D torus field as the loading indicator.
+ * Once `ready` (chat reached its first screen, or the 8s failsafe fired) a
+ * centered "Click anywhere to start" prompt fades in — the whole overlay
+ * becomes clickable, and clicking (or
  * Enter/Space) fades it out and unmounts. Never auto-dismissed; the user
  * always drives the final step.
  */
@@ -87,7 +86,7 @@ const BootOverlay = () => {
           position: "absolute",
           inset: 0,
           filter: "blur(44px)",
-          opacity: 0.22,
+          opacity: 0.32,
           pointerEvents: "none",
         }}
       >
@@ -119,32 +118,15 @@ const BootOverlay = () => {
         />
       </div>
 
-      {/* string spinner — loading indicator; shrinks to its smallest once
-          ready, leaving the centered prompt to take over. */}
+      {/* centered "click anywhere to start" prompt, fades in when ready.
+          While loading, the faint torus field is the only indicator. */}
       <div
         aria-hidden="true"
         style={{
           position: "absolute",
           inset: 0,
-          opacity: 0.7,
-          transform: ready ? "translateY(-22px)" : "translateY(0)",
-          transition: `transform ${EXIT_MS}ms ease`,
-          pointerEvents: "none",
-        }}
-      >
-        <StringSpinner size={ready ? 24 : 56} n={5} amplitude={5} color={accent} />
-      </div>
-
-      {/* centered "click anywhere to start" prompt, fades in when ready */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: "50%",
-          marginTop: 24,
           display: "flex",
+          alignItems: "center",
           justifyContent: "center",
           opacity: ready ? 1 : 0,
           transition: `opacity ${EXIT_MS}ms ease`,
