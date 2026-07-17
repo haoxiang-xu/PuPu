@@ -454,7 +454,7 @@ const ThemeEditor = () => {
         </div>
       </div>
 
-      <Explorer data={explorerData} root={explorerRoot} row_height={45} style={{ width: "100%" }} />
+      <Explorer data={explorerData} root={explorerRoot} row_height={48} style={{ width: "100%" }} />
 
       <input
         ref={importInputRef}
