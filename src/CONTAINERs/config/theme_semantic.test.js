@@ -7,6 +7,8 @@ import {
   BORDER_TIER_ALPHA,
   DETAIL_DEFAULTS,
   resolveThemeDetails,
+  persistBootPalette,
+  BOOT_PALETTE_STORAGE_KEY,
 } from "./theme_semantic";
 import { SEMANTIC_DEFAULTS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 
@@ -360,5 +362,55 @@ describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
     expect(out.switch.backgroundColor).toBe("#CCCCCC");
     // thumb is a control chip → surface tier (light exact, dark #222222→#1e1e1e ≤4/255)
     expect(out.switch.color).toBe(palette.surface);
+  });
+});
+
+describe("persistBootPalette", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  test("writes background/text/textMuted/accent as plain JSON under the boot palette key", () => {
+    persistBootPalette({
+      accent: "#65c466",
+      background: "#101010",
+      text: "#ffffff",
+      textMuted: "#a0a0a0",
+      surface: "#1a1a1a",
+    });
+
+    const raw = window.localStorage.getItem(BOOT_PALETTE_STORAGE_KEY);
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw)).toEqual({
+      background: "#101010",
+      text: "#ffffff",
+      textMuted: "#a0a0a0",
+      accent: "#65c466",
+    });
+  });
+
+  test("falls back textMuted to text when textMuted is absent", () => {
+    persistBootPalette({ accent: "#65c466", background: "#101010", text: "#ffffff" });
+    const parsed = JSON.parse(window.localStorage.getItem(BOOT_PALETTE_STORAGE_KEY));
+    expect(parsed.textMuted).toBe("#ffffff");
+  });
+
+  test("does not write when required fields are missing", () => {
+    persistBootPalette({ accent: "#65c466" });
+    expect(window.localStorage.getItem(BOOT_PALETTE_STORAGE_KEY)).toBeNull();
+  });
+
+  test("is a no-op for null/undefined palettes", () => {
+    expect(() => persistBootPalette(null)).not.toThrow();
+    expect(() => persistBootPalette(undefined)).not.toThrow();
+    expect(window.localStorage.getItem(BOOT_PALETTE_STORAGE_KEY)).toBeNull();
+  });
+
+  test("real resolved palette from resolveSemanticPalette round-trips cleanly", () => {
+    const palette = resolveSemanticPalette("dark_mode", { preset: "ocean" });
+    persistBootPalette(palette);
+    const parsed = JSON.parse(window.localStorage.getItem(BOOT_PALETTE_STORAGE_KEY));
+    expect(parsed.accent).toBe(palette.accent);
+    expect(parsed.background).toBe(palette.background);
   });
 });

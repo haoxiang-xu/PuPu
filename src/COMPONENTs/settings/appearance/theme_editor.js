@@ -16,6 +16,7 @@ import {
   applySemanticCssVars,
   applySemanticPaletteToTheme,
   resolveThemeDetails,
+  persistBootPalette,
 } from "../../../CONTAINERs/config/theme_semantic";
 import {
   readThemeSettings,
@@ -134,6 +135,7 @@ const ThemeEditor = () => {
       details: next.details,
     });
     applySemanticCssVars(livePalette, undefined, details);
+    persistBootPalette(livePalette);
     if (setTheme && theme) {
       setTheme(applySemanticPaletteToTheme(theme, livePalette, activeMode));
     }

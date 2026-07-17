@@ -111,6 +111,31 @@ describe("ThemeEditor", () => {
     );
   });
 
+  test("commit persists the boot-loading-gate palette cache; live preview alone does not", () => {
+    renderWithCtx({
+      theme: {
+        semantic: {},
+        font: {},
+        modal: {},
+        input: { outline: {} },
+        select: { outline: {} },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Accent" }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#112233" },
+    });
+
+    // Preview only — the boot palette cache must not move yet.
+    expect(window.localStorage.getItem("pupu_boot_palette")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+
+    const cached = JSON.parse(window.localStorage.getItem("pupu_boot_palette"));
+    expect(cached.accent).toBe("#112233");
+  });
+
   test("live preview maps edited background onto legacy theme fields", () => {
     const { setTheme } = renderWithCtx({
       theme: {

@@ -220,3 +220,30 @@ export const applySemanticCssVars = (palette, element, detailsResolved) => {
     el.style.setProperty(name, vars[name]);
   }
 };
+
+/* ── Boot palette cache (boot-loading-gate design) ─────────────────────
+   The static S1 shell in public/index.html cannot resolve a preset/custom
+   theme (no bundle, no BUILTIN_COMPONENTs/theme data) — it can only read a
+   plain-JSON cache of the already-resolved key colors. This is that write
+   side: called wherever a fresh semantic palette gets committed (container
+   boot IIFE, container theme effect, theme editor commit), never from a
+   transient preview path. The static shell's inline script is the read
+   side and has no knowledge of preset/custom resolution — it only trusts
+   this cache or falls back to its own hardcoded dark default. */
+export const BOOT_PALETTE_STORAGE_KEY = "pupu_boot_palette";
+
+export const persistBootPalette = (palette) => {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  if (!palette || typeof palette !== "object") return;
+  const { background, text, textMuted, accent } = palette;
+  if (!background || !text || !accent) return;
+  try {
+    window.localStorage.setItem(
+      BOOT_PALETTE_STORAGE_KEY,
+      JSON.stringify({ background, text, textMuted: textMuted || text, accent }),
+    );
+  } catch (_e) {
+    // Storage full/unavailable — the static shell just falls back to its
+    // hardcoded default on next boot. Non-critical.
+  }
+};
