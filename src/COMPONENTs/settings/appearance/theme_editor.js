@@ -327,21 +327,18 @@ const ThemeEditor = () => {
         />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <Button
-            prefix_icon="import_tray"
             label="Import"
             ariaLabel="Import theme"
             onClick={() => importInputRef.current && importInputRef.current.click()}
             style={textToolButtonStyle()}
           />
           <Button
-            prefix_icon="export_tray"
             label="Export"
             ariaLabel="Export theme"
             onClick={onExport}
             style={textToolButtonStyle()}
           />
           <Button
-            prefix_icon="reset"
             label={confirmingReset ? "Confirm?" : "Reset"}
             ariaLabel={confirmingReset ? "Confirm reset" : "Reset to default"}
             onClick={onResetClick}
