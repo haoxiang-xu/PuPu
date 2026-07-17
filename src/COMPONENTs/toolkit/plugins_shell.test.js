@@ -233,12 +233,14 @@ describe("PluginsShell", () => {
     return rendered;
   };
 
-  test("renders the settings-clone sidebar title and the three nav items as Buttons", async () => {
+  test("renders the settings-clone sidebar title and the five nav items as Buttons", async () => {
     await renderShell();
 
     expect(screen.getByText("toolkit.nav_title")).toBeInTheDocument();
     expect(screen.getByText("toolkit.nav_discover").closest("button")).not.toBeNull();
-    expect(screen.getByText("toolkit.nav_categories").closest("button")).not.toBeNull();
+    expect(screen.getByText("toolkit.nav_toolkits").closest("button")).not.toBeNull();
+    expect(screen.getByText("toolkit.nav_mcp").closest("button")).not.toBeNull();
+    expect(screen.getByText("toolkit.nav_skills").closest("button")).not.toBeNull();
     expect(screen.getByText("toolkit.nav_installed").closest("button")).not.toBeNull();
   });
 
@@ -267,16 +269,18 @@ describe("PluginsShell", () => {
     expect(idleItem.style.opacity).toBe("0.65");
   });
 
-  test("routes content by activePage — discover, categories and installed each get their own page", async () => {
+  test("routes content by activePage — discover, the three type categories and installed each get their own page", async () => {
     const { rerender } = await renderShell({ activePage: "discover" });
     expect(screen.getByText("Discover Page")).toBeInTheDocument();
 
-    await act(async () => {
-      rerender(
-        <PluginsShell activePage="categories" onNavigate={() => {}} installedCount={6} />,
-      );
-    });
-    expect(screen.getByText("Categories Page")).toBeInTheDocument();
+    for (const pageId of ["cat_toolkits", "cat_mcp", "cat_skills"]) {
+      await act(async () => {
+        rerender(
+          <PluginsShell activePage={pageId} onNavigate={() => {}} installedCount={6} />,
+        );
+      });
+      expect(screen.getByText("Categories Page")).toBeInTheDocument();
+    }
 
     await act(async () => {
       rerender(
@@ -301,7 +305,7 @@ describe("PluginsShell", () => {
       })
       .mockResolvedValueOnce({ entries: [REVIEW_ENTRY], count: 1, status: "ok" });
 
-    await renderShell({ activePage: "categories" });
+    await renderShell({ activePage: "cat_mcp" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Open External Entry"));
@@ -344,7 +348,7 @@ describe("PluginsShell", () => {
      page uses (same ensureWorkspaceForEntry → installMcpEntry → reload
      chain — install logic is unchanged, only the entry point moved). */
   test("the footer's 'Add a custom plugin' entry opens CustomMcpPage, and installing routes through the shared install flow", async () => {
-    await renderShell({ activePage: "categories" });
+    await renderShell({ activePage: "cat_mcp" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Add a custom plugin"));
@@ -377,7 +381,7 @@ describe("PluginsShell", () => {
       ],
     });
 
-    await renderShell({ activePage: "categories" });
+    await renderShell({ activePage: "cat_mcp" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Open Installed-Ready Entry"));
@@ -404,7 +408,7 @@ describe("PluginsShell", () => {
   test("toggling auto-enable on a store-kind detail persists through the shell's own handler", async () => {
     getInstalledMcpIds.mockResolvedValue(new Set(["mcp.installed.ready"]));
 
-    await renderShell({ activePage: "categories" });
+    await renderShell({ activePage: "cat_mcp" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Open Installed-Ready Entry"));
