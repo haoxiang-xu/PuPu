@@ -290,8 +290,10 @@ const ThemeEditor = () => {
       ? "rgba(255,255,255,0.08)"
       : "rgba(0,0,0,0.05)",
   };
-  const selectOptionStyle = { height: 28, padding: "4px 8px", fontSize: 13 };
-  const selectDropdownStyle = { padding: 4, maxHeight: 220, minWidth: 180 };
+  /* palette variant: maxHeight bounds the listbox only — panel look (radius
+     22 frosted blur, hairline, sliding row highlight) is the variant's own,
+     identical to the attach panel's dropdowns. */
+  const selectDropdownStyle = { maxHeight: 220 };
 
   const autoBadgeStyle = {
     fontSize: 10,
@@ -404,9 +406,10 @@ const ThemeEditor = () => {
           options={presetOptions}
           value={settings.preset}
           set_value={onPresetChange}
-          filterable={false}
+          variant="palette"
+          filterable={true}
+          filter_mode="panel"
           style={selectStyle}
-          option_style={selectOptionStyle}
           dropdown_style={selectDropdownStyle}
         />
       </div>

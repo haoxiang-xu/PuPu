@@ -1,5 +1,12 @@
 // src/COMPONENTs/settings/appearance/theme_editor.test.js
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ThemeEditor from "./theme_editor";
 import { readThemeSettings, writeThemeDetails } from "./storage";
@@ -157,6 +164,32 @@ describe("ThemeEditor", () => {
     expect(
       document.documentElement.style.getPropertyValue("--pupu-accent"),
     ).toBe("#0ea5e9");
+  });
+
+  test("preset dropdown rides the palette variant: rows keep their preset dots and the panel search filters presets", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByRole("combobox"));
+
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    // PresetDots survive the variant switch: each option row still renders
+    // its 4 swatch dots (accent/background/surface/text) via option.icon.
+    const oceanRow = within(listbox)
+      .getByText("Ocean")
+      .closest('[role="option"]');
+    expect(
+      oceanRow.querySelectorAll('span[style*="border-radius: 50%"]'),
+    ).toHaveLength(4);
+
+    // The palette panel's search bar (bottom header, same as the attach
+    // panel's menus) filters the preset list.
+    const search = screen.getByPlaceholderText("Search...");
+    fireEvent.change(search, { target: { value: "oce" } });
+    expect(within(listbox).getByText("Ocean")).toBeInTheDocument();
+    expect(within(listbox).queryByText("High Contrast")).toBeNull();
+
+    // Selecting from the filtered list still applies the preset.
+    fireEvent.click(within(listbox).getByText("Ocean"));
+    expect(readThemeSettings().preset).toBe("ocean");
   });
 
   test("preset dropdown shows human-readable labels", () => {
