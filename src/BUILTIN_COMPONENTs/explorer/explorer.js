@@ -494,6 +494,7 @@ const ExplorerRowBase = ({
   highlightColor,
   isLockedExpanded,
   rowHeight = ROW_HEIGHT,
+  rowRadius = 5,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -753,7 +754,7 @@ const ExplorerRowBase = ({
         cursor: "pointer",
         userSelect: "none",
         WebkitUserSelect: "none",
-        borderRadius: 5,
+        borderRadius: rowRadius,
         transition: "opacity 0.15s ease, height 0.15s ease, padding 0.15s ease",
         ...node.style,
       }}
@@ -767,7 +768,7 @@ const ExplorerRowBase = ({
           bottom: 0,
           left: depth * INDENT + 3,
           right: 3,
-          borderRadius: 5,
+          borderRadius: rowRadius,
           backgroundColor: isDark
             ? "rgba(255,255,255,0.10)"
             : "rgba(0,0,0,0.082)",
@@ -787,7 +788,7 @@ const ExplorerRowBase = ({
           bottom: pressed ? 1 : 0,
           left: pressed ? depth * INDENT + 4 : depth * INDENT + 3,
           right: pressed ? 4 : 3,
-          borderRadius: pressed ? 4 : 5,
+          borderRadius: pressed ? Math.max(rowRadius - 1, 2) : rowRadius,
           backgroundColor: pressed ? activeBg : hoverBg,
           transform: showBg ? "scale(1)" : "scale(0.97, 0)",
           opacity: showBg ? 1 : 0,
@@ -1169,6 +1170,7 @@ const ExplorerBranch = ({
   highlightColor,
   lockedExpandedIds,
   rowHeight,
+  rowRadius,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1203,6 +1205,7 @@ const ExplorerBranch = ({
           highlightColor={highlightColor}
           isLockedExpanded={isLockedExpanded}
           rowHeight={rowHeight}
+          rowRadius={rowRadius}
         />
         {isFolder && (
           <AnimatedChildren
@@ -1251,6 +1254,7 @@ const ExplorerBranch = ({
                   contextMenuNodeId={contextMenuNodeId}
                   highlightColor={highlightColor}
                   rowHeight={rowHeight}
+                  rowRadius={rowRadius}
                   lockedExpandedIds={lockedExpandedIds}
                 />
               )}
@@ -1435,6 +1439,7 @@ const Explorer = ({
   data = {},
   root: rootProp = [],
   row_height = ROW_HEIGHT,
+  row_radius = 5,
   default_expanded,
   draggable = false,
   on_reorder,
@@ -1882,6 +1887,7 @@ const Explorer = ({
         registerRowRef={registerRowRef}
         onDragStart={handleRowDragStart}
         rowHeight={row_height}
+        rowRadius={row_radius}
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
