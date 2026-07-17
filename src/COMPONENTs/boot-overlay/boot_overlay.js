@@ -3,6 +3,8 @@ import { useEffect, useState, useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
+import ShaderBlobBackground from "../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
+import { deriveBlobScene } from "./derive_blob_palette";
 import bootProgress from "../../SERVICEs/boot_progress";
 
 /* Semantic default accent — only hit if ConfigContext hasn't resolved yet. */
@@ -41,6 +43,7 @@ const BootOverlay = () => {
   const background =
     theme?.semantic?.background ||
     (isDark ? FALLBACK_BG.dark_mode : FALLBACK_BG.light_mode);
+  const blobScene = deriveBlobScene(accent, background, isDark);
 
   const handleEnter = () => {
     if (exiting) return;
@@ -67,6 +70,42 @@ const BootOverlay = () => {
 
   return (
     <div role="presentation" style={rootStyle}>
+      {/* faint blurred 3D torus field, theme-derived, ambient only */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          filter: "blur(44px)",
+          opacity: 0.22,
+          pointerEvents: "none",
+        }}
+      >
+        <ShaderBlobBackground
+          colors={blobScene.colors}
+          shape="torus"
+          count={5}
+          edge="smooth"
+          smooth={0.6}
+          speed={0.22}
+          rotation={0.4}
+          space={1}
+          glossy={isDark ? 0.7 : 0.55}
+          ao={0.8}
+          sss={isDark ? 0.2 : 0.45}
+          blur={0}
+          lightAzimuth={30}
+          lightElevation={55}
+          skyTint={blobScene.skyTint}
+          groundTint={blobScene.groundTint}
+          bgTop={blobScene.bg}
+          bgBottom={blobScene.bg}
+          bgDepth={4}
+          bgFuse={false}
+          pixelRatio={1.5}
+        />
+      </div>
+
       {/* blurred cell-split spinner IS the loading indicator; a single
           constant breathing amplitude throughout (loading and ready alike). */}
       <div
