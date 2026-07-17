@@ -43,12 +43,29 @@ const installErrorMessage = (error) => {
 
 /* Nav item icons verified against icon_manifest.js — no literal "sparkle"
    key exists, "shapes" is the nearest existing App-Store-ish glyph for
-   Discover; "folder"/"download" match the mockup exactly. */
+   Discover; "download" matches the mockup exactly. CEO decision (2026-07-17):
+   the single "Categories" tab is replaced by three type-category tabs —
+   Toolkits / MCP / Skills — each a unified directory filtered by plugin
+   TYPE rather than by theme (theme stays as an in-page pill row, see
+   plugins_categories_page.js). "tool" and "mcp" are existing manifest keys
+   (UISVGs / LogoSVGs respectively); "terminal" is the nearest command/
+   slash-ish glyph for Skills (no literal "slash" or "command" key exists). */
 const NAV_ITEMS = [
   { id: "discover", icon: "shapes", labelKey: "toolkit.nav_discover" },
-  { id: "categories", icon: "folder", labelKey: "toolkit.nav_categories" },
+  { id: "cat_toolkits", icon: "tool", labelKey: "toolkit.nav_toolkits" },
+  { id: "cat_mcp", icon: "mcp", labelKey: "toolkit.nav_mcp" },
+  { id: "cat_skills", icon: "terminal", labelKey: "toolkit.nav_skills" },
   { id: "installed", icon: "download", labelKey: "toolkit.nav_installed" },
 ];
+
+/* Maps the three category nav ids to the `typeFilter` PluginsCategoriesPage
+   filters its unified directory by — one shared page component, three
+   entry points (deliverable A/B). */
+const CATEGORY_TYPE_BY_PAGE = {
+  cat_toolkits: "toolkit",
+  cat_mcp: "mcp",
+  cat_skills: "skill",
+};
 
 /**
  * PluginsShell — settings-isomorphic shell (T1): a 140px settings-modal-clone
@@ -139,9 +156,12 @@ export const PluginsShell = ({
      already-available builtin/local plugins pulled from the catalog), so its
      tiles call onOpenDetail with either a store entry id (string) or an
      installed-shaped presentation (object, `{ ...presentation, raw: toolkit
-     }` — same envelope PluginsInstalledPage already uses). Categories is
-     store-only and always passes a string id. One prop, two shapes, routed
-     to the two existing detail handlers above. */
+     }` — same envelope PluginsInstalledPage already uses). The three
+     type-category pages (Toolkits/MCP/Skills) now mix the same two sources
+     (store registry ∪ catalog, deduped by toolkitId — see
+     plugins_categories_page.js) and pass whichever shape matches each row's
+     origin. One prop, two shapes, routed to the two existing detail handlers
+     above. */
   const handleUnifiedOpenDetail = useCallback(
     (arg) => {
       if (typeof arg === "string") {
@@ -461,9 +481,11 @@ export const PluginsShell = ({
         />
       );
     }
-    if (activePage === "categories") {
+    const categoryType = CATEGORY_TYPE_BY_PAGE[activePage];
+    if (categoryType) {
       return (
         <PluginsCategoriesPage
+          typeFilter={categoryType}
           isDark={isDark}
           onOpenDetail={handleUnifiedOpenDetail}
           installedIds={installedMcpIds}
