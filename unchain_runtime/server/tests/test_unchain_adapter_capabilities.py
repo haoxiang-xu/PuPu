@@ -3373,6 +3373,12 @@ class MaterializeRecipeSubagentsTests(unittest.TestCase):
                     "description": "scout",
                     "model": None,
                     "max_iterations": None,
+                    "subagent_profile": {
+                        "allowed_modes": ["delegate", "worker"],
+                        "output_mode": "last_message",
+                        "memory_policy": "ephemeral",
+                        "parallel_safe": True,
+                    },
                     "agent": {"prompt_format": "soul", "prompt": "look"},
                     "toolkits": [],
                     "subagent_pool": [],
@@ -3399,6 +3405,97 @@ class MaterializeRecipeSubagentsTests(unittest.TestCase):
                 self.assertEqual(len(templates), 1)
                 self.assertEqual(templates[0].kw["name"], "Explore")
                 self.assertTrue(hasattr(templates[0].kw["agent"], "fork_for_subagent"))
+                self.assertEqual(
+                    templates[0].kw["allowed_modes"],
+                    ("delegate", "worker"),
+                )
+                self.assertEqual(templates[0].kw["output_mode"], "last_message")
+                self.assertIs(templates[0].kw["parallel_safe"], True)
+
+    def test_recipe_ref_without_profile_defaults_to_delegate_only(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, RecipeSubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_loader import save_recipe
+
+                save_recipe({
+                    "name": "Legacy",
+                    "description": "legacy scout",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "look"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                recipe = Recipe(
+                    name="Default", description="", model=None, max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="x"),
+                    toolkits=(),
+                    subagent_pool=(
+                        RecipeSubagentRef(
+                            kind="recipe_ref",
+                            recipe_name="Legacy",
+                            disabled_tools=(),
+                        ),
+                    ),
+                )
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe, toolkits=[],
+                    provider="anthropic", model="m", api_key="k", max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                    options={},
+                )
+
+        self.assertEqual(templates[0].kw["allowed_modes"], ("delegate",))
+        self.assertIs(templates[0].kw["parallel_safe"], False)
+
+    def test_recipe_ref_cannot_promote_child_worker_capability(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import parse_recipe_json
+        UA, TM, PM, ST = self._fake_modules()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_loader import save_recipe
+
+                save_recipe({
+                    "name": "DelegateOnly",
+                    "description": "serial child",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "work"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                parent_recipe = parse_recipe_json({
+                    "name": "Parent",
+                    "description": "",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "parent"},
+                    "toolkits": [],
+                    "subagent_pool": [
+                        {
+                            "kind": "recipe_ref",
+                            "recipe_name": "DelegateOnly",
+                            "disabled_tools": [],
+                            "allowed_modes": ["delegate", "worker"],
+                            "parallel_safe": True,
+                        }
+                    ],
+                })
+                templates = _materialize_recipe_subagents(
+                    recipe=parent_recipe, toolkits=[],
+                    provider="anthropic", model="m", api_key="k", max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                    options={},
+                )
+
+        self.assertEqual(templates[0].kw["allowed_modes"], ("delegate",))
+        self.assertIs(templates[0].kw["parallel_safe"], False)
 
     def test_recipe_ref_preserves_parent_optimizer_config_for_nested_recipe(self):
         from unchain_adapter import _materialize_recipe_subagents

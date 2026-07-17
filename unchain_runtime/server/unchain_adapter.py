@@ -3772,15 +3772,24 @@ def _materialize_recipe_subagents(
                 options=child_options,
                 name=recipe_name,
             )
+            profile = getattr(child_recipe, "subagent_profile", None)
             built.append(
                 SubagentTemplate(
                     name=recipe_name,
                     description=str(getattr(child_recipe, "description", "") or ""),
                     agent=child_agent,
-                    allowed_modes=("delegate", "worker"),
-                    output_mode="summary",
-                    memory_policy="ephemeral",
-                    parallel_safe=False,
+                    allowed_modes=tuple(
+                        getattr(profile, "allowed_modes", ("delegate",))
+                    ),
+                    output_mode=str(
+                        getattr(profile, "output_mode", "summary")
+                    ),
+                    memory_policy=str(
+                        getattr(profile, "memory_policy", "ephemeral")
+                    ),
+                    parallel_safe=(
+                        getattr(profile, "parallel_safe", False) is True
+                    ),
                     allowed_tools=effective,
                     model=getattr(child_recipe, "model", None),
                 )
@@ -4792,7 +4801,12 @@ def _build_developer_agent(
             user_modules=user_modules or {},
         )
     subagent_list_md = (
-        "\n".join(f"- {tpl.name}: {tpl.description}" for tpl in templates)
+        "\n".join(
+            f"- {tpl.name} [modes: "
+            f"{', '.join(str(mode) for mode in tpl.allowed_modes)}]: "
+            f"{tpl.description}"
+            for tpl in templates
+        )
         or "(no subagents registered)"
     )
     instructions = instructions.replace("{{SUBAGENT_LIST}}", subagent_list_md)

@@ -88,6 +88,54 @@ class _FakeAgent:
 
 
 class AdapterSubagentIntegrationTests(unittest.TestCase):
+    def test_prompt_lists_modes_and_gates_every_worker_target(self):
+        template = _FakeSubagentTemplate(
+            name="Explore",
+            description="Fast repository scout",
+            agent=object(),
+            allowed_modes=("delegate", "worker"),
+            output_mode="summary",
+            memory_policy="ephemeral",
+            parallel_safe=True,
+            allowed_tools=("read",),
+            model=None,
+        )
+        with patch("subagent_loader.load_templates", return_value=(template,)):
+            agent = unchain_adapter._build_developer_agent(
+                UnchainAgent=_FakeAgent,
+                ToolsModule=_FakeModule,
+                MemoryModule=_FakeModule,
+                PoliciesModule=_FakeModule,
+                SubagentModule=_FakeSubagentModule,
+                SubagentTemplate=_FakeSubagentTemplate,
+                SubagentPolicy=_FakeSubagentPolicy,
+                provider="anthropic",
+                model="claude-haiku-4-5",
+                api_key=None,
+                max_iterations=30,
+                toolkits=[_FakeToolkit(["read"])],
+                memory_manager=None,
+                options={"workspace_roots": []},
+            )
+
+        self.assertIn(
+            "- Explore [modes: delegate, worker]: Fast repository scout",
+            agent.instructions,
+        )
+        self.assertNotIn("SkippedAgent", agent.instructions)
+        self.assertIn(
+            "only when every selected target lists worker",
+            agent.instructions,
+        )
+        self.assertIn(
+            "only when every task's target lists worker",
+            agent.instructions,
+        )
+        self.assertIn(
+            "Do not attempt an unsupported mode",
+            agent.instructions,
+        )
+
     def test_loader_registers_seeded_explore(self):
         with tempfile.TemporaryDirectory() as home:
             home_path = Path(home)
