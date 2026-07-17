@@ -1,4 +1,5 @@
 import {
+  buildRecoveredConfirmationRequest,
   buildDurableResumePayload,
   durableInteractionRetryDelayMs,
   ensureDurableInteractionMessage,
@@ -24,6 +25,7 @@ const rawPending = {
       payload: {
         call_id: "call-1",
         confirmation_id: "interaction-1",
+        toolkit_id: "core",
         tool_name: "shell",
         arguments: { command: "npm install" },
       },
@@ -98,6 +100,38 @@ describe("durable interaction recovery helpers", () => {
       },
       trace_level: "minimal",
     });
+  });
+
+  test("preserves toolkit identity for recovered confirmation policy", () => {
+    const pending = normalizePendingInteraction(
+      {
+        ...rawPending,
+        presentation: {
+          trace_frame: {
+            ...rawPending.presentation.trace_frame,
+            payload: {
+              ...rawPending.presentation.trace_frame.payload,
+              toolkit_id: "builtin.computer",
+              tool_name: "computer",
+            },
+          },
+        },
+      },
+      "chat-a",
+    );
+    expect(
+      buildRecoveredConfirmationRequest({
+        pending,
+        chatId: "chat-a",
+        ownerMessageId: "assistant-1",
+        requestedAt: 200,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        toolkitId: "builtin.computer",
+        toolName: "computer",
+      }),
+    );
   });
 
   test("recognizes retryable lease failures and caps exponential delay", () => {

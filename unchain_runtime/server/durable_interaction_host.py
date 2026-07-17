@@ -901,11 +901,21 @@ def _presentation_for_request(request: Any) -> dict[str, Any]:
     interaction_id = str(request.interaction_id or "")
     if request.kind == INTERACTION_KIND_TOOL_APPROVAL:
         call_id = str(payload.get("call_id") or interaction_id)
+        tool_name = str(payload.get("tool_name") or "")
+        toolkit_id = str(payload.get("toolkit_id") or "")
+        toolkit_name = str(payload.get("toolkit_name") or "")
+        # Unchain's production ToolConfirmationRequest intentionally carries
+        # tool identity but not host toolkit metadata. Recover PuPu's canonical
+        # built-in identity so restart/recovery keeps the same confirmation
+        # policy as the live event path. Explicit identities always win.
+        if not toolkit_id and tool_name == "computer":
+            toolkit_id = "builtin.computer"
+            toolkit_name = toolkit_name or "Computer"
         tool_payload = {
-            "tool_name": str(payload.get("tool_name") or ""),
+            "tool_name": tool_name,
             "tool_display_name": str(payload.get("tool_display_name") or ""),
-            "toolkit_id": str(payload.get("toolkit_id") or ""),
-            "toolkit_name": str(payload.get("toolkit_name") or ""),
+            "toolkit_id": toolkit_id,
+            "toolkit_name": toolkit_name,
             "call_id": call_id,
             "arguments": copy.deepcopy(payload.get("arguments") or {}),
             "description": str(payload.get("description") or ""),

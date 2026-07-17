@@ -25,6 +25,32 @@ class MemoryFactoryTests(unittest.TestCase):
     def tearDown(self) -> None:
         memory_factory._qdrant_clients.clear()
 
+    def test_session_store_sanitization_follows_computer_use_flag(self) -> None:
+        enabled_store = object()
+        disabled_store = object()
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch(
+            "session_transcript_media.build_sanitizing_session_store",
+            side_effect=[enabled_store, disabled_store],
+        ) as build_store:
+            with mock.patch.dict(
+                os.environ, {"PUPU_COMPUTER_USE": "true"}, clear=False
+            ):
+                self.assertIs(memory_factory._build_session_store(data_dir), enabled_store)
+            with mock.patch.dict(
+                os.environ, {"PUPU_COMPUTER_USE": "0"}, clear=False
+            ):
+                self.assertIs(memory_factory._build_session_store(data_dir), disabled_store)
+
+        sessions_dir = str(Path(data_dir) / "memory" / "sessions")
+        self.assertEqual(
+            build_store.call_args_list,
+            [
+                mock.call(sessions_dir, sanitize_enabled=True),
+                mock.call(sessions_dir, sanitize_enabled=False),
+            ],
+        )
+
     def _build_fake_qdrant_modules(
         self,
         *,

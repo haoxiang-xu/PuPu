@@ -29,6 +29,14 @@ def _with_flag(value):
     return mock.patch.dict("os.environ", {"PUPU_COMPUTER_USE": value}, clear=False)
 
 
+_COMPUTER_TOOLKIT_META = {
+    "computer": {
+        "toolkit_id": "builtin.computer",
+        "toolkit_name": "ComputerToolkit",
+    }
+}
+
+
 class BuiltinBranchTests(unittest.TestCase):
     def _build(self, flag_value, *, provider="anthropic", model="claude-opus-4-8"):
         options = {"toolkits": ["builtin.computer"], "provider": provider, "model": model}
@@ -193,7 +201,9 @@ class RedactionChokePointTests(unittest.TestCase):
 
     def test_enrich_strips_base64_from_tool_result(self):
         event = self._image_result_event()
-        enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(event, {})
+        enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
+            event, _COMPUTER_TOOLKIT_META
+        )
         image = enriched["result"]["content_blocks"][0]
         self.assertNotIn("data_b64", image)
         self.assertTrue(image["data_omitted"])
@@ -205,8 +215,54 @@ class RedactionChokePointTests(unittest.TestCase):
         import json
 
         event = self._image_result_event()
-        enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(event, {})
+        enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
+            event, _COMPUTER_TOOLKIT_META
+        )
         self.assertNotIn("QUJDREVGRw==", json.dumps(enriched))
+
+    def test_unmounted_image_tool_result_is_unchanged(self):
+        event = self._image_result_event()
+        enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(event, {})
+        image = enriched["result"]["content_blocks"][0]
+        self.assertEqual(image["data_b64"], "QUJDREVGRw==")
+        self.assertNotIn("data_omitted", image)
+
+    def test_explicit_computer_identity_redacts_even_without_tool_name(self):
+        event = self._image_result_event()
+        event.pop("tool_name")
+        event["toolkit_id"] = "builtin.computer"
+
+        enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
+            event, {}
+        )
+
+        image = enriched["result"]["content_blocks"][0]
+        self.assertNotIn("data_b64", image)
+        self.assertTrue(image["data_omitted"])
+
+    def test_missing_unchain_redactor_uses_host_fail_closed_fallback(self):
+        event = self._image_result_event()
+        with mock.patch.object(unchain_adapter, "_redact_result_image_data", None):
+            enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
+                event, _COMPUTER_TOOLKIT_META
+            )
+        image = enriched["result"]["content_blocks"][0]
+        self.assertNotIn("data_b64", image)
+        self.assertTrue(image["data_omitted"])
+
+    def test_failing_unchain_redactor_uses_host_fail_closed_fallback(self):
+        event = self._image_result_event()
+        with mock.patch.object(
+            unchain_adapter,
+            "_redact_result_image_data",
+            side_effect=RuntimeError("redactor boom"),
+        ):
+            enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
+                event, _COMPUTER_TOOLKIT_META
+            )
+        image = enriched["result"]["content_blocks"][0]
+        self.assertNotIn("data_b64", image)
+        self.assertTrue(image["data_omitted"])
 
     def test_legacy_tool_result_without_blocks_unchanged(self):
         event = {"type": "tool_result", "tool_name": "x", "result": {"ok": True, "value": 7}}

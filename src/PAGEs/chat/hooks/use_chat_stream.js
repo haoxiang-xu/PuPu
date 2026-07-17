@@ -22,6 +22,10 @@ import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events
 import { isRuntimeEventStreamEnabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
+  isToolConfirmationCacheable,
+  shouldCacheToolConfirmationDecision,
+} from "../../../SERVICEs/tool_confirmation_cache_policy";
+import {
   clearStreamingMessageText,
   finalizeStreamingMessage,
 } from "../../../SERVICEs/streaming_message_chunks";
@@ -187,6 +191,10 @@ const buildToolConfirmationRequest = ({
   chatId,
   sessionId,
   toolName,
+  toolkitId:
+    typeof frame.payload?.toolkit_id === "string"
+      ? frame.payload.toolkit_id
+      : "",
   toolDisplayName:
     typeof frame.payload?.tool_display_name === "string"
       ? frame.payload.tool_display_name
@@ -1613,18 +1621,25 @@ export const useChatStream = ({
       const toolName =
         typeof requestFrame?.payload?.tool_name === "string"
           ? requestFrame.payload.tool_name
-          : "";
+          : typeof confirmationRequest?.toolName === "string"
+            ? confirmationRequest.toolName
+            : "";
       const toolkitId =
         typeof requestFrame?.payload?.toolkit_id === "string"
           ? requestFrame.payload.toolkit_id
-          : "";
+          : typeof confirmationRequest?.toolkitId === "string"
+            ? confirmationRequest.toolkitId
+            : "";
 
       /* Session-scoped "Don't ask again": remember this tool so that
        * subsequent requests within the same chat are auto-approved. */
       if (
-        approved &&
-        scope === "session" &&
-        toolName &&
+        shouldCacheToolConfirmationDecision({
+          approved,
+          scope,
+          toolkitId,
+          toolName,
+        }) &&
         toolName !== HUMAN_INPUT_TOOL_NAME
       ) {
         sessionAutoApproveRef.current.add(`${toolkitId}:${toolName}`);
@@ -1842,6 +1857,7 @@ export const useChatStream = ({
       `${toolkitId}:${toolName}`,
     );
     return (
+      isToolConfirmationCacheable(toolkitId, toolName) &&
       toolName !== HUMAN_INPUT_TOOL_NAME &&
       (!itype || itype === "confirmation") &&
       (isToolAutoApproved(toolkitId, toolName) || isSessionAllowed)

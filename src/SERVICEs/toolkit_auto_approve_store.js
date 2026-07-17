@@ -1,4 +1,8 @@
 import { normalizeToolkitIdAlias } from "./toolkit_id_aliases";
+import {
+  isComputerToolkitId,
+  isToolConfirmationCacheable,
+} from "./tool_confirmation_cache_policy";
 
 const STORAGE_KEY = "toolkit_auto_approve";
 const MAX_IDS = 100;
@@ -31,7 +35,13 @@ const sanitizeToolkitIds = (ids) => {
   const result = [];
   for (const id of ids) {
     const normalized = normalizeToolkitId(id);
-    if (!normalized || seen.has(normalized)) continue;
+    if (
+      !normalized ||
+      isComputerToolkitId(normalized) ||
+      seen.has(normalized)
+    ) {
+      continue;
+    }
     seen.add(normalized);
     result.push(normalized);
     if (result.length >= MAX_IDS) break;
@@ -49,10 +59,10 @@ const sanitizeToolKeys = (keys) => {
     if (!trimmed || trimmed.length > MAX_ID_LENGTH * 2) continue;
     const separatorIndex = trimmed.indexOf(":");
     if (separatorIndex <= 0) continue;
-    const normalized = buildToolKey(
-      trimmed.slice(0, separatorIndex),
-      trimmed.slice(separatorIndex + 1),
-    );
+    const toolkitId = trimmed.slice(0, separatorIndex);
+    const toolName = trimmed.slice(separatorIndex + 1);
+    if (!isToolConfirmationCacheable(toolkitId, toolName)) continue;
+    const normalized = buildToolKey(toolkitId, toolName);
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     result.push(normalized);
@@ -129,6 +139,7 @@ export const isToolkitAutoApprove = (toolkitId) => {
 };
 
 export const isToolAutoApproved = (toolkitId, toolName) => {
+  if (!isToolConfirmationCacheable(toolkitId, toolName)) return false;
   const toolKey = buildToolKey(toolkitId, toolName);
   if (!toolKey) return false;
   const store = readStore();

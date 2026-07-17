@@ -154,6 +154,30 @@ class DurableInteractionHostTests(unittest.TestCase):
         self.assertEqual(result["resume_options"]["maxTokens"], 512)
         self.assertNotIn("openai_api_key", result["resume_options"])
 
+    def test_production_computer_request_recovers_canonical_toolkit_identity(self) -> None:
+        from unchain.tools.models import ToolConfirmationRequest
+
+        request = self._seed_request(
+            payload=ToolConfirmationRequest(
+                tool_name="computer",
+                call_id="call-computer",
+                arguments={"action": "left_click", "coordinate": [12, 34]},
+                description="Click at (12, 34)",
+            ).to_dict()
+        )
+
+        result = host.get_pending_interaction("chat-1")
+
+        self.assertEqual(result["interaction_id"], request.interaction_id)
+        self.assertEqual(
+            result["presentation"]["tool_call"]["toolkit_id"],
+            "builtin.computer",
+        )
+        self.assertEqual(
+            result["presentation"]["tool_call"]["toolkit_name"],
+            "Computer",
+        )
+
     def test_pending_context_is_bound_to_request_source_run_id(self) -> None:
         self._seed_request()
         host.save_resume_context(

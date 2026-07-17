@@ -26,6 +26,12 @@ _PNG_1x1 = base64.b64decode(
     "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 )
 _PNG_1x1_B64 = base64.b64encode(_PNG_1x1).decode("ascii")
+_COMPUTER_TOOLKIT_META = {
+    "computer": {
+        "toolkit_id": "builtin.computer",
+        "toolkit_name": "ComputerToolkit",
+    }
+}
 
 
 class _MediaDirTestCase(unittest.TestCase):
@@ -139,7 +145,7 @@ class AdapterRedactionMediaTests(_MediaDirTestCase):
 
         event = self._image_result_event()
         enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
-            event, {}, "sess-redact"
+            event, _COMPUTER_TOOLKIT_META, "sess-redact"
         )
         image = enriched["result"]["content_blocks"][0]
         # fail-closed: base64 gone, marker present
@@ -159,7 +165,7 @@ class AdapterRedactionMediaTests(_MediaDirTestCase):
 
         event = self._image_result_event()
         enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
-            event, {}, "sess-redact-2"
+            event, _COMPUTER_TOOLKIT_META, "sess-redact-2"
         )
         self.assertNotIn(_PNG_1x1_B64, json.dumps(enriched))
 

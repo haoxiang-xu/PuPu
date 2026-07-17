@@ -33,6 +33,9 @@ _EMBEDDING_DEFAULTS: dict[str, tuple[str, int]] = {
 # Providers that have no embedding API
 _NO_EMBED_PROVIDERS = {"anthropic"}
 
+_COMPUTER_USE_FLAG = "PUPU_COMPUTER_USE"
+_COMPUTER_USE_FLAG_TRUE_VALUES = {"1", "true", "yes", "on", "enabled"}
+
 # Module-level singletons â€” one Qdrant client reused across all requests
 _qdrant_clients: dict[str, "QdrantClient"] = {}
 _qdrant_clients_lock = threading.Lock()
@@ -109,16 +112,28 @@ def _sessions_dir(data_dir: str) -> str:
     return str(p)
 
 
+def _computer_use_enabled() -> bool:
+    return (
+        os.environ.get(_COMPUTER_USE_FLAG, "").strip().lower()
+        in _COMPUTER_USE_FLAG_TRUE_VALUES
+    )
+
+
 def _build_session_store(data_dir: str):
-    """F3: the session store PuPu persists transcripts through — a sanitizing
-    JsonFileSessionStore subclass that strips tool-result image base64 before
-    every disk write and re-hydrates it on read (see session_transcript_media).
-    All session persistence (snapshots + execution checkpoints) funnels through
-    the store, so routing every construction site here is the single choke that
-    keeps screenshot base64 off disk."""
+    """Build the canonical session store for the current feature-flag state.
+
+    The wrapper always turns an existing screenshot marker into valid transcript
+    content, so disabling computer use cannot strand a previously saved
+    checkpoint. It only restores screenshot bytes and strips new tool-result
+    images while computer use is enabled; flag-off sessions otherwise retain the
+    base JsonFileSessionStore write behavior.
+    """
     from session_transcript_media import build_sanitizing_session_store
 
-    return build_sanitizing_session_store(_sessions_dir(data_dir))
+    return build_sanitizing_session_store(
+        _sessions_dir(data_dir),
+        sanitize_enabled=_computer_use_enabled(),
+    )
 
 
 def _long_term_profiles_dir(data_dir: str) -> str:

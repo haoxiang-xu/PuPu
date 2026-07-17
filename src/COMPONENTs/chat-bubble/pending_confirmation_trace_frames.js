@@ -56,6 +56,9 @@ export const buildPendingConfirmationTraceFrames = (requests) =>
           typeof request.toolName === "string" && request.toolName.trim()
             ? request.toolName.trim()
             : "tool",
+        ...(typeof request.toolkitId === "string" && request.toolkitId.trim()
+          ? { toolkit_id: request.toolkitId.trim() }
+          : {}),
         ...(typeof request.toolDisplayName === "string" &&
         request.toolDisplayName.trim()
           ? { tool_display_name: request.toolDisplayName.trim() }

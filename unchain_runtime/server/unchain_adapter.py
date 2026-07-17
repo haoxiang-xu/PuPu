@@ -109,11 +109,9 @@ except ImportError:
 try:
     from unchain.tools.messages import (
         redact_result_image_data as _redact_result_image_data,
-        iter_result_image_blocks as _iter_result_image_blocks,
     )
 except ImportError:
     _redact_result_image_data = None  # type: ignore
-    _iter_result_image_blocks = None  # type: ignore
 
 # Local per-session temp store for the stripped screenshot bytes (C4). Best-effort
 # and never load-bearing for redaction correctness.
@@ -1927,19 +1925,26 @@ def _validate_unique_tool_names(toolkits: Iterable[Any]) -> None:
             )
 
 
+def _result_image_blocks(result: Dict[str, Any]) -> list[Dict[str, Any]]:
+    raw_blocks = result.get("content_blocks")
+    if not isinstance(raw_blocks, list):
+        return []
+    return [
+        block
+        for block in raw_blocks
+        if isinstance(block, dict) and block.get("type") == "image"
+    ]
+
+
 def _stash_tool_result_media(result: Dict[str, Any], session_id: str) -> None:
     """Before base64 is stripped, park the bytes in a per-session temp store and
     tag each image block with a ``media_id`` reference (C4). Best-effort: any
     failure here leaves the block without a media_id but MUST NOT block the
     redaction that follows — the fail-closed strip happens regardless.
     """
-    if _tool_media_store is None or _iter_result_image_blocks is None:
+    if _tool_media_store is None:
         return
-    try:
-        blocks = _iter_result_image_blocks(result)
-    except Exception:
-        return
-    for block in blocks:
+    for block in _result_image_blocks(result):
         try:
             data_b64 = block.get("data_b64")
             if not isinstance(data_b64, str) or not data_b64:
@@ -1970,17 +1975,45 @@ def _redact_tool_result_images(event: Dict[str, Any], session_id: str = "") -> N
     BEFORE the strip (it needs the base64) but is best-effort — the strip is
     unconditional, so the fail-closed guarantee never depends on it.
     """
-    if _redact_result_image_data is None:
-        return
     result = event.get("result")
-    if isinstance(result, dict):
-        _stash_tool_result_media(result, session_id)
+    if not isinstance(result, dict):
+        return
+
+    _stash_tool_result_media(result, session_id)
+
+    if _redact_result_image_data is not None:
         try:
             _redact_result_image_data(result)
         except Exception:
-            # Never let redaction failure crash the stream; but note a failure
-            # here means base64 could leak — the shape is validated by tests.
-            pass
+            _computer_use_logger.warning(
+                "unchain image redactor failed; applying host fallback",
+                exc_info=True,
+            )
+
+    try:
+        # Host-owned fallback is the actual fail-closed boundary.  It runs even
+        # when the optional Unchain helper is absent or raises, so a dependency
+        # skew can never put screenshot bytes onto SSE/frontend persistence.
+        for block in _result_image_blocks(result):
+            data_b64 = block.get("data_b64")
+            if not isinstance(data_b64, str) or not data_b64:
+                continue
+            block.pop("data_b64", None)
+            block["data_omitted"] = True
+            block["byte_len"] = len(data_b64)
+    except Exception:
+        _computer_use_logger.error(
+            "host image redaction failed; replacing tool result",
+            exc_info=True,
+        )
+        result.clear()
+        result.update(
+            {
+                "ok": False,
+                "data_omitted": True,
+                "result": "[computer screenshot omitted: local redaction failed]",
+            }
+        )
 
 
 def _enrich_tool_event_with_toolkit_metadata(
@@ -1989,14 +2022,14 @@ def _enrich_tool_event_with_toolkit_metadata(
     session_id: str = "",
 ) -> Dict[str, Any]:
     event_type = str(event.get("type", "") or "").strip()
-    # Fail-closed image redaction runs FIRST, before any early return below, so
-    # every tool_result on either emit path (on_event / step_emit) is sanitised
-    # regardless of whether toolkit metadata matches. session_id scopes where the
-    # stripped screenshot bytes are stashed (C4 media store).
-    if event_type == "tool_result":
-        _redact_tool_result_images(event, session_id)
     if event_type not in {"tool_call", "tool_result"}:
         return event
+
+    toolkit_id = str(event.get("toolkit_id", "") or "").strip()
+    already_redacted = False
+    if event_type == "tool_result" and toolkit_id == "builtin.computer":
+        _redact_tool_result_images(event, session_id)
+        already_redacted = True
 
     tool_name = str(event.get("tool_name", "") or "").strip()
     if not tool_name:
@@ -2008,6 +2041,19 @@ def _enrich_tool_event_with_toolkit_metadata(
         return event
 
     toolkit_meta = toolkit_meta_by_tool_name.get(tool_name)
+    if not toolkit_id and toolkit_meta:
+        toolkit_id = str(toolkit_meta.get("toolkit_id", "") or "").strip()
+
+    # Screenshot redaction is part of the mounted Computer capability, not a
+    # global mutation of every rich-image tool.  A disabled/unmounted feature is
+    # therefore byte-for-byte inert for unrelated tool results.
+    if (
+        event_type == "tool_result"
+        and toolkit_id == "builtin.computer"
+        and not already_redacted
+    ):
+        _redact_tool_result_images(event, session_id)
+
     if not toolkit_meta:
         return event
 

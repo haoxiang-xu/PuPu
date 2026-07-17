@@ -20,6 +20,7 @@ import {
 } from "./components/streaming_message_store_context";
 import InteractWrapper from "./interact/interact_wrapper";
 import { normalizeStreamingChunks } from "../../SERVICEs/streaming_message_chunks";
+import { isToolConfirmationCacheable } from "../../SERVICEs/tool_confirmation_cache_policy";
 import {
   FINALITY,
   getFrameFinality,
@@ -1687,6 +1688,10 @@ const TraceChain = ({
                   uiState={effectiveConfirmationUiState}
                   isDark={isDark}
                   disabled={false}
+                  allowSessionApproval={isToolConfirmationCacheable(
+                    frame.payload?.toolkit_id,
+                    frame.payload?.tool_name,
+                  )}
                 />
               ) : null}
             </div>

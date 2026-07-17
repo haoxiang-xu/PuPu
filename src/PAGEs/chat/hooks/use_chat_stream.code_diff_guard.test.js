@@ -36,6 +36,15 @@ describe("use_chat_stream code_diff auto-approve guard", () => {
     expect(source).toMatch(/toolName\s*!==\s*HUMAN_INPUT_TOOL_NAME/);
   });
 
+  test("auto-approve and session-cache paths both apply the cache policy", () => {
+    expect(source).toMatch(
+      /return\s*\(\s*isToolConfirmationCacheable\(toolkitId, toolName\)/,
+    );
+    expect(source).toMatch(
+      /shouldCacheToolConfirmationDecision\(\{[\s\S]*?approved,[\s\S]*?scope,[\s\S]*?toolkitId,[\s\S]*?toolName,[\s\S]*?\}\)/,
+    );
+  });
+
   test("sessionAutoApproveRef key shape is toolkitId:toolName", () => {
     // Ensure keys don't accidentally become path-scoped later, which
     // would broaden the auto-approve surface. The .has(...) call may
