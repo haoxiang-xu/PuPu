@@ -2,7 +2,7 @@ import { useEffect, useState, useContext } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
-import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
+import StringSpinner from "../../BUILTIN_COMPONENTs/spinner/string_spinner";
 import ShaderBlobBackground from "../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
 import { deriveBlobScene } from "./derive_blob_palette";
 import bootProgress from "../../SERVICEs/boot_progress";
@@ -109,29 +109,17 @@ const BootOverlay = () => {
         />
       </div>
 
-      {/* cell-split spinner IS the loading indicator; a single constant
-          breathing amplitude throughout (loading and ready alike). */}
+      {/* string spinner IS the loading indicator */}
       <div
         aria-hidden="true"
         style={{
           position: "absolute",
           inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          opacity: 0.5,
+          opacity: 0.7,
           pointerEvents: "none",
         }}
       >
-        <CellSplitSpinner
-          size={180}
-          color={accent}
-          cells={5}
-          stagger={80}
-          spread={0.95}
-          speed={0.55}
-          spin
-        />
+        <StringSpinner size={90} n={5} amplitude={7} color={accent} />
       </div>
 
       {/* bottom "click to enter" text prompt, appears when ready */}
