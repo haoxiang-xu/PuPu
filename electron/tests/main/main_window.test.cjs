@@ -142,8 +142,11 @@ describe("main window service", () => {
 
     service.createMainWindow();
 
-    // Dev path shows right away; nothing was loaded yet, so no ready-to-show wait.
+    // Dev path shows right away with the inline interim shell (data: URL).
     expect(windowInstance.show).toHaveBeenCalledTimes(1);
+    expect(windowInstance.loadURL).toHaveBeenCalledWith(
+      expect.stringMatching(/^data:text\/html/),
+    );
     expect(windowInstance.webContents.send).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ isMaximized: false }),

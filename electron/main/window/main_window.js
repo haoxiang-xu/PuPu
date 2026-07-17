@@ -255,6 +255,23 @@ const createMainWindowService = ({
     return mainWindow;
   };
 
+  /** Tiny inline interim shell for dev: themed bg + breathing bar shown
+   *  while the CRA dev server is still compiling (data: URL — no file). */
+  const buildDevInterimUrl = () => {
+    const bg = resolveInitialBackgroundColor();
+    const n = parseInt(bg.slice(1, 7), 16) || 0;
+    const lum =
+      0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+    const fg = lum > 140 ? "0,0,0" : "255,255,255";
+    const html = `<!doctype html><meta charset="utf-8"><style>
+      html,body{margin:0;width:100%;height:100%;background:${bg};display:flex;align-items:center;justify-content:center}
+      .t{width:120px;height:3px;border-radius:2px;background:rgba(${fg},0.10);overflow:hidden}
+      .b{width:40%;height:100%;border-radius:2px;background:rgba(${fg},0.45);animation:s 1.2s ease-in-out infinite}
+      @keyframes s{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+    </style><div class="t"><div class="b"></div></div>`;
+    return "data:text/html;charset=utf-8," + encodeURIComponent(html);
+  };
+
   const createMainWindow = () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       return focusMainWindow();
@@ -276,9 +293,10 @@ const createMainWindowService = ({
         scheduleDarwinTrafficLightSync();
       });
     } else {
-      /* Dev: nothing is loaded yet, so don't wait on ready-to-show — show
-       * the themed (but empty) window immediately; the themed background
-       * IS the interim state while the CRA dev server boots. */
+      /* Dev: the CRA dev server may still be compiling — show a tiny
+       * inline interim shell (themed bg + breathing bar, data: URL) while
+       * loadDevUrlWhenReady polls. Packaged builds never hit this path. */
+      mainWindow.loadURL(buildDevInterimUrl());
       mainWindow.show();
       emitWindowState();
       scheduleDarwinTrafficLightSync();
