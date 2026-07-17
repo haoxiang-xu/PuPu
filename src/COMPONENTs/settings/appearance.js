@@ -151,7 +151,7 @@ export const AppearanceSettings = () => {
      look (radius 22, blur, hairline) is owned by the variant itself so these
      menus stay pixel-identical to the attach panel's dropdowns. */
   const selectDropdownStyle = { width: 224, maxHeight: 220 };
-  const selectOptionStyle = { height: 34, borderRadius: 14 };
+  const selectOptionStyle = { height: 24, borderRadius: 14 };
 
   return (
     <div>
