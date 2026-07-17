@@ -83,14 +83,18 @@ const usePalette = (isDark) => {
   const theme = isObject(ctx) ? ctx.theme : null;
   const primary =
     (theme && typeof theme.color === "string" && theme.color) ||
-    (isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.85)");
-  const secondary = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
-  const cardBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
-  const chipBg = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
-  const hoverBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
-  // diff 统计前景色:增绿 / 删红(GitHub 标准 fg,与灰色 secondary 同源)
-  const added = isDark ? "#3fb950" : "#1a7f37";
-  const removed = isDark ? "#f85149" : "#cf222e";
+    "rgba(var(--pupu-text-rgb),0.85)";
+  const secondary = "rgba(var(--pupu-text-rgb),0.5)";
+  const cardBg = isDark
+    ? "rgba(var(--pupu-text-rgb),0.06)"
+    : "rgba(var(--pupu-text-rgb),0.05)";
+  const chipBg = isDark
+    ? "rgba(var(--pupu-text-rgb),0.1)"
+    : "rgba(var(--pupu-text-rgb),0.08)";
+  const hoverBg = "rgba(var(--pupu-text-rgb),0.04)";
+  // diff 统计前景色:增绿 / 删红(语义 success/danger tier)
+  const added = "var(--pupu-success)";
+  const removed = "var(--pupu-danger)";
   return { primary, secondary, cardBg, chipBg, hoverBg, added, removed };
 };
 
@@ -144,6 +148,7 @@ const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
         boxSizing: "border-box",
         backgroundColor: cardBg,
         borderRadius: 10,
+        border: "1px solid var(--pupu-card-border, transparent)",
         color: primary,
         overflow: "hidden",
       }}

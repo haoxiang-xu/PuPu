@@ -93,9 +93,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
 
   if (!visible) return null;
 
-  const border = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
+  const border = "1px solid var(--pupu-border-mid)";
   const shadow = isDark
     ? "0 8px 32px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)"
     : "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)";

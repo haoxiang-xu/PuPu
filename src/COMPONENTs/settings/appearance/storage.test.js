@@ -3,6 +3,7 @@ import {
   writeThemePreset,
   writeThemeCustomColor,
   writeThemeCustom,
+  writeThemeDetails,
   resetThemeSettings,
   clearThemeCustomColor,
 } from "./storage";
@@ -93,5 +94,67 @@ describe("appearance theme storage", () => {
     writeThemeCustomColor("dark_mode", "surface", "#334455");
     const read = readThemeSettings();
     expect(read.custom.dark_mode.surface).toBe("#334455");
+  });
+});
+
+describe("theme details channel (chipBorder + border tier alpha overrides)", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  test("writeThemeDetails persists a details bag", () => {
+    writeThemeDetails({ dark_mode: { chipBorder: "#ff0000" } });
+    const t = readThemeSettings();
+    expect(t.details).toEqual({
+      light_mode: {},
+      dark_mode: { chipBorder: "#ff0000" },
+    });
+  });
+
+  test("writeThemeCustomColor preserves an existing details bag", () => {
+    writeThemeDetails({ dark_mode: { chipBorder: "#ff0000" } });
+    writeThemeCustomColor("light_mode", "accent", "#111111");
+    const t = readThemeSettings();
+    expect(t.details.dark_mode.chipBorder).toBe("#ff0000");
+    expect(t.custom.light_mode.accent).toBe("#111111");
+  });
+
+  test("writeThemePreset preserves an existing details bag", () => {
+    writeThemeDetails({ light_mode: { chipBorder: "#00ff00" } });
+    writeThemePreset("ocean");
+    const t = readThemeSettings();
+    expect(t.preset).toBe("ocean");
+    expect(t.details.light_mode.chipBorder).toBe("#00ff00");
+  });
+
+  test("resetThemeSettings clears the details bag (full reset)", () => {
+    writeThemeDetails({ dark_mode: { chipBorder: "#ff0000" } });
+    resetThemeSettings();
+    expect(readThemeSettings().details).toBeUndefined();
+  });
+
+  test("readThemeSettings preserves unknown detail keys (forward compat)", () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        appearance: {
+          theme: {
+            preset: "default",
+            custom: { light_mode: {}, dark_mode: {} },
+            details: { light_mode: { futureKnob: 42 }, dark_mode: {} },
+          },
+        },
+      }),
+    );
+    expect(readThemeSettings().details.light_mode.futureKnob).toBe(42);
+  });
+
+  test("import round-trip: a details bag written via writeThemeDetails survives a read (export uses the same object)", () => {
+    writeThemeDetails({
+      light_mode: { chipBorder: "#123456", borderAlphaMid: 0.4 },
+      dark_mode: { chipBorder: "#654321" },
+    });
+    const exported = readThemeSettings();
+    expect(exported.details.light_mode.chipBorder).toBe("#123456");
+    expect(exported.details.light_mode.borderAlphaMid).toBe(0.4);
+    expect(exported.details.dark_mode.chipBorder).toBe("#654321");
   });
 });

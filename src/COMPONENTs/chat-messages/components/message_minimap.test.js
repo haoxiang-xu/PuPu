@@ -357,3 +357,56 @@ describe("扫播与窗口冻结", () => {
     expect(pctShort.style.opacity).toBe("0");
   });
 });
+
+describe("minimap snapshot card semantic surface binding", () => {
+  test("PALETTE has no hardcoded black/white neutrals — snap family follows surface/text tiers", () => {
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "message_minimap.js"),
+      "utf8",
+    );
+    // isolate just the PALETTE object literal — the rest of the file (nav
+    // pill hover/label CSS, live halo) legitimately keeps its own neutral
+    // tokens and is out of this brief's scope
+    const paletteMatch = src.match(/const PALETTE = \{[\s\S]*?\n\};/);
+    expect(paletteMatch).not.toBeNull();
+    const palette = paletteMatch[0];
+    // no raw black/white neutral literals left in the snap/tick family
+    expect(palette).not.toMatch(/rgba\(28,28,28/);
+    expect(palette).not.toMatch(/rgba\(252,252,252/);
+    expect(palette).not.toMatch(/rgba\(255,255,255,0\.\d+\)/);
+    expect(palette).not.toMatch(/rgba\(0,0,0,0\.0[3-9]\d*\)/); // small alphas (snapCodeBg etc), NOT the 0.5/0.12 shadow family
+    // near-opaque frosted card background binds to the surface tier
+    expect(src).toMatch(/snapBg: "rgba\(var\(--pupu-surface-rgb\),0\.85\)"/);
+    expect(src).toMatch(/snapBg: "rgba\(var\(--pupu-surface-rgb\),0\.9\)"/);
+    // neutral overlays (line/fg/muted/body/hint/codeBg/chip/uOn/tickDim/count) bind to the text tier
+    expect(src).toMatch(/uOn: "rgba\(var\(--pupu-text-rgb\),0\.62\)"/);
+    expect(src).toMatch(/uOn: "rgba\(var\(--pupu-text-rgb\),0\.55\)"/);
+    expect(src).toMatch(/tickDim: "rgba\(var\(--pupu-text-rgb\),0\.12\)"/);
+    expect(src).toMatch(/count: "rgba\(var\(--pupu-text-rgb\),0\.40\)"/);
+    expect(src).toMatch(/snapLine: "rgba\(var\(--pupu-text-rgb\),0\.10\)"/);
+    expect(src).toMatch(/snapLine: "rgba\(var\(--pupu-text-rgb\),0\.09\)"/);
+    expect(src).toMatch(/snapFg: "rgba\(var\(--pupu-text-rgb\),0\.92\)"/);
+    expect(src).toMatch(/snapFg: "rgba\(var\(--pupu-text-rgb\),0\.86\)"/);
+    expect(src).toMatch(/snapMuted: "rgba\(var\(--pupu-text-rgb\),0\.42\)"/);
+    expect(src).toMatch(/snapMuted: "rgba\(var\(--pupu-text-rgb\),0\.44\)"/);
+    expect(src).toMatch(/snapBody: "rgba\(var\(--pupu-text-rgb\),0\.78\)"/);
+    expect(src).toMatch(/snapBody: "rgba\(var\(--pupu-text-rgb\),0\.72\)"/);
+    expect(src).toMatch(/snapHint: "rgba\(var\(--pupu-text-rgb\),0\.35\)"/);
+    expect(src).toMatch(/snapHint: "rgba\(var\(--pupu-text-rgb\),0\.38\)"/);
+    expect(src).toMatch(/snapCodeBg: "rgba\(var\(--pupu-text-rgb\),0\.05\)"/);
+    expect(src).toMatch(/snapCodeBg: "rgba\(var\(--pupu-text-rgb\),0\.045\)"/);
+    expect(src).toMatch(/chip: "rgba\(var\(--pupu-text-rgb\),0\.10\)"/);
+    expect(src).toMatch(/chip: "rgba\(var\(--pupu-text-rgb\),0\.06\)"/);
+    // shadow stays black-based (unaffected by theme)
+    expect(src).toMatch(/snapShadow: "0 10px 34px rgba\(0,0,0,0\.5\)"/);
+    expect(src).toMatch(/snapShadow: "0 10px 34px rgba\(0,0,0,0\.12\)"/);
+  });
+
+  test("no canvas draw path consumes PALETTE tokens (all sinks are DOM style/innerHTML, CSS vars resolve)", () => {
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "message_minimap.js"),
+      "utf8",
+    );
+    expect(src).not.toMatch(/getContext\(/);
+  });
+});

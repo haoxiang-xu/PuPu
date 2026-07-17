@@ -182,4 +182,121 @@ describe("Explorer", () => {
     fireEvent.click(screen.getByText("My folder"));
     expect(screen.queryByText("Hidden chat")).toBeNull();
   });
+
+  describe("trailing slot", () => {
+    test("renders trailing element at the row and does not trigger select/expand on interaction", () => {
+      const onTrailingClick = jest.fn();
+      const onNodeClick = jest.fn();
+      renderExplorer({
+        data: {
+          folder1: {
+            label: "My folder",
+            children: ["chat1"],
+            on_click: onNodeClick,
+            trailing: (
+              <button type="button" onClick={onTrailingClick}>
+                Trailing action
+              </button>
+            ),
+          },
+          chat1: { label: "Hidden chat" },
+        },
+        root: ["folder1"],
+      });
+
+      expect(screen.getByText("Trailing action")).toBeInTheDocument();
+      /* collapsed at rest — trailing must not have expanded the folder */
+      expect(screen.queryByText("Hidden chat")).toBeNull();
+
+      fireEvent.click(screen.getByText("Trailing action"));
+
+      expect(onTrailingClick).toHaveBeenCalledTimes(1);
+      /* click stayed inside trailing — row's own click (select/expand) never fired */
+      expect(onNodeClick).not.toHaveBeenCalled();
+      expect(screen.queryByText("Hidden chat")).toBeNull();
+    });
+
+    test("trailing mousedown does not start a row drag", () => {
+      renderExplorer({
+        draggable: true,
+        data: {
+          folder1: {
+            label: "Draggable folder",
+            trailing: <button type="button">Trailing btn</button>,
+          },
+        },
+        root: ["folder1"],
+      });
+
+      fireEvent.mouseDown(screen.getByText("Trailing btn"), {
+        button: 0,
+        clientX: 32,
+        clientY: 20,
+      });
+      fireEvent.mouseMove(document, { clientX: 72, clientY: 20 });
+
+      /* a real drag would flip body cursor/userSelect and mount a ghost row */
+      expect(document.body.style.cursor).not.toBe("grabbing");
+      expect(document.body.style.userSelect).toBe("");
+
+      fireEvent.mouseUp(document);
+    });
+  });
+
+  describe("locked_expanded", () => {
+    test("locked folder starts expanded and its chevron ignores clicks", () => {
+      renderExplorer({
+        locked_expanded: ["root_folder"],
+        data: {
+          root_folder: { label: "Root", children: ["child1"] },
+          child1: { label: "Child one" },
+        },
+        root: ["root_folder"],
+      });
+
+      /* expanded from the start, no click required */
+      expect(screen.getByText("Child one")).toBeInTheDocument();
+
+      /* clicking the row can never collapse it */
+      fireEvent.click(screen.getByText("Root"));
+      expect(screen.getByText("Child one")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Root"));
+      expect(screen.getByText("Child one")).toBeInTheDocument();
+    });
+
+    test("non-locked folders keep normal collapse/expand behavior alongside a locked root", () => {
+      renderExplorer({
+        locked_expanded: ["root_folder"],
+        data: {
+          root_folder: { label: "Root", children: ["sub_folder"] },
+          sub_folder: { label: "Sub folder", children: ["leaf"] },
+          leaf: { label: "Leaf" },
+        },
+        root: ["root_folder"],
+      });
+
+      expect(screen.queryByText("Leaf")).toBeNull();
+      fireEvent.click(screen.getByText("Sub folder"));
+      expect(screen.getByText("Leaf")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("Sub folder"));
+      expect(screen.queryByText("Leaf")).toBeNull();
+    });
+  });
+
+  test("selection-less usage: no active_node_id renders rows without crashing or highlighting", () => {
+    expect(() =>
+      renderExplorer({
+        active_node_id: undefined,
+        data: {
+          one: { label: "One" },
+          two: { label: "Two" },
+        },
+        root: ["one", "two"],
+      }),
+    ).not.toThrow();
+
+    expect(screen.getByText("One")).toBeInTheDocument();
+    expect(screen.getByText("Two")).toBeInTheDocument();
+  });
 });

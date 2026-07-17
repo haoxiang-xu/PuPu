@@ -202,4 +202,22 @@ describe("TokenUsageSettings", () => {
       "scrollable",
     );
   });
+
+  test("series colors follow theme tokens (accent for output, text for input)", () => {
+    // Read the source file to verify theme token references
+    const fs = require("fs");
+    const path = require("path");
+    const sourceFile = fs.readFileSync(
+      path.join(__dirname, "index.js"),
+      "utf-8",
+    );
+
+    // Assert that series colors reference semantic theme tokens
+    expect(sourceFile).toMatch(/--pupu-accent-rgb/);
+    expect(sourceFile).toMatch(/--pupu-text-rgb/);
+
+    // Assert old hardcoded values are no longer in the file
+    expect(sourceFile).not.toMatch(/rgba\(14,165,233/);
+    expect(sourceFile).not.toMatch(/rgba\(249,115,22/);
+  });
 });

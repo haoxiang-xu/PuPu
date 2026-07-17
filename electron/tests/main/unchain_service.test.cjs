@@ -3,6 +3,40 @@ const { EventEmitter } = require("events");
 const { CHANNELS } = require("../../shared/channels");
 const { createUnchainService } = require("../../main/services/unchain/service");
 
+const createRuntimeContract = (overrides = {}) => {
+  const { capabilities: capabilityOverrides = {}, ...contractOverrides } =
+    overrides;
+  return {
+    schema: "pupu.runtime-capabilities",
+    version: 1,
+    capabilities: {
+      runtime_events_v4: true,
+      execution_fencing: true,
+      durable_interactions: true,
+      exact_cancellation: true,
+      durable_jobs: {
+        version: "D4.1",
+        available: true,
+        reason: "",
+      },
+      automatic_wake_resume: false,
+      ...capabilityOverrides,
+    },
+    reasons: {},
+    ...contractOverrides,
+  };
+};
+
+const createCompatibleHealthResponse = (
+  contract = createRuntimeContract(),
+) => ({
+  ok: true,
+  json: async () => ({
+    status: "ok",
+    contract,
+  }),
+});
+
 const createFakeSpawnProcess = () => {
   const proc = new EventEmitter();
   proc.stdout = new EventEmitter();
@@ -74,6 +108,42 @@ const createRangeBusyNet = ({ ephemeralPort }) => ({
   },
 });
 
+const createStartupServiceHarness = () => {
+  const fakeProcess = createFakeSpawnProcess();
+  const spawn = jest.fn(() => fakeProcess);
+  const service = createUnchainService({
+    app: {
+      isPackaged: false,
+      getAppPath: jest.fn(() => "/app"),
+      getPath: jest.fn(() => "/tmp/pupu"),
+      getVersion: jest.fn(() => "0.1.1"),
+    },
+    fs: { existsSync: jest.fn(() => true) },
+    path,
+    spawn,
+    spawnSync: jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    })),
+    crypto: {
+      randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+    },
+    net: createAvailableNet(),
+    webContents: {
+      fromId: jest.fn(() => null),
+      getAllWebContents: jest.fn(() => []),
+    },
+    runtimeService: {},
+    getAppIsQuitting: () => false,
+  });
+  return { fakeProcess, service, spawn };
+};
+
 describe("unchain service session memory replacement", () => {
   const originalFetch = global.fetch;
   const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
@@ -86,6 +156,180 @@ describe("unchain service session memory replacement", () => {
       process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
     }
     jest.clearAllMocks();
+  });
+
+  test("startup validates and exposes the release runtime contract", async () => {
+    const contract = createRuntimeContract();
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse(contract));
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    const { service } = createStartupServiceHarness();
+
+    await service.startMiso();
+
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      reason: "",
+      ready: true,
+      contract,
+    });
+  });
+
+  (process.platform === "win32" ? test.skip : test)(
+    "startup reaps an orphaned server without killing durable job workers",
+    async () => {
+      const originalResourcesPath = process.resourcesPath;
+      const hadResourcesPath = Object.prototype.hasOwnProperty.call(
+        process,
+        "resourcesPath",
+      );
+      Object.defineProperty(process, "resourcesPath", {
+        configurable: true,
+        value: "/Applications/PuPu.app/Contents/Resources",
+      });
+      const killSpy = jest.spyOn(process, "kill").mockImplementation(() => true);
+      const fakeProcess = createFakeSpawnProcess();
+      const spawn = jest.fn(() => fakeProcess);
+      const packagedBinary = path.join(
+        process.resourcesPath,
+        "unchain_runtime",
+        "dist",
+        process.platform === "darwin" ? "macos" : "linux",
+        "unchain-server",
+      );
+      const staleServerPid = 41001;
+      const durableWorkerPid = 41002;
+      const spawnSync = jest.fn((command) => {
+        expect(command).toBe("ps");
+        return {
+          status: 0,
+          stdout: [
+            `${staleServerPid} 1 ${packagedBinary}`,
+            `${durableWorkerPid} 1 ${packagedBinary} --durable-job-worker --job-id job_alive`,
+          ].join("\n"),
+        };
+      });
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(createCompatibleHealthResponse());
+
+      try {
+        const service = createUnchainService({
+          app: {
+            isPackaged: true,
+            getAppPath: jest.fn(() => "/Applications/PuPu.app/Contents/Resources/app.asar"),
+            getPath: jest.fn(() => "/tmp/pupu"),
+            getVersion: jest.fn(() => "0.1.1"),
+          },
+          fs: { existsSync: jest.fn(() => true) },
+          path,
+          spawn,
+          spawnSync,
+          crypto: {
+            randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+          },
+          net: createAvailableNet(),
+          webContents: {
+            fromId: jest.fn(() => null),
+            getAllWebContents: jest.fn(() => []),
+          },
+          runtimeService: {},
+          getAppIsQuitting: () => false,
+        });
+
+        await service.startMiso();
+
+        expect(spawnSync).toHaveBeenCalledTimes(1);
+        expect(killSpy).toHaveBeenCalledWith(staleServerPid, "SIGTERM");
+        expect(killSpy).not.toHaveBeenCalledWith(durableWorkerPid, "SIGTERM");
+        expect(spawn).toHaveBeenCalledWith(
+          packagedBinary,
+          [],
+          expect.any(Object),
+        );
+      } finally {
+        killSpy.mockRestore();
+        if (hadResourcesPath) {
+          Object.defineProperty(process, "resourcesPath", {
+            configurable: true,
+            value: originalResourcesPath,
+          });
+        } else {
+          delete process.resourcesPath;
+        }
+      }
+    },
+  );
+
+  test.each([
+    {
+      name: "schema mismatch",
+      contract: createRuntimeContract({
+        schema: "pupu.runtime-capabilities-v0",
+      }),
+      reason: "expected schema pupu.runtime-capabilities",
+    },
+    {
+      name: "version mismatch",
+      contract: createRuntimeContract({ version: 2 }),
+      reason: "expected version 1",
+    },
+    {
+      name: "missing exact cancellation",
+      contract: createRuntimeContract({
+        capabilities: { exact_cancellation: false },
+        reasons: {
+          exact_cancellation: "exact attempt registry is unavailable",
+        },
+      }),
+      reason: "exact_cancellation is required",
+    },
+    {
+      name: "missing durable jobs D4.1",
+      contract: createRuntimeContract({
+        capabilities: {
+          durable_jobs: {
+            version: "D4.1",
+            available: false,
+            reason: "UNCHAIN_DATA_DIR is not configured",
+          },
+        },
+      }),
+      reason: "durable_jobs D4.1 is unavailable",
+    },
+    {
+      name: "automatic wake resume enabled",
+      contract: createRuntimeContract({
+        capabilities: { automatic_wake_resume: true },
+      }),
+      reason: "automatic_wake_resume must be explicitly false",
+    },
+  ])("startup fails closed on $name", async ({ contract, reason }) => {
+    jest.useFakeTimers();
+    try {
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(createCompatibleHealthResponse(contract));
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const { fakeProcess, service, spawn } = createStartupServiceHarness();
+
+      await service.startMiso();
+      expect(service.getMisoStatusPayload()).toMatchObject({
+        status: "error",
+        ready: false,
+        contract,
+      });
+      expect(service.getMisoStatusPayload().reason).toContain(reason);
+
+      fakeProcess.emit("exit", null, "SIGTERM");
+      expect(service.getMisoStatusPayload().status).toBe("error");
+      jest.runOnlyPendingTimers();
+      await Promise.resolve();
+      expect(spawn).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test("replaceUnchainSessionMemory posts the normalized payload to unchain", async () => {
@@ -103,7 +347,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
@@ -165,6 +409,87 @@ describe("unchain service session memory replacement", () => {
     );
   });
 
+  test("durable interaction bridge queries by session and forwards session on receipt", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({ status: "none", session_id: "chat/with space" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({ status: "ok", disposition: "receipt_recorded" }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await service.getMisoPendingInteraction({ session_id: "chat/with space" });
+    await service.submitMisoToolConfirmation({
+      confirmation_id: "interaction-1",
+      session_id: "chat/with space",
+      approved: true,
+    });
+
+    expect(global.fetch.mock.calls[1][0]).toBe(
+      "http://127.0.0.1:5879/chat/interactions/pending?session_id=chat%2Fwith%20space",
+    );
+    expect(global.fetch.mock.calls[2][0]).toBe(
+      "http://127.0.0.1:5879/chat/tool/confirmation",
+    );
+    expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toEqual({
+      confirmation_id: "interaction-1",
+      approved: true,
+      reason: "",
+      session_id: "chat/with space",
+    });
+
+    await expect(
+      service.submitMisoToolConfirmation({
+        confirmation_id: "interaction-1",
+        approved: "false",
+      }),
+    ).rejects.toThrow("approved must be a boolean");
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+  });
+
   test("submitMisoInterject posts the payload to the interject endpoint", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
@@ -180,7 +505,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
@@ -308,7 +633,7 @@ describe("unchain service session memory replacement", () => {
     });
     expect(global.fetch).toHaveBeenCalledTimes(1);
 
-    resolveHealth({ ok: true });
+    resolveHealth(createCompatibleHealthResponse());
     await startPromise;
   });
 
@@ -327,7 +652,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValue({
         ok: true,
         text: async () =>
@@ -456,6 +781,363 @@ describe("unchain service session memory replacement", () => {
     );
   });
 
+  test("testMisoCustomProvider posts custom_provider/api_key and passes the result through", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            model: "anthropic--claude-4.5-haiku",
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({
+      custom_provider: {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      api_key: "hs-secret-key",
+    });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:5879/models/custom-providers/test",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-unchain-auth": "auth-token-123",
+        }),
+        body: JSON.stringify({
+          custom_provider: {
+            id: "sap-hyperspace",
+            protocol: "anthropic",
+            base_url: "http://localhost:6655/anthropic",
+            models: [{ id: "anthropic--claude-4.5-haiku" }],
+          },
+          api_key: "hs-secret-key",
+        }),
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      model: "anthropic--claude-4.5-haiku",
+    });
+  });
+
+  test("testMisoCustomProvider passes a structured backend failure through unchanged", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: false,
+            code: "provider_auth_failed",
+            message: "The provider rejected the API key.",
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({
+      custom_provider: {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      api_key: "wrong-key",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "provider_auth_failed",
+      message: "The provider rejected the API key.",
+    });
+  });
+
+  test("testMisoCustomProvider returns a structured error when the runtime is unreachable", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockRejectedValueOnce(new Error("ECONNREFUSED"));
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({
+      custom_provider: {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      api_key: "hs-secret-key",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "provider_unreachable",
+        message: "Could not reach the model runtime",
+      },
+    });
+  });
+
+  test("testMisoCustomProvider rejects a missing custom_provider without any request", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    const result = await service.testMisoCustomProvider({ api_key: "x" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "custom_provider_invalid",
+        message: "custom_provider is required",
+      },
+    });
+    // Only the startup health check ran — no provider-test request was issued.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("testMisoCustomProvider never logs the api_key", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ ok: true, model: "m1" }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const infoSpy = jest.spyOn(console, "info").mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+
+    try {
+      const service = createUnchainService({
+        app: {
+          isPackaged: false,
+          getAppPath: jest.fn(() => "/app"),
+          getPath: jest.fn(() => "/tmp/pupu"),
+          getVersion: jest.fn(() => "0.1.1"),
+        },
+        fs: { existsSync: jest.fn(() => true) },
+        path,
+        spawn,
+        spawnSync,
+        crypto: {
+          randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+        },
+        net: createAvailableNet(),
+        webContents: {
+          fromId: jest.fn(() => null),
+          getAllWebContents: jest.fn(() => []),
+        },
+        runtimeService: {},
+        getAppIsQuitting: () => false,
+      });
+
+      await service.startMiso();
+      await service.testMisoCustomProvider({
+        custom_provider: {
+          id: "sap-hyperspace",
+          protocol: "anthropic",
+          base_url: "http://localhost:6655/anthropic",
+          models: [{ id: "m1" }],
+        },
+        api_key: "hs-super-secret-key",
+      });
+
+      const allLogged = [logSpy, errorSpy, infoSpy, warnSpy, debugSpy]
+        .flatMap((spy) => spy.mock.calls)
+        .flat()
+        .map((entry) =>
+          typeof entry === "string" ? entry : JSON.stringify(entry),
+        )
+        .join("\n");
+
+      expect(allLogged).not.toContain("hs-super-secret-key");
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      infoSpy.mockRestore();
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    }
+  });
+
   test("MCP OAuth methods proxy to unchain and open authorization URL", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
@@ -472,7 +1154,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
@@ -800,7 +1482,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -862,7 +1544,9 @@ describe("unchain service session memory replacement", () => {
       }),
     }));
 
-    global.fetch = jest.fn().mockResolvedValue({ ok: true });
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse());
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
@@ -925,7 +1609,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
@@ -1001,7 +1685,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
@@ -1098,7 +1782,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
         body: {
@@ -1268,7 +1952,7 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
         body: {
@@ -1316,6 +2000,8 @@ describe("unchain service session memory replacement", () => {
       {
         requestId: "req-v4-1",
         payload: {
+          threadId: "chat-v4-1",
+          attempt_id: "req-v4-1",
           message: "hello",
           options: {},
         },
@@ -1326,6 +2012,11 @@ describe("unchain service session memory replacement", () => {
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(global.fetch.mock.calls[1][0]).toContain("/chat/stream/v4");
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toMatchObject({
+      threadId: "chat-v4-1",
+      attempt_id: "req-v4-1",
+      message: "hello",
+    });
     expect(target.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: "req-v4-1",
       event: "runtime_event",
@@ -1341,6 +2032,142 @@ describe("unchain service session memory replacement", () => {
       event: "done",
       data: { ok: true },
     });
+  });
+
+  test("cancelMisoExecution posts active V4 identity without disconnecting transport", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    let releaseStream;
+    const reader = {
+      read: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseStream = () => resolve({ done: true });
+          }),
+      ),
+    };
+    const cancelAck = {
+      status: "ok",
+      execution_id: "chat-v4-cancel",
+      attempt_id: "req-v4-cancel",
+      disposition: "applied",
+      state: "cancelled",
+      cancellation: {
+        requested_at_ms: 1234,
+        reason: "user_stop",
+        fencing_token: 7,
+      },
+    };
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        body: {
+          getReader: () => reader,
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(cancelAck),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const target = {
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => target),
+        getAllWebContents: jest.fn(() => [target]),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+
+    service.handleStreamStartV4(
+      { sender: { id: 91 } },
+      {
+        requestId: "req-v4-cancel",
+        payload: {
+          threadId: "chat-v4-cancel",
+          attempt_id: "req-v4-cancel",
+          source_attempt_id: "source-v4-cancel",
+          message: "keep listening",
+          options: { modelId: "local-model" },
+        },
+      },
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await expect(
+      service.cancelMisoExecution({
+        requestId: "req-v4-cancel",
+        reason: "user_stop",
+        idempotencyKey: "cancel-once",
+      }),
+    ).resolves.toEqual(cancelAck);
+
+    expect(global.fetch.mock.calls[2][0]).toContain("/chat/executions/cancel");
+    expect(global.fetch.mock.calls[2][1]).toMatchObject({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-unchain-auth": "auth-token-123",
+      },
+    });
+    expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toEqual({
+      execution_id: "chat-v4-cancel",
+      attempt_id: "req-v4-cancel",
+      source_attempt_id: "source-v4-cancel",
+      reason: "user_stop",
+      idempotency_key: "cancel-once",
+    });
+    expect(reader.read).toHaveBeenCalledTimes(1);
+    expect(target.send).not.toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({
+        requestId: "req-v4-cancel",
+        event: "done",
+      }),
+    );
+
+    releaseStream();
+    await new Promise((resolve) => setImmediate(resolve));
   });
 });
 
@@ -1416,9 +2243,11 @@ describe("unchain service computer use surface", () => {
       },
     };
 
+    // First fetch is startMiso's health ping — dev's runtime-contract validation
+    // (merged) requires a compatible health payload, not a bare { ok: true }.
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(createCompatibleHealthResponse(createRuntimeContract()))
       .mockResolvedValueOnce({
         ok: true,
         text: async () => JSON.stringify(capabilityPayload),

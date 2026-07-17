@@ -6,12 +6,15 @@ under ~/.pupu/agent_recipes/<Name>.recipe.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\- ]{1,64}$")
 _VALID_PROMPT_FORMATS = ("soul", "skeleton")
 _VALID_SUBAGENT_KINDS = ("ref", "inline", "recipe_ref")
+_VALID_SUBAGENT_MODES = ("delegate", "handoff", "worker")
+_VALID_SUBAGENT_OUTPUT_MODES = ("summary", "last_message", "full_trace")
+_VALID_SUBAGENT_MEMORY_POLICIES = ("ephemeral", "scoped_persistent")
 _VAR_REF_PATTERN = re.compile(r"\{\{#([^.}]+)\.([^#}]+)#\}\}")
 
 BUILTIN_DEVELOPER_PROMPT_SENTINEL = "{{USE_BUILTIN_DEVELOPER_PROMPT}}"
@@ -57,6 +60,16 @@ class InlineSubagent:
 
 
 @dataclass(frozen=True)
+class RecipeSubagentProfile:
+    allowed_modes: tuple[Literal["delegate", "handoff", "worker"], ...] = (
+        "delegate",
+    )
+    output_mode: Literal["summary", "last_message", "full_trace"] = "summary"
+    memory_policy: Literal["ephemeral", "scoped_persistent"] = "ephemeral"
+    parallel_safe: bool = False
+
+
+@dataclass(frozen=True)
 class Recipe:
     name: str
     description: str
@@ -66,6 +79,9 @@ class Recipe:
     toolkits: tuple[ToolkitRef, ...]
     subagent_pool: tuple[SubagentRef | RecipeSubagentRef | InlineSubagent, ...]
     merge_with_user_selected: bool = True
+    subagent_profile: RecipeSubagentProfile = field(
+        default_factory=RecipeSubagentProfile
+    )
     nodes: tuple[dict, ...] = ()
     edges: tuple[dict, ...] = ()
 
@@ -319,6 +335,52 @@ def _parse_subagent_entry(data: Any) -> SubagentRef | RecipeSubagentRef | Inline
     )
 
 
+def _parse_subagent_profile(data: Any) -> RecipeSubagentProfile:
+    if data is None:
+        return RecipeSubagentProfile()
+    _require(isinstance(data, dict), "subagent_profile must be an object or null")
+
+    raw_modes = data.get("allowed_modes", ["delegate"])
+    modes = _as_str_tuple(raw_modes, "subagent_profile.allowed_modes")
+    _require(bool(modes), "subagent_profile.allowed_modes must not be empty")
+    invalid_modes = [mode for mode in modes if mode not in _VALID_SUBAGENT_MODES]
+    _require(
+        not invalid_modes,
+        f"subagent_profile.allowed_modes contains invalid values: {invalid_modes}",
+    )
+    _require(
+        len(set(modes)) == len(modes),
+        "subagent_profile.allowed_modes must not contain duplicates",
+    )
+
+    output_mode = data.get("output_mode", "summary")
+    _require(
+        output_mode in _VALID_SUBAGENT_OUTPUT_MODES,
+        f"subagent_profile.output_mode must be one of {_VALID_SUBAGENT_OUTPUT_MODES}",
+    )
+    memory_policy = data.get("memory_policy", "ephemeral")
+    _require(
+        memory_policy in _VALID_SUBAGENT_MEMORY_POLICIES,
+        f"subagent_profile.memory_policy must be one of {_VALID_SUBAGENT_MEMORY_POLICIES}",
+    )
+    parallel_safe = data.get("parallel_safe", False)
+    _require(
+        isinstance(parallel_safe, bool),
+        "subagent_profile.parallel_safe must be a boolean",
+    )
+    _require(
+        "worker" not in modes or parallel_safe,
+        "subagent_profile worker mode requires parallel_safe=true",
+    )
+
+    return RecipeSubagentProfile(
+        allowed_modes=modes,
+        output_mode=output_mode,
+        memory_policy=memory_policy,
+        parallel_safe=parallel_safe,
+    )
+
+
 def _projection_agent_from_graph(nodes: tuple[dict, ...]) -> dict:
     for node in nodes:
         if node.get("type") != "agent":
@@ -375,6 +437,7 @@ def parse_recipe_json(data: Any) -> Recipe:
 
     merge = data.get("merge_with_user_selected", True)
     _require(isinstance(merge, bool), "merge_with_user_selected must be a boolean")
+    subagent_profile = _parse_subagent_profile(data.get("subagent_profile"))
 
     return Recipe(
         name=name,
@@ -385,6 +448,7 @@ def parse_recipe_json(data: Any) -> Recipe:
         toolkits=toolkits,
         subagent_pool=pool,
         merge_with_user_selected=merge,
+        subagent_profile=subagent_profile,
         nodes=graph_nodes,
         edges=graph_edges,
     )

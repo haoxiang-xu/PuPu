@@ -68,6 +68,29 @@ class NormalizeSkillRowsTests(unittest.TestCase):
         self.assertEqual(normalize_skill_rows(None), [])
         self.assertEqual(normalize_skill_rows({"name": "x"}), [])
 
+    def test_non_list_tools_is_dropped_not_iterated(self) -> None:
+        # a string is iterable — must NOT decompose into characters
+        (row,) = normalize_skill_rows(
+            [{"name": "x", "body": "b", "tools": "echo"}]
+        )
+        self.assertEqual(row["tools"], [])
+        (row,) = normalize_skill_rows(
+            [{"name": "x", "body": "b", "tools": {"echo": 1}}]
+        )
+        self.assertEqual(row["tools"], [])
+
+    def test_non_string_scalars_never_repr_coerced(self) -> None:
+        rows = normalize_skill_rows(
+            [
+                {"name": 123, "body": "b"},
+                {"name": "x", "body": {"nested": "garbage"}},
+                {"name": "ok", "body": "b", "title": 42, "description": ["d"]},
+            ]
+        )
+        self.assertEqual([row["name"] for row in rows], ["ok"])
+        self.assertEqual(rows[0]["title"], "ok")
+        self.assertEqual(rows[0]["description"], "")
+
 
 if __name__ == "__main__":
     unittest.main()

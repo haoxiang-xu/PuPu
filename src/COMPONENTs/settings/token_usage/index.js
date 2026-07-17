@@ -51,14 +51,14 @@ const BREAKDOWN_SERIES = [
   {
     key: "input",
     labelKey: "input",
-    lightColor: "rgba(14,165,233,0.84)",
-    darkColor: "rgba(56,189,248,0.9)",
+    lightColor: "rgba(var(--pupu-text-rgb),0.38)",
+    darkColor: "rgba(var(--pupu-text-rgb),0.5)",
   },
   {
     key: "output",
     labelKey: "output",
-    lightColor: "rgba(249,115,22,0.84)",
-    darkColor: "rgba(251,146,60,0.9)",
+    lightColor: "rgba(var(--pupu-accent-rgb),0.84)",
+    darkColor: "rgba(var(--pupu-accent-rgb),0.9)",
   },
 ];
 
@@ -546,12 +546,12 @@ const TokenBreakdownChart = ({
                         : hoveredBar.tooltipAnchor === "left"
                           ? { left: 0 }
                           : { left: "50%", transform: "translateX(-50%)" }),
-                      backgroundColor: isDark ? "#2a2a2a" : "#fff",
-                      border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                      backgroundColor: "var(--pupu-surface)",
+                      border: "1px solid rgba(var(--pupu-text-rgb),0.1)",
                       borderRadius: 6,
                       padding: "6px 8px",
                       fontSize: 11,
-                      color: isDark ? "#fff" : "#222",
+                      color: "var(--pupu-text)",
                       whiteSpace: "nowrap",
                       zIndex: 10,
                       boxShadow: isDark

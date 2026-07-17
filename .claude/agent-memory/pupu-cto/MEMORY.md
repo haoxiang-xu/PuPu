@@ -1,3 +1,4 @@
+- [ADR：S0/S1 签核+合并时序 2026-07-13](adr-s0s1-rich-tool-result-signoff.md) — 双签放行；主树checkout=PuPu运行时；测试须PYTHONPATH=worktree/src
 - [后端量级评估 2026-07-05](backend-sizing-2026-07-05.md) — 排序可吸收不招人；delta-persist 不在擎路径(纯前端+Electron)；复评触发器=0.1.10 结束
 - [路线图 0.1.9→0.2.0 评审 2026-07-05](roadmap-019-020-review.md) — 隐性前置=command registry/delta-persist/agent-runner 抽象；thread 建议后移；agent 装 MCP=CRITICAL 硬门
 - [上线门槛盘点 2026-06-26](prelaunch-gap-analysis-2026-06-26.md) — 四条差异化线全零代码、shipped=扎实通用客户端；记忆是唯一可90天炫耀的锚；MVP-proud定义+首发前4件事；生产冻结二进制无需用户Python

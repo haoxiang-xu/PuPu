@@ -37,8 +37,6 @@ export const AgentsModal = ({
   isCharactersEnabled = true,
 }) => {
   useModalLifecycle("agents-modal", open);
-  const { onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
   const defaultSection = isAgentsEnabled ? "agents" : "characters";
   const [selectedSection, setSelectedSection] = useState(defaultSection);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -60,8 +58,6 @@ export const AgentsModal = ({
     onClose();
   };
 
-  const panelBg = isDark ? "#141414" : "#ffffff";
-
   return (
     <Modal
       open={open}
@@ -73,8 +69,7 @@ export const AgentsModal = ({
         height: 600,
         maxHeight: "88vh",
         padding: 0,
-        backgroundColor: panelBg,
-        color: isDark ? "#fff" : "#222",
+        color: "var(--pupu-text)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

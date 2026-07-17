@@ -410,9 +410,13 @@ const AttachPanel = forwardRef(({
 
   let panelBg = "transparent";
   if (floating)
-    panelBg = isDark ? "rgba(28,28,28,0.85)" : "rgba(252,252,252,0.9)";
+    panelBg = isDark
+      ? "rgba(var(--pupu-surface-rgb),0.85)"
+      : "rgba(var(--pupu-surface-rgb),0.9)";
 
-  const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+  const selectBg = isDark
+    ? "rgba(var(--pupu-text-rgb),0.07)"
+    : "rgba(var(--pupu-text-rgb),0.05)";
 
   /* shared pill style (model selector) */
   const pillStyle = {
@@ -513,6 +517,10 @@ const AttachPanel = forwardRef(({
           padding: 4,
           borderRadius: 22,
           backgroundColor: panelBg,
+          /* constant 1px keeps geometry stable across the floating toggle */
+          border: floating
+            ? "1px solid var(--pupu-border-mid)"
+            : "1px solid transparent",
           ...(floating
             ? {
                 backdropFilter: "blur(20px) saturate(130%)",
@@ -520,7 +528,8 @@ const AttachPanel = forwardRef(({
               }
             : {}),
           boxShadow: floating ? focusShadow : "none",
-          transition: "background-color 0.22s ease, box-shadow 0.22s ease",
+          transition:
+            "background-color 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease",
         }}
       >
         {/* ── Model selector ── */}

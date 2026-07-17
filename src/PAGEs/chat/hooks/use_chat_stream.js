@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { toast } from "../../../SERVICEs/toast";
-import { extractCommands } from "../../../SERVICEs/command_registry";
+import { expandCommands, extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
 import { createLogger } from "../../../SERVICEs/console_logger";
@@ -39,16 +39,78 @@ import {
   createQueuedTurnBuffer,
 } from "./interject_controller";
 import {
+  buildDurableResumePayload,
+  buildRecoveredConfirmationRequest,
+  durableInteractionRetryDelayMs,
+  ensureDurableInteractionMessage,
+  isRetryableDurableInteractionError,
+  normalizePendingInteraction,
+  prepareDurableInteractionResumeMessages,
+} from "./durable_interaction_recovery";
+import {
+  enqueueExecutionCancel,
+  readExecutionCancelOutbox,
+  removeExecutionCancel,
+} from "./execution_cancel_outbox";
+import {
   start as progressStart,
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
+/**
+ * Send-time custom-provider fail-closed error codes (thrown by
+ * api.unchain.injectCustomProviderIntoPayload before the stream starts) mapped
+ * to their actionable-toast i18n keys (C12 / FM15 / design §6.2c).
+ *
+ *   custom_provider_missing_api_key -> add a key in settings, or reselect
+ *   custom_provider_not_found       -> the config was deleted; reselect a model
+ *   custom_provider_disabled        -> the provider is off; enable or reselect
+ */
+const CUSTOM_PROVIDER_SEND_ERROR_KEYS = Object.freeze({
+  custom_provider_missing_api_key: {
+    title: "chat.custom_provider_error.missing_api_key.title",
+    description: "chat.custom_provider_error.missing_api_key.description",
+  },
+  custom_provider_not_found: {
+    title: "chat.custom_provider_error.not_found.title",
+    description: "chat.custom_provider_error.not_found.description",
+  },
+  custom_provider_disabled: {
+    title: "chat.custom_provider_error.disabled.title",
+    description: "chat.custom_provider_error.disabled.description",
+  },
+});
+
+/**
+ * Fire an actionable toast for a custom-provider send-time error. No-op when
+ * the error is not one of the three fail-closed custom-provider codes, so the
+ * generic error path still owns everything else. `translate` is the live t()
+ * (falls back to returning the key). Returns the matched code or "".
+ */
+const emitCustomProviderSendErrorToast = (error, translate) => {
+  const code = typeof error?.code === "string" ? error.code : "";
+  const keys = CUSTOM_PROVIDER_SEND_ERROR_KEYS[code];
+  if (!keys) {
+    return "";
+  }
+  const t = typeof translate === "function" ? translate : (key) => key;
+  toast.error(t(keys.title), {
+    description: t(keys.description),
+    dedupeKey: `custom_provider_send_error:${code}`,
+  });
+  return code;
+};
+
 const STREAM_TRACE_LEVEL = "minimal";
 const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
 const SUBAGENT_STATE_FLUSH_MS = 100;
+const DURABLE_RESUME_MAX_RETRIES = 7;
+const EXECUTION_CANCEL_DISCONNECT_GRACE_MS = 1500;
+const EXECUTION_CANCEL_OUTBOX_RETRY_MS = 5000;
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
+const EMPTY_CONFIRMATION_STATE = Object.freeze({});
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -116,9 +178,14 @@ const buildToolConfirmationRequest = ({
   callId,
   toolName,
   requestedAt,
+  ownerMessageId,
+  chatId,
+  sessionId,
 }) => ({
   confirmationId,
   callId,
+  chatId,
+  sessionId,
   toolName,
   toolDisplayName:
     typeof frame.payload?.tool_display_name === "string"
@@ -143,6 +210,8 @@ const buildToolConfirmationRequest = ({
       ? frame.payload.interact_config
       : {},
   requestedAt,
+  ownerMessageId:
+    typeof ownerMessageId === "string" ? ownerMessageId.trim() : "",
 });
 
 const normalizeAgentOrchestration = (value) => {
@@ -178,6 +247,90 @@ const characterLogger = createLogger(
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
 
+const normalizedExecutionIdentity = (identity) => {
+  const sessionId =
+    typeof identity?.sessionId === "string" ? identity.sessionId.trim() : "";
+  const attemptId =
+    typeof identity?.attemptId === "string" ? identity.attemptId.trim() : "";
+  if (!sessionId || !attemptId) {
+    return null;
+  }
+  return { ...identity, sessionId, attemptId };
+};
+
+const disconnectStreamTransport = (handle) => {
+  if (handle && typeof handle.disconnect === "function") {
+    handle.disconnect();
+    return;
+  }
+  if (handle && typeof handle.cancel === "function") {
+    handle.cancel();
+  }
+};
+
+const requestExecutionCancellationAndDisconnect = ({
+  identity,
+  handle,
+  reason = "user_stop",
+}) => {
+  let disconnected = false;
+  const disconnectOnce = () => {
+    if (disconnected) {
+      return;
+    }
+    disconnected = true;
+    disconnectStreamTransport(handle);
+  };
+  const normalizedIdentity = normalizedExecutionIdentity(identity);
+  if (
+    !normalizedIdentity ||
+    typeof api.unchain.cancelExecution !== "function"
+  ) {
+    disconnectOnce();
+    return Promise.resolve({ ok: false, response: null });
+  }
+
+  const disconnectTimer = setTimeout(
+    disconnectOnce,
+    EXECUTION_CANCEL_DISCONNECT_GRACE_MS,
+  );
+  return Promise.resolve(
+    api.unchain.cancelExecution({
+      session_id: normalizedIdentity.sessionId,
+      attempt_id: normalizedIdentity.attemptId,
+      ...(normalizedIdentity.sourceAttemptId
+        ? { source_attempt_id: normalizedIdentity.sourceAttemptId }
+        : {}),
+      ...(normalizedIdentity.requestId
+        ? { request_id: normalizedIdentity.requestId }
+        : {}),
+      reason,
+      idempotency_key: `stop:${normalizedIdentity.attemptId}`,
+    }),
+  ).then((response) => ({ ok: true, response }))
+    .catch((error) => {
+      unchainLogger.warn("execution_cancel_failed", {
+        sessionId: normalizedIdentity.sessionId,
+        attemptId: normalizedIdentity.attemptId,
+        code: error?.code || "execution_cancel_failed",
+        message: error?.message || "Failed to cancel execution",
+      });
+      return { ok: false, response: null };
+    })
+    .finally(() => {
+      clearTimeout(disconnectTimer);
+      disconnectOnce();
+    });
+};
+
+const createChatRenderRuntime = () => ({
+  tokenFlushController: null,
+  parentRunId: "",
+  subagentMetaByRunId: new Map(),
+  subagentFramesByRunId: new Map(),
+  lastTokenRunId: "",
+});
+
 export const useChatStream = ({
   chatId,
   messages,
@@ -208,6 +361,7 @@ export const useChatStream = ({
   setAgentOrchestration,
   activeStreamsRef,
   streamingMessageStore,
+  t,
 }) => {
   const {
     buildHistoryForModel,
@@ -235,12 +389,15 @@ export const useChatStream = ({
     typeof controlledSetStreamError === "function"
       ? controlledSetStreamError
       : setInternalStreamError;
-  const [pendingToolConfirmationRequests, setPendingToolConfirmationRequests] =
+  const [pendingToolConfirmationRequestsByChatId, setPendingToolConfirmationRequestsByChatId] =
     useState({});
-  const pendingToolConfirmationRequestsRef = useRef({});
-  const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
+  const pendingToolConfirmationRequestsByChatIdRef = useRef({});
+  const [toolConfirmationUiStateByChatId, setToolConfirmationUiStateByChatId] =
     useState({});
-  const toolConfirmationUiStateByIdRef = useRef({});
+  const toolConfirmationUiStateByChatIdRef = useRef({});
+  const [durableInteractionByChatId, setDurableInteractionByChatId] =
+    useState({});
+  const durableInteractionByChatIdRef = useRef({});
   const [pendingContinuationRequest, setPendingContinuationRequest] =
     useState(null);
   const [interjectStateByChatId, setInterjectStateByChatId] = useState({});
@@ -258,8 +415,16 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedToolkitsRef = useRef(selectedToolkits);
+  selectedToolkitsRef.current = selectedToolkits;
+  /* Live translator ref so send-time toasts localize without perturbing the
+     large sendNewTurn useCallback deps. Falls back to the key itself when no
+     t is supplied (parity with useTranslation's last-resort behavior). */
+  const tRef = useRef(null);
+  tRef.current = typeof t === "function" ? t : (key) => key;
 
   const streamHandlesRef = useRef(new Map());
+  const executionIdentityByChatIdRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
   if (!fallbackStreamingMessageStoreRef.current) {
     fallbackStreamingMessageStoreRef.current = createStreamingMessageStore();
@@ -268,15 +433,16 @@ export const useChatStream = ({
     streamingMessageStore || fallbackStreamingMessageStoreRef.current;
   const streamingChatIdsRef = useRef(new Set());
   const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
-  const confirmationIdByCallIdRef = useRef(new Map());
-  const confirmationCallIdByIdRef = useRef(new Map());
-  const confirmationFollowupSignalByIdRef = useRef(new Map());
-  const confirmationResolveTimerByIdRef = useRef(new Map());
-  const activeTokenFlushControllerRef = useRef(null);
-  const parentRunIdRef = useRef("");
-  const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
-  const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
-  const lastTokenRunIdRef = useRef("");
+  const confirmationRuntimeByChatIdRef = useRef(new Map());
+  const durableInteractionLookupRef = useRef(null);
+  const durableResumeStartedKeysRef = useRef(new Set());
+  const durableResumeStartedKeysByChatIdRef = useRef(new Map());
+  const durableResumeRetryTimersRef = useRef(new Map());
+  const runGenerationByChatIdRef = useRef(new Map());
+  const stoppedRunChatIdsRef = useRef(new Set());
+  const queueRelayTimersByChatIdRef = useRef(new Map());
+  const confirmationRetryWaitersByChatIdRef = useRef(new Map());
+  const renderRuntimeByChatIdRef = useRef(new Map());
   // Interject (mid-run "fyi"/"btw"/"queue"/"clarify") bookkeeping — all keyed
   // by chatId so multiple chats never cross-talk.
   const activeRunThreadIdByChatIdRef = useRef(new Map()); // chatId -> threadId the active run actually used (character chats use a session_id, not chatId)
@@ -284,6 +450,197 @@ export const useChatStream = ({
   const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
   const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
   const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
+
+  const beginRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (!normalizedChatId) {
+      return 0;
+    }
+    const nextGeneration =
+      (runGenerationByChatIdRef.current.get(normalizedChatId) || 0) + 1;
+    runGenerationByChatIdRef.current.set(normalizedChatId, nextGeneration);
+    stoppedRunChatIdsRef.current.delete(normalizedChatId);
+    return nextGeneration;
+  }, []);
+
+  const getRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    return normalizedChatId
+      ? runGenerationByChatIdRef.current.get(normalizedChatId) || 0
+      : 0;
+  }, []);
+
+  const ensureRecoveryRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (
+      !normalizedChatId ||
+      stoppedRunChatIdsRef.current.has(normalizedChatId)
+    ) {
+      return 0;
+    }
+    const currentGeneration =
+      runGenerationByChatIdRef.current.get(normalizedChatId) || 0;
+    if (currentGeneration > 0) {
+      return currentGeneration;
+    }
+    runGenerationByChatIdRef.current.set(normalizedChatId, 1);
+    return 1;
+  }, []);
+
+  const isRunGenerationCurrent = useCallback(
+    (targetChatId, runGeneration) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      return Boolean(
+        normalizedChatId &&
+          Number.isInteger(runGeneration) &&
+          runGeneration > 0 &&
+          !stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+          runGenerationByChatIdRef.current.get(normalizedChatId) ===
+            runGeneration,
+      );
+    },
+    [],
+  );
+
+  const invalidateRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (!normalizedChatId) {
+      return 0;
+    }
+    const nextGeneration =
+      (runGenerationByChatIdRef.current.get(normalizedChatId) || 0) + 1;
+    runGenerationByChatIdRef.current.set(normalizedChatId, nextGeneration);
+    stoppedRunChatIdsRef.current.add(normalizedChatId);
+    return nextGeneration;
+  }, []);
+
+  const clearQueueRelayTimersForChat = useCallback((targetChatId) => {
+    const timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+    timers?.forEach((timerId) => clearTimeout(timerId));
+    queueRelayTimersByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const scheduleQueueRelayTimer = useCallback(
+    (targetChatId, runGeneration, callback, delayMs) => {
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+        return null;
+      }
+      let timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+      if (!timers) {
+        timers = new Set();
+        queueRelayTimersByChatIdRef.current.set(targetChatId, timers);
+      }
+      let timerId = null;
+      timerId = setTimeout(() => {
+        const currentTimers =
+          queueRelayTimersByChatIdRef.current.get(targetChatId);
+        currentTimers?.delete(timerId);
+        if (currentTimers?.size === 0) {
+          queueRelayTimersByChatIdRef.current.delete(targetChatId);
+        }
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
+        callback();
+      }, delayMs);
+      timers.add(timerId);
+      return timerId;
+    },
+    [isRunGenerationCurrent],
+  );
+
+  const clearConfirmationRetryWaitersForChat = useCallback((targetChatId) => {
+    const waiters =
+      confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+    waiters?.forEach((waiter) => {
+      clearTimeout(waiter.timerId);
+      waiter.resolve(false);
+    });
+    confirmationRetryWaitersByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const waitForConfirmationRetry = useCallback(
+    (targetChatId, runGeneration, delayMs) =>
+      new Promise((resolve) => {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          resolve(false);
+          return;
+        }
+        let waiters =
+          confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+        if (!waiters) {
+          waiters = new Set();
+          confirmationRetryWaitersByChatIdRef.current.set(targetChatId, waiters);
+        }
+        const waiter = { timerId: null, resolve };
+        waiter.timerId = setTimeout(() => {
+          const currentWaiters =
+            confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+          currentWaiters?.delete(waiter);
+          if (currentWaiters?.size === 0) {
+            confirmationRetryWaitersByChatIdRef.current.delete(targetChatId);
+          }
+          resolve(isRunGenerationCurrent(targetChatId, runGeneration));
+        }, delayMs);
+        waiters.add(waiter);
+      }),
+    [isRunGenerationCurrent],
+  );
+
+  const trackDurableResumeStartedKey = useCallback(
+    (targetChatId, resumeKey) => {
+      if (!resumeKey) {
+        return;
+      }
+      durableResumeStartedKeysRef.current.add(resumeKey);
+      let keys =
+        durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
+      if (!keys) {
+        keys = new Set();
+        durableResumeStartedKeysByChatIdRef.current.set(targetChatId, keys);
+      }
+      keys.add(resumeKey);
+    },
+    [],
+  );
+
+  const clearDurableResumeStartedKeysForChat = useCallback((targetChatId) => {
+    const keys =
+      durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
+    keys?.forEach((resumeKey) => {
+      durableResumeStartedKeysRef.current.delete(resumeKey);
+    });
+    durableResumeStartedKeysByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const getConfirmationRuntimeForChat = useCallback(
+    (targetChatId, { create = true } = {}) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return null;
+      }
+
+      let runtime = confirmationRuntimeByChatIdRef.current.get(normalizedChatId);
+      if (!runtime && create) {
+        runtime = {
+          confirmationIdByCallId: new Map(),
+          confirmationCallIdById: new Map(),
+          sessionIdByConfirmationId: new Map(),
+          followupSignalById: new Map(),
+          resolveTimerById: new Map(),
+        };
+        confirmationRuntimeByChatIdRef.current.set(normalizedChatId, runtime);
+      }
+      return runtime || null;
+    },
+    [],
+  );
 
   const buildCharacterRunConfig = useCallback(async () => {
     if (!isCharacterChat) {
@@ -304,17 +661,23 @@ export const useChatStream = ({
   }, [characterId, isCharacterChat, threadIdRef]);
 
   const findToolCallFrameByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId) => {
       const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
       if (!normalizedCallId) {
         return null;
       }
 
-      const currentChatId = activeChatIdRef.current;
-      const streamState = activeStreamsRef.current.get(currentChatId);
+      const normalizedChatId =
+        typeof targetChatId === "string" && targetChatId.trim()
+          ? targetChatId.trim()
+          : activeChatIdRef.current;
+      const streamState = activeStreamsRef.current.get(normalizedChatId);
       const streamMessages = Array.isArray(streamState?.messages)
         ? streamState.messages
-        : [];
+        : activeChatIdRef.current === normalizedChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : [];
 
       for (const message of streamMessages) {
         const traceFrames = Array.isArray(message?.traceFrames)
@@ -350,12 +713,8 @@ export const useChatStream = ({
 
       return null;
     },
-    [activeChatIdRef, activeStreamsRef],
+    [activeChatIdRef, activeStreamsRef, messagesRef],
   );
-
-  useEffect(() => {
-    toolConfirmationUiStateByIdRef.current = toolConfirmationUiStateById;
-  }, [toolConfirmationUiStateById]);
 
   /* Session-scoped "Don't ask again" list is reset whenever the active
    * chat changes, matching the semantics of "only in this session". */
@@ -366,23 +725,55 @@ export const useChatStream = ({
   const isStreaming = streamingChatIds.has(chatId);
   const hasBackgroundStream =
     streamingChatIds.size > 0 && !streamingChatIds.has(chatId);
+  const pendingToolConfirmationRequests =
+    pendingToolConfirmationRequestsByChatId[chatId] || EMPTY_CONFIRMATION_STATE;
+  const toolConfirmationUiStateById =
+    toolConfirmationUiStateByChatId[chatId] || EMPTY_CONFIRMATION_STATE;
+  const durableInteractionState = durableInteractionByChatId[chatId] || null;
+  const durableInteractionStatus =
+    typeof durableInteractionState?.status === "string"
+      ? durableInteractionState.status
+      : "";
+  const isDurableInteractionBlocked = Boolean(durableInteractionStatus);
+  const canStop =
+    isStreaming ||
+    [
+      "awaiting",
+      "awaiting_response",
+      "checking",
+      "receipt_recorded",
+      "resuming",
+      "retry_wait",
+    ].includes(durableInteractionStatus);
 
-  const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
-    const controller = activeTokenFlushControllerRef.current;
-    if (!controller) {
-      return;
-    }
+  const clearActiveTokenFlushController = useCallback(
+    (targetChatId, mode = "dispose") => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
+      const renderRuntime =
+        renderRuntimeByChatIdRef.current.get(normalizedChatId);
+      const controller = renderRuntime?.tokenFlushController;
+      if (!controller) {
+        return;
+      }
 
-    if (mode === "flush" && typeof controller.flushNow === "function") {
-      controller.flushNow();
-    }
+      if (mode === "flush" && typeof controller.flushNow === "function") {
+        controller.flushNow();
+      }
 
-    if (typeof controller.dispose === "function") {
-      controller.dispose();
-    }
+      if (typeof controller.dispose === "function") {
+        controller.dispose();
+      }
 
-    activeTokenFlushControllerRef.current = null;
-  }, []);
+      if (renderRuntime.tokenFlushController === controller) {
+        renderRuntime.tokenFlushController = null;
+      }
+    },
+    [],
+  );
 
   const flushStreamingMessageStore = useCallback(
     (targetChatId, assistantMessageId) => {
@@ -430,27 +821,100 @@ export const useChatStream = ({
     [activeStreamingMessageStore],
   );
 
-  const updateToolConfirmationUiState = useCallback((updater) => {
-    const previous = toolConfirmationUiStateByIdRef.current;
-    const next = typeof updater === "function" ? updater(previous) : updater;
-    if (next === previous) {
-      return previous;
-    }
-    toolConfirmationUiStateByIdRef.current = next;
-    setToolConfirmationUiStateById(next);
-    return next;
-  }, []);
+  const updateToolConfirmationUiState = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return EMPTY_CONFIRMATION_STATE;
+      }
 
-  const updatePendingToolConfirmationRequests = useCallback((updater) => {
-    const previous = pendingToolConfirmationRequestsRef.current;
-    const next = typeof updater === "function" ? updater(previous) : updater;
-    if (next === previous) {
-      return previous;
-    }
-    pendingToolConfirmationRequestsRef.current = next;
-    setPendingToolConfirmationRequests(next);
-    return next;
-  }, []);
+      const previousByChatId = toolConfirmationUiStateByChatIdRef.current;
+      const previous =
+        previousByChatId[normalizedChatId] || EMPTY_CONFIRMATION_STATE;
+      const updated =
+        typeof updater === "function" ? updater(previous) : updater;
+      const next =
+        updated && typeof updated === "object"
+          ? updated
+          : EMPTY_CONFIRMATION_STATE;
+      if (next === previous) {
+        return previous;
+      }
+
+      const nextByChatId = { ...previousByChatId };
+      if (Object.keys(next).length > 0) {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      toolConfirmationUiStateByChatIdRef.current = nextByChatId;
+      setToolConfirmationUiStateByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
+
+  const updatePendingToolConfirmationRequests = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return EMPTY_CONFIRMATION_STATE;
+      }
+
+      const previousByChatId =
+        pendingToolConfirmationRequestsByChatIdRef.current;
+      const previous =
+        previousByChatId[normalizedChatId] || EMPTY_CONFIRMATION_STATE;
+      const updated =
+        typeof updater === "function" ? updater(previous) : updater;
+      const next =
+        updated && typeof updated === "object"
+          ? updated
+          : EMPTY_CONFIRMATION_STATE;
+      if (next === previous) {
+        return previous;
+      }
+
+      const nextByChatId = { ...previousByChatId };
+      if (Object.keys(next).length > 0) {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      pendingToolConfirmationRequestsByChatIdRef.current = nextByChatId;
+      setPendingToolConfirmationRequestsByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
+
+  const updateDurableInteractionForChat = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return null;
+      }
+      const previousByChatId = durableInteractionByChatIdRef.current;
+      const previous = previousByChatId[normalizedChatId] || null;
+      const next = typeof updater === "function" ? updater(previous) : updater;
+      if (next === previous) {
+        return previous;
+      }
+      const nextByChatId = { ...previousByChatId };
+      if (next && typeof next === "object") {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      durableInteractionByChatIdRef.current = nextByChatId;
+      setDurableInteractionByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
 
   const updateInterjectStateByChatId = useCallback((updater) => {
     const previous = interjectStateByChatIdRef.current;
@@ -482,30 +946,39 @@ export const useChatStream = ({
     [updateInterjectStateByChatId],
   );
 
-  const clearConfirmationResolutionTimer = useCallback((confirmationId) => {
-    const normalizedId =
-      typeof confirmationId === "string" ? confirmationId.trim() : "";
-    if (!normalizedId) {
-      return;
-    }
-
-    const timerId = confirmationResolveTimerByIdRef.current.get(normalizedId);
-    if (timerId != null) {
-      clearTimeout(timerId);
-    }
-    confirmationResolveTimerByIdRef.current.delete(normalizedId);
-  }, []);
-
-  const resolveSubmittedConfirmationFromSignal = useCallback(
-    (confirmationId) => {
+  const clearConfirmationResolutionTimer = useCallback(
+    (targetChatId, confirmationId) => {
       const normalizedId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!normalizedId) {
         return;
       }
-      clearConfirmationResolutionTimer(normalizedId);
 
-      updateToolConfirmationUiState((previous) => {
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      if (!runtime) {
+        return;
+      }
+      const timerId = runtime.resolveTimerById.get(normalizedId);
+      if (timerId != null) {
+        clearTimeout(timerId);
+      }
+      runtime.resolveTimerById.delete(normalizedId);
+    },
+    [getConfirmationRuntimeForChat],
+  );
+
+  const resolveSubmittedConfirmationFromSignal = useCallback(
+    (targetChatId, confirmationId) => {
+      const normalizedId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedId) {
+        return;
+      }
+      clearConfirmationResolutionTimer(targetChatId, normalizedId);
+
+      updateToolConfirmationUiState(targetChatId, (previous) => {
         const current = previous[normalizedId];
         if (!current || current.resolved === true) {
           return previous;
@@ -534,47 +1007,56 @@ export const useChatStream = ({
   );
 
   const markConfirmationFollowupSignalByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId) => {
       const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
       if (!normalizedCallId) {
         return;
       }
 
-      const confirmationId =
-        confirmationIdByCallIdRef.current.get(normalizedCallId);
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      const confirmationId = runtime?.confirmationIdByCallId.get(normalizedCallId);
       if (!confirmationId) {
         return;
       }
-      confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
-      resolveSubmittedConfirmationFromSignal(confirmationId);
+      runtime.followupSignalById.set(confirmationId, true);
+      resolveSubmittedConfirmationFromSignal(targetChatId, confirmationId);
     },
-    [resolveSubmittedConfirmationFromSignal],
+    [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal],
   );
 
-  const markAllPendingConfirmationFollowupSignals = useCallback(() => {
-    confirmationIdByCallIdRef.current.forEach((confirmationId) => {
+  const markAllPendingConfirmationFollowupSignals = useCallback((targetChatId) => {
+    const runtime = getConfirmationRuntimeForChat(targetChatId, {
+      create: false,
+    });
+    runtime?.confirmationIdByCallId.forEach((confirmationId) => {
       if (confirmationId) {
-        confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
-        resolveSubmittedConfirmationFromSignal(confirmationId);
+        runtime.followupSignalById.set(confirmationId, true);
+        resolveSubmittedConfirmationFromSignal(targetChatId, confirmationId);
       }
     });
-  }, [resolveSubmittedConfirmationFromSignal]);
+  }, [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal]);
 
   const clearResolvedToolConfirmationByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId) => {
       if (typeof callId !== "string" || !callId.trim()) {
         return;
       }
-      const confirmationId = confirmationIdByCallIdRef.current.get(callId);
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      const confirmationId = runtime?.confirmationIdByCallId.get(callId);
       if (!confirmationId) {
         return;
       }
 
-      confirmationIdByCallIdRef.current.delete(callId);
-      confirmationCallIdByIdRef.current.delete(confirmationId);
-      confirmationFollowupSignalByIdRef.current.delete(confirmationId);
-      clearConfirmationResolutionTimer(confirmationId);
-      updatePendingToolConfirmationRequests((previous) => {
+      runtime.confirmationIdByCallId.delete(callId);
+      runtime.confirmationCallIdById.delete(confirmationId);
+      runtime.sessionIdByConfirmationId.delete(confirmationId);
+      runtime.followupSignalById.delete(confirmationId);
+      clearConfirmationResolutionTimer(targetChatId, confirmationId);
+      updatePendingToolConfirmationRequests(targetChatId, (previous) => {
         if (!previous || !previous[confirmationId]) {
           return previous;
         }
@@ -582,7 +1064,7 @@ export const useChatStream = ({
         delete next[confirmationId];
         return next;
       });
-      updateToolConfirmationUiState((previous) => {
+      updateToolConfirmationUiState(targetChatId, (previous) => {
         if (!previous || !previous[confirmationId]) {
           return previous;
         }
@@ -593,65 +1075,94 @@ export const useChatStream = ({
     },
     [
       clearConfirmationResolutionTimer,
+      getConfirmationRuntimeForChat,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
   );
 
-  const clearAllPendingToolConfirmations = useCallback(() => {
-    const activeConfirmationIds = [
-      ...new Set([
-        ...confirmationIdByCallIdRef.current.values(),
-        ...confirmationCallIdByIdRef.current.keys(),
-        ...Object.keys(pendingToolConfirmationRequestsRef.current),
-      ]),
-    ];
-    confirmationIdByCallIdRef.current.clear();
-    confirmationCallIdByIdRef.current.clear();
-    confirmationFollowupSignalByIdRef.current.clear();
-    activeConfirmationIds.forEach((confirmationId) => {
-      clearConfirmationResolutionTimer(confirmationId);
-    });
-    if (activeConfirmationIds.length === 0) {
-      return;
-    }
+  const clearAllPendingToolConfirmations = useCallback(
+    (targetChatId) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
 
-    updatePendingToolConfirmationRequests((previous) => {
-      const next = { ...previous };
-      let changed = false;
-      activeConfirmationIds.forEach((confirmationId) => {
-        if (confirmationId && next[confirmationId]) {
-          delete next[confirmationId];
-          changed = true;
-        }
+      const runtime = getConfirmationRuntimeForChat(normalizedChatId, {
+        create: false,
       });
-      return changed ? next : previous;
-    });
-
-    updateToolConfirmationUiState((previous) => {
-      const next = { ...previous };
-      let changed = false;
-      activeConfirmationIds.forEach((confirmationId) => {
-        if (confirmationId && next[confirmationId]) {
-          delete next[confirmationId];
-          changed = true;
-        }
-      });
-      return changed ? next : previous;
-    });
-  }, [
-    clearConfirmationResolutionTimer,
-    updatePendingToolConfirmationRequests,
-    updateToolConfirmationUiState,
-  ]);
+      if (runtime) {
+        runtime.resolveTimerById.forEach((timerId) => {
+          clearTimeout(timerId);
+        });
+        confirmationRuntimeByChatIdRef.current.delete(normalizedChatId);
+      }
+      updatePendingToolConfirmationRequests(
+        normalizedChatId,
+        EMPTY_CONFIRMATION_STATE,
+      );
+      updateToolConfirmationUiState(
+        normalizedChatId,
+        EMPTY_CONFIRMATION_STATE,
+      );
+    },
+    [
+      getConfirmationRuntimeForChat,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
+  );
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
-    clearActiveTokenFlushController("flush");
-    const handle = streamHandlesRef.current.get(currentChatId);
-    if (handle && typeof handle.cancel === "function") {
-      handle.cancel();
+    if (!currentChatId) {
+      return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
+
+    // Invalidate first. Any lookup, retry, receipt, or queue callback that was
+    // already in flight must observe the tombstone before transport teardown.
+    invalidateRunGeneration(currentChatId);
+    const durableRetryTimer =
+      durableResumeRetryTimersRef.current.get(currentChatId);
+    if (durableRetryTimer != null) {
+      clearTimeout(durableRetryTimer);
+      durableResumeRetryTimersRef.current.delete(currentChatId);
+    }
+    clearDurableResumeStartedKeysForChat(currentChatId);
+    clearConfirmationRetryWaitersForChat(currentChatId);
+    clearQueueRelayTimersForChat(currentChatId);
+    queuedTurnsByChatIdRef.current.delete(currentChatId);
+    pendingFyiCountByChatIdRef.current.delete(currentChatId);
+    pendingClarifyByChatIdRef.current.delete(currentChatId);
+    syncInterjectStateForChat(currentChatId);
+    updateDurableInteractionForChat(currentChatId, null);
+    clearAllPendingToolConfirmations(currentChatId);
+    pendingContinuationRequestRef.current = null;
+    setPendingContinuationRequest(null);
+
+    clearActiveTokenFlushController(currentChatId, "flush");
+    const handle = streamHandlesRef.current.get(currentChatId);
+    const executionIdentity =
+      executionIdentityByChatIdRef.current.get(currentChatId) || null;
+    executionIdentityByChatIdRef.current.delete(currentChatId);
+    const queuedCancellation = enqueueExecutionCancel({
+      ...(executionIdentity || {}),
+      reason: "user_stop",
+      createdAt: Date.now(),
+    });
+    void requestExecutionCancellationAndDisconnect({
+      identity: queuedCancellation,
+      handle,
+      reason: "user_stop",
+    }).then((result) => {
+      if (result?.ok && queuedCancellation) {
+        removeExecutionCancel(
+          queuedCancellation.sessionId,
+          queuedCancellation.attemptId,
+        );
+      }
+    });
     cancelBackgroundPersist(currentChatId);
     streamHandlesRef.current.delete(currentChatId);
     streamingChatIdsRef.current.delete(currentChatId);
@@ -661,19 +1172,6 @@ export const useChatStream = ({
       next.delete(currentChatId);
       return next;
     });
-    confirmationIdByCallIdRef.current.clear();
-    confirmationCallIdByIdRef.current.clear();
-    confirmationFollowupSignalByIdRef.current.clear();
-    confirmationResolveTimerByIdRef.current.forEach((timerId) => {
-      clearTimeout(timerId);
-    });
-    confirmationResolveTimerByIdRef.current.clear();
-    pendingToolConfirmationRequestsRef.current = {};
-    setPendingToolConfirmationRequests({});
-    toolConfirmationUiStateByIdRef.current = {};
-    setToolConfirmationUiStateById({});
-    pendingContinuationRequestRef.current = null;
-    setPendingContinuationRequest(null);
     const materializedMessages = materializeStreamingMessages(
       currentChatId,
       messagesRef.current,
@@ -700,33 +1198,88 @@ export const useChatStream = ({
     activeChatIdRef,
     activeStreamsRef,
     activeStreamingMessageStore,
+    clearConfirmationRetryWaitersForChat,
     clearActiveTokenFlushController,
+    clearAllPendingToolConfirmations,
+    clearDurableResumeStartedKeysForChat,
+    clearQueueRelayTimersForChat,
+    invalidateRunGeneration,
     materializeStreamingMessages,
     messagesRef,
     setMessages,
     storageApi,
+    syncInterjectStateForChat,
+    updateDurableInteractionForChat,
   ]);
 
   const stopStream = useCallback(() => {
     cancelCurrentStreamAndSettleMessages();
   }, [cancelCurrentStreamAndSettleMessages]);
 
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer = null;
+
+    const drainCancellationOutbox = async () => {
+      const entries = readExecutionCancelOutbox();
+      for (const entry of entries) {
+        if (disposed) {
+          return;
+        }
+        const result = await requestExecutionCancellationAndDisconnect({
+          identity: entry,
+          handle: null,
+          reason: entry.reason || "user_stop",
+        });
+        if (result?.ok) {
+          removeExecutionCancel(entry.sessionId, entry.attemptId);
+        }
+      }
+      if (!disposed) {
+        retryTimer = setTimeout(
+          drainCancellationOutbox,
+          EXECUTION_CANCEL_OUTBOX_RETRY_MS,
+        );
+      }
+    };
+
+    void drainCancellationOutbox();
+    return () => {
+      disposed = true;
+      if (retryTimer != null) {
+        clearTimeout(retryTimer);
+      }
+    };
+  }, []);
+
   const appendSyntheticToolConfirmationDecision = useCallback(
-    ({ confirmationId, approved, userResponse }) => {
+    ({ targetChatId, confirmationId, approved, userResponse }) => {
+      const normalizedTargetChatId =
+        typeof targetChatId === "string" && targetChatId.trim()
+          ? targetChatId.trim()
+          : activeChatIdRef.current;
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedConfirmationId) {
+      if (!normalizedTargetChatId || !normalizedConfirmationId) {
         return false;
       }
 
+      const runtime = getConfirmationRuntimeForChat(normalizedTargetChatId, {
+        create: false,
+      });
       const callId =
-        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const targetChatId = activeChatIdRef.current;
-      const streamState = activeStreamsRef.current.get(targetChatId);
-      const streamMessages = Array.isArray(streamState?.messages)
+        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
+      const streamState = activeStreamsRef.current.get(normalizedTargetChatId);
+      const hasActiveStreamMessages = Array.isArray(streamState?.messages);
+      const streamMessages = hasActiveStreamMessages
         ? streamState.messages
-        : [];
-      if (!callId || !targetChatId || streamMessages.length === 0) {
+        : activeChatIdRef.current === normalizedTargetChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : typeof storageApi.getChatMessages === "function"
+            ? storageApi.getChatMessages(normalizedTargetChatId)
+            : [];
+      if (!callId || streamMessages.length === 0) {
         return false;
       }
 
@@ -841,23 +1394,38 @@ export const useChatStream = ({
         return false;
       }
 
-      activeStreamsRef.current.set(targetChatId, {
-        messages: nextStreamMessages,
-      });
+      if (hasActiveStreamMessages) {
+        activeStreamsRef.current.set(normalizedTargetChatId, {
+          messages: nextStreamMessages,
+        });
+      }
 
-      if (activeChatIdRef.current === targetChatId) {
+      if (activeChatIdRef.current === normalizedTargetChatId) {
+        messagesRef.current = nextStreamMessages;
         setMessages(nextStreamMessages);
+        if (!hasActiveStreamMessages) {
+          storageApi.setChatMessages(normalizedTargetChatId, nextStreamMessages, {
+            source: "chat-page",
+          });
+        }
       } else {
         // Tool confirmation is infrequent + user-visible — bypass the throttle.
-        cancelBackgroundPersist(targetChatId);
-        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
+        cancelBackgroundPersist(normalizedTargetChatId);
+        storageApi.setChatMessages(normalizedTargetChatId, nextStreamMessages, {
           source: "chat-page",
         });
       }
 
       return true;
     },
-    [activeChatIdRef, activeStreamsRef, setMessages, storageApi],
+    [
+      activeChatIdRef,
+      activeStreamsRef,
+      getConfirmationRuntimeForChat,
+      messagesRef,
+      setMessages,
+      storageApi,
+    ],
   );
 
   /* Same commit pattern as appendSyntheticToolConfirmationDecision above:
@@ -952,17 +1520,96 @@ export const useChatStream = ({
     [applyToStreamingAssistantMessage],
   );
 
+  const submitToolConfirmationWithRetry = useCallback(
+    async (payload, { targetChatId, runGeneration } = {}) => {
+      const stoppedError = () =>
+        Object.assign(new Error("This run was stopped."), {
+          code: "run_stopped",
+        });
+      let attempt = 0;
+      while (true) {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          throw stoppedError();
+        }
+        try {
+          const response = await api.unchain.respondToolConfirmation(payload);
+          if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+            throw stoppedError();
+          }
+          return response;
+        } catch (error) {
+          if (
+            error?.code === "run_stopped" ||
+            attempt >= DURABLE_RESUME_MAX_RETRIES ||
+            !isRetryableDurableInteractionError(error)
+          ) {
+            throw error;
+          }
+          const delayMs = durableInteractionRetryDelayMs(attempt);
+          attempt += 1;
+          const shouldContinue = await waitForConfirmationRetry(
+            targetChatId,
+            runGeneration,
+            delayMs,
+          );
+          if (!shouldContinue) {
+            throw stoppedError();
+          }
+        }
+      }
+    },
+    [isRunGenerationCurrent, waitForConfirmationRetry],
+  );
+
+  const continueFromRecordedReceipt = useCallback(
+    (targetChatId, sessionId, response, runGeneration) => {
+      if (
+        response?.disposition !== "receipt_recorded" ||
+        !isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        return;
+      }
+      const lookup = durableInteractionLookupRef.current;
+      if (typeof lookup === "function") {
+        void lookup(targetChatId, sessionId, {
+          autoResume: true,
+          runGeneration,
+        });
+      }
+    },
+    [isRunGenerationCurrent],
+  );
+
   const handleToolConfirmationDecision = useCallback(
     async ({ confirmationId, approved, userResponse, scope }) => {
+      const targetChatId = activeChatIdRef.current;
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedConfirmationId) {
+      if (!targetChatId || !normalizedConfirmationId) {
+        return;
+      }
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
         return;
       }
 
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
       const callId =
-        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const requestFrame = findToolCallFrameByCallId(callId);
+        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
+      const confirmationRequest =
+        pendingToolConfirmationRequestsByChatIdRef.current[targetChatId]?.[
+          normalizedConfirmationId
+        ] || null;
+      const sessionId =
+        runtime?.sessionIdByConfirmationId.get(normalizedConfirmationId) ||
+        (typeof confirmationRequest?.sessionId === "string"
+          ? confirmationRequest.sessionId.trim()
+          : "") ||
+        activeRunThreadIdByChatIdRef.current.get(targetChatId) ||
+        targetChatId;
+      const requestFrame = findToolCallFrameByCallId(targetChatId, callId);
       const toolName =
         typeof requestFrame?.payload?.tool_name === "string"
           ? requestFrame.payload.tool_name
@@ -1023,12 +1670,14 @@ export const useChatStream = ({
       }
 
       const current =
-        toolConfirmationUiStateByIdRef.current[normalizedConfirmationId] || {};
+        toolConfirmationUiStateByChatIdRef.current[targetChatId]?.[
+          normalizedConfirmationId
+        ] || {};
       if (current.status === "submitting" || current.status === "submitted") {
         return;
       }
 
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [normalizedConfirmationId]: {
           ...(previous[normalizedConfirmationId] || {}),
@@ -1044,28 +1693,31 @@ export const useChatStream = ({
           confirmation_id: normalizedConfirmationId,
           approved: Boolean(approved),
           reason: "",
+          session_id: sessionId,
         };
         if (userResponse !== undefined && userResponse !== null) {
           payload.modified_arguments = { user_response: userResponse };
         }
-        await api.unchain.respondToolConfirmation(payload);
-        if (
-          confirmationFollowupSignalByIdRef.current.get(
-            normalizedConfirmationId,
-          ) !== true
-        ) {
-          confirmationFollowupSignalByIdRef.current.set(
-            normalizedConfirmationId,
-            false,
-          );
+        const response = await submitToolConfirmationWithRetry(payload, {
+          targetChatId,
+          runGeneration,
+        });
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
         }
-        clearConfirmationResolutionTimer(normalizedConfirmationId);
+        if (
+          runtime?.followupSignalById.get(normalizedConfirmationId) !== true
+        ) {
+          runtime?.followupSignalById.set(normalizedConfirmationId, false);
+        }
+        clearConfirmationResolutionTimer(targetChatId, normalizedConfirmationId);
         appendSyntheticToolConfirmationDecision({
+          targetChatId,
           confirmationId: normalizedConfirmationId,
           approved: Boolean(approved),
           userResponse,
         });
-        updateToolConfirmationUiState((previous) => ({
+        updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
@@ -1076,12 +1728,21 @@ export const useChatStream = ({
             userResponse: userResponse ?? null,
           },
         }));
+        continueFromRecordedReceipt(
+          targetChatId,
+          sessionId,
+          response,
+          runGeneration,
+        );
       } catch (error) {
-        clearConfirmationResolutionTimer(normalizedConfirmationId);
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
+        clearConfirmationResolutionTimer(targetChatId, normalizedConfirmationId);
         const errorMessage =
           (typeof error?.message === "string" && error.message) ||
           "Failed to submit confirmation";
-        updateToolConfirmationUiState((previous) => ({
+        updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
@@ -1094,17 +1755,26 @@ export const useChatStream = ({
     },
     [
       appendSyntheticToolConfirmationDecision,
+      activeChatIdRef,
       clearConfirmationResolutionTimer,
+      continueFromRecordedReceipt,
       findToolCallFrameByCallId,
+      getRunGeneration,
+      getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
+      submitToolConfirmationWithRetry,
       updateToolConfirmationUiState,
     ],
   );
 
   const handleContinuationDecision = useCallback(
     async ({ confirmationId, approved }) => {
+      const targetChatId = activeChatIdRef.current;
       const normalizedId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedId) return;
+      if (!targetChatId || !normalizedId) return;
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
 
       const current = pendingContinuationRequestRef.current;
       if (!current || current.status === "submitting") return;
@@ -1118,21 +1788,41 @@ export const useChatStream = ({
       );
 
       try {
-        await api.unchain.respondToolConfirmation({
-          confirmation_id: normalizedId,
-          approved: Boolean(approved),
-          reason: "",
-        });
+        const sessionId =
+          activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+        const response = await submitToolConfirmationWithRetry(
+          {
+            confirmation_id: normalizedId,
+            approved: Boolean(approved),
+            reason: "",
+            session_id: sessionId,
+          },
+          { targetChatId, runGeneration },
+        );
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
         pendingContinuationRequestRef.current = null;
         setPendingContinuationRequest(null);
+        continueFromRecordedReceipt(
+          targetChatId,
+          sessionId,
+          response,
+          runGeneration,
+        );
       } catch (_error) {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
         pendingContinuationRequestRef.current = { ...current, status: "idle" };
         setPendingContinuationRequest((prev) =>
           prev ? { ...prev, status: "idle" } : prev,
         );
       }
     },
-    [],
+    [
+      activeChatIdRef,
+      continueFromRecordedReceipt,
+      getRunGeneration,
+      isRunGenerationCurrent,
+      submitToolConfirmationWithRetry,
+    ],
   );
 
   const isToolCallAutoApprovable = useCallback((frame) => {
@@ -1159,12 +1849,12 @@ export const useChatStream = ({
   }, []);
 
   const restoreManualToolConfirmationRequest = useCallback(
-    ({ confirmationId, request, error }) => {
+    ({ targetChatId, confirmationId, request, error }) => {
       const errorMessage =
         (typeof error?.message === "string" && error.message) ||
         "Failed to submit confirmation";
 
-      updatePendingToolConfirmationRequests((previous) =>
+      updatePendingToolConfirmationRequests(targetChatId, (previous) =>
         previous[confirmationId]
           ? previous
           : {
@@ -1172,7 +1862,7 @@ export const useChatStream = ({
               [confirmationId]: request,
             },
       );
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [confirmationId]: {
           ...(previous[confirmationId] || {}),
@@ -1187,8 +1877,13 @@ export const useChatStream = ({
   );
 
   const submitAutoApprovedToolConfirmation = useCallback(
-    ({ confirmationId, request }) => {
-      updatePendingToolConfirmationRequests((previous) => {
+    ({ targetChatId, confirmationId, request }) => {
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+        return;
+      }
+      const runtime = getConfirmationRuntimeForChat(targetChatId);
+      updatePendingToolConfirmationRequests(targetChatId, (previous) => {
         if (!previous[confirmationId]) {
           return previous;
         }
@@ -1196,7 +1891,7 @@ export const useChatStream = ({
         delete next[confirmationId];
         return next;
       });
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [confirmationId]: {
           ...(previous[confirmationId] || {}),
@@ -1211,37 +1906,58 @@ export const useChatStream = ({
         confirmation_id: confirmationId,
         approved: true,
         reason: "",
+        session_id:
+          runtime?.sessionIdByConfirmationId.get(confirmationId) || targetChatId,
       };
 
       try {
-        Promise.resolve(api.unchain.respondToolConfirmation(autoPayload))
-          .then(() => {
-            if (
-              confirmationFollowupSignalByIdRef.current.get(confirmationId) !==
-              true
-            ) {
-              confirmationFollowupSignalByIdRef.current.set(
-                confirmationId,
-                false,
-              );
+        Promise.resolve(
+          submitToolConfirmationWithRetry(autoPayload, {
+            targetChatId,
+            runGeneration,
+          }),
+        )
+          .then((response) => {
+            if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+              return;
             }
-            clearConfirmationResolutionTimer(confirmationId);
+            if (
+              runtime?.followupSignalById.get(confirmationId) !== true
+            ) {
+              runtime?.followupSignalById.set(confirmationId, false);
+            }
+            clearConfirmationResolutionTimer(targetChatId, confirmationId);
             appendSyntheticToolConfirmationDecision({
+              targetChatId,
               confirmationId,
               approved: true,
             });
+            continueFromRecordedReceipt(
+              targetChatId,
+              autoPayload.session_id,
+              response,
+              runGeneration,
+            );
           })
           .catch((error) => {
-            clearConfirmationResolutionTimer(confirmationId);
+            if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+              return;
+            }
+            clearConfirmationResolutionTimer(targetChatId, confirmationId);
             restoreManualToolConfirmationRequest({
+              targetChatId,
               confirmationId,
               request,
               error,
             });
-          });
+        });
       } catch (error) {
-        clearConfirmationResolutionTimer(confirmationId);
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
+        clearConfirmationResolutionTimer(targetChatId, confirmationId);
         restoreManualToolConfirmationRequest({
+          targetChatId,
           confirmationId,
           request,
           error,
@@ -1251,7 +1967,12 @@ export const useChatStream = ({
     [
       appendSyntheticToolConfirmationDecision,
       clearConfirmationResolutionTimer,
+      continueFromRecordedReceipt,
+      getRunGeneration,
+      getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
       restoreManualToolConfirmationRequest,
+      submitToolConfirmationWithRetry,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
@@ -1314,7 +2035,19 @@ export const useChatStream = ({
       forceHistoryFallback = false,
       historyOverride = null,
       characterAgentConfig = null,
+      durableInteraction = null,
+      durableResumeAttempt = 0,
+      durableOwnerMessageId = "",
+      runGeneration: requestedRunGeneration = null,
     }) => {
+      const isDurableResume = Boolean(
+        mode === "resume_interaction" &&
+        durableInteraction?.status === "receipt_recorded" &&
+        typeof durableInteraction?.sessionId === "string" &&
+        durableInteraction.sessionId.trim() &&
+        typeof durableInteraction?.interactionId === "string" &&
+        durableInteraction.interactionId.trim(),
+      );
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachments)
         ? attachments
@@ -1324,11 +2057,32 @@ export const useChatStream = ({
         trimmedText ||
         (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
 
-      if (!targetChatId || (!promptText && !hasAttachments)) {
+      if (
+        !targetChatId ||
+        (!isDurableResume && !promptText && !hasAttachments)
+      ) {
         return false;
       }
 
-      clearActiveTokenFlushController("dispose");
+      const activeRunGeneration =
+        Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
+          ? requestedRunGeneration
+          : beginRunGeneration(targetChatId);
+      if (
+        !Number.isInteger(requestedRunGeneration) ||
+        requestedRunGeneration <= 0
+      ) {
+        executionIdentityByChatIdRef.current.delete(targetChatId);
+      }
+      const isCurrentRun = () =>
+        isRunGenerationCurrent(targetChatId, activeRunGeneration);
+      if (!isCurrentRun()) {
+        return false;
+      }
+
+      clearActiveTokenFlushController(targetChatId, "dispose");
+      const renderRuntime = createChatRenderRuntime();
+      renderRuntimeByChatIdRef.current.set(targetChatId, renderRuntime);
 
       const normalizedBaseMessages = Array.isArray(baseMessages)
         ? baseMessages
@@ -1342,82 +2096,85 @@ export const useChatStream = ({
           ? reuseUserMessage
           : null;
 
-      confirmationIdByCallIdRef.current.clear();
-      confirmationCallIdByIdRef.current.clear();
-      confirmationFollowupSignalByIdRef.current.clear();
-      confirmationResolveTimerByIdRef.current.forEach((timerId) => {
-        clearTimeout(timerId);
-      });
-      confirmationResolveTimerByIdRef.current.clear();
-      pendingToolConfirmationRequestsRef.current = {};
-      setPendingToolConfirmationRequests({});
-      toolConfirmationUiStateByIdRef.current = {};
-      setToolConfirmationUiStateById({});
+      clearAllPendingToolConfirmations(targetChatId);
       pendingContinuationRequestRef.current = null;
       setPendingContinuationRequest(null);
-      parentRunIdRef.current = "";
-      subagentMetaByRunIdRef.current.clear();
-      subagentFramesByRunIdRef.current.clear();
-      lastTokenRunIdRef.current = "";
-
-      const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
+      const durableResumeMessages = isDurableResume
+        ? prepareDurableInteractionResumeMessages(
+            normalizedBaseMessages,
+            durableInteraction,
+            durableOwnerMessageId || durableInteraction.ownerMessageId,
+            timestamp,
+          )
+        : null;
+      const assistantMessageId =
+        durableResumeMessages?.ownerMessageId ||
+        `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-      const userMessageSeed = normalizedReuseUserMessage
-        ? {
-            ...normalizedReuseUserMessage,
-            role: "user",
-            content: promptText,
-            updatedAt: timestamp,
-          }
-        : {
-            id: `user-${Date.now()}`,
-            role: "user",
-            content: promptText,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          };
-      if (
-        typeof userMessageSeed.createdAt !== "number" ||
-        !Number.isFinite(userMessageSeed.createdAt)
-      ) {
-        userMessageSeed.createdAt = timestamp;
-      }
+      let persistedAttachments = [];
+      let payloadAttachments = [];
+      let userMessage = null;
+      if (!isDurableResume) {
+        const userMessageSeed = normalizedReuseUserMessage
+          ? {
+              ...normalizedReuseUserMessage,
+              role: "user",
+              content: promptText,
+              updatedAt: timestamp,
+            }
+          : {
+              id: `user-${Date.now()}`,
+              role: "user",
+              content: promptText,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            };
+        if (
+          typeof userMessageSeed.createdAt !== "number" ||
+          !Number.isFinite(userMessageSeed.createdAt)
+        ) {
+          userMessageSeed.createdAt = timestamp;
+        }
 
-      await hydrateAttachmentPayloads(targetChatId, [
-        ...normalizedAttachments,
-        ...normalizedBaseMessages.flatMap((message) =>
-          message.role === "user" && Array.isArray(message.attachments)
-            ? message.attachments
-            : [],
-        ),
-      ]);
-
-      const { payloads: attachmentPayloads, missingAttachmentNames } =
-        resolveAttachmentPayloads(targetChatId, normalizedAttachments);
-      let persistedAttachments = normalizedAttachments;
-      let payloadAttachments = attachmentPayloads;
-
-      if (missingAttachmentNames.length > 0) {
-        if (missingAttachmentPayloadMode === "degrade") {
-          persistedAttachments = [];
-          payloadAttachments = [];
-          setStreamError(
-            "Some attachment payloads are unavailable in this session. Resending text only.",
-          );
-        } else {
-          setStreamError(
-            "Some attachment payloads are unavailable. Please re-attach your files and try again.",
-          );
+        await hydrateAttachmentPayloads(targetChatId, [
+          ...normalizedAttachments,
+          ...normalizedBaseMessages.flatMap((message) =>
+            message.role === "user" && Array.isArray(message.attachments)
+              ? message.attachments
+              : [],
+          ),
+        ]);
+        if (!isCurrentRun()) {
           return false;
         }
-      }
 
-      const userMessage = { ...userMessageSeed };
-      if (persistedAttachments.length > 0) {
-        userMessage.attachments = persistedAttachments;
-      } else if ("attachments" in userMessage) {
-        delete userMessage.attachments;
+        const { payloads: attachmentPayloads, missingAttachmentNames } =
+          resolveAttachmentPayloads(targetChatId, normalizedAttachments);
+        persistedAttachments = normalizedAttachments;
+        payloadAttachments = attachmentPayloads;
+
+        if (missingAttachmentNames.length > 0) {
+          if (missingAttachmentPayloadMode === "degrade") {
+            persistedAttachments = [];
+            payloadAttachments = [];
+            setStreamError(
+              "Some attachment payloads are unavailable in this session. Resending text only.",
+            );
+          } else {
+            setStreamError(
+              "Some attachment payloads are unavailable. Please re-attach your files and try again.",
+            );
+            return false;
+          }
+        }
+
+        userMessage = { ...userMessageSeed };
+        if (persistedAttachments.length > 0) {
+          userMessage.attachments = persistedAttachments;
+        } else if ("attachments" in userMessage) {
+          delete userMessage.attachments;
+        }
       }
 
       const persistImmediateMessages = (nextImmediateMessages) => {
@@ -1442,6 +2199,14 @@ export const useChatStream = ({
       );
       let forceMemoryEnabled = false;
 
+      if (isDurableResume) {
+        effectiveThreadId = durableInteraction.sessionId;
+        const resumeModelId = durableInteraction.resumeOptions?.modelId;
+        if (typeof resumeModelId === "string" && resumeModelId.trim()) {
+          effectiveModelId = resumeModelId.trim();
+        }
+      }
+
       /* Optimistic UI: push user message + assistant placeholder BEFORE any await.
          For character chats, buildCharacterRunConfig() below can be a slow IPC round-trip;
          we don't want Send to feel frozen during that wait. Rollback on failure. */
@@ -1459,11 +2224,13 @@ export const useChatStream = ({
           model: effectiveModelId,
         },
       };
-      const optimisticMessages = [
-        ...normalizedBaseMessages,
-        userMessage,
-        optimisticAssistantPlaceholder,
-      ];
+      const optimisticMessages = isDurableResume
+        ? durableResumeMessages.messages
+        : [
+            ...normalizedBaseMessages,
+            userMessage,
+            optimisticAssistantPlaceholder,
+          ];
       const previousInputValue = inputValue;
       const previousDraftAttachments = draftAttachments;
 
@@ -1478,6 +2245,12 @@ export const useChatStream = ({
       activeStreamingMessageStore.begin({
         chatId: targetChatId,
         messageId: assistantMessageId,
+        seedText: isDurableResume
+          ? optimisticMessages.find(
+              (message) => message?.id === assistantMessageId,
+            )?.content || ""
+          : "",
+        updatedAt: timestamp,
       });
       activeStreamsRef.current.set(targetChatId, {
         messages: optimisticMessages,
@@ -1500,11 +2273,17 @@ export const useChatStream = ({
       };
 
       let resolvedCharacterConfig = characterAgentConfig;
-      if (isCharacterChat) {
+      if (isCharacterChat && !isDurableResume) {
         if (!resolvedCharacterConfig) {
           try {
             resolvedCharacterConfig = await buildCharacterRunConfig();
+            if (!isCurrentRun()) {
+              return false;
+            }
           } catch (error) {
+            if (!isCurrentRun()) {
+              return false;
+            }
             rollbackOptimistic();
             setStreamError(
               error?.message || "Failed to prepare this character chat.",
@@ -1601,15 +2380,19 @@ export const useChatStream = ({
       activeRunThreadIdByChatIdRef.current.set(targetChatId, effectiveThreadId);
 
       const memoryEnabled =
-        forceHistoryFallback === true
+        isDurableResume
+          ? durableInteraction.resumeOptions?.memory_enabled === true
+          : forceHistoryFallback === true
           ? false
           : forceMemoryEnabled === true ||
             readMemorySettings().enabled === true;
-      const historyForModel = Array.isArray(historyOverride)
-        ? historyOverride
+      const historyForModel = isDurableResume
+        ? []
+        : Array.isArray(historyOverride)
+          ? historyOverride
           : memoryEnabled
-          ? []
-          : buildHistoryForModel(normalizedBaseMessages, targetChatId);
+            ? []
+            : buildHistoryForModel(normalizedBaseMessages, targetChatId);
 
       /* Optimistic push already happened before the character block.
          `nextMessages` is the same value; keep the binding so downstream code
@@ -1651,7 +2434,7 @@ export const useChatStream = ({
           Array.from(runIds)
             .map((runId) => [
               runId,
-              subagentFramesByRunIdRef.current.get(runId),
+              renderRuntime.subagentFramesByRunId.get(runId),
             ])
             .map(([runId, frames]) => [
               runId,
@@ -1662,7 +2445,10 @@ export const useChatStream = ({
       const serializeSubagentMetaByRunId = (runIds) =>
         Object.fromEntries(
           Array.from(runIds)
-            .map((runId) => [runId, subagentMetaByRunIdRef.current.get(runId)])
+            .map((runId) => [
+              runId,
+              renderRuntime.subagentMetaByRunId.get(runId),
+            ])
             .map(([runId, meta]) => [
               runId,
               {
@@ -1686,9 +2472,9 @@ export const useChatStream = ({
       const isKnownSubagentRunId = (runId) =>
         typeof runId === "string" &&
         runId.length > 0 &&
-        (!parentRunIdRef.current || runId !== parentRunIdRef.current) &&
-        (subagentMetaByRunIdRef.current.has(runId) ||
-          subagentFramesByRunIdRef.current.has(runId));
+        (!renderRuntime.parentRunId || runId !== renderRuntime.parentRunId) &&
+        (renderRuntime.subagentMetaByRunId.has(runId) ||
+          renderRuntime.subagentFramesByRunId.has(runId));
 
       const upsertSubagentMeta = (childRunId, updates) => {
         if (typeof childRunId !== "string" || !childRunId.trim()) {
@@ -1696,7 +2482,7 @@ export const useChatStream = ({
         }
 
         const previousMeta =
-          subagentMetaByRunIdRef.current.get(childRunId) || {};
+          renderRuntime.subagentMetaByRunId.get(childRunId) || {};
         const nextMeta = {
           subagentId:
             typeof updates?.subagentId === "string"
@@ -1743,9 +2529,9 @@ export const useChatStream = ({
                 : "",
         };
 
-        subagentMetaByRunIdRef.current.set(childRunId, nextMeta);
-        if (!subagentFramesByRunIdRef.current.has(childRunId)) {
-          subagentFramesByRunIdRef.current.set(childRunId, []);
+        renderRuntime.subagentMetaByRunId.set(childRunId, nextMeta);
+        if (!renderRuntime.subagentFramesByRunId.has(childRunId)) {
+          renderRuntime.subagentFramesByRunId.set(childRunId, []);
         }
         dirtySubagentMetaRunIds.add(childRunId);
         return nextMeta;
@@ -1971,10 +2757,10 @@ export const useChatStream = ({
         flushNow: flushBufferedTokenDelta,
         dispose: disposeBufferedTokenFlush,
       };
-      activeTokenFlushControllerRef.current = tokenFlushController;
+      renderRuntime.tokenFlushController = tokenFlushController;
       const releaseTokenFlushController = () => {
-        if (activeTokenFlushControllerRef.current === tokenFlushController) {
-          activeTokenFlushControllerRef.current = null;
+        if (renderRuntime.tokenFlushController === tokenFlushController) {
+          renderRuntime.tokenFlushController = null;
         }
       };
 
@@ -2145,6 +2931,9 @@ export const useChatStream = ({
 
         const streamHandle = startStream(payload, {
           onRuntimeEvent: (runtimeEvent) => {
+            if (!isCurrentRun()) {
+              return;
+            }
             if (runtimeEventBatcher) {
               runtimeEventBatcher.enqueue(runtimeEvent);
               return;
@@ -2154,6 +2943,10 @@ export const useChatStream = ({
             dispatchRuntimeEventEffects(effects);
           },
           onDone: (done) => {
+            if (!isCurrentRun()) {
+              runtimeEventBatcher?.cancel();
+              return;
+            }
             runtimeEventBatcher?.flushNow();
             if (runtimeEventStreamFailed) {
               return;
@@ -2166,34 +2959,49 @@ export const useChatStream = ({
             handlers.onDone?.(donePayload);
           },
           onError: (error) => {
+            if (!isCurrentRun()) {
+              runtimeEventBatcher?.cancel();
+              return;
+            }
             runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
             handlers.onError?.(error);
           },
         });
 
-        if (
-          runtimeEventBatcher &&
-          streamHandle &&
-          typeof streamHandle.cancel === "function"
-        ) {
-          const originalCancel = streamHandle.cancel;
-          return {
-            ...streamHandle,
-            cancel: (...args) => {
+        if (runtimeEventBatcher && streamHandle) {
+          const wrappedHandle = { ...streamHandle };
+          if (typeof streamHandle.disconnect === "function") {
+            wrappedHandle.disconnect = (...args) => {
               runtimeEventBatcher.cancel();
-              return originalCancel(...args);
-            },
-          };
+              return streamHandle.disconnect(...args);
+            };
+          }
+          if (typeof streamHandle.cancel === "function") {
+            wrappedHandle.cancel = (...args) => {
+              runtimeEventBatcher.cancel();
+              return streamHandle.cancel(...args);
+            };
+          }
+          return wrappedHandle;
         }
 
         return streamHandle;
         };
 
-        const shouldUseRuntimeEvents =
-          isRuntimeEventStreamEnabled() &&
+        const runtimeEventStreamAvailable =
           typeof api.unchain.isRuntimeEventStreamV4Available === "function" &&
           api.unchain.isRuntimeEventStreamV4Available();
+        if (isDurableResume && !runtimeEventStreamAvailable) {
+          const error = new Error(
+            "Durable interaction recovery requires the V4 runtime event bridge.",
+          );
+          error.code = "durable_resume_bridge_unavailable";
+          throw error;
+        }
+        const shouldUseRuntimeEvents =
+          isDurableResume ||
+          (isRuntimeEventStreamEnabled() && runtimeEventStreamAvailable);
         if (shouldUseRuntimeEvents) {
           return startRuntimeEventStream({
             createStore: createRuntimeEventStore,
@@ -2209,6 +3017,130 @@ export const useChatStream = ({
         return api.unchain.startStreamV2(payload, handlers);
       };
 
+      const scheduleDurableResumeRetry = (error, sourceMessages) => {
+        if (!isDurableResume || !isCurrentRun()) {
+          return false;
+        }
+
+        const errorMessage = error?.message || "Failed to resume this run";
+        if (
+          durableResumeAttempt >= DURABLE_RESUME_MAX_RETRIES ||
+          !isRetryableDurableInteractionError(error)
+        ) {
+          updateDurableInteractionForChat(targetChatId, {
+            ...durableInteraction,
+            ownerMessageId: assistantMessageId,
+            status: "resume_failed",
+            resumeAttempt: durableResumeAttempt,
+            lastError: errorMessage,
+          });
+          return false;
+        }
+
+        const retryMessages = (Array.isArray(sourceMessages)
+          ? sourceMessages
+          : normalizedBaseMessages
+        ).map((message) =>
+          message?.id === assistantMessageId
+            ? {
+                ...message,
+                updatedAt: Date.now(),
+                status: "done",
+              }
+            : message,
+        );
+        messagesRef.current = retryMessages;
+        if (activeChatIdRef.current === targetChatId) {
+          setMessages(retryMessages);
+        }
+        storageApi.setChatMessages(targetChatId, retryMessages, {
+          source: "chat-page",
+        });
+
+        const nextAttempt = durableResumeAttempt + 1;
+        updateDurableInteractionForChat(targetChatId, {
+          ...durableInteraction,
+          ownerMessageId: assistantMessageId,
+          status: "retry_wait",
+          resumeAttempt: nextAttempt,
+          lastError: errorMessage,
+        });
+        const existingTimer = durableResumeRetryTimersRef.current.get(
+          targetChatId,
+        );
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+        let timerId = null;
+        timerId = setTimeout(async () => {
+          if (
+            durableResumeRetryTimersRef.current.get(targetChatId) === timerId
+          ) {
+            durableResumeRetryTimersRef.current.delete(targetChatId);
+          }
+          if (!isCurrentRun()) {
+            return;
+          }
+          let refreshedInteraction = durableInteraction;
+          try {
+            const rawPending = await api.unchain.getPendingInteraction({
+              session_id: durableInteraction.sessionId,
+            });
+            if (!isCurrentRun()) {
+              return;
+            }
+            const refreshedPending = normalizePendingInteraction(
+              rawPending,
+              durableInteraction.sessionId,
+            );
+            if (refreshedPending?.status === "none") {
+              clearDurableResumeStartedKeysForChat(targetChatId);
+              clearAllPendingToolConfirmations(targetChatId);
+              updateDurableInteractionForChat(targetChatId, null);
+              return;
+            }
+            if (
+              refreshedPending?.status === "receipt_recorded" &&
+              refreshedPending.interactionId ===
+                durableInteraction.interactionId
+            ) {
+              refreshedInteraction = {
+                ...refreshedPending,
+                ownerMessageId: assistantMessageId,
+              };
+            }
+          } catch (_lookupError) {
+            // The resume stream already gave us a retryable lease error. If
+            // the reconciliation lookup is temporarily unavailable, keep the
+            // original durable receipt and let the bounded retry proceed.
+          }
+          if (!isCurrentRun()) {
+            return;
+          }
+          updateDurableInteractionForChat(targetChatId, {
+            ...refreshedInteraction,
+            ownerMessageId: assistantMessageId,
+            status: "resuming",
+            resumeAttempt: nextAttempt,
+            lastError: "",
+          });
+          void runTurnRequest({
+            mode: "resume_interaction",
+            chatId: targetChatId,
+            text: "",
+            attachments: [],
+            baseMessages: retryMessages,
+            clearComposer: false,
+            durableInteraction: refreshedInteraction,
+            durableResumeAttempt: nextAttempt,
+            durableOwnerMessageId: assistantMessageId,
+            runGeneration: activeRunGeneration,
+          });
+        }, durableInteractionRetryDelayMs(durableResumeAttempt));
+        durableResumeRetryTimersRef.current.set(targetChatId, timerId);
+        return true;
+      };
+
       let streamHandle = null;
       try {
         const systemPromptOverridesObject =
@@ -2218,51 +3150,72 @@ export const useChatStream = ({
             ? systemPromptOverrides
             : {};
 
-        streamHandle = startChatStream(
-          {
-            threadId: effectiveThreadId,
-            message: promptText,
-            history: historyForModel,
-            attachments: payloadAttachments,
-            options: {
-              modelId: effectiveModelId,
-              memory_enabled: memoryEnabled,
-              ...(effectiveMemoryNamespace
-                ? { memory_namespace: effectiveMemoryNamespace }
-                : {}),
-              ...(effectiveToolkits.length > 0 && {
-                toolkits: effectiveToolkits,
-              }),
-              ...(effectiveWorkspaceIds.length > 0 && {
-                selectedWorkspaceIds: effectiveWorkspaceIds,
-              }),
-              ...(!isCharacterChat &&
-                selectedRecipeName &&
-                selectedRecipeName !== "Default" && {
-                  recipe_name: selectedRecipeName,
+        const durableInteractionsRequired =
+          !isDurableResume &&
+          memoryEnabled &&
+          typeof api.unchain.isDurableInteractionBridgeAvailable ===
+            "function" &&
+          api.unchain.isDurableInteractionBridgeAvailable() &&
+          (isCharacterChat ||
+            (!selectedRecipeName || selectedRecipeName === "Default")) &&
+          effectiveAgentOrchestration.mode === "default";
+
+        const streamPayload = isDurableResume
+          ? buildDurableResumePayload(durableInteraction)
+          : {
+              threadId: effectiveThreadId,
+              message: promptText,
+              history: historyForModel,
+              attachments: payloadAttachments,
+              options: {
+                modelId: effectiveModelId,
+                memory_enabled: memoryEnabled,
+                ...(durableInteractionsRequired
+                  ? { durable_interactions_required: true }
+                  : {}),
+                ...(effectiveMemoryNamespace
+                  ? { memory_namespace: effectiveMemoryNamespace }
+                  : {}),
+                ...(effectiveToolkits.length > 0 && {
+                  toolkits: effectiveToolkits,
                 }),
-              ...(!isCharacterChat && {
-                agent_orchestration: effectiveAgentOrchestration,
-              }),
-              ...(isCharacterChat
-                ? {
-                    agent_instructions:
-                      typeof resolvedCharacterConfig?.instructions === "string"
-                        ? resolvedCharacterConfig.instructions
-                        : "",
-                    disable_workspace_root: true,
-                  }
-                : {}),
-              ...(Object.keys(systemPromptOverridesObject).length > 0 && {
-                system_prompt_v2: {
-                  overrides: systemPromptOverridesObject,
-                },
-              }),
-            },
-            trace_level: STREAM_TRACE_LEVEL,
-          },
+                ...(effectiveWorkspaceIds.length > 0 && {
+                  selectedWorkspaceIds: effectiveWorkspaceIds,
+                }),
+                ...(!isCharacterChat &&
+                  selectedRecipeName &&
+                  selectedRecipeName !== "Default" && {
+                    recipe_name: selectedRecipeName,
+                  }),
+                ...(!isCharacterChat && {
+                  agent_orchestration: effectiveAgentOrchestration,
+                }),
+                ...(isCharacterChat
+                  ? {
+                      agent_instructions:
+                        typeof resolvedCharacterConfig?.instructions ===
+                        "string"
+                          ? resolvedCharacterConfig.instructions
+                          : "",
+                      disable_workspace_root: true,
+                    }
+                  : {}),
+                ...(Object.keys(systemPromptOverridesObject).length > 0 && {
+                  system_prompt_v2: {
+                    overrides: systemPromptOverridesObject,
+                  },
+                }),
+              },
+              trace_level: STREAM_TRACE_LEVEL,
+            };
+
+        streamHandle = startChatStream(
+          streamPayload,
           {
             onFrame: (frame) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
                  writes to activeStreamsRef but cannot update the closure variable). */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
@@ -2273,7 +3226,7 @@ export const useChatStream = ({
               if (!frame) return;
               frame = scrubLegacyPlanToolResultFrame(frame);
               if (frame.type === "token_delta") {
-                lastTokenRunIdRef.current =
+                renderRuntime.lastTokenRunId =
                   frame.run_id || frame.payload?.run_id || "";
                 return;
               }
@@ -2381,8 +3334,9 @@ export const useChatStream = ({
                 frame.type === "response_received" ||
                 frame.type === "run_max_iterations"
               ) {
-                if (frame.type === "run_started" && !parentRunIdRef.current) {
-                  parentRunIdRef.current = frame.run_id || frame.payload?.run_id || "";
+                if (frame.type === "run_started" && !renderRuntime.parentRunId) {
+                  renderRuntime.parentRunId =
+                    frame.run_id || frame.payload?.run_id || "";
                 }
                 const label =
                   frame.type === "run_max_iterations"
@@ -2426,10 +3380,10 @@ export const useChatStream = ({
                           : frame.type ===
                                 "subagent_clarification_requested"
                               ? "needs_clarification"
-                              : typeof subagentMetaByRunIdRef.current.get(
+                              : typeof renderRuntime.subagentMetaByRunId.get(
                                     childRunId,
                                   )?.status === "string"
-                                ? subagentMetaByRunIdRef.current.get(
+                                ? renderRuntime.subagentMetaByRunId.get(
                                     childRunId,
                                   ).status
                                 : "";
@@ -2545,14 +3499,25 @@ export const useChatStream = ({
                   }
 
                   if (callId && confirmationId && requiresConfirmation) {
-                    confirmationIdByCallIdRef.current.set(callId, confirmationId);
-                    confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                    const confirmationRuntime =
+                      getConfirmationRuntimeForChat(targetChatId);
+                    confirmationRuntime.confirmationIdByCallId.set(
+                      callId,
+                      confirmationId,
+                    );
+                    confirmationRuntime.confirmationCallIdById.set(
+                      confirmationId,
+                      callId,
+                    );
+                    confirmationRuntime.sessionIdByConfirmationId.set(
+                      confirmationId,
+                      effectiveThreadId,
+                    );
                     if (
-                      confirmationFollowupSignalByIdRef.current.get(
-                        confirmationId,
-                      ) !== true
+                      confirmationRuntime.followupSignalById.get(confirmationId) !==
+                      true
                     ) {
-                      confirmationFollowupSignalByIdRef.current.set(
+                      confirmationRuntime.followupSignalById.set(
                         confirmationId,
                         false,
                       );
@@ -2563,14 +3528,18 @@ export const useChatStream = ({
                       callId,
                       toolName,
                       requestedAt: patchTime,
+                      ownerMessageId: assistantMessageId,
+                      chatId: targetChatId,
+                      sessionId: effectiveThreadId,
                     });
                     if (isToolCallAutoApprovable(frame)) {
                       submitAutoApprovedToolConfirmation({
+                        targetChatId,
                         confirmationId,
                         request: confirmationRequest,
                       });
                     } else {
-                      updatePendingToolConfirmationRequests((previous) =>
+                      updatePendingToolConfirmationRequests(targetChatId, (previous) =>
                         previous[confirmationId]
                           ? previous
                           : {
@@ -2578,7 +3547,7 @@ export const useChatStream = ({
                               [confirmationId]: confirmationRequest,
                             },
                       );
-                      updateToolConfirmationUiState((previous) =>
+                      updateToolConfirmationUiState(targetChatId, (previous) =>
                         previous[confirmationId]
                           ? previous
                           : {
@@ -2600,7 +3569,7 @@ export const useChatStream = ({
                     typeof frame.payload?.call_id === "string"
                       ? frame.payload.call_id
                       : "";
-                  clearResolvedToolConfirmationByCallId(callId);
+                  clearResolvedToolConfirmationByCallId(targetChatId, callId);
                 } else if (frame.type === "tool_result") {
                   const callId =
                     typeof frame.payload?.call_id === "string"
@@ -2618,7 +3587,7 @@ export const useChatStream = ({
                       result: frame.payload?.result,
                     });
                   }
-                  markConfirmationFollowupSignalByCallId(callId);
+                  markConfirmationFollowupSignalByCallId(targetChatId, callId);
                 }
               };
 
@@ -2631,14 +3600,14 @@ export const useChatStream = ({
               const isUnknownChild =
                 !isKnownChild &&
                 frameRunId.length > 0 &&
-                parentRunIdRef.current &&
-                frameRunId !== parentRunIdRef.current;
+                renderRuntime.parentRunId &&
+                frameRunId !== renderRuntime.parentRunId;
 
-              if (frameRunId && frameRunId !== parentRunIdRef.current) {
+              if (frameRunId && frameRunId !== renderRuntime.parentRunId) {
                 unchainLogger.log("subagent_frame_routing", {
                   frameType: frame.type,
                   runId: frameRunId,
-                  parentRunId: parentRunIdRef.current || "",
+                  parentRunId: renderRuntime.parentRunId || "",
                   isKnownSubagentRunId: isKnownChild,
                   isUnknownSubagentRunId: isUnknownChild,
                 });
@@ -2650,18 +3619,18 @@ export const useChatStream = ({
                      frames are also routed here. */
                   upsertSubagentMeta(frameRunId, { status: "running" });
                 }
-                if (!subagentFramesByRunIdRef.current.has(frameRunId)) {
-                  subagentFramesByRunIdRef.current.set(frameRunId, []);
+                if (!renderRuntime.subagentFramesByRunId.has(frameRunId)) {
+                  renderRuntime.subagentFramesByRunId.set(frameRunId, []);
                 }
                 processChildToolInteractionSideEffects();
-                subagentFramesByRunIdRef.current.get(frameRunId).push(frame);
+                renderRuntime.subagentFramesByRunId.get(frameRunId).push(frame);
                 dirtySubagentFrameRunIds.add(frameRunId);
 
                 if (
                   frame.type === "error" &&
-                  typeof subagentMetaByRunIdRef.current.get(frameRunId) ===
+                  typeof renderRuntime.subagentMetaByRunId.get(frameRunId) ===
                     "object" &&
-                  subagentMetaByRunIdRef.current.get(frameRunId) !== null
+                  renderRuntime.subagentMetaByRunId.get(frameRunId) !== null
                 ) {
                   upsertSubagentMeta(frameRunId, {
                     status: "failed",
@@ -2820,14 +3789,25 @@ export const useChatStream = ({
                   });
                 }
                 if (callId && confirmationId && requiresConfirmation) {
-                  confirmationIdByCallIdRef.current.set(callId, confirmationId);
-                  confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                  const confirmationRuntime =
+                    getConfirmationRuntimeForChat(targetChatId);
+                  confirmationRuntime.confirmationIdByCallId.set(
+                    callId,
+                    confirmationId,
+                  );
+                  confirmationRuntime.confirmationCallIdById.set(
+                    confirmationId,
+                    callId,
+                  );
+                  confirmationRuntime.sessionIdByConfirmationId.set(
+                    confirmationId,
+                    effectiveThreadId,
+                  );
                   if (
-                    confirmationFollowupSignalByIdRef.current.get(
-                      confirmationId,
-                    ) !== true
+                    confirmationRuntime.followupSignalById.get(confirmationId) !==
+                    true
                   ) {
-                    confirmationFollowupSignalByIdRef.current.set(
+                    confirmationRuntime.followupSignalById.set(
                       confirmationId,
                       false,
                     );
@@ -2838,14 +3818,18 @@ export const useChatStream = ({
                     callId,
                     toolName,
                     requestedAt: patchTime,
+                    ownerMessageId: assistantMessageId,
+                    chatId: targetChatId,
+                    sessionId: effectiveThreadId,
                   });
                   if (isToolCallAutoApprovable(frame)) {
                     submitAutoApprovedToolConfirmation({
+                      targetChatId,
                       confirmationId,
                       request: confirmationRequest,
                     });
                   } else {
-                    updatePendingToolConfirmationRequests((previous) =>
+                    updatePendingToolConfirmationRequests(targetChatId, (previous) =>
                       previous[confirmationId]
                         ? previous
                         : {
@@ -2853,7 +3837,7 @@ export const useChatStream = ({
                             [confirmationId]: confirmationRequest,
                           },
                     );
-                    updateToolConfirmationUiState((previous) =>
+                    updateToolConfirmationUiState(targetChatId, (previous) =>
                       previous[confirmationId]
                         ? previous
                         : {
@@ -2875,7 +3859,7 @@ export const useChatStream = ({
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
                     : "";
-                clearResolvedToolConfirmationByCallId(callId);
+                clearResolvedToolConfirmationByCallId(targetChatId, callId);
               } else if (frame.type === "tool_result") {
                 const callId =
                   typeof frame.payload?.call_id === "string"
@@ -2893,9 +3877,9 @@ export const useChatStream = ({
                     result: frame.payload?.result,
                   });
                 }
-                markConfirmationFollowupSignalByCallId(callId);
+                markConfirmationFollowupSignalByCallId(targetChatId, callId);
               } else if (frame.type === "error" || frame.type === "done") {
-                markAllPendingConfirmationFollowupSignals();
+                markAllPendingConfirmationFollowupSignals(targetChatId);
                 pendingContinuationRequestRef.current = null;
                 setPendingContinuationRequest(null);
               }
@@ -3098,6 +4082,9 @@ export const useChatStream = ({
               syncStreamMessages(nextStreamMessages);
             },
             onMeta: (meta) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               if (
                 meta &&
                 typeof meta.thread_id === "string" &&
@@ -3125,14 +4112,17 @@ export const useChatStream = ({
               }
             },
             onToken: (delta) => {
-              if (
-                lastTokenRunIdRef.current &&
-                isKnownSubagentRunId(lastTokenRunIdRef.current)
-              ) {
-                lastTokenRunIdRef.current = "";
+              if (!isCurrentRun()) {
                 return;
               }
-              lastTokenRunIdRef.current = "";
+              if (
+                renderRuntime.lastTokenRunId &&
+                isKnownSubagentRunId(renderRuntime.lastTokenRunId)
+              ) {
+                renderRuntime.lastTokenRunId = "";
+                return;
+              }
+              renderRuntime.lastTokenRunId = "";
               if (typeof delta !== "string" || !delta) {
                 return;
               }
@@ -3140,6 +4130,9 @@ export const useChatStream = ({
               thinkTagParser.feed(delta);
             },
             onDone: (done) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               /* Sync closure with external updates before building final messages. */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
@@ -3292,7 +4285,18 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
-              clearAllPendingToolConfirmations();
+              clearAllPendingToolConfirmations(targetChatId);
+              if (isDurableResume) {
+                const retryTimer = durableResumeRetryTimersRef.current.get(
+                  targetChatId,
+                );
+                if (retryTimer) {
+                  clearTimeout(retryTimer);
+                  durableResumeRetryTimersRef.current.delete(targetChatId);
+                }
+                clearDurableResumeStartedKeysForChat(targetChatId);
+                updateDurableInteractionForChat(targetChatId, null);
+              }
               flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
@@ -3318,7 +4322,7 @@ export const useChatStream = ({
                 if (mergedQueueText) {
                   const relayBaseMessages = nextStreamMessages;
                   const relayCharacterConfig = resolvedCharacterConfig;
-                  setTimeout(() => {
+                  scheduleQueueRelayTimer(targetChatId, activeRunGeneration, () => {
                     void runTurnRequest({
                       mode: "send",
                       chatId: targetChatId,
@@ -3334,7 +4338,7 @@ export const useChatStream = ({
                 // Give the queue pile one render with status:"relayed" before
                 // the buffer disappears; guard against clobbering a *new*
                 // run's fresh buffer that may have replaced this one by then.
-                setTimeout(() => {
+                scheduleQueueRelayTimer(targetChatId, activeRunGeneration, () => {
                   if (
                     queuedTurnsByChatIdRef.current.get(targetChatId) ===
                     queuedTurnsOnDone
@@ -3349,6 +4353,9 @@ export const useChatStream = ({
               }
             },
             onError: (error) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               flushStreamingMessageStore(targetChatId, assistantMessageId);
@@ -3366,7 +4373,33 @@ export const useChatStream = ({
               const errorCode = error?.code || "stream_error";
               const errorTime = Date.now();
 
+              if (isDurableResume) {
+                const retrySourceMessages = materializeStreamingMessages(
+                  targetChatId,
+                  streamMessages,
+                );
+                if (scheduleDurableResumeRetry(error, retrySourceMessages)) {
+                  cancelBackgroundPersist(targetChatId);
+                  streamHandlesRef.current.delete(targetChatId);
+                  streamingChatIdsRef.current.delete(targetChatId);
+                  activeStreamsRef.current.delete(targetChatId);
+                  clearStreamingMessageStore(targetChatId, assistantMessageId);
+                  setStreamingChatIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(targetChatId);
+                    return next;
+                  });
+                  activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+                  flushSubagentState(Date.now());
+                  activeFlushScheduler.flushSync();
+                  disposeBufferedTokenFlush();
+                  releaseTokenFlushController();
+                  return;
+                }
+              }
+
               if (
+                !isDurableResume &&
                 errorCode === "memory_unavailable" &&
                 memoryFallbackAttempted !== true
               ) {
@@ -3384,7 +4417,7 @@ export const useChatStream = ({
                   next.delete(targetChatId);
                   return next;
                 });
-                clearAllPendingToolConfirmations();
+                clearAllPendingToolConfirmations(targetChatId);
                 flushSubagentState(Date.now());
                 activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
@@ -3408,6 +4441,7 @@ export const useChatStream = ({
                   forceHistoryFallback: true,
                   historyOverride: retryHistory,
                   characterAgentConfig: resolvedCharacterConfig,
+                  runGeneration: activeRunGeneration,
                 });
                 return;
               }
@@ -3431,7 +4465,7 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
-              clearAllPendingToolConfirmations();
+              clearAllPendingToolConfirmations(targetChatId);
               flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
@@ -3528,49 +4562,44 @@ export const useChatStream = ({
               pendingFyiCountByChatIdRef.current.delete(targetChatId);
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-              const queuedTurnsOnError = queuedTurnsByChatIdRef.current.get(targetChatId);
-              if (queuedTurnsOnError && queuedTurnsOnError.size() > 0) {
-                queuedTurnsOnError.markRelayed();
-                syncInterjectStateForChat(targetChatId);
-                const mergedQueueText = queuedTurnsOnError.drainMerged();
-                if (mergedQueueText) {
-                  const relayBaseMessages = nextStreamMessages;
-                  const relayCharacterConfig = resolvedCharacterConfig;
-                  setTimeout(() => {
-                    void runTurnRequest({
-                      mode: "send",
-                      chatId: targetChatId,
-                      text: mergedQueueText,
-                      attachments: [],
-                      baseMessages: relayBaseMessages,
-                      clearComposer: false,
-                      missingAttachmentPayloadMode: "block",
-                      characterAgentConfig: relayCharacterConfig,
-                    });
-                  }, 0);
-                }
-                setTimeout(() => {
-                  if (
-                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
-                    queuedTurnsOnError
-                  ) {
-                    queuedTurnsByChatIdRef.current.delete(targetChatId);
-                    syncInterjectStateForChat(targetChatId);
-                  }
-                }, 1600);
-              } else if (queuedTurnsOnError) {
-                queuedTurnsByChatIdRef.current.delete(targetChatId);
+              const queuedTurnsOnError =
+                queuedTurnsByChatIdRef.current.get(targetChatId);
+              if (queuedTurnsOnError) {
+                // Preserve queued input after an error. Only a normal onDone
+                // may automatically relay it into a new generation.
                 syncInterjectStateForChat(targetChatId);
               }
             },
           },
         );
       } catch (error) {
+        if (!isCurrentRun()) {
+          return false;
+        }
         flushSubagentState(Date.now());
         activeFlushScheduler.flushSync();
         disposeBufferedTokenFlush();
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
+        // C12 / FM15: a custom provider's send-time fail-closed throw carries a
+        // structured code (see api.unchain.injectCustomProviderIntoPayload).
+        // Surface an actionable toast instead of letting it fall into the
+        // generic error bubble with no way forward.
+        emitCustomProviderSendErrorToast(error, tRef.current);
+        if (scheduleDurableResumeRetry(error, nextMessages)) {
+          cancelBackgroundPersist(targetChatId);
+          streamHandlesRef.current.delete(targetChatId);
+          streamingChatIdsRef.current.delete(targetChatId);
+          activeStreamsRef.current.delete(targetChatId);
+          clearStreamingMessageStore(targetChatId, assistantMessageId);
+          setStreamingChatIds((prev) => {
+            const next = new Set(prev);
+            next.delete(targetChatId);
+            return next;
+          });
+          activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+          return true;
+        }
         setStreamError(errorMessage);
         cancelBackgroundPersist(targetChatId);
         streamHandlesRef.current.delete(targetChatId);
@@ -3601,6 +4630,28 @@ export const useChatStream = ({
 
       streamHandlesRef.current.set(targetChatId, streamHandle);
 
+      const streamAttemptId =
+        typeof streamHandle?.attemptId === "string" &&
+        streamHandle.attemptId.trim()
+          ? streamHandle.attemptId.trim()
+          : typeof streamHandle?.requestId === "string"
+            ? streamHandle.requestId.trim()
+            : "";
+      if (effectiveThreadId && streamAttemptId) {
+        executionIdentityByChatIdRef.current.set(targetChatId, {
+          sessionId: effectiveThreadId,
+          attemptId: streamAttemptId,
+          requestId:
+            typeof streamHandle?.requestId === "string"
+              ? streamHandle.requestId.trim()
+              : "",
+          sourceAttemptId: isDurableResume
+            ? durableInteraction.sourceRunId || ""
+            : "",
+          runGeneration: activeRunGeneration,
+        });
+      }
+
       if (streamHandle?.requestId) {
         const nextStreamMessages = streamMessages.map((message) =>
           message.id === assistantMessageId
@@ -3609,6 +4660,12 @@ export const useChatStream = ({
                 meta: {
                   ...(message.meta || {}),
                   requestId: streamHandle.requestId,
+                  ...(streamAttemptId
+                    ? {
+                        attemptId: streamAttemptId,
+                        executionSessionId: effectiveThreadId,
+                      }
+                    : {}),
                 },
               }
             : message,
@@ -3623,22 +4680,27 @@ export const useChatStream = ({
       activeChatIdRef,
       activeStreamsRef,
       appendSyntheticToolConfirmationDecision,
+      beginRunGeneration,
       buildCharacterRunConfig,
       buildHistoryForModel,
       characterId,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
+      clearDurableResumeStartedKeysForChat,
       clearResolvedToolConfirmationByCallId,
+      getConfirmationRuntimeForChat,
       hydrateAttachmentPayloads,
       agentOrchestration,
       isCharacterChat,
+      isRunGenerationCurrent,
       isToolCallAutoApprovable,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
       messagesRef,
       resolveAttachmentPayloads,
+      scheduleQueueRelayTimer,
       selectedToolkits,
       selectedWorkspaceIds,
       selectedRecipeName,
@@ -3656,6 +4718,422 @@ export const useChatStream = ({
     ],
   );
 
+  const lookupDurableInteraction = useCallback(
+    async (
+      targetChatId,
+      targetSessionId,
+      {
+        autoResume = true,
+        lookupAttempt = 0,
+        runGeneration: requestedRunGeneration = null,
+      } = {},
+    ) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      const normalizedSessionId =
+        typeof targetSessionId === "string" ? targetSessionId.trim() : "";
+      if (!normalizedChatId || !normalizedSessionId) {
+        return null;
+      }
+      const activeRunGeneration =
+        Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
+          ? requestedRunGeneration
+          : ensureRecoveryRunGeneration(normalizedChatId);
+      const isCurrentLookup = () =>
+        isRunGenerationCurrent(normalizedChatId, activeRunGeneration);
+      if (!isCurrentLookup()) {
+        return null;
+      }
+      if (
+        typeof api.unchain.isDurableInteractionBridgeAvailable !==
+          "function" ||
+        !api.unchain.isDurableInteractionBridgeAvailable()
+      ) {
+        updateDurableInteractionForChat(normalizedChatId, null);
+        return null;
+      }
+
+      try {
+        const rawPending = await api.unchain.getPendingInteraction({
+          session_id: normalizedSessionId,
+        });
+        const pending = normalizePendingInteraction(
+          rawPending,
+          normalizedSessionId,
+        );
+        if (!isCurrentLookup()) {
+          if (
+            stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+            pending &&
+            pending.status !== "none"
+          ) {
+            const lateAttemptId =
+              pending.activeAttemptId || pending.sourceRunId || "";
+            if (lateAttemptId) {
+              const queuedCancellation = enqueueExecutionCancel({
+                sessionId: pending.sessionId,
+                attemptId: lateAttemptId,
+                sourceAttemptId: pending.sourceRunId || "",
+                reason: "user_stop",
+                createdAt: Date.now(),
+              });
+              void requestExecutionCancellationAndDisconnect({
+                identity: queuedCancellation,
+                handle: null,
+                reason: "user_stop",
+              }).then((result) => {
+                if (result?.ok && queuedCancellation) {
+                  removeExecutionCancel(
+                    queuedCancellation.sessionId,
+                    queuedCancellation.attemptId,
+                  );
+                }
+              });
+            }
+          }
+          return null;
+        }
+        if (!pending) {
+          const error = new Error(
+            "Unchain returned an invalid durable interaction record.",
+          );
+          error.code = "invalid_durable_interaction_record";
+          throw error;
+        }
+
+        if (pending.status === "none") {
+          const retryTimer = durableResumeRetryTimersRef.current.get(
+            normalizedChatId,
+          );
+          if (retryTimer) {
+            clearTimeout(retryTimer);
+            durableResumeRetryTimersRef.current.delete(normalizedChatId);
+          }
+          clearAllPendingToolConfirmations(normalizedChatId);
+          executionIdentityByChatIdRef.current.delete(normalizedChatId);
+          updateDurableInteractionForChat(normalizedChatId, null);
+          return pending;
+        }
+
+        const pendingAttemptId =
+          pending.activeAttemptId || pending.sourceRunId || "";
+        if (pendingAttemptId) {
+          executionIdentityByChatIdRef.current.set(normalizedChatId, {
+            sessionId: pending.sessionId,
+            attemptId: pendingAttemptId,
+            requestId: "",
+            sourceAttemptId: pending.sourceRunId || "",
+            runGeneration: activeRunGeneration,
+          });
+        }
+
+        clearAllPendingToolConfirmations(normalizedChatId);
+        const sourceMessages =
+          activeChatIdRef.current === normalizedChatId &&
+          Array.isArray(messagesRef.current)
+            ? messagesRef.current
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedChatId)
+              : [];
+        const ensured = ensureDurableInteractionMessage(
+          sourceMessages,
+          pending,
+        );
+        if (ensured.created) {
+          messagesRef.current = ensured.messages;
+          if (activeChatIdRef.current === normalizedChatId) {
+            setMessages(ensured.messages);
+          }
+          storageApi.setChatMessages(normalizedChatId, ensured.messages, {
+            source: "chat-page",
+          });
+        }
+
+        const runtime = getConfirmationRuntimeForChat(normalizedChatId);
+        runtime.confirmationIdByCallId.set(
+          pending.callId,
+          pending.interactionId,
+        );
+        runtime.confirmationCallIdById.set(
+          pending.interactionId,
+          pending.callId,
+        );
+        runtime.sessionIdByConfirmationId.set(
+          pending.interactionId,
+          pending.sessionId,
+        );
+        runtime.followupSignalById.set(pending.interactionId, false);
+
+        const confirmationRequest = buildRecoveredConfirmationRequest({
+          pending,
+          chatId: normalizedChatId,
+          ownerMessageId: ensured.ownerMessageId,
+        });
+        updatePendingToolConfirmationRequests(normalizedChatId, {
+          [pending.interactionId]: confirmationRequest,
+        });
+        updateToolConfirmationUiState(normalizedChatId, {
+          [pending.interactionId]: {
+            status:
+              pending.status === "receipt_recorded" ? "submitted" : "idle",
+            error: "",
+            resolved: pending.status === "receipt_recorded",
+            decision:
+              pending.resolution?.outcome === "approved"
+                ? "approved"
+                : pending.resolution?.outcome === "denied"
+                  ? "denied"
+                  : "",
+          },
+        });
+
+        const pendingWithOwner = {
+          ...pending,
+          ownerMessageId: ensured.ownerMessageId,
+        };
+        updateDurableInteractionForChat(normalizedChatId, pendingWithOwner);
+
+        if (pending.status !== "receipt_recorded") {
+          return pendingWithOwner;
+        }
+
+        const resolutionResponse = pending.resolution?.response;
+        const approved =
+          pending.resolution?.outcome === "approved" ||
+          resolutionResponse?.approved === true;
+        const recoveredUserResponse =
+          resolutionResponse?.user_response ??
+          resolutionResponse?.modified_arguments?.user_response ??
+          (Array.isArray(resolutionResponse?.selected_values)
+            ? resolutionResponse
+            : undefined);
+        appendSyntheticToolConfirmationDecision({
+          targetChatId: normalizedChatId,
+          confirmationId: pending.interactionId,
+          approved,
+          userResponse: recoveredUserResponse,
+        });
+
+        if (!pending.resumeAvailable) {
+          const unavailableMessage = pending.resumeUnavailableReason
+            ? `This interrupted run cannot be resumed (${pending.resumeUnavailableReason}).`
+            : "This interrupted run cannot be resumed.";
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...pendingWithOwner,
+            status: "resume_failed",
+            lastError: unavailableMessage,
+          });
+          if (activeChatIdRef.current === normalizedChatId) {
+            setStreamError(unavailableMessage);
+          }
+          return pendingWithOwner;
+        }
+
+        if (!autoResume || streamingChatIdsRef.current.has(normalizedChatId)) {
+          return pendingWithOwner;
+        }
+
+        const resumeKey = [
+          pending.sessionId,
+          pending.interactionId,
+          pending.receiptId || "",
+        ].join(":");
+        if (durableResumeStartedKeysRef.current.has(resumeKey)) {
+          return pendingWithOwner;
+        }
+        trackDurableResumeStartedKey(normalizedChatId, resumeKey);
+        updateDurableInteractionForChat(normalizedChatId, {
+          ...pendingWithOwner,
+          status: "resuming",
+          resumeAttempt: 0,
+          lastError: "",
+        });
+
+        const resumeMessages =
+          activeChatIdRef.current === normalizedChatId &&
+          Array.isArray(messagesRef.current)
+            ? messagesRef.current
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedChatId)
+              : ensured.messages;
+        void runTurnRequest({
+          mode: "resume_interaction",
+          chatId: normalizedChatId,
+          text: "",
+          attachments: [],
+          baseMessages: resumeMessages,
+          clearComposer: false,
+          durableInteraction: pendingWithOwner,
+          durableResumeAttempt: 0,
+          durableOwnerMessageId: ensured.ownerMessageId,
+          runGeneration: activeRunGeneration,
+        });
+        return pendingWithOwner;
+      } catch (error) {
+        if (!isCurrentLookup()) {
+          return null;
+        }
+        const errorMessage =
+          error?.message || "Failed to inspect this chat for interrupted work.";
+        if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
+          const nextAttempt = lookupAttempt + 1;
+          updateDurableInteractionForChat(normalizedChatId, {
+            status: "retry_wait",
+            sessionId: normalizedSessionId,
+            resumeAttempt: nextAttempt,
+            lastError: errorMessage,
+          });
+          const existingTimer = durableResumeRetryTimersRef.current.get(
+            normalizedChatId,
+          );
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+          let timerId = null;
+          timerId = setTimeout(() => {
+            if (
+              durableResumeRetryTimersRef.current.get(normalizedChatId) ===
+              timerId
+            ) {
+              durableResumeRetryTimersRef.current.delete(normalizedChatId);
+            }
+            if (!isCurrentLookup()) {
+              return;
+            }
+            void lookupDurableInteraction(normalizedChatId, normalizedSessionId, {
+              autoResume,
+              lookupAttempt: nextAttempt,
+              runGeneration: activeRunGeneration,
+            });
+          }, durableInteractionRetryDelayMs(lookupAttempt));
+          durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);
+          return null;
+        }
+
+        updateDurableInteractionForChat(normalizedChatId, {
+          status: "resume_failed",
+          sessionId: normalizedSessionId,
+          resumeAttempt: lookupAttempt,
+          lastError: errorMessage,
+        });
+        if (activeChatIdRef.current === normalizedChatId) {
+          setStreamError(errorMessage);
+        }
+        return null;
+      }
+    },
+    [
+      activeChatIdRef,
+      appendSyntheticToolConfirmationDecision,
+      clearAllPendingToolConfirmations,
+      ensureRecoveryRunGeneration,
+      getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
+      messagesRef,
+      runTurnRequest,
+      setMessages,
+      setStreamError,
+      storageApi,
+      trackDurableResumeStartedKey,
+      updateDurableInteractionForChat,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
+  );
+  durableInteractionLookupRef.current = lookupDurableInteraction;
+
+  useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (
+      !targetChatId ||
+      isStreaming ||
+      typeof api.unchain.isDurableInteractionBridgeAvailable !== "function" ||
+      !api.unchain.isDurableInteractionBridgeAvailable()
+    ) {
+      return undefined;
+    }
+    const runGeneration = ensureRecoveryRunGeneration(targetChatId);
+    if (
+      !runGeneration ||
+      !isRunGenerationCurrent(targetChatId, runGeneration)
+    ) {
+      return undefined;
+    }
+    const existingState = durableInteractionByChatIdRef.current[targetChatId];
+    if (
+      ["retry_wait", "resume_failed", "resuming"].includes(
+        existingState?.status,
+      )
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    updateDurableInteractionForChat(targetChatId, {
+      ...(existingState || {}),
+      status: "checking",
+      lastError: "",
+    });
+    void (async () => {
+      let sessionId = targetChatId;
+      if (isCharacterChat) {
+        try {
+          const config = await buildCharacterRunConfig();
+          if (
+            cancelled ||
+            !isRunGenerationCurrent(targetChatId, runGeneration)
+          ) {
+            return;
+          }
+          sessionId =
+            typeof config?.session_id === "string" && config.session_id.trim()
+              ? config.session_id.trim()
+              : "";
+        } catch (error) {
+          if (
+            !cancelled &&
+            isRunGenerationCurrent(targetChatId, runGeneration)
+          ) {
+            const errorMessage =
+              error?.message || "Failed to prepare durable recovery.";
+            updateDurableInteractionForChat(targetChatId, {
+              status: "resume_failed",
+              sessionId: "",
+              lastError: errorMessage,
+            });
+            setStreamError(errorMessage);
+          }
+          return;
+        }
+      }
+      if (
+        !cancelled &&
+        sessionId &&
+        isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        await lookupDurableInteraction(targetChatId, sessionId, {
+          autoResume: true,
+          runGeneration,
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    buildCharacterRunConfig,
+    chatId,
+    ensureRecoveryRunGeneration,
+    isCharacterChat,
+    isRunGenerationCurrent,
+    isStreaming,
+    lookupDurableInteraction,
+    setStreamError,
+    updateDurableInteractionForChat,
+  ]);
+
   const sendForTest = useCallback(
     ({ text = "", attachments = [] } = {}) => {
       const chatId = activeChatIdRef.current;
@@ -3664,6 +5142,14 @@ export const useChatStream = ({
           Object.assign(new Error("no active chat"), {
             code: "no_active_chat",
           }),
+        );
+      }
+      if (durableInteractionByChatIdRef.current[chatId]?.status) {
+        return Promise.reject(
+          Object.assign(
+            new Error("This chat is restoring an interrupted run."),
+            { code: "durable_interaction_in_progress" },
+          ),
         );
       }
       const baseLen = (messagesRef.current || []).length;
@@ -3765,6 +5251,16 @@ export const useChatStream = ({
         return;
       }
 
+      const durableState =
+        durableInteractionByChatIdRef.current[currentChatId] || null;
+      if (durableState?.status) {
+        setStreamError(
+          durableState.lastError ||
+            "This chat is restoring an interrupted run. Please wait.",
+        );
+        return;
+      }
+
       if (thisChatsStreamActive) {
         if (bypassInterject) {
           // Should not normally happen — see the comment above — but never
@@ -3798,10 +5294,27 @@ export const useChatStream = ({
         return;
       }
 
+      // Composer plugin-skill expansion: only for text actually typed into
+      // the composer. Programmatic sends (interject new_run fallback / queue
+      // relay) already carry a resolved body — expanding them again would
+      // re-run command tokens that were already handled upstream.
+      const outgoingText = isProgrammaticSend
+        ? text
+        : (
+            expandCommands(text, {
+              isStreaming: false,
+              selectedToolkits: selectedToolkitsRef.current,
+            }).body || ""
+          ).trim();
+
+      if (!outgoingText && !hasAttachments) {
+        return;
+      }
+
       void runTurnRequest({
         mode: "send",
         chatId: currentChatId,
-        text,
+        text: outgoingText,
         attachments: currentDraftAttachments,
         baseMessages: messagesRef.current,
         clearComposer: !isProgrammaticSend,
@@ -3846,12 +5359,21 @@ export const useChatStream = ({
         return;
       }
 
+      const runGeneration = getRunGeneration(targetChatId);
       const threadId =
         activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+      const isCurrentDispatch = () =>
+        isRunGenerationCurrent(targetChatId, runGeneration);
+      if (!isCurrentDispatch()) {
+        return;
+      }
 
       api.unchain
         .interject({ threadId, text: body, channel })
         .then((result) => {
+          if (!isCurrentDispatch()) {
+            return;
+          }
           const rawResolvedChannel =
             result && typeof result.resolved_channel === "string"
               ? result.resolved_channel
@@ -3963,6 +5485,9 @@ export const useChatStream = ({
           }
         })
         .catch((error) => {
+          if (!isCurrentDispatch()) {
+            return;
+          }
           setStreamError(error?.message || "Failed to send interjection.");
         });
     },
@@ -3970,6 +5495,8 @@ export const useChatStream = ({
       activeChatIdRef,
       appendLocalInterjectionRecord,
       appendLocalTraceFrame,
+      getRunGeneration,
+      isRunGenerationCurrent,
       pushQueuedTurn,
       sendNewTurn,
       setStreamError,
@@ -4299,44 +5826,73 @@ export const useChatStream = ({
   );
 
   useEffect(() => {
-    const confirmationIdByCallId = confirmationIdByCallIdRef.current;
-    const confirmationCallIdById = confirmationCallIdByIdRef.current;
-    const confirmationFollowupSignalById =
-      confirmationFollowupSignalByIdRef.current;
-    const confirmationResolveTimerById =
-      confirmationResolveTimerByIdRef.current;
+    const confirmationRuntimeByChatId =
+      confirmationRuntimeByChatIdRef.current;
     const streamHandles = streamHandlesRef.current;
+    const executionIdentities = executionIdentityByChatIdRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
     const activeStreams = activeStreamsRef.current;
     const activeRunThreadIdByChatId = activeRunThreadIdByChatIdRef.current;
     const queuedTurnsByChatId = queuedTurnsByChatIdRef.current;
     const pendingFyiCountByChatId = pendingFyiCountByChatIdRef.current;
     const pendingClarifyByChatId = pendingClarifyByChatIdRef.current;
+    const durableResumeRetryTimers = durableResumeRetryTimersRef.current;
+    const durableResumeStartedKeys = durableResumeStartedKeysRef.current;
+    const durableResumeStartedKeysByChatId =
+      durableResumeStartedKeysByChatIdRef.current;
+    const runGenerationsByChatId = runGenerationByChatIdRef.current;
+    const stoppedRunChatIds = stoppedRunChatIdsRef.current;
+    const queueRelayTimersByChatId = queueRelayTimersByChatIdRef.current;
+    const confirmationRetryWaitersByChatId =
+      confirmationRetryWaitersByChatIdRef.current;
+    const renderRuntimeByChatId = renderRuntimeByChatIdRef.current;
 
     return () => {
-      clearActiveTokenFlushController("dispose");
+      runGenerationsByChatId.clear();
+      stoppedRunChatIds.clear();
+      for (const runtimeChatId of renderRuntimeByChatId.keys()) {
+        clearActiveTokenFlushController(runtimeChatId, "dispose");
+      }
+      renderRuntimeByChatId.clear();
+      // Renderer lifecycle is transport lifecycle, not execution intent.
+      // Navigation, reload, and HMR must never silently turn into user Stop.
       for (const handle of streamHandles.values()) {
-        if (handle && typeof handle.cancel === "function") {
-          handle.cancel();
-        }
+        disconnectStreamTransport(handle);
       }
       streamHandles.clear();
+      executionIdentities.clear();
       streamingChatIds.clear();
       activeStreams.clear();
       clearAttachmentPayloads();
-      confirmationIdByCallId.clear();
-      confirmationCallIdById.clear();
-      confirmationFollowupSignalById.clear();
-      confirmationResolveTimerById.forEach((timerId) => {
-        clearTimeout(timerId);
+      confirmationRuntimeByChatId.forEach((runtime) => {
+        runtime.resolveTimerById.forEach((timerId) => {
+          clearTimeout(timerId);
+        });
       });
-      confirmationResolveTimerById.clear();
-      pendingToolConfirmationRequestsRef.current = {};
+      confirmationRuntimeByChatId.clear();
+      pendingToolConfirmationRequestsByChatIdRef.current = {};
+      toolConfirmationUiStateByChatIdRef.current = {};
       pendingContinuationRequestRef.current = null;
       activeRunThreadIdByChatId.clear();
       queuedTurnsByChatId.clear();
       pendingFyiCountByChatId.clear();
       pendingClarifyByChatId.clear();
+      durableResumeRetryTimers.forEach((timerId) => clearTimeout(timerId));
+      durableResumeRetryTimers.clear();
+      durableResumeStartedKeys.clear();
+      durableResumeStartedKeysByChatId.clear();
+      queueRelayTimersByChatId.forEach((timerIds) => {
+        timerIds.forEach((timerId) => clearTimeout(timerId));
+      });
+      queueRelayTimersByChatId.clear();
+      confirmationRetryWaitersByChatId.forEach((waiters) => {
+        waiters.forEach((waiter) => {
+          clearTimeout(waiter.timerId);
+          waiter.resolve(false);
+        });
+      });
+      confirmationRetryWaitersByChatId.clear();
+      durableInteractionByChatIdRef.current = {};
     };
   }, [
     activeStreamsRef,
@@ -4345,12 +5901,15 @@ export const useChatStream = ({
   ]);
 
   return {
+    canStop,
     deleteTurn,
     editTurn,
     handleContinuationDecision,
     handleToolConfirmationDecision,
     hasBackgroundStream,
     interjectState,
+    durableInteractionStatus,
+    isDurableInteractionBlocked,
     isStreaming,
     onClarifyResolve,
     onQueueUndo,

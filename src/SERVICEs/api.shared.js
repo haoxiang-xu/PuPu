@@ -362,6 +362,8 @@ export {
   hasBridgeMethod,
   assertBridgeMethod,
   normalizeModelCatalog,
+  normalizeModelInputCapabilities,
+  defaultModelInputCapabilities,
   normalizeUnchainStatus,
   normalizeUpdateState,
 };

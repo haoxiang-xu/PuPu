@@ -113,27 +113,27 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    const toolsSelect = screen.getByTestId("select-Search toolkits...");
+    const toolsSelect = screen.getByTestId("select-Search plugins...");
 
     expect(toolsSelect.getAttribute("data-open")).toBe("false");
 
     fireEvent.click(toolsSelect);
     expect(refreshToolkits).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "true",
     );
 
-    fireEvent.click(screen.getByTestId("select-Search toolkits..."));
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
     expect(refreshToolkits).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "false",
     );
 
-    fireEvent.click(screen.getByTestId("select-Search toolkits..."));
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
     expect(refreshToolkits).toHaveBeenCalledTimes(2);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "true",
     );
@@ -170,7 +170,7 @@ describe("AttachPanel toolkit selector refresh", () => {
       "data-dropdown-position",
       "top",
     );
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-dropdown-position",
       "top",
     );
@@ -234,7 +234,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     );
 
     expect(screen.queryByTestId("select-Select model...")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("select-Search toolkits...")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("select-Search plugins...")).not.toBeInTheDocument();
     expect(screen.queryByTestId("select-Search workspaces...")).not.toBeInTheDocument();
   });
 
@@ -302,7 +302,7 @@ describe("AttachPanel toolkit selector refresh", () => {
 
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
-    expect(screen.getByTestId("select-Search toolkits...")).toBeInTheDocument();
+    expect(screen.getByTestId("select-Search plugins...")).toBeInTheDocument();
     await waitFor(() => {
       expect(onSelectRecipe).toHaveBeenCalledWith("Default");
     });
@@ -346,5 +346,22 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
     expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
+  });
+});
+
+describe("attach panel semantic surface binding", () => {
+  test("frosted panel + pill backgrounds derive from semantic vars, not hardcoded rgba", () => {
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "attach_panel.js"),
+      "utf8",
+    );
+    // near-opaque frosted surface must bind to the surface tier
+    expect(src).not.toMatch(/rgba\(28,28,28/);
+    expect(src).not.toMatch(/rgba\(252,252,252/);
+    expect(src).toMatch(/panelBg = isDark[\s\S]{0,140}var\(--pupu-surface-rgb\)/);
+    // pill overlay follows the neutral-overlay policy (text tier + alpha)
+    expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
+    // floating pill hairline border binds the mid border-strength tier (input-family)
+    expect(src).toMatch(/border: floating[\s\S]{0,80}var\(--pupu-border-mid\)/);
   });
 });

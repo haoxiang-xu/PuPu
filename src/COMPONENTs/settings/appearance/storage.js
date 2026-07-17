@@ -54,13 +54,24 @@ export const readThemeSettings = () => {
   const appearance = isObject(root.appearance) ? root.appearance : {};
   const theme = isObject(appearance.theme) ? appearance.theme : {};
   const custom = isObject(theme.custom) ? theme.custom : {};
-  return stripAutoTiers({
+  const result = stripAutoTiers({
     preset: typeof theme.preset === "string" ? theme.preset : "default",
     custom: {
       light_mode: isObject(custom.light_mode) ? { ...custom.light_mode } : {},
       dark_mode: isObject(custom.dark_mode) ? { ...custom.dark_mode } : {},
     },
   });
+  if (isObject(theme.details)) {
+    result.details = {
+      light_mode: isObject(theme.details.light_mode)
+        ? { ...theme.details.light_mode }
+        : {},
+      dark_mode: isObject(theme.details.dark_mode)
+        ? { ...theme.details.dark_mode }
+        : {},
+    };
+  }
+  return result;
 };
 
 const persist = (theme) => {
@@ -89,6 +100,16 @@ export const writeThemeCustom = (custom) => {
   theme.custom = {
     light_mode: isObject(custom?.light_mode) ? custom.light_mode : {},
     dark_mode: isObject(custom?.dark_mode) ? custom.dark_mode : {},
+  };
+  persist(theme);
+  return theme;
+};
+
+export const writeThemeDetails = (details) => {
+  const theme = readThemeSettings();
+  theme.details = {
+    light_mode: isObject(details?.light_mode) ? details.light_mode : {},
+    dark_mode: isObject(details?.dark_mode) ? details.dark_mode : {},
   };
   persist(theme);
   return theme;

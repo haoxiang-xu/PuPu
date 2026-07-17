@@ -49,27 +49,28 @@ const STREAM_PAINT_INTERVAL_MS = 400; // 流式期间兜底重绘(直播膨胀�
 
 const PALETTE = {
   dark: {
-    uOn: "rgba(255,255,255,0.62)",
-    tickDim: "rgba(255,255,255,0.12)", // 视口外:统一淡色,不分角色
-    count: "rgba(255,255,255,0.40)",
-    /* 快照卡走 palette/attach 家族语言(command_palette_panel/command_menu 同源 token) */
-    snapBg: "rgba(28,28,28,0.85)", snapLine: "rgba(255,255,255,0.10)",
-    snapFg: "rgba(255,255,255,0.92)", snapMuted: "rgba(255,255,255,0.42)",
-    snapBody: "rgba(255,255,255,0.78)", snapHint: "rgba(255,255,255,0.35)",
-    snapCodeBg: "rgba(255,255,255,0.05)",
+    uOn: "rgba(var(--pupu-text-rgb),0.62)",
+    tickDim: "rgba(var(--pupu-text-rgb),0.12)", // 视口外:统一淡色,不分角色
+    count: "rgba(var(--pupu-text-rgb),0.40)",
+    /* 快照卡走 palette/attach 家族语言(command_palette_panel/command_menu 同源 token);
+       毛玻璃底走 surface tier,黑白中性叠加走 text tier(语义主题四期迁移) */
+    snapBg: "rgba(var(--pupu-surface-rgb),0.85)", snapLine: "rgba(var(--pupu-text-rgb),0.10)",
+    snapFg: "rgba(var(--pupu-text-rgb),0.92)", snapMuted: "rgba(var(--pupu-text-rgb),0.42)",
+    snapBody: "rgba(var(--pupu-text-rgb),0.78)", snapHint: "rgba(var(--pupu-text-rgb),0.35)",
+    snapCodeBg: "rgba(var(--pupu-text-rgb),0.05)",
     snapShadow: "0 10px 34px rgba(0,0,0,0.5)",
-    chip: "rgba(255,255,255,0.10)",
+    chip: "rgba(var(--pupu-text-rgb),0.10)",
   },
   light: {
-    uOn: "rgba(0,0,0,0.55)",
-    tickDim: "rgba(0,0,0,0.12)",
-    count: "rgba(0,0,0,0.40)",
-    snapBg: "rgba(252,252,252,0.9)", snapLine: "rgba(0,0,0,0.09)",
-    snapFg: "rgba(0,0,0,0.86)", snapMuted: "rgba(0,0,0,0.44)",
-    snapBody: "rgba(0,0,0,0.72)", snapHint: "rgba(0,0,0,0.38)",
-    snapCodeBg: "rgba(0,0,0,0.045)",
+    uOn: "rgba(var(--pupu-text-rgb),0.55)",
+    tickDim: "rgba(var(--pupu-text-rgb),0.12)",
+    count: "rgba(var(--pupu-text-rgb),0.40)",
+    snapBg: "rgba(var(--pupu-surface-rgb),0.9)", snapLine: "rgba(var(--pupu-text-rgb),0.09)",
+    snapFg: "rgba(var(--pupu-text-rgb),0.86)", snapMuted: "rgba(var(--pupu-text-rgb),0.44)",
+    snapBody: "rgba(var(--pupu-text-rgb),0.72)", snapHint: "rgba(var(--pupu-text-rgb),0.38)",
+    snapCodeBg: "rgba(var(--pupu-text-rgb),0.045)",
     snapShadow: "0 10px 34px rgba(0,0,0,0.12)",
-    chip: "rgba(0,0,0,0.06)",
+    chip: "rgba(var(--pupu-text-rgb),0.06)",
   },
 };
 

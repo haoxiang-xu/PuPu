@@ -26,6 +26,9 @@ import { createLogger } from "./console_logger";
  *     source?:      string   — registration source (default "builtin");
  *                              determines priority: builtin(0) > interject(1)
  *                              > plugin:*(2). Used for conflict resolution.
+ *     sourceLabel?: string   — human-readable attribution for the source
+ *                              (e.g. a plugin's display name); "" when the
+ *                              command carries no external attribution.
  *     expandsTo?:   string   — optional expansion target (default "")
  *   }
  */
@@ -79,6 +82,7 @@ export const registerCommand = ({
   exclusiveGroup = "",
   channel = "",
   source = "builtin",
+  sourceLabel = "",
   expandsTo = "",
 }) => {
   if (!name || typeof name !== "string" || !name.startsWith("/")) {
@@ -120,6 +124,7 @@ export const registerCommand = ({
     exclusiveGroup,
     channel: typeof channel === "string" ? channel : "",
     source,
+    sourceLabel: typeof sourceLabel === "string" ? sourceLabel : "",
     expandsTo: typeof expandsTo === "string" ? expandsTo : "",
   });
   return true;
@@ -164,14 +169,17 @@ export const listCommands = (ctx = {}, prefix = "") => {
         return false;
       }
     })
-    .map(({ name, description, icon, insertText, exclusiveGroup, channel }) => ({
-      name,
-      description,
-      icon,
-      insertText,
-      exclusiveGroup,
-      channel,
-    }));
+    .map(
+      ({ name, description, icon, insertText, exclusiveGroup, channel, sourceLabel }) => ({
+        name,
+        description,
+        icon,
+        insertText,
+        exclusiveGroup,
+        channel,
+        sourceLabel,
+      }),
+    );
 };
 
 const findRegisteredName = (lowerName) => {

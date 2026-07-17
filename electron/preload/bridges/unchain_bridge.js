@@ -22,6 +22,11 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS),
   installMcpToolkit: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT, payload),
+  testCustomProvider: (definition = null, apiKey = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER, {
+      custom_provider: definition,
+      api_key: typeof apiKey === "string" ? apiKey : "",
+    }),
   deleteMcpToolkit: (toolkitId = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT, { toolkitId }),
   reloadMcpToolkits: (payload = {}) =>
@@ -76,6 +81,8 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
+  getPendingInteraction: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.PENDING_INTERACTION, payload),
   interject: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.INTERJECT, payload),
   setChromeTerminalOpen: (open = false) =>
@@ -154,6 +161,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.READ_FILE, { filePath }),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
+  cancelExecution: streamClient.cancelExecution,
   startStreamV2: streamClient.startStreamV2,
   startStreamV4: streamClient.startStreamV4,
 });

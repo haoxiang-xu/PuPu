@@ -64,6 +64,40 @@ class RecipeRoutesTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue((self.tmpdir / ".pupu" / "agent_recipes" / "Coder.recipe").exists())
 
+    def test_subagent_profile_survives_save_list_and_get(self):
+        profile = {
+            "allowed_modes": ["delegate", "worker"],
+            "output_mode": "summary",
+            "memory_policy": "ephemeral",
+            "parallel_safe": True,
+        }
+        payload = {
+            "name": "WorkerRecipe",
+            "description": "parallel worker",
+            "model": None,
+            "max_iterations": None,
+            "subagent_profile": profile,
+            "agent": {"prompt_format": "soul", "prompt": "work"},
+            "toolkits": [],
+            "subagent_pool": [],
+        }
+
+        save_resp = self.client.post(
+            "/agent_recipes",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(payload),
+        )
+        self.assertEqual(save_resp.status_code, 200)
+
+        list_resp = self.client.get("/agent_recipes")
+        self.assertEqual(list_resp.status_code, 200)
+        names = [item["name"] for item in list_resp.get_json()["recipes"]]
+        self.assertIn("WorkerRecipe", names)
+
+        get_resp = self.client.get("/agent_recipes/WorkerRecipe")
+        self.assertEqual(get_resp.status_code, 200)
+        self.assertEqual(get_resp.get_json()["subagent_profile"], profile)
+
     def test_post_rejects_invalid_name(self):
         payload = {
             "name": "bad/name",

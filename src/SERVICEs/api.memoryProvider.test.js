@@ -12,6 +12,9 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
       startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
+      cancelExecution: jest.fn(async () => ({ status: "cancel_requested" })),
+      getPendingInteraction: jest.fn(async () => ({ status: "none" })),
+      respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
@@ -76,6 +79,66 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_embedding_provider).toBe("openai");
     expect(payload.options.memory_vector_top_k).toBe(3);
+  });
+
+  test("forwards durable interaction session identifiers", async () => {
+    await api.unchain.getPendingInteraction({ session_id: "chat-1" });
+    await api.unchain.respondToolConfirmation({
+      confirmation_id: "interaction-1",
+      session_id: "chat-1",
+      approved: true,
+    });
+
+    expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({
+      session_id: "chat-1",
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: "interaction-1",
+      session_id: "chat-1",
+      approved: true,
+      reason: "",
+    });
+  });
+
+  test("forwards an exact execution cancellation identity", async () => {
+    await api.unchain.cancelExecution({
+      sessionId: " chat-1 ",
+      attemptId: " attempt-1 ",
+      reason: " user_stop ",
+      idempotencyKey: " stop-1 ",
+      sourceAttemptId: " attempt-source-1 ",
+      requestId: " request-1 ",
+    });
+
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      session_id: "chat-1",
+      attempt_id: "attempt-1",
+      reason: "user_stop",
+      source_attempt_id: "attempt-source-1",
+      request_id: "request-1",
+      idempotency_key: "stop-1",
+    });
+  });
+
+  test("rejects execution cancellation without an exact attempt", async () => {
+    await expect(
+      api.unchain.cancelExecution({ session_id: "chat-1" }),
+    ).rejects.toMatchObject({
+      code: "invalid_execution_cancel_request",
+    });
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
+
+  test("rejects non-boolean confirmation decisions", async () => {
+    await expect(
+      api.unchain.respondToolConfirmation({
+        confirmation_id: "interaction-1",
+        approved: "false",
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_confirmation_request",
+    });
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
   });
 
   test("respects explicit memory_enabled=false even when memory setting is enabled", () => {

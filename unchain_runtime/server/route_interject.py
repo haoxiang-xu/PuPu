@@ -73,19 +73,11 @@ def _root():
 
 def _run_side_answer(messages: list[dict[str, Any]], options: dict[str, Any]) -> str:
     import unchain_adapter as adapter
-    from unchain import Agent
     from unchain.kernel.lifecycle_events import last_assistant_text
 
-    config = adapter._resolve_general_runtime_config(options)
-    provider = config.get("provider") or "openai"
-    api_key = adapter._resolve_agent_api_key(options or {}, provider)
-    agent = Agent(
-        name="interject_side",
-        provider=provider,
-        model=config.get("model") or "",
-        instructions="",
-        api_key=api_key or None,
-    )
+    # C1/C9: same cfg-aware construction as the classifier — a custom-provider
+    # run's btw side answer must hit the user's endpoint, never the official one.
+    agent = adapter.build_interject_agent(options or {}, name="interject_side")
     result = agent.run(messages, max_iterations=1)
     return last_assistant_text(result.messages)
 

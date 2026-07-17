@@ -15,6 +15,7 @@ import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
+  getChatMessages,
   refreshCharacterChatMetadata,
   setChatAgentOrchestration,
   setChatGeneratedUnread,
@@ -29,13 +30,16 @@ import {
   stop as progressStop,
 } from "../../SERVICEs/progress_bus";
 import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
-import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
+import { resolveCustomModelCapabilities } from "../../SERVICEs/custom_provider_store";
+import { LogoSVGs, UISVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
 import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
+import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
+import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -49,12 +53,22 @@ const UNCHAIN_STATUS_POLL_INTERVAL_READY_MS = 15000;
 const _OllamaSVG = LogoSVGs.ollama;
 const _OpenAISVG = LogoSVGs.open_ai;
 const _AnthropicSVG = LogoSVGs.Anthropic;
+/* generic fallback glyph for custom / unknown providers */
+const _CustomProviderSVG = UISVGs.server;
 
 const PROVIDER_ICON = {
   ollama: _OllamaSVG,
   openai: _OpenAISVG,
   anthropic: _AnthropicSVG,
 };
+
+/**
+ * Resolve the icon component for a provider chip. Built-in providers use their
+ * brand logo; custom.* (and any unrecognized) provider falls back to a generic
+ * glyph so the chip still renders (design §6.3).
+ */
+const resolveProviderIcon = (provider) =>
+  PROVIDER_ICON[provider] || _CustomProviderSVG;
 
 const HERO_PHRASES = [
   "How can I help you today?",
@@ -198,6 +212,7 @@ const ChatInterface = () => {
 
   const storageApi = useMemo(
     () => ({
+      getChatMessages,
       setChatAgentOrchestration,
       setChatGeneratedUnread,
       setChatMessages,
@@ -216,9 +231,28 @@ const ChatInterface = () => {
   });
   const activeChatIdRef = session.activeChatIdRef;
   const modelIdRef = session.modelIdRef;
+  const setInputValue = session.setInputValue;
   const setSelectedModelId = session.setSelectedModelId;
   const setSelectedToolkits = session.setSelectedToolkits;
   const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
+
+  /* "Try in chat" from the Plugins app-store modal (plugin_detail_page.js):
+     the modal has no shared component tree with this page, so it prefills
+     the composer over a plain window event (src/SERVICEs/composer_prefill.js)
+     rather than a new context provider. Mounted once — session.setInputValue
+     is a stable useState setter and always targets whichever chat is
+     currently active. */
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handlePrefill = (event) => {
+      const text = typeof event?.detail?.text === "string" ? event.detail.text : "";
+      if (!text) return;
+      setInputValue(text);
+    };
+    window.addEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
+    return () => window.removeEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
+  }, [setInputValue]);
+
   const hasSelectedModel = useMemo(() => {
     if (session.isCharacterChat) {
       return true;
@@ -239,6 +273,8 @@ const ChatInterface = () => {
         ? session.selectedModelId.trim()
         : null;
 
+    // 1) Catalog hit (built-in models AND custom.* models merged into the
+    //    catalog via mergeCustomProvidersIntoCatalog).
     if (
       selectedModel &&
       modelCatalog?.modelCapabilities &&
@@ -248,10 +284,17 @@ const ChatInterface = () => {
       return modelCatalog.modelCapabilities[selectedModel];
     }
 
-    if (selectedModel && selectedModel === modelCatalog?.activeModel) {
-      return fallbackCapabilities;
+    // 2) Custom-capabilities hit — resolve directly from the definition store
+    //    so tool/attachment gating is correct even before the catalog has
+    //    refreshed after a custom provider change (design §6.4).
+    if (selectedModel) {
+      const customCapabilities = resolveCustomModelCapabilities(selectedModel);
+      if (customCapabilities) {
+        return customCapabilities;
+      }
     }
 
+    // 3) Default.
     return fallbackCapabilities;
   }, [modelCatalog, session.selectedModelId]);
 
@@ -279,6 +322,8 @@ const ChatInterface = () => {
     : modelSupportsAttachments
       ? ""
       : "Current model does not support image or file inputs.";
+
+  usePluginSkillSync(unchainStatus.ready);
 
   const effectiveSelectedToolkits = useMemo(
     () => (modelSupportsTools ? session.selectedToolkits : []),
@@ -349,6 +394,7 @@ const ChatInterface = () => {
     setAgentOrchestration: session.setAgentOrchestration,
     activeStreamsRef,
     streamingMessageStore: streamingMessageStoreRef.current,
+    t,
   });
   const {
     sendForTest: streamSendForTest,
@@ -562,15 +608,50 @@ const ChatInterface = () => {
     };
   }, [unchainStatus.ready, refreshModelCatalog]);
 
+  const isModelSelectionDisabled =
+    stream.isStreaming ||
+    session.isCharacterChat ||
+    stream.isDurableInteractionBlocked;
+
   const onSelectModel = useCallback(
     (modelId) => {
+      if (stream.isDurableInteractionBlocked) {
+        return;
+      }
       session.handleSelectModel(modelId, stream.isStreaming);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session.handleSelectModel, stream.isStreaming],
+    [
+      session.handleSelectModel,
+      stream.isDurableInteractionBlocked,
+      stream.isStreaming,
+    ],
   );
 
   const effectiveDisclaimer = useMemo(() => {
+    if (
+      stream.durableInteractionStatus === "awaiting" ||
+      stream.durableInteractionStatus === "awaiting_response"
+    ) {
+      return "This run is waiting for your confirmation.";
+    }
+    if (stream.durableInteractionStatus === "checking") {
+      return "Checking for an interrupted Unchain run...";
+    }
+    if (
+      stream.durableInteractionStatus === "resuming" ||
+      stream.durableInteractionStatus === "receipt_recorded"
+    ) {
+      return "Restoring an interrupted Unchain run...";
+    }
+    if (stream.durableInteractionStatus === "retry_wait") {
+      return "Waiting to retry restoring the interrupted run...";
+    }
+    if (stream.durableInteractionStatus === "resume_failed") {
+      return stream.streamError
+        ? `Unchain could not restore the interrupted run: ${stream.streamError}`
+        : "Unchain could not restore the interrupted run.";
+    }
     if (stream.streamError) {
       return `Unchain error: ${stream.streamError}`;
     }
@@ -593,11 +674,13 @@ const ChatInterface = () => {
     hasSelectedModel,
     attachmentsDisabledReason,
     unchainStatus,
+    stream.durableInteractionStatus,
     stream.isStreaming,
     stream.streamError,
   ]);
 
   const isSendDisabled =
+    stream.isDurableInteractionBlocked ||
     (!unchainStatus.ready && !stream.isStreaming) ||
     !hasSelectedModel;
 
@@ -679,7 +762,7 @@ const ChatInterface = () => {
       onChange: session.setInputValue,
       onSend: stream.sendNewTurn,
       onStop: stream.stopStream,
-      isStreaming: stream.isStreaming,
+      isStreaming: stream.canStop,
       sendDisabled: isSendDisabled,
       placeholder: unchainStatus.ready
         ? t("chat.placeholder")
@@ -696,7 +779,7 @@ const ChatInterface = () => {
       modelCatalog,
       selectedModelId: session.selectedModelId,
       onSelectModel,
-      modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
+      modelSelectDisabled: isModelSelectionDisabled,
       showModelSelector: !session.isCharacterChat,
       showToolSelector: !session.isCharacterChat && modelSupportsTools,
       showWorkspaceSelector: !session.isCharacterChat && modelSupportsTools,
@@ -715,8 +798,9 @@ const ChatInterface = () => {
       session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
-      stream.sendNewTurn, stream.stopStream, stream.isStreaming,
+      stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
+      isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
@@ -829,10 +913,11 @@ const ChatInterface = () => {
                 >
                   {chips.map((chip) => {
                     const active = session.selectedModelId === chip.id;
-                    const IconComp = PROVIDER_ICON[chip.provider];
+                    const IconComp = resolveProviderIcon(chip.provider);
                     return (
                       <button
                         key={chip.id}
+                        disabled={isModelSelectionDisabled}
                         onClick={() => onSelectModel(chip.id)}
                         style={{
                           display: "inline-flex",
@@ -843,7 +928,9 @@ const ChatInterface = () => {
                           fontSize: 12.5,
                           fontWeight: active ? 550 : 450,
                           fontFamily: theme?.font?.fontFamily || "inherit",
-                          cursor: "pointer",
+                          cursor: isModelSelectionDisabled
+                            ? "not-allowed"
+                            : "pointer",
                           outline: "none",
                           whiteSpace: "nowrap",
                           transition:
@@ -875,9 +962,10 @@ const ChatInterface = () => {
                               ? "0 6px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25)"
                               : "0 6px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.07)"
                             : "none",
+                          opacity: isModelSelectionDisabled ? 0.45 : 1,
                         }}
                         onMouseEnter={(event) => {
-                          if (active) return;
+                          if (active || isModelSelectionDisabled) return;
                           event.currentTarget.style.background = isDark
                             ? "rgba(255,255,255,0.08)"
                             : "rgba(0,0,0,0.06)";
@@ -889,7 +977,7 @@ const ChatInterface = () => {
                             : "rgba(0,0,0,0.70)";
                         }}
                         onMouseLeave={(event) => {
-                          if (active) return;
+                          if (active || isModelSelectionDisabled) return;
                           event.currentTarget.style.background = isDark
                             ? "rgba(255,255,255,0.04)"
                             : "rgba(0,0,0,0.03)";

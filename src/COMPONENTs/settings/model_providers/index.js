@@ -6,10 +6,12 @@ import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spi
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../appearance";
 import APIKeyInput from "./components/api_key_input";
+import CustomProvidersSection from "./custom-providers";
 import ModelCard from "./components/model_card";
 import ActiveDownloads from "./components/active_downloads";
 import { LIBRARY_CATEGORIES } from "./constants";
 import { useOllamaLibrary } from "./hooks/use_ollama_library";
+import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
 
 const OpenAISection = () => {
   const { t } = useTranslation();
@@ -241,6 +243,10 @@ const OllamaSection = () => {
 };
 
 export const ModelProvidersSettings = () => {
+  const customModelProvidersEnabled = isFeatureFlagEnabled(
+    "enable_custom_model_providers",
+  );
+
   return (
     <div
       className="scrollable"
@@ -257,6 +263,7 @@ export const ModelProvidersSettings = () => {
       <OpenAISection />
       <AnthropicSection />
       <OllamaSection />
+      {customModelProvidersEnabled && <CustomProvidersSection />}
     </div>
   );
 };

@@ -358,7 +358,7 @@ describe("ConfigContainer semantic palette", () => {
         "#112233",
       );
       expect(screen.getByTestId("legacy-modal-bg")).toHaveTextContent(
-        "#fedcba",
+        "#abcdef",
       );
       expect(themeBridge.setBackgroundColor).toHaveBeenLastCalledWith(
         "#abcdef",

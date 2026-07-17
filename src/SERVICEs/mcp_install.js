@@ -58,6 +58,18 @@ export function entryInstallState(entry, installedIds) {
   return "coming_soon";
 }
 
+/* An entry "opens setup" when clicking its GET-equivalent pill should not
+   fire a bare install — it needs a secrets form, an http-secret form, or a
+   custom recipe form first (see usePluginInstallState / plugin_tile.js /
+   plugins_discover_page.js, all of which gate on this before calling
+   install directly). Shared here so the state-derivation and the click
+   gating never drift from each other. */
+export function entryOpensSetup(entry, installedIds) {
+  if (!entry) return false;
+  if (entryInstallState(entry, installedIds) !== "installable") return false;
+  return ["secrets", "http_secret", "custom"].includes(setupKindForEntry(entry));
+}
+
 /* Workspace-scoped MCP entries must receive the agent workspace root. */
 export function resolveInstallWorkspace(entry, workspaceRoot) {
   if (requiresWorkspace(entry)) {

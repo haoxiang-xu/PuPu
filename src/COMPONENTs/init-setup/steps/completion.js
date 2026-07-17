@@ -22,10 +22,10 @@ const CompletionStep = ({ selectedProviders, onFinish }) => {
   const isDark = onThemeMode === "dark_mode";
   const highlight = themeHighlightColor(theme);
 
-  const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
-  const subColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
+  const headingColor = isDark ? "rgba(var(--pupu-text-rgb),0.92)" : "rgba(var(--pupu-text-rgb),0.88)";
+  const subColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.38)";
   const cardBg = "transparent";
-  const cardBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const cardBorder = "rgba(var(--pupu-text-rgb),0.08)";
 
   const providers = readModelProviders();
 

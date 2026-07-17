@@ -13,7 +13,7 @@ const toDisplayName = (toolkit) => {
     toolkit?.class_name ||
     toolkit?.name ||
     toolkit?.toolkitId ||
-    "Unknown Toolkit";
+    "Unknown Plugin";
 
   return String(raw)
     .replace(/([a-z])([A-Z])/g, "$1 $2")

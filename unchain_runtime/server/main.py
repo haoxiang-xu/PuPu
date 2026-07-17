@@ -4,8 +4,22 @@ import sys
 import threading
 import time
 
-from app import create_app
-from server_thread import ThreadedFlaskServer
+
+_DURABLE_JOB_WORKER_FLAG = "--durable-job-worker"
+
+
+def _dispatch_durable_job_worker(argv: list[str]) -> int | None:
+    if not argv or argv[0] != _DURABLE_JOB_WORKER_FLAG:
+        return None
+
+    from unchain.jobs._worker import main as worker_main
+    from durable_job_runtime import restore_frozen_job_environment
+
+    # Load every bundled worker dependency before reverting PyInstaller's
+    # library search state for the system command that the worker will launch.
+    restore_frozen_job_environment()
+
+    return int(worker_main(argv[1:]))
 
 
 def _read_port() -> int:
@@ -30,7 +44,15 @@ def _read_parent_pid() -> int:
         return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    worker_exit_code = _dispatch_durable_job_worker(args)
+    if worker_exit_code is not None:
+        return worker_exit_code
+
+    from app import create_app
+    from server_thread import ThreadedFlaskServer
+
     host = os.environ.get("UNCHAIN_HOST", "127.0.0.1")
     port = _read_port()
     expected_parent_pid = _read_parent_pid()

@@ -67,6 +67,7 @@ describe("preload API contract", () => {
       "getToolkitCatalog",
       "listMcpToolkits",
       "installMcpToolkit",
+      "testCustomProvider",
       "deleteMcpToolkit",
       "reloadMcpToolkits",
       "checkMcpToolkitHealth",
@@ -88,6 +89,7 @@ describe("preload API contract", () => {
       "approveMcpStoreEntry",
       "revokeMcpStoreEntryApproval",
       "respondToolConfirmation",
+      "getPendingInteraction",
       "interject",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -109,6 +111,7 @@ describe("preload API contract", () => {
       "startStreamV2",
       "startStreamV4",
       "cancelStream",
+      "cancelExecution",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");
     });
@@ -195,6 +198,24 @@ describe("preload API contract", () => {
       { sessionId: "chat-1", messages: [] },
     );
 
+    exposed.unchainAPI.getPendingInteraction({ session_id: "chat-1" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.PENDING_INTERACTION,
+      { session_id: "chat-1" },
+    );
+
+    exposed.unchainAPI.cancelExecution({
+      executionId: "chat-1",
+      attemptId: "attempt-1",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+      {
+        executionId: "chat-1",
+        attemptId: "attempt-1",
+      },
+    );
+
     exposed.unchainAPI.installMcpToolkit({
       entryId: "custom",
       secrets: {
@@ -227,6 +248,28 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
       { toolkitId: "mcp.memory.memory" },
+    );
+
+    exposed.unchainAPI.testCustomProvider(
+      {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      "hs-secret-key",
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
+      {
+        custom_provider: {
+          id: "sap-hyperspace",
+          protocol: "anthropic",
+          base_url: "http://localhost:6655/anthropic",
+          models: [{ id: "anthropic--claude-4.5-haiku" }],
+        },
+        api_key: "hs-secret-key",
+      },
     );
 
     exposed.unchainAPI.configureMcpToolkit("mcp.memory.memory", {

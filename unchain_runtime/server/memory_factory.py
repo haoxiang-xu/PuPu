@@ -1068,6 +1068,10 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         commit_params = inspect.signature(original_commit).parameters
     except Exception:
         commit_params = {}
+    supports_execution_fence = "execution_fence" in commit_params or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in commit_params.values()
+    )
 
     def _patched_commit_messages(
         self,
@@ -1081,7 +1085,13 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         summary_text: str | None = None,
         return_result: bool = False,
         clear_execution_checkpoint_id: str | None = None,
+        execution_fence: Any = None,
     ):
+        if execution_fence is not None and not supports_execution_fence:
+            raise RuntimeError(
+                "memory commit execution fencing is unsupported by the "
+                "installed unchain runtime"
+            )
         store_snapshot = None
         if session_id:
             try:
@@ -1126,6 +1136,8 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
             commit_kwargs["clear_execution_checkpoint_id"] = (
                 clear_execution_checkpoint_id
             )
+        if supports_execution_fence:
+            commit_kwargs["execution_fence"] = execution_fence
         return original_commit(**commit_kwargs)
 
     setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))

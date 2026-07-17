@@ -1,4 +1,10 @@
-import { isValidElement, useContext, useEffect, useState } from "react";
+import {
+  isValidElement,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import {
   themeHighlightColor,
@@ -8,7 +14,10 @@ import Tooltip from "../tooltip/tooltip";
 import Icon from "../icon/icon";
 import ScaleHighlight from "../class/scale_highlight";
 import SlidingHighlight from "../class/sliding_highlight";
-import useSelect, { render_icon } from "./use_select";
+import useSelect, {
+  render_icon,
+  useDropdownWheelGuard,
+} from "./use_select";
 import OptionList, { OptionItem } from "./option_list";
 import { useTranslation } from "../mini_react/use_translation";
 
@@ -25,9 +34,20 @@ const RailItem = ({
   onPick,
 }) => {
   const [hovered, setHovered] = useState(false);
+  /* Anti-impersonation marker: a user-defined ("custom") provider carries a
+     is_custom / badge flag. A built-in provider never does. Surfacing it here
+     — the group's visual identity in rail mode — means a shared config named
+     e.g. "OpenAI GPT-5" cannot masquerade as the built-in group (C11, §9.5).
+     Built-in rail items are unchanged (no badge). */
+  const badgeText =
+    group?.is_custom || group?.badge
+      ? typeof group.badge === "string" && group.badge
+        ? group.badge
+        : "Custom"
+      : "";
   return (
     <div
-      title={group.group}
+      title={badgeText ? `${group.group} (${badgeText})` : group.group}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onPick}
       onMouseEnter={() => setHovered(true)}
@@ -47,7 +67,7 @@ const RailItem = ({
     >
       <ScaleHighlight
         visible={active || (hovered && !dimmed)}
-        color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+        color={isDark ? "rgba(var(--pupu-text-rgb),0.10)" : "rgba(var(--pupu-text-rgb),0.06)"}
         borderRadius={12}
       />
       <span
@@ -103,12 +123,39 @@ const RailItem = ({
             height: 6,
             borderRadius: "50%",
             backgroundColor: accentColor,
-            border: `1.5px solid ${
-              isDark ? "rgba(28,28,28,1)" : "rgba(252,252,252,1)"
-            }`,
+            border: "1.5px solid rgb(var(--pupu-surface-rgb))",
             zIndex: 1,
           }}
         />
+      ) : null}
+      {badgeText ? (
+        <span
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: -3,
+            transform: "translateX(-50%)",
+            padding: "0 4px",
+            height: 12,
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 6,
+            fontFamily,
+            fontSize: 8,
+            fontWeight: 700,
+            letterSpacing: "0.02em",
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            color: isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)",
+            backgroundColor: isDark
+              ? "rgba(120,200,150,0.18)"
+              : "rgba(40,150,80,0.14)",
+            border: "1px solid rgb(var(--pupu-surface-rgb))",
+            zIndex: 2,
+          }}
+        >
+          {badgeText}
+        </span>
       ) : null}
     </div>
   );
@@ -144,6 +191,8 @@ const SinkingSelect = ({
   const group_theme = select_theme?.group || {};
 
   const [isTriggerFocused, setIsTriggerFocused] = useState(false);
+  const dropdownPanelRef = useRef(null);
+  const dropdownListRef = useRef(null);
 
   const hook = useSelect({
     options,
@@ -181,6 +230,8 @@ const SinkingSelect = ({
     handle_key_down,
     handle_query_change,
   } = hook;
+
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
 
   const baseFontSize =
     style?.fontSize ?? select_theme?.fontSize ?? theme?.input?.fontSize ?? 16;
@@ -338,6 +389,7 @@ const SinkingSelect = ({
 
   const dropdownContent = (
     <div
+      ref={dropdownPanelRef}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -350,6 +402,7 @@ const SinkingSelect = ({
           dropdown_theme?.backgroundColor ??
           theme?.backgroundColor ??
           "white",
+        border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
         boxShadow:
@@ -382,6 +435,7 @@ const SinkingSelect = ({
         />
       ) : null}
       <div
+        ref={dropdownListRef}
         id={listboxIdRef.current}
         role="listbox"
         className="scrollable"
@@ -470,6 +524,8 @@ const FloatingSelect = ({
 
   const [isTriggerFocused, setIsTriggerFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const dropdownPanelRef = useRef(null);
+  const dropdownListRef = useRef(null);
 
   const hook = useSelect({
     options,
@@ -507,6 +563,8 @@ const FloatingSelect = ({
     handle_key_down,
     handle_query_change,
   } = hook;
+
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
 
   /* ── card-like derived styles ── */
   const isDark = onThemeMode === "dark_mode";
@@ -684,6 +742,7 @@ const FloatingSelect = ({
 
   const dropdownContent = (
     <div
+      ref={dropdownPanelRef}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -695,6 +754,7 @@ const FloatingSelect = ({
           dropdown_theme?.backgroundColor ??
           theme?.backgroundColor ??
           "white",
+        border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
         boxShadow:
@@ -727,6 +787,7 @@ const FloatingSelect = ({
         />
       ) : null}
       <div
+        ref={dropdownListRef}
         id={listboxIdRef.current}
         role="listbox"
         className="scrollable"
@@ -877,6 +938,8 @@ const Select = ({
 
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const dropdownPanelRef = useRef(null);
+  const dropdownListRef = useRef(null);
 
   const hook = useSelect({
     options,
@@ -915,6 +978,8 @@ const Select = ({
     handle_key_down,
     handle_query_change,
   } = hook;
+
+  useDropdownWheelGuard(mergedOpen, dropdownPanelRef, dropdownListRef);
 
   useEffect(() => {
     if (!disabled) return;
@@ -1130,19 +1195,33 @@ const Select = ({
       g.options.forEach((o) => railGroupNames.set(o, g.group)),
     );
   }
+  /* Collapse-memory identity a group toggle addresses. A group may render
+     under a display name (group.group) that differs from the stable key the
+     caller stores collapse state under (group.group_key) — e.g. custom
+     providers key by "custom.<slug>" while showing a free display name. The
+     toggle MUST emit that stable key or the caller's seed and its toggle drift
+     apart and the group can never fold (C7). Built-in groups carry no
+     group_key, so this falls back to group.group unchanged. */
+  const group_toggle_key = (item) =>
+    item && typeof item.group_key === "string" && item.group_key
+      ? item.group_key
+      : item?.group;
+
   const rail_pick_group = (target) => {
     (options || []).forEach((item) => {
       if (!item || typeof item !== "object" || !item.group) return;
       const shouldCollapse = item.group !== target;
-      if (!!item.collapsed !== shouldCollapse) on_group_toggle(item.group);
+      if (!!item.collapsed !== shouldCollapse) {
+        on_group_toggle(group_toggle_key(item));
+      }
     });
     if (query) handle_query_change("");
   };
 
   /* one hover pill gliding between rows (palette lists) */
   const slidingHoverColor = isDark
-    ? "rgba(255,255,255,0.10)"
-    : "rgba(0,0,0,0.06)";
+    ? "rgba(var(--pupu-text-rgb),0.10)"
+    : "rgba(var(--pupu-text-rgb),0.06)";
   const slidingMeasureKey = `${query}|${flatSelectable.length}|${
     flatSelectable[0]?.value ?? ""
   }`;
@@ -1223,6 +1302,7 @@ const Select = ({
 
   const dropdownContent = (
     <div
+      ref={dropdownPanelRef}
       style={
         isPalette
           ? {
@@ -1234,11 +1314,12 @@ const Select = ({
               maxWidth: "calc(100vw - 40px)",
               padding: 8,
               backgroundColor: isDark
-                ? "rgba(28,28,28,0.85)"
-                : "rgba(252,252,252,0.9)",
+                ? "rgba(var(--pupu-surface-rgb),0.85)"
+                : "rgba(var(--pupu-surface-rgb),0.9)",
+              /* blurred surfaces always carry an edge */
               border: isDark
-                ? "1px solid rgba(255,255,255,0.10)"
-                : "1px solid rgba(0,0,0,0.09)",
+                ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+                : "1px solid rgba(var(--pupu-text-rgb),0.09)",
               borderRadius: 22,
               backdropFilter: "blur(20px) saturate(130%)",
               WebkitBackdropFilter: "blur(20px) saturate(130%)",
@@ -1260,18 +1341,29 @@ const Select = ({
               gap: 6,
               minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
               padding: dropdown_theme?.padding ?? 6,
+              /* frosted family — same language as the attach-panel menus.
+                 NOTE: theme.select.dropdown.backgroundColor (solid surface)
+                 is deliberately bypassed here — it would defeat the blur. */
               backgroundColor:
                 dropdown_style?.backgroundColor ??
-                dropdown_theme?.backgroundColor ??
-                (isDark ? "rgba(30,30,30,0.95)" : "rgba(255,255,255,0.95)"),
+                (isDark
+                  ? "rgba(var(--pupu-surface-rgb),0.85)"
+                  : "rgba(var(--pupu-surface-rgb),0.9)"),
+              backdropFilter: "blur(20px) saturate(130%)",
+              WebkitBackdropFilter: "blur(20px) saturate(130%)",
+              border: isDark
+                ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+                : "1px solid rgba(var(--pupu-text-rgb),0.09)",
               borderRadius:
                 dropdown_style?.borderRadius ??
                 dropdown_theme?.borderRadius ??
-                10,
+                16,
               boxShadow:
                 dropdown_style?.boxShadow ??
                 dropdown_theme?.boxShadow ??
-                "0 12px 20px rgba(0,0,0,0.12)",
+                (isDark
+                  ? "0 10px 34px rgba(0,0,0,0.5)"
+                  : "0 10px 34px rgba(0,0,0,0.12)"),
               ...dropdown_style,
             }
       }
@@ -1312,9 +1404,7 @@ const Select = ({
               gap: 4,
               paddingRight: 5,
               marginRight: 7,
-              borderRight: `1px solid ${
-                isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"
-              }`,
+              borderRight: "1px solid rgba(var(--pupu-text-rgb),0.06)",
             }}
           >
             {filteredGroups.map((g) => (
@@ -1340,6 +1430,7 @@ const Select = ({
           {/* flat rows of the visible pool (= flatSelectable, so keyboard
               highlight indices line up 1:1); provider tag while searching */}
           <div
+            ref={dropdownListRef}
             id={listboxIdRef.current}
             role="listbox"
             className="scrollable"
@@ -1415,6 +1506,7 @@ const Select = ({
         </div>
       ) : (
       <div
+        ref={dropdownListRef}
         id={listboxIdRef.current}
         role="listbox"
         className="scrollable"
