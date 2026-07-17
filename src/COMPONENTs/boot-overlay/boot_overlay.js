@@ -84,14 +84,14 @@ const BootOverlay = () => {
         <ShaderBlobBackground
           colors={blobScene.colors}
           shape="torus"
-          count={5}
+          count={3}
           edge="smooth"
           smooth={0.6}
           speed={0.22}
           rotation={0.4}
           space={1}
           glossy={isDark ? 0.7 : 0.55}
-          ao={0.8}
+          ao={0}
           sss={isDark ? 0.2 : 0.45}
           blur={0}
           lightAzimuth={30}
@@ -102,7 +102,10 @@ const BootOverlay = () => {
           bgBottom={blobScene.bg}
           bgDepth={4}
           bgFuse={false}
-          pixelRatio={1.5}
+          /* rendered tiny then blurred to a faint smudge — the CSS blur(44)
+             hides the low resolution, so this cuts fragment work ~14x with
+             zero visible change. AO off (invisible under the blur). */
+          pixelRatio={0.4}
         />
       </div>
 

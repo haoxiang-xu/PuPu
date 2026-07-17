@@ -217,7 +217,8 @@ void main(){
     float hemi = 0.5 + 0.5 * n.y;
     vec3 ambient = mix(uGroundTint, uSkyTint, hemi);
 
-    float ao = mix(1.0, calcAO(p, n), uAO);
+    // Skip the 5-sample AO march entirely when AO is off (uAO == 0).
+    float ao = uAO > 0.0 ? mix(1.0, calcAO(p, n), uAO) : 1.0;
     float fresnel = pow(1.0 - ndv, 5.0);
     float shininess = mix(10.0, 140.0, uGlossy);
     float spec = pow(ndh, shininess) * ndl;
