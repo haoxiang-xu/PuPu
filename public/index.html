@@ -25,10 +25,104 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>PuPu</title>
+    <style>
+      /* Boot loading gate (S1 static shell -> S2 React takeover -> S3
+         release). This node is a sibling of #root and is driven directly
+         by src/SERVICEs/boot_progress.js once React mounts — it is never
+         torn down and rebuilt, only handed off, so there is no flash. */
+      #boot-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: var(--boot-bg, #121212);
+      }
+      #boot-overlay .boot-wordmark {
+        font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+        font-size: 24px;
+        font-weight: 300;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        color: var(--boot-fg, rgba(255, 255, 255, 0.75));
+      }
+      #boot-overlay .boot-progress-track {
+        width: 160px;
+        height: 3px;
+        border-radius: 2px;
+        overflow: hidden;
+        background: var(--boot-fg-rgb-08, rgba(255, 255, 255, 0.08));
+      }
+      #boot-overlay #boot-progress-bar {
+        display: block;
+        height: 100%;
+        width: 0%;
+        border-radius: 2px;
+        background: var(--boot-accent, rgba(255, 255, 255, 0.75));
+        animation: boot-crawl 8s ease-out forwards;
+      }
+      #boot-overlay .boot-caption {
+        font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--boot-fg-muted, rgba(255, 255, 255, 0.45));
+      }
+      @keyframes boot-crawl {
+        from {
+          width: 0%;
+        }
+        to {
+          width: 30%;
+        }
+      }
+    </style>
+    <script>
+      /* Self-contained, try/catch-wrapped: reads the boot palette cache
+         (written by src/CONTAINERs/config/theme_semantic.js persistBootPalette)
+         and applies it as CSS custom properties before anything paints.
+         No knowledge of presets/custom themes here on purpose — the cache
+         already carries fully-resolved colors. Falls back to the hardcoded
+         dark defaults above when the cache is missing or malformed, which
+         matches today's pre-boot-gate behavior exactly. */
+      (function () {
+        try {
+          var raw = window.localStorage.getItem("pupu_boot_palette");
+          if (!raw) return;
+          var palette = JSON.parse(raw);
+          if (!palette || typeof palette !== "object") return;
+          var root = document.documentElement;
+          if (typeof palette.background === "string") {
+            root.style.setProperty("--boot-bg", palette.background);
+          }
+          if (typeof palette.text === "string") {
+            root.style.setProperty("--boot-fg", palette.text);
+          }
+          if (typeof palette.textMuted === "string") {
+            root.style.setProperty("--boot-fg-muted", palette.textMuted);
+          }
+          if (typeof palette.accent === "string") {
+            root.style.setProperty("--boot-accent", palette.accent);
+          }
+        } catch (e) {
+          /* Malformed/unavailable cache — fall back to hardcoded defaults. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <div id="boot-overlay">
+      <div class="boot-wordmark">PuPu</div>
+      <div class="boot-progress-track">
+        <div id="boot-progress-bar"></div>
+      </div>
+      <div class="boot-caption">Loading&hellip;</div>
+    </div>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
