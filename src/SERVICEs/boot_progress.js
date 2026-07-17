@@ -1,25 +1,44 @@
 /*
- * Boot loading gate — drives the static #boot-overlay DOM node that is
- * baked into public/index.html (see the boot-loading-gate design doc).
+ * Boot loading gate.
  *
- * This is intentionally a plain DOM-manipulation service, not a React
- * component: the overlay node already exists in the document before the
- * React bundle ever executes (S1 static shell), and the whole point of the
- * handoff is that React takes over the *same* node rather than tearing it
- * down and rebuilding it (which would cause a visible flash).
+ * S1 (static shell): before React ever executes, public/index.html renders
+ * a minimal static #boot-overlay node driven directly by this module's
+ * DOM-manipulation half (`set`/`release`) — see the boot-loading-gate
+ * design doc.
+ *
+ * S2 (React takeover): once the React BootOverlay component mounts, it
+ * calls `takeOver()`, which removes the static node and disables further
+ * DOM driving from `set`/`release`. From that point on BootOverlay owns
+ * all rendering, reading `{ pct, ready }` via `subscribe()`/`getState()`.
+ * `set(pct)` and `signalReady()` (or the 8s failsafe) keep updating that
+ * shared state and notifying subscribers no matter which side (static DOM
+ * or React) is currently "in charge" of painting it.
  *
  * Public API:
- *   set(pct)  — advance the progress bar to `pct` (0-100), clamped.
- *   release() — jump to 100%, fade the overlay out over 240ms, then
- *               remove it from the DOM. Idempotent: safe to call more than
- *               once, and safe to call when the overlay is already gone
- *               (e.g. a hot-reloaded module, or web-only mode without the
- *               overlay markup).
+ *   set(pct)      — advance progress to `pct` (0-100, clamped). Always
+ *                    updates internal state + notifies subscribers; also
+ *                    drives the static DOM bar directly until takeOver().
+ *   signalReady()  — flips `ready` true (pct snaps to 100) and notifies.
+ *                    This is the one-time "chat page reached first screen"
+ *                    signal — it does NOT touch the DOM. The React overlay
+ *                    reacts by showing its "Enter" button; nothing is
+ *                    auto-dismissed until the user clicks it.
+ *   release()      — immediate-dismiss: jump to 100%, fade the static
+ *                    overlay out over 240ms, then remove it from the DOM.
+ *                    Idempotent. Used by the pre-takeOver failsafe and by
+ *                    tests/web-only paths that want the old immediate
+ *                    behavior (no Enter gate).
+ *   takeOver()     — called once by the React BootOverlay on mount: removes
+ *                    the static #boot-overlay node and disables set/release
+ *                    DOM driving. The 8s failsafe stays armed, but after
+ *                    takeOver it flips `ready` (shows Enter) instead of
+ *                    trying to fade/remove an already-gone node.
+ *   subscribe(cb)  — cb({ pct, ready }) on every state change. Returns an
+ *                    unsubscribe function.
+ *   getState()     — synchronous read of the current { pct, ready }.
  *
- * An 8s failsafe is armed as soon as this module is first imported: if
- * `release()` is never called (an uncaught boot error, a stuck store
- * hydration, etc.) the overlay auto-releases so the app never appears
- * stuck behind an opaque screen.
+ * An 8s failsafe is armed as soon as this module is first imported so the
+ * app never appears permanently stuck behind an opaque screen.
  */
 
 const OVERLAY_ID = "boot-overlay";
@@ -29,7 +48,10 @@ const FAILSAFE_MS = 8000;
 const TRANSITION_MS = 300;
 
 let released = false;
+let takenOver = false;
 let failsafeTimer = null;
+let state = { pct: 0, ready: false };
+let listeners = new Set();
 
 const getDocument = () => (typeof document !== "undefined" ? document : null);
 
@@ -57,25 +79,65 @@ const clearFailsafe = () => {
   }
 };
 
-/** Advance the overlay's progress bar. No-op once released or if the
- *  overlay/bar are not present in the DOM (already removed, hot reload,
- *  or web-only builds that never mounted it). */
+const notify = () => {
+  const snapshot = { ...state };
+  listeners.forEach((cb) => {
+    try {
+      cb(snapshot);
+    } catch (e) {
+      console.error("[boot_progress] subscriber threw:", e);
+    }
+  });
+};
+
+/** Subscribe to { pct, ready } state changes. Returns an unsubscribe fn. */
+export const subscribe = (cb) => {
+  if (typeof cb !== "function") return () => {};
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+};
+
+/** Synchronous read of the current { pct, ready } state. */
+export const getState = () => ({ ...state });
+
+/** Advance progress. Always updates state + notifies subscribers; also
+ *  drives the static DOM bar directly until takeOver() (and never again
+ *  once release()d). */
 export const set = (pct) => {
   if (released) return;
+  const clamped = clampPct(pct);
+  state = { ...state, pct: clamped };
+  notify();
+
+  if (takenOver) return;
   const overlay = getOverlay();
   if (!overlay) return;
   const bar = getBar(overlay);
   if (!bar || !bar.style) return;
   bar.style.transition = `width ${TRANSITION_MS}ms ease`;
-  bar.style.width = `${clampPct(pct)}%`;
+  bar.style.width = `${clamped}%`;
 };
 
-/** Release the boot gate: jump to 100%, fade out, remove the node.
- *  Idempotent — subsequent calls are no-ops. */
+/** Mark the boot gate ready without touching the DOM: pct snaps to 100 and
+ *  `ready` flips true. This is the "chat page reached first screen" signal
+ *  — the React BootOverlay reacts by revealing its Enter button; nothing is
+ *  dismissed until the user clicks it. Idempotent. */
+export const signalReady = () => {
+  if (state.ready) return;
+  state = { ...state, ready: true, pct: 100 };
+  notify();
+};
+
+/** Immediate-dismiss: jump to 100%, fade the static overlay out over 240ms,
+ *  then remove it from the DOM. Idempotent — subsequent calls are no-ops.
+ *  Always updates state + notifies subscribers first. */
 export const release = () => {
   if (released) return;
   released = true;
   clearFailsafe();
+
+  state = { ...state, ready: true, pct: 100 };
+  notify();
 
   const overlay = getOverlay();
   if (!overlay) return;
@@ -98,10 +160,30 @@ export const release = () => {
   }, FADE_MS);
 };
 
+/** Called once by the React BootOverlay on mount: removes the static
+ *  #boot-overlay node (if present) and disables further DOM driving from
+ *  set/release — from this point on, React owns rendering via
+ *  subscribe()/getState(). Idempotent. */
+export const takeOver = () => {
+  if (takenOver) return;
+  takenOver = true;
+  const overlay = getOverlay();
+  if (overlay && overlay.parentNode) {
+    overlay.parentNode.removeChild(overlay);
+  }
+};
+
 const armFailsafe = () => {
   if (typeof setTimeout !== "function") return;
   failsafeTimer = setTimeout(() => {
-    release();
+    // Pre-takeover: preserve the original immediate-dismiss behavior (no
+    // React overlay is around to show an Enter gate). Post-takeover: only
+    // flip ready — the brand screen stays up until the user clicks Enter.
+    if (takenOver) {
+      signalReady();
+    } else {
+      release();
+    }
   }, FAILSAFE_MS);
 };
 
@@ -114,8 +196,11 @@ armFailsafe();
  *  the service's runtime contract. */
 export const _resetForTest = () => {
   released = false;
+  takenOver = false;
+  state = { pct: 0, ready: false };
+  listeners = new Set();
   clearFailsafe();
 };
 
-const bootProgress = { set, release };
+const bootProgress = { set, release, signalReady, takeOver, subscribe, getState };
 export default bootProgress;
