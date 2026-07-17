@@ -76,28 +76,16 @@ describe("BootOverlay", () => {
     expect(screen.queryByRole("button", { name: /enter/i })).toBeNull();
   });
 
-  test("holds loading until the min cycles elapse, then shows Enter on ready", () => {
-    jest.useFakeTimers();
+  test("shows an Enter control once bootProgress signals ready", () => {
     renderOverlay();
-    // ready fires early — Enter must NOT appear until the loading animation
-    // has run its minimum few cycles.
     act(() => bootProgress.__emit({ pct: 100, ready: true }));
-    expect(screen.queryByRole("button", { name: /enter/i })).toBeNull();
-
-    act(() => {
-      jest.advanceTimersByTime(1800 * 3);
-    });
     expect(screen.getByRole("button", { name: /enter/i })).toBeInTheDocument();
-    jest.useRealTimers();
   });
 
   test("clicking Enter fades the overlay out and unmounts it", () => {
     jest.useFakeTimers();
     const { container } = renderOverlay();
     act(() => bootProgress.__emit({ pct: 100, ready: true }));
-    act(() => {
-      jest.advanceTimersByTime(1800 * 3);
-    });
 
     const enterButton = screen.getByRole("button", { name: /enter/i });
     fireEvent.click(enterButton);

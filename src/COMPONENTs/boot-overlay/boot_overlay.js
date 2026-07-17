@@ -11,10 +11,6 @@ const FALLBACK_BG = { light_mode: "#ffffff", dark_mode: "#121212" };
 
 const EXIT_MS = 240;
 
-/* Hold the big-split loading animation for at least a few full cycles even
-   if the app boots faster — the cell animation is 1800ms/cycle at speed 1. */
-const MIN_LOADING_MS = 1800 * 3;
-
 /**
  * BootOverlay
  *
@@ -31,23 +27,15 @@ const BootOverlay = () => {
   const isDark = onThemeMode === "dark_mode";
 
   const [state, setState] = useState(() => bootProgress.getState());
-  const [minElapsed, setMinElapsed] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     bootProgress.takeOver();
-    const unsub = bootProgress.subscribe(setState);
-    const timer = setTimeout(() => setMinElapsed(true), MIN_LOADING_MS);
-    return () => {
-      unsub();
-      clearTimeout(timer);
-    };
+    return bootProgress.subscribe(setState);
   }, []);
 
-  /* Only calm the cells + surface Enter once the app is ready AND the
-     loading animation has run its minimum few cycles. */
-  const ready = state.ready && minElapsed;
+  const ready = state.ready;
 
   const accent = theme?.semantic?.accent || FALLBACK_ACCENT;
   const background =
@@ -79,8 +67,8 @@ const BootOverlay = () => {
 
   return (
     <div role="presentation" style={rootStyle}>
-      {/* blurred cell-split spinner IS the loading indicator; when ready the
-          cells pull in to a small gentle breath (still alive, just calm). */}
+      {/* blurred cell-split spinner IS the loading indicator; a single
+          constant breathing amplitude throughout (loading and ready alike). */}
       <div
         aria-hidden="true"
         style={{
@@ -99,9 +87,9 @@ const BootOverlay = () => {
           color={accent}
           cells={5}
           stagger={80}
-          spread={ready ? 0.22 : 0.9}
-          speed={ready ? 0.7 : 1}
-          spin={!ready}
+          spread={0.55}
+          speed={0.85}
+          spin
         />
       </div>
 
