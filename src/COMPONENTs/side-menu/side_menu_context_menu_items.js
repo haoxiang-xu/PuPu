@@ -108,7 +108,7 @@ export const buildSideMenuContextMenuItems = ({
 
     items.push({ type: "separator" });
     items.push({
-      icon: "upload",
+      icon: "import_tray",
       label: t("context_menu.import"),
       onClick: () => onImport && onImport(null),
     });
@@ -171,12 +171,12 @@ export const buildSideMenuContextMenuItems = ({
 
     items.push({ type: "separator" });
     items.push({
-      icon: "download",
+      icon: "export_tray",
       label: t("context_menu.export"),
       onClick: () => onExport && onExport(node),
     });
     items.push({
-      icon: "upload",
+      icon: "import_tray",
       label: t("context_menu.import"),
       onClick: () => onImport && onImport(node.id),
     });
@@ -241,7 +241,7 @@ export const buildSideMenuContextMenuItems = ({
           }),
       },
       {
-        icon: "download",
+        icon: "export_tray",
         label: t("context_menu.export"),
         onClick: () => onExport && onExport(node),
       },

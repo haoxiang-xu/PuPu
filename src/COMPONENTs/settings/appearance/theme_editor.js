@@ -5,6 +5,7 @@ import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import ThemePreviewCard from "./theme_preview_card";
 import { toast } from "../../../SERVICEs/toast";
 import {
@@ -326,27 +327,33 @@ const ThemeEditor = () => {
           button_style={{ padding: "4px 10px" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <Button
-            prefix_icon="import_tray"
-            ariaLabel="Import theme"
-            title="Import theme"
-            onClick={() => importInputRef.current && importInputRef.current.click()}
-            style={iconButtonStyle()}
-          />
-          <Button
-            prefix_icon="export_tray"
-            ariaLabel="Export theme"
-            title="Export theme"
-            onClick={onExport}
-            style={iconButtonStyle()}
-          />
-          <Button
-            prefix_icon="reset"
-            ariaLabel={confirmingReset ? "Confirm reset" : "Reset to default"}
-            title={confirmingReset ? "Confirm reset" : "Reset to default"}
-            onClick={onResetClick}
-            style={iconButtonStyle(confirmingReset)}
-          />
+          <Tooltip label="Import theme" position="top">
+            <Button
+              prefix_icon="import_tray"
+              ariaLabel="Import theme"
+              onClick={() => importInputRef.current && importInputRef.current.click()}
+              style={iconButtonStyle()}
+            />
+          </Tooltip>
+          <Tooltip label="Export theme" position="top">
+            <Button
+              prefix_icon="export_tray"
+              ariaLabel="Export theme"
+              onClick={onExport}
+              style={iconButtonStyle()}
+            />
+          </Tooltip>
+          <Tooltip
+            label={confirmingReset ? "Confirm reset" : "Reset to default"}
+            position="top"
+          >
+            <Button
+              prefix_icon="reset"
+              ariaLabel={confirmingReset ? "Confirm reset" : "Reset to default"}
+              onClick={onResetClick}
+              style={iconButtonStyle(confirmingReset)}
+            />
+          </Tooltip>
         </div>
       </div>
 
