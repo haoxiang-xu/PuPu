@@ -529,8 +529,8 @@ const ChatInput = ({
               /* frosted: the themed surface at ~palette-family alpha, with
                  the same blur the palette panels use */
               backgroundColor: isDark
-                ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
-                : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)",
+                ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 60%, transparent)"
+                : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 72%, transparent)",
               backdropFilter: "blur(20px) saturate(130%)",
             }}
           />
