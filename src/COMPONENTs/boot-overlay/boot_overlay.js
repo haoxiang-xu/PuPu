@@ -3,6 +3,7 @@ import { useEffect, useState, useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { hexToRgbTriplet } from "../../CONTAINERs/config/theme_semantic";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
+import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import bootProgress from "../../SERVICEs/boot_progress";
 
 /* Semantic default accent — only hit if ConfigContext hasn't resolved yet. */
@@ -68,7 +69,24 @@ const BootOverlay = () => {
 
   return (
     <div role="presentation" style={rootStyle}>
-      <div style={{ position: "relative", width: 200, height: 40 }}>
+      {/* ambient cell-split spinner behind, blurred */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          filter: "blur(28px)",
+          opacity: 0.5,
+          pointerEvents: "none",
+        }}
+      >
+        <CellSplitSpinner size={280} color={accent} cells={5} stagger={80} spread={0.9} spin />
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1, width: 200, height: 40 }}>
         {/* loading bar */}
         <div
           style={{
