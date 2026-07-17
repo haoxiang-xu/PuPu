@@ -493,6 +493,7 @@ const ExplorerRowBase = ({
   contextMenuNodeId,
   highlightColor,
   isLockedExpanded,
+  rowHeight = ROW_HEIGHT,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -739,7 +740,7 @@ const ExplorerRowBase = ({
         position: "relative",
         display: "flex",
         alignItems: "center",
-        height: isSource ? 0 : ROW_HEIGHT,
+        height: isSource ? 0 : rowHeight,
         opacity: isSource ? 0 : 1,
         overflow: isSource ? "hidden" : "visible",
         paddingLeft: isSource ? 0 : depth * INDENT,
@@ -1167,6 +1168,7 @@ const ExplorerBranch = ({
   contextMenuNodeId,
   highlightColor,
   lockedExpandedIds,
+  rowHeight,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1200,6 +1202,7 @@ const ExplorerBranch = ({
           contextMenuNodeId={contextMenuNodeId}
           highlightColor={highlightColor}
           isLockedExpanded={isLockedExpanded}
+          rowHeight={rowHeight}
         />
         {isFolder && (
           <AnimatedChildren
@@ -1247,6 +1250,7 @@ const ExplorerBranch = ({
                   activeNodeId={activeNodeId}
                   contextMenuNodeId={contextMenuNodeId}
                   highlightColor={highlightColor}
+                  rowHeight={rowHeight}
                   lockedExpandedIds={lockedExpandedIds}
                 />
               )}
@@ -1430,6 +1434,7 @@ const BackgroundIndicator = React.memo(
 const Explorer = ({
   data = {},
   root: rootProp = [],
+  row_height = ROW_HEIGHT,
   default_expanded,
   draggable = false,
   on_reorder,
@@ -1658,7 +1663,7 @@ const Explorer = ({
     (clientX, clientY) => {
       /* position ghost via ref (avoids re-render) */
       if (ghostRef.current) {
-        ghostRef.current.style.transform = `translate(${clientX + 16}px, ${clientY - ROW_HEIGHT / 2}px)`;
+        ghostRef.current.style.transform = `translate(${clientX + 16}px, ${clientY - row_height / 2}px)`;
       }
 
       /* compute drop target */
@@ -1780,7 +1785,7 @@ const Explorer = ({
           /* position ghost on the very first frame */
           requestAnimationFrame(() => {
             if (ghostRef.current) {
-              ghostRef.current.style.transform = `translate(${e.clientX + 16}px, ${e.clientY - ROW_HEIGHT / 2}px)`;
+              ghostRef.current.style.transform = `translate(${e.clientX + 16}px, ${e.clientY - row_height / 2}px)`;
             }
           });
         }
@@ -1829,7 +1834,7 @@ const Explorer = ({
     ghostRef.current = el;
     if (el && dragInternals.current.phase === "dragging") {
       const x = dragInternals.current.startX + 16;
-      const y = dragInternals.current.startY - ROW_HEIGHT / 2;
+      const y = dragInternals.current.startY - row_height / 2;
       el.style.transform = `translate(${x}px, ${y}px)`;
     }
   }, []);
@@ -1876,6 +1881,7 @@ const Explorer = ({
         sourceId={dragState.sourceId}
         registerRowRef={registerRowRef}
         onDragStart={handleRowDragStart}
+        rowHeight={row_height}
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
@@ -1906,7 +1912,7 @@ const Explorer = ({
               left: 0,
               display: "flex",
               alignItems: "center",
-              height: ROW_HEIGHT,
+              height: row_height,
               paddingLeft: 8,
               paddingRight: 12,
               gap: 4,
