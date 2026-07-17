@@ -293,7 +293,8 @@ const ThemeEditor = () => {
   /* palette variant: maxHeight bounds the listbox only — panel look (radius
      22 frosted blur, hairline, sliding row highlight) is the variant's own,
      identical to the attach panel's dropdowns. */
-  const selectDropdownStyle = { maxHeight: 220 };
+  const selectDropdownStyle = { width: 224, maxHeight: 220 };
+  const selectOptionStyle = { height: 34 };
 
   const autoBadgeStyle = {
     fontSize: 10,
@@ -411,6 +412,7 @@ const ThemeEditor = () => {
           filter_mode="panel"
           style={selectStyle}
           dropdown_style={selectDropdownStyle}
+            option_style={selectOptionStyle}
         />
       </div>
 

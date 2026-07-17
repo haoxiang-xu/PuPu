@@ -150,7 +150,8 @@ export const AppearanceSettings = () => {
   /* palette variant: maxHeight bounds the listbox only — the panel's frosted
      look (radius 22, blur, hairline) is owned by the variant itself so these
      menus stay pixel-identical to the attach panel's dropdowns. */
-  const selectDropdownStyle = { maxHeight: 220 };
+  const selectDropdownStyle = { width: 224, maxHeight: 220 };
+  const selectOptionStyle = { height: 34 };
 
   return (
     <div>
@@ -180,6 +181,7 @@ export const AppearanceSettings = () => {
             search_placeholder={t("common.search")}
             style={selectStyle}
             dropdown_style={selectDropdownStyle}
+            option_style={selectOptionStyle}
           />
         </SettingsRow>
 
@@ -209,6 +211,7 @@ export const AppearanceSettings = () => {
             search_placeholder={t("common.search")}
             style={selectStyle}
             dropdown_style={selectDropdownStyle}
+            option_style={selectOptionStyle}
           />
         </SettingsRow>
       </SettingsSection>
