@@ -341,7 +341,7 @@ const ThemeEditor = () => {
             style={iconButtonStyle()}
           />
           <Button
-            prefix_icon="undo"
+            prefix_icon="reset"
             ariaLabel={confirmingReset ? "Confirm reset" : "Reset to default"}
             title={confirmingReset ? "Confirm reset" : "Reset to default"}
             onClick={onResetClick}
