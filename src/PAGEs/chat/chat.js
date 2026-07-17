@@ -148,7 +148,10 @@ const HeroHeadline = ({ isDark }) => {
         fontWeight: 600,
         letterSpacing: "-0.3px",
         color: isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.78)",
-        marginBottom: 28,
+        /* clearance so the attach panel, when it floats up on focus, never
+           reaches the greeting (crisp text over the frosted panel breaks the
+           blur illusion) */
+        marginBottom: 72,
         textAlign: "center",
         fontFamily: "HackNerdFont",
       }}
