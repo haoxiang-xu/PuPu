@@ -88,6 +88,13 @@ const isSameUnchainStatus = (current, next) =>
 const HeroHeadline = ({ isDark }) => {
   const [heroText, setHeroText] = useState(HERO_PHRASES[0]);
   const [heroCursor, setHeroCursor] = useState(true);
+  /* Once the rise animation ends we DROP it. A lingering animation/transform
+     keeps this element on its own compositing layer, and a composited sibling
+     is invisible to the attach panel's backdrop-filter — so the frosted panel
+     can't blur the greeting while it's still "animating". Removing the
+     animation (already at its resting frame) lets the greeting rejoin the
+     normal backdrop, and the blur works. */
+  const [heroSettled, setHeroSettled] = useState(false);
   const heroPhraseRef = useRef(0);
   const heroCharRef = useRef(HERO_PHRASES[0].length);
   const heroDeletingRef = useRef(false);
@@ -141,17 +148,17 @@ const HeroHeadline = ({ isDark }) => {
 
   return (
     <div
+      onAnimationEnd={() => setHeroSettled(true)}
       style={{
-        animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-        animationDelay: "55ms",
+        animation: heroSettled
+          ? "none"
+          : "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+        animationDelay: heroSettled ? undefined : "55ms",
         fontSize: 22,
         fontWeight: 600,
         letterSpacing: "-0.3px",
         color: isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.78)",
-        /* clearance so the attach panel, when it floats up on focus, never
-           reaches the greeting (crisp text over the frosted panel breaks the
-           blur illusion) */
-        marginBottom: 72,
+        marginBottom: 28,
         textAlign: "center",
         fontFamily: "HackNerdFont",
       }}
