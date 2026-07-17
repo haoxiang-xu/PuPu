@@ -119,7 +119,7 @@ const BootOverlay = () => {
           pointerEvents: "none",
         }}
       >
-        <StringSpinner size={90} n={5} amplitude={7} color={accent} />
+        <StringSpinner size={56} n={5} amplitude={5} color={accent} />
       </div>
 
       {/* bottom "click to enter" text prompt, appears when ready */}
