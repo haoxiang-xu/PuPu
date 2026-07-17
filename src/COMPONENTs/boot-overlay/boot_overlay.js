@@ -1,7 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import Button from "../../BUILTIN_COMPONENTs/input/button";
 import StringSpinner from "../../BUILTIN_COMPONENTs/spinner/string_spinner";
 import ShaderBlobBackground from "../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
 import { deriveBlobScene } from "./derive_blob_palette";
@@ -18,11 +17,12 @@ const EXIT_MS = 240;
  *
  * Full-screen boot gate. Takes over the static #boot-overlay shell on mount,
  * then owns rendering from bootProgress.subscribe(). Solid theme-colored
- * ground with a blurred cell-split spinner as the sole loading indicator.
+ * ground with a faint torus field + string spinner as the loading indicator.
  * Once `ready` (chat reached its first screen, or the 8s failsafe fired) the
- * cells stop splitting and gather into one still blob, and a single Enter
- * button fades in — clicking it fades the overlay out and unmounts. The
- * screen is never auto-dismissed; the user always drives the final step.
+ * spinner shrinks to its smallest and a centered "Click anywhere to start"
+ * prompt fades in — the whole overlay becomes clickable, and clicking (or
+ * Enter/Space) fades it out and unmounts. Never auto-dismissed; the user
+ * always drives the final step.
  */
 const BootOverlay = () => {
   const { theme, onThemeMode } = useContext(ConfigContext) || {};
@@ -57,19 +57,29 @@ const BootOverlay = () => {
     position: "fixed",
     inset: 0,
     zIndex: 2147483647,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 26,
     background,
     opacity: exiting ? 0 : 1,
     transition: `opacity ${EXIT_MS}ms ease`,
     pointerEvents: exiting ? "none" : "auto",
+    cursor: ready ? "pointer" : "default",
+  };
+
+  const onRootKeyDown = (e) => {
+    if (ready && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      handleEnter();
+    }
   };
 
   return (
-    <div role="presentation" style={rootStyle}>
+    <div
+      role={ready ? "button" : "presentation"}
+      aria-label={ready ? "Click anywhere to start" : undefined}
+      tabIndex={ready ? 0 : undefined}
+      onClick={ready ? handleEnter : undefined}
+      onKeyDown={ready ? onRootKeyDown : undefined}
+      style={rootStyle}
+    >
       {/* faint blurred 3D torus field, theme-derived, ambient only */}
       <div
         aria-hidden="true"
@@ -109,62 +119,44 @@ const BootOverlay = () => {
         />
       </div>
 
-      {/* string spinner IS the loading indicator */}
+      {/* string spinner — loading indicator; shrinks to its smallest once
+          ready, leaving the centered prompt to take over. */}
       <div
         aria-hidden="true"
         style={{
           position: "absolute",
           inset: 0,
           opacity: 0.7,
+          transform: ready ? "translateY(-22px)" : "translateY(0)",
+          transition: `transform ${EXIT_MS}ms ease`,
           pointerEvents: "none",
         }}
       >
-        <StringSpinner size={56} n={5} amplitude={5} color={accent} />
+        <StringSpinner size={ready ? 24 : 56} n={5} amplitude={5} color={accent} />
       </div>
 
-      {/* bottom "click to enter" text prompt, appears when ready */}
+      {/* centered "click anywhere to start" prompt, fades in when ready */}
       <div
+        aria-hidden="true"
         style={{
           position: "absolute",
           left: 0,
           right: 0,
-          bottom: 40,
+          top: "50%",
+          marginTop: 24,
           display: "flex",
           justifyContent: "center",
-          zIndex: 1,
           opacity: ready ? 1 : 0,
-          transform: ready ? "translateY(0)" : "translateY(8px)",
-          pointerEvents: ready ? "auto" : "none",
-          transition: `opacity ${EXIT_MS}ms ease, transform ${EXIT_MS}ms ease`,
+          transition: `opacity ${EXIT_MS}ms ease`,
+          pointerEvents: "none",
+          fontSize: 12,
+          fontWeight: 400,
+          letterSpacing: 2,
+          textTransform: "uppercase",
+          color: accent,
         }}
       >
-        {ready ? (
-          <Button
-            label="Click to enter"
-            onClick={handleEnter}
-            style={{
-              root: {
-                fontSize: 12,
-                fontWeight: 400,
-                letterSpacing: 2,
-                textTransform: "uppercase",
-                color: accent,
-                background: "transparent",
-                paddingVertical: 8,
-                paddingHorizontal: 14,
-                borderRadius: 8,
-              },
-              background: {
-                hoverBackgroundColor: isDark
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.04)",
-                activeBackgroundColor: isDark
-                  ? "rgba(255,255,255,0.10)"
-                  : "rgba(0,0,0,0.07)",
-              },
-            }}
-          />
-        ) : null}
+        Click anywhere to start
       </div>
     </div>
   );

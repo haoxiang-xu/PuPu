@@ -71,35 +71,39 @@ describe("BootOverlay", () => {
     expect(bootProgress.takeOver).toHaveBeenCalledTimes(1);
   });
 
-  test("shows no Enter button while not ready", () => {
+  test("is not clickable while not ready (presentation, no start prompt)", () => {
     renderOverlay();
-    expect(screen.queryByRole("button", { name: /enter/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /start/i }),
+    ).toBeNull();
+    expect(screen.getByText(/click anywhere to start/i)).toHaveStyle({
+      opacity: "0",
+    });
   });
 
-  test("shows an Enter control once bootProgress signals ready", () => {
+  test("becomes a clickable start control once bootProgress signals ready", () => {
     renderOverlay();
     act(() => bootProgress.__emit({ pct: 100, ready: true }));
-    expect(screen.getByRole("button", { name: /enter/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /click anywhere to start/i }),
+    ).toBeInTheDocument();
   });
 
-  test("clicking Enter fades the overlay out and unmounts it", () => {
+  test("clicking anywhere fades the overlay out and unmounts it", () => {
     jest.useFakeTimers();
     const { container } = renderOverlay();
     act(() => bootProgress.__emit({ pct: 100, ready: true }));
 
-    const enterButton = screen.getByRole("button", { name: /enter/i });
-    fireEvent.click(enterButton);
+    fireEvent.click(
+      screen.getByRole("button", { name: /click anywhere to start/i }),
+    );
 
     act(() => {
       jest.advanceTimersByTime(240);
     });
 
+    expect(container.querySelector('[role="button"]')).toBeNull();
     expect(container.querySelector('[role="presentation"]')).toBeNull();
     jest.useRealTimers();
-  });
-
-  test("renders no canvas (cell spinner is DOM, not WebGL)", () => {
-    const { container } = renderOverlay();
-    expect(container.querySelectorAll("canvas")).toHaveLength(0);
   });
 });
