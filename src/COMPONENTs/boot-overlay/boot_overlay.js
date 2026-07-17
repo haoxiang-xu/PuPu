@@ -124,7 +124,7 @@ const BootOverlay = () => {
         }}
       >
         <CellSplitSpinner
-          size={280}
+          size={180}
           color={accent}
           cells={5}
           stagger={80}
