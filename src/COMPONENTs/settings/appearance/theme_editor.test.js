@@ -51,7 +51,7 @@ describe("ThemeEditor", () => {
       screen.queryByRole("button", { name: "Sidebar" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Advanced background" }));
+    fireEvent.click(screen.getByRole("button", { name: "Background layers" }));
 
     expect(
       screen.getByRole("button", { name: "Sidebar" }),
@@ -319,5 +319,44 @@ describe("ThemeEditor", () => {
       document.documentElement.style.getPropertyValue("--pupu-chip-border"),
     ).toBe("#ff0000");
     expect(readThemeSettings().details.dark_mode.chipBorder).toBe("#ff0000");
+  });
+
+  test("background-layers disclosure shows an auto ×N badge that drops as tiers are customized", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByRole("button", { name: "Background layers" }));
+    // Both background-family tiers (sidebar, surface) start auto-derived.
+    expect(screen.getByText("auto ×2")).toBeInTheDocument();
+
+    // Commit a custom Surface color — one tier is no longer auto.
+    fireEvent.click(screen.getByRole("button", { name: "Surface" }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#112233" },
+    });
+    fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+
+    expect(screen.getByText("auto ×1")).toBeInTheDocument();
+  });
+});
+
+// Variant-A icon toolbar: the reset button is icon-only and, once armed by
+// the first click of the two-step confirm, must carry a visible danger
+// affordance (icon/background tinted with --pupu-danger). jsdom's CSSOM
+// drops var()-based colors from computed style, so this is asserted via a
+// source scan rather than getComputedStyle (see select.palette_dropdown_theme
+// .test.js for the established precedent in this repo).
+describe("theme_editor.js armed reset carries a --pupu-danger affordance", () => {
+  const src = require("fs").readFileSync(
+    require("path").join(__dirname, "theme_editor.js"),
+    "utf8",
+  );
+
+  test("armed (danger) icon color resolves to var(--pupu-danger)", () => {
+    expect(src).toMatch(/color: danger\s*\n\s*\?\s*"var\(--pupu-danger\)"/);
+  });
+
+  test("armed (danger) background resolves to a tinted --pupu-danger-rgb fill", () => {
+    expect(src).toMatch(
+      /backgroundColor: danger \? "rgba\(var\(--pupu-danger-rgb\),0\.12\)" : undefined/,
+    );
   });
 });

@@ -4,6 +4,7 @@ import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import ThemePreviewCard from "./theme_preview_card";
 import { toast } from "../../../SERVICEs/toast";
 import {
@@ -239,6 +240,41 @@ const ThemeEditor = () => {
     ...(isDark ? { hoverBackgroundColor: "rgba(255,255,255,0.10)" } : {}),
   };
 
+  const autoTierCount = ADVANCED_TIERS.filter((k) => advState[k].isAuto).length;
+
+  const iconButtonStyle = (danger = false) => ({
+    root: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      iconOnlyPaddingVertical: 0,
+      iconOnlyPaddingHorizontal: 0,
+      color: danger
+        ? "var(--pupu-danger)"
+        : isDark
+          ? "rgba(255,255,255,0.65)"
+          : "rgba(0,0,0,0.55)",
+      backgroundColor: danger ? "rgba(var(--pupu-danger-rgb),0.12)" : undefined,
+    },
+    background: {
+      hoverBackgroundColor: danger
+        ? "rgba(var(--pupu-danger-rgb),0.18)"
+        : isDark
+          ? "rgba(255,255,255,0.10)"
+          : "rgba(0,0,0,0.06)",
+      activeBackgroundColor: danger
+        ? "rgba(var(--pupu-danger-rgb),0.22)"
+        : isDark
+          ? "rgba(255,255,255,0.14)"
+          : "rgba(0,0,0,0.09)",
+    },
+    content: {
+      icon: { width: 17, height: 17 },
+    },
+  });
+
   const selectStyle = {
     minWidth: 140,
     fontSize: 13,
@@ -270,7 +306,15 @@ const ThemeEditor = () => {
 
       <ThemePreviewCard palette={cardPalette} />
 
-      <div style={{ marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
         <SegmentedButton
           options={[
             { label: "Light", value: "light_mode" },
@@ -281,6 +325,29 @@ const ThemeEditor = () => {
           style={{ fontSize: 12, padding: 2 }}
           button_style={{ padding: "4px 10px" }}
         />
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <Button
+            prefix_icon="download"
+            ariaLabel="Import theme"
+            title="Import theme"
+            onClick={() => importInputRef.current && importInputRef.current.click()}
+            style={iconButtonStyle()}
+          />
+          <Button
+            prefix_icon="upload_file"
+            ariaLabel="Export theme"
+            title="Export theme"
+            onClick={onExport}
+            style={iconButtonStyle()}
+          />
+          <Button
+            prefix_icon="undo"
+            ariaLabel={confirmingReset ? "Confirm reset" : "Reset to default"}
+            title={confirmingReset ? "Confirm reset" : "Reset to default"}
+            onClick={onResetClick}
+            style={iconButtonStyle(confirmingReset)}
+          />
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -306,10 +373,62 @@ const ThemeEditor = () => {
 
       <div style={{ marginTop: 12 }}>
         <Button
-          label={advancedOpen ? "Hide advanced" : "Advanced background"}
+          ariaLabel="Background layers"
           onClick={() => setAdvancedOpen((o) => !o)}
-          style={smallBtnStyle}
-        />
+          style={{
+            root: {
+              width: "100%",
+              boxSizing: "border-box",
+              borderRadius: 9,
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              border: "1px solid rgba(var(--pupu-text-rgb),0.07)",
+              backgroundColor: "rgba(var(--pupu-text-rgb),0.03)",
+            },
+            background: {
+              hoverBackgroundColor: isDark
+                ? "rgba(255,255,255,0.05)"
+                : "rgba(0,0,0,0.03)",
+            },
+            content: {
+              children: {
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+              },
+            },
+          }}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13, color: "rgba(var(--pupu-text-rgb),0.75)" }}>
+              Background layers
+            </span>
+            {autoTierCount > 0 && (
+              <span
+                style={{
+                  fontSize: 10,
+                  borderRadius: 99,
+                  padding: "2px 6px",
+                  backgroundColor: "rgba(var(--pupu-accent-rgb),0.14)",
+                  color: "rgba(var(--pupu-accent-rgb),0.9)",
+                }}
+              >
+                auto ×{autoTierCount}
+              </span>
+            )}
+          </span>
+          <Icon
+            src="arrow_down"
+            color="rgba(var(--pupu-text-rgb),0.5)"
+            style={{
+              width: 14,
+              height: 14,
+              transform: advancedOpen ? "rotate(180deg)" : "none",
+              transition: "transform 0.15s ease",
+            }}
+          />
+        </Button>
         {advancedOpen && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
             {ADVANCED_TIERS.map((key) => (
@@ -346,29 +465,13 @@ const ThemeEditor = () => {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <Button label="Export JSON" onClick={onExport} style={smallBtnStyle} />
-        <Button
-          label="Import JSON"
-          onClick={() => importInputRef.current && importInputRef.current.click()}
-          style={smallBtnStyle}
-        />
-        <input
-          ref={importInputRef}
-          type="file"
-          accept="application/json"
-          onChange={onImport}
-          style={{ display: "none" }}
-        />
-        <Button
-          label={confirmingReset ? "Confirm reset" : "Reset to default"}
-          onClick={onResetClick}
-          style={{
-            ...smallBtnStyle,
-            ...(confirmingReset ? { color: "var(--pupu-danger)" } : {}),
-          }}
-        />
-      </div>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json"
+        onChange={onImport}
+        style={{ display: "none" }}
+      />
     </div>
   );
 };
