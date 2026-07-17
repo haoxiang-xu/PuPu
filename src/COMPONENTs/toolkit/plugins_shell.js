@@ -49,12 +49,12 @@ const installErrorMessage = (error) => {
    TYPE rather than by theme (theme stays as an in-page pill row, see
    plugins_categories_page.js). "tool" and "mcp" are existing manifest keys
    (UISVGs / LogoSVGs respectively); "terminal" is the nearest command/
-   slash-ish glyph for Skills (no literal "slash" or "command" key exists). */
+   Skills uses the dedicated ⌘ "command" glyph (CEO-provided). */
 const NAV_ITEMS = [
   { id: "discover", icon: "shapes", labelKey: "toolkit.nav_discover" },
   { id: "cat_toolkits", icon: "tool", labelKey: "toolkit.nav_toolkits" },
   { id: "cat_mcp", icon: "mcp", labelKey: "toolkit.nav_mcp" },
-  { id: "cat_skills", icon: "terminal", labelKey: "toolkit.nav_skills" },
+  { id: "cat_skills", icon: "command", labelKey: "toolkit.nav_skills" },
   { id: "installed", icon: "download", labelKey: "toolkit.nav_installed" },
 ];
 
