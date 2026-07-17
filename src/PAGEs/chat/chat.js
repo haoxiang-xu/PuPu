@@ -85,6 +85,37 @@ const isSameUnchainStatus = (current, next) =>
   current?.url === next?.url &&
   current?.reason === next?.reason;
 
+/* Rise-in wrapper that DROPS its animation once finished. The lingering
+   transform of `fill: both` turns a static wrapper into a stacking context,
+   and a stacking context on a NON-positioned element paints in the in-flow
+   background stage — underneath later inline text. With the animation left
+   on, the whole input subtree (incl. the floating attach panel, its z-index
+   notwithstanding) painted BELOW the greeting's glyphs, so the panel could
+   neither cover nor backdrop-blur them. Clearing the animation at its
+   resting frame restores normal paint order. */
+const RiseIn = ({ delay, style, children }) => {
+  const [settled, setSettled] = useState(false);
+  return (
+    <div
+      onAnimationEnd={(e) => {
+        /* animationend bubbles — only settle on our own rise */
+        if (e.target === e.currentTarget) setSettled(true);
+      }}
+      style={{
+        ...(settled
+          ? {}
+          : {
+              animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+              animationDelay: delay,
+            }),
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
 const HeroHeadline = ({ isDark }) => {
   const [heroText, setHeroText] = useState(HERO_PHRASES[0]);
   const [heroCursor, setHeroCursor] = useState(true);
@@ -896,16 +927,9 @@ const ChatInterface = () => {
             >
               <HeroHeadline isDark={isDark} />
 
-              <div
-                style={{
-                  animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-                  animationDelay: "100ms",
-                  width: "100%",
-                  marginBottom: 14,
-                }}
-              >
+              <RiseIn delay="100ms" style={{ width: "100%", marginBottom: 14 }}>
                 <ChatInput {...sharedChatInputProps} />
-              </div>
+              </RiseIn>
 
             {(() => {
               const providers = modelCatalog?.providers || {};
@@ -928,10 +952,9 @@ const ChatInterface = () => {
               ];
               if (chips.length === 0) return null;
               return (
-                <div
+                <RiseIn
+                  delay="145ms"
                   style={{
-                    animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-                    animationDelay: "145ms",
                     display: "flex",
                     gap: 8,
                     flexWrap: "wrap",
@@ -1035,7 +1058,7 @@ const ChatInterface = () => {
                       </button>
                     );
                   })}
-                </div>
+                </RiseIn>
               );
             })()}
           </div>
