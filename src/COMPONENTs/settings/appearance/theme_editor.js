@@ -5,7 +5,6 @@ import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
-import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import ThemePreviewCard from "./theme_preview_card";
 import { toast } from "../../../SERVICEs/toast";
 import {
@@ -243,15 +242,15 @@ const ThemeEditor = () => {
 
   const autoTierCount = ADVANCED_TIERS.filter((k) => advState[k].isAuto).length;
 
-  const iconButtonStyle = (danger = false) => ({
+  /* icon + short text variant of the toolbar buttons */
+  const textToolButtonStyle = (danger = false) => ({
     root: {
-      width: 28,
       height: 28,
       borderRadius: 8,
       paddingVertical: 0,
-      paddingHorizontal: 0,
-      iconOnlyPaddingVertical: 0,
-      iconOnlyPaddingHorizontal: 0,
+      paddingHorizontal: 10,
+      fontSize: 12,
+      gap: 6,
       color: danger
         ? "var(--pupu-danger)"
         : isDark
@@ -272,7 +271,7 @@ const ThemeEditor = () => {
           : "rgba(0,0,0,0.09)",
     },
     content: {
-      icon: { width: 17, height: 17 },
+      icon: { width: 15, height: 15 },
     },
   });
 
@@ -327,33 +326,27 @@ const ThemeEditor = () => {
           button_style={{ padding: "4px 10px" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <Tooltip label="Import theme" position="top">
-            <Button
-              prefix_icon="import_tray"
-              ariaLabel="Import theme"
-              onClick={() => importInputRef.current && importInputRef.current.click()}
-              style={iconButtonStyle()}
-            />
-          </Tooltip>
-          <Tooltip label="Export theme" position="top">
-            <Button
-              prefix_icon="export_tray"
-              ariaLabel="Export theme"
-              onClick={onExport}
-              style={iconButtonStyle()}
-            />
-          </Tooltip>
-          <Tooltip
-            label={confirmingReset ? "Confirm reset" : "Reset to default"}
-            position="top"
-          >
-            <Button
-              prefix_icon="reset"
-              ariaLabel={confirmingReset ? "Confirm reset" : "Reset to default"}
-              onClick={onResetClick}
-              style={iconButtonStyle(confirmingReset)}
-            />
-          </Tooltip>
+          <Button
+            prefix_icon="import_tray"
+            label="Import"
+            ariaLabel="Import theme"
+            onClick={() => importInputRef.current && importInputRef.current.click()}
+            style={textToolButtonStyle()}
+          />
+          <Button
+            prefix_icon="export_tray"
+            label="Export"
+            ariaLabel="Export theme"
+            onClick={onExport}
+            style={textToolButtonStyle()}
+          />
+          <Button
+            prefix_icon="reset"
+            label={confirmingReset ? "Confirm?" : "Reset"}
+            ariaLabel={confirmingReset ? "Confirm reset" : "Reset to default"}
+            onClick={onResetClick}
+            style={textToolButtonStyle(confirmingReset)}
+          />
         </div>
       </div>
 
