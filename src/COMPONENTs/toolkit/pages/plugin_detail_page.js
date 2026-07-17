@@ -48,7 +48,7 @@ const ToolkitAutoApproveConfirmModal = ({ open, onClose, onConfirm, isDark }) =>
       style={{
         width: 420,
         padding: "28px 28px 20px",
-        backgroundColor: isDark ? "var(--pupu-surface, #1a1a1a)" : "var(--pupu-surface, #ffffff)",
+        backgroundColor: "var(--pupu-background)",
         display: "flex",
         flexDirection: "column",
         gap: 0,
@@ -141,7 +141,7 @@ const ToolkitDeleteConfirmModal = ({ open, onClose, onConfirm, isDark, toolkitLa
       style={{
         width: 360,
         padding: "28px 28px 20px",
-        backgroundColor: isDark ? "var(--pupu-surface, #1a1a1a)" : "var(--pupu-surface, #ffffff)",
+        backgroundColor: "var(--pupu-background)",
         display: "flex",
         flexDirection: "column",
         gap: 0,

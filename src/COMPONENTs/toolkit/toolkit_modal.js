@@ -50,7 +50,6 @@ export const ToolkitModal = ({ open, onClose }) => {
   useModalLifecycle("toolkit-modal", open);
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
-  const panelBg = isDark ? "#141414" : "#ffffff";
   const [activePage, setActivePage] = useState("discover");
   const [installedCount, setInstalledCount] = useState(0);
 
@@ -92,8 +91,8 @@ export const ToolkitModal = ({ open, onClose }) => {
         height: 600,
         maxHeight: "80vh",
         padding: 0,
-        backgroundColor: panelBg,
-        color: isDark ? "#fff" : "#222",
+        backgroundColor: "var(--pupu-background)",
+        color: "var(--pupu-text)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

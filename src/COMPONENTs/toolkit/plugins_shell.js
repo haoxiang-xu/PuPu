@@ -430,8 +430,6 @@ export const PluginsShell = ({
     [refreshStoreEntries, updateSelectedStoreEntry],
   );
 
-  const panelBg = isDark ? "#141414" : "#ffffff";
-
   const handleNavigate = useCallback(
     (id) => {
       if (id === activePage) return;
@@ -594,7 +592,7 @@ export const PluginsShell = ({
               right: 0,
               bottom: 0,
               width: "100%",
-              backgroundColor: panelBg,
+              backgroundColor: "var(--pupu-background)",
               zIndex: 3,
               transform: detailVisible ? "translateX(0)" : "translateX(100%)",
               transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,

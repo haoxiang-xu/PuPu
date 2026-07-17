@@ -9,4 +9,8 @@ export const SHELL_BACKGROUND_ALLOWLIST = [
   // Asymmetric input-surface overlay, NOT the modal card — textarea highlight
   // (translucent dark tint / solid light backing), left for a future input-surface pass.
   "src/COMPONENTs/settings/dev/components/mcp_registries_modal.js:374",
+  // P5 plugins UI — decorative brand/status colors, NOT shell surfaces (2026-07-17).
+  "src/COMPONENTs/toolkit/pages/plugin_detail_page.js:679",   // brand "Get/Install" button #4a5bd8, same accent as recipe_canvas
+  "src/COMPONENTs/toolkit/pages/plugin_detail_page.js:769",   // amber needs-review status dot #f59e0b
+  "src/COMPONENTs/toolkit/pages/plugin_detail_page.js:1158",  // danger auto-approve switch on-state #E5484D (SemiSwitch backgroundColor_on)
 ];

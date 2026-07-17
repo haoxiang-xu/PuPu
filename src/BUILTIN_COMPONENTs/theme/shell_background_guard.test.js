@@ -32,6 +32,15 @@ const SHELL_FILES = [
   "src/COMPONENTs/memory-inspect/memory_inspect_modal.js",
   // F1 — agents modal card, missed in the P4 Task 1 sweep (2026-07-14)
   "src/COMPONENTs/agents/agents_modal.js",
+  // P5 — plugins/toolkit UI (was an exclusion zone during the theme waves;
+  // concurrent owner shipped, now enrolled) (2026-07-17)
+  "src/COMPONENTs/toolkit/toolkit_modal.js",
+  "src/COMPONENTs/toolkit/plugins_shell.js",
+  "src/COMPONENTs/toolkit/pages/plugin_detail_page.js",
+  "src/COMPONENTs/toolkit/pages/plugins_installed_page.js",
+  "src/COMPONENTs/toolkit/pages/plugins_categories_page.js",
+  "src/COMPONENTs/toolkit/pages/plugins_discover_page.js",
+  "src/COMPONENTs/toolkit/pages/custom_mcp_page.js",
 ];
 
 // A line is a candidate if it BOTH mentions a background sink (a `background:` /
