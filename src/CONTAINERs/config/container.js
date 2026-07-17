@@ -44,12 +44,14 @@ import {
   applySemanticCssVars,
   applySemanticPaletteToTheme,
   resolveThemeDetails,
+  persistBootPalette,
 } from "./theme_semantic";
 import { readThemeSettings } from "../../COMPONENTs/settings/appearance/storage";
 import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
+import * as bootProgress from "../../SERVICEs/boot_progress";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 const SETTINGS_STORAGE_KEY = "settings";
@@ -170,10 +172,16 @@ const applyContainerThemeConfig = (
 };
 
 const ThemeBootScreen = ({ isDark }) => {
-  const backgroundColor = isDark ? "#121212" : "#FFFFFF";
-  const foregroundColor = isDark
-    ? "rgba(255,255,255,0.75)"
-    : "rgba(0,0,0,0.65)";
+  /* This screen sits under the static #boot-overlay (public/index.html) —
+     the overlay owns the visible loading UI for S0-S2. By the time this
+     component can render at all, applyInitialSemanticVars() has already
+     set --pupu-background/--pupu-text synchronously, so preferring the
+     CSS var keeps this in visual lockstep with the overlay above it; the
+     literal fallback only matters if that var somehow never got set. */
+  const backgroundColor = `var(--pupu-background, ${isDark ? "#121212" : "#FFFFFF"})`;
+  const foregroundColor = `var(--pupu-text, ${
+    isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)"
+  })`;
 
   return (
     <div
@@ -255,17 +263,19 @@ const applyInitialSemanticVars = () => {
     const themeSettings = themeColorCustomizationEnabled
       ? persisted?.appearance?.theme || {}
       : defaultThemeColorSettings();
+    const bootPalette = resolveSemanticPalette(mode, {
+      preset: themeSettings.preset,
+      custom: themeSettings.custom,
+    });
     applySemanticCssVars(
-      resolveSemanticPalette(mode, {
-        preset: themeSettings.preset,
-        custom: themeSettings.custom,
-      }),
+      bootPalette,
       undefined,
       resolveThemeDetails(mode, {
         preset: themeSettings.preset,
         details: themeSettings.details,
       }),
     );
+    persistBootPalette(bootPalette);
   } catch {}
 };
 applyInitialSemanticVars();
@@ -359,6 +369,7 @@ const ConfigContainer = ({ children }) => {
           details: themeSettings.details,
         }),
       );
+      persistBootPalette(nextTheme.semantic);
       if (typeof document !== "undefined") {
         document.documentElement.style.setProperty(
           "--pupu-font-family",
@@ -392,6 +403,7 @@ const ConfigContainer = ({ children }) => {
     }
 
     setIsThemeBooting(false);
+    bootProgress.set(55);
   }, [theme, selectedTheme]);
   useEffect(() => {
     if (!themeBridge.isThemeModeAvailable()) {

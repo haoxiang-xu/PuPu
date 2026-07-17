@@ -150,40 +150,57 @@ describe("ConfigContainer side menu persistence", () => {
     );
     const setItem = jest.spyOn(Storage.prototype, "setItem");
 
-    render(
-      <ConfigContainer>
-        <FragmentProbe />
-      </ConfigContainer>,
-    );
+    try {
+      render(
+        <ConfigContainer>
+          <FragmentProbe />
+        </ConfigContainer>,
+      );
 
-    expect(setItem).not.toHaveBeenCalled();
-    setItem.mockRestore();
+      /* Boot always (re)writes the boot-loading-gate's palette cache
+         (a different key, "pupu_boot_palette" — see persistBootPalette)
+         regardless of whether settings changed; that write is scoped out
+         here so this assertion keeps testing its original intent: the
+         persisted "settings" blob itself is not needlessly rewritten. */
+      const settingsWrites = setItem.mock.calls.filter(
+        ([key]) => key === "settings",
+      );
+      expect(settingsWrites).toHaveLength(0);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   test("persists side menu state into settings.ui.side_menu_open", async () => {
     const setItem = jest.spyOn(Storage.prototype, "setItem");
-    render(
-      <ConfigContainer>
-        <FragmentProbe />
-      </ConfigContainer>,
-    );
+    try {
+      render(
+        <ConfigContainer>
+          <FragmentProbe />
+        </ConfigContainer>,
+      );
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
+      const settingsWriteCount = () =>
+        setItem.mock.calls.filter(([key]) => key === "settings").length;
 
-    await waitFor(() => {
-      const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-      expect(root?.ui?.side_menu_open).toBe(true);
-    });
-    expect(setItem).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
+      await waitFor(() => {
+        const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
+        expect(root?.ui?.side_menu_open).toBe(true);
+      });
+      expect(settingsWriteCount()).toBe(1);
 
-    await waitFor(() => {
-      const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-      expect(root?.ui?.side_menu_open).toBe(false);
-    });
-    expect(setItem).toHaveBeenCalledTimes(2);
-    setItem.mockRestore();
+      fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
+
+      await waitFor(() => {
+        const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
+        expect(root?.ui?.side_menu_open).toBe(false);
+      });
+      expect(settingsWriteCount()).toBe(2);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   test("provides the semantic highlight color when theme customization is enabled", async () => {
@@ -420,5 +437,86 @@ describe("ConfigContainer semantic palette", () => {
         "#ffffff",
       );
     });
+  });
+});
+
+describe("ConfigContainer boot-loading-gate integration", () => {
+  const BOOT_OVERLAY_HTML =
+    '<div id="boot-overlay"><div class="boot-progress-track">' +
+    '<div id="boot-progress-bar"></div></div></div>';
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
+    // Simulate the static S1 shell markup (public/index.html) already
+    // present as a sibling of #root before React ever mounts.
+    document.body.insertAdjacentHTML("afterbegin", BOOT_OVERLAY_HTML);
+  });
+
+  afterEach(() => {
+    // RTL's auto-cleanup unmounts the React tree it rendered but does not
+    // know about this hand-inserted sibling markup.
+    document.getElementById("boot-overlay")?.remove();
+  });
+
+  test("persists the resolved palette to pupu_boot_palette on boot", async () => {
+    render(
+      <ConfigContainer>
+        <div />
+      </ConfigContainer>,
+    );
+
+    await waitFor(() => {
+      const raw = window.localStorage.getItem("pupu_boot_palette");
+      expect(raw).not.toBeNull();
+    });
+    const cached = JSON.parse(window.localStorage.getItem("pupu_boot_palette"));
+    expect(cached).toEqual({
+      background: "#ffffff",
+      text: "#222222",
+      textMuted: "#8c8c8c",
+      accent: "#65c466",
+    });
+  });
+
+  test("re-persists the boot palette cache when a custom accent is committed", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: { enable_theme_color_customization: true },
+        appearance: {
+          theme: { preset: "default", custom: { light_mode: { accent: "#abcdef" } } },
+        },
+      }),
+    );
+
+    render(
+      <ConfigContainer>
+        <div />
+      </ConfigContainer>,
+    );
+
+    await waitFor(() => {
+      const cached = JSON.parse(
+        window.localStorage.getItem("pupu_boot_palette") || "{}",
+      );
+      expect(cached.accent).toBe("#abcdef");
+    });
+  });
+
+  test("advances the real #boot-progress-bar to 55% once theme boot completes (S2 milestone)", async () => {
+    render(
+      <ConfigContainer>
+        <div />
+      </ConfigContainer>,
+    );
+
+    await waitFor(() => {
+      const bar = document.getElementById("boot-progress-bar");
+      expect(bar.style.width).toBe("55%");
+    });
+    // The overlay itself is untouched beyond the bar width — release() is
+    // chat.js's job (S3), not the container's.
+    expect(document.getElementById("boot-overlay")).not.toBeNull();
   });
 });

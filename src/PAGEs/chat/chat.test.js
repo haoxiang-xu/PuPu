@@ -16,10 +16,17 @@ import {
 } from "../../SERVICEs/chat_storage";
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 import { dispatchComposerPrefill } from "../../SERVICEs/composer_prefill";
+import * as bootProgress from "../../SERVICEs/boot_progress";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
 var mockScopedLogger;
+
+jest.mock("../../SERVICEs/boot_progress", () => ({
+  __esModule: true,
+  set: jest.fn(),
+  release: jest.fn(),
+}));
 
 jest.mock("../../SERVICEs/console_logger", () => ({
   createLogger: () => {
@@ -101,6 +108,8 @@ describe("ChatInterface stop flow", () => {
     mockScopedLogger.warn.mockClear();
     mockScopedLogger.error.mockClear();
     mockScopedLogger.debug.mockClear();
+    bootProgress.set.mockClear();
+    bootProgress.release.mockClear();
     window.unchainAPI = {
       getStatus: jest.fn(async () => ({
         status: "ready",
@@ -181,6 +190,27 @@ describe("ChatInterface stop flow", () => {
       expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
     });
   };
+
+  test("boot-loading gate: marks store hydration at 80% and releases exactly once on mount (S2->S3)", async () => {
+    renderChat();
+
+    // bootstrapChatsStore() hydration runs synchronously in the mount-time
+    // useState initializer, and the release effect fires on the same
+    // mount — both land before any awaiting is needed.
+    expect(bootProgress.set).toHaveBeenCalledWith(80);
+    expect(bootProgress.release).toHaveBeenCalledTimes(1);
+
+    await waitForBoot();
+
+    // Re-renders triggered by boot completing (model catalog, unchain
+    // status) must not call release() again — it is a one-time effect.
+    expect(bootProgress.release).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "hello" },
+    });
+    expect(bootProgress.release).toHaveBeenCalledTimes(1);
+  });
 
   const buildPendingInteraction = ({
     sessionId,

@@ -40,6 +40,7 @@ import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
+import * as bootProgress from "../../SERVICEs/boot_progress";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -177,7 +178,14 @@ const ChatInterface = () => {
   const { theme, onThemeMode } = useContext(ThemeContext) || {};
   const { onFragment } = useContext(NavigationContext) || {};
 
-  const [bootstrapped] = useState(() => bootstrapChatsStore());
+  const [bootstrapped] = useState(() => {
+    const result = bootstrapChatsStore();
+    /* Chat store hydration completing is the boot gate's second milestone
+       (S2, 55% -> 80%); this runs synchronously in the initializer, right
+       as hydration finishes. */
+    bootProgress.set(80);
+    return result;
+  });
   const initialChat = bootstrapped.activeChat;
   const [draftAttachments, setDraftAttachments] = useState(
     () => initialChat.draft?.attachments || [],
@@ -235,6 +243,14 @@ const ChatInterface = () => {
   const setSelectedModelId = session.setSelectedModelId;
   const setSelectedToolkits = session.setSelectedToolkits;
   const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
+
+  /* Boot gate S3: chat page's first effect firing is "chat first-screen
+     rendered" — the release threshold the boot-loading-gate design pins
+     the overlay to. One-time and idempotent (bootProgress.release() no-ops
+     on repeat calls and when the overlay DOM is already gone). */
+  useEffect(() => {
+    bootProgress.release();
+  }, []);
 
   /* "Try in chat" from the Plugins app-store modal (plugin_detail_page.js):
      the modal has no shared component tree with this page, so it prefills
