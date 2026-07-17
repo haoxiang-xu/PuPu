@@ -54,7 +54,7 @@ describe("execution cancellation outbox", () => {
     expect(readExecutionCancelOutbox()).toEqual([]);
   });
 
-  test("storage write failure never blocks the immediate cancel identity", () => {
+  test("storage write failure is explicit", () => {
     const storage = {
       getItem: () => "[]",
       setItem: () => {
@@ -67,11 +67,23 @@ describe("execution cancellation outbox", () => {
         { sessionId: "chat-1", attemptId: "attempt-1" },
         storage,
       ),
-    ).toEqual(
-      expect.objectContaining({
-        sessionId: "chat-1",
-        attemptId: "attempt-1",
-      }),
-    );
+    ).toBeNull();
+  });
+
+  test("never evicts unacknowledged exact Stops", () => {
+    for (let index = 0; index < 70; index += 1) {
+      expect(
+        enqueueExecutionCancel({
+          sessionId: "chat-many",
+          attemptId: `attempt-${index}`,
+          createdAt: index,
+        }),
+      ).not.toBeNull();
+    }
+
+    const entries = readExecutionCancelOutbox();
+    expect(entries).toHaveLength(70);
+    expect(entries[0].attemptId).toBe("attempt-0");
+    expect(entries[69].attemptId).toBe("attempt-69");
   });
 });

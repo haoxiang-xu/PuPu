@@ -632,7 +632,7 @@ class DurableInteractionProcessRecoveryTests(unittest.TestCase):
         self.assertEqual(len(stale_failures), 1)
         self.assertEqual(
             stale_failures[0]["payload"]["error"]["code"],
-            "interaction_not_found",
+            "logical_execution_terminal",
         )
         self.assertFalse(
             any(
@@ -648,7 +648,7 @@ class DurableInteractionProcessRecoveryTests(unittest.TestCase):
         self.assertEqual(len(stale_done), 1)
         self.assertEqual(
             stale_done[0]["error"]["code"],
-            "interaction_not_found",
+            "logical_execution_terminal",
         )
         self.assertEqual(self.effect_log.read_bytes(), before_stale_effects)
         self.assertEqual(self.model_log.read_bytes(), before_stale_models)

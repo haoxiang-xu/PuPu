@@ -83,22 +83,35 @@ export const normalizePendingInteraction = (
       };
   const callId =
     traceFrameCallId(traceFrame) || normalizedString(toolCall.call_id) || interactionId;
+  const sourceRunId = normalizedString(rawPending.source_run_id);
+  const rawResumeOptions = isObject(rawPending.resume_options)
+    ? { ...rawPending.resume_options }
+    : {};
+  const logicalExecutionId =
+    normalizedString(rawPending.logical_execution_id) ||
+    normalizedString(rawResumeOptions.logical_execution_id) ||
+    // Pre-P3 checkpoints have no logical field.  The V4 backend uses the
+    // source attempt as their stable logical identity, so recovery and Stop
+    // must derive the same value.
+    sourceRunId;
+  const resumeOptions = logicalExecutionId
+    ? { ...rawResumeOptions, logical_execution_id: logicalExecutionId }
+    : rawResumeOptions;
 
   return {
     status,
     sessionId,
     interactionId,
     kind: normalizedString(rawPending.kind),
-    sourceRunId: normalizedString(rawPending.source_run_id),
+    sourceRunId,
     activeAttemptId: normalizedString(rawPending.active_attempt_id),
+    logicalExecutionId,
     receiptId: normalizedString(rawPending.receipt_id),
     resumeAvailable: rawPending.resume_available === true,
     resumeUnavailableReason: normalizedString(
       rawPending.resume_unavailable_reason,
     ),
-    resumeOptions: isObject(rawPending.resume_options)
-      ? { ...rawPending.resume_options }
-      : {},
+    resumeOptions,
     resolution: isObject(rawPending.resolution)
       ? { ...rawPending.resolution }
       : null,

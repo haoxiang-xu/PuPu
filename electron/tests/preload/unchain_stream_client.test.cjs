@@ -154,6 +154,7 @@ describe("unchain stream preload client", () => {
 
     expect(handle.executionId).toBe("chat-1");
     expect(handle.attemptId).toBe(handle.requestId);
+    expect(handle.logicalExecutionId).toMatch(/^logical-/);
     expect(typeof handle.disconnect).toBe("function");
     expect(handle.cancel).toBe(handle.disconnect);
     expect(ipcRenderer.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_START_V4, {
@@ -162,6 +163,7 @@ describe("unchain stream preload client", () => {
         threadId: "chat-1",
         message: "hi",
         attempt_id: handle.requestId,
+        logical_execution_id: handle.logicalExecutionId,
       },
     });
     expect(client.__debug.getActiveListenerCount()).toBe(1);
@@ -189,6 +191,90 @@ describe("unchain stream preload client", () => {
       seq: 1,
     });
     expect(onDone).toHaveBeenCalledWith({ ok: true });
+    expect(client.__debug.getActiveListenerCount()).toBe(0);
+  });
+
+  test("startStreamV4 inherits logical identity across durable resumes", () => {
+    const ipcRenderer = createMockIpcRenderer();
+    const client = createMisoStreamClient(ipcRenderer);
+
+    const handle = client.startStreamV4(
+      {
+        mode: "resume_interaction",
+        threadId: "chat-1",
+        options: { logical_execution_id: "logical-original" },
+      },
+      {},
+    );
+
+    expect(handle.logicalExecutionId).toBe("logical-original");
+    expect(ipcRenderer.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_START_V4,
+      {
+        requestId: handle.requestId,
+        payload: expect.objectContaining({
+          attempt_id: handle.requestId,
+          logical_execution_id: "logical-original",
+        }),
+      },
+    );
+  });
+
+  test("startStreamV4 derives legacy resume logical identity from its source", () => {
+    const ipcRenderer = createMockIpcRenderer();
+    const client = createMisoStreamClient(ipcRenderer);
+
+    const handle = client.startStreamV4(
+      {
+        mode: "resume_interaction",
+        threadId: "chat-legacy",
+        interaction_id: "interaction-legacy",
+        source_attempt_id: "attempt-legacy-source",
+        options: { modelId: "openai:gpt-5" },
+      },
+      {},
+    );
+
+    expect(handle.logicalExecutionId).toBe("attempt-legacy-source");
+    expect(ipcRenderer.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_START_V4,
+      {
+        requestId: handle.requestId,
+        payload: expect.objectContaining({
+          source_attempt_id: "attempt-legacy-source",
+          logical_execution_id: "attempt-legacy-source",
+        }),
+      },
+    );
+  });
+
+  test("startStreamV4 maps terminal done errors to onError", () => {
+    const ipcRenderer = createMockIpcRenderer();
+    const client = createMisoStreamClient(ipcRenderer);
+    const onDone = jest.fn();
+    const onError = jest.fn();
+    const handle = client.startStreamV4(
+      { threadId: "chat-1", message: "hi" },
+      { onDone, onError },
+    );
+
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: handle.requestId,
+      event: "done",
+      data: {
+        cancelled: false,
+        error: {
+          code: "active_execution_lease",
+          message: "owned by another attempt",
+        },
+      },
+    });
+
+    expect(onDone).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      code: "active_execution_lease",
+      message: "owned by another attempt",
+    });
     expect(client.__debug.getActiveListenerCount()).toBe(0);
   });
 

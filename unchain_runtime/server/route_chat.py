@@ -138,6 +138,46 @@ def _is_execution_cancelled_error(error: BaseException) -> bool:
     )
 
 
+def _cancel_logical_execution_checkpoints(
+    session_id: str,
+    logical_execution_id: str,
+    *,
+    reason: str,
+) -> dict[str, object]:
+    """Feature-detect lineage cancellation without a session-wide fallback."""
+
+    try:
+        import unchain.memory as memory_module
+    except ImportError:
+        return {
+            "supported": False,
+            "disposition": "memory_api_unavailable",
+        }
+    for name in (
+        "cancel_logical_execution_checkpoints",
+        "cancel_checkpoints_by_logical_execution_id",
+    ):
+        operation = getattr(memory_module, name, None)
+        if not callable(operation):
+            continue
+        try:
+            result = operation(
+                session_id=session_id,
+                logical_execution_id=logical_execution_id,
+                reason=reason,
+            )
+        except TypeError:
+            result = operation(session_id, logical_execution_id)
+        payload = dict(result) if isinstance(result, dict) else {"result": result}
+        payload.setdefault("supported", True)
+        payload.setdefault("disposition", "applied")
+        return payload
+    return {
+        "supported": False,
+        "disposition": "logical_cancel_api_unavailable",
+    }
+
+
 def _durable_host_error_response(exc: Exception):
     code = str(getattr(exc, "code", "durable_interaction_failed") or "")
     status_code = int(getattr(exc, "status_code", 409) or 409)
@@ -430,17 +470,23 @@ def chat_execution_cancel() -> Response:
         or ""
     ).strip()
     attempt_id = str(payload.get("attempt_id") or "").strip()
+    requested_attempt_id = attempt_id
     source_attempt_id = str(payload.get("source_attempt_id") or "").strip()
+    logical_execution_id = str(
+        payload.get("logical_execution_id")
+        or payload.get("logicalExecutionId")
+        or ""
+    ).strip()
     if not execution_id:
         return root._json_error(
             "invalid_request",
             "execution_id is required",
             400,
         )
-    if not attempt_id:
+    if not attempt_id and not logical_execution_id:
         return root._json_error(
             "invalid_request",
-            "attempt_id is required",
+            "attempt_id or logical_execution_id is required",
             400,
         )
 
@@ -462,14 +508,113 @@ def chat_execution_cancel() -> Response:
         )
 
     try:
-        return jsonify(
-            root.cancel_chat_execution(
-                session_id=execution_id,
-                attempt_id=attempt_id,
-                source_attempt_id=source_attempt_id,
-                reason=reason,
-            )
+        if logical_execution_id:
+            import execution_lineage
+            from durable_job_runtime import cancel_jobs_for_logical_execution
+
+            failed_sinks: dict[str, dict[str, object]] = {}
+
+            def capture_sink_error(name: str, exc: Exception) -> dict[str, object]:
+                error_payload = {
+                    "code": str(
+                        getattr(exc, "code", "execution_cancel_failed") or ""
+                    ),
+                    "message": str(exc),
+                    "retryable": bool(getattr(exc, "retryable", True)),
+                }
+                failed_sinks[name] = error_payload
+                return {"status": "error", "error": error_payload}
+
+            lineage_payload = None
+            checkpoint_payload = None
+            jobs_payload = None
+            exact_payload = None
+            current_attempt_id = ""
+
+            # The lineage tombstone is first, but no individual sink is allowed
+            # to prevent checkpoint/job cancellation.  Every sink is idempotent,
+            # so a partial response can safely remain in the client outbox.
+            try:
+                lineage_result = execution_lineage.request_cancel(
+                    execution_id,
+                    logical_execution_id,
+                    attempt_id="",
+                    reason=reason,
+                )
+                lineage_payload = lineage_result.to_dict()
+                current_attempt_id = str(
+                    getattr(
+                        lineage_result.snapshot,
+                        "current_attempt_id",
+                        "",
+                    )
+                    or ""
+                ).strip()
+            except Exception as exc:
+                lineage_payload = capture_sink_error("lineage", exc)
+
+            if current_attempt_id:
+                try:
+                    exact_payload = root.cancel_chat_execution(
+                        session_id=execution_id,
+                        attempt_id=current_attempt_id,
+                        source_attempt_id="",
+                        reason=reason,
+                    )
+                except Exception as exc:
+                    exact_payload = capture_sink_error("exact_attempt", exc)
+            else:
+                exact_payload = {
+                    "status": "skipped",
+                    "reason": "authoritative_current_attempt_unavailable",
+                }
+
+            try:
+                checkpoint_payload = _cancel_logical_execution_checkpoints(
+                    execution_id,
+                    logical_execution_id,
+                    reason=reason,
+                )
+            except Exception as exc:
+                checkpoint_payload = capture_sink_error("checkpoint_cancel", exc)
+
+            try:
+                jobs_payload = cancel_jobs_for_logical_execution(
+                    execution_id,
+                    logical_execution_id,
+                    reason=reason,
+                )
+            except Exception as exc:
+                jobs_payload = capture_sink_error("jobs_cancel", exc)
+
+            response_payload = {
+                "status": "partial" if failed_sinks else "ok",
+                "execution_id": execution_id,
+                "logical_execution_id": logical_execution_id,
+                "requested_attempt_id": requested_attempt_id,
+                "attempt_id": current_attempt_id,
+                "lineage": lineage_payload,
+                "exact_attempt": exact_payload,
+                "checkpoint_cancel": checkpoint_payload,
+                "jobs_cancel": jobs_payload,
+            }
+            if failed_sinks:
+                response_payload["error"] = {
+                    "code": "partial_execution_cancel",
+                    "message": "One or more execution cancellation sinks failed",
+                    "retryable": True,
+                    "failed_sinks": failed_sinks,
+                }
+                return jsonify(response_payload), 503
+            return jsonify(response_payload)
+
+        exact_payload = root.cancel_chat_execution(
+            session_id=execution_id,
+            attempt_id=attempt_id,
+            source_attempt_id=source_attempt_id,
+            reason=reason,
         )
+        return jsonify(exact_payload)
     except root.DurableInteractionHostError as exc:
         return _durable_host_error_response(exc)
     except Exception as exc:
@@ -788,6 +933,15 @@ def chat_stream_v4() -> Response:
 
     history = _sanitize_history(payload.get("history"))
     options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
+    logical_execution_id = str(
+        payload.get("logical_execution_id")
+        or payload.get("logicalExecutionId")
+        or options.get("logical_execution_id")
+        or (source_attempt_id if resume_interaction else attempt_id)
+    ).strip()
+    options = dict(options)
+    options["logical_execution_id"] = logical_execution_id
+    options["created_by_attempt_id"] = attempt_id
     trace_level = _sanitize_trace_level(
         payload.get("trace_level")
         or options.get("trace_level")
@@ -816,6 +970,7 @@ def chat_stream_v4() -> Response:
                     "trace_level": trace_level,
                     "thread_id": thread_id,
                     "execution_id": thread_id,
+                    "logical_execution_id": logical_execution_id,
                     "attempt_id": attempt_id,
                     "resume_interaction": resume_interaction,
                 }
@@ -830,6 +985,7 @@ def chat_stream_v4() -> Response:
                     cancel_event=confirmation_cancel_event,
                     attempt_id=attempt_id,
                     source_attempt_id=source_attempt_id,
+                    logical_execution_id=logical_execution_id,
                 )
                 if resume_interaction
                 else root.stream_chat_events(
@@ -840,6 +996,7 @@ def chat_stream_v4() -> Response:
                     session_id=thread_id,
                     cancel_event=confirmation_cancel_event,
                     attempt_id=attempt_id,
+                    logical_execution_id=logical_execution_id,
                 )
             )
             for raw_event in event_source:
@@ -856,6 +1013,7 @@ def chat_stream_v4() -> Response:
                 {
                     "finished_at": int(time.time() * 1000),
                     "execution_id": thread_id,
+                    "logical_execution_id": logical_execution_id,
                     "attempt_id": attempt_id,
                     "cancelled": cancelled,
                     "diagnostics": bridge.diagnostics(),
@@ -874,6 +1032,7 @@ def chat_stream_v4() -> Response:
                     {
                         "finished_at": int(time.time() * 1000),
                         "execution_id": thread_id,
+                        "logical_execution_id": logical_execution_id,
                         "attempt_id": attempt_id,
                         "cancelled": True,
                         "diagnostics": bridge.diagnostics(),
@@ -891,6 +1050,7 @@ def chat_stream_v4() -> Response:
                 {
                     "finished_at": int(time.time() * 1000),
                     "execution_id": thread_id,
+                    "logical_execution_id": logical_execution_id,
                     "attempt_id": attempt_id,
                     "cancelled": False,
                     "error": {

@@ -638,6 +638,11 @@ const ChatInterface = () => {
     if (stream.durableInteractionStatus === "checking") {
       return "Checking for an interrupted Unchain run...";
     }
+    if (stream.durableInteractionStatus === "cancel_pending") {
+      return stream.streamError
+        ? `Stopping this run: ${stream.streamError}`
+        : "Stopping this run and waiting for Unchain to confirm...";
+    }
     if (
       stream.durableInteractionStatus === "resuming" ||
       stream.durableInteractionStatus === "receipt_recorded"

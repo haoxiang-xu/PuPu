@@ -53,6 +53,16 @@ import {
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
 import {
+  enqueueLogicalExecutionCancel,
+  readLogicalExecutionCancelOutbox,
+  removeLogicalExecutionCancel,
+} from "./logical_execution_cancel_outbox";
+import {
+  enqueueDurableRecoveryCancelIntent,
+  getDurableRecoveryCancelIntent,
+  removeDurableRecoveryCancelIntent,
+} from "../../../SERVICEs/durable_recovery_cancel_intent";
+import {
   start as progressStart,
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
@@ -247,15 +257,245 @@ const characterLogger = createLogger(
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
 
+const volatileExecutionCancelOutbox = new Map();
+// The background drain may receive an acknowledgement before an older pending
+// lookup resolves. Keep the durable entry as a local no-resume gate until that
+// lookup consumes it; skip redundant sends within this renderer lifetime.
+const acknowledgedExecutionCancelKeys = new Set();
+const pendingInteractionLookupCountBySession = new Map();
+
+const beginPendingInteractionLookup = (sessionId) => {
+  pendingInteractionLookupCountBySession.set(
+    sessionId,
+    (pendingInteractionLookupCountBySession.get(sessionId) || 0) + 1,
+  );
+};
+
+const endPendingInteractionLookup = (sessionId) => {
+  const nextCount =
+    (pendingInteractionLookupCountBySession.get(sessionId) || 0) - 1;
+  if (nextCount > 0) {
+    pendingInteractionLookupCountBySession.set(sessionId, nextCount);
+  } else {
+    pendingInteractionLookupCountBySession.delete(sessionId);
+  }
+};
+
+const hasPendingInteractionLookup = (sessionId) =>
+  (pendingInteractionLookupCountBySession.get(sessionId) || 0) > 0;
+
+const executionCancelIdentityKey = (identity) => {
+  const normalized = normalizedExecutionIdentity(identity);
+  if (!normalized) {
+    return "";
+  }
+  return [
+    normalized.sessionId,
+    normalized.logicalExecutionId
+      ? `logical:${normalized.logicalExecutionId}`
+      : `attempt:${normalized.attemptId}`,
+  ].join("\u0000");
+};
+
 const normalizedExecutionIdentity = (identity) => {
   const sessionId =
     typeof identity?.sessionId === "string" ? identity.sessionId.trim() : "";
   const attemptId =
     typeof identity?.attemptId === "string" ? identity.attemptId.trim() : "";
-  if (!sessionId || !attemptId) {
+  const logicalExecutionId =
+    typeof identity?.logicalExecutionId === "string"
+      ? identity.logicalExecutionId.trim()
+      : "";
+  if (!sessionId || (!attemptId && !logicalExecutionId)) {
     return null;
   }
-  return { ...identity, sessionId, attemptId };
+  return { ...identity, sessionId, attemptId, logicalExecutionId };
+};
+
+const enqueueExecutionCancellation = (identity) => {
+  const normalized = normalizedExecutionIdentity(identity);
+  if (!normalized) {
+    return null;
+  }
+  const persistedEntry = normalized.logicalExecutionId
+    ? enqueueLogicalExecutionCancel(normalized)
+    : enqueueExecutionCancel(normalized);
+  if (!persistedEntry) {
+    unchainLogger.warn("execution_cancel_outbox_write_failed", {
+      sessionId: normalized.sessionId,
+      attemptId: normalized.attemptId,
+      logicalExecutionId: normalized.logicalExecutionId,
+    });
+    volatileExecutionCancelOutbox.set(
+      executionCancelIdentityKey(normalized),
+      normalized,
+    );
+  } else {
+    volatileExecutionCancelOutbox.delete(
+      executionCancelIdentityKey(normalized),
+    );
+  }
+  acknowledgedExecutionCancelKeys.delete(executionCancelIdentityKey(normalized));
+  // Storage failure must not suppress the immediate semantic cancel.  Keep the
+  // persistence result explicit so callers never mistake this identity for a
+  // durably queued retry.
+  return {
+    ...(persistedEntry || normalized),
+    outboxPersisted: Boolean(persistedEntry),
+  };
+};
+
+const removeQueuedExecutionCancellation = (identity) => {
+  const normalized = normalizedExecutionIdentity(identity);
+  if (!normalized) {
+    return false;
+  }
+  const volatileRemoved = volatileExecutionCancelOutbox.delete(
+    executionCancelIdentityKey(normalized),
+  );
+  acknowledgedExecutionCancelKeys.delete(executionCancelIdentityKey(normalized));
+  const persistedRemoved = normalized.logicalExecutionId
+    ? removeLogicalExecutionCancel(
+        normalized.sessionId,
+        normalized.logicalExecutionId,
+      )
+    : removeExecutionCancel(normalized.sessionId, normalized.attemptId);
+  return volatileRemoved || persistedRemoved;
+};
+
+const upgradeLegacyExecutionCancellation = (
+  identity,
+  {
+    logicalExecutionId = "",
+    attemptId = "",
+    sourceAttemptId = "",
+  } = {},
+) => {
+  const normalized = normalizedExecutionIdentity(identity);
+  if (!normalized || normalized.logicalExecutionId) {
+    return {
+      identity: normalized,
+      legacyIdentity: null,
+    };
+  }
+  const resolvedLogicalExecutionId =
+    (typeof logicalExecutionId === "string"
+      ? logicalExecutionId.trim()
+      : "") || normalized.sourceAttemptId;
+  if (!resolvedLogicalExecutionId) {
+    return {
+      identity: normalized,
+      legacyIdentity: null,
+    };
+  }
+  const existingLogicalCancellation = [
+    ...volatileExecutionCancelOutbox.values(),
+    ...readLogicalExecutionCancelOutbox(),
+  ].find((entry) => {
+    const candidate = normalizedExecutionIdentity(entry);
+    return Boolean(
+      candidate &&
+        candidate.sessionId === normalized.sessionId &&
+        candidate.logicalExecutionId === resolvedLogicalExecutionId,
+    );
+  });
+  const upgraded = existingLogicalCancellation || enqueueExecutionCancellation({
+    ...normalized,
+    attemptId:
+      (typeof attemptId === "string" ? attemptId.trim() : "") ||
+      normalized.attemptId,
+    logicalExecutionId: resolvedLogicalExecutionId,
+    sourceAttemptId:
+      (typeof sourceAttemptId === "string" ? sourceAttemptId.trim() : "") ||
+      normalized.sourceAttemptId,
+  });
+  return {
+    identity: upgraded || normalized,
+    legacyIdentity: normalized,
+  };
+};
+
+const findPendingLogicalExecutionCancellation = (
+  sessionId,
+  logicalExecutionId,
+) => {
+  const normalizedSessionId =
+    typeof sessionId === "string" ? sessionId.trim() : "";
+  const normalizedLogicalExecutionId =
+    typeof logicalExecutionId === "string" ? logicalExecutionId.trim() : "";
+  if (!normalizedSessionId || !normalizedLogicalExecutionId) {
+    return null;
+  }
+  return (
+    [
+      ...volatileExecutionCancelOutbox.values(),
+      ...readLogicalExecutionCancelOutbox(),
+    ].find((entry) => {
+      const normalized = normalizedExecutionIdentity(entry);
+      return Boolean(
+        normalized &&
+          normalized.sessionId === normalizedSessionId &&
+          normalized.logicalExecutionId === normalizedLogicalExecutionId,
+      );
+    }) || null
+  );
+};
+
+const findPendingExactExecutionCancellation = (
+  sessionId,
+  attemptId,
+  sourceAttemptId = "",
+) => {
+  const normalizedSessionId =
+    typeof sessionId === "string" ? sessionId.trim() : "";
+  const normalizedAttemptId =
+    typeof attemptId === "string" ? attemptId.trim() : "";
+  const normalizedSourceAttemptId =
+    typeof sourceAttemptId === "string" ? sourceAttemptId.trim() : "";
+  if (
+    !normalizedSessionId ||
+    (!normalizedAttemptId && !normalizedSourceAttemptId)
+  ) {
+    return null;
+  }
+  return (
+    [
+      ...volatileExecutionCancelOutbox.values(),
+      ...readExecutionCancelOutbox(),
+    ].find((entry) => {
+      const normalized = normalizedExecutionIdentity(entry);
+      return Boolean(
+        normalized &&
+          normalized.sessionId === normalizedSessionId &&
+          (normalized.attemptId === normalizedAttemptId ||
+            (normalizedSourceAttemptId &&
+              normalized.sourceAttemptId === normalizedSourceAttemptId)),
+      );
+    }) || null
+  );
+};
+
+const removeAcknowledgedExecutionCancellationsForSession = (sessionId) => {
+  const normalizedSessionId =
+    typeof sessionId === "string" ? sessionId.trim() : "";
+  if (!normalizedSessionId) {
+    return;
+  }
+  const entries = [
+    ...volatileExecutionCancelOutbox.values(),
+    ...readLogicalExecutionCancelOutbox(),
+    ...readExecutionCancelOutbox(),
+  ];
+  entries.forEach((entry) => {
+    const normalized = normalizedExecutionIdentity(entry);
+    const key = executionCancelIdentityKey(entry);
+    if (
+      normalized?.sessionId === normalizedSessionId &&
+      acknowledgedExecutionCancelKeys.has(key)
+    ) {
+      removeQueuedExecutionCancellation(entry);
+    }
+  });
 };
 
 const disconnectStreamTransport = (handle) => {
@@ -297,7 +537,12 @@ const requestExecutionCancellationAndDisconnect = ({
   return Promise.resolve(
     api.unchain.cancelExecution({
       session_id: normalizedIdentity.sessionId,
-      attempt_id: normalizedIdentity.attemptId,
+      ...(normalizedIdentity.attemptId
+        ? { attempt_id: normalizedIdentity.attemptId }
+        : {}),
+      ...(normalizedIdentity.logicalExecutionId
+        ? { logical_execution_id: normalizedIdentity.logicalExecutionId }
+        : {}),
       ...(normalizedIdentity.sourceAttemptId
         ? { source_attempt_id: normalizedIdentity.sourceAttemptId }
         : {}),
@@ -305,13 +550,16 @@ const requestExecutionCancellationAndDisconnect = ({
         ? { request_id: normalizedIdentity.requestId }
         : {}),
       reason,
-      idempotency_key: `stop:${normalizedIdentity.attemptId}`,
+      idempotency_key: `stop:${
+        normalizedIdentity.logicalExecutionId || normalizedIdentity.attemptId
+      }`,
     }),
   ).then((response) => ({ ok: true, response }))
     .catch((error) => {
       unchainLogger.warn("execution_cancel_failed", {
         sessionId: normalizedIdentity.sessionId,
         attemptId: normalizedIdentity.attemptId,
+        logicalExecutionId: normalizedIdentity.logicalExecutionId,
         code: error?.code || "execution_cancel_failed",
         message: error?.message || "Failed to cancel execution",
       });
@@ -741,9 +989,11 @@ export const useChatStream = ({
       "awaiting",
       "awaiting_response",
       "checking",
+      "cancel_pending",
       "receipt_recorded",
       "resuming",
       "retry_wait",
+      "resume_failed",
     ].includes(durableInteractionStatus);
 
   const clearActiveTokenFlushController = useCallback(
@@ -1119,6 +1369,8 @@ export const useChatStream = ({
     if (!currentChatId) {
       return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
+    const durableStateBeforeStop =
+      durableInteractionByChatIdRef.current[currentChatId] || null;
 
     // Invalidate first. Any lookup, retry, receipt, or queue callback that was
     // already in flight must observe the tombstone before transport teardown.
@@ -1136,7 +1388,6 @@ export const useChatStream = ({
     pendingFyiCountByChatIdRef.current.delete(currentChatId);
     pendingClarifyByChatIdRef.current.delete(currentChatId);
     syncInterjectStateForChat(currentChatId);
-    updateDurableInteractionForChat(currentChatId, null);
     clearAllPendingToolConfirmations(currentChatId);
     pendingContinuationRequestRef.current = null;
     setPendingContinuationRequest(null);
@@ -1146,20 +1397,87 @@ export const useChatStream = ({
     const executionIdentity =
       executionIdentityByChatIdRef.current.get(currentChatId) || null;
     executionIdentityByChatIdRef.current.delete(currentChatId);
-    const queuedCancellation = enqueueExecutionCancel({
+    const queuedCancellation = enqueueExecutionCancellation({
       ...(executionIdentity || {}),
+      chatId: currentChatId,
       reason: "user_stop",
       createdAt: Date.now(),
     });
+    let recoveryCancelIntent = null;
+    if (durableStateBeforeStop?.status) {
+      recoveryCancelIntent = enqueueDurableRecoveryCancelIntent({
+        chatId: currentChatId,
+        sessionId:
+          typeof executionIdentity?.sessionId === "string" &&
+          executionIdentity.sessionId.trim()
+            ? executionIdentity.sessionId.trim()
+            : typeof durableStateBeforeStop.sessionId === "string" &&
+                durableStateBeforeStop.sessionId.trim()
+              ? durableStateBeforeStop.sessionId.trim()
+            : isCharacterChat
+              ? ""
+              : currentChatId,
+        reason: "user_stop",
+        createdAt: Date.now(),
+      });
+    }
+    if (recoveryCancelIntent || (queuedCancellation && durableStateBeforeStop)) {
+      updateDurableInteractionForChat(currentChatId, {
+        ...durableStateBeforeStop,
+        status: "cancel_pending",
+        sessionId:
+          recoveryCancelIntent?.sessionId ||
+          queuedCancellation?.sessionId ||
+          durableStateBeforeStop?.sessionId ||
+          "",
+        lastError: "Waiting to confirm that the interrupted run is stopped.",
+      });
+    } else {
+      updateDurableInteractionForChat(currentChatId, null);
+    }
     void requestExecutionCancellationAndDisconnect({
       identity: queuedCancellation,
       handle,
       reason: "user_stop",
     }).then((result) => {
       if (result?.ok && queuedCancellation) {
-        removeExecutionCancel(
-          queuedCancellation.sessionId,
-          queuedCancellation.attemptId,
+        removeQueuedExecutionCancellation(queuedCancellation);
+        const markerCleared = recoveryCancelIntent
+          ? removeDurableRecoveryCancelIntent(currentChatId)
+          : true;
+        if (markerCleared) {
+          updateDurableInteractionForChat(currentChatId, null);
+          return;
+        }
+      } else if (
+        queuedCancellation &&
+        !queuedCancellation.outboxPersisted
+      ) {
+        setStreamError(
+          "Stop could not be persisted. PuPu will keep retrying while this app is open.",
+        );
+      } else if (
+        recoveryCancelIntent &&
+        !recoveryCancelIntent.outboxPersisted
+      ) {
+        setStreamError(
+          "Stop could not be persisted. PuPu will keep checking while this app is open.",
+        );
+      }
+      const pendingSessionId =
+        recoveryCancelIntent?.sessionId || queuedCancellation?.sessionId || "";
+      if (
+        recoveryCancelIntent &&
+        pendingSessionId &&
+        typeof durableInteractionLookupRef.current === "function"
+      ) {
+        void durableInteractionLookupRef.current(
+          currentChatId,
+          pendingSessionId,
+          {
+            autoResume: false,
+            runGeneration: getRunGeneration(currentChatId),
+          },
         );
       }
     });
@@ -1203,10 +1521,13 @@ export const useChatStream = ({
     clearAllPendingToolConfirmations,
     clearDurableResumeStartedKeysForChat,
     clearQueueRelayTimersForChat,
+    getRunGeneration,
+    isCharacterChat,
     invalidateRunGeneration,
     materializeStreamingMessages,
     messagesRef,
     setMessages,
+    setStreamError,
     storageApi,
     syncInterjectStateForChat,
     updateDurableInteractionForChat,
@@ -1221,18 +1542,73 @@ export const useChatStream = ({
     let retryTimer = null;
 
     const drainCancellationOutbox = async () => {
-      const entries = readExecutionCancelOutbox();
+      const entries = Array.from(
+        new Map(
+          [
+            ...volatileExecutionCancelOutbox.values(),
+            ...readLogicalExecutionCancelOutbox(),
+            ...readExecutionCancelOutbox(),
+          ].map((entry) => [executionCancelIdentityKey(entry), entry]),
+        ).values(),
+      ).filter(
+        (entry) =>
+          !acknowledgedExecutionCancelKeys.has(
+            executionCancelIdentityKey(entry),
+          ),
+      );
       for (const entry of entries) {
         if (disposed) {
           return;
         }
+        // Before P3, durable resume Stops were queued against one exact
+        // attempt.  Its source attempt is now the stable logical task ID, so
+        // upgrade it before sending and keep the legacy entry until the
+        // logical tombstone is acknowledged.
+        const upgradedCancellation = upgradeLegacyExecutionCancellation(entry);
+        const cancellationIdentity = upgradedCancellation.identity || entry;
+        const cancellationKey = executionCancelIdentityKey(
+          cancellationIdentity,
+        );
+        if (acknowledgedExecutionCancelKeys.has(cancellationKey)) {
+          if (upgradedCancellation.legacyIdentity) {
+            acknowledgedExecutionCancelKeys.add(
+              executionCancelIdentityKey(
+                upgradedCancellation.legacyIdentity,
+              ),
+            );
+          }
+          if (!hasPendingInteractionLookup(entry.sessionId)) {
+            removeQueuedExecutionCancellation(cancellationIdentity);
+            if (upgradedCancellation.legacyIdentity) {
+              removeQueuedExecutionCancellation(
+                upgradedCancellation.legacyIdentity,
+              );
+            }
+          }
+          continue;
+        }
         const result = await requestExecutionCancellationAndDisconnect({
-          identity: entry,
+          identity: cancellationIdentity,
           handle: null,
           reason: entry.reason || "user_stop",
         });
         if (result?.ok) {
-          removeExecutionCancel(entry.sessionId, entry.attemptId);
+          acknowledgedExecutionCancelKeys.add(cancellationKey);
+          if (upgradedCancellation.legacyIdentity) {
+            acknowledgedExecutionCancelKeys.add(
+              executionCancelIdentityKey(
+                upgradedCancellation.legacyIdentity,
+              ),
+            );
+          }
+          if (!hasPendingInteractionLookup(entry.sessionId)) {
+            removeQueuedExecutionCancellation(cancellationIdentity);
+            if (upgradedCancellation.legacyIdentity) {
+              removeQueuedExecutionCancellation(
+                upgradedCancellation.legacyIdentity,
+              );
+            }
+          }
         }
       }
       if (!disposed) {
@@ -2039,6 +2415,7 @@ export const useChatStream = ({
       durableResumeAttempt = 0,
       durableOwnerMessageId = "",
       runGeneration: requestedRunGeneration = null,
+      logicalExecutionId: requestedLogicalExecutionId = "",
     }) => {
       const isDurableResume = Boolean(
         mode === "resume_interaction" &&
@@ -2048,6 +2425,14 @@ export const useChatStream = ({
         typeof durableInteraction?.interactionId === "string" &&
         durableInteraction.interactionId.trim(),
       );
+      const inheritedLogicalExecutionId =
+        (typeof requestedLogicalExecutionId === "string"
+          ? requestedLogicalExecutionId.trim()
+          : "") ||
+        (typeof durableInteraction?.resumeOptions?.logical_execution_id ===
+        "string"
+          ? durableInteraction.resumeOptions.logical_execution_id.trim()
+          : "");
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachments)
         ? attachments
@@ -3161,9 +3546,17 @@ export const useChatStream = ({
           effectiveAgentOrchestration.mode === "default";
 
         const streamPayload = isDurableResume
-          ? buildDurableResumePayload(durableInteraction)
+          ? {
+              ...buildDurableResumePayload(durableInteraction),
+              ...(inheritedLogicalExecutionId
+                ? { logical_execution_id: inheritedLogicalExecutionId }
+                : {}),
+            }
           : {
               threadId: effectiveThreadId,
+              ...(inheritedLogicalExecutionId
+                ? { logical_execution_id: inheritedLogicalExecutionId }
+                : {}),
               message: promptText,
               history: historyForModel,
               attachments: payloadAttachments,
@@ -4442,6 +4835,9 @@ export const useChatStream = ({
                   historyOverride: retryHistory,
                   characterAgentConfig: resolvedCharacterConfig,
                   runGeneration: activeRunGeneration,
+                  logicalExecutionId:
+                    streamHandle?.logicalExecutionId ||
+                    inheritedLogicalExecutionId,
                 });
                 return;
               }
@@ -4637,6 +5033,10 @@ export const useChatStream = ({
           : typeof streamHandle?.requestId === "string"
             ? streamHandle.requestId.trim()
             : "";
+      const streamLogicalExecutionId =
+        typeof streamHandle?.logicalExecutionId === "string"
+          ? streamHandle.logicalExecutionId.trim()
+          : inheritedLogicalExecutionId;
       if (effectiveThreadId && streamAttemptId) {
         executionIdentityByChatIdRef.current.set(targetChatId, {
           sessionId: effectiveThreadId,
@@ -4648,6 +5048,7 @@ export const useChatStream = ({
           sourceAttemptId: isDurableResume
             ? durableInteraction.sourceRunId || ""
             : "",
+          logicalExecutionId: streamLogicalExecutionId,
           runGeneration: activeRunGeneration,
         });
       }
@@ -4664,6 +5065,11 @@ export const useChatStream = ({
                     ? {
                         attemptId: streamAttemptId,
                         executionSessionId: effectiveThreadId,
+                        ...(streamLogicalExecutionId
+                          ? {
+                              logicalExecutionId: streamLogicalExecutionId,
+                            }
+                          : {}),
                       }
                     : {}),
                 },
@@ -4739,8 +5145,14 @@ export const useChatStream = ({
         Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
           ? requestedRunGeneration
           : ensureRecoveryRunGeneration(normalizedChatId);
+      const currentRecoveryCancelIntent = () =>
+        getDurableRecoveryCancelIntent(normalizedChatId);
+      // A semantic Stop is a separate, durable generation from a model run.
+      // Invalidating the model run must not invalidate the resolver that turns
+      // a session-only checking intent into an exact logical cancellation.
       const isCurrentLookup = () =>
-        isRunGenerationCurrent(normalizedChatId, activeRunGeneration);
+        isRunGenerationCurrent(normalizedChatId, activeRunGeneration) ||
+        Boolean(currentRecoveryCancelIntent());
       if (!isCurrentLookup()) {
         return null;
       }
@@ -4749,11 +5161,81 @@ export const useChatStream = ({
           "function" ||
         !api.unchain.isDurableInteractionBridgeAvailable()
       ) {
-        updateDurableInteractionForChat(normalizedChatId, null);
+        if (currentRecoveryCancelIntent()) {
+          updateDurableInteractionForChat(normalizedChatId, {
+            status: "cancel_pending",
+            sessionId: normalizedSessionId,
+            lastError:
+              "Waiting for the durable runtime before Stop can be confirmed.",
+          });
+        } else {
+          updateDurableInteractionForChat(normalizedChatId, null);
+        }
         return null;
       }
 
+      const recoveryIntentBeforeLookup = currentRecoveryCancelIntent();
+      if (
+        recoveryIntentBeforeLookup?.sessionId &&
+        recoveryIntentBeforeLookup.sessionId !== normalizedSessionId
+      ) {
+        // A stale lookup from an older character/session must never consume a
+        // newer Stop intent or cancel work in the wrong session.
+        return null;
+      }
+
+      const scheduleCancellationLookupRetry = (
+        pendingState,
+        errorMessage,
+      ) => {
+        const nextAttempt = Math.min(
+          lookupAttempt + 1,
+          DURABLE_RESUME_MAX_RETRIES,
+        );
+        updateDurableInteractionForChat(normalizedChatId, {
+          ...(pendingState || {}),
+          status: "cancel_pending",
+          sessionId: normalizedSessionId,
+          resumeAttempt: nextAttempt,
+          lastError: errorMessage,
+        });
+        if (activeChatIdRef.current === normalizedChatId) {
+          setStreamError(errorMessage);
+        }
+        const existingTimer = durableResumeRetryTimersRef.current.get(
+          normalizedChatId,
+        );
+        if (existingTimer != null) {
+          clearTimeout(existingTimer);
+        }
+        let timerId = null;
+        timerId = setTimeout(() => {
+          if (
+            durableResumeRetryTimersRef.current.get(normalizedChatId) ===
+            timerId
+          ) {
+            durableResumeRetryTimersRef.current.delete(normalizedChatId);
+          }
+          if (!isCurrentLookup()) {
+            return;
+          }
+          void lookupDurableInteraction(
+            normalizedChatId,
+            normalizedSessionId,
+            {
+              autoResume: false,
+              lookupAttempt: nextAttempt,
+              runGeneration: activeRunGeneration,
+            },
+          );
+        }, durableInteractionRetryDelayMs(nextAttempt));
+        durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);
+      };
+
+      let pendingLookupInFlight = false;
       try {
+        beginPendingInteractionLookup(normalizedSessionId);
+        pendingLookupInFlight = true;
         const rawPending = await api.unchain.getPendingInteraction({
           session_id: normalizedSessionId,
         });
@@ -4769,10 +5251,15 @@ export const useChatStream = ({
           ) {
             const lateAttemptId =
               pending.activeAttemptId || pending.sourceRunId || "";
-            if (lateAttemptId) {
-              const queuedCancellation = enqueueExecutionCancel({
+            const lateLogicalExecutionId =
+              typeof pending.resumeOptions?.logical_execution_id === "string"
+                ? pending.resumeOptions.logical_execution_id.trim()
+                : "";
+            if (lateAttemptId || lateLogicalExecutionId) {
+              const queuedCancellation = enqueueExecutionCancellation({
                 sessionId: pending.sessionId,
                 attemptId: lateAttemptId,
+                logicalExecutionId: lateLogicalExecutionId,
                 sourceAttemptId: pending.sourceRunId || "",
                 reason: "user_stop",
                 createdAt: Date.now(),
@@ -4783,10 +5270,7 @@ export const useChatStream = ({
                 reason: "user_stop",
               }).then((result) => {
                 if (result?.ok && queuedCancellation) {
-                  removeExecutionCancel(
-                    queuedCancellation.sessionId,
-                    queuedCancellation.attemptId,
-                  );
+                  removeQueuedExecutionCancellation(queuedCancellation);
                 }
               });
             }
@@ -4802,6 +5286,17 @@ export const useChatStream = ({
         }
 
         if (pending.status === "none") {
+          const recoveryIntent = currentRecoveryCancelIntent();
+          if (
+            recoveryIntent &&
+            !removeDurableRecoveryCancelIntent(normalizedChatId)
+          ) {
+            scheduleCancellationLookupRetry(
+              pending,
+              "Stop was confirmed, but its local recovery marker could not be cleared yet.",
+            );
+            return pending;
+          }
           const retryTimer = durableResumeRetryTimersRef.current.get(
             normalizedChatId,
           );
@@ -4817,12 +5312,140 @@ export const useChatStream = ({
 
         const pendingAttemptId =
           pending.activeAttemptId || pending.sourceRunId || "";
-        if (pendingAttemptId) {
+        const pendingLogicalExecutionId =
+          (typeof pending.logicalExecutionId === "string"
+            ? pending.logicalExecutionId.trim()
+            : "") ||
+          (typeof pending.resumeOptions?.logical_execution_id === "string"
+            ? pending.resumeOptions.logical_execution_id.trim()
+            : "");
+
+        const recoveryCancelIntent = currentRecoveryCancelIntent();
+        const pendingQueuedLogicalCancellation =
+          findPendingLogicalExecutionCancellation(
+            pending.sessionId,
+            pendingLogicalExecutionId,
+          );
+        const pendingQueuedExactCancellation =
+          findPendingExactExecutionCancellation(
+            pending.sessionId,
+            pendingAttemptId,
+            pending.sourceRunId,
+          );
+        const pendingQueuedCancellation =
+          pendingQueuedLogicalCancellation || pendingQueuedExactCancellation;
+        if (recoveryCancelIntent || pendingQueuedCancellation) {
+          if (
+            recoveryCancelIntent?.sessionId &&
+            recoveryCancelIntent.sessionId !== pending.sessionId
+          ) {
+            updateDurableInteractionForChat(normalizedChatId, {
+              ...pending,
+              status: "cancel_pending",
+              lastError:
+                "Stop is waiting for the interrupted session identity to be verified.",
+            });
+            return pending;
+          }
+
+          if (recoveryCancelIntent && !recoveryCancelIntent.sessionId) {
+            enqueueDurableRecoveryCancelIntent({
+              ...recoveryCancelIntent,
+              sessionId: pending.sessionId,
+            });
+          }
+          const cancellationReason =
+            recoveryCancelIntent?.reason ||
+            pendingQueuedCancellation?.reason ||
+            "user_stop";
+          const cancellationCreatedAt =
+            recoveryCancelIntent?.createdAt ||
+            pendingQueuedCancellation?.createdAt ||
+            Date.now();
+          const upgradedExactCancellation =
+            pendingQueuedExactCancellation && pendingLogicalExecutionId
+              ? upgradeLegacyExecutionCancellation(
+                  pendingQueuedExactCancellation,
+                  {
+                    logicalExecutionId: pendingLogicalExecutionId,
+                    attemptId: pendingAttemptId,
+                    sourceAttemptId: pending.sourceRunId || "",
+                  },
+                )
+              : null;
+          const queuedCancellation =
+            pendingQueuedLogicalCancellation ||
+            upgradedExactCancellation?.identity ||
+            pendingQueuedExactCancellation ||
+            enqueueExecutionCancellation({
+              sessionId: pending.sessionId,
+              attemptId: pendingAttemptId,
+              logicalExecutionId: pendingLogicalExecutionId,
+              sourceAttemptId: pending.sourceRunId || "",
+              reason: cancellationReason,
+              createdAt: cancellationCreatedAt,
+            });
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...pending,
+            status: "cancel_pending",
+            lastError: "Waiting for Unchain to confirm Stop.",
+          });
+          const cancelResult =
+            await requestExecutionCancellationAndDisconnect({
+              identity: queuedCancellation,
+              handle: null,
+              reason: cancellationReason,
+            });
+          if (cancelResult?.ok && queuedCancellation) {
+            acknowledgedExecutionCancelKeys.add(
+              executionCancelIdentityKey(queuedCancellation),
+            );
+            if (pendingQueuedExactCancellation) {
+              acknowledgedExecutionCancelKeys.add(
+                executionCancelIdentityKey(
+                  pendingQueuedExactCancellation,
+                ),
+              );
+            }
+            if (
+              recoveryCancelIntent &&
+              !removeDurableRecoveryCancelIntent(normalizedChatId)
+            ) {
+              scheduleCancellationLookupRetry(
+                pending,
+                "Stop was confirmed, but its local recovery marker could not be cleared yet.",
+              );
+              return pending;
+            }
+            const retryTimer = durableResumeRetryTimersRef.current.get(
+              normalizedChatId,
+            );
+            if (retryTimer != null) {
+              clearTimeout(retryTimer);
+              durableResumeRetryTimersRef.current.delete(normalizedChatId);
+            }
+            clearAllPendingToolConfirmations(normalizedChatId);
+            executionIdentityByChatIdRef.current.delete(normalizedChatId);
+            updateDurableInteractionForChat(normalizedChatId, null);
+            return {
+              status: "none",
+              sessionId: pending.sessionId,
+            };
+          }
+
+          const errorMessage = queuedCancellation
+            ? "Stop is queued and will be retried until Unchain confirms it."
+            : "The interrupted execution identity is not available yet. Stop will keep checking.";
+          scheduleCancellationLookupRetry(pending, errorMessage);
+          return pending;
+        }
+        if (pendingAttemptId || pendingLogicalExecutionId) {
           executionIdentityByChatIdRef.current.set(normalizedChatId, {
             sessionId: pending.sessionId,
             attemptId: pendingAttemptId,
             requestId: "",
             sourceAttemptId: pending.sourceRunId || "",
+            logicalExecutionId: pendingLogicalExecutionId,
             runGeneration: activeRunGeneration,
           });
         }
@@ -4975,6 +5598,13 @@ export const useChatStream = ({
         }
         const errorMessage =
           error?.message || "Failed to inspect this chat for interrupted work.";
+        if (currentRecoveryCancelIntent()) {
+          scheduleCancellationLookupRetry(
+            { sessionId: normalizedSessionId },
+            `Stop is still pending: ${errorMessage}`,
+          );
+          return null;
+        }
         if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
           const nextAttempt = lookupAttempt + 1;
           updateDurableInteractionForChat(normalizedChatId, {
@@ -5020,6 +5650,16 @@ export const useChatStream = ({
           setStreamError(errorMessage);
         }
         return null;
+      } finally {
+        if (pendingLookupInFlight) {
+          endPendingInteractionLookup(normalizedSessionId);
+          pendingLookupInFlight = false;
+          if (!hasPendingInteractionLookup(normalizedSessionId)) {
+            removeAcknowledgedExecutionCancellationsForSession(
+              normalizedSessionId,
+            );
+          }
+        }
       }
     },
     [
@@ -5053,15 +5693,23 @@ export const useChatStream = ({
     ) {
       return undefined;
     }
-    const runGeneration = ensureRecoveryRunGeneration(targetChatId);
+    const recoveryCancelIntent =
+      getDurableRecoveryCancelIntent(targetChatId);
+    const runGeneration = recoveryCancelIntent
+      ? getRunGeneration(targetChatId)
+      : ensureRecoveryRunGeneration(targetChatId);
+    const isRecoveryOwnerCurrent = () =>
+      isRunGenerationCurrent(targetChatId, runGeneration) ||
+      Boolean(getDurableRecoveryCancelIntent(targetChatId));
     if (
-      !runGeneration ||
-      !isRunGenerationCurrent(targetChatId, runGeneration)
+      !recoveryCancelIntent &&
+      (!runGeneration || !isRunGenerationCurrent(targetChatId, runGeneration))
     ) {
       return undefined;
     }
     const existingState = durableInteractionByChatIdRef.current[targetChatId];
     if (
+      !recoveryCancelIntent &&
       ["retry_wait", "resume_failed", "resuming"].includes(
         existingState?.status,
       )
@@ -5070,39 +5718,64 @@ export const useChatStream = ({
     }
 
     let cancelled = false;
+    let characterRecoveryTimerId = null;
     updateDurableInteractionForChat(targetChatId, {
       ...(existingState || {}),
-      status: "checking",
+      status: recoveryCancelIntent ? "cancel_pending" : "checking",
+      ...(recoveryCancelIntent?.sessionId
+        ? { sessionId: recoveryCancelIntent.sessionId }
+        : {}),
       lastError: "",
     });
-    void (async () => {
-      let sessionId = targetChatId;
-      if (isCharacterChat) {
+    const resolveRecoverySessionAndLookup = async (recoveryAttempt = 0) => {
+      let sessionId =
+        recoveryCancelIntent?.sessionId ||
+        (isCharacterChat ? "" : targetChatId);
+      if (isCharacterChat && !sessionId) {
         try {
           const config = await buildCharacterRunConfig();
-          if (
-            cancelled ||
-            !isRunGenerationCurrent(targetChatId, runGeneration)
-          ) {
+          if (cancelled || !isRecoveryOwnerCurrent()) {
             return;
           }
           sessionId =
             typeof config?.session_id === "string" && config.session_id.trim()
               ? config.session_id.trim()
               : "";
+          const currentIntent = getDurableRecoveryCancelIntent(targetChatId);
+          if (currentIntent && sessionId) {
+            enqueueDurableRecoveryCancelIntent({
+              ...currentIntent,
+              sessionId,
+            });
+          }
         } catch (error) {
-          if (
-            !cancelled &&
-            isRunGenerationCurrent(targetChatId, runGeneration)
-          ) {
+          if (!cancelled && isRecoveryOwnerCurrent()) {
             const errorMessage =
               error?.message || "Failed to prepare durable recovery.";
+            const currentIntent =
+              getDurableRecoveryCancelIntent(targetChatId);
+            const nextAttempt = Math.min(
+              recoveryAttempt + 1,
+              DURABLE_RESUME_MAX_RETRIES,
+            );
             updateDurableInteractionForChat(targetChatId, {
-              status: "resume_failed",
+              status: currentIntent ? "cancel_pending" : "resume_failed",
               sessionId: "",
+              resumeAttempt: nextAttempt,
               lastError: errorMessage,
             });
             setStreamError(errorMessage);
+            if (currentIntent) {
+              characterRecoveryTimerId = setTimeout(() => {
+                characterRecoveryTimerId = null;
+                if (
+                  !cancelled &&
+                  getDurableRecoveryCancelIntent(targetChatId)
+                ) {
+                  void resolveRecoverySessionAndLookup(nextAttempt);
+                }
+              }, durableInteractionRetryDelayMs(nextAttempt));
+            }
           }
           return;
         }
@@ -5110,22 +5783,33 @@ export const useChatStream = ({
       if (
         !cancelled &&
         sessionId &&
-        isRunGenerationCurrent(targetChatId, runGeneration)
+        isRecoveryOwnerCurrent()
       ) {
         await lookupDurableInteraction(targetChatId, sessionId, {
           autoResume: true,
           runGeneration,
         });
       }
-    })();
+    };
+    void resolveRecoverySessionAndLookup();
 
     return () => {
+      // Explicit Stop owns a durable cancellation lifecycle, not a view
+      // lifecycle. Let its session resolver survive chat navigation/unmount;
+      // ordinary recovery checks still stop with the view.
+      if (getDurableRecoveryCancelIntent(targetChatId)) {
+        return;
+      }
       cancelled = true;
+      if (characterRecoveryTimerId != null) {
+        clearTimeout(characterRecoveryTimerId);
+      }
     };
   }, [
     buildCharacterRunConfig,
     chatId,
     ensureRecoveryRunGeneration,
+    getRunGeneration,
     isCharacterChat,
     isRunGenerationCurrent,
     isStreaming,

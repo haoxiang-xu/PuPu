@@ -197,6 +197,111 @@ def get_durable_jobs_runtime() -> DurableJobsRuntime | None:
         return replacement
 
 
+def cancel_jobs_for_logical_execution(
+    session_id: str,
+    logical_execution_id: str,
+    *,
+    reason: str = "user_stop",
+) -> dict[str, Any]:
+    """Cancel only jobs explicitly owned by one logical execution.
+
+    This is intentionally feature-detected. Older Unchain builds only expose
+    session-scoped ``reattach(execution_id)``; using that API here could cancel
+    unrelated turns in the same chat, so the safe fallback is a no-op with an
+    explicit unsupported disposition.
+    """
+
+    normalized_session_id = str(session_id or "").strip()
+    normalized_logical_execution_id = str(logical_execution_id or "").strip()
+    if not normalized_session_id:
+        raise ValueError("session_id is required")
+    if not normalized_logical_execution_id:
+        raise ValueError("logical_execution_id is required")
+    runtime = get_durable_jobs_runtime()
+    if runtime is None:
+        return {
+            "supported": False,
+            "disposition": "runtime_unavailable",
+            "session_id": normalized_session_id,
+            "logical_execution_id": normalized_logical_execution_id,
+            "cancelled_job_ids": [],
+        }
+
+    for owner in (runtime.supervisor, runtime.module):
+        for method_name in (
+            "cancel_logical_execution",
+            "cancel_lineage",
+            "cancel_by_logical_execution_id",
+        ):
+            operation = getattr(owner, method_name, None)
+            if not callable(operation):
+                continue
+            try:
+                result = operation(
+                    execution_id=normalized_session_id,
+                    logical_execution_id=normalized_logical_execution_id,
+                    reason=reason,
+                )
+            except TypeError:
+                try:
+                    result = operation(
+                        execution_id=normalized_session_id,
+                        logical_execution_id=normalized_logical_execution_id,
+                    )
+                except TypeError:
+                    result = operation(
+                        session_id=normalized_session_id,
+                        logical_execution_id=normalized_logical_execution_id,
+                    )
+            if isinstance(result, dict):
+                payload = dict(result)
+            elif isinstance(result, (list, tuple, set)):
+                snapshots = []
+                cancelled_job_ids = []
+                for item in result:
+                    if isinstance(item, dict):
+                        snapshot = dict(item)
+                    else:
+                        to_dict = getattr(item, "to_dict", None)
+                        serialized = to_dict() if callable(to_dict) else None
+                        snapshot = (
+                            dict(serialized)
+                            if isinstance(serialized, dict)
+                            else {
+                                key: getattr(item, key)
+                                for key in ("job_id", "status", "state")
+                                if getattr(item, key, None) is not None
+                            }
+                        )
+                    job_id = str(snapshot.get("job_id") or "").strip()
+                    if job_id:
+                        cancelled_job_ids.append(job_id)
+                    snapshots.append(snapshot)
+                payload = {
+                    "cancelled_job_ids": cancelled_job_ids,
+                    "jobs": snapshots,
+                }
+            else:
+                payload = {"result": result}
+            payload.setdefault("supported", True)
+            payload.setdefault("disposition", "applied")
+            payload.setdefault("session_id", normalized_session_id)
+            payload.setdefault(
+                "logical_execution_id",
+                normalized_logical_execution_id,
+            )
+            payload.setdefault("cancelled_job_ids", [])
+            return payload
+
+    return {
+        "supported": False,
+        "disposition": "logical_cancel_api_unavailable",
+        "session_id": normalized_session_id,
+        "logical_execution_id": normalized_logical_execution_id,
+        "cancelled_job_ids": [],
+    }
+
+
 def _load_jobs_types() -> tuple[type, type, type] | None:
     try:
         from unchain.agent import JobsModule
@@ -217,6 +322,7 @@ def _reset_durable_jobs_runtime_for_tests() -> None:
 
 __all__ = [
     "DurableJobsRuntime",
+    "cancel_jobs_for_logical_execution",
     "get_durable_jobs_runtime",
     "restore_frozen_job_environment",
     "sanitized_job_environment",

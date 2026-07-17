@@ -1401,14 +1401,20 @@ export const createUnchainApi = () => {
         const method = assertBridgeMethod("unchainAPI", "cancelExecution");
         const sessionIdRaw = payload?.session_id || payload?.sessionId;
         const attemptIdRaw = payload?.attempt_id || payload?.attemptId;
+        const logicalExecutionIdRaw =
+          payload?.logical_execution_id || payload?.logicalExecutionId;
         const sessionId =
           typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
         const attemptId =
           typeof attemptIdRaw === "string" ? attemptIdRaw.trim() : "";
-        if (!sessionId || !attemptId) {
+        const logicalExecutionId =
+          typeof logicalExecutionIdRaw === "string"
+            ? logicalExecutionIdRaw.trim()
+            : "";
+        if (!sessionId || (!attemptId && !logicalExecutionId)) {
           throw new FrontendApiError(
             "invalid_execution_cancel_request",
-            "session_id and attempt_id are required",
+            "session_id and attempt_id or logical_execution_id are required",
           );
         }
         const reasonRaw = payload?.reason;
@@ -1435,7 +1441,10 @@ export const createUnchainApi = () => {
           () =>
             method({
               session_id: sessionId,
-              attempt_id: attemptId,
+              ...(attemptId ? { attempt_id: attemptId } : {}),
+              ...(logicalExecutionId
+                ? { logical_execution_id: logicalExecutionId }
+                : {}),
               reason,
               ...(sourceAttemptId
                 ? { source_attempt_id: sourceAttemptId }
@@ -1455,6 +1464,7 @@ export const createUnchainApi = () => {
               status: "cancel_requested",
               session_id: sessionId,
               attempt_id: attemptId,
+              logical_execution_id: logicalExecutionId,
             };
       } catch (error) {
         throw toFrontendApiError(

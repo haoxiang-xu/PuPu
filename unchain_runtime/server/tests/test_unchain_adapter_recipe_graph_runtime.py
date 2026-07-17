@@ -236,6 +236,37 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
         graph_stream.assert_called_once()
         create_agent.assert_not_called()
 
+    def test_legacy_graph_without_execution_ids_skips_lineage_registry(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        expected = {
+            "type": "final_message",
+            "run_id": "legacy-workflow",
+            "iteration": 0,
+            "content": "workflow",
+        }
+        with mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+            return_value=iter([expected]),
+        ) as graph_stream:
+            events = list(
+                ua.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test"},
+                )
+            )
+
+        self.assertEqual(events, [expected])
+        graph_stream.assert_called_once()
+
     def test_custom_durable_graph_remains_fail_closed(self):
         import unchain_adapter as ua
 
@@ -857,6 +888,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
 
     def test_graph_worker_terminalizes_after_sse_consumer_disconnects(self):
         import execution_control
+        import execution_lineage
         import unchain_adapter as ua
 
         data = _recipe_dict()
@@ -939,6 +971,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                 options={"modelId": "ollama:test"},
                 session_id="chat-disconnect",
                 attempt_id="attempt-disconnect",
+                logical_execution_id="logical-disconnect",
             )
             first = next(stream)
             self.assertEqual(first["type"], "token_delta")
@@ -947,17 +980,29 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
 
             deadline = time.monotonic() + 2.0
             snapshot = None
+            lineage_snapshot = None
             while time.monotonic() < deadline:
                 snapshot = execution_control.snapshot(
                     "chat-disconnect",
                     "attempt-disconnect",
                 )
-                if snapshot is not None and snapshot.status == "completed":
+                lineage_snapshot = execution_lineage.snapshot(
+                    "chat-disconnect",
+                    "logical-disconnect",
+                )
+                if (
+                    snapshot is not None
+                    and snapshot.status == "completed"
+                    and lineage_snapshot is not None
+                    and lineage_snapshot.status == "completed"
+                ):
                     break
                 time.sleep(0.02)
 
-        self.assertIsNotNone(snapshot)
-        self.assertEqual(snapshot.status, "completed")
+            self.assertIsNotNone(snapshot)
+            self.assertEqual(snapshot.status, "completed")
+            self.assertIsNotNone(lineage_snapshot)
+            self.assertEqual(lineage_snapshot.status, "completed")
 
     def test_graph_cancel_wins_at_fenced_commit_barrier_without_writing(self):
         import execution_control

@@ -47,7 +47,28 @@ describe("durable interaction recovery helpers", () => {
         callId: "call-1",
         sourceRunId: "attempt-source-1",
         activeAttemptId: "attempt-active-1",
+        logicalExecutionId: "attempt-source-1",
       }),
+    );
+  });
+
+  test("preserves top-level logical identity and derives it for legacy records", () => {
+    const explicit = normalizePendingInteraction(
+      {
+        ...rawPending,
+        logical_execution_id: "logical-explicit",
+      },
+      "chat-a",
+    );
+    const legacy = normalizePendingInteraction(rawPending, "chat-a");
+
+    expect(explicit.logicalExecutionId).toBe("logical-explicit");
+    expect(explicit.resumeOptions.logical_execution_id).toBe(
+      "logical-explicit",
+    );
+    expect(legacy.logicalExecutionId).toBe("attempt-source-1");
+    expect(legacy.resumeOptions.logical_execution_id).toBe(
+      "attempt-source-1",
     );
   });
 
@@ -95,6 +116,7 @@ describe("durable interaction recovery helpers", () => {
       options: {
         modelId: "openai:gpt-5",
         memory_enabled: true,
+        logical_execution_id: "attempt-source-1",
       },
       trace_level: "minimal",
     });

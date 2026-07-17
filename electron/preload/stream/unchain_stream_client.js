@@ -3,6 +3,9 @@ const { CHANNELS } = require("../../shared/channels");
 const createRequestId = () =>
   `unchain-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const createLogicalExecutionId = () =>
+  `logical-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 const createMisoStreamClient = (ipcRenderer) => {
   const activeMisoStreamCleanups = new Map();
 
@@ -190,6 +193,11 @@ const createMisoStreamClient = (ipcRenderer) => {
               message: "Stream was cancelled",
             });
           }
+        } else if (data.error && typeof handlers.onError === "function") {
+          handlers.onError({
+            code: data.error.code || "stream_failed",
+            message: data.error.message || "Unknown stream error",
+          });
         } else if (typeof handlers.onDone === "function") {
           handlers.onDone(data);
         }
@@ -273,6 +281,34 @@ const createMisoStreamClient = (ipcRenderer) => {
       typeof executionIdCandidate === "string"
         ? executionIdCandidate.trim()
         : "";
+    const mode =
+      typeof requestPayload.mode === "string"
+        ? requestPayload.mode.trim().toLowerCase()
+        : "";
+    const options =
+      requestPayload.options && typeof requestPayload.options === "object"
+        ? requestPayload.options
+        : {};
+    const logicalExecutionIdCandidate =
+      requestPayload.logical_execution_id ??
+      requestPayload.logicalExecutionId ??
+      options.logical_execution_id ??
+      options.logicalExecutionId;
+    const inheritedLogicalExecutionId =
+      typeof logicalExecutionIdCandidate === "string"
+        ? logicalExecutionIdCandidate.trim()
+        : "";
+    const sourceAttemptIdCandidate =
+      requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
+    const sourceAttemptId =
+      typeof sourceAttemptIdCandidate === "string"
+        ? sourceAttemptIdCandidate.trim()
+        : "";
+    const logicalExecutionId =
+      inheritedLogicalExecutionId ||
+      (mode === "resume_interaction"
+        ? sourceAttemptId
+        : createLogicalExecutionId());
 
     registerMisoStreamV4Listener(requestId, handlers);
 
@@ -281,6 +317,9 @@ const createMisoStreamClient = (ipcRenderer) => {
       payload: {
         ...requestPayload,
         attempt_id: attemptId,
+        ...(logicalExecutionId
+          ? { logical_execution_id: logicalExecutionId }
+          : {}),
       },
     });
 
@@ -293,6 +332,7 @@ const createMisoStreamClient = (ipcRenderer) => {
       requestId,
       executionId,
       attemptId,
+      logicalExecutionId,
       disconnect,
       cancel: disconnect,
     };
@@ -312,6 +352,7 @@ const createMisoStreamClient = (ipcRenderer) => {
 };
 
 module.exports = {
+  createLogicalExecutionId,
   createMisoStreamClient,
   createRequestId,
 };

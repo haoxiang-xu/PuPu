@@ -1,5 +1,4 @@
 const STORAGE_KEY = "pupu.execution_cancel_outbox.v1";
-const MAX_ENTRIES = 64;
 
 const normalizedString = (value) =>
   typeof value === "string" ? value.trim() : "";
@@ -55,7 +54,7 @@ export const readExecutionCancelOutbox = (storage = null) => {
         );
       }
     });
-    return Array.from(deduplicated.values()).slice(-MAX_ENTRIES);
+    return Array.from(deduplicated.values());
   } catch (_error) {
     return [];
   }
@@ -69,7 +68,7 @@ const writeExecutionCancelOutbox = (entries, storage = null) => {
   try {
     resolvedStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify(entries.slice(-MAX_ENTRIES)),
+      JSON.stringify(entries),
     );
     return true;
   } catch (_error) {
@@ -106,10 +105,7 @@ export const enqueueExecutionCancel = (identity, storage = null) => {
       ),
   );
   entries.push(merged);
-  writeExecutionCancelOutbox(entries, storage);
-  // Persistence is best effort. A storage quota/security failure must never
-  // prevent the immediate semantic cancellation and transport disconnect.
-  return merged;
+  return writeExecutionCancelOutbox(entries, storage) ? merged : null;
 };
 
 export const removeExecutionCancel = (

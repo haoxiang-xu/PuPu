@@ -15,6 +15,7 @@ const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
 const UNCHAIN_EXECUTION_CANCEL_ENDPOINT = "/chat/executions/cancel";
+const UNCHAIN_EXECUTION_CANCEL_TIMEOUT_MS = 3000;
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_PENDING_INTERACTION_ENDPOINT = "/chat/interactions/pending";
 const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
@@ -2715,6 +2716,11 @@ const createUnchainService = ({
       requestPayload.attempt_id ?? requestPayload.attemptId;
     const sourceAttemptIdCandidate =
       requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
+    const logicalExecutionIdCandidate =
+      requestPayload.logical_execution_id ??
+      requestPayload.logicalExecutionId ??
+      requestPayload.options?.logical_execution_id ??
+      requestPayload.options?.logicalExecutionId;
     unchainActiveStreams.set(requestId, {
       controller,
       webContentsId: sender.id,
@@ -2727,6 +2733,10 @@ const createUnchainService = ({
       sourceAttemptId:
         typeof sourceAttemptIdCandidate === "string"
           ? sourceAttemptIdCandidate.trim()
+          : "",
+      logicalExecutionId:
+        typeof logicalExecutionIdCandidate === "string"
+          ? logicalExecutionIdCandidate.trim()
           : "",
       requestOptions: { ...requestPayload.options },
     });
@@ -2828,6 +2838,10 @@ const createUnchainService = ({
       payload?.source_attempt_id ??
       payload?.sourceAttemptId ??
       activeStream?.sourceAttemptId;
+    const logicalExecutionIdCandidate =
+      payload?.logical_execution_id ??
+      payload?.logicalExecutionId ??
+      activeStream?.logicalExecutionId;
     const executionId =
       typeof executionIdCandidate === "string"
         ? executionIdCandidate.trim()
@@ -2838,28 +2852,64 @@ const createUnchainService = ({
       typeof sourceAttemptIdCandidate === "string"
         ? sourceAttemptIdCandidate.trim()
         : "";
+    const logicalExecutionId =
+      typeof logicalExecutionIdCandidate === "string"
+        ? logicalExecutionIdCandidate.trim()
+        : "";
 
     if (!executionId) {
       throw new TypeError("execution_id is required to cancel an execution");
     }
-    if (!attemptId) {
-      throw new TypeError("attempt_id is required to cancel an execution");
+    if (!attemptId && !logicalExecutionId) {
+      throw new TypeError(
+        "attempt_id or logical_execution_id is required to cancel an execution",
+      );
     }
-    if (
-      activeStream &&
-      ((activeStream.executionId && activeStream.executionId !== executionId) ||
-        (activeStream.attemptId && activeStream.attemptId !== attemptId) ||
-        (activeStream.sourceAttemptId &&
-          sourceAttemptId &&
-          activeStream.sourceAttemptId !== sourceAttemptId))
-    ) {
-      throw new Error("Cancel identity does not match the active stream attempt");
+    if (activeStream) {
+      if (
+        activeStream.executionId &&
+        activeStream.executionId !== executionId
+      ) {
+        throw new Error(
+          "Cancel identity does not match the active stream execution",
+        );
+      }
+      if (
+        activeStream.logicalExecutionId &&
+        logicalExecutionId &&
+        activeStream.logicalExecutionId !== logicalExecutionId
+      ) {
+        throw new Error(
+          "Cancel identity does not match the active logical execution",
+        );
+      }
+      // A logical Stop is authoritative across retries.  Its client attempt
+      // may be stale; the sidecar lineage registry resolves the current owner.
+      // Exact/source guards remain for legacy exact-only cancellation.
+      if (
+        !logicalExecutionId &&
+        ((activeStream.attemptId &&
+          attemptId &&
+          activeStream.attemptId !== attemptId) ||
+          (activeStream.sourceAttemptId &&
+            sourceAttemptId &&
+            activeStream.sourceAttemptId !== sourceAttemptId))
+      ) {
+        throw new Error(
+          "Cancel identity does not match the active stream attempt",
+        );
+      }
     }
 
     const cancelPayload = {
       execution_id: executionId,
-      attempt_id: attemptId,
     };
+    if (attemptId) {
+      cancelPayload.attempt_id = attemptId;
+    }
+    if (logicalExecutionId) {
+      cancelPayload.logical_execution_id = logicalExecutionId;
+    }
     if (sourceAttemptId) {
       cancelPayload.source_attempt_id = sourceAttemptId;
     }
@@ -2878,28 +2928,50 @@ const createUnchainService = ({
       cancelPayload.idempotency_key = idempotencyKey;
     }
 
-    const response = await fetch(
-      buildMisoUrl(UNCHAIN_EXECUTION_CANCEL_ENDPOINT),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-unchain-auth": unchainAuthToken,
+    const cancelController = new AbortController();
+    let cancelTimedOut = false;
+    const cancelTimeoutId = setTimeout(() => {
+      cancelTimedOut = true;
+      cancelController.abort();
+    }, UNCHAIN_EXECUTION_CANCEL_TIMEOUT_MS);
+    try {
+      const response = await fetch(
+        buildMisoUrl(UNCHAIN_EXECUTION_CANCEL_ENDPOINT),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-unchain-auth": unchainAuthToken,
+          },
+          body: JSON.stringify(cancelPayload),
+          signal: cancelController.signal,
         },
-        body: JSON.stringify(cancelPayload),
-      },
-    );
+      );
 
-    return readJsonResponse(
-      response,
-      "Failed to cancel execution",
-      {
-        status: "ok",
-        execution_id: executionId,
-        attempt_id: attemptId,
-      },
-      "Invalid execution cancel response",
-    );
+      return await readJsonResponse(
+        response,
+        "Failed to cancel execution",
+        {
+          status: "ok",
+          execution_id: executionId,
+          attempt_id: attemptId,
+          logical_execution_id: logicalExecutionId,
+        },
+        "Invalid execution cancel response",
+      );
+    } catch (error) {
+      if (cancelTimedOut || error?.name === "AbortError") {
+        const timeoutError = new Error(
+          "Execution cancellation timed out and will be retried",
+        );
+        timeoutError.code = "execution_cancel_timeout";
+        timeoutError.retryable = true;
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      clearTimeout(cancelTimeoutId);
+    }
   };
 
   const handleStreamStart = (event, payload) => {

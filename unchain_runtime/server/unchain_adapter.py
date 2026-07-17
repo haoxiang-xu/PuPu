@@ -128,6 +128,14 @@ from durable_interaction_host import (
 )
 
 
+class _TransportDetachedError(RuntimeError):
+    """A renderer transport disappeared while durable work was suspended."""
+
+    code = "transport_detached"
+    status_code = 499
+    retryable = False
+
+
 def _execution_control_call(name: str, *args: Any, **kwargs: Any) -> Any:
     """Call the optional PuPu execution-control registry without import cycles."""
 
@@ -139,6 +147,56 @@ def _execution_control_call(name: str, *args: Any, **kwargs: Any) -> Any:
     if not callable(operation):
         return None
     return operation(*args, **kwargs)
+
+
+def _execution_lineage_call(name: str, *args: Any, **kwargs: Any) -> Any:
+    """Call PuPu's durable logical-execution registry without import cycles."""
+
+    import execution_lineage
+
+    operation = getattr(execution_lineage, name, None)
+    if not callable(operation):
+        raise RuntimeError(f"execution lineage operation is unavailable: {name}")
+    return operation(*args, **kwargs)
+
+
+def _execution_lineage_status(result: Any) -> str:
+    return str(
+        getattr(result, "status", "")
+        or getattr(getattr(result, "snapshot", None), "status", "")
+        or ""
+    ).strip()
+
+
+def _execution_lineage_disposition(result: Any) -> str:
+    return str(getattr(result, "disposition", "") or "").strip()
+
+
+def _logical_execution_id_from_options(
+    options: Dict[str, object] | None,
+    fallback: str = "",
+) -> str:
+    value = options.get("logical_execution_id") if isinstance(options, dict) else ""
+    return str(value or fallback or "").strip()
+
+
+def _tool_runtime_execution_config(
+    *,
+    session_id: str,
+    logical_execution_id: str,
+    created_by_attempt_id: str,
+) -> dict[str, dict[str, str]]:
+    durable_jobs: dict[str, str] = {}
+    normalized_session_id = str(session_id or "").strip()
+    normalized_logical_execution_id = str(logical_execution_id or "").strip()
+    normalized_attempt_id = str(created_by_attempt_id or "").strip()
+    if normalized_session_id:
+        durable_jobs["session_id"] = normalized_session_id
+    if normalized_logical_execution_id:
+        durable_jobs["logical_execution_id"] = normalized_logical_execution_id
+    if normalized_attempt_id:
+        durable_jobs["created_by_attempt_id"] = normalized_attempt_id
+    return {"durable_jobs": durable_jobs} if durable_jobs else {}
 
 
 def _execution_cancellation_token(session_id: str, attempt_id: str) -> Any:
@@ -219,6 +277,92 @@ def _is_execution_cancelled_error(error: BaseException | None) -> bool:
             }
         )
     )
+
+
+_RETRYABLE_LOGICAL_EXECUTION_ERROR_CODES = frozenset(
+    {
+        "active_execution_lease",
+        "durable_memory_unavailable",
+        "execution_lease_conflict",
+        "execution_lease_expired",
+        "execution_lease_not_owned",
+        "interaction_temporarily_locked",
+        "memory_unavailable",
+        "session_revision_conflict",
+        "stale_execution_lease",
+    }
+)
+
+
+def _is_retryable_logical_execution_error(error: BaseException | None) -> bool:
+    if error is None:
+        return False
+    code = str(getattr(error, "code", "") or "").strip()
+    return bool(
+        getattr(error, "retryable", False)
+        or code in _RETRYABLE_LOGICAL_EXECUTION_ERROR_CODES
+    )
+
+
+def _is_transport_detached_error(error: BaseException | None) -> bool:
+    return bool(
+        error is not None
+        and str(getattr(error, "code", "") or "").strip()
+        == "transport_detached"
+    )
+
+
+def _compensate_unstarted_execution_admission(
+    *,
+    session_id: str,
+    logical_execution_id: str,
+    attempt_id: str,
+    reason: str,
+    clear_binding: bool = False,
+) -> None:
+    """Release a lineage owner when admission fails before a worker starts.
+
+    Exact-attempt state is terminalized, while the logical task returns to a
+    resumable waiting boundary.  Each cleanup is best-effort so the original
+    admission error remains the useful error returned to the caller.
+    """
+
+    normalized_session_id = str(session_id or "").strip()
+    normalized_logical_execution_id = str(logical_execution_id or "").strip()
+    normalized_attempt_id = str(attempt_id or "").strip()
+    if not (
+        normalized_session_id
+        and normalized_logical_execution_id
+        and normalized_attempt_id
+    ):
+        return
+    try:
+        _execution_control_call(
+            "mark_failed",
+            normalized_session_id,
+            normalized_attempt_id,
+            reason=str(reason or "execution admission failed"),
+        )
+    except Exception:
+        pass
+    if clear_binding:
+        try:
+            clear_execution_attempt_binding(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+        except Exception:
+            pass
+    try:
+        _execution_lineage_call(
+            "mark_abandoned",
+            normalized_session_id,
+            normalized_logical_execution_id,
+            normalized_attempt_id,
+            reason=str(reason or "execution admission failed"),
+        )
+    except Exception:
+        pass
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -743,16 +887,22 @@ def _make_tool_confirm_callback(
                 _pending_confirmations.pop(confirmation_id, None)
 
         response = waiter.get("response")
+        # A durable response may race with transport teardown.  Once the real
+        # response is recorded it is authoritative; a later socket cancel must
+        # not turn the already-recorded user decision into a detach.
+        if isinstance(response, dict) and response.get("_transport_cancelled") is not True:
+            return _normalize_tool_confirmation_response(response)
         if (
-            normalized_cancel_event is not None
-            and normalized_cancel_event.is_set()
-        ) or (
             isinstance(response, dict)
             and response.get("_transport_cancelled") is True
+        ) or (
+            response is None
+            and normalized_cancel_event is not None
+            and normalized_cancel_event.is_set()
         ):
-            raise RuntimeError("stream cancelled during tool confirmation")
-        if isinstance(response, dict):
-            return _normalize_tool_confirmation_response(response)
+            raise _TransportDetachedError(
+                "stream cancelled during tool confirmation"
+            )
 
         raise RuntimeError("tool confirmation ended without a response")
 
@@ -812,16 +962,19 @@ def _make_continuation_callback(
                 _pending_confirmations.pop(confirmation_id, None)
 
         response = waiter.get("response")
+        if isinstance(response, dict) and response.get("_transport_cancelled") is not True:
+            return {"approved": bool(response.get("approved", False))}
         if (
-            normalized_cancel_event is not None
-            and normalized_cancel_event.is_set()
-        ) or (
             isinstance(response, dict)
             and response.get("_transport_cancelled") is True
+        ) or (
+            response is None
+            and normalized_cancel_event is not None
+            and normalized_cancel_event.is_set()
         ):
-            raise RuntimeError("stream cancelled during continuation request")
-        if isinstance(response, dict):
-            return {"approved": bool(response.get("approved", False))}
+            raise _TransportDetachedError(
+                "stream cancelled during continuation request"
+            )
 
         raise RuntimeError("continuation request ended without a response")
 
@@ -5103,13 +5256,16 @@ def _make_human_input_callback(
         response = waiter.get("response")
 
         if (
-            normalized_cancel_event is not None
-            and normalized_cancel_event.is_set()
-        ) or (
             isinstance(response, dict)
             and response.get("_transport_cancelled") is True
+        ) or (
+            response is None
+            and normalized_cancel_event is not None
+            and normalized_cancel_event.is_set()
         ):
-            raise RuntimeError("stream cancelled during human input")
+            raise _TransportDetachedError(
+                "stream cancelled during human input"
+            )
 
         if not isinstance(response, dict) or not response.get("approved"):
             raise RuntimeError("human input denied or cancelled")
@@ -5146,6 +5302,8 @@ def _stream_recipe_graph_events(
     cancel_event: threading.Event | None = None,
     run_id_override: str = "",
     execution_token: Any = None,
+    logical_execution_id: str = "",
+    attempt_id: str = "",
 ) -> Iterable[Dict[str, Any]]:
     if _UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
@@ -5214,6 +5372,8 @@ def _stream_recipe_graph_events(
     durable_jobs_runtime = get_durable_jobs_runtime()
 
     workflow_run_id = str(run_id_override or _uuid.uuid4())
+    normalized_logical_execution_id = str(logical_execution_id or "").strip()
+    normalized_attempt_id = str(attempt_id or run_id_override or "").strip()
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
     output_holder: Dict[str, object] = {
@@ -5259,7 +5419,13 @@ def _stream_recipe_graph_events(
         ).start()
 
     def emit(event: Dict[str, Any]) -> None:
-        if not _execution_is_cancelled(execution_token):
+        if (
+            not _execution_is_cancelled(execution_token)
+            and not (
+                isinstance(cancel_event, threading.Event)
+                and cancel_event.is_set()
+            )
+        ):
             event_queue.put(event)
 
     def run_workflow() -> None:
@@ -5541,6 +5707,17 @@ def _stream_recipe_graph_events(
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
                     run_id=workflow_run_id,
+                    tool_runtime_config=_tool_runtime_execution_config(
+                        session_id=session_id,
+                        logical_execution_id=_logical_execution_id_from_options(
+                            options,
+                            workflow_run_id,
+                        ),
+                        created_by_attempt_id=str(
+                            options.get("created_by_attempt_id")
+                            or workflow_run_id
+                        ),
+                    ),
                     execution_owner_id=(
                         workflow_run_id if str(run_id_override or "").strip() else None
                     ),
@@ -5663,6 +5840,37 @@ def _stream_recipe_graph_events(
                         "mark_completed",
                         token_session_id,
                         token_attempt_id,
+                    )
+            if (
+                session_id
+                and normalized_logical_execution_id
+                and normalized_attempt_id
+            ):
+                if (
+                    output_holder.get("cancelled")
+                    or _execution_is_cancelled(execution_token)
+                ):
+                    _execution_lineage_call(
+                        "request_cancel",
+                        session_id,
+                        normalized_logical_execution_id,
+                        attempt_id=normalized_attempt_id,
+                        reason="graph execution cancelled",
+                    )
+                elif output_holder.get("error") is not None:
+                    _execution_lineage_call(
+                        "mark_failed",
+                        session_id,
+                        normalized_logical_execution_id,
+                        normalized_attempt_id,
+                        reason=str(output_holder.get("error") or ""),
+                    )
+                else:
+                    _execution_lineage_call(
+                        "mark_completed",
+                        session_id,
+                        normalized_logical_execution_id,
+                        normalized_attempt_id,
                     )
             _disconnect_runtime_toolkits(runtime_toolkits_to_disconnect)
             run_done_event.set()
@@ -5839,17 +6047,80 @@ def stream_chat_events(
     session_id: str = "",
     cancel_event: threading.Event | None = None,
     attempt_id: str = "",
+    logical_execution_id: str = "",
 ) -> Iterable[Dict[str, Any]]:
     normalized_session_id = str(session_id or "").strip()
     normalized_attempt_id = str(attempt_id or "").strip()
+    options = dict(options or {})
+    normalized_logical_execution_id = str(
+        logical_execution_id
+        or _logical_execution_id_from_options(options)
+        or normalized_attempt_id
+    ).strip()
+    if normalized_logical_execution_id:
+        options["logical_execution_id"] = normalized_logical_execution_id
+    if normalized_attempt_id:
+        options["created_by_attempt_id"] = normalized_attempt_id
+    durable_interactions_required = bool(
+        options.get("durable_interactions_required") is True
+    )
+    # Recipe parsing and static compatibility checks do not require execution
+    # ownership.  Keep them ahead of admission so malformed/unsupported input
+    # cannot strand a registered logical owner without a worker.
+    recipe = _load_recipe_from_options(options)
+    if (
+        _recipe_has_graph(recipe)
+        and durable_interactions_required
+        and not _recipe_supports_durable_flat_projection(recipe)
+    ):
+        raise DurableInteractionHostError(
+            "durable_recipe_graph_unsupported",
+            "Durable interactions are not supported for recipe graphs",
+            status_code=422,
+        )
     execution_token = None
     registration = None
+    lineage_registration = None
     if normalized_session_id and normalized_attempt_id:
-        registration = _execution_control_call(
-            "register",
+        lineage_registration = _execution_lineage_call(
+            "register_attempt",
             normalized_session_id,
+            normalized_logical_execution_id,
             normalized_attempt_id,
         )
+        if _execution_lineage_disposition(lineage_registration) == "active_attempt_conflict":
+            raise DurableInteractionHostError(
+                "active_execution_lease",
+                "Logical execution is already owned by another active attempt",
+                status_code=409,
+                retryable=True,
+            )
+        if _execution_lineage_status(lineage_registration) == "cancelled":
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                reason="logical execution was cancelled before start",
+            )
+            return
+        if _execution_lineage_status(lineage_registration) in {
+            "completed",
+            "failed",
+        }:
+            return
+        try:
+            registration = _execution_control_call(
+                "register",
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+        except Exception as admission_error:
+            _compensate_unstarted_execution_admission(
+                session_id=normalized_session_id,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason=str(admission_error),
+            )
+            raise
         execution_token = _execution_cancellation_token(
             normalized_session_id,
             normalized_attempt_id,
@@ -5858,41 +6129,83 @@ def stream_chat_events(
         if registration_status == "cancelled" or _execution_is_cancelled(
             execution_token
         ):
+            _execution_lineage_call(
+                "request_cancel",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason="reconciled exact-attempt cancellation before start",
+            )
             cancel_chat_execution(
                 session_id=normalized_session_id,
                 attempt_id=normalized_attempt_id,
                 reason="reconciled cancellation before start",
             )
             return
-        if registration_status in {"completed", "failed"}:
+        if registration_status == "completed":
+            _execution_lineage_call(
+                "mark_completed",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
+            return
+        if registration_status == "failed":
+            _execution_lineage_call(
+                "mark_waiting_interaction",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
             return
 
-    durable_interactions_required = bool(
-        isinstance(options, dict)
-        and options.get("durable_interactions_required") is True
-    )
-    recipe = _load_recipe_from_options(options)
     if _recipe_has_graph(recipe) and not (
         durable_interactions_required
         and _recipe_supports_durable_flat_projection(recipe)
     ):
-        if durable_interactions_required:
-            raise DurableInteractionHostError(
-                "durable_recipe_graph_unsupported",
-                "Durable interactions are not supported for recipe graphs",
-                status_code=422,
+        try:
+            running = _execution_control_call(
+                "mark_running",
+                normalized_session_id,
+                normalized_attempt_id,
+            ) if normalized_session_id and normalized_attempt_id else None
+        except Exception as admission_error:
+            _compensate_unstarted_execution_admission(
+                session_id=normalized_session_id,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason=str(admission_error),
             )
-        running = _execution_control_call(
-            "mark_running",
-            normalized_session_id,
-            normalized_attempt_id,
-        ) if normalized_session_id and normalized_attempt_id else None
+            raise
         if normalized_session_id and normalized_attempt_id and (
             str(getattr(running, "disposition", "") or "") != "applied"
             or _execution_result_is_terminal(running)
             or _execution_is_cancelled(execution_token)
         ):
             return
+        if normalized_session_id and normalized_attempt_id:
+            try:
+                lineage_running = _execution_lineage_call(
+                    "mark_running",
+                    normalized_session_id,
+                    normalized_logical_execution_id,
+                    normalized_attempt_id,
+                )
+            except Exception as admission_error:
+                _compensate_unstarted_execution_admission(
+                    session_id=normalized_session_id,
+                    logical_execution_id=normalized_logical_execution_id,
+                    attempt_id=normalized_attempt_id,
+                    reason=str(admission_error),
+                )
+                raise
+            if _execution_lineage_status(lineage_running) == "cancelled":
+                cancel_chat_execution(
+                    session_id=normalized_session_id,
+                    attempt_id=normalized_attempt_id,
+                    reason="logical execution cancelled before graph start",
+                )
+                return
         try:
             yield from _stream_recipe_graph_events(
                 recipe=recipe,
@@ -5904,6 +6217,8 @@ def stream_chat_events(
                 cancel_event=cancel_event,
                 run_id_override=normalized_attempt_id,
                 execution_token=execution_token,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
             )
         except BaseException as graph_error:
             if not (
@@ -5911,14 +6226,38 @@ def stream_chat_events(
                 or _is_execution_cancelled_error(graph_error)
                 or _execution_is_cancelled(execution_token)
             ):
-                _execution_control_call(
-                    "mark_failed",
-                    normalized_session_id,
-                    normalized_attempt_id,
-                )
+                if normalized_session_id and normalized_attempt_id:
+                    _execution_control_call(
+                        "mark_failed",
+                        normalized_session_id,
+                        normalized_attempt_id,
+                    )
+                    _execution_lineage_call(
+                        (
+                            "mark_waiting_interaction"
+                            if _is_retryable_logical_execution_error(graph_error)
+                            else "mark_failed"
+                        ),
+                        normalized_session_id,
+                        normalized_logical_execution_id,
+                        normalized_attempt_id,
+                        **(
+                            {}
+                            if _is_retryable_logical_execution_error(graph_error)
+                            else {"reason": str(graph_error)}
+                        ),
+                    )
             if _is_execution_cancelled_error(graph_error) or _execution_is_cancelled(
                 execution_token
             ):
+                if normalized_session_id and normalized_attempt_id:
+                    _execution_lineage_call(
+                        "request_cancel",
+                        normalized_session_id,
+                        normalized_logical_execution_id,
+                        attempt_id=normalized_attempt_id,
+                        reason="graph execution cancelled",
+                    )
                 return
             raise
         else:
@@ -5928,26 +6267,88 @@ def stream_chat_events(
                     normalized_session_id,
                     normalized_attempt_id,
                 )
+                _execution_lineage_call(
+                    "mark_completed",
+                    normalized_session_id,
+                    normalized_logical_execution_id,
+                    normalized_attempt_id,
+                )
         return
 
-    running = _execution_control_call(
-        "mark_running",
-        normalized_session_id,
-        normalized_attempt_id,
-    ) if normalized_session_id and normalized_attempt_id else None
+    try:
+        running = _execution_control_call(
+            "mark_running",
+            normalized_session_id,
+            normalized_attempt_id,
+        ) if normalized_session_id and normalized_attempt_id else None
+    except Exception as admission_error:
+        _compensate_unstarted_execution_admission(
+            session_id=normalized_session_id,
+            logical_execution_id=normalized_logical_execution_id,
+            attempt_id=normalized_attempt_id,
+            reason=str(admission_error),
+        )
+        raise
     if normalized_session_id and normalized_attempt_id and (
         str(getattr(running, "disposition", "") or "") != "applied"
         or _execution_result_is_terminal(running)
         or _execution_is_cancelled(execution_token)
     ):
+        running_status = _execution_result_status(running)
+        if running_status == "completed":
+            _execution_lineage_call(
+                "mark_completed",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
+        elif running_status == "failed":
+            _execution_lineage_call(
+                "mark_waiting_interaction",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
         return
+    if normalized_session_id and normalized_attempt_id:
+        try:
+            lineage_running = _execution_lineage_call(
+                "mark_running",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
+        except Exception as admission_error:
+            _compensate_unstarted_execution_admission(
+                session_id=normalized_session_id,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason=str(admission_error),
+            )
+            raise
+        if _execution_lineage_status(lineage_running) == "cancelled":
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                reason="logical execution cancelled before run start",
+            )
+            return
 
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
     interject_key = session_id or f"session-{id(event_queue)}"
-    interject_channels = register_interject_channels(
-        interject_key, str(message or ""), options=options
-    )
+    try:
+        interject_channels = register_interject_channels(
+            interject_key, str(message or ""), options=options
+        )
+    except Exception as admission_error:
+        _compensate_unstarted_execution_admission(
+            session_id=normalized_session_id,
+            logical_execution_id=normalized_logical_execution_id,
+            attempt_id=normalized_attempt_id,
+            reason=str(admission_error),
+        )
+        raise
 
     durable_context_saved = False
     execution_run_id = normalized_attempt_id or str(_uuid.uuid4())
@@ -5997,6 +6398,12 @@ def stream_chat_events(
                         normalized_session_id,
                         normalized_attempt_id,
                         reason=f"memory_unavailable: {fallback_reason}",
+                    )
+                    _execution_lineage_call(
+                        "mark_waiting_interaction",
+                        normalized_session_id,
+                        normalized_logical_execution_id,
+                        normalized_attempt_id,
                     )
                 return
 
@@ -6061,11 +6468,19 @@ def stream_chat_events(
                 interject_channels.digest(event)
             except Exception:
                 pass
-            event_queue.put(event)
+            if not (
+                isinstance(cancel_event, threading.Event)
+                and cancel_event.is_set()
+            ):
+                event_queue.put(event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
-            event_queue.put(event)
+            if not (
+                isinstance(cancel_event, threading.Event)
+                and cancel_event.is_set()
+            ):
+                event_queue.put(event)
 
         confirmation_cancel_signal = threading.Event()
         run_done_event = threading.Event()
@@ -6142,6 +6557,11 @@ def stream_chat_events(
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
                     run_id=execution_run_id,
+                    tool_runtime_config=_tool_runtime_execution_config(
+                        session_id=session_id,
+                        logical_execution_id=normalized_logical_execution_id,
+                        created_by_attempt_id=normalized_attempt_id,
+                    ),
                     execution_owner_id=(normalized_attempt_id or None),
                     **({"session_id": session_id} if session_id else {}),
                     **({"memory_namespace": memory_namespace} if memory_namespace else {}),
@@ -6174,20 +6594,80 @@ def stream_chat_events(
             finally:
                 if normalized_session_id and normalized_attempt_id:
                     if output_holder.get("error") is not None:
+                        run_error = output_holder.get("error")
                         _execution_control_call(
                             "mark_failed",
                             normalized_session_id,
                             normalized_attempt_id,
                         )
+                        if _is_retryable_logical_execution_error(
+                            run_error
+                        ) or (
+                            durable_interactions_required
+                            and _is_transport_detached_error(run_error)
+                        ):
+                            _execution_lineage_call(
+                                "mark_waiting_interaction",
+                                normalized_session_id,
+                                normalized_logical_execution_id,
+                                normalized_attempt_id,
+                            )
+                        else:
+                            _execution_lineage_call(
+                                "mark_failed",
+                                normalized_session_id,
+                                normalized_logical_execution_id,
+                                normalized_attempt_id,
+                                reason=str(run_error or ""),
+                            )
                     elif (
-                        not output_holder.get("cancelled")
-                        and not _execution_is_cancelled(execution_token)
-                        and result_status
-                        not in {"awaiting_human_input", "awaiting_interaction"}
+                        output_holder.get("cancelled")
+                        or _execution_is_cancelled(execution_token)
+                    ):
+                        _execution_lineage_call(
+                            "request_cancel",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
+                            attempt_id=normalized_attempt_id,
+                            reason="execution attempt cancelled",
+                        )
+                    elif result_status in {
+                        "awaiting_human_input",
+                        "awaiting_interaction",
+                        "max_iterations",
+                    }:
+                        _execution_lineage_call(
+                            "mark_waiting_interaction",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
+                            normalized_attempt_id,
+                        )
+                    elif result_status in {"waiting_job", "awaiting_job"}:
+                        _execution_lineage_call(
+                            "mark_waiting_job",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
+                            normalized_attempt_id,
+                        )
+                    elif (
+                        result_status
+                        not in {
+                            "awaiting_human_input",
+                            "awaiting_interaction",
+                            "max_iterations",
+                            "waiting_job",
+                            "awaiting_job",
+                        }
                     ):
                         _execution_control_call(
                             "mark_completed",
                             normalized_session_id,
+                            normalized_attempt_id,
+                        )
+                        _execution_lineage_call(
+                            "mark_completed",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
                             normalized_attempt_id,
                         )
                 if durable_context_saved:
@@ -6213,6 +6693,17 @@ def stream_chat_events(
         release_interject_channels(interject_key, interject_channels)
         if "run_done_event" in locals():
             run_done_event.set()
+        if (
+            isinstance(setup_error, GeneratorExit)
+            and normalized_session_id
+            and normalized_attempt_id
+        ):
+            _compensate_unstarted_execution_admission(
+                session_id=normalized_session_id,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason="transport detached before worker start",
+            )
         if not (
             isinstance(setup_error, GeneratorExit)
             or _is_execution_cancelled_error(setup_error)
@@ -6223,6 +6714,33 @@ def stream_chat_events(
                 normalized_session_id,
                 normalized_attempt_id,
                 reason=str(setup_error),
+            )
+            if _is_retryable_logical_execution_error(setup_error):
+                _execution_lineage_call(
+                    "mark_waiting_interaction",
+                    normalized_session_id,
+                    normalized_logical_execution_id,
+                    normalized_attempt_id,
+                )
+            else:
+                _execution_lineage_call(
+                    "mark_failed",
+                    normalized_session_id,
+                    normalized_logical_execution_id,
+                    normalized_attempt_id,
+                    reason=str(setup_error),
+                )
+        elif (
+            (_is_execution_cancelled_error(setup_error) or _execution_is_cancelled(execution_token))
+            and normalized_session_id
+            and normalized_attempt_id
+        ):
+            _execution_lineage_call(
+                "request_cancel",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason="execution setup cancelled",
             )
         if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
             execution_token
@@ -6280,11 +6798,16 @@ def resume_chat_interaction_events(
     cancel_event: threading.Event | None = None,
     attempt_id: str = "",
     source_attempt_id: str = "",
+    logical_execution_id: str = "",
 ) -> Iterable[Dict[str, Any]]:
     normalized_session_id = str(session_id or "").strip()
     normalized_interaction_id = str(interaction_id or "").strip()
     normalized_attempt_id = str(attempt_id or "").strip()
     normalized_source_attempt_id = str(source_attempt_id or "").strip()
+    options = dict(options or {})
+    normalized_logical_execution_id = str(
+        logical_execution_id or _logical_execution_id_from_options(options)
+    ).strip()
     if not normalized_session_id or not normalized_interaction_id:
         raise DurableInteractionHostError(
             "invalid_resume_request",
@@ -6294,38 +6817,34 @@ def resume_chat_interaction_events(
 
     execution_token = None
     registration = None
-    if normalized_attempt_id and normalized_source_attempt_id:
-        bind_execution_attempt(
-            session_id=normalized_session_id,
-            attempt_id=normalized_attempt_id,
-            source_attempt_id=normalized_source_attempt_id,
-        )
-    if normalized_attempt_id:
-        registration = _execution_control_call(
-            "register",
+    lineage_registration = None
+    terminal_lineage_status = ""
+    if normalized_attempt_id and normalized_logical_execution_id:
+        lineage_snapshot = _execution_lineage_call(
+            "snapshot",
             normalized_session_id,
-            normalized_attempt_id,
+            normalized_logical_execution_id,
         )
-        execution_token = _execution_cancellation_token(
-            normalized_session_id,
-            normalized_attempt_id,
-        )
-        if _execution_result_status(registration) in {"completed", "failed"}:
-            clear_execution_attempt_binding(
-                normalized_session_id,
-                normalized_attempt_id,
-            )
-            return
+        if str(getattr(lineage_snapshot, "status", "") or "") in {
+            "cancelled",
+            "completed",
+            "failed",
+        }:
+            terminal_lineage_status = str(lineage_snapshot.status)
 
     pending_state = get_pending_interaction(normalized_session_id)
-    if (
-        pending_state.get("status") == "none"
-        and (
-            _execution_result_status(registration) == "cancelled"
-            or _execution_is_cancelled(execution_token)
+    if terminal_lineage_status:
+        if terminal_lineage_status == "cancelled":
+            raise DurableInteractionHostError(
+                "execution_cancelled",
+                "Logical execution was cancelled before resume",
+                status_code=409,
+            )
+        raise DurableInteractionHostError(
+            "logical_execution_terminal",
+            f"Logical execution is already {terminal_lineage_status}",
+            status_code=409,
         )
-    ):
-        return
     if pending_state.get("interaction_id") != normalized_interaction_id:
         raise DurableInteractionHostError(
             "interaction_not_found",
@@ -6340,6 +6859,31 @@ def resume_chat_interaction_events(
         )
 
     source_run_id = str(pending_state.get("source_run_id") or "").strip()
+    pending_logical_execution_id = str(
+        pending_state.get("logical_execution_id")
+        or (
+            pending_state.get("resume_options", {}).get("logical_execution_id")
+            if isinstance(pending_state.get("resume_options"), dict)
+            else ""
+        )
+        or ""
+    ).strip()
+    if (
+        normalized_logical_execution_id
+        and pending_logical_execution_id
+        and normalized_logical_execution_id != pending_logical_execution_id
+    ):
+        raise DurableInteractionHostError(
+            "logical_execution_binding_conflict",
+            "Resume request logical_execution_id does not match the pending task",
+            status_code=409,
+        )
+    normalized_logical_execution_id = (
+        pending_logical_execution_id
+        or normalized_logical_execution_id
+        or normalized_source_attempt_id
+        or normalized_attempt_id
+    )
     if (
         normalized_source_attempt_id
         and source_run_id
@@ -6360,24 +6904,6 @@ def resume_chat_interaction_events(
             "The durable interaction has no usable resume context",
             status_code=409,
         )
-    if normalized_attempt_id:
-        bind_execution_attempt(
-            session_id=normalized_session_id,
-            attempt_id=normalized_attempt_id,
-            source_attempt_id=source_run_id,
-        )
-        if (
-            _execution_result_status(registration) == "cancelled"
-            or _execution_is_cancelled(execution_token)
-        ):
-            cancel_chat_execution(
-                session_id=normalized_session_id,
-                attempt_id=normalized_attempt_id,
-                source_attempt_id=source_run_id,
-                reason="cancelled before resume start",
-            )
-            return
-
     resolved_options = resolve_resume_options(
         session_id=normalized_session_id,
         run_id=source_run_id,
@@ -6385,6 +6911,8 @@ def resume_chat_interaction_events(
         expected_provider=str(pending_state.get("provider") or ""),
         expected_model=str(pending_state.get("model") or ""),
     )
+    resolved_options["logical_execution_id"] = normalized_logical_execution_id
+    resolved_options["created_by_attempt_id"] = normalized_attempt_id
     recipe = _load_recipe_from_options(resolved_options)
     if _recipe_has_graph(recipe) and not _recipe_supports_durable_flat_projection(
         recipe
@@ -6395,31 +6923,190 @@ def resume_chat_interaction_events(
             status_code=422,
         )
 
-    running = _execution_control_call(
-        "mark_running",
-        normalized_session_id,
-        normalized_attempt_id,
-    ) if normalized_attempt_id else None
+    if normalized_attempt_id:
+        lineage_registration = _execution_lineage_call(
+            "register_attempt",
+            normalized_session_id,
+            normalized_logical_execution_id,
+            normalized_attempt_id,
+            source_attempt_id=(normalized_source_attempt_id or source_run_id),
+        )
+        if (
+            _execution_lineage_disposition(lineage_registration)
+            == "active_attempt_conflict"
+        ):
+            raise DurableInteractionHostError(
+                "active_execution_lease",
+                "Logical execution is already owned by another active attempt",
+                status_code=409,
+                retryable=True,
+            )
+        if _execution_lineage_status(lineage_registration) == "cancelled":
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                source_attempt_id=source_run_id,
+                reason="logical execution was cancelled before resume",
+            )
+            return
+        if _execution_lineage_status(lineage_registration) in {
+            "completed",
+            "failed",
+        }:
+            return
+
+        try:
+            bind_execution_attempt(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                source_attempt_id=source_run_id,
+            )
+            registration = _execution_control_call(
+                "register",
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+        except Exception as admission_error:
+            _compensate_unstarted_execution_admission(
+                session_id=normalized_session_id,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason=str(admission_error),
+                clear_binding=True,
+            )
+            raise
+        execution_token = _execution_cancellation_token(
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        if _execution_result_status(registration) == "completed":
+            clear_execution_attempt_binding(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+            _execution_lineage_call(
+                "mark_completed",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
+            return
+        if _execution_result_status(registration) == "failed":
+            clear_execution_attempt_binding(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+            _execution_lineage_call(
+                "mark_waiting_interaction",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
+            return
+        if (
+            _execution_result_status(registration) == "cancelled"
+            or _execution_is_cancelled(execution_token)
+        ):
+            _execution_lineage_call(
+                "request_cancel",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason="reconciled exact-attempt cancellation before resume",
+            )
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                source_attempt_id=source_run_id,
+                reason="cancelled before resume start",
+            )
+            return
+
+    try:
+        running = _execution_control_call(
+            "mark_running",
+            normalized_session_id,
+            normalized_attempt_id,
+        ) if normalized_attempt_id else None
+    except Exception as admission_error:
+        _compensate_unstarted_execution_admission(
+            session_id=normalized_session_id,
+            logical_execution_id=normalized_logical_execution_id,
+            attempt_id=normalized_attempt_id,
+            reason=str(admission_error),
+            clear_binding=True,
+        )
+        raise
     if normalized_attempt_id and (
         str(getattr(running, "disposition", "") or "") != "applied"
         or _execution_result_is_terminal(running)
         or _execution_is_cancelled(execution_token)
     ):
-        if _execution_result_status(running) in {"completed", "failed"}:
+        running_status = _execution_result_status(running)
+        if running_status in {"completed", "failed"}:
             clear_execution_attempt_binding(
                 normalized_session_id,
                 normalized_attempt_id,
             )
+        if running_status == "completed":
+            _execution_lineage_call(
+                "mark_completed",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
+        elif running_status == "failed":
+            _execution_lineage_call(
+                "mark_waiting_interaction",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
         return
+    if normalized_attempt_id:
+        try:
+            lineage_running = _execution_lineage_call(
+                "mark_running",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                normalized_attempt_id,
+            )
+        except Exception as admission_error:
+            _compensate_unstarted_execution_admission(
+                session_id=normalized_session_id,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason=str(admission_error),
+                clear_binding=True,
+            )
+            raise
+        if _execution_lineage_status(lineage_running) == "cancelled":
+            cancel_chat_execution(
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                source_attempt_id=source_run_id,
+                reason="logical execution cancelled before resume start",
+            )
+            return
 
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
     interject_key = normalized_session_id
-    interject_channels = register_interject_channels(
-        interject_key,
-        "",
-        options=resolved_options,
-    )
+    try:
+        interject_channels = register_interject_channels(
+            interject_key,
+            "",
+            options=resolved_options,
+        )
+    except Exception as admission_error:
+        _compensate_unstarted_execution_admission(
+            session_id=normalized_session_id,
+            logical_execution_id=normalized_logical_execution_id,
+            attempt_id=normalized_attempt_id,
+            reason=str(admission_error),
+            clear_binding=True,
+        )
+        raise
 
     agent = None
     resume_run_id = ""
@@ -6485,11 +7172,19 @@ def resume_chat_interaction_events(
                 interject_channels.digest(event)
             except Exception:
                 pass
-            event_queue.put(event)
+            if not (
+                isinstance(cancel_event, threading.Event)
+                and cancel_event.is_set()
+            ):
+                event_queue.put(event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
-            event_queue.put(event)
+            if not (
+                isinstance(cancel_event, threading.Event)
+                and cancel_event.is_set()
+            ):
+                event_queue.put(event)
 
         confirmation_cancel_signal = threading.Event()
         run_done_event = threading.Event()
@@ -6560,6 +7255,11 @@ def resume_chat_interaction_events(
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
                     run_id=resume_run_id,
+                    tool_runtime_config=_tool_runtime_execution_config(
+                        session_id=normalized_session_id,
+                        logical_execution_id=normalized_logical_execution_id,
+                        created_by_attempt_id=normalized_attempt_id,
+                    ),
                     execution_owner_id=(normalized_attempt_id or None),
                     **(
                         {"memory_namespace": memory_namespace}
@@ -6598,21 +7298,78 @@ def resume_chat_interaction_events(
             finally:
                 if normalized_attempt_id:
                     if output_holder.get("error") is not None:
+                        run_error = output_holder.get("error")
                         terminal_transition = _execution_control_call(
                             "mark_failed",
                             normalized_session_id,
                             normalized_attempt_id,
                             reason=str(output_holder.get("error") or ""),
                         )
+                        if _is_retryable_logical_execution_error(
+                            run_error
+                        ) or _is_transport_detached_error(run_error):
+                            _execution_lineage_call(
+                                "mark_waiting_interaction",
+                                normalized_session_id,
+                                normalized_logical_execution_id,
+                                normalized_attempt_id,
+                            )
+                        else:
+                            _execution_lineage_call(
+                                "mark_failed",
+                                normalized_session_id,
+                                normalized_logical_execution_id,
+                                normalized_attempt_id,
+                                reason=str(run_error or ""),
+                            )
                     elif (
-                        not output_holder.get("cancelled")
-                        and not _execution_is_cancelled(execution_token)
-                        and result_status
-                        not in {"awaiting_human_input", "awaiting_interaction"}
+                        output_holder.get("cancelled")
+                        or _execution_is_cancelled(execution_token)
+                    ):
+                        _execution_lineage_call(
+                            "request_cancel",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
+                            attempt_id=normalized_attempt_id,
+                            reason="resume attempt cancelled",
+                        )
+                    elif result_status in {
+                        "awaiting_human_input",
+                        "awaiting_interaction",
+                        "max_iterations",
+                    }:
+                        _execution_lineage_call(
+                            "mark_waiting_interaction",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
+                            normalized_attempt_id,
+                        )
+                    elif result_status in {"waiting_job", "awaiting_job"}:
+                        _execution_lineage_call(
+                            "mark_waiting_job",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
+                            normalized_attempt_id,
+                        )
+                    elif (
+                        result_status
+                        not in {
+                            "awaiting_human_input",
+                            "awaiting_interaction",
+                            "max_iterations",
+                            "waiting_job",
+                            "awaiting_job",
+                        }
                     ):
                         terminal_transition = _execution_control_call(
                             "mark_completed",
                             normalized_session_id,
+                            normalized_attempt_id,
+                        )
+                        _execution_lineage_call(
+                            "mark_completed",
+                            normalized_session_id,
+                            normalized_logical_execution_id,
                             normalized_attempt_id,
                         )
                     if _execution_result_status(terminal_transition) in {
@@ -6647,6 +7404,14 @@ def resume_chat_interaction_events(
         release_interject_channels(interject_key, interject_channels)
         if "run_done_event" in locals():
             run_done_event.set()
+        if isinstance(setup_error, GeneratorExit) and normalized_attempt_id:
+            _compensate_unstarted_execution_admission(
+                session_id=normalized_session_id,
+                logical_execution_id=normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason="transport detached before resume worker start",
+                clear_binding=True,
+            )
         if not (
             isinstance(setup_error, GeneratorExit)
             or _is_execution_cancelled_error(setup_error)
@@ -6658,6 +7423,21 @@ def resume_chat_interaction_events(
                 normalized_attempt_id,
                 reason=str(setup_error),
             )
+            if _is_retryable_logical_execution_error(setup_error):
+                _execution_lineage_call(
+                    "mark_waiting_interaction",
+                    normalized_session_id,
+                    normalized_logical_execution_id,
+                    normalized_attempt_id,
+                )
+            else:
+                _execution_lineage_call(
+                    "mark_failed",
+                    normalized_session_id,
+                    normalized_logical_execution_id,
+                    normalized_attempt_id,
+                    reason=str(setup_error),
+                )
             if _execution_result_status(terminal_transition) in {
                 "completed",
                 "failed",
@@ -6666,6 +7446,17 @@ def resume_chat_interaction_events(
                     normalized_session_id,
                     normalized_attempt_id,
                 )
+        elif (
+            (_is_execution_cancelled_error(setup_error) or _execution_is_cancelled(execution_token))
+            and normalized_attempt_id
+        ):
+            _execution_lineage_call(
+                "request_cancel",
+                normalized_session_id,
+                normalized_logical_execution_id,
+                attempt_id=normalized_attempt_id,
+                reason="resume setup cancelled",
+            )
         if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
             execution_token
         ):

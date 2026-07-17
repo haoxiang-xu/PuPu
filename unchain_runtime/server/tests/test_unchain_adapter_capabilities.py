@@ -473,6 +473,28 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         self.assertIsNone(unchain_adapter._extract_max_iterations_from_options({}))
 
+    def test_retryable_logical_execution_codes_match_frontend_resume_policy(self) -> None:
+        for code in (
+            "active_execution_lease",
+            "execution_lease_conflict",
+            "execution_lease_expired",
+            "execution_lease_not_owned",
+            "interaction_temporarily_locked",
+            "session_revision_conflict",
+            "stale_execution_lease",
+        ):
+            with self.subTest(code=code):
+                self.assertTrue(
+                    unchain_adapter._is_retryable_logical_execution_error(
+                        SimpleNamespace(code=code, retryable=False)
+                    )
+                )
+        self.assertFalse(
+            unchain_adapter._is_retryable_logical_execution_error(
+                SimpleNamespace(code="provider_auth_failed", retryable=False)
+            )
+        )
+
     def test_make_tool_confirm_callback_round_trip_with_submit(self) -> None:
         emitted_events = []
         confirm_cb = unchain_adapter._make_tool_confirm_callback(
@@ -568,6 +590,131 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             str(response_holder.get("error")),
         )
         self.assertFalse(submitted)
+
+    def test_durable_tool_response_wins_transport_cancel_race(self) -> None:
+        cancel_event = threading.Event()
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        tracker.observe(
+            {
+                "interaction_request": {
+                    "interaction_id": "interaction-tool-race",
+                    "kind": "tool_approval",
+                    "payload": {"call_id": "call-tool-race"},
+                }
+            }
+        )
+
+        def submit_then_cancel(_event) -> None:
+            self.assertTrue(
+                unchain_adapter.submit_tool_confirmation(
+                    confirmation_id="interaction-tool-race",
+                    approved=True,
+                    reason="durably recorded",
+                )
+            )
+            cancel_event.set()
+
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            submit_then_cancel,
+            cancel_event=cancel_event,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+        )
+
+        response = confirm_cb(
+            {
+                "tool_name": "delete_file",
+                "call_id": "call-tool-race",
+                "arguments": {"path": "tmp.txt"},
+            }
+        )
+
+        self.assertTrue(response["approved"])
+        self.assertEqual(response["reason"], "durably recorded")
+
+    def test_durable_continuation_response_wins_transport_cancel_race(self) -> None:
+        cancel_event = threading.Event()
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        tracker.observe(
+            {
+                "interaction_request": {
+                    "interaction_id": "interaction-continuation-race",
+                    "kind": "max_budget",
+                    "payload": {},
+                }
+            }
+        )
+
+        def submit_then_cancel(_event) -> None:
+            self.assertTrue(
+                unchain_adapter.submit_tool_confirmation(
+                    confirmation_id="interaction-continuation-race",
+                    approved=True,
+                )
+            )
+            cancel_event.set()
+
+        continuation_cb = unchain_adapter._make_continuation_callback(
+            submit_then_cancel,
+            cancel_event=cancel_event,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+        )
+
+        self.assertEqual(
+            continuation_cb({"iteration": 6}),
+            {"approved": True},
+        )
+
+    def test_durable_human_response_wins_transport_cancel_race(self) -> None:
+        cancel_event = threading.Event()
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        tracker.observe(
+            {
+                "interaction_request": {
+                    "interaction_id": "interaction-human-race",
+                    "kind": "human_input",
+                    "payload": {"request_id": "request-human-race"},
+                }
+            }
+        )
+
+        def submit_then_cancel(_event) -> None:
+            self.assertTrue(
+                unchain_adapter.submit_tool_confirmation(
+                    confirmation_id="interaction-human-race",
+                    approved=True,
+                    modified_arguments={
+                        "user_response": {
+                            "selected_values": ["safe"],
+                            "other_text": "recorded first",
+                        }
+                    },
+                )
+            )
+            cancel_event.set()
+
+        request = SimpleNamespace(
+            request_id="request-human-race",
+            selection_mode="single",
+            question="Choose",
+            to_dict=lambda: {"options": [{"value": "safe"}]},
+        )
+        human_cb = unchain_adapter._make_human_input_callback(
+            submit_then_cancel,
+            cancel_event=cancel_event,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+        )
+
+        self.assertEqual(
+            human_cb(request),
+            {
+                "request_id": "request-human-race",
+                "selected_values": ["safe"],
+                "other_text": "recorded first",
+            },
+        )
 
     def test_tool_confirmation_emit_failure_is_not_recorded_as_denial(self) -> None:
         def fail_emit(_event) -> None:
@@ -1587,7 +1734,301 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             fake_agent.run_kwargs["execution_owner_id"],
             "attempt-exact",
         )
+        self.assertEqual(
+            fake_agent.run_kwargs["tool_runtime_config"],
+            {
+                "durable_jobs": {
+                    "session_id": "chat-attempt",
+                    "logical_execution_id": "attempt-exact",
+                    "created_by_attempt_id": "attempt-exact",
+                }
+            },
+        )
         self.assertEqual(events[-1]["run_id"], "attempt-exact")
+
+    def test_nonterminal_boundaries_keep_logical_lineage_resumable(self) -> None:
+        import execution_lineage
+
+        class FakeAgent:
+            provider = "openai"
+            max_iterations = 3
+            _memory_runtime = {
+                "requested": False,
+                "available": False,
+                "reason": "",
+            }
+            _toolkits = []
+
+            def __init__(self, status: str) -> None:
+                self.status = status
+
+            def run(self, **_kwargs):
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "waiting"}],
+                    status=self.status,
+                )
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            for result_status, expected_lineage_status in (
+                ("max_iterations", "waiting_interaction"),
+                ("waiting_job", "waiting_job"),
+            ):
+                logical_execution_id = f"logical-{result_status}"
+                attempt_id = f"attempt-{result_status}"
+                with self.subTest(status=result_status), mock.patch.object(
+                    unchain_adapter,
+                    "_create_agent",
+                    return_value=FakeAgent(result_status),
+                ):
+                    list(
+                        unchain_adapter.stream_chat_events(
+                            message="wait",
+                            history=[],
+                            attachments=[],
+                            options={},
+                            session_id="chat-boundary",
+                            attempt_id=attempt_id,
+                            logical_execution_id=logical_execution_id,
+                        )
+                    )
+                    snapshot = execution_lineage.snapshot(
+                        "chat-boundary",
+                        logical_execution_id,
+                    )
+                    self.assertEqual(snapshot.status, expected_lineage_status)
+
+                    successor = execution_lineage.register_attempt(
+                        "chat-boundary",
+                        logical_execution_id,
+                        f"{attempt_id}-resume",
+                    )
+                    self.assertEqual(successor.disposition, "applied")
+
+    def test_memory_unavailable_keeps_same_logical_fallback_resumable(self) -> None:
+        import execution_lineage
+
+        class UnavailableMemoryAgent:
+            provider = "openai"
+            max_iterations = 3
+            _memory_runtime = {
+                "requested": True,
+                "available": False,
+                "reason": "store_offline",
+            }
+            _toolkits = []
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=UnavailableMemoryAgent(),
+        ):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-memory-fallback",
+                    attempt_id="attempt-memory-1",
+                    logical_execution_id="logical-memory",
+                )
+            )
+
+            self.assertTrue(
+                any(event.get("code") == "memory_unavailable" for event in events)
+            )
+            snapshot = execution_lineage.snapshot(
+                "chat-memory-fallback",
+                "logical-memory",
+            )
+            self.assertEqual(snapshot.status, "waiting_interaction")
+            successor = execution_lineage.register_attempt(
+                "chat-memory-fallback",
+                "logical-memory",
+                "attempt-memory-2",
+            )
+            self.assertEqual(successor.disposition, "applied")
+
+    def test_stream_static_recipe_validation_precedes_logical_admission(self) -> None:
+        import execution_lineage
+
+        validation_cases = (
+            ("invalid", RuntimeError, RuntimeError("recipe is invalid"), None),
+            (
+                "unsupported",
+                unchain_adapter.DurableInteractionHostError,
+                None,
+                object(),
+            ),
+        )
+        for (
+            case_name,
+            expected_error,
+            load_error,
+            loaded_recipe,
+        ) in validation_cases:
+            with self.subTest(case=case_name), tempfile.TemporaryDirectory() as data_dir, \
+                 mock.patch.dict(
+                     os.environ,
+                     {"UNCHAIN_DATA_DIR": data_dir},
+                     clear=False,
+                 ):
+                load_patch = mock.patch.object(
+                    unchain_adapter,
+                    "_load_recipe_from_options",
+                    **(
+                        {"side_effect": load_error}
+                        if case_name == "invalid"
+                        else {"return_value": loaded_recipe}
+                    ),
+                )
+                graph_patch = mock.patch.object(
+                    unchain_adapter,
+                    "_recipe_has_graph",
+                    return_value=case_name == "unsupported",
+                )
+                support_patch = mock.patch.object(
+                    unchain_adapter,
+                    "_recipe_supports_durable_flat_projection",
+                    return_value=False,
+                )
+                with load_patch, graph_patch, support_patch:
+                    with self.assertRaises(expected_error):
+                        list(
+                            unchain_adapter.stream_chat_events(
+                                message="hello",
+                                history=[],
+                                attachments=[],
+                                options={"durable_interactions_required": True},
+                                session_id=f"chat-static-{case_name}",
+                                attempt_id="attempt-a",
+                                logical_execution_id="logical-a",
+                            )
+                        )
+
+                self.assertIsNone(
+                    execution_lineage.snapshot(
+                        f"chat-static-{case_name}",
+                        "logical-a",
+                    )
+                )
+                successor = execution_lineage.register_attempt(
+                    f"chat-static-{case_name}",
+                    "logical-a",
+                    "attempt-b",
+                )
+                self.assertEqual(successor.disposition, "applied")
+
+    def test_stream_lineage_mark_running_failure_releases_logical_owner(self) -> None:
+        import execution_lineage
+
+        injected = False
+
+        def lineage_call(name, *args, **kwargs):
+            nonlocal injected
+            if name == "mark_running" and not injected:
+                injected = True
+                raise RuntimeError("lineage mark_running failed")
+            return getattr(execution_lineage, name)(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_execution_lineage_call",
+            side_effect=lineage_call,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+        ) as create_agent:
+            with self.assertRaisesRegex(RuntimeError, "mark_running failed"):
+                list(
+                    unchain_adapter.stream_chat_events(
+                        message="hello",
+                        history=[],
+                        attachments=[],
+                        options={},
+                        session_id="chat-lineage-admission",
+                        attempt_id="attempt-a",
+                        logical_execution_id="logical-a",
+                    )
+                )
+
+            snapshot = execution_lineage.snapshot(
+                "chat-lineage-admission",
+                "logical-a",
+            )
+            self.assertEqual(snapshot.status, "abandoned")
+            successor = execution_lineage.register_attempt(
+                "chat-lineage-admission",
+                "logical-a",
+                "attempt-b",
+            )
+
+        create_agent.assert_not_called()
+        self.assertEqual(successor.disposition, "applied")
+
+    def test_active_logical_attempt_conflict_never_reaches_model(self) -> None:
+        import execution_lineage
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            execution_lineage.register_attempt(
+                "chat-race",
+                "logical-a",
+                "attempt-winner",
+            )
+            execution_lineage.mark_running(
+                "chat-race",
+                "logical-a",
+                "attempt-winner",
+            )
+            with mock.patch.object(
+                unchain_adapter,
+                "_create_agent",
+            ) as create_agent:
+                with self.assertRaises(
+                    unchain_adapter.DurableInteractionHostError
+                ) as raised:
+                    list(
+                        unchain_adapter.stream_chat_events(
+                            message="loser",
+                            history=[],
+                            attachments=[],
+                            options={},
+                            session_id="chat-race",
+                            attempt_id="attempt-loser",
+                            logical_execution_id="logical-a",
+                        )
+                    )
+
+            self.assertEqual(raised.exception.code, "active_execution_lease")
+            self.assertTrue(raised.exception.retryable)
+            create_agent.assert_not_called()
+            self.assertEqual(
+                execution_lineage.snapshot(
+                    "chat-race",
+                    "logical-a",
+                ).current_attempt_id,
+                "attempt-winner",
+            )
 
     def test_concurrent_duplicate_attempt_starts_exactly_one_agent_worker(self) -> None:
         calls = 0
@@ -2235,6 +2676,356 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             fake_agent.run_kwargs["run_id"],
         )
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
+    def test_invalid_resume_identity_never_registers_a_new_lineage_attempt(self) -> None:
+        pending = {
+            "status": "receipt_recorded",
+            "session_id": "chat-1",
+            "interaction_id": "interaction-good",
+            "source_run_id": "attempt-a",
+            "logical_execution_id": "logical-a",
+            "provider": "openai",
+            "model": "gpt-5",
+            "resume_available": True,
+        }
+        register_calls = []
+
+        def lineage_call(name, *args, **kwargs):
+            if name == "snapshot":
+                return SimpleNamespace(
+                    status="waiting_interaction",
+                    current_attempt_id="attempt-a",
+                )
+            if name == "register_attempt":
+                register_calls.append((args, kwargs))
+                return SimpleNamespace(
+                    disposition="active_attempt_conflict",
+                    status="registered",
+                )
+            raise AssertionError(f"unexpected lineage call: {name}")
+
+        with mock.patch.object(
+            unchain_adapter,
+            "get_pending_interaction",
+            return_value=pending,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_execution_lineage_call",
+            side_effect=lineage_call,
+        ), mock.patch.object(
+            unchain_adapter,
+            "resolve_resume_options",
+            return_value={"modelId": "openai:gpt-5"},
+        ):
+            with self.assertRaises(
+                unchain_adapter.DurableInteractionHostError
+            ) as invalid_interaction:
+                list(
+                    unchain_adapter.resume_chat_interaction_events(
+                        session_id="chat-1",
+                        interaction_id="interaction-wrong",
+                        attempt_id="attempt-b",
+                        source_attempt_id="attempt-a",
+                        logical_execution_id="logical-a",
+                    )
+                )
+            self.assertEqual(
+                invalid_interaction.exception.code,
+                "interaction_not_found",
+            )
+            self.assertEqual(register_calls, [])
+
+            with self.assertRaises(
+                unchain_adapter.DurableInteractionHostError
+            ) as invalid_source:
+                list(
+                    unchain_adapter.resume_chat_interaction_events(
+                        session_id="chat-1",
+                        interaction_id="interaction-good",
+                        attempt_id="attempt-b",
+                        source_attempt_id="attempt-stale",
+                        logical_execution_id="logical-a",
+                    )
+                )
+            self.assertEqual(
+                invalid_source.exception.code,
+                "execution_attempt_binding_conflict",
+            )
+            self.assertEqual(register_calls, [])
+
+            with self.assertRaises(
+                unchain_adapter.DurableInteractionHostError
+            ) as active_conflict:
+                list(
+                    unchain_adapter.resume_chat_interaction_events(
+                        session_id="chat-1",
+                        interaction_id="interaction-good",
+                        attempt_id="attempt-b",
+                        source_attempt_id="attempt-a",
+                        logical_execution_id="logical-a",
+                    )
+                )
+            self.assertEqual(
+                active_conflict.exception.code,
+                "active_execution_lease",
+            )
+
+        self.assertEqual(len(register_calls), 1)
+        self.assertEqual(register_calls[0][0][-1], "attempt-b")
+        self.assertEqual(
+            register_calls[0][1]["source_attempt_id"],
+            "attempt-a",
+        )
+
+    def test_resume_invalid_recipe_precedes_successor_admission(self) -> None:
+        import execution_lineage
+
+        pending = {
+            "status": "receipt_recorded",
+            "session_id": "chat-resume-invalid",
+            "interaction_id": "interaction-1",
+            "source_run_id": "attempt-a",
+            "logical_execution_id": "logical-a",
+            "provider": "openai",
+            "model": "gpt-5",
+            "resume_available": True,
+        }
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            execution_lineage.register_attempt(
+                "chat-resume-invalid",
+                "logical-a",
+                "attempt-a",
+            )
+            execution_lineage.mark_waiting_interaction(
+                "chat-resume-invalid",
+                "logical-a",
+                "attempt-a",
+            )
+            with mock.patch.object(
+                unchain_adapter,
+                "get_pending_interaction",
+                return_value=pending,
+            ), mock.patch.object(
+                unchain_adapter,
+                "resolve_resume_options",
+                return_value={"modelId": "openai:gpt-5"},
+            ), mock.patch.object(
+                unchain_adapter,
+                "_load_recipe_from_options",
+                side_effect=RuntimeError("resume recipe is invalid"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "resume recipe is invalid"):
+                    list(
+                        unchain_adapter.resume_chat_interaction_events(
+                            session_id="chat-resume-invalid",
+                            interaction_id="interaction-1",
+                            attempt_id="attempt-b",
+                            source_attempt_id="attempt-a",
+                            logical_execution_id="logical-a",
+                        )
+                    )
+
+            snapshot = execution_lineage.snapshot(
+                "chat-resume-invalid",
+                "logical-a",
+            )
+            self.assertEqual(snapshot.current_attempt_id, "attempt-a")
+            successor = execution_lineage.register_attempt(
+                "chat-resume-invalid",
+                "logical-a",
+                "attempt-c",
+            )
+            self.assertEqual(successor.disposition, "applied")
+
+    def test_resume_lineage_mark_running_failure_releases_logical_owner(self) -> None:
+        import durable_interaction_host
+        import execution_lineage
+
+        pending = {
+            "status": "receipt_recorded",
+            "session_id": "chat-resume-admission",
+            "interaction_id": "interaction-1",
+            "source_run_id": "attempt-a",
+            "logical_execution_id": "logical-a",
+            "provider": "openai",
+            "model": "gpt-5",
+            "resume_available": True,
+        }
+        injected = False
+
+        def lineage_call(name, *args, **kwargs):
+            nonlocal injected
+            if name == "mark_running" and not injected:
+                injected = True
+                raise RuntimeError("resume lineage mark_running failed")
+            return getattr(execution_lineage, name)(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            execution_lineage.register_attempt(
+                "chat-resume-admission",
+                "logical-a",
+                "attempt-a",
+            )
+            execution_lineage.mark_waiting_interaction(
+                "chat-resume-admission",
+                "logical-a",
+                "attempt-a",
+            )
+            with mock.patch.object(
+                unchain_adapter,
+                "get_pending_interaction",
+                return_value=pending,
+            ), mock.patch.object(
+                unchain_adapter,
+                "resolve_resume_options",
+                return_value={"modelId": "openai:gpt-5"},
+            ), mock.patch.object(
+                unchain_adapter,
+                "_execution_lineage_call",
+                side_effect=lineage_call,
+            ), mock.patch.object(
+                unchain_adapter,
+                "_create_agent",
+            ) as create_agent:
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "resume lineage mark_running failed",
+                ):
+                    list(
+                        unchain_adapter.resume_chat_interaction_events(
+                            session_id="chat-resume-admission",
+                            interaction_id="interaction-1",
+                            attempt_id="attempt-b",
+                            source_attempt_id="attempt-a",
+                            logical_execution_id="logical-a",
+                        )
+                    )
+
+            snapshot = execution_lineage.snapshot(
+                "chat-resume-admission",
+                "logical-a",
+            )
+            self.assertEqual(snapshot.status, "abandoned")
+            self.assertIsNone(
+                durable_interaction_host.load_execution_attempt_binding(
+                    "chat-resume-admission",
+                    "attempt-b",
+                )
+            )
+            successor = execution_lineage.register_attempt(
+                "chat-resume-admission",
+                "logical-a",
+                "attempt-c",
+            )
+
+        create_agent.assert_not_called()
+        self.assertEqual(successor.disposition, "applied")
+
+    def test_retryable_resume_error_keeps_logical_lineage_resumable(self) -> None:
+        import execution_lineage
+
+        class RetryableFailureAgent:
+            provider = "openai"
+            model = "gpt-5"
+            _display_model = "openai:gpt-5"
+            _orchestration_role = "developer"
+            _orchestration_next_mode = "default"
+            _memory_runtime = {
+                "requested": True,
+                "available": True,
+                "reason": "",
+            }
+            _toolkits = []
+
+            def resume_interaction(self, **_kwargs):
+                raise unchain_adapter.DurableInteractionHostError(
+                    "active_execution_lease",
+                    "lease is temporarily owned",
+                    status_code=409,
+                    retryable=True,
+                )
+
+        pending = {
+            "status": "receipt_recorded",
+            "session_id": "chat-retryable-resume",
+            "interaction_id": "interaction-1",
+            "source_run_id": "attempt-a",
+            "logical_execution_id": "logical-a",
+            "provider": "openai",
+            "model": "gpt-5",
+            "resume_available": True,
+        }
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            execution_lineage.register_attempt(
+                "chat-retryable-resume",
+                "logical-a",
+                "attempt-a",
+            )
+            execution_lineage.mark_waiting_interaction(
+                "chat-retryable-resume",
+                "logical-a",
+                "attempt-a",
+            )
+            with mock.patch.object(
+                unchain_adapter,
+                "get_pending_interaction",
+                return_value=pending,
+            ), mock.patch.object(
+                unchain_adapter,
+                "resolve_resume_options",
+                return_value={
+                    "modelId": "openai:gpt-5",
+                    "memory_enabled": True,
+                },
+            ), mock.patch.object(
+                unchain_adapter,
+                "_create_agent",
+                return_value=RetryableFailureAgent(),
+            ), mock.patch.object(
+                unchain_adapter,
+                "save_resume_context",
+            ), mock.patch.object(
+                unchain_adapter,
+                "clear_resume_context",
+            ):
+                with self.assertRaises(
+                    unchain_adapter.DurableInteractionHostError
+                ) as raised:
+                    list(
+                        unchain_adapter.resume_chat_interaction_events(
+                            session_id="chat-retryable-resume",
+                            interaction_id="interaction-1",
+                            attempt_id="attempt-b",
+                            source_attempt_id="attempt-a",
+                            logical_execution_id="logical-a",
+                        )
+                    )
+
+            self.assertEqual(raised.exception.code, "active_execution_lease")
+            snapshot = execution_lineage.snapshot(
+                "chat-retryable-resume",
+                "logical-a",
+            )
+            self.assertEqual(snapshot.status, "waiting_interaction")
+            self.assertEqual(snapshot.current_attempt_id, "attempt-b")
+            successor = execution_lineage.register_attempt(
+                "chat-retryable-resume",
+                "logical-a",
+                "attempt-c",
+            )
+            self.assertEqual(successor.disposition, "applied")
 
     def test_resume_chat_interaction_uses_bound_context_and_new_run_id(self) -> None:
         class FakeAgent:

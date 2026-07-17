@@ -9,6 +9,9 @@ if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
 import app as miso_app  # noqa: E402
+import durable_job_runtime  # noqa: E402
+import execution_lineage  # noqa: E402
+import route_chat  # noqa: E402
 import routes as miso_routes  # noqa: E402
 
 
@@ -117,6 +120,157 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("attempt_id", response.get_json()["error"]["message"])
         cancel.assert_not_called()
+
+    def test_stale_logical_stop_tombstones_then_cancels_current_attempt(self) -> None:
+        call_order = []
+        lineage_result = mock.Mock()
+        lineage_result.snapshot.current_attempt_id = "attempt-a3"
+        lineage_result.to_dict.return_value = {
+            "disposition": "applied",
+            "lineage": {
+                "logical_execution_id": "logical-a",
+                "current_attempt_id": "attempt-a3",
+                "status": "cancelled",
+            },
+        }
+        with mock.patch.object(
+            execution_lineage,
+            "request_cancel",
+            side_effect=lambda *_args, **_kwargs: call_order.append("lineage")
+            or lineage_result,
+        ), mock.patch.object(
+            miso_routes,
+            "cancel_chat_execution",
+            side_effect=lambda **_kwargs: call_order.append("exact")
+            or {"status": "ok"},
+        ) as cancel, mock.patch.object(
+            route_chat,
+            "_cancel_logical_execution_checkpoints",
+            side_effect=lambda *_args, **_kwargs: call_order.append("checkpoint")
+            or {"supported": False},
+        ), mock.patch.object(
+            durable_job_runtime,
+            "cancel_jobs_for_logical_execution",
+            side_effect=lambda *_args, **_kwargs: call_order.append("jobs")
+            or {"supported": True, "cancelled_job_ids": ["job-a"]},
+        ):
+            response = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "chat-shared",
+                    "logical_execution_id": "logical-a",
+                    "attempt_id": "attempt-a1",
+                    "source_attempt_id": "attempt-a0",
+                    "reason": "user_stop",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(call_order, ["lineage", "exact", "checkpoint", "jobs"])
+        cancel.assert_called_once_with(
+            session_id="chat-shared",
+            attempt_id="attempt-a3",
+            source_attempt_id="",
+            reason="user_stop",
+        )
+        self.assertEqual(response.get_json()["attempt_id"], "attempt-a3")
+        self.assertEqual(
+            response.get_json()["requested_attempt_id"],
+            "attempt-a1",
+        )
+
+    def test_unregistered_logical_stop_never_uses_foreign_attempt_hint(self) -> None:
+        lineage_result = mock.Mock()
+        lineage_result.snapshot.current_attempt_id = ""
+        lineage_result.to_dict.return_value = {
+            "disposition": "cancelled_before_register",
+            "lineage": {
+                "logical_execution_id": "logical-a",
+                "current_attempt_id": "",
+                "status": "cancelled",
+            },
+        }
+        with mock.patch.object(
+            execution_lineage,
+            "request_cancel",
+            return_value=lineage_result,
+        ) as lineage_cancel, mock.patch.object(
+            miso_routes,
+            "cancel_chat_execution",
+        ) as exact_cancel, mock.patch.object(
+            route_chat,
+            "_cancel_logical_execution_checkpoints",
+            return_value={"supported": False},
+        ), mock.patch.object(
+            durable_job_runtime,
+            "cancel_jobs_for_logical_execution",
+            return_value={"supported": True, "cancelled_job_ids": []},
+        ):
+            response = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "chat-shared",
+                    "logical_execution_id": "logical-a",
+                    "attempt_id": "attempt-b-foreign",
+                    "source_attempt_id": "attempt-b-source",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        lineage_cancel.assert_called_once_with(
+            "chat-shared",
+            "logical-a",
+            attempt_id="",
+            reason="user_stop",
+        )
+        exact_cancel.assert_not_called()
+        self.assertEqual(response.get_json()["requested_attempt_id"], "attempt-b-foreign")
+        self.assertEqual(response.get_json()["attempt_id"], "")
+
+    def test_logical_stop_attempts_all_sinks_after_exact_cancel_failure(self) -> None:
+        lineage_result = mock.Mock()
+        lineage_result.snapshot.current_attempt_id = "attempt-current"
+        lineage_result.to_dict.return_value = {
+            "disposition": "applied",
+            "lineage": {"status": "cancelled"},
+        }
+        call_order = []
+        with mock.patch.object(
+            execution_lineage,
+            "request_cancel",
+            side_effect=lambda *_args, **_kwargs: call_order.append("lineage")
+            or lineage_result,
+        ), mock.patch.object(
+            miso_routes,
+            "cancel_chat_execution",
+            side_effect=lambda **_kwargs: call_order.append("exact")
+            or (_ for _ in ()).throw(RuntimeError("exact store unavailable")),
+        ), mock.patch.object(
+            route_chat,
+            "_cancel_logical_execution_checkpoints",
+            side_effect=lambda *_args, **_kwargs: call_order.append("checkpoint")
+            or {"supported": False},
+        ), mock.patch.object(
+            durable_job_runtime,
+            "cancel_jobs_for_logical_execution",
+            side_effect=lambda *_args, **_kwargs: call_order.append("jobs")
+            or {"supported": True, "cancelled_job_ids": ["job-a"]},
+        ):
+            response = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "chat-partial",
+                    "logical_execution_id": "logical-a",
+                    "attempt_id": "attempt-stale",
+                },
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(call_order, ["lineage", "exact", "checkpoint", "jobs"])
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "partial_execution_cancel")
+        self.assertIn("exact_attempt", payload["error"]["failed_sinks"])
+        self.assertEqual(payload["jobs_cancel"]["cancelled_job_ids"], ["job-a"])
 
     def test_confirmation_persists_receipt_before_waking_live_waiter(self) -> None:
         call_order = []
@@ -360,6 +514,10 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             stream_events.call_args.kwargs["attempt_id"],
             "attempt-v4-events",
         )
+        self.assertEqual(
+            stream_events.call_args.kwargs["logical_execution_id"],
+            "attempt-v4-events",
+        )
         self.assertTrue(
             all(event.get("schema_version") == "v4" for event in runtime_events)
         )
@@ -431,6 +589,10 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         )
         self.assertEqual(
             resume_events.call_args.kwargs["source_attempt_id"],
+            "attempt-v4-source",
+        )
+        self.assertEqual(
+            resume_events.call_args.kwargs["logical_execution_id"],
             "attempt-v4-source",
         )
         fresh_events.assert_not_called()

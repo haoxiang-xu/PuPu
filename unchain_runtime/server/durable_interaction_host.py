@@ -64,6 +64,7 @@ _STABLE_RESUME_OPTION_KEYS = frozenset(
         "memory_long_term_top_k",
         "memory_long_term_vector_min_score",
         "memory_long_term_vector_top_k",
+        "logical_execution_id",
         "memory_namespace",
         "memory_vector_min_score",
         "memory_vector_top_k",
@@ -1077,6 +1078,68 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         context = None
         context_unavailable_reason = "durable_resume_context_subject_mismatch"
 
+    context_options = (
+        context.get("options")
+        if isinstance(context, dict) and isinstance(context.get("options"), dict)
+        else {}
+    )
+    logical_execution_id = str(
+        context_options.get("logical_execution_id") or ""
+    ).strip()
+    if logical_execution_id:
+        try:
+            import execution_lineage
+
+            lineage_snapshot = execution_lineage.snapshot(
+                normalized_session_id,
+                logical_execution_id,
+            )
+        except Exception as exc:
+            raise DurableInteractionHostError(
+                str(getattr(exc, "code", "execution_lineage_lookup_failed") or ""),
+                str(exc),
+                status_code=int(getattr(exc, "status_code", 500) or 500),
+                retryable=bool(getattr(exc, "retryable", True)),
+            ) from exc
+        lineage_status = str(
+            getattr(lineage_snapshot, "status", "") or ""
+        ).strip().lower()
+        if lineage_status in {"completed", "failed", "cancelled"}:
+            active_attempt_id = str(
+                getattr(lineage_snapshot, "current_attempt_id", "")
+                or source_run_id
+            ).strip()
+            if active_attempt_id and lineage_status == "cancelled":
+                cancel_chat_execution(
+                    session_id=normalized_session_id,
+                    attempt_id=active_attempt_id,
+                    source_attempt_id=(
+                        source_run_id if active_attempt_id != source_run_id else ""
+                    ),
+                    reason=str(
+                        getattr(lineage_snapshot, "reason", "")
+                        or "logical execution cancelled"
+                    ),
+                )
+            else:
+                _cancel_pending_source_attempt(
+                    normalized_session_id,
+                    source_run_id,
+                    reason=f"logical execution is {lineage_status}",
+                )
+                if active_attempt_id:
+                    clear_resume_context(
+                        normalized_session_id,
+                        active_attempt_id,
+                    )
+                    clear_execution_attempt_binding(
+                        normalized_session_id,
+                        active_attempt_id,
+                    )
+                if source_run_id and source_run_id != active_attempt_id:
+                    clear_resume_context(normalized_session_id, source_run_id)
+            return {"status": "none", "session_id": normalized_session_id}
+
     result: dict[str, Any] = {
         "status": (
             "receipt_recorded"
@@ -1087,6 +1150,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         "interaction_id": request.interaction_id,
         "source_run_id": source_run_id,
         "active_attempt_id": source_run_id,
+        "logical_execution_id": logical_execution_id,
         "kind": request.kind,
         "provider": subject_provider,
         "model": subject_model,

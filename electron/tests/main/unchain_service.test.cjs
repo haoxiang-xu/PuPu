@@ -2034,7 +2034,7 @@ describe("unchain service session memory replacement", () => {
     });
   });
 
-  test("cancelMisoExecution posts active V4 identity without disconnecting transport", async () => {
+  test("logical cancel accepts a stale client attempt without disconnecting transport", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
     const spawnSync = jest.fn(() => ({
@@ -2126,6 +2126,7 @@ describe("unchain service session memory replacement", () => {
           threadId: "chat-v4-cancel",
           attempt_id: "req-v4-cancel",
           source_attempt_id: "source-v4-cancel",
+          logical_execution_id: "logical-v4-cancel",
           message: "keep listening",
           options: { modelId: "local-model" },
         },
@@ -2137,6 +2138,9 @@ describe("unchain service session memory replacement", () => {
     await expect(
       service.cancelMisoExecution({
         requestId: "req-v4-cancel",
+        attempt_id: "req-v4-stale",
+        source_attempt_id: "source-v4-stale",
+        logical_execution_id: "logical-v4-cancel",
         reason: "user_stop",
         idempotencyKey: "cancel-once",
       }),
@@ -2152,8 +2156,9 @@ describe("unchain service session memory replacement", () => {
     });
     expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toEqual({
       execution_id: "chat-v4-cancel",
-      attempt_id: "req-v4-cancel",
-      source_attempt_id: "source-v4-cancel",
+      attempt_id: "req-v4-stale",
+      source_attempt_id: "source-v4-stale",
+      logical_execution_id: "logical-v4-cancel",
       reason: "user_stop",
       idempotency_key: "cancel-once",
     });
@@ -2168,5 +2173,65 @@ describe("unchain service session memory replacement", () => {
 
     releaseStream();
     await new Promise((resolve) => setImmediate(resolve));
+  });
+
+  test("cancelMisoExecution aborts a hung request and a later retry succeeds", async () => {
+    jest.useFakeTimers();
+    try {
+      const retryAck = {
+        status: "ok",
+        execution_id: "chat-timeout",
+        logical_execution_id: "logical-timeout",
+        disposition: "unchanged",
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValueOnce(createCompatibleHealthResponse())
+        .mockImplementationOnce((_url, options = {}) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener(
+              "abort",
+              () => {
+                const error = new Error("aborted");
+                error.name = "AbortError";
+                reject(error);
+              },
+              { once: true },
+            );
+          }),
+        )
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => JSON.stringify(retryAck),
+        });
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const { service } = createStartupServiceHarness();
+      await service.startMiso();
+
+      const firstAttempt = service.cancelMisoExecution({
+        execution_id: "chat-timeout",
+        logical_execution_id: "logical-timeout",
+        reason: "user_stop",
+        idempotency_key: "stop:logical-timeout",
+      });
+      await Promise.resolve();
+      jest.advanceTimersByTime(3000);
+      await expect(firstAttempt).rejects.toMatchObject({
+        code: "execution_cancel_timeout",
+        retryable: true,
+      });
+
+      await expect(
+        service.cancelMisoExecution({
+          execution_id: "chat-timeout",
+          logical_execution_id: "logical-timeout",
+          reason: "user_stop",
+          idempotency_key: "stop:logical-timeout",
+        }),
+      ).resolves.toEqual(retryAck);
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

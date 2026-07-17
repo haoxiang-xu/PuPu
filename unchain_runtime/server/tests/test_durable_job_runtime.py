@@ -238,6 +238,59 @@ class DurableJobRuntimeTests(unittest.TestCase):
         self.assertNotIn("_PYI_APPLICATION_HOME_DIR", canonical)
         self.assertEqual(canonical["LD_LIBRARY_PATH"], "/usr/lib")
 
+    def test_logical_cancel_passes_both_owners_and_extracts_job_ids(self) -> None:
+        class Snapshot:
+            def to_dict(self):
+                return {"job_id": "job-a", "status": "cancelled"}
+
+        supervisor = mock.Mock(spec=["cancel_lineage"])
+        supervisor.cancel_lineage = mock.Mock(return_value=[Snapshot()])
+        runtime = durable_job_runtime.DurableJobsRuntime(
+            data_dir=Path("/tmp/data"),
+            store_path=Path("/tmp/data/jobs"),
+            module=mock.Mock(spec=[]),
+            supervisor=supervisor,
+        )
+        with mock.patch.object(
+            durable_job_runtime,
+            "get_durable_jobs_runtime",
+            return_value=runtime,
+        ):
+            result = durable_job_runtime.cancel_jobs_for_logical_execution(
+                "chat-shared",
+                "logical-a",
+            )
+
+        supervisor.cancel_lineage.assert_called_once_with(
+            execution_id="chat-shared",
+            logical_execution_id="logical-a",
+            reason="user_stop",
+        )
+        self.assertEqual(result["cancelled_job_ids"], ["job-a"])
+        self.assertEqual(result["jobs"][0]["job_id"], "job-a")
+
+    def test_legacy_jobs_runtime_never_uses_session_wide_fallback(self) -> None:
+        supervisor = mock.Mock(spec=["reattach"])
+        runtime = durable_job_runtime.DurableJobsRuntime(
+            data_dir=Path("/tmp/data"),
+            store_path=Path("/tmp/data/jobs"),
+            module=mock.Mock(spec=[]),
+            supervisor=supervisor,
+        )
+        with mock.patch.object(
+            durable_job_runtime,
+            "get_durable_jobs_runtime",
+            return_value=runtime,
+        ):
+            result = durable_job_runtime.cancel_jobs_for_logical_execution(
+                "chat-shared",
+                "logical-a",
+            )
+
+        self.assertFalse(result["supported"])
+        self.assertEqual(result["disposition"], "logical_cancel_api_unavailable")
+        supervisor.reattach.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

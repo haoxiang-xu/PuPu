@@ -120,6 +120,20 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     });
   });
 
+  test("forwards a logical-only cancellation after attempt identity is lost", async () => {
+    await api.unchain.cancelExecution({
+      sessionId: " chat-1 ",
+      logicalExecutionId: " logical-a ",
+      reason: " user_stop ",
+    });
+
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      session_id: "chat-1",
+      logical_execution_id: "logical-a",
+      reason: "user_stop",
+    });
+  });
+
   test("rejects execution cancellation without an exact attempt", async () => {
     await expect(
       api.unchain.cancelExecution({ session_id: "chat-1" }),

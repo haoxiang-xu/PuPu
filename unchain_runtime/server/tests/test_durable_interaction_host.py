@@ -83,6 +83,7 @@ class DurableInteractionHostTests(unittest.TestCase):
         *,
         session_id: str = "chat-cancel",
         attempt_id: str = "attempt-cancel",
+        logical_execution_id: str = "",
     ):
         from unchain.interaction.durable import (
             INTERACTION_KIND_TOOL_APPROVAL,
@@ -132,11 +133,61 @@ class DurableInteractionHostTests(unittest.TestCase):
         host.save_resume_context(
             session_id=session_id,
             run_id=attempt_id,
-            options={"modelId": "openai:gpt-5", "memory_enabled": True},
+            options={
+                "modelId": "openai:gpt-5",
+                "memory_enabled": True,
+                **(
+                    {"logical_execution_id": logical_execution_id}
+                    if logical_execution_id
+                    else {}
+                ),
+            },
             provider="openai",
             model="gpt-5",
         )
         return request
+
+    def test_terminal_logical_lineage_suppresses_stale_pending_interaction(self) -> None:
+        import execution_lineage
+
+        for status in ("completed", "failed", "cancelled"):
+            with self.subTest(status=status):
+                session_id = f"chat-lineage-{status}"
+                logical_execution_id = f"logical-{status}"
+                attempt_id = f"attempt-{status}"
+                self._seed_cancellable_request(
+                    session_id=session_id,
+                    attempt_id=attempt_id,
+                    logical_execution_id=logical_execution_id,
+                )
+                execution_lineage.register_attempt(
+                    session_id,
+                    logical_execution_id,
+                    attempt_id,
+                )
+                if status == "completed":
+                    execution_lineage.mark_completed(
+                        session_id,
+                        logical_execution_id,
+                        attempt_id,
+                    )
+                elif status == "failed":
+                    execution_lineage.mark_failed(
+                        session_id,
+                        logical_execution_id,
+                        attempt_id,
+                    )
+                else:
+                    execution_lineage.request_cancel(
+                        session_id,
+                        logical_execution_id,
+                        attempt_id=attempt_id,
+                    )
+
+                self.assertEqual(
+                    host.get_pending_interaction(session_id),
+                    {"status": "none", "session_id": session_id},
+                )
 
     def test_pending_lookup_returns_real_interaction_id_without_secrets(self) -> None:
         request = self._seed_request()

@@ -1318,6 +1318,41 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(result, "committed")
         self.assertIs(manager.received_execution_fence, execution_fence)
 
+    def test_patch_memory_commit_forwards_receipt_ledger_and_fence(self) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class FakeManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.received = None
+
+            def commit_messages(
+                self,
+                *,
+                session_id: str,
+                full_conversation,
+                execution_fence=None,
+                durable_receipt_ledger=None,
+            ):
+                del session_id, full_conversation
+                self.received = (execution_fence, durable_receipt_ledger)
+                return "committed"
+
+        manager = FakeManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+        execution_fence = object()
+        receipt_ledger = object()
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "user", "content": "new"}],
+            execution_fence=execution_fence,
+            durable_receipt_ledger=receipt_ledger,
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(manager.received, (execution_fence, receipt_ledger))
+
     def test_patch_memory_commit_accepts_real_fenced_runtime_commit(self) -> None:
         from unchain.execution import ExecutionRuntime
         from unchain.memory import (
