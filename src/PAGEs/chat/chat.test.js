@@ -26,6 +26,7 @@ jest.mock("../../SERVICEs/boot_progress", () => ({
   __esModule: true,
   set: jest.fn(),
   release: jest.fn(),
+  signalReady: jest.fn(),
 }));
 
 jest.mock("../../SERVICEs/console_logger", () => ({
@@ -110,6 +111,7 @@ describe("ChatInterface stop flow", () => {
     mockScopedLogger.debug.mockClear();
     bootProgress.set.mockClear();
     bootProgress.release.mockClear();
+    bootProgress.signalReady.mockClear();
     window.unchainAPI = {
       getStatus: jest.fn(async () => ({
         status: "ready",
@@ -191,25 +193,25 @@ describe("ChatInterface stop flow", () => {
     });
   };
 
-  test("boot-loading gate: marks store hydration at 80% and releases exactly once on mount (S2->S3)", async () => {
+  test("boot-loading gate: marks store hydration at 80% and signals ready exactly once on mount (S2->S3)", async () => {
     renderChat();
 
     // bootstrapChatsStore() hydration runs synchronously in the mount-time
-    // useState initializer, and the release effect fires on the same
+    // useState initializer, and the signalReady effect fires on the same
     // mount — both land before any awaiting is needed.
     expect(bootProgress.set).toHaveBeenCalledWith(80);
-    expect(bootProgress.release).toHaveBeenCalledTimes(1);
+    expect(bootProgress.signalReady).toHaveBeenCalledTimes(1);
 
     await waitForBoot();
 
     // Re-renders triggered by boot completing (model catalog, unchain
-    // status) must not call release() again — it is a one-time effect.
-    expect(bootProgress.release).toHaveBeenCalledTimes(1);
+    // status) must not call signalReady() again — it is a one-time effect.
+    expect(bootProgress.signalReady).toHaveBeenCalledTimes(1);
 
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: "hello" },
     });
-    expect(bootProgress.release).toHaveBeenCalledTimes(1);
+    expect(bootProgress.signalReady).toHaveBeenCalledTimes(1);
   });
 
   const buildPendingInteraction = ({

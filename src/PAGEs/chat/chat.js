@@ -245,11 +245,13 @@ const ChatInterface = () => {
   const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
 
   /* Boot gate S3: chat page's first effect firing is "chat first-screen
-     rendered" — the release threshold the boot-loading-gate design pins
-     the overlay to. One-time and idempotent (bootProgress.release() no-ops
-     on repeat calls and when the overlay DOM is already gone). */
+     rendered" — the readiness threshold the hero-boot-overlay design pins
+     the Enter gate to. One-time and idempotent (bootProgress.signalReady()
+     no-ops on repeat calls). Unlike the old release(), this does not
+     dismiss anything by itself — it only reveals the BootOverlay's Enter
+     button; the user drives the actual transition into chat. */
   useEffect(() => {
-    bootProgress.release();
+    bootProgress.signalReady();
   }, []);
 
   /* "Try in chat" from the Plugins app-store modal (plugin_detail_page.js):
