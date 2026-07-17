@@ -109,8 +109,8 @@ const BootOverlay = () => {
         />
       </div>
 
-      {/* blurred cell-split spinner IS the loading indicator; a single
-          constant breathing amplitude throughout (loading and ready alike). */}
+      {/* cell-split spinner IS the loading indicator; a single constant
+          breathing amplitude throughout (loading and ready alike). */}
       <div
         aria-hidden="true"
         style={{
@@ -119,7 +119,6 @@ const BootOverlay = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          filter: "blur(28px)",
           opacity: 0.5,
           pointerEvents: "none",
         }}
