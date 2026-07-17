@@ -75,9 +75,8 @@ describe("BootOverlay", () => {
     expect(bootProgress.takeOver).toHaveBeenCalledTimes(1);
   });
 
-  test("renders the wordmark and a progress bar while not ready", () => {
+  test("shows no Enter button while not ready", () => {
     renderOverlay();
-    expect(screen.getByText("PuPu")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /enter/i })).toBeNull();
   });
 

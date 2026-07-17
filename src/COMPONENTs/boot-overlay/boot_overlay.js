@@ -68,19 +68,6 @@ const BootOverlay = () => {
 
   return (
     <div role="presentation" style={rootStyle}>
-      <div
-        style={{
-          fontFamily: "Jost, Segoe UI, system-ui, sans-serif",
-          fontSize: 26,
-          fontWeight: 300,
-          letterSpacing: 6,
-          textTransform: "uppercase",
-          color: "var(--pupu-text)",
-        }}
-      >
-        PuPu
-      </div>
-
       <div style={{ position: "relative", width: 200, height: 40 }}>
         {/* loading bar */}
         <div
