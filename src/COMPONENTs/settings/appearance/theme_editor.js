@@ -4,7 +4,7 @@ import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import Explorer from "../../../BUILTIN_COMPONENTs/explorer/explorer";
 import ThemePreviewCard from "./theme_preview_card";
 import { toast } from "../../../SERVICEs/toast";
 import {
@@ -28,10 +28,11 @@ import {
 } from "./storage";
 import { ADVANCED_TIERS, advancedTokenState } from "./advanced_state";
 
-/* Tokens that expand to reveal derived-tier children. Only "background" has
-   any today (sidebar/surface are derived from it), but structuring this as a
-   map — rather than hardcoding "background" inline — lets a future token
-   join the same expandable-row treatment without touching the render loop. */
+/* Tokens that become Explorer folder nodes with derived-tier children. Only
+   "background" has any today (sidebar/surface are derived from it), but
+   structuring this as a map — rather than hardcoding "background" inline —
+   lets a future token join the same folder treatment without touching the
+   data-building loop below. */
 const DERIVED_CHILDREN = { background: ["sidebar", "surface"] };
 
 const TOKEN_LABELS = {
@@ -154,11 +155,6 @@ const ThemeEditor = () => {
     syncCommittedSettings(next);
   };
 
-  // Whether the Background row's derived-tier group (sidebar/surface) is
-  // expanded, plus whether the pointer is currently over that group's region
-  // — mirrors the side-menu explorer's expanded-folder hover/at-rest tint.
-  const [bgGroupOpen, setBgGroupOpen] = useState(false);
-  const [bgGroupHovered, setBgGroupHovered] = useState(false);
   const advState = advancedTokenState(settings, editMode, palette);
 
   const onResetTier = (key) => {
@@ -297,6 +293,107 @@ const ThemeEditor = () => {
   const selectOptionStyle = { height: 28, padding: "4px 8px", fontSize: 13 };
   const selectDropdownStyle = { padding: 4, maxHeight: 220, minWidth: 180 };
 
+  const autoBadgeStyle = {
+    fontSize: 10,
+    borderRadius: 99,
+    padding: "2px 6px",
+    backgroundColor: "rgba(var(--pupu-accent-rgb),0.14)",
+    color: "rgba(var(--pupu-accent-rgb),0.9)",
+  };
+
+  /* Token tree for the BUILTIN Explorer (src/BUILTIN_COMPONENTs/explorer/explorer.js).
+     Root is the flat list of top-level tokens themselves — not wrapped in a
+     "Colors" header folder — so there is no collapsible root row to begin
+     with (the CEO's "root can never collapse" constraint is met by
+     construction, not by locking a folder). "background" is the one real
+     folder, left freely collapsible; only its sidebar/surface children are
+     nested under it. */
+  const topLevelKeys = SEMANTIC_TOKEN_KEYS.filter(
+    (k) => !ADVANCED_TIERS.includes(k),
+  );
+  const explorerRoot = [];
+  const explorerData = {};
+  for (const key of topLevelKeys) {
+    explorerRoot.push(key);
+    const childKeys = DERIVED_CHILDREN[key];
+
+    if (!childKeys) {
+      explorerData[key] = {
+        label: TOKEN_LABELS[key],
+        trailing: (
+          <ColorPicker
+            label={TOKEN_LABELS[key]}
+            value={palette[key]}
+            panel="rectangular"
+            show_alpha={false}
+            onPreview={(v) => previewThemeColor(editMode, key, v)}
+            onCommit={(v) => commitThemeColor(key, v)}
+          />
+        ),
+      };
+      continue;
+    }
+
+    /* "background" folder row: keeps its "auto ×N" pill next to its own
+       ColorPicker in the trailing slot, alongside the sidebar/surface tiers
+       nested as children. Normal explorer expand/collapse — this is the one
+       token allowed to fold. */
+    explorerData[key] = {
+      label: TOKEN_LABELS[key],
+      children: childKeys,
+      trailing: (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {autoTierCount > 0 && (
+            <span style={autoBadgeStyle}>auto ×{autoTierCount}</span>
+          )}
+          <ColorPicker
+            label={`${TOKEN_LABELS[key]} color`}
+            value={palette[key]}
+            panel="rectangular"
+            show_alpha={false}
+            onPreview={(v) => previewThemeColor(editMode, key, v)}
+            onCommit={(v) => commitThemeColor(key, v)}
+          />
+        </div>
+      ),
+    };
+
+    for (const childKey of childKeys) {
+      explorerData[childKey] = {
+        label: TOKEN_LABELS[childKey],
+        custom_label: (
+          <span>
+            {TOKEN_LABELS[childKey]}
+            {advState[childKey].isAuto && (
+              <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>
+                auto
+              </span>
+            )}
+          </span>
+        ),
+        trailing: (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {!advState[childKey].isAuto && (
+              <Button
+                label="Auto"
+                onClick={() => onResetTier(childKey)}
+                style={smallBtnStyle}
+              />
+            )}
+            <ColorPicker
+              label={TOKEN_LABELS[childKey]}
+              value={advState[childKey].value}
+              panel="rectangular"
+              show_alpha={false}
+              onPreview={(v) => previewThemeColor(editMode, childKey, v)}
+              onCommit={(v) => commitThemeColor(childKey, v)}
+            />
+          </div>
+        ),
+      };
+    }
+  }
+
   return (
     <div style={{ padding: "8px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -357,162 +454,7 @@ const ThemeEditor = () => {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {SEMANTIC_TOKEN_KEYS.filter((k) => !ADVANCED_TIERS.includes(k)).map((key) => {
-          const childKeys = DERIVED_CHILDREN[key];
-          if (!childKeys) {
-            return (
-              <div
-                key={key}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-              >
-                <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
-                  {TOKEN_LABELS[key]}
-                </span>
-                <ColorPicker
-                  label={TOKEN_LABELS[key]}
-                  value={palette[key]}
-                  panel="rectangular"
-                  show_alpha={false}
-                  onPreview={(v) => previewThemeColor(editMode, key, v)}
-                  onCommit={(v) => commitThemeColor(key, v)}
-                />
-              </div>
-            );
-          }
-
-          /* Background is the only token with derived tiers today. Its row
-             doubles as an explorer-style expandable-folder parent: a chevron
-             + auto-badge label toggles the group, and the whole parent+children
-             block picks up a region tint mirroring the side-menu explorer's
-             expanded-folder highlight (src/BUILTIN_COMPONENTs/explorer/explorer.js
-             — see BackgroundIndicator for the at-rest tint and ExplorerRow's
-             hoverBg for the hover-intensified tint). */
-          const regionRestAlpha = isDark ? 0.035 : 0.064;
-          const regionHoverAlpha = isDark ? 0.07 : 0.055;
-          const regionAlpha = bgGroupHovered ? regionHoverAlpha : regionRestAlpha;
-
-          return (
-            <div
-              key={key}
-              onMouseEnter={() => setBgGroupHovered(true)}
-              onMouseLeave={() => setBgGroupHovered(false)}
-              style={{
-                borderRadius: 7,
-                padding: bgGroupOpen ? "6px 8px" : 0,
-                backgroundColor: bgGroupOpen
-                  ? `rgba(var(--pupu-text-rgb),${regionAlpha})`
-                  : "transparent",
-                transition: "background-color 0.15s ease, padding 0.15s ease",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-              >
-                <span
-                  role="button"
-                  tabIndex={0}
-                  aria-label={TOKEN_LABELS[key]}
-                  onClick={() => setBgGroupOpen((o) => !o)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setBgGroupOpen((o) => !o);
-                    }
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    cursor: "pointer",
-                  }}
-                >
-                  <Icon
-                    src="arrow_down"
-                    color="rgba(var(--pupu-text-rgb),0.5)"
-                    style={{
-                      width: 14,
-                      height: 14,
-                      transform: bgGroupOpen ? "rotate(180deg)" : "none",
-                      transition: "transform 0.15s ease",
-                    }}
-                  />
-                  <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
-                    {TOKEN_LABELS[key]}
-                  </span>
-                  {autoTierCount > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        borderRadius: 99,
-                        padding: "2px 6px",
-                        backgroundColor: "rgba(var(--pupu-accent-rgb),0.14)",
-                        color: "rgba(var(--pupu-accent-rgb),0.9)",
-                      }}
-                    >
-                      auto ×{autoTierCount}
-                    </span>
-                  )}
-                </span>
-                <ColorPicker
-                  label={`${TOKEN_LABELS[key]} color`}
-                  value={palette[key]}
-                  panel="rectangular"
-                  show_alpha={false}
-                  onPreview={(v) => previewThemeColor(editMode, key, v)}
-                  onCommit={(v) => commitThemeColor(key, v)}
-                />
-              </div>
-              {bgGroupOpen && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                    marginTop: 8,
-                    paddingLeft: 20,
-                  }}
-                >
-                  {childKeys.map((childKey) => (
-                    <div
-                      key={childKey}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
-                        {TOKEN_LABELS[childKey]}
-                        {advState[childKey].isAuto && (
-                          <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>auto</span>
-                        )}
-                      </span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {!advState[childKey].isAuto && (
-                          <Button
-                            label="Auto"
-                            onClick={() => onResetTier(childKey)}
-                            style={smallBtnStyle}
-                          />
-                        )}
-                        <ColorPicker
-                          label={TOKEN_LABELS[childKey]}
-                          value={advState[childKey].value}
-                          panel="rectangular"
-                          show_alpha={false}
-                          onPreview={(v) => previewThemeColor(editMode, childKey, v)}
-                          onCommit={(v) => commitThemeColor(childKey, v)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <Explorer data={explorerData} root={explorerRoot} style={{ width: "100%" }} />
 
       <input
         ref={importInputRef}

@@ -492,6 +492,7 @@ const ExplorerRowBase = ({
   activeNodeId,
   contextMenuNodeId,
   highlightColor,
+  isLockedExpanded,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -798,6 +799,9 @@ const ExplorerRowBase = ({
       />
 
       {/* ── expand / collapse icon ───────────────────── */}
+      {/* Locked-expanded folders (e.g. a non-collapsible root) never toggle —
+          hide the chevron entirely and drop the pointer affordance on this
+          zone so it doesn't read as an interactive control. */}
       <span
         style={{
           position: "relative",
@@ -808,12 +812,15 @@ const ExplorerRowBase = ({
           width: 18,
           height: 18,
           flexShrink: 0,
-          opacity: showFull ? 0 : isFolder ? 0.7 : 0,
+          opacity: showFull ? 0 : isFolder && !isLockedExpanded ? 0.7 : 0,
+          cursor: isFolder && isLockedExpanded ? "default" : undefined,
           transition:
             "transform 0.2s cubic-bezier(0.32,1,0.32,1), opacity 0.15s ease",
         }}
       >
-        <Icon src={expandIcon} style={{ width: 14, height: 14 }} />
+        {!(isFolder && isLockedExpanded) && (
+          <Icon src={expandIcon} style={{ width: 14, height: 14 }} />
+        )}
       </span>
 
       {/* ── prefix icon / generating spinner ─────────── */}
@@ -948,6 +955,32 @@ const ExplorerRowBase = ({
             src={node.postfix_icon}
             style={{ width: iconSize, height: iconSize }}
           />
+        </span>
+      )}
+
+      {/* ── trailing slot ─────────────────────────────── */}
+      {/* Consumer-supplied element rendered at the row's right end, after all
+          built-in badges. Interactions inside it must never trigger the
+          row's select/expand (stopPropagation) and must never start a row
+          drag (data-explorer-drag-disabled is already in DRAG_BLOCK_SELECTOR,
+          matched by shouldSkipRowDragStart). Not duplicated into the ghost
+          overlay below — that overlay is a plain label tooltip, and cloning
+          interactive trailing content into a second portal would mint
+          duplicate interactive elements. */}
+      {node.trailing && (
+        <span
+          data-explorer-drag-disabled="true"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+          }}
+        >
+          {node.trailing}
         </span>
       )}
 
@@ -1133,6 +1166,7 @@ const ExplorerBranch = ({
   activeNodeId,
   contextMenuNodeId,
   highlightColor,
+  lockedExpandedIds,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1143,6 +1177,9 @@ const ExplorerBranch = ({
     const hasChildren = data.children && data.children.length > 0;
     const isOpen = !!expanded[key];
     const isSource = isDragging && sourceId === key;
+    const isLockedExpanded = Boolean(
+      lockedExpandedIds && lockedExpandedIds.has(key),
+    );
 
     return (
       <React.Fragment key={key}>
@@ -1162,6 +1199,7 @@ const ExplorerBranch = ({
           activeNodeId={activeNodeId}
           contextMenuNodeId={contextMenuNodeId}
           highlightColor={highlightColor}
+          isLockedExpanded={isLockedExpanded}
         />
         {isFolder && (
           <AnimatedChildren
@@ -1209,6 +1247,7 @@ const ExplorerBranch = ({
                   activeNodeId={activeNodeId}
                   contextMenuNodeId={contextMenuNodeId}
                   highlightColor={highlightColor}
+                  lockedExpandedIds={lockedExpandedIds}
                 />
               )}
             </div>
@@ -1397,6 +1436,7 @@ const Explorer = ({
   style,
   active_node_id,
   context_menu_node_id,
+  locked_expanded,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1412,23 +1452,38 @@ const Explorer = ({
   }, [data, rootProp]);
 
   /* ── expanded state ────────────────────────────────── */
+  /* Locked-expanded ids (e.g. a non-collapsible root) always start expanded,
+     regardless of default_expanded — same read-once-at-mount contract as
+     default_expanded itself; there is no live-resync effect. */
   const [expanded, setExpanded] = useState(() => {
+    const base = {};
     if (default_expanded === true) {
-      const all = {};
       for (const [key, node] of Object.entries(data)) {
-        if (getNodeType(node) === "folder") all[key] = true;
+        if (getNodeType(node) === "folder") base[key] = true;
       }
-      return all;
+    } else if (Array.isArray(default_expanded)) {
+      for (const id of default_expanded) base[id] = true;
     }
-    if (Array.isArray(default_expanded)) {
-      return Object.fromEntries(default_expanded.map((id) => [id, true]));
+    if (Array.isArray(locked_expanded)) {
+      for (const id of locked_expanded) base[id] = true;
     }
-    return {};
+    return base;
   });
 
-  const toggleExpand = useCallback((id) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
+  /* Identity-stable when locked_expanded is omitted (existing consumers):
+     [locked_expanded] deps to [undefined] forever, so this computes once. */
+  const lockedExpandedIds = useMemo(
+    () => new Set(Array.isArray(locked_expanded) ? locked_expanded : []),
+    [locked_expanded],
+  );
+
+  const toggleExpand = useCallback(
+    (id) => {
+      if (lockedExpandedIds.has(id)) return;
+      setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    },
+    [lockedExpandedIds],
+  );
 
   /* ── sizing / colors ───────────────────────────────── */
   const fontSize = style?.fontSize ?? 14;
@@ -1825,6 +1880,7 @@ const Explorer = ({
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
         highlightColor={highlightColor}
+        lockedExpandedIds={lockedExpandedIds}
       />
 
       {/* ── drop indicator ──────────────────────────── */}

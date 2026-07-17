@@ -32,9 +32,11 @@ describe("ThemeEditor", () => {
 
   test("renders the 7 main semantic swatches; sidebar/surface live under the Background expander", () => {
     renderWithCtx();
+    // "Background color" (Background's own ColorPicker trigger) disambiguates
+    // from the Explorer row's plain "Background" label text.
     for (const label of [
       "Accent",
-      "Background",
+      "Background color",
       "Text",
       "Muted text",
       "Border",
@@ -51,7 +53,9 @@ describe("ThemeEditor", () => {
       screen.queryByRole("button", { name: "Sidebar" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Background" }));
+    // The Explorer row itself (not a role="button" element) is the expand
+    // toggle — click its label text, same as the explorer test suite does.
+    fireEvent.click(screen.getByText("Background"));
 
     expect(
       screen.getByRole("button", { name: "Sidebar" }),
@@ -325,7 +329,7 @@ describe("ThemeEditor", () => {
 
   test("Background expander shows an auto ×N badge that drops as tiers are customized", () => {
     renderWithCtx();
-    fireEvent.click(screen.getByRole("button", { name: "Background" }));
+    fireEvent.click(screen.getByText("Background"));
     // Both background-family tiers (sidebar, surface) start auto-derived.
     expect(screen.getByText("auto ×2")).toBeInTheDocument();
 
@@ -363,30 +367,8 @@ describe("theme_editor.js armed reset carries a --pupu-danger affordance", () =>
   });
 });
 
-// The expanded Background group mirrors the side-menu explorer's
-// expanded-folder region highlight (src/BUILTIN_COMPONENTs/explorer/explorer.js
-// — BackgroundIndicator's at-rest tint, ExplorerRow's hoverBg for the
-// hover-intensified tint). jsdom drops var()-based colors from computed
-// style, so — same precedent as the danger-affordance scan above — this is
-// asserted via a source scan rather than getComputedStyle.
-describe("theme_editor.js expanded Background region carries an explorer-style highlight", () => {
-  const src = require("fs").readFileSync(
-    require("path").join(__dirname, "theme_editor.js"),
-    "utf8",
-  );
-
-  test("region tint binds through the semantic --pupu-text-rgb overlay, never a raw hex", () => {
-    expect(src).toMatch(
-      /backgroundColor: bgGroupOpen\s*\n\s*\?\s*`rgba\(var\(--pupu-text-rgb\),\$\{regionAlpha\}\)`/,
-    );
-  });
-
-  test("rest vs. hover alpha mirrors explorer's BackgroundIndicator / ExplorerRow tints", () => {
-    expect(src).toMatch(
-      /regionRestAlpha = isDark \? 0\.035 : 0\.064/,
-    );
-    expect(src).toMatch(
-      /regionHoverAlpha = isDark \? 0\.07 : 0\.055/,
-    );
-  });
-});
+// The custom region-highlight styling this suite used to source-scan for was
+// deleted along with the ac20f98 custom expandable group — the Background
+// row's expanded-folder region tint now comes from the BUILTIN Explorer
+// itself (src/BUILTIN_COMPONENTs/explorer/explorer.js's BackgroundIndicator /
+// ExplorerRow hoverBg), which carries its own coverage in explorer.test.js.
