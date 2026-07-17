@@ -11,6 +11,10 @@ const FALLBACK_BG = { light_mode: "#ffffff", dark_mode: "#121212" };
 
 const EXIT_MS = 240;
 
+/* Hold the big-split loading animation for at least a few full cycles even
+   if the app boots faster — the cell animation is 1800ms/cycle at speed 1. */
+const MIN_LOADING_MS = 1800 * 3;
+
 /**
  * BootOverlay
  *
@@ -27,13 +31,23 @@ const BootOverlay = () => {
   const isDark = onThemeMode === "dark_mode";
 
   const [state, setState] = useState(() => bootProgress.getState());
+  const [minElapsed, setMinElapsed] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     bootProgress.takeOver();
-    return bootProgress.subscribe(setState);
+    const unsub = bootProgress.subscribe(setState);
+    const timer = setTimeout(() => setMinElapsed(true), MIN_LOADING_MS);
+    return () => {
+      unsub();
+      clearTimeout(timer);
+    };
   }, []);
+
+  /* Only calm the cells + surface Enter once the app is ready AND the
+     loading animation has run its minimum few cycles. */
+  const ready = state.ready && minElapsed;
 
   const accent = theme?.semantic?.accent || FALLBACK_ACCENT;
   const background =
@@ -85,9 +99,9 @@ const BootOverlay = () => {
           color={accent}
           cells={5}
           stagger={80}
-          spread={state.ready ? 0.22 : 0.9}
-          speed={state.ready ? 0.7 : 1}
-          spin={!state.ready}
+          spread={ready ? 0.22 : 0.9}
+          speed={ready ? 0.7 : 1}
+          spin={!ready}
         />
       </div>
 
@@ -96,13 +110,13 @@ const BootOverlay = () => {
         style={{
           position: "relative",
           zIndex: 1,
-          opacity: state.ready ? 1 : 0,
-          transform: state.ready ? "translateY(0)" : "translateY(8px)",
-          pointerEvents: state.ready ? "auto" : "none",
+          opacity: ready ? 1 : 0,
+          transform: ready ? "translateY(0)" : "translateY(8px)",
+          pointerEvents: ready ? "auto" : "none",
           transition: `opacity ${EXIT_MS}ms ease, transform ${EXIT_MS}ms ease`,
         }}
       >
-        {state.ready ? (
+        {ready ? (
           <Button
             label="Enter"
             onClick={handleEnter}
