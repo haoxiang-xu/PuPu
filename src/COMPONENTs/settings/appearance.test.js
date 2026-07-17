@@ -65,7 +65,7 @@ describe("AppearanceSettings palette-variant selectors", () => {
     window.localStorage.clear();
   });
 
-  test("theme mode dropdown: panel search filters and selection applies", () => {
+  test("theme mode dropdown: no search bar (3 options), selection applies", () => {
     const { setOnThemeMode, setSyncWithSystemTheme } =
       renderAppearanceSettings();
 
@@ -73,10 +73,8 @@ describe("AppearanceSettings palette-variant selectors", () => {
     fireEvent.click(screen.getAllByRole("combobox")[0]);
     const listbox = screen.getByRole("listbox", { hidden: true });
 
-    const search = screen.getByPlaceholderText("Search...");
-    fireEvent.change(search, { target: { value: "dar" } });
-    expect(within(listbox).getByText("Dark")).toBeInTheDocument();
-    expect(within(listbox).queryByText("System")).toBeNull();
+    // 3-option list deliberately carries no search field.
+    expect(screen.queryByPlaceholderText("Search...")).toBeNull();
 
     fireEvent.click(within(listbox).getByText("Dark"));
     expect(setSyncWithSystemTheme).toHaveBeenCalledWith(false);

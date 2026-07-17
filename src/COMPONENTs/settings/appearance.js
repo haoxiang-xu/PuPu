@@ -176,9 +176,7 @@ export const AppearanceSettings = () => {
               }
             }}
             variant="palette"
-            filterable={true}
-            filter_mode="panel"
-            search_placeholder={t("common.search")}
+            filterable={false}
             style={selectStyle}
             dropdown_style={selectDropdownStyle}
             option_style={selectOptionStyle}
