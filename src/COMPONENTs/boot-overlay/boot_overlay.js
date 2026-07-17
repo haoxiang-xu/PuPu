@@ -7,7 +7,7 @@ import DotMatrix from "../../BUILTIN_COMPONENTs/background/dot_matrix/dot_matrix
 import useReducedMotion from "../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import bootProgress from "../../SERVICEs/boot_progress";
-import deriveBlobPalette from "./derive_blob_palette";
+import { deriveBlobScene } from "./derive_blob_palette";
 
 /* Same green used as the semantic default accent (SEMANTIC_DEFAULTS) —
    only ever hit if ConfigContext hasn't resolved a theme yet. */
@@ -50,9 +50,10 @@ const BootOverlay = () => {
     hexToRgbTriplet(theme?.semantic?.text) ||
     (isDark ? FALLBACK_TEXT_RGB.dark_mode : FALLBACK_TEXT_RGB.light_mode);
 
-  const blobPalette = useMemo(
-    () => deriveBlobPalette(accent, isDark),
-    [accent, isDark],
+  const background = theme?.semantic?.background || (isDark ? "#121212" : "#ffffff");
+  const blobScene = useMemo(
+    () => deriveBlobScene(accent, background, isDark),
+    [accent, background, isDark],
   );
   const particleColor = `rgba(${textRgb}, ${isDark ? 0.14 : 0.10})`;
 
@@ -164,7 +165,29 @@ const BootOverlay = () => {
 
   return (
     <div role="presentation" style={rootStyle}>
-      <ShaderBlobBackground colors={blobPalette} blur={38} />
+      <ShaderBlobBackground
+        colors={blobScene.colors}
+        shape="mix"
+        count={7}
+        edge="smooth"
+        smooth={0.6}
+        speed={0.32}
+        rotation={0.3}
+        space={1}
+        glossy={isDark ? 0.7 : 0.55}
+        ao={0.8}
+        sss={isDark ? 0.2 : 0.45}
+        blur={38}
+        lightAzimuth={30}
+        lightElevation={55}
+        skyTint={blobScene.skyTint}
+        groundTint={blobScene.groundTint}
+        bgTop={blobScene.bg}
+        bgBottom={blobScene.bg}
+        bgDepth={4}
+        bgFuse={false}
+        pixelRatio={1.5}
+      />
       <DotMatrix particleColor={particleColor} />
 
       <div

@@ -1,5 +1,5 @@
 /* eslint-env jest */
-import deriveBlobPalette from "./derive_blob_palette";
+import deriveBlobPalette, { deriveBlobScene } from "./derive_blob_palette";
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -34,5 +34,30 @@ describe("deriveBlobPalette", () => {
     const palette = deriveBlobPalette("#16A34A", false);
     expect(palette).toHaveLength(4);
     palette.forEach((color) => expect(color).toMatch(HEX_RE));
+  });
+});
+
+describe("deriveBlobScene", () => {
+  const HEX = /^#[0-9a-f]{6}$/i;
+
+  test("colors match deriveBlobPalette; bg is the theme background verbatim", () => {
+    const scene = deriveBlobScene("#4C8BF5", "#161c28", true);
+    expect(scene.colors).toEqual(deriveBlobPalette("#4C8BF5", true));
+    expect(scene.bg).toBe("#161c28");
+  });
+
+  test("sky/ground tints are valid hexes derived from the theme", () => {
+    const scene = deriveBlobScene("#65c466", "#121212", true);
+    expect(scene.skyTint).toMatch(HEX);
+    expect(scene.groundTint).toMatch(HEX);
+    // sky sits lighter than the (near-black) background ground tint
+    expect(scene.skyTint).not.toBe(scene.groundTint);
+  });
+
+  test("follows the background: different bg → different scene", () => {
+    const a = deriveBlobScene("#4C8BF5", "#161c28", true);
+    const b = deriveBlobScene("#4C8BF5", "#2e3440", true);
+    expect(a.bg).not.toBe(b.bg);
+    expect(a.skyTint).not.toBe(b.skyTint);
   });
 });
