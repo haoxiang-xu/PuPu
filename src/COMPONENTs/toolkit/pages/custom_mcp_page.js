@@ -94,16 +94,16 @@ const CustomMcpPage = ({
   const [icon, setIcon] = useState(null);
   const fileRef = useRef(null);
 
-  const textColor = isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.82)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.45)";
-  const sectionColor = isDark ? "rgba(255,255,255,0.34)" : "rgba(0,0,0,0.34)";
-  const borderColor = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
-  const dashColor = isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
+  const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.86)" : "rgba(var(--pupu-text-rgb),0.82)";
+  const mutedColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.45)";
+  const sectionColor = "rgba(var(--pupu-text-rgb),0.34)";
+  const borderColor = "rgba(var(--pupu-text-rgb),0.10)";
+  const dashColor = "rgba(var(--pupu-text-rgb),0.18)";
+  const dividerColor = isDark ? "rgba(var(--pupu-text-rgb),0.07)" : "rgba(var(--pupu-text-rgb),0.06)";
   const accentColor = isDark ? "#7c8cf8" : "#2563eb";
   const warningColor = isDark ? "#fdba74" : "#c2410c";
-  const segOnBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
-  const actionBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.055)";
+  const segOnBg = isDark ? "rgba(var(--pupu-text-rgb),0.10)" : "rgba(var(--pupu-text-rgb),0.06)";
+  const actionBg = isDark ? "rgba(var(--pupu-text-rgb),0.10)" : "rgba(var(--pupu-text-rgb),0.055)";
 
   const inputStyle = {
     width: "100%",

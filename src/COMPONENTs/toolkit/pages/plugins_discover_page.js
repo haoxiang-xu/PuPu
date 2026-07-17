@@ -124,7 +124,7 @@ const PluginsDiscoverPage = ({
   const visibleCollections = collections.filter((col) => col.resolved.length > 0);
 
   const warningColor = isDark ? "#fdba74" : "#c2410c";
-  const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
+  const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
 
   /* Same install/OAuth error strip pattern as PluginsCategoriesPage
      (plugins_categories_page.js) — Discover had no visible failure surface

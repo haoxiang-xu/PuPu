@@ -30,7 +30,7 @@ const normalizeFileIconDisplayScale = (value) => {
 
 export const getToolkitIconBackground = (icon, isDark) => {
   if (isBuiltinToolkitIcon(icon)) return icon.backgroundColor;
-  return isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+  return isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.04)";
 };
 
 export const hasTransparentToolkitIconBackground = (backgroundColor) =>

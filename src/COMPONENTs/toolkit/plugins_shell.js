@@ -511,7 +511,7 @@ export const PluginsShell = ({
           backgroundColor: isDark
             ? "rgba(var(--pupu-text-rgb),0.03)"
             : "rgba(var(--pupu-text-rgb),0.04)",
-          borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+          borderRight: `1px solid rgba(var(--pupu-text-rgb),0.06)`,
           padding: "16px 10px 10px",
           display: "flex",
           flexDirection: "column",
@@ -523,7 +523,7 @@ export const PluginsShell = ({
             fontSize: 12,
             textTransform: "uppercase",
             letterSpacing: "1.5px",
-            color: isDark ? "#fff" : "#222",
+            color: "var(--pupu-text)",
             opacity: 0.3,
             padding: "8px 12px 12px",
           }}
@@ -557,8 +557,8 @@ export const PluginsShell = ({
                           fontSize: 10.5,
                           fontWeight: 600,
                           background: isDark
-                            ? "rgba(255,255,255,0.1)"
-                            : "rgba(0,0,0,0.08)",
+                            ? "rgba(var(--pupu-text-rgb),0.1)"
+                            : "rgba(var(--pupu-text-rgb),0.08)",
                           borderRadius: 999,
                           padding: "1px 7px",
                         },
@@ -664,13 +664,13 @@ export const PluginsShell = ({
                     style={{
                       fontSize: 12,
                       fontWeight: 500,
-                      color: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.68)",
+                      color: isDark ? "rgba(var(--pupu-text-rgb),0.72)" : "rgba(var(--pupu-text-rgb),0.68)",
                       paddingVertical: 5,
                       paddingHorizontal: 5,
                       borderRadius: 8,
-                      root: { background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)" },
-                      hoverBackgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
-                      activeBackgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)",
+                      root: { background: isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.04)" },
+                      hoverBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.07)",
+                      activeBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.12)" : "rgba(var(--pupu-text-rgb),0.1)",
                       content: {
                         prefixIconWrap: { display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 0 },
                         icon: { width: 14, height: 14 },
@@ -681,7 +681,7 @@ export const PluginsShell = ({
                     style={{
                       fontSize: 15,
                       fontWeight: 700,
-                      color: isDark ? "#ffffff" : "#1c1c21",
+                      color: "var(--pupu-text)",
                     }}
                   >
                     {t("toolkit.custom_mcp")}

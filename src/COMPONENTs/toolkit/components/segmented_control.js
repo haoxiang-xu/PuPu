@@ -108,7 +108,7 @@ const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) 
         boxSizing: "border-box",
         padding: TRACK_PADDING,
         borderRadius: 10,
-        background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+        background: "rgba(var(--pupu-text-rgb),0.06)",
         ...trackStyle,
       }}
     >
@@ -160,12 +160,8 @@ const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) 
               lineHeight: 1,
               letterSpacing: "0.1px",
               color: isActive
-                ? isDark
-                  ? "#fff"
-                  : "#111"
-                : isDark
-                  ? "rgba(255,255,255,0.42)"
-                  : "rgba(0,0,0,0.42)",
+                ? "var(--pupu-text)"
+                : "rgba(var(--pupu-text-rgb),0.42)",
               background: "transparent",
               boxShadow: "none",
               transition: "color 0.15s ease",

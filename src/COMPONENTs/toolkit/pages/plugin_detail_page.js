@@ -80,7 +80,7 @@ const ToolkitAutoApproveConfirmModal = ({ open, onClose, onConfirm, isDark }) =>
         style={{
           fontSize: 15,
           fontWeight: 600,
-          color: isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)",
+          color: isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)",
           marginBottom: 8,
           lineHeight: 1.3,
         }}
@@ -92,7 +92,7 @@ const ToolkitAutoApproveConfirmModal = ({ open, onClose, onConfirm, isDark }) =>
         style={{
           fontSize: 13,
           lineHeight: 1.6,
-          color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+          color: "rgba(var(--pupu-text-rgb),0.45)",
           marginBottom: 20,
         }}
       >
@@ -173,7 +173,7 @@ const ToolkitDeleteConfirmModal = ({ open, onClose, onConfirm, isDark, toolkitLa
         style={{
           fontSize: 15,
           fontWeight: 600,
-          color: isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)",
+          color: isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)",
           marginBottom: 8,
           lineHeight: 1.3,
         }}
@@ -184,7 +184,7 @@ const ToolkitDeleteConfirmModal = ({ open, onClose, onConfirm, isDark, toolkitLa
       <div
         style={{
           fontSize: 13,
-          color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+          color: "rgba(var(--pupu-text-rgb),0.45)",
           marginBottom: 24,
           lineHeight: 1.5,
         }}
@@ -433,10 +433,10 @@ const PluginDetailPage = ({
 
   if (!presentation) return null;
 
-  const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
-  const tertiaryColor = isDark ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.35)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+  const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
+  const mutedColor = "rgba(var(--pupu-text-rgb),0.45)";
+  const tertiaryColor = isDark ? "rgba(var(--pupu-text-rgb),0.30)" : "rgba(var(--pupu-text-rgb),0.35)";
+  const dividerColor = "rgba(var(--pupu-text-rgb),0.07)";
   const chipColor = isDark ? "#9aa8ff" : "#2563eb";
   const dangerColor = "#E5484D";
   /* Warning tokens ported verbatim from store_toolkit_detail_panel.js —
@@ -444,7 +444,7 @@ const PluginDetailPage = ({
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const warningBg = isDark ? "rgba(251,146,60,0.14)" : "rgba(251,146,60,0.12)";
   const hotColor = isDark ? "#fdba74" : "#c2410c";
-  const tagBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
+  const tagBg = isDark ? "rgba(var(--pupu-text-rgb),0.06)" : "rgba(var(--pupu-text-rgb),0.04)";
 
   const sourceConfig = SOURCE_CONFIG[entry?.source] || SOURCE_CONFIG.builtin;
   const sourceBadge = presentation.sourceBadge || { label: "", color: sourceConfig.color };
@@ -558,12 +558,12 @@ const PluginDetailPage = ({
   const miniButtonStyle = {
     fontSize: 11.5,
     fontFamily,
-    color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)",
+    color: isDark ? "rgba(var(--pupu-text-rgb),0.75)" : "rgba(var(--pupu-text-rgb),0.65)",
     paddingVertical: 5,
     paddingHorizontal: 14,
     borderRadius: 6,
     flexShrink: 0,
-    root: { background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" },
+    root: { background: isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.06)" },
   };
 
   return (
@@ -578,13 +578,13 @@ const PluginDetailPage = ({
             style={{
               fontSize: 12,
               fontWeight: 500,
-              color: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.68)",
+              color: isDark ? "rgba(var(--pupu-text-rgb),0.72)" : "rgba(var(--pupu-text-rgb),0.68)",
               paddingVertical: 5,
               paddingHorizontal: 5,
               borderRadius: 8,
-              root: { background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)" },
-              hoverBackgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
-              activeBackgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)",
+              root: { background: isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.04)" },
+              hoverBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.07)",
+              activeBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.12)" : "rgba(var(--pupu-text-rgb),0.1)",
               content: {
                 prefixIconWrap: { display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 0 },
                 icon: { width: 14, height: 14 },
@@ -934,7 +934,7 @@ const PluginDetailPage = ({
                         fontSize: 11,
                         fontFamily,
                         color: mutedColor,
-                        background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+                        background: isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.035)",
                         borderRadius: 999,
                         padding: "3px 10px",
                       }}
@@ -982,7 +982,7 @@ const PluginDetailPage = ({
                               fontSize: 11,
                               fontFamily,
                               color: mutedColor,
-                              background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+                              background: isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.035)",
                               borderRadius: 6,
                               padding: "3px 9px",
                             }}
@@ -1177,7 +1177,7 @@ const PluginDetailPage = ({
                 fontSize: 12,
                 fontWeight: 500,
                 fontFamily,
-                color: isBuiltin ? (isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)") : dangerColor,
+                color: isBuiltin ? "rgba(var(--pupu-text-rgb),0.25)" : dangerColor,
                 paddingVertical: 6,
                 paddingHorizontal: 12,
                 borderRadius: 7,

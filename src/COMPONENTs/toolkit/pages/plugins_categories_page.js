@@ -71,14 +71,14 @@ const PluginsCategoriesPage = ({
   /* Category pill group — same visual language as the legacy store page's
      pill row (mirrors the Ollama model library browser); already flat, so
      T3 restyles only the list below it. */
-  const pillActiveBg = isDark ? "rgba(255,255,255,0.11)" : "rgba(0,0,0,0.08)";
-  const pillHoverBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
-  const pillActiveTxt = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
-  const pillInactiveTxt = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.42)";
-  const activePillBorder = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+  const pillActiveBg = isDark ? "rgba(var(--pupu-text-rgb),0.11)" : "rgba(var(--pupu-text-rgb),0.08)";
+  const pillHoverBg = isDark ? "rgba(var(--pupu-text-rgb),0.06)" : "rgba(var(--pupu-text-rgb),0.04)";
+  const pillActiveTxt = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
+  const pillInactiveTxt = isDark ? "rgba(var(--pupu-text-rgb),0.45)" : "rgba(var(--pupu-text-rgb),0.42)";
+  const activePillBorder = "rgba(var(--pupu-text-rgb),0.15)";
   const warningColor = isDark ? "#fdba74" : "#c2410c";
-  const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
-  const tertiaryText = isDark ? "rgba(255,255,255,0.34)" : "rgba(0,0,0,0.4)";
+  const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
+  const tertiaryText = isDark ? "rgba(var(--pupu-text-rgb),0.34)" : "rgba(var(--pupu-text-rgb),0.4)";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -108,7 +108,7 @@ const PluginsCategoriesPage = ({
             fontSize: 12.5,
             fontFamily,
             borderRadius: 7,
-            color: isDark ? "#fff" : "#222",
+            color: "var(--pupu-text)",
             paddingVertical: 7,
             paddingHorizontal: 10,
           }}
@@ -178,8 +178,8 @@ const PluginsCategoriesPage = ({
                   paddingVertical: 4,
                   paddingHorizontal: 4,
                   borderRadius: 999,
-                  color: isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)",
-                  hoverBackgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                  color: isDark ? "rgba(var(--pupu-text-rgb),0.62)" : "rgba(var(--pupu-text-rgb),0.58)",
+                  hoverBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.06)",
                   content: { icon: { width: 14, height: 14 } },
                 }}
               />

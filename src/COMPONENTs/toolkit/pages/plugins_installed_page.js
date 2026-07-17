@@ -139,8 +139,8 @@ const PluginsInstalledPage = ({
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const titleFontFamily = theme?.font?.titleFontFamily || fontFamily;
-  const tertiaryText = isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.35)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+  const tertiaryText = isDark ? "rgba(var(--pupu-text-rgb),0.38)" : "rgba(var(--pupu-text-rgb),0.35)";
+  const dividerColor = "rgba(var(--pupu-text-rgb),0.06)";
 
   /* Source grouping (T3) — mockup screen ③ splits Installed into a
      "Built-in" section (source builtin/local, i.e. everything that isn't
@@ -238,7 +238,7 @@ const PluginsInstalledPage = ({
             fontWeight: 600,
             letterSpacing: "-0.01em",
             fontFamily: titleFontFamily,
-            color: isDark ? "#ffffff" : "#1c1c21",
+            color: "var(--pupu-text)",
           }}
         >
           {t("toolkit.installed_title")}
@@ -254,7 +254,7 @@ const PluginsInstalledPage = ({
             fontSize: 12.5,
             fontFamily,
             borderRadius: 7,
-            color: isDark ? "#fff" : "#222",
+            color: "var(--pupu-text)",
             paddingVertical: 7,
             paddingHorizontal: 10,
             marginTop: 12,

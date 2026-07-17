@@ -24,8 +24,8 @@ const PluginListRow = ({
   const { theme } = useContext(ConfigContext) || {};
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
-  const nameColor = isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.85)";
-  const descColor = isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.40)";
+  const nameColor = isDark ? "rgba(var(--pupu-text-rgb),0.88)" : "rgba(var(--pupu-text-rgb),0.85)";
+  const descColor = isDark ? "rgba(var(--pupu-text-rgb),0.38)" : "rgba(var(--pupu-text-rgb),0.40)";
   const chipColor = isDark ? "#9aa8ff" : "#2563eb";
   const chipBg = "rgba(124,140,248,0.10)";
 

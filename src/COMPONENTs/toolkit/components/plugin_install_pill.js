@@ -38,8 +38,8 @@ const PluginInstallPill = ({
   const pillEnabled = isOpen || installMachine.canInstall;
   const chipColor = isDark ? "#9aa8ff" : "#2563eb";
   const pillBg = isDark ? "rgba(124,140,248,0.12)" : "rgba(37,99,235,0.08)";
-  const pillOpenColor = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.50)";
-  const pillOpenBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const pillOpenColor = isDark ? "rgba(var(--pupu-text-rgb),0.55)" : "rgba(var(--pupu-text-rgb),0.50)";
+  const pillOpenBg = isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.06)";
 
   const handleClick = (event) => {
     event.stopPropagation();

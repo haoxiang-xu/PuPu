@@ -21,7 +21,7 @@ const PlaceholderBlock = ({ icon, title, subtitle, isDark }) => {
           width: 44,
           height: 44,
           borderRadius: 12,
-          background: isDark ? "rgba(255,255,255,0.055)" : "rgba(0,0,0,0.045)",
+          background: isDark ? "rgba(var(--pupu-text-rgb),0.055)" : "rgba(var(--pupu-text-rgb),0.045)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -39,7 +39,7 @@ const PlaceholderBlock = ({ icon, title, subtitle, isDark }) => {
           fontSize: 14,
           fontWeight: 600,
           fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
-          color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
+          color: isDark ? "rgba(var(--pupu-text-rgb),0.55)" : "rgba(var(--pupu-text-rgb),0.5)",
         }}
       >
         {title}
@@ -49,7 +49,7 @@ const PlaceholderBlock = ({ icon, title, subtitle, isDark }) => {
           style={{
             fontSize: 12,
             fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)",
+            color: isDark ? "rgba(var(--pupu-text-rgb),0.28)" : "rgba(var(--pupu-text-rgb),0.3)",
             maxWidth: 280,
             lineHeight: 1.55,
           }}
