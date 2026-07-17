@@ -1720,7 +1720,7 @@ const Explorer = ({
         clearAutoExpand();
       }
     },
-    [clearAutoExpand],
+    [clearAutoExpand, row_height],
   );
 
   /* ── end drag ────────────────────────────────────────── */
@@ -1822,7 +1822,7 @@ const Explorer = ({
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [draggable, beginDrag, updateDrag, endDrag]);
+  }, [draggable, beginDrag, updateDrag, endDrag, row_height]);
 
   /* ── drag ghost data ───────────────────────────────── */
   const sourceNode = useMemo(
@@ -1835,14 +1835,17 @@ const Explorer = ({
   const overlayIconSize = Math.round(fontSize * 1.15);
 
   /* callback ref: set initial ghost position on mount */
-  const ghostCallbackRef = useCallback((el) => {
-    ghostRef.current = el;
-    if (el && dragInternals.current.phase === "dragging") {
-      const x = dragInternals.current.startX + 16;
-      const y = dragInternals.current.startY - row_height / 2;
-      el.style.transform = `translate(${x}px, ${y}px)`;
-    }
-  }, []);
+  const ghostCallbackRef = useCallback(
+    (el) => {
+      ghostRef.current = el;
+      if (el && dragInternals.current.phase === "dragging") {
+        const x = dragInternals.current.startX + 16;
+        const y = dragInternals.current.startY - row_height / 2;
+        el.style.transform = `translate(${x}px, ${y}px)`;
+      }
+    },
+    [row_height],
+  );
 
   /* ── render ────────────────────────────────────────── */
   return (
