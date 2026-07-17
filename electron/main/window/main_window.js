@@ -159,19 +159,6 @@ const createMainWindowService = ({
     return DARK_PALETTE.backgroundColor;
   };
 
-  /** Resolve the full loading-screen palette from persisted prefs. */
-  const resolveLoadingPalette = () => {
-    const prefs = readThemePrefs(app, fs, path);
-    if (prefs?.themeMode === "light" || prefs?.themeMode === "light_mode") {
-      return LIGHT_PALETTE;
-    }
-    if (prefs?.themeMode === "system") {
-      return nativeTheme.shouldUseDarkColors ? DARK_PALETTE : LIGHT_PALETTE;
-    }
-    // dark is the default
-    return DARK_PALETTE;
-  };
-
   const createWindowOptions = () => {
     const windowsIcon = resolvePublicPath("icon-win.ico");
     const fallbackIcon = resolvePublicPath("favicon.ico");
@@ -275,29 +262,28 @@ const createMainWindowService = ({
 
     mainWindow = new BrowserWindow(createWindowOptions());
 
-    /* Load loading screen with theme-aware query params */
-    const palette = resolveLoadingPalette();
-    mainWindow.loadFile(resolvePublicPath("loading.html"), {
-      query: {
-        bg: palette.backgroundColor,
-        fg: palette.foregroundColor,
-        st: palette.spinnerTrack,
-        sa: palette.spinnerArc,
-      },
-    });
+    if (app.isPackaged) {
+      /* The in-page boot overlay (public/index.html + boot_progress.js)
+       * owns the entire loading experience now, so load the real entry
+       * directly instead of swapping in an Electron-level loading page. */
+      mainWindow.loadFile(resolveBuildPath("index.html"), {
+        hash: PROD_ENTRY_HASH,
+      });
 
-    mainWindow.once("ready-to-show", () => {
+      mainWindow.once("ready-to-show", () => {
+        mainWindow.show();
+        emitWindowState();
+        scheduleDarwinTrafficLightSync();
+      });
+    } else {
+      /* Dev: nothing is loaded yet, so don't wait on ready-to-show — show
+       * the themed (but empty) window immediately; the themed background
+       * IS the interim state while the CRA dev server boots. */
       mainWindow.show();
       emitWindowState();
       scheduleDarwinTrafficLightSync();
-      if (app.isPackaged) {
-        mainWindow.loadFile(resolveBuildPath("index.html"), {
-          hash: PROD_ENTRY_HASH,
-        });
-      } else {
-        loadDevUrlWhenReady();
-      }
-    });
+      loadDevUrlWhenReady();
+    }
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       if (/^https?:/i.test(url)) {
