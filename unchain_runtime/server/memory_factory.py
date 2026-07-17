@@ -1060,9 +1060,16 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         commit_params = inspect.signature(original_commit).parameters
     except Exception:
         commit_params = {}
-    supports_execution_fence = "execution_fence" in commit_params or any(
+    accepts_var_keyword = any(
         parameter.kind is inspect.Parameter.VAR_KEYWORD
         for parameter in commit_params.values()
+    )
+    supports_execution_fence = "execution_fence" in commit_params or accepts_var_keyword
+    # unchain durable-receipts (p3) threads a receipt ledger through commit_messages
+    # so receipts commit atomically with the transcript. This overlap wrapper must
+    # accept and FORWARD it (never swallow) when the installed runtime supports it.
+    supports_durable_receipt_ledger = (
+        "durable_receipt_ledger" in commit_params or accepts_var_keyword
     )
 
     def _patched_commit_messages(
@@ -1077,11 +1084,17 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         summary_text: str | None = None,
         return_result: bool = False,
         clear_execution_checkpoint_id: str | None = None,
+        durable_receipt_ledger: Any = None,
         execution_fence: Any = None,
     ):
         if execution_fence is not None and not supports_execution_fence:
             raise RuntimeError(
                 "memory commit execution fencing is unsupported by the "
+                "installed unchain runtime"
+            )
+        if durable_receipt_ledger is not None and not supports_durable_receipt_ledger:
+            raise RuntimeError(
+                "memory commit durable receipt ledger is unsupported by the "
                 "installed unchain runtime"
             )
         store_snapshot = None
@@ -1130,6 +1143,8 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
             )
         if supports_execution_fence:
             commit_kwargs["execution_fence"] = execution_fence
+        if supports_durable_receipt_ledger:
+            commit_kwargs["durable_receipt_ledger"] = durable_receipt_ledger
         return original_commit(**commit_kwargs)
 
     setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))
