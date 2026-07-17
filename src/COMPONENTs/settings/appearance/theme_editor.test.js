@@ -30,7 +30,7 @@ describe("ThemeEditor", () => {
     document.documentElement.removeAttribute("style");
   });
 
-  test("renders the 7 main semantic swatches; sidebar/surface live under Advanced", () => {
+  test("renders the 7 main semantic swatches; sidebar/surface live under the Background expander", () => {
     renderWithCtx();
     for (const label of [
       "Accent",
@@ -43,7 +43,7 @@ describe("ThemeEditor", () => {
     ]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
-    // The two background-family tiers are hidden until the disclosure opens.
+    // The two background-family tiers are hidden until the Background row expands.
     expect(
       screen.queryByRole("button", { name: "Surface" }),
     ).not.toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("ThemeEditor", () => {
       screen.queryByRole("button", { name: "Sidebar" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Background layers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Background" }));
 
     expect(
       screen.getByRole("button", { name: "Sidebar" }),
@@ -111,7 +111,9 @@ describe("ThemeEditor", () => {
       },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Background" }));
+    // "Background" is now the row's expand toggle; its ColorPicker trigger
+    // carries the disambiguated "Background color" accessible name.
+    fireEvent.click(screen.getByRole("button", { name: "Background color" }));
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "#112233" },
     });
@@ -173,7 +175,7 @@ describe("ThemeEditor", () => {
     );
     // Light mode → Background swatch shows the light default.
     expect(
-      screen.getByRole("button", { name: "Background" }),
+      screen.getByRole("button", { name: "Background color" }),
     ).toHaveTextContent("#ffffff");
 
     rerender(
@@ -183,7 +185,7 @@ describe("ThemeEditor", () => {
     );
     // Switching the active mode re-syncs editMode → Background shows dark default.
     expect(
-      screen.getByRole("button", { name: "Background" }),
+      screen.getByRole("button", { name: "Background color" }),
     ).toHaveTextContent("#121212");
   });
 
@@ -321,9 +323,9 @@ describe("ThemeEditor", () => {
     expect(readThemeSettings().details.dark_mode.chipBorder).toBe("#ff0000");
   });
 
-  test("background-layers disclosure shows an auto ×N badge that drops as tiers are customized", () => {
+  test("Background expander shows an auto ×N badge that drops as tiers are customized", () => {
     renderWithCtx();
-    fireEvent.click(screen.getByRole("button", { name: "Background layers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Background" }));
     // Both background-family tiers (sidebar, surface) start auto-derived.
     expect(screen.getByText("auto ×2")).toBeInTheDocument();
 
@@ -357,6 +359,34 @@ describe("theme_editor.js armed reset carries a --pupu-danger affordance", () =>
   test("armed (danger) background resolves to a tinted --pupu-danger-rgb fill", () => {
     expect(src).toMatch(
       /backgroundColor: danger \? "rgba\(var\(--pupu-danger-rgb\),0\.12\)" : undefined/,
+    );
+  });
+});
+
+// The expanded Background group mirrors the side-menu explorer's
+// expanded-folder region highlight (src/BUILTIN_COMPONENTs/explorer/explorer.js
+// — BackgroundIndicator's at-rest tint, ExplorerRow's hoverBg for the
+// hover-intensified tint). jsdom drops var()-based colors from computed
+// style, so — same precedent as the danger-affordance scan above — this is
+// asserted via a source scan rather than getComputedStyle.
+describe("theme_editor.js expanded Background region carries an explorer-style highlight", () => {
+  const src = require("fs").readFileSync(
+    require("path").join(__dirname, "theme_editor.js"),
+    "utf8",
+  );
+
+  test("region tint binds through the semantic --pupu-text-rgb overlay, never a raw hex", () => {
+    expect(src).toMatch(
+      /backgroundColor: bgGroupOpen\s*\n\s*\?\s*`rgba\(var\(--pupu-text-rgb\),\$\{regionAlpha\}\)`/,
+    );
+  });
+
+  test("rest vs. hover alpha mirrors explorer's BackgroundIndicator / ExplorerRow tints", () => {
+    expect(src).toMatch(
+      /regionRestAlpha = isDark \? 0\.035 : 0\.064/,
+    );
+    expect(src).toMatch(
+      /regionHoverAlpha = isDark \? 0\.07 : 0\.055/,
     );
   });
 });

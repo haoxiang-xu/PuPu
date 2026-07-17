@@ -28,6 +28,12 @@ import {
 } from "./storage";
 import { ADVANCED_TIERS, advancedTokenState } from "./advanced_state";
 
+/* Tokens that expand to reveal derived-tier children. Only "background" has
+   any today (sidebar/surface are derived from it), but structuring this as a
+   map — rather than hardcoding "background" inline — lets a future token
+   join the same expandable-row treatment without touching the render loop. */
+const DERIVED_CHILDREN = { background: ["sidebar", "surface"] };
+
 const TOKEN_LABELS = {
   accent: "Accent",
   background: "Background",
@@ -148,7 +154,11 @@ const ThemeEditor = () => {
     syncCommittedSettings(next);
   };
 
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Whether the Background row's derived-tier group (sidebar/surface) is
+  // expanded, plus whether the pointer is currently over that group's region
+  // — mirrors the side-menu explorer's expanded-folder hover/at-rest tint.
+  const [bgGroupOpen, setBgGroupOpen] = useState(false);
+  const [bgGroupHovered, setBgGroupHovered] = useState(false);
   const advState = advancedTokenState(settings, editMode, palette);
 
   const onResetTier = (key) => {
@@ -348,118 +358,160 @@ const ThemeEditor = () => {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {SEMANTIC_TOKEN_KEYS.filter((k) => !ADVANCED_TIERS.includes(k)).map((key) => (
-          <div
-            key={key}
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-          >
-            <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
-              {TOKEN_LABELS[key]}
-            </span>
-            <ColorPicker
-              label={TOKEN_LABELS[key]}
-              value={palette[key]}
-              panel="rectangular"
-              show_alpha={false}
-              onPreview={(v) => previewThemeColor(editMode, key, v)}
-              onCommit={(v) => commitThemeColor(key, v)}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <Button
-          ariaLabel="Background layers"
-          onClick={() => setAdvancedOpen((o) => !o)}
-          style={{
-            root: {
-              width: "100%",
-              boxSizing: "border-box",
-              borderRadius: 9,
-              paddingVertical: 8,
-              paddingHorizontal: 10,
-              border: "1px solid rgba(var(--pupu-text-rgb),0.07)",
-              backgroundColor: "rgba(var(--pupu-text-rgb),0.03)",
-            },
-            background: {
-              hoverBackgroundColor: isDark
-                ? "rgba(255,255,255,0.05)"
-                : "rgba(0,0,0,0.03)",
-            },
-            content: {
-              children: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: "100%",
-              },
-            },
-          }}
-        >
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 13, color: "rgba(var(--pupu-text-rgb),0.75)" }}>
-              Background layers
-            </span>
-            {autoTierCount > 0 && (
-              <span
-                style={{
-                  fontSize: 10,
-                  borderRadius: 99,
-                  padding: "2px 6px",
-                  backgroundColor: "rgba(var(--pupu-accent-rgb),0.14)",
-                  color: "rgba(var(--pupu-accent-rgb),0.9)",
-                }}
-              >
-                auto ×{autoTierCount}
-              </span>
-            )}
-          </span>
-          <Icon
-            src="arrow_down"
-            color="rgba(var(--pupu-text-rgb),0.5)"
-            style={{
-              width: 14,
-              height: 14,
-              transform: advancedOpen ? "rotate(180deg)" : "none",
-              transition: "transform 0.15s ease",
-            }}
-          />
-        </Button>
-        {advancedOpen && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-            {ADVANCED_TIERS.map((key) => (
+        {SEMANTIC_TOKEN_KEYS.filter((k) => !ADVANCED_TIERS.includes(k)).map((key) => {
+          const childKeys = DERIVED_CHILDREN[key];
+          if (!childKeys) {
+            return (
               <div
                 key={key}
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
               >
                 <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
                   {TOKEN_LABELS[key]}
-                  {advState[key].isAuto && (
-                    <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>auto</span>
+                </span>
+                <ColorPicker
+                  label={TOKEN_LABELS[key]}
+                  value={palette[key]}
+                  panel="rectangular"
+                  show_alpha={false}
+                  onPreview={(v) => previewThemeColor(editMode, key, v)}
+                  onCommit={(v) => commitThemeColor(key, v)}
+                />
+              </div>
+            );
+          }
+
+          /* Background is the only token with derived tiers today. Its row
+             doubles as an explorer-style expandable-folder parent: a chevron
+             + auto-badge label toggles the group, and the whole parent+children
+             block picks up a region tint mirroring the side-menu explorer's
+             expanded-folder highlight (src/BUILTIN_COMPONENTs/explorer/explorer.js
+             — see BackgroundIndicator for the at-rest tint and ExplorerRow's
+             hoverBg for the hover-intensified tint). */
+          const regionRestAlpha = isDark ? 0.035 : 0.064;
+          const regionHoverAlpha = isDark ? 0.07 : 0.055;
+          const regionAlpha = bgGroupHovered ? regionHoverAlpha : regionRestAlpha;
+
+          return (
+            <div
+              key={key}
+              onMouseEnter={() => setBgGroupHovered(true)}
+              onMouseLeave={() => setBgGroupHovered(false)}
+              style={{
+                borderRadius: 7,
+                padding: bgGroupOpen ? "6px 8px" : 0,
+                backgroundColor: bgGroupOpen
+                  ? `rgba(var(--pupu-text-rgb),${regionAlpha})`
+                  : "transparent",
+                transition: "background-color 0.15s ease, padding 0.15s ease",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+              >
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={TOKEN_LABELS[key]}
+                  onClick={() => setBgGroupOpen((o) => !o)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setBgGroupOpen((o) => !o);
+                    }
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  <Icon
+                    src="arrow_down"
+                    color="rgba(var(--pupu-text-rgb),0.5)"
+                    style={{
+                      width: 14,
+                      height: 14,
+                      transform: bgGroupOpen ? "rotate(180deg)" : "none",
+                      transition: "transform 0.15s ease",
+                    }}
+                  />
+                  <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
+                    {TOKEN_LABELS[key]}
+                  </span>
+                  {autoTierCount > 0 && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        borderRadius: 99,
+                        padding: "2px 6px",
+                        backgroundColor: "rgba(var(--pupu-accent-rgb),0.14)",
+                        color: "rgba(var(--pupu-accent-rgb),0.9)",
+                      }}
+                    >
+                      auto ×{autoTierCount}
+                    </span>
                   )}
                 </span>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {!advState[key].isAuto && (
-                    <Button
-                      label="Auto"
-                      onClick={() => onResetTier(key)}
-                      style={smallBtnStyle}
-                    />
-                  )}
-                  <ColorPicker
-                    label={TOKEN_LABELS[key]}
-                    value={advState[key].value}
-                    panel="rectangular"
-                    show_alpha={false}
-                    onPreview={(v) => previewThemeColor(editMode, key, v)}
-                    onCommit={(v) => commitThemeColor(key, v)}
-                  />
-                </div>
+                <ColorPicker
+                  label={`${TOKEN_LABELS[key]} color`}
+                  value={palette[key]}
+                  panel="rectangular"
+                  show_alpha={false}
+                  onPreview={(v) => previewThemeColor(editMode, key, v)}
+                  onCommit={(v) => commitThemeColor(key, v)}
+                />
               </div>
-            ))}
-          </div>
-        )}
+              {bgGroupOpen && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    marginTop: 8,
+                    paddingLeft: 20,
+                  }}
+                >
+                  {childKeys.map((childKey) => (
+                    <div
+                      key={childKey}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
+                        {TOKEN_LABELS[childKey]}
+                        {advState[childKey].isAuto && (
+                          <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>auto</span>
+                        )}
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {!advState[childKey].isAuto && (
+                          <Button
+                            label="Auto"
+                            onClick={() => onResetTier(childKey)}
+                            style={smallBtnStyle}
+                          />
+                        )}
+                        <ColorPicker
+                          label={TOKEN_LABELS[childKey]}
+                          value={advState[childKey].value}
+                          panel="rectangular"
+                          show_alpha={false}
+                          onPreview={(v) => previewThemeColor(editMode, childKey, v)}
+                          onCommit={(v) => commitThemeColor(childKey, v)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <input
