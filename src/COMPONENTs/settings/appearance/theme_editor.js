@@ -327,14 +327,14 @@ const ThemeEditor = () => {
         />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <Button
-            prefix_icon="download"
+            prefix_icon="import_tray"
             ariaLabel="Import theme"
             title="Import theme"
             onClick={() => importInputRef.current && importInputRef.current.click()}
             style={iconButtonStyle()}
           />
           <Button
-            prefix_icon="upload_file"
+            prefix_icon="export_tray"
             ariaLabel="Export theme"
             title="Export theme"
             onClick={onExport}
