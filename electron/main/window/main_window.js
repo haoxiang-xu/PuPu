@@ -258,16 +258,23 @@ const createMainWindowService = ({
   /** Tiny inline interim shell for dev: themed bg + breathing bar shown
    *  while the CRA dev server is still compiling (data: URL — no file). */
   const buildDevInterimUrl = () => {
+    const prefs = readThemePrefs(app, fs, path) || {};
     const bg = resolveInitialBackgroundColor();
     const n = parseInt(bg.slice(1, 7), 16) || 0;
     const lum =
       0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
     const fg = lum > 140 ? "0,0,0" : "255,255,255";
+    const bar =
+      typeof prefs.accent === "string" && /^#[0-9a-fA-F]{6,8}$/.test(prefs.accent)
+        ? prefs.accent
+        : `rgba(${fg},0.75)`;
+    /* Pixel-identical to the #boot-overlay bar in public/index.html
+       (160×3 track, radius 2, 8s ease-out crawl to 30%). */
     const html = `<!doctype html><meta charset="utf-8"><style>
       html,body{margin:0;width:100%;height:100%;background:${bg};display:flex;align-items:center;justify-content:center}
-      .t{width:120px;height:3px;border-radius:2px;background:rgba(${fg},0.10);overflow:hidden}
-      .b{width:40%;height:100%;border-radius:2px;background:rgba(${fg},0.45);animation:s 1.2s ease-in-out infinite}
-      @keyframes s{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+      .t{width:160px;height:3px;border-radius:2px;background:rgba(${fg},0.08);overflow:hidden}
+      .b{display:block;height:100%;width:0%;border-radius:2px;background:${bar};animation:c 8s ease-out forwards}
+      @keyframes c{from{width:0%}to{width:30%}}
     </style><div class="t"><div class="b"></div></div>`;
     return "data:text/html;charset=utf-8," + encodeURIComponent(html);
   };
@@ -347,14 +354,23 @@ const createMainWindowService = ({
     return mainWindow;
   };
 
-  const handleThemeSetBackgroundColor = (color) => {
+  const handleThemeSetBackgroundColor = (payload) => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
     }
+    /* Back-compat: payload may be a bare color string or
+       { backgroundColor, accent } (accent themes the dev interim bar). */
+    const color =
+      typeof payload === "string" ? payload : payload?.backgroundColor;
+    const accent = typeof payload === "object" ? payload?.accent : undefined;
     if (typeof color === "string" && /^#[0-9a-fA-F]{6,8}$/.test(color)) {
       mainWindow.setBackgroundColor(color);
-      /* Persist so the next launch uses this color immediately. */
-      writeThemePrefs(app, fs, path, { backgroundColor: color });
+      /* Persist so the next launch uses these colors immediately. */
+      const prefs = { backgroundColor: color };
+      if (typeof accent === "string" && /^#[0-9a-fA-F]{6,8}$/.test(accent)) {
+        prefs.accent = accent;
+      }
+      writeThemePrefs(app, fs, path, prefs);
     }
   };
 

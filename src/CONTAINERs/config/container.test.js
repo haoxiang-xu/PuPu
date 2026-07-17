@@ -378,7 +378,7 @@ describe("ConfigContainer semantic palette", () => {
         "#abcdef",
       );
       expect(themeBridge.setBackgroundColor).toHaveBeenLastCalledWith(
-        "#abcdef",
+        expect.objectContaining({ backgroundColor: "#abcdef" }),
       );
       expect(
         document.documentElement.style.getPropertyValue("--pupu-background"),
@@ -434,7 +434,7 @@ describe("ConfigContainer semantic palette", () => {
         document.documentElement.style.getPropertyValue("--pupu-background"),
       ).toBe("#ffffff");
       expect(themeBridge.setBackgroundColor).toHaveBeenLastCalledWith(
-        "#ffffff",
+        expect.objectContaining({ backgroundColor: "#ffffff" }),
       );
     });
   });

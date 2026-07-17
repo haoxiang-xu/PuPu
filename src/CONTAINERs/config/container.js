@@ -394,7 +394,10 @@ const ConfigContainer = ({ children }) => {
   }, []);
   useEffect(() => {
     if (theme?.backgroundColor) {
-      themeBridge.setBackgroundColor(theme.backgroundColor);
+      themeBridge.setBackgroundColor({
+        backgroundColor: theme.backgroundColor,
+        accent: theme.semantic?.accent,
+      });
     }
   }, [theme]);
   useEffect(() => {
