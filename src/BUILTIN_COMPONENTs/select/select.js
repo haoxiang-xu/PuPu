@@ -1558,8 +1558,10 @@ const Select = ({
       </div>
       )}
       {/* palette variant: bottom header — chip + search + actions, the
-          command palette's header slot (chip inset 13 = concentric r9+13=22) */}
-      {isPalette ? (
+          command palette's header slot (chip inset 13 = concentric r9+13=22).
+          Only rendered when it actually holds something — otherwise it's dead
+          padding at the panel's bottom (e.g. a 3-option, search-less select). */}
+      {isPalette && (filterable || paletteChipEl || palette_actions) ? (
         <div
           style={{
             display: "flex",

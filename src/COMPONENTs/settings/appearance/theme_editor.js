@@ -296,7 +296,7 @@ const ThemeEditor = () => {
      22 frosted blur, hairline, sliding row highlight) is the variant's own,
      identical to the attach panel's dropdowns. */
   const selectDropdownStyle = { width: 224, maxHeight: 220 };
-  const selectOptionStyle = { height: 34 };
+  const selectOptionStyle = { height: 34, borderRadius: 14 };
 
   const autoBadgeStyle = {
     fontSize: 10,
