@@ -61,6 +61,8 @@ describe("preload API contract", () => {
 
     [
       "getStatus",
+      "getComputerUseStatus",
+      "openComputerUsePrivacySettings",
       "getModelCatalog",
       "getToolkitCatalog",
       "listMcpToolkits",
@@ -160,6 +162,17 @@ describe("preload API contract", () => {
       query: "q",
       category: "c",
     });
+
+    exposed.unchainAPI.getComputerUseStatus();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
+    );
+
+    exposed.unchainAPI.openComputerUsePrivacySettings("accessibility");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
+      { target: "accessibility" },
+    );
 
     exposed.unchainAPI.setChromeTerminalOpen(true);
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(

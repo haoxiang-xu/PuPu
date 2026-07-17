@@ -500,6 +500,74 @@ describe("TraceChain final_message draft timeline", () => {
       scope: "once",
     });
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Always allow" }),
+    ).toBeInTheDocument();
+  });
+
+  test("computer confirmations never render the session approval action", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-computer",
+          confirmation_id: "confirm-computer",
+          requires_confirmation: true,
+          toolkit_id: "builtin.computer",
+          tool_name: "computer",
+          arguments: { action: "left_click", coordinate: [10, 20] },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "confirm-computer": { status: "idle", error: "" },
+      },
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Allow once" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Always allow" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("legacy computer confirmations without toolkit metadata fail closed", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-legacy-computer",
+          confirmation_id: "confirm-legacy-computer",
+          requires_confirmation: true,
+          tool_name: "computer",
+          arguments: { action: "screenshot" },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "confirm-legacy-computer": { status: "idle", error: "" },
+      },
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Always allow" }),
+    ).not.toBeInTheDocument();
   });
 
   test("forwards code diff approval as confirmation without user response", () => {

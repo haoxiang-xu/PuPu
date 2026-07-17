@@ -2,6 +2,12 @@ const { CHANNELS } = require("../../shared/channels");
 
 const createMisoBridge = (ipcRenderer, streamClient) => ({
   getStatus: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_STATUS),
+  getComputerUseStatus: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS),
+  openComputerUsePrivacySettings: (target = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS, {
+      target,
+    }),
   getModelCatalog: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MODEL_CATALOG),
   getToolkitCatalog: () =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG),

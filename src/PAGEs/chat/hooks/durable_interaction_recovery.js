@@ -237,6 +237,7 @@ export const buildRecoveredConfirmationRequest = ({
     sessionId: pending.sessionId,
     ownerMessageId: normalizedString(ownerMessageId),
     toolName: normalizedString(payload.tool_name),
+    toolkitId: normalizedString(payload.toolkit_id),
     toolDisplayName: normalizedString(payload.tool_display_name),
     arguments: isObject(payload.arguments) ? payload.arguments : {},
     description: normalizedString(payload.description),

@@ -68,6 +68,7 @@ import route_memory  # noqa: F401
 import route_recipes  # noqa: F401
 import route_mcp  # noqa: F401
 import route_interject  # noqa: F401
+import route_computer_use  # noqa: F401
 import route_providers  # noqa: F401
 
 __all__ = [

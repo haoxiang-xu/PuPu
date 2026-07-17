@@ -48,8 +48,6 @@ const isBaseById = (toolkitId) => {
 
 export const ToolkitModal = ({ open, onClose }) => {
   useModalLifecycle("toolkit-modal", open);
-  const { onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
   const [activePage, setActivePage] = useState("discover");
   const [installedCount, setInstalledCount] = useState(0);
 

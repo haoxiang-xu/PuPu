@@ -43,6 +43,52 @@ const SELF_NAME = require(path.join(root, "package.json")).name;
 const FIRST_PARTY_NODE = [SELF_NAME];
 const FIRST_PARTY_PY = ["unchain"];
 
+// ── Copyleft source-availability (LGPL/GPL §4/§6) ─────────────────────────────
+// Permissive licenses (MIT/BSD/Apache/ISC/…) are satisfied by preserving their
+// text (handled by --with-license-file above). Copyleft components additionally
+// grant the user the right to obtain the component's *source* and to
+// modify/replace it. The sidecar ships as a PyInstaller --onefile binary
+// (opaque), so for each copyleft dependency we attach a WRITTEN OFFER naming the
+// upstream source + version, satisfying LGPL-3.0 §4 (replaceability) / §6 (source
+// availability). Note: some copyleft addenda (e.g. LGPL-3.0) incorporate a base
+// license (GPL-3.0) by reference; the upstream source named in the offer carries
+// the complete corresponding license text.
+const COPYLEFT_LICENSE_RE = /gpl|mpl|epl|cddl|eupl/i;
+
+// name (as reported by the license tooling) -> upstream source repository.
+// A copyleft component NOT registered here fails the --check gate, so a new
+// copyleft dependency cannot ship without a source offer.
+const COPYLEFT_SOURCE_OFFERS = {
+  // pynput (LGPL-3.0) — dynamic import only, unmodified; C1 computer-control dep.
+  pynput: "https://github.com/moses-palmer/pynput",
+};
+
+function buildSourceOffer(name, version, url) {
+  return [
+    "Written offer (copyleft source availability — LGPL/GPL §4/§6):",
+    `  ${name} ${version} is copyleft-licensed. Its complete corresponding source`,
+    `  code, and the full license terms (including any base license incorporated by`,
+    `  reference), are available from ${url}. You have the right to obtain that`,
+    `  source, to modify this component, and to relink or replace it within PuPu.`,
+    "  If that URL becomes unavailable, contact the PuPu maintainers to obtain the source.",
+  ].join("\n");
+}
+
+// Resolve the written offer for a package, or record a gate problem if a copyleft
+// component has no registered upstream source. Returns "" for permissive packages.
+function resolveSourceOffer(ecosystem, name, version, license) {
+  if (!COPYLEFT_LICENSE_RE.test(String(license || ""))) return "";
+  const url = COPYLEFT_SOURCE_OFFERS[name];
+  if (!url) {
+    problems.push(
+      `[${ecosystem}] ${name}@${version}: copyleft license "${license}" has no registered upstream source offer ` +
+        "(add it to COPYLEFT_SOURCE_OFFERS for LGPL/GPL §4/§6 compliance)"
+    );
+    return "";
+  }
+  return buildSourceOffer(name, version, url);
+}
+
 const problems = [];
 const SEP = "=".repeat(78);
 
@@ -55,6 +101,10 @@ function header() {
     "time by scripts/generate-third-party-notices.cjs and is not edited by hand.",
     "",
     "PuPu itself is licensed under Apache-2.0 (see LICENSE and NOTICE).",
+    "",
+    "Copyleft components (e.g. LGPL/GPL) additionally carry a written offer naming",
+    "their upstream source, so you can obtain, modify, and replace them (LGPL/GPL",
+    "§4/§6). Look for \"Written offer\" beneath the relevant package below.",
     "",
     SEP,
     "",
@@ -91,7 +141,9 @@ function collectNode() {
         /* best-effort */
       }
     }
-    pkgs.push({ id, license, publisher: info.publisher || "", text });
+    const version = id.slice(id.lastIndexOf("@") + 1);
+    const sourceOffer = resolveSourceOffer("node", name, version, license);
+    pkgs.push({ id, license, publisher: info.publisher || "", text, sourceOffer });
   }
   console.log(`  OK: ${pkgs.length} npm packages`);
   return pkgs;
@@ -149,7 +201,8 @@ function collectPython() {
       problems.push(`[python] ${id}: unresolved license "${license}"`);
     }
     const text = (p.LicenseText && p.LicenseText !== "UNKNOWN" ? p.LicenseText : "").trim();
-    pkgs.push({ id, license, publisher: "", text });
+    const sourceOffer = resolveSourceOffer("python", p.Name, p.Version, license);
+    pkgs.push({ id, license, publisher: "", text, sourceOffer });
   }
   console.log(`  OK: ${pkgs.length} python packages`);
   return pkgs;
@@ -161,6 +214,10 @@ function renderSection(title, pkgs) {
     lines.push(`--- ${p.id} ---`);
     lines.push(`License: ${p.license}`);
     if (p.publisher) lines.push(`Publisher: ${p.publisher}`);
+    if (p.sourceOffer) {
+      lines.push("");
+      lines.push(p.sourceOffer);
+    }
     if (p.text) {
       lines.push("");
       lines.push(p.text);
@@ -196,4 +253,18 @@ function main() {
   }
 }
 
-main();
+// Exported for the notices unit test; only run the generator when invoked as a
+// script (so `require`-ing this file to test the helpers does not shell out to
+// license-checker / pip-licenses).
+module.exports = {
+  COPYLEFT_LICENSE_RE,
+  COPYLEFT_SOURCE_OFFERS,
+  buildSourceOffer,
+  resolveSourceOffer,
+  renderSection,
+  problems,
+};
+
+if (require.main === module) {
+  main();
+}

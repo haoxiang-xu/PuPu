@@ -48,4 +48,24 @@ describe("toolkit_auto_approve_store", () => {
     expect(isToolkitAutoApprove("core")).toBe(false);
     expect(isToolAutoApproved("core", "write")).toBe(false);
   });
+
+  test("ignores a persisted computer auto-approval without changing ordinary tools", () => {
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["builtin.computer", "core"],
+        tools: ["builtin.computer:computer", "core:write"],
+      }),
+    );
+
+    expect(isToolAutoApproved("builtin.computer", "computer")).toBe(false);
+    expect(isToolkitAutoApprove("builtin.computer")).toBe(false);
+    expect(getAutoApproveToolkits()).toEqual(["core"]);
+    expect(isToolAutoApproved("core", "write")).toBe(true);
+
+    expect(
+      setToolkitAutoApprove("builtin.computer", true, ["computer"]),
+    ).toEqual({ toolkits: ["core"], tools: ["core:write"] });
+  });
 });
