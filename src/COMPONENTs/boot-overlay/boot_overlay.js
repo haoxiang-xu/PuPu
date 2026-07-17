@@ -1,7 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import { hexToRgbTriplet } from "../../CONTAINERs/config/theme_semantic";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import bootProgress from "../../SERVICEs/boot_progress";
@@ -9,7 +8,6 @@ import bootProgress from "../../SERVICEs/boot_progress";
 /* Semantic default accent — only hit if ConfigContext hasn't resolved yet. */
 const FALLBACK_ACCENT = "#65c466";
 const FALLBACK_BG = { light_mode: "#ffffff", dark_mode: "#121212" };
-const FALLBACK_TEXT_RGB = { light_mode: "34,34,34", dark_mode: "255,255,255" };
 
 const EXIT_MS = 240;
 
@@ -18,9 +16,10 @@ const EXIT_MS = 240;
  *
  * Full-screen boot gate. Takes over the static #boot-overlay shell on mount,
  * then owns rendering from bootProgress.subscribe(). Solid theme-colored
- * ground, a wordmark, a thin progress bar while loading; once `ready` (chat
- * reached its first screen, or the 8s failsafe fired) a single Enter button
- * replaces the bar — clicking it fades the overlay out and unmounts. The
+ * ground with a blurred cell-split spinner as the sole loading indicator.
+ * Once `ready` (chat reached its first screen, or the 8s failsafe fired) the
+ * cells stop splitting and gather into one still blob, and a single Enter
+ * button fades in — clicking it fades the overlay out and unmounts. The
  * screen is never auto-dismissed; the user always drives the final step.
  */
 const BootOverlay = () => {
@@ -40,9 +39,6 @@ const BootOverlay = () => {
   const background =
     theme?.semantic?.background ||
     (isDark ? FALLBACK_BG.dark_mode : FALLBACK_BG.light_mode);
-  const textRgb =
-    hexToRgbTriplet(theme?.semantic?.text) ||
-    (isDark ? FALLBACK_TEXT_RGB.dark_mode : FALLBACK_TEXT_RGB.light_mode);
 
   const handleEnter = () => {
     if (exiting) return;
@@ -69,7 +65,8 @@ const BootOverlay = () => {
 
   return (
     <div role="presentation" style={rootStyle}>
-      {/* ambient cell-split spinner behind, blurred */}
+      {/* blurred cell-split spinner IS the loading indicator; when ready the
+          cells pull in to a small gentle breath (still alive, just calm). */}
       <div
         aria-hidden="true"
         style={{
@@ -83,81 +80,50 @@ const BootOverlay = () => {
           pointerEvents: "none",
         }}
       >
-        <CellSplitSpinner size={280} color={accent} cells={5} stagger={80} spread={0.9} spin />
+        <CellSplitSpinner
+          size={280}
+          color={accent}
+          cells={5}
+          stagger={80}
+          spread={state.ready ? 0.22 : 0.9}
+          speed={state.ready ? 0.7 : 1}
+          spin={!state.ready}
+        />
       </div>
 
-      <div style={{ position: "relative", zIndex: 1, width: 200, height: 40 }}>
-        {/* loading bar */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: state.ready ? 0 : 1,
-            pointerEvents: state.ready ? "none" : "auto",
-            transition: `opacity ${EXIT_MS}ms ease`,
-          }}
-        >
-          <div
+      {/* single solid Enter button, appears when ready */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          opacity: state.ready ? 1 : 0,
+          transform: state.ready ? "translateY(0)" : "translateY(8px)",
+          pointerEvents: state.ready ? "auto" : "none",
+          transition: `opacity ${EXIT_MS}ms ease, transform ${EXIT_MS}ms ease`,
+        }}
+      >
+        {state.ready ? (
+          <Button
+            label="Enter"
+            onClick={handleEnter}
             style={{
-              width: 160,
-              height: 3,
-              borderRadius: 2,
-              overflow: "hidden",
-              background: `rgba(${textRgb}, 0.08)`,
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${state.pct}%`,
-                borderRadius: 2,
+              root: {
+                fontSize: 14,
+                fontWeight: 500,
+                letterSpacing: 1,
+                color: background,
+                borderRadius: 999,
+                paddingVertical: 9,
+                paddingHorizontal: 30,
                 background: accent,
-                transition: "width 300ms ease",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* single solid Enter button, appears when ready */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: state.ready ? 1 : 0,
-            transform: state.ready ? "translateY(0)" : "translateY(8px)",
-            pointerEvents: state.ready ? "auto" : "none",
-            transition: `opacity ${EXIT_MS}ms ease, transform ${EXIT_MS}ms ease`,
-          }}
-        >
-          {state.ready ? (
-            <Button
-              label="Enter"
-              onClick={handleEnter}
-              style={{
-                root: {
-                  fontSize: 14,
-                  fontWeight: 500,
-                  letterSpacing: 1,
-                  color: background,
-                  borderRadius: 999,
-                  paddingVertical: 9,
-                  paddingHorizontal: 30,
-                  background: accent,
-                },
-                background: {
-                  hoverBackgroundColor: accent,
-                  activeBackgroundColor: accent,
-                },
-              }}
-            />
-          ) : null}
-        </div>
+              },
+              background: {
+                hoverBackgroundColor: accent,
+                activeBackgroundColor: accent,
+              },
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );
