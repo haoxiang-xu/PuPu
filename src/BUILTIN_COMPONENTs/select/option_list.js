@@ -117,6 +117,10 @@ export const OptionItem = ({
         display: "flex",
         alignItems: "center",
         position: "relative",
+        /* never let the flex column compress rows when the list scrolls —
+           without this, N rows taller than the panel shrink to fit (a
+           24px row rendered as ~19px once the list overflows). */
+        flexShrink: 0,
         height: itemHeight,
         padding: itemPadding,
         borderRadius: option_theme?.borderRadius ?? 5,
