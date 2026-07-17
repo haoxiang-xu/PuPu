@@ -220,6 +220,7 @@ const PluginsInstalledPage = ({
         <SemiSwitch
           on={Boolean(tk.defaultEnabled)}
           set_on={(val) => handleToggleEnabled(tk.toolkitId, val)}
+          style={{ width: 56, height: 28 }}
         />
       </Tooltip>
     </PluginListRow>

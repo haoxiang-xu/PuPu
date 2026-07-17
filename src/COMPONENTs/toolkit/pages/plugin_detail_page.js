@@ -1145,6 +1145,7 @@ const PluginDetailPage = ({
               <SemiSwitch
                 on={Boolean(defaultEnabled)}
                 set_on={(val) => onToggleAutoEnable?.(entry?.toolkitId, val)}
+                style={{ width: 56, height: 28 }}
               />
             </SettingsRow>
           )}
@@ -1154,7 +1155,7 @@ const PluginDetailPage = ({
               <SemiSwitch
                 on={autoApprove}
                 set_on={handleAutoApproveToggle}
-                style={{ backgroundColor_on: "#E5484D" }}
+                style={{ width: 56, height: 28, backgroundColor_on: "#E5484D" }}
               />
             </SettingsRow>
           )}
