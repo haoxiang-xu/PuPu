@@ -149,27 +149,28 @@ const AuroraFeatureCard = ({
               (ready && visible gate + fadeMs) — that's the only fade that
               can't flash. Our earlier wrapper fade raced it and popped. */}
           <ShaderBlobBackground {...INK_DONUTS} fadeMs={1400} style={{ zIndex: 0 }} />
+          {/* Warm halo IN THE BACKGROUND layer (CEO 2026-07-18u — "behind"),
+              centered where the icon sits (22px pad + 25px half-icon), so
+              the parallax icon floats in front of its own back-light. */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: 47,
+              width: 130,
+              height: 130,
+              transform: "translate(-50%, -50%)",
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(255,240,250,0.5), rgba(255,214,240,0.2) 45%, transparent 70%)",
+              filter: "blur(8px)",
+              pointerEvents: "none",
+            }}
+          />
         </div>
         <Card.Layer depth={34} style={{ flexShrink: 0 }}>
           <div style={{ position: "relative" }}>
-            {/* Soft glow behind the icon (CEO 2026-07-18t) — a warm-white
-                radial halo so the artwork lifts off the donut field. */}
-            <div
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                width: 108,
-                height: 108,
-                transform: "translate(-50%, -50%)",
-                borderRadius: "50%",
-                background:
-                  "radial-gradient(circle, rgba(255,240,250,0.55), rgba(255,214,240,0.22) 45%, transparent 70%)",
-                filter: "blur(6px)",
-                pointerEvents: "none",
-              }}
-            />
           {iconHasOwnArtwork ? (
             /* Real artwork (SVG/image file, or a builtin glyph shipping its
                own backgroundColor) renders as-is — no white backing plate
