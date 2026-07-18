@@ -73,9 +73,9 @@ const AuroraFeatureCard = ({
         border_radius={13}
         max_tilt={7}
         scale={1.015}
-        style={{ backgroundColor: surface, border: "none" }}
+        style={{ backgroundColor: surface, border: "none", cursor: onClick ? "pointer" : "default" }}
         body_style={{
-          padding: "16px 18px",
+          padding: "20px 22px",
           display: "flex",
           alignItems: "center",
           gap: 14,
@@ -84,9 +84,9 @@ const AuroraFeatureCard = ({
         <Card.Layer depth={34} style={{ flexShrink: 0 }}>
           <div
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 13,
+              width: 50,
+              height: 50,
+              borderRadius: 14,
               background: "rgba(255,255,255,0.92)",
               display: "flex",
               alignItems: "center",
@@ -96,9 +96,9 @@ const AuroraFeatureCard = ({
             <ToolkitIconFrame
               icon={icon}
               isDark={isDark}
-              size={44}
-              iconSize={20}
-              borderRadius={13}
+              size={50}
+              iconSize={23}
+              borderRadius={14}
               style={{ background: "transparent" }}
             />
           </div>
@@ -119,7 +119,7 @@ const AuroraFeatureCard = ({
           </div>
           <div
             style={{
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: 500,
               color: titleColor,
               marginTop: 2,
@@ -133,7 +133,7 @@ const AuroraFeatureCard = ({
           </div>
           <div
             style={{
-              fontSize: 11,
+              fontSize: 11.5,
               color: blurbColor,
               marginTop: 2,
               lineHeight: 1.5,
