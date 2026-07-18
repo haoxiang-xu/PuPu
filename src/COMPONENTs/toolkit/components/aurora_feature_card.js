@@ -86,7 +86,7 @@ const AuroraFeatureCard = ({
         scale={1.015}
         style={{ backgroundColor: surface, cursor: onClick ? "pointer" : "default" }}
         body_style={{
-          padding: "27px 22px",
+          padding: "68px 22px",
           display: "flex",
           alignItems: "center",
           gap: 14,
