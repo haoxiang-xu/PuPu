@@ -1,22 +1,28 @@
 """route_computer_use — HTTP surface for the computer-use feature.
 
-Two read endpoints, both loopback-only + token-gated like every ``/chat/*`` route:
+Loopback-only + token-gated like every ``/chat/*`` route:
 
-  GET /chat/tool-media/<media_id>   serve a redacted tool-result screenshot (C4)
-  GET /computer-use/status          capability + permission contract for C3 UI
+  GET  /chat/tool-media/<media_id>   serve a redacted tool-result screenshot (C4)
+  GET  /computer-use/status          capability + permission contract for C3 UI
+  POST /computer-use/config          set the runtime enable override (Gate B)
 
 The screenshot bytes themselves are stored/expired by ``tool_media_store``; the
-capability structure comes from the pure ``computer_control`` module (C1). This
-file is only the Flask glue.
+capability structure comes from the pure ``computer_control`` module (C1); the
+enable state lives in the shared ``computer_use_flag`` leaf. This file is only
+the Flask glue.
 """
 
 from __future__ import annotations
+
+import logging
 
 from flask import Response, jsonify, request
 
 from route_blueprint import api_blueprint
 
 import tool_media_store
+
+_logger = logging.getLogger("pupu.computer_use")
 
 
 def _root():
@@ -73,7 +79,7 @@ def get_computer_use_status():
     if not root._is_authorized():
         return root._json_error("unauthorized", "Invalid auth token", 401)
 
-    from unchain_adapter import _computer_use_enabled
+    from computer_use_flag import is_enabled
     from computer_control import get_capabilities
 
     try:
@@ -81,7 +87,7 @@ def get_computer_use_status():
     except Exception as exc:  # never 500 on a status probe
         return jsonify(
             {
-                "enabled": _computer_use_enabled(),
+                "enabled": is_enabled(),
                 "capabilities": None,
                 "error": f"capability_probe_failed: {exc}",
             }
@@ -89,7 +95,53 @@ def get_computer_use_status():
 
     return jsonify(
         {
-            "enabled": _computer_use_enabled(),
+            "enabled": is_enabled(),
             "capabilities": capabilities,
         }
     )
+
+
+@api_blueprint.post("/computer-use/config")
+def set_computer_use_config():
+    """Set the runtime enable override for computer use (Gate B).
+
+    The renderer's localStorage holds the authoritative expected state; delivery
+    is this loopback + token-gated POST that flips the sidecar's in-process
+    override without a restart. The override wins over the ``PUPU_COMPUTER_USE``
+    env default and is captured on the next session-store construction, so the
+    tool gate and screenshot sanitization move together.
+
+    Body must be strictly ``{"enabled": <bool>}``. A truthy string/number or a
+    missing key is a 400 — never coerced, so a malformed request can't silently
+    flip the gate. Fail-closed by construction: a sidecar restart clears the
+    override back to env default until the renderer re-pushes.
+    """
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    from computer_use_flag import is_enabled, set_runtime_override
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or "enabled" not in payload:
+        return root._json_error(
+            "invalid_request", "body must be an object with an 'enabled' key", 400
+        )
+
+    enabled = payload["enabled"]
+    # Strict bool only — reject "true"/1/None and any other truthy coercion.
+    if not isinstance(enabled, bool):
+        return root._json_error(
+            "invalid_request", "'enabled' must be a JSON boolean", 400
+        )
+
+    previous = is_enabled()
+    set_runtime_override(enabled)
+    resolved = is_enabled()
+    _logger.info(
+        "computer-use runtime override set: %s -> %s (override=%s)",
+        previous,
+        resolved,
+        enabled,
+    )
+    return jsonify({"enabled": resolved})
