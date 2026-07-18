@@ -3,12 +3,12 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import Card from "../../../BUILTIN_COMPONENTs/card/card";
+import DisplacementWarp from "../../../BUILTIN_COMPONENTs/background/displacement_warp/displacement_warp";
 import {
   ToolkitIconFrame,
   isFileToolkitIcon,
   isBuiltinToolkitIcon,
 } from "./toolkit_icon";
-import { seedColorForIcon, solidFromSeed } from "../utils/warp_palette";
 
 /* AuroraFeatureCard — the Discover page's featured/hero card. (The name is
    a fossil of the aurora era; the export/import surface is kept stable.)
@@ -27,6 +27,28 @@ import { seedColorForIcon, solidFromSeed } from "../utils/warp_palette";
    The install-state MACHINE stays with the caller (usePluginInstallState) —
    this component is presentation only, driven by pillLabel/pillOpen/
    pillDisabled/pillInstalling. */
+/* Ink hero background (CEO 2026-07-18k): mini_ui "Yours to theme" panel
+   Nº03's DisplacementWarp, verbatim parameters — deep blue-black conic warp
+   with cyan/violet drift, 3px blur, grain. The card carries its own dark
+   palette in BOTH app themes (like the themes-page panels do), so the copy
+   stays white regardless of isDark. Static gradient underneath is the
+   no-WebGL fallback. */
+const INK_WARP = {
+  colors: ["#0c0f15", "#1c2240", "#5fb8d9", "#a78bfa"],
+  gradient: "conic",
+  gradientAngle: 0,
+  warpStrength: 0.1,
+  warpScale: 2.2,
+  speed: 0.32,
+  grain: 0.03,
+  interactive: false,
+  ambient: true,
+  pixelRatio: 1.25,
+};
+const INK_BLUR = 3;
+const INK_STATIC_FALLBACK =
+  "conic-gradient(from 210deg at 60% 40%, #0c0f15, #1c2240 30%, #5fb8d9 52%, #1c2240 68%, #a78bfa 84%, #0c0f15)";
+
 const AuroraFeatureCard = ({
   isDark = false,
   testId,
@@ -45,9 +67,6 @@ const AuroraFeatureCard = ({
   const { theme } = useContext(ConfigContext) || {};
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
-  const seed = useMemo(() => seedColorForIcon(icon, source), [icon, source]);
-  const surface = useMemo(() => solidFromSeed(seed, { isDark, alpha: 0.32 }), [seed, isDark]);
-
   /* An icon with its own complete look (an SVG/image file, or a builtin
      glyph that ships its own backgroundColor) needs no white backing plate;
      the plate stays only for emoji/missing icons where the raw glyph would
@@ -55,11 +74,10 @@ const AuroraFeatureCard = ({
   const iconHasOwnArtwork =
     isFileToolkitIcon(icon) || (isBuiltinToolkitIcon(icon) && Boolean(icon?.backgroundColor));
 
-  /* Dark: deep seed-toned surface carries white copy; light: pale wash
-     carries dark ink. */
-  const kickerColor = isDark ? "rgba(255,255,255,0.72)" : "rgba(28,28,33,0.66)";
-  const titleColor = isDark ? "#ffffff" : "#1c1c21";
-  const blurbColor = isDark ? "rgba(255,255,255,0.64)" : "rgba(28,28,33,0.62)";
+  /* The Ink surface is dark in both themes — copy stays white. */
+  const kickerColor = "rgba(255,255,255,0.72)";
+  const titleColor = "#ffffff";
+  const blurbColor = "rgba(255,255,255,0.66)";
 
   const pillBg = pillOpen
     ? isDark
@@ -84,7 +102,11 @@ const AuroraFeatureCard = ({
         border_radius={13}
         max_tilt={7}
         scale={1.015}
-        style={{ backgroundColor: surface, cursor: onClick ? "pointer" : "default" }}
+        style={{
+          backgroundColor: "#0c0f15",
+          cursor: onClick ? "pointer" : "default",
+          overflow: "hidden",
+        }}
         body_style={{
           padding: "68px 22px",
           display: "flex",
@@ -92,6 +114,14 @@ const AuroraFeatureCard = ({
           gap: 14,
         }}
       >
+        <div
+          aria-hidden="true"
+          style={{ position: "absolute", inset: 0, background: INK_STATIC_FALLBACK, borderRadius: 13 }}
+        />
+        <DisplacementWarp
+          {...INK_WARP}
+          style={{ zIndex: 0, filter: `blur(${INK_BLUR}px)`, inset: -(INK_BLUR * 2) }}
+        />
         <Card.Layer depth={34} style={{ flexShrink: 0 }}>
           {iconHasOwnArtwork ? (
             /* Real artwork (SVG/image file, or a builtin glyph shipping its
