@@ -169,19 +169,26 @@ const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) 
               whiteSpace: "nowrap",
             }}
           >
-            <Icon
-              src={s.icon}
-              style={{ width: 13, height: 13, flexShrink: 0 }}
-              color={
-                isActive
-                  ? isDark
-                    ? "#fff"
-                    : "#111"
-                  : isDark
-                    ? "rgba(255,255,255,0.38)"
-                    : "rgba(0,0,0,0.38)"
-              }
-            />
+            {/* leading: caller-supplied node (e.g. a tinted CategoryChip)
+                takes precedence; icon key renders the classic monochrome
+                glyph; neither → text-only segment. */}
+            {s.leading
+              ? s.leading
+              : s.icon && (
+                  <Icon
+                    src={s.icon}
+                    style={{ width: 13, height: 13, flexShrink: 0 }}
+                    color={
+                      isActive
+                        ? isDark
+                          ? "#fff"
+                          : "#111"
+                        : isDark
+                          ? "rgba(255,255,255,0.38)"
+                          : "rgba(0,0,0,0.38)"
+                    }
+                  />
+                )}
             {s.label}
           </button>
         );

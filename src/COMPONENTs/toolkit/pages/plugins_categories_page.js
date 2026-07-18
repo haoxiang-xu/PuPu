@@ -19,6 +19,7 @@ import PlaceholderBlock from "../components/placeholder_block";
 import PluginListRow from "../components/plugin_list_row";
 import PluginInstallPill from "../components/plugin_install_pill";
 import CategoryChip from "../components/category_chip";
+import SegmentedControl from "../components/segmented_control";
 
 const isMcpSourced = (source) => String(source || "").startsWith("mcp");
 
@@ -244,17 +245,9 @@ const PluginsCategoriesPage = ({
      MCP-specific — they only make sense when the MCP segment is active. */
   const isMcpCategory = typeFilter === "mcp";
 
-  /* Segmented-control visuals (design authority: store-final mockup `.seg`/
-     `.sg`/`.sg.on`) — same "frosted chip" language the app already uses for
-     SegmentedControl (agents_modal_content.js), reproduced at this
-     control's own pixel spec (h28, px-12, fontSize 12/600) rather than
-     reused wholesale, since that spec differs from the shared component's
-     (px-13, fontSize 13) and this control also needs a per-segment
-     CategoryChip slot the shared component doesn't support. */
-  const segTrackBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
-  const segActiveBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.92)";
-  const segActiveShadow = isDark ? "0 1px 4px rgba(0,0,0,0.45)" : "0 1px 4px rgba(0,0,0,0.10)";
-  const segInactiveText = isDark ? "rgba(var(--pupu-text-rgb),0.45)" : "rgba(var(--pupu-text-rgb),0.42)";
+  /* Type segments render through the shared SegmentedControl (sliding
+     indicator, agents_modal_content.js's section switcher) — its `leading`
+     slot carries the tinted CategoryChip per segment. */
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -275,48 +268,22 @@ const PluginsCategoriesPage = ({
         </span>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div
-            style={{
-              display: "inline-flex",
-              padding: 3,
-              borderRadius: 10,
-              gap: 2,
-              background: segTrackBg,
-            }}
-          >
-            {TYPE_SEGMENTS.map((segment) => {
-              const active = typeFilter === segment.key;
-              return (
-                <button
-                  key={segment.key}
-                  onClick={() => setTypeFilter(segment.key)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 7,
-                    height: 28,
-                    boxSizing: "border-box",
-                    padding: "0 12px",
-                    borderRadius: 7,
-                    border: "none",
-                    outline: "none",
-                    cursor: "pointer",
-                    fontFamily,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                    background: active ? segActiveBg : "transparent",
-                    boxShadow: active ? segActiveShadow : "none",
-                    color: active ? "var(--pupu-text)" : segInactiveText,
-                    transition: "background 0.12s, color 0.12s",
-                  }}
-                >
-                  {segment.chip && <CategoryChip type={segment.chip} />}
-                  {t(segment.labelKey)}
-                </button>
-              );
-            })}
-          </div>
+          {/* Sliding-indicator segmented control — same component (and same
+              0.28s bezier slide) as the agents modal's section switcher;
+              category segments carry their tinted CategoryChip via the
+              `leading` slot. */}
+          <SegmentedControl
+            sections={TYPE_SEGMENTS.map((segment) => ({
+              key: segment.key,
+              label: t(segment.labelKey),
+              leading: segment.chip ? (
+                <CategoryChip type={segment.chip} />
+              ) : undefined,
+            }))}
+            selected={typeFilter}
+            onChange={setTypeFilter}
+            isDark={isDark}
+          />
 
           {isMcpCategory && (
             <span
