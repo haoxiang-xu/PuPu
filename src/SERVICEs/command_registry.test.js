@@ -419,6 +419,7 @@ describe("expandsTo & expandCommands", () => {
     expect(expandCommands("/p", {})).toEqual({
       commands: [{ name: "/p", channel: "", sourceToolkitId: "" }],
       body: "PLAN.",
+      templateLength: "PLAN.".length,
     });
   });
 
@@ -427,6 +428,37 @@ describe("expandsTo & expandCommands", () => {
     expect(expandCommands("plain text", {})).toEqual({
       commands: [],
       body: "plain text",
+      templateLength: 0,
     });
+  });
+
+  test("templateLength aligns byte-for-byte with the expanded body prefix (contract §1.4)", () => {
+    const { registerCommand, expandCommands } = loadCommandRegistryModule();
+    registerCommand({ name: "/a", description: "a", expandsTo: "Alpha rules." });
+    registerCommand({ name: "/b", description: "b", expandsTo: "Beta rules." });
+
+    // two templates + trailing user body
+    const r1 = expandCommands("/a /b do the thing", {});
+    expect(r1.body).toBe("Alpha rules.\n\nBeta rules.\n\ndo the thing");
+    // content.slice(0, templateLength) must be exactly the template prefix
+    expect(r1.body.slice(0, r1.templateLength)).toBe("Alpha rules.\n\nBeta rules.");
+    // and the user tail follows after one "\n\n" separator
+    expect(r1.body.slice(r1.templateLength)).toBe("\n\ndo the thing");
+    expect(r1.templateLength).toBeLessThanOrEqual(r1.body.length);
+
+    // template-only: templateLength === content.length (no user tail)
+    const r2 = expandCommands("/a", {});
+    expect(r2.body).toBe("Alpha rules.");
+    expect(r2.templateLength).toBe(r2.body.length);
+  });
+
+  test("zero-template command contributes a command but templateLength 0", () => {
+    const { registerCommand, expandCommands } = loadCommandRegistryModule();
+    // command with no expandsTo (empty template) still strips + reports
+    registerCommand({ name: "/z", description: "z", expandsTo: "" });
+    const r = expandCommands("/z just the body", {});
+    expect(r.commands).toEqual([{ name: "/z", channel: "", sourceToolkitId: "" }]);
+    expect(r.body).toBe("just the body");
+    expect(r.templateLength).toBe(0);
   });
 });

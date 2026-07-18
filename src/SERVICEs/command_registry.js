@@ -279,13 +279,19 @@ export const extractCommands = (text, ctx = {}) => {
  */
 export const expandCommands = (text, ctx = {}) => {
   const { commands, body } = extractCommands(text, ctx);
-  if (commands.length === 0) return { commands, body };
+  if (commands.length === 0) return { commands, body, templateLength: 0 };
   const templates = commands
     .map((cmd) => registry.get(cmd.name)?.expandsTo || "")
     .map((template) => template.trim())
     .filter(Boolean);
-  const joined = [...templates, body.trim()].filter(Boolean).join("\n\n");
-  return { commands, body: joined };
+  // templatePrefix is the exact byte-sequence that leads the expanded body;
+  // its length is the composer sidecar's `templateLength` (contract §1.4),
+  // computed here at expansion time so it never drifts from the join semantics.
+  // [templatePrefix, body].filter(Boolean).join is byte-identical to the prior
+  // [...templates, body].filter(Boolean).join (templates already non-empty).
+  const templatePrefix = templates.join("\n\n");
+  const joined = [templatePrefix, body.trim()].filter(Boolean).join("\n\n");
+  return { commands, body: joined, templateLength: templatePrefix.length };
 };
 
 /** Remove every command registered under `source` (e.g. "plugin:mcp.notion"). */

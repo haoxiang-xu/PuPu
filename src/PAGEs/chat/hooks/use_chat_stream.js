@@ -64,6 +64,73 @@ import {
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
+/* ── Composer sidecar (S1↔S2 seam, contract v1 FROZEN) ─────────────────────
+ * The `composer` field is a purely presentational, advisory sidecar attached
+ * to a user message when its turn expanded ≥1 slash-command. It NEVER reaches
+ * the model — content stays the single model-visible truth. runTurnRequest is
+ * the sole writer (see the reconciliation block there); buildComposerSend below
+ * is the sole builder, shared by sendNewTurn (compose) and editTurn (edit
+ * re-expand). See docs/superpowers/specs/2026-07-18-composer-sidecar-contract.md
+ */
+const COMPOSER_SIDECAR_VERSION = 1;
+
+/* Write-side guard: a composer is valid ONLY for the exact content it was
+ * computed against. Mirrors the reader's §4 "整体忽略" rules so we never persist
+ * a sidecar a reader would drop. `contentLength` is the final message content
+ * length; templateLength must index within it (contract §1.4). */
+const isValidComposerForContent = (composer, contentLength) =>
+  Boolean(
+    composer &&
+      typeof composer === "object" &&
+      composer.v === COMPOSER_SIDECAR_VERSION &&
+      typeof composer.rawText === "string" &&
+      composer.rawText !== "" &&
+      Array.isArray(composer.commands) &&
+      composer.commands.length > 0 &&
+      composer.commands.every(
+        (cmd) =>
+          cmd && typeof cmd === "object" && typeof cmd.name === "string",
+      ) &&
+      Number.isInteger(composer.templateLength) &&
+      composer.templateLength >= 0 &&
+      composer.templateLength <= contentLength,
+  );
+
+/* Build the outgoing (expanded) text, the ephemeral per-run toolkit selection,
+ * and the composer sidecar for a composer/edit send. `composer` is null unless
+ * ≥1 command expanded (contract §2 write condition — a zero-template command
+ * still counts, it contributes a chip). rawText is stored verbatim (pre-expand,
+ * contract §1.2); commands are projected to {name, sourceToolkitId} preserving
+ * token order and duplicates (§1.3). */
+const buildComposerSend = (rawText, selectedToolkits) => {
+  const expansion = expandCommands(rawText, {
+    isStreaming: false,
+    selectedToolkits: Array.isArray(selectedToolkits) ? selectedToolkits : [],
+  });
+  const outgoingText = (expansion.body || "").trim();
+  const extraToolkits = [
+    ...new Set(
+      expansion.commands.map((cmd) => cmd.sourceToolkitId).filter(Boolean),
+    ),
+  ];
+  const composer =
+    expansion.commands.length > 0
+      ? {
+          v: COMPOSER_SIDECAR_VERSION,
+          rawText,
+          commands: expansion.commands.map((cmd) => ({
+            name: cmd.name,
+            sourceToolkitId:
+              typeof cmd.sourceToolkitId === "string"
+                ? cmd.sourceToolkitId
+                : "",
+          })),
+          templateLength: expansion.templateLength,
+        }
+      : null;
+  return { outgoingText, extraToolkits, composer };
+};
+
 /**
  * Send-time custom-provider fail-closed error codes (thrown by
  * api.unchain.injectCustomProviderIntoPayload before the stream starts) mapped
@@ -2051,6 +2118,10 @@ export const useChatStream = ({
       /* Plugins pulled in by command usage for THIS run only (ephemeral —
          never written to the session's selected toolkits). */
       extraToolkits = [],
+      /* Composer sidecar (contract v1) for THIS content, freshly computed by
+         the caller against `text`. Presentation-only, never model-visible.
+         Null for every path that isn't a composer/edit command send. */
+      composer = null,
       memoryFallbackAttempted = false,
       forceHistoryFallback = false,
       historyOverride = null,
@@ -2194,6 +2265,38 @@ export const useChatStream = ({
           userMessage.attachments = persistedAttachments;
         } else if ("attachments" in userMessage) {
           delete userMessage.attachments;
+        }
+
+        // ── Composer sidecar reconciliation (contract §2 铁律 / §6.5) ────────
+        // A composer is valid ONLY for the exact content it was computed
+        // against; a stale one is the contract's single integrity fault source,
+        // so we NEVER carry an inherited one blindly. Precedence:
+        //   1. a fresh `composer` param (compose/edit re-expand) validated
+        //      against THIS content wins;
+        //   2. otherwise carry an inherited composer forward ONLY when the
+        //      content is byte-identical to the message it came from (resend /
+        //      memory-fallback retry re-send the same content → still valid);
+        //   3. otherwise drop it — a content rewrite (edit) with no fresh
+        //      sidecar renders as plain content (fail-open, content intact).
+        // The unconditional delete first guarantees no seed-spread composer
+        // (from reuseUserMessage) ever survives unvalidated.
+        delete userMessage.composer;
+        const contentLength =
+          typeof userMessage.content === "string"
+            ? userMessage.content.length
+            : 0;
+        if (isValidComposerForContent(composer, contentLength)) {
+          userMessage.composer = composer;
+        } else if (
+          normalizedReuseUserMessage &&
+          typeof normalizedReuseUserMessage.content === "string" &&
+          normalizedReuseUserMessage.content === userMessage.content &&
+          isValidComposerForContent(
+            normalizedReuseUserMessage.composer,
+            contentLength,
+          )
+        ) {
+          userMessage.composer = normalizedReuseUserMessage.composer;
         }
       }
 
@@ -5441,25 +5544,19 @@ export const useChatStream = ({
       // Composer plugin-skill expansion: only for text actually typed into
       // the composer. Programmatic sends (interject new_run fallback / queue
       // relay) already carry a resolved body — expanding them again would
-      // re-run command tokens that were already handled upstream.
+      // re-run command tokens that were already handled upstream, so they
+      // never carry a composer sidecar either.
       let outgoingText = text;
       let commandToolkits = [];
+      let composer = null;
       if (!isProgrammaticSend) {
-        const expansion = expandCommands(text, {
-          isStreaming: false,
-          selectedToolkits: selectedToolkitsRef.current,
-        });
-        outgoingText = (expansion.body || "").trim();
-        // Using a plugin's command selects that plugin for THIS run only —
-        // the ids ride the turn's payload and are never persisted to the
-        // session's selected toolkits (so the next turn reverts on its own).
-        commandToolkits = [
-          ...new Set(
-            expansion.commands
-              .map((cmd) => cmd.sourceToolkitId)
-              .filter(Boolean),
-          ),
-        ];
+        // buildComposerSend: expanded body + ephemeral per-run toolkit
+        // selection (using a plugin's command selects that plugin for THIS run
+        // only — never persisted to the session) + the presentation sidecar.
+        const built = buildComposerSend(text, selectedToolkitsRef.current);
+        outgoingText = built.outgoingText;
+        commandToolkits = built.extraToolkits;
+        composer = built.composer;
       }
 
       if (!outgoingText && !hasAttachments) {
@@ -5475,6 +5572,7 @@ export const useChatStream = ({
         clearComposer: !isProgrammaticSend,
         missingAttachmentPayloadMode: "block",
         extraToolkits: commandToolkits,
+        composer,
       });
     },
     [
@@ -5883,16 +5981,26 @@ export const useChatStream = ({
         );
       }
 
+      // Edit re-expands the edited text (contract §2 派生写入规则): a content
+      // rewrite must recompute the composer from scratch — same semantics as a
+      // fresh compose send, so a newly-typed /command expands and the sidecar
+      // matches the NEW content. If the edit carries no command tokens the
+      // composer is null and runTurnRequest drops whatever sidecar the original
+      // message held (宁删勿 stale — never a mismatched templateLength).
+      const built = buildComposerSend(text, selectedToolkitsRef.current);
+
       void runTurnRequest({
         mode: "edit",
         chatId: currentChatId,
-        text,
+        text: built.outgoingText,
         attachments: originalAttachments,
         baseMessages,
         clearComposer: false,
         reuseUserMessage: targetMessage,
         missingAttachmentPayloadMode: "degrade",
+        extraToolkits: built.extraToolkits,
         characterAgentConfig: characterConfig,
+        composer: built.composer,
       });
     },
     [

@@ -542,6 +542,47 @@ const sanitizeSubagentMetaByRunId = (value) => {
   return Object.fromEntries(cleanedEntries);
 };
 
+/**
+ * Composer sidecar (contract v1, S1↔S2 seam) — presentation-only metadata on a
+ * user message. Contract §3.3 requires OPAQUE passthrough (no field whitelist /
+ * strip) so future v:1 optional members survive round-trips; §4 makes the
+ * sidecar atomic — any structural violation drops the WHOLE thing (reader
+ * fail-open to plain content). We therefore validate only the REQUIRED shape,
+ * then deep-clone the object whole (preserving unknown/forward members) rather
+ * than rebuilding from a whitelist. `contentLength` is the cleaned content
+ * length so templateLength (§1.4) is bounded against what is actually stored.
+ *
+ * NOTE (shared artery): adding this to the field-whitelist sanitizer is a
+ * chat_storage behavior change required because the composer contract's §5
+ * "opaque passthrough, zero-action" premise did not account for
+ * sanitizeMessage's whitelist. Routed to CTO/architect for sign-off.
+ */
+const sanitizeComposer = (composer, contentLength) => {
+  if (
+    !isObject(composer) ||
+    composer.v !== 1 ||
+    typeof composer.rawText !== "string" ||
+    composer.rawText === "" ||
+    !Array.isArray(composer.commands) ||
+    composer.commands.length === 0 ||
+    !composer.commands.every(
+      (cmd) => isObject(cmd) && typeof cmd.name === "string",
+    ) ||
+    !Number.isInteger(composer.templateLength) ||
+    composer.templateLength < 0 ||
+    composer.templateLength > contentLength
+  ) {
+    return null;
+  }
+  try {
+    // Opaque passthrough (§3.3): clone whole so unknown/forward members (§1.1)
+    // survive, while guaranteeing the stored value stays JSON-serializable.
+    return JSON.parse(JSON.stringify(composer));
+  } catch {
+    return null;
+  }
+};
+
 export const sanitizeMessage = (message) => {
   if (!isObject(message)) {
     return null;
@@ -620,6 +661,13 @@ export const sanitizeMessage = (message) => {
     const attachments = sanitizeAttachments(message.attachments);
     if (attachments.length > 0) {
       cleaned.attachments = attachments;
+    }
+  }
+
+  if (role === "user" && "composer" in message) {
+    const composer = sanitizeComposer(message.composer, cleaned.content.length);
+    if (composer) {
+      cleaned.composer = composer;
     }
   }
 
