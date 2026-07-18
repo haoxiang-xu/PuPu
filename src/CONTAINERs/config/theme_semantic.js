@@ -193,6 +193,11 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
     }),
     switch: merge(base.switch, {
       backgroundColor_on: accent,
+      /* off track: 20% text over whatever it sits on — reproduces the old
+         fixed grays (#ccc light / ~#494949 dark) on the default palette,
+         but keeps contrast with background AND the surface thumb on any
+         custom palette (the base JSON grays didn't follow the theme) */
+      backgroundColor: withAlpha(text, 0.2),
       /* thumb: control chip on the track → surface tier */
       color: surface,
     }),
