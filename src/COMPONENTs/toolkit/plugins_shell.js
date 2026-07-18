@@ -41,31 +41,23 @@ const installErrorMessage = (error) => {
   return raw;
 };
 
-/* Nav item icons verified against icon_manifest.js — no literal "sparkle"
-   key exists, "shapes" is the nearest existing App-Store-ish glyph for
-   Discover; "download" matches the mockup exactly. CEO decision (2026-07-17):
-   the single "Categories" tab is replaced by three type-category tabs —
-   Toolkits / MCP / Skills — each a unified directory filtered by plugin
-   TYPE rather than by theme (theme stays as an in-page pill row, see
-   plugins_categories_page.js). "tool" and "mcp" are existing manifest keys
-   (UISVGs / LogoSVGs respectively); "terminal" is the nearest command/
-   Skills uses the dedicated ⌘ "command" glyph (CEO-provided). */
+/* Nav items — three, final (2026-07-17 store-final CEO sign-off): Discover /
+   Store / Installed. The prior five-item sidebar (Discover + three separate
+   type-category tabs + Installed) collapsed once Store grew its own in-page
+   segmented control (All/Toolkits/MCP/Skills, see plugins_categories_page.js)
+   — the CATEGORY_TYPE_BY_PAGE indirection that used to route the three
+   category ids to that page's `typeFilter` prop is gone with them; the page
+   now owns its own segment state entirely.
+   "discover" and "storefront" are purpose-built glyphs added to
+   icon_manifest.js for this redesign (CEO-supplied paths, 2026-07-17) — no
+   existing key read as "discover" or "store/bag" closely enough to reuse.
+   "download" (Installed) is unchanged from the five-item sidebar and still
+   matches the mockup exactly. */
 const NAV_ITEMS = [
-  { id: "discover", icon: "shapes", labelKey: "toolkit.nav_discover" },
-  { id: "cat_toolkits", icon: "tool", labelKey: "toolkit.nav_toolkits" },
-  { id: "cat_mcp", icon: "mcp", labelKey: "toolkit.nav_mcp" },
-  { id: "cat_skills", icon: "command", labelKey: "toolkit.nav_skills" },
+  { id: "discover", icon: "discover", labelKey: "toolkit.nav_discover" },
+  { id: "store", icon: "storefront", labelKey: "toolkit.nav_store" },
   { id: "installed", icon: "download", labelKey: "toolkit.nav_installed" },
 ];
-
-/* Maps the three category nav ids to the `typeFilter` PluginsCategoriesPage
-   filters its unified directory by — one shared page component, three
-   entry points (deliverable A/B). */
-const CATEGORY_TYPE_BY_PAGE = {
-  cat_toolkits: "toolkit",
-  cat_mcp: "mcp",
-  cat_skills: "skill",
-};
 
 /**
  * PluginsShell — settings-isomorphic shell (T1): a 140px settings-modal-clone
@@ -467,9 +459,10 @@ export const PluginsShell = ({
      with no sidebar UI writing into it anymore. */
   const [sidebarSearch, setSidebarSearch] = useState("");
 
-  /* ── Page content — Discover, Categories and Installed are each dedicated
+  /* ── Page content — Discover, Store and Installed are each dedicated
      App-Store surfaces (Task 4 split Discover/Categories off the legacy
-     store page). ── */
+     store page; store-final collapsed the three type-category tabs into
+     Store's own in-page segmented control). ── */
   const renderPage = () => {
     if (activePage === "installed") {
       return (
@@ -481,11 +474,9 @@ export const PluginsShell = ({
         />
       );
     }
-    const categoryType = CATEGORY_TYPE_BY_PAGE[activePage];
-    if (categoryType) {
+    if (activePage === "store") {
       return (
         <PluginsCategoriesPage
-          typeFilter={categoryType}
           isDark={isDark}
           onOpenDetail={handleUnifiedOpenDetail}
           installedIds={installedMcpIds}

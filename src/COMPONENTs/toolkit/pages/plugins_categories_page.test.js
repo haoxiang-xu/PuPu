@@ -94,7 +94,7 @@ const CATALOG_NOTION_INSTALLED = {
   skills: [{ name: "summarize", title: "Summarize", description: "Summarize a page." }],
 };
 /* An MCP install with no matching registry entry (e.g. a custom server) —
-   catalog-only, must still land under the MCP category with an OPEN pill.
+   catalog-only, must still land under the MCP segment with an OPEN pill.
    Name deliberately avoids the substring "tool" (see the vocabulary test
    below). */
 const CATALOG_CUSTOM_MCP = {
@@ -125,11 +125,10 @@ const {
    plugins_shell.test.js / plugins_installed_page.test.js). */
 beforeEach(() => {
   listMcpStoreEntries.mockReturnValue(REGISTRY_ENTRIES);
-  searchMcpStoreEntries.mockImplementation((entries, query, category) => {
+  searchMcpStoreEntries.mockImplementation((entries, query) => {
     const q = (query || "").trim().toLowerCase();
     return entries.filter((e) => {
       if (e.status === "deprecated" || e.deprecated === true) return false;
-      if (category && category !== "all" && e.category !== category) return false;
       if (!q) return true;
       return (e.toolkitName || "").toLowerCase().includes(q);
     });
@@ -149,7 +148,6 @@ const renderPage = async (props = {}) => {
   await act(async () => {
     rendered = render(
       <PluginsCategoriesPage
-        typeFilter="mcp"
         isDark={false}
         onOpenDetail={() => {}}
         installedIds={new Set()}
@@ -161,24 +159,39 @@ const renderPage = async (props = {}) => {
   return rendered;
 };
 
+const clickSegment = (name) =>
+  fireEvent.click(screen.getByRole("button", { name }));
+
 describe("PluginsCategoriesPage — fixed header", () => {
-  test("renders the type label as the 22px title", async () => {
-    await renderPage({ typeFilter: "toolkit" });
-    expect(screen.getByText("Toolkits")).toBeInTheDocument();
+  test("renders the static 'Store' title and all four segment labels", async () => {
+    await renderPage();
 
-    await renderPage({ typeFilter: "mcp" });
-    expect(screen.getByText("MCP")).toBeInTheDocument();
+    expect(screen.getByText("Store")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toolkits" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "MCP" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skills" })).toBeInTheDocument();
+  });
 
-    await renderPage({ typeFilter: "skill" });
-    expect(screen.getByText("Skills")).toBeInTheDocument();
+  test("defaults to the All segment — the unified directory with no type narrowing", async () => {
+    await renderPage();
+
+    expect(screen.getByText("Notion")).toBeInTheDocument();
+    expect(screen.getByText("AWS")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
+    expect(screen.getByText("Agent Reach")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Home Bridge")).toBeInTheDocument());
   });
 });
 
-describe("PluginsCategoriesPage — type filtering", () => {
+describe("PluginsCategoriesPage — type filtering (segment clicks)", () => {
   test("Toolkits shows only catalog rows with a non-MCP source", async () => {
-    await renderPage({ typeFilter: "toolkit" });
-
+    await renderPage();
     await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
+
+    clickSegment("Toolkits");
+
+    expect(screen.getByText("Plan")).toBeInTheDocument();
     expect(screen.getByText("Agent Reach")).toBeInTheDocument();
     expect(screen.queryByText("Notion")).not.toBeInTheDocument();
     expect(screen.queryByText("AWS")).not.toBeInTheDocument();
@@ -186,20 +199,26 @@ describe("PluginsCategoriesPage — type filtering", () => {
   });
 
   test("MCP shows registry entries and MCP-sourced catalog-only rows", async () => {
-    await renderPage({ typeFilter: "mcp" });
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Home Bridge")).toBeInTheDocument());
+
+    clickSegment("MCP");
 
     expect(screen.getByText("Notion")).toBeInTheDocument();
     expect(screen.getByText("AWS")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Home Bridge")).toBeInTheDocument());
+    expect(screen.getByText("Home Bridge")).toBeInTheDocument();
     expect(screen.queryByText("Plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Agent Reach")).not.toBeInTheDocument();
   });
 
   test("Skills shows only plugins that carry a command, from either source", async () => {
-    await renderPage({ typeFilter: "skill" });
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
+
+    clickSegment("Skills");
 
     expect(screen.getByText("Notion")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
+    expect(screen.getByText("Plan")).toBeInTheDocument();
     expect(screen.queryByText("AWS")).not.toBeInTheDocument();
     expect(screen.queryByText("Agent Reach")).not.toBeInTheDocument();
     expect(screen.queryByText("Home Bridge")).not.toBeInTheDocument();
@@ -208,32 +227,30 @@ describe("PluginsCategoriesPage — type filtering", () => {
   /* CEO example, verbatim: Plan (builtin toolkit with a /plan command)
      appears on both Toolkits and Skills; Notion (MCP with /summarize)
      appears on both MCP and Skills. A dual-nature plugin is a feature of the
-     union, not a bug to dedupe away. */
-  test("a dual-nature plugin appears under both of its type categories", async () => {
-    /* Each renderPage() call mounts a fresh, independent instance — unmount
-       between stages so `screen` (which queries the whole document body)
-       only ever sees one tree at a time. */
-    let rendered = await renderPage({ typeFilter: "toolkit" });
+     union, not a bug to dedupe away. One page instance, one internal
+     segment state — no remount-between-stages workaround needed now that
+     the segment lives in this page rather than a caller-supplied prop. */
+  test("a dual-nature plugin appears under both of its type segments", async () => {
+    await renderPage();
     await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
-    rendered.unmount();
 
-    rendered = await renderPage({ typeFilter: "skill" });
-    await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
-    rendered.unmount();
+    clickSegment("Toolkits");
+    expect(screen.getByText("Plan")).toBeInTheDocument();
 
-    rendered = await renderPage({ typeFilter: "mcp" });
+    clickSegment("Skills");
+    expect(screen.getByText("Plan")).toBeInTheDocument();
+
+    clickSegment("MCP");
     expect(screen.getByText("Notion")).toBeInTheDocument();
-    rendered.unmount();
 
-    rendered = await renderPage({ typeFilter: "skill" });
-    await waitFor(() => expect(screen.getByText("Notion")).toBeInTheDocument());
-    rendered.unmount();
+    clickSegment("Skills");
+    expect(screen.getByText("Notion")).toBeInTheDocument();
   });
 });
 
 describe("PluginsCategoriesPage — union de-dupe", () => {
   test("an id present in both the registry and the catalog renders exactly one row", async () => {
-    await renderPage({ typeFilter: "mcp" });
+    await renderPage();
 
     await waitFor(() =>
       expect(api.unchain.listToolModalCatalog).toHaveBeenCalled(),
@@ -246,7 +263,6 @@ describe("PluginsCategoriesPage — union de-dupe", () => {
 
   test("the surviving row is the registry entry (drives the install pill), marked installed via installedIds", async () => {
     await renderPage({
-      typeFilter: "mcp",
       installedIds: new Set(["mcp.productivity.notion-remote"]),
     });
 
@@ -260,18 +276,20 @@ describe("PluginsCategoriesPage — union de-dupe", () => {
 
 describe("PluginsCategoriesPage — catalog-only OPEN row", () => {
   test("a catalog-only builtin toolkit gets the quiet OPEN pill instead of GET", async () => {
-    await renderPage({ typeFilter: "toolkit" });
-
+    await renderPage();
     await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
+    clickSegment("Toolkits");
+
     const row = screen.getByTestId("category-row-plan");
     expect(within(row).getByText("OPEN")).toBeInTheDocument();
   });
 
   test("clicking the catalog-only row's OPEN pill calls onOpenDetail with a presentation-shaped object", async () => {
     const onOpenDetail = jest.fn();
-    await renderPage({ typeFilter: "toolkit", onOpenDetail });
-
+    await renderPage({ onOpenDetail });
     await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
+    clickSegment("Toolkits");
+
     fireEvent.click(within(screen.getByTestId("category-row-plan")).getByText("OPEN"));
 
     expect(onOpenDetail).toHaveBeenCalledTimes(1);
@@ -281,34 +299,24 @@ describe("PluginsCategoriesPage — catalog-only OPEN row", () => {
   });
 });
 
-describe("PluginsCategoriesPage — theme pills still filter", () => {
-  test("a theme pill narrows registry rows within the active type", async () => {
-    await renderPage({ typeFilter: "mcp" });
+/* store-final (2026-07-17): the theme pill row (dev/devops/productivity/…)
+   from the pre-final design is retired entirely — the only filter left is
+   the type-segment control. */
+describe("PluginsCategoriesPage — theme pills retired", () => {
+  test("no theme pill row renders — segments are the only filter", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("AWS")).toBeInTheDocument());
 
-    expect(screen.getByText("Notion")).toBeInTheDocument();
-    expect(screen.getByText("AWS")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "DevOps" }));
-
-    expect(screen.getByText("AWS")).toBeInTheDocument();
-    expect(screen.queryByText("Notion")).not.toBeInTheDocument();
-  });
-
-  test("catalog-only rows (no theme) disappear once a specific theme pill is active", async () => {
-    await renderPage({ typeFilter: "mcp" });
-
-    await waitFor(() => expect(screen.getByText("Home Bridge")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole("button", { name: "DevOps" }));
-
-    expect(screen.queryByText("Home Bridge")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "DevOps" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Dev" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Productivity" })).not.toBeInTheDocument();
   });
 });
 
 describe("PluginsCategoriesPage — row click", () => {
   test("clicking a registry row fires onOpenDetail with the entry id", async () => {
     const onOpenDetail = jest.fn();
-    await renderPage({ typeFilter: "mcp", onOpenDetail });
+    await renderPage({ onOpenDetail });
 
     fireEvent.click(screen.getByText("Notion"));
 
@@ -316,11 +324,19 @@ describe("PluginsCategoriesPage — row click", () => {
   });
 });
 
+/* store-final (2026-07-17): "Toolkits"/"MCP"/"Skills" are now ALWAYS on
+   screen as the segmented control's own CEO-approved labels (vocabulary
+   rule: category NAMES are approved, only PER-ITEM copy must avoid
+   "tool/toolkit/skill") — so this guard now scopes to the scrollable rows
+   area only, not the whole container. */
 describe("PluginsCategoriesPage — vocabulary", () => {
-  test("never renders the word 'tool' — plugin vocabulary only", async () => {
-    const { container } = await renderPage({ typeFilter: "mcp" });
+  test("per-item copy never renders the word 'tool' (segment labels are exempt)", async () => {
+    const { container } = await renderPage();
     await waitFor(() => expect(api.unchain.listToolModalCatalog).toHaveBeenCalled());
-    expect(container.textContent).not.toMatch(/tool/i);
+    await waitFor(() => expect(screen.getByText("Home Bridge")).toBeInTheDocument());
+
+    const rowsArea = container.querySelector(".scrollable");
+    expect(rowsArea.textContent).not.toMatch(/tool/i);
   });
 });
 
@@ -352,7 +368,7 @@ describe("PluginsCategoriesPage — Set-up pill", () => {
 
     const onInstall = jest.fn();
     const onOpenDetail = jest.fn();
-    await renderPage({ typeFilter: "mcp", onInstall, onOpenDetail });
+    await renderPage({ onInstall, onOpenDetail });
 
     const pill = screen.getByText("Set up");
     fireEvent.click(pill);
@@ -364,29 +380,107 @@ describe("PluginsCategoriesPage — Set-up pill", () => {
 
 /* T5: the legacy "Custom MCP" store tab (toolkits_page.js's TOOLKIT_SUB_PAGES)
    is retired — its entry point demotes to a low-key footer link here (MCP
-   category only, since a custom entry is always an MCP server) and on
+   segment only, since a custom entry is always an MCP server) and on
    PluginsInstalledPage, opening the same (unmodified) CustomMcpPage via the
    shell's onOpenCustomMcp callback. */
 describe("PluginsCategoriesPage — custom MCP footer entry", () => {
-  test("renders the footer entry on the MCP category page", async () => {
-    await renderPage({ typeFilter: "mcp" });
+  test("renders the footer entry on the MCP segment", async () => {
+    await renderPage();
+    clickSegment("MCP");
     expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
   });
 
-  test("does not render the footer entry on Toolkits or Skills", async () => {
-    await renderPage({ typeFilter: "toolkit" });
+  test("does not render the footer entry on All, Toolkits or Skills", async () => {
+    await renderPage();
     expect(screen.queryByText(/Add a custom plugin/i)).not.toBeInTheDocument();
 
-    await renderPage({ typeFilter: "skill" });
+    clickSegment("Toolkits");
+    expect(screen.queryByText(/Add a custom plugin/i)).not.toBeInTheDocument();
+
+    clickSegment("Skills");
     expect(screen.queryByText(/Add a custom plugin/i)).not.toBeInTheDocument();
   });
 
   test("clicking the footer entry calls onOpenCustomMcp", async () => {
     const onOpenCustomMcp = jest.fn();
-    await renderPage({ typeFilter: "mcp", onOpenCustomMcp });
+    await renderPage({ onOpenCustomMcp });
+    clickSegment("MCP");
 
     fireEvent.click(screen.getByText(/Add a custom plugin/i));
 
     expect(onOpenCustomMcp).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* store-final (2026-07-17): the Skills segment puts the command chip BEFORE
+   the name (mockup screen ②) and the row description prefers the skill's
+   own description over the plugin's tagline. */
+describe("PluginsCategoriesPage — Skills segment: chip-first rows", () => {
+  test("the command chip renders before the name, for both registry and catalog rows", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Plan")).toBeInTheDocument());
+    clickSegment("Skills");
+
+    const notionRow = screen.getByTestId("category-row-notion");
+    expect(notionRow.textContent.indexOf("/summarize")).toBeLessThan(
+      notionRow.textContent.indexOf("Notion"),
+    );
+
+    const planRow = screen.getByTestId("category-row-plan");
+    expect(planRow.textContent.indexOf("/plan")).toBeLessThan(
+      planRow.textContent.indexOf("Plan"),
+    );
+  });
+
+  test("description prefers the skill's own description over the tagline", async () => {
+    await renderPage();
+    clickSegment("Skills");
+
+    await waitFor(() => expect(screen.getByText("Notion")).toBeInTheDocument());
+    expect(screen.getByText("Summarize a page.")).toBeInTheDocument();
+  });
+
+  test("falls back to the tagline when the skill carries no description of its own", async () => {
+    listMcpStoreEntries.mockReturnValue([
+      {
+        id: "no-desc-skill",
+        toolkitId: "mcp.example.no-desc-skill",
+        toolkitName: "No Desc Skill",
+        toolkitDescription: "A plugin whose skill has no description of its own.",
+        source: "mcp",
+        category: "dev",
+        status: "available",
+        installable: true,
+        tools: [],
+        skills: [{ name: "run", title: "Run", description: "" }],
+      },
+    ]);
+    searchMcpStoreEntries.mockImplementation((entries) => entries);
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+
+    await renderPage();
+    clickSegment("Skills");
+
+    await waitFor(() => expect(screen.getByText("No Desc Skill")).toBeInTheDocument());
+    expect(
+      screen.getByText("A plugin whose skill has no description of its own."),
+    ).toBeInTheDocument();
+  });
+
+  test("outside Skills, the chip (when present) stays after the name and the description stays the tagline", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Notion")).toBeInTheDocument());
+
+    /* Default segment is "All" — Notion still carries a /summarize command,
+       so its chip renders, just name-first (not chip-first: that reorder is
+       Skills-only) — and the description is the plugin's tagline, not the
+       skill's own description. */
+    const row = screen.getByTestId("category-row-notion");
+    expect(row.textContent.indexOf("Notion")).toBeLessThan(
+      row.textContent.indexOf("/summarize"),
+    );
+    expect(row.textContent).toContain(
+      "Read, search and summarize your pages and databases.",
+    );
   });
 });

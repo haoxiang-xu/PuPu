@@ -53,4 +53,35 @@ describe("PluginListRow", () => {
 
     expect(onOpenDetail).not.toHaveBeenCalled();
   });
+
+  /* store-final (2026-07-17): the Store page's Skills segment puts the
+     command chip BEFORE the name (mockup screen ② `.rnm` order) — off by
+     default so every other caller keeps the name-first order. */
+  describe("commandFirst", () => {
+    test("defaults to name-first order", () => {
+      const { container } = render(<PluginListRow name="Plan" command="/plan" />);
+
+      const rnm = container.querySelector('[data-testid="icon"]').nextSibling
+        .firstChild;
+      expect(rnm.firstChild.textContent).toBe("Plan");
+      expect(rnm.lastChild.textContent).toBe("/plan");
+    });
+
+    test("when true, renders the command chip before the name", () => {
+      const { container } = render(
+        <PluginListRow name="Plan" command="/plan" commandFirst />,
+      );
+
+      const rnm = container.querySelector('[data-testid="icon"]').nextSibling
+        .firstChild;
+      expect(rnm.firstChild.textContent).toBe("/plan");
+      expect(rnm.lastChild.textContent).toBe("Plan");
+    });
+
+    test("with no command, order is irrelevant and only the name renders", () => {
+      render(<PluginListRow name="Plan" commandFirst />);
+
+      expect(screen.getByText("Plan")).toBeInTheDocument();
+    });
+  });
 });
