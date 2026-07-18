@@ -46,7 +46,7 @@ const AuroraFeatureCard = ({
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
   const seed = useMemo(() => seedColorForIcon(icon, source), [icon, source]);
-  const surface = useMemo(() => solidFromSeed(seed, { isDark, alpha: isDark ? 0.6 : 0.7 }), [seed, isDark]);
+  const surface = useMemo(() => solidFromSeed(seed, { isDark, alpha: 0.32 }), [seed, isDark]);
 
   /* An icon with its own complete look (an SVG/image file, or a builtin
      glyph that ships its own backgroundColor) needs no white backing plate;
