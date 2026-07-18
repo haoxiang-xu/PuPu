@@ -159,3 +159,22 @@ describe("solidFromSeed", () => {
     expect(hexToHsl(out)).not.toBeNull();
   });
 });
+
+describe("seedFromSvgContent + svg-file seed priority", () => {
+  const { seedFromSvgContent, seedColorForIcon } = require("./warp_palette");
+  const CORE_SVG = '<svg fill="none"><rect fill="#315D8E"/><path fill="#fff"/><path stroke="#0b0b0b"/></svg>';
+  test("mines the dominant saturated color, ignoring whites/blacks", () => {
+    expect(seedFromSvgContent(CORE_SVG)).toBe("#315d8e");
+  });
+  test("most frequent color wins; tie broken by saturation", () => {
+    const svg = '<svg><rect fill="#22aa55"/><rect fill="#22aa55"/><circle fill="#d02090"/></svg>';
+    expect(seedFromSvgContent(svg)).toBe("#22aa55");
+  });
+  test("all-monochrome svg yields null", () => {
+    expect(seedFromSvgContent('<svg><path fill="#ffffff"/><path fill="#111111"/></svg>')).toBeNull();
+  });
+  test("svg-file icon seed beats source fallback in seedColorForIcon", () => {
+    const icon = { type: "file", mimeType: "image/svg+xml", content: CORE_SVG };
+    expect(seedColorForIcon(icon, "builtin")).toBe("#315d8e");
+  });
+});

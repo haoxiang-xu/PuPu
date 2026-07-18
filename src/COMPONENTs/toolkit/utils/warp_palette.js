@@ -29,13 +29,54 @@ export const hexToHsl = (hex) => {
 
 export const hslToHex = (h, s, l) => rgbToHex(hslToRgb(normalizeHue(h), clampPct(s), clampPct(l)));
 
-/* Resolves the seed brand color for a plugin's icon: an explicit icon
-   background wins, then the icon's own glyph color, then the plugin
-   source's SOURCE_CONFIG color, then PuPu's own indigo. Each candidate is
-   validated as a real hex color first — "transparent" backgrounds and
-   colorless emoji icons fall straight through to the next link instead of
-   producing an invalid warp seed. */
+/* Extracts a dominant brand color from raw SVG markup: collects every hex
+   literal, drops whites/blacks/greys (they're chrome, not brand), and picks
+   the most frequent saturated color (ties → higher saturation). Builtin
+   toolkit icons ship as SVG FILES (adapter's file payload has NO
+   color/backgroundColor fields — those toml keys only reach the payload on
+   the no-svg fallback path), so this is the only way the card can actually
+   match the artwork. Returns null when nothing usable is found. */
+export const seedFromSvgContent = (content) => {
+  if (typeof content !== "string" || !content) return null;
+  const matches = content.match(/#[0-9a-fA-F]{3}\b|#[0-9a-fA-F]{6}\b/g) || [];
+  const tally = new Map();
+  for (const raw of matches) {
+    const hsl = hexToHsl(raw);
+    if (!hsl) continue;
+    if (hsl.l > 90 || hsl.l < 10 || hsl.s < 12) continue;
+    const key = raw.toLowerCase();
+    const entry = tally.get(key) || { count: 0, s: hsl.s, first: tally.size };
+    entry.count += 1;
+    tally.set(key, entry);
+  }
+  let best = null;
+  for (const [hex, info] of tally) {
+    if (
+      !best ||
+      info.count > best.info.count ||
+      (info.count === best.info.count && info.s > best.info.s)
+    ) {
+      best = { hex, info };
+    }
+  }
+  return best ? best.hex : null;
+};
+
+const isSvgFileIcon = (icon) =>
+  Boolean(icon && icon.mimeType === "image/svg+xml" && typeof icon.content === "string");
+
+/* Resolves the seed brand color for a plugin's icon: a color mined from the
+   SVG artwork itself wins (builtin icons carry no color fields — see
+   seedFromSvgContent), then an explicit icon background, then the icon's
+   own glyph color, then the plugin source's SOURCE_CONFIG color, then
+   PuPu's own indigo. Each candidate is validated as a real hex color first —
+   "transparent" backgrounds and colorless emoji icons fall straight through
+   to the next link instead of producing an invalid warp seed. */
 export const seedColorForIcon = (icon, source) => {
+  if (isSvgFileIcon(icon)) {
+    const mined = seedFromSvgContent(icon.content);
+    if (mined) return mined;
+  }
   const candidates = [icon?.backgroundColor, icon?.color, SOURCE_CONFIG[source]?.color, DEFAULT_SEED];
   for (const candidate of candidates) {
     if (isHexColor(candidate)) return candidate;
