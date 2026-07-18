@@ -35,8 +35,8 @@ import {
    carries its own palette), copy stays white. Static conic gradient is the
    no-WebGL fallback. */
 const INK_DONUTS = {
-  /* Brighter IG-style pink-violet (CEO 2026-07-18o) — luminous gradient family. */
-  colors: ["#ff9ee0", "#c77dff", "#ff70a6", "#9d6bff"],
+  /* Pink-forward (CEO 2026-07-18s): pinks lead, violet is the accent. */
+  colors: ["#ff9ed2", "#ff70a6", "#ffb6dd", "#c77dff"],
   shape: "torus",
   /* Perf trims (CEO 2026-07-18q): under blur 28 these are visually free —
      3 donuts instead of 5, AO/SSS off (PuPu's shader carries an ao==0
@@ -53,10 +53,10 @@ const INK_DONUTS = {
   blur: 28,
   lightAzimuth: 30,
   lightElevation: 55,
-  skyTint: "#3a2452",
-  groundTint: "#6a4690",
-  bgTop: "#33204a",
-  bgBottom: "#40265c",
+  skyTint: "#46243e",
+  groundTint: "#8a4670",
+  bgTop: "#3c2038",
+  bgBottom: "#4c2646",
   bgDepth: 4,
   bgFuse: false,
   pixelRatio: 0.66,
@@ -116,7 +116,7 @@ const AuroraFeatureCard = ({
         max_tilt={7}
         scale={1.015}
         style={{
-          backgroundColor: "#33204a",
+          backgroundColor: "#3c2038",
           border: "none",
           cursor: onClick ? "pointer" : "default",
           /* NO overflow:hidden here — any overflow value other than visible
