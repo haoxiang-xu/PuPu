@@ -6,7 +6,6 @@ import api from "../../../SERVICEs/api";
 import { listMcpStoreEntries, resolveMcpIcon } from "../../../SERVICEs/mcp_toolkit_store";
 import { entryInstallState, entryOpensSetup } from "../../../SERVICEs/mcp_install";
 import { toPluginPresentation, loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
-import { usePluginInstallState } from "../hooks/use_plugin_install_state";
 import { ToolkitIconFrame } from "../components/toolkit_icon";
 import AuroraFeatureCard from "../components/aurora_feature_card";
 import BrandOrbCard from "../components/brand_orb_card";
@@ -214,20 +213,9 @@ const PluginsDiscoverPage = ({
 
   const featured = curation.featured ? resolvePlugin(curation.featured.pluginId) : null;
 
-  /* Unconditional hook call (featured can be null) — usePluginInstallState
-     already tolerates an undefined entry, defaulting to "coming_soon", and
-     the card that would render it is gated on `featured` below anyway. */
-  const featuredInstallMachine = usePluginInstallState({
-    entry: featured?.entry,
-    installedIds,
-    installing: featured?.kind === "store" ? installingIds?.has(featured.entry.id) : false,
-    forceInstalled: featured?.kind === "catalog",
-    onInstall,
-    onOAuthConnect,
-    onCancelOAuth,
-    t,
-  });
-
+  /* CEO 2026-07-18j: the hero carries NO pill — the whole card opens the
+     detail page, where GET/setup/OAuth live. The per-card install machine
+     is gone with it. */
   const essentials = (curation.essentials || [])
     .map((id) => ({ id, resolved: resolvePlugin(id) }))
     .filter((item) => item.resolved);
@@ -349,14 +337,6 @@ const PluginsDiscoverPage = ({
     );
   };
 
-  const handlePillClick = () => {
-    if (featuredInstallMachine.installState === "installed" || featuredInstallMachine.opensSetup) {
-      openDetailFor(featured);
-      return;
-    }
-    featuredInstallMachine.onInstall();
-  };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* ── Fixed header — 22px/500 title, no search (Discover is
@@ -392,13 +372,6 @@ const PluginsDiscoverPage = ({
               kicker={curation.featured.kicker}
               title={curation.featured.headline}
               blurb={curation.featured.blurb}
-              pillLabel={featuredInstallMachine.stateLabel}
-              pillOpen={featuredInstallMachine.installState === "installed"}
-              pillDisabled={
-                !(featuredInstallMachine.installState === "installed" || featuredInstallMachine.canInstall)
-              }
-              pillInstalling={featuredInstallMachine.installing}
-              onPillClick={handlePillClick}
             />
           </div>
         )}

@@ -143,12 +143,6 @@ describe("PluginsDiscoverPage — Featured aurora card", () => {
     ).toBeInTheDocument();
   });
 
-  test("an already-installed featured plugin (catalog kind) shows OPEN", async () => {
-    await renderPage();
-
-    const card = screen.getByTestId("discover-featured-aurora");
-    expect(within(card).getByText("OPEN")).toBeInTheDocument();
-  });
 
   test("clicking the featured card opens its detail", async () => {
     const onOpenDetail = jest.fn();
@@ -397,33 +391,6 @@ const SECRET_ENTRY = {
 };
 
 describe("PluginsDiscoverPage — Set-up gating", () => {
-  test("a secrets-backed featured entry's aurora pill opens detail instead of installing", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([SECRET_ENTRY]);
-    const onInstall = jest.fn();
-    const onOpenDetail = jest.fn();
-    loadStoreCuration.mockReturnValue({
-      featured: {
-        pluginId: "mcp.browser.browser-use-local",
-        kicker: "K",
-        headline: "Browser Use",
-        blurb: "B",
-        gradient: ["#111111", "#222222"],
-      },
-      essentials: [],
-      collections: [],
-    });
-
-    await renderPage({ onInstall, onOpenDetail });
-
-    const pill = screen.getByText("Set up");
-    await act(async () => {
-      fireEvent.click(pill);
-    });
-
-    expect(onInstall).not.toHaveBeenCalled();
-    expect(onOpenDetail).toHaveBeenCalledWith("browser-use-local");
-  });
 
   test("a secrets-backed essential entry's grid pill opens detail instead of installing", async () => {
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
