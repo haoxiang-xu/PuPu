@@ -114,6 +114,7 @@ const AuroraFeatureCard = ({
         scale={1.015}
         style={{
           backgroundColor: "#0c0f15",
+          border: "none",
           cursor: onClick ? "pointer" : "default",
           /* NO overflow:hidden here — any overflow value other than visible
              forces transform-style back to flat and kills the Card.Layer
