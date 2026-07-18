@@ -2,7 +2,7 @@ import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
-import AuroraBackground from "../../../BUILTIN_COMPONENTs/background/aurora_background/aurora_background";
+import DisplacementWarp from "../../../BUILTIN_COMPONENTs/background/displacement_warp/displacement_warp";
 import { ToolkitIconFrame } from "./toolkit_icon";
 
 /* AuroraFeatureCard — the Discover page's featured/hero card (C2 design
@@ -24,9 +24,29 @@ import { ToolkitIconFrame } from "./toolkit_icon";
    aurora background; the underlying install-state MACHINE is still fully
    owned by the caller (usePluginInstallState) — this component is presentation
    only, driven by pillLabel/pillOpen/pillDisabled/pillInstalling. */
-const AURORA_COLORS = ["#4a5bd8", "#8a5dd6", "#0ea5b7"];
-const AURORA_BLUR = 40;
-const AURORA_SPEED = 0.5;
+/* CEO direction 2026-07-18: aurora orbs OUT — mini_ui's "Yours to theme"
+   DisplacementWarp look IN (Embered-panel parameters, PuPu-indigo palette,
+   "W2" of the warp round). The warp is a slow-flowing WebGL gradient;
+   STATIC_FALLBACK renders the same palette as a plain 135° gradient
+   underneath, so no-WebGL environments (and jsdom) show a sane card
+   instead of a hole (DisplacementWarp returns null on context failure). */
+const WARP_COLORS_DARK = ["#141428", "#232649", "#4a5bd8", "#8a5dd6"];
+const WARP_COLORS_LIGHT = ["#e4e7f8", "#cdd3f4", "#8a97e8", "#b9a5ef"];
+const STATIC_FALLBACK_DARK =
+  "linear-gradient(135deg, #141428, #232649 30%, #4a5bd8 55%, #8a5dd6 72%, #1c1c3a 95%)";
+const STATIC_FALLBACK_LIGHT =
+  "linear-gradient(135deg, #e4e7f8, #cdd3f4 30%, #8a97e8 55%, #b9a5ef 72%, #dfe2f6 95%)";
+const WARP_PROPS = {
+  gradient: "linear",
+  gradientAngle: 135,
+  warpStrength: 0.08,
+  warpScale: 2.6,
+  speed: 0.3,
+  grain: 0.03,
+  interactive: false,
+  ambient: true,
+  pixelRatio: 1.25,
+};
 
 const AuroraFeatureCard = ({
   isDark = false,
@@ -45,11 +65,10 @@ const AuroraFeatureCard = ({
   const { theme } = useContext(ConfigContext) || {};
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
-  /* Light theme flips the aurora veil to a bright wash and the copy to dark
-     ink — the aurora orbs themselves stay identical in both themes (they're
-     the one deliberately "always-on" surface, per the mockup's screen note:
-     "全页唯一‘活’的表面"). */
-  const veilColor = isDark ? "rgba(16,16,20,0.44)" : "rgba(255,255,255,0.5)";
+  /* Warp palettes are theme-split (dark indigo vs pale indigo) and the veil
+     is lighter than the aurora era needed — the warp's own dark end already
+     carries the text contrast. */
+  const veilColor = isDark ? "rgba(16,16,20,0.30)" : "rgba(255,255,255,0.42)";
   const kickerColor = isDark ? "rgba(255,255,255,0.75)" : "rgba(28,28,33,0.75)";
   const titleColor = isDark ? "#ffffff" : "#1c1c21";
   const blurbColor = isDark ? "rgba(255,255,255,0.68)" : "rgba(28,28,33,0.68)";
@@ -74,7 +93,19 @@ const AuroraFeatureCard = ({
         cursor: onClick ? "pointer" : "default",
       }}
     >
-      <AuroraBackground colors={AURORA_COLORS} blur={AURORA_BLUR} speed={AURORA_SPEED} />
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: isDark ? STATIC_FALLBACK_DARK : STATIC_FALLBACK_LIGHT,
+        }}
+      />
+      <DisplacementWarp
+        colors={isDark ? WARP_COLORS_DARK : WARP_COLORS_LIGHT}
+        {...WARP_PROPS}
+        style={{ zIndex: 0 }}
+      />
       <div
         aria-hidden="true"
         style={{ position: "absolute", inset: 0, background: veilColor, pointerEvents: "none" }}
