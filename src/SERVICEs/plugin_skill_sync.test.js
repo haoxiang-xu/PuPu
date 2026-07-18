@@ -3,12 +3,18 @@
 // Part 3, Task 1: toolkit-declared skills from the catalog get registered
 // as slash-commands in command_registry, kept in sync with catalog refresh.
 
+// The sync MUST read the v2 catalog (listToolModalCatalog → /toolkits/catalog/v2).
+// The v1 getToolkitCatalog endpoint has no toolkitId/skills fields, so syncing
+// from it silently registers nothing — mock both so we can assert v1 is never
+// touched (regression lock for the /plan-missing bug).
 const mockGetToolkitCatalog = jest.fn();
+const mockListToolModalCatalog = jest.fn();
 
 jest.mock("./api", () => ({
   api: {
     unchain: {
       getToolkitCatalog: (...args) => mockGetToolkitCatalog(...args),
+      listToolModalCatalog: (...args) => mockListToolModalCatalog(...args),
     },
   },
 }));
@@ -29,6 +35,7 @@ const loadModules = () => {
   jest.resetModules();
   mockSubscribers = [];
   mockGetToolkitCatalog.mockReset();
+  mockListToolModalCatalog.mockReset();
   const commandRegistry = require("./command_registry");
   const pluginSkillSync = require("./plugin_skill_sync");
   return { commandRegistry, pluginSkillSync };
@@ -205,7 +212,7 @@ describe("plugin_skill_sync", () => {
 
   test("startPluginSkillSync fetches the catalog, syncs, and subscribes to refresh", async () => {
     const { commandRegistry, pluginSkillSync } = loadModules();
-    mockGetToolkitCatalog.mockResolvedValue({
+    mockListToolModalCatalog.mockResolvedValue({
       toolkits: [
         makeToolkit("notion", "Notion", [
           { name: "s1", body: "b1", phase: "composer" },
@@ -218,9 +225,12 @@ describe("plugin_skill_sync", () => {
 
     expect(commandRegistry.getCommand("/s1")).not.toBeNull();
     expect(mockSubscribers.length).toBe(1);
+    // regression lock: the v1 catalog (no toolkitId/skills fields) must never
+    // be the sync's data source — syncing from it registers nothing
+    expect(mockGetToolkitCatalog).not.toHaveBeenCalled();
 
     // simulate a catalog refresh broadcast with a different skill set
-    mockGetToolkitCatalog.mockResolvedValue({
+    mockListToolModalCatalog.mockResolvedValue({
       toolkits: [
         makeToolkit("notion", "Notion", [
           { name: "s2", body: "b2", phase: "composer" },
@@ -240,7 +250,7 @@ describe("plugin_skill_sync", () => {
   test("startPluginSkillSync: catalog fetch failure logs and keeps existing registrations", async () => {
     const { commandRegistry, pluginSkillSync } = loadModules();
     // first: a healthy fetch that registers something
-    mockGetToolkitCatalog.mockResolvedValueOnce({
+    mockListToolModalCatalog.mockResolvedValueOnce({
       toolkits: [
         makeToolkit("notion", "Notion", [
           { name: "keepme", body: "b", phase: "composer" },
@@ -252,7 +262,7 @@ describe("plugin_skill_sync", () => {
     expect(commandRegistry.getCommand("/keepme")).not.toBeNull();
 
     // now a refresh that fails
-    mockGetToolkitCatalog.mockRejectedValueOnce(new Error("network down"));
+    mockListToolModalCatalog.mockRejectedValueOnce(new Error("network down"));
     mockSubscribers.forEach((listener) => listener({}));
     await flushMicrotasks();
 
@@ -267,13 +277,13 @@ describe("plugin_skill_sync", () => {
     // cold start: the toolkit catalog handler returns {toolkits: []} as a
     // "success" while the runtime is still starting — skills silently never
     // register unless something re-fetches once the sidecar is ready.
-    mockGetToolkitCatalog.mockResolvedValueOnce({ toolkits: [] });
+    mockListToolModalCatalog.mockResolvedValueOnce({ toolkits: [] });
 
     const cleanup = pluginSkillSync.startPluginSkillSync();
     await flushMicrotasks();
     expect(commandRegistry.getCommand("/late-skill")).toBeNull();
 
-    mockGetToolkitCatalog.mockResolvedValueOnce({
+    mockListToolModalCatalog.mockResolvedValueOnce({
       toolkits: [
         makeToolkit("notion", "Notion", [
           { name: "late-skill", body: "b", phase: "composer" },
@@ -299,7 +309,7 @@ describe("plugin_skill_sync", () => {
       resolveNewer = resolve;
     });
 
-    mockGetToolkitCatalog
+    mockListToolModalCatalog
       .mockImplementationOnce(() => olderPromise)
       .mockImplementationOnce(() => newerPromise);
 

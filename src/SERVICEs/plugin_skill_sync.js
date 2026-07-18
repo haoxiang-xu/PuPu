@@ -123,7 +123,11 @@ const fetchAndSyncPluginSkills = async (isCancelled) => {
   const sequence = ++fetchSequence;
   let payload;
   try {
-    payload = await api.unchain.getToolkitCatalog();
+    // MUST be the v2 catalog (LIST_TOOL_MODAL_CATALOG → /toolkits/catalog/v2).
+    // The v1 getToolkitCatalog endpoint returns raw registry rows
+    // (name/module/class_name) with no toolkitId and no skills[] — syncing
+    // from it silently registers nothing (#/plan-missing root cause).
+    payload = await api.unchain.listToolModalCatalog();
   } catch (error) {
     logger.warn(
       "catalog_fetch_failed",
