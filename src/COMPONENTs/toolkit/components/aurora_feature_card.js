@@ -1,4 +1,4 @@
-import { useContext, useMemo } from "react";
+import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
@@ -78,6 +78,16 @@ const AuroraFeatureCard = ({
   const { theme } = useContext(ConfigContext) || {};
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
+  /* WebGL init isn't instant — the canvas pops in a beat after mount, which
+     reads as a flash over the static fallback (CEO 2026-07-18p). Fade the
+     blob layer in over the fallback instead: opacity 0 on first paint,
+     eased to 1 on the next frame. */
+  const [bgVisible, setBgVisible] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setBgVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   /* An icon with its own complete look (an SVG/image file, or a builtin
      glyph that ships its own backgroundColor) needs no white backing plate;
      the plate stays only for emoji/missing icons where the raw glyph would
@@ -141,7 +151,16 @@ const AuroraFeatureCard = ({
           <div
             style={{ position: "absolute", inset: 0, background: INK_STATIC_FALLBACK }}
           />
-          <ShaderBlobBackground {...INK_DONUTS} style={{ zIndex: 0 }} />
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: bgVisible ? 1 : 0,
+              transition: "opacity 1100ms ease",
+            }}
+          >
+            <ShaderBlobBackground {...INK_DONUTS} style={{ zIndex: 0 }} />
+          </div>
         </div>
         <Card.Layer depth={34} style={{ flexShrink: 0 }}>
           {iconHasOwnArtwork ? (
