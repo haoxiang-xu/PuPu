@@ -10,6 +10,7 @@ if str(SERVER_ROOT) not in sys.path:
 
 import unchain_adapter  # noqa: E402
 from skill_packs import (  # noqa: E402
+    SKILL_BODY_MAX_BYTES,
     SkillPackError,
     delete_skill_pack,
     get_installed_skill_pack,
@@ -88,6 +89,30 @@ class SkillPackStoreTests(unittest.TestCase):
         with self.assertRaises(SkillPackError) as ctx:
             delete_skill_pack("skillpack.nope", data_dir=self.data_dir)
         self.assertEqual(ctx.exception.status, 404)
+
+    def test_install_drops_bodies_over_the_64kb_cap(self):
+        # The backend is the authority on the body cap (M2): an over-cap skill
+        # is rejected even if a caller bypasses the renderer, while valid skills
+        # in the same pack still install.
+        oversize = "x" * (SKILL_BODY_MAX_BYTES + 1)
+        pack = _pack(
+            skills=[
+                {"name": "small", "description": "d", "body": "ok", "phase": "composer"},
+                {"name": "huge", "description": "d", "body": oversize, "phase": "composer"},
+            ]
+        )
+        result = install_skill_pack(pack, data_dir=self.data_dir)
+        names = [s["name"] for s in result["toolkit"]["skills"]]
+        self.assertEqual(names, ["small"])
+
+    def test_install_rejects_pack_that_is_only_over_cap_bodies(self):
+        oversize = "x" * (SKILL_BODY_MAX_BYTES + 1)
+        pack = _pack(
+            skills=[{"name": "huge", "description": "d", "body": oversize, "phase": "composer"}]
+        )
+        with self.assertRaises(SkillPackError) as ctx:
+            install_skill_pack(pack, data_dir=self.data_dir)
+        self.assertEqual(ctx.exception.code, "skill_pack_empty")
 
     def test_store_normalizes_untrusted_client_skills(self):
         # A row with an illegal command name is dropped by normalize_skill_rows,

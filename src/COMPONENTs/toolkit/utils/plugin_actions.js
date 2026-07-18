@@ -1,6 +1,7 @@
 import api from "../../../SERVICEs/api";
 import { deleteMcpEntry } from "../../../SERVICEs/mcp_install";
 import { removeInvalidToolkitIds } from "../../../SERVICEs/default_toolkit_store";
+import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 import { BASE_TOOLKIT_IDENTIFIERS } from "../constants";
 
 /* Same base-id filter plugins_installed_page.js uses to decide which rows
@@ -34,9 +35,19 @@ export async function deletePluginToolkit(toolkitId) {
     (tk) => tk.source !== "plugin" && !tk.hidden && !isBaseToolkitId(tk.toolkitId),
   );
   const target = visible.find((tk) => tk.toolkitId === toolkitId);
-  if (!target || target.source !== "mcp") return { ok: false };
+  if (!target) return { ok: false };
 
-  await deleteMcpEntry(toolkitId);
+  if (target.source === "mcp") {
+    await deleteMcpEntry(toolkitId);
+  } else if (target.source === "skillpack") {
+    // Imported skill packs delete through their own store (no MCP teardown).
+    // deleteMcpEntry emits the catalog-refresh bus itself; the skillpack path
+    // must emit it explicitly so plugin_skill_sync drops the pack's /commands.
+    await api.unchain.deleteSkillPack(toolkitId);
+    emitToolkitCatalogRefresh({ source: "skill_pack_delete" });
+  } else {
+    return { ok: false };
+  }
 
   const remainingIds = visible
     .filter((tk) => tk.toolkitId !== toolkitId)

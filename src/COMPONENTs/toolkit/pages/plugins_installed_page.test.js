@@ -165,6 +165,32 @@ describe("PluginsInstalledPage", () => {
       const mcpSection = screen.getByText("mcp").closest("div").parentElement;
       expect(within(mcpSection).getByText("Notion")).toBeInTheDocument();
     });
+
+    test("imported skill packs get their own 'Skill packs' section, not Built-in", async () => {
+      api.unchain.listToolModalCatalog.mockResolvedValue({
+        toolkits: [
+          ...CATALOG,
+          {
+            toolkitId: "skillpack.superpowers",
+            toolkitName: "Superpowers",
+            toolkitDescription: "Imported skill pack",
+            source: "skillpack",
+            tools: [],
+            skills: [
+              { name: "brainstorming", title: "Brainstorming", description: "Explore." },
+            ],
+          },
+        ],
+      });
+      await renderPage();
+
+      const skillSection = screen.getByText("Skill packs").closest("div").parentElement;
+      expect(within(skillSection).getByText("Superpowers")).toBeInTheDocument();
+
+      // ...and it must NOT leak into the Built-in section.
+      const builtinSection = screen.getByText("Built-in").closest("div").parentElement;
+      expect(within(builtinSection).queryByText("Superpowers")).not.toBeInTheDocument();
+    });
   });
 
   describe("PluginsInstalledPage — search", () => {

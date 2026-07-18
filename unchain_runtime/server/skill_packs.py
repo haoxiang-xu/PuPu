@@ -28,6 +28,13 @@ SKILL_PACKS_FILENAME = "skill_packs.json"
 
 SKILL_PACK_ID_PREFIX = "skillpack."
 
+# Single-body technical cap (architect M2), enforced here as the authority so
+# the persisted store can NEVER hold an over-cap body regardless of caller —
+# the renderer (src/SERVICEs/skill_pack_import.js) drops oversize skills too,
+# but a direct API caller must not be able to bypass the limit. Kept in sync
+# with SKILL_BODY_MAX_BYTES there. Measured in UTF-8 bytes.
+SKILL_BODY_MAX_BYTES = 64 * 1024
+
 DEFAULT_SKILL_PACK_ICON = {
     "type": "builtin",
     "name": "command",
@@ -145,6 +152,14 @@ def install_skill_pack(
     # catalog, so it never trusts the client's shaping blindly. Invalid rows are
     # dropped exactly as the builtin/MCP skill paths drop them.
     skills = normalize_skill_rows(pack.get("skills"))
+    # Enforce the single-body cap here as the authority — drop any over-cap body
+    # (mirrors the renderer's per-skill rejection) so the store stays clean even
+    # if a caller bypasses the frontend importer.
+    skills = [
+        skill
+        for skill in skills
+        if len(str(skill.get("body") or "").encode("utf-8")) <= SKILL_BODY_MAX_BYTES
+    ]
     if not skills:
         raise SkillPackError(
             "skill_pack_empty",

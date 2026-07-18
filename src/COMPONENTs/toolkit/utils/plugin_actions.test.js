@@ -2,12 +2,14 @@ import { deletePluginToolkit, isBaseToolkitId } from "./plugin_actions";
 import api from "../../../SERVICEs/api";
 import { deleteMcpEntry } from "../../../SERVICEs/mcp_install";
 import { removeInvalidToolkitIds } from "../../../SERVICEs/default_toolkit_store";
+import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
     unchain: {
       listToolModalCatalog: jest.fn(),
+      deleteSkillPack: jest.fn(() => Promise.resolve({ ok: true })),
     },
   },
 }));
@@ -20,6 +22,11 @@ jest.mock("../../../SERVICEs/mcp_install", () => ({
 jest.mock("../../../SERVICEs/default_toolkit_store", () => ({
   __esModule: true,
   removeInvalidToolkitIds: jest.fn(),
+}));
+
+jest.mock("../../../SERVICEs/toolkit_catalog_refresh", () => ({
+  __esModule: true,
+  emitToolkitCatalogRefresh: jest.fn(),
 }));
 
 const CATALOG = [
@@ -35,6 +42,9 @@ beforeEach(() => {
   deleteMcpEntry.mockClear();
   deleteMcpEntry.mockResolvedValue({ ok: true });
   removeInvalidToolkitIds.mockClear();
+  api.unchain.deleteSkillPack.mockClear();
+  api.unchain.deleteSkillPack.mockResolvedValue({ ok: true });
+  emitToolkitCatalogRefresh.mockClear();
 });
 
 describe("isBaseToolkitId", () => {
@@ -80,5 +90,29 @@ describe("deletePluginToolkit", () => {
   test("re-fetches the catalog fresh — doesn't need any prior mounted-page state", async () => {
     await deletePluginToolkit("mcp.productivity.notion-remote");
     expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  test("deletes a skillpack-sourced entry through its own store and refreshes the catalog", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({
+      toolkits: [
+        { toolkitId: "plan", toolkitName: "Plan", source: "builtin" },
+        { toolkitId: "skillpack.superpowers", toolkitName: "Superpowers", source: "skillpack" },
+        { toolkitId: "mcp.productivity.notion-remote", toolkitName: "Notion", source: "mcp" },
+      ],
+    });
+
+    const result = await deletePluginToolkit("skillpack.superpowers");
+
+    expect(result).toEqual({ ok: true, toolkitId: "skillpack.superpowers" });
+    // routes through the skillpack store, NOT the MCP teardown path
+    expect(api.unchain.deleteSkillPack).toHaveBeenCalledWith("skillpack.superpowers");
+    expect(deleteMcpEntry).not.toHaveBeenCalled();
+    // must nudge the catalog bus so plugin_skill_sync drops the /commands
+    expect(emitToolkitCatalogRefresh).toHaveBeenCalledTimes(1);
+    // prunes the default selection down to the remaining visible ids
+    expect(removeInvalidToolkitIds).toHaveBeenCalledWith("global", [
+      "plan",
+      "mcp.productivity.notion-remote",
+    ]);
   });
 });

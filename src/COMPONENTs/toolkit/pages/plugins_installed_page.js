@@ -143,10 +143,17 @@ const PluginsInstalledPage = ({
   const dividerColor = "rgba(var(--pupu-text-rgb),0.06)";
 
   /* Source grouping (T3) — mockup screen ③ splits Installed into a
-     "Built-in" section (source builtin/local, i.e. everything that isn't
-     an MCP install) and an "MCP" section (source mcp / mcp_registry). */
+     "Built-in" section (source builtin/local), an "MCP" section (source mcp /
+     mcp_registry), and a "Skill packs" section (source skillpack, imported
+     SKILL.md packs). Skill packs are pure-skill plugins, not builtins, so they
+     get their own section rather than falling under "Built-in". */
+  const skillPackRows = filteredRows.filter(
+    ({ toolkit: tk }) => String(tk.source || "") === "skillpack",
+  );
   const builtinRows = filteredRows.filter(
-    ({ toolkit: tk }) => !String(tk.source || "").startsWith("mcp"),
+    ({ toolkit: tk }) =>
+      !String(tk.source || "").startsWith("mcp") &&
+      String(tk.source || "") !== "skillpack",
   );
   const mcpRows = filteredRows.filter(({ toolkit: tk }) =>
     String(tk.source || "").startsWith("mcp"),
@@ -300,6 +307,12 @@ const PluginsInstalledPage = ({
         {mcpRows.length > 0 && (
           <SettingsSection title={t("toolkit.source_mcp")}>
             {mcpRows.map(renderRow)}
+          </SettingsSection>
+        )}
+
+        {skillPackRows.length > 0 && (
+          <SettingsSection title={t("toolkit.source_skillpack")}>
+            {skillPackRows.map(renderRow)}
           </SettingsSection>
         )}
 
