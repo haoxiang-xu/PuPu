@@ -7,3 +7,5 @@
 - [Agent teams 战略定案](agent-teams-decision.md) — 2026-06-20 C now/B destination;整套多agent runtime在私有wheel(只配policy不own loop)→A死路;team=root agent经tool升级进的执行策略(对用户+recipe都不可见);team_comm.v1是job-store内record族非独立ledger;第一刀=envelope+append-only recorder pass-through镜像flow_event切法
 - [computer use 混合方案设计定案](computer-use-hybrid-design.md) — 2026-07-13 browser=捆绑playwright-mcp先发/computer=sidecar手+Anthropic predefined;七单向门;本次CEO豁免Codex管线(Fable 5推理)
 - [0.1.9-0.2.0 三份前置设计定案](roadmap-predesigns-019-020.md) — 2026-07-05 Gemini=native kernel(compat判死)+白名单收敛;skills=hybrid渐进披露全Flask侧;external runner=进程边界实现subagent抽象+0.2.0冻结面
+- [computer use 门B启用路径定案](computer-use-gate-b-enable-path.md) — 2026-07-18 渲染层期望态+POST runtime override 不重启;红线=funnel门1永不读request flag;memory_factory私有副本必须收敛
+- [skill 展开岔口2定案](skill-expansion-fork2-decision.md) — 2026-07-18 裁D(A契约+渲染折叠sidecar composer.v1);否决B隐藏注入(content=模型真相是承重不变量);always模式才走before_model

@@ -4,3 +4,4 @@
 - [Discord 条目 & 版本钉死规则](discord-entry-and-version-pin-rule.md) — mcp.productivity.discord(needs_review,@0.0.6,22工具18门控,DISCORD_TOKEN后端密钥)；CTO规则:needs_review/community stdio 必钉版本
 - [Telegram 条目](telegram-entry-2026-06.md) — mcp.productivity.telegram(needs_review,@0.1.4,Bot-API only,5工具3门控含FORWARD_MESSAGE外泄原语,TELEGRAM_BOT_TOKEN后端密钥)
 - [SQLite 条目](sqlite-entry-2026-06.md) — mcp.workspace.sqlite(community,uvx==2025.4.25,db-path是ARG绑${WORKSPACE},无secret,6工具3门控含append_insight写资源)；registry现19条
+- [superpowers-essentials pack](superpowers-essentials-pack.md) — P0 首个官方 skill pack:5/14 精选、pin SHA、MIT、四准则先例(S5,2026-07-18)

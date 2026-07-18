@@ -11,6 +11,7 @@ import {
   parseCompletedReview,
   resetReviewOutputs,
 } from "./ai-review-helpers.mjs";
+import { computeWorktreeFingerprint } from "./worktree-fingerprint.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUTPUT_DIR = path.join(ROOT, ".release-qa", "local");
@@ -110,9 +111,15 @@ const changedPaths = gitRequired([
 const status = gitRequired(["status", "--short"]);
 const commits = gitRequired(["log", "--oneline", `${baseRef}..HEAD`]);
 const head = gitRequired(["rev-parse", "HEAD"]);
-if (reportPayload?.git?.sha !== head || reportPayload?.deterministic_result?.status !== "passed") {
+const expectedWorktreeFingerprint = reportPayload?.git?.worktree_fingerprint;
+if (
+  reportPayload?.git?.sha !== head ||
+  reportPayload?.deterministic_result?.status !== "passed" ||
+  !expectedWorktreeFingerprint ||
+  expectedWorktreeFingerprint !== computeWorktreeFingerprint(ROOT)
+) {
   throw new Error(
-    "Deterministic report is stale or not passing; rerun npm run qa:release:deterministic",
+    "Deterministic report is stale, does not match this worktree, or is not passing; rerun npm run qa:release:deterministic",
   );
 }
 
@@ -163,6 +170,23 @@ if (commandExists("codex")) {
   const args = [
     "exec",
     "--ignore-user-config",
+    "--ignore-rules",
+    "--disable",
+    "plugins",
+    "--disable",
+    "remote_plugin",
+    "--disable",
+    "apps",
+    "--disable",
+    "hooks",
+    "--disable",
+    "browser_use",
+    "--disable",
+    "browser_use_external",
+    "--disable",
+    "computer_use",
+    "--disable",
+    "in_app_browser",
     "--sandbox",
     "read-only",
     "--ephemeral",
@@ -233,6 +257,15 @@ if (commandExists("claude")) {
   );
 } else {
   reviews.claude = unavailable("claude CLI is not installed or authenticated");
+}
+
+if (
+  gitRequired(["rev-parse", "HEAD"]) !== head ||
+  computeWorktreeFingerprint(ROOT) !== expectedWorktreeFingerprint
+) {
+  throw new Error(
+    "Worktree changed during AI review; discard these results and rerun deterministic QA",
+  );
 }
 
 const recommendations = Object.values(reviews).map((review) => review.recommendation);

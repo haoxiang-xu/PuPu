@@ -14,6 +14,7 @@ import {
   writeJson,
   writeText,
 } from "./reporting.mjs";
+import { computeWorktreeFingerprint } from "./worktree-fingerprint.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUTPUT_DIR = path.join(ROOT, ".release-qa", "local");
@@ -83,6 +84,11 @@ const checks = [
 ];
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+const initialHead = spawnSync("git", ["rev-parse", "HEAD"], {
+  cwd: ROOT,
+  encoding: "utf8",
+}).stdout?.trim();
+const initialWorktreeFingerprint = computeWorktreeFingerprint(ROOT);
 
 const results = [];
 for (const check of checks) {
@@ -105,6 +111,24 @@ for (const check of checks) {
   });
 }
 
+const finalHead = spawnSync("git", ["rev-parse", "HEAD"], {
+  cwd: ROOT,
+  encoding: "utf8",
+}).stdout?.trim();
+const finalWorktreeFingerprint = computeWorktreeFingerprint(ROOT);
+const worktreeStable =
+  Boolean(initialHead) &&
+  initialHead === finalHead &&
+  initialWorktreeFingerprint === finalWorktreeFingerprint;
+results.push({
+  name: "release worktree remained unchanged",
+  command: "compare HEAD and full worktree fingerprint before/after deterministic QA",
+  outcome: worktreeStable ? "success" : "failure",
+  details: worktreeStable
+    ? `fingerprint=${initialWorktreeFingerprint}`
+    : "HEAD or tracked/untracked worktree content changed during deterministic QA",
+});
+
 const jobReport = buildJobReport({
   mode: "release",
   version: packageJson.version,
@@ -115,11 +139,9 @@ const jobReport = buildJobReport({
     command: "npm run qa:release:deterministic",
   },
   git: {
-    sha: spawnSync("git", ["rev-parse", "HEAD"], {
-      cwd: ROOT,
-      encoding: "utf8",
-    }).stdout?.trim(),
+    sha: initialHead,
     ref: "local",
+    worktree_fingerprint: initialWorktreeFingerprint,
   },
   checks: results,
   artifacts: [
