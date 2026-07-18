@@ -187,6 +187,32 @@ describe("bridge wrappers", () => {
     });
   });
 
+  test("runtimeBridge.setComputerUseEnabled forwards flag and normalizes payload", async () => {
+    window.unchainAPI = {
+      setComputerUseEnabled: jest.fn(async (enabled) => ({
+        ok: true,
+        enabled,
+      })),
+    };
+
+    expect(runtimeBridge.isComputerUseEnableAvailable()).toBe(true);
+    await expect(runtimeBridge.setComputerUseEnabled(true)).resolves.toEqual({
+      ok: true,
+      enabled: true,
+      error: "",
+    });
+    expect(window.unchainAPI.setComputerUseEnabled).toHaveBeenCalledWith(true);
+  });
+
+  test("runtimeBridge.setComputerUseEnabled throws when bridge method is missing", async () => {
+    window.unchainAPI = {};
+
+    expect(runtimeBridge.isComputerUseEnableAvailable()).toBe(false);
+    await expect(
+      runtimeBridge.setComputerUseEnabled(true),
+    ).rejects.toMatchObject({ code: "bridge_unavailable" });
+  });
+
   test("runtimeBridge.syncBuildFeatureFlagsSnapshot forwards flags and normalizes payload", async () => {
     window.unchainAPI = {
       syncBuildFeatureFlagsSnapshot: jest.fn(async (featureFlags) => ({

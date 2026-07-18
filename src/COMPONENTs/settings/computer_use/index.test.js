@@ -21,6 +21,7 @@ jest.mock("../../../SERVICEs/bridges/unchain_bridge", () => ({
   runtimeBridge: {
     isComputerUseStatusAvailable: jest.fn(() => true),
     isComputerUsePrivacySettingsAvailable: jest.fn(() => true),
+    isComputerUseEnableAvailable: jest.fn(() => false),
     getComputerUseStatus: jest.fn(),
     openComputerUsePrivacySettings: jest.fn(() =>
       Promise.resolve({ ok: true }),
