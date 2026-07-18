@@ -201,6 +201,10 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
           code: merge(base.code, { backgroundColor: deepTier }),
           textfield: merge(base.textfield, {
             backgroundColor: withAlpha(surface, 0.95),
+            /* one border source for input surfaces: the base JSON's
+               hardcoded textfield border would otherwise shadow the
+               mid-tier var that the attach panel and context menus use */
+            border: "1px solid var(--pupu-border-mid)",
           }),
           markdown: {
             ...(base.markdown || {}),

@@ -411,8 +411,8 @@ const AttachPanel = forwardRef(({
   let panelBg = "transparent";
   if (floating)
     panelBg = isDark
-      ? "rgba(var(--pupu-surface-rgb),0.85)"
-      : "rgba(var(--pupu-surface-rgb),0.9)";
+      ? "rgba(var(--pupu-surface-rgb),0.6)"
+      : "rgba(var(--pupu-surface-rgb),0.72)";
 
   const selectBg = isDark
     ? "rgba(var(--pupu-text-rgb),0.07)"
