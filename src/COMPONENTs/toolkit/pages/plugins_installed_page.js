@@ -41,6 +41,7 @@ const PluginsInstalledPage = ({
   onOpenDetail,
   onHandlersReady,
   onOpenCustomMcp,
+  onOpenImportSkills,
 }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
@@ -168,19 +169,39 @@ const PluginsInstalledPage = ({
      PluginsCategoriesPage) from its own legacy "Custom MCP" store tab. */
   const customMcpFooter = (
     <div
-      role="button"
-      onClick={() => onOpenCustomMcp?.()}
       style={{
-        fontSize: 11,
-        fontFamily,
-        color: tertiaryText,
-        cursor: "pointer",
         marginTop: 6,
         paddingTop: 12,
         borderTop: `1px solid ${dividerColor}`,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
       }}
     >
-      {t("toolkit.add_custom_plugin")} ›
+      <div
+        role="button"
+        onClick={() => onOpenCustomMcp?.()}
+        style={{
+          fontSize: 11,
+          fontFamily,
+          color: tertiaryText,
+          cursor: "pointer",
+        }}
+      >
+        {t("toolkit.add_custom_plugin")} ›
+      </div>
+      <div
+        role="button"
+        onClick={() => onOpenImportSkills?.()}
+        style={{
+          fontSize: 11,
+          fontFamily,
+          color: tertiaryText,
+          cursor: "pointer",
+        }}
+      >
+        {t("toolkit.import_skills_link")} ›
+      </div>
     </div>
   );
 

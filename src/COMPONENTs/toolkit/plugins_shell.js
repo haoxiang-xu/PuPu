@@ -6,6 +6,7 @@ import PluginsCategoriesPage from "./pages/plugins_categories_page";
 import PluginsInstalledPage from "./pages/plugins_installed_page";
 import PluginDetailPage from "./pages/plugin_detail_page";
 import CustomMcpPage from "./pages/custom_mcp_page";
+import ImportSkillsPage from "./pages/import_skills_page";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { isBuiltinToolkit } from "./utils/toolkit_helpers";
 import { deletePluginToolkit } from "./utils/plugin_actions";
@@ -144,6 +145,12 @@ export const PluginsShell = ({
     openDetail({ kind: "custom" });
   }, [openDetail]);
 
+  /* Import skills — same low-key footer-link + slide-in pattern as custom MCP,
+     for the S3 open-skill-ecosystem importer (local directory of SKILL.md). */
+  const handleOpenImportSkills = useCallback(() => {
+    openDetail({ kind: "import_skills" });
+  }, [openDetail]);
+
   /* Discover mixes two plugin sources (MCP-store-installable plugins and
      already-available builtin/local plugins pulled from the catalog), so its
      tiles call onOpenDetail with either a store entry id (string) or an
@@ -253,6 +260,14 @@ export const PluginsShell = ({
     },
     [loadInstalledMcpIds],
   );
+
+  /* After a skill pack imports, refresh installed state and close the slide-in
+     (same reconciliation as delete/install). */
+  const handleSkillPackImported = useCallback(async () => {
+    await loadInstalledMcpIds();
+    installedHandlersRef.current?.reload?.();
+    closeDetail();
+  }, [loadInstalledMcpIds, closeDetail]);
 
   useEffect(() => {
     let cancelled = false;
@@ -471,6 +486,7 @@ export const PluginsShell = ({
           onOpenDetail={handleOpenInstalledDetail}
           onHandlersReady={handleHandlersReady}
           onOpenCustomMcp={handleOpenCustomMcp}
+          onOpenImportSkills={handleOpenImportSkills}
         />
       );
     }
@@ -708,6 +724,36 @@ export const PluginsShell = ({
                     installing={installingIds.has("custom")}
                     installError={installError?.entryId === "custom" ? installError : null}
                   />
+                </div>
+              </div>
+            ) : selectedToolkit.kind === "import_skills" ? (
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingRight: 24 }}>
+                <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                  <Button
+                    prefix_icon="arrow_left"
+                    onClick={closeDetail}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: isDark ? "rgba(var(--pupu-text-rgb),0.72)" : "rgba(var(--pupu-text-rgb),0.68)",
+                      paddingVertical: 5,
+                      paddingHorizontal: 5,
+                      borderRadius: 8,
+                      root: { background: isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.04)" },
+                      hoverBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.07)",
+                      activeBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.12)" : "rgba(var(--pupu-text-rgb),0.1)",
+                      content: {
+                        prefixIconWrap: { display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 0 },
+                        icon: { width: 14, height: 14 },
+                      },
+                    }}
+                  />
+                  <span style={{ fontSize: 15, fontWeight: 500, color: "var(--pupu-text)" }}>
+                    {t("toolkit.import_skills_title")}
+                  </span>
+                </div>
+                <div className="scrollable" style={{ flex: 1, overflowY: "auto", paddingBottom: 20 }}>
+                  <ImportSkillsPage isDark={isDark} onDone={handleSkillPackImported} />
                 </div>
               </div>
             ) : (

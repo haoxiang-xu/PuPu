@@ -159,6 +159,12 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.WRITE_FILE, { filePath, content }),
   readFile: (filePath) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.READ_FILE, { filePath }),
+  scanSkillDir: (directory) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SCAN_SKILL_DIR, { directory }),
+  installSkillPack: (pack) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.INSTALL_SKILL_PACK, { pack }),
+  deleteSkillPack: (toolkitId) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_SKILL_PACK, { toolkitId }),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
   cancelExecution: streamClient.cancelExecution,

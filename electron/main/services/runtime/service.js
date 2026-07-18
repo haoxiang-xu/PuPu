@@ -546,6 +546,107 @@ const createRuntimeService = ({
     }
   };
 
+  /* Scan a user-picked directory for Claude-style SKILL.md files. Returns the
+     raw material the frontend importer (skill_pack_import.js) needs: for every
+     SKILL.md, its content plus the list of sibling files in its own folder
+     subtree (so the importer can gate on scripts and flag reference/asset
+     dependencies). Bounded to keep a pathological tree from hanging the main
+     process; parsing/filtering/normalizing all happen in the renderer. */
+  const SKILL_SCAN_MAX_DEPTH = 8;
+  const SKILL_SCAN_MAX_SKILLS = 500;
+  const SKILL_SCAN_MAX_BYTES = 256 * 1024; // per SKILL.md read cap
+  const SKILL_SCAN_IGNORE_DIRS = new Set([
+    ".git",
+    "node_modules",
+    ".venv",
+    "__pycache__",
+    ".DS_Store",
+  ]);
+
+  const scanSkillDir = ({ directory = "" } = {}) => {
+    const root = typeof directory === "string" ? directory.trim() : "";
+    if (!root) return { ok: false, error: "no_path", files: [] };
+    if (!fs.existsSync(root)) return { ok: false, error: "not_found", files: [] };
+
+    const dirName = path.basename(root.replace(/[/\\]+$/, "")) || "imported";
+    const skillMdPaths = [];
+
+    const walk = (absDir, depth) => {
+      if (depth > SKILL_SCAN_MAX_DEPTH) return;
+      if (skillMdPaths.length >= SKILL_SCAN_MAX_SKILLS) return;
+      let dirents;
+      try {
+        dirents = fs.readdirSync(absDir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const dirent of dirents) {
+        if (SKILL_SCAN_IGNORE_DIRS.has(dirent.name)) continue;
+        const abs = path.join(absDir, dirent.name);
+        if (dirent.isDirectory()) {
+          walk(abs, depth + 1);
+        } else if (dirent.isFile() && dirent.name === "SKILL.md") {
+          skillMdPaths.push(abs);
+        }
+        if (skillMdPaths.length >= SKILL_SCAN_MAX_SKILLS) return;
+      }
+    };
+
+    /* Recursively list every file under a folder, returned as paths relative to
+       the scan root (so they align with the SKILL.md relPath the importer sees). */
+    const listFolderFiles = (folderAbs) => {
+      const out = [];
+      const inner = (absDir, depth) => {
+        if (depth > SKILL_SCAN_MAX_DEPTH) return;
+        let dirents;
+        try {
+          dirents = fs.readdirSync(absDir, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const dirent of dirents) {
+          if (SKILL_SCAN_IGNORE_DIRS.has(dirent.name)) continue;
+          const abs = path.join(absDir, dirent.name);
+          if (dirent.isDirectory()) inner(abs, depth + 1);
+          else if (dirent.isFile()) {
+            out.push(path.relative(root, abs).split(path.sep).join("/"));
+          }
+        }
+      };
+      inner(folderAbs, 0);
+      return out;
+    };
+
+    try {
+      walk(root, 0);
+      const files = [];
+      for (const skillAbs of skillMdPaths) {
+        const relPath = path.relative(root, skillAbs).split(path.sep).join("/");
+        let content = "";
+        try {
+          const stat = fs.statSync(skillAbs);
+          if (stat.size <= SKILL_SCAN_MAX_BYTES) {
+            content = fs.readFileSync(skillAbs, "utf-8");
+          } else {
+            // Oversized SKILL.md — still surface it (empty body) so the importer
+            // reports it rather than the scan silently dropping it.
+            content = fs.readFileSync(skillAbs, "utf-8").slice(0, SKILL_SCAN_MAX_BYTES);
+          }
+        } catch {
+          content = "";
+        }
+        files.push({
+          relPath,
+          content,
+          folderFiles: listFolderFiles(path.dirname(skillAbs)),
+        });
+      }
+      return { ok: true, dirName, files };
+    } catch (error) {
+      return { ok: false, error: error.message, files: [] };
+    }
+  };
+
   return {
     validateWorkspaceRootPath,
     pickWorkspaceRoot,
@@ -562,6 +663,7 @@ const createRuntimeService = ({
     showOpenDialog,
     writeFile,
     readFile,
+    scanSkillDir,
   };
 };
 

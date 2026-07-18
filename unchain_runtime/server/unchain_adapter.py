@@ -25,6 +25,7 @@ from mcp_toolkits import (
     get_installed_mcp_toolkit,
     list_installed_mcp_toolkits,
 )
+from skill_packs import list_installed_skill_packs
 from custom_provider import (
     CustomProviderConfig,
     CustomProviderError,
@@ -2489,17 +2490,63 @@ def _append_installed_mcp_toolkits(payload: Dict[str, object]) -> Dict[str, obje
     return next_payload
 
 
+def _installed_skill_pack_catalog_entries() -> List[Dict[str, object]]:
+    """Imported skill packs as v2 catalog entries. A pack is a PURE-SKILL
+    plugin — empty tools, non-empty skills — so this NEVER touches MCP connect
+    machinery (architect M6). Shape matches what plugin_skill_sync reads:
+    toolkitId, toolkitName, and a normalized skills[] list."""
+    try:
+        packs = list_installed_skill_packs()
+    except Exception as exc:
+        _subagent_logger.warning("[skillpack] failed to load installed skill packs: %s", exc)
+        return []
+    entries: List[Dict[str, object]] = []
+    for pack in packs:
+        if not isinstance(pack, dict):
+            continue
+        toolkit_id = str(pack.get("toolkitId") or "").strip()
+        if not toolkit_id:
+            continue
+        skills = list(pack.get("skills") or [])
+        entries.append({
+            "toolkitId": toolkit_id,
+            "toolkitName": pack.get("toolkitName", toolkit_id),
+            "toolkitDescription": pack.get("toolkitDescription", ""),
+            "toolkitIcon": pack.get("toolkitIcon", {}),
+            "source": "skillpack",
+            "toolCount": 0,
+            "defaultEnabled": False,
+            "tools": [],
+            "skills": skills,
+            "displayOrder": 999,
+            "hidden": False,
+            "tags": [],
+            "artifactKinds": [],
+            "status": pack.get("status", "available"),
+        })
+    return entries
+
+
+def _append_installed_skill_packs(payload: Dict[str, object]) -> Dict[str, object]:
+    entries = list(payload.get("toolkits") or [])
+    entries.extend(_installed_skill_pack_catalog_entries())
+    next_payload = dict(payload)
+    next_payload["toolkits"] = entries
+    next_payload["count"] = len(entries)
+    return next_payload
+
+
 def get_toolkit_catalog_v2() -> Dict[str, object]:
     """Enriched toolkit catalog with icon payloads, per-tool metadata, and
     README support for the tool-modal UI."""
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
-        return _append_installed_mcp_toolkits({
+        return _append_installed_skill_packs(_append_installed_mcp_toolkits({
             "toolkits": [],
             "artifactKinds": [],
             "count": 0,
             "source": "",
-        })
+        }))
 
     def _build_entry(candidate: type, kind: str) -> Dict[str, object]:
         """Build a single ToolkitGroup dict, merging toolkit.toml fields."""
@@ -2628,12 +2675,12 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
     # Sort by display order from toolkit.toml
     entries.sort(key=lambda e: (e.get("displayOrder", 999), e.get("toolkitName", "")))
 
-    return _append_installed_mcp_toolkits({
+    return _append_installed_skill_packs(_append_installed_mcp_toolkits({
         "toolkits": entries,
         "artifactKinds": _merged_artifact_kinds(entries),
         "count": len(entries),
         "source": "",
-    })
+    }))
 
 
 def get_toolkit_metadata(

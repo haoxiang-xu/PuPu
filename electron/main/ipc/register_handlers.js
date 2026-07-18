@@ -77,6 +77,9 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG,
   CHANNELS.UNCHAIN.WRITE_FILE,
   CHANNELS.UNCHAIN.READ_FILE,
+  CHANNELS.UNCHAIN.SCAN_SKILL_DIR,
+  CHANNELS.UNCHAIN.INSTALL_SKILL_PACK,
+  CHANNELS.UNCHAIN.DELETE_SKILL_PACK,
   CHANNELS.SCREENSHOT.CAPTURE,
   CHANNELS.SCREENSHOT.CHECK_AVAILABILITY,
 ]);
@@ -463,6 +466,19 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UNCHAIN.READ_FILE, (_event, payload = {}) =>
     runtimeService.readFile(payload),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.SCAN_SKILL_DIR, (_event, payload = {}) =>
+    runtimeService.scanSkillDir(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.INSTALL_SKILL_PACK,
+    async (_event, payload = {}) =>
+      unchainService.installMisoSkillPack(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_SKILL_PACK,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoSkillPack(payload.toolkitId),
   );
 
   ipcMain.handle(CHANNELS.SCREENSHOT.CAPTURE, () =>

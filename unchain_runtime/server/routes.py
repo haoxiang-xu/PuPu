@@ -34,6 +34,11 @@ from mcp_toolkits import (
     list_installed_mcp_toolkits,
     reload_mcp_toolkits,
 )
+from skill_packs import (
+    delete_skill_pack,
+    install_skill_pack,
+    list_installed_skill_packs,
+)
 from mcp_oauth import (
     disconnect_mcp_oauth,
     get_mcp_oauth_status,
@@ -67,6 +72,7 @@ import route_characters  # noqa: F401
 import route_memory  # noqa: F401
 import route_recipes  # noqa: F401
 import route_mcp  # noqa: F401
+import route_skillpacks  # noqa: F401
 import route_interject  # noqa: F401
 import route_computer_use  # noqa: F401
 import route_providers  # noqa: F401
@@ -107,6 +113,9 @@ __all__ = [
     "reload_mcp_toolkits",
     "reload_mcp_store_metadata",
     "refresh_mcp_store_registry",
+    "install_skill_pack",
+    "list_installed_skill_packs",
+    "delete_skill_pack",
     "start_mcp_oauth",
     "stream_chat",
     "stream_chat_events",

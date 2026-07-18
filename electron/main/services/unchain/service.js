@@ -38,6 +38,8 @@ const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
 const UNCHAIN_MCP_TOOLKITS_ENDPOINT = "/mcp/toolkits";
 const UNCHAIN_MCP_TOOLKIT_INSTALL_ENDPOINT = "/mcp/toolkits/install";
 const UNCHAIN_MCP_TOOLKIT_RELOAD_ENDPOINT = "/mcp/toolkits/reload";
+const UNCHAIN_SKILLPACKS_ENDPOINT = "/skillpacks";
+const UNCHAIN_SKILLPACK_INSTALL_ENDPOINT = "/skillpacks/install";
 const UNCHAIN_MCP_OAUTH_START_ENDPOINT = "/mcp/oauth/start";
 const UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT = "/mcp/oauth/status";
 const UNCHAIN_MCP_OAUTH_ENDPOINT = "/mcp/oauth";
@@ -948,6 +950,59 @@ const createUnchainService = ({
       "Miso MCP toolkit install request failed",
       {},
       "Invalid Miso MCP toolkit install response",
+    );
+  };
+
+  /* Skill-pack install/delete — persists an imported PURE-SKILL pack to the
+     backend skill_packs store (which never opens an MCP connection). The
+     descriptor is built entirely on the renderer (skill_pack_import.js); this
+     is a thin relay. Backend error codes (skill_pack_already_installed 409,
+     invalid_skill_pack 400) propagate via readJsonResponse's error.code. */
+  const installMisoSkillPack = async (payload = {}) => {
+    ensureMisoReady();
+
+    const source = payload && typeof payload === "object" ? payload : {};
+    const pack = source.pack && typeof source.pack === "object" ? source.pack : {};
+    const response = await fetch(buildMisoUrl(UNCHAIN_SKILLPACK_INSTALL_ENDPOINT), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+      },
+      body: JSON.stringify({ pack }),
+    });
+
+    return readJsonResponse(
+      response,
+      "Miso skill pack install request failed",
+      {},
+      "Invalid Miso skill pack install response",
+    );
+  };
+
+  const deleteMisoSkillPack = async (toolkitId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof toolkitId === "string" ? toolkitId.trim() : "";
+    if (!cleanId) {
+      throw new Error("toolkitId is required");
+    }
+
+    const response = await fetch(
+      buildMisoUrl(
+        `${UNCHAIN_SKILLPACKS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      ),
+      {
+        method: "DELETE",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso skill pack delete request failed",
+      {},
+      "Invalid Miso skill pack delete response",
     );
   };
 
@@ -3013,6 +3068,8 @@ const createUnchainService = ({
     installMisoMcpToolkit,
     testMisoCustomProvider,
     deleteMisoMcpToolkit,
+    installMisoSkillPack,
+    deleteMisoSkillPack,
     reloadMisoMcpToolkits,
     checkMisoMcpToolkitHealth,
     configureMisoMcpToolkit,

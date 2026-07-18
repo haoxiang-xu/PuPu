@@ -939,6 +939,67 @@ export const createUnchainApi = () => {
       }
     },
 
+    /* Skill-pack import (S3 open-skill-ecosystem importer). scanSkillDir reads
+       a user-picked local directory in the main process; installSkillPack /
+       deleteSkillPack relay a PURE-SKILL pack to the backend skill_packs store
+       (which never opens an MCP connection). */
+    scanSkillDir: async (directory) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "scanSkillDir");
+        const response = await withTimeout(
+          () => method(typeof directory === "string" ? directory : ""),
+          30000,
+          "skill_dir_scan_timeout",
+          "Skill directory scan timed out",
+        );
+        return isObject(response) ? response : { ok: false, files: [] };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_dir_scan_failed",
+          "Failed to scan skill directory",
+        );
+      }
+    },
+
+    installSkillPack: async (pack = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "installSkillPack");
+        const response = await withTimeout(
+          () => method(isObject(pack) ? pack : {}),
+          30000,
+          "skill_pack_install_timeout",
+          "Skill pack install timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_pack_install_failed",
+          "Failed to install skill pack",
+        );
+      }
+    },
+
+    deleteSkillPack: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteSkillPack");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "skill_pack_delete_timeout",
+          "Skill pack delete timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_pack_delete_failed",
+          "Failed to delete skill pack",
+        );
+      }
+    },
+
     reloadMcpToolkits: async (payload = {}) => {
       if (!hasBridgeMethod("unchainAPI", "reloadMcpToolkits")) {
         return { toolkits: [], count: 0 };
