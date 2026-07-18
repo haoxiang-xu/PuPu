@@ -53,7 +53,7 @@ const BrandOrbCard = ({
         border_radius={12}
         max_tilt={8}
         scale={1.02}
-        style={{ backgroundColor: surface, border: "none", cursor: onClick ? "pointer" : "default" }}
+        style={{ backgroundColor: surface, cursor: onClick ? "pointer" : "default" }}
         body_style={{
           padding: "13px 14px",
           display: "flex",
