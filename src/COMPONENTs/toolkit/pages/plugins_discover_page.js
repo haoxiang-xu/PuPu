@@ -1,11 +1,15 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import api from "../../../SERVICEs/api";
 import { listMcpStoreEntries, resolveMcpIcon } from "../../../SERVICEs/mcp_toolkit_store";
+import { entryInstallState, entryOpensSetup } from "../../../SERVICEs/mcp_install";
 import { toPluginPresentation, loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
-import { SettingsSection } from "../../settings/appearance";
-import PluginListRow from "../components/plugin_list_row";
+import { usePluginInstallState } from "../hooks/use_plugin_install_state";
+import { ToolkitIconFrame } from "../components/toolkit_icon";
+import AuroraFeatureCard from "../components/aurora_feature_card";
+import BrandOrbCard from "../components/brand_orb_card";
 import PluginInstallPill from "../components/plugin_install_pill";
 
 /* Resolves a curated pluginId against the two sources of truth a plugin can
@@ -27,21 +31,120 @@ const resolvePluginId = (pluginId, storeById, catalogById) => {
 const iconFor = (resolved) =>
   resolved.kind === "store" ? resolveMcpIcon(resolved.entry) : resolved.entry.toolkitIcon;
 
-/* PluginsDiscoverPage — settings-isomorphic "Discover" screen (T3). The
-   App Store hero/rail/collection-card layout is retired; Discover now
-   speaks the same list language as Installed/Categories — a fixed 22px/600
-   title (no search box: Discover has always been curation-driven, not
-   search-driven) over a scrollable body of a "Featured" SettingsSection
-   (the curated featured pick + essentials, as rows) followed by one
-   SettingsSection per collection. Data comes from `loadStoreCuration()` for
-   curation and two sources for the actual plugin records: the connected-
-   runtime catalog (builtin/local plugins) and the MCP store registry
-   (installable plugins) — see `resolvePluginId` above. Curation robustness
-   (missing ids skip silently, an empty section is omitted entirely) is
-   unchanged from the App Store version. */
+/* CollectionRow — a Collections-section entry: 26px stacked icons (overlap
+   ring color from var(--pupu-background), so it matches whatever shell it
+   sits on in either theme), a name + "· N plugins" tagline built from the
+   curated blurb, and a "GET ALL" pill driven by the page's handleGetAll.
+   Kept local to this file (not extracted like the aurora/orb cards) — every
+   literal here is either alpha<1 (guard-exempt) or a --pupu-* var, per the
+   plan's "keep page-level styles var()-based" instruction. */
+const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll }) => {
+  const taglineColor = isDark ? "rgba(var(--pupu-text-rgb),0.42)" : "rgba(var(--pupu-text-rgb),0.45)";
+  const iconRingBg = isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.05)";
+  const chipColor = isDark ? "#9aa8ff" : "#2563eb";
+  const pillBg = "rgba(124,140,248,0.12)";
+
+  const tagline = [collection.blurb, t("toolkit.collection_count", { count: collection.resolved.length })]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div
+      data-testid={`collection-${collection.id}`}
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}
+    >
+      <div style={{ display: "flex", flexShrink: 0 }}>
+        {collection.resolved.slice(0, 3).map((resolved, idx) => (
+          <span
+            key={`${collection.id}-icon-${resolved.entry.toolkitId || idx}`}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 8,
+              marginRight: -7,
+              boxShadow: "0 0 0 2px var(--pupu-background)",
+              background: iconRingBg,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <ToolkitIconFrame
+              icon={iconFor(resolved)}
+              isDark={isDark}
+              size={26}
+              iconSize={13}
+              borderRadius={8}
+              style={{ background: "transparent" }}
+            />
+          </span>
+        ))}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 12.5,
+            fontWeight: 550,
+            color: textColor,
+            fontFamily,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {collection.title}
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: taglineColor,
+            fontFamily,
+            marginTop: 2,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {tagline}
+        </div>
+      </div>
+
+      <Button
+        label={t("toolkit.get_all")}
+        onClick={(event) => {
+          event.stopPropagation();
+          onGetAll(collection);
+        }}
+        style={{
+          flexShrink: 0,
+          fontSize: 11,
+          fontWeight: 700,
+          fontFamily,
+          paddingVertical: 3,
+          paddingHorizontal: 13,
+          borderRadius: 999,
+          color: chipColor,
+          root: { background: pillBg },
+        }}
+      />
+    </div>
+  );
+};
+
+/* PluginsDiscoverPage — Discover screen, C2 design (aurora featured card +
+   brand-orb Essentials grid + Collections rows; design authority:
+   2026-07-18 discover-c2 mockup, screen "C2"). This is a PRESENTATION
+   rework only — data flow is unchanged from the settings-isomorphic T3
+   version: `loadStoreCuration()` for curation, the connected-runtime
+   catalog and the MCP store registry as the two plugin-record sources (see
+   `resolvePluginId` above), curation robustness (missing ids skip silently,
+   an empty section is omitted), `opensSetup` gating on every install pill,
+   and `onOpenDetail` routing all unchanged. */
 const PluginsDiscoverPage = ({
   isDark,
   onOpenDetail,
+  onNavigate,
   installedIds,
   onInstall,
   onOAuthConnect,
@@ -111,6 +214,20 @@ const PluginsDiscoverPage = ({
 
   const featured = curation.featured ? resolvePlugin(curation.featured.pluginId) : null;
 
+  /* Unconditional hook call (featured can be null) — usePluginInstallState
+     already tolerates an undefined entry, defaulting to "coming_soon", and
+     the card that would render it is gated on `featured` below anyway. */
+  const featuredInstallMachine = usePluginInstallState({
+    entry: featured?.entry,
+    installedIds,
+    installing: featured?.kind === "store" ? installingIds?.has(featured.entry.id) : false,
+    forceInstalled: featured?.kind === "catalog",
+    onInstall,
+    onOAuthConnect,
+    onCancelOAuth,
+    t,
+  });
+
   const essentials = (curation.essentials || [])
     .map((id) => ({ id, resolved: resolvePlugin(id) }))
     .filter((item) => item.resolved);
@@ -123,8 +240,38 @@ const PluginsDiscoverPage = ({
   }));
   const visibleCollections = collections.filter((col) => col.resolved.length > 0);
 
+  /* Restores the pre-T3 "Get all" collection action (dropped when
+     SettingsSection's row layout had no header-right slot for it; the C2
+     Collections row does) — batch logic unchanged from that version:
+     opensSetup entries (secrets / http-secret / custom recipe) can't be
+     installed silently, so they're skipped and the first skipped entry's
+     detail is opened once the rest are done. */
+  const handleGetAll = useCallback(
+    async (collection) => {
+      let firstSkipped = null;
+      for (const resolved of collection.resolved) {
+        if (resolved.kind !== "store") continue;
+        if (entryOpensSetup(resolved.entry, installedIds)) {
+          if (!firstSkipped) firstSkipped = resolved;
+          continue;
+        }
+        const state = entryInstallState(resolved.entry, installedIds);
+        if (state === "installable") {
+          await onInstall?.(resolved.entry);
+        } else if (state === "oauth") {
+          await onOAuthConnect?.(resolved.entry);
+        }
+      }
+      if (firstSkipped) openDetailFor(firstSkipped);
+    },
+    [installedIds, onInstall, onOAuthConnect, openDetailFor],
+  );
+
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
+  const headerLabelColor = isDark ? "#fff" : "#222";
+  const dividerAccent = isDark ? "#7c8cf8" : "#4a5bd8";
+  const collectionsBorder = isDark ? "rgba(255,255,255,0.055)" : "rgba(0,0,0,0.055)";
 
   /* Same install/OAuth error strip pattern as PluginsCategoriesPage
      (plugins_categories_page.js) — Discover had no visible failure surface
@@ -135,19 +282,56 @@ const PluginsDiscoverPage = ({
     </div>
   ) : null;
 
-  const renderRow = (resolved, key) => {
+  /* Matches SettingsSection's own header typography (appearance.js) so
+     Essentials/Collections read as the same family of section as the rest
+     of Settings/Plugins, plus an optional right-side accent link the shared
+     component has no slot for. */
+  const sectionHeader = (label, onSeeAll) => (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "12px 0 4px" }}>
+      <span
+        style={{
+          fontSize: 11,
+          fontFamily,
+          textTransform: "uppercase",
+          letterSpacing: "1.5px",
+          color: headerLabelColor,
+          opacity: 0.35,
+        }}
+      >
+        {label}
+      </span>
+      {onSeeAll && (
+        <Button
+          label={`${t("toolkit.see_all")} ›`}
+          onClick={onSeeAll}
+          style={{
+            marginLeft: "auto",
+            fontSize: 10.5,
+            fontWeight: 500,
+            fontFamily,
+            color: dividerAccent,
+            paddingVertical: 2,
+            paddingHorizontal: 6,
+            borderRadius: 6,
+          }}
+        />
+      )}
+    </div>
+  );
+
+  const renderEssentialCard = ({ id, resolved }) => {
     const presentation = toPluginPresentation(resolved.entry);
     return (
-      <PluginListRow
-        key={key}
-        icon={iconFor(resolved)}
+      <BrandOrbCard
+        key={id}
+        testId={`discover-grid-${id}`}
         isDark={isDark}
+        icon={iconFor(resolved)}
+        source={resolved.entry.source}
         name={presentation.name}
-        command={presentation.commands?.[0]?.name}
         description={presentation.tagline}
-        fallbackColor={presentation.sourceBadge?.color}
-        onOpenDetail={() => openDetailFor(resolved)}
-        testId={`discover-row-${key}`}
+        command={presentation.commands?.[0]?.name}
+        onClick={() => openDetailFor(resolved)}
       >
         <PluginInstallPill
           entry={resolved.entry}
@@ -161,11 +345,17 @@ const PluginsDiscoverPage = ({
           onOpenDetail={() => openDetailFor(resolved)}
           t={t}
         />
-      </PluginListRow>
+      </BrandOrbCard>
     );
   };
 
-  const hasFeaturedSection = Boolean(featured) || essentials.length > 0;
+  const handlePillClick = () => {
+    if (featuredInstallMachine.installState === "installed" || featuredInstallMachine.opensSetup) {
+      openDetailFor(featured);
+      return;
+    }
+    featuredInstallMachine.onInstall();
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -185,32 +375,63 @@ const PluginsDiscoverPage = ({
         </span>
       </div>
 
-      {/* ── Scrollable body — Featured section (curated pick + essentials)
-           then one SettingsSection per collection. The old "Get all"
-           collection-card action has no home in SettingsSection (no
-           header-right slot) — dropped per the plan's "trivially portable,
-           else drop it and note" clause rather than bolted onto a shared
-           component. ── */}
+      {/* ── Scrollable body — the aurora featured card (no header — it's the
+           page's one deliberately "always on" surface), an Essentials
+           brand-orb grid, then Collections rows. ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "8px 26px 26px" }}>
         {errorStrip}
 
-        {hasFeaturedSection && (
-          <SettingsSection title={t("toolkit.section_featured")}>
-            {/* M8: featured.pluginId and an essentials id can collide (both
-                are drawn from the same curated pluginId space) — prefix so
-                the two never produce the same React key/testId. */}
-            {featured && renderRow(featured, `featured-${curation.featured.pluginId}`)}
-            {essentials.map(({ id, resolved }) => renderRow(resolved, `essential-${id}`))}
-          </SettingsSection>
+        {featured && (
+          <div style={{ marginBottom: 8 }}>
+            <AuroraFeatureCard
+              testId="discover-featured-aurora"
+              isDark={isDark}
+              onClick={() => openDetailFor(featured)}
+              icon={iconFor(featured)}
+              kicker={curation.featured.kicker}
+              title={curation.featured.headline}
+              blurb={curation.featured.blurb}
+              pillLabel={featuredInstallMachine.stateLabel}
+              pillOpen={featuredInstallMachine.installState === "installed"}
+              pillDisabled={
+                !(featuredInstallMachine.installState === "installed" || featuredInstallMachine.canInstall)
+              }
+              pillInstalling={featuredInstallMachine.installing}
+              onPillClick={handlePillClick}
+            />
+          </div>
         )}
 
-        {visibleCollections.map((collection) => (
-          <SettingsSection key={collection.id} title={collection.title}>
-            {collection.resolved.map((resolved, idx) =>
-              renderRow(resolved, `${collection.id}-${resolved.entry.toolkitId || idx}`),
-            )}
-          </SettingsSection>
-        ))}
+        {essentials.length > 0 && (
+          <>
+            {sectionHeader(t("toolkit.section_essentials"), onNavigate ? () => onNavigate("store") : null)}
+            <div
+              data-testid="essentials-grid"
+              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, paddingTop: 8, marginBottom: 12 }}
+            >
+              {essentials.map(renderEssentialCard)}
+            </div>
+          </>
+        )}
+
+        {visibleCollections.length > 0 && (
+          <>
+            {sectionHeader(t("toolkit.section_collections"))}
+            <div style={{ borderTop: `1px solid ${collectionsBorder}` }}>
+              {visibleCollections.map((collection) => (
+                <CollectionRow
+                  key={collection.id}
+                  collection={collection}
+                  isDark={isDark}
+                  fontFamily={fontFamily}
+                  textColor={textColor}
+                  t={t}
+                  onGetAll={handleGetAll}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

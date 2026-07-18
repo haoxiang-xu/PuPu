@@ -498,6 +498,7 @@ export const PluginsShell = ({
       <PluginsDiscoverPage
         isDark={isDark}
         onOpenDetail={handleUnifiedOpenDetail}
+        onNavigate={handleNavigate}
         installedIds={installedMcpIds}
         onInstall={handleInstall}
         onOAuthConnect={handleOAuthConnect}

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import PluginsDiscoverPage from "./plugins_discover_page";
 import api from "../../../SERVICEs/api";
 import { loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
@@ -11,6 +11,16 @@ import { loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
 jest.mock("../components/toolkit_icon", () => ({
   __esModule: true,
   ToolkitIconFrame: () => <span data-testid="icon" />,
+}));
+
+/* AuroraBackground injects @keyframes into document.head and drifts via
+   CSS animation — neither renders meaningfully in jsdom, so it's mocked to
+   a plain marker per the plan's "mock AuroraBackground if it animates in
+   jsdom" note. This path is shared by aurora_feature_card.js (relative to
+   src/BUILTIN_COMPONENTs/background/aurora_background/aurora_background). */
+jest.mock("../../../BUILTIN_COMPONENTs/background/aurora_background/aurora_background", () => ({
+  __esModule: true,
+  default: () => <div data-testid="aurora-bg-mock" />,
 }));
 
 jest.mock("../../../SERVICEs/api", () => ({
@@ -112,11 +122,6 @@ const renderPage = async (props = {}) => {
   return rendered;
 };
 
-/* Finds the SettingsSection container for a given header text — the header
-   span's grandparent div is the section wrapper that also holds the body
-   (see appearance.js's SettingsSection: outer div > [header div, body div]). */
-const sectionFor = (headerText) => screen.getByText(headerText).closest("div").parentElement;
-
 describe("PluginsDiscoverPage — title", () => {
   test("renders the fixed 'Discover' title", async () => {
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
@@ -129,26 +134,113 @@ describe("PluginsDiscoverPage — title", () => {
   });
 });
 
-describe("PluginsDiscoverPage — Featured section", () => {
+describe("PluginsDiscoverPage — Featured aurora card", () => {
   beforeEach(() => {
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
     listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
     loadStoreCuration.mockReturnValue(FULL_CURATION);
   });
 
-  test("renders the curated featured plugin and the essentials as rows, in curation order", async () => {
+  test("renders the curated featured plugin's kicker/title/blurb on the aurora card", async () => {
     await renderPage();
 
-    const section = sectionFor("Featured");
-    const names = within(section)
-      .getAllByTestId(/^discover-row-/)
-      .map((row) => row.textContent);
-    /* Featured (Plan) first, then essentials in curated order (GitHub, then
-       Notion) — each row's textContent includes name + description, so
-       assert order via a prefix match. */
-    expect(names[0]).toMatch(/^Plan/);
-    expect(names[1]).toMatch(/^GitHub/);
-    expect(names[2]).toMatch(/^Notion/);
+    const card = screen.getByTestId("discover-featured-aurora");
+    expect(within(card).getByTestId("aurora-bg-mock")).toBeInTheDocument();
+    expect(within(card).getByText("Editor's pick")).toBeInTheDocument();
+    expect(within(card).getByText("Plan before you build")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Turn any request into a step-by-step plan you approve first."),
+    ).toBeInTheDocument();
+  });
+
+  test("an already-installed featured plugin (catalog kind) shows OPEN", async () => {
+    await renderPage();
+
+    const card = screen.getByTestId("discover-featured-aurora");
+    expect(within(card).getByText("OPEN")).toBeInTheDocument();
+  });
+
+  test("clicking the featured card opens its detail", async () => {
+    const onOpenDetail = jest.fn();
+    await renderPage({ onOpenDetail });
+
+    fireEvent.click(screen.getByTestId("discover-featured-aurora"));
+
+    expect(onOpenDetail).toHaveBeenCalledTimes(1);
+  });
+
+  test("an all-missing featured curation omits the aurora card entirely", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+    listMcpStoreEntries.mockReturnValue([]);
+    loadStoreCuration.mockReturnValue({
+      featured: {
+        pluginId: "does-not-exist",
+        kicker: "K",
+        headline: "Should Not Render",
+        blurb: "B",
+        gradient: ["#111111", "#222222"],
+      },
+      essentials: [],
+      collections: [],
+    });
+
+    await renderPage();
+
+    expect(screen.queryByTestId("discover-featured-aurora")).not.toBeInTheDocument();
+    expect(screen.queryByText("Should Not Render")).not.toBeInTheDocument();
+  });
+});
+
+describe("PluginsDiscoverPage — Essentials brand-orb grid", () => {
+  beforeEach(() => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
+    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
+    loadStoreCuration.mockReturnValue(FULL_CURATION);
+  });
+
+  test("renders one grid card per curated essential, each with a brand orb", async () => {
+    await renderPage();
+
+    const grid = screen.getByTestId("essentials-grid");
+    expect(within(grid).getByText("Notion")).toBeInTheDocument();
+    expect(within(grid).getByText("GitHub")).toBeInTheDocument();
+
+    const notionCard = screen.getByTestId("discover-grid-mcp.productivity.notion-remote");
+    expect(within(notionCard).getByTestId("brand-orb")).toBeInTheDocument();
+  });
+
+  test("renders the first command as a chip and a two-line-clamped description", async () => {
+    await renderPage();
+
+    const githubCard = screen.getByTestId("discover-grid-mcp.dev.github-remote");
+    expect(within(githubCard).getByText("/review-pr")).toBeInTheDocument();
+    expect(
+      within(githubCard).getByText("Repos, issues and pull requests, right in the chat."),
+    ).toBeInTheDocument();
+  });
+
+  test("clicking a grid card opens detail; clicking its pill does not also open detail via the card handler twice", async () => {
+    const onOpenDetail = jest.fn();
+    await renderPage({ onOpenDetail });
+
+    const notionCard = screen.getByTestId("discover-grid-mcp.productivity.notion-remote");
+    fireEvent.click(notionCard);
+    expect(onOpenDetail).toHaveBeenCalledWith("notion");
+  });
+
+  test("the Essentials header's 'See all' link navigates to the store page", async () => {
+    const onNavigate = jest.fn();
+    await renderPage({ onNavigate });
+
+    fireEvent.click(screen.getByText("See all ›"));
+
+    expect(onNavigate).toHaveBeenCalledWith("store");
+  });
+
+  test("with no onNavigate prop, no 'See all' link renders", async () => {
+    await renderPage();
+
+    expect(screen.queryByText("See all ›")).not.toBeInTheDocument();
   });
 });
 
@@ -159,12 +251,84 @@ describe("PluginsDiscoverPage — Collections", () => {
     loadStoreCuration.mockReturnValue(FULL_CURATION);
   });
 
-  test("renders one SettingsSection per curated collection, with its plugins as rows", async () => {
+  test("renders one collection row per curated collection, with its plugins' stacked icons and tagline", async () => {
     await renderPage();
 
-    const section = sectionFor("Web Research Kit");
-    expect(within(section).getByText("Notion")).toBeInTheDocument();
-    expect(within(section).getByText("GitHub")).toBeInTheDocument();
+    const row = screen.getByTestId("collection-web-research-kit");
+    expect(within(row).getByText("Web Research Kit")).toBeInTheDocument();
+    expect(within(row).getByText(/See, browse and extract\./)).toBeInTheDocument();
+    expect(within(row).getByText(/2 plugins/)).toBeInTheDocument();
+  });
+
+  test("an all-missing collection omits its row entirely", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+    listMcpStoreEntries.mockReturnValue([]);
+    loadStoreCuration.mockReturnValue({
+      featured: null,
+      essentials: [],
+      collections: [
+        {
+          id: "ghost-collection",
+          title: "Ghost",
+          blurb: "b",
+          gradient: ["#111111", "#222222"],
+          pluginIds: ["missing-a", "missing-b"],
+        },
+      ],
+    });
+
+    await renderPage();
+
+    expect(screen.queryByText("Ghost")).not.toBeInTheDocument();
+    expect(screen.getByText("Discover")).toBeInTheDocument();
+  });
+});
+
+describe("PluginsDiscoverPage — Get all skips Set-up entries", () => {
+  const SECRET_ENTRY = {
+    id: "browser-use-local",
+    toolkitId: "mcp.browser.browser-use-local",
+    toolkitName: "Browser Use",
+    toolkitDescription: "Local browser automation agent.",
+    source: "mcp",
+    category: "dev",
+    status: "available",
+    installable: true,
+    mcp: { transport: "stdio" },
+    secrets: [{ key: "OPENAI_API_KEY", label: "OpenAI API key" }],
+    tools: [],
+  };
+
+  test("installs the plain entries, skips the secrets-backed one, and opens its detail", async () => {
+    const onInstall = jest.fn(() => Promise.resolve());
+    const onOpenDetail = jest.fn();
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+    listMcpStoreEntries.mockReturnValue([GITHUB_ENTRY, SECRET_ENTRY]);
+    loadStoreCuration.mockReturnValue({
+      featured: null,
+      essentials: [],
+      collections: [
+        {
+          id: "mixed-kit",
+          title: "Mixed Kit",
+          blurb: "b",
+          gradient: ["#111111", "#222222"],
+          pluginIds: ["mcp.dev.github-remote", "mcp.browser.browser-use-local"],
+        },
+      ],
+    });
+
+    await renderPage({ onInstall, onOpenDetail });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("GET ALL"));
+    });
+
+    await waitFor(() => expect(onOpenDetail).toHaveBeenCalledWith("browser-use-local"));
+    expect(onInstall).toHaveBeenCalledTimes(1);
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({ toolkitId: "mcp.dev.github-remote" }),
+    );
   });
 });
 
@@ -194,7 +358,8 @@ describe("PluginsDiscoverPage — curation tolerance", () => {
 
     await renderPage();
 
-    expect(screen.queryByText("Featured")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("discover-featured-aurora")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("essentials-grid")).not.toBeInTheDocument();
     expect(screen.queryByText("Ghost")).not.toBeInTheDocument();
     expect(screen.getByText("Discover")).toBeInTheDocument();
   });
@@ -206,7 +371,7 @@ describe("PluginsDiscoverPage — curation tolerance", () => {
 
     await renderPage();
 
-    expect(screen.queryByText("Featured")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("discover-featured-aurora")).not.toBeInTheDocument();
     expect(screen.getByText("Discover")).toBeInTheDocument();
   });
 });
@@ -224,10 +389,9 @@ describe("PluginsDiscoverPage — vocabulary", () => {
   });
 });
 
-/* C2 regression: a secrets-backed featured entry's row pill reads "Set up"
-   — clicking it must open detail instead of firing a secretless install
-   (same opensSetup gating the old tile pill had, now in
-   PluginInstallPill). */
+/* C2 regression: a secrets-backed featured entry's aurora pill reads
+   "Set up" — clicking it must open detail instead of firing a secretless
+   install (same opensSetup gating the old tile/row pill had). */
 const SECRET_ENTRY = {
   id: "browser-use-local",
   toolkitId: "mcp.browser.browser-use-local",
@@ -243,7 +407,7 @@ const SECRET_ENTRY = {
 };
 
 describe("PluginsDiscoverPage — Set-up gating", () => {
-  test("a secrets-backed featured entry's row pill opens detail instead of installing", async () => {
+  test("a secrets-backed featured entry's aurora pill opens detail instead of installing", async () => {
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
     listMcpStoreEntries.mockReturnValue([SECRET_ENTRY]);
     const onInstall = jest.fn();
@@ -257,6 +421,28 @@ describe("PluginsDiscoverPage — Set-up gating", () => {
         gradient: ["#111111", "#222222"],
       },
       essentials: [],
+      collections: [],
+    });
+
+    await renderPage({ onInstall, onOpenDetail });
+
+    const pill = screen.getByText("Set up");
+    await act(async () => {
+      fireEvent.click(pill);
+    });
+
+    expect(onInstall).not.toHaveBeenCalled();
+    expect(onOpenDetail).toHaveBeenCalledWith("browser-use-local");
+  });
+
+  test("a secrets-backed essential entry's grid pill opens detail instead of installing", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+    listMcpStoreEntries.mockReturnValue([SECRET_ENTRY]);
+    const onInstall = jest.fn();
+    const onOpenDetail = jest.fn();
+    loadStoreCuration.mockReturnValue({
+      featured: null,
+      essentials: ["mcp.browser.browser-use-local"],
       collections: [],
     });
 
