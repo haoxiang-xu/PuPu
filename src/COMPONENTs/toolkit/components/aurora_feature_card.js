@@ -38,14 +38,18 @@ const INK_DONUTS = {
   /* Brighter IG-style pink-violet (CEO 2026-07-18o) — luminous gradient family. */
   colors: ["#ff9ee0", "#c77dff", "#ff70a6", "#9d6bff"],
   shape: "torus",
-  count: 5,
+  /* Perf trims (CEO 2026-07-18q): under blur 28 these are visually free —
+     3 donuts instead of 5, AO/SSS off (PuPu's shader carries an ao==0
+     fast-path that skips the 5-sample march), and 0.66 pixelRatio (~72%
+     fewer shaded pixels). Off-screen pause is built into the component. */
+  count: 3,
   smooth: 0.6,
   speed: 0.25,
   rotation: 0.3,
   space: 1,
   glossy: 0.68,
-  ao: 0.8,
-  sss: 0.45,
+  ao: 0,
+  sss: 0,
   blur: 28,
   lightAzimuth: 30,
   lightElevation: 55,
@@ -55,7 +59,7 @@ const INK_DONUTS = {
   bgBottom: "#2b1638",
   bgDepth: 4,
   bgFuse: false,
-  pixelRatio: 1.25,
+  pixelRatio: 0.66,
 };
 const INK_STATIC_FALLBACK =
   "conic-gradient(from 210deg at 60% 40%, #221230, #452a5e 30%, #ff9ee0 52%, #452a5e 68%, #c77dff 84%, #221230)";
