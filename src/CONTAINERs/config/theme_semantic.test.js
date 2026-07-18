@@ -359,7 +359,12 @@ describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
     const palette = resolveSemanticPalette("dark_mode", { preset: "ocean" });
     const out = applySemanticPaletteToTheme(base, palette, "dark_mode");
     expect(out.switch.backgroundColor_on).toBe(palette.accent);
-    expect(out.switch.backgroundColor).toBe("#CCCCCC");
+    /* off track follows the theme: 20% text (was a base pass-through gray
+       that could vanish against custom palettes) */
+    const [tr, tg, tb] = [1, 3, 5].map((i) =>
+      parseInt(palette.text.slice(i, i + 2), 16),
+    );
+    expect(out.switch.backgroundColor).toBe(`rgba(${tr},${tg},${tb}, 0.2)`);
     // thumb is a control chip → surface tier (light exact, dark #222222→#1e1e1e ≤4/255)
     expect(out.switch.color).toBe(palette.surface);
   });
