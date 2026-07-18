@@ -85,7 +85,7 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll 
         <div
           style={{
             fontSize: 12.5,
-            fontWeight: 550,
+            fontWeight: 500,
             color: textColor,
             fontFamily,
             overflow: "hidden",
@@ -119,7 +119,7 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll 
         style={{
           flexShrink: 0,
           fontSize: 11,
-          fontWeight: 700,
+          fontWeight: 500,
           fontFamily,
           paddingVertical: 3,
           paddingHorizontal: 13,
@@ -359,15 +359,15 @@ const PluginsDiscoverPage = ({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* ── Fixed header — 22px/600 title, no search (Discover is
+      {/* ── Fixed header — 22px/500 title, no search (Discover is
            curation-driven, not search-driven — Categories owns search). ── */}
       <div style={{ flexShrink: 0, padding: "20px 26px 0" }}>
         <span
           style={{
             fontSize: 22,
-            fontWeight: 600,
+            fontWeight: 500,
             letterSpacing: "-0.01em",
-            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
+            fontFamily,
             color: textColor,
           }}
         >
@@ -388,6 +388,7 @@ const PluginsDiscoverPage = ({
               isDark={isDark}
               onClick={() => openDetailFor(featured)}
               icon={iconFor(featured)}
+              source={featured.entry.source}
               kicker={curation.featured.kicker}
               title={curation.featured.headline}
               blurb={curation.featured.blurb}

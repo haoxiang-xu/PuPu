@@ -569,7 +569,7 @@ export const PluginsShell = ({
                         postfixText: {
                           marginLeft: "auto",
                           fontSize: 10.5,
-                          fontWeight: 600,
+                          fontWeight: 500,
                           background: isDark
                             ? "rgba(var(--pupu-text-rgb),0.1)"
                             : "rgba(var(--pupu-text-rgb),0.08)",
@@ -694,7 +694,7 @@ export const PluginsShell = ({
                   <span
                     style={{
                       fontSize: 15,
-                      fontWeight: 700,
+                      fontWeight: 500,
                       color: "var(--pupu-text)",
                     }}
                   >

@@ -13,7 +13,14 @@ const TRACK_PADDING = 3;
 const BUTTON_HEIGHT = 28;
 const CONTROL_HEIGHT = BUTTON_HEIGHT + TRACK_PADDING * 2;
 
-const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) => {
+const SegmentedControl = ({
+  sections,
+  selected,
+  onChange,
+  isDark,
+  trackStyle,
+  buttonFontWeight = 600,
+}) => {
   const { theme } = useContext(ConfigContext);
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
@@ -156,7 +163,7 @@ const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) 
               cursor: "pointer",
               fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: buttonFontWeight,
               lineHeight: 1,
               letterSpacing: "0.1px",
               color: isActive

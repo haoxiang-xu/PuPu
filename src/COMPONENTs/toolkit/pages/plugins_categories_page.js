@@ -41,7 +41,7 @@ const CatalogOpenPill = ({ isDark, label, onClick }) => {
       }}
       style={{
         fontSize: 11,
-        fontWeight: 700,
+        fontWeight: 500,
         paddingVertical: 3,
         paddingHorizontal: 13,
         borderRadius: 999,
@@ -258,9 +258,9 @@ const PluginsCategoriesPage = ({
         <span
           style={{
             fontSize: 22,
-            fontWeight: 600,
+            fontWeight: 500,
             letterSpacing: "-0.01em",
-            fontFamily: context.theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
+            fontFamily,
             color: textColor,
           }}
         >
@@ -283,6 +283,7 @@ const PluginsCategoriesPage = ({
             selected={typeFilter}
             onChange={setTypeFilter}
             isDark={isDark}
+            buttonFontWeight={500}
           />
 
           {isMcpCategory && (

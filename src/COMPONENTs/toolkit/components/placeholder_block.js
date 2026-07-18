@@ -37,8 +37,8 @@ const PlaceholderBlock = ({ icon, title, subtitle, isDark }) => {
       <div
         style={{
           fontSize: 14,
-          fontWeight: 600,
-          fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
+          fontWeight: 500,
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: isDark ? "rgba(var(--pupu-text-rgb),0.55)" : "rgba(var(--pupu-text-rgb),0.5)",
         }}
       >

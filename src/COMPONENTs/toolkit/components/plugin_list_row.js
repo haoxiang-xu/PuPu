@@ -80,7 +80,7 @@ const PluginListRow = ({
           <span
             style={{
               fontSize: 12.5,
-              fontWeight: 550,
+              fontWeight: 500,
               fontFamily,
               color: nameColor,
               overflow: "hidden",

@@ -82,7 +82,7 @@ const BrandOrbCard = ({
         <span
           style={{
             fontSize: 12,
-            fontWeight: 600,
+            fontWeight: 500,
             fontFamily,
             color: nameColor,
             overflow: "hidden",

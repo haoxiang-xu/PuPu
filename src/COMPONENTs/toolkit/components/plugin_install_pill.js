@@ -69,7 +69,7 @@ const PluginInstallPill = ({
         onClick={handleClick}
         style={{
           fontSize: 11,
-          fontWeight: 700,
+          fontWeight: 500,
           paddingVertical: 3,
           paddingHorizontal: 13,
           borderRadius: 999,

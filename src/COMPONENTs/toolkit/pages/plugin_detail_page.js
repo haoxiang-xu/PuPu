@@ -79,7 +79,7 @@ const ToolkitAutoApproveConfirmModal = ({ open, onClose, onConfirm, isDark }) =>
       <div
         style={{
           fontSize: 15,
-          fontWeight: 600,
+          fontWeight: 500,
           color: isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)",
           marginBottom: 8,
           lineHeight: 1.3,
@@ -172,7 +172,7 @@ const ToolkitDeleteConfirmModal = ({ open, onClose, onConfirm, isDark, toolkitLa
       <div
         style={{
           fontSize: 15,
-          fontWeight: 600,
+          fontWeight: 500,
           color: isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)",
           marginBottom: 8,
           lineHeight: 1.3,
@@ -610,7 +610,7 @@ const PluginDetailPage = ({
           />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 15, fontWeight: 650, letterSpacing: "-0.01em", fontFamily, color: textColor }}>
+              <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: "-0.01em", fontFamily, color: textColor }}>
                 {toolkitLabel}
               </span>
               {sourcePillLabel && (
@@ -668,7 +668,7 @@ const PluginDetailPage = ({
                   onClick={handlePillClick}
                   style={{
                     fontSize: 11.5,
-                    fontWeight: 600,
+                    fontWeight: 500,
                     fontFamily,
                     paddingVertical: 6,
                     paddingHorizontal: 16,
@@ -729,7 +729,7 @@ const PluginDetailPage = ({
                       style={{
                         fontFamily: "ui-monospace, Menlo, monospace",
                         fontSize: 12.5,
-                        fontWeight: 600,
+                        fontWeight: 500,
                         color: chipColor,
                       }}
                     >
@@ -766,7 +766,7 @@ const PluginDetailPage = ({
                     <span
                       style={{ width: 7, height: 7, borderRadius: "50%", background: warningColor, flexShrink: 0 }}
                     />
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: warningColor, fontFamily }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 500, color: warningColor, fontFamily }}>
                       {t("toolkit.store_needs_review_action")}
                     </span>
                   </span>
@@ -784,7 +784,7 @@ const PluginDetailPage = ({
                     }
                     style={{
                       fontSize: 11.5,
-                      fontWeight: 600,
+                      fontWeight: 500,
                       fontFamily,
                       color: warningColor,
                       paddingVertical: 4,
@@ -915,7 +915,7 @@ const PluginDetailPage = ({
                   <span
                     style={{
                       fontSize: 11,
-                      fontWeight: 600,
+                      fontWeight: 500,
                       fontFamily,
                       color: warningColor,
                       background: warningBg,
@@ -1004,7 +1004,7 @@ const PluginDetailPage = ({
                     color: warningColor,
                   }}
                 >
-                  <span style={{ fontSize: 12.5, fontWeight: 600, display: "block", marginBottom: 8, color: warningColor, fontFamily }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 500, display: "block", marginBottom: 8, color: warningColor, fontFamily }}>
                     {t("toolkit.store_recipe_diff")}
                   </span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
