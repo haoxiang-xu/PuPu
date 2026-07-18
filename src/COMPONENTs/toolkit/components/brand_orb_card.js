@@ -2,7 +2,6 @@ import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Card from "../../../BUILTIN_COMPONENTs/card/card";
 import { ToolkitIconFrame } from "./toolkit_icon";
-import { seedColorForIcon, solidFromSeed } from "../utils/warp_palette";
 
 /* BrandOrbCard — the Discover page's Essentials grid card. (Name is a
    fossil of the orb era; export/import surface kept stable.)
@@ -33,8 +32,9 @@ const BrandOrbCard = ({
   const { theme } = useContext(ConfigContext) || {};
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
-  const seed = seedColorForIcon(icon, source);
-  const surface = solidFromSeed(seed, { isDark, alpha: 0.32 });
+  /* CEO 2026-07-18i: small cards drop the per-plugin tint entirely —
+     neutral quiet surface; only the featured card keeps its stone hue. */
+  const surface = isDark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.035)";
 
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(28,28,33,0.88)";
   const descColor = isDark ? "rgba(255,255,255,0.60)" : "rgba(28,28,33,0.60)";
