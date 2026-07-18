@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
@@ -53,16 +53,16 @@ const INK_DONUTS = {
   blur: 28,
   lightAzimuth: 30,
   lightElevation: 55,
-  skyTint: "#241432",
-  groundTint: "#452a5e",
-  bgTop: "#221230",
-  bgBottom: "#2b1638",
+  skyTint: "#3a2452",
+  groundTint: "#6a4690",
+  bgTop: "#33204a",
+  bgBottom: "#40265c",
   bgDepth: 4,
   bgFuse: false,
   pixelRatio: 0.66,
 };
 const INK_STATIC_FALLBACK =
-  "conic-gradient(from 210deg at 60% 40%, #221230, #452a5e 30%, #ff9ee0 52%, #452a5e 68%, #c77dff 84%, #221230)";
+  "conic-gradient(from 210deg at 60% 40%, #33204a, #5a3a78 30%, #ff9ee0 52%, #5a3a78 68%, #c77dff 84%, #40265c)";
 
 const AuroraFeatureCard = ({
   isDark = false,
@@ -82,15 +82,6 @@ const AuroraFeatureCard = ({
   const { theme } = useContext(ConfigContext) || {};
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
-  /* WebGL init isn't instant — the canvas pops in a beat after mount, which
-     reads as a flash over the static fallback (CEO 2026-07-18p). Fade the
-     blob layer in over the fallback instead: opacity 0 on first paint,
-     eased to 1 on the next frame. */
-  const [bgVisible, setBgVisible] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setBgVisible(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
 
   /* An icon with its own complete look (an SVG/image file, or a builtin
      glyph that ships its own backgroundColor) needs no white backing plate;
@@ -128,7 +119,7 @@ const AuroraFeatureCard = ({
         max_tilt={7}
         scale={1.015}
         style={{
-          backgroundColor: "#221230",
+          backgroundColor: "#33204a",
           border: "none",
           cursor: onClick ? "pointer" : "default",
           /* NO overflow:hidden here — any overflow value other than visible
@@ -155,16 +146,10 @@ const AuroraFeatureCard = ({
           <div
             style={{ position: "absolute", inset: 0, background: INK_STATIC_FALLBACK }}
           />
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              opacity: bgVisible ? 1 : 0,
-              transition: "opacity 1100ms ease",
-            }}
-          >
-            <ShaderBlobBackground {...INK_DONUTS} style={{ zIndex: 0 }} />
-          </div>
+          {/* The component fades ITSELF in on its true first WebGL frame
+              (ready && visible gate + fadeMs) — that's the only fade that
+              can't flash. Our earlier wrapper fade raced it and popped. */}
+          <ShaderBlobBackground {...INK_DONUTS} fadeMs={1400} style={{ zIndex: 0 }} />
         </div>
         <Card.Layer depth={34} style={{ flexShrink: 0 }}>
           {iconHasOwnArtwork ? (
