@@ -2303,3 +2303,240 @@ describe("unchain service computer use surface", () => {
     expect(openExternal).not.toHaveBeenCalled();
   });
 });
+
+describe("unchain service computer use enable path", () => {
+  const originalFetch = global.fetch;
+  const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
+  const originalEnvComputerUse = process.env.PUPU_COMPUTER_USE;
+
+  beforeEach(() => {
+    // The spawn-env assertions inspect the exact env the service constructs;
+    // a stray ambient PUPU_COMPUTER_USE would leak through the `...process.env`
+    // spread and defeat the "cache null => key absent" check.
+    delete process.env.PUPU_COMPUTER_USE;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalEnvPython == null) {
+      delete process.env.UNCHAIN_PYTHON_BIN;
+    } else {
+      process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
+    }
+    if (originalEnvComputerUse == null) {
+      delete process.env.PUPU_COMPUTER_USE;
+    } else {
+      process.env.PUPU_COMPUTER_USE = originalEnvComputerUse;
+    }
+    jest.clearAllMocks();
+  });
+
+  // Each spawn returns a FRESH process so a crash-restart cycle (kill sets
+  // `killed = true` on the old one) does not poison the next waitForMisoReady.
+  const buildService = ({ authToken = "auth-token-123" } = {}) => {
+    const spawn = jest.fn(() => createFakeSpawnProcess());
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => authToken })),
+      },
+      net: createAvailableNet(),
+      shell: { openExternal: jest.fn() },
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+    return { service, spawn };
+  };
+
+  test("setComputerUseEnabled posts the desired flag to the sidecar config endpoint", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ enabled: true }),
+      });
+
+    const { service } = buildService();
+    await service.startMiso();
+    const result = await service.setComputerUseEnabled(true);
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:5879/computer-use/config",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-unchain-auth": "auth-token-123",
+        }),
+        body: JSON.stringify({ enabled: true }),
+      }),
+    );
+    expect(result).toEqual({ enabled: true });
+  });
+
+  test("setComputerUseEnabled sends enabled:false verbatim", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ enabled: false }),
+      });
+
+    const { service } = buildService();
+    await service.startMiso();
+    await service.setComputerUseEnabled(false);
+
+    expect(global.fetch.mock.calls[1][1].body).toBe(
+      JSON.stringify({ enabled: false }),
+    );
+  });
+
+  test("setComputerUseEnabled rejects any non-boolean without touching the sidecar", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+
+    const { service } = buildService();
+    await service.startMiso();
+
+    const badInputs = ["true", 1, 0, null, undefined, {}, []];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const input of badInputs) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(service.setComputerUseEnabled(input)).rejects.toThrow(
+        /strict boolean/i,
+      );
+    }
+    // Only the startMiso health ping happened — no config POST.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("setComputerUseEnabled throws a structured error when the auth token is missing", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+
+    const { service } = buildService({ authToken: "" });
+    await service.startMiso();
+
+    await expect(service.setComputerUseEnabled(true)).rejects.toMatchObject({
+      code: "missing_auth_token",
+    });
+    // No POST was attempted (still only the health ping).
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("setComputerUseEnabled surfaces sidecar POST failures as structured errors", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () =>
+          JSON.stringify({ error: { code: "cu_boom", message: "nope" } }),
+      });
+
+    const { service } = buildService();
+    await service.startMiso();
+
+    await expect(service.setComputerUseEnabled(true)).rejects.toMatchObject({
+      code: "cu_boom",
+    });
+  });
+
+  test("crash-restart re-pushes the cached desired flag with no renderer involved and carries it in spawn env", async () => {
+    global.fetch = jest
+      .fn()
+      // startMiso #1 health ping
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      // setComputerUseEnabled(true) POST
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ enabled: true }),
+      })
+      // startMiso #2 (post-crash) health ping
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      // resync POST after ready
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ enabled: true }),
+      });
+
+    const { service, spawn } = buildService();
+    await service.startMiso();
+    const firstProcess = spawn.mock.results[0].value;
+
+    // First boot carries no PUPU_COMPUTER_USE key: cache is still null.
+    expect(spawn.mock.calls[0][2].env).not.toHaveProperty("PUPU_COMPUTER_USE");
+
+    await service.setComputerUseEnabled(true);
+
+    // Simulate a sidecar crash: emit exit so the service tears down and clears
+    // its process handle (a real restart would be timer-driven; we drive the
+    // next startMiso directly to keep the test deterministic).
+    firstProcess.emit("exit", 1, null);
+
+    await service.startMiso();
+
+    // The resync POST fired purely from main-process cache — no IPC handler or
+    // bridge call took part.
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://127.0.0.1:5879/computer-use/config",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ enabled: true }),
+        headers: expect.objectContaining({
+          "x-unchain-auth": "auth-token-123",
+        }),
+      }),
+    );
+
+    // Belt-and-braces: the respawn env now carries the cached desired value.
+    expect(spawn.mock.calls[1][2].env.PUPU_COMPUTER_USE).toBe("1");
+
+    // Clear the pending restart timer scheduled by the exit handler.
+    service.stopMiso();
+  });
+
+  test("startMiso does not push config or set spawn env when the cache is null", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+
+    const { service, spawn } = buildService();
+    await service.startMiso();
+
+    // Only the health ping — resync is a no-op while the cache is null.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls[0][2].env).not.toHaveProperty("PUPU_COMPUTER_USE");
+  });
+});
