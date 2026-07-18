@@ -44,6 +44,13 @@ export const DETAIL_DEFAULTS = {
   borderAlphaStrong: BORDER_TIER_ALPHA.strong,
   borderAlphaMid: BORDER_TIER_ALPHA.mid,
   borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
+  /* frosted window (macOS vibrancy): shell surfaces go translucent so the
+     desktop shows through. Alphas are the P1-probe values the CEO picked;
+     only consulted when windowEffect is "frosted". */
+  windowEffect: "solid",
+  windowBackgroundAlpha: 0.45,
+  windowSidebarAlpha: 0.3,
+  windowSurfaceAlpha: 0.85,
 };
 
 export const resolveThemeDetails = (mode, options = {}) => {
@@ -94,8 +101,15 @@ export const resolveSemanticPalette = (mode, options = {}) => {
   return result;
 };
 
+const FROSTED_ALPHA_KEY = {
+  background: "windowBackgroundAlpha",
+  sidebar: "windowSidebarAlpha",
+  surface: "windowSurfaceAlpha",
+};
+
 export const semanticCssVars = (palette, detailsResolved) => {
   const vars = {};
+  const frosted = detailsResolved?.windowEffect === "frosted";
   for (const key of Object.keys(palette || {})) {
     const name = VAR_NAME[key];
     if (!name) continue;
@@ -103,6 +117,14 @@ export const semanticCssVars = (palette, detailsResolved) => {
     vars[`--pupu-${name}`] = value;
     const rgb = hexToRgbTriplet(value);
     if (rgb) {
+      /* frosted window: shell tiers emit translucent so vibrancy shows
+         through — components keep reading the same vars, unaware */
+      if (frosted && FROSTED_ALPHA_KEY[key]) {
+        const alpha =
+          detailsResolved[FROSTED_ALPHA_KEY[key]] ??
+          DETAIL_DEFAULTS[FROSTED_ALPHA_KEY[key]];
+        vars[`--pupu-${name}`] = `rgba(${rgb}, ${alpha})`;
+      }
       vars[`--pupu-${name}-rgb`] = rgb;
       if (key === "border") {
         const strongAlpha = detailsResolved
@@ -227,6 +249,14 @@ export const applySemanticCssVars = (palette, element, detailsResolved) => {
   const vars = semanticCssVars(palette, detailsResolved);
   for (const name of Object.keys(vars)) {
     el.style.setProperty(name, vars[name]);
+  }
+  /* Frosted window: the boot shell paints a SOLID body background (so boot
+     never flashes the desktop); once the theme applies, that solid layer
+     would block the native vibrancy forever — lift it. Solid mode restores
+     the boot background so the shell stays opaque edge to edge. */
+  if (typeof document !== "undefined" && document.body && !element) {
+    document.body.style.background =
+      detailsResolved?.windowEffect === "frosted" ? "transparent" : "";
   }
 };
 

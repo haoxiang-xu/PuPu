@@ -186,6 +186,10 @@ const createMainWindowService = ({
     };
 
     if (process.platform === "darwin") {
+      /* Frosted window: vibrancy must be wired at CONSTRUCTION — flipping
+         an opaque window transparent at runtime leaves stale GPU frames
+         ghosting through (P1 probe finding). Solid stays the default. */
+      const frosted = readThemePrefs(app, fs, path)?.windowEffect === "frosted";
       return {
         ...baseWindowOptions,
         frame: true,
@@ -194,7 +198,13 @@ const createMainWindowService = ({
           x: DARWIN_TRAFFIC_LIGHT_X,
           y: DARWIN_TRAFFIC_LIGHT_Y,
         },
-        backgroundColor: initialBgColor,
+        ...(frosted
+          ? {
+              vibrancy: "under-window",
+              visualEffectState: "followWindow",
+              backgroundColor: "#00000000",
+            }
+          : { backgroundColor: initialBgColor }),
         hasShadow: true,
         show: false,
       };
@@ -363,14 +373,36 @@ const createMainWindowService = ({
     const color =
       typeof payload === "string" ? payload : payload?.backgroundColor;
     const accent = typeof payload === "object" ? payload?.accent : undefined;
+    const windowEffect =
+      typeof payload === "object" ? payload?.windowEffect : undefined;
     if (typeof color === "string" && /^#[0-9a-fA-F]{6,8}$/.test(color)) {
-      mainWindow.setBackgroundColor(color);
       /* Persist so the next launch uses these colors immediately. */
       const prefs = { backgroundColor: color };
       if (typeof accent === "string" && /^#[0-9a-fA-F]{6,8}$/.test(accent)) {
         prefs.accent = accent;
       }
+      if (windowEffect === "frosted" || windowEffect === "solid") {
+        prefs.windowEffect = windowEffect;
+      }
       writeThemePrefs(app, fs, path, prefs);
+      /* Frosted (darwin only): keep the window surface transparent so the
+         construction-time vibrancy shows; painting an opaque color here
+         would kill it. Runtime enable is best-effort — full fidelity needs
+         the window to have been CREATED transparent (next launch). */
+      const frostedNow =
+        process.platform === "darwin" &&
+        (windowEffect === "frosted" ||
+          (windowEffect === undefined &&
+            readThemePrefs(app, fs, path)?.windowEffect === "frosted"));
+      if (frostedNow) {
+        mainWindow.setVibrancy("under-window");
+        mainWindow.setBackgroundColor("#00000000");
+      } else {
+        if (process.platform === "darwin" && windowEffect === "solid") {
+          mainWindow.setVibrancy(null);
+        }
+        mainWindow.setBackgroundColor(color);
+      }
     }
   };
 

@@ -105,6 +105,19 @@ export const writeThemeCustom = (custom) => {
   return theme;
 };
 
+/* Window effect is mode-independent — write it into both modes' details so
+   resolveThemeDetails sees it whichever mode is active. */
+export const writeThemeWindowEffect = (effect) => {
+  const theme = readThemeSettings();
+  const details = theme.details || { light_mode: {}, dark_mode: {} };
+  theme.details = {
+    light_mode: { ...(details.light_mode || {}), windowEffect: effect },
+    dark_mode: { ...(details.dark_mode || {}), windowEffect: effect },
+  };
+  persist(theme);
+  return theme;
+};
+
 export const writeThemeDetails = (details) => {
   const theme = readThemeSettings();
   theme.details = {
