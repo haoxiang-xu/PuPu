@@ -50,6 +50,7 @@ import {
   isRetryableDurableInteractionError,
   normalizePendingInteraction,
   prepareDurableInteractionResumeMessages,
+  shouldReconcileDurableResumeError,
 } from "./durable_interaction_recovery";
 import {
   enqueueExecutionCancel,
@@ -3048,10 +3049,33 @@ export const useChatStream = ({
           return false;
         }
 
+        const isCurrentReconciliationTarget = () => {
+          if (!isCurrentRun()) {
+            return false;
+          }
+          const currentInteraction =
+            durableInteractionByChatIdRef.current[targetChatId];
+          return Boolean(
+            currentInteraction &&
+              currentInteraction.sessionId === durableInteraction.sessionId &&
+              currentInteraction.interactionId ===
+                durableInteraction.interactionId,
+          );
+        };
+        if (!isCurrentReconciliationTarget()) {
+          return true;
+        }
+
         const errorMessage = error?.message || "Failed to resume this run";
+        const retryCurrentInteraction =
+          isRetryableDurableInteractionError(error);
+        const reconcileAuthoritativeInteraction =
+          shouldReconcileDurableResumeError(error);
         if (
-          durableResumeAttempt >= DURABLE_RESUME_MAX_RETRIES ||
-          !isRetryableDurableInteractionError(error)
+          (!retryCurrentInteraction && !reconcileAuthoritativeInteraction) ||
+          (retryCurrentInteraction &&
+            !reconcileAuthoritativeInteraction &&
+            durableResumeAttempt >= DURABLE_RESUME_MAX_RETRIES)
         ) {
           updateDurableInteractionForChat(targetChatId, {
             ...durableInteraction,
@@ -3083,7 +3107,10 @@ export const useChatStream = ({
           source: "chat-page",
         });
 
-        const nextAttempt = durableResumeAttempt + 1;
+        const nextAttempt = Math.min(
+          DURABLE_RESUME_MAX_RETRIES,
+          durableResumeAttempt + 1,
+        );
         updateDurableInteractionForChat(targetChatId, {
           ...durableInteraction,
           ownerMessageId: assistantMessageId,
@@ -3091,79 +3118,166 @@ export const useChatStream = ({
           resumeAttempt: nextAttempt,
           lastError: errorMessage,
         });
-        const existingTimer = durableResumeRetryTimersRef.current.get(
-          targetChatId,
-        );
-        if (existingTimer) {
-          clearTimeout(existingTimer);
-        }
-        let timerId = null;
-        timerId = setTimeout(async () => {
-          if (
-            durableResumeRetryTimersRef.current.get(targetChatId) === timerId
-          ) {
-            durableResumeRetryTimersRef.current.delete(targetChatId);
-          }
-          if (!isCurrentRun()) {
+
+        const failReconciliation = (message, resumeAttempt = nextAttempt) => {
+          if (!isCurrentReconciliationTarget()) {
             return;
           }
-          let refreshedInteraction = durableInteraction;
-          try {
-            const rawPending = await api.unchain.getPendingInteraction({
-              session_id: durableInteraction.sessionId,
-            });
-            if (!isCurrentRun()) {
+          updateDurableInteractionForChat(targetChatId, {
+            ...durableInteraction,
+            ownerMessageId: assistantMessageId,
+            status: "resume_failed",
+            resumeAttempt,
+            lastError: message,
+          });
+          if (activeChatIdRef.current === targetChatId) {
+            setStreamError(message);
+          }
+        };
+
+        const scheduleAuthoritativeLookup = (lookupAttempt, delayMs) => {
+          const existingTimer = durableResumeRetryTimersRef.current.get(
+            targetChatId,
+          );
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+          let timerId = null;
+          timerId = setTimeout(async () => {
+            if (
+              durableResumeRetryTimersRef.current.get(targetChatId) === timerId
+            ) {
+              durableResumeRetryTimersRef.current.delete(targetChatId);
+            }
+            if (!isCurrentReconciliationTarget()) {
+              return;
+            }
+
+            let rawPending;
+            try {
+              rawPending = await api.unchain.getPendingInteraction({
+                session_id: durableInteraction.sessionId,
+              });
+            } catch (lookupError) {
+              if (!isCurrentReconciliationTarget()) {
+                return;
+              }
+              const lookupErrorMessage =
+                lookupError?.message ||
+                "Failed to inspect the current durable interaction.";
+              if (lookupAttempt >= DURABLE_RESUME_MAX_RETRIES) {
+                failReconciliation(lookupErrorMessage);
+                return;
+              }
+              updateDurableInteractionForChat(targetChatId, {
+                ...durableInteraction,
+                ownerMessageId: assistantMessageId,
+                status: "retry_wait",
+                resumeAttempt: nextAttempt,
+                lastError: lookupErrorMessage,
+              });
+              scheduleAuthoritativeLookup(
+                lookupAttempt + 1,
+                durableInteractionRetryDelayMs(lookupAttempt),
+              );
+              return;
+            }
+
+            if (!isCurrentReconciliationTarget()) {
               return;
             }
             const refreshedPending = normalizePendingInteraction(
               rawPending,
               durableInteraction.sessionId,
             );
-            if (refreshedPending?.status === "none") {
+            if (!refreshedPending) {
+              const invalidRecordMessage =
+                "Unchain returned an invalid durable interaction record.";
+              if (lookupAttempt >= DURABLE_RESUME_MAX_RETRIES) {
+                failReconciliation(invalidRecordMessage);
+                return;
+              }
+              updateDurableInteractionForChat(targetChatId, {
+                ...durableInteraction,
+                ownerMessageId: assistantMessageId,
+                status: "retry_wait",
+                resumeAttempt: nextAttempt,
+                lastError: invalidRecordMessage,
+              });
+              scheduleAuthoritativeLookup(
+                lookupAttempt + 1,
+                durableInteractionRetryDelayMs(lookupAttempt),
+              );
+              return;
+            }
+            if (refreshedPending.status === "none") {
               clearDurableResumeStartedKeysForChat(targetChatId);
               clearAllPendingToolConfirmations(targetChatId);
+              executionIdentityByChatIdRef.current.delete(targetChatId);
               updateDurableInteractionForChat(targetChatId, null);
               return;
             }
-            if (
-              refreshedPending?.status === "receipt_recorded" &&
+
+            const sameRecordedInteraction =
+              refreshedPending.status === "receipt_recorded" &&
               refreshedPending.interactionId ===
-                durableInteraction.interactionId
-            ) {
-              refreshedInteraction = {
-                ...refreshedPending,
-                ownerMessageId: assistantMessageId,
-              };
+                durableInteraction.interactionId;
+            if (!sameRecordedInteraction) {
+              const lookup = durableInteractionLookupRef.current;
+              if (typeof lookup === "function") {
+                await lookup(
+                  targetChatId,
+                  durableInteraction.sessionId,
+                  {
+                    autoResume: true,
+                    runGeneration: activeRunGeneration,
+                    authoritativePending: rawPending,
+                  },
+                );
+                return;
+              }
+              failReconciliation(
+                "Unable to inspect the current durable interaction.",
+              );
+              return;
             }
-          } catch (_lookupError) {
-            // The resume stream already gave us a retryable lease error. If
-            // the reconciliation lookup is temporarily unavailable, keep the
-            // original durable receipt and let the bounded retry proceed.
-          }
-          if (!isCurrentRun()) {
-            return;
-          }
-          updateDurableInteractionForChat(targetChatId, {
-            ...refreshedInteraction,
-            ownerMessageId: assistantMessageId,
-            status: "resuming",
-            resumeAttempt: nextAttempt,
-            lastError: "",
-          });
-          void runTurnRequest({
-            mode: "resume_interaction",
-            chatId: targetChatId,
-            text: "",
-            attachments: [],
-            baseMessages: retryMessages,
-            clearComposer: false,
-            durableInteraction: refreshedInteraction,
-            durableResumeAttempt: nextAttempt,
-            durableOwnerMessageId: assistantMessageId,
-            runGeneration: activeRunGeneration,
-          });
-        }, durableInteractionRetryDelayMs(durableResumeAttempt));
-        durableResumeRetryTimersRef.current.set(targetChatId, timerId);
+
+            if (durableResumeAttempt >= DURABLE_RESUME_MAX_RETRIES) {
+              failReconciliation(errorMessage, durableResumeAttempt);
+              return;
+            }
+            const refreshedInteraction = {
+              ...refreshedPending,
+              ownerMessageId: assistantMessageId,
+            };
+            updateDurableInteractionForChat(targetChatId, {
+              ...refreshedInteraction,
+              status: "resuming",
+              resumeAttempt: nextAttempt,
+              lastError: "",
+            });
+            void runTurnRequest({
+              mode: "resume_interaction",
+              chatId: targetChatId,
+              text: "",
+              attachments: [],
+              baseMessages: retryMessages,
+              clearComposer: false,
+              durableInteraction: refreshedInteraction,
+              durableResumeAttempt: nextAttempt,
+              durableOwnerMessageId: assistantMessageId,
+              runGeneration: activeRunGeneration,
+            });
+          }, delayMs);
+          durableResumeRetryTimersRef.current.set(targetChatId, timerId);
+        };
+
+        scheduleAuthoritativeLookup(
+          0,
+          reconcileAuthoritativeInteraction
+            ? 0
+            : durableInteractionRetryDelayMs(durableResumeAttempt),
+        );
         return true;
       };
 
@@ -4753,6 +4867,7 @@ export const useChatStream = ({
         autoResume = true,
         lookupAttempt = 0,
         runGeneration: requestedRunGeneration = null,
+        authoritativePending = null,
       } = {},
     ) => {
       const normalizedChatId =
@@ -4781,9 +4896,11 @@ export const useChatStream = ({
       }
 
       try {
-        const rawPending = await api.unchain.getPendingInteraction({
-          session_id: normalizedSessionId,
-        });
+        const rawPending = isObject(authoritativePending)
+          ? authoritativePending
+          : await api.unchain.getPendingInteraction({
+              session_id: normalizedSessionId,
+            });
         const pending = normalizePendingInteraction(
           rawPending,
           normalizedSessionId,

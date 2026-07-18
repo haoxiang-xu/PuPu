@@ -433,6 +433,7 @@ const ChatInput = ({
           )}
           <FloatingTextField
             textarea_ref={inputRef}
+            aria_label={placeholder}
             value={value}
             min_rows={5}
             max_display_rows={9}

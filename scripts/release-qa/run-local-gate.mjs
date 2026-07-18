@@ -1,0 +1,142 @@
+#!/usr/bin/env node
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+import {
+  buildJobReport,
+  mergeReports,
+  renderMarkdown,
+  writeJson,
+  writeText,
+} from "./reporting.mjs";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const OUTPUT_DIR = path.join(ROOT, ".release-qa", "local");
+const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
+);
+
+const siblingUnchain = path.resolve(ROOT, "..", "unchain", "src");
+const pythonPath = process.env.PYTHONPATH ||
+  (fs.existsSync(siblingUnchain) ? siblingUnchain : "");
+
+const checks = [
+  {
+    name: "diff whitespace integrity",
+    command: "git diff --check",
+    cwd: ROOT,
+  },
+  {
+    name: "frontend tests",
+    command: "npm run test:frontend -- --passWithNoTests",
+    cwd: ROOT,
+    env: { CI: "true" },
+  },
+  {
+    name: "electron tests",
+    command: "npm run test:electron",
+    cwd: ROOT,
+  },
+  {
+    name: "python backend tests",
+    command: `${PYTHON} -m pytest tests/ -q --tb=short`,
+    cwd: path.join(ROOT, "unchain_runtime", "server"),
+    env: pythonPath ? { PYTHONPATH: pythonPath } : {},
+  },
+  {
+    name: "MCP registry validation",
+    command: "npm run validate:mcp",
+    cwd: ROOT,
+  },
+  {
+    name: "web production build",
+    command: "npm run build",
+    cwd: ROOT,
+    env: { CI: "true", PUPU_BUILD_VERSION: packageJson.version },
+  },
+  {
+    name: "release QA script tests",
+    command: "npm run test:release-qa",
+    cwd: ROOT,
+  },
+  {
+    name: "third-party notice script tests",
+    command: "npm run test:notices",
+    cwd: ROOT,
+  },
+  {
+    name: "Playwright Electron release smoke",
+    command: "npm run test:e2e",
+    cwd: ROOT,
+    env: {
+      PUPU_E2E_RELEASE: "1",
+      PUPU_E2E_PORT: "2917",
+      PUPU_E2E_WEB_URL: "http://127.0.0.1:2917/#",
+    },
+  },
+];
+
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
+const results = [];
+for (const check of checks) {
+  console.log(`\n[release-qa] ${check.name}`);
+  console.log(`[release-qa] $ ${check.command}`);
+  const startedAt = Date.now();
+  const result = spawnSync(check.command, {
+    cwd: check.cwd,
+    env: { ...process.env, ...(check.env || {}) },
+    shell: true,
+    stdio: "inherit",
+  });
+  const durationMs = Date.now() - startedAt;
+  const passed = result.status === 0 && !result.error;
+  results.push({
+    name: check.name,
+    command: check.command,
+    outcome: passed ? "success" : "failure",
+    details: `${durationMs}ms${result.error ? `; ${result.error.message}` : ""}`,
+  });
+}
+
+const jobReport = buildJobReport({
+  mode: "release",
+  version: packageJson.version,
+  platform: {
+    name: `local-${process.platform}-${process.arch}`,
+    os: os.platform(),
+    arch: os.arch(),
+    command: "npm run qa:release:deterministic",
+  },
+  git: {
+    sha: spawnSync("git", ["rev-parse", "HEAD"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    }).stdout?.trim(),
+    ref: "local",
+  },
+  checks: results,
+  artifacts: [
+    { name: "Playwright HTML report", path: "playwright-report/index.html" },
+    { name: "Playwright JSON report", path: "test-results/playwright/results.json" },
+  ].filter((artifact) => fs.existsSync(path.join(ROOT, artifact.path))),
+});
+const merged = mergeReports([jobReport]);
+
+writeJson(path.join(OUTPUT_DIR, "release-qa-job-report.json"), jobReport);
+writeJson(path.join(OUTPUT_DIR, "release-qa-report.json"), merged);
+writeText(path.join(OUTPUT_DIR, "release-qa-report.md"), renderMarkdown(merged));
+
+console.log(`\n[release-qa] report: ${path.relative(ROOT, OUTPUT_DIR)}/release-qa-report.md`);
+if (merged.deterministic_result.status === "failed") {
+  console.error("[release-qa] deterministic release gate failed");
+  process.exit(1);
+}
+
+console.log("[release-qa] deterministic release gate passed");

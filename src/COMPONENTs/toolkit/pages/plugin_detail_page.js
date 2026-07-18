@@ -436,9 +436,8 @@ const PluginDetailPage = ({
   const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
   const mutedColor = "rgba(var(--pupu-text-rgb),0.45)";
   const tertiaryColor = isDark ? "rgba(var(--pupu-text-rgb),0.30)" : "rgba(var(--pupu-text-rgb),0.35)";
-  const dividerColor = "rgba(var(--pupu-text-rgb),0.07)";
   const chipColor = isDark ? "#9aa8ff" : "#2563eb";
-  const dangerColor = "#E5484D";
+  const dangerColor = "var(--pupu-danger)";
   /* Warning tokens ported verbatim from store_toolkit_detail_panel.js —
      used for the needs-review approve affordance and the revoke action. */
   const warningColor = isDark ? "#fdba74" : "#c2410c";
@@ -675,7 +674,7 @@ const PluginDetailPage = ({
                     paddingHorizontal: 16,
                     borderRadius: 8,
                     color: "#fff",
-                    root: { background: "#4a5bd8" },
+                    root: { background: "var(--pupu-accent)" },
                     state: { disabled: { root: { opacity: 0.45, cursor: "not-allowed" }, background: {} } },
                   }}
                 />
@@ -765,7 +764,7 @@ const PluginDetailPage = ({
                 label={
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span
-                      style={{ width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }}
+                      style={{ width: 7, height: 7, borderRadius: "50%", background: warningColor, flexShrink: 0 }}
                     />
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: warningColor, fontFamily }}>
                       {t("toolkit.store_needs_review_action")}
@@ -1154,7 +1153,7 @@ const PluginDetailPage = ({
               <SemiSwitch
                 on={autoApprove}
                 set_on={handleAutoApproveToggle}
-                style={{ width: 56, height: 28, backgroundColor_on: "#E5484D" }}
+                style={{ width: 56, height: 28, backgroundColor_on: dangerColor }}
               />
             </SettingsRow>
           )}

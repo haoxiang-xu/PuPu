@@ -148,6 +148,7 @@ export const SettingsModalContent = ({ onClose }) => {
       >
         <Button
           prefix_icon="close"
+          ariaLabel="Close settings"
           onClick={onClose}
           style={{
             position: "absolute",

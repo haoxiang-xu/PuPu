@@ -31,6 +31,13 @@ const ControlledChatInput = ({
 const getTextarea = () => screen.getByPlaceholderText(/./i);
 
 describe("ChatInput slash-command menu wiring", () => {
+  test("exposes a stable accessible name for AI and screen-reader control", () => {
+    render(<ControlledChatInput />);
+
+    expect(getTextarea()).toHaveAttribute("aria-label");
+    expect(getTextarea().getAttribute("aria-label")).toBeTruthy();
+  });
+
   test("typing '/' while streaming opens the command menu with matching commands", () => {
     render(<ControlledChatInput isStreaming />);
     const textarea = getTextarea();

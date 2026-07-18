@@ -525,6 +525,9 @@ const SideMenu = () => {
         prefix_icon={
           onFragment === "main" ? "side_menu_left" : "side_menu_close"
         }
+        ariaLabel={
+          onFragment === "main" ? "Open sidebar" : "Close sidebar"
+        }
         style={{
           position: "absolute",
           top: 25,
@@ -545,6 +548,7 @@ const SideMenu = () => {
 
       <Button
         prefix_icon="edit_box"
+        ariaLabel="New chat"
         style={{
           position: "absolute",
           top: 25,

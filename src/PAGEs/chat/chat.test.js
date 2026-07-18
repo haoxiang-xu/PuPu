@@ -1623,6 +1623,337 @@ describe("ChatInterface stop flow", () => {
     );
   });
 
+  test("adopts a newer awaiting interaction instead of retrying a stale durable receipt", async () => {
+    jest.useFakeTimers();
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-superseded-receipt",
+        role: "user",
+        content: "Continue through both approvals",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const pendingA = buildPendingInteraction({
+      sessionId,
+      status: "receipt_recorded",
+      interactionId: "interaction-superseded-a",
+      callId: "call-superseded-a",
+    });
+    const pendingB = buildPendingInteraction({
+      sessionId,
+      status: "awaiting_response",
+      interactionId: "interaction-superseded-b",
+      callId: "call-superseded-b",
+    });
+    let authoritativePending = pendingA;
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? authoritativePending
+          : { status: "none", session_id: requestedSessionId },
+    });
+
+    try {
+      renderChat();
+      await waitForBoot();
+      await waitFor(() => {
+        expect(bridge.resumeRuns()).toHaveLength(1);
+      });
+
+      authoritativePending = pendingB;
+      act(() => {
+        bridge.resumeRuns()[0].handlers.onError({
+          code: "execution_lease_conflict",
+          message: "another executor advanced to the next interaction",
+        });
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(
+          lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+            pendingB.interaction_id
+          ],
+        ).toEqual(
+          expect.objectContaining({
+            confirmationId: pendingB.interaction_id,
+            callId: "call-superseded-b",
+          }),
+        );
+      });
+      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          pendingA.interaction_id
+        ],
+      ).toBeUndefined();
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.[
+          pendingB.interaction_id
+        ],
+      ).toEqual(
+        expect.objectContaining({
+          status: "idle",
+          resolved: false,
+        }),
+      );
+      expect(
+        findConfirmationFrames(
+          lastChatMessagesProps?.messages,
+          pendingB.interaction_id,
+        ).filter(({ frame }) => frame.type === "tool_call"),
+      ).toHaveLength(1);
+      expect(lastChatInputProps?.sendDisabled).toBe(true);
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
+  test("waits for an authoritative lookup retry instead of replaying a stale receipt", async () => {
+    jest.useFakeTimers();
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-authoritative-lookup-retry",
+        role: "user",
+        content: "Wait for the current approval state",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const pendingA = buildPendingInteraction({
+      sessionId,
+      status: "receipt_recorded",
+      interactionId: "interaction-lookup-retry-a",
+      callId: "call-lookup-retry-a",
+    });
+    const pendingB = buildPendingInteraction({
+      sessionId,
+      status: "awaiting_response",
+      interactionId: "interaction-lookup-retry-b",
+      callId: "call-lookup-retry-b",
+    });
+    let phase = "initial";
+    let recoveryLookupCount = 0;
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) => {
+        if (requestedSessionId !== sessionId) {
+          return { status: "none", session_id: requestedSessionId };
+        }
+        if (phase === "initial") {
+          return pendingA;
+        }
+        recoveryLookupCount += 1;
+        if (recoveryLookupCount === 1) {
+          throw new Error("pending interaction lookup unavailable");
+        }
+        return pendingB;
+      },
+    });
+
+    try {
+      renderChat();
+      await waitForBoot();
+      await waitFor(() => {
+        expect(bridge.resumeRuns()).toHaveLength(1);
+      });
+
+      phase = "recovering";
+      act(() => {
+        bridge.resumeRuns()[0].handlers.onError({
+          code: "execution_lease_conflict",
+          message: "another executor may have advanced the session",
+        });
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(recoveryLookupCount).toBe(1);
+      expect(bridge.resumeRuns()).toHaveLength(1);
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(
+          lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+            pendingB.interaction_id
+          ],
+        ).toBeDefined();
+      });
+      expect(recoveryLookupCount).toBe(2);
+      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(lastChatInputProps?.sendDisabled).toBe(true);
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
+  test("reconciles a missing stale interaction without surfacing a terminal error", async () => {
+    jest.useFakeTimers();
+    const interactionId = "interaction-stale-missing";
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-stale-missing",
+        role: "user",
+        content: "Continue after the stale approval disappears",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    let authoritativePending = buildPendingInteraction({
+      sessionId,
+      status: "receipt_recorded",
+      interactionId,
+      callId: "call-stale-missing",
+    });
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? authoritativePending
+          : { status: "none", session_id: requestedSessionId },
+    });
+
+    try {
+      renderChat();
+      await waitForBoot();
+      await waitFor(() => {
+        expect(bridge.resumeRuns()).toHaveLength(1);
+      });
+      const lookupCountBeforeError =
+        window.unchainAPI.getPendingInteraction.mock.calls.length;
+      authoritativePending = {
+        status: "none",
+        session_id: sessionId,
+      };
+
+      act(() => {
+        bridge.resumeRuns()[0].handlers.onError({
+          code: "interaction_not_found",
+          message: "No durable interaction found for this session and ID",
+        });
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(
+          window.unchainAPI.getPendingInteraction.mock.calls.length,
+        ).toBeGreaterThan(lookupCountBeforeError);
+      });
+      await waitFor(() => {
+        expect(lastChatInputProps?.sendDisabled).toBe(false);
+      });
+      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
+      ).toBeUndefined();
+      expect(
+        (lastChatMessagesProps?.messages || []).some(
+          (message) =>
+            message?.meta?.error?.code === "interaction_not_found" ||
+            (message?.traceFrames || []).some(
+              (frame) =>
+                frame?.type === "error" &&
+                frame?.payload?.code === "interaction_not_found",
+            ),
+        ),
+      ).toBe(false);
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
+  test("resumes a replacement recorded interaction exactly once after a stale resume error", async () => {
+    jest.useFakeTimers();
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-replacement-receipt",
+        role: "user",
+        content: "Continue with the replacement receipt",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const pendingA = buildPendingInteraction({
+      sessionId,
+      status: "receipt_recorded",
+      interactionId: "interaction-replacement-a",
+      callId: "call-replacement-a",
+    });
+    const pendingB = buildPendingInteraction({
+      sessionId,
+      status: "receipt_recorded",
+      interactionId: "interaction-replacement-b",
+      callId: "call-replacement-b",
+    });
+    let authoritativePending = pendingA;
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? authoritativePending
+          : { status: "none", session_id: requestedSessionId },
+    });
+
+    try {
+      renderChat();
+      await waitForBoot();
+      await waitFor(() => {
+        expect(bridge.resumeRuns()).toHaveLength(1);
+      });
+
+      authoritativePending = pendingB;
+      act(() => {
+        bridge.resumeRuns()[0].handlers.onError({
+          code: "interaction_not_found",
+          message: "No durable interaction found for this session and ID",
+        });
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(0);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(bridge.resumeRuns()).toHaveLength(2);
+      });
+      expect(
+        bridge.resumeRuns().map((run) => run.payload.interaction_id),
+      ).toEqual([pendingA.interaction_id, pendingB.interaction_id]);
+
+      await act(async () => {
+        jest.advanceTimersByTime(60_000);
+        await Promise.resolve();
+      });
+      expect(bridge.resumeRuns()).toHaveLength(2);
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
   test("stopping a durable retry wait cancels its scheduled resume", async () => {
     jest.useFakeTimers();
     const beyondAllRetryDelaysMs = 120_000;

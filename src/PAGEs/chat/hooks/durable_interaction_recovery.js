@@ -274,6 +274,11 @@ const RETRYABLE_DURABLE_ERROR_CODES = new Set([
   "stale_execution_lease",
 ]);
 
+const RECONCILE_DURABLE_RESUME_ERROR_CODES = new Set([
+  "interaction_not_found",
+  "interaction_superseded",
+]);
+
 export const isRetryableDurableInteractionError = (error) => {
   const code = normalizedString(error?.code);
   if (RETRYABLE_DURABLE_ERROR_CODES.has(code)) {
@@ -282,6 +287,20 @@ export const isRetryableDurableInteractionError = (error) => {
   const message = normalizedString(error?.message).toLowerCase();
   return [...RETRYABLE_DURABLE_ERROR_CODES].some((candidate) =>
     message.includes(candidate),
+  );
+};
+
+export const shouldReconcileDurableResumeError = (error) => {
+  const code = normalizedString(error?.code);
+  if (RECONCILE_DURABLE_RESUME_ERROR_CODES.has(code)) {
+    return true;
+  }
+  const message = normalizedString(error?.message).toLowerCase();
+  return (
+    message.includes("no durable interaction found for this session and id") ||
+    [...RECONCILE_DURABLE_RESUME_ERROR_CODES].some((candidate) =>
+      message.includes(candidate),
+    )
   );
 };
 

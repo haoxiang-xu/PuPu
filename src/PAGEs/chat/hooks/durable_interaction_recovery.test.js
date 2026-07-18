@@ -7,6 +7,7 @@ import {
   isRetryableDurableInteractionError,
   normalizePendingInteraction,
   prepareDurableInteractionResumeMessages,
+  shouldReconcileDurableResumeError,
 } from "./durable_interaction_recovery";
 
 const rawPending = {
@@ -155,5 +156,25 @@ describe("durable interaction recovery helpers", () => {
       15000,
       15000,
     ]);
+  });
+
+  test("reconciles stale resume errors without making them generic retries", () => {
+    expect(
+      shouldReconcileDurableResumeError({ code: "interaction_not_found" }),
+    ).toBe(true);
+    expect(
+      shouldReconcileDurableResumeError({
+        message: "No durable interaction found for this session and ID",
+      }),
+    ).toBe(true);
+    expect(
+      shouldReconcileDurableResumeError({ code: "interaction_superseded" }),
+    ).toBe(true);
+    expect(
+      shouldReconcileDurableResumeError({ code: "execution_lease_conflict" }),
+    ).toBe(false);
+    expect(
+      isRetryableDurableInteractionError({ code: "interaction_not_found" }),
+    ).toBe(false);
   });
 });
