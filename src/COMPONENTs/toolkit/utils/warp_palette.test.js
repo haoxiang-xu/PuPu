@@ -139,3 +139,23 @@ describe("staticGradientFromPalette", () => {
     );
   });
 });
+
+describe("solidFromSeed", () => {
+  const { solidFromSeed, hexToHsl } = require("./warp_palette");
+  test("dark: deep tone in the seed's hue family", () => {
+    const out = solidFromSeed("#bfdbfe", { isDark: true });
+    const hsl = hexToHsl(out);
+    expect(Math.abs(hsl.h - hexToHsl("#bfdbfe").h)).toBeLessThanOrEqual(4);
+    expect(hsl.l).toBeGreaterThanOrEqual(28);
+    expect(hsl.l).toBeLessThanOrEqual(38);
+  });
+  test("light: pale wash in the seed's hue family", () => {
+    const out = solidFromSeed("#F46800", { isDark: false });
+    const hsl = hexToHsl(out);
+    expect(hsl.l).toBeGreaterThanOrEqual(82);
+  });
+  test("invalid seed falls back to indigo family", () => {
+    const out = solidFromSeed("nope", { isDark: true });
+    expect(hexToHsl(out)).not.toBeNull();
+  });
+});

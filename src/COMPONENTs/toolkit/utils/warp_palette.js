@@ -90,3 +90,13 @@ export const warpPaletteFromSeed = (seed, { mode = "match", isDark = true } = {}
  */
 export const staticGradientFromPalette = (colors) =>
   `linear-gradient(135deg, ${colors[0]}, ${colors[1]} 30%, ${colors[2]} 55%, ${colors[3]} 72%, ${colors[0]} 95%)`;
+
+/* Solid featured-card surface from the seed (CEO direction 2026-07-18b:
+ * the flowing warp is out — one solid, icon-adjacent color per plugin).
+ * Dark theme sinks the seed to a deep muted tone that white copy reads on;
+ * light theme lifts it to a pale wash for dark ink. */
+export const solidFromSeed = (seed, { isDark = true } = {}) => {
+  const base = hexToHsl(seed) || hexToHsl(DEFAULT_SEED);
+  if (isDark) return hslToHex(base.h, Math.min(base.s * 0.8, 62), 33);
+  return hslToHex(base.h, Math.min(base.s * 0.55, 48), 87);
+};

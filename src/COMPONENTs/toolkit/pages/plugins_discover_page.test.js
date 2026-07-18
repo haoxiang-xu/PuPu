@@ -13,14 +13,6 @@ jest.mock("../components/toolkit_icon", () => ({
   ToolkitIconFrame: () => <span data-testid="icon" />,
 }));
 
-/* DisplacementWarp is a WebGL canvas — jsdom has no WebGL2 context, so the
-   real component would render null (its context-failure path). Mock it to a
-   plain marker so the featured card's warp layer is assertable. */
-jest.mock("../../../BUILTIN_COMPONENTs/background/displacement_warp/displacement_warp", () => ({
-  __esModule: true,
-  default: () => <div data-testid="warp-bg-mock" />,
-}));
-
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
@@ -143,7 +135,6 @@ describe("PluginsDiscoverPage — Featured aurora card", () => {
     await renderPage();
 
     const card = screen.getByTestId("discover-featured-aurora");
-    expect(within(card).getByTestId("warp-bg-mock")).toBeInTheDocument();
     expect(within(card).getByText("Editor's pick")).toBeInTheDocument();
     expect(within(card).getByText("Plan before you build")).toBeInTheDocument();
     expect(
