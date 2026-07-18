@@ -35,7 +35,8 @@ import {
    carries its own palette), copy stays white. Static conic gradient is the
    no-WebGL fallback. */
 const INK_DONUTS = {
-  colors: ["#5fb8d9", "#a78bfa", "#1c2240", "#3a5db0"],
+  /* Black-gold palette (CEO 2026-07-18m) — Embered-family golds on near-black. */
+  colors: ["#d4a850", "#a87530", "#3a2918", "#c9963a"],
   shape: "torus",
   count: 5,
   smooth: 0.6,
@@ -48,16 +49,16 @@ const INK_DONUTS = {
   blur: 28,
   lightAzimuth: 30,
   lightElevation: 55,
-  skyTint: "#0c0f15",
-  groundTint: "#1c2240",
-  bgTop: "#0c0f15",
-  bgBottom: "#0c0f15",
+  skyTint: "#0d0a07",
+  groundTint: "#2a1f12",
+  bgTop: "#0d0a07",
+  bgBottom: "#0d0a07",
   bgDepth: 4,
   bgFuse: false,
   pixelRatio: 1.25,
 };
 const INK_STATIC_FALLBACK =
-  "conic-gradient(from 210deg at 60% 40%, #0c0f15, #1c2240 30%, #5fb8d9 52%, #1c2240 68%, #a78bfa 84%, #0c0f15)";
+  "conic-gradient(from 210deg at 60% 40%, #0d0a07, #3a2918 30%, #d4a850 52%, #3a2918 68%, #c9963a 84%, #0d0a07)";
 
 const AuroraFeatureCard = ({
   isDark = false,
@@ -113,7 +114,7 @@ const AuroraFeatureCard = ({
         max_tilt={7}
         scale={1.015}
         style={{
-          backgroundColor: "#0c0f15",
+          backgroundColor: "#0d0a07",
           border: "none",
           cursor: onClick ? "pointer" : "default",
           /* NO overflow:hidden here — any overflow value other than visible
