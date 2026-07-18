@@ -61,9 +61,6 @@ const INK_DONUTS = {
   bgFuse: false,
   pixelRatio: 0.66,
 };
-const INK_STATIC_FALLBACK =
-  "conic-gradient(from 210deg at 60% 40%, #33204a, #5a3a78 30%, #ff9ee0 52%, #5a3a78 68%, #c77dff 84%, #40265c)";
-
 const AuroraFeatureCard = ({
   isDark = false,
   testId,
@@ -143,10 +140,12 @@ const AuroraFeatureCard = ({
             borderRadius: 13,
           }}
         >
-          <div
-            style={{ position: "absolute", inset: 0, background: INK_STATIC_FALLBACK }}
-          />
-          {/* The component fades ITSELF in on its true first WebGL frame
+          {/* No static-gradient stand-in — the "face swap" from gradient to
+              donuts read as a glitch (CEO 2026-07-18r). The card sits on its
+              plain violet base color and the blob layer fades in from
+              opacity 0 on its true first WebGL frame; no-WebGL environments
+              simply keep the plain base.
+              The component fades ITSELF in on its true first WebGL frame
               (ready && visible gate + fadeMs) — that's the only fade that
               can't flash. Our earlier wrapper fade raced it and popped. */}
           <ShaderBlobBackground {...INK_DONUTS} fadeMs={1400} style={{ zIndex: 0 }} />
