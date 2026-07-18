@@ -20,6 +20,7 @@ const UNCHAIN_PENDING_INTERACTION_ENDPOINT = "/chat/interactions/pending";
 const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_COMPUTER_USE_STATUS_ENDPOINT = "/computer-use/status";
+const UNCHAIN_COMPUTER_USE_CONFIG_ENDPOINT = "/computer-use/config";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
   "/models/custom-providers/test";
@@ -202,6 +203,11 @@ const createUnchainService = ({
   let unchainIsStopping = false;
   let unchainPreserveStatusOnStop = false;
   let unchainStartPromise = null;
+  // Tri-state desired computer-use flag. `null` = renderer has never expressed a
+  // preference (do not touch sidecar env or re-push on restart); `true`/`false`
+  // = last desired state, re-pushed after every ready transition so a sidecar
+  // crash-restart converges back to the user's choice with no renderer involved.
+  let lastComputerUseDesired = null;
 
   const unchainActiveStreams = new Map();
 
@@ -808,6 +814,74 @@ const createUnchainService = ({
         ok: false,
         error: error?.message || "Failed to open System Settings",
       };
+    }
+  };
+
+  // Runtime override POST to the sidecar. Assumes readiness has already been
+  // asserted by the caller (setComputerUseEnabled) or that we are inside the
+  // post-ready re-push path. Always sends the auth header; a missing token is a
+  // structured error rather than an unauthenticated write.
+  const pushComputerUseConfig = async (enabled) => {
+    if (!unchainAuthToken) {
+      const error = new Error(
+        "Computer use config request failed: missing auth token",
+      );
+      error.code = "missing_auth_token";
+      throw error;
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_COMPUTER_USE_CONFIG_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-unchain-auth": unchainAuthToken,
+        },
+        body: JSON.stringify({ enabled }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Computer use config request failed",
+      { enabled },
+      "Invalid computer use config response",
+    );
+  };
+
+  // Renderer-driven enable/disable of computer use. Updates the desired-state
+  // cache FIRST (so a crash-restart re-push converges even if this POST fails),
+  // then performs the authorized runtime override POST. Strict boolean only.
+  const setComputerUseEnabled = async (enabled) => {
+    if (typeof enabled !== "boolean") {
+      const error = new Error(
+        "setComputerUseEnabled requires a strict boolean enabled flag",
+      );
+      error.code = "invalid_argument";
+      throw error;
+    }
+
+    lastComputerUseDesired = enabled;
+    ensureMisoReady();
+    return pushComputerUseConfig(enabled);
+  };
+
+  // Fire-and-forget re-push of the cached desired state after a ready
+  // transition. Never throws into the startup path: on failure the sidecar
+  // defaults fail-closed (off) plus the spawn env carries the same value, so a
+  // dropped re-push degrades safely rather than breaking boot.
+  const resyncComputerUseConfig = async () => {
+    if (lastComputerUseDesired === null) {
+      return;
+    }
+    try {
+      await pushComputerUseConfig(lastComputerUseDesired);
+    } catch (error) {
+      emitMisoRuntimeLog(
+        "stderr",
+        `computer-use resync failed: ${error?.message || String(error)}`,
+      );
     }
   };
 
@@ -2455,6 +2529,14 @@ const createUnchainService = ({
           PYTHONIOENCODING: process.env.PYTHONIOENCODING || "utf-8",
           PYTHONUTF8: process.env.PYTHONUTF8 || "1",
           ...(devUnchainSourcePath ? { UNCHAIN_SOURCE_PATH: devUnchainSourcePath } : {}),
+          // Belt-and-braces for the desired computer-use flag. Set AFTER the
+          // process.env spread so an explicit user choice wins over any dev
+          // PUPU_COMPUTER_USE in the ambient env. "0" is not in the sidecar's
+          // truthy set, so OFF parses as disabled. Omitted entirely when the
+          // renderer has never expressed a preference (null cache).
+          ...(lastComputerUseDesired !== null
+            ? { PUPU_COMPUTER_USE: lastComputerUseDesired ? "1" : "0" }
+            : {}),
         },
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -2546,6 +2628,11 @@ const createUnchainService = ({
 
       unchainStatus = "ready";
       unchainStatusReason = "";
+
+      // Re-assert the user's desired computer-use state after every ready
+      // transition (first boot AND crash-restart), with no renderer involved.
+      // Non-fatal by design (see resyncComputerUseConfig).
+      await resyncComputerUseConfig();
     })();
 
     try {
@@ -3004,6 +3091,7 @@ const createUnchainService = ({
     stopMiso,
     getMisoStatusPayload,
     getComputerUseStatusPayload,
+    setComputerUseEnabled,
     openComputerUsePrivacySettings,
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,

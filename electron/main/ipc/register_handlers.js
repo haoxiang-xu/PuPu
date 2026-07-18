@@ -20,6 +20,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.OLLAMA.LIBRARY_SEARCH,
   CHANNELS.UNCHAIN.GET_STATUS,
   CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
+  CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
   CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
   CHANNELS.UNCHAIN.GET_MODEL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
@@ -163,6 +164,23 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS, async () =>
     unchainService.getComputerUseStatusPayload(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+    async (_event, payload = {}) => {
+      const enabled = payload?.enabled;
+      // Trust boundary: this channel is a privileged runtime override. Require a
+      // strict boolean and reject anything else outright — no truthy coercion,
+      // so a compromised renderer cannot smuggle enable via "true"/1/{}/etc.
+      if (typeof enabled !== "boolean") {
+        const error = new Error(
+          "set-computer-use-enabled requires a strict boolean `enabled`",
+        );
+        error.code = "invalid_argument";
+        throw error;
+      }
+      return unchainService.setComputerUseEnabled(enabled);
+    },
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
