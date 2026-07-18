@@ -182,6 +182,7 @@ const ChatBubble = ({
           {isUser ? (
             <UserMessageBody
               message={message}
+              theme={theme}
               isDark={isDark}
               isEditing={isEditing}
               userAttachments={userAttachments}

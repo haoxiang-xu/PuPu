@@ -1,5 +1,8 @@
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { FloatingTextField } from "../../../BUILTIN_COMPONENTs/input/textfield";
+import CommandExpansionBody, {
+  parseComposer,
+} from "./command_expansion_body";
 
 const UserMessageBody = ({
   message,
@@ -69,9 +72,24 @@ const UserMessageBody = ({
         gap: userAttachments.length > 0 ? 8 : 0,
       }}
     >
-      {typeof message.content === "string" && message.content ? (
-        <span>{message.content}</span>
-      ) : null}
+      {(() => {
+        // Composer sidecar present + valid → command-expansion render path.
+        // Any missing/malformed sidecar → parseComposer returns null → the
+        // permanent baseline `<span>{content}` below (contract §4, atomic).
+        const composerParts = parseComposer(message);
+        if (composerParts) {
+          return (
+            <CommandExpansionBody
+              parts={composerParts}
+              isDark={isDark}
+              theme={theme}
+            />
+          );
+        }
+        return typeof message.content === "string" && message.content ? (
+          <span>{message.content}</span>
+        ) : null;
+      })()}
       {userAttachments.length > 0 && (
         <div
           style={{
