@@ -93,7 +93,7 @@ describe("plugin_skill_sync", () => {
     );
   });
 
-  test("availability is true only when phase matches AND toolkit is selected", () => {
+  test("availability is phase-gated only — installed plugins' skills show regardless of selection", () => {
     const { commandRegistry, pluginSkillSync } = loadModules();
     pluginSkillSync.syncPluginSkills([
       makeToolkit("notion", "Notion", [
@@ -106,7 +106,7 @@ describe("plugin_skill_sync", () => {
       ]),
     ]);
 
-    // wrong phase, right toolkit
+    // wrong phase — hidden even with the toolkit selected
     expect(
       commandRegistry
         .listCommands(
@@ -116,7 +116,8 @@ describe("plugin_skill_sync", () => {
         .map((c) => c.name),
     ).toEqual([]);
 
-    // right phase, wrong toolkit
+    // right phase, toolkit NOT selected — still visible (using the command
+    // selects the plugin for that run only; see sourceToolkitId)
     expect(
       commandRegistry
         .listCommands(
@@ -124,17 +125,26 @@ describe("plugin_skill_sync", () => {
           "/compose",
         )
         .map((c) => c.name),
-    ).toEqual([]);
+    ).toEqual(["/compose"]);
 
-    // right phase, right toolkit
+    // right phase, no selection at all — visible too
     expect(
       commandRegistry
-        .listCommands(
-          { phase: "composer", selectedToolkits: ["notion"] },
-          "/compose",
-        )
+        .listCommands({ phase: "composer", selectedToolkits: [] }, "/compose")
         .map((c) => c.name),
     ).toEqual(["/compose"]);
+  });
+
+  test("registers sourceToolkitId so the send path can select the plugin for a single run", () => {
+    const { commandRegistry, pluginSkillSync } = loadModules();
+    pluginSkillSync.syncPluginSkills([
+      makeToolkit("notion", "Notion", [
+        { name: "compose", body: "b", phase: "composer" },
+      ]),
+    ]);
+    expect(commandRegistry.getCommand("/compose").sourceToolkitId).toBe(
+      "notion",
+    );
   });
 
   test("skills with a non-composer phase (streaming/always) register nothing — no send path expands them yet", () => {

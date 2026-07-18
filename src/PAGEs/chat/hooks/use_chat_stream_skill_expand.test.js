@@ -132,13 +132,17 @@ describe("composer-send expansion of plugin skill commands", () => {
       interject: jest.fn(async () => ({ resolved_channel: "queue" })),
     };
 
+    // Mirrors plugin_skill_sync's registration: phase-gated only. An
+    // installed plugin's skill is always usable from the composer; using it
+    // selects the plugin for that single run via sourceToolkitId.
     registerCommand({
       name: "/plan",
       description: "Plan the task",
       source: PLUGIN_SOURCE,
       sourceLabel: "Plankit",
+      sourceToolkitId: PLUGIN_TOOLKIT_ID,
       expandsTo: TEMPLATE,
-      availability: (ctx) => ctx.selectedToolkits.includes(PLUGIN_TOOLKIT_ID),
+      availability: (ctx) => ctx.phase === "composer",
     });
   });
 
@@ -199,7 +203,7 @@ describe("composer-send expansion of plugin skill commands", () => {
     });
   });
 
-  test("sends the token verbatim when its toolkit is not selected", async () => {
+  test("unselected toolkit: still expands, and the plugin rides THIS run's payload only", async () => {
     renderChat();
     await waitForReady();
 
@@ -212,9 +216,58 @@ describe("composer-send expansion of plugin skill commands", () => {
       expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
     });
 
+    // expansion no longer requires selection
     await waitFor(() => {
-      expect(lastUserMessage()?.content).toBe("/plan build something");
+      expect(lastUserMessage()?.content).toBe(
+        `${TEMPLATE}\n\nbuild something`,
+      );
     });
+
+    // the run's payload carries the owning plugin (ephemeral selection) on
+    // top of whatever the session already had selected (e.g. default "core")
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.toolkits).toContain(PLUGIN_TOOLKIT_ID);
+
+    // ...but the session's stored selection was NOT touched
+    const store = getChatsStore();
+    const chat = store.chatsById?.[store.activeChatId];
+    expect(chat?.selectedToolkits || []).not.toContain(PLUGIN_TOOLKIT_ID);
+  });
+
+  test("ephemeral selection reverts on the next turn (no command → no toolkit in payload)", async () => {
+    renderChat();
+    await waitForReady();
+
+    // turn 1: command from an unselected plugin
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/plan build something" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      window.unchainAPI.startStreamV2.mock.calls[0][0].options.toolkits,
+    ).toContain(PLUGIN_TOOLKIT_ID);
+
+    // finish turn 1
+    streamHandlers.onDone?.({});
+    await waitFor(() => {
+      expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
+    });
+
+    // turn 2: plain text — the plugin must NOT ride along anymore
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "plain follow-up" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+    const [secondPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
+    expect(secondPayload.options.toolkits || []).not.toContain(
+      PLUGIN_TOOLKIT_ID,
+    );
   });
 
   test("expands to exactly the template when the message is only the skill token", async () => {

@@ -21,6 +21,7 @@ describe("command_registry", () => {
       exclusiveGroup: "interject-channel",
       channel: "btw",
       sourceLabel: "",
+      sourceToolkitId: "",
     });
     expect(whileStreaming[1].icon).toBe("fyi");
     expect(whileStreaming[1].channel).toBe("fyi");
@@ -175,7 +176,7 @@ describe("exclusive groups & token scanning", () => {
     );
     // commands carry the registry channel so consumers never derive the
     // wire channel from the command NAME again
-    expect(commands).toEqual([{ name: "/fyi", channel: "fyi" }]);
+    expect(commands).toEqual([{ name: "/fyi", channel: "fyi", sourceToolkitId: "" }]);
     expect(body).toBe("check this and then /queue after");
   });
 
@@ -397,7 +398,7 @@ describe("expandsTo & expandCommands", () => {
       expandsTo: "Draft a plan first and wait for confirmation.",
     });
     const { commands, body } = expandCommands("/plan build a todo app", {});
-    expect(commands).toEqual([{ name: "/plan", channel: "" }]);
+    expect(commands).toEqual([{ name: "/plan", channel: "", sourceToolkitId: "" }]);
     expect(body).toBe(
       "Draft a plan first and wait for confirmation.\n\nbuild a todo app",
     );
@@ -408,7 +409,7 @@ describe("expandsTo & expandCommands", () => {
     const { commands, body } = expandCommands("/fyi tests are green", {
       isStreaming: true,
     });
-    expect(commands).toEqual([{ name: "/fyi", channel: "fyi" }]);
+    expect(commands).toEqual([{ name: "/fyi", channel: "fyi", sourceToolkitId: "" }]);
     expect(body).toBe("tests are green");
   });
 
@@ -416,7 +417,7 @@ describe("expandsTo & expandCommands", () => {
     const { registerCommand, expandCommands } = loadCommandRegistryModule();
     registerCommand({ name: "/p", description: "p", expandsTo: "PLAN." });
     expect(expandCommands("/p", {})).toEqual({
-      commands: [{ name: "/p", channel: "" }],
+      commands: [{ name: "/p", channel: "", sourceToolkitId: "" }],
       body: "PLAN.",
     });
   });

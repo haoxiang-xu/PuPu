@@ -13,8 +13,13 @@
  *   expandsTo:   skill.body with every "{tools}" occurrence baked to the
  *                joined tool list at registration time — the registry
  *                itself knows nothing about placeholders.
- *   availability: gated on the skill's declared phase AND the toolkit being
- *                selected in the current chat.
+ *   sourceToolkitId: the owning toolkit's normalized id — the send path
+ *                reads it to select the plugin for the single run the
+ *                command is used in (ephemeral, never persisted).
+ *   availability: gated on the skill's declared phase only. Installed
+ *                plugins' skills are ALWAYS visible in the command menu —
+ *                using one selects its plugin for that run alone, so
+ *                there is no "toolkit must be selected" gate here.
  */
 import { api } from "./api";
 import { createLogger } from "./console_logger";
@@ -81,12 +86,14 @@ export const syncPluginSkills = (toolkits) => {
         icon: "",
         source,
         sourceLabel,
+        sourceToolkitId: normalizedToolkitId,
         expandsTo: bakeExpandsTo(body, skill.tools),
         // skill.phase is guaranteed "composer" here — non-composer phases
-        // are filtered out above before reaching registerCommand.
-        availability: (ctx) =>
-          ctx.phase === skill.phase &&
-          ctx.selectedToolkits.includes(normalizedToolkitId),
+        // are filtered out above before reaching registerCommand. No
+        // selectedToolkits gate: installed plugins' skills always show in
+        // the menu; using one selects the plugin for that run only (the
+        // send path injects sourceToolkitId into that turn's payload).
+        availability: (ctx) => ctx.phase === skill.phase,
       });
     }
   }

@@ -29,6 +29,11 @@ import { createLogger } from "./console_logger";
  *     sourceLabel?: string   — human-readable attribution for the source
  *                              (e.g. a plugin's display name); "" when the
  *                              command carries no external attribution.
+ *     sourceToolkitId?: string — normalized toolkit id of the plugin that
+ *                              declared this command; "" for non-plugin
+ *                              commands. Send paths use it to select the
+ *                              owning plugin for the single run a command
+ *                              is used in (ephemeral, never persisted).
  *     expandsTo?:   string   — optional expansion target (default "")
  *   }
  */
@@ -83,6 +88,7 @@ export const registerCommand = ({
   channel = "",
   source = "builtin",
   sourceLabel = "",
+  sourceToolkitId = "",
   expandsTo = "",
 }) => {
   if (!name || typeof name !== "string" || !name.startsWith("/")) {
@@ -125,6 +131,7 @@ export const registerCommand = ({
     channel: typeof channel === "string" ? channel : "",
     source,
     sourceLabel: typeof sourceLabel === "string" ? sourceLabel : "",
+    sourceToolkitId: typeof sourceToolkitId === "string" ? sourceToolkitId : "",
     expandsTo: typeof expandsTo === "string" ? expandsTo : "",
   });
   return true;
@@ -170,7 +177,7 @@ export const listCommands = (ctx = {}, prefix = "") => {
       }
     })
     .map(
-      ({ name, description, icon, insertText, exclusiveGroup, channel, sourceLabel }) => ({
+      ({ name, description, icon, insertText, exclusiveGroup, channel, sourceLabel, sourceToolkitId }) => ({
         name,
         description,
         icon,
@@ -178,6 +185,7 @@ export const listCommands = (ctx = {}, prefix = "") => {
         exclusiveGroup,
         channel,
         sourceLabel,
+        sourceToolkitId,
       }),
     );
 };
@@ -225,6 +233,7 @@ export const findCommandTokens = (text, ctx = {}) => {
       icon: def.icon,
       exclusiveGroup: group,
       channel: def.channel || "",
+      sourceToolkitId: def.sourceToolkitId || "",
       active,
     });
   }
@@ -252,7 +261,11 @@ export const extractCommands = (text, ctx = {}) => {
   }
   body += text.slice(cursor);
   return {
-    commands: tokens.map((t) => ({ name: t.name, channel: t.channel })),
+    commands: tokens.map((t) => ({
+      name: t.name,
+      channel: t.channel,
+      sourceToolkitId: t.sourceToolkitId || "",
+    })),
     body,
   };
 };

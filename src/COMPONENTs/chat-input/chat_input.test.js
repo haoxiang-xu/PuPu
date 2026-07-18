@@ -225,16 +225,20 @@ describe("ChatInput slash-command menu wiring", () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
-  describe("plugin skill commands (selectedToolkits gating)", () => {
+  describe("plugin skill commands (always visible while installed)", () => {
     const PLUGIN_SOURCE = "plugin:plankit";
 
     beforeEach(() => {
+      // Mirrors plugin_skill_sync's registration: phase-gated only — an
+      // installed plugin's skills always show in the composer menu; using
+      // one selects the plugin for that run alone (via sourceToolkitId).
       registerCommand({
         name: "/plan",
         description: "Plan the task",
         source: PLUGIN_SOURCE,
         sourceLabel: "Plankit",
-        availability: (ctx) => ctx.selectedToolkits.includes("plankit"),
+        sourceToolkitId: "plankit",
+        availability: (ctx) => ctx.phase === "composer",
       });
     });
 
@@ -256,9 +260,20 @@ describe("ChatInput slash-command menu wiring", () => {
       expect(screen.getByText("/plan")).toBeInTheDocument();
     });
 
-    test("hides the plugin skill command when its toolkit is not selected", () => {
+    test("still lists the plugin skill command when its toolkit is NOT selected", () => {
       render(
         <ControlledChatInput isStreaming={false} selectedToolkits={[]} />,
+      );
+      const textarea = getTextarea();
+
+      fireEvent.change(textarea, { target: { value: "/" } });
+
+      expect(screen.getByText("/plan")).toBeInTheDocument();
+    });
+
+    test("hides the plugin skill command while streaming (composer phase only)", () => {
+      render(
+        <ControlledChatInput isStreaming={true} selectedToolkits={["plankit"]} />,
       );
       const textarea = getTextarea();
 

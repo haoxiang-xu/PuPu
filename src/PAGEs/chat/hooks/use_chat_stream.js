@@ -2047,6 +2047,9 @@ export const useChatStream = ({
       clearComposer = false,
       reuseUserMessage = null,
       missingAttachmentPayloadMode = "block",
+      /* Plugins pulled in by command usage for THIS run only (ephemeral —
+         never written to the session's selected toolkits). */
+      extraToolkits = [],
       memoryFallbackAttempted = false,
       forceHistoryFallback = false,
       historyOverride = null,
@@ -2209,6 +2212,13 @@ export const useChatStream = ({
       let effectiveThreadId = targetChatId;
       let effectiveMemoryNamespace = "";
       let effectiveToolkits = selectedToolkits;
+      if (Array.isArray(extraToolkits) && extraToolkits.length > 0) {
+        // Command-driven ephemeral selection: the run carries the plugin(s)
+        // whose commands were used, without persisting them to the session.
+        effectiveToolkits = [
+          ...new Set([...(selectedToolkits || []), ...extraToolkits]),
+        ];
+      }
       let effectiveWorkspaceIds = selectedWorkspaceIds;
       let effectiveAgentOrchestration = normalizeAgentOrchestration(
         agentOrchestration,
@@ -4453,6 +4463,7 @@ export const useChatStream = ({
                   clearComposer: false,
                   reuseUserMessage: normalizedReuseUserMessage,
                   missingAttachmentPayloadMode,
+                  extraToolkits,
                   memoryFallbackAttempted: true,
                   forceHistoryFallback: true,
                   historyOverride: retryHistory,
@@ -5314,14 +5325,25 @@ export const useChatStream = ({
       // the composer. Programmatic sends (interject new_run fallback / queue
       // relay) already carry a resolved body — expanding them again would
       // re-run command tokens that were already handled upstream.
-      const outgoingText = isProgrammaticSend
-        ? text
-        : (
-            expandCommands(text, {
-              isStreaming: false,
-              selectedToolkits: selectedToolkitsRef.current,
-            }).body || ""
-          ).trim();
+      let outgoingText = text;
+      let commandToolkits = [];
+      if (!isProgrammaticSend) {
+        const expansion = expandCommands(text, {
+          isStreaming: false,
+          selectedToolkits: selectedToolkitsRef.current,
+        });
+        outgoingText = (expansion.body || "").trim();
+        // Using a plugin's command selects that plugin for THIS run only —
+        // the ids ride the turn's payload and are never persisted to the
+        // session's selected toolkits (so the next turn reverts on its own).
+        commandToolkits = [
+          ...new Set(
+            expansion.commands
+              .map((cmd) => cmd.sourceToolkitId)
+              .filter(Boolean),
+          ),
+        ];
+      }
 
       if (!outgoingText && !hasAttachments) {
         return;
@@ -5335,6 +5357,7 @@ export const useChatStream = ({
         baseMessages: messagesRef.current,
         clearComposer: !isProgrammaticSend,
         missingAttachmentPayloadMode: "block",
+        extraToolkits: commandToolkits,
       });
     },
     [
