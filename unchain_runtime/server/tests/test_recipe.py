@@ -199,6 +199,96 @@ class ParseRecipeTests(unittest.TestCase):
         self.assertEqual(len(recipe.edges), 4)
         self.assertEqual(recipe.nodes[-1]["type"], "toolkit_pool")
 
+    def test_rejects_non_string_graph_edge_kind(self):
+        for invalid_kind in (["flow"], {"kind": "flow"}):
+            with self.subTest(invalid_kind=invalid_kind):
+                data = self._graph_recipe()
+                data["edges"][0]["kind"] = invalid_kind
+
+                with self.assertRaisesRegex(
+                    RecipeValidationError,
+                    "kind must be a string or null",
+                ):
+                    parse_recipe_json(data)
+
+    def test_rejects_non_string_graph_prompt_formats(self):
+        for invalid_format in (["soul"], {"format": "soul"}):
+            with self.subTest(location="agent", invalid_format=invalid_format):
+                data = self._graph_recipe()
+                data["nodes"][1]["override"]["prompt_format"] = invalid_format
+
+                with self.assertRaisesRegex(
+                    RecipeValidationError,
+                    "override.prompt_format must be soul or skeleton",
+                ):
+                    parse_recipe_json(data)
+
+            with self.subTest(location="subagent", invalid_format=invalid_format):
+                data = self._graph_recipe()
+                data["nodes"].append(
+                    {
+                        "id": "sp",
+                        "type": "subagent_pool",
+                        "subagents": [
+                            {
+                                "kind": "inline",
+                                "name": "Reviewer",
+                                "prompt_format": invalid_format,
+                                "template": {},
+                                "disabled_tools": [],
+                            }
+                        ],
+                    }
+                )
+                data["edges"].append(
+                    {
+                        "id": "a1sp",
+                        "kind": "attach",
+                        "source_node_id": "a1",
+                        "source_port_id": "attach_top",
+                        "target_node_id": "sp",
+                        "target_port_id": "attach_bot",
+                    }
+                )
+
+                with self.assertRaisesRegex(
+                    RecipeValidationError,
+                    "subagents.*prompt_format must be soul or skeleton",
+                ):
+                    parse_recipe_json(data)
+
+    def test_graph_inline_subagent_prompt_format_may_be_omitted(self):
+        data = self._graph_recipe()
+        data["nodes"].append(
+            {
+                "id": "sp",
+                "type": "subagent_pool",
+                "subagents": [
+                    {
+                        "kind": "inline",
+                        "name": "Reviewer",
+                        "template": {},
+                        "disabled_tools": [],
+                    }
+                ],
+            }
+        )
+        data["edges"].append(
+            {
+                "id": "a1sp",
+                "kind": "attach",
+                "source_node_id": "a1",
+                "source_port_id": "attach_top",
+                "target_node_id": "sp",
+                "target_port_id": "attach_bot",
+            }
+        )
+
+        recipe = parse_recipe_json(data)
+
+        subagent_pool = next(node for node in recipe.nodes if node["id"] == "sp")
+        self.assertNotIn("prompt_format", subagent_pool["subagents"][0])
+
     def test_rejects_branching_graph(self):
         data = self._graph_recipe()
         data["nodes"].insert(3, {"id": "a3", "type": "agent", "outputs": [{"name": "output", "type": "string"}]})

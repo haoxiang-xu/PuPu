@@ -3629,6 +3629,8 @@ def _content_to_text(content: object) -> str:
             if not isinstance(block, dict):
                 continue
             btype = block.get("type")
+            if not isinstance(btype, str):
+                continue
             if btype in _TEXT_BLOCK_TYPES:
                 text = block.get("text", "")
                 if text:
@@ -4629,7 +4631,8 @@ def _compile_recipe_graph_for_runtime(recipe: Any) -> Dict[str, Any]:
     attach_by_agent: Dict[str, list[dict]] = {}
     for raw_edge in edges:
         edge = dict(raw_edge)
-        if edge.get("kind") not in {"flow", "attach"}:
+        edge_kind = edge.get("kind")
+        if not isinstance(edge_kind, str) or edge_kind not in {"flow", "attach"}:
             edge["kind"] = (
                 "attach"
                 if _graph_port_kind(edge.get("source_port_id")) == "attach"
@@ -4731,7 +4734,13 @@ def _graph_subagent_entries(node: dict) -> tuple:
         elif item.get("kind") == "inline":
             name = str(item.get("name") or "").strip()
             template = item.get("template") if isinstance(item.get("template"), dict) else {}
-            prompt_format = item.get("prompt_format") if item.get("prompt_format") in {"soul", "skeleton"} else "soul"
+            raw_prompt_format = item.get("prompt_format")
+            prompt_format = (
+                raw_prompt_format
+                if isinstance(raw_prompt_format, str)
+                and raw_prompt_format in {"soul", "skeleton"}
+                else "soul"
+            )
             if name:
                 entries.append(
                     InlineSubagent(
@@ -4796,9 +4805,11 @@ def _resolve_graph_agent_prompt(agent_node: dict) -> str:
         else {}
     )
     prompt = override.get("prompt", "")
+    raw_prompt_format = override.get("prompt_format")
     prompt_format = (
-        override.get("prompt_format")
-        if override.get("prompt_format") in {"soul", "skeleton"}
+        raw_prompt_format
+        if isinstance(raw_prompt_format, str)
+        and raw_prompt_format in {"soul", "skeleton"}
         else "soul"
     )
     fake_recipe = SimpleNamespace(
@@ -6753,13 +6764,15 @@ def resume_chat_interaction_events(
             if not isinstance(event, dict):
                 return
             _execution_raise_if_cancelled(execution_token)
+            event_type = event.get("type")
+            if not isinstance(event_type, str) or not event_type:
+                return
             interaction_id_tracker.observe(event)
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
                 toolkit_meta_by_tool_name,
                 normalized_session_id,
             )
-            event_type = event.get("type")
             if event_type in {"human_input_requested", "run_max_iterations"}:
                 return
             if _is_bare_ask_user_question_tool_call(event):

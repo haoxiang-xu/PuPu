@@ -1,4 +1,5 @@
 import copy
+import inspect
 import json
 import os
 import sys
@@ -482,9 +483,15 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
     def test_create_memory_manager_can_enable_long_term_memory(self) -> None:
+        patched_vector_adapters = []
+
         def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
             del model, api_key_source, payload
             return (lambda texts: [[0.0] * 1536 for _ in texts], 1536)
+
+        def track_vector_compat_patch(adapter):
+            patched_vector_adapters.append(adapter)
+            return adapter
 
         modules, _fake_store_cls, fake_client, _delete_calls = (
             self._install_fake_unchain_memory_modules_for_manager(
@@ -496,6 +503,11 @@ class MemoryFactoryTests(unittest.TestCase):
             mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
+            mock.patch.object(
+                memory_factory,
+                "_patch_qdrant_similarity_search_compat",
+                side_effect=track_vector_compat_patch,
+            ), \
             mock.patch.object(
                 memory_factory,
                 "_get_or_create_qdrant_client",
@@ -545,6 +557,12 @@ class MemoryFactoryTests(unittest.TestCase):
             memory_factory._long_term_collection_prefix(
                 "openai:text-embedding-3-small:1536"
             ),
+        )
+        self.assertEqual(len(patched_vector_adapters), 2)
+        self.assertIs(patched_vector_adapters[0], manager.config.vector_adapter)
+        self.assertIs(
+            patched_vector_adapters[1],
+            manager.config.long_term.vector_adapter,
         )
 
     def test_long_term_collection_prefix_changes_with_embedding_signature(self) -> None:
@@ -1060,7 +1078,19 @@ class MemoryFactoryTests(unittest.TestCase):
                 "chat-1",
                 {
                     "messages": [{"role": "user", "content": "old"}],
-                    "execution_checkpoint": {"checkpoint_id": "stale"},
+                    "execution_checkpoint": {
+                        "checkpoint_id": "stale",
+                        "interaction_request": {
+                            "response_contract": {
+                                "type": "object",
+                                "properties": {
+                                    "modified_arguments": {
+                                        "type": ["object", "null"],
+                                    }
+                                },
+                            }
+                        },
+                    },
                 },
             )
 
@@ -1344,6 +1374,114 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(result, "committed")
         self.assertIs(manager.received_execution_fence, execution_fence)
 
+    def test_patch_memory_commit_forwards_future_keyword_and_preserves_signature(
+        self,
+    ) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class FakeManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.received_future_token = None
+
+            def commit_messages(
+                self,
+                *,
+                session_id: str,
+                full_conversation,
+                future_safety_token=None,
+            ):
+                del session_id, full_conversation
+                self.received_future_token = future_safety_token
+                return "committed"
+
+        manager = FakeManager()
+        original_signature = inspect.signature(manager.commit_messages)
+        memory_factory._patch_memory_commit_with_overlap(manager)
+        future_token = object()
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "user", "content": "new"}],
+            future_safety_token=future_token,
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertIs(manager.received_future_token, future_token)
+        self.assertEqual(inspect.signature(manager.commit_messages), original_signature)
+
+    def test_patch_memory_commit_forwards_durable_receipt_ledger_by_identity(
+        self,
+    ) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class FakeManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.received_ledger = None
+
+            def commit_messages(
+                self,
+                *,
+                session_id: str,
+                full_conversation,
+                durable_receipt_ledger=None,
+            ):
+                del session_id, full_conversation
+                self.received_ledger = durable_receipt_ledger
+                return "committed"
+
+        manager = FakeManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+        ledger = {"pending": {"receipt-1": {"receipt_id": "receipt-1"}}}
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "user", "content": "new"}],
+            durable_receipt_ledger=ledger,
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertIs(manager.received_ledger, ledger)
+
+    def test_patch_memory_commit_updates_semantic_args_inside_var_keyword(
+        self,
+    ) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class GenericManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.received_kwargs = None
+
+            def commit_messages(self, **kwargs):
+                self.received_kwargs = kwargs
+                return "committed"
+
+        manager = GenericManager()
+        manager.store.save(
+            "chat-test",
+            {"messages": [{"role": "user", "content": "existing"}]},
+        )
+        original_signature = inspect.signature(manager.commit_messages)
+        memory_factory._patch_memory_commit_with_overlap(manager)
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "assistant", "content": "new"}],
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(
+            manager.received_kwargs["full_conversation"],
+            [
+                {"role": "user", "content": "existing"},
+                {"role": "assistant", "content": "new"},
+            ],
+        )
+        self.assertIn("expected_revision", manager.received_kwargs)
+        self.assertEqual(inspect.signature(manager.commit_messages), original_signature)
+
     def test_patch_memory_commit_accepts_real_fenced_runtime_commit(self) -> None:
         from unchain.execution import ExecutionRuntime
         from unchain.memory import (
@@ -1374,6 +1512,60 @@ class MemoryFactoryTests(unittest.TestCase):
             stored_state["messages"],
             [{"role": "user", "content": "hello"}],
         )
+
+    def test_patch_memory_commit_persists_real_durable_receipt_with_fence(self) -> None:
+        try:
+            from unchain.tools.receipts import (
+                DURABLE_TOOL_RECEIPT_LEDGER_KEY,
+                TOOL_RECEIPT_JOURNAL_KEY,
+                build_durable_tool_receipt,
+                durable_tool_receipt_state_update,
+            )
+        except ImportError:
+            self.skipTest("installed Unchain predates durable tool receipts")
+
+        from unchain.execution import ExecutionRuntime
+        from unchain.memory import (
+            JsonFileSessionStore,
+            KernelMemoryRuntime,
+            MemoryConfig,
+            MemoryManager,
+        )
+
+        receipt = build_durable_tool_receipt(
+            source="tests.pupu_memory_contract",
+            receipt_id="receipt:pupu-memory-contract",
+            execution_id="chat-test",
+            logical_execution_id="logical:chat-test",
+            created_by_attempt_id="attempt:pupu-memory-contract",
+            tool_call_id="call:pupu-memory-contract",
+            request_digest="a" * 64,
+            result_digest="b" * 64,
+            payload={"job_id": "job:pupu-memory-contract"},
+        )
+        ledger = durable_tool_receipt_state_update(None, receipt)[
+            DURABLE_TOOL_RECEIPT_LEDGER_KEY
+        ]
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            store = JsonFileSessionStore(base_dir=data_dir)
+            manager = MemoryManager(config=MemoryConfig(), store=store)
+            memory_factory._patch_memory_commit_with_overlap(manager)
+            runtime = KernelMemoryRuntime.from_memory_manager(manager)
+
+            with ExecutionRuntime(store).scope("chat-test") as guard:
+                commit_info, stored_state = runtime.commit_transcript(
+                    session_id="chat-test",
+                    transcript=[{"role": "user", "content": "hello"}],
+                    memory_namespace=None,
+                    model="test-model",
+                    summary_text=None,
+                    durable_receipt_ledger=ledger,
+                    execution_fence=guard.fence,
+                )
+
+        self.assertEqual(commit_info["durable_tool_receipt_applied_count"], 1)
+        self.assertEqual(len(stored_state[TOOL_RECEIPT_JOURNAL_KEY]["applications"]), 1)
 
     def test_patch_memory_commit_isolates_concurrent_chat_execution_leases(self) -> None:
         from unchain.execution import ExecutionRuntime
@@ -1473,6 +1665,33 @@ class MemoryFactoryTests(unittest.TestCase):
 
         self.assertFalse(manager.commit_called)
 
+    def test_patch_memory_commit_rejects_unforwardable_durable_receipt(self) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class LegacyManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.commit_called = False
+
+            def commit_messages(self, *, session_id: str, full_conversation):
+                del session_id, full_conversation
+                self.commit_called = True
+
+        manager = LegacyManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "memory commit durable receipt ledger is unsupported",
+        ):
+            manager.commit_messages(
+                session_id="chat-test",
+                full_conversation=[{"role": "user", "content": "new"}],
+                durable_receipt_ledger={"pending": {"receipt-1": {}}},
+            )
+
+        self.assertFalse(manager.commit_called)
+
     def test_patch_memory_commit_keeps_legacy_no_fence_call_compatible(self) -> None:
         from unchain.memory import InMemorySessionStore
 
@@ -1538,6 +1757,75 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(manager._last_prepare_info["vector_adapter_enabled"], True)
         self.assertEqual(manager._last_prepare_info["vector_recall_count"], 0)
         self.assertEqual(manager._last_prepare_info["vector_recall_status"], "no_match")
+
+    def test_patch_memory_prepare_forwards_future_keyword_and_preserves_signature(
+        self,
+    ) -> None:
+        class FakeManager:
+            def __init__(self):
+                self.config = types.SimpleNamespace(vector_top_k=0, vector_adapter=None)
+                self._last_prepare_info = {}
+                self.received_future_token = None
+
+            def prepare_messages(
+                self,
+                session_id: str,
+                incoming,
+                *,
+                max_context_window_tokens: int,
+                model: str,
+                future_prepare_token=None,
+            ):
+                del session_id, max_context_window_tokens, model
+                self.received_future_token = future_prepare_token
+                return incoming
+
+        manager = FakeManager()
+        original_signature = inspect.signature(manager.prepare_messages)
+        memory_factory._patch_memory_prepare_with_diagnostics(manager)
+        future_token = object()
+
+        prepared = manager.prepare_messages(
+            session_id="chat-test",
+            incoming=[{"role": "user", "content": "hello"}],
+            max_context_window_tokens=1024,
+            model="test-model",
+            future_prepare_token=future_token,
+        )
+
+        self.assertEqual(prepared, [{"role": "user", "content": "hello"}])
+        self.assertIs(manager.received_future_token, future_token)
+        self.assertEqual(inspect.signature(manager.prepare_messages), original_signature)
+
+    def test_patch_memory_prepare_updates_incoming_inside_var_keyword(self) -> None:
+        class GenericManager:
+            def __init__(self):
+                self.config = types.SimpleNamespace(vector_top_k=0, vector_adapter=None)
+                self._last_prepare_info = {}
+                self.received_kwargs = None
+
+            def prepare_messages(self, **kwargs):
+                self.received_kwargs = copy.deepcopy(kwargs)
+                return kwargs["incoming"]
+
+        manager = GenericManager()
+        original_signature = inspect.signature(manager.prepare_messages)
+        memory_factory._patch_memory_prepare_with_diagnostics(manager)
+
+        prepared = manager.prepare_messages(
+            session_id="chat-test",
+            incoming=[
+                {"role": "User", "content": "kept"},
+                {"role": "tool", "content": "removed"},
+            ],
+            max_context_window_tokens=1024,
+            model="test-model",
+        )
+
+        expected = [{"role": "user", "content": "kept"}]
+        self.assertEqual(prepared, expected)
+        self.assertEqual(manager.received_kwargs["incoming"], expected)
+        self.assertEqual(inspect.signature(manager.prepare_messages), original_signature)
 
     def test_patch_memory_prepare_with_diagnostics_sets_search_failed_status(self) -> None:
         class FakeManager:
@@ -1877,26 +2165,129 @@ class MemoryFactoryTests(unittest.TestCase):
                 query: str,
                 k: int,
                 min_score: float | None = None,
+                future_search_token=None,
             ):
-                del session_id, query, k, min_score
-                raise AssertionError("Expected compatibility patch to replace this method")
+                self.future_search_token = future_search_token
+                collection = self._collection_name(session_id)
+                self._ensure_collection(collection)
+                query_vector = self._embed_fn([query])[0]
+                results = self._client.search(
+                    collection_name=collection,
+                    query_vector=query_vector,
+                    limit=k,
+                )
+                return [
+                    {"text": result.payload["text"], "score": result.score}
+                    for result in results
+                    if min_score is None or result.score >= min_score
+                ]
 
         adapter = FakeVectorAdapter()
+        original_method = adapter.similarity_search.__func__
         memory_factory._patch_qdrant_similarity_search_compat(adapter)
+        future_token = object()
 
         recalled = adapter.similarity_search(
             session_id="chat-123",
             query="why not 18.00",
             k=3,
             min_score=0.5,
+            future_search_token=future_token,
         )
 
         self.assertEqual(recalled, [{"text": "beta", "score": 0.82}])
+        self.assertIs(adapter.future_search_token, future_token)
+        self.assertIs(adapter.similarity_search.__func__, original_method)
         self.assertEqual(adapter._ensured, ["chat_chat-123"])
         self.assertEqual(len(adapter._client.calls), 1)
         self.assertEqual(adapter._client.calls[0]["collection_name"], "chat_chat-123")
         self.assertEqual(adapter._client.calls[0]["limit"], 3)
         self.assertIn("query", adapter._client.calls[0])
+
+    def test_patch_qdrant_similarity_search_compat_covers_long_term_adapter(
+        self,
+    ) -> None:
+        class FakeClient:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def query_points(self, **kwargs):
+                self.calls.append(kwargs)
+                return types.SimpleNamespace(
+                    points=[
+                        types.SimpleNamespace(
+                            payload={"text": "remembered"},
+                            score=0.91,
+                        )
+                    ]
+                )
+
+        class FakeLongTermVectorAdapter:
+            def __init__(self) -> None:
+                self._client = FakeClient()
+                self.future_search_token = None
+
+            def similarity_search(
+                self,
+                *,
+                namespace: str,
+                query: str,
+                k: int,
+                filters=None,
+                min_score: float | None = None,
+                future_search_token=None,
+            ):
+                del namespace, query, min_score
+                self.future_search_token = future_search_token
+                results = self._client.search(
+                    collection_name="long_term_test",
+                    query_vector=[0.12, 0.34],
+                    query_filter=filters,
+                    limit=k,
+                )
+                return [
+                    {"text": result.payload["text"], "score": result.score}
+                    for result in results
+                ]
+
+        adapter = FakeLongTermVectorAdapter()
+        original_method = adapter.similarity_search.__func__
+        memory_factory._patch_qdrant_similarity_search_compat(adapter)
+        future_token = object()
+
+        recalled = adapter.similarity_search(
+            namespace="user:test",
+            query="remember this",
+            k=2,
+            filters={"kind": "fact"},
+            min_score=0.5,
+            future_search_token=future_token,
+        )
+
+        self.assertEqual(recalled, [{"text": "remembered", "score": 0.91}])
+        self.assertIs(adapter.future_search_token, future_token)
+        self.assertIs(adapter.similarity_search.__func__, original_method)
+        self.assertEqual(adapter._client.calls[0]["query_filter"], {"kind": "fact"})
+        self.assertIn("query", adapter._client.calls[0])
+
+    def test_patch_qdrant_similarity_search_rejects_text_only_query_client(
+        self,
+    ) -> None:
+        class TextQueryOnlyClient:
+            def query(self, collection_name: str, query_text: str, **kwargs):
+                del collection_name, query_text, kwargs
+                return []
+
+        adapter = types.SimpleNamespace(
+            _client=TextQueryOnlyClient(),
+            similarity_search=lambda **_kwargs: [],
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "query.*text-oriented",
+        ):
+            memory_factory._patch_qdrant_similarity_search_compat(adapter)
 
 
 if __name__ == "__main__":

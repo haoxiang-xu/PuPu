@@ -10,6 +10,7 @@ Embedding provider resolution order:
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import inspect
 import importlib.util
@@ -966,6 +967,94 @@ def _filter_supported_constructor_kwargs(cls: Any, values: dict[str, Any]) -> di
     }
 
 
+def _accepts_var_keyword(parameters: dict[str, inspect.Parameter]) -> bool:
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+
+
+_BOUND_ARGUMENT_MISSING = object()
+
+
+def _bound_argument_value(
+    bound: inspect.BoundArguments,
+    name: str,
+    *,
+    default: Any = _BOUND_ARGUMENT_MISSING,
+) -> Any:
+    """Read a semantic argument from an explicit parameter or ``**kwargs``."""
+
+    if name in bound.arguments:
+        return bound.arguments[name]
+    for parameter_name, parameter in bound.signature.parameters.items():
+        if parameter.kind is not inspect.Parameter.VAR_KEYWORD:
+            continue
+        extras = bound.arguments.get(parameter_name)
+        if isinstance(extras, dict) and name in extras:
+            return extras[name]
+        break
+    if default is not _BOUND_ARGUMENT_MISSING:
+        return default
+    raise RuntimeError(f"wrapped runtime call is missing required argument {name!r}")
+
+
+def _set_bound_argument_value(
+    bound: inspect.BoundArguments,
+    name: str,
+    value: Any,
+) -> None:
+    """Update a semantic argument without losing a ``**kwargs`` bucket."""
+
+    parameter = bound.signature.parameters.get(name)
+    if parameter is not None and parameter.kind is not inspect.Parameter.VAR_KEYWORD:
+        bound.arguments[name] = value
+        return
+    for parameter_name, candidate in bound.signature.parameters.items():
+        if candidate.kind is not inspect.Parameter.VAR_KEYWORD:
+            continue
+        extras = bound.arguments.setdefault(parameter_name, {})
+        if not isinstance(extras, dict):  # pragma: no cover - inspect invariant
+            raise RuntimeError("wrapped runtime **kwargs payload is not a mapping")
+        extras[name] = value
+        return
+    raise RuntimeError(f"wrapped runtime call cannot update argument {name!r}")
+
+
+def _preserve_bound_method_signature(
+    wrapper: Callable[..., Any],
+    original_method: Callable[..., Any],
+) -> Callable[..., Any]:
+    """Keep runtime capability probes aligned with the wrapped method.
+
+    ``MethodType`` removes the first parameter when a function becomes bound.
+    Copying metadata from the original unbound function therefore preserves the
+    exact public signature, while the wrapper implementation can remain a
+    forward-compatible ``*args, **kwargs`` proxy.
+    """
+
+    original_function = getattr(original_method, "__func__", None)
+    if callable(original_function):
+        return functools.wraps(original_function)(wrapper)
+
+    try:
+        original_signature = inspect.signature(original_method)
+    except (TypeError, ValueError):
+        return wrapper
+    self_parameter = inspect.Parameter(
+        "self",
+        kind=inspect.Parameter.POSITIONAL_ONLY,
+    )
+    setattr(
+        wrapper,
+        "__signature__",
+        original_signature.replace(
+            parameters=(self_parameter, *original_signature.parameters.values())
+        ),
+    )
+    return wrapper
+
+
 def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
     similarity_search = getattr(vector_adapter, "similarity_search", None)
     if not callable(similarity_search):
@@ -979,94 +1068,57 @@ def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
 
     has_search = callable(getattr(client, "search", None))
     has_query_points = callable(getattr(client, "query_points", None))
-    has_query = callable(getattr(client, "query", None))
-    if has_search or (not has_query_points and not has_query):
+    if has_search:
         return vector_adapter
+    if not has_query_points:
+        raise RuntimeError(
+            "Qdrant vector search requires search() or query_points(); "
+            "query() is text-oriented and cannot safely replace vector search"
+        )
 
-    def _patched_similarity_search(
-        self,
-        *,
-        session_id: str,
-        query: str,
-        k: int,
-        min_score: float | None = None,
-    ) -> list[dict[str, Any]]:
-        collection = self._collection_name(session_id)
-        self._ensure_collection(collection)
-        query_vec = self._embed_fn([query])[0]
+    class _QdrantSearchCompatClient:
+        def __init__(self, raw_client: Any) -> None:
+            self._raw_client = raw_client
 
-        query_points_fn = getattr(self._client, "query_points", None)
-        query_fn = getattr(self._client, "query", None)
-        search_results: object
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self._raw_client, name)
 
-        if callable(query_points_fn):
+        def search(self, *args: Any, **kwargs: Any) -> list[Any]:
+            call_kwargs = dict(kwargs)
+            positional_names = ("collection_name", "query_vector")
+            if len(args) > len(positional_names):
+                raise TypeError(
+                    "Qdrant search compatibility accepts at most collection_name "
+                    "and query_vector positionally"
+                )
+            for name, value in zip(positional_names, args):
+                if name in call_kwargs:
+                    raise TypeError(f"Qdrant search received {name!r} twice")
+                call_kwargs[name] = value
+
+            if "query_vector" in call_kwargs:
+                query_vector = call_kwargs.pop("query_vector")
+            elif "query" in call_kwargs:
+                query_vector = call_kwargs.pop("query")
+            else:
+                raise TypeError("Qdrant search requires query_vector")
+            call_kwargs.setdefault("with_payload", True)
+
+            target = getattr(self._raw_client, "query_points", None)
+            if not callable(target):  # pragma: no cover - guarded above
+                raise AttributeError("Qdrant client has no query_points method")
+
             try:
-                search_results = query_points_fn(
-                    collection_name=collection,
-                    query=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-            except TypeError:
-                search_results = query_points_fn(
-                    collection_name=collection,
-                    query_vector=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-        elif callable(query_fn):
-            try:
-                search_results = query_fn(
-                    collection_name=collection,
-                    query=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-            except TypeError:
-                search_results = query_fn(
-                    collection_name=collection,
-                    query_vector=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-        else:  # pragma: no cover - guarded above
-            raise AttributeError(
-                "Qdrant client has neither search nor query_points/query methods"
-            )
+                target_parameters = inspect.signature(target).parameters
+            except (TypeError, ValueError):
+                target_parameters = {}
+            if "query_vector" in target_parameters and "query" not in target_parameters:
+                call_kwargs["query_vector"] = query_vector
+            else:
+                call_kwargs["query"] = query_vector
+            return _extract_qdrant_hits(target(**call_kwargs))
 
-        hits = _extract_qdrant_hits(search_results)
-        recalled: list[dict[str, Any]] = []
-        for hit in hits:
-            payload = _extract_qdrant_payload(hit)
-            score = _extract_qdrant_score(hit)
-            if min_score is not None:
-                if score is None or score < float(min_score):
-                    continue
-
-            item: dict[str, Any] = {}
-            messages = payload.get("messages")
-            if isinstance(messages, list):
-                item["messages"] = copy.deepcopy(messages)
-            text = payload.get("text")
-            if isinstance(text, str) and text.strip():
-                item["text"] = text
-            role = payload.get("role")
-            if isinstance(role, str) and role.strip():
-                item["role"] = role.strip().lower()
-            index = payload.get("index")
-            if isinstance(index, int):
-                item["index"] = index
-            if score is not None:
-                item["score"] = score
-            if item:
-                recalled.append(item)
-        return recalled
-
-    setattr(
-        vector_adapter,
-        "similarity_search",
-        MethodType(_patched_similarity_search, vector_adapter),
-    )
+    setattr(vector_adapter, "_client", _QdrantSearchCompatClient(client))
     setattr(vector_adapter, "_pupu_qdrant_search_compat_patch", True)
     return vector_adapter
 
@@ -1080,33 +1132,62 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
 
     original_commit = commit_method
     try:
-        commit_params = inspect.signature(original_commit).parameters
-    except Exception:
-        commit_params = {}
-    supports_execution_fence = "execution_fence" in commit_params or any(
-        parameter.kind is inspect.Parameter.VAR_KEYWORD
-        for parameter in commit_params.values()
-    )
+        commit_signature = inspect.signature(original_commit)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "memory commit overlap patch requires an inspectable commit_messages API"
+        ) from exc
+    commit_params = commit_signature.parameters
+    accepts_var_keyword = _accepts_var_keyword(commit_params)
+
+    legacy_optional_defaults: dict[str, Any] = {
+        "memory_namespace": None,
+        "model": None,
+        "long_term_extractor": None,
+        "expected_revision": None,
+        "summary_text": None,
+        "return_result": False,
+        "clear_execution_checkpoint_id": None,
+        "durable_receipt_ledger": None,
+        "execution_fence": None,
+    }
 
     def _patched_commit_messages(
         self,
-        session_id: str,
-        full_conversation: list[dict[str, Any]],
-        *,
-        memory_namespace: str | None = None,
-        model: str | None = None,
-        long_term_extractor: Callable[..., Any] | None = None,
-        expected_revision: int | None = None,
-        summary_text: str | None = None,
-        return_result: bool = False,
-        clear_execution_checkpoint_id: str | None = None,
-        execution_fence: Any = None,
+        *args: Any,
+        **kwargs: Any,
     ):
-        if execution_fence is not None and not supports_execution_fence:
-            raise RuntimeError(
-                "memory commit execution fencing is unsupported by the "
-                "installed unchain runtime"
-            )
+        call_kwargs = dict(kwargs)
+        if not accepts_var_keyword:
+            for name, neutral_default in legacy_optional_defaults.items():
+                if name not in call_kwargs or name in commit_params:
+                    continue
+                value = call_kwargs.pop(name)
+                if value is neutral_default:
+                    continue
+                if name == "execution_fence":
+                    message = (
+                        "memory commit execution fencing is unsupported by the "
+                        "installed unchain runtime"
+                    )
+                elif name == "durable_receipt_ledger":
+                    message = (
+                        "memory commit durable receipt ledger is unsupported by the "
+                        "installed unchain runtime"
+                    )
+                else:
+                    message = (
+                        f"memory commit option {name!r} is unsupported by the "
+                        "installed unchain runtime"
+                    )
+                raise RuntimeError(message)
+        try:
+            bound = commit_signature.bind(*args, **call_kwargs)
+        except TypeError as exc:
+            raise RuntimeError(f"memory commit contract mismatch: {exc}") from exc
+
+        session_id = str(_bound_argument_value(bound, "session_id") or "")
+        full_conversation = _bound_argument_value(bound, "full_conversation")
         store_snapshot = None
         if session_id:
             try:
@@ -1127,33 +1208,27 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
             existing_messages,
             full_conversation,
         )
-        commit_kwargs = {
-            "session_id": session_id,
-            "full_conversation": merged_conversation,
-        }
-        if "memory_namespace" in commit_params:
-            commit_kwargs["memory_namespace"] = memory_namespace
-        if "model" in commit_params:
-            commit_kwargs["model"] = model
-        if "long_term_extractor" in commit_params:
-            commit_kwargs["long_term_extractor"] = long_term_extractor
-        if "expected_revision" in commit_params:
-            commit_kwargs["expected_revision"] = (
-                expected_revision
-                if expected_revision is not None
-                else getattr(store_snapshot, "revision", None)
+        _set_bound_argument_value(bound, "full_conversation", merged_conversation)
+        if (
+            ("expected_revision" in commit_params or accepts_var_keyword)
+            and _bound_argument_value(
+                bound,
+                "expected_revision",
+                default=None,
             )
-        if "summary_text" in commit_params:
-            commit_kwargs["summary_text"] = summary_text
-        if "return_result" in commit_params:
-            commit_kwargs["return_result"] = return_result
-        if "clear_execution_checkpoint_id" in commit_params:
-            commit_kwargs["clear_execution_checkpoint_id"] = (
-                clear_execution_checkpoint_id
+            is None
+        ):
+            _set_bound_argument_value(
+                bound,
+                "expected_revision",
+                getattr(store_snapshot, "revision", None),
             )
-        if supports_execution_fence:
-            commit_kwargs["execution_fence"] = execution_fence
-        return original_commit(**commit_kwargs)
+        return original_commit(*bound.args, **bound.kwargs)
+
+    _patched_commit_messages = _preserve_bound_method_signature(
+        _patched_commit_messages,
+        original_commit,
+    )
 
     setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))
     setattr(manager, "_pupu_commit_overlap_patch", True)
@@ -1169,43 +1244,48 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
 
     original_prepare = prepare_method
     try:
-        prepare_params = inspect.signature(original_prepare).parameters
-    except Exception:
-        prepare_params = {}
+        prepare_signature = inspect.signature(original_prepare)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "memory diagnostics patch requires an inspectable prepare_messages API"
+        ) from exc
+    prepare_params = prepare_signature.parameters
+    accepts_var_keyword = _accepts_var_keyword(prepare_params)
+    legacy_optional_defaults: dict[str, Any] = {
+        "summary_generator": None,
+        "memory_namespace": None,
+        "provider": None,
+        "tool_resolver": None,
+        "supports_tools": None,
+    }
 
     def _patched_prepare_messages(
         self,
-        session_id: str,
-        incoming: list[dict[str, Any]],
-        *,
-        max_context_window_tokens: int,
-        model: str,
-        summary_generator: Callable[..., str] | None = None,
-        memory_namespace: str | None = None,
-        provider: str | None = None,
-        tool_resolver: Callable[..., Any] | None = None,
-        supports_tools: bool | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
+        call_kwargs = dict(kwargs)
+        if not accepts_var_keyword:
+            for name, neutral_default in legacy_optional_defaults.items():
+                if name not in call_kwargs or name in prepare_params:
+                    continue
+                value = call_kwargs.pop(name)
+                if value is neutral_default:
+                    continue
+                raise RuntimeError(
+                    f"memory prepare option {name!r} is unsupported by the "
+                    "installed unchain runtime"
+                )
+        try:
+            bound = prepare_signature.bind(*args, **call_kwargs)
+        except TypeError as exc:
+            raise RuntimeError(f"memory prepare contract mismatch: {exc}") from exc
+
+        session_id = str(_bound_argument_value(bound, "session_id") or "")
+        incoming = _bound_argument_value(bound, "incoming")
         clean_incoming = _sanitize_dialog_messages(incoming)
-
-        prepare_kwargs = {
-            "session_id": session_id,
-            "incoming": clean_incoming,
-            "max_context_window_tokens": max_context_window_tokens,
-            "model": model,
-        }
-        if "summary_generator" in prepare_params:
-            prepare_kwargs["summary_generator"] = summary_generator
-        if "memory_namespace" in prepare_params:
-            prepare_kwargs["memory_namespace"] = memory_namespace
-        if "provider" in prepare_params:
-            prepare_kwargs["provider"] = provider
-        if "tool_resolver" in prepare_params:
-            prepare_kwargs["tool_resolver"] = tool_resolver
-        if "supports_tools" in prepare_params:
-            prepare_kwargs["supports_tools"] = supports_tools
-
-        prepared = original_prepare(**prepare_kwargs)
+        _set_bound_argument_value(bound, "incoming", clean_incoming)
+        prepared = original_prepare(*bound.args, **bound.kwargs)
         prepared = _sanitize_dialog_messages(prepared)
 
         try:
@@ -1279,6 +1359,11 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
 
         return prepared
 
+    _patched_prepare_messages = _preserve_bound_method_signature(
+        _patched_prepare_messages,
+        original_prepare,
+    )
+
     setattr(manager, "prepare_messages", MethodType(_patched_prepare_messages, manager))
     setattr(manager, "_pupu_prepare_diagnostics_patch", True)
     return manager
@@ -1350,17 +1435,21 @@ def create_memory_manager_with_diagnostics(
         long_term_enabled = bool(options.get("memory_long_term_enabled"))
         long_term_config = None
         if long_term_enabled:
+            long_term_vector_adapter = QdrantLongTermVectorAdapter(
+                client=qdrant_client,
+                embed_fn=embed_fn,
+                vector_size=vector_size,
+                collection_prefix=_long_term_collection_prefix(
+                    embedding_signature
+                ),
+            )
+            long_term_vector_adapter = _patch_qdrant_similarity_search_compat(
+                long_term_vector_adapter
+            )
             long_term_kwargs = _filter_supported_constructor_kwargs(
                 LongTermMemoryConfig,
                 {
-                    "vector_adapter": QdrantLongTermVectorAdapter(
-                        client=qdrant_client,
-                        embed_fn=embed_fn,
-                        vector_size=vector_size,
-                        collection_prefix=_long_term_collection_prefix(
-                            embedding_signature
-                        ),
-                    ),
+                    "vector_adapter": long_term_vector_adapter,
                     "profile_base_dir": _long_term_profiles_dir(data_dir),
                     "vector_top_k": max(
                         0,

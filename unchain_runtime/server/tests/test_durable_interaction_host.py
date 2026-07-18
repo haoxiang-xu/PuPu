@@ -429,6 +429,72 @@ class DurableInteractionHostTests(unittest.TestCase):
             {"status": "none", "session_id": "empty-chat"},
         )
 
+    def test_cancel_pending_accepts_forward_compatible_var_keyword_runtime(self) -> None:
+        calls = []
+
+        class ForwardCompatibleRuntime:
+            def cancel_pending(self, session_id: str, **kwargs):
+                calls.append((session_id, kwargs))
+                return object()
+
+        with mock.patch.object(
+            host,
+            "_interaction_runtime",
+            return_value=ForwardCompatibleRuntime(),
+        ):
+            cancelled = host._cancel_pending_source_attempt(
+                "chat-cancel",
+                "attempt-cancel",
+                reason="user_stop",
+            )
+
+        self.assertTrue(cancelled)
+        self.assertEqual(
+            calls,
+            [
+                (
+                    "chat-cancel",
+                    {
+                        "source_run_id": "attempt-cancel",
+                        "reason": "user_stop",
+                    },
+                )
+            ],
+        )
+
+    def test_cancel_pending_prefers_explicit_legacy_attempt_over_var_keyword(
+        self,
+    ) -> None:
+        calls = []
+
+        class LegacyRuntime:
+            def cancel_pending(self, session_id: str, attempt_id: str, **kwargs):
+                calls.append((session_id, attempt_id, kwargs))
+                return object()
+
+        with mock.patch.object(
+            host,
+            "_interaction_runtime",
+            return_value=LegacyRuntime(),
+        ):
+            cancelled = host._cancel_pending_source_attempt(
+                "chat-cancel",
+                "attempt-cancel",
+                reason="user_stop",
+            )
+
+        self.assertTrue(cancelled)
+        self.assertEqual(
+            calls,
+            [
+                (
+                    "chat-cancel",
+                    "attempt-cancel",
+                    {"reason": "user_stop"},
+                )
+            ],
+        )
+
     def test_cancel_execution_is_idempotent_and_terminalizes_pending(self) -> None:
         request = self._seed_cancellable_request()
 

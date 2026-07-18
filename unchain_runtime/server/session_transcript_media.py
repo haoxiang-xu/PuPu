@@ -94,22 +94,32 @@ _RESULT_SCOPE_OTHER = "other"
 _RESULT_SCOPE_AMBIGUOUS = "ambiguous"
 
 
+def _non_empty_string(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
 def _tool_identity_scope(node: dict) -> str | None:
-    toolkit_id = str(node.get("toolkit_id") or "").strip()
+    scopes: set[str] = set()
+    toolkit_id = _non_empty_string(node.get("toolkit_id"))
     if toolkit_id:
-        return (
+        scopes.add(
             _RESULT_SCOPE_COMPUTER
             if toolkit_id == "builtin.computer"
             else _RESULT_SCOPE_OTHER
         )
-    tool_name = str(node.get("tool_name") or node.get("name") or "").strip()
-    if tool_name:
-        return (
-            _RESULT_SCOPE_COMPUTER
-            if tool_name == "computer"
-            else _RESULT_SCOPE_OTHER
-        )
-    return None
+    for key in ("tool_name", "name"):
+        tool_name = _non_empty_string(node.get(key))
+        if tool_name:
+            scopes.add(
+                _RESULT_SCOPE_COMPUTER
+                if tool_name == "computer"
+                else _RESULT_SCOPE_OTHER
+            )
+    if not scopes:
+        return None
+    if len(scopes) > 1:
+        return _RESULT_SCOPE_AMBIGUOUS
+    return next(iter(scopes))
 
 
 def _collect_tool_call_scopes(node: Any) -> dict[str, str]:
@@ -121,23 +131,49 @@ def _collect_tool_call_scopes(node: Any) -> dict[str, str]:
     """
     scopes: dict[str, str] = {}
 
-    def collect(value: Any) -> None:
+    def collect(value: Any, *, in_assistant_message: bool = False) -> None:
         if isinstance(value, dict):
-            if value.get("type") in {"tool_use", "tool_call", "function_call"}:
-                call_id = str(value.get("id") or value.get("call_id") or "").strip()
-                scope = _tool_identity_scope(value)
-                if call_id and scope:
-                    existing = scopes.get(call_id)
-                    scopes[call_id] = (
-                        scope
-                        if existing in {None, scope}
-                        else _RESULT_SCOPE_AMBIGUOUS
+            node_type = value.get("type")
+            role = value.get("role")
+
+            # Tool-result payloads and tool-role messages are untrusted data.
+            # Never let a result body forge a call envelope that changes whether
+            # an image is sanitized.
+            if node_type == "tool_result" or role == "tool":
+                return
+
+            child_in_assistant_message = in_assistant_message
+            if isinstance(role, str):
+                child_in_assistant_message = role == "assistant"
+
+            if isinstance(node_type, str) and node_type in {
+                "tool_use",
+                "tool_call",
+                "function_call",
+            }:
+                if child_in_assistant_message:
+                    call_id = _non_empty_string(value.get("id")) or _non_empty_string(
+                        value.get("call_id")
                     )
+                    scope = _tool_identity_scope(value)
+                    if call_id and scope:
+                        existing = scopes.get(call_id)
+                        scopes[call_id] = (
+                            scope
+                            if existing is None or existing == scope
+                            else _RESULT_SCOPE_AMBIGUOUS
+                        )
+                # A call envelope's input/arguments are arbitrary payloads, not
+                # additional trusted call envelopes.
+                return
             for child in value.values():
-                collect(child)
+                collect(
+                    child,
+                    in_assistant_message=child_in_assistant_message,
+                )
         elif isinstance(value, list):
             for child in value:
-                collect(child)
+                collect(child, in_assistant_message=in_assistant_message)
 
     collect(node)
     return scopes
@@ -151,15 +187,27 @@ def _result_container_scope(
     if not is_result:
         return None
     explicit_scope = _tool_identity_scope(node)
-    if explicit_scope:
-        return explicit_scope
-    call_id = str(
-        node.get("tool_use_id")
-        or node.get("tool_call_id")
-        or node.get("call_id")
-        or ""
-    ).strip()
-    return call_scopes.get(call_id, _RESULT_SCOPE_AMBIGUOUS)
+    call_ids = {
+        call_id
+        for call_id in (
+            _non_empty_string(node.get("tool_use_id")),
+            _non_empty_string(node.get("tool_call_id")),
+            _non_empty_string(node.get("call_id")),
+        )
+        if call_id
+    }
+    mapped_scope = None
+    if len(call_ids) > 1:
+        mapped_scope = _RESULT_SCOPE_AMBIGUOUS
+    elif call_ids:
+        mapped_scope = call_scopes.get(next(iter(call_ids)))
+    if explicit_scope and mapped_scope:
+        return (
+            explicit_scope
+            if explicit_scope == mapped_scope
+            else _RESULT_SCOPE_AMBIGUOUS
+        )
+    return explicit_scope or mapped_scope or _RESULT_SCOPE_AMBIGUOUS
 
 
 def _walk(
@@ -178,7 +226,14 @@ def _walk(
     tool call id, while host-native output may carry tool identity directly.
     """
     if isinstance(node, dict):
-        container_scope = _result_container_scope(node, call_scopes)
+        # The first result envelope owns provenance for its entire payload.
+        # Nested result-shaped dictionaries are arbitrary tool output and must
+        # never override an outer Computer or ambiguous scope.
+        container_scope = (
+            None
+            if in_any_tool_result
+            else _result_container_scope(node, call_scopes)
+        )
         is_result_container = container_scope is not None
         child_scope = result_scope
         if container_scope is not None:

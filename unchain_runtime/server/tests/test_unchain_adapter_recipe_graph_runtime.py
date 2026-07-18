@@ -60,6 +60,47 @@ class FakeAgent:
 
 
 class RecipeGraphRuntimeTests(unittest.TestCase):
+    def test_legacy_graph_membership_fields_fail_closed_without_type_error(self):
+        import unchain_adapter as ua
+
+        payload = _recipe_dict()
+        payload["edges"][0]["kind"] = ["flow"]
+        compiled = ua._compile_recipe_graph_for_runtime(
+            SimpleNamespace(
+                nodes=tuple(payload["nodes"]),
+                edges=tuple(payload["edges"]),
+            )
+        )
+        self.assertEqual(
+            [node["id"] for node in compiled["agents"]],
+            ["a1", "a2"],
+        )
+
+        prompt = ua._resolve_graph_agent_prompt(
+            {
+                "override": {
+                    "prompt": "legacy prompt",
+                    "prompt_format": ["soul"],
+                }
+            }
+        )
+        self.assertIn("legacy prompt", prompt)
+
+        entries = ua._graph_subagent_entries(
+            {
+                "subagents": [
+                    {
+                        "kind": "inline",
+                        "name": "Reviewer",
+                        "prompt_format": ["soul"],
+                        "template": {},
+                    }
+                ]
+            }
+        )
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].prompt_format, "soul")
+
     def test_seeded_default_graph_supports_exact_durable_flat_projection(self):
         import unchain_adapter as ua
 

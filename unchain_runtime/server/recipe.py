@@ -126,6 +126,10 @@ def _port_kind(port_id: Any) -> str:
 
 def _edge_kind(edge: dict) -> str:
     kind = edge.get("kind")
+    _require(
+        kind is None or isinstance(kind, str),
+        f"edge {edge.get('id')} kind must be a string or null",
+    )
     if kind in {"flow", "attach"}:
         return kind
     if _port_kind(edge.get("source_port_id")) == "attach" or _port_kind(edge.get("target_port_id")) == "attach":
@@ -146,6 +150,34 @@ def _normalize_graph_nodes(raw_nodes: Any) -> tuple[dict, ...]:
         node = dict(raw)
         node["type"] = _normalize_node_type(node.get("type"))
         _require(node["type"] in {"start", "end", "agent", "toolkit_pool", "subagent_pool"}, f"nodes[{idx}].type is invalid")
+        if node["type"] == "agent":
+            override = node.get("override")
+            if isinstance(override, dict) and "prompt_format" in override:
+                prompt_format = override.get("prompt_format")
+                _require(
+                    isinstance(prompt_format, str)
+                    and prompt_format in _VALID_PROMPT_FORMATS,
+                    f"nodes[{idx}].override.prompt_format must be soul or skeleton",
+                )
+        elif node["type"] == "subagent_pool":
+            subagents = node.get("subagents")
+            if isinstance(subagents, list):
+                for subagent_idx, subagent in enumerate(subagents):
+                    if (
+                        not isinstance(subagent, dict)
+                        or subagent.get("kind") != "inline"
+                        or "prompt_format" not in subagent
+                    ):
+                        continue
+                    prompt_format = subagent.get("prompt_format")
+                    _require(
+                        isinstance(prompt_format, str)
+                        and prompt_format in _VALID_PROMPT_FORMATS,
+                        "nodes[{}].subagents[{}].prompt_format must be soul or skeleton".format(
+                            idx,
+                            subagent_idx,
+                        ),
+                    )
         nodes.append(node)
     return tuple(nodes)
 

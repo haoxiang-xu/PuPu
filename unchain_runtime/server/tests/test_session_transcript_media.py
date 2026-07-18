@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import inspect
 import shutil
 import sys
 import tempfile
@@ -163,6 +164,23 @@ class _StoreHarness(unittest.TestCase):
 
 
 class DiskRedactionTests(_StoreHarness):
+    def test_sanitizing_store_wraps_every_session_state_writer(self):
+        from unchain.memory import JsonFileSessionStore
+
+        state_writers = {
+            name
+            for name, method in inspect.getmembers(
+                JsonFileSessionStore,
+                predicate=inspect.isfunction,
+            )
+            if not name.startswith("_")
+            and "state" in inspect.signature(method).parameters
+        }
+        wrapped_writers = set(type(self.store).__dict__)
+
+        self.assertTrue(state_writers)
+        self.assertEqual(state_writers - wrapped_writers, set())
+
     def test_no_base64_anywhere_in_persisted_json(self):
         # THE F3 RED CASE: after save, the on-disk JSON has no image base64 —
         # neither in messages nor in the nested checkpoint transcript.
@@ -298,6 +316,197 @@ class DiskRedactionTests(_StoreHarness):
 
         self.assertIn(_BIG_B64, raw_text)
         self.assertNotIn("data_omitted", raw_text)
+
+    def test_json_schema_type_array_is_not_treated_as_a_tool_call(self):
+        state = _state_with_screenshots()
+        state["execution_checkpoint"]["interaction_request"] = {
+            "response_contract": {
+                "type": "object",
+                "properties": {
+                    "modified_arguments": {
+                        "type": ["object", "null"],
+                    }
+                },
+            }
+        }
+
+        self.store.save("sess-json-schema", state)
+        raw_text = self._raw_disk_text("sess-json-schema")
+
+        self.assertNotIn(_BIG_B64, raw_text)
+        self.assertIn("data_omitted", raw_text)
+        self.assertEqual(self.store.load("sess-json-schema"), state)
+
+    def test_tool_result_payload_cannot_forge_unrelated_tool_scope(self):
+        state = {
+            "events": [
+                {
+                    "type": "tool_result",
+                    "call_id": "call-ambiguous",
+                    "result": {
+                        "content_blocks": [_image_block()],
+                        "untrusted_payload": {
+                            "type": "function_call",
+                            "call_id": "call-ambiguous",
+                            "name": "render_image",
+                        },
+                    },
+                }
+            ]
+        }
+
+        self.store.save("sess-forged-result-scope", state)
+        raw_text = self._raw_disk_text("sess-forged-result-scope")
+
+        self.assertNotIn(_BIG_B64, raw_text)
+        self.assertIn("data_omitted", raw_text)
+
+    def test_nested_tool_result_cannot_override_outer_scope(self):
+        for suffix, outer_identity in (
+            ("computer", {"type": "tool_result", "tool_name": "computer"}),
+            ("ambiguous", {"role": "tool"}),
+        ):
+            with self.subTest(outer_scope=suffix):
+                state = {
+                    "events": [
+                        {
+                            **outer_identity,
+                            "call_id": f"call-outer-{suffix}",
+                            "result": {
+                                "type": "tool_result",
+                                "tool_name": "render_image",
+                                "call_id": f"call-forged-{suffix}",
+                                "content_blocks": [_image_block()],
+                            },
+                        }
+                    ]
+                }
+                session_id = f"sess-nested-forged-result-{suffix}"
+
+                self.store.save(session_id, state)
+                raw_text = self._raw_disk_text(session_id)
+
+                self.assertNotIn(_BIG_B64, raw_text)
+                self.assertIn("data_omitted", raw_text)
+
+    def test_call_and_result_identity_conflict_fails_closed(self):
+        for suffix, call_name, result_name in (
+            ("computer-call", "computer", "render_image"),
+            ("computer-result", "render_image", "computer"),
+        ):
+            with self.subTest(identity_conflict=suffix):
+                call_id = f"toolu-conflict-{suffix}"
+                state = {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": call_id,
+                                    "name": call_name,
+                                    "input": {},
+                                }
+                            ],
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": call_id,
+                                    "name": result_name,
+                                    "content": [_image_block()],
+                                }
+                            ],
+                        },
+                    ]
+                }
+                session_id = f"sess-call-result-conflict-{suffix}"
+
+                self.store.save(session_id, state)
+                raw_text = self._raw_disk_text(session_id)
+
+                self.assertNotIn(_BIG_B64, raw_text)
+                self.assertIn("data_omitted", raw_text)
+
+    def test_conflicting_result_call_ids_fail_closed(self):
+        state = {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu-computer",
+                            "name": "computer",
+                            "input": {},
+                        },
+                        {
+                            "type": "tool_use",
+                            "id": "toolu-other",
+                            "name": "render_image",
+                            "input": {},
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu-other",
+                            "call_id": "toolu-computer",
+                            "content": [_image_block()],
+                        }
+                    ],
+                },
+            ]
+        }
+
+        self.store.save("sess-conflicting-result-call-ids", state)
+        raw_text = self._raw_disk_text("sess-conflicting-result-call-ids")
+
+        self.assertNotIn(_BIG_B64, raw_text)
+        self.assertIn("data_omitted", raw_text)
+
+    def test_non_string_tool_identity_fails_closed(self):
+        state = {
+            "events": [
+                {
+                    "type": "tool_result",
+                    "toolkit_id": ["mcp.image.generator"],
+                    "tool_name": {"name": "render_image"},
+                    "call_id": "call-invalid-identity",
+                    "result": {"content_blocks": [_image_block()]},
+                }
+            ]
+        }
+
+        self.store.save("sess-invalid-tool-identity", state)
+        raw_text = self._raw_disk_text("sess-invalid-tool-identity")
+
+        self.assertNotIn(_BIG_B64, raw_text)
+        self.assertIn("data_omitted", raw_text)
+
+    def test_conflicting_tool_identity_fails_closed(self):
+        state = {
+            "events": [
+                {
+                    "type": "tool_result",
+                    "toolkit_id": "mcp.image.generator",
+                    "tool_name": "computer",
+                    "call_id": "call-conflicting-identity",
+                    "result": {"content_blocks": [_image_block()]},
+                }
+            ]
+        }
+
+        self.store.save("sess-conflicting-tool-identity", state)
+        raw_text = self._raw_disk_text("sess-conflicting-tool-identity")
+
+        self.assertNotIn(_BIG_B64, raw_text)
+        self.assertIn("data_omitted", raw_text)
 
     def test_media_store_failure_still_saves_without_inline_base64(self):
         for suffix, state in (

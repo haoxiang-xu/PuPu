@@ -750,6 +750,10 @@ def _cancel_pending_source_attempt(
         )
     try:
         parameters = inspect.signature(cancel_pending).parameters
+        accepts_var_keyword = any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        )
         if "source_run_id" in parameters:
             cancelled_interaction = cancel_pending(
                 session_id,
@@ -760,6 +764,12 @@ def _cancel_pending_source_attempt(
             cancelled_interaction = cancel_pending(
                 session_id,
                 attempt_id=source_attempt_id,
+                reason=reason,
+            )
+        elif accepts_var_keyword:
+            cancelled_interaction = cancel_pending(
+                session_id,
+                source_run_id=source_attempt_id,
                 reason=reason,
             )
         else:  # pragma: no cover - fail closed for incompatible runtime

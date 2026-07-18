@@ -115,6 +115,57 @@ class RecipeRoutesTests(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
+    def test_post_rejects_non_string_graph_edge_kind_as_recipe_invalid(self):
+        payload = {
+            "name": "InvalidGraphKind",
+            "description": "",
+            "model": None,
+            "max_iterations": None,
+            "agent": {"prompt_format": "soul", "prompt": "x"},
+            "toolkits": [],
+            "subagent_pool": [],
+            "nodes": [
+                {"id": "start", "type": "start"},
+                {"id": "agent", "type": "agent"},
+                {"id": "end", "type": "end"},
+            ],
+            "edges": [
+                {
+                    "id": "e1",
+                    "kind": ["flow"],
+                    "source_node_id": "start",
+                    "source_port_id": "out",
+                    "target_node_id": "agent",
+                    "target_port_id": "in",
+                },
+                {
+                    "id": "e2",
+                    "kind": "flow",
+                    "source_node_id": "agent",
+                    "source_port_id": "out",
+                    "target_node_id": "end",
+                    "target_port_id": "in",
+                },
+            ],
+        }
+
+        resp = self.client.post(
+            "/agent_recipes",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(payload),
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.get_json()["error"]["code"], "recipe_invalid")
+        self.assertFalse(
+            (
+                self.tmpdir
+                / ".pupu"
+                / "agent_recipes"
+                / "InvalidGraphKind.recipe"
+            ).exists()
+        )
+
     def test_delete_removes_recipe(self):
         self.client.post(
             "/agent_recipes",

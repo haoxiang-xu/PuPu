@@ -2258,6 +2258,18 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 if callable(callback):
                     callback(
                         {
+                            "type": ["final_message"],
+                            "content": "invalid list event type",
+                        }
+                    )
+                    callback(
+                        {
+                            "type": {"kind": "final_message"},
+                            "content": "invalid object event type",
+                        }
+                    )
+                    callback(
+                        {
                             "type": "final_message",
                             "run_id": kwargs.get("run_id"),
                             "iteration": 1,
@@ -2334,6 +2346,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             ],
         )
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertTrue(
+            all(isinstance(event.get("type"), str) for event in events)
+        )
+        self.assertFalse(
+            any("invalid" in str(event.get("content", "")) for event in events)
+        )
 
     def test_stream_chat_events_enriches_tool_events_with_toolkit_metadata(self) -> None:
         class FakeToolkit:
@@ -2647,6 +2665,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             {
                 "type": "message",
                 "content": [
+                    {"type": ["output_text"], "text": "invalid list type"},
+                    {"type": {"kind": "text"}, "text": "invalid object type"},
                     {"type": "output_text", "text": "Tool call completed."},
                 ],
             },
