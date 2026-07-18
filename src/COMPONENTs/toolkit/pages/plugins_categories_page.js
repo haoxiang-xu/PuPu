@@ -54,7 +54,7 @@ const CatalogOpenPill = ({ isDark, label, onClick }) => {
 /* The four type segments of the Store's in-page segmented control (design
    authority: 2026-07-17 store-final mockup, `.seg`/`.sg` blocks). "all" has
    no CategoryChip (mockup: "All 视图不加类型徽标"); the other three each
-   carry a 16px gradient glyph via CategoryChip. */
+   carry a color-tinted glyph via CategoryChip (no backdrop). */
 const TYPE_SEGMENTS = [
   { key: "all", labelKey: "toolkit.seg_all" },
   { key: "toolkit", labelKey: "toolkit.nav_toolkits", chip: "toolkit" },
