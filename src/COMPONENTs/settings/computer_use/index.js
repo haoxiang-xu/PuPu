@@ -1,10 +1,13 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
+import { isComputerUseEnabledPersisted } from "../../../SERVICEs/computer_use_enabled_store";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { useComputerUseConsent } from "./consent_modal";
+import { disableComputerUse, enableComputerUse } from "./enable_controller";
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  Permission badge — granted / denied / unknown / not_applicable            */
@@ -116,6 +119,13 @@ export const ComputerUseSettings = () => {
   const [error, setError] = useState("");
   const [openError, setOpenError] = useState("");
 
+  // Desired (expected) state from localStorage; server truth lives in `status`.
+  const [expectedEnabled, setExpectedEnabled] = useState(() =>
+    isComputerUseEnabledPersisted(),
+  );
+  const [toggleBusy, setToggleBusy] = useState(false);
+  const [toggleError, setToggleError] = useState("");
+
   // One-time informed-consent gate. In dev this section lets us exercise the
   // consent flow; the real "enable" switch wires to requireComputerUseConsent
   // when the pre-release enablement path lands (see consent_modal.js).
@@ -167,6 +177,51 @@ export const ComputerUseSettings = () => {
     loadStatus();
   }, [loadStatus]);
 
+  // The enable toggle. ON is consent-gated: consent is obtained BEFORE any
+  // store write or bridge push, and a decline aborts the whole chain with
+  // zero side effects. OFF needs no consent (revoking is always allowed).
+  // After either action we re-read status so the displayed state reflects
+  // server truth, never an optimistic "success".
+  const handleToggle = useCallback(
+    async (desiredEnabled) => {
+      if (toggleBusy) return;
+      setToggleError("");
+
+      if (desiredEnabled) {
+        setToggleBusy(true);
+        // Consent FIRST — decline ⇒ no write, no push, nothing.
+        let consented = false;
+        try {
+          consented = await requireComputerUseConsent();
+        } catch (_consentError) {
+          consented = false;
+        }
+        if (!consented) {
+          setToggleBusy(false);
+          return;
+        }
+        const result = await enableComputerUse();
+        setExpectedEnabled(isComputerUseEnabledPersisted());
+        if (!result.pushed) {
+          setToggleError(t("computer_use.enable_failed"));
+        }
+        await loadStatus();
+        setToggleBusy(false);
+        return;
+      }
+
+      setToggleBusy(true);
+      const result = await disableComputerUse();
+      setExpectedEnabled(isComputerUseEnabledPersisted());
+      if (!result.pushed && !result.unavailable) {
+        setToggleError(t("computer_use.enable_failed"));
+      }
+      await loadStatus();
+      setToggleBusy(false);
+    },
+    [toggleBusy, requireComputerUseConsent, loadStatus, t],
+  );
+
   const handleOpenSettings = useCallback(
     async (target) => {
       setOpenError("");
@@ -195,6 +250,13 @@ export const ComputerUseSettings = () => {
       ? capabilities.permissions
       : {};
   const isEnabled = Boolean(status?.enabled);
+  const isEnableAvailable = runtimeBridge.isComputerUseEnableAvailable();
+  // Server truth for the switch position — never optimistic.
+  const effectiveEnabled = Boolean(status?.enabled);
+  // Desired ≠ effective: the change is persisted but not yet in effect.
+  const pendingMismatch = !loading && expectedEnabled !== effectiveEnabled;
+
+  const successColor = isDark ? "#86efac" : "#2e7d32";
 
   return (
     <div>
@@ -211,24 +273,103 @@ export const ComputerUseSettings = () => {
           {t("computer_use.description")}
         </div>
 
-        <SettingsRow
-          label={
-            isEnabled
-              ? t("computer_use.status_enabled")
-              : t("computer_use.status_disabled")
-          }
-          description={
-            isEnabled
-              ? t("computer_use.status_enabled_desc")
-              : t("computer_use.status_disabled_desc")
-          }
-        >
-          <Button
-            label={t("computer_use.refresh")}
-            onClick={loadStatus}
-            style={{ ...buttonStyle, opacity: loading ? 0.6 : 1 }}
-          />
-        </SettingsRow>
+        {isEnableAvailable ? (
+          <SettingsRow
+            label={t("computer_use.enable_label")}
+            description={t("computer_use.enable_desc")}
+          >
+            <div
+              data-testid="computer-use-enable-toggle"
+              style={{
+                opacity: toggleBusy || loading ? 0.5 : 1,
+                pointerEvents: toggleBusy || loading ? "none" : "auto",
+              }}
+            >
+              <SemiSwitch
+                on={effectiveEnabled}
+                set_on={(val) => handleToggle(val)}
+                style={{ width: 56, height: 28 }}
+              />
+            </div>
+          </SettingsRow>
+        ) : (
+          <SettingsRow
+            label={
+              isEnabled
+                ? t("computer_use.status_enabled")
+                : t("computer_use.status_disabled")
+            }
+            description={
+              isEnabled
+                ? t("computer_use.status_enabled_desc")
+                : t("computer_use.status_disabled_desc")
+            }
+          >
+            <Button
+              label={t("computer_use.refresh")}
+              onClick={loadStatus}
+              style={{ ...buttonStyle, opacity: loading ? 0.6 : 1 }}
+            />
+          </SettingsRow>
+        )}
+
+        {isEnableAvailable && !loading && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              paddingBottom: 6,
+            }}
+          >
+            <span
+              data-testid="computer-use-effect-state"
+              style={{
+                fontSize: 12,
+                fontFamily,
+                color: effectiveEnabled ? successColor : mutedColor,
+              }}
+            >
+              {effectiveEnabled
+                ? t("computer_use.effect_active")
+                : t("computer_use.effect_inactive")}
+            </span>
+            <Button
+              label={t("computer_use.refresh")}
+              onClick={loadStatus}
+              style={buttonStyle}
+            />
+          </div>
+        )}
+
+        {pendingMismatch && (
+          <div
+            data-testid="computer-use-pending"
+            style={{
+              fontSize: 12,
+              fontFamily,
+              color: isDark ? "#f0c674" : "#8a6d1a",
+              lineHeight: 1.5,
+              paddingBottom: 10,
+            }}
+          >
+            {t("computer_use.enable_pending")}
+          </div>
+        )}
+
+        {toggleError && (
+          <div
+            style={{
+              fontSize: 12,
+              fontFamily,
+              color: errorColor,
+              paddingBottom: 10,
+            }}
+          >
+            {toggleError}
+          </div>
+        )}
 
         {loading && (
           <div
