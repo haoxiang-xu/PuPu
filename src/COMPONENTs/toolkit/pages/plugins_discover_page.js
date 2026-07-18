@@ -177,7 +177,7 @@ const PluginsDiscoverPage = ({
             fontSize: 22,
             fontWeight: 600,
             letterSpacing: "-0.01em",
-            fontFamily,
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color: textColor,
           }}
         >

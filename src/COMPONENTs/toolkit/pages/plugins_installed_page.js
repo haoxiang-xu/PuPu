@@ -138,7 +138,7 @@ const PluginsInstalledPage = ({
   }, [rows, search]);
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const titleFontFamily = theme?.font?.titleFontFamily || fontFamily;
+  const titleFontFamily = theme?.font?.titleFontFamily || "NunitoSans, sans-serif";
   const tertiaryText = isDark ? "rgba(var(--pupu-text-rgb),0.38)" : "rgba(var(--pupu-text-rgb),0.35)";
   const dividerColor = "rgba(var(--pupu-text-rgb),0.06)";
 

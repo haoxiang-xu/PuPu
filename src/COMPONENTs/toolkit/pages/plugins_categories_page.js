@@ -260,7 +260,7 @@ const PluginsCategoriesPage = ({
             fontSize: 22,
             fontWeight: 600,
             letterSpacing: "-0.01em",
-            fontFamily,
+            fontFamily: context.theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color: textColor,
           }}
         >
