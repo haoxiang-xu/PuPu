@@ -599,7 +599,6 @@ const PluginDetailPage = ({
             alignItems: "center",
             gap: 13,
             padding: "10px 0 18px",
-            borderBottom: `1px solid ${dividerColor}`,
           }}
         >
           <ToolkitIconFrame
