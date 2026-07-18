@@ -117,46 +117,7 @@ describe("DETAIL_DEFAULTS", () => {
       borderAlphaStrong: BORDER_TIER_ALPHA.strong,
       borderAlphaMid: BORDER_TIER_ALPHA.mid,
       borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
-      windowEffect: "solid",
-      windowBackgroundAlpha: 0.45,
-      windowSidebarAlpha: 0.3,
-      windowSurfaceAlpha: 0.85,
     });
-  });
-});
-
-describe("semanticCssVars frosted window effect", () => {
-  const palette = {
-    background: "#121212",
-    sidebar: "#181818",
-    surface: "#1e1e1e",
-    text: "#ffffff",
-  };
-  test("solid effect keeps shell vars opaque", () => {
-    const vars = semanticCssVars(palette, { ...DETAIL_DEFAULTS });
-    expect(vars["--pupu-background"]).toBe("#121212");
-    expect(vars["--pupu-surface"]).toBe("#1e1e1e");
-  });
-  test("frosted effect emits shell tiers as rgba with the window alphas", () => {
-    const vars = semanticCssVars(palette, {
-      ...DETAIL_DEFAULTS,
-      windowEffect: "frosted",
-    });
-    expect(vars["--pupu-background"]).toBe("rgba(18,18,18, 0.45)");
-    expect(vars["--pupu-sidebar"]).toBe("rgba(24,24,24, 0.3)");
-    expect(vars["--pupu-surface"]).toBe("rgba(30,30,30, 0.85)");
-    /* non-shell tokens stay solid */
-    expect(vars["--pupu-text"]).toBe("#ffffff");
-    /* rgb triplets keep emitting for alpha composition elsewhere */
-    expect(vars["--pupu-background-rgb"]).toBe("18,18,18");
-  });
-  test("frosted respects per-theme alpha overrides", () => {
-    const vars = semanticCssVars(palette, {
-      ...DETAIL_DEFAULTS,
-      windowEffect: "frosted",
-      windowBackgroundAlpha: 0.7,
-    });
-    expect(vars["--pupu-background"]).toBe("rgba(18,18,18, 0.7)");
   });
 });
 

@@ -21,7 +21,6 @@ import {
 import {
   readThemeSettings,
   writeThemePreset,
-  writeThemeWindowEffect,
   writeThemeCustomColor,
   writeThemeCustom,
   writeThemeDetails,
@@ -138,11 +137,7 @@ const ThemeEditor = () => {
     applySemanticCssVars(livePalette, undefined, details);
     persistBootPalette(livePalette);
     if (setTheme && theme) {
-      const themed = applySemanticPaletteToTheme(theme, livePalette, activeMode);
-      /* the container's theme-bridge effect reads this to sync the native
-         window (vibrancy on/off + persisted prefs for next launch) */
-      themed.detailsResolved = details;
-      setTheme(themed);
+      setTheme(applySemanticPaletteToTheme(theme, livePalette, activeMode));
     }
   };
 
@@ -160,23 +155,6 @@ const ThemeEditor = () => {
     const next = writeThemePreset(preset);
     setSettings(next);
     syncCommittedSettings(next);
-  };
-
-  const isMac =
-    typeof navigator !== "undefined" &&
-    /mac/i.test(navigator.platform || navigator.userAgent || "");
-  const windowEffect =
-    resolveThemeDetails(activeMode, {
-      preset: settings.preset,
-      details: settings.details,
-    }).windowEffect || "solid";
-  const onWindowEffectChange = (effect) => {
-    const next = writeThemeWindowEffect(effect);
-    setSettings(next);
-    syncCommittedSettings(next);
-    if (effect === "frosted") {
-      toast("Frosted takes full effect after relaunching PuPu");
-    }
   };
 
   const advState = advancedTokenState(settings, editMode, palette);
@@ -439,27 +417,6 @@ const ThemeEditor = () => {
             option_style={selectOptionStyle}
         />
       </div>
-
-      {isMac ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <span style={{ fontSize: 12, opacity: 0.6, color: isDark ? "#fff" : "#222" }}>
-            Window effect
-          </span>
-          <Select
-            options={[
-              { value: "solid", label: "Solid" },
-              { value: "frosted", label: "Frosted" },
-            ]}
-            value={windowEffect}
-            set_value={onWindowEffectChange}
-            variant="palette"
-            filterable={false}
-            style={selectStyle}
-            dropdown_style={selectDropdownStyle}
-            option_style={selectOptionStyle}
-          />
-        </div>
-      ) : null}
 
       <ThemePreviewCard palette={cardPalette} />
 

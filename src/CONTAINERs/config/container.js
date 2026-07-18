@@ -361,12 +361,14 @@ const ConfigContainer = ({ children }) => {
       const themeSettings = themeColorCustomizationEnabled
         ? readThemeSettings()
         : defaultThemeColorSettings();
-      const detailsResolved = resolveThemeDetails(onThemeMode, {
-        preset: themeSettings.preset,
-        details: themeSettings.details,
-      });
-      nextTheme.detailsResolved = detailsResolved;
-      applySemanticCssVars(nextTheme.semantic, undefined, detailsResolved);
+      applySemanticCssVars(
+        nextTheme.semantic,
+        undefined,
+        resolveThemeDetails(onThemeMode, {
+          preset: themeSettings.preset,
+          details: themeSettings.details,
+        }),
+      );
       persistBootPalette(nextTheme.semantic);
       if (typeof document !== "undefined") {
         document.documentElement.style.setProperty(
@@ -395,7 +397,6 @@ const ConfigContainer = ({ children }) => {
       themeBridge.setBackgroundColor({
         backgroundColor: theme.backgroundColor,
         accent: theme.semantic?.accent,
-        windowEffect: theme.detailsResolved?.windowEffect,
       });
     }
   }, [theme]);
