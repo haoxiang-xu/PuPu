@@ -178,3 +178,14 @@ describe("seedFromSvgContent + svg-file seed priority", () => {
     expect(seedColorForIcon(icon, "builtin")).toBe("#315d8e");
   });
 });
+
+describe("solidFromSeed alpha", () => {
+  const { solidFromSeed } = require("./warp_palette");
+  test("alpha < 1 yields rgba with that alpha", () => {
+    const out = solidFromSeed("#315d8e", { isDark: true, alpha: 0.6 });
+    expect(out).toMatch(/^rgba\(\d+,\d+,\d+,0\.6\)$/);
+  });
+  test("default stays opaque hex", () => {
+    expect(solidFromSeed("#315d8e", { isDark: true })).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+});

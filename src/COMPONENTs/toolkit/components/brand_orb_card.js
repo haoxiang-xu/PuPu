@@ -34,7 +34,7 @@ const BrandOrbCard = ({
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
   const seed = seedColorForIcon(icon, source);
-  const surface = solidFromSeed(seed, { isDark });
+  const surface = solidFromSeed(seed, { isDark, alpha: isDark ? 0.6 : 0.7 });
 
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(28,28,33,0.88)";
   const descColor = isDark ? "rgba(255,255,255,0.60)" : "rgba(28,28,33,0.60)";

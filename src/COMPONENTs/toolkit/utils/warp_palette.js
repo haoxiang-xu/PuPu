@@ -136,10 +136,16 @@ export const staticGradientFromPalette = (colors) =>
  * the flowing warp is out — one solid, icon-adjacent color per plugin).
  * Dark theme sinks the seed to a deep muted tone that white copy reads on;
  * light theme lifts it to a pale wash for dark ink. */
-export const solidFromSeed = (seed, { isDark = true } = {}) => {
+export const solidFromSeed = (seed, { isDark = true, alpha = 1 } = {}) => {
   const base = hexToHsl(seed) || hexToHsl(DEFAULT_SEED);
   /* Stone mandate (CEO 2026-07-18g): rock-grey with only a trace of the
-     icon's hue — barely-there chroma, like tinted stone. */
-  if (isDark) return hslToHex(base.h, Math.min(base.s * 0.2, 11), 33);
-  return hslToHex(base.h, Math.min(base.s * 0.14, 8), 89);
+     icon's hue — barely-there chroma, like tinted stone. `alpha` (CEO
+     2026-07-18h) lets the surface go translucent so the modal ground shows
+     through. */
+  const hex = isDark
+    ? hslToHex(base.h, Math.min(base.s * 0.2, 11), 33)
+    : hslToHex(base.h, Math.min(base.s * 0.14, 8), 89);
+  if (alpha >= 1) return hex;
+  const rgb = hexToRgb(hex);
+  return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
 };
