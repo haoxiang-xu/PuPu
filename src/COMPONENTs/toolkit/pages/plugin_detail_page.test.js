@@ -15,6 +15,7 @@ import {
 
 jest.mock("../components/toolkit_icon", () => ({
   __esModule: true,
+  ...jest.requireActual("../components/toolkit_icon"),
   ToolkitIconFrame: () => <span data-testid="icon" />,
 }));
 

@@ -63,7 +63,10 @@ const BrandOrbCard = ({
       >
         <span data-testid="brand-orb" aria-hidden="true" style={{ display: "none" }} />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        {/* preserve-3d on every intermediate wrapper — without it the
+            Card.Layer translateZ inside gets flattened and the parallax
+            silently dies (CEO caught it in-app 2026-07-18). */}
+        <div style={{ display: "flex", alignItems: "center", gap: 9, transformStyle: "preserve-3d" }}>
           <Card.Layer depth={26} style={{ flexShrink: 0 }}>
             <ToolkitIconFrame icon={icon} isDark={isDark} size={34} iconSize={17} borderRadius={9} />
           </Card.Layer>
@@ -105,7 +108,7 @@ const BrandOrbCard = ({
           </Card.Layer>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", marginTop: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", marginTop: "auto", transformStyle: "preserve-3d" }}>
           {command && (
             <Card.Layer depth={12}>
               <span

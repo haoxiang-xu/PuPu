@@ -3,7 +3,11 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import Card from "../../../BUILTIN_COMPONENTs/card/card";
-import { ToolkitIconFrame } from "./toolkit_icon";
+import {
+  ToolkitIconFrame,
+  isFileToolkitIcon,
+  isBuiltinToolkitIcon,
+} from "./toolkit_icon";
 import { seedColorForIcon, solidFromSeed } from "../utils/warp_palette";
 
 /* AuroraFeatureCard — the Discover page's featured/hero card. (The name is
@@ -44,6 +48,13 @@ const AuroraFeatureCard = ({
   const seed = useMemo(() => seedColorForIcon(icon, source), [icon, source]);
   const surface = useMemo(() => solidFromSeed(seed, { isDark }), [seed, isDark]);
 
+  /* An icon with its own complete look (an SVG/image file, or a builtin
+     glyph that ships its own backgroundColor) needs no white backing plate;
+     the plate stays only for emoji/missing icons where the raw glyph would
+     get lost on the solid seed surface. */
+  const iconHasOwnArtwork =
+    isFileToolkitIcon(icon) || (isBuiltinToolkitIcon(icon) && Boolean(icon?.backgroundColor));
+
   /* Dark: deep seed-toned surface carries white copy; light: pale wash
      carries dark ink. */
   const kickerColor = isDark ? "rgba(255,255,255,0.72)" : "rgba(28,28,33,0.66)";
@@ -82,26 +93,39 @@ const AuroraFeatureCard = ({
         }}
       >
         <Card.Layer depth={34} style={{ flexShrink: 0 }}>
-          <div
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: 14,
-              background: "rgba(255,255,255,0.92)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+          {iconHasOwnArtwork ? (
+            /* Real artwork (SVG/image file, or a builtin glyph shipping its
+               own backgroundColor) renders as-is — no white backing plate
+               (CEO 2026-07-18e). */
             <ToolkitIconFrame
               icon={icon}
               isDark={isDark}
               size={50}
               iconSize={23}
               borderRadius={14}
-              style={{ background: "transparent" }}
             />
-          </div>
+          ) : (
+            <div
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.92)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ToolkitIconFrame
+                icon={icon}
+                isDark={isDark}
+                size={50}
+                iconSize={23}
+                borderRadius={14}
+                style={{ background: "transparent" }}
+              />
+            </div>
+          )}
         </Card.Layer>
 
         <Card.Layer depth={16} style={{ flex: 1, minWidth: 0 }}>
