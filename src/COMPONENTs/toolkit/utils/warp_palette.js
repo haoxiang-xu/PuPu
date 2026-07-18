@@ -138,6 +138,9 @@ export const staticGradientFromPalette = (colors) =>
  * light theme lifts it to a pale wash for dark ink. */
 export const solidFromSeed = (seed, { isDark = true } = {}) => {
   const base = hexToHsl(seed) || hexToHsl(DEFAULT_SEED);
-  if (isDark) return hslToHex(base.h, Math.min(base.s * 0.8, 62), 33);
-  return hslToHex(base.h, Math.min(base.s * 0.55, 48), 87);
+  /* Low-saturation mandate (CEO 2026-07-18f): the surface should whisper
+     the icon's hue, not shout it — muted deep tone in dark, muted pale
+     wash in light. */
+  if (isDark) return hslToHex(base.h, Math.min(base.s * 0.45, 30), 33);
+  return hslToHex(base.h, Math.min(base.s * 0.32, 24), 88);
 };
