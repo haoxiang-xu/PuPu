@@ -14,8 +14,18 @@ jest.mock("../../../SERVICEs/api", () => ({
   },
 }));
 
+const createDeferred = () => {
+  let resolve;
+  const promise = new Promise((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+};
+
 const Harness = ({ selectedModelId }) => {
-  const { computerOption } = useComputerUseToolkitOption({ selectedModelId });
+  const { computerOption, shouldDeselectComputer } = useComputerUseToolkitOption({
+    selectedModelId,
+  });
   return (
     <ConfigContext.Provider value={{ isDark: false, theme: {} }}>
       <pre data-testid="option">
@@ -28,6 +38,9 @@ const Harness = ({ selectedModelId }) => {
             })
           : "null"}
       </pre>
+      <pre data-testid="deselect">
+        {shouldDeselectComputer ? "true" : "false"}
+      </pre>
     </ConfigContext.Provider>
   );
 };
@@ -36,6 +49,9 @@ const readOption = () => {
   const text = screen.getByTestId("option").textContent || "null";
   return text === "null" ? null : JSON.parse(text);
 };
+
+const readDeselect = () =>
+  (screen.getByTestId("deselect").textContent || "").trim() === "true";
 
 describe("useComputerUseToolkitOption", () => {
   beforeEach(() => {
@@ -114,5 +130,64 @@ describe("useComputerUseToolkitOption", () => {
       expect(api.runtime.getComputerUseStatus).toHaveBeenCalled(),
     );
     await waitFor(() => expect(readOption()).toBeNull());
+  });
+
+  test("does not signal deselect while the status read is still in flight", async () => {
+    const deferred = createDeferred();
+    api.runtime.getComputerUseStatus.mockReturnValue(deferred.promise);
+
+    render(<Harness selectedModelId="anthropic:claude-opus-4-8" />);
+
+    // Unresolved status must NOT strip a selection (would wrongly deselect a
+    // supported+enabled session on every mount).
+    await waitFor(() =>
+      expect(api.runtime.getComputerUseStatus).toHaveBeenCalled(),
+    );
+    expect(readDeselect()).toBe(false);
+
+    deferred.resolve({ enabled: true, supportedModelPrefixes: ["claude-opus"] });
+    await waitFor(() => expect(readDeselect()).toBe(false));
+  });
+
+  test("signals deselect when the master switch is off", async () => {
+    api.runtime.getComputerUseStatus.mockResolvedValue({
+      enabled: false,
+      supportedModelPrefixes: ["claude-opus"],
+    });
+
+    render(<Harness selectedModelId="anthropic:claude-opus-4-8" />);
+
+    await waitFor(() => expect(readDeselect()).toBe(true));
+  });
+
+  test("signals deselect when the current model is unsupported", async () => {
+    api.runtime.getComputerUseStatus.mockResolvedValue({
+      enabled: true,
+      supportedModelPrefixes: ["claude-opus"],
+    });
+
+    render(<Harness selectedModelId="openai:gpt-5" />);
+
+    await waitFor(() => expect(readDeselect()).toBe(true));
+  });
+
+  test("signals deselect when the status bridge is unavailable", async () => {
+    api.runtime.isComputerUseStatusAvailable.mockReturnValue(false);
+
+    render(<Harness selectedModelId="anthropic:claude-opus-4-8" />);
+
+    await waitFor(() => expect(readDeselect()).toBe(true));
+  });
+
+  test("does not signal deselect when enabled and the model is supported", async () => {
+    api.runtime.getComputerUseStatus.mockResolvedValue({
+      enabled: true,
+      supportedModelPrefixes: ["claude-opus"],
+    });
+
+    render(<Harness selectedModelId="anthropic:claude-opus-4-8" />);
+
+    await waitFor(() => expect(readOption()).not.toBeNull());
+    expect(readDeselect()).toBe(false);
   });
 });
