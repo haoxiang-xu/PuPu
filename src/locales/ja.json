@@ -5,6 +5,7 @@
     "model_providers": "プロバイダー",
     "workspaces": "ワークスペース",
     "memory": "メモリ",
+    "computer_use": "コンピュータ操作",
     "token_usage": "トークン",
     "update": "アップデート",
     "local_storage": "ストレージ",

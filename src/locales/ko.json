@@ -5,6 +5,7 @@
     "model_providers": "프로바이더",
     "workspaces": "워크스페이스",
     "memory": "메모리",
+    "computer_use": "컴퓨터 사용",
     "token_usage": "토큰",
     "update": "업데이트",
     "local_storage": "스토리지",

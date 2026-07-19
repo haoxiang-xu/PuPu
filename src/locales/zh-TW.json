@@ -5,6 +5,7 @@
     "model_providers": "模型供應商",
     "workspaces": "工作區",
     "memory": "記憶",
+    "computer_use": "電腦操作",
     "token_usage": "Token 用量",
     "update": "更新",
     "local_storage": "本機儲存",

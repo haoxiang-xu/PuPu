@@ -8,6 +8,7 @@ import { MemorySettings } from "./memory";
 import { RuntimeSettings } from "./runtime";
 import { AppUpdateSettings } from "./app_update";
 import { TokenUsageSettings } from "./token_usage";
+import { ComputerUseSettings } from "./computer_use";
 import { DevSettings } from "./dev";
 import { isDevSettingsAvailable } from "./dev/storage";
 import {
@@ -21,6 +22,7 @@ const PAGE_COMPONENTS = {
   model_providers: ModelProvidersSettings,
   runtime: RuntimeSettings,
   memory: MemorySettings,
+  computer_use: ComputerUseSettings,
   token_usage: TokenUsageSettings,
   app_update: AppUpdateSettings,
   local_storage: LocalStorageSettings,
@@ -32,6 +34,7 @@ const BASE_SETTINGS_PAGES = [
   { key: "model_providers", icon: "pentagon", labelKey: "settings.model_providers" },
   { key: "runtime", icon: "folder_2", labelKey: "settings.workspaces" },
   { key: "memory", icon: "brain", labelKey: "settings.memory" },
+  { key: "computer_use", icon: "screenshot", labelKey: "settings.computer_use" },
   { key: "token_usage", icon: "bar_chart", labelKey: "settings.token_usage" },
   { key: "app_update", icon: "download_cloud", labelKey: "settings.update" },
   { key: "local_storage", icon: "data", labelKey: "settings.local_storage" },

@@ -5,6 +5,7 @@
     "model_providers": "Fournisseurs",
     "workspaces": "Espaces",
     "memory": "Mémoire",
+    "computer_use": "Contrôle de l'ordinateur",
     "token_usage": "Tokens",
     "update": "Mise à jour",
     "local_storage": "Stockage",

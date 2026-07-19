@@ -2,11 +2,21 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AttachPanel from "./attach_panel";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
+import useComputerUseToolkitOption from "../hooks/use_computer_use_toolkit_option";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 
 jest.mock("../hooks/use_chat_input_toolkits", () => ({
   __esModule: true,
   default: jest.fn(),
+}));
+
+jest.mock("../hooks/use_computer_use_toolkit_option", () => ({
+  __esModule: true,
+  default: jest.fn(() => ({
+    computerOption: null,
+    shouldDeselectComputer: false,
+    refreshComputerStatus: jest.fn(),
+  })),
 }));
 
 jest.mock("../hooks/use_chat_input_workspaces", () => ({
@@ -24,7 +34,22 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     search_placeholder,
     dropdown_position = "bottom",
     custom_trigger,
+    multi = false,
+    value,
+    set_value = () => {},
   }) => {
+    const toggleOption = (item) => {
+      if (!item || item.disabled) return;
+      if (multi) {
+        const current = Array.isArray(value) ? value : [];
+        const next = current.includes(item.value)
+          ? current.filter((v) => v !== item.value)
+          : [...current, item.value];
+        set_value(next);
+      } else {
+        set_value(item.value);
+      }
+    };
     const renderOptionLabels = (items = []) =>
       items.flatMap((item) => {
         if (!item) return [];
@@ -35,9 +60,18 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
           ];
         }
         return [
-          <span key={`option-${item.value || item.label}`}>
+          <button
+            type="button"
+            key={`option-${item.value || item.label}`}
+            data-testid={`option-${item.value || item.label}`}
+            data-disabled={item.disabled ? "true" : "false"}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleOption(item);
+            }}
+          >
             {item.label || item.value}
-          </span>,
+          </button>,
         ];
       });
 
@@ -86,6 +120,12 @@ describe("AttachPanel toolkit selector refresh", () => {
   beforeEach(() => {
     window.localStorage.clear();
     useChatInputToolkits.mockReset();
+    useComputerUseToolkitOption.mockReset();
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: null,
+      shouldDeselectComputer: false,
+      refreshComputerStatus: jest.fn(),
+    });
     useChatInputWorkspaces.mockReset();
     useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
   });
@@ -346,6 +386,293 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
     expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
+  });
+
+  test("appends the Computer entry alongside catalog toolkits when present", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: {
+        value: "builtin.computer",
+        label: "Computer",
+        disabled: false,
+      },
+      refreshComputerStatus: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    // catalog render path is intact (the real toolkit still shows) and the
+    // synthetic entry is stitched in beside it
+    expect(screen.getByTestId("option-workspace_toolkit")).toBeInTheDocument();
+    expect(screen.getByTestId("option-builtin.computer")).toBeInTheDocument();
+  });
+
+  test("omits the Computer entry when the hook yields none (zero trace)", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    // default mock already returns computerOption: null
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("option-workspace_toolkit")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("option-builtin.computer"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("selecting the Computer entry adds builtin.computer to the payload", () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: {
+        value: "builtin.computer",
+        label: "Computer",
+        disabled: false,
+      },
+      refreshComputerStatus: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={[]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("option-builtin.computer"));
+
+    expect(onToolkitsChange).toHaveBeenCalledWith(["builtin.computer"]);
+  });
+
+  test("a disabled Computer entry cannot be selected", () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: {
+        value: "builtin.computer",
+        label: "Computer",
+        disabled: true,
+      },
+      refreshComputerStatus: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={[]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    const entry = screen.getByTestId("option-builtin.computer");
+    expect(entry).toHaveAttribute("data-disabled", "true");
+    fireEvent.click(entry);
+    expect(onToolkitsChange).not.toHaveBeenCalled();
+  });
+
+  test("refreshes computer-use status when the tools selector opens", () => {
+    const refreshComputerStatus = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: null,
+      refreshComputerStatus,
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
+    expect(refreshComputerStatus).toHaveBeenCalledTimes(1);
+  });
+
+  test("strips a residual builtin.computer when the model becomes unsupported", async () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    // supported model earlier ⇒ selected; now on an unsupported model the entry
+    // is disabled and the hook signals a reconcile
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: {
+        value: "builtin.computer",
+        label: "Computer",
+        disabled: true,
+      },
+      shouldDeselectComputer: true,
+      refreshComputerStatus: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={["builtin.computer"]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(onToolkitsChange).toHaveBeenCalledWith([]));
+  });
+
+  test("strips a residual builtin.computer when the master switch is off", async () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    // switch off ⇒ no entry rendered, but the stale id must be reconciled out
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: null,
+      shouldDeselectComputer: true,
+      refreshComputerStatus: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={["workspace_toolkit", "builtin.computer"]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onToolkitsChange).toHaveBeenCalledWith(["workspace_toolkit"]),
+    );
+  });
+
+  test("keeps builtin.computer selected and re-selectable on a supported model", () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    // supported + enabled ⇒ no reconcile; the entry stays checked and usable
+    useComputerUseToolkitOption.mockReturnValue({
+      computerOption: {
+        value: "builtin.computer",
+        label: "Computer",
+        disabled: false,
+      },
+      shouldDeselectComputer: false,
+      refreshComputerStatus: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={["builtin.computer"]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    // selection is NOT stripped
+    expect(onToolkitsChange).not.toHaveBeenCalled();
+    // and the entry is present + enabled (re-selectable)
+    const entry = screen.getByTestId("option-builtin.computer");
+    expect(entry).toHaveAttribute("data-disabled", "false");
   });
 });
 
