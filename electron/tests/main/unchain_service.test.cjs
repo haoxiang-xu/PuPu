@@ -2397,7 +2397,7 @@ describe("unchain service computer use enable path", () => {
         body: JSON.stringify({ enabled: true }),
       }),
     );
-    expect(result).toEqual({ enabled: true });
+    expect(result).toEqual({ ok: true, enabled: true });
   });
 
   test("setComputerUseEnabled sends enabled:false verbatim", async () => {

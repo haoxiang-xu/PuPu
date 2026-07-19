@@ -9,3 +9,4 @@
 - [SEC-001 最终定级](sec-001-final-verdict.md) — 七区汇总复核：1 Critical(秘密链路接缝B) + 6 High根因合并；3大系统性根因；CTO仲裁清单与处置建议
 - [Custom MCP 发版裁决](custom-mcp-release-assessment.md) — 2026-06-14 任意stdio/http MCP；CONDITIONAL GO：argv-exec无shell注入但确认自声明默认关；最小门=安装风险确认弹窗
 - [Computer Use M2 安审](computer-use-m2-assessment.md) — 两门分离：flag-off合dev放行；F1已修复验收(d664c7a)；F9 subagent无门=新P0(不挂载+unchain fail-closed双签)；F3截图落盘
+- [门B 启用路径合dev安审](computer-use-gate-b-enable-review.md) — 2026-07-18 GO(剔.venv软链)；八不变量全过；release 最终签待注入eval

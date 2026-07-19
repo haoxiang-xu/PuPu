@@ -866,7 +866,8 @@ const createUnchainService = ({
 
     lastComputerUseDesired = enabled;
     ensureMisoReady();
-    return pushComputerUseConfig(enabled);
+    const result = await pushComputerUseConfig(enabled);
+    return { ok: true, ...result };
   };
 
   // Fire-and-forget re-push of the cached desired state after a ready
