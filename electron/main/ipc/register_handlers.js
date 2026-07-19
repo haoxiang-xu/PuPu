@@ -78,6 +78,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.WRITE_FILE,
   CHANNELS.UNCHAIN.READ_FILE,
   CHANNELS.UNCHAIN.SCAN_SKILL_DIR,
+  CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,
   CHANNELS.UNCHAIN.INSTALL_SKILL_PACK,
   CHANNELS.UNCHAIN.DELETE_SKILL_PACK,
   CHANNELS.SCREENSHOT.CAPTURE,
@@ -469,6 +470,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UNCHAIN.SCAN_SKILL_DIR, (_event, payload = {}) =>
     runtimeService.scanSkillDir(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,
+    (_event, payload = {}) => runtimeService.downloadSkillRepo(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.INSTALL_SKILL_PACK,

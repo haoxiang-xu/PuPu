@@ -61,6 +61,55 @@ describe("ipc channel parity", () => {
     expect(PRELOAD_SEND_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
   });
 
+  test("skill-repo download channel is classified on both sides", () => {
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(
+      CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,
+    );
+    expect(IPC_HANDLE_CHANNELS).toContain(
+      CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,
+    );
+  });
+
+  test("skill-repo download invoke delegates to the runtime service", async () => {
+    const registeredHandlers = new Map();
+    const ipcMain = {
+      handle: jest.fn((channel, handler) => {
+        registeredHandlers.set(channel, handler);
+      }),
+      on: jest.fn(),
+    };
+    const downloadAck = { ok: true, dir: "/tmp/pupu-skillpack-abc" };
+    const runtimeService = {
+      downloadSkillRepo: jest.fn().mockResolvedValue(downloadAck),
+    };
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService: {},
+        runtimeService,
+        screenshotService: {},
+        chatStorageService: {},
+      },
+    });
+
+    const payload = {
+      repo: "obra/superpowers",
+      sha: "a".repeat(40),
+      manifest: [{ path: "skills/a/SKILL.md", sha256: "b".repeat(64) }],
+    };
+    const handler = registeredHandlers.get(
+      CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,
+    );
+
+    await expect(handler({}, payload)).resolves.toEqual(downloadAck);
+    expect(runtimeService.downloadSkillRepo).toHaveBeenCalledWith(payload);
+  });
+
   test("semantic cancel invoke delegates to the unchain service", async () => {
     const registeredHandlers = new Map();
     const ipcMain = {

@@ -1,3 +1,7 @@
+const {
+  createSkillRepoDownloader,
+} = require("./skill_repo_download");
+
 const createRuntimeService = ({
   app,
   dialog,
@@ -6,6 +10,14 @@ const createRuntimeService = ({
   path,
   getMainWindow,
 }) => {
+  // S6a: store one-click skill-pack install — fetch + parse-only extract of a
+  // pinned GitHub repo tarball. All hard limits + temp lifecycle live in the
+  // downloader module; real deps (global fetch, zlib, tar) are its defaults.
+  const skillRepoDownloader = createSkillRepoDownloader({
+    fs,
+    path,
+    getTempDir: () => app.getPath("temp"),
+  });
   const appPath =
     typeof app.getAppPath === "function" ? app.getAppPath() : process.cwd();
   const BUILD_FEATURE_FLAGS_SNAPSHOT_PATH = path.join(
@@ -664,6 +676,8 @@ const createRuntimeService = ({
     writeFile,
     readFile,
     scanSkillDir,
+    downloadSkillRepo: skillRepoDownloader.downloadSkillRepo,
+    sweepLeftoverSkillpackDirs: skillRepoDownloader.sweepLeftoverSkillpackDirs,
   };
 };
 

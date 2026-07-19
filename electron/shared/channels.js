@@ -95,6 +95,7 @@ const CHANNELS = Object.freeze({
     WRITE_FILE: "unchain:write-file",
     READ_FILE: "unchain:read-file",
     SCAN_SKILL_DIR: "unchain:scan-skill-dir",
+    DOWNLOAD_SKILL_REPO: "unchain:download-skill-repo",
     INSTALL_SKILL_PACK: "unchain:install-skill-pack",
     DELETE_SKILL_PACK: "unchain:delete-skill-pack",
     STREAM_START: "unchain:stream:start",

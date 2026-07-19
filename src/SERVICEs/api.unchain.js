@@ -962,6 +962,31 @@ export const createUnchainApi = () => {
       }
     },
 
+    /* S6a: download + parse-only extract of a pinned store skill-pack repo.
+       Main enforces its own 180s total budget; the facade watchdog sits just
+       above it (190s) as a safety net. Returns the structured
+       { ok, error, [path] } shape from main so the renderer can i18n the code
+       enum (invalid_payload|network|timeout|not_found|too_large|malformed|
+       integrity|fs). */
+    downloadSkillRepo: async (params = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "downloadSkillRepo");
+        const response = await withTimeout(
+          () => method(isObject(params) ? params : {}),
+          190000,
+          "skill_repo_download_timeout",
+          "Skill pack download timed out",
+        );
+        return isObject(response) ? response : { ok: false, error: "network" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_repo_download_failed",
+          "Failed to download skill pack",
+        );
+      }
+    },
+
     installSkillPack: async (pack = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "installSkillPack");

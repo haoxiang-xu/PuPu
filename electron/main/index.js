@@ -165,6 +165,9 @@ if (!gotSingleInstanceLock) {
   app.whenReady().then(async () => {
     await chatStorageService.init();
 
+    // S6a: clear any leftover skill-pack temp dirs from a prior crashed install.
+    runtimeService.sweepLeftoverSkillpackDirs();
+
     updateService.applyUnsupportedRuntimeMessage();
 
     ollamaService.startOllama();
