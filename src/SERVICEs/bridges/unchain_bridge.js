@@ -84,11 +84,21 @@ export const runtimeBridge = {
       payload.capabilities && typeof payload.capabilities === "object"
         ? payload.capabilities
         : null;
+    /* Model-capability contract: the sidecar reports which model families
+       support computer use as a list of id prefixes (compared against the
+       provider-stripped model id). Absent on older sidecars — normalize to an
+       empty list so a missing field reads as "no supported models". */
+    const supportedModelPrefixes = Array.isArray(payload.supported_model_prefixes)
+      ? payload.supported_model_prefixes
+          .map((prefix) => (typeof prefix === "string" ? prefix.trim() : ""))
+          .filter(Boolean)
+      : [];
 
     return {
       enabled: Boolean(payload.enabled),
       reason: typeof payload.reason === "string" ? payload.reason : "",
       capabilities,
+      supportedModelPrefixes,
     };
   },
 
