@@ -104,4 +104,59 @@ describe("ipc channel parity", () => {
     await expect(handler({}, payload)).resolves.toEqual(cancelAck);
     expect(unchainService.cancelMisoExecution).toHaveBeenCalledWith(payload);
   });
+
+  test("set-computer-use-enabled rejects non-boolean and delegates strict boolean", async () => {
+    const registeredHandlers = new Map();
+    const ipcMain = {
+      handle: jest.fn((channel, handler) => {
+        registeredHandlers.set(channel, handler);
+      }),
+      on: jest.fn(),
+    };
+    const unchainService = {
+      setComputerUseEnabled: jest.fn().mockResolvedValue({ enabled: true }),
+    };
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService,
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+      },
+    });
+
+    const handler = registeredHandlers.get(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+    );
+    expect(typeof handler).toBe("function");
+
+    // Every non-boolean shape must be rejected outright with no truthy coercion
+    // and no delegation into the service.
+    const rejectedInputs = ["true", "false", 1, 0, null, undefined, {}, []];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const enabled of rejectedInputs) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(handler({}, { enabled })).rejects.toThrow(
+        /strict boolean/i,
+      );
+    }
+    // Missing payload entirely is also rejected.
+    await expect(handler({})).rejects.toThrow(/strict boolean/i);
+    expect(unchainService.setComputerUseEnabled).not.toHaveBeenCalled();
+
+    // Strict booleans pass through unchanged.
+    await expect(handler({}, { enabled: true })).resolves.toEqual({
+      enabled: true,
+    });
+    expect(unchainService.setComputerUseEnabled).toHaveBeenCalledWith(true);
+
+    await handler({}, { enabled: false });
+    expect(unchainService.setComputerUseEnabled).toHaveBeenLastCalledWith(false);
+  });
 });

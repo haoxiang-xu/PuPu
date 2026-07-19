@@ -4,6 +4,10 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   getStatus: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_STATUS),
   getComputerUseStatus: () =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS),
+  setComputerUseEnabled: (enabled = false) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED, {
+      enabled: Boolean(enabled),
+    }),
   openComputerUsePrivacySettings: (target = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS, {
       target,
