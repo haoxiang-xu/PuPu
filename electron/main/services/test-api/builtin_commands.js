@@ -183,37 +183,6 @@ const registerBuiltinCommands = ({ registry, bridge, logs, getMainWindow, electr
     },
   });
   registry.register({
-    method: "POST",
-    path: "/v1/debug/window-effect",
-    validator: (body) =>
-      body && (body.effect === "frosted" || body.effect === "solid")
-        ? null
-        : 'body.effect must be "frosted" | "solid"',
-    handler: async (ctx) => {
-      const win = getWin();
-      if (!win) {
-        throw Object.assign(new Error("no window"), {
-          code: "no_window",
-          status: 503,
-        });
-      }
-      if (process.platform !== "darwin") {
-        throw Object.assign(new Error("darwin only (P1 probe)"), {
-          code: "unsupported_platform",
-          status: 501,
-        });
-      }
-      if (ctx.body.effect === "frosted") {
-        win.setVibrancy(ctx.body.vibrancy || "under-window");
-        win.setBackgroundColor("#00000000");
-      } else {
-        win.setVibrancy(null);
-        win.setBackgroundColor(ctx.body.backgroundColor || "#121212");
-      }
-      return { ok: true, effect: ctx.body.effect };
-    },
-  });
-  registry.register({
     method: "GET",
     path: "/v1/debug/dom",
     handler: async (ctx) => {

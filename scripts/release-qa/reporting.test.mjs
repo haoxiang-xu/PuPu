@@ -17,7 +17,11 @@ test("buildJobReport records deterministic failures and version mismatch", () =>
     platform: { os: "linux", name: "linux" },
     version: "0.1.6",
     expectedVersion: "0.1.7",
-    git: { sha: "abc123", ref: "refs/tags/v0.1.7" },
+    git: {
+      sha: "abc123",
+      ref: "refs/tags/v0.1.7",
+      worktree_fingerprint: "fingerprint-123",
+    },
     checks: [
       { name: "frontend", command: "npm run test:frontend", outcome: "success" },
       { name: "package", command: "npm run build:electron:linux", outcome: "failure" },
@@ -30,6 +34,7 @@ test("buildJobReport records deterministic failures and version mismatch", () =>
   assert.equal(report.checks[1].status, "failed");
   assert.equal(report.checks[2].name, "version matches expected release");
   assert.equal(report.checks[2].status, "failed");
+  assert.equal(report.git.worktree_fingerprint, "fingerprint-123");
 });
 
 test("mergeReports merges platforms and marks advisory Unchain analysis as non-blocking", () => {

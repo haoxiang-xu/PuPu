@@ -25,11 +25,22 @@ const getFreePort = () =>
     });
   });
 
-const waitForCdp = async (port, appUrl, processLogs, timeoutMs = 60000) => {
+const waitForCdp = async (
+  port,
+  appUrl,
+  processLogs,
+  electronProcess,
+  timeoutMs = 60000,
+) => {
   const endpoint = `http://127.0.0.1:${port}`;
   const expectedOrigin = new URL(appUrl).origin;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (electronProcess?.exitCode != null || electronProcess?.signalCode) {
+      throw new Error(
+        `Electron exited before CDP became ready on ${endpoint}\n${processLogs.join("")}`,
+      );
+    }
     try {
       const response = await fetch(`${endpoint}/json/list`);
       if (response.ok) {
@@ -41,8 +52,10 @@ const waitForCdp = async (port, appUrl, processLogs, timeoutMs = 60000) => {
         if (appTargetReady) return endpoint;
       }
     } catch (_) {
-      await sleep(200);
+      // CDP may not be accepting connections yet; the process check above
+      // distinguishes normal startup from an Electron crash.
     }
+    await sleep(200);
   }
   throw new Error(
     `Timed out waiting for Electron CDP on ${endpoint}\n${processLogs.join("")}`,
@@ -128,14 +141,15 @@ const createTestApiClient = (baseUrl) => {
 const test = base.extend({
   pupu: async ({}, use, testInfo) => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-e2e-"));
-    const debugPort = await getFreePort();
     const processLogs = [];
     const pageErrors = [];
+    let debugPort = null;
     let electronProcess = null;
     let browser = null;
     let appWindow = null;
 
     try {
+      debugPort = await getFreePort();
       electronProcess = spawn(
         require("electron"),
         [
@@ -163,7 +177,12 @@ const test = base.extend({
         processLogs.push(chunk.toString()),
       );
 
-      const cdpEndpoint = await waitForCdp(debugPort, WEB_URL, processLogs);
+      const cdpEndpoint = await waitForCdp(
+        debugPort,
+        WEB_URL,
+        processLogs,
+        electronProcess,
+      );
       browser = await chromium.connectOverCDP(cdpEndpoint);
       const context = browser.contexts()[0];
       appWindow = context
@@ -209,19 +228,25 @@ const test = base.extend({
         }
       }
 
-      await stopElectronProcess(electronProcess);
-      if (browser) {
-        await Promise.race([
-          browser.close().catch(() => {}),
-          sleep(5000),
-        ]);
+      try {
+        await stopElectronProcess(electronProcess);
+      } finally {
+        try {
+          if (browser) {
+            await Promise.race([
+              browser.close().catch(() => {}),
+              sleep(5000),
+            ]);
+          }
+        } finally {
+          fs.rmSync(userDataDir, {
+            recursive: true,
+            force: true,
+            maxRetries: 5,
+            retryDelay: 200,
+          });
+        }
       }
-      fs.rmSync(userDataDir, {
-        recursive: true,
-        force: true,
-        maxRetries: 5,
-        retryDelay: 200,
-      });
     }
   },
 });
