@@ -213,6 +213,37 @@ describe("bridge wrappers", () => {
     ).rejects.toMatchObject({ code: "bridge_unavailable" });
   });
 
+  test("runtimeBridge.getComputerUseStatus normalizes supported_model_prefixes into a trimmed list", async () => {
+    window.unchainAPI = {
+      getComputerUseStatus: jest.fn(async () => ({
+        enabled: true,
+        reason: "",
+        capabilities: { platform: "darwin" },
+        supported_model_prefixes: ["claude-opus", "  claude-sonnet  ", "", 42],
+      })),
+    };
+
+    await expect(runtimeBridge.getComputerUseStatus()).resolves.toEqual({
+      enabled: true,
+      reason: "",
+      capabilities: { platform: "darwin" },
+      supportedModelPrefixes: ["claude-opus", "claude-sonnet"],
+    });
+  });
+
+  test("runtimeBridge.getComputerUseStatus defaults supportedModelPrefixes to [] when absent", async () => {
+    window.unchainAPI = {
+      getComputerUseStatus: jest.fn(async () => ({ enabled: false })),
+    };
+
+    await expect(runtimeBridge.getComputerUseStatus()).resolves.toEqual({
+      enabled: false,
+      reason: "",
+      capabilities: null,
+      supportedModelPrefixes: [],
+    });
+  });
+
   test("runtimeBridge.syncBuildFeatureFlagsSnapshot forwards flags and normalizes payload", async () => {
     window.unchainAPI = {
       syncBuildFeatureFlagsSnapshot: jest.fn(async (featureFlags) => ({

@@ -473,7 +473,10 @@
       "screenshot": "Take a screenshot",
       "screenshot_unsupported": "Current model does not support image inputs",
       "select_toolkits": "Select plugins",
-      "select_workspaces": "Select workspaces"
+      "select_workspaces": "Select workspaces",
+      "computer": "Computer",
+      "computer_description": "Let the model see and control your screen",
+      "computer_requires_supported_model": "Requires a supported Anthropic model"
     }
   },
   "toolkit": {

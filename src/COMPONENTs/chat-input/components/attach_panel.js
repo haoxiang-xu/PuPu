@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -18,6 +19,7 @@ import AttachmentChipList from "./attachment_chip_list";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
+import useComputerUseToolkitOption from "../hooks/use_computer_use_toolkit_option";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
 import {
@@ -168,6 +170,16 @@ const AttachPanel = forwardRef(({
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const lastModelSelectorRefreshAt = useRef(0);
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
+  const { computerOption, refreshComputerStatus } = useComputerUseToolkitOption({
+    selectedModelId,
+  });
+  /* Append the synthetic "Computer" entry (null unless computer use is on).
+     It is not a catalog toolkit, so it lives outside the catalog-render path
+     and is stitched in only for the menu. */
+  const toolkitOptionsWithComputer = useMemo(
+    () => (computerOption ? [...toolkitOptions, computerOption] : toolkitOptions),
+    [toolkitOptions, computerOption],
+  );
   const { workspaceOptions } = useChatInputWorkspaces();
   const isAgentsFeatureEnabled =
     featureFlags.enable_user_access_to_agents === true;
@@ -234,6 +246,7 @@ const AttachPanel = forwardRef(({
     (next) => {
       if (next) {
         void refreshToolkits();
+        void refreshComputerStatus();
         setOpenSelector("tools");
         return;
       }
@@ -245,7 +258,7 @@ const AttachPanel = forwardRef(({
         setKbIndex(kbReturnIndexRef.current);
       }
     },
-    [refreshToolkits, onRequestInputFocus],
+    [refreshToolkits, refreshComputerStatus, onRequestInputFocus],
   );
 
   const handleWorkspaceOpenChange = useCallback(
@@ -615,7 +628,7 @@ const AttachPanel = forwardRef(({
                 {kbGlow("tools")}
                 <Select
                   multi
-                  options={toolkitOptions}
+                  options={toolkitOptionsWithComputer}
                   value={localToolkits}
                   set_value={handleToolkitsValueChange}
                   filterable={true}
