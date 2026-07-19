@@ -5,7 +5,6 @@
     "model_providers": "Anbieter",
     "workspaces": "Arbeitsbereich",
     "memory": "Speicher",
-    "computer_use": "Computernutzung",
     "token_usage": "Tokens",
     "update": "Update",
     "local_storage": "Speicher",
