@@ -5,7 +5,6 @@
     "model_providers": "Provider",
     "workspaces": "Spazi",
     "memory": "Memoria",
-    "computer_use": "Uso del computer",
     "token_usage": "Token",
     "update": "Aggiorna",
     "local_storage": "Archivio",

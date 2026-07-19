@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { SettingsModal } from "./settings_modal";
 
@@ -49,11 +49,6 @@ jest.mock("./token_usage", () => ({
   TokenUsageSettings: () => <div>Token Usage Content</div>,
 }));
 
-jest.mock("./computer_use", () => ({
-  __esModule: true,
-  ComputerUseSettings: () => <div>Computer Use Content</div>,
-}));
-
 jest.mock("./dev", () => ({
   __esModule: true,
   DevSettings: () => <div>Dev Content</div>,
@@ -84,14 +79,13 @@ describe("SettingsModal", () => {
     expect(await screen.findByText("Update")).toBeInTheDocument();
   });
 
-  test("renders the Computer Use page from the main settings nav", async () => {
+  test("does not render a Computer Use entry in the main settings nav", async () => {
     renderSettingsModal();
 
     await screen.findByText("Appearance Content");
-    // The Computer Use nav entry lives in the main settings area (not dev).
-    fireEvent.click(screen.getByText("Computer Use"));
-
-    expect(await screen.findByText("Computer Use Content")).toBeInTheDocument();
+    // Computer Use configuration moved into the plugins panel; the settings
+    // modal must no longer mount or navigate to it.
+    expect(screen.queryByText("Computer Use")).not.toBeInTheDocument();
   });
 
   test("hides the Update page when the app update feature flag is disabled", async () => {
