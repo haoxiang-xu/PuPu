@@ -421,6 +421,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "电脑",
+    "builtin_computer_tagline": "查看你的屏幕并控制鼠标和键盘",
     "kind_core": "核心",
     "kind_builtin": "内置",
     "kind_integration": "集成",

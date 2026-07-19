@@ -375,6 +375,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "Computer",
+    "builtin_computer_tagline": "Sieht deinen Bildschirm und steuert Maus und Tastatur",
     "kind_core": "Kern",
     "kind_builtin": "Integriert",
     "kind_integration": "Integration",

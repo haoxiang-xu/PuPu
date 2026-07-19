@@ -375,6 +375,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "컴퓨터",
+    "builtin_computer_tagline": "화면을 보고 마우스와 키보드를 제어합니다",
     "kind_core": "코어",
     "kind_builtin": "기본",
     "kind_integration": "통합",

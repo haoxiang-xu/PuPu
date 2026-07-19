@@ -64,7 +64,10 @@ export const ToolkitModal = ({ open, onClose }) => {
       const visible = list.filter(
         (tk) => tk.source !== "plugin" && !tk.hidden && !isBaseById(tk.toolkitId),
       );
-      setInstalledCount(visible.length);
+      /* +1 for the synthetic builtin Computer row the Installed page always
+         renders (S1) — it is not part of the catalog, so add it here to keep
+         the sidebar badge == the number of rows the Installed screen shows. */
+      setInstalledCount(visible.length + 1);
     } catch {
       /* keep previous count */
     }

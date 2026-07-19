@@ -65,6 +65,14 @@ jest.mock("../../../BUILTIN_COMPONENTs/tooltip/tooltip", () => ({
   default: ({ children }) => children,
 }));
 
+/* Stub the status pill so this list-level test never touches runtimeBridge —
+   the pill's own tri-state behavior is covered in computer_status_pill.test.js.
+   Text is "status" (no "tool") to keep the plugin-vocabulary assertion valid. */
+jest.mock("../components/computer_status_pill", () => ({
+  __esModule: true,
+  default: () => <span data-testid="computer-status-pill">status</span>,
+}));
+
 const CATALOG = [
   {
     toolkitId: "plan",
@@ -260,6 +268,66 @@ describe("PluginsInstalledPage", () => {
       expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
       fireEvent.click(screen.getByText(/Add a custom plugin/i));
       expect(onOpenCustomMcp).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /* S1: the builtin Computer plugin is a synthetic row that is always shown in
+     the Built-in section (not part of the catalog), carries a read-only status
+     pill (no auto-enable switch), and opens its settings detail — not the
+     catalog detail — on click. */
+  describe("PluginsInstalledPage — synthetic Computer row", () => {
+    test("always renders the Computer row with its read-only status pill", async () => {
+      await renderPage();
+
+      expect(screen.getByText("Computer")).toBeInTheDocument();
+      expect(screen.getByTestId("computer-status-pill")).toBeInTheDocument();
+    });
+
+    test("Computer row carries no auto-enable switch (pill only, toggle lives in detail)", async () => {
+      await renderPage();
+
+      // Only the two catalog plugins get switches; Computer does not.
+      expect(screen.getAllByTestId("switch")).toHaveLength(2);
+    });
+
+    test("clicking the Computer row opens its settings detail, not the catalog detail", async () => {
+      const onOpenPluginSettings = jest.fn();
+      const onOpenDetail = jest.fn();
+      await renderPage({ onOpenPluginSettings, onOpenDetail });
+
+      fireEvent.click(screen.getByText("Computer"));
+
+      expect(onOpenPluginSettings).toHaveBeenCalledTimes(1);
+      expect(onOpenPluginSettings).toHaveBeenCalledWith("builtin.computer");
+      expect(onOpenDetail).not.toHaveBeenCalled();
+    });
+
+    test("is shown even when the real catalog is empty", async () => {
+      api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+      await renderPage();
+
+      expect(screen.getByText("Computer")).toBeInTheDocument();
+    });
+
+    test("participates in search — hidden when the query doesn't match", async () => {
+      await renderPage();
+
+      fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
+        target: { value: "Notion" },
+      });
+
+      expect(screen.queryByText("Computer")).not.toBeInTheDocument();
+    });
+
+    test("participates in search — kept when the query matches its name", async () => {
+      await renderPage();
+
+      fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
+        target: { value: "Comp" },
+      });
+
+      expect(screen.getByText("Computer")).toBeInTheDocument();
+      expect(screen.queryByText("Plan")).not.toBeInTheDocument();
     });
   });
 });
