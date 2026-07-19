@@ -8,7 +8,9 @@ import {
 } from "../utils/computer_use_toolkit_option";
 
 /**
- * Provides the synthetic "Computer" toolkit option for the chat toolkit menu.
+ * Provides the synthetic "Computer" toolkit option for the chat toolkit menu,
+ * plus a reconcile signal so a residual selection can be stripped when the
+ * entry is no longer selectable.
  *
  * Visibility follows the computer-use master switch (server truth): the option
  * only exists when `getComputerUseStatus().enabled` is true. When the current
@@ -17,17 +19,30 @@ import {
  * the status read fails, the option is null — the caller renders nothing, so
  * the menu is byte-for-byte unchanged (zero-exposure invariant).
  *
+ * `resolution` captures a DEFINITIVE status answer so nothing acts while the
+ * async read is still in flight (which would wrongly strip a supported+enabled
+ * session on every mount):
+ *   - null                                → unknown (initial load, or a read
+ *     error) — render nothing, never reconcile
+ *   - { available: false }                → bridge unavailable — reconcile-strip
+ *   - { available: true, enabled: false } → switch off — reconcile-strip
+ *   - { available: true, enabled: true, supportedModelPrefixes } → switch on
+ *
  * Model capability is computed client-side from the cached prefix list, so it
  * updates reactively as the user switches models without another fetch.
  *
  * @param {{ selectedModelId?: string }} params
- * @returns {{ computerOption: (object|null), refreshComputerStatus: Function }}
+ * @returns {{
+ *   computerOption: (object|null),
+ *   shouldDeselectComputer: boolean,
+ *   refreshComputerStatus: Function,
+ * }}
  */
 const useComputerUseToolkitOption = ({ selectedModelId } = {}) => {
   const { isDark } = useContext(ConfigContext);
   const { t } = useTranslation();
 
-  const [status, setStatus] = useState(null);
+  const [resolution, setResolution] = useState(null);
   const mountedRef = useRef(true);
   const requestIdRef = useRef(0);
 
@@ -40,14 +55,14 @@ const useComputerUseToolkitOption = ({ selectedModelId } = {}) => {
   const refreshComputerStatus = useCallback(async () => {
     const runtime = api.runtime;
     if (!runtime || typeof runtime.getComputerUseStatus !== "function") {
-      if (mountedRef.current) setStatus(null);
+      if (mountedRef.current) setResolution({ available: false });
       return;
     }
     if (
       typeof runtime.isComputerUseStatusAvailable === "function" &&
       !runtime.isComputerUseStatusAvailable()
     ) {
-      if (mountedRef.current) setStatus(null);
+      if (mountedRef.current) setResolution({ available: false });
       return;
     }
 
@@ -57,17 +72,18 @@ const useComputerUseToolkitOption = ({ selectedModelId } = {}) => {
     try {
       const next = await runtime.getComputerUseStatus();
       if (!mountedRef.current || requestId !== requestIdRef.current) return;
-      setStatus({
+      setResolution({
+        available: true,
         enabled: Boolean(next?.enabled),
         supportedModelPrefixes: Array.isArray(next?.supportedModelPrefixes)
           ? next.supportedModelPrefixes
           : [],
       });
     } catch {
-      /* A failed / unavailable status read must not leak a broken entry into
-         the menu — collapse to "no option" rather than showing a stale one. */
-      if (!mountedRef.current || requestId !== requestIdRef.current) return;
-      setStatus(null);
+      /* A failed read is UNKNOWN, not "off": keep the prior resolution (no
+         flicker) and — critically — do NOT reconcile away a selection over a
+         transient sidecar hiccup. Leaving `resolution` untouched keeps
+         shouldDeselectComputer stable. */
     }
   }, []);
 
@@ -75,19 +91,37 @@ const useComputerUseToolkitOption = ({ selectedModelId } = {}) => {
     void refreshComputerStatus();
   }, [refreshComputerStatus]);
 
+  const supportedForModel = useMemo(
+    () =>
+      resolution?.available && resolution?.enabled
+        ? isComputerModelSupported(
+            selectedModelId,
+            resolution.supportedModelPrefixes,
+          )
+        : false,
+    [resolution, selectedModelId],
+  );
+
   const computerOption = useMemo(() => {
-    if (!status?.enabled) return null;
+    if (!resolution?.available || !resolution?.enabled) return null;
     return buildComputerToolkitOption({
       t,
       isDark,
-      supported: isComputerModelSupported(
-        selectedModelId,
-        status.supportedModelPrefixes,
-      ),
+      supported: supportedForModel,
     });
-  }, [status, selectedModelId, t, isDark]);
+  }, [resolution, supportedForModel, t, isDark]);
 
-  return { computerOption, refreshComputerStatus };
+  /* Reconcile only on a DEFINITIVE answer: bridge unavailable, switch off, or
+     switch-on-but-current-model-unsupported. `null` (loading / read error)
+     must not strip. */
+  const shouldDeselectComputer = useMemo(() => {
+    if (!resolution) return false;
+    if (!resolution.available) return true;
+    if (!resolution.enabled) return true;
+    return !supportedForModel;
+  }, [resolution, supportedForModel]);
+
+  return { computerOption, shouldDeselectComputer, refreshComputerStatus };
 };
 
 export default useComputerUseToolkitOption;
