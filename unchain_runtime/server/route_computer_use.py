@@ -79,8 +79,14 @@ def get_computer_use_status():
     if not root._is_authorized():
         return root._json_error("unauthorized", "Invalid auth token", 401)
 
-    from computer_use_flag import is_enabled
+    from computer_use_flag import COMPUTER_USE_MODEL_PREFIXES, is_enabled
     from computer_control import get_capabilities
+
+    # Single-source model allow-list (pupu-llm-expert authored, held in the gate
+    # module). The chat tool menu reads this to decide whether to surface the
+    # "Computer" entry for the active model — the frontend must never keep its own
+    # copy. Static + probe-independent, so it's present even on a probe failure.
+    supported_model_prefixes = list(COMPUTER_USE_MODEL_PREFIXES)
 
     try:
         capabilities = get_capabilities()
@@ -89,6 +95,7 @@ def get_computer_use_status():
             {
                 "enabled": is_enabled(),
                 "capabilities": None,
+                "supported_model_prefixes": supported_model_prefixes,
                 "error": f"capability_probe_failed: {exc}",
             }
         )
@@ -97,6 +104,7 @@ def get_computer_use_status():
         {
             "enabled": is_enabled(),
             "capabilities": capabilities,
+            "supported_model_prefixes": supported_model_prefixes,
         }
     )
 
