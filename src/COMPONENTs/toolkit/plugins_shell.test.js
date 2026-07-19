@@ -7,6 +7,7 @@ import {
   deleteMcpEntry,
 } from "../../SERVICEs/mcp_install";
 import { getMcpStoreEntry } from "../../SERVICEs/mcp_toolkit_store";
+import { getPluginSettingsEntry } from "./plugin_settings_registry";
 
 jest.mock("../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
   __esModule: true,
@@ -41,7 +42,32 @@ jest.mock("./pages/plugins_categories_page", () => ({
 
 jest.mock("./pages/plugins_installed_page", () => ({
   __esModule: true,
-  default: () => <div>Installed Page</div>,
+  default: ({ onOpenPluginSettings }) => (
+    <div>
+      <span>Installed Page</span>
+      <button onClick={() => onOpenPluginSettings?.("builtin.computer")}>
+        Open Computer Settings
+      </button>
+    </div>
+  ),
+}));
+
+/* Stub the plugin-settings registry so the overlay-branch test mounts a tiny
+   stand-in instead of the real ComputerUseSettings (its cross-domain mount is
+   covered separately in plugin_settings_registry.real.test.js). */
+jest.mock("./plugin_settings_registry", () => ({
+  __esModule: true,
+  getPluginSettingsEntry: jest.fn((id) =>
+    id === "builtin.computer"
+      ? {
+          Component: ({ toolkitId }) => (
+            <div>Computer Settings Panel: {toolkitId}</div>
+          ),
+          labelKey: "toolkit.builtin_computer_name",
+          icon: "mouse",
+        }
+      : null,
+  ),
 }));
 
 jest.mock("./pages/plugin_detail_page", () => ({
@@ -216,6 +242,19 @@ describe("PluginsShell", () => {
       if (id === "installed-ready.sample") return INSTALLED_READY_ENTRY;
       return null;
     });
+    /* resetMocks wipes the jest.mock factory impl each test — re-establish the
+       registry stub (Computer settings panel stand-in). */
+    getPluginSettingsEntry.mockImplementation((id) =>
+      id === "builtin.computer"
+        ? {
+            Component: ({ toolkitId }) => (
+              <div>Computer Settings Panel: {toolkitId}</div>
+            ),
+            labelKey: "toolkit.builtin_computer_name",
+            icon: "mouse",
+          }
+        : null,
+    );
   });
 
   const renderShell = async (props = {}) => {
@@ -421,6 +460,49 @@ describe("PluginsShell", () => {
     });
 
     expect(screen.getByText("Auto Enabled: true")).toBeInTheDocument();
+  });
+
+  /* S1: the Installed page's synthetic Computer row opens the builtin
+     plugin-settings overlay through the shell (kind: "plugin_settings"),
+     resolving its component from plugin_settings_registry by toolkitId. The
+     overlay container mirrors the custom / import_skills branches (back header
+     + scrollable body). */
+  test("opening plugin settings from Installed mounts the registered settings component", async () => {
+    await renderShell({ activePage: "installed" });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Open Computer Settings"));
+    });
+
+    expect(
+      screen.getByText("Computer Settings Panel: builtin.computer"),
+    ).toBeInTheDocument();
+    // header label comes from the registry entry's labelKey
+    expect(screen.getByText("toolkit.builtin_computer_name")).toBeInTheDocument();
+  });
+
+  test("plugin-settings overlay back button returns to the Installed page", async () => {
+    await renderShell({ activePage: "installed" });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Open Computer Settings"));
+    });
+    expect(
+      screen.getByText("Computer Settings Panel: builtin.computer"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId("icon-arrow_left").closest("button"),
+      );
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Computer Settings Panel: builtin.computer"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Installed Page")).toBeInTheDocument();
   });
 
   /* T1 (settings-isomorphic restyle): the App-Store-era per-item indigo

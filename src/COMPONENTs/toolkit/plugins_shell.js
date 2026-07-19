@@ -10,6 +10,7 @@ import ImportSkillsPage from "./pages/import_skills_page";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { isBuiltinToolkit } from "./utils/toolkit_helpers";
 import { deletePluginToolkit } from "./utils/plugin_actions";
+import { getPluginSettingsEntry } from "./plugin_settings_registry";
 import api from "../../SERVICEs/api";
 import { toPluginPresentation } from "../../SERVICEs/plugin_presentation";
 import {
@@ -150,6 +151,17 @@ export const PluginsShell = ({
   const handleOpenImportSkills = useCallback(() => {
     openDetail({ kind: "import_skills" });
   }, [openDetail]);
+
+  /* Plugin settings (S1) — a builtin plugin with a bespoke in-panel settings
+     surface (registered in plugin_settings_registry.js) opens it through the
+     same slide-in overlay. Today's only entry is builtin.computer →
+     ComputerUseSettings, reached from the synthetic Computer row on Installed. */
+  const handleOpenPluginSettings = useCallback(
+    (toolkitId) => {
+      openDetail({ kind: "plugin_settings", toolkitId });
+    },
+    [openDetail],
+  );
 
   /* Discover mixes two plugin sources (MCP-store-installable plugins and
      already-available builtin/local plugins pulled from the catalog), so its
@@ -487,6 +499,7 @@ export const PluginsShell = ({
           onHandlersReady={handleHandlersReady}
           onOpenCustomMcp={handleOpenCustomMcp}
           onOpenImportSkills={handleOpenImportSkills}
+          onOpenPluginSettings={handleOpenPluginSettings}
         />
       );
     }
@@ -756,6 +769,54 @@ export const PluginsShell = ({
                   <ImportSkillsPage isDark={isDark} onDone={handleSkillPackImported} />
                 </div>
               </div>
+            ) : selectedToolkit.kind === "plugin_settings" ? (
+              (() => {
+                /* S1: a builtin plugin's own settings surface, resolved from
+                   plugin_settings_registry by exact toolkitId. Container mirrors
+                   the custom / import_skills branches (back header + scrollable
+                   body). No install/delete/approve affordance and no
+                   TRUST_CONFIG vocabulary — this is a builtin, not a store
+                   entry (trust-partition, design §4). */
+                const settingsEntry = getPluginSettingsEntry(selectedToolkit.toolkitId);
+                const SettingsComponent = settingsEntry?.Component || null;
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingRight: 24 }}>
+                    <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                      <Button
+                        prefix_icon="arrow_left"
+                        onClick={closeDetail}
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: isDark ? "rgba(var(--pupu-text-rgb),0.72)" : "rgba(var(--pupu-text-rgb),0.68)",
+                          paddingVertical: 5,
+                          paddingHorizontal: 5,
+                          borderRadius: 8,
+                          root: { background: isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.04)" },
+                          hoverBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.07)",
+                          activeBackgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.12)" : "rgba(var(--pupu-text-rgb),0.1)",
+                          content: {
+                            prefixIconWrap: { display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 0 },
+                            icon: { width: 14, height: 14 },
+                          },
+                        }}
+                      />
+                      <span style={{ fontSize: 15, fontWeight: 500, color: "var(--pupu-text)" }}>
+                        {settingsEntry ? t(settingsEntry.labelKey) : ""}
+                      </span>
+                    </div>
+                    <div className="scrollable" style={{ flex: 1, overflowY: "auto", paddingBottom: 20 }}>
+                      {SettingsComponent ? (
+                        <SettingsComponent
+                          toolkitId={selectedToolkit.toolkitId}
+                          isDark={isDark}
+                          onRequestClose={closeDetail}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               <PluginDetailPage
                 presentation={toPluginPresentation(selectedToolkit.toolkit || {})}

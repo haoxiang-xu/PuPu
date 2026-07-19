@@ -10,6 +10,8 @@ import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalo
 import { toPluginPresentation } from "../../../SERVICEs/plugin_presentation";
 import { isBaseToolkitId } from "../utils/plugin_actions";
 import PluginListRow from "../components/plugin_list_row";
+import ComputerStatusPill from "../components/computer_status_pill";
+import { BUILTIN_COMPUTER_TOOLKIT_ID } from "../plugin_settings_registry";
 import { SettingsSection } from "../../settings/appearance";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
@@ -42,6 +44,7 @@ const PluginsInstalledPage = ({
   onHandlersReady,
   onOpenCustomMcp,
   onOpenImportSkills,
+  onOpenPluginSettings,
 }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
@@ -138,6 +141,31 @@ const PluginsInstalledPage = ({
     });
   }, [rows, search]);
 
+  /* Synthetic builtin "Computer" row (S1) — NOT a catalog toolkit (the sidecar
+     never emits it from the tool-modal catalog; it rides the chat payload as a
+     synthetic id, same as the attach-panel Computer entry). It is always shown
+     in the Built-in section, participates in the page search (name/tagline),
+     and its right slot is a READ-ONLY status pill — the on/off toggle and the
+     consent gate live only in its settings detail page. Row click opens that
+     detail via onOpenPluginSettings, not the catalog-detail onOpenDetail. */
+  const computerRow = useMemo(
+    () => ({
+      toolkitId: BUILTIN_COMPUTER_TOOLKIT_ID,
+      name: t("toolkit.builtin_computer_name"),
+      tagline: t("toolkit.builtin_computer_tagline"),
+      icon: "mouse",
+    }),
+    [t],
+  );
+  const computerVisible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      computerRow.name.toLowerCase().includes(q) ||
+      computerRow.tagline.toLowerCase().includes(q)
+    );
+  }, [search, computerRow]);
+
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const tertiaryText = isDark ? "rgba(var(--pupu-text-rgb),0.38)" : "rgba(var(--pupu-text-rgb),0.35)";
   const dividerColor = "rgba(var(--pupu-text-rgb),0.06)";
@@ -212,19 +240,25 @@ const PluginsInstalledPage = ({
     </div>
   );
 
-  if (toolkits.length === 0) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <PlaceholderBlock
-          icon="download"
-          title={t("toolkit.no_toolkits_title")}
-          subtitle={t("toolkit.no_toolkits_subtitle")}
-          isDark={isDark}
-        />
-        {customMcpFooter}
-      </div>
-    );
-  }
+  /* No empty-catalog short-circuit any more: the synthetic Computer row is
+     always present in the Built-in section, so the Installed screen is never
+     truly empty. An empty real catalog just renders the header + a Built-in
+     section containing only Computer + the footer. (The connectivity-error
+     placeholder above still stands — that's a distinct sidecar-down state.) */
+
+  const renderComputerRow = () => (
+    <PluginListRow
+      key={computerRow.toolkitId}
+      icon={computerRow.icon}
+      isDark={isDark}
+      name={computerRow.name}
+      description={computerRow.tagline}
+      onOpenDetail={() => onOpenPluginSettings?.(computerRow.toolkitId)}
+      testId={`installed-row-${computerRow.toolkitId}`}
+    >
+      <ComputerStatusPill isDark={isDark} />
+    </PluginListRow>
+  );
 
   const renderRow = ({ toolkit: tk, presentation }) => (
     <PluginListRow
@@ -292,14 +326,15 @@ const PluginsInstalledPage = ({
 
       {/* ── Scrollable body — Built-in / MCP SettingsSections + footer. ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 26px 26px" }}>
-        {filteredRows.length === 0 && (
+        {filteredRows.length === 0 && !computerVisible && (
           <div style={{ fontSize: 12, fontFamily, color: tertiaryText, padding: "16px 0" }}>
             {t("toolkit.installed_no_matches")}
           </div>
         )}
 
-        {builtinRows.length > 0 && (
+        {(computerVisible || builtinRows.length > 0) && (
           <SettingsSection title={t("toolkit.source_builtin")}>
+            {computerVisible && renderComputerRow()}
             {builtinRows.map(renderRow)}
           </SettingsSection>
         )}
