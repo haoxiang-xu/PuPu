@@ -5,7 +5,6 @@
     "model_providers": "Fournisseurs",
     "workspaces": "Espaces",
     "memory": "Mémoire",
-    "computer_use": "Contrôle de l'ordinateur",
     "token_usage": "Tokens",
     "update": "Mise à jour",
     "local_storage": "Stockage",
@@ -375,6 +374,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "Ordinateur",
+    "builtin_computer_tagline": "Voit votre écran et contrôle la souris et le clavier",
     "kind_core": "Noyau",
     "kind_builtin": "Intégré",
     "kind_integration": "Intégration",

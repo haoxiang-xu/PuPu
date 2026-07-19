@@ -5,7 +5,6 @@
     "model_providers": "Provedores",
     "workspaces": "Espaços",
     "memory": "Memória",
-    "computer_use": "Uso do computador",
     "token_usage": "Tokens",
     "update": "Atualizar",
     "local_storage": "Armazenamento",
@@ -375,6 +374,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "Computador",
+    "builtin_computer_tagline": "Vê a sua tela e controla o mouse e o teclado",
     "kind_core": "Núcleo",
     "kind_builtin": "Integrado",
     "kind_integration": "Integração",

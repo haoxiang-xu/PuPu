@@ -5,7 +5,6 @@
     "model_providers": "模型提供商",
     "workspaces": "工作区",
     "memory": "记忆",
-    "computer_use": "电脑操作",
     "token_usage": "Token 用量",
     "update": "更新",
     "local_storage": "本地存储",
@@ -421,6 +420,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "电脑",
+    "builtin_computer_tagline": "查看你的屏幕并控制鼠标和键盘",
     "kind_core": "核心",
     "kind_builtin": "内置",
     "kind_integration": "集成",

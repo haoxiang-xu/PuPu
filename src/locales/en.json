@@ -5,7 +5,6 @@
     "model_providers": "Model Providers",
     "workspaces": "Workspaces",
     "memory": "Memory",
-    "computer_use": "Computer Use",
     "token_usage": "Token Usage",
     "update": "Update",
     "local_storage": "Local Storage",
@@ -480,6 +479,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "Computer",
+    "builtin_computer_tagline": "See your screen and control the mouse and keyboard",
     "kind_core": "Core",
     "kind_builtin": "Built-in",
     "kind_integration": "Integration",
