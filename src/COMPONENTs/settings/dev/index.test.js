@@ -63,11 +63,6 @@ jest.mock("./components/mcp_registries_modal", () => ({
   default: ({ open }) => (open ? <div>MCP Registries Modal</div> : null),
 }));
 
-jest.mock("../computer_use", () => ({
-  __esModule: true,
-  default: () => <div>Computer Use Settings</div>,
-}));
-
 describe("DevSettings", () => {
   test("opens MCP Registries in a modal from a Developer row", () => {
     render(<DevSettings />);
