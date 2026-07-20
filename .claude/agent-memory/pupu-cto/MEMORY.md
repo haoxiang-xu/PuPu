@@ -1,3 +1,4 @@
+- [契约：download-skill-repo 通道 2026-07-18](contract-download-skill-repo.md) — 错误码枚举冻结/facade>main超时/原始字节hash/skip非manifest违规=spec原判/tar提升是硬前提
 - [ADR：S0/S1 签核+合并时序 2026-07-13](adr-s0s1-rich-tool-result-signoff.md) — 双签放行；主树checkout=PuPu运行时；测试须PYTHONPATH=worktree/src
 - [后端量级评估 2026-07-05](backend-sizing-2026-07-05.md) — 排序可吸收不招人；delta-persist 不在擎路径(纯前端+Electron)；复评触发器=0.1.10 结束
 - [路线图 0.1.9→0.2.0 评审 2026-07-05](roadmap-019-020-review.md) — 隐性前置=command registry/delta-persist/agent-runner 抽象；thread 建议后移；agent 装 MCP=CRITICAL 硬门

@@ -1066,33 +1066,70 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(delete_calls["collections"], [])
 
     def test_replace_short_term_session_memory_clears_checkpoint_with_cas(self) -> None:
-        from unchain.memory import JsonFileSessionStore
+        from unchain.execution import ExecutionRuntime
+        from unchain.interaction.durable import (
+            INTERACTION_KIND_HUMAN_INPUT,
+            build_interaction_request,
+        )
+        from unchain.interaction.runtime import response_contract_for_kind
+        from unchain.kernel import RunState
+        from unchain.memory import KernelMemoryRuntime
+        from unchain.memory.checkpoint_state import build_execution_checkpoint
 
         with tempfile.TemporaryDirectory() as data_dir, \
             mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False):
-            store = JsonFileSessionStore(
-                base_dir=memory_factory._sessions_dir(data_dir)
-            )
-            store.save(
-                "chat-1",
-                {
-                    "messages": [{"role": "user", "content": "old"}],
-                    "execution_checkpoint": {
-                        "checkpoint_id": "stale",
-                        "interaction_request": {
-                            "response_contract": {
-                                "type": "object",
-                                "properties": {
-                                    "modified_arguments": {
-                                        "type": ["object", "null"],
-                                    }
-                                },
-                            }
-                        },
-                    },
+            store = memory_factory._build_session_store(data_dir)
+            memory_runtime = KernelMemoryRuntime.from_config(store=store)
+            execution_runtime = ExecutionRuntime(store)
+            run_state = RunState()
+            run_state.seed_messages([{"role": "user", "content": "old"}])
+            run_state.session_state.session_id = "chat-1"
+            run_state.provider_state.provider = "openai"
+            run_state.provider_state.model = "gpt-5"
+            run_state.memory_state["session_revision"] = 0
+            run_state.iteration = 1
+            run_state.last_continuation = {
+                "type": "durable_interaction",
+                "occurrence": "ask-before-replace",
+            }
+            request = build_interaction_request(
+                session_id="chat-1",
+                kind=INTERACTION_KIND_HUMAN_INPUT,
+                source_run_id="run-replace",
+                occurrence="ask-before-replace",
+                payload={
+                    "request_id": "ask-before-replace",
+                    "question": "Continue?",
+                    "selection_mode": "single",
+                    "options": [
+                        {"label": "Yes", "value": "yes"},
+                        {"label": "No", "value": "no"},
+                    ],
                 },
+                response_contract=response_contract_for_kind(
+                    INTERACTION_KIND_HUMAN_INPUT
+                ),
+                created_revision=0,
+                subject={"provider": "openai", "model": "gpt-5"},
             )
+            run_state.suspend_state.payload = {
+                "interaction_request": request.to_dict()
+            }
+            checkpoint = build_execution_checkpoint(
+                run_state,
+                status="awaiting_interaction",
+                run_id="run-replace",
+            )
+            guard = execution_runtime.acquire("chat-1", "run-replace")
+            memory_runtime.save_execution_checkpoint_snapshot(
+                "chat-1",
+                checkpoint,
+                interaction_request=request.to_dict(),
+                expected_revision=0,
+                execution_fence=guard.fence,
+            )
+            guard.release()
 
             result = memory_factory.replace_short_term_session_memory(
                 session_id="chat-1",
@@ -1102,9 +1139,15 @@ class MemoryFactoryTests(unittest.TestCase):
             persisted = store.load_with_revision("chat-1")
 
         self.assertTrue(result["execution_checkpoint_cleared"])
-        self.assertEqual(result["session_revision"], 2)
-        self.assertEqual(persisted.revision, 2)
+        self.assertEqual(result["session_revision"], 3)
+        self.assertEqual(persisted.revision, 3)
         self.assertNotIn("execution_checkpoint", persisted.state)
+        self.assertNotIn("execution_checkpoint_domain", persisted.state)
+        journal = persisted.state["interaction_journal"]
+        self.assertIsNone(journal["active_id"])
+        entry = journal["entries"][request.interaction_id]
+        self.assertIsNotNone(entry["receipt"])
+        self.assertIsNotNone(entry["application"])
         self.assertEqual(
             persisted.state["messages"],
             [{"role": "user", "content": "replacement"}],

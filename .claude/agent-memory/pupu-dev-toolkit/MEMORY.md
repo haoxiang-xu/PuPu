@@ -6,3 +6,4 @@
 - [Security Attack Surface](security_attack_surface.md) — SEC-001: boundary ③ supply chain; F-1 README markdown XSS, auto-approve == renderer safety, icon injection
 - [Store-browse vs Installed paths](store_browse_vs_installed_paths.md) — searchMcpStoreEntries filters browse only; installed list is independent (api catalog) — safe choke point for gating store grid
 - [Custom MCP flow](custom_mcp_flow.md) — add-only (no edit), id from name, errors collapse to "Install failed", HTTP no auth, icon frontend-local; GO 2026-06-14
+- [Computer-use chat entry](computer_use_chat_entry.md) — builtin.computer is synthetic (outside catalog), lives in chat-input, gates on getComputerUseStatus; facade drops unknown status fields

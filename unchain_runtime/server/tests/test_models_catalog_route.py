@@ -789,6 +789,32 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertEqual(payload["expected_revision"], 4)
         self.assertEqual(payload["actual_revision"], 5)
 
+    def test_replace_memory_session_preserves_structured_durable_error(self) -> None:
+        class DurableConflict(RuntimeError):
+            code = "orphaned_interaction_recovery_required"
+            status_code = 409
+            retryable = False
+
+        fake_memory_factory = types.SimpleNamespace(
+            replace_short_term_session_memory=mock.Mock(
+                side_effect=DurableConflict("cancel the pending interaction first")
+            )
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.post(
+                "/memory/session/replace",
+                json={"session_id": "chat-1", "messages": []},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.get_json()["error"]
+        self.assertEqual(
+            payload["code"],
+            "orphaned_interaction_recovery_required",
+        )
+        self.assertFalse(payload["retryable"])
+
 
 if __name__ == "__main__":
     unittest.main()

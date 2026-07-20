@@ -38,6 +38,7 @@ import { useChatStream } from "./hooks/use_chat_stream";
 import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
+import { useRotatingModelChips } from "./hooks/use_rotating_model_chips";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
 import * as bootProgress from "../../SERVICEs/boot_progress";

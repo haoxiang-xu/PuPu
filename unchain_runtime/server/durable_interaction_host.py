@@ -645,15 +645,14 @@ def resolve_resume_options(
 
 def _session_store():
     try:
-        from unchain.memory import JsonFileSessionStore
+        from memory_factory import _build_session_store
+        return _build_session_store(str(_normalized_data_dir()))
     except ImportError as exc:  # pragma: no cover - deployment compatibility guard
         raise DurableInteractionHostError(
             "durable_runtime_unavailable",
             "Installed Unchain does not provide durable session storage",
             status_code=503,
         ) from exc
-    sessions_directory = _normalized_data_dir() / "memory" / "sessions"
-    return JsonFileSessionStore(base_dir=sessions_directory)
 
 
 def _interaction_runtime():
@@ -782,6 +781,19 @@ def _cancel_pending_source_attempt(
             InteractionNotPendingError = ()  # type: ignore
         if isinstance(exc, InteractionNotPendingError):
             return False
+        try:
+            from unchain.interaction import InteractionIntegrityError
+        except ImportError:  # pragma: no cover
+            InteractionIntegrityError = ()  # type: ignore
+        if isinstance(exc, InteractionIntegrityError):
+            repaired = _reconcile_orphaned_cancelled_interaction(
+                session_id,
+                expected_source_run_id=source_attempt_id,
+                reason=reason,
+                cancel_if_needed=False,
+            )
+            if repaired:
+                return True
         if isinstance(exc, TypeError):
             raise DurableInteractionHostError(
                 "execution_cancellation_unavailable",
@@ -811,6 +823,401 @@ def _ensure_execution_tombstone(
             retryable=True,
         )
     return request_cancel(session_id, attempt_id, reason=reason)
+
+
+def _reconcile_orphaned_cancelled_interaction(
+    session_id: str,
+    *,
+    expected_source_run_id: str = "",
+    reason: str = "execution_cancelled",
+    cancel_if_needed: bool = False,
+) -> bool:
+    """Repair legacy state whose active interaction lost its checkpoint.
+
+    The repair is intentionally narrow: the active journal entry and any
+    dangling checkpoint domain must agree on the exact session, checkpoint,
+    and source owner.  That owner must also have a durable cancellation
+    tombstone (or this explicit abandon path creates one) before the journal is
+    terminalized with a revision CAS.
+    """
+
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_expected_source = str(expected_source_run_id or "").strip()
+    normalized_reason = str(reason or "execution_cancelled").strip()
+    store = _session_store()
+
+    try:
+        from unchain.interaction.durable import (
+            INTERACTION_JOURNAL_KEY,
+            build_interaction_receipt,
+            mark_interaction_applied,
+            record_interaction_receipt,
+            validate_interaction_journal,
+            validate_interaction_request,
+        )
+        from memory_factory import (
+            _load_session_snapshot_compat,
+            _save_session_snapshot_compat,
+        )
+    except ImportError as exc:  # pragma: no cover - deployment compatibility guard
+        raise DurableInteractionHostError(
+            "durable_runtime_unavailable",
+            "Installed Unchain does not provide durable interaction repair APIs",
+            status_code=503,
+        ) from exc
+
+    last_conflict: Exception | None = None
+    for _ in range(16):
+        snapshot = _load_session_snapshot_compat(store, normalized_session_id)
+        state = copy.deepcopy(snapshot.state)
+        if "execution_checkpoint" in state:
+            return False
+
+        try:
+            journal = validate_interaction_journal(
+                state.get(INTERACTION_JOURNAL_KEY)
+            )
+        except Exception as exc:
+            raise DurableInteractionHostError(
+                "interaction_integrity_error",
+                f"Invalid durable interaction journal: {exc}",
+                status_code=409,
+            ) from exc
+
+        active_id = journal.get("active_id")
+        domain = state.get("execution_checkpoint_domain")
+        # The historical PuPu bug always left the checkpoint domain behind.
+        # Without that exact owner/checkpoint binding there is not enough proof
+        # to mutate a journal-only state, so leave it fail-closed.
+        if domain is None:
+            return False
+        if (
+            isinstance(snapshot.revision, bool)
+            or not isinstance(snapshot.revision, int)
+        ):
+            raise DurableInteractionHostError(
+                "durable_store_unavailable",
+                "Orphaned interaction repair requires revisioned session storage",
+                status_code=503,
+            )
+
+        source_run_id = ""
+        checkpoint_id = ""
+        entry = None
+        request = None
+        if active_id:
+            entry = journal["entries"].get(active_id)
+            if not isinstance(entry, dict):
+                raise DurableInteractionHostError(
+                    "interaction_integrity_error",
+                    "Active durable interaction is missing from its journal",
+                    status_code=409,
+                )
+            try:
+                request = validate_interaction_request(entry.get("request"))
+            except Exception as exc:
+                raise DurableInteractionHostError(
+                    "interaction_integrity_error",
+                    f"Active durable interaction request is invalid: {exc}",
+                    status_code=409,
+                ) from exc
+            if request.session_id != normalized_session_id:
+                raise DurableInteractionHostError(
+                    "interaction_integrity_error",
+                    "Orphaned durable interaction belongs to another session",
+                    status_code=409,
+                )
+            source_run_id = str(request.source_run_id or "").strip()
+            checkpoint_id = str(entry.get("checkpoint_id") or "").strip()
+
+        if domain is not None:
+            if not isinstance(domain, dict):
+                raise DurableInteractionHostError(
+                    "interaction_integrity_error",
+                    "Execution checkpoint domain must be an object",
+                    status_code=409,
+                )
+            domain_execution_id = str(domain.get("execution_id") or "").strip()
+            domain_owner_id = str(domain.get("owner_id") or "").strip()
+            domain_checkpoint_id = str(domain.get("checkpoint_id") or "").strip()
+            domain_fencing_token = domain.get("fencing_token")
+            if (
+                domain.get("schema_version") != 1
+                or domain_execution_id != normalized_session_id
+                or not domain_owner_id
+                or not domain_checkpoint_id
+                or isinstance(domain_fencing_token, bool)
+                or not isinstance(domain_fencing_token, int)
+                or domain_fencing_token <= 0
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_integrity_error",
+                    "Dangling execution checkpoint domain is invalid",
+                    status_code=409,
+                )
+            if source_run_id and (
+                source_run_id != domain_owner_id
+                or checkpoint_id != domain_checkpoint_id
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_integrity_error",
+                    "Orphaned interaction does not match its checkpoint domain",
+                    status_code=409,
+                )
+            source_run_id = source_run_id or domain_owner_id
+            checkpoint_id = checkpoint_id or domain_checkpoint_id
+
+        if not source_run_id or not checkpoint_id:
+            raise DurableInteractionHostError(
+                "interaction_integrity_error",
+                "Orphaned durable state has no exact checkpoint owner",
+                status_code=409,
+            )
+        if (
+            normalized_expected_source
+            and source_run_id != normalized_expected_source
+        ):
+            return False
+
+        cancellation = _load_execution_cancellation(
+            normalized_session_id,
+            source_run_id,
+        )
+        if cancellation is None and cancel_if_needed:
+            _execution_control_cancel(
+                normalized_session_id,
+                source_run_id,
+                reason=normalized_reason,
+            )
+            cancellation = _ensure_execution_tombstone(
+                normalized_session_id,
+                source_run_id,
+                reason=normalized_reason,
+            )
+        if cancellation is None:
+            raise DurableInteractionHostError(
+                "orphaned_interaction_recovery_required",
+                "Active durable interaction has no execution checkpoint and its "
+                "owner is not cancelled",
+                status_code=409,
+            )
+        if domain is not None and (
+            getattr(cancellation, "fencing_token", None)
+            != domain.get("fencing_token")
+        ):
+            raise DurableInteractionHostError(
+                "interaction_integrity_error",
+                "Orphaned interaction cancellation does not match its checkpoint fence",
+                status_code=409,
+            )
+
+        if request is not None and entry is not None:
+            receipt = entry.get("receipt")
+            if receipt is None:
+                try:
+                    cancellation_receipt = build_interaction_receipt(
+                        request,
+                        {
+                            "cancelled": True,
+                            "reason": str(
+                                getattr(cancellation, "reason", "")
+                                or normalized_reason
+                            ),
+                        },
+                        submitted_by="runtime:orphaned_interaction_repair",
+                        submitted_at_ms=int(
+                            getattr(cancellation, "requested_at_ms", 0)
+                            or time.time() * 1000
+                        ),
+                    )
+                    journal = record_interaction_receipt(
+                        journal,
+                        cancellation_receipt,
+                    )
+                    receipt = journal["entries"][active_id]["receipt"]
+                except Exception as exc:
+                    raise DurableInteractionHostError(
+                        "interaction_integrity_error",
+                        f"Failed to record orphan cancellation receipt: {exc}",
+                        status_code=409,
+                    ) from exc
+            try:
+                journal = mark_interaction_applied(
+                    journal,
+                    interaction_id=active_id,
+                    receipt_id=str(receipt.get("receipt_id") or ""),
+                    applied_checkpoint_id=f"cancelled:{checkpoint_id}",
+                )
+            except Exception as exc:
+                raise DurableInteractionHostError(
+                    "interaction_integrity_error",
+                    f"Failed to terminalize orphaned interaction: {exc}",
+                    status_code=409,
+                ) from exc
+            state[INTERACTION_JOURNAL_KEY] = journal
+
+        state.pop("execution_checkpoint_domain", None)
+        try:
+            _save_session_snapshot_compat(
+                store,
+                normalized_session_id,
+                state,
+                expected_revision=snapshot.revision,
+            )
+            return True
+        except Exception as exc:
+            if getattr(exc, "code", "") == "session_revision_conflict":
+                last_conflict = exc
+                continue
+            raise
+
+    if last_conflict is not None:
+        raise last_conflict
+    raise DurableInteractionHostError(
+        "orphaned_interaction_repair_failed",
+        "Orphaned durable interaction repair did not converge",
+        status_code=409,
+        retryable=True,
+    )
+
+
+def prepare_session_memory_replacement(session_id: str) -> dict[str, bool]:
+    """Abandon any exact pending execution before rewriting session history."""
+
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    repaired_orphan = _reconcile_orphaned_cancelled_interaction(
+        normalized_session_id,
+        reason="session memory replaced",
+        cancel_if_needed=True,
+    )
+    if repaired_orphan:
+        return {
+            "execution_checkpoint_cleared": True,
+            "orphaned_interaction_repaired": True,
+        }
+
+    from memory_factory import _load_session_snapshot_compat
+
+    preflight = _load_session_snapshot_compat(
+        _session_store(),
+        normalized_session_id,
+    )
+    if preflight.state.get("execution_checkpoint") is None:
+        return {
+            "execution_checkpoint_cleared": False,
+            "orphaned_interaction_repaired": False,
+        }
+
+    interaction_runtime = _interaction_runtime()
+    memory_runtime = interaction_runtime.memory_runtime
+    snapshot = memory_runtime.load_session_snapshot(normalized_session_id)
+    checkpoint_raw = snapshot.state.get("execution_checkpoint")
+    if checkpoint_raw is None:
+        return {
+            "execution_checkpoint_cleared": False,
+            "orphaned_interaction_repaired": False,
+        }
+
+    try:
+        from unchain.memory.checkpoint_state import validate_execution_checkpoint
+
+        checkpoint = validate_execution_checkpoint(checkpoint_raw)
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            str(getattr(exc, "code", "execution_checkpoint_integrity_error") or ""),
+            str(exc),
+            status_code=409,
+        ) from exc
+
+    source_run_id = str(checkpoint.get("source_run_id") or "").strip()
+    if checkpoint.get("session_id") != normalized_session_id or not source_run_id:
+        raise DurableInteractionHostError(
+            "execution_checkpoint_compatibility_error",
+            "Execution checkpoint does not match the session memory replacement",
+            status_code=409,
+        )
+
+    _execution_control_cancel(
+        normalized_session_id,
+        source_run_id,
+        reason="session memory replaced",
+    )
+    _ensure_execution_tombstone(
+        normalized_session_id,
+        source_run_id,
+        reason="session memory replaced",
+    )
+
+    try:
+        memory_runtime.reconcile_cancelled_execution_checkpoint(
+            normalized_session_id
+        )
+        current = memory_runtime.load_session_snapshot(normalized_session_id)
+        if "execution_checkpoint" in current.state:
+            if isinstance(checkpoint.get("interaction_ref"), dict):
+                cancelled = _cancel_pending_source_attempt(
+                    normalized_session_id,
+                    source_run_id,
+                    reason="session memory replaced",
+                )
+                if not cancelled:
+                    memory_runtime.clear_execution_checkpoint_snapshot(
+                        normalized_session_id,
+                        expected_checkpoint_id=str(
+                            checkpoint.get("checkpoint_id") or ""
+                        ),
+                    )
+            else:
+                memory_runtime.clear_execution_checkpoint_snapshot(
+                    normalized_session_id,
+                    expected_checkpoint_id=str(checkpoint.get("checkpoint_id") or ""),
+                )
+    except DurableInteractionHostError:
+        raise
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            str(getattr(exc, "code", "session_memory_replace_conflict") or ""),
+            str(exc),
+            status_code=409,
+            retryable=(
+                str(getattr(exc, "code", "") or "")
+                == "session_revision_conflict"
+            ),
+        ) from exc
+
+    _reconcile_orphaned_cancelled_interaction(
+        normalized_session_id,
+        expected_source_run_id=source_run_id,
+        reason="session memory replaced",
+        cancel_if_needed=False,
+    )
+    final_snapshot = memory_runtime.load_session_snapshot(normalized_session_id)
+    final_state = final_snapshot.state
+    final_journal = final_state.get("interaction_journal")
+    if (
+        "execution_checkpoint" in final_state
+        or "execution_checkpoint_domain" in final_state
+        or (
+            isinstance(final_journal, dict)
+            and bool(final_journal.get("active_id"))
+        )
+    ):
+        raise DurableInteractionHostError(
+            "session_memory_replace_conflict",
+            "Durable execution could not be terminalized before memory replacement",
+            status_code=409,
+            retryable=True,
+        )
+    return {
+        "execution_checkpoint_cleared": True,
+        "orphaned_interaction_repaired": False,
+    }
 
 
 def _reconcile_cancelled_attempt(
@@ -997,6 +1404,11 @@ def _presentation_for_request(request: Any) -> dict[str, Any]:
 
 def get_pending_interaction(session_id: str) -> dict[str, Any]:
     normalized_session_id = str(session_id or "").strip()
+    _reconcile_orphaned_cancelled_interaction(
+        normalized_session_id,
+        reason="reconciled cancelled orphaned interaction",
+        cancel_if_needed=False,
+    )
     runtime = _interaction_runtime()
     try:
         snapshot = runtime.load_active(normalized_session_id)

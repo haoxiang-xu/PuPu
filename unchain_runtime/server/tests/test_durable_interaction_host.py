@@ -178,6 +178,161 @@ class DurableInteractionHostTests(unittest.TestCase):
             "Computer",
         )
 
+    def test_session_store_rehydrates_sanitized_checkpoint_before_validation(self) -> None:
+        from unchain.kernel import RunState
+        from unchain.memory.checkpoint_state import (
+            build_execution_checkpoint,
+            validate_execution_checkpoint,
+        )
+
+        session_id = "chat-computer-checkpoint"
+        screenshot_b64 = "UE5HREFUQQ=="
+        state = RunState()
+        state.seed_messages(
+            [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu-screenshot",
+                            "name": "computer",
+                            "input": {"action": "screenshot"},
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu-screenshot",
+                            "content": [
+                                {
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": "image/png",
+                                        "data": screenshot_b64,
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ]
+        )
+        state.session_state.session_id = session_id
+        state.provider_state.provider = "anthropic"
+        state.provider_state.model = "claude-opus-4-7"
+        state.iteration = 1
+        checkpoint = build_execution_checkpoint(
+            state,
+            status="max_iterations",
+            run_id="run-computer-checkpoint",
+        )
+
+        with mock.patch.dict(os.environ, {"PUPU_COMPUTER_USE": "1"}):
+            store = host._session_store()
+        store.save(session_id, {"execution_checkpoint": checkpoint})
+
+        persisted = Path(store._path(session_id)).read_text(encoding="utf-8")
+        self.assertNotIn(screenshot_b64, persisted)
+        self.assertIn("data_omitted", persisted)
+
+        loaded = store.load(session_id)
+        validate_execution_checkpoint(loaded["execution_checkpoint"])
+        self.assertIn(screenshot_b64, str(loaded["execution_checkpoint"]))
+
+    def test_session_store_maps_unchain_import_failure_to_503(self) -> None:
+        with mock.patch(
+            "memory_factory._build_session_store",
+            side_effect=ImportError("JsonFileSessionStore unavailable"),
+        ), self.assertRaises(host.DurableInteractionHostError) as raised:
+            host._session_store()
+
+        self.assertEqual(raised.exception.code, "durable_runtime_unavailable")
+        self.assertEqual(raised.exception.status_code, 503)
+
+    def test_pending_lookup_repairs_cancelled_orphaned_interaction(self) -> None:
+        session_id = "chat-orphan-repair"
+        attempt_id = "run-orphan-repair"
+        request = self._seed_cancellable_request(
+            session_id=session_id,
+            attempt_id=attempt_id,
+        )
+        store = host._session_store()
+        guard = host._execution_runtime().acquire(session_id, attempt_id)
+        snapshot = store.load_with_revision(session_id)
+        state = snapshot.state
+        checkpoint = state.pop("execution_checkpoint")
+        state["execution_checkpoint_domain"] = {
+            "schema_version": 1,
+            "checkpoint_id": checkpoint["checkpoint_id"],
+            "execution_id": session_id,
+            "owner_id": attempt_id,
+            "fencing_token": guard.fence.fencing_token,
+        }
+        store.save_if_revision_and_fence(
+            session_id,
+            state,
+            snapshot.revision,
+            execution_id=session_id,
+            owner_id=attempt_id,
+            fencing_token=guard.fence.fencing_token,
+        )
+        cancellation = host._ensure_execution_tombstone(
+            session_id,
+            attempt_id,
+            reason="user_stop",
+        )
+        self.assertEqual(cancellation.fencing_token, guard.fence.fencing_token)
+
+        result = host.get_pending_interaction(session_id)
+        persisted = store.load_with_revision(session_id)
+
+        self.assertEqual(result, {"status": "none", "session_id": session_id})
+        self.assertNotIn("execution_checkpoint_domain", persisted.state)
+        journal = persisted.state["interaction_journal"]
+        self.assertIsNone(journal["active_id"])
+        entry = journal["entries"][request.interaction_id]
+        self.assertTrue(entry["receipt"]["response"]["cancelled"])
+        self.assertIsNotNone(entry["application"])
+
+    def test_pending_lookup_does_not_repair_uncancelled_orphan(self) -> None:
+        session_id = "chat-orphan-active"
+        attempt_id = "run-orphan-active"
+        request = self._seed_cancellable_request(
+            session_id=session_id,
+            attempt_id=attempt_id,
+        )
+        store = host._session_store()
+        snapshot = store.load_with_revision(session_id)
+        state = snapshot.state
+        checkpoint = state.pop("execution_checkpoint")
+        state["execution_checkpoint_domain"] = {
+            "schema_version": 1,
+            "checkpoint_id": checkpoint["checkpoint_id"],
+            "execution_id": session_id,
+            "owner_id": attempt_id,
+            "fencing_token": 1,
+        }
+        store.save_if_revision(session_id, state, snapshot.revision)
+
+        with self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.get_pending_interaction(session_id)
+
+        self.assertEqual(
+            raised.exception.code,
+            "orphaned_interaction_recovery_required",
+        )
+        persisted = store.load(session_id)
+        self.assertEqual(
+            persisted["interaction_journal"]["active_id"],
+            request.interaction_id,
+        )
+        self.assertIn("execution_checkpoint_domain", persisted)
+
     def test_pending_context_is_bound_to_request_source_run_id(self) -> None:
         self._seed_request()
         host.save_resume_context(

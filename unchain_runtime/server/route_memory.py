@@ -39,7 +39,8 @@ def replace_memory_session() -> Response:
     except ValueError as exc:
         return root._json_error("invalid_request", str(exc), 400)
     except Exception as exc:
-        if getattr(exc, "code", "") == "session_revision_conflict":
+        error_code = str(getattr(exc, "code", "") or "").strip()
+        if error_code == "session_revision_conflict":
             return jsonify(
                 {
                     "error": {
@@ -50,6 +51,17 @@ def replace_memory_session() -> Response:
                     }
                 }
             ), 409
+        status_code = int(getattr(exc, "status_code", 0) or 0)
+        if error_code and 400 <= status_code < 600:
+            return jsonify(
+                {
+                    "error": {
+                        "code": error_code,
+                        "message": str(exc),
+                        "retryable": bool(getattr(exc, "retryable", False)),
+                    }
+                }
+            ), status_code
         return jsonify(
             {
                 "error": {

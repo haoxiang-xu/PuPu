@@ -1550,8 +1550,32 @@ def replace_short_term_session_memory(
     raw_options = options if isinstance(options, dict) else {}
     retained_messages = _sanitize_dialog_messages(messages)
 
+    from durable_interaction_host import (
+        DurableInteractionHostError,
+        prepare_session_memory_replacement,
+    )
+
+    replacement_cleanup = prepare_session_memory_replacement(
+        normalized_session_id
+    )
+
     previous_snapshot = _load_session_snapshot_compat(store, normalized_session_id)
     previous_state = previous_snapshot.state
+    previous_journal = previous_state.get("interaction_journal")
+    if (
+        "execution_checkpoint" in previous_state
+        or "execution_checkpoint_domain" in previous_state
+        or (
+            isinstance(previous_journal, dict)
+            and bool(previous_journal.get("active_id"))
+        )
+    ):
+        raise DurableInteractionHostError(
+            "session_memory_replace_conflict",
+            "A durable execution started while session memory was being replaced",
+            status_code=409,
+            retryable=True,
+        )
 
     old_tag = str(previous_state.get("vector_collection_tag", "") or "").strip()
     old_collection_name = _session_collection_name(
@@ -1619,7 +1643,9 @@ def replace_short_term_session_memory(
     next_state = dict(previous_state)
     next_state["messages"] = retained_messages
     next_state.pop("summary", None)
-    checkpoint_cleared = next_state.pop("execution_checkpoint", None) is not None
+    checkpoint_cleared = bool(
+        replacement_cleanup.get("execution_checkpoint_cleared")
+    )
     next_state["vector_indexed_until"] = vector_indexed_until
     next_state["vector_collection_tag"] = new_tag
     next_state["vector_embedding_signature"] = vector_signature
@@ -1660,6 +1686,8 @@ def replace_short_term_session_memory(
     }
     if checkpoint_cleared:
         response["execution_checkpoint_cleared"] = True
+    if replacement_cleanup.get("orphaned_interaction_repaired"):
+        response["orphaned_interaction_repaired"] = True
     if isinstance(persisted_snapshot.revision, int):
         response["session_revision"] = persisted_snapshot.revision
     if cleanup_warning:

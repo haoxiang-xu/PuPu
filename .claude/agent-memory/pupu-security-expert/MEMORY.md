@@ -10,3 +10,4 @@
 - [Custom MCP 发版裁决](custom-mcp-release-assessment.md) — 2026-06-14 任意stdio/http MCP；CONDITIONAL GO：argv-exec无shell注入但确认自声明默认关；最小门=安装风险确认弹窗
 - [Computer Use M2 安审](computer-use-m2-assessment.md) — 两门分离：flag-off合dev放行；F1已修复验收(d664c7a)；F9 subagent无门=新P0(不挂载+unchain fail-closed双签)；F3截图落盘
 - [Skillpack import 安审(S4)](skillpack-import-security.md) — 2026-07-18 放行S5；body人审=S5门槛；symlink不跟随是刻意行为；欠后端phase/tools钉死
+- [S6a 下载通道安审(S6d)](skillpack-s6a-download-review.md) — CONDITIONAL GO；tar CVE-2026-53655 pin抬≥7.5.16；S6c manifest须同parser；欠S6b temp删除验证
