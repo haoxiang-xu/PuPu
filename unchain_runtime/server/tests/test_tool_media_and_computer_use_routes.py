@@ -228,11 +228,34 @@ class ComputerUseRouteTests(_MediaDirTestCase):
         self.assertIn("screen_recording", caps["permissions"])
         self.assertIn("accessibility", caps["permissions"])
 
+    def test_status_exposes_supported_model_prefixes(self):
+        # The chat tool menu reads this list to decide whether to surface the
+        # "Computer" entry; it must match the single-source gate constant exactly
+        # (frontend must never keep its own copy).
+        import computer_use_flag
+
+        os.environ["PUPU_COMPUTER_USE"] = "1"
+        try:
+            resp = self.client.get("/computer-use/status")
+        finally:
+            os.environ.pop("PUPU_COMPUTER_USE", None)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertIn("supported_model_prefixes", body)
+        self.assertEqual(
+            body["supported_model_prefixes"],
+            list(computer_use_flag.COMPUTER_USE_MODEL_PREFIXES),
+        )
+
     def test_status_reflects_flag_off(self):
         os.environ.pop("PUPU_COMPUTER_USE", None)
         resp = self.client.get("/computer-use/status")
         self.assertEqual(resp.status_code, 200)
-        self.assertFalse(resp.get_json()["enabled"])
+        body = resp.get_json()
+        self.assertFalse(body["enabled"])
+        # The allow-list is static / probe-independent, so it's present even with
+        # the feature flag off.
+        self.assertIn("supported_model_prefixes", body)
 
 
 if __name__ == "__main__":

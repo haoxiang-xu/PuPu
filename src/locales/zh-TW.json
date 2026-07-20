@@ -374,6 +374,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "電腦",
+    "builtin_computer_tagline": "查看你的螢幕並控制滑鼠和鍵盤",
     "kind_core": "核心",
     "kind_builtin": "內建",
     "kind_integration": "整合",

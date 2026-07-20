@@ -374,6 +374,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "Ordinateur",
+    "builtin_computer_tagline": "Voit votre écran et contrôle la souris et le clavier",
     "kind_core": "Noyau",
     "kind_builtin": "Intégré",
     "kind_integration": "Intégration",

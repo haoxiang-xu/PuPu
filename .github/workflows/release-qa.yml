@@ -235,6 +235,15 @@ jobs:
         if: runner.os == 'Linux'
         run: npx playwright install-deps chromium
 
+      # Electron's SUID sandbox helper aborts on Linux runners unless it is
+      # root-owned with mode 4755 (the spawn in e2e/fixtures/pupu_app.js runs
+      # with sandboxing on).
+      - name: Configure Electron SUID sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
       - name: Run Playwright Electron release smoke
         id: playwright
         continue-on-error: true

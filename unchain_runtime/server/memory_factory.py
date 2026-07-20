@@ -34,9 +34,6 @@ _EMBEDDING_DEFAULTS: dict[str, tuple[str, int]] = {
 # Providers that have no embedding API
 _NO_EMBED_PROVIDERS = {"anthropic"}
 
-_COMPUTER_USE_FLAG = "PUPU_COMPUTER_USE"
-_COMPUTER_USE_FLAG_TRUE_VALUES = {"1", "true", "yes", "on", "enabled"}
-
 # Module-level singletons â€” one Qdrant client reused across all requests
 _qdrant_clients: dict[str, "QdrantClient"] = {}
 _qdrant_clients_lock = threading.Lock()
@@ -114,10 +111,14 @@ def _sessions_dir(data_dir: str) -> str:
 
 
 def _computer_use_enabled() -> bool:
-    return (
-        os.environ.get(_COMPUTER_USE_FLAG, "").strip().lower()
-        in _COMPUTER_USE_FLAG_TRUE_VALUES
-    )
+    # Thin delegate to the shared gate (Gate B). ``computer_use_flag`` is a leaf
+    # module (only ``import os``), so this local import carries no cycle. Because
+    # _build_session_store is per-call, a runtime flip is captured on the next
+    # store construction — keeping screenshot sanitization in lockstep with the
+    # tool gate in unchain_adapter.
+    from computer_use_flag import is_enabled
+
+    return is_enabled()
 
 
 def _build_session_store(data_dir: str):

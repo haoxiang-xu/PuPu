@@ -3346,28 +3346,27 @@ _BUILTIN_TOOLKIT_PREFIX = "builtin."
 # Feature flag for computer-use (C2). Off by default: the `builtin.` branch skips
 # construction AND ComputerToolkit never enters any catalog (it lives in
 # ``computer_control``, outside the unchain builtin walk), so a disabled flag =
-# zero exposure. Follows the PUPU_* env convention (cf. PUPU_MCP_REGISTRY_PATH).
-_COMPUTER_USE_FLAG = "PUPU_COMPUTER_USE"
-_FLAG_TRUE_VALUES = {"1", "true", "yes", "on", "enabled"}
+# zero exposure. The flag itself now lives in the shared ``computer_use_flag``
+# leaf module (Gate B) so a runtime override is observed here and by
+# ``memory_factory``'s screenshot sanitization at once; this file only delegates.
 
-# Anthropic models that support the computer_20251124 tool + the
-# computer-use-2025-11-24 beta. Prefix match tolerates date/@ suffixes. Older
-# Anthropic models (Sonnet 4.5, Haiku 4.5, Opus 4.1, ...) need the OLD tool type
-# + beta and would 400 on ours, so we do NOT mount the computer tool for them
-# (generic-schema fallback is untested M3 work — deliberately not opened here).
-# List is pupu-llm-expert authored (model-visible authority).
-_COMPUTER_USE_MODEL_PREFIXES = (
-    "claude-sonnet-5",
-    "claude-opus-4-8",
-    "claude-opus-4-7",
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-    "claude-opus-4-5",
+# The Anthropic model-prefix allow-list for computer_20251124 now lives in the
+# shared ``computer_use_flag`` gate module (beside is_enabled()) so the status
+# route can read the SAME source without importing this heavy adapter. Re-bound to
+# the local name so ``_model_supports_computer_use`` and its tests are unchanged.
+# The list is pupu-llm-expert authored (model-visible authority) — see that module
+# for the full rationale.
+from computer_use_flag import (
+    COMPUTER_USE_MODEL_PREFIXES as _COMPUTER_USE_MODEL_PREFIXES,
 )
 
 
 def _computer_use_enabled() -> bool:
-    return os.environ.get(_COMPUTER_USE_FLAG, "").strip().lower() in _FLAG_TRUE_VALUES
+    # Thin delegate to the shared gate (Gate B). Kept as a module-local name so
+    # existing call sites and tests need no signature change.
+    from computer_use_flag import is_enabled
+
+    return is_enabled()
 
 
 def _model_supports_computer_use(provider: str, model: str) -> bool:

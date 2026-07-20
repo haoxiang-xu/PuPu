@@ -374,6 +374,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "Компьютер",
+    "builtin_computer_tagline": "Видит экран и управляет мышью и клавиатурой",
     "kind_core": "Ядро",
     "kind_builtin": "Встроенный",
     "kind_integration": "Интеграция",

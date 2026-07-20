@@ -187,6 +187,63 @@ describe("bridge wrappers", () => {
     });
   });
 
+  test("runtimeBridge.setComputerUseEnabled forwards flag and normalizes payload", async () => {
+    window.unchainAPI = {
+      setComputerUseEnabled: jest.fn(async (enabled) => ({
+        ok: true,
+        enabled,
+      })),
+    };
+
+    expect(runtimeBridge.isComputerUseEnableAvailable()).toBe(true);
+    await expect(runtimeBridge.setComputerUseEnabled(true)).resolves.toEqual({
+      ok: true,
+      enabled: true,
+      error: "",
+    });
+    expect(window.unchainAPI.setComputerUseEnabled).toHaveBeenCalledWith(true);
+  });
+
+  test("runtimeBridge.setComputerUseEnabled throws when bridge method is missing", async () => {
+    window.unchainAPI = {};
+
+    expect(runtimeBridge.isComputerUseEnableAvailable()).toBe(false);
+    await expect(
+      runtimeBridge.setComputerUseEnabled(true),
+    ).rejects.toMatchObject({ code: "bridge_unavailable" });
+  });
+
+  test("runtimeBridge.getComputerUseStatus normalizes supported_model_prefixes into a trimmed list", async () => {
+    window.unchainAPI = {
+      getComputerUseStatus: jest.fn(async () => ({
+        enabled: true,
+        reason: "",
+        capabilities: { platform: "darwin" },
+        supported_model_prefixes: ["claude-opus", "  claude-sonnet  ", "", 42],
+      })),
+    };
+
+    await expect(runtimeBridge.getComputerUseStatus()).resolves.toEqual({
+      enabled: true,
+      reason: "",
+      capabilities: { platform: "darwin" },
+      supportedModelPrefixes: ["claude-opus", "claude-sonnet"],
+    });
+  });
+
+  test("runtimeBridge.getComputerUseStatus defaults supportedModelPrefixes to [] when absent", async () => {
+    window.unchainAPI = {
+      getComputerUseStatus: jest.fn(async () => ({ enabled: false })),
+    };
+
+    await expect(runtimeBridge.getComputerUseStatus()).resolves.toEqual({
+      enabled: false,
+      reason: "",
+      capabilities: null,
+      supportedModelPrefixes: [],
+    });
+  });
+
   test("runtimeBridge.syncBuildFeatureFlagsSnapshot forwards flags and normalizes payload", async () => {
     window.unchainAPI = {
       syncBuildFeatureFlagsSnapshot: jest.fn(async (featureFlags) => ({

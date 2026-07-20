@@ -374,6 +374,8 @@
     }
   },
   "toolkit": {
+    "builtin_computer_name": "コンピュータ",
+    "builtin_computer_tagline": "画面を見てマウスとキーボードを操作します",
     "kind_core": "コア",
     "kind_builtin": "組込み",
     "kind_integration": "統合",

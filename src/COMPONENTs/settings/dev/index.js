@@ -14,7 +14,6 @@ import { readDevSettings, writeDevSettings } from "./storage";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import UITestingModal from "../../ui-testing/ui_testing_modal";
 import McpRegistriesModal from "./components/mcp_registries_modal";
-import ComputerUseSettings from "../computer_use";
 
 export const DevSettings = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -285,8 +284,6 @@ export const DevSettings = () => {
           </div>
         )}
       </SettingsSection>
-
-      <ComputerUseSettings />
     </div>
   );
 };

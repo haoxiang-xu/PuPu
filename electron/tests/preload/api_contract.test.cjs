@@ -62,6 +62,7 @@ describe("preload API contract", () => {
     [
       "getStatus",
       "getComputerUseStatus",
+      "setComputerUseEnabled",
       "openComputerUsePrivacySettings",
       "getModelCatalog",
       "getToolkitCatalog",
@@ -166,6 +167,20 @@ describe("preload API contract", () => {
     exposed.unchainAPI.getComputerUseStatus();
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
+    );
+
+    exposed.unchainAPI.setComputerUseEnabled(true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+      { enabled: true },
+    );
+
+    // Boundary tightening: the bridge coerces any non-boolean to a strict
+    // boolean before it crosses the IPC line — a truthy object becomes `true`.
+    exposed.unchainAPI.setComputerUseEnabled({ sneaky: "payload" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+      { enabled: true },
     );
 
     exposed.unchainAPI.openComputerUsePrivacySettings("accessibility");

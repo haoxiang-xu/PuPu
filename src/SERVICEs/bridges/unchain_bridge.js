@@ -59,6 +59,8 @@ export const runtimeBridge = {
     hasBridgeMethod("unchainAPI", "getComputerUseStatus"),
   isComputerUsePrivacySettingsAvailable: () =>
     hasBridgeMethod("unchainAPI", "openComputerUsePrivacySettings"),
+  isComputerUseEnableAvailable: () =>
+    hasBridgeMethod("unchainAPI", "setComputerUseEnabled"),
 
   getComputerUseStatus: async () => {
     if (!runtimeBridge.isComputerUseStatusAvailable()) {
@@ -82,11 +84,21 @@ export const runtimeBridge = {
       payload.capabilities && typeof payload.capabilities === "object"
         ? payload.capabilities
         : null;
+    /* Model-capability contract: the sidecar reports which model families
+       support computer use as a list of id prefixes (compared against the
+       provider-stripped model id). Absent on older sidecars — normalize to an
+       empty list so a missing field reads as "no supported models". */
+    const supportedModelPrefixes = Array.isArray(payload.supported_model_prefixes)
+      ? payload.supported_model_prefixes
+          .map((prefix) => (typeof prefix === "string" ? prefix.trim() : ""))
+          .filter(Boolean)
+      : [];
 
     return {
       enabled: Boolean(payload.enabled),
       reason: typeof payload.reason === "string" ? payload.reason : "",
       capabilities,
+      supportedModelPrefixes,
     };
   },
 
@@ -112,6 +124,37 @@ export const runtimeBridge = {
 
     return {
       ok: Boolean(response?.ok),
+      error: typeof response?.error === "string" ? response.error : "",
+    };
+  },
+
+  setComputerUseEnabled: async (enabled = false) => {
+    if (!runtimeBridge.isComputerUseEnableAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.setComputerUseEnabled is unavailable",
+      );
+    }
+
+    const nextEnabled = Boolean(enabled);
+    const response = await invokeUnchain(
+      "setComputerUseEnabled",
+      [nextEnabled],
+      {
+        timeoutMs: 8000,
+        timeoutCode: "unchain_computer_use_enable_timeout",
+        timeoutMessage: "Set computer use enabled request timed out",
+        failureCode: "unchain_computer_use_enable_failed",
+        failureMessage: "Failed to set computer use enabled",
+      },
+    );
+
+    return {
+      ok: Boolean(response?.ok),
+      enabled:
+        typeof response?.enabled === "boolean"
+          ? response.enabled
+          : nextEnabled,
       error: typeof response?.error === "string" ? response.error : "",
     };
   },

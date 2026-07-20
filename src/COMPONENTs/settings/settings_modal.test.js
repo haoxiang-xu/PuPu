@@ -79,6 +79,15 @@ describe("SettingsModal", () => {
     expect(await screen.findByText("Update")).toBeInTheDocument();
   });
 
+  test("does not render a Computer Use entry in the main settings nav", async () => {
+    renderSettingsModal();
+
+    await screen.findByText("Appearance Content");
+    // Computer Use configuration moved into the plugins panel; the settings
+    // modal must no longer mount or navigate to it.
+    expect(screen.queryByText("Computer Use")).not.toBeInTheDocument();
+  });
+
   test("hides the Update page when the app update feature flag is disabled", async () => {
     window.localStorage.setItem(
       "settings",
