@@ -546,10 +546,10 @@ const PluginDetailPage = ({
       (row) => row.k === "Provider",
     )?.v || "";
   const aboutKvRows = [
-    { k: "Provider", v: entry?.repoFullName || informationProvider },
-    { k: "Version", v: versionValue },
-    { k: "Category", v: categoryLabel },
-    { k: "Stars", v: entry?.repoStars != null ? String(entry.repoStars) : "" },
+    { k: t("toolkit.info_provider"), v: entry?.repoFullName || informationProvider },
+    { k: t("toolkit.info_version"), v: versionValue },
+    { k: t("toolkit.info_category"), v: categoryLabel },
+    { k: t("toolkit.info_stars"), v: entry?.repoStars != null ? String(entry.repoStars) : "" },
   ].filter((row) => String(row.v || "").trim());
   const aboutDescription = entry?.toolkitDescription || presentation.tagline || "";
   const hasReadme = Boolean(readmeState.content);
@@ -1109,7 +1109,7 @@ const PluginDetailPage = ({
                       cursor: "pointer",
                     }}
                   >
-                    <span style={{ color: tertiaryColor, fontFamily, flexShrink: 0 }}>Docs</span>
+                    <span style={{ color: tertiaryColor, fontFamily, flexShrink: 0 }}>{t("toolkit.info_docs")}</span>
                     <span style={{ color: mutedColor, fontWeight: 500, fontFamily }}>
                       {`README ${readmeExpanded ? "⌄" : "›"}`}
                     </span>
