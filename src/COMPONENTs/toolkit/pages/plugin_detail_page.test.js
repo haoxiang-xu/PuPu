@@ -481,7 +481,13 @@ const DUAL_AUTH_ENTRY = {
   installable: true,
   mcp: { transport: "http" },
   secrets: [{ key: "API_KEY", label: "API key" }],
-  auth: { oauth: { provider: "sample", scopes: ["read"] } },
+  auth: {
+    oauth: {
+      provider: "sample",
+      scopes: ["read"],
+      releaseStatus: "ready",
+    },
+  },
   tools: [],
 };
 
@@ -505,6 +511,50 @@ describe("PluginDetailPage — dual auth", () => {
   test("does not show the secondary OAuth action for a plain (non-oauth) secrets entry", () => {
     renderPage({ entry: SECRET_ENTRY, forceInstalled: false });
     expect(screen.queryByText("Connect with OAuth")).not.toBeInTheDocument();
+  });
+
+  test("does not show the secondary OAuth action when provider approval is pending", () => {
+    renderPage({
+      entry: {
+        ...DUAL_AUTH_ENTRY,
+        auth: {
+          oauth: {
+            provider: "sample",
+            scopes: ["read"],
+            releaseStatus: "approval_required",
+          },
+        },
+      },
+      forceInstalled: false,
+    });
+    expect(screen.queryByText("Connect with OAuth")).not.toBeInTheDocument();
+  });
+
+  test("an OAuth-only provider awaiting approval shows Coming soon instead of Connect", () => {
+    renderPage({
+      entry: {
+        id: "dev.figma-remote",
+        toolkitId: "mcp.dev.figma-remote",
+        toolkitName: "Figma",
+        toolkitDescription: "Figma remote MCP",
+        source: "mcp",
+        status: "coming_soon",
+        installable: false,
+        mcp: { transport: "http", url: "https://mcp.figma.com/mcp" },
+        secrets: [],
+        auth: {
+          oauth: {
+            provider: "figma",
+            releaseStatus: "approval_required",
+          },
+        },
+        tools: [],
+      },
+      forceInstalled: false,
+    });
+
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+    expect(screen.queryByText("Connect")).not.toBeInTheDocument();
   });
 });
 

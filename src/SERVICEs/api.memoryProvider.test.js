@@ -322,9 +322,27 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
       },
     });
 
-    await api.unchain.replaceSessionMemory({
+    const structuredConflict = {
+      applied: false,
+      error: {
+        code: "session_revision_conflict",
+        message: "Session state changed before memory replacement",
+        retryable: false,
+        status: 409,
+        expected_revision: 7,
+        actual_revision: 8,
+      },
+    };
+    window.unchainAPI.replaceSessionMemory.mockResolvedValueOnce(
+      structuredConflict,
+    );
+
+    const result = await api.unchain.replaceSessionMemory({
       sessionId: "chat-1",
       messages: [{ role: "user", content: "hello" }],
+      operationId: " replace-1 ",
+      expectedSessionRevision: 7,
+      expectedCancelAttemptId: " run-1 ",
       options: {
         modelId: "anthropic:claude-sonnet-4-6",
       },
@@ -332,6 +350,12 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
 
     const [payload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(payload.session_id).toBe("chat-1");
+    expect(payload.operationId).toBe("replace-1");
+    expect(payload.operation_id).toBe("replace-1");
+    expect(payload.expectedSessionRevision).toBe(7);
+    expect(payload.expected_session_revision).toBe(7);
+    expect(payload.expectedCancelAttemptId).toBe("run-1");
+    expect(payload.expected_cancel_attempt_id).toBe("run-1");
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_embedding_provider).toBe("auto");
     expect(payload.options.memory_vector_min_score).toBe(0.4);
@@ -341,6 +365,7 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.openai_api_key).toBe("openai-key-123");
     expect(payload.options.anthropicApiKey).toBe("anthropic-key-456");
     expect(payload.options.anthropic_api_key).toBe("anthropic-key-456");
+    expect(result).toEqual(structuredConflict);
   });
 
   test("preserves agent_orchestration when normalizing startStreamV2 payload", () => {

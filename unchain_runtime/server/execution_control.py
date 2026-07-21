@@ -20,6 +20,7 @@ _VALID_STATUSES = frozenset(
     {"registered", "running", "completed", "failed", "cancelled"}
 )
 _TOKEN_REFRESH_INTERVAL_SECONDS = 0.05
+_PROCESS_OWNER_ID = uuid.uuid4().hex
 
 
 class ExecutionControlError(RuntimeError):
@@ -66,6 +67,8 @@ class ExecutionControlSnapshot:
     running_at_ms: int | None = None
     terminal_at_ms: int | None = None
     reason: str = ""
+    owner_id: str = ""
+    owner_pid: int | None = None
 
     @property
     def terminal(self) -> bool:
@@ -88,6 +91,8 @@ class ExecutionControlSnapshot:
             "running_at_ms": self.running_at_ms,
             "terminal_at_ms": self.terminal_at_ms,
             "reason": self.reason,
+            "owner_id": self.owner_id,
+            "owner_pid": self.owner_pid,
         }
 
     @classmethod
@@ -129,6 +134,13 @@ class ExecutionControlSnapshot:
         reason = raw.get("reason", "")
         if not isinstance(reason, str):
             raise ValueError("execution control reason must be a string")
+        owner_id = raw.get("owner_id", "")
+        if not isinstance(owner_id, str):
+            raise ValueError("execution control owner_id must be a string")
+        owner_pid = _validated_optional_positive_int(
+            raw.get("owner_pid"),
+            "owner_pid",
+        )
         if updated_at_ms < created_at_ms:
             raise ValueError("execution control timestamps are not monotonic")
         if status in _TERMINAL_STATUSES and terminal_at_ms is None:
@@ -147,6 +159,8 @@ class ExecutionControlSnapshot:
             running_at_ms=running_at_ms,
             terminal_at_ms=terminal_at_ms,
             reason=reason,
+            owner_id=owner_id.strip(),
+            owner_pid=owner_pid,
         )
 
 
@@ -250,9 +264,19 @@ class ExecutionControlRegistry:
         data_dir: str | Path | None = None,
         *,
         clock_ms: Callable[[], int] | None = None,
+        process_owner_id: str | None = None,
+        process_pid: int | None = None,
+        process_is_alive: Callable[[int], bool] | None = None,
     ) -> None:
         self._data_dir = Path(data_dir).expanduser() if data_dir is not None else None
         self._clock_ms = clock_ms or (lambda: int(time.time() * 1000))
+        self._process_owner_id = str(process_owner_id or _PROCESS_OWNER_ID).strip()
+        if not self._process_owner_id:
+            raise ValueError("process_owner_id must be non-empty")
+        self._process_pid = int(process_pid if process_pid is not None else os.getpid())
+        if self._process_pid <= 0:
+            raise ValueError("process_pid must be positive")
+        self._process_is_alive = process_is_alive or _process_is_alive
         self._events: dict[tuple[str, str, str], threading.Event] = {}
         self._events_lock = threading.RLock()
 
@@ -298,19 +322,55 @@ class ExecutionControlRegistry:
                     now_ms=now_ms,
                     registered_at_ms=now_ms,
                     running_at_ms=now_ms,
+                    owner_id=self._process_owner_id,
+                    owner_pid=self._process_pid,
                 ), "applied"
             if current.terminal:
                 return None, "already_terminal"
             if current.status == "running":
-                return None, "unchanged"
+                if self._running_owner_is_live(current):
+                    return None, "unchanged"
+                return self._advance(
+                    current,
+                    status="running",
+                    now_ms=now_ms,
+                    running_at_ms=now_ms,
+                    owner_id=self._process_owner_id,
+                    owner_pid=self._process_pid,
+                ), "applied"
             return self._advance(
                 current,
                 status="running",
                 now_ms=now_ms,
                 running_at_ms=current.running_at_ms or now_ms,
+                owner_id=self._process_owner_id,
+                owner_pid=self._process_pid,
             ), "applied"
 
         return self._mutate(session_id, attempt_id, transition)
+
+    def _running_owner_is_live(
+        self,
+        current: ExecutionControlSnapshot,
+    ) -> bool:
+        if (
+            current.owner_id == self._process_owner_id
+            and current.owner_pid == self._process_pid
+        ):
+            return True
+        if (
+            current.owner_id
+            and current.owner_pid == self._process_pid
+            and current.owner_id != self._process_owner_id
+        ):
+            # A different process incarnation cannot still be alive with this
+            # process's PID. Treat PID reuse as a dead predecessor.
+            return False
+        if current.owner_pid is not None:
+            return bool(self._process_is_alive(current.owner_pid))
+        # Legacy v1 records have no provable owner. Fail closed instead of
+        # risking concurrent execution while such a worker may still exist.
+        return True
 
     def mark_completed(
         self,
@@ -443,6 +503,11 @@ class ExecutionControlRegistry:
                 return None, "unchanged"
             if current.terminal:
                 return None, "already_terminal"
+            if current.status == "running" and (
+                current.owner_id != self._process_owner_id
+                or current.owner_pid != self._process_pid
+            ):
+                return None, "stale_owner"
             return self._advance(
                 current,
                 status=status,
@@ -492,6 +557,8 @@ class ExecutionControlRegistry:
         running_at_ms: int | None = None,
         terminal_at_ms: int | None = None,
         reason: str = "",
+        owner_id: str = "",
+        owner_pid: int | None = None,
     ) -> ExecutionControlSnapshot:
         return ExecutionControlSnapshot(
             session_id=session_id,
@@ -504,6 +571,8 @@ class ExecutionControlRegistry:
             running_at_ms=running_at_ms,
             terminal_at_ms=terminal_at_ms,
             reason=reason,
+            owner_id=owner_id,
+            owner_pid=owner_pid,
         )
 
     @staticmethod
@@ -515,6 +584,8 @@ class ExecutionControlRegistry:
         running_at_ms: int | None = None,
         terminal_at_ms: int | None = None,
         reason: str = "",
+        owner_id: str | None = None,
+        owner_pid: int | None = None,
     ) -> ExecutionControlSnapshot:
         return ExecutionControlSnapshot(
             session_id=current.session_id,
@@ -531,6 +602,8 @@ class ExecutionControlRegistry:
             ),
             terminal_at_ms=terminal_at_ms,
             reason=reason,
+            owner_id=current.owner_id if owner_id is None else owner_id,
+            owner_pid=current.owner_pid if owner_id is None else owner_pid,
         )
 
     def _now_ms(self) -> int:
@@ -683,6 +756,26 @@ def _validated_optional_timestamp(value: Any, field_name: str) -> int | None:
     if value is None:
         return None
     return _validated_non_negative_int(value, field_name)
+
+
+def _validated_optional_positive_int(value: Any, field_name: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return value
+
+
+def _process_is_alive(process_id: int) -> bool:
+    if process_id == os.getpid():
+        return True
+    try:
+        os.kill(process_id, 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError):
+        return True
+    return True
 
 
 def _normalized_reason(value: Any) -> str:

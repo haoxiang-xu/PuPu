@@ -36,6 +36,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
   CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
   CHANNELS.UNCHAIN.START_MCP_OAUTH,
+  CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH,
   CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
   CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
   CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
@@ -282,9 +283,14 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
       unchainService.startMisoMcpOAuth(payload.entryId),
   );
   ipcMain.handle(
+    CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH,
+    async (_event, payload = {}) =>
+      unchainService.cancelMisoMcpOAuth(payload.state),
+  );
+  ipcMain.handle(
     CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
     async (_event, payload = {}) =>
-      unchainService.getMisoMcpOAuthStatus(payload.entryId),
+      unchainService.getMisoMcpOAuthStatus(payload.state),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,

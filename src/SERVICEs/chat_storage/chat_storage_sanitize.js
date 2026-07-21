@@ -685,6 +685,37 @@ export const sanitizeMessage = (message) => {
       meta.requestId = trimText(message.meta.requestId, 200);
     }
 
+    if (
+      typeof message.meta.turnMutationOperationId === "string" &&
+      message.meta.turnMutationOperationId.trim()
+    ) {
+      meta.turnMutationOperationId = trimText(
+        message.meta.turnMutationOperationId,
+        240,
+      );
+    }
+
+    if (
+      typeof message.meta.attemptId === "string" &&
+      message.meta.attemptId.trim()
+    ) {
+      meta.attemptId = trimText(message.meta.attemptId, 200);
+    }
+
+    if (
+      typeof message.meta.executionSessionId === "string" &&
+      message.meta.executionSessionId.trim()
+    ) {
+      meta.executionSessionId = trimText(
+        message.meta.executionSessionId,
+        240,
+      );
+    }
+
+    if (message.meta.turnMutationServerAcknowledged === true) {
+      meta.turnMutationServerAcknowledged = true;
+    }
+
     if (isObject(message.meta.error)) {
       meta.error = {
         code: trimText(String(message.meta.error.code || "unknown"), 100),

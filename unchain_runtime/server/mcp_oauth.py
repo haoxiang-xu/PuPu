@@ -26,12 +26,18 @@ class McpOAuthError(RuntimeError):
 
 MCP_OAUTH_TOKENS_FILENAME = "mcp_oauth_tokens.json"
 OAUTH_STATE_TTL_SECONDS = 600
+OAUTH_ATTEMPT_RETENTION_SECONDS = 300
 TOKEN_REFRESH_SKEW_SECONDS = 60
 
 _PENDING_STATES: Dict[str, Dict[str, Any]] = {}
 _PENDING_LOCK = threading.Lock()
+_COMMIT_LOCKS: Dict[str, Any] = {}
+_COMMIT_LOCKS_LOCK = threading.Lock()
+_TOKEN_EPOCHS: Dict[str, int] = {}
 _REFRESH_LOCKS: Dict[str, threading.Lock] = {}
 _REFRESH_LOCKS_LOCK = threading.Lock()
+_STORE_LOCKS: Dict[str, Any] = {}
+_STORE_LOCKS_LOCK = threading.Lock()
 
 
 def _data_dir(data_dir: str | Path | None = None) -> Path:
@@ -43,6 +49,18 @@ def _data_dir(data_dir: str | Path | None = None) -> Path:
 
 def _store_path(data_dir: str | Path | None = None) -> Path:
     return _data_dir(data_dir) / MCP_OAUTH_TOKENS_FILENAME
+
+
+def _store_scope_key(data_dir: str | Path | None = None) -> str:
+    return str(_store_path(data_dir).resolve())
+
+
+def _store_lock(data_dir: str | Path | None = None):
+    key = _store_scope_key(data_dir)
+    with _STORE_LOCKS_LOCK:
+        if key not in _STORE_LOCKS:
+            _STORE_LOCKS[key] = threading.RLock()
+        return _STORE_LOCKS[key]
 
 
 def _empty_store() -> Dict[str, Any]:
@@ -65,11 +83,24 @@ def _read_store(data_dir: str | Path | None = None) -> Dict[str, Any]:
 def _write_store(store: Dict[str, Any], data_dir: str | Path | None = None) -> None:
     path = _store_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(store, indent=2, sort_keys=True), encoding="utf-8")
+    temp_path = path.with_name(
+        f".{path.name}.{os.getpid()}.{threading.get_ident()}.{secrets.token_hex(4)}.tmp"
+    )
     try:
-        path.chmod(0o600)
-    except OSError:
-        pass
+        temp_path.write_text(
+            json.dumps(store, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        try:
+            temp_path.chmod(0o600)
+        except OSError:
+            pass
+        os.replace(temp_path, path)
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _entry_from_any_id(
@@ -174,10 +205,10 @@ def _default_http_get(url: str) -> Dict[str, Any]:
         with urllib.request.urlopen(request, timeout=20) as response:
             return _http_json_response(response)
     except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
+        exc.read()
         raise McpOAuthError(
             "mcp_oauth_start_failed",
-            f"OAuth discovery failed: {exc.code} {body[:200]}",
+            "OAuth discovery request failed",
             502,
         ) from exc
 
@@ -210,16 +241,10 @@ def _default_http_post(
         with urllib.request.urlopen(request, timeout=30) as response:
             return _http_json_response(response)
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict):
-                return parsed
-        except Exception:
-            pass
+        exc.read()
         raise McpOAuthError(
             "mcp_oauth_start_failed",
-            f"OAuth request failed: {exc.code} {raw[:200]}",
+            "OAuth provider request failed",
             502,
         ) from exc
 
@@ -310,9 +335,12 @@ def save_mcp_oauth_token(
         "last_checked_at": float(token.get("last_checked_at") or 0),
         "last_error": str(token.get("last_error") or ""),
     }
-    store = _read_store(data_dir)
-    store["toolkits"][clean_toolkit_id] = clean_token
-    _write_store(store, data_dir)
+    with _oauth_commit_lock(clean_toolkit_id, data_dir):
+        with _store_lock(data_dir):
+            store = _read_store(data_dir)
+            store["toolkits"][clean_toolkit_id] = clean_token
+            _write_store(store, data_dir)
+        _bump_token_epoch_locked(clean_toolkit_id, data_dir)
     return {"ok": True, "toolkitId": clean_toolkit_id}
 
 
@@ -354,23 +382,194 @@ def get_mcp_oauth_status(
     }
 
 
+def _token_scope_key(
+    toolkit_id: str,
+    data_dir: str | Path | None = None,
+) -> str:
+    normalized = str(toolkit_id or "").strip()
+    return f"{_store_scope_key(data_dir)}\0{normalized}"
+
+
+def _oauth_commit_lock(
+    toolkit_id: str,
+    data_dir: str | Path | None = None,
+):
+    key = _token_scope_key(toolkit_id, data_dir)
+    with _COMMIT_LOCKS_LOCK:
+        if key not in _COMMIT_LOCKS:
+            _COMMIT_LOCKS[key] = threading.RLock()
+        return _COMMIT_LOCKS[key]
+
+
+def _token_epoch_locked(
+    toolkit_id: str,
+    data_dir: str | Path | None = None,
+) -> int:
+    return _TOKEN_EPOCHS.get(_token_scope_key(toolkit_id, data_dir), 0)
+
+
+def _bump_token_epoch_locked(
+    toolkit_id: str,
+    data_dir: str | Path | None = None,
+) -> int:
+    key = _token_scope_key(toolkit_id, data_dir)
+    next_epoch = _TOKEN_EPOCHS.get(key, 0) + 1
+    _TOKEN_EPOCHS[key] = next_epoch
+    return next_epoch
+
+
+def _scrub_attempt_secrets_locked(attempt: Dict[str, Any]) -> None:
+    for key in (
+        "client_secret",
+        "code_verifier",
+        "redirect_uri",
+        "token_endpoint",
+        "token_request",
+    ):
+        attempt.pop(key, None)
+
+
+def _finish_mcp_oauth_attempt(
+    pending: Dict[str, Any],
+    *,
+    status: str,
+    message: str = "",
+    now: float,
+) -> str:
+    with _PENDING_LOCK:
+        current = _PENDING_STATES.get(str(pending.get("state") or ""))
+        if current is not pending:
+            return "missing"
+        if pending["cancel_event"].is_set() and status != "cancelled":
+            status = "cancelled"
+            message = "OAuth connection was cancelled"
+        pending["auth_status"] = status
+        pending["last_error"] = message
+        pending["processing"] = False
+        pending["purge_at"] = now + OAUTH_ATTEMPT_RETENTION_SECONDS
+        _scrub_attempt_secrets_locked(pending)
+        return status
+
+
+def _cleanup_expired_attempts_locked(now: float) -> None:
+    for state, attempt in list(_PENDING_STATES.items()):
+        purge_at = float(attempt.get("purge_at") or 0)
+        if purge_at and purge_at <= now:
+            _PENDING_STATES.pop(state, None)
+            continue
+        if (
+            str(attempt.get("auth_status") or "pending") == "pending"
+            and not attempt.get("processing")
+            and float(attempt.get("expires_at") or 0) <= now
+        ):
+            attempt["cancel_event"].set()
+            attempt["auth_status"] = "expired"
+            attempt["last_error"] = "OAuth authorization expired before completion"
+            attempt["processing"] = False
+            attempt["purge_at"] = now + OAUTH_ATTEMPT_RETENTION_SECONDS
+            _scrub_attempt_secrets_locked(attempt)
+
+
+def get_mcp_oauth_attempt_status(
+    state: str,
+    *,
+    now_fn: Callable[[], float] | None = None,
+) -> Dict[str, Any]:
+    normalized_state = str(state or "").strip()
+    if not normalized_state:
+        raise McpOAuthError("mcp_oauth_state_invalid", "OAuth state is required", 400)
+    now = (now_fn or time.time)()
+    with _PENDING_LOCK:
+        _cleanup_expired_attempts_locked(now)
+        attempt = _PENDING_STATES.get(normalized_state)
+        if not attempt:
+            raise McpOAuthError(
+                "mcp_oauth_state_invalid",
+                "OAuth state is invalid or expired",
+                404,
+            )
+        return {
+            "entryId": str(attempt.get("entry_id") or ""),
+            "toolkitId": str(attempt.get("toolkit_id") or ""),
+            "authType": "oauth",
+            "authProvider": str(attempt.get("provider") or ""),
+            "authStatus": str(attempt.get("auth_status") or "pending"),
+            "authExpiresAt": float(attempt.get("expires_at") or 0),
+            "authLastCheckedAt": float(attempt.get("last_checked_at") or 0),
+            "lastError": str(attempt.get("last_error") or ""),
+        }
+
+
+def _raise_if_attempt_cancelled(pending: Dict[str, Any], *, now: float) -> None:
+    if not pending["cancel_event"].is_set():
+        return
+    _finish_mcp_oauth_attempt(
+        pending,
+        status="cancelled",
+        message="OAuth connection was cancelled",
+        now=now,
+    )
+    raise McpOAuthError(
+        "mcp_oauth_cancelled",
+        "OAuth connection was cancelled",
+        409,
+    )
+
+
+def _token_snapshot(
+    toolkit_id: str,
+    *,
+    data_dir: str | Path | None = None,
+) -> Dict[str, Any] | None:
+    normalized = str(toolkit_id or "").strip()
+    with _oauth_commit_lock(normalized, data_dir):
+        record = _read_store(data_dir)["toolkits"].get(normalized)
+        return dict(record) if isinstance(record, dict) else None
+
+
+def _restore_token_snapshot(
+    toolkit_id: str,
+    snapshot: Dict[str, Any] | None,
+    *,
+    data_dir: str | Path | None = None,
+) -> None:
+    normalized = str(toolkit_id or "").strip()
+    with _oauth_commit_lock(normalized, data_dir):
+        with _store_lock(data_dir):
+            store = _read_store(data_dir)
+            if snapshot is None:
+                store["toolkits"].pop(normalized, None)
+            else:
+                store["toolkits"][normalized] = dict(snapshot)
+            _write_store(store, data_dir)
+        _bump_token_epoch_locked(normalized, data_dir)
+
+
 def delete_mcp_oauth_token(
     toolkit_id: str,
     *,
     data_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
     entry = _entry_from_any_id(toolkit_id, data_dir=data_dir)
-    store = _read_store(data_dir)
-    store["toolkits"].pop(entry["toolkit_id"], None)
-    _write_store(store, data_dir)
+    normalized = entry["toolkit_id"]
+    with _oauth_commit_lock(normalized, data_dir):
+        with _store_lock(data_dir):
+            store = _read_store(data_dir)
+            store["toolkits"].pop(normalized, None)
+            _write_store(store, data_dir)
+        _bump_token_epoch_locked(normalized, data_dir)
     return {"ok": True, "toolkitId": entry["toolkit_id"]}
 
 
-def _refresh_lock(toolkit_id: str) -> threading.Lock:
+def _refresh_lock(
+    toolkit_id: str,
+    data_dir: str | Path | None = None,
+) -> threading.Lock:
+    key = _token_scope_key(toolkit_id, data_dir)
     with _REFRESH_LOCKS_LOCK:
-        if toolkit_id not in _REFRESH_LOCKS:
-            _REFRESH_LOCKS[toolkit_id] = threading.Lock()
-        return _REFRESH_LOCKS[toolkit_id]
+        if key not in _REFRESH_LOCKS:
+            _REFRESH_LOCKS[key] = threading.Lock()
+        return _REFRESH_LOCKS[key]
 
 
 def _mark_oauth_token_expired(
@@ -387,6 +586,30 @@ def _mark_oauth_token_expired(
     save_mcp_oauth_token(entry["toolkit_id"], token, data_dir=data_dir)
 
 
+def _superseding_refresh_access_token(
+    token: Dict[str, Any] | None,
+    *,
+    now: float,
+) -> str:
+    if not token or not token.get("access_token"):
+        raise McpOAuthError(
+            "mcp_oauth_required",
+            "This MCP toolkit requires OAuth setup before installation",
+            400,
+        )
+    status = str(token.get("auth_status") or "connected")
+    expires_at = float(token.get("expires_at") or 0)
+    if status == "connected" and (not expires_at or expires_at > now):
+        return str(token.get("access_token") or "")
+    if status == "expired" or (expires_at and expires_at <= now):
+        raise McpOAuthError("mcp_oauth_expired", "OAuth authorization expired", 400)
+    raise McpOAuthError(
+        "mcp_oauth_refresh_superseded",
+        "OAuth credentials changed while refresh was in progress",
+        409,
+    )
+
+
 def get_valid_mcp_oauth_access_token(
     toolkit_id: str,
     *,
@@ -394,42 +617,64 @@ def get_valid_mcp_oauth_access_token(
     http_post: Callable[..., Dict[str, Any]] | None = None,
     now_fn: Callable[[], float] | None = None,
 ) -> str:
-    entry, token = _get_token_record(toolkit_id, data_dir=data_dir)
-    if not token or not token.get("access_token"):
-        raise McpOAuthError(
-            "mcp_oauth_required",
-            "This MCP toolkit requires OAuth setup before installation",
-            400,
-        )
-
+    entry = _entry_from_any_id(toolkit_id, data_dir=data_dir)
+    normalized = entry["toolkit_id"]
     now = (now_fn or time.time)()
-    expires_at = float(token.get("expires_at") or 0)
-    if expires_at and expires_at > now + TOKEN_REFRESH_SKEW_SECONDS:
-        return str(token.get("access_token") or "")
-
-    refresh_token = str(token.get("refresh_token") or "")
-    token_endpoint = str(token.get("token_endpoint") or "")
-    client_id = str(token.get("client_id") or "")
-    if not refresh_token or not token_endpoint or not client_id:
-        _mark_oauth_token_expired(
-            entry["toolkit_id"],
-            data_dir=data_dir,
-            last_error="OAuth refresh token is missing",
-        )
-        raise McpOAuthError("mcp_oauth_expired", "OAuth authorization expired", 400)
-
-    with _refresh_lock(entry["toolkit_id"]):
-        _, latest = _get_token_record(entry["toolkit_id"], data_dir=data_dir)
-        if latest:
-            latest_expires_at = float(latest.get("expires_at") or 0)
-            if latest_expires_at and latest_expires_at > now + TOKEN_REFRESH_SKEW_SECONDS:
-                return str(latest.get("access_token") or "")
-            token = latest
-
+    commit_lock = _oauth_commit_lock(normalized, data_dir)
+    with commit_lock:
+        _, current = _get_token_record(normalized, data_dir=data_dir)
+        if not current or not current.get("access_token"):
+            raise McpOAuthError(
+                "mcp_oauth_required",
+                "This MCP toolkit requires OAuth setup before installation",
+                400,
+            )
+        current_expires_at = float(current.get("expires_at") or 0)
+        if (
+            str(current.get("auth_status") or "connected") == "connected"
+            and (
+                not current_expires_at
+                or current_expires_at > now + TOKEN_REFRESH_SKEW_SECONDS
+            )
+        ):
+            return str(current.get("access_token") or "")
+    with _refresh_lock(normalized, data_dir):
+        with commit_lock:
+            _, token = _get_token_record(normalized, data_dir=data_dir)
+            if not token or not token.get("access_token"):
+                raise McpOAuthError(
+                    "mcp_oauth_required",
+                    "This MCP toolkit requires OAuth setup before installation",
+                    400,
+                )
+            expires_at = float(token.get("expires_at") or 0)
+            if (
+                str(token.get("auth_status") or "connected") == "connected"
+                and (
+                    not expires_at
+                    or expires_at > now + TOKEN_REFRESH_SKEW_SECONDS
+                )
+            ):
+                return str(token.get("access_token") or "")
+            refresh_token = str(token.get("refresh_token") or "")
+            token_endpoint = str(token.get("token_endpoint") or "")
+            client_id = str(token.get("client_id") or "")
+            if not refresh_token or not token_endpoint or not client_id:
+                expired = dict(token)
+                expired["auth_status"] = "expired"
+                expired["last_error"] = "OAuth refresh token is missing"
+                save_mcp_oauth_token(normalized, expired, data_dir=data_dir)
+                raise McpOAuthError(
+                    "mcp_oauth_expired",
+                    "OAuth authorization expired",
+                    400,
+                )
+            token_snapshot = dict(token)
+            token_epoch = _token_epoch_locked(normalized, data_dir)
         form = {
             "grant_type": "refresh_token",
-            "refresh_token": str(token.get("refresh_token") or ""),
-            "client_id": str(token.get("client_id") or ""),
+            "refresh_token": refresh_token,
+            "client_id": client_id,
         }
         if token.get("client_secret"):
             form["client_secret"] = str(token.get("client_secret") or "")
@@ -440,43 +685,77 @@ def get_valid_mcp_oauth_access_token(
                 form=form,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-        except McpOAuthError:
-            raise
         except Exception as exc:
-            raise McpOAuthError("mcp_oauth_refresh_failed", str(exc), 502) from exc
-
-        if response.get("error") == "invalid_grant":
-            _mark_oauth_token_expired(
-                entry["toolkit_id"],
-                data_dir=data_dir,
-                last_error=str(response.get("error_description") or "OAuth grant expired"),
-            )
-            raise McpOAuthError("mcp_oauth_expired", "OAuth authorization expired", 400)
-        if response.get("error"):
             raise McpOAuthError(
                 "mcp_oauth_refresh_failed",
-                str(response.get("error_description") or response.get("error")),
+                "OAuth token refresh failed",
                 502,
+            ) from exc
+        commit_now = (now_fn or time.time)()
+        with commit_lock:
+            _, latest = _get_token_record(normalized, data_dir=data_dir)
+            if (
+                _token_epoch_locked(normalized, data_dir) != token_epoch
+                or latest != token_snapshot
+            ):
+                return _superseding_refresh_access_token(
+                    latest,
+                    now=commit_now,
+                )
+            if not isinstance(response, dict):
+                raise McpOAuthError(
+                    "mcp_oauth_refresh_failed",
+                    "OAuth token refresh failed",
+                    502,
+                )
+            if response.get("error") == "invalid_grant":
+                expired = dict(token_snapshot)
+                expired["auth_status"] = "expired"
+                expired["last_error"] = "OAuth authorization expired"
+                save_mcp_oauth_token(normalized, expired, data_dir=data_dir)
+                raise McpOAuthError(
+                    "mcp_oauth_expired",
+                    "OAuth authorization expired",
+                    400,
+                )
+            if response.get("error"):
+                raise McpOAuthError(
+                    "mcp_oauth_refresh_failed",
+                    "OAuth token refresh failed",
+                    502,
+                )
+            access_token = str(response.get("access_token") or "")
+            if not access_token:
+                raise McpOAuthError(
+                    "mcp_oauth_refresh_failed",
+                    "OAuth refresh did not return an access token",
+                    502,
+                )
+            try:
+                expires_in = float(response.get("expires_in") or 0)
+            except (TypeError, ValueError) as exc:
+                raise McpOAuthError(
+                    "mcp_oauth_refresh_failed",
+                    "OAuth token refresh failed",
+                    502,
+                ) from exc
+            updated = dict(token_snapshot)
+            updated.update(
+                {
+                    "access_token": access_token,
+                    "refresh_token": str(
+                        response.get("refresh_token")
+                        or token_snapshot.get("refresh_token")
+                        or ""
+                    ),
+                    "expires_at": commit_now + expires_in if expires_in else 0,
+                    "auth_status": "connected",
+                    "last_checked_at": commit_now,
+                    "last_error": "",
+                }
             )
-
-        access_token = str(response.get("access_token") or "")
-        if not access_token:
-            raise McpOAuthError("mcp_oauth_refresh_failed", "OAuth refresh did not return an access token", 502)
-
-        expires_in = float(response.get("expires_in") or 0)
-        updated = dict(token)
-        updated.update(
-            {
-                "access_token": access_token,
-                "refresh_token": str(response.get("refresh_token") or token.get("refresh_token") or ""),
-                "expires_at": now + expires_in if expires_in else 0,
-                "auth_status": "connected",
-                "last_checked_at": now,
-                "last_error": "",
-            }
-        )
-        save_mcp_oauth_token(entry["toolkit_id"], updated, data_dir=data_dir)
-        return access_token
+            save_mcp_oauth_token(normalized, updated, data_dir=data_dir)
+            return access_token
 
 
 def start_mcp_oauth(
@@ -492,6 +771,15 @@ def start_mcp_oauth(
 ) -> Dict[str, Any]:
     entry = _entry_from_any_id(entry_id, data_dir=data_dir)
     recipe = oauth_recipe_for_entry(entry)
+    if not str(entry.get("registry_id") or "").strip() and (
+        str(entry.get("status") or "") != "available"
+        or str(recipe.get("releaseStatus") or "") != "ready"
+    ):
+        raise McpOAuthError(
+            "mcp_oauth_release_unavailable",
+            "This MCP OAuth connection is not available in this release",
+            403,
+        )
     now = (now_fn or time.time)()
     redirect_uri = str(callback_base_url or "").rstrip("/") + "/mcp/oauth/callback"
 
@@ -542,19 +830,53 @@ def start_mcp_oauth(
         client_id = str(client.get("client_id") or "")
         if not client_id:
             raise McpOAuthError("mcp_oauth_start_failed", "OAuth registration did not return a client_id", 502)
-    except McpOAuthError:
-        raise
+    except McpOAuthError as exc:
+        if exc.code in {
+            "mcp_oauth_app_required",
+            "mcp_oauth_provider_unsupported",
+        }:
+            raise
+        raise McpOAuthError(
+            "mcp_oauth_start_failed",
+            "OAuth connection could not be started",
+            502,
+        ) from exc
     except Exception as exc:
-        raise McpOAuthError("mcp_oauth_start_failed", str(exc), 502) from exc
+        raise McpOAuthError(
+            "mcp_oauth_start_failed",
+            "OAuth connection could not be started",
+            502,
+        ) from exc
 
-    state = (state_factory or _generate_state)()
-    verifier = (verifier_factory or _generate_verifier)()
+    state = str((state_factory or _generate_state)() or "").strip()
+    verifier = str((verifier_factory or _generate_verifier)() or "").strip()
+    if not state or not verifier:
+        raise McpOAuthError(
+            "mcp_oauth_start_failed",
+            "OAuth connection could not be started",
+            502,
+        )
     expires_at = now + OAUTH_STATE_TTL_SECONDS
+    commit_lock = _oauth_commit_lock(entry["toolkit_id"], data_dir)
     with _PENDING_LOCK:
+        _cleanup_expired_attempts_locked(now)
+        if state in _PENDING_STATES:
+            raise McpOAuthError(
+                "mcp_oauth_start_failed",
+                "OAuth connection could not be started",
+                502,
+            )
         _PENDING_STATES[state] = {
+            "state": state,
             "entry_id": entry["entry_id"],
             "toolkit_id": entry["toolkit_id"],
             "provider": _entry_provider(entry),
+            "auth_status": "pending",
+            "last_error": "",
+            "last_checked_at": now,
+            "processing": False,
+            "cancel_event": threading.Event(),
+            "commit_lock": commit_lock,
             "code_verifier": verifier,
             "redirect_uri": redirect_uri,
             "client_id": client_id,
@@ -599,19 +921,64 @@ def start_mcp_oauth(
 
 
 def _default_install(entry_id: str, **kwargs):
-    from mcp_toolkits import check_mcp_toolkit_health, install_mcp_toolkit
+    from mcp_toolkits import install_mcp_toolkit, probe_mcp_toolkit_health
 
     try:
         return install_mcp_toolkit(entry_id, **kwargs)
     except Exception as exc:
         if getattr(exc, "code", "") == "mcp_already_installed":
             entry = _entry_from_any_id(entry_id, data_dir=kwargs.get("data_dir"))
-            return check_mcp_toolkit_health(
+            return probe_mcp_toolkit_health(
                 entry["toolkit_id"],
                 data_dir=kwargs.get("data_dir"),
                 toolkit_factory=kwargs.get("toolkit_factory"),
             )
         raise
+
+
+def cancel_mcp_oauth_start(
+    state: str,
+    *,
+    now_fn: Callable[[], float] | None = None,
+) -> Dict[str, Any]:
+    normalized_state = str(state or "").strip()
+    if not normalized_state:
+        raise McpOAuthError(
+            "mcp_oauth_state_invalid",
+            "OAuth state is required",
+            400,
+        )
+    now = (now_fn or time.time)()
+    with _PENDING_LOCK:
+        _cleanup_expired_attempts_locked(now)
+        pending = _PENDING_STATES.get(normalized_state)
+    if not pending:
+        return {"ok": True, "cancelled": False}
+    with pending["commit_lock"]:
+        with _PENDING_LOCK:
+            current = _PENDING_STATES.get(normalized_state)
+            if (
+                current is not pending
+                or str(pending.get("auth_status") or "pending") != "pending"
+            ):
+                return {
+                    "ok": True,
+                    "cancelled": False,
+                    "authStatus": str((current or {}).get("auth_status") or "missing"),
+                }
+            pending["cancel_event"].set()
+            pending["auth_status"] = "cancelled"
+            pending["last_error"] = "OAuth connection was cancelled"
+            pending["last_checked_at"] = now
+            pending["processing"] = False
+            pending["purge_at"] = now + OAUTH_ATTEMPT_RETENTION_SECONDS
+            _scrub_attempt_secrets_locked(pending)
+            return {
+                "ok": True,
+                "cancelled": True,
+                "entryId": str(pending.get("entry_id") or ""),
+                "toolkitId": str(pending.get("toolkit_id") or ""),
+            }
 
 
 def handle_mcp_oauth_callback(
@@ -625,93 +992,280 @@ def handle_mcp_oauth_callback(
     install_fn: Callable[..., Dict[str, Any]] | None = None,
     now_fn: Callable[[], float] | None = None,
 ) -> Dict[str, Any]:
-    if error:
+    normalized_state = str(state or "").strip()
+    now = (now_fn or time.time)()
+    with _PENDING_LOCK:
+        _cleanup_expired_attempts_locked(now)
+        pending = _PENDING_STATES.get(normalized_state)
+        pending_status = str((pending or {}).get("auth_status") or "missing")
+        if pending and pending_status == "pending" and not pending.get("processing"):
+            pending["processing"] = True
+            callback_context = {
+                key: pending.get(key)
+                for key in (
+                    "entry_id",
+                    "toolkit_id",
+                    "provider",
+                    "code_verifier",
+                    "redirect_uri",
+                    "client_id",
+                    "client_secret",
+                    "token_endpoint",
+                    "auth_server",
+                    "expires_at",
+                )
+            }
+        else:
+            callback_context = {}
+    if not pending:
+        raise McpOAuthError("mcp_oauth_state_invalid", "OAuth state is invalid or expired", 400)
+    if pending_status == "cancelled":
         raise McpOAuthError(
-            "mcp_oauth_callback_failed",
-            error_description or error,
+            "mcp_oauth_cancelled",
+            "OAuth connection was cancelled",
+            409,
+        )
+    if pending_status != "pending" or not callback_context:
+        raise McpOAuthError(
+            "mcp_oauth_state_invalid",
+            "OAuth state is invalid or already completed",
             400,
         )
-    normalized_state = str(state or "").strip()
-    with _PENDING_LOCK:
-        pending = _PENDING_STATES.pop(normalized_state, None)
-    now = (now_fn or time.time)()
-    if not pending or float(pending.get("expires_at") or 0) < now:
-        raise McpOAuthError("mcp_oauth_state_invalid", "OAuth state is invalid or expired", 400)
+    if float(callback_context.get("expires_at") or 0) < now:
+        message = "OAuth authorization expired before completion"
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="expired",
+            message=message,
+            now=now,
+        )
+        raise McpOAuthError("mcp_oauth_state_invalid", message, 400)
+    if error:
+        message = "OAuth authorization was denied or cancelled"
+        terminal_status = _finish_mcp_oauth_attempt(
+            pending,
+            status="error",
+            message=message,
+            now=now,
+        )
+        if terminal_status == "cancelled":
+            raise McpOAuthError(
+                "mcp_oauth_cancelled",
+                "OAuth connection was cancelled",
+                409,
+            )
+        raise McpOAuthError("mcp_oauth_provider_denied", message, 400)
     normalized_code = str(code or "").strip()
     if not normalized_code:
-        raise McpOAuthError("mcp_oauth_callback_failed", "OAuth callback is missing code", 400)
+        message = "OAuth callback did not include an authorization code"
+        terminal_status = _finish_mcp_oauth_attempt(
+            pending,
+            status="error",
+            message=message,
+            now=now,
+        )
+        if terminal_status == "cancelled":
+            raise McpOAuthError(
+                "mcp_oauth_cancelled",
+                "OAuth connection was cancelled",
+                409,
+            )
+        raise McpOAuthError("mcp_oauth_callback_failed", message, 400)
 
     form = {
         "grant_type": "authorization_code",
         "code": normalized_code,
-        "client_id": pending["client_id"],
-        "redirect_uri": pending["redirect_uri"],
-        "code_verifier": pending["code_verifier"],
+        "client_id": callback_context["client_id"],
+        "redirect_uri": callback_context["redirect_uri"],
+        "code_verifier": callback_context["code_verifier"],
     }
-    if pending.get("client_secret"):
-        form["client_secret"] = pending["client_secret"]
+    if callback_context.get("client_secret"):
+        form["client_secret"] = callback_context["client_secret"]
 
     try:
         token_response = (http_post or _default_http_post)(
-            pending["token_endpoint"],
+            callback_context["token_endpoint"],
             form=form,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-    except McpOAuthError:
-        raise
     except Exception as exc:
-        raise McpOAuthError("mcp_oauth_callback_failed", str(exc), 502) from exc
-
-    if token_response.get("error"):
-        raise McpOAuthError(
-            "mcp_oauth_callback_failed",
-            str(token_response.get("error_description") or token_response.get("error")),
-            400,
+        _raise_if_attempt_cancelled(pending, now=(now_fn or time.time)())
+        message = "OAuth token exchange failed"
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="error",
+            message=message,
+            now=now,
         )
+        raise McpOAuthError("mcp_oauth_token_exchange_failed", message, 502) from exc
+
+    _raise_if_attempt_cancelled(pending, now=(now_fn or time.time)())
+    if not isinstance(token_response, dict):
+        message = "OAuth token exchange failed"
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="error",
+            message=message,
+            now=now,
+        )
+        raise McpOAuthError("mcp_oauth_token_exchange_failed", message, 502)
+    if token_response.get("error"):
+        message = "OAuth token exchange failed"
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="error",
+            message=message,
+            now=now,
+        )
+        raise McpOAuthError("mcp_oauth_token_exchange_failed", message, 400)
     access_token = str(token_response.get("access_token") or "")
     if not access_token:
-        raise McpOAuthError("mcp_oauth_callback_failed", "OAuth token response is missing access_token", 502)
+        message = "OAuth token exchange did not return an access token"
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="error",
+            message=message,
+            now=now,
+        )
+        raise McpOAuthError("mcp_oauth_token_exchange_failed", message, 502)
 
-    expires_in = float(token_response.get("expires_in") or 0)
+    commit_now = (now_fn or time.time)()
+    if float(callback_context.get("expires_at") or 0) < commit_now:
+        message = "OAuth authorization expired before completion"
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="expired",
+            message=message,
+            now=commit_now,
+        )
+        raise McpOAuthError("mcp_oauth_state_invalid", message, 400)
+    try:
+        expires_in = float(token_response.get("expires_in") or 0)
+    except (TypeError, ValueError) as exc:
+        message = "OAuth token exchange failed"
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="error",
+            message=message,
+            now=commit_now,
+        )
+        raise McpOAuthError("mcp_oauth_token_exchange_failed", message, 502) from exc
     token_record = {
-        "entry_id": pending["entry_id"],
-        "auth_provider": pending["provider"],
+        "entry_id": callback_context["entry_id"],
+        "auth_provider": callback_context["provider"],
         "auth_status": "connected",
         "access_token": access_token,
         "refresh_token": str(token_response.get("refresh_token") or ""),
-        "expires_at": now + expires_in if expires_in else 0,
-        "client_id": pending["client_id"],
-        "client_secret": pending.get("client_secret", ""),
-        "token_endpoint": pending["token_endpoint"],
-        "auth_server": pending.get("auth_server", ""),
-        "last_checked_at": now,
+        "expires_at": commit_now + expires_in if expires_in else 0,
+        "client_id": callback_context["client_id"],
+        "client_secret": callback_context.get("client_secret", ""),
+        "token_endpoint": callback_context["token_endpoint"],
+        "auth_server": callback_context.get("auth_server", ""),
+        "last_checked_at": commit_now,
         "last_error": "",
     }
-    save_mcp_oauth_token(pending["toolkit_id"], token_record, data_dir=data_dir)
-
-    try:
-        result = (install_fn or _default_install)(
-            pending["entry_id"],
+    with pending["commit_lock"]:
+        _raise_if_attempt_cancelled(pending, now=commit_now)
+        previous_token = _token_snapshot(
+            callback_context["toolkit_id"],
             data_dir=data_dir,
         )
-    except Exception:
-        delete_mcp_oauth_token(pending["toolkit_id"], data_dir=data_dir)
-        raise
-    return result
+        try:
+            save_mcp_oauth_token(
+                callback_context["toolkit_id"],
+                token_record,
+                data_dir=data_dir,
+            )
+            result = (install_fn or _default_install)(
+                callback_context["entry_id"],
+                data_dir=data_dir,
+            )
+            installed_toolkit = (
+                result.get("toolkit") if isinstance(result, dict) else None
+            )
+            if (
+                not isinstance(installed_toolkit, dict)
+                or str(installed_toolkit.get("status") or "").strip().lower()
+                != "available"
+            ):
+                raise McpOAuthError(
+                    "mcp_oauth_install_failed",
+                    "OAuth connected, but MCP installation or tool discovery failed",
+                    502,
+                )
+        except Exception as exc:
+            try:
+                _restore_token_snapshot(
+                    callback_context["toolkit_id"],
+                    previous_token,
+                    data_dir=data_dir,
+                )
+            except Exception:
+                pass
+            message = "OAuth connected, but MCP installation or tool discovery failed"
+            _finish_mcp_oauth_attempt(
+                pending,
+                status="error",
+                message=message,
+                now=commit_now,
+            )
+            raise McpOAuthError("mcp_oauth_install_failed", message, 502) from exc
+        _finish_mcp_oauth_attempt(
+            pending,
+            status="connected",
+            now=commit_now,
+        )
+        return result
+
+
+def _cancel_pending_attempts_for_toolkit_locked(
+    toolkit_id: str,
+    *,
+    commit_lock: Any,
+    now: float,
+) -> int:
+    cancelled = 0
+    with _PENDING_LOCK:
+        _cleanup_expired_attempts_locked(now)
+        for pending in _PENDING_STATES.values():
+            if (
+                str(pending.get("toolkit_id") or "") != toolkit_id
+                or pending.get("commit_lock") is not commit_lock
+                or str(pending.get("auth_status") or "pending") != "pending"
+            ):
+                continue
+            pending["cancel_event"].set()
+            pending["auth_status"] = "cancelled"
+            pending["last_error"] = "OAuth connection was cancelled"
+            pending["last_checked_at"] = now
+            pending["processing"] = False
+            pending["purge_at"] = now + OAUTH_ATTEMPT_RETENTION_SECONDS
+            _scrub_attempt_secrets_locked(pending)
+            cancelled += 1
+    return cancelled
 
 
 def disconnect_mcp_oauth(
     toolkit_id: str,
     *,
     data_dir: str | Path | None = None,
+    now_fn: Callable[[], float] | None = None,
 ) -> Dict[str, Any]:
     entry = _entry_from_any_id(toolkit_id, data_dir=data_dir)
-    try:
-        from mcp_toolkits import delete_mcp_toolkit
+    normalized = entry["toolkit_id"]
+    commit_lock = _oauth_commit_lock(normalized, data_dir)
+    with commit_lock:
+        _cancel_pending_attempts_for_toolkit_locked(
+            normalized,
+            commit_lock=commit_lock,
+            now=(now_fn or time.time)(),
+        )
+        try:
+            from mcp_toolkits import delete_mcp_toolkit
 
-        delete_mcp_toolkit(entry["toolkit_id"], data_dir=data_dir)
-    except Exception as exc:
-        if getattr(exc, "code", "") != "mcp_toolkit_not_found":
-            raise
-        delete_mcp_oauth_token(entry["toolkit_id"], data_dir=data_dir)
+            delete_mcp_toolkit(normalized, data_dir=data_dir)
+        except Exception as exc:
+            if getattr(exc, "code", "") != "mcp_toolkit_not_found":
+                raise
+            delete_mcp_oauth_token(normalized, data_dir=data_dir)
     return {"ok": True, "toolkitId": entry["toolkit_id"]}

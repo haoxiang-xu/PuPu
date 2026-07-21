@@ -207,7 +207,9 @@ export function listMcpStoreEntries() {
 }
 
 export function getMcpStoreEntry(id) {
-  const entry = currentStoreEntries().find((item) => item.id === id);
+  const entry = currentStoreEntries().find(
+    (item) => item.id === id || item.toolkitId === id,
+  );
   return entry ? overlayEntryMetadata(entry) : null;
 }
 

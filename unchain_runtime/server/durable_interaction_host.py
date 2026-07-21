@@ -1084,25 +1084,69 @@ def _reconcile_orphaned_cancelled_interaction(
     )
 
 
-def prepare_session_memory_replacement(session_id: str) -> dict[str, bool]:
+def prepare_session_memory_replacement(
+    session_id: str,
+    *,
+    expected_cancel_attempt_id: str | None = None,
+) -> dict[str, bool]:
     """Abandon any exact pending execution before rewriting session history."""
 
     normalized_session_id = _required_identifier(
         session_id,
         field_name="session_id",
     )
+    if expected_cancel_attempt_id is not None and not isinstance(
+        expected_cancel_attempt_id,
+        str,
+    ):
+        raise ValueError("expected_cancel_attempt_id must be a string")
+    expected_cancel_attempt = (
+        str(expected_cancel_attempt_id or "").strip()
+        if expected_cancel_attempt_id is not None
+        else None
+    )
+
+    from memory_factory import (
+        _active_memory_replace_source_run_id,
+        _load_session_snapshot_compat,
+    )
+
+    preflight = _load_session_snapshot_compat(
+        _session_store(),
+        normalized_session_id,
+    )
+    active, active_source_run_id = _active_memory_replace_source_run_id(
+        preflight.state
+    )
+    if expected_cancel_attempt is not None and active and (
+        not expected_cancel_attempt
+        or active_source_run_id != expected_cancel_attempt
+    ):
+        raise DurableInteractionHostError(
+            "session_memory_replace_conflict",
+            "Active durable execution does not match the expected cancellation attempt",
+            status_code=409,
+            retryable=True,
+        )
+    if not active:
+        return {
+            "execution_checkpoint_cleared": False,
+            "orphaned_interaction_repaired": False,
+        }
+
     repaired_orphan = _reconcile_orphaned_cancelled_interaction(
         normalized_session_id,
+        expected_source_run_id=expected_cancel_attempt or "",
         reason="session memory replaced",
-        cancel_if_needed=True,
+        cancel_if_needed=(
+            expected_cancel_attempt is None or bool(expected_cancel_attempt)
+        ),
     )
     if repaired_orphan:
         return {
             "execution_checkpoint_cleared": True,
             "orphaned_interaction_repaired": True,
         }
-
-    from memory_factory import _load_session_snapshot_compat
 
     preflight = _load_session_snapshot_compat(
         _session_store(),
@@ -1141,6 +1185,16 @@ def prepare_session_memory_replacement(session_id: str) -> dict[str, bool]:
             "execution_checkpoint_compatibility_error",
             "Execution checkpoint does not match the session memory replacement",
             status_code=409,
+        )
+    if (
+        expected_cancel_attempt is not None
+        and source_run_id != expected_cancel_attempt
+    ):
+        raise DurableInteractionHostError(
+            "session_memory_replace_conflict",
+            "Execution checkpoint does not match the expected cancellation attempt",
+            status_code=409,
+            retryable=True,
         )
 
     _execution_control_cancel(

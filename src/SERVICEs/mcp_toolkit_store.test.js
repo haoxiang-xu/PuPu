@@ -399,7 +399,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["markitdown-mcp"],
+        args: ["markitdown-mcp==0.0.1a4"],
       }),
     );
     expect(markitdown.secrets).toEqual([]);
@@ -446,7 +446,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-server-fetch"],
+        args: ["mcp-server-fetch==2026.7.10"],
       }),
     );
     expect(fetch.secrets).toEqual([]);
@@ -482,7 +482,8 @@ describe("mcp_toolkit_store", () => {
         category: "communication",
         source: "mcp",
         trustLevel: "needs_review",
-        installable: true,
+        status: "needs_review",
+        installable: false,
         license: "MIT",
         sourceRepo: "https://github.com/IQAIcom/mcp-discord",
         docsUrl: "https://github.com/IQAIcom/mcp-discord",
@@ -530,7 +531,8 @@ describe("mcp_toolkit_store", () => {
         category: "communication",
         source: "mcp",
         trustLevel: "needs_review",
-        installable: true,
+        status: "needs_review",
+        installable: false,
         license: "MIT",
         sourceRepo: "https://github.com/IQAIcom/mcp-telegram",
         docsUrl: "https://github.com/IQAIcom/mcp-telegram",
@@ -603,7 +605,11 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}"],
+        args: [
+          "mcp-server-sqlite==2025.4.25",
+          "--db-path",
+          "${WORKSPACE}/pupu-mcp.sqlite",
+        ],
       }),
     );
     // No connection string, password, or secret — it is a local file path only.
@@ -720,7 +726,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-grafana"],
+        args: ["mcp-grafana==0.17.2"],
       }),
     );
     expect(grafana.secrets).toEqual([
@@ -766,7 +772,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "npx",
-        args: ["-y", "chrome-devtools-mcp@latest"],
+        args: ["-y", "chrome-devtools-mcp@1.6.0"],
       }),
     );
     expect(chrome.secrets).toEqual([]);
@@ -836,6 +842,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "notion",
         clientRegistration: "dynamic",
+        releaseStatus: "ready",
         transport: "streamable_http",
       }),
     );
@@ -845,6 +852,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "github",
         clientRegistration: "user_credentials",
+        releaseStatus: "app_required",
       }),
     );
 
@@ -854,6 +862,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "slack",
         clientRegistration: "user_credentials",
+        releaseStatus: "app_required",
         mcpUrl: "https://mcp.slack.com/mcp",
       }),
     );
@@ -862,6 +871,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "sentry",
         clientRegistration: "dynamic",
+        releaseStatus: "ready",
       }),
     );
 
@@ -870,6 +880,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "vercel",
         clientRegistration: "dynamic",
+        releaseStatus: "approval_required",
       }),
     );
 
@@ -879,6 +890,7 @@ describe("mcp_toolkit_store", () => {
         toolkitId: "mcp.dev.figma-remote",
         toolkitName: "Figma",
         category: "dev",
+        status: "coming_soon",
         installable: false,
       }),
     );
@@ -893,6 +905,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "figma",
         clientRegistration: "dynamic",
+        releaseStatus: "approval_required",
         mcpUrl: "https://mcp.figma.com/mcp",
         protectedResourceMetadataUrl: "https://mcp.figma.com/.well-known/oauth-protected-resource",
         authorizationServerMetadataUrl: "https://api.figma.com/.well-known/oauth-authorization-server",

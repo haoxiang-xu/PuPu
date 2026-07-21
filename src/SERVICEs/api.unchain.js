@@ -1091,7 +1091,7 @@ export const createUnchainApi = () => {
         const method = assertBridgeMethod("unchainAPI", "startMcpOAuth");
         const response = await withTimeout(
           () => method(entryId),
-          30000,
+          90000,
           "mcp_oauth_start_timeout",
           "MCP OAuth start request timed out",
         );
@@ -1105,10 +1105,29 @@ export const createUnchainApi = () => {
       }
     },
 
-    getMcpOAuthStatus: async (entryId) => {
+    cancelMcpOAuth: async (state) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "cancelMcpOAuth");
+        const response = await withTimeout(
+          () => method(state),
+          12000,
+          "mcp_oauth_cancel_timeout",
+          "MCP OAuth cancel request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_cancel_failed",
+          "Failed to cancel MCP OAuth",
+        );
+      }
+    },
+
+    getMcpOAuthStatus: async (state) => {
       if (!hasBridgeMethod("unchainAPI", "getMcpOAuthStatus")) {
         return {
-          entryId: typeof entryId === "string" ? entryId : "",
+          entryId: "",
           toolkitId: "",
           authStatus: "unknown",
         };
@@ -1117,7 +1136,7 @@ export const createUnchainApi = () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "getMcpOAuthStatus");
         const response = await withTimeout(
-          () => method(entryId),
+          () => method(state),
           12000,
           "mcp_oauth_status_timeout",
           "MCP OAuth status request timed out",
@@ -1125,7 +1144,7 @@ export const createUnchainApi = () => {
         return isObject(response)
           ? response
           : {
-              entryId: typeof entryId === "string" ? entryId : "",
+              entryId: "",
               toolkitId: "",
               authStatus: "unknown",
             };
@@ -1931,6 +1950,22 @@ export const createUnchainApi = () => {
           );
         }
 
+        const operationIdRaw =
+          normalizedPayload?.operationId ?? normalizedPayload?.operation_id;
+        const operationId =
+          typeof operationIdRaw === "string" ? operationIdRaw.trim() : "";
+        const expectedSessionRevisionRaw =
+          normalizedPayload?.expectedSessionRevision ??
+          normalizedPayload?.expected_session_revision;
+        const expectedSessionRevision = Number(expectedSessionRevisionRaw);
+        const expectedCancelAttemptIdRaw =
+          normalizedPayload?.expectedCancelAttemptId ??
+          normalizedPayload?.expected_cancel_attempt_id;
+        const expectedCancelAttemptId =
+          typeof expectedCancelAttemptIdRaw === "string"
+            ? expectedCancelAttemptIdRaw.trim()
+            : "";
+
         const response = await withTimeout(
           () =>
             method({
@@ -1939,6 +1974,22 @@ export const createUnchainApi = () => {
               messages: Array.isArray(normalizedPayload?.messages)
                 ? normalizedPayload.messages
                 : [],
+              ...(operationId
+                ? { operationId, operation_id: operationId }
+                : {}),
+              ...(Number.isInteger(expectedSessionRevision) &&
+              expectedSessionRevision >= 0
+                ? {
+                    expectedSessionRevision,
+                    expected_session_revision: expectedSessionRevision,
+                  }
+                : {}),
+              ...(expectedCancelAttemptId
+                ? {
+                    expectedCancelAttemptId,
+                    expected_cancel_attempt_id: expectedCancelAttemptId,
+                  }
+                : {}),
               options: isObject(normalizedPayload?.options)
                 ? normalizedPayload.options
                 : {},

@@ -25,6 +25,12 @@ export const filter_toolkits = (toolkits, base_ids) => {
       typeof tk?.source === "string" ? tk.source.trim().toLowerCase() : "";
 
     if (toolkitId || sourceType) {
+      const isMcp = sourceType === "mcp" || toolkitId.startsWith("mcp.");
+      const status =
+        typeof tk?.status === "string" ? tk.status.trim().toLowerCase() : "";
+      if (isMcp && status !== "available") {
+        return false;
+      }
       if (sourceType === "plugin") {
         return false;
       }

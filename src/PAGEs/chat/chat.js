@@ -15,13 +15,19 @@ import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
+  claimChatDraft,
   getChatMessages,
+  markChatStarted,
   refreshCharacterChatMetadata,
+  releaseAllChatDraftClaims,
+  releaseChatDraftClaim,
+  replaceClaimedChatDraft,
   setChatAgentOrchestration,
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
   setChatThreadId,
+  updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
@@ -38,7 +44,6 @@ import { useChatStream } from "./hooks/use_chat_stream";
 import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
-import { useRotatingModelChips } from "./hooks/use_rotating_model_chips";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
 import * as bootProgress from "../../SERVICEs/boot_progress";
@@ -263,11 +268,17 @@ const ChatInterface = () => {
   const storageApi = useMemo(
     () => ({
       getChatMessages,
+      claimChatDraft,
+      markChatStarted,
+      releaseAllChatDraftClaims,
       setChatAgentOrchestration,
       setChatGeneratedUnread,
       setChatMessages,
       setChatModel,
       setChatThreadId,
+      releaseChatDraftClaim,
+      replaceClaimedChatDraft,
+      updateChatDraft,
     }),
     [],
   );
@@ -281,7 +292,7 @@ const ChatInterface = () => {
   });
   const activeChatIdRef = session.activeChatIdRef;
   const modelIdRef = session.modelIdRef;
-  const setInputValue = session.setInputValue;
+  const setInputValue = session.setComposerInputValue;
   const setSelectedModelId = session.setSelectedModelId;
   const setSelectedToolkits = session.setSelectedToolkits;
   const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
@@ -414,7 +425,7 @@ const ChatInterface = () => {
     chatId: session.activeChatId,
     initialDraftAttachments: initialChat.draft?.attachments || [],
     draftAttachments,
-    setDraftAttachments,
+    setDraftAttachments: session.setComposerDraftAttachments,
     attachmentsEnabled,
     attachmentsDisabledReason,
     supportsImageAttachments,
@@ -430,6 +441,7 @@ const ChatInterface = () => {
     setMessages: session.setMessages,
     inputValue: session.inputValue,
     setInputValue: session.setInputValue,
+    composerRevisionByChatIdRef: session.composerRevisionByChatIdRef,
     draftAttachments,
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
@@ -463,7 +475,7 @@ const ChatInterface = () => {
   } = stream;
 
   useEffect(() => {
-    const currentChatId = session.activeChatIdRef.current;
+    const currentChatId = session.activeChatId;
     if (!currentChatId) {
       return;
     }
@@ -503,7 +515,7 @@ const ChatInterface = () => {
         messagePersistTimerRef.current = null;
       }
     };
-  }, [session.messages, session.activeChatIdRef, storageApi, streamIsStreaming]);
+  }, [session.activeChatId, session.messages, storageApi, streamIsStreaming]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.__pupuTestBridge) {
@@ -671,11 +683,15 @@ const ChatInterface = () => {
   const isModelSelectionDisabled =
     stream.isStreaming ||
     session.isCharacterChat ||
-    stream.isDurableInteractionBlocked;
+    stream.isDurableInteractionBlocked ||
+    stream.isTurnMutationBlocked;
 
   const onSelectModel = useCallback(
     (modelId) => {
-      if (stream.isDurableInteractionBlocked) {
+      if (
+        stream.isDurableInteractionBlocked ||
+        stream.isTurnMutationBlocked
+      ) {
         return;
       }
       session.handleSelectModel(modelId, stream.isStreaming);
@@ -684,6 +700,7 @@ const ChatInterface = () => {
     [
       session.handleSelectModel,
       stream.isDurableInteractionBlocked,
+      stream.isTurnMutationBlocked,
       stream.isStreaming,
     ],
   );
@@ -741,6 +758,7 @@ const ChatInterface = () => {
 
   const isSendDisabled =
     stream.isDurableInteractionBlocked ||
+    stream.isTurnMutationBlocked ||
     (!unchainStatus.ready && !stream.isStreaming) ||
     !hasSelectedModel;
 
@@ -819,7 +837,7 @@ const ChatInterface = () => {
   const sharedChatInputProps = useMemo(
     () => ({
       value: session.inputValue,
-      onChange: session.setInputValue,
+      onChange: session.setComposerInputValue,
       onSend: stream.sendNewTurn,
       onStop: stream.stopStream,
       isStreaming: stream.canStop,
@@ -854,7 +872,7 @@ const ChatInterface = () => {
       onQueueUndo: stream.onQueueUndo,
     }),
     [
-      session.inputValue, session.setInputValue, session.selectedModelId,
+      session.inputValue, session.setComposerInputValue, session.selectedModelId,
       session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
@@ -1070,6 +1088,10 @@ const ChatInterface = () => {
             chatId={session.activeChatId}
             messages={session.messages}
             isStreaming={stream.isStreaming}
+            disableActionButtons={
+              stream.isDurableInteractionBlocked ||
+              stream.isTurnMutationBlocked
+            }
             isCharacterChat={session.isCharacterChat}
             characterName={session.activeCharacterName}
             characterAvatar={session.activeCharacterAvatar}

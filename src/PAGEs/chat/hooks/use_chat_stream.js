@@ -82,8 +82,29 @@ const notifyTurnMutationChange = (chatId) => {
 };
 
 const claimTurnMutation = ({ chatId, operationId, mountedRef, recovery }) => {
-  if (!chatId || !operationId || activeTurnMutationsByChatId.has(chatId)) {
+  if (!chatId || !operationId) {
     return null;
+  }
+  let existingOwner = activeTurnMutationsByChatId.get(chatId);
+  if (existingOwner?.mountedRef?.current === false) {
+    const hasDurableIntent = readTurnMutationOutbox().some(
+      (entry) =>
+        entry.chatId === chatId &&
+        entry.operationId === existingOwner.operationId,
+    );
+    if (!hasDurableIntent) {
+      activeTurnMutationsByChatId.delete(chatId);
+      notifyTurnMutationChange(chatId);
+      existingOwner = null;
+    }
+  }
+  if (existingOwner) {
+    if (
+      existingOwner.operationId !== operationId ||
+      existingOwner.mountedRef?.current !== false
+    ) {
+      return null;
+    }
   }
   const owner = { chatId, operationId, mountedRef, recovery: recovery === true };
   activeTurnMutationsByChatId.set(chatId, owner);
@@ -121,18 +142,104 @@ const isTurnMutationAlreadyCommitted = (entry, messages) => {
   const baseMessages = currentMessages.slice(0, baseMessageCount);
   const userMessage = currentMessages[baseMessageCount];
   const assistantMessage = currentMessages[baseMessageCount + 1];
-  return Boolean(
-    entry?.baseFingerprint &&
-      fingerprintTurnMutationMessages(baseMessages) === entry.baseFingerprint &&
-      currentMessages.length === baseMessageCount + 2 &&
+  const userTerminallyAcknowledged = Boolean(
+    currentMessages.length === baseMessageCount + 1 &&
       userMessage?.id === entry.targetMessageId &&
       userMessage?.role === "user" &&
       userMessage?.content === entry.text &&
+      userMessage?.meta?.turnMutationOperationId === entry.operationId &&
+      userMessage?.meta?.turnMutationServerAcknowledged === true,
+  );
+  return Boolean(
+    entry?.baseFingerprint &&
+      fingerprintTurnMutationMessages(baseMessages) === entry.baseFingerprint &&
+      (userTerminallyAcknowledged ||
+        (currentMessages.length === baseMessageCount + 2 &&
+          userMessage?.id === entry.targetMessageId &&
+          userMessage?.role === "user" &&
+          userMessage?.content === entry.text &&
+          assistantMessage?.role === "assistant" &&
+          assistantMessage?.meta?.turnMutationOperationId ===
+            entry.operationId &&
+          assistantMessage?.meta?.turnMutationServerAcknowledged === true)),
+  );
+};
+
+const TERMINAL_TURN_MUTATION_ERROR_CODES = new Set([
+  "invalid_request",
+  "memory_replace_operation_conflict",
+  "memory_replace_receipt_corruption",
+  "session_revision_conflict",
+]);
+
+const isTerminalTurnMutationError = (error) => {
+  if (error?.retryable === true) return false;
+  const code = typeof error?.code === "string" ? error.code.trim() : "";
+  if (TERMINAL_TURN_MUTATION_ERROR_CODES.has(code)) return true;
+  const status = Number(error?.status);
+  return (
+    error?.retryable === false &&
+    Number.isInteger(status) &&
+    status >= 400 &&
+    status < 500
+  );
+};
+
+const createTurnMutationResponseError = (response) => {
+  const detail =
+    response?.error && typeof response.error === "object"
+      ? response.error
+      : {};
+  const error = new Error(
+    (typeof detail.message === "string" && detail.message.trim()) ||
+      "Failed to sync short-term memory for this chat.",
+  );
+  error.code =
+    (typeof detail.code === "string" && detail.code.trim()) ||
+    "unchain_session_memory_replace_failed";
+  if (typeof detail.retryable === "boolean") {
+    error.retryable = detail.retryable;
+  }
+  const status = Number(detail.status ?? response?.status);
+  if (Number.isInteger(status)) error.status = status;
+  if (Number.isInteger(Number(detail.expected_revision))) {
+    error.expectedRevision = Number(detail.expected_revision);
+  }
+  if (Number.isInteger(Number(detail.actual_revision))) {
+    error.actualRevision = Number(detail.actual_revision);
+  }
+  return error;
+};
+
+const isTurnMutationOptimisticWithoutAck = (entry, messages) => {
+  if (!entry || entry.kind === "delete") return false;
+  const currentMessages = Array.isArray(messages) ? messages : [];
+  const baseMessageCount = Math.max(0, Number(entry.baseMessageCount) || 0);
+  const baseMessages = currentMessages.slice(0, baseMessageCount);
+  const userMessage = currentMessages[baseMessageCount];
+  const assistantMessage = currentMessages[baseMessageCount + 1];
+  const baseAndUserMatch = Boolean(
+    entry.baseFingerprint &&
+      fingerprintTurnMutationMessages(baseMessages) === entry.baseFingerprint &&
+      userMessage?.id === entry.targetMessageId &&
+      userMessage?.role === "user" &&
+      userMessage?.content === entry.text &&
+      userMessage?.meta?.turnMutationServerAcknowledged !== true &&
+      (!userMessage?.meta?.turnMutationOperationId ||
+        userMessage.meta.turnMutationOperationId === entry.operationId),
+  );
+  if (!baseAndUserMatch) return false;
+  if (currentMessages.length === baseMessageCount + 1) {
+    // Bootstrap intentionally removes an empty streaming placeholder. The
+    // tagged optimistic user message remains sufficient to safely recover or
+    // roll back the exact local mutation.
+    return true;
+  }
+  return Boolean(
+    currentMessages.length === baseMessageCount + 2 &&
       assistantMessage?.role === "assistant" &&
       assistantMessage?.meta?.turnMutationOperationId === entry.operationId &&
-      Boolean(
-        assistantMessage?.meta?.requestId || assistantMessage?.meta?.attemptId,
-      ),
+      assistantMessage?.meta?.turnMutationServerAcknowledged !== true,
   );
 };
 
@@ -665,13 +772,9 @@ export const useChatStream = ({
   }
   const [turnMutationVersion, setTurnMutationVersion] = useState(0);
   const streamingChatIdsRef = useRef(new Set());
-  /* chatIds with an in-flight turn mutation (edit/delete guard) — consumed
-     by the delete-message guard and the unmount cleanup sweep; its
-     definition was lost in a concurrent merge (runtime crash 2026-07-21:
-     "turnMutationChatIdsRef is not defined"). */
-  const turnMutationChatIdsRef = useRef(new Set());
   const runPreflightGenerationByChatIdRef = useRef(new Map());
   const turnMutationByChatIdRef = useRef(activeTurnMutationsByChatId);
+  const turnMutationRecoveryAttemptsRef = useRef(new Map());
   const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
   const confirmationRuntimeByChatIdRef = useRef(new Map());
   const durableInteractionLookupByChatIdRef = useRef(new Map());
@@ -682,6 +785,7 @@ export const useChatStream = ({
   const runGenerationByChatIdRef = useRef(new Map());
   const stoppedRunChatIdsRef = useRef(new Set());
   const queueRelayTimersByChatIdRef = useRef(new Map());
+  const queueRelayAttemptsByChatIdRef = useRef(new Map());
   const confirmationRetryWaitersByChatIdRef = useRef(new Map());
   const renderRuntimeByChatIdRef = useRef(new Map());
   // Interject (mid-run "fyi"/"btw"/"queue"/"clarify") bookkeeping — all keyed
@@ -714,6 +818,18 @@ export const useChatStream = ({
     return () => {
       hookMountedRef.current = false;
       turnMutationListeners.delete(listener);
+      const durableOperations = new Set(
+        readTurnMutationOutbox().map((entry) => entry.operationId),
+      );
+      for (const [ownerChatId, owner] of activeTurnMutationsByChatId) {
+        if (
+          owner.mountedRef === hookMountedRef &&
+          !durableOperations.has(owner.operationId)
+        ) {
+          activeTurnMutationsByChatId.delete(ownerChatId);
+          notifyTurnMutationChange(ownerChatId);
+        }
+      }
     };
   }, []);
 
@@ -800,6 +916,7 @@ export const useChatStream = ({
     const timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
     timers?.forEach((timerId) => clearTimeout(timerId));
     queueRelayTimersByChatIdRef.current.delete(targetChatId);
+    queueRelayAttemptsByChatIdRef.current.delete(targetChatId);
   }, []);
 
   const scheduleQueueRelayTimer = useCallback(
@@ -829,6 +946,29 @@ export const useChatStream = ({
       return timerId;
     },
     [isRunGenerationCurrent],
+  );
+
+  const scheduleQueueRelayRetryTimer = useCallback(
+    (targetChatId, callback, delayMs) => {
+      let timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+      if (!timers) {
+        timers = new Set();
+        queueRelayTimersByChatIdRef.current.set(targetChatId, timers);
+      }
+      let timerId = null;
+      timerId = setTimeout(() => {
+        const currentTimers =
+          queueRelayTimersByChatIdRef.current.get(targetChatId);
+        currentTimers?.delete(timerId);
+        if (currentTimers?.size === 0) {
+          queueRelayTimersByChatIdRef.current.delete(targetChatId);
+        }
+        callback();
+      }, delayMs);
+      timers.add(timerId);
+      return timerId;
+    },
+    [],
   );
 
   const clearConfirmationRetryWaitersForChat = useCallback((targetChatId) => {
@@ -1014,6 +1154,12 @@ export const useChatStream = ({
       ? durableInteractionState.status
       : "";
   const isDurableInteractionBlocked = Boolean(durableInteractionStatus);
+  const isTurnMutationBlocked = Boolean(
+    chatId &&
+      (turnMutationByChatIdRef.current.has(chatId) ||
+        runPreflightGenerationByChatIdRef.current.has(chatId) ||
+        readTurnMutationOutbox().some((entry) => entry.chatId === chatId)),
+  );
   const canStop =
     isStreaming ||
     [
@@ -1023,6 +1169,7 @@ export const useChatStream = ({
       "receipt_recorded",
       "resuming",
       "retry_wait",
+      "resume_failed",
     ].includes(durableInteractionStatus);
 
   const clearActiveTokenFlushController = useCallback(
@@ -2332,12 +2479,15 @@ export const useChatStream = ({
           },
         });
 
-        return {
-          applied: response?.applied !== false,
-          skipped: false,
-          response,
-          error: null,
-        };
+        if (response?.applied === false) {
+          const error = createTurnMutationResponseError(response);
+          if (activeChatIdRef.current === targetChatId) {
+            setStreamError(error.message);
+          }
+          return { applied: false, skipped: false, response, error };
+        }
+
+        return { applied: true, skipped: false, response, error: null };
       } catch (error) {
         if (activeChatIdRef.current === targetChatId) {
           setStreamError(
@@ -2348,6 +2498,32 @@ export const useChatStream = ({
       }
     },
     [activeChatIdRef, buildHistoryForModel, chatId, modelIdRef, setStreamError],
+  );
+
+  const readMemorySessionRevision = useCallback(
+    async (targetSessionId, { forceMemoryEnabled = false } = {}) => {
+      if (
+        !targetSessionId ||
+        (forceMemoryEnabled !== true && readMemorySettings().enabled !== true)
+      ) {
+        return null;
+      }
+      const exported = await api.unchain.getSessionMemoryExport(
+        targetSessionId,
+      );
+      const revision = Number(
+        exported?.session_revision ?? exported?.sessionRevision,
+      );
+      if (!Number.isInteger(revision) || revision < 0) {
+        const error = new Error(
+          "Unable to verify the current session revision before rewriting memory.",
+        );
+        error.code = "session_revision_unavailable";
+        throw error;
+      }
+      return revision;
+    },
+    [],
   );
 
   const runTurnRequest = useCallback(
@@ -2377,7 +2553,14 @@ export const useChatStream = ({
       runGeneration: requestedRunGeneration = null,
       runContext: requestedRunContext = null,
       turnMutationOperationId = "",
+      onConsumed = null,
     }) => {
+      let requestConsumed = false;
+      const markRequestConsumed = () => {
+        if (requestConsumed) return;
+        requestConsumed = true;
+        if (typeof onConsumed === "function") onConsumed();
+      };
       const isDurableResume = Boolean(
         mode === "resume_interaction" &&
         durableInteraction?.status === "receipt_recorded" &&
@@ -2502,6 +2685,12 @@ export const useChatStream = ({
           activeRunGeneration
         ) {
           runPreflightGenerationByChatIdRef.current.delete(targetChatId);
+          /* The mutation owner was released during the synchronous handoff.
+             Wake recovery again after preflight ends so an attachment or
+             character-preparation failure cannot strand its durable outbox. */
+          if (turnMutationOperationId) {
+            notifyTurnMutationChange(targetChatId);
+          }
         }
       };
 
@@ -2660,6 +2849,13 @@ export const useChatStream = ({
         }
 
         userMessage = { ...userMessageSeed };
+        if (turnMutationOperationId) {
+          userMessage.meta = {
+            ...(userMessage.meta || {}),
+            turnMutationOperationId,
+            turnMutationServerAcknowledged: false,
+          };
+        }
         if (persistedAttachments.length > 0) {
           userMessage.attachments = persistedAttachments;
         } else if ("attachments" in userMessage) {
@@ -2938,11 +3134,21 @@ export const useChatStream = ({
             courtesyMessage: courtesyMessage || null,
             evaluation: characterDecision.evaluation || null,
           });
+          const terminalUserMessage = turnMutationOperationId
+            ? {
+                ...userMessage,
+                meta: {
+                  ...(userMessage.meta || {}),
+                  turnMutationOperationId,
+                  turnMutationServerAcknowledged: true,
+                },
+              }
+            : userMessage;
           const immediateMessages =
             decisionAction === "defer" && courtesyMessage
               ? [
                   ...normalizedBaseMessages,
-                  userMessage,
+                  terminalUserMessage,
                   {
                     id: assistantMessageId,
                     role: "assistant",
@@ -2952,12 +3158,22 @@ export const useChatStream = ({
                     status: "done",
                     meta: {
                       model: effectiveModelId,
+                      ...(turnMutationOperationId
+                        ? {
+                            turnMutationOperationId,
+                            turnMutationServerAcknowledged: true,
+                          }
+                        : {}),
                     },
                   },
                 ]
-              : [...normalizedBaseMessages, userMessage];
+              : [...normalizedBaseMessages, terminalUserMessage];
 
+          markRequestConsumed();
           persistImmediateMessages(immediateMessages);
+          if (turnMutationOperationId) {
+            removeTurnMutation(turnMutationOperationId);
+          }
           releaseComposerDraftClaim();
           setStreamErrorForChat(targetChatId, "");
           cancelBackgroundPersist(targetChatId);
@@ -3022,6 +3238,35 @@ export const useChatStream = ({
           targetChatId,
           materializeStreamingMessages(targetChatId, nextStreamMessages),
         );
+      };
+
+      let turnMutationServerAcknowledged = false;
+      const acknowledgeTurnMutationRun = () => {
+        if (
+          !turnMutationOperationId ||
+          turnMutationServerAcknowledged ||
+          !isCurrentRun()
+        ) {
+          return;
+        }
+        turnMutationServerAcknowledged = true;
+        const acknowledgedMessages = streamMessages.map((message) =>
+          message.id === assistantMessageId || message.id === userMessage?.id
+            ? {
+                ...message,
+                meta: {
+                  ...(message.meta || {}),
+                  turnMutationOperationId,
+                  turnMutationServerAcknowledged: true,
+                },
+              }
+            : message,
+        );
+        syncStreamMessages(acknowledgedMessages);
+        storageApi.setChatMessages(targetChatId, acknowledgedMessages, {
+          source: "chat-page",
+        });
+        removeTurnMutation(turnMutationOperationId);
       };
 
       const dirtySubagentFrameRunIds = new Set();
@@ -3533,6 +3778,13 @@ export const useChatStream = ({
             if (!isCurrentRun()) {
               return;
             }
+            if (
+              ["run.started", "turn.started", "step.started"].includes(
+                runtimeEvent?.type,
+              )
+            ) {
+              acknowledgeTurnMutationRun();
+            }
             if (runtimeEventBatcher) {
               runtimeEventBatcher.enqueue(runtimeEvent);
               return;
@@ -3875,6 +4127,9 @@ export const useChatStream = ({
           ? buildDurableResumePayload(durableInteraction)
           : {
               threadId: effectiveThreadId,
+              ...(turnMutationOperationId
+                ? { attempt_id: turnMutationOperationId }
+                : {}),
               message: promptText,
               history: historyForModel,
               attachments: payloadAttachments,
@@ -3920,6 +4175,7 @@ export const useChatStream = ({
               trace_level: STREAM_TRACE_LEVEL,
             };
 
+        markRequestConsumed();
         streamHandle = startChatStream(
           streamPayload,
           {
@@ -3935,6 +4191,13 @@ export const useChatStream = ({
               }
 
               if (!frame) return;
+              if (
+                ["run_started", "response_received", "final_message"].includes(
+                  frame.type,
+                )
+              ) {
+                acknowledgeTurnMutationRun();
+              }
               frame = scrubLegacyPlanToolResultFrame(frame);
               if (frame.type === "token_delta") {
                 renderRuntime.lastTokenRunId =
@@ -4827,6 +5090,7 @@ export const useChatStream = ({
               if (!isCurrentRun()) {
                 return;
               }
+              acknowledgeTurnMutationRun();
               if (
                 renderRuntime.lastTokenRunId &&
                 isKnownSubagentRunId(renderRuntime.lastTokenRunId)
@@ -5029,38 +5293,134 @@ export const useChatStream = ({
               // run has fully ended and persisted.
               const queuedTurnsOnDone = queuedTurnsByChatIdRef.current.get(targetChatId);
               if (queuedTurnsOnDone && queuedTurnsOnDone.size() > 0) {
-                queuedTurnsOnDone.markRelayed();
-                syncInterjectStateForChat(targetChatId);
-                const mergedQueueText = queuedTurnsOnDone.drainMerged();
-                if (mergedQueueText) {
-                  const relayBaseMessages = nextStreamMessages;
-                  const relayCharacterConfig = resolvedCharacterConfig;
-                  scheduleQueueRelayTimer(targetChatId, activeRunGeneration, () => {
-                    void runTurnRequest({
-                      mode: "send",
-                      chatId: targetChatId,
-                      text: mergedQueueText,
-                      attachments: [],
-                      baseMessages: relayBaseMessages,
-                      clearComposer: false,
-                      missingAttachmentPayloadMode: "block",
-                      characterAgentConfig: relayCharacterConfig,
-                      runContext: effectiveRunContext,
-                    });
-                  }, 0);
-                }
-                // Give the queue pile one render with status:"relayed" before
-                // the buffer disappears; guard against clobbering a *new*
-                // run's fresh buffer that may have replaced this one by then.
-                scheduleQueueRelayTimer(targetChatId, activeRunGeneration, () => {
-                  if (
-                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
-                    queuedTurnsOnDone
-                  ) {
-                    queuedTurnsByChatIdRef.current.delete(targetChatId);
-                    syncInterjectStateForChat(targetChatId);
+                const queuedSnapshot = queuedTurnsOnDone.peekMerged();
+                if (queuedSnapshot.text) {
+                  let relayState =
+                    queueRelayAttemptsByChatIdRef.current.get(targetChatId);
+                  if (!relayState || relayState.buffer !== queuedTurnsOnDone) {
+                    relayState = {
+                      buffer: queuedTurnsOnDone,
+                      inFlight: false,
+                      retryCount: 0,
+                      attempt: null,
+                    };
+                    relayState.attempt = () => {
+                      if (
+                        queuedTurnsByChatIdRef.current.get(targetChatId) !==
+                          queuedTurnsOnDone ||
+                        relayState.inFlight
+                      ) {
+                        return;
+                      }
+                      const relaySnapshot = queuedTurnsOnDone.peekMerged();
+                      if (!relaySnapshot.text) return;
+                      if (
+                        isChatRunPending(targetChatId) ||
+                        durableInteractionByChatIdRef.current[targetChatId]
+                          ?.status
+                      ) {
+                        relayState.retryCount += 1;
+                        scheduleQueueRelayRetryTimer(
+                          targetChatId,
+                          relayState.attempt,
+                          Math.min(
+                            4000,
+                            250 * 2 ** Math.min(relayState.retryCount - 1, 4),
+                          ),
+                        );
+                        return;
+                      }
+
+                      relayState.inFlight = true;
+                      queuedTurnsOnDone.markRelayed(relaySnapshot.ids);
+                      syncInterjectStateForChat(targetChatId);
+                      let relayConsumed = false;
+                      const retryUnconsumedRelay = () => {
+                        queuedTurnsOnDone.markQueued(relaySnapshot.ids);
+                        syncInterjectStateForChat(targetChatId);
+                        relayState.retryCount += 1;
+                        scheduleQueueRelayRetryTimer(
+                          targetChatId,
+                          relayState.attempt,
+                          Math.min(
+                            4000,
+                            250 * 2 ** Math.min(relayState.retryCount - 1, 4),
+                          ),
+                        );
+                      };
+                      const acknowledgeConsumedRelay = () => {
+                        queueRelayAttemptsByChatIdRef.current.delete(
+                          targetChatId,
+                        );
+                        scheduleQueueRelayRetryTimer(
+                          targetChatId,
+                          () => {
+                            if (
+                              queuedTurnsByChatIdRef.current.get(
+                                targetChatId,
+                              ) !== queuedTurnsOnDone
+                            ) {
+                              return;
+                            }
+                            queuedTurnsOnDone.removeMany(relaySnapshot.ids);
+                            if (queuedTurnsOnDone.size() === 0) {
+                              queuedTurnsByChatIdRef.current.delete(
+                                targetChatId,
+                              );
+                            }
+                            syncInterjectStateForChat(targetChatId);
+                          },
+                          1600,
+                        );
+                      };
+                      const relayBaseMessages =
+                        activeChatIdRef.current === targetChatId &&
+                        Array.isArray(messagesRef.current)
+                          ? messagesRef.current
+                          : storageApi.getChatMessages?.(targetChatId) ||
+                            nextStreamMessages;
+                      void runTurnRequest({
+                        mode: "send",
+                        chatId: targetChatId,
+                        text: relaySnapshot.text,
+                        attachments: [],
+                        baseMessages: relayBaseMessages,
+                        clearComposer: false,
+                        missingAttachmentPayloadMode: "block",
+                        characterAgentConfig: resolvedCharacterConfig,
+                        runContext: effectiveRunContext,
+                        onConsumed: () => {
+                          relayConsumed = true;
+                        },
+                      })
+                        .then((started) => {
+                          relayState.inFlight = false;
+                          if (!started && !relayConsumed) {
+                            retryUnconsumedRelay();
+                            return;
+                          }
+                          acknowledgeConsumedRelay();
+                        })
+                        .catch(() => {
+                          relayState.inFlight = false;
+                          if (relayConsumed) {
+                            acknowledgeConsumedRelay();
+                          } else {
+                            retryUnconsumedRelay();
+                          }
+                        });
+                    };
+                    queueRelayAttemptsByChatIdRef.current.set(
+                      targetChatId,
+                      relayState,
+                    );
                   }
-                }, 1600);
+                  scheduleQueueRelayRetryTimer(
+                    targetChatId,
+                    relayState.attempt,
+                    0,
+                  );
+                }
               } else if (queuedTurnsOnDone) {
                 queuedTurnsByChatIdRef.current.delete(targetChatId);
                 syncInterjectStateForChat(targetChatId);
@@ -5413,6 +5773,7 @@ export const useChatStream = ({
       getConfirmationRuntimeForChat,
       hydrateAttachmentPayloads,
       agentOrchestration,
+      isChatRunPending,
       isCharacterChat,
       isRunGenerationCurrent,
       isToolCallAutoApprovable,
@@ -5422,6 +5783,7 @@ export const useChatStream = ({
       messagesRef,
       resolveAttachmentPayloads,
       scheduleQueueRelayTimer,
+      scheduleQueueRelayRetryTimer,
       selectedToolkits,
       selectedWorkspaceIds,
       selectedRecipeName,
@@ -5555,13 +5917,85 @@ export const useChatStream = ({
         }
 
         clearAllPendingToolConfirmations(normalizedChatId);
-        const sourceMessages =
+        let sourceMessages =
           activeChatIdRef.current === normalizedChatId &&
           Array.isArray(messagesRef.current)
             ? messagesRef.current
             : typeof storageApi.getChatMessages === "function"
               ? storageApi.getChatMessages(normalizedChatId)
               : [];
+        const pendingMutationEntry = readTurnMutationOutbox().find(
+          (entry) => entry.chatId === normalizedChatId,
+        );
+        if (pendingMutationEntry) {
+          const pendingAttemptIds = new Set(
+            [pending.activeAttemptId, pending.sourceRunId]
+              .filter((value) => typeof value === "string")
+              .map((value) => value.trim())
+              .filter(Boolean),
+          );
+          const belongsToMutation = pendingAttemptIds.has(
+            pendingMutationEntry.operationId,
+          );
+          if (belongsToMutation) {
+            let changed = false;
+            sourceMessages = sourceMessages.map((message) => {
+              if (
+                message?.role !== "assistant" ||
+                message?.meta?.turnMutationOperationId !==
+                  pendingMutationEntry.operationId ||
+                message?.meta?.turnMutationServerAcknowledged === true
+              ) {
+                return message;
+              }
+              changed = true;
+              return {
+                ...message,
+                meta: {
+                  ...(message.meta || {}),
+                  turnMutationServerAcknowledged: true,
+                },
+              };
+            });
+            if (changed) {
+              commitForegroundMessages(normalizedChatId, sourceMessages);
+              storageApi.setChatMessages(normalizedChatId, sourceMessages, {
+                source: "turn-mutation-durable-reconciliation",
+              });
+            }
+          } else {
+            if (
+              isTurnMutationOptimisticWithoutAck(
+                pendingMutationEntry,
+                sourceMessages,
+              )
+            ) {
+              sourceMessages = sourceMessages.slice(
+                0,
+                pendingMutationEntry.baseMessageCount,
+              );
+              commitForegroundMessages(normalizedChatId, sourceMessages);
+              storageApi.setChatMessages(normalizedChatId, sourceMessages, {
+                source: "turn-mutation-superseded-rollback",
+              });
+            }
+            setStreamErrorForChat(
+              normalizedChatId,
+              "A newer server-side run superseded an unfinished local message operation.",
+            );
+          }
+          removeTurnMutation(pendingMutationEntry.operationId);
+          turnMutationRecoveryAttemptsRef.current.delete(
+            pendingMutationEntry.operationId,
+          );
+          const mutationOwner =
+            turnMutationByChatIdRef.current.get(normalizedChatId);
+          if (
+            mutationOwner?.operationId === pendingMutationEntry.operationId
+          ) {
+            releaseTurnMutation(mutationOwner);
+          }
+        }
         const ensured = ensureDurableInteractionMessage(
           sourceMessages,
           pending,
@@ -5653,7 +6087,12 @@ export const useChatStream = ({
           return pendingWithOwner;
         }
 
-        if (!autoResume || streamingChatIdsRef.current.has(normalizedChatId)) {
+        if (
+          !autoResume ||
+          streamingChatIdsRef.current.has(normalizedChatId) ||
+          runPreflightGenerationByChatIdRef.current.has(normalizedChatId) ||
+          turnMutationByChatIdRef.current.has(normalizedChatId)
+        ) {
           return pendingWithOwner;
         }
 
@@ -5680,7 +6119,7 @@ export const useChatStream = ({
             : typeof storageApi.getChatMessages === "function"
               ? storageApi.getChatMessages(normalizedChatId)
               : ensured.messages;
-        void runTurnRequest({
+        const resumeStarted = await runTurnRequest({
           mode: "resume_interaction",
           chatId: normalizedChatId,
           text: "",
@@ -5692,6 +6131,14 @@ export const useChatStream = ({
           durableOwnerMessageId: ensured.ownerMessageId,
           runGeneration: activeRunGeneration,
         });
+        if (!resumeStarted && isCurrentLookup()) {
+          clearDurableResumeStartedKeysForChat(normalizedChatId);
+          const error = new Error(
+            "Durable recovery was deferred while another chat operation was starting.",
+          );
+          error.code = "durable_resume_deferred";
+          throw error;
+        }
         return pendingWithOwner;
       } catch (error) {
         if (!isCurrentLookup()) {
@@ -5750,6 +6197,7 @@ export const useChatStream = ({
       activeChatIdRef,
       appendSyntheticToolConfirmationDecision,
       clearAllPendingToolConfirmations,
+      clearDurableResumeStartedKeysForChat,
       commitForegroundMessages,
       ensureRecoveryRunGeneration,
       getConfirmationRuntimeForChat,
@@ -5757,6 +6205,7 @@ export const useChatStream = ({
       messagesRef,
       runTurnRequest,
       setStreamError,
+      setStreamErrorForChat,
       storageApi,
       trackDurableResumeStartedKey,
       updateDurableInteractionForChat,
@@ -5866,6 +6315,7 @@ export const useChatStream = ({
     setStreamError,
     setStreamErrorForChat,
     threadIdRef,
+    turnMutationVersion,
     updateDurableInteractionForChat,
   ]);
 
@@ -6402,6 +6852,17 @@ export const useChatStream = ({
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
+        let expectedSessionRevision = null;
+        try {
+          expectedSessionRevision = await readMemorySessionRevision(
+            targetSessionId,
+            { forceMemoryEnabled: isCharacterChat },
+          );
+        } catch (error) {
+          setStreamErrorForChat(currentChatId, error?.message);
+          return;
+        }
+        if (!isCurrentTurnMutation()) return;
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
@@ -6417,6 +6878,7 @@ export const useChatStream = ({
           threadId: targetThreadId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
+          expectedSessionRevision,
         });
         if (!outboxEntry) {
           setStreamErrorForChat(
@@ -6434,9 +6896,18 @@ export const useChatStream = ({
             modelId: targetModelId,
             targetChatId: currentChatId,
             operationId,
+            expectedSessionRevision,
           },
         );
         if (!memoryResult.applied) {
+          if (
+            isTerminalTurnMutationError(memoryResult.error) &&
+            fingerprintTurnMutationMessages(
+              storageApi.getChatMessages?.(currentChatId) || [],
+            ) === outboxEntry.originalFingerprint
+          ) {
+            removeTurnMutation(operationId);
+          }
           return;
         }
         if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
@@ -6454,7 +6925,7 @@ export const useChatStream = ({
           );
         }
 
-        const started = await runTurnRequest({
+        await runTurnRequest({
           mode: "resend",
           chatId: currentChatId,
           text,
@@ -6467,15 +6938,6 @@ export const useChatStream = ({
           runContext: { modelId: targetModelId, threadId: targetThreadId },
           turnMutationOperationId: operationId,
         });
-        if (
-          started ||
-          isTurnMutationAlreadyCommitted(
-            outboxEntry,
-            storageApi.getChatMessages?.(currentChatId),
-          )
-        ) {
-          removeTurnMutation(operationId);
-        }
       } finally {
         releaseTurnMutation(turnMutationOwner);
       }
@@ -6488,6 +6950,7 @@ export const useChatStream = ({
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      readMemorySessionRevision,
       replaceSessionMemoryForMessages,
       runTurnRequest,
       setStreamErrorForChat,
@@ -6583,12 +7046,30 @@ export const useChatStream = ({
         // The expanded edit and its sidecar are persisted in the outbox so a
         // remount resumes the exact same operation, not a newly-resolved one.
         const built = buildComposerSend(text, targetSelectedToolkits);
+        if (!built.outgoingText && originalAttachments.length === 0) {
+          setStreamErrorForChat(
+            currentChatId,
+            "This edit does not contain any text or usable attachments.",
+          );
+          return;
+        }
         const targetSessionId = characterConfig?.session_id || currentChatId;
         const targetModelId =
           typeof characterConfig?.default_model === "string" &&
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
+        let expectedSessionRevision = null;
+        try {
+          expectedSessionRevision = await readMemorySessionRevision(
+            targetSessionId,
+            { forceMemoryEnabled: isCharacterChat },
+          );
+        } catch (error) {
+          setStreamErrorForChat(currentChatId, error?.message);
+          return;
+        }
+        if (!isCurrentTurnMutation()) return;
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
@@ -6606,6 +7087,7 @@ export const useChatStream = ({
           threadId: targetThreadId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
+          expectedSessionRevision,
         });
         if (!outboxEntry) {
           setStreamErrorForChat(
@@ -6623,14 +7105,23 @@ export const useChatStream = ({
             modelId: targetModelId,
             targetChatId: currentChatId,
             operationId,
+            expectedSessionRevision,
           },
         );
         if (!memoryResult.applied) {
+          if (
+            isTerminalTurnMutationError(memoryResult.error) &&
+            fingerprintTurnMutationMessages(
+              storageApi.getChatMessages?.(currentChatId) || [],
+            ) === outboxEntry.originalFingerprint
+          ) {
+            removeTurnMutation(operationId);
+          }
           return;
         }
         if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
 
-        const started = await runTurnRequest({
+        await runTurnRequest({
           mode: "edit",
           chatId: currentChatId,
           text: built.outgoingText,
@@ -6645,15 +7136,6 @@ export const useChatStream = ({
           runContext: { modelId: targetModelId, threadId: targetThreadId },
           turnMutationOperationId: operationId,
         });
-        if (
-          started ||
-          isTurnMutationAlreadyCommitted(
-            outboxEntry,
-            storageApi.getChatMessages?.(currentChatId),
-          )
-        ) {
-          removeTurnMutation(operationId);
-        }
       } finally {
         releaseTurnMutation(turnMutationOwner);
       }
@@ -6666,6 +7148,7 @@ export const useChatStream = ({
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      readMemorySessionRevision,
       replaceSessionMemoryForMessages,
       runTurnRequest,
       setStreamErrorForChat,
@@ -6685,8 +7168,16 @@ export const useChatStream = ({
         return;
       }
 
+      if (durableInteractionByChatIdRef.current[currentChatId]?.status) {
+        return;
+      }
+
+      const originalMessages = Array.isArray(messagesRef.current)
+        ? [...messagesRef.current]
+        : [];
+
       const turnMessageIds = collectTurnMessageIds(
-        messagesRef.current,
+        originalMessages,
         message.id,
       );
       if (turnMessageIds.size === 0) {
@@ -6696,7 +7187,7 @@ export const useChatStream = ({
       const deletingStreamingAssistant =
         message.role === "assistant" && message.status === "streaming";
       const hasTurnMutation =
-        turnMutationChatIdsRef.current.has(currentChatId);
+        turnMutationByChatIdRef.current.has(currentChatId);
       const hasRunPreflight =
         runPreflightGenerationByChatIdRef.current.has(currentChatId);
       const hasStreamingRun =
@@ -6709,8 +7200,15 @@ export const useChatStream = ({
         return;
       }
       let workingMessages = Array.isArray(messagesRef.current)
-        ? messagesRef.current
+        ? originalMessages
         : [];
+
+      const activeExecutionIdentity =
+        executionIdentityByChatIdRef.current.get(currentChatId) || null;
+      const expectedCancelAttemptId =
+        deletingStreamingAssistant && hasStreamingRun
+          ? activeExecutionIdentity?.attemptId || ""
+          : "";
 
       if (deletingStreamingAssistant && hasStreamingRun) {
         workingMessages = cancelCurrentStreamAndSettleMessages();
@@ -6719,12 +7217,19 @@ export const useChatStream = ({
       const nextMessages = workingMessages.filter(
         (item) => !turnMessageIds.has(item?.id),
       );
-      turnMutationChatIdsRef.current.add(currentChatId);
-      const isCurrentTurnMutation = () =>
-        turnMutationChatIdsRef.current.has(currentChatId);
+      const operationId = createTurnMutationOperationId(currentChatId);
+      const turnMutationOwner = claimTurnMutation({
+        chatId: currentChatId,
+        operationId,
+        mountedRef: hookMountedRef,
+      });
+      if (!turnMutationOwner) return;
+      const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
       try {
         const targetThreadId =
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+        const capturedModelId =
+          typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
         const characterConfig = isCharacterChat
           ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
               setStreamErrorForChat(
@@ -6740,24 +7245,82 @@ export const useChatStream = ({
         ) {
           return;
         }
-        const memoryReplaced = await replaceSessionMemoryForMessages(
-          characterConfig?.session_id || currentChatId,
+        const targetSessionId = characterConfig?.session_id || currentChatId;
+        const targetModelId =
+          typeof characterConfig?.default_model === "string" &&
+          characterConfig.default_model.trim()
+            ? characterConfig.default_model.trim()
+            : capturedModelId;
+        let expectedSessionRevision = null;
+        try {
+          expectedSessionRevision = await readMemorySessionRevision(
+            targetSessionId,
+            { forceMemoryEnabled: isCharacterChat },
+          );
+        } catch (error) {
+          setStreamErrorForChat(currentChatId, error?.message);
+          return;
+        }
+        if (!isCurrentTurnMutation()) return;
+        const outboxEntry = enqueueTurnMutation({
+          operationId,
+          chatId: currentChatId,
+          sessionId: targetSessionId,
+          kind: "delete",
+          targetMessageId: message.id,
+          originalFingerprint:
+            fingerprintTurnMutationMessages(workingMessages),
+          baseFingerprint: fingerprintTurnMutationMessages([]),
+          resultFingerprint: fingerprintTurnMutationMessages(nextMessages),
+          baseMessageCount: 0,
+          text: "",
+          modelId: targetModelId,
+          threadId: targetThreadId,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+          forceMemoryEnabled: isCharacterChat,
+          expectedCancelAttemptId,
+          expectedSessionRevision,
+        });
+        if (!outboxEntry) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unable to safely persist this delete. Please try again.",
+          );
+          return;
+        }
+        const memoryResult = await replaceSessionMemoryForMessages(
+          targetSessionId,
           nextMessages,
           {
             forceMemoryEnabled: isCharacterChat,
             memoryNamespace: characterConfig?.run_memory_namespace || "",
+            modelId: targetModelId,
+            targetChatId: currentChatId,
+            operationId,
+            expectedSessionRevision,
+            expectedCancelAttemptId,
           },
         );
-        if (!isCurrentTurnMutation() || !memoryReplaced) {
+        if (!memoryResult.applied) {
+          if (
+            isTerminalTurnMutationError(memoryResult.error) &&
+            fingerprintTurnMutationMessages(
+              storageApi.getChatMessages?.(currentChatId) || [],
+            ) === outboxEntry.originalFingerprint
+          ) {
+            removeTurnMutation(operationId);
+          }
           return;
         }
+        if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
 
         commitForegroundMessages(currentChatId, nextMessages);
         storageApi.setChatMessages(currentChatId, nextMessages, {
           source: "chat-page",
         });
+        removeTurnMutation(operationId);
       } finally {
-        turnMutationChatIdsRef.current.delete(currentChatId);
+        releaseTurnMutation(turnMutationOwner);
       }
     },
     [
@@ -6767,6 +7330,8 @@ export const useChatStream = ({
       commitForegroundMessages,
       isCharacterChat,
       messagesRef,
+      modelIdRef,
+      readMemorySessionRevision,
       replaceSessionMemoryForMessages,
       setStreamErrorForChat,
       storageApi,
@@ -6775,13 +7340,294 @@ export const useChatStream = ({
   );
 
   useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (!targetChatId || !hookMountedRef.current) return undefined;
+
+    const entry = readTurnMutationOutbox().find(
+      (item) => item.chatId === targetChatId,
+    );
+    if (!entry) return undefined;
+
+    if (
+      runPreflightGenerationByChatIdRef.current.has(targetChatId) ||
+      streamingChatIdsRef.current.has(targetChatId) ||
+      streamHandlesRef.current.has(targetChatId) ||
+      activeStreamsRef.current.has(targetChatId)
+    ) {
+      return undefined;
+    }
+
+    let owner = turnMutationByChatIdRef.current.get(targetChatId) || null;
+    if (
+      owner &&
+      owner.mountedRef?.current !== false &&
+      owner.recovery !== true
+    ) {
+      /* The foreground handler owns this operation and may currently be
+         awaiting the same idempotent memory request. Recovery must never run
+         concurrently merely because that await caused a React render. */
+      return undefined;
+    }
+    if (!owner || owner.mountedRef?.current === false) {
+      owner = claimTurnMutation({
+        chatId: targetChatId,
+        operationId: entry.operationId,
+        mountedRef: hookMountedRef,
+        recovery: true,
+      });
+    }
+    if (
+      !owner ||
+      owner.recovery !== true ||
+      owner.operationId !== entry.operationId ||
+      owner.mountedRef !== hookMountedRef
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let retryTimer = null;
+    const scheduleRetry = (error) => {
+      if (cancelled || !hookMountedRef.current) return;
+      const attempt =
+        (turnMutationRecoveryAttemptsRef.current.get(entry.operationId) || 0) +
+        1;
+      turnMutationRecoveryAttemptsRef.current.set(entry.operationId, attempt);
+      if (attempt >= 6) {
+        setStreamErrorForChat(
+          targetChatId,
+          error?.message ||
+            "This message change still needs recovery. Reopen the task to retry safely.",
+        );
+        return;
+      }
+      retryTimer = setTimeout(() => {
+        if (!cancelled && hookMountedRef.current) {
+          setTurnMutationVersion((version) => version + 1);
+        }
+      }, Math.min(4000, 250 * 2 ** (attempt - 1)));
+    };
+
+    void (async () => {
+      let currentMessages = storageApi.getChatMessages?.(targetChatId) || [];
+      if (isTurnMutationAlreadyCommitted(entry, currentMessages)) {
+        removeTurnMutation(entry.operationId);
+        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+        releaseTurnMutation(owner);
+        return;
+      }
+
+      let targetMessage = currentMessages.find(
+        (message) => message?.id === entry.targetMessageId,
+      );
+      let baseMessages = [];
+      let replacementMessages = [];
+      let recoveringOptimisticWithoutAck = false;
+
+      if (isTurnMutationOptimisticWithoutAck(entry, currentMessages)) {
+        recoveringOptimisticWithoutAck = true;
+        baseMessages = currentMessages.slice(0, entry.baseMessageCount);
+        targetMessage = currentMessages[entry.baseMessageCount] || null;
+      } else if (
+        fingerprintTurnMutationMessages(currentMessages) !==
+        entry.originalFingerprint
+      ) {
+        setStreamErrorForChat(
+          targetChatId,
+          "This message change cannot be recovered automatically because the conversation changed.",
+        );
+        return;
+      }
+
+      if (entry.kind === "delete") {
+        const turnMessageIds = collectTurnMessageIds(
+          currentMessages,
+          entry.targetMessageId,
+        );
+        if (turnMessageIds.size === 0) {
+          setStreamErrorForChat(
+            targetChatId,
+            "This delete can no longer be matched to its original turn.",
+          );
+          return;
+        }
+        replacementMessages = currentMessages.filter(
+          (message) => !turnMessageIds.has(message?.id),
+        );
+        if (
+          entry.resultFingerprint &&
+          fingerprintTurnMutationMessages(replacementMessages) !==
+            entry.resultFingerprint
+        ) {
+          setStreamErrorForChat(
+            targetChatId,
+            "This delete no longer matches the stored recovery intent.",
+          );
+          return;
+        }
+      } else {
+        const targetIndex = recoveringOptimisticWithoutAck
+          ? entry.baseMessageCount
+          : currentMessages.findIndex(
+              (message) => message?.id === entry.targetMessageId,
+            );
+        if (targetIndex < 0 || targetMessage?.role !== "user") {
+          setStreamErrorForChat(
+            targetChatId,
+            "This resend or edit can no longer be matched to its original turn.",
+          );
+          return;
+        }
+        if (!recoveringOptimisticWithoutAck) {
+          baseMessages = currentMessages.slice(0, targetIndex);
+        }
+        if (
+          fingerprintTurnMutationMessages(baseMessages) !==
+          entry.baseFingerprint
+        ) {
+          setStreamErrorForChat(
+            targetChatId,
+            "This resend or edit no longer matches the stored conversation.",
+          );
+          return;
+        }
+        replacementMessages = baseMessages;
+      }
+
+      let characterConfig = null;
+      if (entry.forceMemoryEnabled) {
+        try {
+          characterConfig = await buildCharacterRunConfig(entry.threadId);
+        } catch (error) {
+          scheduleRetry(error);
+          return;
+        }
+        if (
+          cancelled ||
+          !characterConfig?.session_id ||
+          characterConfig.session_id !== entry.sessionId
+        ) {
+          if (!cancelled) {
+            setStreamErrorForChat(
+              targetChatId,
+              "The character session changed while recovering this message operation.",
+            );
+          }
+          return;
+        }
+      }
+
+      const memoryResult = await replaceSessionMemoryForMessages(
+        entry.sessionId,
+        replacementMessages,
+        {
+          forceMemoryEnabled: entry.forceMemoryEnabled,
+          memoryNamespace: entry.memoryNamespace,
+          modelId: entry.modelId,
+          targetChatId,
+          operationId: entry.operationId,
+          expectedSessionRevision: entry.expectedSessionRevision,
+          expectedCancelAttemptId: entry.expectedCancelAttemptId,
+        },
+      );
+      if (!memoryResult.applied) {
+        if (isTerminalTurnMutationError(memoryResult.error)) {
+          const latestMessages =
+            storageApi.getChatMessages?.(targetChatId) || [];
+          if (
+            fingerprintTurnMutationMessages(latestMessages) ===
+            entry.originalFingerprint
+          ) {
+            removeTurnMutation(entry.operationId);
+            turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+            releaseTurnMutation(owner);
+            setStreamErrorForChat(
+              targetChatId,
+              "The conversation changed before this message operation could be applied. Please try it again.",
+            );
+          } else {
+            setStreamErrorForChat(
+              targetChatId,
+              "This message operation conflicted with newer conversation state and needs manual review before it can be discarded.",
+            );
+          }
+          return;
+        }
+        scheduleRetry(memoryResult.error);
+        return;
+      }
+      if (cancelled || !hookMountedRef.current || !ownsTurnMutation(owner)) {
+        return;
+      }
+
+      if (entry.kind === "delete") {
+        commitForegroundMessages(targetChatId, replacementMessages);
+        storageApi.setChatMessages(targetChatId, replacementMessages, {
+          source: "turn-mutation-recovery",
+        });
+        removeTurnMutation(entry.operationId);
+        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+        releaseTurnMutation(owner);
+        return;
+      }
+
+      const sourceAttachments = Array.isArray(targetMessage?.attachments)
+        ? targetMessage.attachments
+        : [];
+      const recoveredAttachments =
+        sourceAttachments.length > 0 && !attachmentsEnabled
+          ? []
+          : sourceAttachments;
+      const started = await runTurnRequest({
+        mode: entry.kind,
+        chatId: targetChatId,
+        text: entry.text,
+        attachments: recoveredAttachments,
+        baseMessages,
+        clearComposer: false,
+        reuseUserMessage: targetMessage,
+        missingAttachmentPayloadMode: "degrade",
+        extraToolkits: entry.extraToolkits,
+        composer: entry.composer,
+        characterAgentConfig: characterConfig,
+        runContext: { modelId: entry.modelId, threadId: entry.threadId },
+        turnMutationOperationId: entry.operationId,
+      });
+      const storedMessages = storageApi.getChatMessages?.(targetChatId) || [];
+      if (isTurnMutationAlreadyCommitted(entry, storedMessages)) {
+        removeTurnMutation(entry.operationId);
+        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+      } else if (!started && !cancelled) {
+        scheduleRetry(new Error("The recovered run did not start."));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [
+    attachmentsEnabled,
+    buildCharacterRunConfig,
+    chatId,
+    commitForegroundMessages,
+    activeStreamsRef,
+    isStreaming,
+    replaceSessionMemoryForMessages,
+    runTurnRequest,
+    setStreamErrorForChat,
+    storageApi,
+    turnMutationVersion,
+  ]);
+
+  useEffect(() => {
     const confirmationRuntimeByChatId =
       confirmationRuntimeByChatIdRef.current;
     const streamHandles = streamHandlesRef.current;
     const executionIdentities = executionIdentityByChatIdRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
     const runPreflights = runPreflightGenerationByChatIdRef.current;
-    const turnMutations = turnMutationChatIdsRef.current;
     const activeStreams = activeStreamsRef.current;
     const activeRunThreadIdByChatId = activeRunThreadIdByChatIdRef.current;
     const queuedTurnsByChatId = queuedTurnsByChatIdRef.current;
@@ -6797,6 +7643,7 @@ export const useChatStream = ({
     const runGenerationsByChatId = runGenerationByChatIdRef.current;
     const stoppedRunChatIds = stoppedRunChatIdsRef.current;
     const queueRelayTimersByChatId = queueRelayTimersByChatIdRef.current;
+    const queueRelayAttemptsByChatId = queueRelayAttemptsByChatIdRef.current;
     const confirmationRetryWaitersByChatId =
       confirmationRetryWaitersByChatIdRef.current;
     const renderRuntimeByChatId = renderRuntimeByChatIdRef.current;
@@ -6818,7 +7665,6 @@ export const useChatStream = ({
       executionIdentities.clear();
       streamingChatIds.clear();
       runPreflights.clear();
-      turnMutations.clear();
       storageApi.releaseAllChatDraftClaims?.();
       activeStreams.clear();
       clearAttachmentPayloads();
@@ -6845,6 +7691,7 @@ export const useChatStream = ({
         timerIds.forEach((timerId) => clearTimeout(timerId));
       });
       queueRelayTimersByChatId.clear();
+      queueRelayAttemptsByChatId.clear();
       confirmationRetryWaitersByChatId.forEach((waiters) => {
         waiters.forEach((waiter) => {
           clearTimeout(waiter.timerId);
@@ -6872,6 +7719,7 @@ export const useChatStream = ({
     interjectState,
     durableInteractionStatus,
     isDurableInteractionBlocked,
+    isTurnMutationBlocked,
     isStreaming,
     onClarifyResolve,
     onQueueUndo,

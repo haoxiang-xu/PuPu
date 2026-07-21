@@ -45,18 +45,39 @@ describe("use_chat_stream code_diff auto-approve guard", () => {
     );
   });
 
-  test("sessionAutoApproveRef key shape is toolkitId:toolName", () => {
-    // Ensure keys don't accidentally become path-scoped later, which
-    // would broaden the auto-approve surface. The .has(...) call may
-    // span multiple lines in the source — match loosely across them.
+  test("session auto-approve state is isolated by chatId", () => {
+    expect(source).toMatch(/sessionAutoApproveRef\s*=\s*useRef\(new Map\(\)\)/);
     expect(source).toMatch(
-      /sessionAutoApproveRef\.current\.has\([\s\S]*?`\$\{toolkitId\}:\$\{toolName\}`/,
+      /sessionAutoApproveRef\.current[\s\S]*?\.get\(normalizedChatId\)[\s\S]*?\.has\(`\$\{toolkitId\}:\$\{toolName\}`\)/,
+    );
+    expect(source.match(/isToolCallAutoApprovable\(targetChatId, frame\)/g)).toHaveLength(2);
+  });
+
+  test("session approval is cached only after a successful current-generation response", () => {
+    const handlerStart = source.indexOf("const handleToolConfirmationDecision");
+    const handlerEnd = source.indexOf("const handleContinuationDecision", handlerStart);
+    const handlerSource = source.slice(handlerStart, handlerEnd);
+    const submitIndex = handlerSource.indexOf(
+      "await submitToolConfirmationWithRetry",
+    );
+    const generationIndex = handlerSource.indexOf(
+      "if (!isRunGenerationCurrent",
+      submitIndex,
+    );
+    const cacheIndex = handlerSource.indexOf("allowedTools.add", generationIndex);
+
+    expect(submitIndex).toBeGreaterThan(-1);
+    expect(generationIndex).toBeGreaterThan(submitIndex);
+    expect(cacheIndex).toBeGreaterThan(generationIndex);
+    expect(source).toMatch(
+      /allowedTools\.add\(`\$\{toolkitId\}:\$\{toolName\}`\)/,
     );
   });
 
-  test("sessionAutoApproveRef.add uses the same key shape", () => {
-    expect(source).toMatch(
-      /sessionAutoApproveRef\.current\.add\(\s*`\$\{toolkitId\}:\$\{toolName\}`\s*\)/,
+  test("session approvals survive chat switches but are cleared on unmount", () => {
+    expect(source).not.toMatch(
+      /useEffect\(\(\)\s*=>\s*\{\s*sessionAutoApproveRef\.current\.clear\(\);\s*\},\s*\[chatId\]\)/,
     );
+    expect(source).toMatch(/sessionAutoApprovalsByChatId\.clear\(\)/);
   });
 });

@@ -19,6 +19,9 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List
 
 from skill_rows import normalize_skill_rows
+import mcp_registry
+from mcp_registry import oauth_recipe_for_entry
+from mcp_oauth import McpOAuthError
 from mcp_toolkits import (
     McpToolkitError,
     build_mcp_runtime_toolkit,
@@ -2473,7 +2476,45 @@ def _installed_mcp_catalog_entries() -> List[Dict[str, object]]:
     except Exception as exc:
         _subagent_logger.warning("[mcp] failed to load installed MCP catalog: %s", exc)
         return []
-    return [entry for entry in entries if isinstance(entry, dict)]
+    available: List[Dict[str, object]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("status") or "").strip().lower() != "available":
+            continue
+        if (
+            str(entry.get("authType") or "").strip().lower() == "oauth"
+            and str(entry.get("authStatus") or "").strip().lower()
+            != "connected"
+        ):
+            continue
+        entry_id = str(entry.get("entryId") or "").strip()
+        toolkit_id = str(entry.get("toolkitId") or "").strip()
+        try:
+            curated_entry = mcp_registry.registry_entry_from_any_id(
+                entry_id or toolkit_id
+            )
+        except KeyError:
+            # Custom and approved external installs are intentionally absent
+            # from the bundled registry; their persisted status remains the
+            # source of truth and runtime construction validates the snapshot.
+            available.append(entry)
+            continue
+        oauth_recipe = oauth_recipe_for_entry(curated_entry)
+        oauth_release_ready = bool(oauth_recipe) and str(
+            oauth_recipe.get("releaseStatus") or ""
+        ).strip().lower() == "ready"
+        if (
+            str(curated_entry.get("status") or "").strip().lower()
+            != "available"
+            or (
+                not curated_entry.get("installable")
+                and not oauth_release_ready
+            )
+        ):
+            continue
+        available.append(entry)
+    return available
 
 
 def _installed_mcp_catalog_v1_entries() -> List[Dict[str, object]]:
@@ -3573,7 +3614,19 @@ def _build_selected_toolkits(
         if toolkit_name.startswith("mcp."):
             try:
                 toolkit_instance = build_mcp_runtime_toolkit(toolkit_name)
-            except McpToolkitError as exc:
+            except (McpToolkitError, McpOAuthError) as exc:
+                if getattr(exc, "code", "") in {
+                    "mcp_entry_not_available",
+                    "mcp_toolkit_not_found",
+                    "mcp_oauth_required",
+                    "mcp_oauth_expired",
+                }:
+                    _subagent_logger.warning(
+                        "[mcp] selected toolkit %s is no longer available; skipping (%s)",
+                        toolkit_name,
+                        getattr(exc, "code", "mcp_unavailable"),
+                    )
+                    continue
                 raise RuntimeError(str(exc)) from exc
             _set_runtime_toolkit_metadata(
                 toolkit_instance,

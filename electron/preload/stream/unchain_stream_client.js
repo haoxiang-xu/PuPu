@@ -259,9 +259,13 @@ const createMisoStreamClient = (ipcRenderer) => {
 
   const startStreamV4 = (payload, handlers = {}) => {
     const requestId = createRequestId();
-    const attemptId = requestId;
     const requestPayload =
       payload && typeof payload === "object" ? { ...payload } : {};
+    const attemptIdCandidate =
+      requestPayload.attempt_id ?? requestPayload.attemptId;
+    const requestedAttemptId =
+      typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "";
+    const attemptId = requestedAttemptId || requestId;
     const executionIdCandidate =
       requestPayload.execution_id ??
       requestPayload.executionId ??

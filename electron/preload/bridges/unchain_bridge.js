@@ -56,8 +56,10 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     }),
   startMcpOAuth: (entryId = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.START_MCP_OAUTH, { entryId }),
-  getMcpOAuthStatus: (entryId = "") =>
-    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS, { entryId }),
+  cancelMcpOAuth: (state = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH, { state }),
+  getMcpOAuthStatus: (state = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS, { state }),
   disconnectMcpOAuth: (toolkitId = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH, { toolkitId }),
   listMcpOAuthApps: () =>

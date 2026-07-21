@@ -1158,6 +1158,592 @@ class MemoryFactoryTests(unittest.TestCase):
             [{"role": "user", "content": "replacement"}],
         )
 
+    def test_idempotent_memory_replace_commits_terminal_receipt_and_replays(self) -> None:
+        messages = [{"role": "user", "content": "replacement"}]
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                return_value={
+                    "execution_checkpoint_cleared": False,
+                    "orphaned_interaction_repaired": False,
+                },
+            ) as prepare:
+            first = memory_factory.replace_short_term_session_memory(
+                session_id="chat-operation",
+                messages=messages,
+                options={},
+                operation_id="replace-1",
+                expected_session_revision=0,
+            )
+            persisted = memory_factory._build_session_store(data_dir).load_with_revision(
+                "chat-operation"
+            )
+            replay = memory_factory.replace_short_term_session_memory(
+                session_id="chat-operation",
+                messages=messages,
+                options={},
+                operation_id="replace-1",
+                expected_session_revision=0,
+            )
+
+            with self.assertRaises(memory_factory.MemorySessionReplaceError) as raised:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-operation",
+                    messages=[{"role": "user", "content": "different"}],
+                    options={},
+                    operation_id="replace-1",
+                    expected_session_revision=persisted.revision,
+                )
+            with self.assertRaises(memory_factory.MemorySessionReplaceError) as option_raised:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-operation",
+                    messages=messages,
+                    options={"memory_namespace": "different"},
+                    operation_id="replace-1",
+                    expected_session_revision=persisted.revision,
+                )
+
+        self.assertFalse(first["replayed"])
+        self.assertEqual(first["operation_id"], "replace-1")
+        self.assertEqual(first["session_revision"], 2)
+        self.assertTrue(replay["replayed"])
+        self.assertEqual(replay["session_revision"], 2)
+        self.assertEqual(persisted.state["messages"], messages)
+        receipt = persisted.state["memory_replace_receipts"]["entries"]["replace-1"]
+        self.assertEqual(receipt["status"], "terminal")
+        self.assertNotIn("session_revision", receipt["response"])
+        self.assertEqual(raised.exception.code, "memory_replace_operation_conflict")
+        self.assertEqual(
+            option_raised.exception.code,
+            "memory_replace_operation_conflict",
+        )
+        prepare.assert_called_once_with(
+            "chat-operation",
+            expected_cancel_attempt_id="",
+        )
+
+    def test_idempotent_memory_replace_stale_revision_has_zero_side_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement"
+            ) as prepare, \
+            mock.patch.object(memory_factory, "_fresh_vector_collection_tag") as fresh_tag:
+            store = memory_factory._build_session_store(data_dir)
+            store.save("chat-stale", {"messages": [{"role": "user", "content": "new"}]})
+
+            with self.assertRaises(memory_factory.MemorySessionReplaceError) as raised:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-stale",
+                    messages=[{"role": "user", "content": "old"}],
+                    options={},
+                    operation_id="replace-stale",
+                    expected_session_revision=0,
+                )
+            persisted = store.load_with_revision("chat-stale")
+
+        self.assertEqual(raised.exception.code, "session_revision_conflict")
+        self.assertEqual(raised.exception.expected_revision, 0)
+        self.assertEqual(raised.exception.actual_revision, 1)
+        self.assertEqual(persisted.revision, 1)
+        self.assertNotIn("memory_replace_receipts", persisted.state)
+        prepare.assert_not_called()
+        fresh_tag.assert_not_called()
+
+    def test_idempotent_memory_replace_does_not_cancel_unmatched_checkpoint(self) -> None:
+        checkpoint = {
+            "session_id": "chat-active",
+            "source_run_id": "run-newer",
+        }
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement"
+            ) as prepare, \
+            mock.patch("durable_interaction_host._execution_control_cancel") as cancel:
+            store = memory_factory._build_session_store(data_dir)
+            store.save(
+                "chat-active",
+                {
+                    "messages": [{"role": "user", "content": "newer"}],
+                    "execution_checkpoint": checkpoint,
+                },
+            )
+
+            with self.assertRaises(memory_factory.MemorySessionReplaceError) as raised:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-active",
+                    messages=[{"role": "user", "content": "stale"}],
+                    options={},
+                    operation_id="replace-active",
+                    expected_session_revision=1,
+                    expected_cancel_attempt_id="",
+                )
+            persisted = store.load_with_revision("chat-active")
+
+        self.assertEqual(raised.exception.code, "session_memory_replace_conflict")
+        self.assertEqual(persisted.revision, 1)
+        self.assertEqual(persisted.state["execution_checkpoint"], checkpoint)
+        self.assertNotIn("memory_replace_receipts", persisted.state)
+        prepare.assert_not_called()
+        cancel.assert_not_called()
+
+    def test_idempotent_memory_replace_does_not_cancel_unmatched_orphan(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement"
+            ) as prepare, \
+            mock.patch("durable_interaction_host._execution_control_cancel") as cancel:
+            store = memory_factory._build_session_store(data_dir)
+            store.save(
+                "chat-orphan",
+                {
+                    "messages": [{"role": "user", "content": "newer"}],
+                    "execution_checkpoint_domain": {
+                        "schema_version": 1,
+                        "execution_id": "chat-orphan",
+                        "owner_id": "run-orphan",
+                        "checkpoint_id": "checkpoint-orphan",
+                        "fencing_token": 1,
+                    },
+                    "interaction_journal": {
+                        "active_id": "interaction-orphan",
+                        "entries": {
+                            "interaction-orphan": {
+                                "request": {"source_run_id": "run-orphan"},
+                            }
+                        },
+                    },
+                },
+            )
+
+            with self.assertRaises(memory_factory.MemorySessionReplaceError) as raised:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-orphan",
+                    messages=[],
+                    options={},
+                    operation_id="replace-orphan",
+                    expected_session_revision=1,
+                    expected_cancel_attempt_id="",
+                )
+            persisted = store.load_with_revision("chat-orphan")
+
+        self.assertEqual(raised.exception.code, "session_memory_replace_conflict")
+        self.assertEqual(persisted.revision, 1)
+        self.assertIn("execution_checkpoint_domain", persisted.state)
+        prepare.assert_not_called()
+        cancel.assert_not_called()
+
+    def test_idempotent_memory_replace_forwards_exact_cancel_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False):
+            store = memory_factory._build_session_store(data_dir)
+            store.save(
+                "chat-exact",
+                {
+                    "messages": [{"role": "user", "content": "old"}],
+                    "execution_checkpoint": {
+                        "session_id": "chat-exact",
+                        "source_run_id": "run-exact",
+                    },
+                },
+            )
+
+            def clear_expected_checkpoint(session_id, *, expected_cancel_attempt_id):
+                self.assertEqual(session_id, "chat-exact")
+                self.assertEqual(expected_cancel_attempt_id, "run-exact")
+                snapshot = store.load_with_revision(session_id)
+                state = snapshot.state
+                state.pop("execution_checkpoint", None)
+                store.save_if_revision(session_id, state, snapshot.revision)
+                return {
+                    "execution_checkpoint_cleared": True,
+                    "orphaned_interaction_repaired": False,
+                }
+
+            with mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                side_effect=clear_expected_checkpoint,
+            ) as prepare:
+                result = memory_factory.replace_short_term_session_memory(
+                    session_id="chat-exact",
+                    messages=[{"role": "user", "content": "replacement"}],
+                    options={},
+                    operation_id="replace-exact",
+                    expected_session_revision=1,
+                    expected_cancel_attempt_id="run-exact",
+                )
+            persisted = store.load_with_revision("chat-exact")
+
+        self.assertTrue(result["execution_checkpoint_cleared"])
+        self.assertEqual(result["session_revision"], 4)
+        self.assertEqual(persisted.state["messages"], [
+            {"role": "user", "content": "replacement"}
+        ])
+        prepare.assert_called_once()
+
+    def test_idempotent_memory_replace_rejects_run_completion_after_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch.object(memory_factory, "_fresh_vector_collection_tag") as fresh_tag:
+            store = memory_factory._build_session_store(data_dir)
+            store.save(
+                "chat-completes-after-claim",
+                {"messages": [{"role": "user", "content": "baseline"}]},
+            )
+
+            def complete_new_run(session_id, *, expected_cancel_attempt_id):
+                self.assertEqual(expected_cancel_attempt_id, "")
+                snapshot = store.load_with_revision(session_id)
+                state = snapshot.state
+                state["messages"] = [
+                    {"role": "user", "content": "new-run-user"},
+                    {"role": "assistant", "content": "new-run-answer"},
+                ]
+                store.save_if_revision(session_id, state, snapshot.revision)
+                return {
+                    "execution_checkpoint_cleared": False,
+                    "orphaned_interaction_repaired": False,
+                }
+
+            with mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                side_effect=complete_new_run,
+            ), self.assertRaises(memory_factory.MemorySessionReplaceError) as raised:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-completes-after-claim",
+                    messages=[{"role": "user", "content": "stale replacement"}],
+                    options={},
+                    operation_id="replace-race",
+                    expected_session_revision=1,
+                )
+            persisted = store.load_with_revision("chat-completes-after-claim")
+
+        self.assertEqual(raised.exception.code, "session_revision_conflict")
+        self.assertEqual(
+            persisted.state["messages"],
+            [
+                {"role": "user", "content": "new-run-user"},
+                {"role": "assistant", "content": "new-run-answer"},
+            ],
+        )
+        self.assertEqual(persisted.revision, 4)
+        self.assertNotIn("memory_replace_receipts", persisted.state)
+        fresh_tag.assert_not_called()
+
+    def test_failed_idempotent_memory_replace_can_retry_owned_pending_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                side_effect=[
+                    RuntimeError("prepare failed"),
+                    {
+                        "execution_checkpoint_cleared": False,
+                        "orphaned_interaction_repaired": False,
+                    },
+                ],
+            ) as prepare:
+            with self.assertRaisesRegex(RuntimeError, "prepare failed"):
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-failed",
+                    messages=[],
+                    options={},
+                    operation_id="replace-failed",
+                    expected_session_revision=0,
+                )
+            after_failure = memory_factory._build_session_store(
+                data_dir
+            ).load_with_revision("chat-failed")
+            retry = memory_factory.replace_short_term_session_memory(
+                session_id="chat-failed",
+                messages=[],
+                options={},
+                operation_id="replace-failed",
+                expected_session_revision=0,
+            )
+            persisted = memory_factory._build_session_store(data_dir).load_with_revision(
+                "chat-failed"
+            )
+
+        self.assertEqual(after_failure.revision, 1)
+        self.assertEqual(
+            after_failure.state["memory_replace_receipts"]["entries"][
+                "replace-failed"
+            ]["status"],
+            "pending",
+        )
+        self.assertFalse(retry["replayed"])
+        self.assertEqual(persisted.revision, 3)
+        self.assertEqual(
+            persisted.state["memory_replace_receipts"]["entries"][
+                "replace-failed"
+            ]["status"],
+            "terminal",
+        )
+        self.assertEqual(prepare.call_count, 2)
+
+    def test_concurrent_duplicate_memory_replace_executes_once(self) -> None:
+        entered_prepare = threading.Event()
+        release_prepare = threading.Event()
+        results: list[dict[str, object]] = []
+        errors: list[Exception] = []
+
+        def prepare(_session_id, *, expected_cancel_attempt_id):
+            self.assertEqual(expected_cancel_attempt_id, "")
+            entered_prepare.set()
+            release_prepare.wait(timeout=5)
+            return {
+                "execution_checkpoint_cleared": False,
+                "orphaned_interaction_repaired": False,
+            }
+
+        def invoke() -> None:
+            try:
+                results.append(
+                    memory_factory.replace_short_term_session_memory(
+                        session_id="chat-concurrent-same",
+                        messages=[{"role": "user", "content": "replacement"}],
+                        options={},
+                        operation_id="replace-same",
+                        expected_session_revision=0,
+                    )
+                )
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                side_effect=prepare,
+            ) as prepare_mock:
+            first_thread = threading.Thread(target=invoke)
+            second_thread = threading.Thread(target=invoke)
+            first_thread.start()
+            self.assertTrue(entered_prepare.wait(timeout=5))
+            second_thread.start()
+            time.sleep(0.05)
+            release_prepare.set()
+            first_thread.join(timeout=5)
+            second_thread.join(timeout=5)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 2)
+        self.assertEqual(sorted(item["replayed"] for item in results), [False, True])
+        prepare_mock.assert_called_once()
+
+    def test_concurrent_different_memory_replace_with_same_revision_commits_one(self) -> None:
+        entered_prepare = threading.Event()
+        release_prepare = threading.Event()
+        results: list[dict[str, object]] = []
+        errors: list[Exception] = []
+
+        def prepare(_session_id, *, expected_cancel_attempt_id):
+            del expected_cancel_attempt_id
+            entered_prepare.set()
+            release_prepare.wait(timeout=5)
+            return {
+                "execution_checkpoint_cleared": False,
+                "orphaned_interaction_repaired": False,
+            }
+
+        def invoke(operation_id: str) -> None:
+            try:
+                results.append(
+                    memory_factory.replace_short_term_session_memory(
+                        session_id="chat-concurrent-different",
+                        messages=[{"role": "user", "content": operation_id}],
+                        options={},
+                        operation_id=operation_id,
+                    )
+                )
+            except Exception as exc:
+                errors.append(exc)
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                side_effect=prepare,
+            ) as prepare_mock:
+            first_thread = threading.Thread(target=invoke, args=("replace-a",))
+            second_thread = threading.Thread(target=invoke, args=("replace-b",))
+            first_thread.start()
+            self.assertTrue(entered_prepare.wait(timeout=5))
+            second_thread.start()
+            time.sleep(0.05)
+            release_prepare.set()
+            first_thread.join(timeout=5)
+            second_thread.join(timeout=5)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(
+            getattr(errors[0], "code", ""),
+            "session_revision_conflict",
+        )
+        prepare_mock.assert_called_once()
+
+    def test_memory_replace_takes_over_dead_pending_owner_but_not_live_pid_reuse(self) -> None:
+        messages = [{"role": "user", "content": "replacement"}]
+        payload_hash = memory_factory._memory_replace_payload_hash(
+            session_id="chat-takeover",
+            messages=messages,
+            options={},
+            expected_cancel_attempt_id="",
+        )
+        now_ms = int(time.time() * 1000)
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                return_value={
+                    "execution_checkpoint_cleared": False,
+                    "orphaned_interaction_repaired": False,
+                },
+            ) as prepare:
+            store = memory_factory._build_session_store(data_dir)
+            dead_pending = {
+                "schema_version": 1,
+                "order": ["replace-takeover"],
+                "entries": {
+                    "replace-takeover": {
+                        "payload_hash": payload_hash,
+                        "status": "pending",
+                        "owner_id": "dead-process",
+                        "owner_pid": 987654321,
+                        "attempt_id": "dead-attempt",
+                        "expected_session_revision": 0,
+                        "claim_base_revision": 0,
+                        "baseline_messages_hash": (
+                            memory_factory._memory_replace_messages_hash([])
+                        ),
+                        "claimed_at_ms": now_ms,
+                        "lease_expires_at_ms": now_ms + 60_000,
+                    }
+                },
+            }
+            store.save("chat-takeover", {"memory_replace_receipts": dead_pending})
+            with mock.patch.object(os, "kill", side_effect=ProcessLookupError):
+                result = memory_factory.replace_short_term_session_memory(
+                    session_id="chat-takeover",
+                    messages=messages,
+                    options={},
+                    operation_id="replace-takeover",
+                    expected_session_revision=0,
+                )
+
+            changed_pending = copy.deepcopy(dead_pending)
+            changed_pending["entries"]["replace-takeover"]["payload_hash"] = (
+                memory_factory._memory_replace_payload_hash(
+                    session_id="chat-takeover-changed",
+                    messages=messages,
+                    options={},
+                    expected_cancel_attempt_id="",
+                )
+            )
+            store.save(
+                "chat-takeover-changed",
+                {
+                    "messages": [{"role": "user", "content": "new-run"}],
+                    "memory_replace_receipts": changed_pending,
+                },
+            )
+            with mock.patch.object(os, "kill", side_effect=ProcessLookupError), \
+                self.assertRaises(memory_factory.MemorySessionReplaceError) as changed:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-takeover-changed",
+                    messages=messages,
+                    options={},
+                    operation_id="replace-takeover",
+                    expected_session_revision=0,
+                )
+
+            live_pending = copy.deepcopy(dead_pending)
+            live_pending["entries"]["replace-takeover"]["payload_hash"] = (
+                memory_factory._memory_replace_payload_hash(
+                    session_id="chat-pid-reuse",
+                    messages=messages,
+                    options={},
+                    expected_cancel_attempt_id="",
+                )
+            )
+            live_pending["entries"]["replace-takeover"]["owner_id"] = "reused-pid"
+            live_pending["entries"]["replace-takeover"]["owner_pid"] = os.getpid()
+            store.save("chat-pid-reuse", {"memory_replace_receipts": live_pending})
+            with self.assertRaises(memory_factory.MemorySessionReplaceError) as raised:
+                memory_factory.replace_short_term_session_memory(
+                    session_id="chat-pid-reuse",
+                    messages=messages,
+                    options={},
+                    operation_id="replace-takeover",
+                    expected_session_revision=0,
+                )
+
+        self.assertFalse(result["replayed"])
+        self.assertEqual(raised.exception.code, "memory_replace_in_progress")
+        self.assertEqual(changed.exception.code, "session_revision_conflict")
+        prepare.assert_called_once()
+
+    def test_memory_replace_receipt_ledger_remains_bounded(self) -> None:
+        entries = {
+            f"old-{index}": {
+                "payload_hash": f"hash-{index}",
+                "status": "terminal",
+                "response": {"applied": True},
+            }
+            for index in range(64)
+        }
+        ledger = {
+            "schema_version": 1,
+            "order": list(entries),
+            "entries": entries,
+        }
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch(
+                "durable_interaction_host.prepare_session_memory_replacement",
+                return_value={
+                    "execution_checkpoint_cleared": False,
+                    "orphaned_interaction_repaired": False,
+                },
+            ):
+            store = memory_factory._build_session_store(data_dir)
+            store.save("chat-bounded", {"memory_replace_receipts": ledger})
+            memory_factory.replace_short_term_session_memory(
+                session_id="chat-bounded",
+                messages=[],
+                options={},
+                operation_id="replace-new",
+                expected_session_revision=1,
+            )
+            persisted = store.load_with_revision("chat-bounded")
+
+        persisted_ledger = persisted.state["memory_replace_receipts"]
+        self.assertEqual(len(persisted_ledger["order"]), 64)
+        self.assertNotIn("old-0", persisted_ledger["entries"])
+        self.assertEqual(
+            persisted_ledger["entries"]["replace-new"]["status"],
+            "terminal",
+        )
+
     def test_merge_messages_with_overlap_appends_only_new_tail(self) -> None:
         existing_messages = [
             {"role": "system", "content": "rules-v1"},

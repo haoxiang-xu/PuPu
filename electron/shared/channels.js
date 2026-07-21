@@ -44,6 +44,7 @@ const CHANNELS = Object.freeze({
     CHECK_MCP_TOOLKIT_HEALTH: "unchain:check-mcp-toolkit-health",
     CONFIGURE_MCP_TOOLKIT: "unchain:configure-mcp-toolkit",
     START_MCP_OAUTH: "unchain:start-mcp-oauth",
+    CANCEL_MCP_OAUTH: "unchain:cancel-mcp-oauth",
     GET_MCP_OAUTH_STATUS: "unchain:get-mcp-oauth-status",
     DISCONNECT_MCP_OAUTH: "unchain:disconnect-mcp-oauth",
     LIST_MCP_OAUTH_APPS: "unchain:list-mcp-oauth-apps",

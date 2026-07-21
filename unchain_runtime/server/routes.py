@@ -40,7 +40,9 @@ from skill_packs import (
     list_installed_skill_packs,
 )
 from mcp_oauth import (
+    cancel_mcp_oauth_start,
     disconnect_mcp_oauth,
+    get_mcp_oauth_attempt_status,
     get_mcp_oauth_status,
     handle_mcp_oauth_callback,
     start_mcp_oauth,
@@ -99,9 +101,11 @@ __all__ = [
     "check_mcp_toolkit_health",
     "configure_mcp_toolkit",
     "configure_mcp_oauth_app",
+    "cancel_mcp_oauth_start",
     "delete_mcp_toolkit",
     "delete_mcp_oauth_app",
     "disconnect_mcp_oauth",
+    "get_mcp_oauth_attempt_status",
     "get_mcp_oauth_status",
     "handle_mcp_oauth_callback",
     "install_mcp_toolkit",

@@ -13,11 +13,6 @@ const readRegistryEntries = () => {
 
 const registryEntries = readRegistryEntries();
 
-const oauthStatusEntryIds = () =>
-  registryEntries
-    .filter((entry) => entry?.auth?.oauth && entry.id)
-    .map((entry) => entry.id);
-
 const installCleanupEntry = () =>
   registryEntries.find((entry) => entry?.smoke?.installCleanup) ||
   registryEntries.find(
@@ -215,33 +210,53 @@ export const runMcpSmoke = async ({
     .map((toolkit) => toolkit.id || toolkit.toolkitId || toolkit.name)
     .filter(Boolean);
 
-  log("checking OAuth app slots and statuses");
+  log("checking OAuth app slots and installed OAuth status");
   const oauthAppsPayload = await client.GET("/mcp/oauth/apps");
-  const oauthStatuses = [];
-  for (const entryId of oauthStatusEntryIds()) {
-    const result = await safeCall(`oauth-status:${entryId}`, () =>
-      client.GET(`/mcp/oauth/status?entry_id=${encodeURIComponent(entryId)}`),
-    );
-    oauthStatuses.push(
-      result.ok
-        ? {
-            entryId: result.value.entryId || entryId,
-            toolkitId: result.value.toolkitId || "",
-            authStatus: result.value.authStatus || "",
-            authProvider: result.value.authProvider || "",
-            lastError: result.value.lastError || "",
-          }
-        : result.value,
-    );
-  }
+  const oauthStatuses = installedToolkits
+    .filter((toolkit) => toolkit?.authStatus || toolkit?.authProvider)
+    .map((toolkit) => ({
+      entryId: toolkit.entryId || "",
+      toolkitId: toolkit.toolkitId || "",
+      authStatus: toolkit.authStatus || "",
+      authProvider: toolkit.authProvider || "",
+      lastError: toolkit.lastError || "",
+    }));
 
   let oauthStart = null;
+  let oauthAttempt = null;
+  let oauthCancel = null;
   if (oauthStartEntry) {
     log("starting OAuth flow", oauthStartEntry);
     const result = await safeCall(`oauth-start:${oauthStartEntry}`, () =>
       client.POST("/mcp/oauth/start", { entryId: oauthStartEntry }),
     );
     oauthStart = result.ok ? summarizeOAuthStart(result.value) : result.value;
+    const state = result.ok ? String(result.value?.state || "").trim() : "";
+    if (state) {
+      const statusResult = await safeCall(`oauth-attempt:${oauthStartEntry}`, () =>
+        client.GET(`/mcp/oauth/status?state=${encodeURIComponent(state)}`),
+      );
+      oauthAttempt = statusResult.ok
+        ? {
+            entryId: statusResult.value?.entryId || oauthStartEntry,
+            toolkitId: statusResult.value?.toolkitId || "",
+            authStatus: statusResult.value?.authStatus || "",
+            authProvider: statusResult.value?.authProvider || "",
+            lastError: statusResult.value?.lastError || "",
+          }
+        : statusResult.value;
+      const cancelResult = await safeCall(`oauth-cancel:${oauthStartEntry}`, () =>
+        client.POST("/mcp/oauth/cancel", { state }),
+      );
+      oauthCancel = cancelResult.ok
+        ? {
+            ok: Boolean(cancelResult.value?.ok),
+            cancelled: Boolean(cancelResult.value?.cancelled),
+            entryId: cancelResult.value?.entryId || oauthStartEntry,
+            toolkitId: cancelResult.value?.toolkitId || "",
+          }
+        : cancelResult.value;
+    }
   }
 
   let memoryInstall = null;
@@ -334,6 +349,8 @@ export const runMcpSmoke = async ({
     },
     oauthStatuses,
     oauthStart,
+    oauthAttempt,
+    oauthCancel,
     memoryInstall,
   });
 };

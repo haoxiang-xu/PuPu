@@ -138,6 +138,11 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
         return { cancel: jest.fn() };
       }),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
+      getSessionMemoryExport: jest.fn(async (sessionId) => ({
+        session_id: sessionId,
+        session_revision: 1,
+        messages: [],
+      })),
       buildCharacterAgentConfig: jest.fn(async () => ({})),
       cancelStream: jest.fn(),
       respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),

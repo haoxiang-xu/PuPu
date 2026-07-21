@@ -76,10 +76,18 @@ export const useChatSessionState = ({
       : initialChat.id || `chat-${Date.now()}`,
   );
   const draftPersistTimerRef = useRef(null);
-  const latestDraftRef = useRef({
-    text: initialChat.draft?.text || "",
-    attachments: draftAttachments,
-  });
+  const composerRevisionByChatIdRef = useRef(new Map());
+  const latestDraftByChatIdRef = useRef(
+    new Map([
+      [
+        initialChat.id,
+        {
+          text: initialChat.draft?.text || "",
+          attachments: draftAttachments,
+        },
+      ],
+    ]),
+  );
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
@@ -89,10 +97,44 @@ export const useChatSessionState = ({
     initialChat.systemPromptOverrides || {},
   );
 
-  latestDraftRef.current = {
-    text: inputValue,
-    attachments: draftAttachments,
-  };
+  if (activeChatId) {
+    latestDraftByChatIdRef.current.set(activeChatId, {
+      text: inputValue,
+      attachments: draftAttachments,
+    });
+  }
+
+  const bumpActiveComposerRevision = useCallback(() => {
+    const currentChatId = activeChatIdRef.current;
+    if (!currentChatId) {
+      return;
+    }
+    const previousRevision =
+      composerRevisionByChatIdRef.current.get(currentChatId) || 0;
+    composerRevisionByChatIdRef.current.set(
+      currentChatId,
+      previousRevision + 1,
+    );
+  }, []);
+
+  /* Keep user-visible composer mutations distinct from programmatic clears and
+     restores performed by the stream lifecycle. A monotonic per-chat revision
+     catches ABA edits (type, then erase back to the same value) that cannot be
+     detected by comparing draft values alone. */
+  const setComposerInputValue = useCallback(
+    (nextValue) => {
+      bumpActiveComposerRevision();
+      setInputValue(nextValue);
+    },
+    [bumpActiveComposerRevision],
+  );
+  const setComposerDraftAttachments = useCallback(
+    (nextAttachments) => {
+      bumpActiveComposerRevision();
+      setDraftAttachments(nextAttachments);
+    },
+    [bumpActiveComposerRevision, setDraftAttachments],
+  );
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -108,7 +150,10 @@ export const useChatSessionState = ({
       return;
     }
 
-    const nextDraft = latestDraftRef.current;
+    const nextDraft = latestDraftByChatIdRef.current.get(chatId);
+    if (!nextDraft) {
+      return;
+    }
     updateChatDraft(
       chatId,
       {
@@ -152,7 +197,9 @@ export const useChatSessionState = ({
         setActiveCharacterAvatar(nextActiveChat.characterAvatar || null);
 
         if (event.type === "chat_update_messages") {
-          setMessages(nextActiveChat.messages || []);
+          const nextMessages = nextActiveChat.messages || [];
+          messagesRef.current = nextMessages;
+          setMessages(nextMessages);
           return;
         }
 
@@ -171,6 +218,14 @@ export const useChatSessionState = ({
         flushDraftToStore(currentActiveId);
       }
       activeChatIdRef.current = nextActiveId;
+
+      /* Store callbacks are synchronous while React state updates are batched.
+         Seed the imperative draft snapshot immediately so a same-tick A→B→A
+         selection flushes B's own draft, never the still-rendered A value. */
+      latestDraftByChatIdRef.current.set(nextActiveId, {
+        text: nextActiveChat.draft?.text || "",
+        attachments: nextActiveChat.draft?.attachments || [],
+      });
 
       const leavingStreamState = activeStreamsRef.current.get(currentActiveId);
       if (
@@ -200,6 +255,7 @@ export const useChatSessionState = ({
         enteringStreamState && Array.isArray(enteringStreamState.messages)
           ? enteringStreamState.messages
           : nextActiveChat.messages || [];
+      messagesRef.current = restoredMessages;
       setMessages(restoredMessages);
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
@@ -281,6 +337,7 @@ export const useChatSessionState = ({
 
       setChatMessages(chatId, nextMessages, { source: "chat-page" });
       if (chatId === activeChatIdRef.current) {
+        messagesRef.current = nextMessages;
         setMessages(nextMessages);
       }
     }
@@ -436,8 +493,11 @@ export const useChatSessionState = ({
     setActiveChatId,
     activeChatIdRef,
     bootstrapped,
+    composerRevisionByChatIdRef,
     handleSelectModel,
     inputValue,
+    setComposerInputValue,
+    setComposerDraftAttachments,
     setInputValue,
     messages,
     setMessages,

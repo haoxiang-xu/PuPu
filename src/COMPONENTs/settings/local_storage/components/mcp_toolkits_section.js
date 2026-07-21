@@ -70,17 +70,19 @@ const OAuthAppRow = ({
             : t("local_storage.mcp_oauth_app_missing")}
         </div>
       </div>
-      <Button
-        label={t("local_storage.mcp_oauth_app_update")}
-        onClick={() => onUpdate(app)}
-        style={{
-          fontSize: 10.5,
-          paddingVertical: 4,
-          paddingHorizontal: 7,
-          borderRadius: 5,
-          opacity: 0.65,
-        }}
-      />
+      {app.configurable !== false && (
+        <Button
+          label={t("local_storage.mcp_oauth_app_update")}
+          onClick={() => onUpdate(app)}
+          style={{
+            fontSize: 10.5,
+            paddingVertical: 4,
+            paddingHorizontal: 7,
+            borderRadius: 5,
+            opacity: 0.65,
+          }}
+        />
+      )}
       <Button
         label={t("local_storage.mcp_oauth_app_delete")}
         onClick={() => onDelete(app)}
@@ -120,7 +122,6 @@ const McpToolkitRow = ({
   onDelete,
   onRecheck,
   onUpdateSecrets,
-  onReconnectOAuth,
   onDisconnectOAuth,
 }) => {
   const { t } = useTranslation();
@@ -311,30 +312,17 @@ const McpToolkitRow = ({
           />
         )}
         {isOAuth && (
-          <>
-            <Button
-              label={t("local_storage.mcp_reconnect")}
-              onClick={() => onReconnectOAuth(toolkit)}
-              style={{
-                fontSize: 10.5,
-                paddingVertical: 4,
-                paddingHorizontal: 7,
-                borderRadius: 5,
-                opacity: 0.65,
-              }}
-            />
-            <Button
-              label={t("local_storage.mcp_disconnect")}
-              onClick={() => onDisconnectOAuth(toolkit)}
-              style={{
-                fontSize: 10.5,
-                paddingVertical: 4,
-                paddingHorizontal: 7,
-                borderRadius: 5,
-                opacity: 0.65,
-              }}
-            />
-          </>
+          <Button
+            label={t("local_storage.mcp_disconnect")}
+            onClick={() => onDisconnectOAuth(toolkit)}
+            style={{
+              fontSize: 10.5,
+              paddingVertical: 4,
+              paddingHorizontal: 7,
+              borderRadius: 5,
+              opacity: 0.65,
+            }}
+          />
         )}
         <Button
           label={t("local_storage.mcp_recheck")}
@@ -469,19 +457,6 @@ const McpToolkitsSection = ({ isDark }) => {
     load();
   }, [secretTarget, secretValues, load]);
 
-  const handleReconnectOAuth = useCallback(async (toolkit) => {
-    const entryId = toolkit?.entryId || toolkit?.entry_id || toolkit?.toolkitId;
-    if (!entryId) return;
-    setStatus("loading");
-    try {
-      await api.unchain.startMcpOAuth(entryId);
-      emitToolkitCatalogRefresh({ reason: "mcp_oauth_start", toolkitId: toolkit.toolkitId });
-    } catch {
-      /* ignore — load() below surfaces final state */
-    }
-    load();
-  }, [load]);
-
   const handleDisconnectOAuth = useCallback(async (toolkit) => {
     if (!toolkit?.toolkitId) return;
     setStatus("loading");
@@ -614,7 +589,6 @@ const McpToolkitsSection = ({ isDark }) => {
               onDelete={(tk) => setDeleteTarget(tk)}
               onRecheck={handleRecheck}
               onUpdateSecrets={openSecretForm}
-              onReconnectOAuth={handleReconnectOAuth}
               onDisconnectOAuth={handleDisconnectOAuth}
             />
           ))}

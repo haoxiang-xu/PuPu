@@ -39,9 +39,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@playwright/mcp@latest"]
+        "args": ["-y", "@playwright/mcp@0.0.78"]
       },
-      "setupPreview": "npx -y @playwright/mcp@latest",
+      "setupPreview": "npx -y @playwright/mcp@0.0.78",
       "prerequisites": ["Node.js >= 18"],
       "secrets": [],
       "tools": [
@@ -99,16 +99,16 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["--from", "browser-use[cli]", "browser-use", "--mcp"]
+        "args": ["--from", "browser-use[cli]==0.13.6", "browser-use", "--mcp"]
       },
-      "setupPreview": "uvx --from browser-use[cli] browser-use --mcp",
+      "setupPreview": "uvx --from browser-use[cli]==0.13.6 browser-use --mcp",
       "prerequisites": ["uv / uvx", "Python >= 3.11"],
       "secrets": [{ "key": "OPENAI_API_KEY", "label": "OpenAI API key" }],
       "tools": [
-        { "name": "open_tab", "title": "Open tab", "requiresConfirmation": false },
-        { "name": "go_to_url", "title": "Go to URL", "requiresConfirmation": false },
-        { "name": "click_element", "title": "Click element", "requiresConfirmation": true },
-        { "name": "input_text", "title": "Input text", "requiresConfirmation": true }
+        { "name": "browser_navigate", "title": "Navigate", "requiresConfirmation": false },
+        { "name": "browser_get_state", "title": "Get browser state", "requiresConfirmation": false },
+        { "name": "browser_click", "title": "Click", "requiresConfirmation": true },
+        { "name": "browser_type", "title": "Type", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
@@ -160,9 +160,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "chrome-devtools-mcp@latest"]
+        "args": ["-y", "chrome-devtools-mcp@1.6.0"]
       },
-      "setupPreview": "npx -y chrome-devtools-mcp@latest",
+      "setupPreview": "npx -y chrome-devtools-mcp@1.6.0",
       "prerequisites": ["Node.js LTS", "npm", "Chrome current stable or newer"],
       "secrets": [],
       "tools": [
@@ -216,6 +216,7 @@
           "provider": "github",
           "providerLabel": "GitHub",
           "clientRegistration": "user_credentials",
+          "releaseStatus": "app_required",
           "mcpUrl": "https://api.githubcopilot.com/mcp/",
           "transport": "streamable_http",
           "authorizationEndpoint": "https://github.com/login/oauth/authorize",
@@ -240,17 +241,17 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 2
       },
-      "readmeMarkdown": "## GitHub (remote)\n\nThe official remote GitHub MCP server. Supports OAuth or a Personal Access Token header. Phase 1 shows the connection details only."
+      "readmeMarkdown": "## GitHub (remote)\n\nConnect to the official GitHub MCP server with a Personal Access Token. OAuth remains unavailable until PuPu has an approved GitHub OAuth app."
     },
     {
       "id": "dev.figma-remote",
       "toolkitId": "mcp.dev.figma-remote",
       "name": "Figma",
-      "description": "Official remote Figma MCP server for design context, screenshots, variables and canvas workflows.",
+      "description": "Official remote Figma MCP server; PuPu connection is pending Figma client approval.",
       "category": "dev",
       "source": "mcp",
       "trustLevel": "verified",
-      "status": "available",
+      "status": "coming_soon",
       "installable": false,
       "license": "hosted",
       "sourceRepo": "https://developers.figma.com/docs/figma-mcp-server/",
@@ -272,6 +273,7 @@
           "provider": "figma",
           "providerLabel": "Figma",
           "clientRegistration": "dynamic",
+          "releaseStatus": "approval_required",
           "mcpUrl": "https://mcp.figma.com/mcp",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.figma.com/.well-known/oauth-protected-resource",
@@ -302,7 +304,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 3
       },
-      "readmeMarkdown": "## Figma Remote\n\nConnects to Figma's official hosted MCP endpoint over Streamable HTTP. Authentication uses Figma OAuth with the `mcp:connect` scope. The remote server is link-based: copy a Figma frame, layer, FigJam, Slides or Make URL and use it in the agent prompt."
+      "readmeMarkdown": "## Figma Remote\n\nFigma currently allows only clients approved in the Figma MCP Catalog to connect to its hosted MCP endpoint. PuPu is not approved yet, so this entry is intentionally unavailable instead of exposing a Connect button that ends in a 403 error. The integration can be enabled after Figma approves PuPu and the OAuth flow passes release testing."
     },
     {
       "id": "devops.sentry-remote",
@@ -356,6 +358,7 @@
           "provider": "sentry",
           "providerLabel": "Sentry",
           "clientRegistration": "dynamic",
+          "releaseStatus": "ready",
           "mcpUrl": "https://mcp.sentry.dev/mcp",
           "transport": "streamable_http",
           "authorizationServerMetadataUrl": "https://mcp.sentry.dev/.well-known/oauth-authorization-server",
@@ -388,11 +391,11 @@
       "id": "devops.vercel-remote",
       "toolkitId": "mcp.devops.vercel-remote",
       "name": "Vercel",
-      "description": "Official Vercel remote MCP server for docs, projects, deployments and logs.",
+      "description": "Official Vercel remote MCP server; PuPu connection is pending Vercel client approval.",
       "category": "devops",
       "source": "mcp",
       "trustLevel": "verified",
-      "status": "available",
+      "status": "coming_soon",
       "installable": false,
       "license": "hosted",
       "sourceRepo": "https://vercel.com/docs/agent-resources/vercel-mcp",
@@ -415,6 +418,7 @@
           "provider": "vercel",
           "providerLabel": "Vercel",
           "clientRegistration": "dynamic",
+          "releaseStatus": "approval_required",
           "mcpUrl": "https://mcp.vercel.com",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.vercel.com/.well-known/oauth-protected-resource",
@@ -428,18 +432,19 @@
       "prerequisites": ["Vercel account", "Vercel-supported OAuth client access"],
       "secrets": [],
       "tools": [
-        { "name": "search_docs", "title": "Search docs", "requiresConfirmation": false },
+        { "name": "search_documentation", "title": "Search docs", "requiresConfirmation": false },
         { "name": "list_projects", "title": "List projects", "requiresConfirmation": false },
         { "name": "list_deployments", "title": "List deployments", "requiresConfirmation": false },
-        { "name": "get_deployment_logs", "title": "Deployment logs", "requiresConfirmation": false },
-        { "name": "create_deployment", "title": "Create deployment", "requiresConfirmation": true }
+        { "name": "get_deployment_build_logs", "title": "Build logs", "requiresConfirmation": false },
+        { "name": "get_runtime_logs", "title": "Runtime logs", "requiresConfirmation": false },
+        { "name": "deploy_to_vercel", "title": "Deploy to Vercel", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 1
       },
-      "readmeMarkdown": "## Vercel Remote\n\nConnects to Vercel's official remote MCP endpoint over Streamable HTTP with OAuth. Vercel documents this endpoint for project, deployment, log and documentation workflows."
+      "readmeMarkdown": "## Vercel Remote\n\nVercel currently allows only reviewed and approved AI clients to connect to its hosted MCP endpoint. PuPu is not on that list yet, so this entry is intentionally unavailable until provider approval and end-to-end OAuth testing are complete."
     },
     {
       "id": "devops.grafana",
@@ -484,9 +489,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-grafana"]
+        "args": ["mcp-grafana==0.17.2"]
       },
-      "setupPreview": "uvx mcp-grafana",
+      "setupPreview": "uvx mcp-grafana==0.17.2",
       "prerequisites": ["uv / uvx", "Grafana instance or Grafana Cloud", "Grafana service account token"],
       "secrets": [
         { "key": "GRAFANA_URL", "label": "Grafana URL" },
@@ -496,13 +501,13 @@
         { "name": "search_dashboards", "title": "Search dashboards", "requiresConfirmation": false },
         { "name": "get_dashboard_by_uid", "title": "Get dashboard", "requiresConfirmation": false },
         { "name": "query_prometheus", "title": "Query Prometheus", "requiresConfirmation": false },
-        { "name": "list_alert_rules", "title": "List alert rules", "requiresConfirmation": false },
+        { "name": "alerting_manage_rules", "title": "Manage alert rules", "requiresConfirmation": true },
         { "name": "update_dashboard", "title": "Update dashboard", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
         "defaultEnabledTools": 0,
-        "confirmationRequiredTools": 1
+        "confirmationRequiredTools": 2
       },
       "readmeMarkdown": "## Grafana\n\nRuns Grafana Labs' official `mcp-grafana` server over stdio. Provide `GRAFANA_URL` and a `GRAFANA_SERVICE_ACCOUNT_TOKEN`; Grafana Cloud instances should use their HTTPS instance URL."
     },
@@ -605,6 +610,7 @@
           "provider": "notion",
           "providerLabel": "Notion",
           "clientRegistration": "dynamic",
+          "releaseStatus": "ready",
           "mcpUrl": "https://mcp.notion.com/mcp",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.notion.com/.well-known/oauth-protected-resource",
@@ -618,16 +624,16 @@
       "prerequisites": ["Notion account"],
       "secrets": [],
       "tools": [
-        { "name": "search", "title": "Search", "requiresConfirmation": false },
-        { "name": "fetch_page", "title": "Fetch page", "requiresConfirmation": false },
-        { "name": "create_page", "title": "Create page", "requiresConfirmation": true }
+        { "name": "notion-search", "title": "Search workspace", "requiresConfirmation": false },
+        { "name": "notion-fetch", "title": "Fetch content", "requiresConfirmation": false },
+        { "name": "notion-create-pages", "title": "Create pages", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 1
       },
-      "readmeMarkdown": "## Notion (hosted)\n\nNotion's hosted MCP endpoint. Connection is via OAuth in the Phase 2 setup flow; Phase 1 only previews the endpoint."
+      "readmeMarkdown": "## Notion (hosted)\n\nConnect to Notion's hosted MCP endpoint with OAuth. PuPu opens the authorization page and enables the toolkit after the connection succeeds."
     },
     {
       "id": "workspace.filesystem",
@@ -671,9 +677,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "${WORKSPACE}"]
+        "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.7.10", "${WORKSPACE}"]
       },
-      "setupPreview": "npx -y @modelcontextprotocol/server-filesystem ${WORKSPACE}",
+      "setupPreview": "npx -y @modelcontextprotocol/server-filesystem@2026.7.10 ${WORKSPACE}",
       "prerequisites": ["Node.js >= 18"],
       "secrets": [],
       "tools": [
@@ -726,9 +732,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["markitdown-mcp"]
+        "args": ["markitdown-mcp==0.0.1a4"]
       },
-      "setupPreview": "uvx markitdown-mcp",
+      "setupPreview": "uvx markitdown-mcp==0.0.1a4",
       "prerequisites": ["uv / uvx", "Python >= 3.10"],
       "secrets": [],
       "tools": [
@@ -778,9 +784,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-memory"]
+        "args": ["-y", "@modelcontextprotocol/server-memory@2026.7.4"]
       },
-      "setupPreview": "npx -y @modelcontextprotocol/server-memory",
+      "setupPreview": "npx -y @modelcontextprotocol/server-memory@2026.7.4",
       "prerequisites": ["Node.js >= 18"],
       "secrets": [],
       "tools": [
@@ -802,11 +808,11 @@
       "id": "productivity.slack-remote",
       "toolkitId": "mcp.productivity.slack-remote",
       "name": "Slack Remote",
-      "description": "Official hosted Slack MCP server over Streamable HTTP.",
+      "description": "Official Slack remote MCP server; PuPu requires a registered Slack app before connection can ship.",
       "category": "communication",
       "source": "mcp",
       "trustLevel": "verified",
-      "status": "available",
+      "status": "coming_soon",
       "installable": false,
       "license": "hosted",
       "sourceRepo": "https://docs.slack.dev/ai/slack-mcp-server/",
@@ -829,6 +835,7 @@
           "provider": "slack",
           "providerLabel": "Slack",
           "clientRegistration": "user_credentials",
+          "releaseStatus": "app_required",
           "mcpUrl": "https://mcp.slack.com/mcp",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.slack.com/.well-known/oauth-protected-resource",
@@ -879,7 +886,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 1
       },
-      "readmeMarkdown": "## Slack Remote\n\nConnects to Slack's official hosted MCP endpoint. Requires a Slack app configured for OAuth."
+      "readmeMarkdown": "## Slack Remote\n\nSlack does not support dynamic client registration. PuPu must ship or configure a registered Slack app before this hosted MCP can connect reliably, so the entry remains unavailable instead of sending users into a guaranteed OAuth configuration error."
     },
     {
       "id": "workspace.fetch",
@@ -918,9 +925,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-fetch"]
+        "args": ["mcp-server-fetch==2026.7.10"]
       },
-      "setupPreview": "uvx mcp-server-fetch",
+      "setupPreview": "uvx mcp-server-fetch==2026.7.10",
       "prerequisites": ["uv / uvx", "Python >= 3.10"],
       "secrets": [],
       "tools": [
@@ -941,8 +948,8 @@
       "category": "communication",
       "source": "mcp",
       "trustLevel": "needs_review",
-      "status": "available",
-      "installable": true,
+      "status": "needs_review",
+      "installable": false,
       "license": "MIT",
       "sourceRepo": "https://github.com/IQAIcom/mcp-discord",
       "docsUrl": "https://github.com/IQAIcom/mcp-discord",
@@ -1022,8 +1029,8 @@
       "category": "communication",
       "source": "mcp",
       "trustLevel": "needs_review",
-      "status": "available",
-      "installable": true,
+      "status": "needs_review",
+      "installable": false,
       "license": "MIT",
       "sourceRepo": "https://github.com/IQAIcom/mcp-telegram",
       "docsUrl": "https://github.com/IQAIcom/mcp-telegram",
@@ -1122,9 +1129,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}"]
+        "args": ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
       },
-      "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}",
+      "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}/pupu-mcp.sqlite",
       "prerequisites": ["uv / uvx", "Python >= 3.10"],
       "secrets": [],
       "tools": [
@@ -1140,7 +1147,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 3
       },
-      "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository — it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server only opens a **local SQLite database file** whose path is bound to your agent workspace (`--db-path ${WORKSPACE}`).\n\n### Point it at a disposable, non-production database\n\nThe agent can read **every table and row** in the database file you connect — reading the database **is** data exfiltration. Connect a **disposable / non-production** `.db` file you are comfortable exposing in full; never point it at a production or sensitive database.\n\n### Gated vs. ungated tools\n\nThe read tools — `read_query` (SELECT only), `list_tables`, and `describe_table` — run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` — INSERT / UPDATE / DELETE.\n- `create_table` — CREATE TABLE (DDL).\n- `append_insight` — writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
+      "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository — it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server opens **`${WORKSPACE}/pupu-mcp.sqlite`**, a local SQLite database file inside the selected agent workspace.\n\n### Use a disposable, non-production workspace\n\nThe agent can read **every table and row** in this database file — reading the database **is** data exfiltration. Use a **disposable / non-production** workspace whose `pupu-mcp.sqlite` file you are comfortable exposing in full; never copy production or sensitive data into it.\n\n### Gated vs. ungated tools\n\nThe read tools — `read_query` (SELECT only), `list_tables`, and `describe_table` — run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` — INSERT / UPDATE / DELETE.\n- `create_table` — CREATE TABLE (DDL).\n- `append_insight` — writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
     }
   ]
 }

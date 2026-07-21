@@ -305,6 +305,72 @@ class DurableInteractionHostTests(unittest.TestCase):
         self.assertTrue(entry["receipt"]["response"]["cancelled"])
         self.assertIsNotNone(entry["application"])
 
+    def test_memory_replacement_prepare_rejects_unmatched_attempt_without_cancel(self) -> None:
+        session_id = "chat-replace-mismatch"
+        attempt_id = "run-current"
+        self._seed_cancellable_request(
+            session_id=session_id,
+            attempt_id=attempt_id,
+        )
+        store = host._session_store()
+        before = store.load_with_revision(session_id)
+
+        with mock.patch.object(host, "_execution_control_cancel") as cancel, \
+            mock.patch.object(host, "_ensure_execution_tombstone") as tombstone, \
+            self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.prepare_session_memory_replacement(
+                session_id,
+                expected_cancel_attempt_id="run-stale",
+            )
+        after = store.load_with_revision(session_id)
+
+        self.assertEqual(raised.exception.code, "session_memory_replace_conflict")
+        self.assertEqual(after.revision, before.revision)
+        self.assertEqual(after.state, before.state)
+        cancel.assert_not_called()
+        tombstone.assert_not_called()
+
+    def test_memory_replacement_prepare_requires_explicit_attempt_for_active_run(self) -> None:
+        session_id = "chat-replace-no-attempt"
+        self._seed_cancellable_request(
+            session_id=session_id,
+            attempt_id="run-current",
+        )
+
+        with mock.patch.object(host, "_execution_control_cancel") as cancel, \
+            mock.patch.object(host, "_ensure_execution_tombstone") as tombstone, \
+            self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.prepare_session_memory_replacement(
+                session_id,
+                expected_cancel_attempt_id="",
+            )
+
+        self.assertEqual(raised.exception.code, "session_memory_replace_conflict")
+        cancel.assert_not_called()
+        tombstone.assert_not_called()
+
+    def test_memory_replacement_prepare_cancels_only_exact_attempt(self) -> None:
+        session_id = "chat-replace-exact"
+        attempt_id = "run-exact"
+        self._seed_cancellable_request(
+            session_id=session_id,
+            attempt_id=attempt_id,
+        )
+
+        result = host.prepare_session_memory_replacement(
+            session_id,
+            expected_cancel_attempt_id=attempt_id,
+        )
+        persisted = host._session_store().load_with_revision(session_id)
+
+        self.assertTrue(result["execution_checkpoint_cleared"])
+        self.assertNotIn("execution_checkpoint", persisted.state)
+        self.assertNotIn("execution_checkpoint_domain", persisted.state)
+        self.assertIsNone(persisted.state["interaction_journal"]["active_id"])
+        self.assertIsNotNone(
+            host._execution_runtime().load_cancellation(session_id, attempt_id)
+        )
+
     def test_pending_lookup_does_not_repair_uncancelled_orphan(self) -> None:
         session_id = "chat-orphan-active"
         attempt_id = "run-orphan-active"

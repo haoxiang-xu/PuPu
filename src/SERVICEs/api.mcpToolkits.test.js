@@ -22,9 +22,9 @@ describe("api.unchain MCP toolkits", () => {
       count: 0,
     });
     await expect(
-      api.unchain.getMcpOAuthStatus("productivity.notion-remote"),
+      api.unchain.getMcpOAuthStatus("state-123"),
     ).resolves.toEqual({
-      entryId: "productivity.notion-remote",
+      entryId: "",
       toolkitId: "",
       authStatus: "unknown",
     });
@@ -78,6 +78,9 @@ describe("api.unchain MCP toolkits", () => {
     ).rejects.toMatchObject({
       code: "bridge_unavailable",
     });
+    await expect(api.unchain.cancelMcpOAuth("state-123")).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
     await expect(
       api.unchain.disconnectMcpOAuth("mcp.productivity.notion-remote"),
     ).rejects.toMatchObject({
@@ -117,6 +120,11 @@ describe("api.unchain MCP toolkits", () => {
         entryId: "productivity.notion-remote",
         toolkitId: "mcp.productivity.notion-remote",
         authUrl: "https://auth.notion.test/authorize",
+        state: "state-123",
+      }),
+      cancelMcpOAuth: jest.fn().mockResolvedValue({
+        ok: true,
+        cancelled: true,
       }),
       getMcpOAuthStatus: jest.fn().mockResolvedValue({
         entryId: "productivity.notion-remote",
@@ -205,7 +213,8 @@ describe("api.unchain MCP toolkits", () => {
       secrets: { OPENAI_API_KEY: "sk-test" },
     });
     await api.unchain.startMcpOAuth("productivity.notion-remote");
-    await api.unchain.getMcpOAuthStatus("productivity.notion-remote");
+    await api.unchain.cancelMcpOAuth("state-123");
+    await api.unchain.getMcpOAuthStatus("state-123");
     await api.unchain.disconnectMcpOAuth("mcp.productivity.notion-remote");
     await api.unchain.listMcpOAuthApps();
     await api.unchain.configureMcpOAuthApp({
@@ -268,8 +277,9 @@ describe("api.unchain MCP toolkits", () => {
     expect(window.unchainAPI.startMcpOAuth).toHaveBeenCalledWith(
       "productivity.notion-remote",
     );
+    expect(window.unchainAPI.cancelMcpOAuth).toHaveBeenCalledWith("state-123");
     expect(window.unchainAPI.getMcpOAuthStatus).toHaveBeenCalledWith(
-      "productivity.notion-remote",
+      "state-123",
     );
     expect(window.unchainAPI.disconnectMcpOAuth).toHaveBeenCalledWith(
       "mcp.productivity.notion-remote",

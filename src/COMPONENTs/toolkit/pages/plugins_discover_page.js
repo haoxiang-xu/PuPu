@@ -45,7 +45,6 @@ const STACK_FLY = [
 
 const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, expanded, onToggle }) => {
   const taglineColor = isDark ? "rgba(var(--pupu-text-rgb),0.42)" : "rgba(var(--pupu-text-rgb),0.45)";
-  const iconRingBg = isDark ? "#26262c" : "#ececee";
 
   const tagline = [collection.blurb, t("toolkit.collection_count", { count: collection.resolved.length })]
     .filter(Boolean)
@@ -83,7 +82,7 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, expanded,
                 borderRadius: 9,
                 marginRight: -8,
                 boxShadow: "0 0 0 2px var(--pupu-background)",
-                background: iconRingBg,
+                background: "rgba(var(--pupu-text-rgb),0.08)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

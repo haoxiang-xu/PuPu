@@ -40,7 +40,12 @@ describe("filter_toolkits", () => {
   test("keeps installed mcp toolkits visible", () => {
     const ids = filter_toolkits(
       [
-        { toolkitId: "mcp.memory.memory", source: "mcp", hidden: false },
+        {
+          toolkitId: "mcp.memory.memory",
+          source: "mcp",
+          status: "available",
+          hidden: false,
+        },
         { toolkitId: "plugin_toolkit", source: "plugin", hidden: false },
       ],
       new Set(["base", "base_toolkit", "builtin_toolkit", "toolkit"]),
@@ -48,5 +53,34 @@ describe("filter_toolkits", () => {
 
     expect(ids).toContain("mcp.memory.memory");
     expect(ids).not.toContain("plugin_toolkit");
+  });
+
+  test("excludes unhealthy mcp toolkits and entries without health status", () => {
+    const ids = filter_toolkits(
+      [
+        {
+          toolkitId: "mcp.memory.available",
+          source: "mcp",
+          status: "available",
+        },
+        {
+          toolkitId: "mcp.memory.error",
+          source: "mcp",
+          status: "error",
+        },
+        {
+          toolkitId: "mcp.memory.missing-status",
+          source: "mcp",
+        },
+        {
+          toolkitId: "mcp.memory.unhealthy-source-alias",
+          source: "local",
+          status: "unhealthy",
+        },
+      ],
+      new Set(),
+    ).map((toolkit) => toolkit.toolkitId);
+
+    expect(ids).toEqual(["mcp.memory.available"]);
   });
 });

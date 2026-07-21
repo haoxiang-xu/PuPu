@@ -83,8 +83,30 @@ export const createQueuedTurnBuffer = () => {
     list() {
       return items.map((item) => ({ ...item }));
     },
-    markRelayed() {
-      items = items.map((item) => ({ ...item, status: "relayed" }));
+    markRelayed(ids = null) {
+      const selectedIds = Array.isArray(ids) ? new Set(ids) : null;
+      items = items.map((item) =>
+        !selectedIds || selectedIds.has(item.id)
+          ? { ...item, status: "relayed" }
+          : item,
+      );
+    },
+    markQueued(ids) {
+      const selectedIds = new Set(Array.isArray(ids) ? ids : []);
+      items = items.map((item) =>
+        selectedIds.has(item.id) ? { ...item, status: "queued" } : item,
+      );
+    },
+    removeMany(ids) {
+      const selectedIds = new Set(Array.isArray(ids) ? ids : []);
+      items = items.filter((item) => !selectedIds.has(item.id));
+    },
+    peekMerged() {
+      const queuedItems = items.filter((item) => item.status === "queued");
+      return {
+        ids: queuedItems.map((item) => item.id),
+        text: mergeQueuedTurnTexts(queuedItems.map((item) => item.text)),
+      };
     },
     drainMerged() {
       const merged = mergeQueuedTurnTexts(items.map((item) => item.text));

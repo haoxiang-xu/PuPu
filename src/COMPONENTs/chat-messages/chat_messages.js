@@ -12,6 +12,7 @@ const ChatMessages = ({
   chatId,
   messages = [],
   isStreaming = false,
+  disableActionButtons = false,
   isCharacterChat = false,
   characterName = "",
   characterAvatar = null,
@@ -255,7 +256,9 @@ const ChatMessages = ({
                       pendingToolConfirmationRequests={
                         messagePendingToolConfirmationRequests
                       }
-                      disableActionButtons={isStreaming}
+                      disableActionButtons={
+                        isStreaming || disableActionButtons
+                      }
                       traceFrames={msg.traceFrames}
                       pendingContinuationRequest={
                         messageIndex === messages.length - 1
@@ -282,7 +285,9 @@ const ChatMessages = ({
                       pendingToolConfirmationRequests={
                         messagePendingToolConfirmationRequests
                       }
-                      disableActionButtons={isStreaming}
+                      disableActionButtons={
+                        isStreaming || disableActionButtons
+                      }
                       traceFrames={msg.traceFrames}
                       pendingContinuationRequest={
                         messageIndex === messages.length - 1

@@ -52,6 +52,7 @@ const UNCHAIN_MCP_TOOLKIT_RELOAD_ENDPOINT = "/mcp/toolkits/reload";
 const UNCHAIN_SKILLPACKS_ENDPOINT = "/skillpacks";
 const UNCHAIN_SKILLPACK_INSTALL_ENDPOINT = "/skillpacks/install";
 const UNCHAIN_MCP_OAUTH_START_ENDPOINT = "/mcp/oauth/start";
+const UNCHAIN_MCP_OAUTH_CANCEL_ENDPOINT = "/mcp/oauth/cancel";
 const UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT = "/mcp/oauth/status";
 const UNCHAIN_MCP_OAUTH_ENDPOINT = "/mcp/oauth";
 const UNCHAIN_MCP_OAUTH_APPS_ENDPOINT = "/mcp/oauth/apps";
@@ -1485,23 +1486,109 @@ const createUnchainService = ({
       "Invalid Miso MCP OAuth start response",
     );
     const authUrl = typeof payload.authUrl === "string" ? payload.authUrl : "";
-    if (authUrl && shell && typeof shell.openExternal === "function") {
-      await shell.openExternal(authUrl);
+    const state = typeof payload.state === "string" ? payload.state.trim() : "";
+    if (!state) {
+      throw new Error("Invalid Miso MCP OAuth start response: state is required");
+    }
+    if (!authUrl) {
+      const cancellation = await cancelMisoMcpOAuth(state);
+      if (cancellation?.cancelled !== true) {
+        const error = new Error(
+          "Invalid Miso MCP OAuth start response; the attempt could not be safely cancelled",
+        );
+        error.code = "mcp_oauth_start_cancel_failed";
+        throw error;
+      }
+      const error = new Error(
+        "Invalid Miso MCP OAuth start response: authorization URL is required",
+      );
+      error.code = "mcp_oauth_start_failed";
+      throw error;
+    }
+    if (!shell || typeof shell.openExternal !== "function") {
+      const cancellation = await cancelMisoMcpOAuth(state);
+      if (cancellation?.cancelled !== true) {
+        const error = new Error(
+          "The OAuth authorization page is unavailable and the attempt could not be safely cancelled",
+        );
+        error.code = "mcp_oauth_browser_open_cancel_failed";
+        throw error;
+      }
+      const error = new Error("The OAuth authorization page is unavailable");
+      error.code = "mcp_oauth_browser_open_failed";
+      throw error;
+    }
+    if (authUrl) {
+      try {
+        await shell.openExternal(authUrl);
+      } catch (openError) {
+        let cancellation;
+        try {
+          cancellation = await cancelMisoMcpOAuth(state);
+        } catch {
+          const error = new Error(
+            "Failed to open the OAuth authorization page and cancel the attempt",
+          );
+          error.code = "mcp_oauth_browser_open_cancel_failed";
+          throw error;
+        }
+        if (cancellation?.cancelled !== true) {
+          const error = new Error(
+            "Failed to open the OAuth authorization page; the attempt could not be safely cancelled",
+          );
+          error.code = "mcp_oauth_browser_open_cancel_failed";
+          throw error;
+        }
+        const error = new Error(
+          "Failed to open the OAuth authorization page; the attempt was cancelled",
+        );
+        error.code = "mcp_oauth_browser_open_failed";
+        error.cause = openError;
+        throw error;
+      }
     }
     return payload;
   };
 
-  const getMisoMcpOAuthStatus = async (entryId) => {
+  const cancelMisoMcpOAuth = async (state) => {
     ensureMisoReady();
 
-    const cleanEntryId = typeof entryId === "string" ? entryId.trim() : "";
-    if (!cleanEntryId) {
-      throw new Error("entryId is required");
+    const cleanState = typeof state === "string" ? state.trim() : "";
+    if (!cleanState) {
+      throw new Error("state is required");
+    }
+
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_MCP_OAUTH_CANCEL_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify({ state: cleanState }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP OAuth cancel request failed",
+      {},
+      "Invalid Miso MCP OAuth cancel response",
+    );
+  };
+
+  const getMisoMcpOAuthStatus = async (state) => {
+    ensureMisoReady();
+
+    const cleanState = typeof state === "string" ? state.trim() : "";
+    if (!cleanState) {
+      throw new Error("state is required");
     }
 
     const response = await fetch(
       buildMisoUrl(
-        `${UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT}?entry_id=${encodeURIComponent(cleanEntryId)}`,
+        `${UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT}?state=${encodeURIComponent(cleanState)}`,
       ),
       {
         method: "GET",
@@ -1512,7 +1599,7 @@ const createUnchainService = ({
     return readJsonResponse(
       response,
       "Miso MCP OAuth status request failed",
-      { entryId: cleanEntryId, toolkitId: "", authStatus: "unknown" },
+      { entryId: "", toolkitId: "", authStatus: "unknown" },
       "Invalid Miso MCP OAuth status response",
     );
   };
@@ -1927,6 +2014,18 @@ const createUnchainService = ({
       payload?.options && typeof payload.options === "object"
         ? payload.options
         : {};
+    const operationIdRaw = payload?.operationId ?? payload?.operation_id;
+    const operationId =
+      typeof operationIdRaw === "string" ? operationIdRaw.trim() : "";
+    const expectedSessionRevisionRaw =
+      payload?.expectedSessionRevision ?? payload?.expected_session_revision;
+    const expectedSessionRevision = Number(expectedSessionRevisionRaw);
+    const expectedCancelAttemptIdRaw =
+      payload?.expectedCancelAttemptId ?? payload?.expected_cancel_attempt_id;
+    const expectedCancelAttemptId =
+      typeof expectedCancelAttemptIdRaw === "string"
+        ? expectedCancelAttemptIdRaw.trim()
+        : "";
 
     const response = await fetch(
       `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_REPLACE_SESSION_MEMORY_ENDPOINT}`,
@@ -1940,16 +2039,80 @@ const createUnchainService = ({
           session_id: sessionId,
           messages,
           options,
+          ...(operationId ? { operation_id: operationId } : {}),
+          ...(Number.isInteger(expectedSessionRevision) &&
+          expectedSessionRevision >= 0
+            ? { expected_session_revision: expectedSessionRevision }
+            : {}),
+          ...(expectedCancelAttemptId
+            ? { expected_cancel_attempt_id: expectedCancelAttemptId }
+            : {}),
         }),
       },
     );
 
-    return readJsonResponse(
-      response,
-      "Miso session memory replace request failed",
-      {},
-      "Invalid Miso session memory replace response",
-    );
+    const bodyText = await response.text();
+    if (!response.ok) {
+      const status = Number.isInteger(response.status) ? response.status : 0;
+      let parsed = null;
+      if (bodyText) {
+        try {
+          parsed = JSON.parse(bodyText);
+        } catch {
+          parsed = null;
+        }
+      }
+      const serverError =
+        parsed?.error &&
+        typeof parsed.error === "object" &&
+        !Array.isArray(parsed.error)
+          ? parsed.error
+          : {};
+      const code =
+        typeof serverError.code === "string" && serverError.code.trim()
+          ? serverError.code.trim()
+          : "memory_replace_failed";
+      const message =
+        (typeof serverError.message === "string" &&
+          serverError.message.trim()) ||
+        (bodyText && !parsed ? bodyText.slice(0, 200) : "") ||
+        `Miso session memory replace request failed (${status})`;
+      const expectedRevision = serverError.expected_revision;
+      const actualRevision = serverError.actual_revision;
+      return {
+        applied: false,
+        error: {
+          code,
+          message,
+          retryable: serverError.retryable === true,
+          status,
+          expected_revision:
+            Number.isInteger(expectedRevision) && expectedRevision >= 0
+              ? expectedRevision
+              : null,
+          actual_revision:
+            Number.isInteger(actualRevision) && actualRevision >= 0
+              ? actualRevision
+              : null,
+        },
+      };
+    }
+
+    if (!bodyText) {
+      throw new Error("Invalid Miso session memory replace response");
+    }
+    try {
+      const parsed = JSON.parse(bodyText);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Invalid Miso session memory replace response");
+      }
+      return parsed;
+    } catch (error) {
+      if (error?.message === "Invalid Miso session memory replace response") {
+        throw error;
+      }
+      throw new Error("Invalid Miso session memory replace response");
+    }
   };
 
   const getMisoSessionMemoryExport = async (sessionId) => {
@@ -3288,6 +3451,7 @@ const createUnchainService = ({
     checkMisoMcpToolkitHealth,
     configureMisoMcpToolkit,
     startMisoMcpOAuth,
+    cancelMisoMcpOAuth,
     getMisoMcpOAuthStatus,
     disconnectMisoMcpOAuth,
     listMisoMcpOAuthApps,

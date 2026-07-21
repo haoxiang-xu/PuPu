@@ -1666,6 +1666,76 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertTrue(all(not worker.is_alive() for worker in workers))
         self.assertEqual(calls, 1)
 
+    def test_dead_running_owner_is_reclaimed_before_agent_creation(self) -> None:
+        import execution_control
+
+        calls = 0
+
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, **_kwargs):
+                nonlocal calls
+                calls += 1
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "reclaimed"}],
+                    status="completed",
+                )
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            predecessor = execution_control.ExecutionControlRegistry(
+                data_dir,
+                process_owner_id="dead-process",
+                process_pid=707,
+                process_is_alive=lambda _pid: False,
+            )
+            predecessor.mark_running("chat-reclaim", "attempt-reclaim")
+            successor = execution_control.ExecutionControlRegistry(
+                data_dir,
+                process_owner_id="replacement-process",
+                process_pid=808,
+                process_is_alive=lambda _pid: False,
+            )
+            with mock.patch.object(
+                execution_control,
+                "_DEFAULT_REGISTRY",
+                successor,
+            ), mock.patch.object(
+                unchain_adapter,
+                "_create_agent",
+                return_value=FakeAgent(),
+            ), mock.patch.object(
+                unchain_adapter,
+                "_build_bundle_from_result",
+                return_value=None,
+            ):
+                events = list(
+                    unchain_adapter.stream_chat_events(
+                        message="continue after crash",
+                        history=[],
+                        attachments=[],
+                        options={},
+                        session_id="chat-reclaim",
+                        attempt_id="attempt-reclaim",
+                    )
+                )
+            snapshot = successor.snapshot("chat-reclaim", "attempt-reclaim")
+
+        self.assertEqual(calls, 1)
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertEqual(snapshot.status, "completed")
+        self.assertEqual(snapshot.owner_id, "replacement-process")
+        self.assertEqual(snapshot.owner_pid, 808)
+        self.assertEqual(snapshot.revision, 3)
+
     def test_terminal_duplicate_attempt_never_recreates_agent(self) -> None:
         import execution_control
 

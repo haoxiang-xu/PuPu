@@ -389,6 +389,9 @@ describe("unchain service session memory replacement", () => {
       sessionId: "chat-1",
       messages: [{ role: "user", content: "hello" }],
       options: { modelId: "openai:gpt-5" },
+      operationId: " replace-1 ",
+      expectedSessionRevision: 7,
+      expectedCancelAttemptId: " run-1 ",
     });
 
     expect(global.fetch).toHaveBeenNthCalledWith(
@@ -404,9 +407,106 @@ describe("unchain service session memory replacement", () => {
           session_id: "chat-1",
           messages: [{ role: "user", content: "hello" }],
           options: { modelId: "openai:gpt-5" },
+          operation_id: "replace-1",
+          expected_session_revision: 7,
+          expected_cancel_attempt_id: "run-1",
         }),
       }),
     );
+  });
+
+  test("replaceUnchainSessionMemory preserves structured and transport error semantics", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: async () =>
+          JSON.stringify({
+            error: {
+              code: "session_revision_conflict",
+              message: "Session state changed before memory replacement",
+              retryable: false,
+              expected_revision: 7,
+              actual_revision: 8,
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => "not-json",
+      })
+      .mockRejectedValueOnce(new Error("network unavailable"));
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await expect(
+      service.replaceUnchainSessionMemory({
+        sessionId: "chat-1",
+        messages: [],
+        operationId: "replace-1",
+        expectedSessionRevision: 7,
+      }),
+    ).resolves.toEqual({
+      applied: false,
+      error: {
+        code: "session_revision_conflict",
+        message: "Session state changed before memory replacement",
+        retryable: false,
+        status: 409,
+        expected_revision: 7,
+        actual_revision: 8,
+      },
+    });
+    await expect(
+      service.replaceUnchainSessionMemory({
+        sessionId: "chat-1",
+        messages: [],
+      }),
+    ).rejects.toThrow("Invalid Miso session memory replace response");
+    await expect(
+      service.replaceUnchainSessionMemory({
+        sessionId: "chat-1",
+        messages: [],
+      }),
+    ).rejects.toThrow("network unavailable");
   });
 
   test("durable interaction bridge queries by session and forwards session on receipt", async () => {
@@ -1291,6 +1391,14 @@ describe("unchain service session memory replacement", () => {
             ok: true,
             entryId: "external.sample",
           }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            cancelled: true,
+          }),
       });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
@@ -1323,7 +1431,7 @@ describe("unchain service session memory replacement", () => {
 
     await service.startMiso();
     await service.startMisoMcpOAuth("productivity.notion-remote");
-    await service.getMisoMcpOAuthStatus("productivity.notion-remote");
+    await service.getMisoMcpOAuthStatus("state-123");
     await service.disconnectMisoMcpOAuth("mcp.productivity.notion-remote");
     await service.listMisoMcpOAuthApps();
     await service.configureMisoMcpOAuthApp({
@@ -1353,6 +1461,7 @@ describe("unchain service session memory replacement", () => {
     await service.revokeMisoMcpStoreEntryApproval("external.sample", {
       registryId: "registry.inline.test",
     });
+    await service.cancelMisoMcpOAuth("state-123");
 
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
@@ -1367,7 +1476,7 @@ describe("unchain service session memory replacement", () => {
     );
     expect(global.fetch).toHaveBeenNthCalledWith(
       3,
-      "http://127.0.0.1:5879/mcp/oauth/status?entry_id=productivity.notion-remote",
+      "http://127.0.0.1:5879/mcp/oauth/status?state=state-123",
       expect.objectContaining({ method: "GET" }),
     );
     expect(global.fetch).toHaveBeenNthCalledWith(
@@ -1463,6 +1572,87 @@ describe("unchain service session memory replacement", () => {
       expect.objectContaining({
         method: "DELETE",
         body: JSON.stringify({ registryId: "registry.inline.test" }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      18,
+      "http://127.0.0.1:5879/mcp/oauth/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ state: "state-123" }),
+      }),
+    );
+  });
+
+  test("MCP OAuth cancels the backend attempt when opening the browser fails", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    const shell = {
+      openExternal: jest.fn().mockRejectedValue(new Error("browser marker")),
+    };
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            entryId: "productivity.notion-remote",
+            toolkitId: "mcp.productivity.notion-remote",
+            authUrl: "https://auth.notion.test/authorize",
+            state: "state-open-failed",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ ok: true, cancelled: true }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      shell,
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await expect(
+      service.startMisoMcpOAuth("productivity.notion-remote"),
+    ).rejects.toMatchObject({ code: "mcp_oauth_browser_open_failed" });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://127.0.0.1:5879/mcp/oauth/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ state: "state-open-failed" }),
       }),
     );
   });

@@ -77,7 +77,7 @@ class McpRegistryTests(unittest.TestCase):
         self.assertTrue(entry["installable"])
         self.assertEqual(entry["mcp"]["transport"], "stdio")
         self.assertEqual(entry["mcp"]["command"], "uvx")
-        self.assertEqual(entry["mcp"]["args"], ["markitdown-mcp"])
+        self.assertEqual(entry["mcp"]["args"], ["markitdown-mcp==0.0.1a4"])
         self.assertEqual(
             entry["metadata"]["request"]["url"],
             "https://api.github.com/repos/microsoft/markitdown",
@@ -111,6 +111,8 @@ class McpRegistryTests(unittest.TestCase):
         self.assertEqual(entry["mcp"]["url"], "https://mcp.figma.com/mcp")
         self.assertEqual(oauth["provider"], "figma")
         self.assertEqual(oauth["clientRegistration"], "dynamic")
+        self.assertEqual(oauth["releaseStatus"], "approval_required")
+        self.assertEqual(entry["status"], "coming_soon")
         self.assertEqual(oauth["mcpUrl"], "https://mcp.figma.com/mcp")
         self.assertEqual(
             oauth["protectedResourceMetadataUrl"],
@@ -147,6 +149,7 @@ class McpRegistryTests(unittest.TestCase):
         self.assertEqual(sentry["mcp"]["url"], "https://mcp.sentry.dev/mcp")
         self.assertEqual(sentry_oauth["provider"], "sentry")
         self.assertEqual(sentry_oauth["clientRegistration"], "dynamic")
+        self.assertEqual(sentry_oauth["releaseStatus"], "ready")
         self.assertEqual(
             sentry_oauth["authorizationEndpoint"],
             "https://mcp.sentry.dev/oauth/authorize",
@@ -163,6 +166,8 @@ class McpRegistryTests(unittest.TestCase):
         self.assertEqual(vercel["mcp"]["url"], "https://mcp.vercel.com")
         self.assertEqual(vercel_oauth["provider"], "vercel")
         self.assertEqual(vercel_oauth["clientRegistration"], "dynamic")
+        self.assertEqual(vercel_oauth["releaseStatus"], "approval_required")
+        self.assertEqual(vercel["status"], "coming_soon")
         self.assertEqual(
             vercel_oauth["protectedResourceMetadataUrl"],
             "https://mcp.vercel.com/.well-known/oauth-protected-resource",
@@ -174,7 +179,7 @@ class McpRegistryTests(unittest.TestCase):
         self.assertTrue(grafana["installable"])
         self.assertEqual(grafana["mcp"]["transport"], "stdio")
         self.assertEqual(grafana["mcp"]["command"], "uvx")
-        self.assertEqual(grafana["mcp"]["args"], ["mcp-grafana"])
+        self.assertEqual(grafana["mcp"]["args"], ["mcp-grafana==0.17.2"])
         self.assertEqual(
             [secret["key"] for secret in grafana["secrets"]],
             ["GRAFANA_URL", "GRAFANA_SERVICE_ACCOUNT_TOKEN"],
@@ -208,7 +213,7 @@ class McpRegistryTests(unittest.TestCase):
         self.assertEqual(entry["license"], "Apache-2.0")
         self.assertEqual(entry["mcp"]["transport"], "stdio")
         self.assertEqual(entry["mcp"]["command"], "npx")
-        self.assertEqual(entry["mcp"]["args"], ["-y", "chrome-devtools-mcp@latest"])
+        self.assertEqual(entry["mcp"]["args"], ["-y", "chrome-devtools-mcp@1.6.0"])
         self.assertEqual(entry["secrets"], [])
         self.assertIn("performance trace", entry["readme_markdown"])
 

@@ -17,6 +17,12 @@ import {
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 import { dispatchComposerPrefill } from "../../SERVICEs/composer_prefill";
 import * as bootProgress from "../../SERVICEs/boot_progress";
+import * as attachmentStorage from "../../SERVICEs/attachment_storage";
+import {
+  enqueueTurnMutation,
+  fingerprintTurnMutationMessages,
+  readTurnMutationOutbox,
+} from "../../SERVICEs/turn_mutation_outbox";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -136,6 +142,11 @@ describe("ChatInterface stop flow", () => {
         };
       }),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
+      getSessionMemoryExport: jest.fn(async (sessionId) => ({
+        session_id: sessionId,
+        session_revision: 1,
+        messages: [],
+      })),
       buildCharacterAgentConfig: jest.fn(async () => ({
         session_id: "character_nico__dm__main",
         run_memory_namespace: "character_nico__rel__local_user",
@@ -544,6 +555,76 @@ describe("ChatInterface stop flow", () => {
       jest.clearAllTimers();
       jest.useRealTimers();
     }
+  });
+
+  test("commits a transient first turn before an immediate chat switch", async () => {
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "user-stable-chat-a",
+        role: "user",
+        content: "Stable chat A",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    const createdB = createChatInSelectedContext(
+      { parentFolderId: null },
+      { source: "test" },
+    );
+    setChatModel(
+      createdB.chatId,
+      { id: "openai:gpt-5" },
+      { source: "test" },
+    );
+    expect(createdB.store.chatsById[createdB.chatId].isTransientNewChat).toBe(
+      true,
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "First turn in chat B" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    act(() => {
+      selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(lastChatMessagesProps?.chatId).toBe(chatAId);
+    });
+
+    const afterSwitch = getChatsStore();
+    const persistedB = afterSwitch.chatsById[createdB.chatId];
+    expect(persistedB).toBeDefined();
+    expect(persistedB.isTransientNewChat).toBe(false);
+    expect(persistedB.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: "First turn in chat B",
+        }),
+        expect.objectContaining({
+          role: "assistant",
+          status: "streaming",
+        }),
+      ]),
+    );
+    expect(
+      Object.values(afterSwitch.tree.nodesById).some(
+        (node) => node?.chatId === createdB.chatId,
+      ),
+    ).toBe(true);
+    expect(cancelSpy).not.toHaveBeenCalled();
+    expect(lastChatMessagesProps?.messages).toEqual([
+      expect.objectContaining({
+        role: "user",
+        content: "Stable chat A",
+      }),
+    ]);
   });
 
   test("isolates concurrent V4 token, subagent, Stop, and late-callback state by chat", async () => {
@@ -1200,6 +1281,675 @@ describe("ChatInterface stop flow", () => {
     expect(payload.options.workspaceRoot).toBeUndefined();
   });
 
+  test("blocks a second send while character preflight has no stream handle", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+    let resolveCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCharacterPreflight = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+    const characterChatId = getChatsStore().activeChatId;
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "First character turn" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+      expect(screen.getByTestId("chat-input")).toHaveValue("");
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Second turn must remain a draft" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "Second turn must remain a draft",
+      );
+      const messages = getChatsStore().chatsById[characterChatId]?.messages;
+      expect(messages.filter((message) => message.role === "user")).toHaveLength(
+        1,
+      );
+      expect(
+        messages.filter(
+          (message) =>
+            message.role === "assistant" && message.status === "streaming",
+        ),
+      ).toHaveLength(1);
+    });
+
+    await act(async () => {
+      resolveCharacterPreflight({
+        session_id: "character_nico__dm__main",
+        run_memory_namespace: "character_nico__rel__local_user",
+        default_model: "openai:gpt-4.1",
+        instructions: "You are Nico.",
+        decision: { action: "reply", courtesy_message: null },
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "Second turn must remain a draft",
+      );
+    });
+  });
+
+  test("persists an optimistic character turn before pending preflight unmounts", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+    let resolveCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCharacterPreflight = resolve;
+        }),
+    );
+
+    const view = renderChat();
+    await waitForReady();
+    const characterChatId = getChatsStore().activeChatId;
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Persist before leaving chat" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+      expect(getChatsStore().chatsById[characterChatId]?.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            role: "user",
+            content: "Persist before leaving chat",
+          }),
+          expect.objectContaining({
+            role: "assistant",
+            status: "streaming",
+          }),
+        ]),
+      );
+    });
+
+    view.unmount();
+    expect(getChatsStore().chatsById[characterChatId]?.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: "Persist before leaving chat",
+        }),
+      ]),
+    );
+
+    await act(async () => {
+      resolveCharacterPreflight({
+        session_id: "character_nico__dm__main",
+        run_memory_namespace: "character_nico__rel__local_user",
+        instructions: "You are Nico.",
+        decision: { action: "reply", courtesy_message: null },
+      });
+      await Promise.resolve();
+    });
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    expect(getChatsStore().chatsById[characterChatId]?.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: "Persist before leaving chat",
+        }),
+      ]),
+    );
+  });
+
+  test("restores a character draft when preflight fails after switching chats", async () => {
+    const normalChatId = seedActiveChatMessages([
+      {
+        id: "normal-chat-seed",
+        role: "user",
+        content: "Keep this normal chat",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const normalNodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(normalChatId, { id: "openai:gpt-5" }, { source: "test" });
+    const openedCharacter = openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+        },
+      },
+      { source: "test" },
+    );
+    expect(openedCharacter.ok).toBe(true);
+
+    delete window.unchainAPI.getPendingInteraction;
+    let rejectCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectCharacterPreflight = reject;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Draft that must return" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("chat-input")).toHaveValue("");
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: normalNodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(normalChatId);
+    });
+    await act(async () => {
+      rejectCharacterPreflight(new Error("character preflight failed"));
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(
+        getChatsStore().chatsById[openedCharacter.chatId]?.draft?.text,
+      ).toBe("Draft that must return");
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: openedCharacter.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(getChatsStore().activeChatId).toBe(openedCharacter.chatId);
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "Draft that must return",
+      );
+    });
+  });
+
+  test("clears the originating draft when attachment hydration finishes in the background", async () => {
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "chat-a-history-attachment",
+        role: "user",
+        content: "Earlier attachment",
+        attachments: [
+          {
+            id: "attachment-hydration-success",
+            name: "history.txt",
+            kind: "text",
+            mimeType: "text/plain",
+            sizeBytes: 7,
+          },
+        ],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Hydration Chat B" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "chat-b-hydration-seed",
+          role: "user",
+          content: "Keep chat B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:gpt-5" }, { source: "test" });
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    let resolveHydration;
+    jest.spyOn(attachmentStorage, "loadAttachmentPayload").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveHydration = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Send from chat A" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(attachmentStorage.loadAttachmentPayload).toHaveBeenCalledWith(
+        "attachment-hydration-success",
+      );
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep chat B draft" },
+    });
+
+    await act(async () => {
+      resolveHydration({ type: "text", text: "history" });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(getChatsStore().chatsById[chatAId]?.draft).toMatchObject({
+        text: "",
+        attachments: [],
+      });
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "Keep chat B draft",
+      );
+    });
+  });
+
+  test("does not clear a newer originating draft after delayed attachment hydration", async () => {
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "chat-a-newer-draft-history",
+        role: "user",
+        content: "Earlier attachment",
+        attachments: [
+          {
+            id: "attachment-hydration-newer-draft",
+            name: "history.txt",
+            kind: "text",
+            mimeType: "text/plain",
+            sizeBytes: 7,
+          },
+        ],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Draft Isolation Chat B" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "chat-b-newer-draft-seed",
+          role: "user",
+          content: "Keep chat B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:gpt-5" }, { source: "test" });
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    let resolveHydration;
+    jest.spyOn(attachmentStorage, "loadAttachmentPayload").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveHydration = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Original chat A send" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(attachmentStorage.loadAttachmentPayload).toHaveBeenCalledWith(
+        "attachment-hydration-newer-draft",
+      );
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+    });
+    act(() => {
+      selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(chatAId);
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "Original chat A send",
+      );
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "New chat A draft" },
+    });
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+      expect(getChatsStore().chatsById[chatAId]?.draft?.text).toBe(
+        "New chat A draft",
+      );
+    });
+
+    await act(async () => {
+      resolveHydration({ type: "text", text: "history" });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(getChatsStore().chatsById[chatAId]?.draft?.text).toBe(
+        "New chat A draft",
+      );
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+    });
+  });
+
+  test("does not restore an old character draft after delayed preflight fails", async () => {
+    const normalChatId = seedActiveChatMessages([
+      {
+        id: "normal-hydration-seed",
+        role: "user",
+        content: "Normal chat",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const normalNodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(normalChatId, { id: "openai:gpt-5" }, { source: "test" });
+    const openedCharacter = openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+    setChatMessages(
+      openedCharacter.chatId,
+      [
+        {
+          id: "character-history-attachment",
+          role: "user",
+          content: "Earlier attachment",
+          attachments: [
+            {
+              id: "attachment-hydration-failure",
+              name: "history.txt",
+              kind: "text",
+              mimeType: "text/plain",
+              sizeBytes: 7,
+            },
+          ],
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+
+    let resolveHydration;
+    jest.spyOn(attachmentStorage, "loadAttachmentPayload").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveHydration = resolve;
+        }),
+    );
+    let rejectCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectCharacterPreflight = reject;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Character draft A" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(attachmentStorage.loadAttachmentPayload).toHaveBeenCalledWith(
+        "attachment-hydration-failure",
+      );
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: normalNodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(normalChatId);
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Normal draft B" },
+    });
+    act(() => {
+      selectTreeNode({ nodeId: openedCharacter.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(openedCharacter.chatId);
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "Character draft A",
+      );
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "New character draft A" },
+    });
+    act(() => {
+      selectTreeNode({ nodeId: normalNodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(normalChatId);
+      expect(
+        getChatsStore().chatsById[openedCharacter.chatId]?.draft?.text,
+      ).toBe("New character draft A");
+    });
+
+    await act(async () => {
+      resolveHydration({ type: "text", text: "history" });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      rejectCharacterPreflight(new Error("character preflight failed"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        getChatsStore().chatsById[openedCharacter.chatId]?.draft?.text,
+      ).toBe("New character draft A");
+      expect(getChatsStore().chatsById[normalChatId]?.draft?.text).toBe(
+        "Normal draft B",
+      );
+    });
+  });
+
+  test("does not resurrect a sent draft after an inactive type-and-erase ABA edit", async () => {
+    const normalChatId = seedActiveChatMessages([
+      {
+        id: "normal-aba-seed",
+        role: "user",
+        content: "Normal chat",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const normalNodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(normalChatId, { id: "openai:gpt-5" }, { source: "test" });
+    const openedCharacter = openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+
+    let rejectCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectCharacterPreflight = reject;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Original character draft" },
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("chat-input")).toHaveValue("");
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: normalNodeId }, { source: "test" });
+      selectTreeNode({ nodeId: openedCharacter.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(openedCharacter.chatId);
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Temporary replacement" },
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "" },
+    });
+    act(() => {
+      selectTreeNode({ nodeId: normalNodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(normalChatId);
+    });
+
+    await act(async () => {
+      rejectCharacterPreflight(new Error("character preflight failed"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        getChatsStore().chatsById[openedCharacter.chatId]?.draft?.text,
+      ).toBe("");
+      expect(lastChatMessagesProps?.chatId).toBe(normalChatId);
+    });
+  });
+
+  test("does not clear a newer character draft when delayed preflight defers", async () => {
+    const normalChatId = seedActiveChatMessages([
+      {
+        id: "normal-defer-seed",
+        role: "user",
+        content: "Normal chat",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const normalNodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(normalChatId, { id: "openai:gpt-5" }, { source: "test" });
+    const openedCharacter = openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+
+    let resolveCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCharacterPreflight = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Original character send" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("chat-input")).toHaveValue("");
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: normalNodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(normalChatId);
+    });
+    act(() => {
+      selectTreeNode({ nodeId: openedCharacter.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(openedCharacter.chatId);
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "New character draft after send" },
+    });
+
+    await act(async () => {
+      resolveCharacterPreflight({
+        session_id: "character_nico__dm__main",
+        run_memory_namespace: "character_nico__rel__local_user",
+        instructions: "You are Nico.",
+        decision: {
+          action: "defer",
+          courtesy_message: "I'm working right now, later?",
+        },
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "New character draft after send",
+      );
+      expect(lastChatMessagesProps?.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            role: "assistant",
+            content: "I'm working right now, later?",
+            status: "done",
+          }),
+        ]),
+      );
+    });
+  });
+
   test("character chat defer decisions reply locally without starting a stream", async () => {
     const seeded = getChatsStore();
     setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
@@ -1465,6 +2215,138 @@ describe("ChatInterface stop flow", () => {
         interactionId,
       ).filter(({ frame }) => frame.type === "tool_call"),
     ).toHaveLength(1);
+  });
+
+  test("rolls back an unacknowledged mutation when an authoritative pending attempt owns the chat", async () => {
+    const operationId = "turn-local-edit-superseded";
+    const baseMessages = [
+      {
+        id: "user-before-superseded-edit",
+        role: "user",
+        content: "Stable question",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "assistant-before-superseded-edit",
+        role: "assistant",
+        content: "Stable answer",
+        status: "done",
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ];
+    const originalMessages = [
+      ...baseMessages,
+      {
+        id: "user-superseded-edit",
+        role: "user",
+        content: "Original question",
+        createdAt: 3,
+        updatedAt: 3,
+      },
+      {
+        id: "assistant-superseded-edit",
+        role: "assistant",
+        content: "Original answer",
+        status: "done",
+        createdAt: 4,
+        updatedAt: 4,
+      },
+    ];
+    const optimisticMessages = [
+      ...baseMessages,
+      {
+        id: "user-superseded-edit",
+        role: "user",
+        content: "Edited question",
+        createdAt: 3,
+        updatedAt: 5,
+      },
+      {
+        id: "assistant-local-edit-placeholder",
+        role: "assistant",
+        content: "",
+        status: "streaming",
+        createdAt: 5,
+        updatedAt: 5,
+        meta: {
+          turnMutationOperationId: operationId,
+        },
+      },
+    ];
+    const sessionId = seedActiveChatMessages(optimisticMessages);
+    expect(
+      enqueueTurnMutation({
+        operationId,
+        chatId: sessionId,
+        sessionId,
+        kind: "edit",
+        targetMessageId: "user-superseded-edit",
+        originalFingerprint:
+          fingerprintTurnMutationMessages(originalMessages),
+        baseFingerprint: fingerprintTurnMutationMessages(baseMessages),
+        baseMessageCount: baseMessages.length,
+        text: "Edited question",
+        modelId: "openai:gpt-5",
+        threadId: sessionId,
+        expectedSessionRevision: 1,
+      }),
+    ).toEqual(expect.objectContaining({ operationId }));
+
+    let resolveStaleReplace;
+    window.unchainAPI.replaceSessionMemory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStaleReplace = resolve;
+        }),
+    );
+    const pending = buildPendingInteraction({
+      sessionId,
+      interactionId: "interaction-newer-than-local-edit",
+      callId: "call-newer-than-local-edit",
+      sourceRunId: "server-attempt-newer-than-local-edit",
+      activeAttemptId: "server-attempt-newer-than-local-edit",
+    });
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? pending
+          : { status: "none", session_id: requestedSessionId },
+    });
+
+    renderChat();
+    await waitForBoot();
+
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          pending.interaction_id
+        ],
+      ).toBeDefined();
+      expect(readTurnMutationOutbox()).toEqual([]);
+    });
+
+    const persistedMessages = getChatsStore().chatsById[sessionId].messages;
+    expect(
+      persistedMessages.map((message) => message.content),
+    ).toEqual(["Stable question", "Stable answer", ""]);
+    expect(
+      persistedMessages.some(
+        (message) =>
+          message.id === "user-superseded-edit" ||
+          message?.meta?.turnMutationOperationId === operationId,
+      ),
+    ).toBe(false);
+    expect(bridge.resumeRuns()).toHaveLength(0);
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    expect(lastChatInputProps?.sendDisabled).toBe(true);
+
+    await act(async () => {
+      resolveStaleReplace?.({ applied: true });
+      await Promise.resolve();
+    });
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
   });
 
   test("stopping a recovered durable wait cancels its source attempt without a live stream handle", async () => {
@@ -2079,6 +2961,120 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("keeps a late background durable resume scoped to its original chat", async () => {
+    const snapshotMessages = (messages = []) =>
+      messages.map(({ id, role, content, status }) => ({
+        id,
+        role,
+        content,
+        status,
+      }));
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "user-late-resume-chat-a",
+        role: "user",
+        content: "Recover chat A only",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Stable Chat B" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "user-stable-chat-b",
+          role: "user",
+          content: "Stable chat B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(
+      createdB.chatId,
+      { id: "openai:gpt-5" },
+      { source: "test" },
+    );
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    let resolveChatALookup;
+    const chatALookup = new Promise((resolve) => {
+      resolveChatALookup = resolve;
+    });
+    const interactionId = "interaction-late-chat-a";
+    const pendingA = buildPendingInteraction({
+      sessionId: chatAId,
+      status: "receipt_recorded",
+      interactionId,
+      callId: "call-late-chat-a",
+    });
+    const bridge = installDurableBridge({
+      resolvePending: async (sessionId) =>
+        sessionId === chatAId
+          ? chatALookup
+          : { status: "none", session_id: sessionId },
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({
+        session_id: chatAId,
+      });
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
+    });
+
+    const visibleBBefore = snapshotMessages(lastChatMessagesProps.messages);
+    const storedBBefore = snapshotMessages(
+      getChatsStore().chatsById[createdB.chatId].messages,
+    );
+
+    await act(async () => {
+      resolveChatALookup(pendingA);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(bridge.resumeRuns()).toHaveLength(1);
+    });
+
+    const [resumeA] = bridge.resumeRuns();
+    expect(resumeA.payload).toEqual(
+      expect.objectContaining({
+        mode: "resume_interaction",
+        threadId: chatAId,
+        interaction_id: interactionId,
+      }),
+    );
+    expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+    expect(snapshotMessages(lastChatMessagesProps?.messages)).toEqual(
+      visibleBBefore,
+    );
+    expect(
+      snapshotMessages(getChatsStore().chatsById[createdB.chatId].messages),
+    ).toEqual(storedBBefore);
+    expect(
+      lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
+    ).toBeUndefined();
+    expect(lastChatInputProps?.isStreaming).toBe(false);
+    expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
+  });
+
   test("stops retrying when another executor has already completed the durable run", async () => {
     const interactionId = "interaction-other-winner";
     const sessionId = seedActiveChatMessages([
@@ -2390,6 +3386,236 @@ describe("ChatInterface stop flow", () => {
       expect(
         lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-a"],
       ).toBeUndefined();
+    });
+  });
+
+  test("keeps session-scoped tool approvals with their originating chat", async () => {
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "user-session-a-seed",
+        role: "user",
+        content: "Seed session chat A",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Session chat B" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "user-session-b-seed",
+          role: "user",
+          content: "Seed session chat B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:gpt-5" }, { source: "test" });
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Approve shell in A" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(streamHandlers).toBeTruthy();
+    });
+    const chatAHandlers = streamHandlers;
+    act(() => {
+      chatAHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "tool_call",
+        payload: {
+          call_id: "call-session-a-1",
+          confirmation_id: "confirm-session-a-1",
+          requires_confirmation: true,
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "pwd" },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-session-a-1"
+        ],
+      ).toBeDefined();
+    });
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: "confirm-session-a-1",
+        approved: true,
+        scope: "session",
+      });
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Do not inherit A approval" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+      expect(streamHandlers).not.toBe(chatAHandlers);
+    });
+    const chatBHandlers = streamHandlers;
+    act(() => {
+      chatBHandlers.onFrame({
+        seq: 1,
+        ts: 200,
+        type: "tool_call",
+        payload: {
+          call_id: "call-session-b-1",
+          confirmation_id: "confirm-session-b-1",
+          requires_confirmation: true,
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "ls" },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-session-b-1"
+        ],
+      ).toBeDefined();
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      chatAHandlers.onFrame({
+        seq: 2,
+        ts: 300,
+        type: "tool_call",
+        payload: {
+          call_id: "call-session-a-2",
+          confirmation_id: "confirm-session-a-2",
+          requires_confirmation: true,
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "whoami" },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(2);
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenLastCalledWith({
+        confirmation_id: "confirm-session-a-2",
+        session_id: chatAId,
+        approved: true,
+        reason: "",
+      });
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-session-b-1"
+        ],
+      ).toBeDefined();
+    });
+  });
+
+  test("does not cache a session approval when confirmation submission fails", async () => {
+    window.unchainAPI.respondToolConfirmation.mockRejectedValueOnce(
+      new Error("confirmation rejected"),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Approve only after success" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "tool_call",
+        payload: {
+          call_id: "call-session-failed-1",
+          confirmation_id: "confirm-session-failed-1",
+          requires_confirmation: true,
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "pwd" },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-session-failed-1"
+        ],
+      ).toBeDefined();
+    });
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: "confirm-session-failed-1",
+        approved: true,
+        scope: "session",
+      });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.[
+          "confirm-session-failed-1"
+        ],
+      ).toEqual(
+        expect.objectContaining({
+          status: "error",
+          error: "confirmation rejected",
+          resolved: false,
+        }),
+      );
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 200,
+        type: "tool_call",
+        payload: {
+          call_id: "call-session-failed-2",
+          confirmation_id: "confirm-session-failed-2",
+          requires_confirmation: true,
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "ls" },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-session-failed-2"
+        ],
+      ).toBeDefined();
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -2942,6 +4168,184 @@ describe("ChatInterface stop flow", () => {
         }),
       ]),
     );
+  });
+
+  test("keeps a queued background follow-up on its original chat model", async () => {
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: "openai:model-a",
+      providers: {
+        openai: ["model-a", "model-b"],
+        ollama: [],
+        anthropic: [],
+      },
+      model_capabilities: {},
+    });
+
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "user-queue-model-a-seed",
+        role: "user",
+        content: "Seed model A",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:model-a" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Model B chat" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "user-queue-model-b-seed",
+          role: "user",
+          content: "Seed model B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:model-b" }, { source: "test" });
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "First model A run" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    const firstRunHandlers = streamHandlers;
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Follow up on model A" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toHaveLength(1);
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+    });
+
+    act(() => {
+      firstRunHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "final_message",
+        payload: { content: "First model A reply" },
+      });
+      firstRunHandlers.onDone({});
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+    const [firstPayload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    const [queuedPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
+    expect(firstPayload).toEqual(
+      expect.objectContaining({
+        threadId: chatAId,
+        options: expect.objectContaining({ modelId: "openai:model-a" }),
+      }),
+    );
+    expect(queuedPayload).toEqual(
+      expect.objectContaining({
+        threadId: chatAId,
+        message: "Follow up on model A",
+        options: expect.objectContaining({ modelId: "openai:model-a" }),
+      }),
+    );
+    expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+  });
+
+  test("keeps a background memory retry on its original chat model", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: "openai:model-a",
+      providers: {
+        openai: ["model-a", "model-b"],
+        ollama: [],
+        anthropic: [],
+      },
+      model_capabilities: {},
+    });
+
+    const chatAId = seedActiveChatMessages([]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:model-a" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Memory model B chat" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "user-memory-model-b-seed",
+          role: "user",
+          content: "Stable memory model B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:model-b" }, { source: "test" });
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Retry model A in the background" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    const firstRunHandlers = streamHandlers;
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+    });
+
+    act(() => {
+      firstRunHandlers.onError({
+        code: "memory_unavailable",
+        message: "Memory is unavailable for this request",
+      });
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+
+    const [retryPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
+    expect(retryPayload).toEqual(
+      expect.objectContaining({
+        threadId: chatAId,
+        options: expect.objectContaining({
+          modelId: "openai:model-a",
+          memory_enabled: false,
+        }),
+      }),
+    );
+    expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
   });
 
   test("stores child lifecycle metadata and child shell trace frames separately from the main trace", async () => {
@@ -3748,6 +5152,455 @@ describe("ChatInterface stop flow", () => {
     ).toBe(true);
   });
 
+  test("keeps continuation prompts scoped to the chat that emitted them", async () => {
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "user-continuation-chat-a",
+        role: "user",
+        content: "Seed continuation chat A",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Continuation Chat B" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "user-continuation-chat-b",
+          role: "user",
+          content: "Seed continuation chat B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(
+      createdB.chatId,
+      { id: "openai:gpt-5" },
+      { source: "test" },
+    );
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Continue only chat A" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "continuation_request",
+        iteration: 6,
+        payload: {
+          confirmation_id: "continue-chat-a",
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+        expect.objectContaining({ confirmationId: "continue-chat-a" }),
+      );
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toBeNull();
+    });
+    expect(
+      screen.queryByText(
+        "Agent reached 6 iterations without a final response. Continue?",
+      ),
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(chatAId);
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+        expect.objectContaining({ confirmationId: "continue-chat-a" }),
+      );
+    });
+  });
+
+  test("ignores a stale continuation decision and clears the active prompt on done", async () => {
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Replace the continuation prompt" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+    const firstRunHandlers = streamHandlers;
+
+    act(() => {
+      firstRunHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "continuation_request",
+        iteration: 4,
+        payload: { confirmation_id: "continue-stale" },
+      });
+      firstRunHandlers.onFrame({
+        seq: 2,
+        ts: 200,
+        type: "continuation_request",
+        iteration: 5,
+        payload: { confirmation_id: "continue-current" },
+      });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+        expect.objectContaining({ confirmationId: "continue-current" }),
+      );
+    });
+
+    await act(async () => {
+      await lastChatMessagesProps.onContinuationDecision({
+        confirmationId: "continue-stale",
+        approved: true,
+      });
+    });
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+    expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+      expect.objectContaining({ confirmationId: "continue-current" }),
+    );
+
+    act(() => {
+      firstRunHandlers.onDone({});
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toBeNull();
+    });
+  });
+
+  test("preserves a newer continuation prompt while an older decision settles", async () => {
+    let resolveOldDecision;
+    let rejectCurrentDecision;
+    window.unchainAPI.respondToolConfirmation = jest
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOldDecision = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectCurrentDecision = reject;
+          }),
+      );
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep the newest continuation prompt" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+    const firstRunHandlers = streamHandlers;
+
+    act(() => {
+      firstRunHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "continuation_request",
+        iteration: 4,
+        payload: { confirmation_id: "continue-old" },
+      });
+    });
+    let oldDecisionPromise;
+    act(() => {
+      oldDecisionPromise = lastChatMessagesProps.onContinuationDecision({
+        confirmationId: "continue-old",
+        approved: true,
+      });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+        expect.objectContaining({
+          confirmationId: "continue-old",
+          status: "submitting",
+        }),
+      );
+    });
+
+    act(() => {
+      firstRunHandlers.onFrame({
+        seq: 2,
+        ts: 200,
+        type: "continuation_request",
+        iteration: 5,
+        payload: { confirmation_id: "continue-current" },
+      });
+    });
+    await act(async () => {
+      resolveOldDecision({ status: "ok" });
+      await oldDecisionPromise;
+    });
+    expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+      expect.objectContaining({
+        confirmationId: "continue-current",
+        status: "idle",
+      }),
+    );
+
+    let currentDecisionPromise;
+    act(() => {
+      currentDecisionPromise = lastChatMessagesProps.onContinuationDecision({
+        confirmationId: "continue-current",
+        approved: false,
+      });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+        expect.objectContaining({
+          confirmationId: "continue-current",
+          status: "submitting",
+        }),
+      );
+    });
+    act(() => {
+      firstRunHandlers.onFrame({
+        seq: 3,
+        ts: 300,
+        type: "continuation_request",
+        iteration: 6,
+        payload: { confirmation_id: "continue-latest" },
+      });
+    });
+    await act(async () => {
+      rejectCurrentDecision(new Error("decision failed"));
+      await currentDecisionPromise;
+    });
+    expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+      expect.objectContaining({
+        confirmationId: "continue-latest",
+        status: "idle",
+      }),
+    );
+  });
+
+  test("clears only the background chat continuation prompt on transport error", async () => {
+    const chatAId = seedActiveChatMessages([
+      {
+        id: "user-continuation-error-a",
+        role: "user",
+        content: "Continuation error chat A",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Continuation error chat B" },
+      { source: "test" },
+    );
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "user-continuation-error-b",
+          role: "user",
+          content: "Stable continuation chat B",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ],
+      { source: "test" },
+    );
+    setChatModel(
+      createdB.chatId,
+      { id: "openai:gpt-5" },
+      { source: "test" },
+    );
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Fail chat A after continuation" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+    const firstRunHandlers = streamHandlers;
+    act(() => {
+      firstRunHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "continuation_request",
+        iteration: 7,
+        payload: { confirmation_id: "continue-error-a" },
+      });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
+        expect.objectContaining({ confirmationId: "continue-error-a" }),
+      );
+    });
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toBeNull();
+    });
+
+    act(() => {
+      firstRunHandlers.onError({
+        code: "stream_bridge_failed",
+        message: "terminated",
+      });
+    });
+    expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
+    expect(lastChatMessagesProps?.pendingContinuationRequest).toBeNull();
+
+    act(() => {
+      selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.chatId).toBe(chatAId);
+      expect(lastChatMessagesProps?.pendingContinuationRequest).toBeNull();
+    });
+  });
+
+  test("retries a retryable revision conflict with the same mutation operation", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+    const operationId = "turn-retryable-revision-conflict";
+    const originalMessages = [
+      {
+        id: "user-retryable-revision-conflict",
+        role: "user",
+        content: "Retry this resend safely",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "assistant-retryable-revision-conflict",
+        role: "assistant",
+        content: "Old answer",
+        status: "done",
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ];
+    const sessionId = seedActiveChatMessages(originalMessages);
+    expect(
+      enqueueTurnMutation({
+        operationId,
+        chatId: sessionId,
+        sessionId,
+        kind: "resend",
+        targetMessageId: "user-retryable-revision-conflict",
+        originalFingerprint:
+          fingerprintTurnMutationMessages(originalMessages),
+        baseFingerprint: fingerprintTurnMutationMessages([]),
+        baseMessageCount: 0,
+        text: "Retry this resend safely",
+        modelId: "openai:gpt-5",
+        threadId: sessionId,
+        expectedSessionRevision: 9,
+      }),
+    ).toEqual(expect.objectContaining({ operationId }));
+    window.unchainAPI.replaceSessionMemory
+      .mockResolvedValueOnce({
+        applied: false,
+        error: {
+          code: "session_revision_conflict",
+          message: "Revision is still being settled",
+          retryable: true,
+          status: 409,
+        },
+      })
+      .mockResolvedValueOnce({
+        applied: true,
+        replayed: false,
+        operation_id: operationId,
+        session_revision: 10,
+      });
+
+    renderChat();
+    await waitForBoot();
+
+    await waitFor(() => {
+      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    });
+    expect(readTurnMutationOutbox()).toEqual([
+      expect.objectContaining({ operationId, expectedSessionRevision: 9 }),
+    ]);
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+
+    await waitFor(
+      () => {
+        expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(2);
+        expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 2500 },
+    );
+
+    const mutationPayloads =
+      window.unchainAPI.replaceSessionMemory.mock.calls.map(([payload]) =>
+        payload,
+      );
+    expect(mutationPayloads).toEqual([
+      expect.objectContaining({
+        operation_id: operationId,
+        expected_session_revision: 9,
+      }),
+      expect.objectContaining({
+        operation_id: operationId,
+        expected_session_revision: 9,
+      }),
+    ]);
+    expect(window.unchainAPI.startStreamV2.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        message: "Retry this resend safely",
+        attempt_id: operationId,
+      }),
+    );
+    expect(readTurnMutationOutbox()).toHaveLength(1);
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "run_started",
+        payload: { attempt_id: operationId },
+      });
+    });
+    await waitFor(() => {
+      expect(readTurnMutationOutbox()).toEqual([]);
+    });
+  });
+
   test("resend replaces short-term memory before starting a new stream", async () => {
     window.localStorage.setItem(
       "settings",
@@ -3814,6 +5667,346 @@ describe("ChatInterface stop flow", () => {
     expect(streamPayload.message).toBe("Edited turn");
   });
 
+  test("resend and edit lock the chat across async memory replacement", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+
+    renderChat();
+    await waitForReady();
+    await sendTurn("First turn", "A1");
+    await sendTurn("Second turn", "A2");
+
+    let secondUserMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "user" && message.content === "Second turn",
+    );
+    let resolveResendMemory;
+    window.unchainAPI.replaceSessionMemory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveResendMemory = resolve;
+        }),
+    );
+    let resendPromise;
+    act(() => {
+      resendPromise = lastChatMessagesProps.onResendMessage(secondUserMessage);
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Newer draft during resend" },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+      "Newer draft during resend",
+    );
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveResendMemory({ applied: true });
+      await resendPromise;
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(3);
+    });
+    expect(window.unchainAPI.startStreamV2.mock.calls[2][0].message).toBe(
+      "Second turn",
+    );
+    await completeAssistantReply("A2 resend");
+
+    secondUserMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "user" && message.content === "Second turn",
+    );
+    let resolveEditMemory;
+    window.unchainAPI.replaceSessionMemory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveEditMemory = resolve;
+        }),
+    );
+    let editPromise;
+    act(() => {
+      editPromise = lastChatMessagesProps.onEditMessage(
+        secondUserMessage,
+        "Edited second turn",
+      );
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Newer draft during edit" },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+      "Newer draft during edit",
+    );
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(2);
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      resolveEditMemory({ applied: true });
+      await editPromise;
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(4);
+    });
+    expect(window.unchainAPI.startStreamV2.mock.calls[3][0].message).toBe(
+      "Edited second turn",
+    );
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+      "Newer draft during edit",
+    );
+  });
+
+  test("retains a queued relay while a resend owns the chat and sends it once after release", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+
+    renderChat();
+    await waitForReady();
+    await sendTurn("Seed turn for queued relay", "Seed answer");
+    const seedUserMessage = lastChatMessagesProps.messages.find(
+      (message) =>
+        message.role === "user" &&
+        message.content === "Seed turn for queued relay",
+    );
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run before queued relay" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+    const activeRunHandlers = streamHandlers;
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Relay this exactly once" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toHaveLength(1);
+    });
+
+    let resolveResendMemory;
+    window.unchainAPI.replaceSessionMemory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveResendMemory = resolve;
+        }),
+    );
+    act(() => {
+      activeRunHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "final_message",
+        payload: { content: "Run before relay finished" },
+      });
+      activeRunHandlers.onDone({});
+    });
+
+    let resendPromise;
+    act(() => {
+      resendPromise = lastChatMessagesProps.onResendMessage(seedUserMessage);
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    });
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(lastChatInputProps?.interjectState?.queueItems).toHaveLength(1);
+
+    await act(async () => {
+      resolveResendMemory({ applied: true });
+      await resendPromise;
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(3);
+    });
+    expect(window.unchainAPI.startStreamV2.mock.calls[2][0].message).toBe(
+      "Seed turn for queued relay",
+    );
+
+    await completeAssistantReply("Seed answer after resend");
+    await waitFor(
+      () => {
+        expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(4);
+      },
+      { timeout: 2500 },
+    );
+    const relayPayloads = window.unchainAPI.startStreamV2.mock.calls
+      .map(([payload]) => payload)
+      .filter((payload) => payload.message === "Relay this exactly once");
+    expect(relayPayloads).toHaveLength(1);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(
+      window.unchainAPI.startStreamV2.mock.calls.filter(
+        ([payload]) => payload.message === "Relay this exactly once",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("does not relay a consumed queue item again after stream startup throws", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run that owns the queue" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    const activeRunHandlers = streamHandlers;
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Do not duplicate after startup failure" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toHaveLength(1);
+    });
+
+    window.unchainAPI.startStreamV2.mockImplementationOnce(() => {
+      throw new Error("stream bridge failed after consuming the queued turn");
+    });
+    act(() => {
+      activeRunHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "final_message",
+        payload: { content: "Queue owner finished" },
+      });
+      activeRunHandlers.onDone({});
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+      const queueUsers = lastChatMessagesProps.messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content === "Do not duplicate after startup failure",
+      );
+      expect(queueUsers).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    });
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(
+      lastChatMessagesProps.messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content === "Do not duplicate after startup failure",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("releases a pre-outbox mutation owner after unmount so a remount can retry", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+    const chatId = seedActiveChatMessages([
+      {
+        id: "user-pre-outbox-owner",
+        role: "user",
+        content: "Retry after the old page closes",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "assistant-pre-outbox-owner",
+        role: "assistant",
+        content: "Old answer",
+        status: "done",
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ]);
+    let resolveFirstRevision;
+    window.unchainAPI.getSessionMemoryExport
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstRevision = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        session_id: chatId,
+        session_revision: 2,
+        messages: [],
+      });
+
+    const firstRender = renderChat();
+    await waitForReady();
+    const firstTarget = lastChatMessagesProps.messages.find(
+      (message) => message.id === "user-pre-outbox-owner",
+    );
+    let firstResendPromise;
+    act(() => {
+      firstResendPromise = lastChatMessagesProps.onResendMessage(firstTarget);
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.getSessionMemoryExport).toHaveBeenCalledTimes(1);
+    });
+    expect(readTurnMutationOutbox()).toEqual([]);
+    firstRender.unmount();
+
+    renderChat();
+    await waitForReady();
+    const secondTarget = lastChatMessagesProps.messages.find(
+      (message) => message.id === "user-pre-outbox-owner",
+    );
+    await act(async () => {
+      await lastChatMessagesProps.onResendMessage(secondTarget);
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.getSessionMemoryExport).toHaveBeenCalledTimes(2);
+      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      resolveFirstRevision({
+        session_id: chatId,
+        session_revision: 1,
+        messages: [],
+      });
+      await firstResendPromise;
+    });
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+  });
+
   test("delete removes the containing turn and syncs remaining memory", async () => {
     window.localStorage.setItem(
       "settings",
@@ -3845,6 +6038,61 @@ describe("ChatInterface stop flow", () => {
     expect(
       lastChatMessagesProps.messages.map((message) => message.content),
     ).toEqual(["Second turn", "A2"]);
+  });
+
+  test("delete locks the chat until async memory replacement commits", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+
+    renderChat();
+    await waitForReady();
+    await sendTurn("First turn", "A1");
+    await sendTurn("Second turn", "A2");
+    const firstAssistantMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "assistant" && message.content === "A1",
+    );
+
+    let resolveDeleteMemory;
+    window.unchainAPI.replaceSessionMemory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDeleteMemory = resolve;
+        }),
+    );
+    let deletePromise;
+    act(() => {
+      deletePromise = lastChatMessagesProps.onDeleteMessage(
+        firstAssistantMessage,
+      );
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Newer draft during delete" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+      "Newer draft during delete",
+    );
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveDeleteMemory({ applied: true });
+      await deletePromise;
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps.messages.map((message) => message.content),
+      ).toEqual(["Second turn", "A2"]);
+    });
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+      "Newer draft during delete",
+    );
   });
 
   test("deleting a streaming assistant turn cancels the stream before replacing memory", async () => {

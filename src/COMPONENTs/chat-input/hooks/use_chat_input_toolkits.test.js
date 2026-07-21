@@ -192,6 +192,7 @@ describe("use_chat_input_toolkits", () => {
           toolkitName: "Empty MCP",
           toolkitDescription: "Custom MCP",
           source: "mcp",
+          status: "available",
           hidden: false,
           toolkitIcon: {},
           tools: [{ title: "Ping", name: "ping" }],
@@ -224,6 +225,7 @@ describe("use_chat_input_toolkits", () => {
           toolkitName: "Mark It Down",
           toolkitDescription: "Convert documents",
           source: "mcp",
+          status: "available",
           hidden: false,
           toolkitIcon: {
             type: "builtin",

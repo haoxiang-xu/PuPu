@@ -23,10 +23,19 @@ import execution_control as control  # noqa: E402
 def _terminal_worker(
     data_dir: str,
     action: str,
+    owner_identity: tuple[str, int],
     gate,
     results,
 ) -> None:
-    registry = control.ExecutionControlRegistry(data_dir)
+    registry = (
+        control.ExecutionControlRegistry(
+            data_dir,
+            process_owner_id=owner_identity[0],
+            process_pid=owner_identity[1],
+        )
+        if action == "complete"
+        else control.ExecutionControlRegistry(data_dir)
+    )
     gate.wait(timeout=5)
     if action == "complete":
         result = registry.mark_completed("chat-race", "attempt-race")
@@ -37,6 +46,19 @@ def _terminal_worker(
             reason="stop",
         )
     results.put((result.disposition, result.status, result.snapshot.revision))
+
+
+def _running_worker(data_dir: str, results, release) -> None:
+    registry = control.ExecutionControlRegistry(data_dir)
+    running = registry.mark_running("chat-reclaim", "attempt-reclaim")
+    results.put(
+        (
+            running.disposition,
+            running.snapshot.owner_id,
+            running.snapshot.owner_pid,
+        )
+    )
+    release.wait(timeout=30)
 
 
 class ExecutionControlRegistryTests(unittest.TestCase):
@@ -200,14 +222,24 @@ class ExecutionControlRegistryTests(unittest.TestCase):
 
     def test_completion_and_cancel_share_one_cross_process_cas(self) -> None:
         self.registry.register("chat-race", "attempt-race")
-        self.registry.mark_running("chat-race", "attempt-race")
+        running = self.registry.mark_running("chat-race", "attempt-race")
+        owner_identity = (
+            running.snapshot.owner_id,
+            running.snapshot.owner_pid,
+        )
         context = multiprocessing.get_context("spawn")
         gate = context.Event()
         results = context.Queue()
         processes = [
             context.Process(
                 target=_terminal_worker,
-                args=(self.temp_dir.name, action, gate, results),
+                args=(
+                    self.temp_dir.name,
+                    action,
+                    owner_identity,
+                    gate,
+                    results,
+                ),
             )
             for action in ("complete", "cancel")
         ]
@@ -231,6 +263,126 @@ class ExecutionControlRegistryTests(unittest.TestCase):
         for _disposition, status, revision in outcomes:
             self.assertEqual(status, winner.status)
             self.assertEqual(revision, 3)
+
+    def test_live_foreign_owner_blocks_duplicate_running_attempt(self) -> None:
+        owner = control.ExecutionControlRegistry(
+            self.temp_dir.name,
+            process_owner_id="owner-a",
+            process_pid=101,
+            process_is_alive=lambda _pid: True,
+        )
+        contender = control.ExecutionControlRegistry(
+            self.temp_dir.name,
+            process_owner_id="owner-b",
+            process_pid=202,
+            process_is_alive=lambda process_id: process_id == 101,
+        )
+
+        claimed = owner.mark_running("chat-live", "attempt-live")
+        duplicate = contender.mark_running("chat-live", "attempt-live")
+
+        self.assertEqual(claimed.disposition, "applied")
+        self.assertEqual(duplicate.disposition, "unchanged")
+        self.assertEqual(duplicate.snapshot.owner_id, "owner-a")
+        self.assertEqual(duplicate.snapshot.revision, 1)
+
+    def test_dead_foreign_owner_is_reclaimed_and_fences_stale_completion(self) -> None:
+        predecessor = control.ExecutionControlRegistry(
+            self.temp_dir.name,
+            process_owner_id="owner-old",
+            process_pid=303,
+            process_is_alive=lambda _pid: False,
+        )
+        successor = control.ExecutionControlRegistry(
+            self.temp_dir.name,
+            process_owner_id="owner-new",
+            process_pid=404,
+            process_is_alive=lambda _pid: False,
+        )
+        predecessor.mark_running("chat-dead", "attempt-dead")
+
+        reclaimed = successor.mark_running("chat-dead", "attempt-dead")
+        stale_completion = predecessor.mark_completed("chat-dead", "attempt-dead")
+        completed = successor.mark_completed("chat-dead", "attempt-dead")
+
+        self.assertEqual(reclaimed.disposition, "applied")
+        self.assertEqual(reclaimed.snapshot.owner_id, "owner-new")
+        self.assertEqual(reclaimed.snapshot.owner_pid, 404)
+        self.assertEqual(reclaimed.snapshot.revision, 2)
+        self.assertEqual(stale_completion.disposition, "stale_owner")
+        self.assertEqual(stale_completion.status, "running")
+        self.assertEqual(completed.disposition, "applied")
+        self.assertEqual(completed.status, "completed")
+
+    def test_reused_pid_with_new_incarnation_reclaims_old_owner(self) -> None:
+        predecessor = control.ExecutionControlRegistry(
+            self.temp_dir.name,
+            process_owner_id="owner-before-restart",
+            process_pid=os.getpid(),
+        )
+        predecessor.mark_running("chat-pid-reuse", "attempt-pid-reuse")
+        successor = control.ExecutionControlRegistry(
+            self.temp_dir.name,
+            process_owner_id="owner-after-restart",
+            process_pid=os.getpid(),
+        )
+
+        reclaimed = successor.mark_running(
+            "chat-pid-reuse",
+            "attempt-pid-reuse",
+        )
+
+        self.assertEqual(reclaimed.disposition, "applied")
+        self.assertEqual(reclaimed.snapshot.owner_id, "owner-after-restart")
+        self.assertEqual(reclaimed.snapshot.revision, 2)
+
+    def test_ownerless_running_record_fails_closed(self) -> None:
+        self.registry.mark_running("chat-legacy", "attempt-legacy")
+        record = next((Path(self.temp_dir.name) / "executions").glob("*/*.json"))
+        payload = json.loads(record.read_text(encoding="utf-8"))
+        payload.pop("owner_id", None)
+        payload.pop("owner_pid", None)
+        record.write_text(json.dumps(payload), encoding="utf-8")
+        restarted = control.ExecutionControlRegistry(
+            self.temp_dir.name,
+            process_owner_id="owner-new",
+            process_pid=505,
+            process_is_alive=lambda _pid: False,
+        )
+
+        result = restarted.mark_running("chat-legacy", "attempt-legacy")
+
+        self.assertEqual(result.disposition, "unchanged")
+        self.assertEqual(result.snapshot.owner_id, "")
+        self.assertIsNone(result.snapshot.owner_pid)
+        self.assertEqual(result.snapshot.revision, 1)
+
+    def test_dead_worker_process_is_reclaimed_after_real_termination(self) -> None:
+        context = multiprocessing.get_context("spawn")
+        results = context.Queue()
+        release = context.Event()
+        process = context.Process(
+            target=_running_worker,
+            args=(self.temp_dir.name, results, release),
+        )
+        process.start()
+        disposition, owner_id, owner_pid = results.get(timeout=8)
+        self.assertEqual(disposition, "applied")
+        self.assertEqual(owner_pid, process.pid)
+
+        contender = control.ExecutionControlRegistry(self.temp_dir.name)
+        while_alive = contender.mark_running("chat-reclaim", "attempt-reclaim")
+        self.assertEqual(while_alive.disposition, "unchanged")
+        self.assertEqual(while_alive.snapshot.owner_id, owner_id)
+
+        process.terminate()
+        process.join(timeout=8)
+        self.assertFalse(process.is_alive())
+        self.assertIsNotNone(process.exitcode)
+        reclaimed = contender.mark_running("chat-reclaim", "attempt-reclaim")
+        self.assertEqual(reclaimed.disposition, "applied")
+        self.assertEqual(reclaimed.snapshot.owner_pid, os.getpid())
+        self.assertEqual(reclaimed.snapshot.revision, 2)
 
     def test_missing_mark_running_and_completion_are_safe_upserts(self) -> None:
         running = self.registry.mark_running("chat-upsert", "attempt-running")

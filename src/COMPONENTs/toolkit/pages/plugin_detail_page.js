@@ -11,7 +11,10 @@ import { ToolkitIconFrame } from "../components/toolkit_icon";
 import { SettingsSection, SettingsRow } from "../../settings/appearance";
 import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
 import { usePluginInstallState } from "../hooks/use_plugin_install_state";
-import { setupKindForEntry } from "../../../SERVICEs/mcp_install";
+import {
+  isEntryOAuthConnectable,
+  setupKindForEntry,
+} from "../../../SERVICEs/mcp_install";
 import { dispatchComposerPrefill } from "../../../SERVICEs/composer_prefill";
 import api from "../../../SERVICEs/api";
 import {
@@ -306,9 +309,8 @@ const PluginDetailPage = ({
      entries that install via secrets/http but also carry an OAuth recipe as
      an alternative get a low-key "Connect with OAuth" link alongside the
      secret fields. ── */
-  const hasOAuthRecipe = Boolean(entry?.auth?.oauth);
   const showSecondaryOAuthAction =
-    hasOAuthRecipe &&
+    isEntryOAuthConnectable(entry) &&
     installMachine.installState === "installable" &&
     Boolean(onOAuthConnect);
 

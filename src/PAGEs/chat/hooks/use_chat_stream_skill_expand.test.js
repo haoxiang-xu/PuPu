@@ -10,7 +10,7 @@
  * (rendered by the mocked ChatMessages component) plus, for the interject
  * regression, on the payload handed to window.unchainAPI.interject.
  */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   LocaleContext,
   NavigationContext,
@@ -86,6 +86,7 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
 const PLUGIN_TOOLKIT_ID = "demokit";
 const PLUGIN_SOURCE = `plugin:${PLUGIN_TOOLKIT_ID}`;
 const TEMPLATE = "Use the demo tools carefully: alpha, beta";
+const SELECTED_TEMPLATE = "Use the toolkit selected when edit started";
 
 describe("composer-send expansion of plugin skill commands", () => {
   let streamHandlers;
@@ -126,6 +127,11 @@ describe("composer-send expansion of plugin skill commands", () => {
         };
       }),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
+      getSessionMemoryExport: jest.fn(async (sessionId) => ({
+        session_id: sessionId,
+        session_revision: 1,
+        messages: [],
+      })),
       buildCharacterAgentConfig: jest.fn(async () => ({})),
       cancelStream: jest.fn(),
       respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
@@ -143,6 +149,17 @@ describe("composer-send expansion of plugin skill commands", () => {
       sourceToolkitId: PLUGIN_TOOLKIT_ID,
       expandsTo: TEMPLATE,
       availability: (ctx) => ctx.phase === "composer",
+    });
+    registerCommand({
+      name: "/selected-plan",
+      description: "Plan with the selected toolkit",
+      source: PLUGIN_SOURCE,
+      sourceLabel: "Plankit",
+      sourceToolkitId: PLUGIN_TOOLKIT_ID,
+      expandsTo: SELECTED_TEMPLATE,
+      availability: (ctx) =>
+        ctx.phase === "composer" &&
+        ctx.selectedToolkits.includes(PLUGIN_TOOLKIT_ID),
     });
   });
 
@@ -291,6 +308,69 @@ describe("composer-send expansion of plugin skill commands", () => {
     await waitFor(() => {
       expect(lastUserMessage()?.content).toBe(TEMPLATE);
     });
+  });
+
+  test("edit expansion uses the toolkit selection captured before async preflight", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+    const seeded = getChatsStore();
+    setChatSelectedToolkits(seeded.activeChatId, [PLUGIN_TOOLKIT_ID], {
+      source: "test",
+    });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "original edit target" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    act(() => {
+      streamHandlers.onDone?.({});
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
+    });
+
+    let resolveMemoryReplacement;
+    const memoryReplacement = new Promise((resolve) => {
+      resolveMemoryReplacement = resolve;
+    });
+    window.unchainAPI.replaceSessionMemory.mockImplementationOnce(
+      () => memoryReplacement,
+    );
+    const originalMessage = lastUserMessage();
+    let editPromise;
+    act(() => {
+      editPromise = lastChatMessagesProps.onEditMessage(
+        originalMessage,
+        "/selected-plan update this",
+      );
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      lastChatInputProps.onToolkitsChange([]);
+    });
+    await act(async () => {
+      resolveMemoryReplacement({ applied: true });
+      await memoryReplacement;
+      await editPromise;
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+    const [editPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
+    expect(editPayload.message).toBe(`${SELECTED_TEMPLATE}\n\nupdate this`);
+    expect(editPayload.options.toolkits).toContain(PLUGIN_TOOLKIT_ID);
   });
 
   test("an active stream routes the send to interject with the ORIGINAL unexpanded text", async () => {

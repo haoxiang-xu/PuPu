@@ -57,6 +57,13 @@ const storageBackend = createChatStorageBackend();
 const hasIpcBackend = () =>
   typeof window !== "undefined" && !!window.chatStorageAPI;
 let memoryStore = null;
+let draftClaimSequence = 0;
+const draftClaimsByChatId = new Map();
+
+const createDraftClaimId = () => {
+  draftClaimSequence += 1;
+  return `draft-claim-${Date.now()}-${draftClaimSequence}`;
+};
 
 // —— v3 lazy-messages 内存模型 ——
 // memoryStore 形状不变,但非激活 chat 的 `messages` 是 `[]` 占位(stats 仍是
@@ -1751,6 +1758,9 @@ export const updateChatDraft = (chatId, patch = {}, options = {}) => {
       return getChatsStore();
     }
   }
+  if (options.preserveDraftClaim !== true) {
+    draftClaimsByChatId.delete(chatId);
+  }
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -1764,6 +1774,67 @@ export const updateChatDraft = (chatId, patch = {}, options = {}) => {
     }),
     { ...options, type: "chat_update_draft" },
   );
+};
+
+export const claimChatDraft = (chatId, patch = {}, options = {}) => {
+  const store = updateChatDraft(chatId, patch, {
+    ...options,
+    preserveDraftClaim: true,
+  });
+  if (!chatId || !store?.chatsById?.[chatId]) {
+    draftClaimsByChatId.delete(chatId);
+    return { claimed: false, claimId: null, store };
+  }
+
+  const claimId = createDraftClaimId();
+  draftClaimsByChatId.set(chatId, claimId);
+  return { claimed: true, claimId, store };
+};
+
+export const replaceClaimedChatDraft = (
+  chatId,
+  expectedClaimId,
+  patch = {},
+  options = {},
+) => {
+  if (
+    !chatId ||
+    !expectedClaimId ||
+    draftClaimsByChatId.get(chatId) !== expectedClaimId
+  ) {
+    return { applied: false, claimId: null, store: getChatsStore() };
+  }
+
+  const store = updateChatDraft(chatId, patch, {
+    ...options,
+    preserveDraftClaim: true,
+  });
+  if (!store?.chatsById?.[chatId]) {
+    draftClaimsByChatId.delete(chatId);
+    return { applied: false, claimId: null, store };
+  }
+
+  const claimId = createDraftClaimId();
+  draftClaimsByChatId.set(chatId, claimId);
+  return { applied: true, claimId, store };
+};
+
+export const releaseChatDraftClaim = (chatId, expectedClaimId) => {
+  if (
+    !chatId ||
+    !expectedClaimId ||
+    draftClaimsByChatId.get(chatId) !== expectedClaimId
+  ) {
+    return false;
+  }
+  draftClaimsByChatId.delete(chatId);
+  return true;
+};
+
+export const releaseAllChatDraftClaims = () => {
+  const released = draftClaimsByChatId.size;
+  draftClaimsByChatId.clear();
+  return released;
 };
 
 export const setChatMessages = (chatId, messages, options = {}) => {
@@ -1800,6 +1871,27 @@ export const setChatMessages = (chatId, messages, options = {}) => {
       includeMessagesDirty: true,
     },
   );
+};
+
+export const markChatStarted = (chatId, options = {}) => {
+  const existing = readChatSnapshotUnsafe(chatId);
+  if (!existing || existing.isTransientNewChat !== true) {
+    return false;
+  }
+
+  updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      isTransientNewChat: false,
+      updatedAt: now(),
+    }),
+    {
+      ...options,
+      type: "chat_mark_started",
+    },
+  );
+  return true;
 };
 
 export const setChatGeneratedUnread = (

@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import threading
+import time
 import uuid
 from types import MethodType, SimpleNamespace
 from typing import Any, Callable
@@ -37,6 +38,293 @@ _NO_EMBED_PROVIDERS = {"anthropic"}
 # Module-level singletons â€” one Qdrant client reused across all requests
 _qdrant_clients: dict[str, "QdrantClient"] = {}
 _qdrant_clients_lock = threading.Lock()
+
+_MEMORY_REPLACE_RECEIPTS_KEY = "memory_replace_receipts"
+_MEMORY_REPLACE_RECEIPT_LIMIT = 64
+_MEMORY_REPLACE_PENDING_LEASE_MS = 10 * 60 * 1000
+_memory_replace_process_owner_id = uuid.uuid4().hex
+_memory_replace_session_locks: dict[tuple[str, str], threading.Lock] = {}
+_memory_replace_session_locks_guard = threading.Lock()
+
+
+class MemorySessionReplaceError(RuntimeError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        status_code: int = 409,
+        retryable: bool = False,
+        expected_revision: int | None = None,
+        actual_revision: int | None = None,
+    ) -> None:
+        self.code = str(code or "memory_replace_failed")
+        self.status_code = int(status_code)
+        self.retryable = bool(retryable)
+        self.expected_revision = expected_revision
+        self.actual_revision = actual_revision
+        super().__init__(message)
+
+
+def _memory_replace_session_lock(data_dir: str, session_id: str) -> threading.Lock:
+    key = (str(data_dir), str(session_id))
+    with _memory_replace_session_locks_guard:
+        lock = _memory_replace_session_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _memory_replace_session_locks[key] = lock
+        return lock
+
+
+def _normalize_memory_replace_receipt_ledger(raw: object) -> dict[str, Any]:
+    if raw is None:
+        return {"schema_version": 1, "order": [], "entries": {}}
+    if not isinstance(raw, dict):
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger must be an object",
+        )
+
+    order_raw = raw.get("order", [])
+    entries_raw = raw.get("entries", {})
+    if (
+        raw.get("schema_version") != 1
+        or not isinstance(order_raw, list)
+        or not isinstance(entries_raw, dict)
+    ):
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger is invalid",
+        )
+
+    order: list[str] = []
+    entries: dict[str, dict[str, Any]] = {}
+    for operation_id_raw in order_raw:
+        operation_id = str(operation_id_raw or "").strip()
+        record = entries_raw.get(operation_id)
+        if not operation_id or operation_id in entries or not isinstance(record, dict):
+            raise MemorySessionReplaceError(
+                "memory_replace_receipt_corruption",
+                "Session memory replacement receipt ledger is invalid",
+            )
+        payload_hash = str(record.get("payload_hash") or "").strip()
+        status = str(record.get("status") or "").strip()
+        if not payload_hash or status not in {"pending", "terminal"}:
+            raise MemorySessionReplaceError(
+                "memory_replace_receipt_corruption",
+                "Session memory replacement receipt ledger is invalid",
+            )
+        if status == "terminal" and not isinstance(record.get("response"), dict):
+            raise MemorySessionReplaceError(
+                "memory_replace_receipt_corruption",
+                "Terminal session memory replacement receipt has no response",
+            )
+        order.append(operation_id)
+        entries[operation_id] = copy.deepcopy(record)
+
+    if set(entries_raw) != set(entries):
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger order is inconsistent",
+        )
+    if len(order) > _MEMORY_REPLACE_RECEIPT_LIMIT:
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger exceeds its bound",
+        )
+    return {"schema_version": 1, "order": order, "entries": entries}
+
+
+def _memory_replace_receipt_record(
+    state: dict[str, Any],
+    operation_id: str,
+) -> dict[str, Any] | None:
+    ledger = _normalize_memory_replace_receipt_ledger(
+        state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+    )
+    record = ledger["entries"].get(operation_id)
+    return copy.deepcopy(record) if isinstance(record, dict) else None
+
+
+def _pending_memory_replace_receipt_is_live(record: dict[str, Any]) -> bool:
+    if str(record.get("owner_id") or "") == _memory_replace_process_owner_id:
+        return False
+
+    now_ms = int(time.time() * 1000)
+    lease_expires_at_ms = record.get("lease_expires_at_ms")
+    lease_is_current = not (
+        isinstance(lease_expires_at_ms, bool)
+        or not isinstance(lease_expires_at_ms, int)
+        or lease_expires_at_ms <= now_ms
+    )
+
+    owner_pid = record.get("owner_pid")
+    if isinstance(owner_pid, bool) or not isinstance(owner_pid, int) or owner_pid <= 0:
+        return lease_is_current
+    if owner_pid == os.getpid():
+        return lease_is_current
+    try:
+        os.kill(owner_pid, 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError):
+        return True
+    return True
+
+
+def _put_memory_replace_receipt(
+    state: dict[str, Any],
+    operation_id: str,
+    record: dict[str, Any],
+) -> None:
+    ledger = _normalize_memory_replace_receipt_ledger(
+        state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+    )
+    order = ledger["order"]
+    entries = ledger["entries"]
+
+    if operation_id not in entries:
+        while len(order) >= _MEMORY_REPLACE_RECEIPT_LIMIT:
+            terminal_operation_id = next(
+                (
+                    candidate
+                    for candidate in order
+                    if entries[candidate].get("status") == "terminal"
+                ),
+                "",
+            )
+            if not terminal_operation_id:
+                raise MemorySessionReplaceError(
+                    "memory_replace_in_progress",
+                    "Too many session memory replacements are still in progress",
+                    retryable=True,
+                )
+            order.remove(terminal_operation_id)
+            entries.pop(terminal_operation_id, None)
+        order.append(operation_id)
+    entries[operation_id] = copy.deepcopy(record)
+    state[_MEMORY_REPLACE_RECEIPTS_KEY] = ledger
+
+
+def _remove_matching_pending_memory_replace_receipt(
+    *,
+    store: Any,
+    session_id: str,
+    operation_id: str,
+    payload_hash: str,
+    owner_id: str,
+    attempt_id: str,
+) -> None:
+    for _ in range(16):
+        snapshot = _load_session_snapshot_compat(store, session_id)
+        state = copy.deepcopy(snapshot.state)
+        ledger = _normalize_memory_replace_receipt_ledger(
+            state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+        )
+        record = ledger["entries"].get(operation_id)
+        if (
+            not isinstance(record, dict)
+            or record.get("status") != "pending"
+            or record.get("payload_hash") != payload_hash
+            or record.get("owner_id") != owner_id
+            or record.get("attempt_id") != attempt_id
+        ):
+            return
+
+        ledger["entries"].pop(operation_id, None)
+        ledger["order"] = [
+            item for item in ledger["order"] if item != operation_id
+        ]
+        if ledger["order"]:
+            state[_MEMORY_REPLACE_RECEIPTS_KEY] = ledger
+        else:
+            state.pop(_MEMORY_REPLACE_RECEIPTS_KEY, None)
+        try:
+            _save_session_snapshot_compat(
+                store,
+                session_id,
+                state,
+                expected_revision=snapshot.revision,
+            )
+            return
+        except Exception as exc:
+            if getattr(exc, "code", "") == "session_revision_conflict":
+                continue
+            return
+
+
+def _memory_replace_payload_hash(
+    *,
+    session_id: str,
+    messages: list[dict[str, Any]],
+    options: dict[str, Any],
+    expected_cancel_attempt_id: str,
+) -> str:
+    canonical = {
+        "session_id": session_id,
+        "messages": messages,
+        "options": copy.deepcopy(options),
+        "expected_cancel_attempt_id": expected_cancel_attempt_id,
+    }
+    encoded = json.dumps(
+        canonical,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _memory_replace_messages_hash(messages: object) -> str:
+    encoded = json.dumps(
+        _sanitize_dialog_messages(messages),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _active_memory_replace_source_run_id(
+    state: dict[str, Any],
+) -> tuple[bool, str]:
+    active = False
+    source_run_ids: set[str] = set()
+
+    checkpoint = state.get("execution_checkpoint")
+    if checkpoint is not None:
+        active = True
+        if isinstance(checkpoint, dict):
+            source_run_id = str(checkpoint.get("source_run_id") or "").strip()
+            if source_run_id:
+                source_run_ids.add(source_run_id)
+
+    domain = state.get("execution_checkpoint_domain")
+    if domain is not None:
+        active = True
+        if isinstance(domain, dict):
+            owner_id = str(domain.get("owner_id") or "").strip()
+            if owner_id:
+                source_run_ids.add(owner_id)
+
+    journal = state.get("interaction_journal")
+    if isinstance(journal, dict):
+        active_id = str(journal.get("active_id") or "").strip()
+        if active_id:
+            active = True
+            entries = journal.get("entries")
+            entry = entries.get(active_id) if isinstance(entries, dict) else None
+            request = entry.get("request") if isinstance(entry, dict) else None
+            if isinstance(request, dict):
+                source_run_id = str(request.get("source_run_id") or "").strip()
+                if source_run_id:
+                    source_run_ids.add(source_run_id)
+
+    if len(source_run_ids) == 1:
+        return active, next(iter(source_run_ids))
+    return active, ""
 
 
 # ---------------------------------------------------------------------------
@@ -1528,39 +1816,26 @@ def create_memory_manager(options: dict[str, Any]):
     return manager
 
 
-def replace_short_term_session_memory(
+def _commit_short_term_session_memory_replacement(
     *,
+    store: Any,
+    data_dir: str,
     session_id: str,
-    messages: object,
-    options: dict[str, Any] | None = None,
+    retained_messages: list[dict[str, Any]],
+    raw_options: dict[str, Any],
+    replacement_cleanup: dict[str, bool],
+    previous_snapshot: Any,
+    operation_id: str = "",
+    operation_payload_hash: str = "",
 ) -> dict[str, Any]:
-    normalized_session_id = str(session_id or "").strip()
-    if not normalized_session_id:
-        raise ValueError("session_id is required")
-
-    data_dir = _normalize_data_dir(_data_dir())
-    if not data_dir:
-        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
-
     from unchain.memory import (
         QdrantVectorAdapter,
         collect_complete_turns_for_vector_index,
     )
 
-    store = _build_session_store(data_dir)
-    raw_options = options if isinstance(options, dict) else {}
-    retained_messages = _sanitize_dialog_messages(messages)
-
     from durable_interaction_host import (
         DurableInteractionHostError,
-        prepare_session_memory_replacement,
     )
-
-    replacement_cleanup = prepare_session_memory_replacement(
-        normalized_session_id
-    )
-
-    previous_snapshot = _load_session_snapshot_compat(store, normalized_session_id)
     previous_state = previous_snapshot.state
     previous_journal = previous_state.get("interaction_journal")
     if (
@@ -1580,14 +1855,14 @@ def replace_short_term_session_memory(
 
     old_tag = str(previous_state.get("vector_collection_tag", "") or "").strip()
     old_collection_name = _session_collection_name(
-        session_id=normalized_session_id,
+        session_id=session_id,
         collection_prefix=_vector_collection_prefix(old_tag),
     )
 
     new_tag = _fresh_vector_collection_tag()
     new_collection_prefix = _vector_collection_prefix(new_tag)
     new_collection_name = _session_collection_name(
-        session_id=normalized_session_id,
+        session_id=session_id,
         collection_prefix=new_collection_prefix,
     )
 
@@ -1629,7 +1904,7 @@ def replace_short_term_session_memory(
                 )
                 if texts:
                     vector_adapter.add_texts(
-                        session_id=normalized_session_id,
+                        session_id=session_id,
                         texts=texts,
                         metadatas=metadatas,
                     )
@@ -1650,10 +1925,37 @@ def replace_short_term_session_memory(
     next_state["vector_indexed_until"] = vector_indexed_until
     next_state["vector_collection_tag"] = new_tag
     next_state["vector_embedding_signature"] = vector_signature
+
+    response = {
+        "applied": True,
+        "session_id": session_id,
+        "stored_message_count": len(retained_messages),
+        "vector_applied": vector_applied,
+        "vector_indexed_count": vector_indexed_count,
+        "vector_indexed_until": vector_indexed_until,
+        "vector_fallback_reason": vector_fallback_reason,
+    }
+    if checkpoint_cleared:
+        response["execution_checkpoint_cleared"] = True
+    if replacement_cleanup.get("orphaned_interaction_repaired"):
+        response["orphaned_interaction_repaired"] = True
+    if operation_id:
+        response["operation_id"] = operation_id
+        response["replayed"] = False
+        _put_memory_replace_receipt(
+            next_state,
+            operation_id,
+            {
+                "payload_hash": operation_payload_hash,
+                "status": "terminal",
+                "response": copy.deepcopy(response),
+            },
+        )
+
     try:
         persisted_snapshot = _save_session_snapshot_compat(
             store,
-            normalized_session_id,
+            session_id,
             next_state,
             expected_revision=previous_snapshot.revision,
         )
@@ -1676,24 +1978,338 @@ def replace_short_term_session_memory(
             old_collection_name,
         )
 
-    response = {
-        "applied": True,
-        "session_id": normalized_session_id,
-        "stored_message_count": len(retained_messages),
-        "vector_applied": vector_applied,
-        "vector_indexed_count": vector_indexed_count,
-        "vector_indexed_until": vector_indexed_until,
-        "vector_fallback_reason": vector_fallback_reason,
-    }
-    if checkpoint_cleared:
-        response["execution_checkpoint_cleared"] = True
-    if replacement_cleanup.get("orphaned_interaction_repaired"):
-        response["orphaned_interaction_repaired"] = True
     if isinstance(persisted_snapshot.revision, int):
         response["session_revision"] = persisted_snapshot.revision
     if cleanup_warning:
         response["cleanup_warning"] = cleanup_warning
     return response
+
+
+def replace_short_term_session_memory(
+    *,
+    session_id: str,
+    messages: object,
+    options: dict[str, Any] | None = None,
+    operation_id: object = None,
+    expected_session_revision: object = None,
+    expected_cancel_attempt_id: object = "",
+) -> dict[str, Any]:
+    normalized_session_id = str(session_id or "").strip()
+    if not normalized_session_id:
+        raise ValueError("session_id is required")
+
+    data_dir = _normalize_data_dir(_data_dir())
+    if not data_dir:
+        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
+
+    store = _build_session_store(data_dir)
+    raw_options = options if isinstance(options, dict) else {}
+    retained_messages = _sanitize_dialog_messages(messages)
+
+    from durable_interaction_host import prepare_session_memory_replacement
+
+    if operation_id is None:
+        replacement_cleanup = prepare_session_memory_replacement(
+            normalized_session_id
+        )
+        previous_snapshot = _load_session_snapshot_compat(
+            store,
+            normalized_session_id,
+        )
+        return _commit_short_term_session_memory_replacement(
+            store=store,
+            data_dir=data_dir,
+            session_id=normalized_session_id,
+            retained_messages=retained_messages,
+            raw_options=raw_options,
+            replacement_cleanup=replacement_cleanup,
+            previous_snapshot=previous_snapshot,
+        )
+
+    if not isinstance(operation_id, str) or not operation_id.strip():
+        raise ValueError("operation_id must be a non-empty string")
+    normalized_operation_id = operation_id.strip()
+    if len(normalized_operation_id) > 512:
+        raise ValueError("operation_id must be at most 512 characters")
+
+    if (
+        expected_session_revision is not None
+        and (
+            isinstance(expected_session_revision, bool)
+            or not isinstance(expected_session_revision, int)
+            or expected_session_revision < 0
+        )
+    ):
+        raise ValueError("expected_session_revision must be a non-negative integer")
+    normalized_expected_revision = expected_session_revision
+
+    if not isinstance(expected_cancel_attempt_id, str):
+        raise ValueError("expected_cancel_attempt_id must be a string")
+    normalized_expected_cancel_attempt_id = expected_cancel_attempt_id.strip()
+
+    payload_hash = _memory_replace_payload_hash(
+        session_id=normalized_session_id,
+        messages=retained_messages,
+        options=raw_options,
+        expected_cancel_attempt_id=normalized_expected_cancel_attempt_id,
+    )
+    operation_lock = _memory_replace_session_lock(
+        data_dir,
+        normalized_session_id,
+    )
+    arrival_snapshot = _load_session_snapshot_compat(
+        store,
+        normalized_session_id,
+    )
+    if (
+        isinstance(arrival_snapshot.revision, bool)
+        or not isinstance(arrival_snapshot.revision, int)
+    ):
+        raise MemorySessionReplaceError(
+            "durable_store_unavailable",
+            "Idempotent session memory replacement requires revisioned storage",
+            status_code=503,
+            retryable=True,
+        )
+    request_baseline_revision = (
+        normalized_expected_revision
+        if normalized_expected_revision is not None
+        else arrival_snapshot.revision
+    )
+
+    with operation_lock:
+        claim_attempt_id = uuid.uuid4().hex
+        claim_snapshot = None
+        for _ in range(16):
+            snapshot = _load_session_snapshot_compat(
+                store,
+                normalized_session_id,
+            )
+            if (
+                isinstance(snapshot.revision, bool)
+                or not isinstance(snapshot.revision, int)
+            ):
+                raise MemorySessionReplaceError(
+                    "durable_store_unavailable",
+                    "Idempotent session memory replacement requires revisioned storage",
+                    status_code=503,
+                    retryable=True,
+                )
+
+            state = copy.deepcopy(snapshot.state)
+            ledger = _normalize_memory_replace_receipt_ledger(
+                state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+            )
+            existing_record = ledger["entries"].get(normalized_operation_id)
+            taking_over_pending = False
+            if isinstance(existing_record, dict):
+                if existing_record.get("payload_hash") != payload_hash:
+                    raise MemorySessionReplaceError(
+                        "memory_replace_operation_conflict",
+                        "operation_id is already bound to a different replacement payload",
+                    )
+                if existing_record.get("status") == "terminal":
+                    response = copy.deepcopy(existing_record["response"])
+                    response["operation_id"] = normalized_operation_id
+                    response["replayed"] = True
+                    response["session_revision"] = snapshot.revision
+                    return response
+                if _pending_memory_replace_receipt_is_live(existing_record):
+                    raise MemorySessionReplaceError(
+                        "memory_replace_in_progress",
+                        "The session memory replacement operation is already in progress",
+                        retryable=True,
+                    )
+                if (
+                    existing_record.get("expected_session_revision")
+                    != normalized_expected_revision
+                ):
+                    raise MemorySessionReplaceError(
+                        "memory_replace_operation_conflict",
+                        "Pending operation has a different session revision precondition",
+                    )
+                baseline_messages_hash = str(
+                    existing_record.get("baseline_messages_hash") or ""
+                ).strip()
+                if (
+                    not baseline_messages_hash
+                    or baseline_messages_hash
+                    != _memory_replace_messages_hash(state.get("messages"))
+                ):
+                    _remove_matching_pending_memory_replace_receipt(
+                        store=store,
+                        session_id=normalized_session_id,
+                        operation_id=normalized_operation_id,
+                        payload_hash=payload_hash,
+                        owner_id=str(existing_record.get("owner_id") or ""),
+                        attempt_id=str(existing_record.get("attempt_id") or ""),
+                    )
+                    raise MemorySessionReplaceError(
+                        "session_revision_conflict",
+                        "Session messages changed after the replacement operation was claimed",
+                        expected_revision=normalized_expected_revision,
+                        actual_revision=snapshot.revision,
+                    )
+                taking_over_pending = True
+
+            if (
+                not taking_over_pending
+                and snapshot.revision != request_baseline_revision
+            ):
+                raise MemorySessionReplaceError(
+                    "session_revision_conflict",
+                    "Session state changed before memory replacement",
+                    expected_revision=request_baseline_revision,
+                    actual_revision=snapshot.revision,
+                )
+
+            active, source_run_id = _active_memory_replace_source_run_id(state)
+            if active and (
+                not normalized_expected_cancel_attempt_id
+                or source_run_id != normalized_expected_cancel_attempt_id
+            ):
+                raise MemorySessionReplaceError(
+                    "session_memory_replace_conflict",
+                    "Active durable execution does not match the expected cancellation attempt",
+                    retryable=True,
+                )
+
+            for other_operation_id in list(ledger["order"]):
+                other_record = ledger["entries"].get(other_operation_id)
+                if not isinstance(other_record, dict) or other_record.get("status") != "pending":
+                    continue
+                if other_operation_id == normalized_operation_id:
+                    continue
+                raise MemorySessionReplaceError(
+                    "memory_replace_in_progress",
+                    "Another session memory replacement must finish or replay first",
+                    retryable=True,
+                )
+
+            if ledger["order"]:
+                state[_MEMORY_REPLACE_RECEIPTS_KEY] = ledger
+            else:
+                state.pop(_MEMORY_REPLACE_RECEIPTS_KEY, None)
+            now_ms = int(time.time() * 1000)
+            _put_memory_replace_receipt(
+                state,
+                normalized_operation_id,
+                {
+                    "payload_hash": payload_hash,
+                    "status": "pending",
+                    "owner_id": _memory_replace_process_owner_id,
+                    "owner_pid": os.getpid(),
+                    "attempt_id": claim_attempt_id,
+                    "expected_session_revision": normalized_expected_revision,
+                    "claim_base_revision": snapshot.revision,
+                    "baseline_messages_hash": _memory_replace_messages_hash(
+                        state.get("messages")
+                    ),
+                    "claimed_at_ms": now_ms,
+                    "lease_expires_at_ms": now_ms + _MEMORY_REPLACE_PENDING_LEASE_MS,
+                },
+            )
+            try:
+                claim_snapshot = _save_session_snapshot_compat(
+                    store,
+                    normalized_session_id,
+                    state,
+                    expected_revision=snapshot.revision,
+                )
+                break
+            except Exception as exc:
+                if getattr(exc, "code", "") == "session_revision_conflict":
+                    continue
+                if getattr(exc, "code", "") in {
+                    "active_execution_lease",
+                    "execution_lease_conflict",
+                }:
+                    raise MemorySessionReplaceError(
+                        "session_memory_replace_conflict",
+                        "Session memory replacement cannot start while execution is active",
+                        retryable=True,
+                    ) from exc
+                raise
+
+        if claim_snapshot is None:
+            raise MemorySessionReplaceError(
+                "session_revision_conflict",
+                "Session state changed while claiming memory replacement",
+                expected_revision=request_baseline_revision,
+                actual_revision=None,
+                retryable=True,
+            )
+
+        replacement_cleanup = prepare_session_memory_replacement(
+            normalized_session_id,
+            expected_cancel_attempt_id=normalized_expected_cancel_attempt_id,
+        )
+        previous_snapshot = _load_session_snapshot_compat(
+            store,
+            normalized_session_id,
+        )
+        previous_state = previous_snapshot.state
+        claim_record = _memory_replace_receipt_record(
+            previous_state,
+            normalized_operation_id,
+        )
+        if (
+            not isinstance(claim_record, dict)
+            or claim_record.get("status") != "pending"
+            or claim_record.get("payload_hash") != payload_hash
+            or claim_record.get("owner_id") != _memory_replace_process_owner_id
+            or claim_record.get("attempt_id") != claim_attempt_id
+        ):
+            raise MemorySessionReplaceError(
+                "memory_replace_operation_conflict",
+                "Session memory replacement claim changed before commit",
+                retryable=True,
+            )
+
+        baseline_messages_hash = str(
+            claim_record.get("baseline_messages_hash") or ""
+        ).strip()
+        if (
+            not baseline_messages_hash
+            or baseline_messages_hash
+            != _memory_replace_messages_hash(previous_state.get("messages"))
+        ):
+            _remove_matching_pending_memory_replace_receipt(
+                store=store,
+                session_id=normalized_session_id,
+                operation_id=normalized_operation_id,
+                payload_hash=payload_hash,
+                owner_id=_memory_replace_process_owner_id,
+                attempt_id=claim_attempt_id,
+            )
+            raise MemorySessionReplaceError(
+                "session_revision_conflict",
+                "Session messages changed while preparing memory replacement",
+                expected_revision=claim_record.get("claim_base_revision"),
+                actual_revision=previous_snapshot.revision,
+            )
+
+        active, _source_run_id = _active_memory_replace_source_run_id(
+            previous_state
+        )
+        if active:
+            raise MemorySessionReplaceError(
+                "session_memory_replace_conflict",
+                "Durable execution could not be terminalized before memory replacement",
+                retryable=True,
+            )
+
+        return _commit_short_term_session_memory_replacement(
+            store=store,
+            data_dir=data_dir,
+            session_id=normalized_session_id,
+            retained_messages=retained_messages,
+            raw_options=raw_options,
+            replacement_cleanup=replacement_cleanup,
+            previous_snapshot=previous_snapshot,
+            operation_id=normalized_operation_id,
+            operation_payload_hash=payload_hash,
+        )
 
 
 def delete_short_term_session_memory(

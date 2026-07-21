@@ -593,6 +593,7 @@ class CharacterRouteTests(unittest.TestCase):
         self.assertEqual(export_response.get_json(), {
             "session_id": session_id,
             "messages": [{"role": "user", "content": "hello"}],
+            "session_revision": 0,
         })
 
 

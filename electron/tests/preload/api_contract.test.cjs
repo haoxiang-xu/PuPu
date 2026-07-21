@@ -76,6 +76,7 @@ describe("preload API contract", () => {
       "checkMcpToolkitHealth",
       "configureMcpToolkit",
       "startMcpOAuth",
+      "cancelMcpOAuth",
       "getMcpOAuthStatus",
       "disconnectMcpOAuth",
       "listMcpOAuthApps",
@@ -318,10 +319,16 @@ describe("preload API contract", () => {
       { entryId: "productivity.notion-remote" },
     );
 
-    exposed.unchainAPI.getMcpOAuthStatus("productivity.notion-remote");
+    exposed.unchainAPI.cancelMcpOAuth("state-123");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH,
+      { state: "state-123" },
+    );
+
+    exposed.unchainAPI.getMcpOAuthStatus("state-123");
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
-      { entryId: "productivity.notion-remote" },
+      { state: "state-123" },
     );
 
     exposed.unchainAPI.disconnectMcpOAuth("mcp.productivity.notion-remote");
