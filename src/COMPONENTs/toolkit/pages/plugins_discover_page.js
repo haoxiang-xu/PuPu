@@ -14,7 +14,7 @@ import PluginInstallPill from "../components/plugin_install_pill";
 /* Resolves a curated pluginId against the two sources of truth a plugin can
    live in: the connected-runtime catalog (built-in/local plugins — e.g. the
    "plan" skill, always already available so it renders OPEN) and the MCP
-   store registry (installable plugins — e.g. "mcp.productivity.notion-remote",
+   store registry (installable plugins referenced by their registry toolkitId,
    renders GET until installed). Store entries win the lookup on a toolkitId
    collision (there shouldn't be one — store toolkitIds are namespaced
    "mcp.*"), and an id present in neither is skipped silently per the plan's
@@ -30,16 +30,16 @@ const resolvePluginId = (pluginId, storeById, catalogById) => {
 const iconFor = (resolved) =>
   resolved.kind === "store" ? resolveMcpIcon(resolved.entry) : resolved.entry.toolkitIcon;
 
-/* CollectionRow — a Collections-section entry: 26px stacked icons (overlap
-   ring color from var(--pupu-background), so it matches whatever shell it
-   sits on in either theme), a name + "· N plugins" tagline built from the
-   curated blurb, and a "GET ALL" pill driven by the page's handleGetAll.
-   Kept local to this file (not extracted like the aurora/orb cards) — every
-   literal here is either alpha<1 (guard-exempt) or a --pupu-* var, per the
-   plan's "keep page-level styles var()-based" instruction. */
-const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll }) => {
+/* CollectionRow — a Collections-section entry: 32px stacked icons on an
+   OPAQUE ring surface (CEO 2026-07-21: bigger icons, no translucency — the
+   solid values match what the old alpha tints resolved to on the modal
+   ground), a name + "· N plugins" tagline, a "GET ALL" pill, and — the row
+   itself is CLICKABLE now — it toggles an inline member list underneath
+   (see CollectionMembers) so a collection can actually be explored, not
+   just batch-installed. */
+const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll, expanded, onToggle }) => {
   const taglineColor = isDark ? "rgba(var(--pupu-text-rgb),0.42)" : "rgba(var(--pupu-text-rgb),0.45)";
-  const iconRingBg = isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.05)";
+  const iconRingBg = isDark ? "#26262c" : "#ececee";
   const chipColor = isDark ? "#9aa8ff" : "#2563eb";
   const pillBg = "rgba(124,140,248,0.12)";
 
@@ -50,17 +50,20 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll 
   return (
     <div
       data-testid={`collection-${collection.id}`}
-      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}
+      onClick={onToggle}
+      role="button"
+      aria-expanded={expanded}
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", cursor: "pointer" }}
     >
       <div style={{ display: "flex", flexShrink: 0 }}>
         {collection.resolved.slice(0, 3).map((resolved, idx) => (
           <span
             key={`${collection.id}-icon-${resolved.entry.toolkitId || idx}`}
             style={{
-              width: 26,
-              height: 26,
-              borderRadius: 8,
-              marginRight: -7,
+              width: 32,
+              height: 32,
+              borderRadius: 9,
+              marginRight: -8,
               boxShadow: "0 0 0 2px var(--pupu-background)",
               background: iconRingBg,
               display: "flex",
@@ -71,9 +74,9 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll 
             <ToolkitIconFrame
               icon={iconFor(resolved)}
               isDark={isDark}
-              size={26}
-              iconSize={13}
-              borderRadius={8}
+              size={32}
+              iconSize={16}
+              borderRadius={9}
               style={{ background: "transparent" }}
             />
           </span>
@@ -307,6 +310,72 @@ const PluginsDiscoverPage = ({
     </div>
   );
 
+  /* Inline collection expansion (CEO 2026-07-21: collections must be
+     enterable). One open at a time; member rows open their detail on click
+     and carry the same install pill the essentials grid uses. */
+  const [expandedCollectionId, setExpandedCollectionId] = useState(null);
+
+  const renderCollectionMember = (resolved) => {
+    const presentation = toPluginPresentation(resolved.entry);
+    return (
+      <div
+        key={`member-${resolved.entry.toolkitId}`}
+        onClick={() => openDetailFor(resolved)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 11,
+          padding: "8px 0 8px 44px",
+          cursor: "pointer",
+        }}
+      >
+        <ToolkitIconFrame icon={iconFor(resolved)} isDark={isDark} size={32} iconSize={16} borderRadius={9} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: textColor,
+              fontFamily,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {presentation.name}
+          </div>
+          <div
+            style={{
+              fontSize: 10.5,
+              color: isDark ? "rgba(var(--pupu-text-rgb),0.4)" : "rgba(var(--pupu-text-rgb),0.45)",
+              fontFamily,
+              marginTop: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {presentation.tagline}
+          </div>
+        </div>
+        <div onClick={(event) => event.stopPropagation()} style={{ flexShrink: 0 }}>
+          <PluginInstallPill
+            entry={resolved.entry}
+            isDark={isDark}
+            installedIds={installedIds}
+            forceInstalled={resolved.kind === "catalog"}
+            installing={resolved.kind === "store" ? installingIds?.has(resolved.entry.id) : false}
+            onInstall={onInstall}
+            onOAuthConnect={onOAuthConnect}
+            onCancelOAuth={onCancelOAuth}
+            onOpenDetail={() => openDetailFor(resolved)}
+            t={t}
+          />
+        </div>
+      </div>
+    );
+  };
+
   const renderEssentialCard = ({ id, resolved }) => {
     const presentation = toPluginPresentation(resolved.entry);
     return (
@@ -393,15 +462,22 @@ const PluginsDiscoverPage = ({
             {sectionHeader(t("toolkit.section_collections"))}
             <div style={{ borderTop: `1px solid ${collectionsBorder}` }}>
               {visibleCollections.map((collection) => (
-                <CollectionRow
-                  key={collection.id}
-                  collection={collection}
-                  isDark={isDark}
-                  fontFamily={fontFamily}
-                  textColor={textColor}
-                  t={t}
-                  onGetAll={handleGetAll}
-                />
+                <div key={collection.id}>
+                  <CollectionRow
+                    collection={collection}
+                    isDark={isDark}
+                    fontFamily={fontFamily}
+                    textColor={textColor}
+                    t={t}
+                    onGetAll={handleGetAll}
+                    expanded={expandedCollectionId === collection.id}
+                    onToggle={() =>
+                      setExpandedCollectionId((prev) => (prev === collection.id ? null : collection.id))
+                    }
+                  />
+                  {expandedCollectionId === collection.id &&
+                    collection.resolved.map(renderCollectionMember)}
+                </div>
               ))}
             </div>
           </>
