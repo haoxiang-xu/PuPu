@@ -31,6 +31,45 @@ _BIG_B64 = base64.b64encode(_RAW_BYTES).decode("ascii")
 _USER_ATTACHMENT_B64 = base64.b64encode(b"durable-user-attachment").decode("ascii")
 
 
+def _state_with_typed_computer_actions():
+    return {
+        "messages": [
+            {"role": "user", "content": "user text stays durable"},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "anthropic-call",
+                        "name": "computer",
+                        "input": {"action": "type", "text": "ANTHROPIC-SECRET"},
+                    },
+                    {
+                        "type": "computer_call",
+                        "call_id": "openai-call",
+                        "actions": [{"type": "type", "text": "OPENAI-SECRET"}],
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "other-call",
+                        "name": "notes",
+                        "input": {"action": "type", "text": "OTHER-TOOL-TEXT"},
+                    },
+                ],
+            },
+        ],
+        "execution_checkpoint": {
+            "pending": {
+                "type": "tool_call",
+                "tool_name": "computer",
+                "arguments": {
+                    "actions": [{"type": "type", "text": "CHECKPOINT-SECRET"}]
+                },
+            }
+        },
+    }
+
+
 def _image_block(b64=_BIG_B64, w=1512, h=982):
     return {
         "type": "image",
@@ -193,6 +232,17 @@ class DiskRedactionTests(_StoreHarness):
         self.assertIn("media_id", text)
         # Non-image content survives.
         self.assertIn("screenshot 1512x982 px", text)
+
+    def test_computer_typed_text_is_private_but_unrelated_text_is_unchanged(self):
+        self.store.save("sess-typed", _state_with_typed_computer_actions())
+        text = self._raw_disk_text("sess-typed")
+
+        for secret in ("ANTHROPIC-SECRET", "OPENAI-SECRET", "CHECKPOINT-SECRET"):
+            self.assertNotIn(secret, text)
+        self.assertIn("text_omitted", text)
+        self.assertIn("text_media_id", text)
+        self.assertIn("OTHER-TOOL-TEXT", text)
+        self.assertIn("user text stays durable", text)
 
     def test_save_variants_all_strip(self):
         for method, args in (
@@ -567,6 +617,24 @@ class DiskRedactionTests(_StoreHarness):
 
 
 class RoundTripTests(_StoreHarness):
+    def test_typed_text_rehydrates_within_ttl(self):
+        self.store.save("sess-typed-rt", _state_with_typed_computer_actions())
+        loaded = self.store.load("sess-typed-rt")
+        rendered = repr(loaded)
+        self.assertIn("ANTHROPIC-SECRET", rendered)
+        self.assertIn("OPENAI-SECRET", rendered)
+        self.assertIn("CHECKPOINT-SECRET", rendered)
+        self.assertNotIn("text_omitted", rendered)
+
+    def test_expired_typed_text_keeps_fail_closed_marker(self):
+        self.store.save("sess-typed-exp", _state_with_typed_computer_actions())
+        shutil.rmtree(Path(self.tmp) / "tool_media", ignore_errors=True)
+        loaded = self.store.load("sess-typed-exp")
+        rendered = repr(loaded)
+        self.assertNotIn("ANTHROPIC-SECRET", rendered)
+        self.assertIn("text_omitted", rendered)
+        self.assertIn("'text': ''", rendered)
+
     def test_load_rehydrates_within_ttl(self):
         self.store.save("sess-rt", _state_with_screenshots())
         loaded = self.store.load("sess-rt")

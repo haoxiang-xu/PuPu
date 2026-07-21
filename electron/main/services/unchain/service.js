@@ -21,6 +21,7 @@ const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_COMPUTER_USE_STATUS_ENDPOINT = "/computer-use/status";
 const UNCHAIN_COMPUTER_USE_CONFIG_ENDPOINT = "/computer-use/config";
+const UNCHAIN_COMPUTER_USE_PROBE_ENDPOINT = "/computer-use/probe";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
   "/models/custom-providers/test";
@@ -33,6 +34,15 @@ const COMPUTER_USE_PRIVACY_DEEP_LINKS = Object.freeze({
   accessibility:
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
 });
+const COMPUTER_USE_BUILD_FEATURE_KEY = "enable_computer_use";
+const COMPUTER_USE_RELEASE_ENV_KEY = "PUPU_FEATURE_COMPUTER_USE";
+const FEATURE_FLAG_TRUE_VALUES = new Set([
+  "1",
+  "true",
+  "yes",
+  "on",
+  "enabled",
+]);
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 const UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
 const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
@@ -182,6 +192,34 @@ const validateMisoRuntimeContract = (healthPayload) => {
   return contract;
 };
 
+const resolveComputerUseReleaseFlag = ({ app, fs, path }) => {
+  const explicit = process.env[COMPUTER_USE_RELEASE_ENV_KEY];
+  if (typeof explicit === "string" && explicit.trim()) {
+    return FEATURE_FLAG_TRUE_VALUES.has(explicit.trim().toLowerCase());
+  }
+
+  if (typeof fs?.readFileSync !== "function") {
+    return false;
+  }
+
+  const snapshotPath = app.isPackaged
+    ? path.join(app.getAppPath(), "build", "build_feature_flags.json")
+    : path.join(
+        app.getAppPath(),
+        ".local",
+        "build_feature_flags.snapshot.json",
+      );
+  try {
+    if (typeof fs.existsSync === "function" && !fs.existsSync(snapshotPath)) {
+      return false;
+    }
+    const payload = JSON.parse(fs.readFileSync(snapshotPath, "utf-8"));
+    return payload?.[COMPUTER_USE_BUILD_FEATURE_KEY] === true;
+  } catch {
+    return false;
+  }
+};
+
 const createUnchainService = ({
   app,
   fs,
@@ -190,6 +228,7 @@ const createUnchainService = ({
   spawnSync,
   crypto,
   net,
+  streamFetchImpl = (...args) => globalThis.fetch(...args),
   shell = {},
   webContents,
   runtimeService,
@@ -210,6 +249,7 @@ const createUnchainService = ({
   // = last desired state, re-pushed after every ready transition so a sidecar
   // crash-restart converges back to the user's choice with no renderer involved.
   let lastComputerUseDesired = null;
+  let lastComputerUseLocalBetaDesired = null;
 
   const unchainActiveStreams = new Map();
 
@@ -771,8 +811,11 @@ const createUnchainService = ({
 
   const getComputerUseDisabledPayload = (reason = "") => ({
     enabled: false,
+    feature_available: false,
+    local_beta_enabled: false,
     reason,
     capabilities: null,
+    active: null,
   });
 
   const getComputerUseStatusPayload = async () => {
@@ -823,7 +866,10 @@ const createUnchainService = ({
   // asserted by the caller (setComputerUseEnabled) or that we are inside the
   // post-ready re-push path. Always sends the auth header; a missing token is a
   // structured error rather than an unauthenticated write.
-  const pushComputerUseConfig = async (enabled) => {
+  const pushComputerUseConfig = async (
+    enabled = undefined,
+    localBetaEnabled = undefined,
+  ) => {
     if (!unchainAuthToken) {
       const error = new Error(
         "Computer use config request failed: missing auth token",
@@ -840,14 +886,24 @@ const createUnchainService = ({
           "Content-Type": "application/json",
           "x-unchain-auth": unchainAuthToken,
         },
-        body: JSON.stringify({ enabled }),
+        body: JSON.stringify({
+          ...(typeof enabled === "boolean" ? { enabled } : {}),
+          ...(typeof localBetaEnabled === "boolean"
+            ? { local_beta_enabled: localBetaEnabled }
+            : {}),
+        }),
       },
     );
 
     return readJsonResponse(
       response,
       "Computer use config request failed",
-      { enabled },
+      {
+        ...(typeof enabled === "boolean" ? { enabled } : {}),
+        ...(typeof localBetaEnabled === "boolean"
+          ? { local_beta_enabled: localBetaEnabled }
+          : {}),
+      },
       "Invalid computer use config response",
     );
   };
@@ -870,16 +926,65 @@ const createUnchainService = ({
     return { ok: true, ...result };
   };
 
+  const setComputerUseLocalBetaEnabled = async (enabled) => {
+    if (typeof enabled !== "boolean") {
+      const error = new Error(
+        "setComputerUseLocalBetaEnabled requires a strict boolean enabled flag",
+      );
+      error.code = "invalid_argument";
+      throw error;
+    }
+
+    lastComputerUseLocalBetaDesired = enabled;
+    ensureMisoReady();
+    const result = await pushComputerUseConfig(undefined, enabled);
+    return { ok: true, ...result };
+  };
+
+  const probeComputerUseModel = async (model, force = false) => {
+    if (typeof model !== "string" || !model.trim() || typeof force !== "boolean") {
+      const error = new Error("probeComputerUseModel requires a model and boolean force flag");
+      error.code = "invalid_argument";
+      throw error;
+    }
+    ensureMisoReady();
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_COMPUTER_USE_PROBE_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify({ model: model.trim(), force }),
+      },
+    );
+    return readJsonResponse(
+      response,
+      "Computer use model probe failed",
+      {},
+      "Invalid computer use probe response",
+    );
+  };
+
   // Fire-and-forget re-push of the cached desired state after a ready
   // transition. Never throws into the startup path: on failure the sidecar
   // defaults fail-closed (off) plus the spawn env carries the same value, so a
   // dropped re-push degrades safely rather than breaking boot.
   const resyncComputerUseConfig = async () => {
-    if (lastComputerUseDesired === null) {
+    if (
+      lastComputerUseDesired === null &&
+      lastComputerUseLocalBetaDesired === null
+    ) {
       return;
     }
     try {
-      await pushComputerUseConfig(lastComputerUseDesired);
+      await pushComputerUseConfig(
+        lastComputerUseDesired === null ? undefined : lastComputerUseDesired,
+        lastComputerUseLocalBetaDesired === null
+          ? undefined
+          : lastComputerUseLocalBetaDesired,
+      );
     } catch (error) {
       emitMisoRuntimeLog(
         "stderr",
@@ -2568,6 +2673,11 @@ const createUnchainService = ({
       const devUnchainSourcePath = app.isPackaged
         ? null
         : resolveDevUnchainSourcePath();
+      const computerUseReleaseEnabled = resolveComputerUseReleaseFlag({
+        app,
+        fs,
+        path,
+      });
       unchainProcess = spawn(entrypoint.command, entrypoint.args, {
         detached: false,
         cwd: entrypoint.cwd,
@@ -2585,6 +2695,11 @@ const createUnchainService = ({
           PYTHONIOENCODING: process.env.PYTHONIOENCODING || "utf-8",
           PYTHONUTF8: process.env.PYTHONUTF8 || "1",
           ...(devUnchainSourcePath ? { UNCHAIN_SOURCE_PATH: devUnchainSourcePath } : {}),
+          // Hard release/build ceiling. Unlike PUPU_COMPUTER_USE below, this
+          // value never comes from the renderer's user toggle. Packaged apps
+          // read the build artifact; development may use the .local build
+          // snapshot or an explicit process env override.
+          [COMPUTER_USE_RELEASE_ENV_KEY]: computerUseReleaseEnabled ? "1" : "0",
           // Belt-and-braces for the desired computer-use flag. Set AFTER the
           // process.env spread so an explicit user choice wins over any dev
           // PUPU_COMPUTER_USE in the ambient env. "0" is not in the sidecar's
@@ -2592,6 +2707,12 @@ const createUnchainService = ({
           // renderer has never expressed a preference (null cache).
           ...(lastComputerUseDesired !== null
             ? { PUPU_COMPUTER_USE: lastComputerUseDesired ? "1" : "0" }
+            : {}),
+          ...(lastComputerUseLocalBetaDesired !== null
+            ? {
+                PUPU_COMPUTER_USE_LOCAL_BETA:
+                  lastComputerUseLocalBetaDesired ? "1" : "0",
+              }
             : {}),
         },
         stdio: ["ignore", "pipe", "pipe"],
@@ -2935,7 +3056,9 @@ const createUnchainService = ({
     });
 
     try {
-      const response = await fetch(
+      // Node's global fetch (Undici) terminates quiet response bodies after five
+      // minutes. The Electron entrypoint injects Chromium's fetch for SSE only.
+      const response = await streamFetchImpl(
         `http://${UNCHAIN_HOST}:${unchainPort}${endpoint}`,
         {
           method: "POST",
@@ -3148,6 +3271,8 @@ const createUnchainService = ({
     getMisoStatusPayload,
     getComputerUseStatusPayload,
     setComputerUseEnabled,
+    setComputerUseLocalBetaEnabled,
+    probeComputerUseModel,
     openComputerUsePrivacySettings,
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,

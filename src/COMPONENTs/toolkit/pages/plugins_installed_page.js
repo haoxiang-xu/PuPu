@@ -141,31 +141,6 @@ const PluginsInstalledPage = ({
     });
   }, [rows, search]);
 
-  /* Synthetic builtin "Computer" row (S1) — NOT a catalog toolkit (the sidecar
-     never emits it from the tool-modal catalog; it rides the chat payload as a
-     synthetic id, same as the attach-panel Computer entry). It is always shown
-     in the Built-in section, participates in the page search (name/tagline),
-     and its right slot is a READ-ONLY status pill — the on/off toggle and the
-     consent gate live only in its settings detail page. Row click opens that
-     detail via onOpenPluginSettings, not the catalog-detail onOpenDetail. */
-  const computerRow = useMemo(
-    () => ({
-      toolkitId: BUILTIN_COMPUTER_TOOLKIT_ID,
-      name: t("toolkit.builtin_computer_name"),
-      tagline: t("toolkit.builtin_computer_tagline"),
-      icon: "mouse",
-    }),
-    [t],
-  );
-  const computerVisible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      computerRow.name.toLowerCase().includes(q) ||
-      computerRow.tagline.toLowerCase().includes(q)
-    );
-  }, [search, computerRow]);
-
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const tertiaryText = isDark ? "rgba(var(--pupu-text-rgb),0.38)" : "rgba(var(--pupu-text-rgb),0.35)";
   const dividerColor = "rgba(var(--pupu-text-rgb),0.06)";
@@ -240,52 +215,45 @@ const PluginsInstalledPage = ({
     </div>
   );
 
-  /* No empty-catalog short-circuit any more: the synthetic Computer row is
-     always present in the Built-in section, so the Installed screen is never
-     truly empty. An empty real catalog just renders the header + a Built-in
-     section containing only Computer + the footer. (The connectivity-error
-     placeholder above still stands — that's a distinct sidecar-down state.) */
-
-  const renderComputerRow = () => (
-    <PluginListRow
-      key={computerRow.toolkitId}
-      icon={computerRow.icon}
-      isDark={isDark}
-      name={computerRow.name}
-      description={computerRow.tagline}
-      onOpenDetail={() => onOpenPluginSettings?.(computerRow.toolkitId)}
-      testId={`installed-row-${computerRow.toolkitId}`}
-    >
-      <ComputerStatusPill isDark={isDark} />
-    </PluginListRow>
-  );
-
-  const renderRow = ({ toolkit: tk, presentation }) => (
-    <PluginListRow
-      key={tk.toolkitId}
-      icon={tk.toolkitIcon}
-      isDark={isDark}
-      name={presentation.name}
-      command={presentation.commands[0]?.name}
-      description={presentation.tagline}
-      fallbackColor={presentation.sourceBadge?.color}
-      onOpenDetail={() => onOpenDetail?.({ ...presentation, raw: tk })}
-      testId={`installed-row-${tk.toolkitId}`}
-    >
-      <Tooltip
-        label={t("toolkit.auto_enable_card")}
-        position="top"
-        style={{ whiteSpace: "nowrap" }}
-        wrapper_style={{ flexShrink: 0 }}
+  const renderRow = ({ toolkit: tk, presentation }) => {
+    const isComputer =
+      tk.toolkitId === BUILTIN_COMPUTER_TOOLKIT_ID ||
+      tk.settingsKind === "computer_use";
+    return (
+      <PluginListRow
+        key={tk.toolkitId}
+        icon={tk.toolkitIcon}
+        isDark={isDark}
+        name={presentation.name}
+        command={presentation.commands[0]?.name}
+        description={presentation.tagline}
+        fallbackColor={presentation.sourceBadge?.color}
+        onOpenDetail={() =>
+          isComputer
+            ? onOpenPluginSettings?.(tk.toolkitId)
+            : onOpenDetail?.({ ...presentation, raw: tk })
+        }
+        testId={`installed-row-${tk.toolkitId}`}
       >
-        <SemiSwitch
-          on={Boolean(tk.defaultEnabled)}
-          set_on={(val) => handleToggleEnabled(tk.toolkitId, val)}
-          style={{ width: 56, height: 28 }}
-        />
-      </Tooltip>
-    </PluginListRow>
-  );
+        {isComputer ? (
+          <ComputerStatusPill isDark={isDark} />
+        ) : (
+          <Tooltip
+            label={t("toolkit.auto_enable_card")}
+            position="top"
+            style={{ whiteSpace: "nowrap" }}
+            wrapper_style={{ flexShrink: 0 }}
+          >
+            <SemiSwitch
+              on={Boolean(tk.defaultEnabled)}
+              set_on={(val) => handleToggleEnabled(tk.toolkitId, val)}
+              style={{ width: 56, height: 28 }}
+            />
+          </Tooltip>
+        )}
+      </PluginListRow>
+    );
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -326,15 +294,14 @@ const PluginsInstalledPage = ({
 
       {/* ── Scrollable body — Built-in / MCP SettingsSections + footer. ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 26px 26px" }}>
-        {filteredRows.length === 0 && !computerVisible && (
+        {filteredRows.length === 0 && (
           <div style={{ fontSize: 12, fontFamily, color: tertiaryText, padding: "16px 0" }}>
             {t("toolkit.installed_no_matches")}
           </div>
         )}
 
-        {(computerVisible || builtinRows.length > 0) && (
+        {builtinRows.length > 0 && (
           <SettingsSection title={t("toolkit.source_builtin")}>
-            {computerVisible && renderComputerRow()}
             {builtinRows.map(renderRow)}
           </SettingsSection>
         )}

@@ -40,12 +40,14 @@ describe("feature_flags service", () => {
       enable_app_update_settings: true,
       enable_theme_color_customization: false,
       enable_custom_model_providers: false,
+      enable_computer_use: false,
     });
     expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
     expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(true);
     expect(isFeatureFlagEnabled("enable_theme_color_customization")).toBe(false);
     expect(isFeatureFlagEnabled("enable_custom_model_providers")).toBe(false);
+    expect(isFeatureFlagEnabled("enable_computer_use")).toBe(false);
   });
 
   test("uses build feature flags as a production gate", () => {
@@ -67,6 +69,7 @@ describe("feature_flags service", () => {
         enable_app_update_settings: false,
         enable_theme_color_customization: true,
         enable_custom_model_providers: true,
+        enable_computer_use: true,
       }),
     });
 
@@ -76,6 +79,7 @@ describe("feature_flags service", () => {
       enable_app_update_settings: false,
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
+      enable_computer_use: true,
     });
   });
 
@@ -98,6 +102,7 @@ describe("feature_flags service", () => {
         enable_app_update_settings: false,
         enable_theme_color_customization: true,
         enable_custom_model_providers: true,
+        enable_computer_use: true,
       }),
     ).toEqual({
       enable_user_access_to_agents: true,
@@ -105,6 +110,7 @@ describe("feature_flags service", () => {
       enable_app_update_settings: false,
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
+      enable_computer_use: true,
     });
 
     expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
@@ -117,6 +123,7 @@ describe("feature_flags service", () => {
         enable_app_update_settings: false,
         enable_theme_color_customization: true,
         enable_custom_model_providers: true,
+        enable_computer_use: true,
       },
     });
   });
@@ -132,6 +139,7 @@ describe("feature_flags service", () => {
       enable_app_update_settings: false,
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
+      enable_computer_use: true,
     });
 
     expect(listener).toHaveBeenCalledWith({
@@ -140,6 +148,7 @@ describe("feature_flags service", () => {
       enable_app_update_settings: false,
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
+      enable_computer_use: true,
     });
 
     unsubscribe();

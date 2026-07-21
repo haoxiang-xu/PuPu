@@ -35,7 +35,12 @@ class MemoryFactoryTests(unittest.TestCase):
             side_effect=[enabled_store, disabled_store],
         ) as build_store:
             with mock.patch.dict(
-                os.environ, {"PUPU_COMPUTER_USE": "true"}, clear=False
+                os.environ,
+                {
+                    "PUPU_FEATURE_COMPUTER_USE": "true",
+                    "PUPU_COMPUTER_USE": "true",
+                },
+                clear=False,
             ):
                 self.assertIs(memory_factory._build_session_store(data_dir), enabled_store)
             with mock.patch.dict(

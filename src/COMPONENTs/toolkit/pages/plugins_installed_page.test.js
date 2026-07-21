@@ -75,6 +75,16 @@ jest.mock("../components/computer_status_pill", () => ({
 
 const CATALOG = [
   {
+    toolkitId: "builtin.computer",
+    toolkitName: "Computer",
+    toolkitDescription: "See the screen and control mouse and keyboard input.",
+    source: "builtin",
+    settingsKind: "computer_use",
+    capabilityRequirements: ["computer_use"],
+    tools: [{ name: "computer", title: "Computer" }],
+    skills: [],
+  },
+  {
     toolkitId: "plan",
     toolkitName: "Plan",
     toolkitDescription:
@@ -271,12 +281,8 @@ describe("PluginsInstalledPage", () => {
     });
   });
 
-  /* S1: the builtin Computer plugin is a synthetic row that is always shown in
-     the Built-in section (not part of the catalog), carries a read-only status
-     pill (no auto-enable switch), and opens its settings detail — not the
-     catalog detail — on click. */
-  describe("PluginsInstalledPage — synthetic Computer row", () => {
-    test("always renders the Computer row with its read-only status pill", async () => {
+  describe("PluginsInstalledPage — catalog-native Computer row", () => {
+    test("renders the catalog Computer row with its read-only status pill", async () => {
       await renderPage();
 
       expect(screen.getByText("Computer")).toBeInTheDocument();
@@ -302,11 +308,11 @@ describe("PluginsInstalledPage", () => {
       expect(onOpenDetail).not.toHaveBeenCalled();
     });
 
-    test("is shown even when the real catalog is empty", async () => {
+    test("does not synthesize Computer when an older/empty catalog omits it", async () => {
       api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
       await renderPage();
 
-      expect(screen.getByText("Computer")).toBeInTheDocument();
+      expect(screen.queryByText("Computer")).not.toBeInTheDocument();
     });
 
     test("participates in search — hidden when the query doesn't match", async () => {

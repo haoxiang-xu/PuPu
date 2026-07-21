@@ -26,7 +26,14 @@ class _FakeComputerToolkit:
 
 
 def _with_flag(value):
-    return mock.patch.dict("os.environ", {"PUPU_COMPUTER_USE": value}, clear=False)
+    return mock.patch.dict(
+        "os.environ",
+        {
+            "PUPU_FEATURE_COMPUTER_USE": "1",
+            "PUPU_COMPUTER_USE": value,
+        },
+        clear=False,
+    )
 
 
 _COMPUTER_TOOLKIT_META = {
@@ -219,6 +226,43 @@ class RedactionChokePointTests(unittest.TestCase):
             event, _COMPUTER_TOOLKIT_META
         )
         self.assertNotIn("QUJDREVGRw==", json.dumps(enriched))
+
+    def test_typed_text_is_redacted_before_sse_enrichment(self):
+        event = {
+            "type": "tool_call",
+            "tool_name": "computer",
+            "arguments": {
+                "actions": [
+                    {"type": "type", "text": "TOP-SECRET-VALUE"},
+                    {"type": "click", "x": 1, "y": 2},
+                ]
+            },
+        }
+
+        enriched = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
+            event, _COMPUTER_TOOLKIT_META
+        )
+
+        self.assertNotIn("TOP-SECRET-VALUE", repr(enriched))
+        self.assertEqual(
+            enriched["arguments"]["actions"][0]["text"],
+            "[redacted 16 chars]",
+        )
+        self.assertEqual(event["arguments"]["actions"][0]["text"], "TOP-SECRET-VALUE")
+
+    def test_confirmation_payload_redacts_typed_text_before_sse(self):
+        request = {
+            "tool_name": "computer",
+            "call_id": "call-1",
+            "arguments": {"action": "type", "text": "CONFIRM-SECRET"},
+            "description": "Model wants to type 14 characters.",
+        }
+
+        payload = unchain_adapter._build_tool_confirmation_request_payload(request)
+
+        self.assertNotIn("CONFIRM-SECRET", repr(payload))
+        self.assertEqual(payload["arguments"]["text"], "[redacted 14 chars]")
+        self.assertEqual(request["arguments"]["text"], "CONFIRM-SECRET")
 
     def test_unmounted_image_tool_result_is_unchanged(self):
         event = self._image_result_event()

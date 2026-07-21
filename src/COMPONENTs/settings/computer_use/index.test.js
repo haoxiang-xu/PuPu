@@ -62,6 +62,9 @@ const macCapabilities = (overrides = {}) => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  delete runtimeBridge.isComputerUseLocalBetaAvailable;
+  delete runtimeBridge.setComputerUseLocalBetaEnabled;
+  delete runtimeBridge.probeComputerUseModel;
   runtimeBridge.isComputerUseStatusAvailable.mockReturnValue(true);
   runtimeBridge.isComputerUsePrivacySettingsAvailable.mockReturnValue(true);
 });
@@ -118,6 +121,23 @@ describe("ComputerUseSettings", () => {
     expect(runtimeBridge.getComputerUseStatus).not.toHaveBeenCalled();
   });
 
+  test("shows a non-interactive release-gate state when the feature is unavailable", async () => {
+    runtimeBridge.isComputerUseEnableAvailable.mockReturnValue(true);
+    runtimeBridge.getComputerUseStatus.mockResolvedValue({
+      featureAvailable: false,
+      enabled: false,
+      reason: "feature_flag_disabled",
+      capabilities: null,
+    });
+
+    withProviders(<ComputerUseSettings />);
+
+    expect(
+      await screen.findByText("Not included in this build"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("computer-use-enable-toggle")).toBeNull();
+  });
+
   test("renders macOS permission badges and opens the right deep link", async () => {
     runtimeBridge.getComputerUseStatus.mockResolvedValue(macCapabilities());
 
@@ -169,5 +189,64 @@ describe("ComputerUseSettings", () => {
     );
     // Permission section is macOS-only.
     expect(screen.queryByText("macOS Permissions")).toBeNull();
+  });
+
+  test("shows the provider-native mode and protocol selected for the active model", async () => {
+    runtimeBridge.getComputerUseStatus.mockResolvedValue({
+      ...macCapabilities(),
+      active: {
+        provider: "openai",
+        model: "gpt-5.6",
+        computer_use: {
+          supported: true,
+          mode: "provider_native",
+          protocol: "openai.responses.computer.v1",
+        },
+      },
+    });
+
+    withProviders(<ComputerUseSettings />);
+
+    await waitFor(() =>
+      expect(screen.getByText("openai · gpt-5.6")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("provider_native")).toBeInTheDocument();
+    expect(
+      screen.getByText("openai.responses.computer.v1"),
+    ).toBeInTheDocument();
+  });
+
+  test("runs an explicit Ollama probe from the local beta surface", async () => {
+    runtimeBridge.isComputerUseLocalBetaAvailable = jest.fn(() => true);
+    runtimeBridge.setComputerUseLocalBetaEnabled = jest.fn();
+    runtimeBridge.probeComputerUseModel = jest.fn(async () => ({
+      supported: true,
+      model: "qwen3.5:4b",
+    }));
+    runtimeBridge.getComputerUseStatus.mockResolvedValue({
+      ...macCapabilities(),
+      localBetaEnabled: true,
+      active: {
+        provider: "ollama",
+        model: "qwen3.5:4b",
+        computer_use: {
+          supported: false,
+          mode: "unsupported",
+          protocol: "",
+        },
+      },
+    });
+
+    withProviders(<ComputerUseSettings />);
+    const runButton = await screen.findByText("Run probe");
+    fireEvent.click(runButton);
+
+    await waitFor(() =>
+      expect(runtimeBridge.probeComputerUseModel).toHaveBeenCalledWith(
+        "qwen3.5:4b",
+        true,
+      ),
+    );
+    expect(await screen.findByText(/Probe passed/)).toBeInTheDocument();
   });
 });

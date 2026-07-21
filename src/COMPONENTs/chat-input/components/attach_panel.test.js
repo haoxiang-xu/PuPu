@@ -2,21 +2,11 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AttachPanel from "./attach_panel";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
-import useComputerUseToolkitOption from "../hooks/use_computer_use_toolkit_option";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 
 jest.mock("../hooks/use_chat_input_toolkits", () => ({
   __esModule: true,
   default: jest.fn(),
-}));
-
-jest.mock("../hooks/use_computer_use_toolkit_option", () => ({
-  __esModule: true,
-  default: jest.fn(() => ({
-    computerOption: null,
-    shouldDeselectComputer: false,
-    refreshComputerStatus: jest.fn(),
-  })),
 }));
 
 jest.mock("../hooks/use_chat_input_workspaces", () => ({
@@ -120,12 +110,6 @@ describe("AttachPanel toolkit selector refresh", () => {
   beforeEach(() => {
     window.localStorage.clear();
     useChatInputToolkits.mockReset();
-    useComputerUseToolkitOption.mockReset();
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: null,
-      shouldDeselectComputer: false,
-      refreshComputerStatus: jest.fn(),
-    });
     useChatInputWorkspaces.mockReset();
     useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
   });
@@ -388,19 +372,16 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
   });
 
-  test("appends the Computer entry alongside catalog toolkits when present", () => {
+  test("renders the catalog-native Computer entry alongside other toolkits", () => {
     useChatInputToolkits.mockReturnValue({
-      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitOptions: [
+        { value: "workspace_toolkit", label: "Workspace Files" },
+        { value: "builtin.computer", label: "Computer" },
+      ],
       toolkitLoading: false,
       refreshToolkits: jest.fn(),
-    });
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: {
-        value: "builtin.computer",
-        label: "Computer",
-        disabled: false,
-      },
-      refreshComputerStatus: jest.fn(),
+      computerAvailable: true,
+      computerResolutionKnown: true,
     });
 
     render(
@@ -419,19 +400,16 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    // catalog render path is intact (the real toolkit still shows) and the
-    // synthetic entry is stitched in beside it
     expect(screen.getByTestId("option-workspace_toolkit")).toBeInTheDocument();
     expect(screen.getByTestId("option-builtin.computer")).toBeInTheDocument();
   });
 
-  test("omits the Computer entry when the hook yields none (zero trace)", () => {
+  test("omits Computer when the capability-filtered catalog yields none", () => {
     useChatInputToolkits.mockReturnValue({
       toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
       toolkitLoading: false,
       refreshToolkits: jest.fn(),
     });
-    // default mock already returns computerOption: null
 
     render(
       <AttachPanel
@@ -458,17 +436,11 @@ describe("AttachPanel toolkit selector refresh", () => {
   test("selecting the Computer entry adds builtin.computer to the payload", () => {
     const onToolkitsChange = jest.fn();
     useChatInputToolkits.mockReturnValue({
-      toolkitOptions: [],
+      toolkitOptions: [{ value: "builtin.computer", label: "Computer" }],
       toolkitLoading: false,
       refreshToolkits: jest.fn(),
-    });
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: {
-        value: "builtin.computer",
-        label: "Computer",
-        disabled: false,
-      },
-      refreshComputerStatus: jest.fn(),
+      computerAvailable: true,
+      computerResolutionKnown: true,
     });
 
     render(
@@ -492,20 +464,12 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(onToolkitsChange).toHaveBeenCalledWith(["builtin.computer"]);
   });
 
-  test("a disabled Computer entry cannot be selected", () => {
+  test("an unsupported Computer entry is absent and cannot be selected", () => {
     const onToolkitsChange = jest.fn();
     useChatInputToolkits.mockReturnValue({
       toolkitOptions: [],
       toolkitLoading: false,
       refreshToolkits: jest.fn(),
-    });
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: {
-        value: "builtin.computer",
-        label: "Computer",
-        disabled: true,
-      },
-      refreshComputerStatus: jest.fn(),
     });
 
     render(
@@ -524,22 +488,16 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    const entry = screen.getByTestId("option-builtin.computer");
-    expect(entry).toHaveAttribute("data-disabled", "true");
-    fireEvent.click(entry);
+    expect(screen.queryByTestId("option-builtin.computer")).not.toBeInTheDocument();
     expect(onToolkitsChange).not.toHaveBeenCalled();
   });
 
-  test("refreshes computer-use status when the tools selector opens", () => {
-    const refreshComputerStatus = jest.fn();
+  test("uses one catalog refresh for toolkits and capability status", () => {
+    const refreshToolkits = jest.fn();
     useChatInputToolkits.mockReturnValue({
       toolkitOptions: [],
       toolkitLoading: false,
-      refreshToolkits: jest.fn(),
-    });
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: null,
-      refreshComputerStatus,
+      refreshToolkits,
     });
 
     render(
@@ -558,7 +516,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     );
 
     fireEvent.click(screen.getByTestId("select-Search plugins..."));
-    expect(refreshComputerStatus).toHaveBeenCalledTimes(1);
+    expect(refreshToolkits).toHaveBeenCalledTimes(1);
   });
 
   test("strips a residual builtin.computer when the model becomes unsupported", async () => {
@@ -567,17 +525,8 @@ describe("AttachPanel toolkit selector refresh", () => {
       toolkitOptions: [],
       toolkitLoading: false,
       refreshToolkits: jest.fn(),
-    });
-    // supported model earlier ⇒ selected; now on an unsupported model the entry
-    // is disabled and the hook signals a reconcile
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: {
-        value: "builtin.computer",
-        label: "Computer",
-        disabled: true,
-      },
-      shouldDeselectComputer: true,
-      refreshComputerStatus: jest.fn(),
+      computerAvailable: false,
+      computerResolutionKnown: true,
     });
 
     render(
@@ -605,12 +554,8 @@ describe("AttachPanel toolkit selector refresh", () => {
       toolkitOptions: [],
       toolkitLoading: false,
       refreshToolkits: jest.fn(),
-    });
-    // switch off ⇒ no entry rendered, but the stale id must be reconciled out
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: null,
-      shouldDeselectComputer: true,
-      refreshComputerStatus: jest.fn(),
+      computerAvailable: false,
+      computerResolutionKnown: true,
     });
 
     render(
@@ -637,19 +582,11 @@ describe("AttachPanel toolkit selector refresh", () => {
   test("keeps builtin.computer selected and re-selectable on a supported model", () => {
     const onToolkitsChange = jest.fn();
     useChatInputToolkits.mockReturnValue({
-      toolkitOptions: [],
+      toolkitOptions: [{ value: "builtin.computer", label: "Computer" }],
       toolkitLoading: false,
       refreshToolkits: jest.fn(),
-    });
-    // supported + enabled ⇒ no reconcile; the entry stays checked and usable
-    useComputerUseToolkitOption.mockReturnValue({
-      computerOption: {
-        value: "builtin.computer",
-        label: "Computer",
-        disabled: false,
-      },
-      shouldDeselectComputer: false,
-      refreshComputerStatus: jest.fn(),
+      computerAvailable: true,
+      computerResolutionKnown: true,
     });
 
     render(

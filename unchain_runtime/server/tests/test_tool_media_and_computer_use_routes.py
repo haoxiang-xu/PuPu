@@ -186,6 +186,19 @@ class ComputerUseRouteTests(_MediaDirTestCase):
         self.assertEqual(resp.data, _PNG_1x1)
         self.assertIn("no-store", resp.headers.get("Cache-Control", ""))
 
+    def test_tool_media_never_serves_private_typed_text(self):
+        encoded = base64.b64encode(b"PRIVATE-TYPED-TEXT").decode("ascii")
+        media_id = tool_media_store.store_media(
+            "route-sess",
+            encoded,
+            "application/x-pupu-computer-text",
+        )
+
+        resp = self.client.get(f"/chat/tool-media/{media_id}")
+
+        self.assertEqual(resp.status_code, 404)
+        self.assertNotIn(b"PRIVATE-TYPED-TEXT", resp.data)
+
     def test_tool_media_session_scope_query(self):
         media_id = tool_media_store.store_media("route-sess", _PNG_1x1_B64, "image/png")
         # correct scope: 200
@@ -205,13 +218,16 @@ class ComputerUseRouteTests(_MediaDirTestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_status_endpoint_shape(self):
+        os.environ["PUPU_FEATURE_COMPUTER_USE"] = "1"
         os.environ["PUPU_COMPUTER_USE"] = "1"
         try:
             resp = self.client.get("/computer-use/status")
         finally:
+            os.environ.pop("PUPU_FEATURE_COMPUTER_USE", None)
             os.environ.pop("PUPU_COMPUTER_USE", None)
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
+        self.assertTrue(body["feature_available"])
         self.assertTrue(body["enabled"])
         caps = body["capabilities"]
         for key in (
@@ -234,10 +250,12 @@ class ComputerUseRouteTests(_MediaDirTestCase):
         # (frontend must never keep its own copy).
         import computer_use_flag
 
+        os.environ["PUPU_FEATURE_COMPUTER_USE"] = "1"
         os.environ["PUPU_COMPUTER_USE"] = "1"
         try:
             resp = self.client.get("/computer-use/status")
         finally:
+            os.environ.pop("PUPU_FEATURE_COMPUTER_USE", None)
             os.environ.pop("PUPU_COMPUTER_USE", None)
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
@@ -248,11 +266,14 @@ class ComputerUseRouteTests(_MediaDirTestCase):
         )
 
     def test_status_reflects_flag_off(self):
+        os.environ.pop("PUPU_FEATURE_COMPUTER_USE", None)
         os.environ.pop("PUPU_COMPUTER_USE", None)
         resp = self.client.get("/computer-use/status")
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
+        self.assertFalse(body["feature_available"])
         self.assertFalse(body["enabled"])
+        self.assertEqual(body["reason"], "feature_flag_disabled")
         # The allow-list is static / probe-independent, so it's present even with
         # the feature flag off.
         self.assertIn("supported_model_prefixes", body)

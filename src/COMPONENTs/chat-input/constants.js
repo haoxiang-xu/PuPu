@@ -5,6 +5,8 @@ export const BASE_TOOLKIT_IDS = new Set([
   "base_toolkit",
 ]);
 
+export const COMPUTER_TOOLKIT_ID = "builtin.computer";
+
 export const MODEL_GROUPS = {
   OLLAMA: "Ollama",
   OPENAI: "OpenAI",

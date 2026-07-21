@@ -378,6 +378,132 @@ def strip_transcript_media(state: Any, session_id: str) -> Any:
     return out
 
 
+def _contains_computer_typed_text(state: Any) -> bool:
+    found = {"hit": False}
+    call_scopes = _collect_tool_call_scopes(state)
+
+    def has_typed_text(arguments: Any) -> bool:
+        if not isinstance(arguments, dict):
+            return False
+        candidates = [arguments, *(arguments.get("actions") or [])]
+        return any(
+            isinstance(action, dict)
+            and str(action.get("type") or action.get("action") or "").strip()
+            in {"type", "type_text"}
+            and isinstance(action.get("text"), str)
+            and action.get("text_omitted") is not True
+            for action in candidates
+        )
+
+    def visit(node: dict, in_result: bool, _result_scope: str | None) -> None:
+        if found["hit"] or in_result:
+            return
+        if node.get("type") == "computer_call" and has_typed_text(
+            {"actions": node.get("actions")}
+        ):
+            found["hit"] = True
+            return
+        if _tool_identity_scope(node) != _RESULT_SCOPE_COMPUTER:
+            return
+        if has_typed_text(node.get("arguments")) or has_typed_text(node.get("input")):
+            found["hit"] = True
+
+    _walk(state, visit, call_scopes=call_scopes)
+    return found["hit"]
+
+
+def _strip_typed_text_arguments(arguments: dict, session_id: str) -> dict:
+    from tool_media_store import store_media
+
+    out = copy.deepcopy(arguments)
+    candidates = [out, *(out.get("actions") or [])]
+    for action in candidates:
+        if not isinstance(action, dict):
+            continue
+        action_type = str(action.get("type") or action.get("action") or "").strip()
+        text = action.get("text")
+        if action_type not in {"type", "type_text"} or not isinstance(text, str):
+            continue
+        try:
+            encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+            media_id = store_media(
+                session_id,
+                encoded,
+                "application/x-pupu-computer-text",
+            )
+        except Exception:
+            media_id = None
+        action["text"] = ""
+        action["text_omitted"] = True
+        action["text_char_len"] = len(text)
+        if _valid_media_id(media_id):
+            action["text_media_id"] = media_id
+    return out
+
+
+def _rehydrate_typed_text_arguments(
+    arguments: dict,
+    session_id: str,
+    *,
+    resolve_media_enabled: bool,
+) -> dict:
+    from tool_media_store import resolve_media
+
+    candidates = [arguments, *(arguments.get("actions") or [])]
+    for action in candidates:
+        if not isinstance(action, dict) or action.get("text_omitted") is not True:
+            continue
+        media_id = action.get("text_media_id")
+        resolved = (
+            resolve_media(media_id, session_id)
+            if resolve_media_enabled and _valid_media_id(media_id)
+            else None
+        )
+        if resolved is None:
+            action["text"] = ""
+            continue
+        data, _media_type = resolved
+        try:
+            action["text"] = data.decode("utf-8")
+        except UnicodeDecodeError:
+            action["text"] = ""
+            continue
+        action.pop("text_omitted", None)
+        action.pop("text_char_len", None)
+        action.pop("text_media_id", None)
+    return arguments
+
+
+def strip_transcript_sensitive_data(state: Any, session_id: str) -> Any:
+    """Strip screenshots and Computer typed text from the persisted copy."""
+    media_stripped = strip_transcript_media(state, session_id)
+    if not _contains_computer_typed_text(media_stripped):
+        return media_stripped
+    out = (
+        copy.deepcopy(media_stripped)
+        if media_stripped is state
+        else media_stripped
+    )
+    call_scopes = _collect_tool_call_scopes(out)
+
+    def visit(node: dict, in_result: bool, _result_scope: str | None) -> None:
+        if in_result:
+            return
+        if node.get("type") == "computer_call":
+            redacted = _strip_typed_text_arguments(
+                {"actions": node.get("actions")}, session_id
+            )
+            node["actions"] = redacted.get("actions") or []
+        if _tool_identity_scope(node) != _RESULT_SCOPE_COMPUTER:
+            return
+        for key in ("arguments", "input"):
+            if isinstance(node.get(key), dict):
+                node[key] = _strip_typed_text_arguments(node[key], session_id)
+
+    _walk(out, visit, call_scopes=call_scopes)
+    return out
+
+
 # ── re-hydrate (load path) ───────────────────────────────────────────────────
 def _rehydrate_image_block(
     block: dict,
@@ -478,6 +604,25 @@ def rehydrate_transcript_media(
                 session_id,
                 resolve_media_enabled=resolve_media_enabled,
             )
+        if not in_any_tool_result and node.get("type") == "computer_call":
+            wrapped = {"actions": node.get("actions")}
+            _rehydrate_typed_text_arguments(
+                wrapped,
+                session_id,
+                resolve_media_enabled=resolve_media_enabled,
+            )
+            node["actions"] = wrapped.get("actions") or []
+        if (
+            not in_any_tool_result
+            and _tool_identity_scope(node) == _RESULT_SCOPE_COMPUTER
+        ):
+            for key in ("arguments", "input"):
+                if isinstance(node.get(key), dict):
+                    _rehydrate_typed_text_arguments(
+                        node[key],
+                        session_id,
+                        resolve_media_enabled=resolve_media_enabled,
+                    )
 
     _walk(state, visit, call_scopes=call_scopes)
     return state
@@ -505,7 +650,7 @@ def build_sanitizing_session_store(
     def state_for_save(session_id: str, state: Any) -> Any:
         if not sanitize_enabled:
             return state
-        return strip_transcript_media(state, session_id)
+        return strip_transcript_sensitive_data(state, session_id)
 
     class _SanitizingSessionStore(JsonFileSessionStore):
         def save(self, session_id, state, *args, **kwargs):  # type: ignore[override]
@@ -565,6 +710,7 @@ def build_sanitizing_session_store(
 
 __all__ = [
     "strip_transcript_media",
+    "strip_transcript_sensitive_data",
     "rehydrate_transcript_media",
     "build_sanitizing_session_store",
 ]

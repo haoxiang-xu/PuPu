@@ -36,8 +36,17 @@ from unchain.tools.tool import Tool
 from unchain.tools.toolkit import Toolkit
 
 from .actions import ACTIONS
+from .click3_adapter import LOCAL_PLANNER_PROMPT, local_computer_tool_schema
 from .controller import ComputerController
 from .coordinates import compute_target_size
+from .protocol import (
+    SCHEMA as ACTION_SCHEMA,
+    VERSION as ACTION_SCHEMA_VERSION,
+    batch_requires_confirmation,
+    normalize_batch,
+    redact_sensitive_arguments,
+    validate_batch,
+)
 from .screenshot import DEFAULT_MAX_LONG_EDGE
 
 # ── provider-native contract literals (architect-frozen, S1) ────────────────
@@ -46,6 +55,7 @@ from .screenshot import DEFAULT_MAX_LONG_EDGE
 # ``actions.ACTIONS`` names — so ``_normalize_action`` below translates.
 _ANTHROPIC_COMPUTER_TOOL_TYPE = "computer_20251124"
 _ANTHROPIC_COMPUTER_BETA = "computer-use-2025-11-24"
+_OPENAI_COMPUTER_TOOL_TYPE = "computer"
 _TOOL_NAME = "computer"
 
 # Fallback declared dimensions when the no-grab geometry probe fails on a
@@ -71,7 +81,8 @@ _ACTION_ALIASES = {
 # vocabulary the model actually emits (not C1's internal ACTIONS names).
 _SUPPORTED_ACTION_HINT = (
     "screenshot, left_click, right_click, middle_click, double_click, "
-    "triple_click, mouse_move, left_click_drag, type, key, scroll, wait"
+    "triple_click, mouse_move, left_click_drag, type, key, hold_key, "
+    "left_mouse_down, left_mouse_up, scroll, wait"
 )
 # ``wait`` really sleeps the worker thread (blocking is normal tool behavior) so
 # the model doesn't screenshot an un-settled UI while being told it "waited".
@@ -104,16 +115,14 @@ _DISPATCH_PARAMS = (
 # surface: pupu-security-expert (守) and pupu-llm-expert hold authority over this
 # list and the summary wording. Backend implements a fail-closed default; the
 # exact set/wording is theirs to ratify.
-_CONFIRMATION_EXEMPT_ACTIONS = frozenset({"screenshot", "wait", "cursor_position"})
+_CONFIRMATION_EXEMPT_ACTIONS = frozenset(
+    {"screenshot", "wait", "cursor_position", "locate"}
+)
 
 # Click-family actions, used only to phrase the confirmation summary.
 _CLICK_ACTIONS = frozenset(
     {"left_click", "right_click", "middle_click", "double_click", "triple_click"}
 )
-# Longest text preview embedded in the confirmation summary (keeps the frame small).
-_CONFIRM_TEXT_PREVIEW_CHARS = 80
-
-
 def _normalize_action(action: str) -> str:
     cleaned = str(action or "").strip()
     if cleaned in _SPECIAL_ACTIONS:
@@ -124,7 +133,14 @@ def _normalize_action(action: str) -> str:
 def _format_point(value: Any, *, fallback: str = "the screen") -> str:
     """Render an [x, y] coordinate for the confirmation summary, or a fallback."""
     if isinstance(value, (list, tuple)) and len(value) == 2:
-        return f"({value[0]}, {value[1]})"
+        def display(component: Any) -> str:
+            try:
+                number = float(component)
+                return f"{number:g}"
+            except (TypeError, ValueError):
+                return str(component)
+
+        return f"({display(value[0])}, {display(value[1])})"
     return fallback
 
 
@@ -180,8 +196,12 @@ class ComputerToolkit(Toolkit):
         *,
         controller: Optional[ComputerController] = None,
         max_long_edge: int = DEFAULT_MAX_LONG_EDGE,
+        provider: str = "anthropic",
+        protocol: str = "",
     ) -> None:
         super().__init__()
+        self._provider = str(provider or "anthropic").strip().lower()
+        self._protocol = str(protocol or "").strip()
         self._controller = controller if controller is not None else ComputerController()
         # capabilities() is a platform + permission probe; it does NOT grab.
         self._caps: Dict[str, Any] = self._controller.capabilities()
@@ -205,6 +225,8 @@ class ComputerToolkit(Toolkit):
                 "display_height_px": display_h,
             }
             required_betas["anthropic"] = [_ANTHROPIC_COMPUTER_BETA]
+            native_specs["openai"] = {"type": _OPENAI_COMPUTER_TOOL_TYPE}
+            native_specs["ollama"] = local_computer_tool_schema()
 
         tool = Tool.from_callable(
             self._computer,
@@ -222,6 +244,9 @@ class ComputerToolkit(Toolkit):
             # explicit user confirmation. Fail-closed: unknown actions confirm.
             requires_confirmation=True,
             confirmation_resolver=self._resolve_confirmation,
+            history_arguments_optimizer=lambda payload, _context: (
+                redact_sensitive_arguments(payload)
+            ),
         )
         self.register(tool)
 
@@ -274,11 +299,14 @@ class ComputerToolkit(Toolkit):
                 "(clicks, typing, scrolling) is UNAVAILABLE on this platform — "
                 "only the 'screenshot' action is supported."
             )
-        return (
+        description = (
             "Control the computer: take a screenshot to see the screen, then move "
             "the mouse, click, type, press keys, and scroll. Coordinates are in "
             "the pixel space of the most recent screenshot."
         )
+        if self._provider == "ollama":
+            description += f" {LOCAL_PLANNER_PROMPT}"
+        return description
 
     # ── F1 confirmation resolver ─────────────────────────────────────────────
     def _resolve_confirmation(
@@ -299,17 +327,95 @@ class ComputerToolkit(Toolkit):
         never dispatches). A ``None`` return would also default to
         confirmation-required. So even a malformed ``arguments`` fails closed.
         """
-        del execution_context  # policy depends only on the requested action
-        action = ""
-        if isinstance(arguments, dict):
+        del execution_context  # policy depends only on the requested batch
+        if not isinstance(arguments, dict):
+            return {
+                "requires_confirmation": True,
+                "description": "Model wants to run malformed computer input.",
+            }
+        try:
+            routed_arguments = self._routed_arguments(arguments)
+            batch = normalize_batch(routed_arguments)
+            validate_batch(
+                batch,
+                width=self._display_width,
+                height=self._display_height,
+                has_screenshot=self._controller._last_scale_map is not None,
+            )
+        except Exception:
+            # The execution path will return the structured validation error.
+            # Confirmation stays on here so malformed/future input can never
+            # narrow the base True policy to False.
             action = str(arguments.get("action") or "").strip()
-        normalized = _normalize_action(action)
-        if normalized in _CONFIRMATION_EXEMPT_ACTIONS:
+            return {
+                "requires_confirmation": True,
+                "description": self._describe_pending_action(
+                    _normalize_action(action), arguments
+                ),
+            }
+        if not batch_requires_confirmation(batch):
             return {"requires_confirmation": False}
         return {
             "requires_confirmation": True,
-            "description": self._describe_pending_action(normalized, arguments),
+            "description": self._describe_pending_batch(batch),
         }
+
+    def _routed_arguments(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        routed = dict(arguments)
+        if not str(routed.get("provider") or "").strip():
+            routed["provider"] = self._provider
+        if not str(routed.get("protocol") or "").strip():
+            routed["protocol"] = self._protocol
+        return routed
+
+    def _describe_pending_batch(self, batch: Dict[str, Any]) -> str:
+        descriptions = [
+            self._describe_canonical_action(action)
+            for action in batch.get("actions") or []
+            if str(action.get("type") or "") not in _CONFIRMATION_EXEMPT_ACTIONS
+        ]
+        shown = descriptions[:4]
+        remaining = len(descriptions) - len(shown)
+        summary = " ".join(shown) or "Model wants to control the computer."
+        if remaining > 0:
+            summary += f" (+{remaining} more actions)"
+        return summary
+
+    def _describe_canonical_action(self, action: Dict[str, Any]) -> str:
+        action_type = str(action.get("type") or "")
+        point = action.get("coordinate")
+        coordinate = (
+            [point.get("x"), point.get("y")]
+            if isinstance(point, dict)
+            else None
+        )
+        if action_type == "click":
+            button = str(action.get("button") or "left")
+            clicks = int(action.get("clicks") or 1)
+            verb = "double click" if clicks == 2 else "triple click" if clicks == 3 else "click"
+            return f"Model wants to {button} {verb} at {_format_point(coordinate)}."
+        if action_type == "move":
+            return f"Model wants to move the cursor to {_format_point(coordinate)}."
+        if action_type == "drag":
+            path = action.get("path") or []
+            start = path[0] if path else None
+            end = path[-1] if path else None
+            start_pair = [start.get("x"), start.get("y")] if isinstance(start, dict) else None
+            end_pair = [end.get("x"), end.get("y")] if isinstance(end, dict) else None
+            return f"Model wants to drag from {_format_point(start_pair)} to {_format_point(end_pair)}."
+        if action_type == "type":
+            text = str(action.get("text") or "")
+            # Confirmation descriptions are emitted over SSE and can be stored
+            # in execution checkpoints. Never place the typed payload in them.
+            return f"Model wants to type {len(text)} characters."
+        if action_type in {"keypress", "hold_key"}:
+            return f"Model wants to {action_type.replace('_', ' ')} {action.get('keys')!r}."
+        if action_type == "mouse_button":
+            state = "hold" if action.get("pressed") else "release"
+            return f"Model wants to {state} the {action.get('button', 'left')} mouse button."
+        if action_type == "scroll":
+            return f"Model wants to scroll at {_format_point(coordinate)}."
+        return f"Model wants to run the computer action {action_type!r}."
 
     def _describe_pending_action(self, normalized: str, arguments: Any) -> str:
         """One-line, user-facing summary of the injection action awaiting consent.
@@ -329,14 +435,7 @@ class ComputerToolkit(Toolkit):
             return f"Model wants to drag from {start_txt} to {coord_txt}."
         if normalized == "type":
             text = str(args.get("text") or "")
-            if len(text) > _CONFIRM_TEXT_PREVIEW_CHARS:
-                # Annotate the elided remainder: the user must know the confirmed
-                # string is LONGER than the preview, or the untruncated tail is
-                # injected without informed consent (informed-consent gap, 智).
-                remaining = len(text) - _CONFIRM_TEXT_PREVIEW_CHARS
-                preview = text[:_CONFIRM_TEXT_PREVIEW_CHARS]
-                return f"Model wants to type: {preview!r}… (+{remaining} more chars)"
-            return f"Model wants to type: {text!r}"
+            return f"Model wants to type {len(text)} characters."
         if normalized == "key":
             return f"Model wants to press the key combo {str(args.get('text') or '')!r}."
         if normalized == "scroll":
@@ -350,16 +449,26 @@ class ComputerToolkit(Toolkit):
     # ── the tool ───────────────────────────────────────────────────────────
     def _computer(
         self,
-        action: str,
+        action: str = "",
+        actions: Optional[list] = None,
+        provider: str = "",
+        protocol: str = "",
         coordinate: Optional[list] = None,
         text: Optional[str] = None,
         scroll_direction: Optional[str] = None,
         scroll_amount: Optional[int] = None,
         start_coordinate: Optional[list] = None,
         duration: Optional[float] = None,
+        keys: Optional[list] = None,
+        path: Optional[list] = None,
+        button: Optional[str] = None,
+        pressed: Optional[bool] = None,
+        scroll_x: Optional[float] = None,
+        scroll_y: Optional[float] = None,
+        query: Optional[str] = None,
         **_ignored: Any,
     ) -> Dict[str, Any]:
-        """Execute one computer-control action.
+        """Execute a provider-neutral action batch or one legacy action.
 
         :param action: computer_20251124 action (e.g. screenshot, left_click,
             mouse_move, type, key, scroll, wait).
@@ -370,65 +479,187 @@ class ComputerToolkit(Toolkit):
         :param start_coordinate: [x, y] drag start (for ``left_click_drag``).
         :param duration: seconds to wait for the ``wait`` action (capped).
         """
-        del _ignored  # extra wire keys accepted for forward-compat
-        normalized = _normalize_action(action)
-
-        if normalized == "screenshot":
-            return self._do_screenshot(action)
-        if normalized == "wait":
-            # Really sleep so the UI can settle before the next screenshot; the
-            # tool runs in a worker thread, so a short block is normal.
-            seconds = _resolve_wait_seconds(duration)
-            time.sleep(seconds)
-            return self._text_result(action, f"waited {seconds:g}s", ok=True)
-
-        if normalized not in ACTIONS:
+        arguments = {
+            "action": action,
+            "actions": actions,
+            "provider": provider,
+            "protocol": protocol,
+            "coordinate": coordinate,
+            "text": text,
+            "scroll_direction": scroll_direction,
+            "scroll_amount": scroll_amount,
+            "start_coordinate": start_coordinate,
+            "duration": duration,
+            "keys": keys,
+            "path": path,
+            "button": button,
+            "pressed": pressed,
+            "scroll_x": scroll_x,
+            "scroll_y": scroll_y,
+            "query": query,
+            **_ignored,
+        }
+        if actions is None:
+            arguments.pop("actions", None)
+        try:
+            batch = normalize_batch(self._routed_arguments(arguments))
+            validate_batch(
+                batch,
+                width=self._display_width,
+                height=self._display_height,
+                has_screenshot=self._controller._last_scale_map is not None,
+            )
+        except Exception as exc:
+            message = getattr(exc, "message", None) or str(exc)
+            code = getattr(exc, "code", None) or type(exc).__name__
             return self._text_result(
-                action,
-                f"unsupported action: {action!r}; supported: {_SUPPORTED_ACTION_HINT}",
-                ok=False,
-                extra_caveats=["unsupported_action"],
+                action or "batch", message, ok=False, extra_caveats=[str(code)]
             )
 
+        results: List[Dict[str, Any]] = []
+        last_screenshot: Optional[Dict[str, Any]] = None
+        try:
+            for canonical in batch["actions"]:
+                result = self._execute_canonical_action(canonical)
+                results.append(result)
+                if result.get("content_blocks"):
+                    last_screenshot = result
+                if result.get("ok") is False:
+                    return self._batch_result(batch, results, result)
+
+            # OpenAI's built-in loop and the local Beta both require a fresh
+            # image after the whole ordered action batch. Anthropic retains its
+            # existing explicit-screenshot behavior.
+            if batch["provider"] in {"openai", "ollama"} and last_screenshot is None:
+                last_screenshot = self._do_screenshot("screenshot")
+                results.append(last_screenshot)
+            if last_screenshot is not None:
+                return self._batch_result(batch, results, last_screenshot)
+            if len(results) == 1 and actions is None:
+                return results[0]
+            return self._batch_result(batch, results, None)
+        finally:
+            release_all = getattr(self._controller, "release_all", None)
+            if callable(release_all):
+                release_all()
+
+    def _execute_canonical_action(self, action: Dict[str, Any]) -> Dict[str, Any]:
+        action_type = action["type"]
+        if action_type == "screenshot":
+            return self._do_screenshot("screenshot")
+        if action_type == "wait":
+            seconds = float(action.get("duration", _WAIT_DEFAULT_SECONDS))
+            time.sleep(seconds)
+            return self._text_result("wait", f"waited {seconds:g}s", ok=True)
+        if action_type == "locate":
+            return self._text_result(
+                "locate",
+                "locate is a read-only local-planner hint; take a screenshot to verify the target",
+                ok=True,
+            )
         if not self._caps.get("injection"):
             reason = self._caps.get("degradation_reason") or (
                 "input injection is unavailable on this platform (screenshot only)"
             )
             return self._text_result(
-                action, reason, ok=False, extra_caveats=["injection_unavailable"]
+                action_type, reason, ok=False, extra_caveats=["injection_unavailable"]
             )
 
-        params = {
-            "coordinate": coordinate,
-            "start_coordinate": start_coordinate,
-            "text": text,
-            "scroll_direction": scroll_direction,
-            "scroll_amount": scroll_amount,
-        }
-        forward = {k: v for k, v in params.items() if k in _DISPATCH_PARAMS}
-
-        extra_caveats: List[str] = []
-        if self._controller._last_scale_map is None:  # noqa: SLF001 — intentional
-            # No screenshot taken yet: coordinates cannot be mapped to the
-            # display. Surface it rather than silently clicking the wrong place.
-            extra_caveats.append("no_screenshot_taken")
+        point = action.get("coordinate")
+        coordinate = [point["x"], point["y"]] if isinstance(point, dict) else None
+        backend_action = action_type
+        params: Dict[str, Any] = {}
+        if action_type == "click":
+            button = action.get("button", "left")
+            clicks = action.get("clicks", 1)
+            if clicks == 2 and button == "left":
+                backend_action = "double_click"
+            elif clicks == 3 and button == "left":
+                backend_action = "triple_click"
+            else:
+                backend_action = f"{button}_click"
+            params = {"coordinate": coordinate, "keys": action.get("keys")}
+        elif action_type == "drag":
+            backend_action = "left_click_drag"
+            path = action.get("path") or []
+            pairs = [[point["x"], point["y"]] for point in path]
+            params = {
+                "start_coordinate": pairs[0],
+                "coordinate": pairs[-1],
+                "path": pairs,
+                "button": action.get("button", "left"),
+                "keys": action.get("keys"),
+            }
+        elif action_type == "move":
+            params = {"coordinate": coordinate, "keys": action.get("keys")}
+        elif action_type == "type":
+            params = {"text": action.get("text")}
+        elif action_type == "keypress":
+            backend_action = "key"
+            params = {"text": "+".join(action.get("keys") or [])}
+        elif action_type == "hold_key":
+            params = {
+                "text": "+".join(action.get("keys") or []),
+                "duration": action.get("duration"),
+            }
+        elif action_type == "mouse_button":
+            params = {
+                "button": action.get("button"),
+                "pressed": action.get("pressed"),
+            }
+        elif action_type == "scroll":
+            params = {
+                "coordinate": coordinate,
+                "scroll_direction": action.get("scroll_direction"),
+                "scroll_amount": action.get("scroll_amount"),
+                "scroll_x": action.get("scroll_x"),
+                "scroll_y": action.get("scroll_y"),
+                "keys": action.get("keys"),
+            }
 
         try:
-            envelope = self._controller.act(normalized, **forward)
-        except Exception as exc:  # C1 raises ComputerControlError with .message
+            return self._controller.act(backend_action, **params)
+        except Exception as exc:
             message = getattr(exc, "message", None) or str(exc)
             code = getattr(exc, "code", None) or type(exc).__name__
             return self._text_result(
-                action, message, ok=False, extra_caveats=[str(code)]
+                action_type, message, ok=False, extra_caveats=[str(code)]
             )
 
-        if extra_caveats:
-            merged = list(envelope.get("caveats") or [])
-            for caveat in extra_caveats:
-                if caveat not in merged:
-                    merged.append(caveat)
-            envelope["caveats"] = merged
-        return envelope
+    def _batch_result(
+        self,
+        batch: Dict[str, Any],
+        results: List[Dict[str, Any]],
+        screenshot: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        # Screenshot bytes live only in the top-level rich-content block.  A
+        # second copy nested under ``results`` would bypass the host's normal
+        # rich-block redaction and could be persisted in transcripts/logs.
+        public_results = []
+        for result in results:
+            public_result = {
+                key: value
+                for key, value in result.items()
+                if key != "content_blocks"
+            }
+            if "content_blocks" in result and "result" not in public_result:
+                public_result["result"] = "screenshot captured"
+            public_results.append(public_result)
+        payload = dict(screenshot or {})
+        payload.update(
+            {
+                "ok": all(result.get("ok") is not False for result in results),
+                "schema": ACTION_SCHEMA,
+                "version": ACTION_SCHEMA_VERSION,
+                "provider": batch.get("provider"),
+                "protocol": batch.get("protocol"),
+                "action_count": len(batch.get("actions") or []),
+                "results": public_results,
+            }
+        )
+        if "result" not in payload and "content_blocks" not in payload:
+            payload["result"] = f"executed {len(results)} computer actions"
+        return payload
 
     # ── result builders ────────────────────────────────────────────────────
     def _do_screenshot(self, action: str) -> Dict[str, Any]:

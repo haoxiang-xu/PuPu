@@ -16,6 +16,8 @@ ACTIONS = frozenset(
         "left_click_drag",
         "type",
         "key",
+        "hold_key",
+        "mouse_button",
         "scroll",
         "cursor_position",
     }

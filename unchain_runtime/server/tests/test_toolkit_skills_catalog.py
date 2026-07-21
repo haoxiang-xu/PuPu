@@ -40,6 +40,7 @@ class BuiltinCatalogSkillsTests(unittest.TestCase):
             entry
             for entry in payload["toolkits"]
             if entry.get("source") != "mcp"
+            and entry.get("toolkitId") != "builtin.computer"
         ]
         self.assertTrue(builtin_entries)
         for entry in builtin_entries:

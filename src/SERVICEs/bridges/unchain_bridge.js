@@ -61,6 +61,9 @@ export const runtimeBridge = {
     hasBridgeMethod("unchainAPI", "openComputerUsePrivacySettings"),
   isComputerUseEnableAvailable: () =>
     hasBridgeMethod("unchainAPI", "setComputerUseEnabled"),
+  isComputerUseLocalBetaAvailable: () =>
+    hasBridgeMethod("unchainAPI", "setComputerUseLocalBetaEnabled") &&
+    hasBridgeMethod("unchainAPI", "probeComputerUseModel"),
 
   getComputerUseStatus: async () => {
     if (!runtimeBridge.isComputerUseStatusAvailable()) {
@@ -94,12 +97,23 @@ export const runtimeBridge = {
           .filter(Boolean)
       : [];
 
-    return {
+    const normalized = {
       enabled: Boolean(payload.enabled),
+      featureAvailable:
+        typeof payload.feature_available === "boolean"
+          ? payload.feature_available
+          : true,
       reason: typeof payload.reason === "string" ? payload.reason : "",
       capabilities,
       supportedModelPrefixes,
     };
+    if (typeof payload.local_beta_enabled === "boolean") {
+      normalized.localBetaEnabled = payload.local_beta_enabled;
+    }
+    if (payload.active && typeof payload.active === "object") {
+      normalized.active = { ...payload.active };
+    }
+    return normalized;
   },
 
   openComputerUsePrivacySettings: async (target = "") => {
@@ -157,6 +171,54 @@ export const runtimeBridge = {
           : nextEnabled,
       error: typeof response?.error === "string" ? response.error : "",
     };
+  },
+
+  setComputerUseLocalBetaEnabled: async (enabled = false) => {
+    if (!runtimeBridge.isComputerUseLocalBetaAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "local Computer Beta bridge is unavailable",
+      );
+    }
+    const nextEnabled = Boolean(enabled);
+    const response = await invokeUnchain(
+      "setComputerUseLocalBetaEnabled",
+      [nextEnabled],
+      {
+        timeoutMs: 8000,
+        timeoutCode: "unchain_computer_use_local_beta_timeout",
+        timeoutMessage: "Set local Computer Beta request timed out",
+        failureCode: "unchain_computer_use_local_beta_failed",
+        failureMessage: "Failed to set local Computer Beta",
+      },
+    );
+    return {
+      ok: Boolean(response?.ok),
+      enabled:
+        typeof response?.local_beta_enabled === "boolean"
+          ? response.local_beta_enabled
+          : nextEnabled,
+    };
+  },
+
+  probeComputerUseModel: async (model, force = true) => {
+    if (!runtimeBridge.isComputerUseLocalBetaAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "local Computer Beta probe bridge is unavailable",
+      );
+    }
+    return invokeUnchain(
+      "probeComputerUseModel",
+      [toTrimmedString(model), force === true],
+      {
+        timeoutMs: 50000,
+        timeoutCode: "unchain_computer_use_probe_timeout",
+        timeoutMessage: "Local Computer Beta probe timed out",
+        failureCode: "unchain_computer_use_probe_failed",
+        failureMessage: "Local Computer Beta probe failed",
+      },
+    );
   },
 
   setChromeTerminalOpen: async (open = false) => {

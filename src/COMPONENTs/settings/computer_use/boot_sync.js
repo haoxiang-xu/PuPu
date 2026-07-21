@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 
 import { resyncComputerUseEnabledOnBoot } from "./enable_controller";
+import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
+import { isComputerUseLocalBetaPersisted } from "../../../SERVICEs/computer_use_local_beta_store";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  ComputerUseBootSync — headless boot re-synchronizer                            */
@@ -23,6 +25,13 @@ const ComputerUseBootSync = () => {
     // but guard anyway so a bad state can never surface as an unhandled boot
     // rejection.
     resyncComputerUseEnabledOnBoot().catch(() => {});
+    if (runtimeBridge.isComputerUseLocalBetaAvailable?.() === true) {
+      // Push both ON and OFF. Local storage is the desktop app's desired state;
+      // an absent/corrupt record resolves false and therefore fails closed.
+      runtimeBridge
+        .setComputerUseLocalBetaEnabled(isComputerUseLocalBetaPersisted())
+        .catch(() => {});
+    }
   }, []);
 
   return null;

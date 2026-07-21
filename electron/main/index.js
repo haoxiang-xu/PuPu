@@ -6,6 +6,7 @@ const {
   ipcMain,
   webContents,
   nativeTheme,
+  net: electronNet,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -94,6 +95,7 @@ if (!gotSingleInstanceLock) {
     spawnSync,
     crypto,
     net,
+    streamFetchImpl: electronNet.fetch.bind(electronNet),
     shell,
     webContents,
     runtimeService,

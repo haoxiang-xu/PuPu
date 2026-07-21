@@ -143,7 +143,7 @@ class ResolverClassificationTests(unittest.TestCase):
             policy = self.tool.confirmation_resolver(bad, None)
             self.assertTrue(policy["requires_confirmation"])
 
-    def test_summary_includes_coordinate_and_text(self):
+    def test_summary_includes_coordinate_but_never_typed_text(self):
         click = self.tool.confirmation_resolver(
             {"action": "left_click", "coordinate": [123, 456]}, None
         )
@@ -151,7 +151,8 @@ class ResolverClassificationTests(unittest.TestCase):
         typed = self.tool.confirmation_resolver(
             {"action": "type", "text": "secret passphrase"}, None
         )
-        self.assertIn("secret passphrase", typed["description"])
+        self.assertNotIn("secret passphrase", typed["description"])
+        self.assertIn("17 characters", typed["description"])
         drag = self.tool.confirmation_resolver(
             {"action": "left_click_drag", "start_coordinate": [1, 2], "coordinate": [3, 4]},
             None,
@@ -159,20 +160,17 @@ class ResolverClassificationTests(unittest.TestCase):
         self.assertIn("(1, 2)", drag["description"])
         self.assertIn("(3, 4)", drag["description"])
 
-    def test_long_typed_text_truncation_annotates_remaining_length(self):
-        # Informed consent: a truncated preview MUST tell the user the confirmed
-        # string is longer than what is shown (else the elided tail is unconfirmed).
+    def test_long_typed_text_reports_length_without_payload(self):
         long_text = "A" * 500
         policy = self.tool.confirmation_resolver({"action": "type", "text": long_text}, None)
         self.assertLess(len(policy["description"]), 200)  # frame stays small
-        # 500 chars - 80 preview = 420 elided, and the count must be surfaced.
-        self.assertIn("+420", policy["description"])
-        self.assertIn("chars", policy["description"])
+        self.assertIn("500 characters", policy["description"])
+        self.assertNotIn("AAAA", policy["description"])
 
-    def test_short_typed_text_is_not_annotated(self):
+    def test_short_typed_text_is_also_redacted(self):
         policy = self.tool.confirmation_resolver({"action": "type", "text": "hi"}, None)
-        self.assertIn("hi", policy["description"])
-        self.assertNotIn("more chars", policy["description"])
+        self.assertNotIn("hi", policy["description"])
+        self.assertIn("2 characters", policy["description"])
 
 
 class ConfirmationGateIntegrationTests(unittest.TestCase):
@@ -234,7 +232,11 @@ class ConfirmationGateIntegrationTests(unittest.TestCase):
         self._run({"action": "type", "text": "hunter2"}, approve)
 
         self.assertEqual(captured["tool_name"], "computer")
-        self.assertIn("hunter2", captured["description"])  # typed text surfaced to user
+        self.assertNotIn("hunter2", captured["description"])
+        self.assertIn("7 characters", captured["description"])
+        # The private in-process request retains the payload for execution; the
+        # host adapter redacts it before creating an SSE presentation.
+        self.assertEqual(captured["arguments"].get("text"), "hunter2")
         self.assertEqual(captured["arguments"].get("action"), "type")
 
     def test_screenshot_never_prompts(self):

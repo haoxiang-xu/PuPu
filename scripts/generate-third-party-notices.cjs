@@ -3,10 +3,11 @@
  * Generates THIRD_PARTY_NOTICES.txt — the third-party attribution bundle that
  * ships inside the PuPu installer.
  *
- * PuPu (Apache-2.0) redistributes two sets of third-party code:
+ * PuPu (Apache-2.0) redistributes three sets of third-party code:
  *   - the production npm dependency graph (bundled into the React build/)
  *   - the Python deps frozen into the `unchain-server` PyInstaller binary
  *     (Flask/Werkzeug/httpx/mcp/openai/anthropic/qdrant-client + transitives)
+ *   - small, explicitly pinned vendored-source adapters
  * Those permissive licenses (MIT/BSD/Apache/ISC/…) require us to preserve their
  * copyright + license text when we redistribute. This script aggregates them so
  * the obligation is satisfied in the shipped artifact.
@@ -61,6 +62,14 @@ const COPYLEFT_LICENSE_RE = /gpl|mpl|epl|cddl|eupl/i;
 const COPYLEFT_SOURCE_OFFERS = {
   // pynput (LGPL-3.0) — dynamic import only, unmodified; C1 computer-control dep.
   pynput: "https://github.com/moses-palmer/pynput",
+  "axe-core": "https://github.com/dequelabs/axe-core",
+  "harmony-reflect": "https://github.com/tvcutsem/harmony-reflect",
+  "node-forge": "https://github.com/digitalbazaar/forge",
+  certifi: "https://github.com/certifi/python-certifi",
+  pyinstaller: "https://github.com/pyinstaller/pyinstaller",
+  "pyinstaller-hooks-contrib":
+    "https://github.com/pyinstaller/pyinstaller-hooks-contrib",
+  tqdm: "https://github.com/tqdm/tqdm",
 };
 
 function buildSourceOffer(name, version, url) {
@@ -208,6 +217,29 @@ function collectPython() {
   return pkgs;
 }
 
+function collectVendored() {
+  const noticePath = path.join(
+    root,
+    "unchain_runtime",
+    "server",
+    "computer_control",
+    "CLICK3_NOTICE.md"
+  );
+  if (!fs.existsSync(noticePath)) {
+    problems.push("[vendored] clickclickclick notice file is missing");
+    return [];
+  }
+  return [
+    {
+      id: "instavm/clickclickclick@e4ce8f958b4d7748a95af6d7201d1fa12ca5d2cb",
+      license: "MIT",
+      publisher: "Checksum Labs, Inc",
+      text: fs.readFileSync(noticePath, "utf8").trim(),
+      sourceOffer: "",
+    },
+  ];
+}
+
 function renderSection(title, pkgs) {
   const lines = [SEP, title, SEP, ""];
   for (const p of pkgs.sort((a, b) => a.id.localeCompare(b.id))) {
@@ -230,15 +262,20 @@ function renderSection(title, pkgs) {
 function main() {
   const node = collectNode();
   const python = collectPython();
+  const vendored = collectVendored();
 
   const body =
     header() +
     renderSection(`NPM PACKAGES (${node.length})`, node) +
     "\n" +
-    renderSection(`PYTHON PACKAGES (${python.length})`, python);
+    renderSection(`PYTHON PACKAGES (${python.length})`, python) +
+    "\n" +
+    renderSection(`VENDORED SOURCE (${vendored.length})`, vendored);
 
   fs.writeFileSync(OUT, body, "utf8");
-  console.log(`\nWrote ${path.relative(root, OUT)} (${node.length + python.length} packages)`);
+  console.log(
+    `\nWrote ${path.relative(root, OUT)} (${node.length + python.length + vendored.length} packages)`
+  );
 
   if (problems.length) {
     console.error(`\n${problems.length} license problem(s):`);
@@ -262,6 +299,7 @@ module.exports = {
   buildSourceOffer,
   resolveSourceOffer,
   renderSection,
+  collectVendored,
   problems,
 };
 

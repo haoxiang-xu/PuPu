@@ -1328,13 +1328,20 @@ def _presentation_for_request(request: Any) -> dict[str, Any]:
         if not toolkit_id and tool_name == "computer":
             toolkit_id = "builtin.computer"
             toolkit_name = toolkit_name or "Computer"
+        presentation_arguments = copy.deepcopy(payload.get("arguments") or {})
+        if tool_name == "computer":
+            from computer_control.protocol import redact_sensitive_arguments
+
+            presentation_arguments = redact_sensitive_arguments(
+                presentation_arguments
+            )
         tool_payload = {
             "tool_name": tool_name,
             "tool_display_name": str(payload.get("tool_display_name") or ""),
             "toolkit_id": toolkit_id,
             "toolkit_name": toolkit_name,
             "call_id": call_id,
-            "arguments": copy.deepcopy(payload.get("arguments") or {}),
+            "arguments": presentation_arguments,
             "description": str(payload.get("description") or ""),
             "confirmation_id": interaction_id,
             "requires_confirmation": True,

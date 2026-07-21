@@ -217,6 +217,7 @@ describe("bridge wrappers", () => {
     window.unchainAPI = {
       getComputerUseStatus: jest.fn(async () => ({
         enabled: true,
+        feature_available: true,
         reason: "",
         capabilities: { platform: "darwin" },
         supported_model_prefixes: ["claude-opus", "  claude-sonnet  ", "", 42],
@@ -225,6 +226,7 @@ describe("bridge wrappers", () => {
 
     await expect(runtimeBridge.getComputerUseStatus()).resolves.toEqual({
       enabled: true,
+      featureAvailable: true,
       reason: "",
       capabilities: { platform: "darwin" },
       supportedModelPrefixes: ["claude-opus", "claude-sonnet"],
@@ -238,10 +240,65 @@ describe("bridge wrappers", () => {
 
     await expect(runtimeBridge.getComputerUseStatus()).resolves.toEqual({
       enabled: false,
+      featureAvailable: true,
       reason: "",
       capabilities: null,
       supportedModelPrefixes: [],
     });
+  });
+
+  test("runtimeBridge exposes active route and local beta status when supplied", async () => {
+    window.unchainAPI = {
+      getComputerUseStatus: jest.fn(async () => ({
+        enabled: true,
+        feature_available: true,
+        local_beta_enabled: true,
+        active: {
+          provider: "ollama",
+          model: "qwen3.5:4b",
+          computer_use: {
+            supported: true,
+            mode: "local_adapter",
+            protocol: "pupu.local.click3.v1",
+          },
+        },
+      })),
+    };
+
+    await expect(runtimeBridge.getComputerUseStatus()).resolves.toMatchObject({
+      enabled: true,
+      featureAvailable: true,
+      localBetaEnabled: true,
+      active: {
+        provider: "ollama",
+        model: "qwen3.5:4b",
+      },
+    });
+  });
+
+  test("runtimeBridge sets local beta and runs the explicit model probe", async () => {
+    window.unchainAPI = {
+      setComputerUseLocalBetaEnabled: jest.fn(async () => ({
+        ok: true,
+        local_beta_enabled: true,
+      })),
+      probeComputerUseModel: jest.fn(async () => ({
+        supported: true,
+        model: "qwen3.5:4b",
+      })),
+    };
+
+    expect(runtimeBridge.isComputerUseLocalBetaAvailable()).toBe(true);
+    await expect(
+      runtimeBridge.setComputerUseLocalBetaEnabled(true),
+    ).resolves.toEqual({ ok: true, enabled: true });
+    await expect(
+      runtimeBridge.probeComputerUseModel(" qwen3.5:4b ", false),
+    ).resolves.toMatchObject({ supported: true });
+    expect(window.unchainAPI.probeComputerUseModel).toHaveBeenCalledWith(
+      "qwen3.5:4b",
+      false,
+    );
   });
 
   test("runtimeBridge.syncBuildFeatureFlagsSnapshot forwards flags and normalizes payload", async () => {

@@ -224,9 +224,16 @@ subscribeFeatureFlags(fn)    // → unsubscribe
 // Current flags
 enable_user_access_to_agents: false      // Agents tab in the agents modal
 enable_user_access_to_characters: false  // Characters tab in the agents modal
+enable_computer_use: false               // Ship the Computer toolkit
 ```
 
-In production builds, flags can be overridden via `REACT_APP_BUILD_FEATURE_FLAGS` env var.
+Production builds read `.local/build_feature_flags.snapshot.json`, and
+`build-web.cjs` injects the resolved values through
+`REACT_APP_BUILD_FEATURE_FLAGS`. It also writes the same resolved snapshot to
+`build/build_feature_flags.json`. Electron reads `enable_computer_use` from
+that packaged artifact and passes it to the sidecar as the hard
+`PUPU_FEATURE_COMPUTER_USE` release ceiling. Changing the development flag
+requires restarting PuPu before the sidecar sees it.
 
 ---
 

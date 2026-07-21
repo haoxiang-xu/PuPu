@@ -5,6 +5,7 @@ import { filter_toolkits } from "../utils/filter_toolkits";
 import { build_toolkit_options } from "../utils/build_toolkit_options";
 import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 import { withMcpStoreIcon } from "../../../SERVICEs/mcp_toolkit_store";
+import { filterToolkitsByCapabilities } from "../utils/filter_toolkits_by_capabilities";
 
 const LOADING_TOOLKITS_OPTION = Object.freeze({
   value: "__toolkits_loading__",
@@ -23,8 +24,11 @@ const FAILED_TOOLKITS_OPTION = Object.freeze({
  *
  * @returns {{ toolkitOptions: Array, toolkitLoading: boolean, refreshToolkits: Function }}
  */
-const useChatInputToolkits = () => {
+const useChatInputToolkits = ({ selectedModelId } = {}) => {
   const [toolkits, setToolkits] = useState([]);
+  const [modelCatalog, setModelCatalog] = useState(null);
+  const [computerStatus, setComputerStatus] = useState(null);
+  const [computerResolutionKnown, setComputerResolutionKnown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const hasSuccessfulLoadRef = useRef(false);
@@ -55,6 +59,30 @@ const useChatInputToolkits = () => {
       );
       hasSuccessfulLoadRef.current = true;
       setLoadFailed(false);
+
+      const runtime = api.runtime;
+      const catalogPromise =
+        typeof api.unchain.getModelCatalog === "function"
+          ? api.unchain.getModelCatalog()
+          : Promise.resolve(null);
+      const statusPromise =
+        !runtime ||
+        typeof runtime.getComputerUseStatus !== "function" ||
+        runtime.isComputerUseStatusAvailable?.() === false
+          ? Promise.resolve(null)
+          : runtime.getComputerUseStatus();
+      const [catalogResult, statusResult] = await Promise.allSettled([
+        catalogPromise,
+        statusPromise,
+      ]);
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+      if (catalogResult.status === "fulfilled") {
+        setModelCatalog(catalogResult.value);
+      }
+      if (statusResult.status === "fulfilled") {
+        setComputerStatus(statusResult.value);
+        setComputerResolutionKnown(true);
+      }
     } catch {
       if (!mountedRef.current || requestId !== requestIdRef.current) {
         return;
@@ -77,9 +105,38 @@ const useChatInputToolkits = () => {
     });
   }, [refreshToolkits]);
 
+  const selectedCapabilities = useMemo(() => {
+    if (!modelCatalog) return {};
+    return (
+      modelCatalog.modelCapabilities?.[selectedModelId] ||
+      (modelCatalog.activeModel === selectedModelId
+        ? modelCatalog.activeCapabilities
+        : {}) ||
+      {}
+    );
+  }, [modelCatalog, selectedModelId]);
+
+  const computerAvailable = Boolean(
+    computerStatus?.enabled &&
+      computerStatus?.capabilities?.screenshot &&
+      selectedCapabilities?.computer_use?.supported,
+  );
+  const effectiveCapabilities = useMemo(
+    () => ({
+      ...selectedCapabilities,
+      computer_use: {
+        ...(selectedCapabilities?.computer_use || {}),
+        supported: computerAvailable,
+      },
+    }),
+    [selectedCapabilities, computerAvailable],
+  );
+
   const toolkitOptions = useMemo(
     () => {
-      const options = build_toolkit_options(toolkits);
+      const options = build_toolkit_options(
+        filterToolkitsByCapabilities(toolkits, effectiveCapabilities),
+      );
       if (options.length > 0) {
         return options;
       }
@@ -91,13 +148,16 @@ const useChatInputToolkits = () => {
       }
       return [];
     },
-    [toolkits, loading, loadFailed],
+    [toolkits, effectiveCapabilities, loading, loadFailed],
   );
 
   return {
     toolkitOptions,
     toolkitLoading: loading,
     refreshToolkits,
+    computerAvailable,
+    computerResolutionKnown:
+      computerResolutionKnown && modelCatalog !== null,
   };
 };
 

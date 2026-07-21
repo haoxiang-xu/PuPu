@@ -1,19 +1,15 @@
-"""computer_use_flag — the single source of truth for the computer-use gate.
+"""computer_use_flag — the single source of truth for computer-use gates.
 
-Gate B (2026-07-18) makes the ``PUPU_COMPUTER_USE`` feature flag writable at
-runtime so a user toggle can enable/disable computer use without restarting the
-sidecar. Before this module three private copies of ``_computer_use_enabled``
-read the env directly (``unchain_adapter``, ``memory_factory``, and the status
-route via an adapter import). Those are collapsed into thin delegates here so a
-runtime flip is observed everywhere at once — critically including the session
-store's screenshot sanitization, which is captured per-construction in
-``memory_factory._build_session_store``. If that path diverged from the tool
-gate, a user could enable computer use while transcript screenshots kept landing
-in memory un-redacted.
+``PUPU_FEATURE_COMPUTER_USE`` is the release/build ceiling. It is read only from
+the process environment, defaults off, and cannot be bypassed by a renderer or
+runtime override. ``PUPU_COMPUTER_USE`` remains the user-desired state and may
+be changed at runtime so a consented Settings toggle does not need to restart
+the sidecar.
 
-Precedence: an explicit runtime override wins; otherwise the ``PUPU_COMPUTER_USE``
-env var is the default (dev/boot seed). All fail-closed: a fresh process starts
-with no override, so ``is_enabled()`` falls back to env, and env-unset = off.
+Effective state is therefore ``release flag AND user desired state``. The local
+Ollama Beta is additionally gated by that same release ceiling. All entry points
+(tool mounting, catalog exposure, status, model probing, and transcript media
+sanitization) consume this module so they cannot drift apart.
 """
 
 from __future__ import annotations
@@ -23,7 +19,9 @@ import os
 # Env var + truthy vocabulary — kept identical to the pre-Gate-B private copies
 # so behavior is unchanged when no runtime override is set. Follows the PUPU_*
 # env convention (cf. PUPU_MCP_REGISTRY_PATH).
+_COMPUTER_USE_FEATURE_FLAG = "PUPU_FEATURE_COMPUTER_USE"
 _COMPUTER_USE_FLAG = "PUPU_COMPUTER_USE"
+_LOCAL_BETA_FLAG = "PUPU_COMPUTER_USE_LOCAL_BETA"
 _FLAG_TRUE_VALUES = {"1", "true", "yes", "on", "enabled"}
 
 # Anthropic models that support the computer_20251124 tool + the
@@ -48,17 +46,27 @@ COMPUTER_USE_MODEL_PREFIXES = (
 # means "unset" — defer to the env default. A fresh/restarted process resets to
 # None (fail-closed off until the renderer re-pushes its expected state).
 _runtime_override: bool | None = None
+_local_beta_runtime_override: bool | None = None
 
 
-def _env_enabled() -> bool:
-    return os.environ.get(_COMPUTER_USE_FLAG, "").strip().lower() in _FLAG_TRUE_VALUES
+def _env_flag_enabled(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in _FLAG_TRUE_VALUES
+
+
+def is_feature_available() -> bool:
+    """True only when the non-runtime release/build flag is enabled."""
+    return _env_flag_enabled(_COMPUTER_USE_FEATURE_FLAG)
+
+
+def _desired_enabled() -> bool:
+    if _runtime_override is not None:
+        return _runtime_override
+    return _env_flag_enabled(_COMPUTER_USE_FLAG)
 
 
 def is_enabled() -> bool:
-    """True if computer use is enabled, override taking precedence over env."""
-    if _runtime_override is not None:
-        return _runtime_override
-    return _env_enabled()
+    """True when the release ceiling and the user-desired state are both on."""
+    return is_feature_available() and _desired_enabled()
 
 
 def set_runtime_override(value: bool | None) -> None:
@@ -77,3 +85,23 @@ def set_runtime_override(value: bool | None) -> None:
 def get_runtime_override() -> bool | None:
     """Return the current override (None if unset). For diagnostics/tests."""
     return _runtime_override
+
+
+def is_local_beta_enabled() -> bool:
+    """True only when Computer Use and the separate local Beta gate are available."""
+    if not is_feature_available():
+        return False
+    if _local_beta_runtime_override is not None:
+        return _local_beta_runtime_override
+    return _env_flag_enabled(_LOCAL_BETA_FLAG)
+
+
+def set_local_beta_runtime_override(value: bool | None) -> None:
+    global _local_beta_runtime_override
+    if value is not None and not isinstance(value, bool):
+        raise TypeError("computer-use local beta override must be a bool or None")
+    _local_beta_runtime_override = value
+
+
+def get_local_beta_runtime_override() -> bool | None:
+    return _local_beta_runtime_override

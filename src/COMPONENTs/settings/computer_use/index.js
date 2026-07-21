@@ -8,6 +8,11 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import { SettingsRow, SettingsSection } from "../appearance";
 import { useComputerUseConsent } from "./consent_modal";
 import { disableComputerUse, enableComputerUse } from "./enable_controller";
+import {
+  isComputerUseLocalBetaPersisted,
+  writeComputerUseLocalBeta,
+} from "../../../SERVICEs/computer_use_local_beta_store";
+import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  Permission badge — granted / denied / unknown / not_applicable            */
@@ -125,6 +130,11 @@ export const ComputerUseSettings = () => {
   );
   const [toggleBusy, setToggleBusy] = useState(false);
   const [toggleError, setToggleError] = useState("");
+  const [localBetaExpected, setLocalBetaExpected] = useState(() =>
+    isComputerUseLocalBetaPersisted(),
+  );
+  const [localBetaBusy, setLocalBetaBusy] = useState(false);
+  const [probeResult, setProbeResult] = useState(null);
 
   // One-time informed-consent gate. In dev this section lets us exercise the
   // consent flow; the real "enable" switch wires to requireComputerUseConsent
@@ -165,6 +175,9 @@ export const ComputerUseSettings = () => {
     try {
       const next = await runtimeBridge.getComputerUseStatus();
       setStatus(next);
+      if (next?.active?.computer_use?.probe) {
+        setProbeResult(next.active.computer_use.probe);
+      }
     } catch (loadError) {
       setStatus(null);
       setError(loadError?.message || t("computer_use.load_failed"));
@@ -239,6 +252,30 @@ export const ComputerUseSettings = () => {
     [t],
   );
 
+  const handleLocalBetaToggle = useCallback(
+    async (enabled) => {
+      if (
+        localBetaBusy ||
+        runtimeBridge.isComputerUseLocalBetaAvailable?.() !== true
+      ) return;
+      setLocalBetaBusy(true);
+      setToggleError("");
+      try {
+        const result = await runtimeBridge.setComputerUseLocalBetaEnabled(enabled);
+        writeComputerUseLocalBeta(result.enabled === true);
+        setLocalBetaExpected(result.enabled === true);
+        if (!enabled) setProbeResult(null);
+        await loadStatus();
+        emitToolkitCatalogRefresh({ source: "computer_local_beta" });
+      } catch (localError) {
+        setToggleError(localError?.message || t("computer_use.local_beta_failed"));
+      } finally {
+        setLocalBetaBusy(false);
+      }
+    },
+    [localBetaBusy, loadStatus, t],
+  );
+
   const capabilities =
     status && status.capabilities && typeof status.capabilities === "object"
       ? status.capabilities
@@ -250,13 +287,41 @@ export const ComputerUseSettings = () => {
       ? capabilities.permissions
       : {};
   const isEnabled = Boolean(status?.enabled);
+  const featureAvailable = status?.featureAvailable !== false;
+  const active = status?.active && typeof status.active === "object" ? status.active : {};
+  const activeComputerUse =
+    active?.computer_use && typeof active.computer_use === "object"
+      ? active.computer_use
+      : {};
+  const activeProvider = active?.provider || "";
+  const activeModel = active?.model || "";
+  const localBetaEnabled = Boolean(status?.localBetaEnabled);
   const isEnableAvailable = runtimeBridge.isComputerUseEnableAvailable();
+  const isLocalBetaAvailable =
+    runtimeBridge.isComputerUseLocalBetaAvailable?.() === true;
   // Server truth for the switch position — never optimistic.
   const effectiveEnabled = Boolean(status?.enabled);
   // Desired ≠ effective: the change is persisted but not yet in effect.
-  const pendingMismatch = !loading && expectedEnabled !== effectiveEnabled;
+  const pendingMismatch =
+    featureAvailable && !loading && expectedEnabled !== effectiveEnabled;
 
   const successColor = isDark ? "#86efac" : "#2e7d32";
+
+  const handleProbe = useCallback(async () => {
+    if (!activeModel || activeProvider !== "ollama") return;
+    setLocalBetaBusy(true);
+    setToggleError("");
+    try {
+      const result = await runtimeBridge.probeComputerUseModel(activeModel, true);
+      setProbeResult(result);
+      await loadStatus();
+      emitToolkitCatalogRefresh({ source: "computer_local_probe" });
+    } catch (probeError) {
+      setProbeResult({ supported: false, reason: probeError?.message || "probe_failed" });
+    } finally {
+      setLocalBetaBusy(false);
+    }
+  }, [activeModel, activeProvider, loadStatus]);
 
   return (
     <div>
@@ -273,7 +338,19 @@ export const ComputerUseSettings = () => {
           {t("computer_use.description")}
         </div>
 
-        {isEnableAvailable ? (
+        {!loading && !featureAvailable ? (
+          <SettingsRow
+            label={t("computer_use.feature_unavailable")}
+            description={t("computer_use.feature_unavailable_desc")}
+          >
+            <CapabilityPill
+              ok={false}
+              text={t("computer_use.status_disabled")}
+              isDark={isDark}
+              fontFamily={fontFamily}
+            />
+          </SettingsRow>
+        ) : isEnableAvailable ? (
           <SettingsRow
             label={t("computer_use.enable_label")}
             description={t("computer_use.enable_desc")}
@@ -313,7 +390,7 @@ export const ComputerUseSettings = () => {
           </SettingsRow>
         )}
 
-        {isEnableAvailable && !loading && (
+        {featureAvailable && isEnableAvailable && !loading && (
           <div
             style={{
               display: "flex",
@@ -394,6 +471,73 @@ export const ComputerUseSettings = () => {
             }}
           >
             {error}
+          </div>
+        )}
+      </SettingsSection>
+
+      <SettingsSection title={t("computer_use.protocol_section")} icon="model">
+        <SettingsRow
+          label={t("computer_use.active_mode")}
+          description={`${activeProvider || "—"}${activeModel ? ` · ${activeModel}` : ""}`}
+        >
+          <CapabilityPill
+            ok={activeComputerUse.supported === true}
+            text={activeComputerUse.mode || "unsupported"}
+            isDark={isDark}
+            fontFamily={fontFamily}
+          />
+        </SettingsRow>
+        <SettingsRow label={t("computer_use.active_protocol")}>
+          <CapabilityPill
+            ok={activeComputerUse.supported === true}
+            text={activeComputerUse.protocol || "—"}
+            isDark={isDark}
+            fontFamily={fontFamily}
+          />
+        </SettingsRow>
+
+        {featureAvailable && isLocalBetaAvailable && (
+          <SettingsRow
+            label={t("computer_use.local_beta")}
+            description={t("computer_use.local_beta_desc")}
+          >
+            <div
+              style={{
+                opacity: localBetaBusy ? 0.5 : 1,
+                pointerEvents: localBetaBusy ? "none" : "auto",
+              }}
+            >
+              <SemiSwitch
+                on={localBetaEnabled}
+                set_on={handleLocalBetaToggle}
+                style={{ width: 56, height: 28 }}
+              />
+            </div>
+          </SettingsRow>
+        )}
+
+        {featureAvailable && activeProvider === "ollama" && localBetaEnabled && (
+          <SettingsRow
+            label={t("computer_use.local_probe")}
+            description={
+              probeResult
+                ? probeResult.supported
+                  ? t("computer_use.local_probe_passed")
+                  : `${t("computer_use.local_probe_failed")}: ${probeResult.reason || "unknown"}`
+                : t("computer_use.local_probe_required")
+            }
+          >
+            <Button
+              label={t("computer_use.local_probe_run")}
+              onClick={handleProbe}
+              style={{ ...buttonStyle, opacity: localBetaBusy ? 0.6 : 1 }}
+            />
+          </SettingsRow>
+        )}
+
+        {featureAvailable && localBetaExpected !== localBetaEnabled && !loading && (
+          <div style={{ fontSize: 11, fontFamily, color: mutedColor, paddingBottom: 8 }}>
+            {t("computer_use.enable_pending")}
           </div>
         )}
       </SettingsSection>

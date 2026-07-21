@@ -232,7 +232,13 @@ class DurableInteractionHostTests(unittest.TestCase):
             run_id="run-computer-checkpoint",
         )
 
-        with mock.patch.dict(os.environ, {"PUPU_COMPUTER_USE": "1"}):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PUPU_FEATURE_COMPUTER_USE": "1",
+                "PUPU_COMPUTER_USE": "1",
+            },
+        ):
             store = host._session_store()
         store.save(session_id, {"execution_checkpoint": checkpoint})
 

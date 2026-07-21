@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import math
+import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ..actions import (
     ACTIONS,
@@ -55,6 +57,31 @@ class InjectionBackend(ABC):
     @abstractmethod
     def _cursor_position(self) -> Tuple[float, float]: ...
 
+    def _drag_path(self, points: Sequence[Tuple[float, float]], button: str) -> None:
+        """Default path adapter for backends that only implement start/end."""
+        if len(points) < 2:
+            raise ComputerControlError("invalid_drag", "drag path needs two points", 400)
+        self._drag(*points[0], *points[-1], button)
+
+    def _press_key(self, token: KeyToken) -> None:
+        raise ComputerControlError(
+            "input_state_unsupported", "held keyboard input is unavailable", 400
+        )
+
+    def _release_key(self, token: KeyToken) -> None:
+        raise ComputerControlError(
+            "input_state_unsupported", "held keyboard input is unavailable", 400
+        )
+
+    def _mouse_button(self, button: str, pressed: bool) -> None:
+        raise ComputerControlError(
+            "input_state_unsupported", "held mouse input is unavailable", 400
+        )
+
+    def release_all(self) -> None:
+        """Best-effort emergency release; stateful backends override this."""
+        return None
+
     # --- helpers -----------------------------------------------------------
     @staticmethod
     def _require_coordinate(coordinate: Any) -> Tuple[float, float]:
@@ -100,6 +127,33 @@ class InjectionBackend(ABC):
             envelope["result"] = result
         return envelope
 
+    @staticmethod
+    def _resolve_keys(keys: Any) -> List[KeyToken]:
+        if keys is None:
+            return []
+        if isinstance(keys, str):
+            combo = keys
+        elif isinstance(keys, (list, tuple)):
+            combo = "+".join(str(key) for key in keys if str(key).strip())
+        else:
+            raise ComputerControlError("invalid_keys", "keys must be an array", 400)
+        return resolve_combo(combo) if combo else []
+
+    def _with_modifiers(self, keys: Any, operation: Callable[[], None]) -> None:
+        tokens = self._resolve_keys(keys)
+        pressed: List[KeyToken] = []
+        try:
+            for token in tokens:
+                self._press_key(token)
+                pressed.append(token)
+            operation()
+        finally:
+            for token in reversed(pressed):
+                try:
+                    self._release_key(token)
+                except Exception:
+                    pass
+
     # --- dispatch ----------------------------------------------------------
     def dispatch(
         self,
@@ -110,6 +164,13 @@ class InjectionBackend(ABC):
         text: Optional[str] = None,
         scroll_direction: Optional[str] = None,
         scroll_amount: Optional[int] = None,
+        scroll_x: Optional[float] = None,
+        scroll_y: Optional[float] = None,
+        path: Any = None,
+        keys: Any = None,
+        button: Optional[str] = None,
+        pressed: Optional[bool] = None,
+        duration: Optional[float] = None,
         scale_map: Optional[ScaleMap] = None,
     ) -> Dict[str, Any]:
         """Execute one action. Coordinates are in MODEL-image pixel space and are
@@ -127,7 +188,7 @@ class InjectionBackend(ABC):
         if action == "move":
             mx, my = self._require_coordinate(coordinate)
             ix, iy = self._to_injection(scale_map, mx, my)
-            self._move_to(ix, iy)
+            self._with_modifiers(keys, lambda: self._move_to(ix, iy))
             return self._envelope(action)
 
         if action in CLICK_BUTTON_BY_ACTION:
@@ -137,7 +198,7 @@ class InjectionBackend(ABC):
                 self._move_to(ix, iy)
             button = CLICK_BUTTON_BY_ACTION[action]
             count = CLICK_COUNT_BY_ACTION[action]
-            self._click(button, count)
+            self._with_modifiers(keys, lambda: self._click(button, count))
             return self._envelope(action)
 
         if action == "left_click_drag":
@@ -148,7 +209,21 @@ class InjectionBackend(ABC):
                 ix1, iy1 = self._to_injection(scale_map, mx1, my1)
             else:
                 ix1, iy1 = self._cursor_position()
-            self._drag(ix1, iy1, ix2, iy2, "left")
+            drag_button = str(button or "left")
+            if isinstance(path, list) and len(path) >= 2:
+                injection_points = []
+                for raw_point in path:
+                    mx, my = self._require_coordinate(raw_point)
+                    injection_points.append(self._to_injection(scale_map, mx, my))
+                self._with_modifiers(
+                    keys,
+                    lambda: self._drag_path(injection_points, drag_button),
+                )
+            else:
+                self._with_modifiers(
+                    keys,
+                    lambda: self._drag(ix1, iy1, ix2, iy2, drag_button),
+                )
             return self._envelope(action)
 
         if action == "type":
@@ -168,13 +243,51 @@ class InjectionBackend(ABC):
             self._press_combo(tokens)
             return self._envelope(action)
 
+        if action == "hold_key":
+            if not text:
+                raise ComputerControlError(
+                    "invalid_text", "hold_key requires a key combo in text", 400
+                )
+            tokens = resolve_combo(text)
+            seconds = 1.0 if duration is None else float(duration)
+            held: List[KeyToken] = []
+            try:
+                for token in tokens:
+                    self._press_key(token)
+                    held.append(token)
+                time.sleep(seconds)
+            finally:
+                for token in reversed(held):
+                    try:
+                        self._release_key(token)
+                    except Exception:
+                        pass
+            return self._envelope(action)
+
+        if action == "mouse_button":
+            mouse_button = str(button or "left")
+            if not isinstance(pressed, bool):
+                raise ComputerControlError(
+                    "invalid_button_state", "mouse_button requires pressed boolean", 400
+                )
+            self._mouse_button(mouse_button, pressed)
+            return self._envelope(action)
+
         if action == "scroll":
             if coordinate is not None:
                 mx, my = self._require_coordinate(coordinate)
                 ix, iy = self._to_injection(scale_map, mx, my)
                 self._move_to(ix, iy)
-            dx, dy = self._scroll_delta(scroll_direction, scroll_amount)
-            self._scroll(dx, dy)
+            if scroll_x is not None or scroll_y is not None:
+                raw_x = float(scroll_x or 0)
+                raw_y = float(scroll_y or 0)
+                dx = 0.0 if raw_x == 0 else math.copysign(max(1, round(abs(raw_x) / 100)), raw_x)
+                # OpenAI screen coordinates use positive Y downward; pynput's
+                # scroll primitive uses positive Y upward.
+                dy = 0.0 if raw_y == 0 else -math.copysign(max(1, round(abs(raw_y) / 100)), raw_y)
+            else:
+                dx, dy = self._scroll_delta(scroll_direction, scroll_amount)
+            self._with_modifiers(keys, lambda: self._scroll(dx, dy))
             return self._envelope(action)
 
         if action == "cursor_position":

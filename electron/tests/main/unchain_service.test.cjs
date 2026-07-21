@@ -1920,7 +1920,7 @@ describe("unchain service session memory replacement", () => {
     expect(service.handleStreamStartV3).toBeUndefined();
   });
 
-  test("handleStreamStartV4 uses v4 endpoint and forwards runtime events", async () => {
+  test("handleStreamStartV4 uses the injected stream fetch and forwards runtime events", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
     const spawnSync = jest.fn(() => ({
@@ -1952,13 +1952,13 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce(createCompatibleHealthResponse())
-      .mockResolvedValueOnce({
-        ok: true,
-        body: {
-          getReader: () => reader,
-        },
-      });
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+    const streamFetchImpl = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      body: {
+        getReader: () => reader,
+      },
+    });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
@@ -1985,6 +1985,7 @@ describe("unchain service session memory replacement", () => {
         randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
       },
       net: createAvailableNet(),
+      streamFetchImpl,
       webContents: {
         fromId: jest.fn(() => target),
         getAllWebContents: jest.fn(() => [target]),
@@ -2011,8 +2012,10 @@ describe("unchain service session memory replacement", () => {
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(global.fetch.mock.calls[1][0]).toContain("/chat/stream/v4");
-    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toMatchObject({
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(streamFetchImpl).toHaveBeenCalledTimes(1);
+    expect(streamFetchImpl.mock.calls[0][0]).toContain("/chat/stream/v4");
+    expect(JSON.parse(streamFetchImpl.mock.calls[0][1].body)).toMatchObject({
       threadId: "chat-v4-1",
       attempt_id: "req-v4-1",
       message: "hello",
@@ -2308,12 +2311,15 @@ describe("unchain service computer use enable path", () => {
   const originalFetch = global.fetch;
   const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
   const originalEnvComputerUse = process.env.PUPU_COMPUTER_USE;
+  const originalEnvComputerUseFeature =
+    process.env.PUPU_FEATURE_COMPUTER_USE;
 
   beforeEach(() => {
     // The spawn-env assertions inspect the exact env the service constructs;
     // a stray ambient PUPU_COMPUTER_USE would leak through the `...process.env`
     // spread and defeat the "cache null => key absent" check.
     delete process.env.PUPU_COMPUTER_USE;
+    delete process.env.PUPU_FEATURE_COMPUTER_USE;
   });
 
   afterEach(() => {
@@ -2328,12 +2334,20 @@ describe("unchain service computer use enable path", () => {
     } else {
       process.env.PUPU_COMPUTER_USE = originalEnvComputerUse;
     }
+    if (originalEnvComputerUseFeature == null) {
+      delete process.env.PUPU_FEATURE_COMPUTER_USE;
+    } else {
+      process.env.PUPU_FEATURE_COMPUTER_USE = originalEnvComputerUseFeature;
+    }
     jest.clearAllMocks();
   });
 
   // Each spawn returns a FRESH process so a crash-restart cycle (kill sets
   // `killed = true` on the old one) does not poison the next waitForMisoReady.
-  const buildService = ({ authToken = "auth-token-123" } = {}) => {
+  const buildService = ({
+    authToken = "auth-token-123",
+    fsImpl = { existsSync: jest.fn(() => true) },
+  } = {}) => {
     const spawn = jest.fn(() => createFakeSpawnProcess());
     const spawnSync = jest.fn(() => ({
       status: 0,
@@ -2353,7 +2367,7 @@ describe("unchain service computer use enable path", () => {
         getPath: jest.fn(() => "/tmp/pupu"),
         getVersion: jest.fn(() => "0.1.1"),
       },
-      fs: { existsSync: jest.fn(() => true) },
+      fs: fsImpl,
       path,
       spawn,
       spawnSync,
@@ -2371,6 +2385,50 @@ describe("unchain service computer use enable path", () => {
     });
     return { service, spawn };
   };
+
+  test("sidecar release ceiling defaults off", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+
+    const { service, spawn } = buildService();
+    await service.startMiso();
+
+    expect(spawn.mock.calls[0][2].env.PUPU_FEATURE_COMPUTER_USE).toBe("0");
+  });
+
+  test("sidecar release ceiling follows the explicit environment override", async () => {
+    process.env.PUPU_FEATURE_COMPUTER_USE = "enabled";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+
+    const { service, spawn } = buildService();
+    await service.startMiso();
+
+    expect(spawn.mock.calls[0][2].env.PUPU_FEATURE_COMPUTER_USE).toBe("1");
+  });
+
+  test("sidecar release ceiling reads the development build snapshot", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+    const fsImpl = {
+      existsSync: jest.fn(() => true),
+      readFileSync: jest.fn(() =>
+        JSON.stringify({ enable_computer_use: true }),
+      ),
+    };
+
+    const { service, spawn } = buildService({ fsImpl });
+    await service.startMiso();
+
+    expect(spawn.mock.calls[0][2].env.PUPU_FEATURE_COMPUTER_USE).toBe("1");
+    expect(fsImpl.readFileSync).toHaveBeenCalledWith(
+      path.join("/app", ".local", "build_feature_flags.snapshot.json"),
+      "utf-8",
+    );
+  });
 
   test("setComputerUseEnabled posts the desired flag to the sidecar config endpoint", async () => {
     global.fetch = jest
@@ -2415,6 +2473,49 @@ describe("unchain service computer use enable path", () => {
 
     expect(global.fetch.mock.calls[1][1].body).toBe(
       JSON.stringify({ enabled: false }),
+    );
+  });
+
+  test("setComputerUseLocalBetaEnabled posts only the independent Beta flag", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ local_beta_enabled: true }),
+      });
+
+    const { service } = buildService();
+    await service.startMiso();
+    const result = await service.setComputerUseLocalBetaEnabled(true);
+
+    expect(global.fetch.mock.calls[1][1].body).toBe(
+      JSON.stringify({ local_beta_enabled: true }),
+    );
+    expect(result).toEqual({ ok: true, local_beta_enabled: true });
+  });
+
+  test("probeComputerUseModel posts the bounded local model probe request", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ supported: true, model: "qwen3.5:4b" }),
+      });
+
+    const { service } = buildService();
+    await service.startMiso();
+    await expect(
+      service.probeComputerUseModel("qwen3.5:4b", true),
+    ).resolves.toMatchObject({ supported: true });
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:5879/computer-use/probe",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ model: "qwen3.5:4b", force: true }),
+      }),
     );
   });
 

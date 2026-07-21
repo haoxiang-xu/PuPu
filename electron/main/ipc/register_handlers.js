@@ -21,6 +21,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_STATUS,
   CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
   CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+  CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED,
+  CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL,
   CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
   CHANNELS.UNCHAIN.GET_MODEL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
@@ -184,6 +186,39 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
         throw error;
       }
       return unchainService.setComputerUseEnabled(enabled);
+    },
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED,
+    async (_event, payload = {}) => {
+      if (typeof payload?.enabled !== "boolean") {
+        const error = new Error(
+          "set-computer-use-local-beta-enabled requires a strict boolean `enabled`",
+        );
+        error.code = "invalid_argument";
+        throw error;
+      }
+      return unchainService.setComputerUseLocalBetaEnabled(payload.enabled);
+    },
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL,
+    async (_event, payload = {}) => {
+      if (
+        typeof payload?.model !== "string" ||
+        !payload.model.trim() ||
+        typeof payload?.force !== "boolean"
+      ) {
+        const error = new Error(
+          "probe-computer-use-model requires `model` and boolean `force`",
+        );
+        error.code = "invalid_argument";
+        throw error;
+      }
+      return unchainService.probeComputerUseModel(
+        payload.model.trim(),
+        payload.force,
+      );
     },
   );
   ipcMain.handle(

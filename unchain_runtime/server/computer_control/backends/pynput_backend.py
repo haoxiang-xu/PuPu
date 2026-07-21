@@ -27,6 +27,8 @@ class PynputBackend(InjectionBackend):
         self._keyboard = None
         self._Button = None
         self._Key = None
+        self._held_buttons = []
+        self._held_keys = []
 
     def _ensure(self) -> None:
         if self._mouse is not None:
@@ -83,6 +85,18 @@ class PynputBackend(InjectionBackend):
         finally:
             self._mouse.release(pressed)
 
+    def _drag_path(self, points, button: str) -> None:
+        self._ensure()
+        pressed = self._button(button)
+        start_x, start_y = points[0]
+        self._mouse.position = (int(round(start_x)), int(round(start_y)))
+        self._mouse.press(pressed)
+        try:
+            for x, y in points[1:]:
+                self._mouse.position = (int(round(x)), int(round(y)))
+        finally:
+            self._mouse.release(pressed)
+
     def _scroll(self, dx: float, dy: float) -> None:
         self._ensure()
         self._mouse.scroll(int(round(dx)), int(round(dy)))
@@ -98,6 +112,50 @@ class PynputBackend(InjectionBackend):
             self._keyboard.press(key)
         for key in reversed(resolved):
             self._keyboard.release(key)
+
+    def _press_key(self, token: KeyToken) -> None:
+        self._ensure()
+        key = self._resolve_token(token)
+        self._keyboard.press(key)
+        self._held_keys.append(key)
+
+    def _release_key(self, token: KeyToken) -> None:
+        self._ensure()
+        key = self._resolve_token(token)
+        self._keyboard.release(key)
+        for index in range(len(self._held_keys) - 1, -1, -1):
+            if self._held_keys[index] == key:
+                self._held_keys.pop(index)
+                break
+
+    def _mouse_button(self, button: str, pressed: bool) -> None:
+        self._ensure()
+        resolved = self._button(button)
+        if pressed:
+            self._mouse.press(resolved)
+            self._held_buttons.append(resolved)
+            return
+        self._mouse.release(resolved)
+        for index in range(len(self._held_buttons) - 1, -1, -1):
+            if self._held_buttons[index] == resolved:
+                self._held_buttons.pop(index)
+                break
+
+    def release_all(self) -> None:
+        if self._mouse is None:
+            return
+        for key in reversed(self._held_keys):
+            try:
+                self._keyboard.release(key)
+            except Exception:
+                pass
+        self._held_keys.clear()
+        for button in reversed(self._held_buttons):
+            try:
+                self._mouse.release(button)
+            except Exception:
+                pass
+        self._held_buttons.clear()
 
     def _cursor_position(self) -> Tuple[float, float]:
         self._ensure()

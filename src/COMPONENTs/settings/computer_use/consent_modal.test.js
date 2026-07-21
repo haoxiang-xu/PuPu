@@ -29,7 +29,7 @@ beforeEach(() => {
 /* five bullet disclosures + one explicit affirmative button.                    */
 const BULLET_MATCHERS = [
   /control your real desktop mouse and keyboard/i, // ① real desktop, not sandbox
-  /sent to the model provider \(Anthropic\)/i, // ② screenshots leave the machine
+  /sent to the selected model provider.*local Ollama model/i, // ② provider/local destination
   /Malicious content on your screen/i, // ③ on-screen injection risk
   /asks for your confirmation before it runs/i, // ④ per-action confirmation
   /revoke the permission in your system settings/i, // ⑤ off / revoke anytime

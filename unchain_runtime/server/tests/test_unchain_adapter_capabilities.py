@@ -227,8 +227,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         ):
             model_capabilities = unchain_adapter.get_model_capability_catalog()
 
+        openai_capabilities = dict(model_capabilities["openai:gpt-5"])
+        openai_computer = openai_capabilities.pop("computer_use")
+        self.assertFalse(openai_computer["supported"])
         self.assertEqual(
-            model_capabilities["openai:gpt-5"],
+            openai_capabilities,
             {
                 "input_modalities": ["text", "image", "pdf"],
                 "input_source_types": {
@@ -237,16 +240,27 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 },
             },
         )
+        ollama_capabilities = dict(model_capabilities["ollama:deepseek-r1:14b"])
+        ollama_computer = ollama_capabilities.pop("computer_use")
+        self.assertFalse(ollama_computer["supported"])
         self.assertEqual(
-            model_capabilities["ollama:deepseek-r1:14b"],
+            ollama_capabilities,
             {
                 "input_modalities": ["text"],
                 "input_source_types": {},
                 "supports_tools": False,
             },
         )
+        anthropic_capabilities = dict(
+            model_capabilities["anthropic:claude-opus-4-6"]
+        )
+        anthropic_computer = anthropic_capabilities.pop("computer_use")
+        self.assertTrue(anthropic_computer["supported"])
         self.assertEqual(
-            model_capabilities["anthropic:claude-opus-4-6"],
+            anthropic_computer["protocol"], "anthropic.computer_20251124"
+        )
+        self.assertEqual(
+            anthropic_capabilities,
             {
                 "input_modalities": ["text", "image"],
                 "input_source_types": {"image": ["base64"]},
@@ -2891,7 +2905,9 @@ requires_confirmation = true
             payload = unchain_adapter.get_toolkit_catalog_v2()
 
         self.assertEqual(payload["count"], 1)
-        entry = payload["toolkits"][0]
+        entry = next(
+            row for row in payload["toolkits"] if row["toolkitId"] == "DemoToolkit"
+        )
         self.assertEqual(
             entry["toolkitIcon"],
             {
@@ -2966,7 +2982,10 @@ requires_confirmation = true
         self.assertTrue(entry["tools"][1]["requiresConfirmation"])
 
     def test_get_toolkit_catalog_v2_lists_only_public_builtin_toolkits(self) -> None:
-        payload = unchain_adapter.get_toolkit_catalog_v2()
+        with mock.patch(
+            "computer_use_flag.is_feature_available", return_value=True
+        ):
+            payload = unchain_adapter.get_toolkit_catalog_v2()
 
         builtin_ids = [
             entry["toolkitId"]
@@ -2974,7 +2993,32 @@ requires_confirmation = true
             if entry.get("source") == "builtin"
         ]
 
-        self.assertEqual(builtin_ids, ["core", "plan", "agent_reach"])
+        self.assertEqual(
+            builtin_ids,
+            ["core", "plan", "builtin.computer", "agent_reach"],
+        )
+
+        computer = next(
+            entry
+            for entry in payload["toolkits"]
+            if entry.get("toolkitId") == "builtin.computer"
+        )
+        self.assertEqual(computer["settingsKind"], "computer_use")
+        self.assertEqual(computer["capabilityRequirements"], ["computer_use"])
+        self.assertEqual([tool["name"] for tool in computer["tools"]], ["computer"])
+
+    def test_get_toolkit_catalog_v2_omits_computer_when_release_flag_is_off(
+        self,
+    ) -> None:
+        with mock.patch(
+            "computer_use_flag.is_feature_available", return_value=False
+        ):
+            payload = unchain_adapter.get_toolkit_catalog_v2()
+
+        self.assertNotIn(
+            "builtin.computer",
+            [entry.get("toolkitId") for entry in payload["toolkits"]],
+        )
 
     def test_get_toolkit_catalog_v2_exposes_artifact_kind_metadata(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(

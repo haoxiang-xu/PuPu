@@ -43,6 +43,11 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show Custom Model Providers in Settings and allow custom models in catalogs, selectors, connection tests, and chat requests.",
     defaultValue: false,
   },
+  enable_computer_use: {
+    description:
+      "Ship the Computer toolkit and allow its separate consented user toggle to take effect. Requires an app restart after changing this build flag.",
+    defaultValue: false,
+  },
 };
 
 const listeners = new Set();

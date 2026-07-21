@@ -217,6 +217,29 @@ const normalizeModelInputCapabilities = (capabilities) => {
   if (capabilityPayload.supports_tools === false) {
     normalized.supports_tools = false;
   }
+  if (isObject(capabilityPayload.computer_use)) {
+    const computerUse = capabilityPayload.computer_use;
+    normalized.computer_use = {
+      supported: computerUse.supported === true,
+      mode:
+        typeof computerUse.mode === "string"
+          ? computerUse.mode
+          : "unsupported",
+      protocol:
+        typeof computerUse.protocol === "string"
+          ? computerUse.protocol
+          : "",
+      stability:
+        typeof computerUse.stability === "string"
+          ? computerUse.stability
+          : "stable",
+      reason:
+        typeof computerUse.reason === "string" ? computerUse.reason : "",
+    };
+    if (isObject(computerUse.probe)) {
+      normalized.computer_use.probe = { ...computerUse.probe };
+    }
+  }
   return normalized;
 };
 

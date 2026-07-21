@@ -617,6 +617,10 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     raw_arguments = payload.get("arguments")
     arguments = raw_arguments
     payload["arguments"] = arguments if isinstance(arguments, dict) else {}
+    if payload["tool_name"] == "computer":
+        from computer_control.protocol import redact_sensitive_arguments
+
+        payload["arguments"] = redact_sensitive_arguments(payload["arguments"])
 
     description = payload.get("description", "")
     payload["description"] = description if isinstance(description, str) else str(description or "")
@@ -1448,6 +1452,8 @@ def get_max_context_window_tokens(
 def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
     catalog: Dict[str, Dict[str, object]] = {}
 
+    from computer_use_capabilities import resolve_computer_use_capability
+
     raw_catalog = _load_raw_capability_catalog()
     for model_name, capabilities in raw_catalog.items():
         provider = str(capabilities.get("provider", "")).strip().lower()
@@ -1461,7 +1467,25 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
             continue
 
         model_id = f"{provider}:{normalized_model}"
-        catalog[model_id] = _normalize_model_capabilities(capabilities)
+        normalized_capabilities = _normalize_model_capabilities(capabilities)
+        normalized_capabilities["computer_use"] = resolve_computer_use_capability(
+            provider, normalized_model
+        )
+        catalog[model_id] = normalized_capabilities
+
+    # Live Ollama models may not exist in the packaged capability file.  Give
+    # every selectable model the same optional capability contract so the
+    # renderer never has to guess from model-name prefixes.
+    for provider, models in get_capability_catalog().items():
+        for model in models:
+            model_id = f"{provider}:{model}"
+            if model_id in catalog:
+                continue
+            normalized_capabilities = _default_model_capabilities()
+            normalized_capabilities["computer_use"] = resolve_computer_use_capability(
+                provider, model
+            )
+            catalog[model_id] = normalized_capabilities
 
     ordered_model_ids = sorted(catalog)
     return {model_id: catalog[model_id] for model_id in ordered_model_ids}
@@ -2055,10 +2079,17 @@ def _enrich_tool_event_with_toolkit_metadata(
     ):
         _redact_tool_result_images(event, session_id)
 
-    if not toolkit_meta:
-        return event
-
     enriched = dict(event)
+    if event_type == "tool_call" and toolkit_id == "builtin.computer":
+        from computer_control.protocol import redact_sensitive_arguments
+
+        enriched["arguments"] = redact_sensitive_arguments(
+            enriched.get("arguments")
+        )
+
+    if not toolkit_meta:
+        return enriched
+
     if not str(enriched.get("toolkit_id", "") or "").strip():
         enriched["toolkit_id"] = toolkit_meta.get("toolkit_id", "")
     if not str(enriched.get("toolkit_name", "") or "").strip():
@@ -2536,17 +2567,82 @@ def _append_installed_skill_packs(payload: Dict[str, object]) -> Dict[str, objec
     return next_payload
 
 
+def _builtin_computer_catalog_entry() -> Dict[str, object]:
+    return {
+        "toolkitId": "builtin.computer",
+        "toolkitName": "Computer",
+        "toolkitDescription": (
+            "See and control the desktop through the active model's supported "
+            "Computer protocol. Every mutating batch requires confirmation."
+        ),
+        "toolkitIcon": {
+            "type": "builtin",
+            "name": "mouse",
+            "color": "#60A5FA",
+            "backgroundColor": "rgba(96,165,250,0.14)",
+        },
+        "source": "builtin",
+        "toolCount": 1,
+        "defaultEnabled": False,
+        "tools": [
+            {
+                "name": "computer",
+                "title": "Computer",
+                "description": "Take screenshots and use mouse and keyboard input.",
+            }
+        ],
+        "skills": [],
+        "displayOrder": 45,
+        "hidden": False,
+        "tags": ["desktop", "computer-use"],
+        "artifactKinds": [],
+        "settingsKind": "computer_use",
+        "capabilityRequirements": ["computer_use"],
+    }
+
+
+def _append_builtin_computer_toolkit(payload: Dict[str, object]) -> Dict[str, object]:
+    entries = [
+        entry
+        for entry in list(payload.get("toolkits") or [])
+        if not isinstance(entry, dict) or entry.get("toolkitId") != "builtin.computer"
+    ]
+    from computer_use_flag import is_feature_available
+
+    if not is_feature_available():
+        next_payload = dict(payload)
+        next_payload["toolkits"] = entries
+        next_payload["count"] = len(entries)
+        if "artifactKinds" in next_payload:
+            next_payload["artifactKinds"] = _merged_artifact_kinds(entries)
+        return next_payload
+
+    entries.append(_builtin_computer_catalog_entry())
+    entries.sort(
+        key=lambda entry: (
+            entry.get("displayOrder", 999) if isinstance(entry, dict) else 999,
+            entry.get("toolkitName", "") if isinstance(entry, dict) else "",
+        )
+    )
+    next_payload = dict(payload)
+    next_payload["toolkits"] = entries
+    next_payload["count"] = len(entries)
+    return next_payload
+
+
 def get_toolkit_catalog_v2() -> Dict[str, object]:
     """Enriched toolkit catalog with icon payloads, per-tool metadata, and
     README support for the tool-modal UI."""
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
-        return _append_installed_skill_packs(_append_installed_mcp_toolkits({
-            "toolkits": [],
-            "artifactKinds": [],
-            "count": 0,
-            "source": "",
-        }))
+        return _append_builtin_computer_toolkit(
+            _append_installed_skill_packs(_append_installed_mcp_toolkits({
+                "toolkits": [],
+                "artifactKinds": [],
+                "count": 0,
+                "source": "",
+            }))
+        )
 
     def _build_entry(candidate: type, kind: str) -> Dict[str, object]:
         """Build a single ToolkitGroup dict, merging toolkit.toml fields."""
@@ -2675,12 +2771,14 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
     # Sort by display order from toolkit.toml
     entries.sort(key=lambda e: (e.get("displayOrder", 999), e.get("toolkitName", "")))
 
-    return _append_installed_skill_packs(_append_installed_mcp_toolkits({
-        "toolkits": entries,
-        "artifactKinds": _merged_artifact_kinds(entries),
-        "count": len(entries),
-        "source": "",
-    }))
+    return _append_builtin_computer_toolkit(
+        _append_installed_skill_packs(_append_installed_mcp_toolkits({
+            "toolkits": entries,
+            "artifactKinds": _merged_artifact_kinds(entries),
+            "count": len(entries),
+            "source": "",
+        }))
+    )
 
 
 def get_toolkit_metadata(
@@ -3370,15 +3468,10 @@ def _computer_use_enabled() -> bool:
 
 
 def _model_supports_computer_use(provider: str, model: str) -> bool:
-    """True only for an Anthropic session on a computer_20251124-capable model.
+    """True only when the strict provider/model route is currently usable."""
+    from computer_use_capabilities import model_supports_computer_use
 
-    The native spec is Anthropic-keyed, so a non-Anthropic session would fall to
-    the untested generic schema (M3) — treated as unsupported here.
-    """
-    if str(provider or "").strip().lower() != "anthropic":
-        return False
-    normalized = str(model or "").strip().lower()
-    return any(normalized.startswith(prefix) for prefix in _COMPUTER_USE_MODEL_PREFIXES)
+    return model_supports_computer_use(provider, model)
 
 
 def _build_builtin_toolkit(
@@ -3412,15 +3505,16 @@ def _build_builtin_toolkit(
                 "tool mount (no confirmation path in subagent execution)"
             )
             return None
-        if not _model_supports_computer_use(provider, model):
-            # Gate at the model level: sending computer_20251124 to a model that
-            # only supports the older tool type 400s. Skip + log rather than
-            # mount a broken tool.
+        from computer_use_capabilities import resolve_computer_use_capability
+
+        route = resolve_computer_use_capability(provider, model)
+        if route.get("supported") is not True:
             _computer_use_logger.info(
-                "computer-use requested but session model %s:%s does not support "
-                "computer_20251124; skipping tool mount",
+                "computer-use requested but session model %s:%s has no usable "
+                "route (%s); skipping tool mount",
                 provider or "?",
                 model or "?",
+                route.get("reason") or "unsupported",
             )
             return None
         # Lazy import: keeps the computer_control -> unchain dependency and its
@@ -3428,7 +3522,10 @@ def _build_builtin_toolkit(
         # is on and the tool is actually requested.
         from computer_control.toolkit import ComputerToolkit
 
-        return ComputerToolkit()
+        return ComputerToolkit(
+            provider=str(provider or "").strip().lower(),
+            protocol=str(route.get("protocol") or ""),
+        )
     return None
 
 

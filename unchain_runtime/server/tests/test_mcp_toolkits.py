@@ -1290,11 +1290,14 @@ class McpToolkitAdapterTests(unittest.TestCase):
                          "tools": [{"name": "memory_read", "title": "Read"}],
                      }
                  ],
+             ), mock.patch(
+                 "computer_use_flag.is_feature_available", return_value=True
              ):
             payload = unchain_adapter.get_toolkit_catalog_v2()
 
-        self.assertEqual(payload["toolkits"][0]["toolkitId"], "mcp.memory.memory")
-        self.assertEqual(payload["count"], 1)
+        toolkit_ids = {item["toolkitId"] for item in payload["toolkits"]}
+        self.assertEqual(toolkit_ids, {"builtin.computer", "mcp.memory.memory"})
+        self.assertEqual(payload["count"], 2)
 
     def test_metadata_returns_installed_mcp_entry(self):
         with mock.patch.object(

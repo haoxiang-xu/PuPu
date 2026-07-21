@@ -24,11 +24,9 @@ import { ComputerUseSettings } from "../settings/computer_use";
  */
 
 /**
- * Canonical toolkitId of the builtin Computer plugin. Matches the synthetic id
- * the sidecar funnel recognizes (`COMPUTER_TOOLKIT_ID` in
- * chat-input/utils/computer_use_toolkit_option.js). Kept local to the toolkit
- * surface so the registry + installed row share one source of truth without
- * reaching into the chat-input dev's module.
+ * Canonical toolkitId of the builtin Computer plugin. The same id is returned
+ * by the sidecar catalog and carried through the ordinary toolkit-selection
+ * payload. Kept local to this surface to avoid a toolkit→chat-input dependency.
  */
 export const BUILTIN_COMPUTER_TOOLKIT_ID = "builtin.computer";
 

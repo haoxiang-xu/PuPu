@@ -28,6 +28,9 @@ const CHANNELS = Object.freeze({
     GET_STATUS: "unchain:get-status",
     GET_COMPUTER_USE_STATUS: "unchain:get-computer-use-status",
     SET_COMPUTER_USE_ENABLED: "unchain:set-computer-use-enabled",
+    SET_COMPUTER_USE_LOCAL_BETA_ENABLED:
+      "unchain:set-computer-use-local-beta-enabled",
+    PROBE_COMPUTER_USE_MODEL: "unchain:probe-computer-use-model",
     OPEN_COMPUTER_USE_PRIVACY_SETTINGS:
       "unchain:open-computer-use-privacy-settings",
     GET_MODEL_CATALOG: "unchain:get-model-catalog",

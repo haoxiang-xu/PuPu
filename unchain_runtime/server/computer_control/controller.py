@@ -60,3 +60,8 @@ class ComputerController:
         backend = self._get_backend()
         effective_map = scale_map if scale_map is not None else self._last_scale_map
         return backend.dispatch(action, scale_map=effective_map, **params)
+
+    def release_all(self) -> None:
+        """Release any held keys/buttons after a batch or execution failure."""
+        if self._backend is not None:
+            self._backend.release_all()

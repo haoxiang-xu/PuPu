@@ -41,6 +41,20 @@ test("pynput gets a written source offer with upstream URL + version", () => {
   assert.match(offer, /obtain|replace|relink/i);
 });
 
+test("every copyleft package in the release environment has a source offer", () => {
+  for (const name of [
+    "axe-core",
+    "harmony-reflect",
+    "node-forge",
+    "certifi",
+    "pyinstaller",
+    "pyinstaller-hooks-contrib",
+    "tqdm",
+  ]) {
+    assert.match(notices.COPYLEFT_SOURCE_OFFERS[name], /^https:\/\/github\.com\//);
+  }
+});
+
 test("permissive package gets no offer and no gate problem", () => {
   const before = notices.problems.length;
   const offer = notices.resolveSourceOffer("python", "Flask", "3.1.0", "BSD-3-Clause");
@@ -80,4 +94,13 @@ test("renderSection embeds the written offer above the license text", () => {
     section.indexOf("Written offer") < section.indexOf("GNU LESSER GENERAL PUBLIC LICENSE"),
     "written offer should precede the license text"
   );
+});
+
+test("vendored clickclickclick adapter carries pinned MIT attribution", () => {
+  const entries = notices.collectVendored();
+  assert.equal(entries.length, 1);
+  assert.match(entries[0].id, /e4ce8f958b4d7748a95af6d7201d1fa12ca5d2cb/);
+  assert.equal(entries[0].license, "MIT");
+  assert.match(entries[0].text, /Copyright \(c\) 2024 Checksum Labs, Inc/);
+  assert.match(entries[0].text, /Permission is hereby granted/);
 });

@@ -63,6 +63,8 @@ describe("preload API contract", () => {
       "getStatus",
       "getComputerUseStatus",
       "setComputerUseEnabled",
+      "setComputerUseLocalBetaEnabled",
+      "probeComputerUseModel",
       "openComputerUsePrivacySettings",
       "getModelCatalog",
       "getToolkitCatalog",
@@ -181,6 +183,18 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
       { enabled: true },
+    );
+
+    exposed.unchainAPI.setComputerUseLocalBetaEnabled(true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED,
+      { enabled: true },
+    );
+
+    exposed.unchainAPI.probeComputerUseModel("qwen3.5:4b", true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL,
+      { model: "qwen3.5:4b", force: true },
     );
 
     exposed.unchainAPI.openComputerUsePrivacySettings("accessibility");

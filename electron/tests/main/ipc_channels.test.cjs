@@ -208,4 +208,45 @@ describe("ipc channel parity", () => {
     await handler({}, { enabled: false });
     expect(unchainService.setComputerUseEnabled).toHaveBeenLastCalledWith(false);
   });
+
+  test("local Computer Beta channels validate and delegate", async () => {
+    const registeredHandlers = new Map();
+    const ipcMain = {
+      handle: jest.fn((channel, handler) => registeredHandlers.set(channel, handler)),
+      on: jest.fn(),
+    };
+    const unchainService = {
+      setComputerUseLocalBetaEnabled: jest.fn().mockResolvedValue({
+        local_beta_enabled: true,
+      }),
+      probeComputerUseModel: jest.fn().mockResolvedValue({ supported: true }),
+    };
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {}, updateService: {}, ollamaService: {}, unchainService,
+        runtimeService: {}, screenshotService: {}, chatStorageService: {},
+      },
+    });
+
+    const setBeta = registeredHandlers.get(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED,
+    );
+    await expect(setBeta({}, { enabled: "true" })).rejects.toThrow(/strict boolean/i);
+    await expect(setBeta({}, { enabled: true })).resolves.toEqual({
+      local_beta_enabled: true,
+    });
+    expect(unchainService.setComputerUseLocalBetaEnabled).toHaveBeenCalledWith(true);
+
+    const probe = registeredHandlers.get(CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL);
+    await expect(probe({}, { model: "", force: true })).rejects.toThrow(/requires/i);
+    await expect(
+      probe({}, { model: "qwen3.5:4b", force: true }),
+    ).resolves.toEqual({ supported: true });
+    expect(unchainService.probeComputerUseModel).toHaveBeenCalledWith(
+      "qwen3.5:4b",
+      true,
+    );
+  });
 });

@@ -8,6 +8,15 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED, {
       enabled: Boolean(enabled),
     }),
+  setComputerUseLocalBetaEnabled: (enabled = false) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED, {
+      enabled: Boolean(enabled),
+    }),
+  probeComputerUseModel: (model = "", force = false) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL, {
+      model: typeof model === "string" ? model : "",
+      force: force === true,
+    }),
   openComputerUsePrivacySettings: (target = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS, {
       target,

@@ -5,7 +5,6 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -19,8 +18,7 @@ import AttachmentChipList from "./attachment_chip_list";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
-import useComputerUseToolkitOption from "../hooks/use_computer_use_toolkit_option";
-import { COMPUTER_TOOLKIT_ID } from "../utils/computer_use_toolkit_option";
+import { COMPUTER_TOOLKIT_ID } from "../constants";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
 import {
@@ -170,16 +168,12 @@ const AttachPanel = forwardRef(({
   );
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const lastModelSelectorRefreshAt = useRef(0);
-  const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
-  const { computerOption, shouldDeselectComputer, refreshComputerStatus } =
-    useComputerUseToolkitOption({ selectedModelId });
-  /* Append the synthetic "Computer" entry (null unless computer use is on).
-     It is not a catalog toolkit, so it lives outside the catalog-render path
-     and is stitched in only for the menu. */
-  const toolkitOptionsWithComputer = useMemo(
-    () => (computerOption ? [...toolkitOptions, computerOption] : toolkitOptions),
-    [toolkitOptions, computerOption],
-  );
+  const {
+    toolkitOptions,
+    refreshToolkits,
+    computerAvailable,
+    computerResolutionKnown,
+  } = useChatInputToolkits({ selectedModelId });
 
   /* Reconcile a residual selection: once computer use is DEFINITIVELY not
      selectable for this chat (master switch off, bridge unavailable, or the
@@ -189,13 +183,18 @@ const AttachPanel = forwardRef(({
      Server truth still gates real mounting; this is a selection-consistency
      fix. Switching to a supported model + on again simply re-checks the box. */
   useEffect(() => {
-    if (!shouldDeselectComputer) return;
+    if (!computerResolutionKnown || computerAvailable) return;
     if (!Array.isArray(selectedToolkits)) return;
     if (!selectedToolkits.includes(COMPUTER_TOOLKIT_ID)) return;
     handleToolkitsValueChange(
       selectedToolkits.filter((value) => value !== COMPUTER_TOOLKIT_ID),
     );
-  }, [shouldDeselectComputer, selectedToolkits, handleToolkitsValueChange]);
+  }, [
+    computerAvailable,
+    computerResolutionKnown,
+    selectedToolkits,
+    handleToolkitsValueChange,
+  ]);
   const { workspaceOptions } = useChatInputWorkspaces();
   const isAgentsFeatureEnabled =
     featureFlags.enable_user_access_to_agents === true;
@@ -262,7 +261,6 @@ const AttachPanel = forwardRef(({
     (next) => {
       if (next) {
         void refreshToolkits();
-        void refreshComputerStatus();
         setOpenSelector("tools");
         return;
       }
@@ -274,7 +272,7 @@ const AttachPanel = forwardRef(({
         setKbIndex(kbReturnIndexRef.current);
       }
     },
-    [refreshToolkits, refreshComputerStatus, onRequestInputFocus],
+    [refreshToolkits, onRequestInputFocus],
   );
 
   const handleWorkspaceOpenChange = useCallback(
@@ -644,7 +642,7 @@ const AttachPanel = forwardRef(({
                 {kbGlow("tools")}
                 <Select
                   multi
-                  options={toolkitOptionsWithComputer}
+                  options={toolkitOptions}
                   value={localToolkits}
                   set_value={handleToolkitsValueChange}
                   filterable={true}

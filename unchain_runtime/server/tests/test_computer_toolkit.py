@@ -94,9 +94,16 @@ class NativeSpecTests(unittest.TestCase):
         payloads = tk.to_provider_json("anthropic")
         self.assertEqual(len(payloads), 1)
         self.assertEqual(payloads[0]["type"], "computer_20251124")
-        # generic providers fall back to a function schema (no native spec)
+        # OpenAI uses its own built-in Computer tool, not a generic function.
         openai_payload = tk.to_provider_json("openai")[0]
-        self.assertNotEqual(openai_payload.get("type"), "computer_20251124")
+        self.assertEqual(openai_payload, {"type": "computer"})
+        ollama_payload = tk.to_provider_json("ollama")[0]
+        self.assertEqual(ollama_payload["type"], "function")
+        self.assertEqual(ollama_payload["function"]["name"], "computer")
+        self.assertEqual(
+            ollama_payload["function"]["parameters"]["required"],
+            ["actions"],
+        )
 
     def test_beta_aggregation(self):
         tk, _ = _make_toolkit(_caps())
@@ -146,10 +153,12 @@ class DispatchTests(unittest.TestCase):
             result = tk.execute("computer", {"action": "wait", "duration": 2})
         slept.assert_called_once_with(2.0)
         self.assertTrue(result["ok"])
-        # cap: a large duration is clamped to the max
+        # Atomic validation rejects a duration above the protocol maximum.
         with mock.patch.object(toolkit_mod.time, "sleep") as slept:
-            tk.execute("computer", {"action": "wait", "duration": 999})
-        slept.assert_called_once_with(5.0)
+            invalid = tk.execute("computer", {"action": "wait", "duration": 999})
+        slept.assert_not_called()
+        self.assertFalse(invalid["ok"])
+        self.assertIn("invalid_duration", invalid["caveats"])
         # default when unspecified
         with mock.patch.object(toolkit_mod.time, "sleep") as slept:
             tk.execute("computer", {"action": "wait"})
@@ -159,11 +168,11 @@ class DispatchTests(unittest.TestCase):
         tk, _ = _make_toolkit(_caps())
         self.assertTrue(tk.get("computer").always_load)
 
-    def test_unsupported_action_message_lists_supported(self):
-        tk, _ = _make_toolkit(_caps())
+    def test_hold_key_is_supported(self):
+        tk, ctrl = _make_toolkit(_caps())
         result = tk.execute("computer", {"action": "hold_key", "text": "shift"})
-        self.assertIn("supported:", result["result"])
-        self.assertIn("left_click", result["result"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(ctrl.act_calls[0][0], "hold_key")
 
     def test_left_click_forwards_coordinate_to_controller(self):
         ctrl = FakeController(_caps())
@@ -183,7 +192,7 @@ class DispatchTests(unittest.TestCase):
 
     def test_unsupported_action_reported_not_raised(self):
         tk, ctrl = _make_toolkit(_caps())
-        result = tk.execute("computer", {"action": "hold_key", "text": "shift"})
+        result = tk.execute("computer", {"action": "zoom"})
         self.assertFalse(result["ok"])
         self.assertIn("unsupported_action", result["caveats"])
         self.assertEqual(ctrl.act_calls, [])
@@ -191,9 +200,10 @@ class DispatchTests(unittest.TestCase):
     def test_no_screenshot_caveat_before_first_capture(self):
         ctrl = FakeController(_caps())
         tk, _ = _make_toolkit(_caps(), controller=ctrl)
-        # _last_scale_map is None → click surfaces the caveat
+        # _last_scale_map is None → the whole batch is rejected pre-dispatch.
         result = tk.execute("computer", {"action": "left_click", "coordinate": [1, 2]})
-        self.assertIn("no_screenshot_taken", result["caveats"])
+        self.assertIn("screenshot_required", result["caveats"])
+        self.assertEqual(ctrl.act_calls, [])
 
     def test_controller_error_becomes_structured_result(self):
         class BoomController(FakeController):
@@ -210,6 +220,47 @@ class DispatchTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["result"], "bad coord")
         self.assertIn("invalid_coordinate", result["caveats"])
+
+    def test_openai_batch_executes_in_order_then_returns_fresh_screenshot(self):
+        ctrl = FakeController(_caps(), screenshot_result=_FakeScreenshot(b"AFTER", 1512, 982))
+        tk, _ = _make_toolkit(_caps(), controller=ctrl)
+        ctrl._last_scale_map = object()
+        result = tk.execute(
+            "computer",
+            {
+                "provider": "openai",
+                "protocol": "openai.responses.computer.v1",
+                "actions": [
+                    {"type": "click", "button": "left", "x": 10, "y": 20},
+                    {"type": "type", "text": "hello"},
+                ],
+            },
+        )
+        self.assertEqual([call[0] for call in ctrl.act_calls], ["left_click", "type"])
+        self.assertEqual(result["schema"], "pupu.computer.actions")
+        self.assertEqual(result["action_count"], 2)
+        self.assertEqual(base64.b64decode(result["content_blocks"][1]["data_b64"]), b"AFTER")
+        self.assertEqual(result["results"][-1]["result"], "screenshot captured")
+        self.assertNotIn("content_blocks", result["results"][-1])
+        self.assertNotIn("data_b64", repr(result["results"]))
+
+    def test_ollama_batch_uses_same_executor_and_returns_fresh_screenshot(self):
+        ctrl = FakeController(_caps(), screenshot_result=_FakeScreenshot(b"LOCAL", 1512, 982))
+        tk, _ = _make_toolkit(
+            _caps(),
+            controller=ctrl,
+            provider="ollama",
+            protocol="pupu.local.click3.v1",
+        )
+        result = tk.execute(
+            "computer",
+            {
+                "actions": [{"type": "type", "text": "hello"}],
+            },
+        )
+        self.assertEqual(ctrl.act_calls[0][0], "type")
+        self.assertEqual(base64.b64decode(result["content_blocks"][1]["data_b64"]), b"LOCAL")
+        self.assertEqual(result["protocol"], "pupu.local.click3.v1")
 
 
 class DegradationTests(unittest.TestCase):
@@ -234,6 +285,7 @@ class DegradationTests(unittest.TestCase):
     def test_injection_unavailable_rejects_clicks(self):
         caps = _caps(screenshot=True, injection=False)
         tk, ctrl = _make_toolkit(caps)
+        ctrl._last_scale_map = object()
         result = tk.execute("computer", {"action": "left_click", "coordinate": [1, 1]})
         self.assertFalse(result["ok"])
         self.assertIn("injection_unavailable", result["caveats"])

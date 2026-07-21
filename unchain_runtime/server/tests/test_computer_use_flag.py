@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
@@ -27,7 +28,9 @@ if str(SERVER_ROOT) not in sys.path:
 
 import computer_use_flag  # noqa: E402
 
+_FEATURE_FLAG = "PUPU_FEATURE_COMPUTER_USE"
 _FLAG = "PUPU_COMPUTER_USE"
+_LOCAL_FLAG = "PUPU_COMPUTER_USE_LOCAL_BETA"
 
 _RAW = b"screenshot-bytes-for-gate-b-test" * 4
 _B64 = base64.b64encode(_RAW).decode("ascii")
@@ -64,19 +67,35 @@ class _FlagIsolationMixin:
 
     def _isolate_flag(self):
         prev_env = os.environ.get(_FLAG)
+        prev_feature_env = os.environ.get(_FEATURE_FLAG)
+        prev_local_env = os.environ.get(_LOCAL_FLAG)
         prev_override = computer_use_flag.get_runtime_override()
+        prev_local_override = computer_use_flag.get_local_beta_runtime_override()
 
         def _restore():
             computer_use_flag.set_runtime_override(prev_override)
+            computer_use_flag.set_local_beta_runtime_override(prev_local_override)
             if prev_env is None:
                 os.environ.pop(_FLAG, None)
             else:
                 os.environ[_FLAG] = prev_env
+            if prev_feature_env is None:
+                os.environ.pop(_FEATURE_FLAG, None)
+            else:
+                os.environ[_FEATURE_FLAG] = prev_feature_env
+            if prev_local_env is None:
+                os.environ.pop(_LOCAL_FLAG, None)
+            else:
+                os.environ[_LOCAL_FLAG] = prev_local_env
 
         self.addCleanup(_restore)
         # Start every test from a known-clean gate.
         computer_use_flag.set_runtime_override(None)
+        computer_use_flag.set_local_beta_runtime_override(None)
         os.environ.pop(_FLAG, None)
+        os.environ.pop(_LOCAL_FLAG, None)
+        # Gate-B tests exercise the user toggle beneath an available release.
+        os.environ[_FEATURE_FLAG] = "1"
 
     def _set_env(self, value):
         if value is None:
@@ -103,6 +122,21 @@ class ComputerUseFlagPrecedenceTests(_FlagIsolationMixin, unittest.TestCase):
         self.assertFalse(computer_use_flag.is_enabled())
         self._set_env("false")
         self.assertFalse(computer_use_flag.is_enabled())
+
+    def test_release_flag_defaults_off_and_cannot_be_bypassed(self):
+        os.environ.pop(_FEATURE_FLAG, None)
+        self._set_env("1")
+        computer_use_flag.set_runtime_override(True)
+        computer_use_flag.set_local_beta_runtime_override(True)
+
+        self.assertFalse(computer_use_flag.is_feature_available())
+        self.assertFalse(computer_use_flag.is_enabled())
+        self.assertFalse(computer_use_flag.is_local_beta_enabled())
+
+    def test_release_flag_accepts_shared_truthy_vocabulary(self):
+        for truthy in ("1", "true", "yes", "on", "enabled", "TRUE", " On "):
+            os.environ[_FEATURE_FLAG] = truthy
+            self.assertTrue(computer_use_flag.is_feature_available())
 
     def test_override_false_beats_env_on(self):
         self._set_env("1")
@@ -196,6 +230,18 @@ class ComputerUseConfigRouteTests(_FlagIsolationMixin, unittest.TestCase):
         self.assertFalse(resp.get_json()["enabled"])
         self.assertIs(computer_use_flag.get_runtime_override(), False)
 
+    def test_local_beta_flag_is_independent_and_strict(self):
+        enabled = self._post({"local_beta_enabled": True})
+        self.assertEqual(enabled.status_code, 200)
+        self.assertTrue(enabled.get_json()["local_beta_enabled"])
+        self.assertTrue(computer_use_flag.is_local_beta_enabled())
+        self.assertIsNone(computer_use_flag.get_runtime_override())
+
+        invalid = self._post({"enabled": True, "local_beta_enabled": "true"})
+        self.assertEqual(invalid.status_code, 400)
+        # Validate the whole config before applying any field.
+        self.assertIsNone(computer_use_flag.get_runtime_override())
+
     def test_truthy_string_is_400(self):
         resp = self._post({"enabled": "true"})
         self.assertEqual(resp.status_code, 400)
@@ -234,6 +280,7 @@ class ComputerUseConfigRouteTests(_FlagIsolationMixin, unittest.TestCase):
         status = self.client.get("/computer-use/status", headers=self._auth)
         self.assertEqual(status.status_code, 200)
         self.assertTrue(status.get_json()["enabled"])
+        self.assertTrue(status.get_json()["feature_available"])
 
         # Flip off, status must report enabled False even if env said on.
         os.environ[_FLAG] = "1"
@@ -241,6 +288,43 @@ class ComputerUseConfigRouteTests(_FlagIsolationMixin, unittest.TestCase):
         self.assertEqual(off.status_code, 200)
         status2 = self.client.get("/computer-use/status", headers=self._auth)
         self.assertFalse(status2.get_json()["enabled"])
+
+    def test_release_flag_off_keeps_desire_but_effective_state_off(self):
+        os.environ.pop(_FEATURE_FLAG, None)
+        response = self._post({"enabled": True, "local_beta_enabled": True})
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertFalse(body["feature_available"])
+        self.assertFalse(body["enabled"])
+        self.assertFalse(body["local_beta_enabled"])
+        self.assertEqual(body["reason"], "feature_flag_disabled")
+        self.assertIs(computer_use_flag.get_runtime_override(), True)
+
+    def test_local_probe_requires_beta_and_returns_probe_result(self):
+        disabled = self.client.post(
+            "/computer-use/probe",
+            json={"model": "qwen3.5:4b", "force": True},
+            headers=self._auth,
+        )
+        self.assertEqual(disabled.status_code, 409)
+
+        self._post({"local_beta_enabled": True})
+        with mock.patch(
+            "computer_use_probe.probe_local_model",
+            return_value={
+                "supported": False,
+                "model": "qwen3.5:4b",
+                "reason": "missing_vision_or_tools",
+            },
+        ):
+            result = self.client.post(
+                "/computer-use/probe",
+                json={"model": "qwen3.5:4b", "force": True},
+                headers=self._auth,
+            )
+        self.assertEqual(result.status_code, 200)
+        self.assertFalse(result.get_json()["supported"])
 
 
 class MemoryFactorySanitizeFollowsFlagTests(_FlagIsolationMixin, unittest.TestCase):
