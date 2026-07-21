@@ -11,6 +11,7 @@
   },
   "essentials": [
     "mcp.productivity.notion-remote",
+    "mcp.dev.figma-remote",
     "mcp.devops.grafana",
     "mcp.browser.chrome-devtools"
   ],
