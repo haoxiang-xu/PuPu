@@ -58,11 +58,97 @@ import {
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
 import {
+  createTurnMutationOperationId,
+  enqueueTurnMutation,
+  fingerprintTurnMutationMessages,
+  readTurnMutationOutbox,
+  removeTurnMutation,
+} from "../../../SERVICEs/turn_mutation_outbox";
+import {
   start as progressStart,
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
+
+/* Process-local ownership complements the durable localStorage outbox. It
+   survives Chat page remounts, so an old async finally cannot unlock a newer
+   owner and a remounted page cannot start work while recovery is pending. */
+const activeTurnMutationsByChatId = new Map();
+const turnMutationListeners = new Set();
+
+const notifyTurnMutationChange = (chatId) => {
+  turnMutationListeners.forEach((listener) => listener(chatId));
+};
+
+const claimTurnMutation = ({ chatId, operationId, mountedRef, recovery }) => {
+  if (!chatId || !operationId || activeTurnMutationsByChatId.has(chatId)) {
+    return null;
+  }
+  const owner = { chatId, operationId, mountedRef, recovery: recovery === true };
+  activeTurnMutationsByChatId.set(chatId, owner);
+  notifyTurnMutationChange(chatId);
+  return owner;
+};
+
+const ownsTurnMutation = (owner) =>
+  Boolean(
+    owner?.chatId && activeTurnMutationsByChatId.get(owner.chatId) === owner,
+  );
+
+const releaseTurnMutation = (owner) => {
+  if (!ownsTurnMutation(owner)) return false;
+  activeTurnMutationsByChatId.delete(owner.chatId);
+  notifyTurnMutationChange(owner.chatId);
+  return true;
+};
+
+const isTurnMutationAlreadyCommitted = (entry, messages) => {
+  const currentMessages = Array.isArray(messages) ? messages : [];
+  const currentFingerprint = fingerprintTurnMutationMessages(currentMessages);
+  if (entry?.kind === "delete") {
+    return Boolean(
+      entry.resultFingerprint && currentFingerprint === entry.resultFingerprint,
+    );
+  }
+  if (
+    entry?.originalFingerprint &&
+    currentFingerprint === entry.originalFingerprint
+  ) {
+    return false;
+  }
+  const baseMessageCount = Math.max(0, Number(entry?.baseMessageCount) || 0);
+  const baseMessages = currentMessages.slice(0, baseMessageCount);
+  const userMessage = currentMessages[baseMessageCount];
+  const assistantMessage = currentMessages[baseMessageCount + 1];
+  return Boolean(
+    entry?.baseFingerprint &&
+      fingerprintTurnMutationMessages(baseMessages) === entry.baseFingerprint &&
+      currentMessages.length === baseMessageCount + 2 &&
+      userMessage?.id === entry.targetMessageId &&
+      userMessage?.role === "user" &&
+      userMessage?.content === entry.text &&
+      assistantMessage?.role === "assistant" &&
+      assistantMessage?.meta?.turnMutationOperationId === entry.operationId &&
+      Boolean(
+        assistantMessage?.meta?.requestId || assistantMessage?.meta?.attemptId,
+      ),
+  );
+};
+
+const sameDraftAttachments = (left, right) => {
+  const leftItems = Array.isArray(left) ? left : [];
+  const rightItems = Array.isArray(right) ? right : [];
+  return (
+    leftItems.length === rightItems.length &&
+    leftItems.every((attachment, index) => {
+      const other = rightItems[index];
+      return attachment?.id && other?.id
+        ? attachment.id === other.id
+        : attachment === other;
+    })
+  );
+};
 
 /* ── Composer sidecar (S1↔S2 seam, contract v1 FROZEN) ─────────────────────
  * The `composer` field is a purely presentational, advisory sidecar attached
@@ -413,6 +499,7 @@ export const useChatStream = ({
   setMessages,
   inputValue,
   setInputValue,
+  composerRevisionByChatIdRef,
   draftAttachments,
   setDraftAttachments,
   selectedModelId,
@@ -474,15 +561,17 @@ export const useChatStream = ({
   const [durableInteractionByChatId, setDurableInteractionByChatId] =
     useState({});
   const durableInteractionByChatIdRef = useRef({});
-  const [pendingContinuationRequest, setPendingContinuationRequest] =
-    useState(null);
+  const [
+    pendingContinuationRequestsByChatId,
+    setPendingContinuationRequestsByChatId,
+  ] = useState({});
   const [interjectStateByChatId, setInterjectStateByChatId] = useState({});
   const interjectStateByChatIdRef = useRef({});
   const isCharacterChat =
     chatKind === "character" &&
     typeof characterId === "string" &&
     characterId.trim().length > 0;
-  const pendingContinuationRequestRef = useRef(null);
+  const pendingContinuationRequestsByChatIdRef = useRef({});
 
   /* Stable refs for high-churn values — keeps sendNewTurn callback stable */
   const inputValueRef = useRef(inputValue);
@@ -499,6 +588,53 @@ export const useChatStream = ({
   const tRef = useRef(null);
   tRef.current = typeof t === "function" ? t : (key) => key;
 
+  const commitForegroundMessages = useCallback(
+    (targetChatId, nextMessages) => {
+      if (!targetChatId || activeChatIdRef.current !== targetChatId) {
+        return false;
+      }
+      messagesRef.current = nextMessages;
+      setMessages(nextMessages);
+      return true;
+    },
+    [activeChatIdRef, messagesRef, setMessages],
+  );
+
+  const setStreamErrorForChat = useCallback(
+    (targetChatId, nextError) => {
+      if (targetChatId && activeChatIdRef.current === targetChatId) {
+        setStreamError(nextError);
+      }
+    },
+    [activeChatIdRef, setStreamError],
+  );
+
+  const updatePendingContinuationRequestForChat = useCallback(
+    (targetChatId, nextValue) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
+
+      const previous =
+        pendingContinuationRequestsByChatIdRef.current[normalizedChatId] || null;
+      const resolved =
+        typeof nextValue === "function" ? nextValue(previous) : nextValue;
+      const nextRequests = {
+        ...pendingContinuationRequestsByChatIdRef.current,
+      };
+      if (resolved) {
+        nextRequests[normalizedChatId] = resolved;
+      } else {
+        delete nextRequests[normalizedChatId];
+      }
+      pendingContinuationRequestsByChatIdRef.current = nextRequests;
+      setPendingContinuationRequestsByChatId(nextRequests);
+    },
+    [],
+  );
+
   const streamHandlesRef = useRef(new Map());
   const executionIdentityByChatIdRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
@@ -507,10 +643,39 @@ export const useChatStream = ({
   }
   const activeStreamingMessageStore =
     streamingMessageStore || fallbackStreamingMessageStoreRef.current;
+  const hookMountedRef = useRef(true);
+  const initialTurnMutationOutboxRef = useRef(null);
+  if (!initialTurnMutationOutboxRef.current) {
+    initialTurnMutationOutboxRef.current = readTurnMutationOutbox();
+    initialTurnMutationOutboxRef.current.forEach((entry) => {
+      const existingOwner = activeTurnMutationsByChatId.get(entry.chatId);
+      if (
+        !existingOwner ||
+        (existingOwner.operationId === entry.operationId &&
+          existingOwner.mountedRef?.current === false)
+      ) {
+        activeTurnMutationsByChatId.set(entry.chatId, {
+          chatId: entry.chatId,
+          operationId: entry.operationId,
+          mountedRef: hookMountedRef,
+          recovery: true,
+        });
+      }
+    });
+  }
+  const [turnMutationVersion, setTurnMutationVersion] = useState(0);
   const streamingChatIdsRef = useRef(new Set());
-  const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
+  /* chatIds with an in-flight turn mutation (edit/delete guard) — consumed
+     by the delete-message guard and the unmount cleanup sweep; its
+     definition was lost in a concurrent merge (runtime crash 2026-07-21:
+     "turnMutationChatIdsRef is not defined"). */
+  const turnMutationChatIdsRef = useRef(new Set());
+  const runPreflightGenerationByChatIdRef = useRef(new Map());
+  const turnMutationByChatIdRef = useRef(activeTurnMutationsByChatId);
+  const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
   const confirmationRuntimeByChatIdRef = useRef(new Map());
-  const durableInteractionLookupRef = useRef(null);
+  const durableInteractionLookupByChatIdRef = useRef(new Map());
+  const runContextByChatIdRef = useRef(new Map());
   const durableResumeStartedKeysRef = useRef(new Set());
   const durableResumeStartedKeysByChatIdRef = useRef(new Map());
   const durableResumeRetryTimersRef = useRef(new Map());
@@ -526,6 +691,42 @@ export const useChatStream = ({
   const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
   const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
   const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
+
+  const isChatRunPending = useCallback(
+    (targetChatId) =>
+      Boolean(
+        targetChatId &&
+          (streamingChatIdsRef.current.has(targetChatId) ||
+            runPreflightGenerationByChatIdRef.current.has(targetChatId) ||
+            turnMutationByChatIdRef.current.has(targetChatId)),
+      ),
+    [],
+  );
+
+  useEffect(() => {
+    hookMountedRef.current = true;
+    const listener = () => {
+      if (hookMountedRef.current) {
+        setTurnMutationVersion((version) => version + 1);
+      }
+    };
+    turnMutationListeners.add(listener);
+    return () => {
+      hookMountedRef.current = false;
+      turnMutationListeners.delete(listener);
+    };
+  }, []);
+
+  const runContextOwnerChatId =
+    typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+  if (runContextOwnerChatId) {
+    runContextByChatIdRef.current.set(runContextOwnerChatId, {
+      modelId:
+        typeof modelIdRef?.current === "string" ? modelIdRef.current : "",
+      threadId:
+        typeof threadIdRef?.current === "string" ? threadIdRef.current : "",
+    });
+  }
 
   const beginRunGeneration = useCallback((targetChatId) => {
     const normalizedChatId =
@@ -718,23 +919,29 @@ export const useChatStream = ({
     [],
   );
 
-  const buildCharacterRunConfig = useCallback(async () => {
-    if (!isCharacterChat) {
-      return null;
-    }
+  const buildCharacterRunConfig = useCallback(
+    async (threadIdOverride = "") => {
+      if (!isCharacterChat) {
+        return null;
+      }
 
-    const resolvedThreadId =
-      typeof threadIdRef?.current === "string" && threadIdRef.current.trim()
-        ? threadIdRef.current.trim()
-        : "main";
+      const resolvedThreadId =
+        typeof threadIdOverride === "string" && threadIdOverride.trim()
+          ? threadIdOverride.trim()
+          : typeof threadIdRef?.current === "string" &&
+              threadIdRef.current.trim()
+            ? threadIdRef.current.trim()
+            : "main";
 
-    const config = await api.unchain.buildCharacterAgentConfig({
-      characterId,
-      threadId: resolvedThreadId,
-      humanId: "local_user",
-    });
-    return config && typeof config === "object" ? config : null;
-  }, [characterId, isCharacterChat, threadIdRef]);
+      const config = await api.unchain.buildCharacterAgentConfig({
+        characterId,
+        threadId: resolvedThreadId,
+        humanId: "local_user",
+      });
+      return config && typeof config === "object" ? config : null;
+    },
+    [characterId, isCharacterChat, threadIdRef],
+  );
 
   const findToolCallFrameByCallId = useCallback(
     (targetChatId, callId) => {
@@ -792,12 +999,6 @@ export const useChatStream = ({
     [activeChatIdRef, activeStreamsRef, messagesRef],
   );
 
-  /* Session-scoped "Don't ask again" list is reset whenever the active
-   * chat changes, matching the semantics of "only in this session". */
-  useEffect(() => {
-    sessionAutoApproveRef.current.clear();
-  }, [chatId]);
-
   const isStreaming = streamingChatIds.has(chatId);
   const hasBackgroundStream =
     streamingChatIds.size > 0 && !streamingChatIds.has(chatId);
@@ -806,6 +1007,8 @@ export const useChatStream = ({
   const toolConfirmationUiStateById =
     toolConfirmationUiStateByChatId[chatId] || EMPTY_CONFIRMATION_STATE;
   const durableInteractionState = durableInteractionByChatId[chatId] || null;
+  const pendingContinuationRequest =
+    pendingContinuationRequestsByChatId[chatId] || null;
   const durableInteractionStatus =
     typeof durableInteractionState?.status === "string"
       ? durableInteractionState.status
@@ -1214,8 +1417,7 @@ export const useChatStream = ({
     syncInterjectStateForChat(currentChatId);
     updateDurableInteractionForChat(currentChatId, null);
     clearAllPendingToolConfirmations(currentChatId);
-    pendingContinuationRequestRef.current = null;
-    setPendingContinuationRequest(null);
+    updatePendingContinuationRequestForChat(currentChatId, null);
 
     clearActiveTokenFlushController(currentChatId, "flush");
     const handle = streamHandlesRef.current.get(currentChatId);
@@ -1286,6 +1488,7 @@ export const useChatStream = ({
     storageApi,
     syncInterjectStateForChat,
     updateDurableInteractionForChat,
+    updatePendingContinuationRequestForChat,
   ]);
 
   const stopStream = useCallback(() => {
@@ -1645,7 +1848,8 @@ export const useChatStream = ({
       ) {
         return;
       }
-      const lookup = durableInteractionLookupRef.current;
+      const lookup =
+        durableInteractionLookupByChatIdRef.current.get(targetChatId);
       if (typeof lookup === "function") {
         void lookup(targetChatId, sessionId, {
           autoResume: true,
@@ -1699,19 +1903,13 @@ export const useChatStream = ({
             ? confirmationRequest.toolkitId
             : "";
 
-      /* Session-scoped "Don't ask again": remember this tool so that
-       * subsequent requests within the same chat are auto-approved. */
-      if (
+      const shouldCacheSessionDecision =
         shouldCacheToolConfirmationDecision({
           approved,
           scope,
           toolkitId,
           toolName,
-        }) &&
-        toolName !== HUMAN_INPUT_TOOL_NAME
-      ) {
-        sessionAutoApproveRef.current.add(`${toolkitId}:${toolName}`);
-      }
+        }) && toolName !== HUMAN_INPUT_TOOL_NAME;
       const interactConfig =
         requestFrame?.payload?.interact_config &&
         typeof requestFrame.payload.interact_config === "object"
@@ -1788,6 +1986,14 @@ export const useChatStream = ({
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
         }
+        if (shouldCacheSessionDecision) {
+          let allowedTools = sessionAutoApproveRef.current.get(targetChatId);
+          if (!allowedTools) {
+            allowedTools = new Set();
+            sessionAutoApproveRef.current.set(targetChatId, allowedTools);
+          }
+          allowedTools.add(`${toolkitId}:${toolName}`);
+        }
         if (
           runtime?.followupSignalById.get(normalizedConfirmationId) !== true
         ) {
@@ -1859,16 +2065,20 @@ export const useChatStream = ({
       const runGeneration = getRunGeneration(targetChatId);
       if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
 
-      const current = pendingContinuationRequestRef.current;
-      if (!current || current.status === "submitting") return;
+      const current =
+        pendingContinuationRequestsByChatIdRef.current[targetChatId] || null;
+      if (
+        !current ||
+        current.confirmationId !== normalizedId ||
+        current.status === "submitting"
+      ) {
+        return;
+      }
 
-      pendingContinuationRequestRef.current = {
+      updatePendingContinuationRequestForChat(targetChatId, {
         ...current,
         status: "submitting",
-      };
-      setPendingContinuationRequest((prev) =>
-        prev ? { ...prev, status: "submitting" } : prev,
-      );
+      });
 
       try {
         const sessionId =
@@ -1883,8 +2093,9 @@ export const useChatStream = ({
           { targetChatId, runGeneration },
         );
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
-        pendingContinuationRequestRef.current = null;
-        setPendingContinuationRequest(null);
+        updatePendingContinuationRequestForChat(targetChatId, (latest) =>
+          latest?.confirmationId === normalizedId ? null : latest,
+        );
         continueFromRecordedReceipt(
           targetChatId,
           sessionId,
@@ -1893,9 +2104,10 @@ export const useChatStream = ({
         );
       } catch (_error) {
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
-        pendingContinuationRequestRef.current = { ...current, status: "idle" };
-        setPendingContinuationRequest((prev) =>
-          prev ? { ...prev, status: "idle" } : prev,
+        updatePendingContinuationRequestForChat(targetChatId, (latest) =>
+          latest?.confirmationId === normalizedId
+            ? { ...latest, status: "idle" }
+            : latest,
         );
       }
     },
@@ -1905,10 +2117,13 @@ export const useChatStream = ({
       getRunGeneration,
       isRunGenerationCurrent,
       submitToolConfirmationWithRetry,
+      updatePendingContinuationRequestForChat,
     ],
   );
 
-  const isToolCallAutoApprovable = useCallback((frame) => {
+  const isToolCallAutoApprovable = useCallback((targetChatId, frame) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
     const toolName =
       typeof frame?.payload?.tool_name === "string"
         ? frame.payload.tool_name
@@ -1921,8 +2136,11 @@ export const useChatStream = ({
       typeof frame?.payload?.interact_type === "string"
         ? frame.payload.interact_type
         : "";
-    const isSessionAllowed = sessionAutoApproveRef.current.has(
-      `${toolkitId}:${toolName}`,
+    const isSessionAllowed = Boolean(
+      normalizedChatId &&
+        sessionAutoApproveRef.current
+          .get(normalizedChatId)
+          ?.has(`${toolkitId}:${toolName}`),
     );
     return (
       isToolConfirmationCacheable(toolkitId, toolName) &&
@@ -2070,19 +2288,41 @@ export const useChatStream = ({
         forceMemoryEnabled = false,
         memoryNamespace = "",
         modelId = modelIdRef.current,
+        targetChatId = chatId,
+        operationId = "",
+        expectedSessionRevision = null,
+        expectedCancelAttemptId = "",
       } = {},
     ) => {
       if (
         !targetSessionId ||
         (forceMemoryEnabled !== true && readMemorySettings().enabled !== true)
       ) {
-        return true;
+        return { applied: true, skipped: true, response: null, error: null };
       }
 
       try {
         const response = await api.unchain.replaceSessionMemory({
           sessionId: targetSessionId,
-          messages: buildHistoryForModel(nextMessages, chatId),
+          messages: buildHistoryForModel(nextMessages, targetChatId),
+          ...(operationId
+            ? {
+                operationId,
+                operation_id: operationId,
+              }
+            : {}),
+          ...(Number.isInteger(expectedSessionRevision)
+            ? {
+                expectedSessionRevision,
+                expected_session_revision: expectedSessionRevision,
+              }
+            : {}),
+          ...(expectedCancelAttemptId
+            ? {
+                expectedCancelAttemptId,
+                expected_cancel_attempt_id: expectedCancelAttemptId,
+              }
+            : {}),
           options: {
             modelId,
             ...(forceMemoryEnabled === true ? { memory_enabled: true } : {}),
@@ -2092,14 +2332,19 @@ export const useChatStream = ({
           },
         });
 
-        return response?.applied !== false;
+        return {
+          applied: response?.applied !== false,
+          skipped: false,
+          response,
+          error: null,
+        };
       } catch (error) {
-        if (activeChatIdRef.current === chatId) {
+        if (activeChatIdRef.current === targetChatId) {
           setStreamError(
             error?.message || "Failed to sync short-term memory for this chat.",
           );
         }
-        return false;
+        return { applied: false, skipped: false, response: null, error };
       }
     },
     [activeChatIdRef, buildHistoryForModel, chatId, modelIdRef, setStreamError],
@@ -2130,6 +2375,8 @@ export const useChatStream = ({
       durableResumeAttempt = 0,
       durableOwnerMessageId = "",
       runGeneration: requestedRunGeneration = null,
+      runContext: requestedRunContext = null,
+      turnMutationOperationId = "",
     }) => {
       const isDurableResume = Boolean(
         mode === "resume_interaction" &&
@@ -2155,6 +2402,75 @@ export const useChatStream = ({
         return false;
       }
 
+      const turnMutationOwner =
+        turnMutationByChatIdRef.current.get(targetChatId) || null;
+      if (
+        turnMutationOwner &&
+        turnMutationOwner.operationId !== turnMutationOperationId
+      ) {
+        return false;
+      }
+      if (!turnMutationOwner && turnMutationOperationId) {
+        return false;
+      }
+
+      /* Capture the originating chat's composer before attachment hydration or
+         character preflight can yield and let another chat become active. */
+      const previousInputValue = clearComposer ? inputValueRef.current : "";
+      const previousDraftAttachments =
+        clearComposer && Array.isArray(draftAttachmentsRef.current)
+          ? [...draftAttachmentsRef.current]
+          : [];
+      const previousComposerRevision =
+        composerRevisionByChatIdRef?.current?.get?.(targetChatId) || 0;
+      let composerDraftClaimId = null;
+      let usesComposerDraftClaim = false;
+
+      const releaseComposerDraftClaim = () => {
+        if (
+          usesComposerDraftClaim &&
+          composerDraftClaimId &&
+          typeof storageApi.releaseChatDraftClaim === "function"
+        ) {
+          storageApi.releaseChatDraftClaim(
+            targetChatId,
+            composerDraftClaimId,
+          );
+        }
+        composerDraftClaimId = null;
+      };
+
+      const replaceComposerDraftClaim = (nextDraft) => {
+        if (
+          !usesComposerDraftClaim ||
+          !composerDraftClaimId ||
+          typeof storageApi.replaceClaimedChatDraft !== "function"
+        ) {
+          return false;
+        }
+        const result = storageApi.replaceClaimedChatDraft(
+          targetChatId,
+          composerDraftClaimId,
+          nextDraft,
+          { source: "chat-page" },
+        );
+        if (!result?.applied || !result.claimId) {
+          composerDraftClaimId = null;
+          return false;
+        }
+        composerDraftClaimId = result.claimId;
+        return true;
+      };
+
+      const isOriginatingComposerUnchanged = () =>
+        (composerRevisionByChatIdRef?.current?.get?.(targetChatId) || 0) ===
+          previousComposerRevision &&
+        inputValueRef.current === previousInputValue &&
+        sameDraftAttachments(
+          draftAttachmentsRef.current,
+          previousDraftAttachments,
+        );
+
       const activeRunGeneration =
         Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
           ? requestedRunGeneration
@@ -2169,6 +2485,74 @@ export const useChatStream = ({
         isRunGenerationCurrent(targetChatId, activeRunGeneration);
       if (!isCurrentRun()) {
         return false;
+      }
+      runPreflightGenerationByChatIdRef.current.set(
+        targetChatId,
+        activeRunGeneration,
+      );
+      /* Owner -> preflight handoff is synchronous and identity-scoped: there
+         is never a moment where neither guard exists, and unrelated internal
+         retries cannot consume another operation's reservation. */
+      if (turnMutationOwner) {
+        releaseTurnMutation(turnMutationOwner);
+      }
+      const finishRunPreflight = () => {
+        if (
+          runPreflightGenerationByChatIdRef.current.get(targetChatId) ===
+          activeRunGeneration
+        ) {
+          runPreflightGenerationByChatIdRef.current.delete(targetChatId);
+        }
+      };
+
+      if (
+        clearComposer &&
+        typeof storageApi.claimChatDraft === "function" &&
+        typeof storageApi.replaceClaimedChatDraft === "function" &&
+        typeof storageApi.releaseChatDraftClaim === "function"
+      ) {
+        const claim = storageApi.claimChatDraft(
+          targetChatId,
+          {
+            text: previousInputValue,
+            attachments: previousDraftAttachments,
+          },
+          { source: "chat-page" },
+        );
+        if (claim?.claimed && claim.claimId) {
+          usesComposerDraftClaim = true;
+          composerDraftClaimId = claim.claimId;
+        }
+      }
+
+      const storedRunContext =
+        runContextByChatIdRef.current.get(targetChatId) || null;
+      const runModelId =
+        typeof requestedRunContext?.modelId === "string"
+          ? requestedRunContext.modelId
+          : typeof storedRunContext?.modelId === "string"
+            ? storedRunContext.modelId
+            : typeof modelIdRef?.current === "string"
+              ? modelIdRef.current
+              : "";
+      const runThreadId =
+        typeof requestedRunContext?.threadId === "string"
+          ? requestedRunContext.threadId
+          : typeof storedRunContext?.threadId === "string"
+            ? storedRunContext.threadId
+            : typeof threadIdRef?.current === "string"
+              ? threadIdRef.current
+              : "";
+      const effectiveRunContext = {
+        modelId: runModelId,
+        threadId: runThreadId,
+      };
+      runContextByChatIdRef.current.set(targetChatId, effectiveRunContext);
+      if (
+        !isDurableResume &&
+        typeof storageApi.markChatStarted === "function"
+      ) {
+        storageApi.markChatStarted(targetChatId, { source: "chat-page" });
       }
 
       clearActiveTokenFlushController(targetChatId, "dispose");
@@ -2188,8 +2572,7 @@ export const useChatStream = ({
           : null;
 
       clearAllPendingToolConfirmations(targetChatId);
-      pendingContinuationRequestRef.current = null;
-      setPendingContinuationRequest(null);
+      updatePendingContinuationRequestForChat(targetChatId, null);
       const timestamp = Date.now();
       const durableResumeMessages = isDurableResume
         ? prepareDurableInteractionResumeMessages(
@@ -2228,15 +2611,27 @@ export const useChatStream = ({
           userMessageSeed.createdAt = timestamp;
         }
 
-        await hydrateAttachmentPayloads(targetChatId, [
-          ...normalizedAttachments,
-          ...normalizedBaseMessages.flatMap((message) =>
-            message.role === "user" && Array.isArray(message.attachments)
-              ? message.attachments
-              : [],
-          ),
-        ]);
+        try {
+          await hydrateAttachmentPayloads(targetChatId, [
+            ...normalizedAttachments,
+            ...normalizedBaseMessages.flatMap((message) =>
+              message.role === "user" && Array.isArray(message.attachments)
+                ? message.attachments
+                : [],
+            ),
+          ]);
+        } catch (error) {
+          finishRunPreflight();
+          releaseComposerDraftClaim();
+          setStreamErrorForChat(
+            targetChatId,
+            error?.message || "Failed to load attachment payloads.",
+          );
+          return false;
+        }
         if (!isCurrentRun()) {
+          finishRunPreflight();
+          releaseComposerDraftClaim();
           return false;
         }
 
@@ -2249,13 +2644,17 @@ export const useChatStream = ({
           if (missingAttachmentPayloadMode === "degrade") {
             persistedAttachments = [];
             payloadAttachments = [];
-            setStreamError(
+            setStreamErrorForChat(
+              targetChatId,
               "Some attachment payloads are unavailable in this session. Resending text only.",
             );
           } else {
-            setStreamError(
+            setStreamErrorForChat(
+              targetChatId,
               "Some attachment payloads are unavailable. Please re-attach your files and try again.",
             );
+            finishRunPreflight();
+            releaseComposerDraftClaim();
             return false;
           }
         }
@@ -2301,18 +2700,13 @@ export const useChatStream = ({
       }
 
       const persistImmediateMessages = (nextImmediateMessages) => {
-        messagesRef.current = nextImmediateMessages;
-        if (activeChatIdRef.current === targetChatId) {
-          setMessages(nextImmediateMessages);
-          return;
-        }
-
+        commitForegroundMessages(targetChatId, nextImmediateMessages);
         storageApi.setChatMessages(targetChatId, nextImmediateMessages, {
           source: "chat-page",
         });
       };
 
-      let effectiveModelId = modelIdRef.current;
+      let effectiveModelId = runModelId;
       let effectiveThreadId = targetChatId;
       let effectiveMemoryNamespace = "";
       let effectiveToolkits = selectedToolkits;
@@ -2352,6 +2746,9 @@ export const useChatStream = ({
         subagentMetaByRunId: {},
         meta: {
           model: effectiveModelId,
+          ...(turnMutationOperationId
+            ? { turnMutationOperationId }
+            : {}),
         },
       };
       const optimisticMessages = isDurableResume
@@ -2361,17 +2758,54 @@ export const useChatStream = ({
             userMessage,
             optimisticAssistantPlaceholder,
           ];
-      const previousInputValue = inputValue;
-      const previousDraftAttachments = draftAttachments;
-
-      setMessages(optimisticMessages);
+      activeStreamsRef.current.set(targetChatId, {
+        messages: optimisticMessages,
+      });
+      commitForegroundMessages(targetChatId, optimisticMessages);
+      /* Persist the optimistic turn immediately, including an active existing
+         chat. Character preflight and attachment work can outlive the page;
+         relying on ChatInterface's delayed effect would lose both the user
+         message and placeholder if the page unmounts in that window. */
+      storageApi.setChatMessages(targetChatId, optimisticMessages, {
+        source: "chat-page",
+      });
+      let composerWasCleared = false;
       if (clearComposer) {
-        setInputValue("");
-        setDraftAttachments([]);
+        const targetIsActive = activeChatIdRef.current === targetChatId;
+        const composerStillMatches =
+          !targetIsActive || isOriginatingComposerUnchanged();
+        if (composerStillMatches) {
+          if (usesComposerDraftClaim) {
+            composerWasCleared = replaceComposerDraftClaim({
+              text: "",
+              attachments: [],
+            });
+          } else {
+            composerWasCleared = true;
+            if (
+              !targetIsActive &&
+              typeof storageApi.updateChatDraft === "function"
+            ) {
+              storageApi.updateChatDraft(
+                targetChatId,
+                { text: "", attachments: [] },
+                { source: "chat-page" },
+              );
+            }
+          }
+
+          if (composerWasCleared && targetIsActive) {
+            setInputValue("");
+            setDraftAttachments([]);
+          }
+        } else {
+          releaseComposerDraftClaim();
+        }
       }
-      setStreamError("");
-      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
+      setStreamErrorForChat(targetChatId, "");
       streamingChatIdsRef.current.add(targetChatId);
+      finishRunPreflight();
+      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
       activeStreamingMessageStore.begin({
         chatId: targetChatId,
         messageId: assistantMessageId,
@@ -2382,12 +2816,11 @@ export const useChatStream = ({
           : "",
         updatedAt: timestamp,
       });
-      activeStreamsRef.current.set(targetChatId, {
-        messages: optimisticMessages,
-      });
-
       const rollbackOptimistic = () => {
-        setMessages(normalizedBaseMessages);
+        commitForegroundMessages(targetChatId, normalizedBaseMessages);
+        storageApi.setChatMessages(targetChatId, normalizedBaseMessages, {
+          source: "chat-page",
+        });
         streamingChatIdsRef.current.delete(targetChatId);
         setStreamingChatIds((prev) => {
           const next = new Set(prev);
@@ -2396,9 +2829,42 @@ export const useChatStream = ({
         });
         activeStreamsRef.current.delete(targetChatId);
         clearStreamingMessageStore(targetChatId, assistantMessageId);
-        if (clearComposer) {
-          setInputValue(previousInputValue);
-          setDraftAttachments(previousDraftAttachments);
+        if (clearComposer && composerWasCleared) {
+          const targetIsActive = activeChatIdRef.current === targetChatId;
+          const composerWasNotEdited =
+            (composerRevisionByChatIdRef?.current?.get?.(targetChatId) || 0) ===
+            previousComposerRevision;
+          const activeComposerIsStillEmpty =
+            composerWasNotEdited &&
+            (!targetIsActive ||
+              (inputValueRef.current === "" &&
+                sameDraftAttachments(draftAttachmentsRef.current, [])));
+          if (activeComposerIsStillEmpty) {
+            let restored = true;
+            if (usesComposerDraftClaim) {
+              restored = replaceComposerDraftClaim({
+                text: previousInputValue,
+                attachments: previousDraftAttachments,
+              });
+            } else if (
+              !targetIsActive &&
+              typeof storageApi.updateChatDraft === "function"
+            ) {
+              storageApi.updateChatDraft(
+                targetChatId,
+                {
+                  text: previousInputValue,
+                  attachments: previousDraftAttachments,
+                },
+                { source: "chat-page" },
+              );
+            }
+            if (restored && targetIsActive) {
+              setInputValue(previousInputValue);
+              setDraftAttachments(previousDraftAttachments);
+            }
+          }
+          releaseComposerDraftClaim();
         }
       };
 
@@ -2406,16 +2872,19 @@ export const useChatStream = ({
       if (isCharacterChat && !isDurableResume) {
         if (!resolvedCharacterConfig) {
           try {
-            resolvedCharacterConfig = await buildCharacterRunConfig();
+            resolvedCharacterConfig = await buildCharacterRunConfig(runThreadId);
             if (!isCurrentRun()) {
+              releaseComposerDraftClaim();
               return false;
             }
           } catch (error) {
             if (!isCurrentRun()) {
+              releaseComposerDraftClaim();
               return false;
             }
             rollbackOptimistic();
-            setStreamError(
+            setStreamErrorForChat(
+              targetChatId,
               error?.message || "Failed to prepare this character chat.",
             );
             return false;
@@ -2424,7 +2893,10 @@ export const useChatStream = ({
 
         if (!resolvedCharacterConfig?.session_id) {
           rollbackOptimistic();
-          setStreamError("Failed to prepare this character chat.");
+          setStreamErrorForChat(
+            targetChatId,
+            "Failed to prepare this character chat.",
+          );
           return false;
         }
 
@@ -2486,11 +2958,8 @@ export const useChatStream = ({
               : [...normalizedBaseMessages, userMessage];
 
           persistImmediateMessages(immediateMessages);
-          if (clearComposer) {
-            setInputValue("");
-            setDraftAttachments([]);
-          }
-          setStreamError("");
+          releaseComposerDraftClaim();
+          setStreamErrorForChat(targetChatId, "");
           cancelBackgroundPersist(targetChatId);
           streamHandlesRef.current.delete(targetChatId);
           streamingChatIdsRef.current.delete(targetChatId);
@@ -2503,6 +2972,8 @@ export const useChatStream = ({
           return true;
         }
       }
+
+      releaseComposerDraftClaim();
 
       // Record the threadId this run actually uses (chatId for normal chats,
       // the character session_id for character chats) so a mid-run interject
@@ -2531,9 +3002,7 @@ export const useChatStream = ({
 
       const activeFlushScheduler = createStreamFlushScheduler({
         onFlush: (nextStreamMessages) => {
-          if (activeChatIdRef.current === targetChatId) {
-            setMessages(nextStreamMessages);
-          }
+          commitForegroundMessages(targetChatId, nextStreamMessages);
         },
       });
 
@@ -3202,10 +3671,7 @@ export const useChatStream = ({
               }
             : message,
         );
-        messagesRef.current = retryMessages;
-        if (activeChatIdRef.current === targetChatId) {
-          setMessages(retryMessages);
-        }
+        commitForegroundMessages(targetChatId, retryMessages);
         storageApi.setChatMessages(targetChatId, retryMessages, {
           source: "chat-page",
         });
@@ -3326,7 +3792,8 @@ export const useChatStream = ({
               refreshedPending.interactionId ===
                 durableInteraction.interactionId;
             if (!sameRecordedInteraction) {
-              const lookup = durableInteractionLookupRef.current;
+              const lookup =
+                durableInteractionLookupByChatIdRef.current.get(targetChatId);
               if (typeof lookup === "function") {
                 await lookup(
                   targetChatId,
@@ -3370,6 +3837,7 @@ export const useChatStream = ({
               durableResumeAttempt: nextAttempt,
               durableOwnerMessageId: assistantMessageId,
               runGeneration: activeRunGeneration,
+              runContext: effectiveRunContext,
             });
           }, delayMs);
           durableResumeRetryTimersRef.current.set(targetChatId, timerId);
@@ -3531,8 +3999,10 @@ export const useChatStream = ({
                   iteration,
                   status: "idle",
                 };
-                pendingContinuationRequestRef.current = nextRequest;
-                setPendingContinuationRequest(nextRequest);
+                updatePendingContinuationRequestForChat(
+                  targetChatId,
+                  nextRequest,
+                );
                 unchainLogger.log("continuation_request", {
                   confirmationId,
                   iteration,
@@ -3775,7 +4245,7 @@ export const useChatStream = ({
                       chatId: targetChatId,
                       sessionId: effectiveThreadId,
                     });
-                    if (isToolCallAutoApprovable(frame)) {
+                    if (isToolCallAutoApprovable(targetChatId, frame)) {
                       submitAutoApprovedToolConfirmation({
                         targetChatId,
                         confirmationId,
@@ -4065,7 +4535,7 @@ export const useChatStream = ({
                     chatId: targetChatId,
                     sessionId: effectiveThreadId,
                   });
-                  if (isToolCallAutoApprovable(frame)) {
+                  if (isToolCallAutoApprovable(targetChatId, frame)) {
                     submitAutoApprovedToolConfirmation({
                       targetChatId,
                       confirmationId,
@@ -4123,8 +4593,7 @@ export const useChatStream = ({
                 markConfirmationFollowupSignalByCallId(targetChatId, callId);
               } else if (frame.type === "error" || frame.type === "done") {
                 markAllPendingConfirmationFollowupSignals(targetChatId);
-                pendingContinuationRequestRef.current = null;
-                setPendingContinuationRequest(null);
+                updatePendingContinuationRequestForChat(targetChatId, null);
               }
 
               if (frame.type === "final_message") {
@@ -4376,6 +4845,7 @@ export const useChatStream = ({
               if (!isCurrentRun()) {
                 return;
               }
+              updatePendingContinuationRequestForChat(targetChatId, null);
               /* Sync closure with external updates before building final messages. */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
@@ -4477,7 +4947,7 @@ export const useChatStream = ({
                 const modelId =
                   typeof bundle.model === "string" && bundle.model.trim()
                     ? bundle.model.trim()
-                    : modelIdRef.current || "";
+                    : runModelId || "";
                 const colonIndex = modelId.indexOf(":");
                 const provider =
                   colonIndex > 0 ? modelId.slice(0, colonIndex) : "unknown";
@@ -4575,6 +5045,7 @@ export const useChatStream = ({
                       clearComposer: false,
                       missingAttachmentPayloadMode: "block",
                       characterAgentConfig: relayCharacterConfig,
+                      runContext: effectiveRunContext,
                     });
                   }, 0);
                 }
@@ -4599,6 +5070,7 @@ export const useChatStream = ({
               if (!isCurrentRun()) {
                 return;
               }
+              updatePendingContinuationRequestForChat(targetChatId, null);
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               flushStreamingMessageStore(targetChatId, assistantMessageId);
@@ -4686,6 +5158,7 @@ export const useChatStream = ({
                   historyOverride: retryHistory,
                   characterAgentConfig: resolvedCharacterConfig,
                   runGeneration: activeRunGeneration,
+                  runContext: effectiveRunContext,
                 });
                 return;
               }
@@ -4844,7 +5317,7 @@ export const useChatStream = ({
           activeRunThreadIdByChatIdRef.current.delete(targetChatId);
           return true;
         }
-        setStreamError(errorMessage);
+        setStreamErrorForChat(targetChatId, errorMessage);
         cancelBackgroundPersist(targetChatId);
         streamHandlesRef.current.delete(targetChatId);
         streamingChatIdsRef.current.delete(targetChatId);
@@ -4857,18 +5330,20 @@ export const useChatStream = ({
         });
         activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-        setMessages(
-          nextMessages.map((message) =>
-            message.id === assistantMessageId
-              ? {
-                  ...message,
-                  status: "error",
-                  updatedAt: Date.now(),
-                  content: `[error] ${errorMessage}`,
-                }
-              : message,
-          ),
+        const failedMessages = nextMessages.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                status: "error",
+                updatedAt: Date.now(),
+                content: `[error] ${errorMessage}`,
+              }
+            : message,
         );
+        commitForegroundMessages(targetChatId, failedMessages);
+        storageApi.setChatMessages(targetChatId, failedMessages, {
+          source: "chat-page",
+        });
         return false;
       }
 
@@ -4922,12 +5397,14 @@ export const useChatStream = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeChatIdRef,
+      composerRevisionByChatIdRef,
       activeStreamsRef,
       appendSyntheticToolConfirmationDecision,
       beginRunGeneration,
       buildCharacterRunConfig,
       buildHistoryForModel,
       characterId,
+      commitForegroundMessages,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
@@ -4954,11 +5431,14 @@ export const useChatStream = ({
       setAgentOrchestration,
       setSelectedModelId,
       setStreamError,
+      setStreamErrorForChat,
       storageApi,
       submitAutoApprovedToolConfirmation,
       systemPromptOverrides,
+      threadIdRef,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
+      updatePendingContinuationRequestForChat,
     ],
   );
 
@@ -5087,10 +5567,7 @@ export const useChatStream = ({
           pending,
         );
         if (ensured.created) {
-          messagesRef.current = ensured.messages;
-          if (activeChatIdRef.current === normalizedChatId) {
-            setMessages(ensured.messages);
-          }
+          commitForegroundMessages(normalizedChatId, ensured.messages);
           storageApi.setChatMessages(normalizedChatId, ensured.messages, {
             source: "chat-page",
           });
@@ -5273,12 +5750,12 @@ export const useChatStream = ({
       activeChatIdRef,
       appendSyntheticToolConfirmationDecision,
       clearAllPendingToolConfirmations,
+      commitForegroundMessages,
       ensureRecoveryRunGeneration,
       getConfirmationRuntimeForChat,
       isRunGenerationCurrent,
       messagesRef,
       runTurnRequest,
-      setMessages,
       setStreamError,
       storageApi,
       trackDurableResumeStartedKey,
@@ -5287,7 +5764,14 @@ export const useChatStream = ({
       updateToolConfirmationUiState,
     ],
   );
-  durableInteractionLookupRef.current = lookupDurableInteraction;
+  const lookupOwnerChatId =
+    typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+  if (lookupOwnerChatId) {
+    durableInteractionLookupByChatIdRef.current.set(
+      lookupOwnerChatId,
+      lookupDurableInteraction,
+    );
+  }
 
   useEffect(() => {
     const targetChatId =
@@ -5326,7 +5810,9 @@ export const useChatStream = ({
       let sessionId = targetChatId;
       if (isCharacterChat) {
         try {
-          const config = await buildCharacterRunConfig();
+          const recoveryThreadId =
+            typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+          const config = await buildCharacterRunConfig(recoveryThreadId);
           if (
             cancelled ||
             !isRunGenerationCurrent(targetChatId, runGeneration)
@@ -5349,7 +5835,7 @@ export const useChatStream = ({
               sessionId: "",
               lastError: errorMessage,
             });
-            setStreamError(errorMessage);
+            setStreamErrorForChat(targetChatId, errorMessage);
           }
           return;
         }
@@ -5378,6 +5864,8 @@ export const useChatStream = ({
     isStreaming,
     lookupDurableInteraction,
     setStreamError,
+    setStreamErrorForChat,
+    threadIdRef,
     updateDurableInteractionForChat,
   ]);
 
@@ -5490,10 +5978,9 @@ export const useChatStream = ({
         isCharacterChat ||
         (normalizedSelectedModelId &&
           normalizedSelectedModelId !== "unchain-unset");
-      const thisChatsStreamActive = Boolean(
-        streamingChatIdsRef.current.has(currentChatId) &&
-          streamHandlesRef.current.has(currentChatId),
-      );
+      const thisChatsRunActive = isChatRunPending(currentChatId);
+      const thisChatHasStreamHandle =
+        streamHandlesRef.current.has(currentChatId);
       if (!currentChatId || (!text && !hasAttachments)) {
         return;
       }
@@ -5508,10 +5995,19 @@ export const useChatStream = ({
         return;
       }
 
-      if (thisChatsStreamActive) {
+      if (thisChatsRunActive) {
         if (bypassInterject) {
           // Should not normally happen — see the comment above — but never
           // race a concurrent send into an active run.
+          return;
+        }
+        if (!thisChatHasStreamHandle) {
+          /* The run is still in local preflight, so there is no backend
+             execution to interject into yet. Keep the new draft intact and
+             refuse a second run instead of replacing the first generation. */
+          toast.info("This chat is still preparing. Please wait.", {
+            dedupeKey: `chat-preflight-${currentChatId}`,
+          });
           return;
         }
         // A send arrived while this chat's run is still active: route it
@@ -5524,7 +6020,10 @@ export const useChatStream = ({
       }
 
       if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Unchain bridge is unavailable in this runtime.");
+        setStreamErrorForChat(
+          currentChatId,
+          "Unchain bridge is unavailable in this runtime.",
+        );
         return;
       }
 
@@ -5580,11 +6079,13 @@ export const useChatStream = ({
       attachmentsDisabledReason,
       attachmentsEnabled,
       isCharacterChat,
+      isChatRunPending,
       messagesRef,
       runTurnRequest,
       setDraftAttachments,
       setInputValue,
       setStreamError,
+      setStreamErrorForChat,
     ],
   );
 
@@ -5742,7 +6243,10 @@ export const useChatStream = ({
           if (!isCurrentDispatch()) {
             return;
           }
-          setStreamError(error?.message || "Failed to send interjection.");
+          setStreamErrorForChat(
+            targetChatId,
+            error?.message || "Failed to send interjection.",
+          );
         });
     },
     [
@@ -5753,7 +6257,7 @@ export const useChatStream = ({
       isRunGenerationCurrent,
       pushQueuedTurn,
       sendNewTurn,
-      setStreamError,
+      setStreamErrorForChat,
       streamHandlesRef,
       streamingChatIdsRef,
       syncInterjectStateForChat,
@@ -5825,193 +6329,348 @@ export const useChatStream = ({
   const resendTurn = useCallback(
     async (message) => {
       const currentChatId = activeChatIdRef.current;
-      const messageIndex = Array.isArray(messagesRef.current)
-        ? messagesRef.current.findIndex((item) => item?.id === message?.id)
+      const originalMessages = Array.isArray(messagesRef.current)
+        ? [...messagesRef.current]
+        : [];
+      const messageIndex = originalMessages
+        ? originalMessages.findIndex((item) => item?.id === message?.id)
         : -1;
       const targetMessage =
-        messageIndex >= 0 && messageIndex < messagesRef.current.length
-          ? messagesRef.current[messageIndex]
+        messageIndex >= 0 && messageIndex < originalMessages.length
+          ? originalMessages[messageIndex]
           : null;
       const text =
         typeof targetMessage?.content === "string"
           ? targetMessage.content.trim()
           : "";
-      const thisChatsStreamActive = Boolean(
-        streamingChatIdsRef.current.has(currentChatId) &&
-          streamHandlesRef.current.has(currentChatId),
+      const thisChatsStreamActive = isChatRunPending(currentChatId);
+      const durableMutationBlocked = Boolean(
+        durableInteractionByChatIdRef.current[currentChatId]?.status,
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        thisChatsStreamActive
+        thisChatsStreamActive ||
+        durableMutationBlocked
       ) {
         return;
       }
 
-      if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Unchain bridge is unavailable in this runtime.");
-        return;
-      }
-
-      const baseMessages = messagesRef.current.slice(0, messageIndex);
-      const characterConfig = isCharacterChat
-        ? await buildCharacterRunConfig().catch((error) => {
-            setStreamError(
-              error?.message || "Failed to prepare this character chat.",
-            );
-            return null;
-          })
-        : null;
-      if (isCharacterChat && !characterConfig?.session_id) {
-        return;
-      }
-      const memoryReplaced = await replaceSessionMemoryForMessages(
-        characterConfig?.session_id || currentChatId,
-        baseMessages,
-        {
-          forceMemoryEnabled: isCharacterChat,
-          memoryNamespace: characterConfig?.run_memory_namespace || "",
-        },
-      );
-      if (!memoryReplaced) {
-        return;
-      }
-      const sourceAttachments = Array.isArray(targetMessage.attachments)
-        ? targetMessage.attachments
-        : [];
-      const resendAttachments =
-        sourceAttachments.length > 0 && !attachmentsEnabled
-          ? []
-          : sourceAttachments;
-      if (sourceAttachments.length > 0 && !attachmentsEnabled) {
-        setStreamError(
-          "Current model does not support image/file input. Resending text only.",
-        );
-      }
-
-      void runTurnRequest({
-        mode: "resend",
+      const operationId = createTurnMutationOperationId(currentChatId);
+      const turnMutationOwner = claimTurnMutation({
         chatId: currentChatId,
-        text,
-        attachments: resendAttachments,
-        baseMessages,
-        clearComposer: false,
-        reuseUserMessage: targetMessage,
-        missingAttachmentPayloadMode: "degrade",
-        characterAgentConfig: characterConfig,
+        operationId,
+        mountedRef: hookMountedRef,
       });
+      if (!turnMutationOwner) return;
+      const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
+
+      try {
+        if (!api.unchain.isBridgeAvailable()) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unchain bridge is unavailable in this runtime.",
+          );
+          return;
+        }
+
+        const baseMessages = originalMessages.slice(0, messageIndex);
+        const targetThreadId =
+          typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+        const capturedModelId =
+          typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        const characterConfig = isCharacterChat
+          ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
+              setStreamErrorForChat(
+                currentChatId,
+                error?.message || "Failed to prepare this character chat.",
+              );
+              return null;
+            })
+          : null;
+        if (
+          !isCurrentTurnMutation() ||
+          (isCharacterChat && !characterConfig?.session_id)
+        ) {
+          return;
+        }
+        const targetSessionId = characterConfig?.session_id || currentChatId;
+        const targetModelId =
+          typeof characterConfig?.default_model === "string" &&
+          characterConfig.default_model.trim()
+            ? characterConfig.default_model.trim()
+            : capturedModelId;
+        const outboxEntry = enqueueTurnMutation({
+          operationId,
+          chatId: currentChatId,
+          sessionId: targetSessionId,
+          kind: "resend",
+          targetMessageId: targetMessage.id,
+          originalFingerprint:
+            fingerprintTurnMutationMessages(originalMessages),
+          baseFingerprint: fingerprintTurnMutationMessages(baseMessages),
+          baseMessageCount: baseMessages.length,
+          text,
+          modelId: targetModelId,
+          threadId: targetThreadId,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+          forceMemoryEnabled: isCharacterChat,
+        });
+        if (!outboxEntry) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unable to safely persist this resend. Please try again.",
+          );
+          return;
+        }
+        const memoryResult = await replaceSessionMemoryForMessages(
+          targetSessionId,
+          baseMessages,
+          {
+            forceMemoryEnabled: isCharacterChat,
+            memoryNamespace: characterConfig?.run_memory_namespace || "",
+            modelId: targetModelId,
+            targetChatId: currentChatId,
+            operationId,
+          },
+        );
+        if (!memoryResult.applied) {
+          return;
+        }
+        if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
+        const sourceAttachments = Array.isArray(targetMessage.attachments)
+          ? targetMessage.attachments
+          : [];
+        const resendAttachments =
+          sourceAttachments.length > 0 && !attachmentsEnabled
+            ? []
+            : sourceAttachments;
+        if (sourceAttachments.length > 0 && !attachmentsEnabled) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Current model does not support image/file input. Resending text only.",
+          );
+        }
+
+        const started = await runTurnRequest({
+          mode: "resend",
+          chatId: currentChatId,
+          text,
+          attachments: resendAttachments,
+          baseMessages,
+          clearComposer: false,
+          reuseUserMessage: targetMessage,
+          missingAttachmentPayloadMode: "degrade",
+          characterAgentConfig: characterConfig,
+          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          turnMutationOperationId: operationId,
+        });
+        if (
+          started ||
+          isTurnMutationAlreadyCommitted(
+            outboxEntry,
+            storageApi.getChatMessages?.(currentChatId),
+          )
+        ) {
+          removeTurnMutation(operationId);
+        }
+      } finally {
+        releaseTurnMutation(turnMutationOwner);
+      }
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      isChatRunPending,
       isCharacterChat,
       messagesRef,
+      modelIdRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
-      setStreamError,
+      setStreamErrorForChat,
+      storageApi,
+      threadIdRef,
     ],
   );
 
   const editTurn = useCallback(
     async (message, nextContent) => {
       const currentChatId = activeChatIdRef.current;
-      const messageIndex = Array.isArray(messagesRef.current)
-        ? messagesRef.current.findIndex((item) => item?.id === message?.id)
-        : -1;
+      const originalMessages = Array.isArray(messagesRef.current)
+        ? [...messagesRef.current]
+        : [];
+      const messageIndex = originalMessages.findIndex(
+        (item) => item?.id === message?.id,
+      );
       const targetMessage =
-        messageIndex >= 0 && messageIndex < messagesRef.current.length
-          ? messagesRef.current[messageIndex]
+        messageIndex >= 0 && messageIndex < originalMessages.length
+          ? originalMessages[messageIndex]
           : null;
       const text = typeof nextContent === "string" ? nextContent.trim() : "";
-      const thisChatsStreamActive = Boolean(
-        streamingChatIdsRef.current.has(currentChatId) &&
-          streamHandlesRef.current.has(currentChatId),
+      const thisChatsStreamActive = isChatRunPending(currentChatId);
+      const durableMutationBlocked = Boolean(
+        durableInteractionByChatIdRef.current[currentChatId]?.status,
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        thisChatsStreamActive
+        thisChatsStreamActive ||
+        durableMutationBlocked
       ) {
         return;
       }
 
-      if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Unchain bridge is unavailable in this runtime.");
-        return;
-      }
-
-      const baseMessages = messagesRef.current.slice(0, messageIndex);
-      const characterConfig = isCharacterChat
-        ? await buildCharacterRunConfig().catch((error) => {
-            setStreamError(
-              error?.message || "Failed to prepare this character chat.",
-            );
-            return null;
-          })
-        : null;
-      if (isCharacterChat && !characterConfig?.session_id) {
-        return;
-      }
-      const memoryReplaced = await replaceSessionMemoryForMessages(
-        characterConfig?.session_id || currentChatId,
-        baseMessages,
-        {
-          forceMemoryEnabled: isCharacterChat,
-          memoryNamespace: characterConfig?.run_memory_namespace || "",
-        },
-      );
-      if (!memoryReplaced) {
-        return;
-      }
-      const sourceAttachments = Array.isArray(targetMessage.attachments)
-        ? targetMessage.attachments
-        : [];
-      const originalAttachments =
-        sourceAttachments.length > 0 && !attachmentsEnabled
-          ? []
-          : sourceAttachments;
-      if (sourceAttachments.length > 0 && !attachmentsEnabled) {
-        setStreamError(
-          "Current model does not support image/file input. Sending text only.",
-        );
-      }
-
-      // Edit re-expands the edited text (contract §2 派生写入规则): a content
-      // rewrite must recompute the composer from scratch — same semantics as a
-      // fresh compose send, so a newly-typed /command expands and the sidecar
-      // matches the NEW content. If the edit carries no command tokens the
-      // composer is null and runTurnRequest drops whatever sidecar the original
-      // message held (宁删勿 stale — never a mismatched templateLength).
-      const built = buildComposerSend(text, selectedToolkitsRef.current);
-
-      void runTurnRequest({
-        mode: "edit",
+      const operationId = createTurnMutationOperationId(currentChatId);
+      const turnMutationOwner = claimTurnMutation({
         chatId: currentChatId,
-        text: built.outgoingText,
-        attachments: originalAttachments,
-        baseMessages,
-        clearComposer: false,
-        reuseUserMessage: targetMessage,
-        missingAttachmentPayloadMode: "degrade",
-        extraToolkits: built.extraToolkits,
-        characterAgentConfig: characterConfig,
-        composer: built.composer,
+        operationId,
+        mountedRef: hookMountedRef,
       });
+      if (!turnMutationOwner) return;
+      const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
+
+      try {
+        if (!api.unchain.isBridgeAvailable()) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unchain bridge is unavailable in this runtime.",
+          );
+          return;
+        }
+
+        const baseMessages = originalMessages.slice(0, messageIndex);
+        const targetThreadId =
+          typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+        const capturedModelId =
+          typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        const targetSelectedToolkits = Array.isArray(selectedToolkitsRef.current)
+          ? [...selectedToolkitsRef.current]
+          : [];
+        const characterConfig = isCharacterChat
+          ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
+              setStreamErrorForChat(
+                currentChatId,
+                error?.message || "Failed to prepare this character chat.",
+              );
+              return null;
+            })
+          : null;
+        if (
+          !isCurrentTurnMutation() ||
+          (isCharacterChat && !characterConfig?.session_id)
+        ) {
+          return;
+        }
+        const sourceAttachments = Array.isArray(targetMessage.attachments)
+          ? targetMessage.attachments
+          : [];
+        const originalAttachments =
+          sourceAttachments.length > 0 && !attachmentsEnabled
+            ? []
+            : sourceAttachments;
+        if (sourceAttachments.length > 0 && !attachmentsEnabled) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Current model does not support image/file input. Sending text only.",
+          );
+        }
+
+        // The expanded edit and its sidecar are persisted in the outbox so a
+        // remount resumes the exact same operation, not a newly-resolved one.
+        const built = buildComposerSend(text, targetSelectedToolkits);
+        const targetSessionId = characterConfig?.session_id || currentChatId;
+        const targetModelId =
+          typeof characterConfig?.default_model === "string" &&
+          characterConfig.default_model.trim()
+            ? characterConfig.default_model.trim()
+            : capturedModelId;
+        const outboxEntry = enqueueTurnMutation({
+          operationId,
+          chatId: currentChatId,
+          sessionId: targetSessionId,
+          kind: "edit",
+          targetMessageId: targetMessage.id,
+          originalFingerprint:
+            fingerprintTurnMutationMessages(originalMessages),
+          baseFingerprint: fingerprintTurnMutationMessages(baseMessages),
+          baseMessageCount: baseMessages.length,
+          text: built.outgoingText,
+          extraToolkits: built.extraToolkits,
+          composer: built.composer,
+          modelId: targetModelId,
+          threadId: targetThreadId,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+          forceMemoryEnabled: isCharacterChat,
+        });
+        if (!outboxEntry) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unable to safely persist this edit. Please try again.",
+          );
+          return;
+        }
+        const memoryResult = await replaceSessionMemoryForMessages(
+          targetSessionId,
+          baseMessages,
+          {
+            forceMemoryEnabled: isCharacterChat,
+            memoryNamespace: characterConfig?.run_memory_namespace || "",
+            modelId: targetModelId,
+            targetChatId: currentChatId,
+            operationId,
+          },
+        );
+        if (!memoryResult.applied) {
+          return;
+        }
+        if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
+
+        const started = await runTurnRequest({
+          mode: "edit",
+          chatId: currentChatId,
+          text: built.outgoingText,
+          attachments: originalAttachments,
+          baseMessages,
+          clearComposer: false,
+          reuseUserMessage: targetMessage,
+          missingAttachmentPayloadMode: "degrade",
+          extraToolkits: built.extraToolkits,
+          characterAgentConfig: characterConfig,
+          composer: built.composer,
+          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          turnMutationOperationId: operationId,
+        });
+        if (
+          started ||
+          isTurnMutationAlreadyCommitted(
+            outboxEntry,
+            storageApi.getChatMessages?.(currentChatId),
+          )
+        ) {
+          removeTurnMutation(operationId);
+        }
+      } finally {
+        releaseTurnMutation(turnMutationOwner);
+      }
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      isChatRunPending,
       isCharacterChat,
       messagesRef,
+      modelIdRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
-      setStreamError,
+      setStreamErrorForChat,
+      storageApi,
+      threadIdRef,
     ],
   );
 
@@ -6036,56 +6695,82 @@ export const useChatStream = ({
 
       const deletingStreamingAssistant =
         message.role === "assistant" && message.status === "streaming";
+      const hasTurnMutation =
+        turnMutationChatIdsRef.current.has(currentChatId);
+      const hasRunPreflight =
+        runPreflightGenerationByChatIdRef.current.has(currentChatId);
+      const hasStreamingRun =
+        streamingChatIdsRef.current.has(currentChatId);
+      if (
+        hasTurnMutation ||
+        hasRunPreflight ||
+        (hasStreamingRun && !deletingStreamingAssistant)
+      ) {
+        return;
+      }
       let workingMessages = Array.isArray(messagesRef.current)
         ? messagesRef.current
         : [];
 
-      if (
-        deletingStreamingAssistant &&
-        streamHandlesRef.current.has(currentChatId) &&
-        streamingChatIdsRef.current.has(currentChatId)
-      ) {
+      if (deletingStreamingAssistant && hasStreamingRun) {
         workingMessages = cancelCurrentStreamAndSettleMessages();
       }
 
       const nextMessages = workingMessages.filter(
         (item) => !turnMessageIds.has(item?.id),
       );
-      const characterConfig = isCharacterChat
-        ? await buildCharacterRunConfig().catch((error) => {
-            setStreamError(
-              error?.message || "Failed to prepare this character chat.",
-            );
-            return null;
-          })
-        : null;
-      if (isCharacterChat && !characterConfig?.session_id) {
-        return;
-      }
-      const memoryReplaced = await replaceSessionMemoryForMessages(
-        characterConfig?.session_id || currentChatId,
-        nextMessages,
-        {
-          forceMemoryEnabled: isCharacterChat,
-          memoryNamespace: characterConfig?.run_memory_namespace || "",
-        },
-      );
-      if (!memoryReplaced) {
-        return;
-      }
+      turnMutationChatIdsRef.current.add(currentChatId);
+      const isCurrentTurnMutation = () =>
+        turnMutationChatIdsRef.current.has(currentChatId);
+      try {
+        const targetThreadId =
+          typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+        const characterConfig = isCharacterChat
+          ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
+              setStreamErrorForChat(
+                currentChatId,
+                error?.message || "Failed to prepare this character chat.",
+              );
+              return null;
+            })
+          : null;
+        if (
+          !isCurrentTurnMutation() ||
+          (isCharacterChat && !characterConfig?.session_id)
+        ) {
+          return;
+        }
+        const memoryReplaced = await replaceSessionMemoryForMessages(
+          characterConfig?.session_id || currentChatId,
+          nextMessages,
+          {
+            forceMemoryEnabled: isCharacterChat,
+            memoryNamespace: characterConfig?.run_memory_namespace || "",
+          },
+        );
+        if (!isCurrentTurnMutation() || !memoryReplaced) {
+          return;
+        }
 
-      messagesRef.current = nextMessages;
-      setMessages(nextMessages);
+        commitForegroundMessages(currentChatId, nextMessages);
+        storageApi.setChatMessages(currentChatId, nextMessages, {
+          source: "chat-page",
+        });
+      } finally {
+        turnMutationChatIdsRef.current.delete(currentChatId);
+      }
     },
     [
       activeChatIdRef,
       buildCharacterRunConfig,
       cancelCurrentStreamAndSettleMessages,
+      commitForegroundMessages,
       isCharacterChat,
       messagesRef,
       replaceSessionMemoryForMessages,
-      setMessages,
-      setStreamError,
+      setStreamErrorForChat,
+      storageApi,
+      threadIdRef,
     ],
   );
 
@@ -6095,12 +6780,17 @@ export const useChatStream = ({
     const streamHandles = streamHandlesRef.current;
     const executionIdentities = executionIdentityByChatIdRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
+    const runPreflights = runPreflightGenerationByChatIdRef.current;
+    const turnMutations = turnMutationChatIdsRef.current;
     const activeStreams = activeStreamsRef.current;
     const activeRunThreadIdByChatId = activeRunThreadIdByChatIdRef.current;
     const queuedTurnsByChatId = queuedTurnsByChatIdRef.current;
     const pendingFyiCountByChatId = pendingFyiCountByChatIdRef.current;
     const pendingClarifyByChatId = pendingClarifyByChatIdRef.current;
     const durableResumeRetryTimers = durableResumeRetryTimersRef.current;
+    const durableInteractionLookups =
+      durableInteractionLookupByChatIdRef.current;
+    const runContextsByChatId = runContextByChatIdRef.current;
     const durableResumeStartedKeys = durableResumeStartedKeysRef.current;
     const durableResumeStartedKeysByChatId =
       durableResumeStartedKeysByChatIdRef.current;
@@ -6110,6 +6800,7 @@ export const useChatStream = ({
     const confirmationRetryWaitersByChatId =
       confirmationRetryWaitersByChatIdRef.current;
     const renderRuntimeByChatId = renderRuntimeByChatIdRef.current;
+    const sessionAutoApprovalsByChatId = sessionAutoApproveRef.current;
 
     return () => {
       runGenerationsByChatId.clear();
@@ -6126,6 +6817,9 @@ export const useChatStream = ({
       streamHandles.clear();
       executionIdentities.clear();
       streamingChatIds.clear();
+      runPreflights.clear();
+      turnMutations.clear();
+      storageApi.releaseAllChatDraftClaims?.();
       activeStreams.clear();
       clearAttachmentPayloads();
       confirmationRuntimeByChatId.forEach((runtime) => {
@@ -6136,13 +6830,15 @@ export const useChatStream = ({
       confirmationRuntimeByChatId.clear();
       pendingToolConfirmationRequestsByChatIdRef.current = {};
       toolConfirmationUiStateByChatIdRef.current = {};
-      pendingContinuationRequestRef.current = null;
+      pendingContinuationRequestsByChatIdRef.current = {};
       activeRunThreadIdByChatId.clear();
       queuedTurnsByChatId.clear();
       pendingFyiCountByChatId.clear();
       pendingClarifyByChatId.clear();
       durableResumeRetryTimers.forEach((timerId) => clearTimeout(timerId));
       durableResumeRetryTimers.clear();
+      durableInteractionLookups.clear();
+      runContextsByChatId.clear();
       durableResumeStartedKeys.clear();
       durableResumeStartedKeysByChatId.clear();
       queueRelayTimersByChatId.forEach((timerIds) => {
@@ -6157,11 +6853,13 @@ export const useChatStream = ({
       });
       confirmationRetryWaitersByChatId.clear();
       durableInteractionByChatIdRef.current = {};
+      sessionAutoApprovalsByChatId.clear();
     };
   }, [
     activeStreamsRef,
     clearActiveTokenFlushController,
     clearAttachmentPayloads,
+    storageApi,
   ]);
 
   return {
