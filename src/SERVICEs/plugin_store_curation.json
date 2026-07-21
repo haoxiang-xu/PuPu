@@ -1,9 +1,9 @@
 {
   "featured": {
-    "pluginId": "core",
+    "pluginId": "mcp.dev.github-remote",
     "kicker": "Editor's pick",
-    "headline": "The fundamentals, built in",
-    "blurb": "Files, shell and web reach — the core every agent needs.",
+    "headline": "GitHub, in the chat",
+    "blurb": "Repos, issues and pull requests — review and ship without leaving PuPu.",
     "gradient": [
       "#6478f6",
       "#4a5bd8"
@@ -11,7 +11,6 @@
   },
   "essentials": [
     "mcp.productivity.notion-remote",
-    "mcp.dev.github-remote",
     "mcp.devops.grafana",
     "mcp.browser.chrome-devtools"
   ],
