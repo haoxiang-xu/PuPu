@@ -4,7 +4,6 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import api from "../../../SERVICEs/api";
 import { listMcpStoreEntries, resolveMcpIcon } from "../../../SERVICEs/mcp_toolkit_store";
-import { entryInstallState, entryOpensSetup } from "../../../SERVICEs/mcp_install";
 import { toPluginPresentation, loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
 import { ToolkitIconFrame } from "../components/toolkit_icon";
 import AuroraFeatureCard from "../components/aurora_feature_card";
@@ -30,22 +29,30 @@ const resolvePluginId = (pluginId, storeById, catalogById) => {
 const iconFor = (resolved) =>
   resolved.kind === "store" ? resolveMcpIcon(resolved.entry) : resolved.entry.toolkitIcon;
 
-/* CollectionRow — a Collections-section entry: 32px stacked icons on an
-   OPAQUE ring surface (CEO 2026-07-21: bigger icons, no translucency — the
-   solid values match what the old alpha tints resolved to on the modal
-   ground), a name + "· N plugins" tagline, a "GET ALL" pill, and — the row
-   itself is CLICKABLE now — it toggles an inline member list underneath
-   (see CollectionMembers) so a collection can actually be explored, not
-   just batch-installed. */
-const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll, expanded, onToggle }) => {
+/* CollectionRow — a Collections-section entry with the "unfold" animation
+   (CEO-approved demo 2026-07-21): the 32px stacked icons fly toward their
+   member rows and shrink away (45ms stagger) while the stack's footprint
+   collapses to 0 so the title glides to the far left; member rows slide in
+   from above with their own stagger. GET ALL is gone — you install members
+   individually from their rows. All easing is the app's shared
+   cubic-bezier(.32,1,.32,1) family. */
+const UNFOLD_EASE = "cubic-bezier(0.32, 1, 0.32, 1)";
+const STACK_FLY = [
+  { x: 6, y: 14 },
+  { x: 0, y: 58 },
+  { x: -6, y: 102 },
+];
+
+const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, expanded, onToggle }) => {
   const taglineColor = isDark ? "rgba(var(--pupu-text-rgb),0.42)" : "rgba(var(--pupu-text-rgb),0.45)";
   const iconRingBg = isDark ? "#26262c" : "#ececee";
-  const chipColor = isDark ? "#9aa8ff" : "#2563eb";
-  const pillBg = "rgba(124,140,248,0.12)";
 
   const tagline = [collection.blurb, t("toolkit.collection_count", { count: collection.resolved.length })]
     .filter(Boolean)
     .join(" ");
+
+  const stackCount = Math.min(collection.resolved.length, 3);
+  const stackWidth = stackCount > 0 ? 32 + (stackCount - 1) * 24 : 0;
 
   return (
     <div
@@ -55,32 +62,48 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll,
       aria-expanded={expanded}
       style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", cursor: "pointer" }}
     >
-      <div style={{ display: "flex", flexShrink: 0 }}>
-        {collection.resolved.slice(0, 3).map((resolved, idx) => (
-          <span
-            key={`${collection.id}-icon-${resolved.entry.toolkitId || idx}`}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 9,
-              marginRight: -8,
-              boxShadow: "0 0 0 2px var(--pupu-background)",
-              background: iconRingBg,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <ToolkitIconFrame
-              icon={iconFor(resolved)}
-              isDark={isDark}
-              size={32}
-              iconSize={16}
-              borderRadius={9}
-              style={{ background: "transparent" }}
-            />
-          </span>
-        ))}
+      <div
+        style={{
+          display: "flex",
+          flexShrink: 0,
+          height: 32,
+          width: expanded ? 0 : stackWidth,
+          marginRight: expanded ? -12 : 0,
+          transition: `width 0.42s ${UNFOLD_EASE}, margin-right 0.42s ${UNFOLD_EASE}`,
+        }}
+      >
+        {collection.resolved.slice(0, 3).map((resolved, idx) => {
+          const fly = STACK_FLY[idx] || STACK_FLY[STACK_FLY.length - 1];
+          return (
+            <span
+              key={`${collection.id}-icon-${resolved.entry.toolkitId || idx}`}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 9,
+                marginRight: -8,
+                boxShadow: "0 0 0 2px var(--pupu-background)",
+                background: iconRingBg,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transform: expanded ? `translate(${fly.x}px, ${fly.y}px) scale(0.6)` : "none",
+                opacity: expanded ? 0 : 1,
+                transition: `transform 0.38s ${UNFOLD_EASE} ${idx * 45}ms, opacity 0.3s ease ${idx * 45}ms`,
+                pointerEvents: "none",
+              }}
+            >
+              <ToolkitIconFrame
+                icon={iconFor(resolved)}
+                isDark={isDark}
+                size={32}
+                iconSize={16}
+                borderRadius={9}
+                style={{ background: "transparent" }}
+              />
+            </span>
+          );
+        })}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -111,25 +134,6 @@ const CollectionRow = ({ collection, isDark, fontFamily, textColor, t, onGetAll,
           {tagline}
         </div>
       </div>
-
-      <Button
-        label={t("toolkit.get_all")}
-        onClick={(event) => {
-          event.stopPropagation();
-          onGetAll(collection);
-        }}
-        style={{
-          flexShrink: 0,
-          fontSize: 11,
-          fontWeight: 500,
-          fontFamily,
-          paddingVertical: 3,
-          paddingHorizontal: 13,
-          borderRadius: 999,
-          color: chipColor,
-          root: { background: pillBg },
-        }}
-      />
     </div>
   );
 };
@@ -231,32 +235,6 @@ const PluginsDiscoverPage = ({
   }));
   const visibleCollections = collections.filter((col) => col.resolved.length > 0);
 
-  /* Restores the pre-T3 "Get all" collection action (dropped when
-     SettingsSection's row layout had no header-right slot for it; the C2
-     Collections row does) — batch logic unchanged from that version:
-     opensSetup entries (secrets / http-secret / custom recipe) can't be
-     installed silently, so they're skipped and the first skipped entry's
-     detail is opened once the rest are done. */
-  const handleGetAll = useCallback(
-    async (collection) => {
-      let firstSkipped = null;
-      for (const resolved of collection.resolved) {
-        if (resolved.kind !== "store") continue;
-        if (entryOpensSetup(resolved.entry, installedIds)) {
-          if (!firstSkipped) firstSkipped = resolved;
-          continue;
-        }
-        const state = entryInstallState(resolved.entry, installedIds);
-        if (state === "installable") {
-          await onInstall?.(resolved.entry);
-        } else if (state === "oauth") {
-          await onOAuthConnect?.(resolved.entry);
-        }
-      }
-      if (firstSkipped) openDetailFor(firstSkipped);
-    },
-    [installedIds, onInstall, onOAuthConnect, openDetailFor],
-  );
 
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
@@ -315,7 +293,7 @@ const PluginsDiscoverPage = ({
      and carry the same install pill the essentials grid uses. */
   const [expandedCollectionId, setExpandedCollectionId] = useState(null);
 
-  const renderCollectionMember = (resolved) => {
+  const renderCollectionMember = (resolved, idx = 0, open = true) => {
     const presentation = toPluginPresentation(resolved.entry);
     return (
       <div
@@ -325,8 +303,11 @@ const PluginsDiscoverPage = ({
           display: "flex",
           alignItems: "center",
           gap: 11,
-          padding: "8px 0 8px 44px",
+          padding: "8px 0",
           cursor: "pointer",
+          opacity: open ? 1 : 0,
+          transform: open ? "translateY(0)" : "translateY(-14px)",
+          transition: `opacity 0.34s ease ${open ? 90 + idx * 50 : 0}ms, transform 0.4s cubic-bezier(0.32, 1, 0.32, 1) ${open ? 90 + idx * 50 : 0}ms`,
         }}
       >
         <ToolkitIconFrame icon={iconFor(resolved)} isDark={isDark} size={32} iconSize={16} borderRadius={9} />
@@ -469,14 +450,24 @@ const PluginsDiscoverPage = ({
                     fontFamily={fontFamily}
                     textColor={textColor}
                     t={t}
-                    onGetAll={handleGetAll}
                     expanded={expandedCollectionId === collection.id}
                     onToggle={() =>
                       setExpandedCollectionId((prev) => (prev === collection.id ? null : collection.id))
                     }
                   />
-                  {expandedCollectionId === collection.id &&
-                    collection.resolved.map(renderCollectionMember)}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateRows: expandedCollectionId === collection.id ? "1fr" : "0fr",
+                      transition: "grid-template-rows 0.42s cubic-bezier(0.32, 1, 0.32, 1)",
+                    }}
+                  >
+                    <div style={{ overflow: "hidden", minHeight: 0 }}>
+                      {collection.resolved.map((resolved, idx) =>
+                        renderCollectionMember(resolved, idx, expandedCollectionId === collection.id),
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

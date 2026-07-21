@@ -283,37 +283,6 @@ describe("PluginsDiscoverPage — Get all skips Set-up entries", () => {
     tools: [],
   };
 
-  test("installs the plain entries, skips the secrets-backed one, and opens its detail", async () => {
-    const onInstall = jest.fn(() => Promise.resolve());
-    const onOpenDetail = jest.fn();
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([GITHUB_ENTRY, SECRET_ENTRY]);
-    loadStoreCuration.mockReturnValue({
-      featured: null,
-      essentials: [],
-      collections: [
-        {
-          id: "mixed-kit",
-          title: "Mixed Kit",
-          blurb: "b",
-          gradient: ["#111111", "#222222"],
-          pluginIds: ["mcp.dev.github-remote", "mcp.browser.browser-use-local"],
-        },
-      ],
-    });
-
-    await renderPage({ onInstall, onOpenDetail });
-
-    await act(async () => {
-      fireEvent.click(screen.getByText("GET ALL"));
-    });
-
-    await waitFor(() => expect(onOpenDetail).toHaveBeenCalledWith("browser-use-local"));
-    expect(onInstall).toHaveBeenCalledTimes(1);
-    expect(onInstall).toHaveBeenCalledWith(
-      expect.objectContaining({ toolkitId: "mcp.dev.github-remote" }),
-    );
-  });
 });
 
 describe("PluginsDiscoverPage — curation tolerance", () => {
