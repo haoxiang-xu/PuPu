@@ -7,3 +7,4 @@
 - [Store-browse vs Installed paths](store_browse_vs_installed_paths.md) — searchMcpStoreEntries filters browse only; installed list is independent (api catalog) — safe choke point for gating store grid
 - [Custom MCP flow](custom_mcp_flow.md) — add-only (no edit), id from name, errors collapse to "Install failed", HTTP no auth, icon frontend-local; GO 2026-06-14
 - [Computer-use chat entry](computer_use_chat_entry.md) — builtin.computer is synthetic (outside catalog), lives in chat-input, gates on getComputerUseStatus; facade drops unknown status fields
+- [i18n locale workflow](i18n_locale_workflow.md) — my i18n scope=toolkit.*+computer_use.* (skills under toolkit.*); validate subagent output key-sets (counts lie); worktree tests need react-scripts+node_modules symlink

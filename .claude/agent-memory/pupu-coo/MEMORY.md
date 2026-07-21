@@ -5,4 +5,5 @@
 - [react-router-dom jest main 字段坏](react-router-dom-jest-main-field.md) — 5 前端套件同挂 "Cannot find module react-router-dom"，根因 rr-dom 7.x main 指向不存在的 dist/main.js，npm ci 修不了，需 jest moduleNameMapper/换版本
 - [发版 unchain editable 源码耦合](release-unchain-editable-source-coupling.md) — build:unchain 从本地 ../unchain 工作树 editable 打包核心库；构建前必须 pin 干净已提交 commit，否则 bundle 未提交代码
 - [版本 bump 机制](release-version-bump-mechanics.md) — version:prepare-build 只改 package.json 不 commit；需 --version/PUPU_BUILD_VERSION 入参；发版正确命令序列
+- [electron 测试 glob + build lint 门](electron-test-glob-and-build-lint-gates.md) — test:electron 扫进嵌套 worktree 虚增计数(真值16套/165)；绿 Jest≠绿 build，CI=true build 会因 no-unused-vars 硬挂
 - [adapter 测试读本机 recipe 泄漏](adapter-tests-local-recipe-leak.md) — MisoAdapterCapabilityCatalogTests 隔离下挂因 stream_chat_events/_create_agent 读 ~/.pupu Default.recipe；已加 setUp hermetic 化（9→3）；剩 3 workspace 测试是陈旧 mock 第二根因
