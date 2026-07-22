@@ -1186,7 +1186,13 @@ const PluginDetailPage = ({
                 root: { background: "transparent", border: "none" },
                 hoverBackgroundColor: isDark ? "rgba(229,72,77,0.14)" : "rgba(229,72,77,0.10)",
                 activeBackgroundColor: isDark ? "rgba(229,72,77,0.22)" : "rgba(229,72,77,0.16)",
-                content: { icon: { width: 14, height: 14 } },
+                content: {
+                  icon: {
+                    width: 14,
+                    height: 14,
+                    color: isBuiltin ? "rgba(var(--pupu-text-rgb),0.25)" : dangerColor,
+                  },
+                },
                 state: { disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} } },
               }}
             />
