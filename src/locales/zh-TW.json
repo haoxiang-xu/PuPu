@@ -591,7 +591,16 @@
     "import_skills_conflicts": "{count} 個指令已存在，不會覆寫：{commands}",
     "import_skills_install": "匯入 {count} 個技能",
     "import_skills_success": "已從 {name} 匯入 {count} 個技能",
-    "import_skills_error": "匯入失敗"
+    "import_skills_error": "匯入失敗",
+    "skillpack_err_invalid_payload": "安裝請求被拒絕——條目資料不合法。",
+    "skillpack_err_network": "下載時網路出錯,請檢查網路後重試。",
+    "skillpack_err_timeout": "下載逾時,請重試。",
+    "skillpack_err_not_found": "上游找不到固定版本的套件來源。",
+    "skillpack_err_too_large": "已中止下載——套件體積超出限制。",
+    "skillpack_err_malformed": "下載的套件內容異常,已中止安裝。",
+    "skillpack_err_integrity": "套件內容與審讀指紋不符,已中止安裝。",
+    "skillpack_err_fs": "套件寫入本機磁碟失敗。",
+    "skillpack_err_generic": "技能包安裝失敗,請重試。"
   },
   "commands": {
     "btw": "立即回答，不打斷當前任務",

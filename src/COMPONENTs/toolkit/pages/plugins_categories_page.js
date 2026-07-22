@@ -12,8 +12,16 @@ import {
   withMcpStoreIcon,
 } from "../../../SERVICEs/mcp_toolkit_store";
 import { toPluginPresentation } from "../../../SERVICEs/plugin_presentation";
-import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
+import {
+  subscribeToolkitCatalogRefresh,
+  emitToolkitCatalogRefresh,
+} from "../../../SERVICEs/toolkit_catalog_refresh";
+import { toast } from "../../../SERVICEs/toast";
 import { isBaseToolkitId } from "../utils/plugin_actions";
+import {
+  listStoreSkillPacks,
+  installStoreSkillPack,
+} from "../utils/skill_pack_store_install";
 import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 import PlaceholderBlock from "../components/placeholder_block";
 import PluginListRow from "../components/plugin_list_row";
@@ -22,6 +30,20 @@ import CategoryChip from "../components/category_chip";
 import SegmentedControl from "../components/segmented_control";
 
 const isMcpSourced = (source) => String(source || "").startsWith("mcp");
+
+/* The r1.2 error-code enum from the S6a download channel — each code has its
+   own i18n key; anything outside the enum (facade timeouts, scan failures)
+   falls back to the generic line. */
+const SKILL_PACK_ERROR_CODES = new Set([
+  "invalid_payload",
+  "network",
+  "timeout",
+  "not_found",
+  "too_large",
+  "malformed",
+  "integrity",
+  "fs",
+]);
 
 /* CatalogOpenPill — the quiet "OPEN" pill for a catalog-only row (a builtin/
    local plugin, or an MCP install with no matching store registry entry).
@@ -104,7 +126,7 @@ const PluginsCategoriesPage = ({
   onSearchChange,
 }) => {
   const context = useContext(ConfigContext) || {};
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const fontFamily = context.theme?.font?.fontFamily || "Jost, sans-serif";
   /* The search box is controlled by the shell when it's reached via the
      sidebar search input (review I7) — that keeps the sidebar box and this
@@ -225,6 +247,67 @@ const PluginsCategoriesPage = ({
         }),
     [catalogSearchFiltered, typeFilter],
   );
+
+  /* ── Store skill packs (S6b) — curated one-click installable packs from
+       the curation JSON's `skillPacks` section. A pack that's already in the
+       catalog (installed) drops its store row entirely: the catalog half
+       already renders it with the quiet OPEN pill, so keeping both would be
+       a duplicate — same dedupe philosophy as registry-vs-catalog above.
+       Packs surface on the All and Skills segments only (a pack is a bundle
+       of /commands; it is neither an MCP server nor a builtin toolkit). ── */
+  const [installingPackIds, setInstallingPackIds] = useState(() => new Set());
+  const [packError, setPackError] = useState(null);
+  const zhLocale = String(locale || "").toLowerCase().startsWith("zh");
+
+  const installedCatalogIds = useMemo(
+    () => new Set(catalogToolkits.map((tk) => tk.toolkitId)),
+    [catalogToolkits],
+  );
+
+  const packItems = useMemo(() => {
+    if (typeFilter !== "all" && typeFilter !== "skill") return [];
+    const q = search.trim().toLowerCase();
+    return listStoreSkillPacks()
+      .filter((pack) => !installedCatalogIds.has(pack.id))
+      .map((pack) => ({
+        pack,
+        title: zhLocale && pack.titleZh ? pack.titleZh : pack.title,
+        blurb: zhLocale && pack.blurbZh ? pack.blurbZh : pack.blurb,
+      }))
+      .filter(
+        (item) =>
+          !q ||
+          [item.title, item.blurb, item.pack.title, item.pack.blurb]
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
+      );
+  }, [typeFilter, search, installedCatalogIds, zhLocale]);
+
+  const handleInstallPack = async (pack) => {
+    if (installingPackIds.has(pack.id)) return;
+    setPackError(null);
+    setInstallingPackIds((previous) => new Set(previous).add(pack.id));
+    try {
+      const installed = await installStoreSkillPack(pack);
+      emitToolkitCatalogRefresh({ source: "skill_pack_store_install" });
+      toast.success(
+        t("toolkit.import_skills_success", {
+          count: installed.skills.length,
+          name: installed.toolkitName,
+        }),
+      );
+    } catch (error) {
+      const code = SKILL_PACK_ERROR_CODES.has(error?.code) ? error.code : "generic";
+      setPackError(code);
+    } finally {
+      setInstallingPackIds((previous) => {
+        const next = new Set(previous);
+        next.delete(pack.id);
+        return next;
+      });
+    }
+  };
 
   const rows = [...registryItems, ...catalogItems];
 
@@ -357,6 +440,12 @@ const PluginsCategoriesPage = ({
             {installError.message || t("toolkit.store_install_error")}
           </div>
         )}
+
+        {packError && (
+          <div style={{ fontSize: 10.5, fontFamily, color: warningColor, marginTop: -8 }}>
+            {t(`toolkit.skillpack_err_${packError}`)}
+          </div>
+        )}
       </div>
 
       {/* ── Scrollable body — plugin_list_row list (registry rows get the
@@ -364,8 +453,66 @@ const PluginsCategoriesPage = ({
            low-key custom MCP footer link (MCP segment only), and the
            trademark disclaimer (MCP segment only). ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "10px 26px 26px" }}>
-        {rows.length > 0 ? (
-          rows.map((item) =>
+        {/* Store skill packs render ABOVE the union rows — curated picks
+            lead the Skills segment. The pill mirrors PluginInstallPill's GET
+            state (same colors/metrics); the whole install machine is local
+            (handleInstallPack) since packs have no registry entry. */}
+        {packItems.map(({ pack, title, blurb }) => {
+          const installing = installingPackIds.has(pack.id);
+          const firstCommand = String(pack.subset?.[0] || "")
+            .split("/")
+            .pop();
+          return (
+            <PluginListRow
+              key={pack.id}
+              icon={{ type: "builtin", name: "command", color: "#6478f6" }}
+              isDark={isDark}
+              name={title}
+              command={firstCommand ? `/${firstCommand}` : undefined}
+              commandFirst={commandFirst}
+              description={blurb}
+              testId={`skillpack-row-${pack.id}`}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {installing && (
+                  <ArcSpinner
+                    size={12}
+                    stroke_width={2}
+                    color={isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)"}
+                  />
+                )}
+                <Button
+                  label={t("toolkit.pill_get")}
+                  disabled={installing}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleInstallPack(pack);
+                  }}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    paddingVertical: 3,
+                    paddingHorizontal: 13,
+                    borderRadius: 999,
+                    color: isDark ? "#9aa8ff" : "#2563eb",
+                    root: {
+                      background: isDark
+                        ? "rgba(124,140,248,0.12)"
+                        : "rgba(37,99,235,0.08)",
+                    },
+                    state: {
+                      disabled: {
+                        root: { opacity: 0.6, cursor: "not-allowed" },
+                        background: {},
+                      },
+                    },
+                  }}
+                />
+              </span>
+            </PluginListRow>
+          );
+        })}
+        {rows.map((item) =>
             item.kind === "registry" ? (
               <PluginListRow
                 key={item.key}
@@ -411,8 +558,8 @@ const PluginsCategoriesPage = ({
                 />
               </PluginListRow>
             ),
-          )
-        ) : (
+        )}
+        {rows.length === 0 && packItems.length === 0 && (
           <PlaceholderBlock
             icon="search"
             title={t("toolkit.category_empty_search")}

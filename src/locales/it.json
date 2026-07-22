@@ -591,7 +591,16 @@
     "import_skills_conflicts": "{count} comando/i esiste/esistono già e non verranno sovrascritti: {commands}",
     "import_skills_install": "Importa {count} skill",
     "import_skills_success": "Importate {count} skill da {name}",
-    "import_skills_error": "Importazione non riuscita"
+    "import_skills_error": "Importazione non riuscita",
+    "skillpack_err_invalid_payload": "Richiesta di installazione rifiutata: la voce del pack non è valida.",
+    "skillpack_err_network": "Errore di rete durante il download del pack. Controlla la connessione e riprova.",
+    "skillpack_err_timeout": "Timeout del download. Riprova.",
+    "skillpack_err_not_found": "Sorgente fissata del pack non trovata.",
+    "skillpack_err_too_large": "Download interrotto: il pack supera i limiti di dimensione.",
+    "skillpack_err_malformed": "Il pack scaricato è danneggiato: installazione interrotta.",
+    "skillpack_err_integrity": "Il contenuto del pack non corrisponde all'impronta revisionata: installazione interrotta.",
+    "skillpack_err_fs": "Impossibile scrivere il pack su disco.",
+    "skillpack_err_generic": "Installazione del pack di abilità non riuscita. Riprova."
   },
   "commands": {
     "btw": "Risponde subito, senza interrompere l'attività",

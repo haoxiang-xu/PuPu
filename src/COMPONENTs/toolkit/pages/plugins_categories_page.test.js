@@ -25,7 +25,28 @@ jest.mock("../../../SERVICEs/api", () => ({
 jest.mock("../../../SERVICEs/toolkit_catalog_refresh", () => ({
   __esModule: true,
   subscribeToolkitCatalogRefresh: jest.fn(() => () => {}),
+  emitToolkitCatalogRefresh: jest.fn(),
 }));
+
+jest.mock("../../../SERVICEs/toast", () => ({
+  __esModule: true,
+  toast: { success: jest.fn(), error: jest.fn() },
+}));
+
+/* The store skill-pack half (S6b) is mocked so the page's own tests stay
+   decoupled from the real curation JSON — the dedicated describe below
+   re-arms listStoreSkillPacks with its own fixture. The orchestration
+   itself is covered by skill_pack_store_install.test.js. */
+jest.mock("../utils/skill_pack_store_install", () => ({
+  __esModule: true,
+  listStoreSkillPacks: jest.fn(() => []),
+  installStoreSkillPack: jest.fn(),
+}));
+
+const {
+  listStoreSkillPacks,
+  installStoreSkillPack,
+} = require("../utils/skill_pack_store_install");
 
 /* Scoped to just isBaseToolkitId (the only thing this page needs from
    plugin_actions.js) — the real module also pulls in mcp_install.js and
@@ -125,6 +146,7 @@ const {
    rather than in the jest.mock factory above (same pattern as
    plugins_shell.test.js / plugins_installed_page.test.js). */
 beforeEach(() => {
+  listStoreSkillPacks.mockReturnValue([]);
   listMcpStoreEntries.mockReturnValue(REGISTRY_ENTRIES);
   searchMcpStoreEntries.mockImplementation((entries, query) => {
     const q = (query || "").trim().toLowerCase();
@@ -483,5 +505,118 @@ describe("PluginsCategoriesPage — Skills segment: chip-first rows", () => {
     expect(row.textContent).toContain(
       "Read, search and summarize your pages and databases.",
     );
+  });
+});
+
+describe("PluginsCategoriesPage — store skill packs (S6b)", () => {
+  const STORE_PACK = {
+    id: "skillpack.test-pack",
+    title: "Test Pack",
+    titleZh: "测试包",
+    blurb: "Battle-tested methodology commands.",
+    blurbZh: "经过实战检验的方法论命令。",
+    gradient: ["#6478f6", "#4a5bd8"],
+    source: {
+      provider: "github",
+      repo: "obra/superpowers",
+      sha: "a".repeat(40),
+      license: "MIT",
+    },
+    subset: ["skills/brainstorming"],
+    manifest: [{ path: "skills/brainstorming/SKILL.md", sha256: "b".repeat(64) }],
+    review: { recordId: "S5-test", reviewedAt: "2026-07-18", reviewers: ["x"] },
+  };
+
+  beforeEach(() => {
+    listStoreSkillPacks.mockReturnValue([STORE_PACK]);
+  });
+
+  test("renders a GET row on the All and Skills segments, but not on MCP/Toolkits", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Notion")).toBeInTheDocument());
+
+    // Default segment "All"
+    expect(screen.getByTestId("skillpack-row-skillpack.test-pack")).toBeInTheDocument();
+
+    clickSegment(/Skills/);
+    const row = screen.getByTestId("skillpack-row-skillpack.test-pack");
+    expect(within(row).getByText("Test Pack")).toBeInTheDocument();
+    expect(within(row).getByText("/brainstorming")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /get/i })).toBeInTheDocument();
+
+    clickSegment(/MCP/);
+    expect(
+      screen.queryByTestId("skillpack-row-skillpack.test-pack"),
+    ).not.toBeInTheDocument();
+
+    clickSegment(/Toolkits/);
+    expect(
+      screen.queryByTestId("skillpack-row-skillpack.test-pack"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("an already-installed pack (present in the catalog) drops its store row", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({
+      toolkits: [
+        CATALOG_PLAN,
+        {
+          toolkitId: "skillpack.test-pack",
+          toolkitName: "Test Pack",
+          toolkitDescription: "Battle-tested methodology commands.",
+          source: "skillpack",
+          tools: [],
+          skills: [{ name: "brainstorming", title: "Brainstorming", description: "Ideate first." }],
+        },
+      ],
+    });
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Test Pack")).toBeInTheDocument());
+
+    /* The pack renders exactly once — as the catalog row (quiet OPEN pill),
+       never as a duplicate store GET row. */
+    expect(
+      screen.queryByTestId("skillpack-row-skillpack.test-pack"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("category-row-skillpack.test-pack"),
+    ).toBeInTheDocument();
+  });
+
+  test("GET runs the install chain and emits a catalog refresh on success", async () => {
+    const { emitToolkitCatalogRefresh } = require("../../../SERVICEs/toolkit_catalog_refresh");
+    installStoreSkillPack.mockResolvedValue({
+      toolkitId: "skillpack.test-pack",
+      toolkitName: "Test Pack",
+      skills: [{ name: "brainstorming" }],
+    });
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Test Pack")).toBeInTheDocument());
+
+    const row = screen.getByTestId("skillpack-row-skillpack.test-pack");
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: /get/i }));
+    });
+
+    expect(installStoreSkillPack).toHaveBeenCalledWith(STORE_PACK);
+    expect(emitToolkitCatalogRefresh).toHaveBeenCalledWith({
+      source: "skill_pack_store_install",
+    });
+  });
+
+  test("a coded install failure surfaces its own error strip", async () => {
+    const failure = new Error("integrity");
+    failure.code = "integrity";
+    installStoreSkillPack.mockRejectedValue(failure);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Test Pack")).toBeInTheDocument());
+
+    const row = screen.getByTestId("skillpack-row-skillpack.test-pack");
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: /get/i }));
+    });
+
+    expect(
+      screen.getByText(/reviewed fingerprint/i),
+    ).toBeInTheDocument();
   });
 });

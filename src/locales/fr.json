@@ -591,7 +591,16 @@
     "import_skills_conflicts": "{count} commande(s) existent déjà et ne seront pas remplacées : {commands}",
     "import_skills_install": "Importer {count} compétence(s)",
     "import_skills_success": "{count} compétence(s) importée(s) depuis {name}",
-    "import_skills_error": "Échec de l’importation"
+    "import_skills_error": "Échec de l’importation",
+    "skillpack_err_invalid_payload": "Demande d'installation rejetée — l'entrée du pack est invalide.",
+    "skillpack_err_network": "Erreur réseau pendant le téléchargement du pack. Vérifiez votre connexion et réessayez.",
+    "skillpack_err_timeout": "Le téléchargement a expiré. Réessayez.",
+    "skillpack_err_not_found": "La source épinglée du pack est introuvable en amont.",
+    "skillpack_err_too_large": "Téléchargement interrompu — le pack dépasse les limites de taille.",
+    "skillpack_err_malformed": "Le pack téléchargé est corrompu — installation interrompue.",
+    "skillpack_err_integrity": "Le contenu du pack ne correspond pas à l'empreinte validée — installation interrompue.",
+    "skillpack_err_fs": "Impossible d'écrire le pack sur le disque.",
+    "skillpack_err_generic": "Échec de l'installation du pack de compétences. Réessayez."
   },
   "commands": {
     "btw": "Répond maintenant, sans interrompre la tâche",

@@ -44,5 +44,61 @@
         "mcp.productivity.discord"
       ]
     }
+  ],
+  "skillPacks": [
+    {
+      "id": "skillpack.superpowers-essentials",
+      "title": "Superpowers Essentials",
+      "titleZh": "超能力精选",
+      "blurb": "Five battle-tested software-development methodology skills from obra/superpowers: brainstorm before building, debug by root cause, write step-by-step plans, take code review with rigor, and prove work is done before claiming it.",
+      "blurbZh": "obra/superpowers 精选的五条软件开发方法论:动手前先构思、按根因调试、写分步计划、以技术严谨对待评审、宣称完成前先拿证据。",
+      "gradient": [
+        "#5B8DEF",
+        "#7C5CFC"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "obra/superpowers",
+        "sha": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "license": "MIT"
+      },
+      "subset": [
+        "skills/brainstorming",
+        "skills/systematic-debugging",
+        "skills/writing-plans",
+        "skills/receiving-code-review",
+        "skills/verification-before-completion"
+      ],
+      "manifest": [
+        {
+          "path": "skills/brainstorming/SKILL.md",
+          "sha256": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d"
+        },
+        {
+          "path": "skills/systematic-debugging/SKILL.md",
+          "sha256": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a"
+        },
+        {
+          "path": "skills/writing-plans/SKILL.md",
+          "sha256": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845"
+        },
+        {
+          "path": "skills/receiving-code-review/SKILL.md",
+          "sha256": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd"
+        },
+        {
+          "path": "skills/verification-before-completion/SKILL.md",
+          "sha256": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c"
+        }
+      ],
+      "review": {
+        "recordId": "S5-2026-07-18-superpowers",
+        "reviewedAt": "2026-07-18",
+        "reviewers": [
+          "mcp-store-curator",
+          "pupu-llm-expert"
+        ]
+      }
+    }
   ]
 }

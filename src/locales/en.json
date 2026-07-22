@@ -640,7 +640,16 @@
     "enable_auto_approve_confirm_title": "Enable Auto Approve?",
     "enable_auto_approve_confirm_body": "All actions from this plugin will be executed automatically without asking for your confirmation. This may pose security risks if the plugin performs destructive or sensitive operations.",
     "delete_confirm_title": "Delete “{name}”?",
-    "delete_confirm_body": "This plugin and everything it can do will be permanently removed from your installation. This cannot be undone."
+    "delete_confirm_body": "This plugin and everything it can do will be permanently removed from your installation. This cannot be undone.",
+    "skillpack_err_invalid_payload": "Install request was rejected — the pack entry is malformed.",
+    "skillpack_err_network": "Network error while downloading the pack. Check your connection and try again.",
+    "skillpack_err_timeout": "Download timed out. Try again.",
+    "skillpack_err_not_found": "The pinned pack source could not be found upstream.",
+    "skillpack_err_too_large": "Download aborted — the pack exceeds the size limits.",
+    "skillpack_err_malformed": "The downloaded pack is malformed — install aborted.",
+    "skillpack_err_integrity": "Pack contents did not match the reviewed fingerprint — install aborted.",
+    "skillpack_err_fs": "Could not write the pack to disk.",
+    "skillpack_err_generic": "Skill pack install failed. Try again."
   },
   "commands": {
     "btw": "Answer now, without interrupting the task",

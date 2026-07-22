@@ -591,7 +591,16 @@
     "import_skills_conflicts": "{count} 個のコマンドは既に存在するため上書きされません: {commands}",
     "import_skills_install": "{count} 個のスキルをインポート",
     "import_skills_success": "{name} から {count} 個のスキルをインポートしました",
-    "import_skills_error": "インポートに失敗しました"
+    "import_skills_error": "インポートに失敗しました",
+    "skillpack_err_invalid_payload": "インストール要求が拒否されました——エントリデータが不正です。",
+    "skillpack_err_network": "ダウンロード中にネットワークエラーが発生しました。接続を確認して再試行してください。",
+    "skillpack_err_timeout": "ダウンロードがタイムアウトしました。再試行してください。",
+    "skillpack_err_not_found": "固定バージョンのパックソースが見つかりません。",
+    "skillpack_err_too_large": "ダウンロードを中止しました——パックがサイズ制限を超えています。",
+    "skillpack_err_malformed": "ダウンロードしたパックが不正なため、インストールを中止しました。",
+    "skillpack_err_integrity": "パック内容がレビュー済みフィンガープリントと一致せず、インストールを中止しました。",
+    "skillpack_err_fs": "パックをディスクに書き込めませんでした。",
+    "skillpack_err_generic": "スキルパックのインストールに失敗しました。再試行してください。"
   },
   "commands": {
     "btw": "今すぐ回答（タスクは中断しない）",

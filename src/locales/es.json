@@ -591,7 +591,16 @@
     "import_skills_conflicts": "{count} comando(s) ya existen y no se sobrescribirán: {commands}",
     "import_skills_install": "Importar {count} habilidad(es)",
     "import_skills_success": "Se importaron {count} habilidad(es) de {name}",
-    "import_skills_error": "Error de importación"
+    "import_skills_error": "Error de importación",
+    "skillpack_err_invalid_payload": "Solicitud de instalación rechazada: la entrada del pack no es válida.",
+    "skillpack_err_network": "Error de red al descargar el pack. Comprueba tu conexión e inténtalo de nuevo.",
+    "skillpack_err_timeout": "La descarga agotó el tiempo de espera. Inténtalo de nuevo.",
+    "skillpack_err_not_found": "No se encontró la fuente fijada del pack.",
+    "skillpack_err_too_large": "Descarga cancelada: el pack supera los límites de tamaño.",
+    "skillpack_err_malformed": "El pack descargado está dañado: instalación cancelada.",
+    "skillpack_err_integrity": "El contenido del pack no coincide con la huella revisada: instalación cancelada.",
+    "skillpack_err_fs": "No se pudo escribir el pack en el disco.",
+    "skillpack_err_generic": "Falló la instalación del pack de habilidades. Inténtalo de nuevo."
   },
   "commands": {
     "btw": "Responde ahora, sin interrumpir la tarea",

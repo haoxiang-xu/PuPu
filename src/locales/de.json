@@ -591,7 +591,16 @@
     "import_skills_conflicts": "{count} Befehl(e) existieren bereits und werden nicht überschrieben: {commands}",
     "import_skills_install": "{count} Skill(s) importieren",
     "import_skills_success": "{count} Skill(s) aus {name} importiert",
-    "import_skills_error": "Import fehlgeschlagen"
+    "import_skills_error": "Import fehlgeschlagen",
+    "skillpack_err_invalid_payload": "Installationsanfrage abgelehnt — der Pack-Eintrag ist ungültig.",
+    "skillpack_err_network": "Netzwerkfehler beim Herunterladen des Packs. Prüfe deine Verbindung und versuche es erneut.",
+    "skillpack_err_timeout": "Zeitüberschreitung beim Herunterladen. Versuche es erneut.",
+    "skillpack_err_not_found": "Die angepinnte Pack-Quelle wurde nicht gefunden.",
+    "skillpack_err_too_large": "Download abgebrochen — das Pack überschreitet die Größenlimits.",
+    "skillpack_err_malformed": "Das heruntergeladene Pack ist beschädigt — Installation abgebrochen.",
+    "skillpack_err_integrity": "Der Pack-Inhalt stimmt nicht mit dem geprüften Fingerabdruck überein — Installation abgebrochen.",
+    "skillpack_err_fs": "Das Pack konnte nicht auf die Festplatte geschrieben werden.",
+    "skillpack_err_generic": "Installation des Skill-Packs fehlgeschlagen. Versuche es erneut."
   },
   "commands": {
     "btw": "Antwortet sofort, ohne die Aufgabe zu unterbrechen",
