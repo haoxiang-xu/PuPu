@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "下載的套件內容異常,已中止安裝。",
     "skillpack_err_integrity": "套件內容與審讀指紋不符,已中止安裝。",
     "skillpack_err_fs": "套件寫入本機磁碟失敗。",
-    "skillpack_err_generic": "技能包安裝失敗,請重試。"
+    "skillpack_err_generic": "技能包安裝失敗,請重試。",
+    "skillpack_badge_verified": "SHA-256 已校驗",
+    "skillpack_badge_reviewed": "已審讀 {date}"
   },
   "commands": {
     "btw": "立即回答，不打斷當前任務",

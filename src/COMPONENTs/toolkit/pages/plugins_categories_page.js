@@ -471,6 +471,7 @@ const PluginsCategoriesPage = ({
               command={firstCommand ? `/${firstCommand}` : undefined}
               commandFirst={commandFirst}
               description={blurb}
+              onOpenDetail={() => onOpenDetail?.({ skillPack: pack })}
               testId={`skillpack-row-${pack.id}`}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>

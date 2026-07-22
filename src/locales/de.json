@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "Das heruntergeladene Pack ist beschädigt — Installation abgebrochen.",
     "skillpack_err_integrity": "Der Pack-Inhalt stimmt nicht mit dem geprüften Fingerabdruck überein — Installation abgebrochen.",
     "skillpack_err_fs": "Das Pack konnte nicht auf die Festplatte geschrieben werden.",
-    "skillpack_err_generic": "Installation des Skill-Packs fehlgeschlagen. Versuche es erneut."
+    "skillpack_err_generic": "Installation des Skill-Packs fehlgeschlagen. Versuche es erneut.",
+    "skillpack_badge_verified": "SHA-256 verifiziert",
+    "skillpack_badge_reviewed": "Geprüft {date}"
   },
   "commands": {
     "btw": "Antwortet sofort, ohne die Aufgabe zu unterbrechen",

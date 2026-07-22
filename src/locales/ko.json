@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "다운로드한 팩이 손상되어 설치를 중단했습니다.",
     "skillpack_err_integrity": "팩 내용이 검토된 지문과 일치하지 않아 설치를 중단했습니다.",
     "skillpack_err_fs": "팩을 디스크에 쓸 수 없습니다.",
-    "skillpack_err_generic": "스킬 팩 설치에 실패했습니다. 다시 시도하세요."
+    "skillpack_err_generic": "스킬 팩 설치에 실패했습니다. 다시 시도하세요.",
+    "skillpack_badge_verified": "SHA-256 검증됨",
+    "skillpack_badge_reviewed": "검토됨 {date}"
   },
   "commands": {
     "btw": "지금 바로 답변(작업 중단 없음)",

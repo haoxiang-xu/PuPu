@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "El pack descargado está dañado: instalación cancelada.",
     "skillpack_err_integrity": "El contenido del pack no coincide con la huella revisada: instalación cancelada.",
     "skillpack_err_fs": "No se pudo escribir el pack en el disco.",
-    "skillpack_err_generic": "Falló la instalación del pack de habilidades. Inténtalo de nuevo."
+    "skillpack_err_generic": "Falló la instalación del pack de habilidades. Inténtalo de nuevo.",
+    "skillpack_badge_verified": "SHA-256 verificado",
+    "skillpack_badge_reviewed": "Revisado {date}"
   },
   "commands": {
     "btw": "Responde ahora, sin interrumpir la tarea",

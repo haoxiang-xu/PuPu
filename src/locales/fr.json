@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "Le pack téléchargé est corrompu — installation interrompue.",
     "skillpack_err_integrity": "Le contenu du pack ne correspond pas à l'empreinte validée — installation interrompue.",
     "skillpack_err_fs": "Impossible d'écrire le pack sur le disque.",
-    "skillpack_err_generic": "Échec de l'installation du pack de compétences. Réessayez."
+    "skillpack_err_generic": "Échec de l'installation du pack de compétences. Réessayez.",
+    "skillpack_badge_verified": "SHA-256 vérifié",
+    "skillpack_badge_reviewed": "Relu {date}"
   },
   "commands": {
     "btw": "Répond maintenant, sans interrompre la tâche",

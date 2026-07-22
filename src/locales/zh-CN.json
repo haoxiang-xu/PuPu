@@ -646,7 +646,9 @@
     "skillpack_err_malformed": "下载的包内容异常,已中止安装。",
     "skillpack_err_integrity": "包内容与审读指纹不符,已中止安装。",
     "skillpack_err_fs": "包写入本地磁盘失败。",
-    "skillpack_err_generic": "技能包安装失败,请重试。"
+    "skillpack_err_generic": "技能包安装失败,请重试。",
+    "skillpack_badge_verified": "SHA-256 已校验",
+    "skillpack_badge_reviewed": "已审读 {date}"
   },
   "commands": {
     "btw": "立即回答，不打断当前任务",

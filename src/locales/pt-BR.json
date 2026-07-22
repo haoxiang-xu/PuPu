@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "O pack baixado está corrompido — instalação cancelada.",
     "skillpack_err_integrity": "O conteúdo do pack não corresponde à impressão digital revisada — instalação cancelada.",
     "skillpack_err_fs": "Não foi possível gravar o pack no disco.",
-    "skillpack_err_generic": "Falha na instalação do pack de habilidades. Tente novamente."
+    "skillpack_err_generic": "Falha na instalação do pack de habilidades. Tente novamente.",
+    "skillpack_badge_verified": "SHA-256 verificado",
+    "skillpack_badge_reviewed": "Revisado {date}"
   },
   "commands": {
     "btw": "Responde agora, sem interromper a tarefa",

@@ -98,7 +98,34 @@
           "mcp-store-curator",
           "pupu-llm-expert"
         ]
-      }
+      },
+      "commandPreviews": [
+        {
+          "name": "brainstorming",
+          "description": "Explore before building: divergent ideas, cross-domain analogies, assumption checks",
+          "descriptionZh": "动手前先构思:发散探索、跨域类比、假设盘点"
+        },
+        {
+          "name": "systematic-debugging",
+          "description": "Debug by root cause, not by patching symptoms",
+          "descriptionZh": "按根因调试,不按症状打补丁"
+        },
+        {
+          "name": "writing-plans",
+          "description": "Turn a spec into zero-context, bite-sized step-by-step plans",
+          "descriptionZh": "把 spec 拆成零上下文、2-5 分钟粒度的分步计划"
+        },
+        {
+          "name": "receiving-code-review",
+          "description": "Treat review feedback with technical rigor — verify before implementing",
+          "descriptionZh": "以技术严谨对待评审意见,先验证再实现"
+        },
+        {
+          "name": "verification-before-completion",
+          "description": "Evidence before claims: find the proving command, run it, read the output",
+          "descriptionZh": "宣称完成前先拿证据:找到验证命令、跑、读输出"
+        }
+      ]
     },
     {
       "id": "skillpack.prompt-master",
@@ -131,7 +158,14 @@
         "reviewers": [
           "claude-fable-5"
         ]
-      }
+      },
+      "commandPreviews": [
+        {
+          "name": "prompt-master",
+          "description": "Route and tune prompts per target AI tool, with a 37-pattern failure diagnostic",
+          "descriptionZh": "按目标 AI 工具路由调优,内置 37 种失败模式诊断"
+        }
+      ]
     },
     {
       "id": "skillpack.frontend-design",
@@ -164,7 +198,14 @@
         "reviewers": [
           "claude-fable-5"
         ]
-      }
+      },
+      "commandPreviews": [
+        {
+          "name": "frontend-design",
+          "description": "Deliberate palette, typography and one justified aesthetic risk — anti-generic UI",
+          "descriptionZh": "深思熟虑的配色与字体编排,一次说得出理由的美学冒险"
+        }
+      ]
     }
   ]
 }

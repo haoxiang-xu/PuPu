@@ -7,6 +7,7 @@ import PluginsInstalledPage from "./pages/plugins_installed_page";
 import PluginDetailPage from "./pages/plugin_detail_page";
 import CustomMcpPage from "./pages/custom_mcp_page";
 import ImportSkillsPage from "./pages/import_skills_page";
+import SkillPackDetailPage from "./pages/skill_pack_detail_page";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { isBuiltinToolkit } from "./utils/toolkit_helpers";
 import { deletePluginToolkit } from "./utils/plugin_actions";
@@ -177,11 +178,17 @@ export const PluginsShell = ({
     (arg) => {
       if (typeof arg === "string") {
         handleStoreEntryClick(arg);
+      } else if (arg?.skillPack) {
+        /* Third shape (S6b follow-up): a NOT-yet-installed store skill pack —
+           curation entry object, routed to its own provenance-strip detail.
+           Installed packs never take this path (the store drops their row in
+           favor of the catalog row, which is the `installed` shape above). */
+        openDetail({ kind: "skill_pack", pack: arg.skillPack });
       } else {
         handleOpenInstalledDetail(arg);
       }
     },
-    [handleStoreEntryClick, handleOpenInstalledDetail],
+    [handleStoreEntryClick, handleOpenInstalledDetail, openDetail],
   );
 
   /* ── Installed MCP set + install flow (ported from toolkits_page.js:97-331) ── */
@@ -698,6 +705,12 @@ export const PluginsShell = ({
                   />
                 );
               })()
+            ) : selectedToolkit.kind === "skill_pack" ? (
+              <SkillPackDetailPage
+                pack={selectedToolkit.pack}
+                isDark={isDark}
+                onBack={closeDetail}
+              />
             ) : selectedToolkit.kind === "custom" ? (
               <div style={{ display: "flex", flexDirection: "column", height: "100%", paddingRight: 24 }}>
                 <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>

@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "Il pack scaricato è danneggiato: installazione interrotta.",
     "skillpack_err_integrity": "Il contenuto del pack non corrisponde all'impronta revisionata: installazione interrotta.",
     "skillpack_err_fs": "Impossibile scrivere il pack su disco.",
-    "skillpack_err_generic": "Installazione del pack di abilità non riuscita. Riprova."
+    "skillpack_err_generic": "Installazione del pack di abilità non riuscita. Riprova.",
+    "skillpack_badge_verified": "SHA-256 verificato",
+    "skillpack_badge_reviewed": "Revisionato {date}"
   },
   "commands": {
     "btw": "Risponde subito, senza interrompere l'attività",

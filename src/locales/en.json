@@ -649,7 +649,9 @@
     "skillpack_err_malformed": "The downloaded pack is malformed — install aborted.",
     "skillpack_err_integrity": "Pack contents did not match the reviewed fingerprint — install aborted.",
     "skillpack_err_fs": "Could not write the pack to disk.",
-    "skillpack_err_generic": "Skill pack install failed. Try again."
+    "skillpack_err_generic": "Skill pack install failed. Try again.",
+    "skillpack_badge_verified": "SHA-256 verified",
+    "skillpack_badge_reviewed": "Reviewed {date}"
   },
   "commands": {
     "btw": "Answer now, without interrupting the task",

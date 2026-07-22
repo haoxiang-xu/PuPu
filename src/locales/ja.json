@@ -600,7 +600,9 @@
     "skillpack_err_malformed": "ダウンロードしたパックが不正なため、インストールを中止しました。",
     "skillpack_err_integrity": "パック内容がレビュー済みフィンガープリントと一致せず、インストールを中止しました。",
     "skillpack_err_fs": "パックをディスクに書き込めませんでした。",
-    "skillpack_err_generic": "スキルパックのインストールに失敗しました。再試行してください。"
+    "skillpack_err_generic": "スキルパックのインストールに失敗しました。再試行してください。",
+    "skillpack_badge_verified": "SHA-256 検証済み",
+    "skillpack_badge_reviewed": "レビュー済み {date}"
   },
   "commands": {
     "btw": "今すぐ回答（タスクは中断しない）",
