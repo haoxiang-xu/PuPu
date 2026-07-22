@@ -6,14 +6,14 @@ metadata:
 ---
 
 **PuPu 组织真相源。研判前必读。CEO 批准结构变更后由主 Claude 更新本表（HR 只提议、不自改）。**
-最后同步: 2026-06-10（reorg 落地 + HR 部门成立）。
+最后同步: 2026-07-21（COO 业务操盘手重定义 + market-analyst 建编）。
 
 ## 顶层（CEO = Haoxiang Xu, haoxiangxu1998@gmail.com 直接面对 3 条 line + 1 个 advisory 部门）
 
 ```
 CEO
 ├─ CTO「帅」      pupu-cto            技术/架构总线
-├─ COO「发」      pupu-coo            发布门禁 + 增长督导
+├─ COO「发」      pupu-coo            业务操盘（盈利/方向提案/GTM）+ 发布 go/no-go
 ├─ AI「智」       pupu-llm-expert     AI 战略（独立, 无下属）
 └─ HR（advisory） pupu-hr-head        组织治理（按需召集, 非日常汇报线）
 ```
@@ -34,28 +34,32 @@ CEO
 | pupu-ux-designer | 造 | CTO·横向直挂 | UX/UI 设计、明暗主题 | agents/cto/direct/ | opus |
 | mcp-store-curator | 策 | CTO·横向直挂 | MCP 商店条目数据、schema、连通性 | agents/cto/direct/ | opus |
 | pupu-dev-backend | 擎 | CTO·横向直挂 | PuPu backend (unchain_runtime/server, 唯一真实副本) + unchain core 库; 跨 repo | agents/cto/direct/ | opus |
-| pupu-coo | 发 | 顶层·COO | 发布门禁 go/no-go、回归/构建验证、跨仓兼容、增长督导 | agents/coo/pupu-coo.md | opus |
-| pupu-growth-ops | 巡 | COO 线 | 增长巡检、健康度评分、COO 周报；向 COO 汇报 | agents/coo/ | opus |
+| pupu-coo | 发 | 顶层·COO | 业务操盘（盈利/市场牵引/方向提案权/GTM/机会创造）+ 发布 go/no-go 决策、跨仓兼容裁断；执行下沉给验/擎/守 | agents/coo/pupu-coo.md | opus |
+| pupu-growth-ops | 巡 | COO 线 | 向内遥测：增长巡检、健康度评分、COO 周报、PuPu P0/P1/P2 下一步（独家）；向 COO 汇报 | agents/coo/ | opus |
+| pupu-market-analyst | — | COO 线 | 向外情报：竞品/定价/变现/定位/趋势，产情报与方向选项不产 PuPu 行动清单；向 COO 汇报 | agents/coo/ | opus |
 | pupu-llm-expert | 智 | 顶层·AI | 模型/provider 策略、prompt、unchain 编排、RAG、tool-use 语义 | agents/ai/ | fable |
 | pupu-hr-head | — | HR | 组织治理负责人, advisory, 统筹+合成 | agents/hr/ | opus |
 | pupu-hr-org-architect | — | HR | 组织架构（怎么长）；建部门/角色 warrant、层级、合并拆分 | agents/hr/ | opus |
 | pupu-hr-performance-evaluator | — | HR | 绩效（谁在贡献）；多信号取证、裁撤双证 | agents/hr/ | opus |
 
-合计 **18 个 agent**。
+合计 **19 个 agent**。
 
 ## 关键边界与红线（援引时不要凭空判断）
 
 - **守的安全越级权:** 虽挂平台安全组（lead=electron）, 但 severity 定级 / 发版 sign-off（对 COO）/ HIGH-CRITICAL 上报（达 CTO）不下放给 electron lead。避免"被审查方管审查方"。
 - **公共区守门权:** 共享原语（如 markdown.js）改动权留 CTO, 不下放任何 sub-team lead。
 - **HR advisory-only:** HR 不碰任何 agent/memory 文件, 只出"执行(待 CEO 批准)：…"建议。
-- **横向不设组长:** 验/造/策/擎(backend) 直挂 CTO（拍平先例）。backend 起步 1 人不设 lead, 第二人触发后再评估升格 sub-team。
+- **横向不设组长:** 验/造/策/擎(backend) 直挂 CTO（拍平先例）。backend 起步 1 人不设 lead, 第二人触发后再评估升格 sub-team。COO 线同理拍平：巡/analyst 直挂 COO, 不成团不设 lead。
+- **COO 提案权 ≠ 裁决权:** COO 可向 dev/CTO 提产品方向, 架构/技术可行性裁决仍在 architect/CTO; 对外发布动作一律 CEO 过手。
+- **巡/analyst 接缝:** 自家 repo 指标 + Weekly COO Report + PuPu P0/P1/P2 行动清单独家归巡; analyst 只碰外部数据、只产情报/选项。一份 brief 不出现两个人的 PuPu 行动计划。
+- **analyst 利用率复评点:** 建编 4 周后/首 3 份简报后由考评官核利用率, 低则走裁撤双证退回 bounded skill（2026-08-18 前后触发）。同时监控发布逃逸率, 为"release 决策是否升格给验"留触发条件。
 
 ## 文件结构（agents/ 镜像组织树）
 
 ```
 agents/
 ├── cto/{pupu-cto.md, chat-experience/, config-extension/, platform-security/, direct/}
-├── coo/{pupu-coo.md, pupu-growth-ops.md}
+├── coo/{pupu-coo.md, pupu-growth-ops.md, pupu-market-analyst.md}
 ├── ai/pupu-llm-expert.md
 └── hr/{pupu-hr-head.md, pupu-hr-org-architect.md, pupu-hr-performance-evaluator.md}
 ```
@@ -67,3 +71,4 @@ agents/
 - 2026-06-10: **reorg** — 顶层收敛为 3 线（CTO/COO/智）; product-ops 升 COO 改名 pupu-coo 收编 growth-ops; CTO 下分 3 sub-team 各设 lead + 3 横向直挂; agents/ 重组为镜像组织树。
 - 2026-06-10: **HR 部门成立**（advisory, 3 角色）。
 - 2026-06-10: **建 backend dev「擎」(pupu-dev-backend)**, 横向直挂 CTO, 拥有 unchain_runtime/server + unchain core, 填补后端 0-owner 真空（HR 首次实战建议 + 三方会, CEO 批准）。第二人触发条件见 agent charter。
+- 2026-07-21: **COO 业务操盘手重定义 + 建 market-analyst**（CEO 授权扩编, HR 双报告设计, 最小增量裁决）— COO 升格业务操盘手（盈利/方向提案权/GTM）, release 拆函数不拆角色（决策留 COO、执行下沉验/擎/守, 不新建 release-manager）; 新建 pupu-market-analyst 直挂 COO 管向外情报（不成团/不设 lead/暂不建 marketing 角色, YAGNI）; 18→19。

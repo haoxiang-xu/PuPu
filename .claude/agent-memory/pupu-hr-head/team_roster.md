@@ -1,6 +1,6 @@
 ---
 name: team_roster
-description: HR head 视角的全 18 人花名册 + 顶层 3 线 + HR advisory 红线 + HR 三人分工；与 [[org-chart]] 的关系
+description: HR head 视角的全 19 人花名册 + 顶层 3 线 + HR advisory 红线 + HR 三人分工；与 [[org-chart]] 的关系
 metadata:
   type: project
 ---
@@ -8,7 +8,7 @@ metadata:
 # PuPu 花名册（HR head 视角）
 
 我是 **pupu-hr-head**，HR 部门负责人。这是我从组织治理角度看的全员。详细 source of truth 见 [[org-chart]]（我维护、研判前必读）；本表是我的工作视角速查。
-最后同步：2026-06-10（reorg + HR 部门成立后首次全员见面会）。
+最后同步：2026-07-21（COO 业务操盘手重定义 + market-analyst 建编）。
 
 ## 顶层：CEO 直面 3 条 line + 1 个 advisory 部门
 
@@ -17,7 +17,7 @@ metadata:
 ```
 CEO
 ├─ CTO「帅」      pupu-cto          技术/架构总线（下辖 3 sub-team + 4 横向直挂）
-├─ COO「发」      pupu-coo          发布门禁 + 增长督导（辖 growth-ops）
+├─ COO「发」      pupu-coo          业务操盘 + 发布 go/no-go（辖 growth-ops + market-analyst）
 ├─ AI「智」       pupu-llm-expert   AI 战略（独立直汇报，无下属）
 └─ HR（advisory） pupu-hr-head（我） 组织治理（按需召集，非日常汇报线）
 ```
@@ -36,9 +36,10 @@ CEO
 - `mcp-store-curator`「策」— MCP 商店条目数据/schema/连通性
 - `pupu-dev-backend`「擎」— PuPu backend（unchain_runtime/server，唯一真实副本）+ unchain core 库，跨 repo；起步 1 人不设 lead，第二人触发后再评估升格 sub-team
 
-### COO 线「发」(pupu-coo) — 发布运营
-- `pupu-coo`「发」— 发布 go/no-go、回归/构建验证、跨仓兼容、增长督导
-- `pupu-growth-ops`「巡」— 增长巡检、健康度评分、COO 周报；向 COO 汇报
+### COO 线「发」(pupu-coo) — 业务操盘 + 发布运营（2026-07-21 重定义）
+- `pupu-coo`「发」— 业务操盘（盈利/市场牵引/方向提案权/GTM/机会创造）+ 发布 go/no-go 决策、跨仓兼容裁断；release 执行下沉给验/擎/守；提案权 ≠ 裁决权（架构归 architect/CTO），对外发布一律 CEO 过手
+- `pupu-growth-ops`「巡」— 向内遥测：增长巡检、健康度评分、COO 周报、PuPu P0/P1/P2 下一步（独家）；向 COO 汇报
+- `pupu-market-analyst` — 向外情报：竞品/定价/变现/定位/趋势；只产情报与方向选项，不产 PuPu 行动清单、不碰自家 repo 指标；向 COO 汇报；4 周利用率复评点（~2026-08-18）
 
 ### AI 线「智」(pupu-llm-expert)
 - `pupu-llm-expert`「智」— 模型/provider 策略、prompt、unchain 编排、RAG、tool-use 语义；独立，无下属
@@ -48,7 +49,7 @@ CEO
 - `pupu-hr-org-architect` — 组织该"怎么长"
 - `pupu-hr-performance-evaluator` — "谁在贡献" + 裁撤双证
 
-合计 **18**：CTO 线 12（含帅）+ COO 线 2 + AI 线 1 + HR 3。
+合计 **19**：CTO 线 12（含帅）+ COO 线 3 + AI 线 1 + HR 3。
 
 ## HR 的红线（不可漂移）
 
