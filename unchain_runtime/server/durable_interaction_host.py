@@ -1999,25 +1999,82 @@ class DurableInteractionIdTracker:
         self._lock = threading.Lock()
         self._by_key: dict[tuple[str, str], str] = {}
         self._latest_by_kind: dict[str, str] = {}
+        self._owner_by_key: dict[tuple[str, str], dict[str, str]] = {}
+        self._owner_by_thread_key: dict[
+            tuple[str, str, int], dict[str, str]
+        ] = {}
+        self._latest_owner_by_kind: dict[str, dict[str, str]] = {}
 
     def observe(self, event: object) -> None:
         if not isinstance(event, dict):
             return
         request_raw = event.get("interaction_request")
-        if not isinstance(request_raw, dict):
+        if isinstance(request_raw, dict):
+            interaction_id = str(
+                request_raw.get("interaction_id") or ""
+            ).strip()
+            kind = str(request_raw.get("kind") or "").strip()
+            payload = request_raw.get("payload")
+            session_id = str(request_raw.get("session_id") or "").strip()
+            source_run_id = str(
+                request_raw.get("source_run_id") or ""
+            ).strip()
+        elif str(event.get("type") or "").strip() == "tool_call":
+            # Non-durable tool approval has no interaction_request. Retain its
+            # run ownership so a descendant callback can still fail closed.
+            interaction_id = ""
+            kind = "tool_approval"
+            payload = event
+            session_id = str(event.get("session_id") or "").strip()
+            source_run_id = str(event.get("run_id") or "").strip()
+        else:
             return
-        interaction_id = str(request_raw.get("interaction_id") or "").strip()
-        kind = str(request_raw.get("kind") or "").strip()
-        payload = request_raw.get("payload")
-        if not interaction_id or not kind or not isinstance(payload, dict):
+        if not kind or not isinstance(payload, dict):
             return
         call_id = str(
             payload.get("call_id") or payload.get("request_id") or ""
         ).strip()
+        event_run_id = str(event.get("run_id") or "").strip()
+        owner = {
+            "interaction_id": interaction_id,
+            "session_id": session_id,
+            "source_run_id": source_run_id,
+            "event_run_id": event_run_id,
+        }
+        thread_id = threading.get_ident()
         with self._lock:
-            self._latest_by_kind[kind] = interaction_id
+            if interaction_id:
+                self._latest_by_kind[kind] = interaction_id
+            self._latest_owner_by_kind[kind] = owner
             if call_id:
-                self._by_key[(kind, call_id)] = interaction_id
+                if interaction_id:
+                    self._by_key[(kind, call_id)] = interaction_id
+                self._owner_by_key[(kind, call_id)] = owner
+                self._owner_by_thread_key[(kind, call_id, thread_id)] = owner
+
+    def resolve_owner(
+        self,
+        kind: str,
+        call_id: str = "",
+        *,
+        allow_latest: bool = False,
+    ) -> dict[str, str]:
+        normalized_kind = str(kind or "").strip()
+        normalized_call_id = str(call_id or "").strip()
+        thread_id = threading.get_ident()
+        with self._lock:
+            owner = None
+            if normalized_call_id:
+                owner = self._owner_by_thread_key.get(
+                    (normalized_kind, normalized_call_id, thread_id)
+                )
+                if owner is None:
+                    owner = self._owner_by_key.get(
+                        (normalized_kind, normalized_call_id)
+                    )
+            elif allow_latest:
+                owner = self._latest_owner_by_kind.get(normalized_kind)
+            return copy.deepcopy(owner) if isinstance(owner, dict) else {}
 
     def resolve(
         self,
@@ -2026,17 +2083,12 @@ class DurableInteractionIdTracker:
         *,
         allow_latest: bool = False,
     ) -> str:
-        normalized_kind = str(kind or "").strip()
-        normalized_call_id = str(call_id or "").strip()
-        with self._lock:
-            if normalized_call_id:
-                exact = self._by_key.get((normalized_kind, normalized_call_id))
-                if exact:
-                    return exact
-                return ""
-            if allow_latest:
-                return self._latest_by_kind.get(normalized_kind, "")
-            return ""
+        owner = self.resolve_owner(
+            kind,
+            call_id,
+            allow_latest=allow_latest,
+        )
+        return str(owner.get("interaction_id") or "").strip()
 
 
 __all__ = [

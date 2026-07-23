@@ -1,3 +1,4 @@
+- [COO 业务操盘授权](coo-business-mandate.md) — 2026-07-21 从质检长升格激进业务操盘手；目标盈利、高话语权、主动给项目走向；每轮出创始人备忘录
 - [Team Roster](team_roster.md) — COO「发」=我（2026-06-10 升格，原 product-ops），下辖 growth-ops「巡」；CEO 3 直属之一；全员角色边界
 - [Handoff Protocol](handoff_protocol.md) — 与 qa-tester / mcp-store-curator / security-expert（守签字才放行）的交接：何时自己干、何时引用他们结论
 - [Registry is a shared FE/BE file](registry-frontend-backend-shared-file.md) — src/SERVICEs/mcp_toolkit_registry.json 被 Python 后端读取；改它必须两侧都跑测试，删条目易炸 backend pytest

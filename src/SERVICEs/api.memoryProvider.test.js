@@ -12,6 +12,11 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
       startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
+      attachStreamV4: jest.fn(async () => ({
+        active: true,
+        detach: jest.fn(),
+        cancel: jest.fn(),
+      })),
       cancelExecution: jest.fn(async () => ({ status: "cancel_requested" })),
       getPendingInteraction: jest.fn(async () => ({ status: "none" })),
       respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
@@ -79,6 +84,48 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_embedding_provider).toBe("openai");
     expect(payload.options.memory_vector_top_k).toBe(3);
+  });
+
+  test("attaches to an existing V4 attempt without rebuilding its payload", async () => {
+    const identity = {
+      requestId: "request-1",
+      executionId: "chat-1",
+      attemptId: "attempt-1",
+      afterSeq: 0,
+    };
+    const handlers = { onRuntimeEvent: jest.fn() };
+
+    await expect(
+      api.unchain.attachStreamV4(identity, handlers),
+    ).resolves.toMatchObject({
+      active: true,
+      detach: expect.any(Function),
+      cancel: expect.any(Function),
+    });
+    expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledWith(
+      identity,
+      handlers,
+    );
+  });
+
+  test("preserves an exact V4 replay error code and details", async () => {
+    const bridgeError = Object.assign(new Error("Replay history is incomplete"), {
+      code: "stream_replay_gap",
+      details: { first_available_seq: 12, requested_after_seq: 0 },
+    });
+    window.unchainAPI.attachStreamV4.mockRejectedValueOnce(bridgeError);
+
+    await expect(
+      api.unchain.attachStreamV4({
+        requestId: "request-gap",
+        executionId: "chat-gap",
+        attemptId: "attempt-gap",
+      }),
+    ).rejects.toMatchObject({
+      code: "stream_replay_gap",
+      message: "Replay history is incomplete",
+      details: { first_available_seq: 12, requested_after_seq: 0 },
+    });
   });
 
   test("forwards durable interaction session identifiers", async () => {

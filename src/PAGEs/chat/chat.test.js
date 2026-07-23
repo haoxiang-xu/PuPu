@@ -13,6 +13,8 @@ import {
   setChatMessages,
   setChatModel,
   setChatSelectedToolkits,
+  setChatSessionBundle,
+  setChatSystemPromptOverrides,
 } from "../../SERVICEs/chat_storage";
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 import { dispatchComposerPrefill } from "../../SERVICEs/composer_prefill";
@@ -23,6 +25,16 @@ import {
   fingerprintTurnMutationMessages,
   readTurnMutationOutbox,
 } from "../../SERVICEs/turn_mutation_outbox";
+import {
+  QUEUED_TURN_OUTBOX_STORAGE_KEY,
+  readPendingClarifyForChat,
+  readPendingFyiOutbox,
+  readPendingFyisForAttempt,
+  readQueuedTurnsForAttempt,
+  readQueuedTurnsForChat,
+  writePendingFyi,
+  writeQueuedTurnsForAttempt,
+} from "../../SERVICEs/queued_turn_outbox";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -167,6 +179,7 @@ describe("ChatInterface stop flow", () => {
   afterEach(() => {
     jest.restoreAllMocks();
     delete window.unchainAPI;
+    delete window.__pupuTestBridge;
   });
 
   const renderChatWithFragment = (onFragment = "main") =>
@@ -204,6 +217,219 @@ describe("ChatInterface stop flow", () => {
     });
   };
 
+  const installTestCommandBridge = () => {
+    const handlers = new Map();
+    window.__pupuTestBridge = {
+      register: jest.fn((command, handler) => {
+        handlers.set(command, handler);
+        return () => {
+          if (handlers.get(command) === handler) {
+            handlers.delete(command);
+          }
+        };
+      }),
+    };
+    return handlers;
+  };
+
+  const installAddressedV4Runs = () => {
+    const runs = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const attemptId = `attempt-${payload.threadId}`;
+      const run = {
+        payload,
+        handlers,
+        attemptId,
+        disconnect: jest.fn(),
+      };
+      runs.push(run);
+      return {
+        requestId: attemptId,
+        executionId: payload.threadId,
+        attemptId,
+        disconnect: run.disconnect,
+        cancel: run.disconnect,
+      };
+    });
+    return runs;
+  };
+
+  const completeAddressedV4Run = (run, content) => {
+    const baseEvent = {
+      schema_version: "v4",
+      timestamp: "2026-07-21T12:00:00.000Z",
+      session_id: run.payload.threadId,
+      run_id: `run-${run.attemptId}`,
+      agent_id: "developer",
+      turn_id: `run-${run.attemptId}:turn-1`,
+      links: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+    };
+    act(() => {
+      run.handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: `${run.attemptId}-started`,
+        seq: 1,
+        type: "run.started",
+        payload: { status: "running" },
+      });
+      run.handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: `${run.attemptId}-delta`,
+        seq: 2,
+        type: "step.delta",
+        payload: {
+          step_id: `model:${run.attemptId}:response`,
+          step_type: "model_response",
+          kind: "text",
+          delta: content,
+        },
+      });
+      run.handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: `${run.attemptId}-step-done`,
+        seq: 3,
+        type: "step.completed",
+        payload: {
+          step_id: `model:${run.attemptId}:response`,
+          step_type: "model_response",
+          status: "completed",
+          final_text: content,
+        },
+      });
+      run.handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: `${run.attemptId}-done`,
+        seq: 4,
+        type: "run.completed",
+        payload: { status: "completed" },
+      });
+      run.handlers.onDone({ finished_at: Date.now() });
+    });
+  };
+
+  const seedPersistedV4Attempt = ({
+    chatId,
+    requestId = "request-reattach",
+    attemptId = "attempt-reattach",
+    assistantId = "assistant-reattach",
+    content = "partial",
+  }) => {
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    setChatMessages(
+      chatId,
+      [
+        {
+          id: `user-${attemptId}`,
+          role: "user",
+          content: "continue the original run",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: assistantId,
+          role: "assistant",
+          content,
+          status: "streaming",
+          createdAt: 2,
+          updatedAt: 2,
+          traceFrames: [],
+          subagentFrames: {},
+          subagentMetaByRunId: {},
+          meta: {
+            requestId,
+            attemptId,
+            executionSessionId: chatId,
+          },
+        },
+      ],
+      { source: "test" },
+    );
+  };
+
+  const buildReattachEvent = ({
+    chatId,
+    id,
+    type,
+    seq,
+    payload = {},
+    links = {},
+  }) => ({
+    schema_version: "v4",
+    timestamp: "2026-07-21T12:00:00.000Z",
+    session_id: chatId,
+    run_id: "run-reattach",
+    agent_id: "developer",
+    turn_id: "run-reattach:turn-1",
+    links,
+    surface: { slot: "trace_inline", scope: "turn" },
+    visibility: "user",
+    metadata: {},
+    event_id: id,
+    seq,
+    type,
+    payload,
+  });
+
+  const installSilentQueueRelayWatchdog = ({
+    chatId,
+    queueId,
+    queueText,
+    attachErrorCode,
+    cancelResponse,
+  }) => {
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [{ id: queueId, text: queueText, status: "queued" }],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        if (identity.attemptId === "attempt-reattach") {
+          handlers.onDone({ finished_at: Date.now() });
+          return {
+            requestId: "request-reattach",
+            executionId: chatId,
+            attemptId: "attempt-reattach",
+            terminal: true,
+            active: false,
+            detach: jest.fn(),
+            disconnect: jest.fn(),
+            cancel: jest.fn(),
+          };
+        }
+        throw Object.assign(new Error(`attach failed: ${attachErrorCode}`), {
+          code: attachErrorCode,
+        });
+      },
+    );
+    window.unchainAPI.cancelExecution = jest.fn(async () => cancelResponse);
+    const runs = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const runNumber = runs.length + 1;
+      const run = {
+        payload,
+        handlers,
+        requestId: `request-watchdog-${runNumber}`,
+        attemptId: `attempt-watchdog-${runNumber}`,
+        disconnect: jest.fn(),
+      };
+      runs.push(run);
+      return {
+        requestId: run.requestId,
+        executionId: payload.threadId,
+        attemptId: run.attemptId,
+        detach: jest.fn(),
+        disconnect: run.disconnect,
+        cancel: run.disconnect,
+      };
+    });
+    return runs;
+  };
+
   test("boot-loading gate: marks store hydration at 80% and signals ready exactly once on mount (S2->S3)", async () => {
     renderChat();
 
@@ -223,6 +449,403 @@ describe("ChatInterface stop flow", () => {
       target: { value: "hello" },
     });
     expect(bootProgress.signalReady).toHaveBeenCalledTimes(1);
+  });
+
+  test("Test API starts, reads, and cancels only the addressed chat attempt", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatAId = getChatsStore().activeChatId;
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Test API B" },
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:gpt-5" }, { source: "test" });
+    selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(commandHandlers.has("startChatRun")).toBe(true);
+      expect(commandHandlers.has("getChatRun")).toBe(true);
+      expect(commandHandlers.has("cancelChatRun")).toBe(true);
+    });
+
+    await expect(
+      commandHandlers.get("startChatRun")({
+        id: chatAId,
+        text: "must not cross into B",
+      }),
+    ).rejects.toMatchObject({ code: "chat_not_active" });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+
+    act(() => {
+      selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-chat-id]")?.getAttribute("data-chat-id"),
+      ).toBe(chatAId);
+    });
+
+    const started = await commandHandlers.get("startChatRun")({
+      id: chatAId,
+      text: "start exact A",
+    });
+    expect(started).toMatchObject({
+      chat_id: chatAId,
+      execution_id: chatAId,
+      attempt_id: `attempt-${chatAId}`,
+      status: "running",
+    });
+    expect(runs).toHaveLength(1);
+
+    expect(
+      commandHandlers.get("getChatRun")({
+        id: chatAId,
+        attempt_id: `attempt-${chatAId}`,
+      }),
+    ).toMatchObject({
+      chat_id: chatAId,
+      attempt_id: `attempt-${chatAId}`,
+      status: "running",
+    });
+
+    await expect(
+      commandHandlers.get("cancelChatRun")({
+        id: chatAId,
+        attempt_id: `attempt-${createdB.chatId}`,
+      }),
+    ).rejects.toMatchObject({ code: "attempt_mismatch" });
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+
+    await expect(
+      commandHandlers.get("cancelChatRun")({
+        id: chatAId,
+        attempt_id: `attempt-${chatAId}`,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      chat_id: chatAId,
+      attempt_id: `attempt-${chatAId}`,
+      status: "cancel_requested",
+    });
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      session_id: chatAId,
+      attempt_id: `attempt-${chatAId}`,
+      request_id: `attempt-${chatAId}`,
+      reason: "test_api_cancel",
+      idempotency_key: `stop:attempt-${chatAId}`,
+    });
+    expect(runs[0].disconnect).toHaveBeenCalledTimes(1);
+    expect(
+      commandHandlers.get("getChatRun")({
+        id: chatAId,
+        attempt_id: `attempt-${chatAId}`,
+      }),
+    ).toMatchObject({
+      chat_id: chatAId,
+      attempt_id: `attempt-${chatAId}`,
+      status: "cancelled",
+      content: "",
+      message_id: expect.any(String),
+    });
+  });
+
+  test("blocking Test API messages stay bound to their chat after switching", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatAId = getChatsStore().activeChatId;
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "Blocking B" },
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:gpt-5" }, { source: "test" });
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(commandHandlers.has("sendMessage")).toBe(true);
+    });
+
+    let aResolved = false;
+    const replyAPromise = commandHandlers
+      .get("sendMessage")({ id: chatAId, text: "question A" })
+      .then((reply) => {
+        aResolved = true;
+        return reply;
+      });
+    await waitFor(() => expect(runs).toHaveLength(1));
+    const runA = runs[0];
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-chat-id]")?.getAttribute("data-chat-id"),
+      ).toBe(createdB.chatId);
+    });
+    const replyBPromise = commandHandlers.get("sendMessage")({
+      id: createdB.chatId,
+      text: "question B",
+    });
+    await waitFor(() => expect(runs).toHaveLength(2));
+    const runB = runs[1];
+
+    completeAddressedV4Run(runB, "answer B");
+    await expect(replyBPromise).resolves.toMatchObject({
+      chat_id: createdB.chatId,
+      attempt_id: `attempt-${createdB.chatId}`,
+      content: "answer B",
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    });
+    expect(aResolved).toBe(false);
+
+    completeAddressedV4Run(runA, "answer A");
+    await expect(replyAPromise).resolves.toMatchObject({
+      chat_id: chatAId,
+      attempt_id: `attempt-${chatAId}`,
+      content: "answer A",
+    });
+  });
+
+  test("keeps an exact Test API cancellation terminal when the stream event wins the race", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    let resolveCancellation;
+    window.unchainAPI.cancelExecution = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveCancellation = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForReady();
+    const started = await commandHandlers.get("startChatRun")({
+      id: chatId,
+      text: "cancel before first token",
+    });
+    const cancellation = commandHandlers.get("cancelChatRun")({
+      id: chatId,
+      attempt_id: started.attempt_id,
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      runs[0].handlers.onError({
+        code: "cancelled",
+        message: "Execution cancelled",
+        cancelled: true,
+      });
+    });
+    await waitFor(() => {
+      expect(
+        commandHandlers.get("getChatRun")({
+          id: chatId,
+          attempt_id: started.attempt_id,
+        }),
+      ).toMatchObject({ status: "cancelled", content: "" });
+    });
+
+    await act(async () => {
+      resolveCancellation({ status: "cancel_requested" });
+      await cancellation;
+    });
+    expect(
+      commandHandlers.get("getChatRun")({
+        id: chatId,
+        attempt_id: started.attempt_id,
+      }),
+    ).toMatchObject({
+      status: "cancelled",
+      content: "",
+      message_id: expect.any(String),
+    });
+  });
+
+  test("Test API same-tick activation starts each chat with its exact stored run config", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        runtime: {
+          workspaces: [
+            { id: "workspace-a", path: "/tmp/exact-a" },
+            { id: "workspace-b", path: "/tmp/exact-b" },
+          ],
+        },
+      }),
+    );
+    const chatAId = getChatsStore().activeChatId;
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:model-a" }, { source: "test" });
+    setChatSessionBundle(
+      chatAId,
+      {
+        selectedToolkits: ["toolkit.a"],
+        selectedWorkspaceIds: ["workspace-a"],
+        selectedRecipeName: "Recipe A",
+        agentOrchestration: { mode: "developer_waiting_approval" },
+      },
+      { source: "test" },
+    );
+    setChatSystemPromptOverrides(
+      chatAId,
+      { rules: "rules-a" },
+      { source: "test" },
+    );
+    const createdB = createChatInSelectedContext(
+      { title: "Exact config B" },
+      { source: "test" },
+    );
+    setChatModel(
+      createdB.chatId,
+      { id: "openai:model-b" },
+      { source: "test" },
+    );
+    setChatSessionBundle(
+      createdB.chatId,
+      {
+        selectedToolkits: ["toolkit.b"],
+        selectedWorkspaceIds: ["workspace-b"],
+        selectedRecipeName: "Recipe B",
+        agentOrchestration: { mode: "default" },
+      },
+      { source: "test" },
+    );
+    setChatSystemPromptOverrides(
+      createdB.chatId,
+      { rules: "rules-b" },
+      { source: "test" },
+    );
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    let startBPromise;
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test-api" });
+      startBPromise = commandHandlers.get("startChatRun")({
+        id: createdB.chatId,
+        text: "exact B",
+      });
+    });
+    await startBPromise;
+    expect(runs[0].payload).toEqual(
+      expect.objectContaining({
+        threadId: createdB.chatId,
+        options: expect.objectContaining({
+          modelId: "openai:model-b",
+          toolkits: ["toolkit.b"],
+          workspace_root: "/tmp/exact-b",
+          workspace_roots: ["/tmp/exact-b"],
+          recipe_name: "Recipe B",
+          agent_orchestration: { mode: "default" },
+          system_prompt_v2: expect.objectContaining({
+            overrides: { rules: "rules-b" },
+          }),
+        }),
+      }),
+    );
+
+    let startAPromise;
+    act(() => {
+      selectTreeNode({ nodeId: chatANodeId }, { source: "test-api" });
+      startAPromise = commandHandlers.get("startChatRun")({
+        id: chatAId,
+        text: "exact A",
+      });
+    });
+    await startAPromise;
+    expect(runs[1].payload).toEqual(
+      expect.objectContaining({
+        threadId: chatAId,
+        options: expect.objectContaining({
+          modelId: "openai:model-a",
+          toolkits: ["toolkit.a"],
+          workspace_root: "/tmp/exact-a",
+          workspace_roots: ["/tmp/exact-a"],
+          recipe_name: "Recipe A",
+          agent_orchestration: { mode: "developer_waiting_approval" },
+          system_prompt_v2: expect.objectContaining({
+            overrides: { rules: "rules-a" },
+          }),
+        }),
+      }),
+    );
+    completeAddressedV4Run(runs[0], "done B");
+    completeAddressedV4Run(runs[1], "done A");
+  });
+
+  test("treats a V4 done error as failed and never as a successful Test API run", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    const started = await commandHandlers.get("startChatRun")({
+      id: chatId,
+      text: "surface terminal failure",
+    });
+    act(() => {
+      runs[0].handlers.onDone({
+        error: { code: "stream_failed", message: "boom" },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        commandHandlers.get("getChatRun")({
+          id: chatId,
+          attempt_id: started.attempt_id,
+        }),
+      ).toMatchObject({
+        status: "failed",
+        error: { code: "stream_failed", message: "boom" },
+      });
+    });
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+  });
+
+  test("blocking Test API resolves a successful artifact-only run with empty text", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(commandHandlers.has("sendMessage")).toBe(true);
+    });
+
+    const replyPromise = commandHandlers.get("sendMessage")({
+      id: chatId,
+      text: "create an artifact without prose",
+    });
+    await waitFor(() => expect(runs).toHaveLength(1));
+    completeAddressedV4Run(runs[0], "");
+
+    await expect(replyPromise).resolves.toMatchObject({
+      chat_id: chatId,
+      attempt_id: `attempt-${chatId}`,
+      content: "",
+    });
   });
 
   const buildPendingInteraction = ({
@@ -1415,6 +2038,460 @@ describe("ChatInterface stop flow", () => {
         }),
       ]),
     );
+  });
+
+  test("reattaches a persisted V4 attempt without starting a duplicate turn", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    setChatMessages(
+      chatId,
+      [
+        {
+          id: "user-reattach",
+          role: "user",
+          content: "continue the original run",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: "assistant-reattach",
+          role: "assistant",
+          content: "partial",
+          status: "streaming",
+          createdAt: 2,
+          updatedAt: 2,
+          traceFrames: [],
+          subagentFrames: {},
+          subagentMetaByRunId: {},
+          meta: {
+            requestId: "request-reattach",
+            attemptId: "attempt-reattach",
+            executionSessionId: chatId,
+          },
+        },
+      ],
+      { source: "test" },
+    );
+    window.unchainAPI.startStreamV4 = jest.fn();
+    const detach = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        const baseEvent = {
+          schema_version: "v4",
+          timestamp: "2026-07-21T12:00:00.000Z",
+          session_id: chatId,
+          run_id: "run-reattach",
+          agent_id: "developer",
+          turn_id: "run-reattach:turn-1",
+          links: {},
+          surface: { slot: "trace_inline", scope: "turn" },
+          visibility: "user",
+          metadata: {},
+        };
+        handlers.onRuntimeEvent(
+          {
+            ...baseEvent,
+            event_id: "reattach-started",
+            seq: 1,
+            type: "run.started",
+            payload: { status: "running" },
+          },
+          { streamSeq: 1 },
+        );
+        handlers.onRuntimeEvent(
+          {
+            ...baseEvent,
+            event_id: "reattach-delta",
+            seq: 2,
+            type: "step.delta",
+            payload: {
+              step_id: "model:reattach:response",
+              step_type: "model_response",
+              kind: "text",
+              delta: "recovered without duplication",
+            },
+          },
+          { streamSeq: 2 },
+        );
+        handlers.onRuntimeEvent(
+          {
+            ...baseEvent,
+            event_id: "reattach-step-done",
+            seq: 3,
+            type: "step.completed",
+            payload: {
+              step_id: "model:reattach:response",
+              step_type: "model_response",
+              status: "completed",
+              final_text: "recovered without duplication",
+            },
+          },
+          { streamSeq: 3 },
+        );
+        handlers.onRuntimeEvent(
+          {
+            ...baseEvent,
+            event_id: "reattach-done",
+            seq: 4,
+            type: "run.completed",
+            payload: { status: "completed" },
+          },
+          { streamSeq: 4 },
+        );
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach,
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+
+    await waitFor(() => {
+      const messages = getChatsStore().chatsById[chatId].messages;
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toMatchObject({
+        id: "assistant-reattach",
+        role: "assistant",
+        status: "done",
+        content: "recovered without duplication",
+      });
+    });
+    expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledWith(
+      {
+        requestId: "request-reattach",
+        executionId: chatId,
+        attemptId: "attempt-reattach",
+        afterSeq: 0,
+      },
+      expect.objectContaining({
+        onRuntimeEvent: expect.any(Function),
+        onDone: expect.any(Function),
+        onError: expect.any(Function),
+      }),
+    );
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("restores an unresolved replay interaction with exact chat ownership", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writePendingFyi({
+      chatId,
+      attemptId: "attempt-reattach",
+      messageId: "fyi-replay-exact",
+      text: "SOAK_FYI lane=A",
+      requestedChannel: "fyi",
+      threadId: chatId,
+    });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "reattach-started",
+            type: "run.started",
+            seq: 1,
+            payload: { status: "running" },
+          }),
+          { streamSeq: 1 },
+        );
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "reattach-interaction",
+            type: "interaction.requested",
+            seq: 2,
+            links: {
+              tool_call_id: "call-gate",
+              interaction_id: "confirm-gate",
+            },
+            payload: {
+              interaction_id: "confirm-gate",
+              kind: "tool_approval",
+              renderer: "confirmation",
+              prompt: "Approve deterministic gate",
+              target: {
+                tool_call_id: "call-gate",
+                tool_name: "soak_gate",
+                toolkit_id: "mcp.custom.deterministic-soak",
+                arguments: { lane: "A", checkpoint: "durable-pause" },
+              },
+            },
+          }),
+          { streamSeq: 2 },
+        );
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "reattach-fyi",
+            type: "interaction.fyi_injected",
+            seq: 3,
+            payload: {
+              messages: [
+                {
+                  message_id: "fyi-replay-exact",
+                  origin: "user",
+                  text: "SOAK_FYI lane=A",
+                },
+              ],
+            },
+          }),
+          { streamSeq: 3 },
+        );
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: false,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-gate"
+        ],
+      ).toMatchObject({
+        chatId,
+        sessionId: chatId,
+        callId: "call-gate",
+        toolName: "soak_gate",
+      });
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-gate"],
+      ).toMatchObject({ status: "idle", resolved: false });
+      expect(
+        getChatsStore().chatsById[chatId].messages[1].interjections,
+      ).toEqual([
+        expect.objectContaining({
+          id: "fyi-fyi-replay-exact",
+          type: "fyi",
+          text: "SOAK_FYI lane=A",
+          origin: "user",
+        }),
+      ]);
+      expect(
+        readPendingFyisForAttempt(chatId, "attempt-reattach"),
+      ).toEqual([]);
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-reattach"),
+      ).toBeNull();
+    });
+
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: "confirm-gate",
+        approved: true,
+      });
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: "confirm-gate",
+      approved: true,
+      reason: "",
+      session_id: chatId,
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("keeps a replayed run failure terminal when the transport sends done", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId, content: "" });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "reattach-failed",
+            type: "run.failed",
+            seq: 1,
+            payload: {
+              status: "failed",
+              error: { code: "soak_failed", message: "failed safely" },
+            },
+          }),
+          { streamSeq: 1 },
+        );
+        handlers.onDone({
+          error: { code: "soak_failed", message: "failed safely" },
+        });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(getChatsStore().chatsById[chatId].messages[1]).toMatchObject({
+        status: "error",
+        content: "[error] failed safely",
+        meta: { error: { code: "soak_failed", message: "failed safely" } },
+      });
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("preserves cancelled semantics when an attached stream is cancelled", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId, content: "safe partial" });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onError({ code: "cancelled", message: "Stream was cancelled" });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(getChatsStore().chatsById[chatId].messages[1]).toMatchObject({
+        status: "cancelled",
+        content: "safe partial",
+      });
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("persists exact V4 identity before an immediate unmount and reattaches", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const detach = jest.fn();
+    window.unchainAPI.startStreamV4 = jest.fn((payload) => ({
+      requestId: "request-immediate",
+      executionId: payload.threadId,
+      attemptId: "attempt-immediate",
+      detach,
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+    window.unchainAPI.attachStreamV4 = jest.fn(async () => ({
+      requestId: "request-immediate",
+      executionId: chatId,
+      attemptId: "attempt-immediate",
+      terminal: false,
+      detach: jest.fn(),
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+
+    const view = renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "persist identity immediately" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+      expect(
+        getChatsStore().chatsById[chatId].messages.find(
+          (message) => message.role === "assistant",
+        )?.meta,
+      ).toMatchObject({
+        requestId: "request-immediate",
+        attemptId: "attempt-immediate",
+        executionSessionId: chatId,
+      });
+    });
+
+    view.unmount();
+    expect(detach).toHaveBeenCalledTimes(1);
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledWith(
+        {
+          requestId: "request-immediate",
+          executionId: chatId,
+          attemptId: "attempt-immediate",
+          afterSeq: 0,
+        },
+        expect.any(Object),
+      );
+    });
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+  });
+
+  test("settles a missing replay once and never restarts the execution", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    setChatMessages(
+      chatId,
+      [
+        {
+          id: "user-missing-replay",
+          role: "user",
+          content: "do not run this twice",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: "assistant-missing-replay",
+          role: "assistant",
+          content: "safe partial result",
+          status: "streaming",
+          createdAt: 2,
+          updatedAt: 2,
+          meta: {
+            requestId: "request-missing",
+            attemptId: "attempt-missing",
+            executionSessionId: chatId,
+          },
+        },
+      ],
+      { source: "test" },
+    );
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(async () => {
+      throw Object.assign(new Error("expired"), { code: "stream_not_found" });
+    });
+
+    renderChat();
+    await waitForReady();
+
+    await waitFor(() => {
+      const messages = getChatsStore().chatsById[chatId].messages;
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toMatchObject({
+        id: "assistant-missing-replay",
+        status: "cancelled",
+        content: "safe partial result",
+      });
+      expect(getChatsStore().chatsById[chatId].isGenerating).toBe(false);
+    });
+    expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
   });
 
   test("restores a character draft when preflight fails after switching chats", async () => {
@@ -2883,13 +3960,16 @@ describe("ChatInterface stop flow", () => {
         await Promise.resolve();
       });
 
+      /* The failed resume transport is already terminal while this retry is
+         waiting. Stop therefore tombstones the authoritative source attempt,
+         which is what prevents both the scheduled resume and a remount from
+         reviving the interaction. */
       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
         session_id: sessionId,
-        attempt_id: bridge.resumeRuns()[0].attemptId,
+        attempt_id: pending.source_run_id,
         source_attempt_id: pending.source_run_id,
-        request_id: bridge.resumeRuns()[0].attemptId,
         reason: "user_stop",
-        idempotency_key: `stop:${bridge.resumeRuns()[0].attemptId}`,
+        idempotency_key: `stop:${pending.source_run_id}`,
       });
 
       await act(async () => {
@@ -3387,6 +4467,367 @@ describe("ChatInterface stop flow", () => {
         lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-a"],
       ).toBeUndefined();
     });
+  });
+
+  test("uses the exact confirmation request when root and subagent tool calls share a call id", async () => {
+    const chatId = getChatsStore().activeChatId;
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Ask the child agent for a protected answer" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        run_id: "root-confirmation-collision",
+        type: "run_started",
+        payload: {},
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        run_id: "root-confirmation-collision",
+        type: "tool_call",
+        payload: {
+          call_id: "shared-confirmation-call",
+          confirmation_id: "confirm-root-shared",
+          requires_confirmation: true,
+          toolkit_id: "root.tools",
+          tool_name: "root_exec",
+          interact_config: {
+            request_id: "root-interact-request",
+            question: "Root question",
+            selection_mode: "single",
+          },
+          arguments: {
+            request_id: "root-argument-request",
+            question: "Root argument question",
+          },
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 120,
+        run_id: "child-confirmation-collision",
+        type: "tool_call",
+        payload: {
+          call_id: "shared-confirmation-call",
+          confirmation_id: "confirm-child-shared",
+          requires_confirmation: true,
+          toolkit_id: "child.questions",
+          tool_name: "ask_user_question",
+          interact_config: {
+            request_id: "child-interact-request",
+            selection_mode: "multiple",
+          },
+          arguments: {
+            request_id: "child-argument-request",
+            question: "Child argument question",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-root-shared"
+        ],
+      ).toEqual(
+        expect.objectContaining({
+          toolName: "root_exec",
+          toolkitId: "root.tools",
+          interactConfig: expect.objectContaining({
+            request_id: "root-interact-request",
+          }),
+          arguments: expect.objectContaining({
+            request_id: "root-argument-request",
+          }),
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-child-shared"
+        ],
+      ).toEqual(
+        expect.objectContaining({
+          toolName: "ask_user_question",
+          toolkitId: "child.questions",
+          interactConfig: expect.objectContaining({
+            request_id: "child-interact-request",
+          }),
+          arguments: expect.objectContaining({
+            request_id: "child-argument-request",
+          }),
+        }),
+      );
+    });
+
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: "confirm-child-shared",
+        approved: true,
+        scope: "session",
+        userResponse: "Child answer",
+      });
+    });
+
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: "confirm-child-shared",
+      approved: true,
+      reason: "",
+      session_id: chatId,
+      modified_arguments: { user_response: "Child answer" },
+    });
+    expect(mockScopedLogger.log).toHaveBeenCalledWith(
+      "ask_user_question_submit",
+      {
+        confirmationId: "confirm-child-shared",
+        callId: "shared-confirmation-call",
+        approved: true,
+        userResponse: "Child answer",
+        interactRequestId: "child-interact-request",
+        argumentRequestId: "child-argument-request",
+        question: "Child argument question",
+        selectionMode: "multiple",
+      },
+    );
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      const rootDecisions = (assistantMessage?.traceFrames || []).filter(
+        (frame) =>
+          frame.type === "tool_confirmed" &&
+          frame.payload?.confirmation_id === "confirm-child-shared",
+      );
+      const childDecisions = Object.values(
+        assistantMessage?.subagentFrames || {},
+      )
+        .flat()
+        .filter(
+          (frame) =>
+            frame.type === "tool_confirmed" &&
+            frame.payload?.confirmation_id === "confirm-child-shared",
+        );
+      expect(rootDecisions).toHaveLength(0);
+      expect(childDecisions).toHaveLength(1);
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 4,
+        ts: 130,
+        run_id: "root-confirmation-collision",
+        type: "tool_call",
+        payload: {
+          call_id: "root-followup-call",
+          confirmation_id: "confirm-root-followup",
+          requires_confirmation: true,
+          toolkit_id: "root.tools",
+          tool_name: "root_exec",
+          interact_config: {},
+          arguments: { command: "pwd" },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-root-followup"
+        ],
+      ).toEqual(
+        expect.objectContaining({
+          toolName: "root_exec",
+          toolkitId: "root.tools",
+        }),
+      );
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  test("caches only the targeted subagent tool key when a root call id collides", async () => {
+    const chatId = getChatsStore().activeChatId;
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Approve only the child tool for this session" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 200,
+        run_id: "root-cache-collision",
+        type: "run_started",
+        payload: {},
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 210,
+        run_id: "root-cache-collision",
+        type: "tool_call",
+        payload: {
+          call_id: "shared-cache-call",
+          confirmation_id: "confirm-root-cache",
+          requires_confirmation: true,
+          toolkit_id: "root.cache",
+          tool_name: "root_exec",
+          interact_config: { source: "root" },
+          arguments: { command: "root" },
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 220,
+        run_id: "child-cache-collision",
+        type: "tool_call",
+        payload: {
+          call_id: "shared-cache-call",
+          confirmation_id: "confirm-child-cache",
+          requires_confirmation: true,
+          toolkit_id: "child.cache",
+          tool_name: "child_exec",
+          interact_config: { source: "child" },
+          arguments: { command: "child" },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-child-cache"
+        ],
+      ).toEqual(
+        expect.objectContaining({
+          toolName: "child_exec",
+          toolkitId: "child.cache",
+        }),
+      );
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 4,
+        ts: 225,
+        run_id: "root-cache-collision",
+        type: "tool_confirmed",
+        payload: {
+          call_id: "shared-cache-call",
+          confirmation_id: "confirm-root-cache",
+          tool_name: "root_exec",
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-root-cache"
+        ],
+      ).toBeUndefined();
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-child-cache"
+        ],
+      ).toEqual(
+        expect.objectContaining({
+          toolName: "child_exec",
+          toolkitId: "child.cache",
+        }),
+      );
+    });
+
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: "confirm-child-cache",
+        approved: true,
+        scope: "session",
+      });
+    });
+
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: "confirm-child-cache",
+      approved: true,
+      reason: "",
+      session_id: chatId,
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 5,
+        ts: 230,
+        run_id: "root-cache-collision",
+        type: "tool_call",
+        payload: {
+          call_id: "root-cache-followup-call",
+          confirmation_id: "confirm-root-cache-followup",
+          requires_confirmation: true,
+          toolkit_id: "root.cache",
+          tool_name: "root_exec",
+          interact_config: {},
+          arguments: { command: "root-followup" },
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 6,
+        ts: 240,
+        run_id: "child-cache-collision",
+        type: "tool_call",
+        payload: {
+          call_id: "child-cache-followup-call",
+          confirmation_id: "confirm-child-cache-followup",
+          requires_confirmation: true,
+          toolkit_id: "child.cache",
+          tool_name: "child_exec",
+          interact_config: {},
+          arguments: { command: "child-followup" },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(2);
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenLastCalledWith({
+      confirmation_id: "confirm-child-cache-followup",
+      session_id: chatId,
+      approved: true,
+      reason: "",
+    });
+    expect(
+      lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+        "confirm-root-cache-followup"
+      ],
+    ).toEqual(
+      expect.objectContaining({
+        toolName: "root_exec",
+        toolkitId: "root.cache",
+      }),
+    );
+    expect(
+      lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+        "confirm-child-cache-followup"
+      ],
+    ).toBeUndefined();
   });
 
   test("keeps session-scoped tool approvals with their originating chat", async () => {
@@ -4170,7 +5611,157 @@ describe("ChatInterface stop flow", () => {
     );
   });
 
+  test("keeps a V2 FYI durable across a memory fallback attempt", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+    window.unchainAPI.interject = jest.fn(() => new Promise(() => {}));
+    renderChat();
+    await waitForReady();
+    const chatId = getChatsStore().activeChatId;
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Memory fallback owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() =>
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1),
+    );
+    const firstHandlers = streamHandlers;
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/fyi Survive the V2 retry" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(
+        readPendingFyiOutbox().filter((entry) => entry.chatId === chatId),
+      ).toHaveLength(1);
+    });
+
+    act(() => {
+      firstHandlers.onError({
+        code: "memory_unavailable",
+        message: "Memory is unavailable for this request",
+      });
+    });
+    await waitFor(() =>
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      readPendingFyiOutbox().filter((entry) => entry.chatId === chatId),
+    ).toEqual([]);
+    expect(readQueuedTurnsForChat(chatId)).toEqual([
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            text: "Survive the V2 retry",
+            status: "queued",
+          }),
+        ],
+      }),
+    ]);
+
+    const retryHandlers = streamHandlers;
+    act(() => {
+      retryHandlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() =>
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(3),
+    );
+    expect(window.unchainAPI.startStreamV2.mock.calls[2][0]).toEqual(
+      expect.objectContaining({ message: "Survive the V2 retry" }),
+    );
+  });
+
+  test("ignores a late interject response after a V4 retry changes attempt owner", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({ memory: { enabled: true } }),
+    );
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const suffix = runs.length === 0 ? "a" : "b";
+      const run = {
+        payload,
+        handlers,
+        attemptId: `attempt-retry-${suffix}`,
+      };
+      runs.push(run);
+      return {
+        requestId: `request-retry-${suffix}`,
+        executionId: payload.threadId,
+        attemptId: run.attemptId,
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+    let resolveInterject;
+    window.unchainAPI.interject = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveInterject = resolve;
+        }),
+    );
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "V4 retry owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Survive attempt A" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() =>
+      expect(
+        readPendingFyisForAttempt(chatId, "attempt-retry-a"),
+      ).toHaveLength(1),
+    );
+
+    act(() => {
+      runs[0].handlers.onError({
+        code: "memory_unavailable",
+        message: "Memory is unavailable for this request",
+      });
+    });
+    await waitFor(() => expect(runs).toHaveLength(2));
+    await act(async () => {
+      resolveInterject({ resolved_channel: "btw", answer: "late answer" });
+      await Promise.resolve();
+    });
+
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-retry-b")?.items,
+    ).toEqual([
+      expect.objectContaining({ text: "Survive attempt A", status: "queued" }),
+    ]);
+    expect(
+      (lastChatMessagesProps?.messages || []).flatMap(
+        (message) => message.traceFrames || [],
+      ),
+    ).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "side_answer" })]),
+    );
+  });
+
   test("keeps a queued background follow-up on its original chat model", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        runtime: {
+          workspaces: [
+            { id: "workspace-a", path: "/tmp/queue-a" },
+            { id: "workspace-b", path: "/tmp/queue-b" },
+          ],
+        },
+      }),
+    );
     window.unchainAPI.getModelCatalog.mockResolvedValue({
       activeModel: "openai:model-a",
       providers: {
@@ -4192,6 +5783,21 @@ describe("ChatInterface stop flow", () => {
     ]);
     const chatANodeId = getChatsStore().tree.selectedNodeId;
     setChatModel(chatAId, { id: "openai:model-a" }, { source: "test" });
+    setChatSessionBundle(
+      chatAId,
+      {
+        selectedToolkits: ["toolkit.a"],
+        selectedWorkspaceIds: ["workspace-a"],
+        selectedRecipeName: "Recipe A",
+        agentOrchestration: { mode: "developer_waiting_approval" },
+      },
+      { source: "test" },
+    );
+    setChatSystemPromptOverrides(
+      chatAId,
+      { rules: "rules-a" },
+      { source: "test" },
+    );
     const createdB = createChatInSelectedContext(
       { title: "Model B chat" },
       { source: "test" },
@@ -4210,6 +5816,21 @@ describe("ChatInterface stop flow", () => {
       { source: "test" },
     );
     setChatModel(createdB.chatId, { id: "openai:model-b" }, { source: "test" });
+    setChatSessionBundle(
+      createdB.chatId,
+      {
+        selectedToolkits: ["toolkit.b"],
+        selectedWorkspaceIds: ["workspace-b"],
+        selectedRecipeName: "Recipe B",
+        agentOrchestration: { mode: "default" },
+      },
+      { source: "test" },
+    );
+    setChatSystemPromptOverrides(
+      createdB.chatId,
+      { rules: "rules-b" },
+      { source: "test" },
+    );
     selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
 
     renderChat();
@@ -4256,14 +5877,34 @@ describe("ChatInterface stop flow", () => {
     expect(firstPayload).toEqual(
       expect.objectContaining({
         threadId: chatAId,
-        options: expect.objectContaining({ modelId: "openai:model-a" }),
+        options: expect.objectContaining({
+          modelId: "openai:model-a",
+          toolkits: ["toolkit.a"],
+          workspace_root: "/tmp/queue-a",
+          workspace_roots: ["/tmp/queue-a"],
+          recipe_name: "Recipe A",
+          agent_orchestration: { mode: "developer_waiting_approval" },
+          system_prompt_v2: expect.objectContaining({
+            overrides: { rules: "rules-a" },
+          }),
+        }),
       }),
     );
     expect(queuedPayload).toEqual(
       expect.objectContaining({
         threadId: chatAId,
         message: "Follow up on model A",
-        options: expect.objectContaining({ modelId: "openai:model-a" }),
+        options: expect.objectContaining({
+          modelId: "openai:model-a",
+          toolkits: ["toolkit.a"],
+          workspace_root: "/tmp/queue-a",
+          workspace_roots: ["/tmp/queue-a"],
+          recipe_name: "Recipe A",
+          agent_orchestration: { mode: "developer_waiting_approval" },
+          system_prompt_v2: expect.objectContaining({
+            overrides: { rules: "rules-a" },
+          }),
+        }),
       }),
     );
     expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
@@ -5530,16 +7171,14 @@ describe("ChatInterface stop flow", () => {
         expectedSessionRevision: 9,
       }),
     ).toEqual(expect.objectContaining({ operationId }));
+    let resolveRevisionConflict;
     window.unchainAPI.replaceSessionMemory
-      .mockResolvedValueOnce({
-        applied: false,
-        error: {
-          code: "session_revision_conflict",
-          message: "Revision is still being settled",
-          retryable: true,
-          status: 409,
-        },
-      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRevisionConflict = resolve;
+          }),
+      )
       .mockResolvedValueOnce({
         applied: true,
         replayed: false,
@@ -5557,6 +7196,19 @@ describe("ChatInterface stop flow", () => {
       expect.objectContaining({ operationId, expectedSessionRevision: 9 }),
     ]);
     expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveRevisionConflict({
+        applied: false,
+        error: {
+          code: "session_revision_conflict",
+          message: "Revision is still being settled",
+          retryable: true,
+          status: 409,
+        },
+      });
+      await Promise.resolve();
+    });
 
     await waitFor(
       () => {
@@ -6161,5 +7813,3987 @@ describe("ChatInterface stop flow", () => {
 
     expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
     expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+  });
+
+  test("returned relay handle keeps the new-attempt outbox until authoritative acceptance", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    const seededMessages = getChatsStore().chatsById[chatId].messages;
+    setChatMessages(
+      chatId,
+      [
+        {
+          ...seededMessages[0],
+          attachments: [
+            {
+              id: "relay-hydration-gate",
+              name: "gate.txt",
+              kind: "text",
+              mimeType: "text/plain",
+              sizeBytes: 4,
+            },
+          ],
+        },
+        seededMessages[1],
+      ],
+      { source: "test" },
+    );
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-before-consumed",
+          text: "Retry after the crash",
+          status: "queued",
+        },
+      ],
+    });
+    jest
+      .spyOn(attachmentStorage, "loadAttachmentPayload")
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValue({ type: "text", text: "gate" });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        if (identity.attemptId !== "attempt-reattach") {
+          handlers.onRuntimeEvent(
+            buildReattachEvent({
+              chatId,
+              id: "retried-relay-session-only",
+              type: "session.started",
+              seq: 8,
+              payload: { status: "running" },
+            }),
+            { streamSeq: 8 },
+          );
+          return {
+            requestId: identity.requestId,
+            executionId: identity.executionId,
+            attemptId: identity.attemptId,
+            terminal: false,
+            active: true,
+            detach: jest.fn(),
+            disconnect: jest.fn(),
+            cancel: jest.fn(),
+          };
+        }
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const retriedRelayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const runNumber = retriedRelayRuns.length + 1;
+      retriedRelayRuns.push({ payload, handlers, runNumber });
+      return {
+        requestId: `request-retried-relay-${runNumber}`,
+        executionId: payload.threadId,
+        attemptId:
+          runNumber === 1
+            ? "attempt-retried-relay"
+            : "attempt-retried-relay-remainder",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    const view = renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(attachmentStorage.loadAttachmentPayload).toHaveBeenCalledTimes(1);
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          id: "queue-before-consumed",
+          status: "relayed",
+        }),
+      ]);
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-reattach")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-before-consumed",
+        status: "queued",
+      }),
+    ]);
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+
+    view.unmount();
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    });
+    expect(window.unchainAPI.startStreamV4.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        threadId: chatId,
+        message: "Retry after the crash",
+      }),
+    );
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-retried-relay")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-before-consumed",
+        status: "relayed",
+      }),
+    ]);
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Keep this exact remainder" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-retried-relay")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: "queue-before-consumed",
+          status: "relayed",
+        }),
+        expect.objectContaining({
+          text: "Keep this exact remainder",
+          status: "queued",
+        }),
+      ]);
+    });
+    const firstRemainderId = readQueuedTurnsForAttempt(
+      chatId,
+      "attempt-retried-relay",
+    ).items[1].id;
+    act(() => {
+      lastChatInputProps.onQueueUndo(firstRemainderId);
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-retried-relay")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-before-consumed",
+        status: "relayed",
+      }),
+    ]);
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Keep this exact remainder" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-retried-relay")?.items,
+      ).toHaveLength(2);
+    });
+    const remainderId = readQueuedTurnsForAttempt(
+      chatId,
+      "attempt-retried-relay",
+    ).items[1].id;
+
+    act(() => {
+      retriedRelayRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "retried-relay-session-started",
+          type: "session.started",
+          seq: 7,
+          payload: { status: "running" },
+        }),
+        { streamSeq: 7 },
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-retried-relay")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-before-consumed",
+        status: "relayed",
+      }),
+      expect.objectContaining({
+        id: remainderId,
+        status: "queued",
+      }),
+    ]);
+    expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledTimes(2);
+    expect(window.unchainAPI.attachStreamV4.mock.calls[1][0]).toMatchObject({
+      requestId: "request-retried-relay-1",
+      executionId: chatId,
+      attemptId: "attempt-retried-relay",
+      afterSeq: 7,
+    });
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      retriedRelayRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "retried-relay-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-retried-relay")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: remainderId,
+          status: "queued",
+        }),
+      ]);
+    });
+
+    act(() => {
+      retriedRelayRuns[0].handlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2);
+    });
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-retried-relay")).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(
+        chatId,
+        "attempt-retried-relay-remainder",
+      )?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: remainderId,
+        status: "relayed",
+      }),
+    ]);
+    act(() => {
+      retriedRelayRuns[1].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "retried-remainder-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    expect(
+      readQueuedTurnsForAttempt(
+        chatId,
+        "attempt-retried-relay-remainder",
+      ),
+    ).toBeNull();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]);
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2);
+  });
+
+  test.each([
+    {
+      proof: "the first pre-register cancellation tombstone",
+      attachErrorCode: "stream_not_found",
+      cancelResponse: {
+        status: "ok",
+        disposition: "cancelled_before_register",
+        state: "cancelled",
+      },
+    },
+    {
+      proof: "an idempotent never-registered cancellation snapshot",
+      attachErrorCode: "stream_attach_target_unavailable",
+      cancelResponse: {
+        status: "ok",
+        disposition: "unchanged",
+        state: "cancelled",
+        execution: { registered_at_ms: null },
+      },
+    },
+  ])(
+    "silent queue relay retries only after $proof proves it never registered",
+    async ({ attachErrorCode, cancelResponse }) => {
+      const chatId = getChatsStore().activeChatId;
+      const queueText = "Retry only after a cancellation tombstone";
+      const runs = installSilentQueueRelayWatchdog({
+        chatId,
+        queueId: "queue-watchdog-safe-retry",
+        queueText,
+        attachErrorCode,
+        cancelResponse,
+      });
+
+      renderChat();
+      await waitForBoot();
+      await waitFor(
+        () => {
+          expect(runs).toHaveLength(2);
+        },
+        { timeout: 3500 },
+      );
+
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        session_id: chatId,
+        attempt_id: "attempt-watchdog-1",
+        request_id: "request-watchdog-1",
+        reason: "queue_relay_acceptance_unverified",
+        idempotency_key: "queue-relay-acceptance:attempt-watchdog-1",
+      });
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-watchdog-1"),
+      ).toBeNull();
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-watchdog-2")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: "queue-watchdog-safe-retry",
+          status: "relayed",
+        }),
+      ]);
+      expect(
+        getChatsStore().chatsById[chatId].messages.filter(
+          (message) => message.role === "user" && message.content === queueText,
+        ),
+      ).toHaveLength(1);
+
+      act(() => {
+        runs[1].handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "watchdog-safe-retry-started",
+            type: "run.started",
+            seq: 1,
+            payload: { status: "running" },
+          }),
+          { streamSeq: 1 },
+        );
+        runs[1].handlers.onDone({ finished_at: Date.now() });
+      });
+      await waitFor(() => {
+        expect(
+          readQueuedTurnsForAttempt(chatId, "attempt-watchdog-2"),
+        ).toBeNull();
+      });
+      expect(runs).toHaveLength(2);
+    },
+  );
+
+  test.each([
+    { disposition: "applied", state: "cancelled" },
+    { disposition: "already_terminal", state: "completed" },
+    {
+      disposition: "unchanged",
+      state: "cancelled",
+      execution: { registered_at_ms: 123 },
+    },
+  ])(
+    "silent queue relay stays fail-closed when exact cancellation is $disposition/$state",
+    async ({ disposition, state, execution }) => {
+      const chatId = getChatsStore().activeChatId;
+      const queueId = `queue-watchdog-${disposition}`;
+      const queueText = `Do not duplicate ${disposition}`;
+      const runs = installSilentQueueRelayWatchdog({
+        chatId,
+        queueId,
+        queueText,
+        attachErrorCode: "stream_not_found",
+        cancelResponse: { status: "ok", disposition, state, execution },
+      });
+
+      renderChat();
+      await waitForBoot();
+      await waitFor(
+        () => {
+          expect(
+            [...getChatsStore().chatsById[chatId].messages]
+              .reverse()
+              .find((message) => message.role === "assistant")?.meta?.error,
+          ).toMatchObject({ code: "queue_relay_stream_not_found" });
+        },
+        { timeout: 3500 },
+      );
+
+      expect(runs).toHaveLength(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-watchdog-1")?.items,
+      ).toEqual([
+        expect.objectContaining({ id: queueId, status: "relayed" }),
+      ]);
+      expect(
+        getChatsStore().chatsById[chatId].messages.filter(
+          (message) => message.role === "user" && message.content === queueText,
+        ),
+      ).toHaveLength(1);
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      });
+      expect(runs).toHaveLength(1);
+    },
+  );
+
+  test("queue relay replay gaps cancel exact ownership and never auto-retry", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const runs = installSilentQueueRelayWatchdog({
+      chatId,
+      queueId: "queue-watchdog-replay-gap",
+      queueText: "Never replay across a missing prefix",
+      attachErrorCode: "stream_replay_gap",
+      cancelResponse: {
+        status: "ok",
+        disposition: "cancelled_before_register",
+        state: "cancelled",
+      },
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(
+      () => {
+        expect(
+          [...getChatsStore().chatsById[chatId].messages]
+            .reverse()
+            .find((message) => message.role === "assistant")?.meta?.error,
+        ).toMatchObject({ code: "stream_replay_gap" });
+      },
+      { timeout: 3500 },
+    );
+
+    expect(runs).toHaveLength(1);
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      session_id: chatId,
+      attempt_id: "attempt-watchdog-1",
+      request_id: "request-watchdog-1",
+      reason: "queue_relay_acceptance_unverified",
+      idempotency_key: "queue-relay-acceptance:attempt-watchdog-1",
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-watchdog-1")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-watchdog-replay-gap",
+        status: "relayed",
+      }),
+    ]);
+  });
+
+  test("late acceptance during exact cancellation terminalizes locally without retrying", async () => {
+    const chatId = getChatsStore().activeChatId;
+    let resolveCancellation;
+    const runs = installSilentQueueRelayWatchdog({
+      chatId,
+      queueId: "queue-watchdog-late-acceptance",
+      queueText: "Accept while cancellation is pending",
+      attachErrorCode: "stream_not_found",
+      cancelResponse: null,
+    });
+    window.unchainAPI.cancelExecution = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveCancellation = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(
+      () => {
+        expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 3500 },
+    );
+
+    act(() => {
+      runs[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "watchdog-late-acceptance-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+        { streamSeq: 1 },
+      );
+    });
+    await act(async () => {
+      resolveCancellation({
+        status: "ok",
+        disposition: "applied",
+        state: "cancelled",
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(getChatsStore().chatsById[chatId].isGenerating).toBe(false);
+    });
+    expect(runs).toHaveLength(1);
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-watchdog-1")).toBeNull();
+    expect(
+      [...getChatsStore().chatsById[chatId].messages]
+        .reverse()
+        .find((message) => message.role === "assistant")?.meta?.error,
+    ).toMatchObject({
+      code: "queue_relay_transport_lost_after_acceptance",
+    });
+  });
+
+  test("partial replay acceptance followed by attach failure cannot strand a stream", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const runs = installSilentQueueRelayWatchdog({
+      chatId,
+      queueId: "queue-watchdog-partial-replay",
+      queueText: "Accept once before replay transport fails",
+      attachErrorCode: "stream_attach_target_unavailable",
+      cancelResponse: {
+        status: "ok",
+        disposition: "applied",
+        state: "cancelled",
+      },
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        if (identity.attemptId === "attempt-reattach") {
+          handlers.onDone({ finished_at: Date.now() });
+          return {
+            requestId: "request-reattach",
+            executionId: chatId,
+            attemptId: "attempt-reattach",
+            terminal: true,
+            active: false,
+            detach: jest.fn(),
+            disconnect: jest.fn(),
+            cancel: jest.fn(),
+          };
+        }
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "watchdog-partial-replay-started",
+            type: "run.started",
+            seq: 1,
+            payload: { status: "running" },
+          }),
+          { streamSeq: 1 },
+        );
+        throw Object.assign(new Error("renderer vanished during replay"), {
+          code: "stream_attach_target_unavailable",
+        });
+      },
+    );
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(
+      () => {
+        expect(getChatsStore().chatsById[chatId].isGenerating).toBe(false);
+      },
+      { timeout: 3500 },
+    );
+
+    expect(runs).toHaveLength(1);
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-watchdog-1")).toBeNull();
+    expect(
+      [...getChatsStore().chatsById[chatId].messages]
+        .reverse()
+        .find((message) => message.role === "assistant")?.meta?.error,
+    ).toMatchObject({
+      code: "queue_relay_transport_lost_after_acceptance",
+    });
+  });
+
+  test("synchronous relay acceptance before handle return is never rebound", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-sync-accept",
+          text: "Accept this synchronously",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        if (identity.attemptId === "attempt-reattach") {
+          handlers.onDone({ finished_at: Date.now() });
+        }
+        return {
+          requestId: identity.requestId,
+          executionId: identity.executionId,
+          attemptId: identity.attemptId,
+          terminal: identity.attemptId === "attempt-reattach",
+          active: identity.attemptId !== "attempt-reattach",
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "sync-relay-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+      return {
+        requestId: "request-sync-relay",
+        executionId: payload.threadId,
+        attemptId: "attempt-sync-relay",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      lastChatMessagesProps.messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content === "Accept this synchronously",
+      ),
+    ).toHaveLength(1);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content === "Accept this synchronously",
+      ),
+    ).toHaveLength(1);
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-sync-relay")).toBeNull();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-sync-relay")).toBeNull();
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]);
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content === "Accept this synchronously",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("pre-acceptance lease conflict retries once under the rebound owner", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-lease-retry",
+          text: "Retry once after lease conflict",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const runNumber = relayRuns.length + 1;
+      relayRuns.push({ payload, handlers, runNumber });
+      return {
+        requestId: `request-lease-retry-${runNumber}`,
+        executionId: payload.threadId,
+        attemptId: `attempt-lease-retry-${runNumber}`,
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(1);
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-lease-retry-1")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: "queue-lease-retry",
+          status: "relayed",
+        }),
+      ]);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Preserve this companion through retry" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-lease-retry-1")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: "queue-lease-retry",
+          status: "relayed",
+        }),
+        expect.objectContaining({
+          text: "Preserve this companion through retry",
+          status: "queued",
+        }),
+      ]);
+    });
+    const companionId = readQueuedTurnsForAttempt(
+      chatId,
+      "attempt-lease-retry-1",
+    ).items[1].id;
+
+    act(() => {
+      relayRuns[0].handlers.onError({
+        code: "execution_lease_conflict",
+        message: "another owner still holds the lease",
+      });
+      relayRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "rejected-relay-late-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-lease-retry-1")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-lease-retry",
+        status: "queued",
+      }),
+      expect.objectContaining({
+        id: companionId,
+        status: "queued",
+      }),
+    ]);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content === "Retry once after lease conflict",
+      ),
+    ).toHaveLength(0);
+    await waitFor(
+      () => {
+        expect(relayRuns).toHaveLength(2);
+      },
+      { timeout: 2500 },
+    );
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-lease-retry-1"),
+    ).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-lease-retry-2")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-lease-retry",
+        status: "relayed",
+      }),
+      expect.objectContaining({
+        id: companionId,
+        status: "relayed",
+      }),
+    ]);
+    expect(relayRuns[1].payload.message).toContain(
+      "Retry once after lease conflict",
+    );
+    expect(relayRuns[1].payload.message).toContain(
+      "Preserve this companion through retry",
+    );
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content.includes("Retry once after lease conflict") &&
+          message.content.includes("Preserve this companion through retry"),
+      ),
+    ).toHaveLength(1);
+
+    act(() => {
+      relayRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "rejected-relay-late-started-after-rebound",
+          type: "run.started",
+          seq: 2,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-lease-retry-2")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-lease-retry",
+        status: "relayed",
+      }),
+      expect.objectContaining({
+        id: companionId,
+        status: "relayed",
+      }),
+    ]);
+    expect(relayRuns).toHaveLength(2);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    });
+    expect(relayRuns).toHaveLength(2);
+
+    act(() => {
+      relayRuns[1].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "lease-retry-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-lease-retry-2"),
+      ).toBeNull();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(relayRuns).toHaveLength(2);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content.includes("Retry once after lease conflict") &&
+          message.content.includes("Preserve this companion through retry"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("an older relay cleanup cannot delete a newer relay outbox", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-chain-first",
+          text: "First chained relay",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        if (identity.attemptId === "attempt-reattach") {
+          handlers.onDone({ finished_at: Date.now() });
+        }
+        return {
+          requestId: identity.requestId,
+          executionId: identity.executionId,
+          attemptId: identity.attemptId,
+          terminal: identity.attemptId === "attempt-reattach",
+          active: identity.attemptId !== "attempt-reattach",
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const runNumber = relayRuns.length + 1;
+      relayRuns.push({ payload, handlers, runNumber });
+      return {
+        requestId: `request-chain-${runNumber}`,
+        executionId: payload.threadId,
+        attemptId: `attempt-chain-${runNumber}`,
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(1);
+    });
+    act(() => {
+      relayRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "first-chain-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(readQueuedTurnsForAttempt(chatId, "attempt-chain-1")).toBeNull();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Second chained relay" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-chain-1")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          text: "Second chained relay",
+          status: "queued",
+        }),
+      ]);
+    });
+    const secondQueueId = readQueuedTurnsForAttempt(
+      chatId,
+      "attempt-chain-1",
+    ).items[0].id;
+
+    act(() => {
+      relayRuns[0].handlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(2);
+    });
+    expect(relayRuns[1].payload.message).toBe("Second chained relay");
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-chain-1")).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-chain-2")?.items,
+    ).toEqual([
+      {
+        id: secondQueueId,
+        text: "Second chained relay",
+        status: "relayed",
+      },
+    ]);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-chain-2")?.items,
+    ).toEqual([
+      {
+        id: secondQueueId,
+        text: "Second chained relay",
+        status: "relayed",
+      },
+    ]);
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+      expect.objectContaining({
+        id: secondQueueId,
+        status: "relayed",
+      }),
+    ]);
+    expect(relayRuns).toHaveLength(2);
+
+    act(() => {
+      relayRuns[1].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "second-chain-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-chain-1")).toBeNull();
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-chain-2")).toBeNull();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]);
+    expect(relayRuns).toHaveLength(2);
+  });
+
+  test("an accepted relay cleanup cannot delete a clarify fallback replacement buffer", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-replacement-old",
+          text: "First replacement relay",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      relayRuns.push({ payload, handlers });
+      return {
+        requestId: "request-replacement",
+        executionId: payload.threadId,
+        attemptId: "attempt-replacement",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+    window.unchainAPI.interject = jest.fn(async () => ({
+      resolved_channel: "clarify",
+    }));
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(1);
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-replacement")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-replacement-old",
+        status: "relayed",
+      }),
+    ]);
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Clarify fallback replacement" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(readPendingClarifyForChat(chatId)).toEqual(
+        expect.objectContaining({
+          sourceAttemptId: "attempt-replacement",
+          text: "Clarify fallback replacement",
+        }),
+      );
+    });
+
+    act(() => {
+      relayRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "replacement-relay-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-replacement"),
+    ).toBeNull();
+    expect(readPendingClarifyForChat(chatId)).not.toBeNull();
+
+    act(() => {
+      relayRuns[0].handlers.onError({
+        code: "replacement_owner_failed",
+        message: "replacement owner ended",
+      });
+    });
+    await waitFor(() => {
+      expect(readPendingClarifyForChat(chatId)).toBeNull();
+    });
+    const replacement = readQueuedTurnsForAttempt(
+      chatId,
+      "attempt-replacement",
+    );
+    expect(replacement?.items).toEqual([
+      expect.objectContaining({
+        text: "Clarify fallback replacement",
+        status: "queued",
+      }),
+    ]);
+    expect(replacement.items[0].id).not.toBe("queue-replacement-old");
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-replacement")?.items,
+    ).toEqual(replacement.items);
+    expect(readQueuedTurnsForChat(chatId)).toHaveLength(1);
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+      expect.objectContaining({
+        id: replacement.items[0].id,
+        text: "Clarify fallback replacement",
+        status: "queued",
+      }),
+    ]);
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+  });
+
+  test("pending Test API cancel fences a relay lease-conflict retry", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-cancel-fence",
+          text: "Never retry behind cancel",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      relayRuns.push({ payload, handlers });
+      return {
+        requestId: "request-cancel-fence",
+        executionId: payload.threadId,
+        attemptId: "attempt-cancel-fence",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+    let resolveCancellation;
+    window.unchainAPI.cancelExecution = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveCancellation = resolve;
+        }),
+    );
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(commandHandlers.has("cancelChatRun")).toBe(true);
+    });
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(1);
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-cancel-fence")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-cancel-fence",
+        status: "relayed",
+      }),
+    ]);
+
+    const cancellation = commandHandlers.get("cancelChatRun")({
+      id: chatId,
+      attempt_id: "attempt-cancel-fence",
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    });
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-cancel-fence")).toBeNull();
+
+    act(() => {
+      relayRuns[0].handlers.onError({
+        code: "execution_lease_conflict",
+        message: "the cancelled owner lost its lease",
+      });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    });
+    expect(relayRuns).toHaveLength(1);
+
+    let cancellationResult = null;
+    await act(async () => {
+      resolveCancellation({ status: "cancel_requested" });
+      cancellationResult = await cancellation;
+    });
+    expect(cancellationResult).toMatchObject({
+      ok: true,
+      chat_id: chatId,
+      attempt_id: "attempt-cancel-fence",
+      status: "cancel_requested",
+    });
+    expect(relayRuns).toHaveLength(1);
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-cancel-fence")).toBeNull();
+    const cancelledRun = commandHandlers.get("getChatRun")({
+      id: chatId,
+      attempt_id: "attempt-cancel-fence",
+    });
+    expect(cancelledRun).toMatchObject({
+      chat_id: chatId,
+      attempt_id: "attempt-cancel-fence",
+      status: "cancelled",
+      message_id: expect.any(String),
+    });
+    expect(
+      commandHandlers.get("getChatRun")({
+        id: chatId,
+        attempt_id: "attempt-cancel-fence",
+      }).message_id,
+    ).toBe(cancelledRun.message_id);
+  });
+
+  test("reattach relay survives an immediate remount without duplicate or stale outbox", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-reattach-1",
+          text: "Continue after the recovered run",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        if (identity.attemptId === "attempt-reattach") {
+          handlers.onDone({ finished_at: Date.now() });
+        } else if (identity.attemptId === "attempt-queued-followup") {
+          handlers.onRuntimeEvent(
+            buildReattachEvent({
+              chatId,
+              id: "queued-followup-replayed-started",
+              type: "run.started",
+              seq: 1,
+              payload: { status: "running" },
+            }),
+          );
+          handlers.onDone({ finished_at: Date.now() });
+          handlers.onRuntimeEvent(
+            buildReattachEvent({
+              chatId,
+              id: "queued-followup-late-delta",
+              type: "step.delta",
+              seq: 2,
+              payload: {
+                step_id: "model:queued-followup:response",
+                step_type: "model_response",
+                kind: "text",
+                delta: "LATE FRAME MUST BE IGNORED",
+              },
+            }),
+          );
+        }
+        return {
+          requestId: identity.requestId,
+          executionId: chatId,
+          attemptId: identity.attemptId,
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    let view = null;
+    let crashedDuringStart = false;
+    let outboxDuringStart = "not-checked";
+    window.unchainAPI.startStreamV4 = jest.fn((payload) => ({
+      get requestId() {
+        if (!crashedDuringStart) {
+          crashedDuringStart = true;
+          outboxDuringStart = readQueuedTurnsForAttempt(
+            chatId,
+            "attempt-reattach",
+          );
+          view.unmount();
+        }
+        return "request-queued-followup";
+      },
+      executionId: payload.threadId,
+      attemptId: "attempt-queued-followup",
+      detach: jest.fn(),
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+
+    view = renderChat();
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+      expect(crashedDuringStart).toBe(true);
+    });
+    expect(window.unchainAPI.startStreamV4.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        threadId: chatId,
+        message: "Continue after the recovered run",
+      }),
+    );
+    // Blocker 6: the durable queue must NOT be removed merely because
+    // startStream returned a handle — only authoritative acceptance consumes
+    // it. The immediate remount crashes the relay before any acceptance frame,
+    // so the outbox entry survives the start and is recovered below.
+    expect(outboxDuringStart).not.toBeNull();
+    expect(outboxDuringStart?.items).toEqual([
+      expect.objectContaining({
+        id: "queue-reattach-1",
+        status: "queued",
+      }),
+    ]);
+    await waitFor(() => {
+      expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-queued-followup")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-reattach-1",
+        status: "relayed",
+      }),
+    ]);
+    await waitFor(() => {
+      expect(
+        [...getChatsStore().chatsById[chatId].messages]
+          .reverse()
+          .find((message) => message.role === "assistant")?.meta,
+      ).toMatchObject({
+        requestId: "request-queued-followup",
+        attemptId: "attempt-queued-followup",
+      });
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: "request-queued-followup",
+          attemptId: "attempt-queued-followup",
+        }),
+        expect.any(Object),
+      );
+    });
+    // No duplicate successor: the crashed relay is not re-launched on remount
+    // (the followup is reattached, not restarted).
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    // The relay crashed before acceptance, so its durable turn follows the
+    // returned successor identity until replayed acceptance ACKs it.
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-queued-followup"),
+    ).toBeNull();
+    await waitFor(() => {
+      expect(
+        [...getChatsStore().chatsById[chatId].messages]
+          .reverse()
+          .find((message) => message.role === "assistant")?.status,
+      ).toBe("done");
+    });
+    expect(
+      [...getChatsStore().chatsById[chatId].messages]
+        .reverse()
+        .find((message) => message.role === "assistant")?.content,
+    ).not.toContain("LATE FRAME MUST BE IGNORED");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) =>
+          message.role === "user" &&
+          message.content === "Continue after the recovered run",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("reattach lease conflict retries the exact relayed turn without duplicating it", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const relayText = "Retry this exact relayed turn after remount";
+    seedPersistedV4Attempt({
+      chatId,
+      requestId: "request-relayed-reject",
+      attemptId: "attempt-relayed-reject",
+      assistantId: "assistant-relayed-reject",
+    });
+    const seededMessages = getChatsStore().chatsById[chatId].messages;
+    setChatMessages(
+      chatId,
+      [{ ...seededMessages[0], content: relayText }, seededMessages[1]],
+      { source: "test" },
+    );
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-relayed-reject",
+      items: [
+        {
+          id: "queue-relayed-reject",
+          text: relayText,
+          status: "relayed",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "relayed-reject-session-started",
+            type: "session.started",
+            seq: 1,
+            payload: { status: "running" },
+          }),
+          { streamSeq: 1 },
+        );
+        handlers.onError({
+          code: "execution_lease_conflict",
+          message: "the remounted owner was rejected before acceptance",
+        });
+        return {
+          requestId: "request-relayed-reject",
+          executionId: chatId,
+          attemptId: "attempt-relayed-reject",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const runNumber = relayRuns.length + 1;
+      relayRuns.push({ payload, handlers, runNumber });
+      return {
+        requestId: `request-relayed-retry-${runNumber}`,
+        executionId: payload.threadId,
+        attemptId: `attempt-relayed-retry-${runNumber}`,
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(1);
+    });
+    expect(relayRuns[0].payload.message).toBe(relayText);
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-relayed-reject"),
+    ).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-relayed-retry-1")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-relayed-reject",
+        status: "relayed",
+      }),
+    ]);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) => message.role === "user" && message.content === relayText,
+      ),
+    ).toHaveLength(1);
+
+    act(() => {
+      relayRuns[0].handlers.onError({
+        code: "execution_lease_conflict",
+        message: "the retry also lost the lease once",
+      });
+    });
+    await waitFor(
+      () => {
+        expect(relayRuns).toHaveLength(2);
+      },
+      { timeout: 2500 },
+    );
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-relayed-retry-1"),
+    ).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-relayed-retry-2")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-relayed-reject",
+        status: "relayed",
+      }),
+    ]);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) => message.role === "user" && message.content === relayText,
+      ),
+    ).toHaveLength(1);
+
+    act(() => {
+      relayRuns[1].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "relayed-retry-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+      relayRuns[1].handlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-relayed-retry-2"),
+      ).toBeNull();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(relayRuns).toHaveLength(2);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) => message.role === "user" && message.content === relayText,
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("reattach keeps a relayed turn fail-closed on an unknown transport error", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({
+      chatId,
+      requestId: "request-relayed-unknown",
+      attemptId: "attempt-relayed-unknown",
+      assistantId: "assistant-relayed-unknown",
+    });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-relayed-unknown",
+      items: [
+        {
+          id: "queue-relayed-unknown",
+          text: "Do not guess whether this was accepted",
+          status: "relayed",
+        },
+      ],
+    });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onError({
+          code: "stream_bridge_failed",
+          message: "the transport failed without acceptance evidence",
+        });
+        return {
+          requestId: "request-relayed-unknown",
+          executionId: chatId,
+          attemptId: "attempt-relayed-unknown",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(
+        getChatsStore().chatsById[chatId].messages.find(
+          (message) => message.id === "assistant-relayed-unknown",
+        )?.status,
+      ).toBe("error");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-relayed-unknown")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-relayed-unknown",
+        status: "relayed",
+      }),
+    ]);
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]);
+  });
+
+  test("remount rebuilds the acceptance watchdog for a silent relayed attempt", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({
+      chatId,
+      requestId: "request-remount-silent-relay",
+      attemptId: "attempt-remount-silent-relay",
+      assistantId: "assistant-remount-silent-relay",
+    });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-remount-silent-relay",
+      items: [
+        {
+          id: "queue-remount-silent-relay",
+          text: "Keep this exact relayed turn across remount",
+          status: "relayed",
+        },
+      ],
+    });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    const attachCalls = [];
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        const callNumber = attachCalls.length + 1;
+        attachCalls.push({ identity, handlers, callNumber });
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: `remount-session-only-${callNumber}`,
+            type: "session.started",
+            seq: callNumber,
+            payload: { status: "running" },
+          }),
+          { streamSeq: callNumber },
+        );
+        return {
+          requestId: identity.requestId,
+          executionId: identity.executionId,
+          attemptId: identity.attemptId,
+          terminal: false,
+          active: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(attachCalls).toHaveLength(1);
+    });
+    expect(
+      readQueuedTurnsForAttempt(
+        chatId,
+        "attempt-remount-silent-relay",
+      )?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-remount-silent-relay",
+        status: "relayed",
+      }),
+    ]);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(attachCalls).toHaveLength(2);
+    expect(attachCalls[1].identity).toMatchObject({
+      requestId: "request-remount-silent-relay",
+      executionId: chatId,
+      attemptId: "attempt-remount-silent-relay",
+      afterSeq: 1,
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(
+      readQueuedTurnsForAttempt(
+        chatId,
+        "attempt-remount-silent-relay",
+      )?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-remount-silent-relay",
+        status: "relayed",
+      }),
+    ]);
+
+    act(() => {
+      attachCalls[1].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "remount-token-acceptance",
+          type: "step.delta",
+          seq: 3,
+          payload: {
+            step_id: "model:remount:response",
+            step_type: "model_response",
+            kind: "text",
+            delta: "accepted",
+          },
+        }),
+        { streamSeq: 3 },
+      );
+      attachCalls[1].handlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(
+          chatId,
+          "attempt-remount-silent-relay",
+        ),
+      ).toBeNull();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    expect(attachCalls).toHaveLength(2);
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("remount safely retries a cancelled relayed attempt from its never-registered tombstone", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const relayText = "Recover this exact pre-register relay after remount";
+    seedPersistedV4Attempt({
+      chatId,
+      requestId: "request-remount-cancelled-relay",
+      attemptId: "attempt-remount-cancelled-relay",
+      assistantId: "assistant-remount-cancelled-relay",
+    });
+    const seededMessages = getChatsStore().chatsById[chatId].messages;
+    setChatMessages(
+      chatId,
+      [{ ...seededMessages[0], content: relayText }, seededMessages[1]],
+      { source: "test" },
+    );
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-remount-cancelled-relay",
+      items: [
+        {
+          id: "queue-remount-cancelled-relay",
+          text: relayText,
+          status: "relayed",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (identity, handlers = {}) => {
+        handlers.onError({
+          code: "cancelled",
+          message: "the pre-register cancellation tombstone was replayed",
+        });
+        return {
+          requestId: identity.requestId,
+          executionId: identity.executionId,
+          attemptId: identity.attemptId,
+          terminal: true,
+          active: false,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    window.unchainAPI.cancelExecution = jest.fn(async () => ({
+      status: "ok",
+      disposition: "unchanged",
+      state: "cancelled",
+      execution: { registered_at_ms: null },
+    }));
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      relayRuns.push({ payload, handlers });
+      return {
+        requestId: "request-remount-cancelled-retry",
+        executionId: payload.threadId,
+        attemptId: "attempt-remount-cancelled-retry",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(1);
+    });
+
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    expect(
+      readQueuedTurnsForAttempt(
+        chatId,
+        "attempt-remount-cancelled-relay",
+      ),
+    ).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(
+        chatId,
+        "attempt-remount-cancelled-retry",
+      )?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-remount-cancelled-relay",
+        status: "relayed",
+      }),
+    ]);
+    expect(
+      getChatsStore().chatsById[chatId].messages.filter(
+        (message) => message.role === "user" && message.content === relayText,
+      ),
+    ).toHaveLength(1);
+
+    act(() => {
+      relayRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "remount-cancelled-retry-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+        { streamSeq: 1 },
+      );
+      relayRuns[0].handlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(
+          chatId,
+          "attempt-remount-cancelled-retry",
+        ),
+      ).toBeNull();
+    });
+    expect(relayRuns).toHaveLength(1);
+  });
+
+  test("reattach done ACKs relayed items and sends only the queued remainder", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({
+      chatId,
+      requestId: "request-relayed-remainder",
+      attemptId: "attempt-relayed-remainder",
+      assistantId: "assistant-relayed-remainder",
+    });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-relayed-remainder",
+      items: [
+        {
+          id: "queue-already-relayed",
+          text: "continue the original run",
+          status: "relayed",
+        },
+        {
+          id: "queue-reattach-remainder",
+          text: "Send only this queued remainder",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-relayed-remainder",
+          executionId: chatId,
+          attemptId: "attempt-relayed-remainder",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      relayRuns.push({ payload, handlers });
+      return {
+        requestId: "request-reattach-remainder",
+        executionId: payload.threadId,
+        attemptId: "attempt-reattach-remainder",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(relayRuns).toHaveLength(1);
+    });
+    expect(relayRuns[0].payload.message).toBe("Send only this queued remainder");
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-relayed-remainder"),
+    ).toBeNull();
+    expect(
+      readQueuedTurnsForAttempt(chatId, "attempt-reattach-remainder")?.items,
+    ).toEqual([
+      expect.objectContaining({
+        id: "queue-reattach-remainder",
+        status: "relayed",
+      }),
+    ]);
+    expect(
+      window.unchainAPI.startStreamV4.mock.calls
+        .map(([payload]) => payload.message)
+        .filter((message) => message === "continue the original run"),
+    ).toHaveLength(0);
+  });
+
+  test("preserves an exact queued attempt when reattach ends in error", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-error-1",
+          text: "Keep this for recovery",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onError({ code: "reattach_failed", message: "offline" });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    const failedView = renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(getChatsStore().chatsById[chatId].messages[1].status).toBe(
+        "error",
+      );
+    });
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")?.items).toEqual([
+      {
+        id: "queue-error-1",
+        text: "Keep this for recovery",
+        status: "queued",
+      },
+    ]);
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+
+    failedView.unmount();
+    const startedRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const runNumber = startedRuns.length + 1;
+      const run = { payload, handlers, runNumber };
+      startedRuns.push(run);
+      return {
+        requestId: `request-recovery-${runNumber}`,
+        executionId: payload.threadId,
+        attemptId: `attempt-recovery-${runNumber}`,
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          id: "queue-error-1",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "A successful recovery turn" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(startedRuns).toHaveLength(1);
+    });
+    act(() => {
+      startedRuns[0].handlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() => {
+      expect(startedRuns).toHaveLength(2);
+    });
+    expect(startedRuns[1].payload).toEqual(
+      expect.objectContaining({
+        threadId: chatId,
+        message: "Keep this for recovery",
+      }),
+    );
+    expect(
+      window.unchainAPI.startStreamV4.mock.calls
+        .map(([payload]) => payload.message)
+        .filter((message) => message === "Keep this for recovery"),
+    ).toHaveLength(1);
+  });
+
+  test("Stop clears the durable queue for the exact attached attempt", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-stop-1",
+          text: "Do not relay after Stop",
+          status: "queued",
+        },
+      ],
+    });
+    writePendingFyi({
+      chatId,
+      attemptId: "attempt-reattach",
+      messageId: "fyi-stop-1",
+      text: "Do not recover after Stop",
+      requestedChannel: "fyi",
+      threadId: chatId,
+    });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(async () => ({
+      requestId: "request-reattach",
+      executionId: chatId,
+      attemptId: "attempt-reattach",
+      terminal: false,
+      detach: jest.fn(),
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+      expect(lastChatInputProps?.interjectState?.queueItems).toHaveLength(1);
+    });
+    fireEvent.click(screen.getByTestId("stop-button"));
+
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-reattach"),
+      ).toBeNull();
+      expect(
+        readPendingFyisForAttempt(chatId, "attempt-reattach"),
+      ).toEqual([]);
+    });
+  });
+
+  test("binds a pre-identity queue to the returned attempt before immediate remount", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+    const characterChatId = getChatsStore().activeChatId;
+    let resolveCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCharacterPreflight = resolve;
+        }),
+    );
+    const detach = jest.fn();
+    const startStreamV4 = jest.fn((payload) => ({
+      requestId: "request-preidentity",
+      executionId: payload.threadId,
+      attemptId: "attempt-preidentity",
+      detach,
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+    const attachStreamV4 = jest.fn(async (identity) => ({
+      requestId: identity.requestId,
+      executionId: identity.executionId,
+      attemptId: identity.attemptId,
+      terminal: false,
+      detach: jest.fn(),
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+
+    const view = renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Start after delayed preflight" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Persist before identity" },
+    });
+    act(() => {
+      lastChatInputProps.onSend({
+        text: "/queue Persist before identity",
+        chatId: characterChatId,
+      });
+    });
+    expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          text: "Persist before identity",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(startStreamV4).not.toHaveBeenCalled();
+
+    window.unchainAPI.startStreamV4 = startStreamV4;
+    window.unchainAPI.attachStreamV4 = attachStreamV4;
+
+    await act(async () => {
+      resolveCharacterPreflight({
+        session_id: "character_nico__dm__main",
+        run_memory_namespace: "character_nico__rel__local_user",
+        default_model: "openai:gpt-4.1",
+        instructions: "You are Nico.",
+        decision: { action: "reply", courtesy_message: null },
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(startStreamV4).toHaveBeenCalledTimes(1);
+      expect(
+        readQueuedTurnsForAttempt(characterChatId, "attempt-preidentity")
+          ?.items,
+      ).toEqual([
+        expect.objectContaining({
+          text: "Persist before identity",
+          status: "queued",
+        }),
+      ]);
+    });
+
+    view.unmount();
+    expect(detach).toHaveBeenCalledTimes(1);
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(attachStreamV4).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: "request-preidentity",
+          attemptId: "attempt-preidentity",
+        }),
+        expect.any(Object),
+      );
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          text: "Persist before identity",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(startStreamV4).toHaveBeenCalledTimes(1);
+  });
+
+  test("persists a pre-identity queue before a pending character preflight unmounts", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+    const characterChatId = getChatsStore().activeChatId;
+    let resolveCharacterPreflight;
+    window.unchainAPI.buildCharacterAgentConfig.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCharacterPreflight = resolve;
+        }),
+    );
+    const startStreamV4 = jest.fn((payload) => ({
+      requestId: "request-after-preidentity-reload",
+      executionId: payload.threadId,
+      attemptId: "attempt-after-preidentity-reload",
+      detach: jest.fn(),
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+
+    const view = renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Original pending character turn" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() =>
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledTimes(
+        1,
+      ),
+    );
+    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+
+    act(() => {
+      lastChatInputProps.onSend({
+        text: "/queue Survive before any attempt exists",
+        chatId: characterChatId,
+      });
+    });
+    await waitFor(() =>
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          text: "Survive before any attempt exists",
+          status: "queued",
+        }),
+      ]),
+    );
+    expect(screen.getByTestId("chat-input")).toHaveValue("");
+    const pendingClientEntry = readQueuedTurnsForChat(characterChatId).find(
+      (entry) => entry.clientOperationId,
+    );
+    expect(pendingClientEntry).toEqual(
+      expect.objectContaining({
+        chatId: characterChatId,
+        clientOperationId: expect.stringMatching(/^queue-op-/),
+      }),
+    );
+    expect(startStreamV4).not.toHaveBeenCalled();
+
+    view.unmount();
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          text: "Survive before any attempt exists",
+          status: "queued",
+        }),
+      ]);
+    });
+    window.unchainAPI.startStreamV4 = startStreamV4;
+
+    await act(async () => {
+      resolveCharacterPreflight({
+        session_id: "character_nico__dm__main",
+        run_memory_namespace: "character_nico__rel__local_user",
+        default_model: "openai:gpt-4.1",
+        instructions: "You are Nico.",
+        decision: { action: "reply", courtesy_message: null },
+      });
+      await Promise.resolve();
+    });
+    expect(startStreamV4).not.toHaveBeenCalled();
+
+    act(() => {
+      lastChatInputProps.onSend({
+        text: "Recovery owner turn",
+        chatId: characterChatId,
+      });
+    });
+    await waitFor(() => expect(startStreamV4).toHaveBeenCalledTimes(1));
+    expect(
+      readQueuedTurnsForAttempt(
+        characterChatId,
+        "attempt-after-preidentity-reload",
+      )?.items,
+    ).toEqual([
+      expect.objectContaining({ text: "Survive before any attempt exists" }),
+    ]);
+    expect(
+      readQueuedTurnsForChat(characterChatId).some(
+        (entry) => entry.clientOperationId,
+      ),
+    ).toBe(false);
+  });
+
+  test("keeps the composer and hides fake queue state when the outbox is full", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep this attempt open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    for (let index = 0; index < 64; index += 1) {
+      expect(
+        writeQueuedTurnsForAttempt({
+          chatId: `capacity-chat-${index}`,
+          attemptId: "capacity-attempt",
+          items: [
+            {
+              id: `capacity-item-${index}`,
+              text: `capacity ${index}`,
+              status: "queued",
+            },
+          ],
+        }),
+      ).not.toBeNull();
+    }
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Keep this visible" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() =>
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]),
+    );
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+        "/queue Keep this visible",
+      );
+    expect(readQueuedTurnsForChat(chatId)).toEqual([]);
+    expect(window.localStorage.getItem(QUEUED_TURN_OUTBOX_STORAGE_KEY)).not.toBe(
+      null,
+    );
+  });
+
+  test("keeps the composer and hides fake queue state when the outbox write fails", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep this attempt open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    const storagePrototype = Object.getPrototypeOf(window.localStorage);
+    const originalSetItem = storagePrototype.setItem;
+    jest
+      .spyOn(storagePrototype, "setItem")
+      .mockImplementation(function failQueuedTurnWrite(key, value) {
+        if (key === QUEUED_TURN_OUTBOX_STORAGE_KEY) {
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, key, value);
+      });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Keep this after write failure" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() =>
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]),
+    );
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+      "/queue Keep this after write failure",
+    );
+    expect(readQueuedTurnsForChat(chatId)).toEqual([]);
+  });
+
+  test("moves a relayed parent queue remainder to the successor attempt", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-parent-relay",
+          text: "Start the successor",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const successorRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      successorRuns.push({ payload, handlers });
+      return {
+        requestId: "request-successor",
+        executionId: payload.threadId,
+        attemptId: "attempt-successor",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    const view = renderChat();
+    await waitForBoot();
+    await waitFor(() => expect(successorRuns).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue This belongs only to the successor" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-successor")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: "queue-parent-relay",
+          text: "Start the successor",
+          status: "relayed",
+        }),
+        expect.objectContaining({
+          text: "This belongs only to the successor",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+
+    act(() => {
+      successorRuns[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "successor-parent-relay-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-successor")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          text: "This belongs only to the successor",
+          status: "queued",
+        }),
+      ]);
+    });
+
+    act(() => {
+      successorRuns[0].handlers.onError({
+        code: "successor_failed",
+        message: "successor stopped",
+      });
+    });
+    await waitFor(() =>
+      expect(
+        [...getChatsStore().chatsById[chatId].messages]
+          .reverse()
+          .find((message) => message.role === "assistant")?.status,
+      ).toBe("error"),
+    );
+    expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-successor")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          text: "This belongs only to the successor",
+          status: "queued",
+        }),
+      ]);
+    view.unmount();
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          text: "This belongs only to the successor",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(successorRuns).toHaveLength(1);
+  });
+
+  test("durably falls a pending clarify back to its exact queue on terminal", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest.fn(async () => ({
+      resolved_channel: "clarify",
+    }));
+    const view = renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run awaiting clarification" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Question that must survive" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(readPendingClarifyForChat(chatId)).toEqual(
+        expect.objectContaining({
+          sourceAttemptId: `attempt-${chatId}`,
+          text: "Question that must survive",
+        }),
+      );
+    });
+
+    act(() => {
+      runs[0].handlers.onError({
+        code: "clarify_owner_failed",
+        message: "owner ended",
+      });
+    });
+    await waitFor(() =>
+      expect(readPendingClarifyForChat(chatId)).toBeNull(),
+    );
+    expect(
+        readQueuedTurnsForAttempt(chatId, `attempt-${chatId}`)?.items,
+      ).toEqual([
+        expect.objectContaining({
+          text: "Question that must survive",
+          status: "queued",
+        }),
+      ]);
+
+    view.unmount();
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          text: "Question that must survive",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(runs).toHaveLength(1);
+  });
+
+  test("persists an addressed FYI before dispatch and clears only its exact acknowledgement", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest.fn(async (payload) => ({
+      resolved_channel: "fyi",
+      message_id: payload.message_id,
+    }));
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep the owner run open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/fyi Check the exact checkpoint" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(window.unchainAPI.interject).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("chat-input")).toHaveValue("");
+    });
+    const request = window.unchainAPI.interject.mock.calls[0][0];
+    expect(request).toMatchObject({
+      thread_id: chatId,
+      text: "Check the exact checkpoint",
+      channel: "fyi",
+      message_id: expect.stringMatching(/^fyi-client-/),
+    });
+    expect(
+      readPendingFyisForAttempt(chatId, runs[0].attemptId),
+    ).toEqual([
+      expect.objectContaining({
+        messageId: request.message_id,
+        text: "Check the exact checkpoint",
+      }),
+    ]);
+    expect(lastChatInputProps?.interjectState?.pendingFyiCount).toBe(1);
+
+    act(() => {
+      runs[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "fyi-exact-ack",
+          type: "interaction.fyi_injected",
+          seq: 1,
+          payload: {
+            messages: [
+              {
+                message_id: request.message_id,
+                origin: "user",
+                text: "Check the exact checkpoint",
+              },
+            ],
+          },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        readPendingFyisForAttempt(chatId, runs[0].attemptId),
+      ).toEqual([]);
+      expect(lastChatInputProps?.interjectState?.pendingFyiCount).toBe(0);
+    });
+  });
+
+  test("durably ACKs a duplicate child FYI and keeps one stable replay after immediate remount", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const messageId = "fyi-child-durable";
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    const rootStarted = buildReattachEvent({
+      chatId,
+      id: "child-fyi-root-started",
+      type: "run.started",
+      seq: 1,
+      payload: { status: "running" },
+    });
+    const childFyi = {
+      ...buildReattachEvent({
+        chatId,
+        id: "child-fyi-injected",
+        type: "interaction.fyi_injected",
+        seq: 2,
+        links: { parent_run_id: "run-reattach" },
+        payload: {
+          messages: [
+            {
+              message_id: messageId,
+              origin: "user",
+              text: "Keep one durable child FYI",
+            },
+          ],
+        },
+      }),
+      run_id: "run-child-fyi",
+      agent_id: "developer.child-fyi",
+    };
+    const rootCompleted = buildReattachEvent({
+      chatId,
+      id: "child-fyi-root-completed",
+      type: "run.completed",
+      seq: 3,
+      payload: { status: "completed" },
+    });
+
+    const view = renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run a child that receives FYI" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    writePendingFyi({
+      chatId,
+      attemptId: runs[0].attemptId,
+      messageId,
+      text: "Keep one durable child FYI",
+      requestedChannel: "fyi",
+      threadId: chatId,
+    });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: runs[0].attemptId,
+      items: [
+        {
+          id: messageId,
+          text: "Keep one durable child FYI",
+          status: "queued",
+        },
+      ],
+    });
+    const persistenceOrder = [];
+    const nativeSetItem = window.localStorage.setItem.bind(
+      window.localStorage,
+    );
+    const storageSpy = jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function setItem(key, value) {
+        if (key === "chats") persistenceOrder.push("chat");
+        if (key === QUEUED_TURN_OUTBOX_STORAGE_KEY) {
+          persistenceOrder.push("outbox");
+        }
+        return nativeSetItem(key, value);
+      });
+
+    act(() => {
+      runs[0].handlers.onRuntimeEvent(rootStarted);
+      runs[0].handlers.onRuntimeEvent(childFyi);
+      runs[0].handlers.onRuntimeEvent(childFyi);
+    });
+
+    await waitFor(() => {
+      const messages = getChatsStore().chatsById[chatId].messages;
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect(
+        assistant?.subagentFrames?.["run-child-fyi"]?.filter(
+          (frame) => frame.type === "fyi_injected",
+        ),
+      ).toHaveLength(1);
+      expect(
+        assistant?.interjections?.filter(
+          (record) => record.id === `fyi-${messageId}`,
+        ),
+      ).toHaveLength(1);
+      expect(
+        readPendingFyisForAttempt(chatId, runs[0].attemptId),
+      ).toEqual([]);
+      expect(
+        readQueuedTurnsForAttempt(chatId, runs[0].attemptId),
+      ).toBeNull();
+    });
+    expect(persistenceOrder.indexOf("chat")).toBeGreaterThanOrEqual(0);
+    expect(persistenceOrder.indexOf("outbox")).toBeGreaterThan(
+      persistenceOrder.indexOf("chat"),
+    );
+    storageSpy.mockRestore();
+    view.unmount();
+
+    const persistedBeforeRemount = getChatsStore().chatsById[chatId].messages;
+    const assistantBeforeRemount = persistedBeforeRemount.find(
+      (message) => message.role === "assistant",
+    );
+    expect(
+      assistantBeforeRemount?.subagentFrames?.["run-child-fyi"]?.filter(
+        (frame) => frame.type === "fyi_injected",
+      ),
+    ).toHaveLength(1);
+    expect(
+      assistantBeforeRemount?.interjections?.filter(
+        (record) => record.id === `fyi-${messageId}`,
+      ),
+    ).toHaveLength(1);
+    expect(
+      readPendingFyisForAttempt(chatId, runs[0].attemptId),
+    ).toEqual([]);
+    expect(
+      readQueuedTurnsForAttempt(chatId, runs[0].attemptId),
+    ).toBeNull();
+
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onRuntimeEvent(rootStarted, { streamSeq: 1 });
+        handlers.onRuntimeEvent(childFyi, { streamSeq: 2 });
+        handlers.onRuntimeEvent(childFyi, { streamSeq: 2 });
+        handlers.onRuntimeEvent(rootCompleted, { streamSeq: 3 });
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: runs[0].attemptId,
+          executionId: chatId,
+          attemptId: runs[0].attemptId,
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      const messages = getChatsStore().chatsById[chatId].messages;
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant?.status).toBe("done");
+      expect(
+        assistant?.subagentFrames?.["run-child-fyi"]?.filter(
+          (frame) => frame.type === "fyi_injected",
+        ),
+      ).toHaveLength(1);
+      expect(
+        assistant?.interjections?.filter(
+          (record) => record.id === `fyi-${messageId}`,
+        ),
+      ).toHaveLength(1);
+    });
+    expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+    expect(runs).toHaveLength(1);
+    expect(
+      readPendingFyisForAttempt(chatId, runs[0].attemptId),
+    ).toEqual([]);
+    expect(
+      readQueuedTurnsForAttempt(chatId, runs[0].attemptId),
+    ).toBeNull();
+  });
+
+  test("keeps a failed child FYI persistence in its durable queue fallback without ACK", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const messageId = "fyi-child-persist-failure";
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    const view = renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run a child before storage fails" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    writePendingFyi({
+      chatId,
+      attemptId: runs[0].attemptId,
+      messageId,
+      text: "Recover this child FYI",
+      requestedChannel: "fyi",
+      threadId: chatId,
+    });
+    const nativeSetItem = window.localStorage.setItem.bind(
+      window.localStorage,
+    );
+    const storageSpy = jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function setItem(key, value) {
+        if (key === "chats") {
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        return nativeSetItem(key, value);
+      });
+
+    const childFyi = {
+      ...buildReattachEvent({
+        chatId,
+        id: "child-fyi-persist-failed",
+        type: "interaction.fyi_injected",
+        seq: 2,
+        links: { parent_run_id: "run-reattach" },
+        payload: {
+          messages: [
+            {
+              message_id: messageId,
+              origin: "user",
+              text: "Recover this child FYI",
+            },
+          ],
+        },
+      }),
+      run_id: "run-child-persist-failure",
+      agent_id: "developer.child-persist-failure",
+    };
+    act(() => {
+      runs[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "child-fyi-persist-root-started",
+          type: "run.started",
+          seq: 1,
+          payload: { status: "running" },
+        }),
+      );
+      runs[0].handlers.onRuntimeEvent(childFyi);
+    });
+
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, runs[0].attemptId)?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: messageId,
+          text: "Recover this child FYI",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(
+      getChatsStore().chatsById[chatId].messages.some((message) =>
+        message?.interjections?.some(
+          (record) => record.id === `fyi-${messageId}`,
+        ),
+      ),
+    ).toBe(false);
+    view.unmount();
+    storageSpy.mockRestore();
+  });
+
+  test("keeps the FYI composer intact when its durable prewrite fails", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest.fn(async () => ({
+      resolved_channel: "fyi",
+      message_id: "must-not-be-called",
+    }));
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep the owner run open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    const nativeSetItem = window.localStorage.setItem.bind(
+      window.localStorage,
+    );
+    jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function setItem(key, value) {
+        if (key === QUEUED_TURN_OUTBOX_STORAGE_KEY) {
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        return nativeSetItem(key, value);
+      });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/fyi Preserve this draft" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "/fyi Preserve this draft",
+      );
+    });
+    expect(window.unchainAPI.interject).not.toHaveBeenCalled();
+  });
+
+  test("falls an unacknowledged FYI into its source queue before terminal relay", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest.fn(() => new Promise(() => {}));
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep the owner run open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/fyi Relay me after the owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() =>
+      expect(
+        readPendingFyisForAttempt(chatId, runs[0].attemptId),
+      ).toHaveLength(1),
+    );
+
+    act(() => {
+      runs[0].handlers.onDone({ finished_at: Date.now() });
+    });
+    await waitFor(() => expect(runs).toHaveLength(2));
+    expect(runs[1].payload).toEqual(
+      expect.objectContaining({
+        threadId: chatId,
+        message: "Relay me after the owner",
+      }),
+    );
+    expect(
+      readPendingFyisForAttempt(chatId, runs[0].attemptId),
+    ).toEqual([]);
+  });
+
+  test("keeps a late new-run interject result bound to its source chat", async () => {
+    const chatAId = getChatsStore().activeChatId;
+    const chatANodeId = getChatsStore().tree.selectedNodeId;
+    setChatModel(chatAId, { id: "openai:gpt-5" }, { source: "test" });
+    const createdB = createChatInSelectedContext(
+      { title: "FYI isolation B" },
+      { source: "test" },
+    );
+    setChatModel(createdB.chatId, { id: "openai:gpt-5" }, { source: "test" });
+    setChatMessages(
+      createdB.chatId,
+      [
+        {
+          id: "chat-b-stable-user",
+          role: "user",
+          content: "Stable chat B",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      { source: "test" },
+    );
+    selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    let resolveInterject;
+    window.unchainAPI.interject = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveInterject = resolve;
+        }),
+    );
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run chat A" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "A-only follow-up" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(resolveInterject).toEqual(expect.any(Function)));
+
+    act(() => {
+      selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
+    });
+    await waitFor(() => expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId));
+    await act(async () => {
+      resolveInterject({ resolved_channel: "new_run" });
+      await Promise.resolve();
+    });
+
+    expect(
+      readQueuedTurnsForAttempt(chatAId, runs[0].attemptId)?.items,
+    ).toEqual([
+      expect.objectContaining({ text: "A-only follow-up", status: "queued" }),
+    ]);
+    expect(readQueuedTurnsForChat(createdB.chatId)).toEqual([]);
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+  });
+
+  test("persists a late BTW result on its terminal owner before removing fallback", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    let resolveInterject;
+    window.unchainAPI.interject = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveInterject = resolve;
+        }),
+    );
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Terminal BTW owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Question racing terminal" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(resolveInterject).toEqual(expect.any(Function)));
+
+    await act(async () => {
+      runs[0].handlers.onDone({ finished_at: Date.now() });
+      resolveInterject({ resolved_channel: "btw", answer: "Terminal answer" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      const assistant = [...getChatsStore().chatsById[chatId].messages]
+        .reverse()
+        .find((message) => message.role === "assistant");
+      expect(assistant?.traceFrames).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "side_answer",
+            payload: expect.objectContaining({
+              message_id: expect.stringMatching(/^fyi-client-/),
+              question: "Question racing terminal",
+              answer: "Terminal answer",
+            }),
+          }),
+        ]),
+      );
+      expect(assistant?.interjections).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "btw",
+            text: "Question racing terminal",
+            answer: "Terminal answer",
+          }),
+        ]),
+      );
+    });
+    expect(readQueuedTurnsForAttempt(chatId, runs[0].attemptId)).toBeNull();
+    expect(runs).toHaveLength(1);
+  });
+
+  test("holds terminal relay for a delayed clarify-owned BTW and records it once", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    let resolveBtw;
+    let durableStateAtHttp = null;
+    window.unchainAPI.interject = jest.fn((payload) => {
+      if (payload.channel === "auto") {
+        return Promise.resolve({ resolved_channel: "clarify" });
+      }
+      durableStateAtHttp = {
+        clarify: readPendingClarifyForChat(chatId),
+        fyis: readPendingFyisForAttempt(chatId, runs[0].attemptId),
+      };
+      return new Promise((resolve) => {
+        resolveBtw = resolve;
+      });
+    });
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Clarify-owned BTW terminal race" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Answer this without changing the task" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() =>
+      expect(readPendingClarifyForChat(chatId)).toEqual(
+        expect.objectContaining({ text: "Answer this without changing the task" }),
+      ),
+    );
+
+    jest.useFakeTimers();
+    try {
+      let settlementPromise;
+      await act(async () => {
+        settlementPromise = lastChatMessagesProps.onClarifyResolve(chatId, "btw");
+        await Promise.resolve();
+      });
+      expect(resolveBtw).toEqual(expect.any(Function));
+      expect(durableStateAtHttp?.clarify).toBeNull();
+      expect(durableStateAtHttp?.fyis).toEqual([
+        expect.objectContaining({
+          requestedChannel: "btw",
+          text: "Answer this without changing the task",
+        }),
+      ]);
+      const messageId = durableStateAtHttp.fyis[0].messageId;
+
+      act(() => {
+        runs[0].handlers.onDone({ finished_at: Date.now() });
+        jest.advanceTimersByTime(0);
+      });
+      expect(runs).toHaveLength(1);
+
+      await act(async () => {
+        resolveBtw({ resolved_channel: "btw", answer: "Stable side answer" });
+        await expect(settlementPromise).resolves.toBe(true);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(2_000);
+        for (let index = 0; index < 10; index += 1) {
+          await Promise.resolve();
+        }
+      });
+
+      const ownerAssistant = getChatsStore().chatsById[chatId].messages.find(
+        (message) =>
+          message.role === "assistant" &&
+          message.meta?.attemptId === runs[0].attemptId,
+      );
+      expect(
+        ownerAssistant?.traceFrames?.filter(
+          (frame) =>
+            frame.type === "side_answer" &&
+            frame.payload?.message_id === messageId,
+        ),
+      ).toHaveLength(1);
+      expect(
+        ownerAssistant?.interjections?.filter(
+          (record) => record.id === `btw-${messageId}`,
+        ),
+      ).toHaveLength(1);
+      expect(readPendingClarifyForChat(chatId)).toBeNull();
+      expect(readPendingFyisForAttempt(chatId, runs[0].attemptId)).toEqual([]);
+      expect(readQueuedTurnsForAttempt(chatId, runs[0].attemptId)).toBeNull();
+      expect(runs).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("relays one queued successor when a clarify-owned BTW rejects after done", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    let rejectBtw;
+    window.unchainAPI.interject = jest.fn((payload) => {
+      if (payload.channel === "auto") {
+        return Promise.resolve({ resolved_channel: "clarify" });
+      }
+      return new Promise((_, reject) => {
+        rejectBtw = reject;
+      });
+    });
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "BTW reject owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Queue this rejected side question" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(readPendingClarifyForChat(chatId)).not.toBeNull());
+
+    jest.useFakeTimers();
+    try {
+      let settlementPromise;
+      act(() => {
+        settlementPromise = lastChatMessagesProps.onClarifyResolve(chatId, "btw");
+      });
+      expect(rejectBtw).toEqual(expect.any(Function));
+      act(() => {
+        runs[0].handlers.onDone({ finished_at: Date.now() });
+        jest.advanceTimersByTime(0);
+      });
+      expect(runs).toHaveLength(1);
+
+      await act(async () => {
+        rejectBtw(new Error("BTW unavailable"));
+        await expect(settlementPromise).resolves.toBe(false);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(2_000);
+        for (let index = 0; index < 10; index += 1) {
+          await Promise.resolve();
+        }
+      });
+      expect(runs).toHaveLength(2);
+      expect(runs[1].payload.message).toBe("Queue this rejected side question");
+      expect(readPendingFyisForAttempt(chatId, runs[0].attemptId)).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("times out a hung clarify-owned BTW and releases one queued successor", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest.fn((payload) =>
+      payload.channel === "auto"
+        ? Promise.resolve({ resolved_channel: "clarify" })
+        : new Promise(() => {}),
+    );
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "BTW timeout owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Recover the hung side question" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(readPendingClarifyForChat(chatId)).not.toBeNull());
+
+    jest.useFakeTimers();
+    try {
+      let settlementPromise;
+      act(() => {
+        settlementPromise = lastChatMessagesProps.onClarifyResolve(chatId, "btw");
+        runs[0].handlers.onDone({ finished_at: Date.now() });
+        jest.advanceTimersByTime(0);
+      });
+      expect(runs).toHaveLength(1);
+      await act(async () => {
+        jest.advanceTimersByTime(40_000);
+        await expect(settlementPromise).resolves.toBe(false);
+      });
+      for (let cycle = 0; cycle < 4 && runs.length < 2; cycle += 1) {
+        act(() => {
+          jest.runOnlyPendingTimers();
+        });
+        await act(async () => {
+          for (let index = 0; index < 10; index += 1) {
+            await Promise.resolve();
+          }
+        });
+      }
+      expect(runs).toHaveLength(2);
+      expect(runs[1].payload.message).toBe("Recover the hung side question");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("atomically replaces clarify with one FYI before HTTP and preserves it on failure", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    let durableStateAtHttp = null;
+    window.unchainAPI.interject = jest.fn((payload) => {
+      if (payload.channel === "auto") {
+        return Promise.resolve({ resolved_channel: "clarify" });
+      }
+      durableStateAtHttp = {
+        clarify: readPendingClarifyForChat(chatId),
+        fyis: readPendingFyisForAttempt(chatId, runs[0].attemptId),
+      };
+      return Promise.reject(new Error("FYI request failed"));
+    });
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "FYI transition owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Persist exactly one FYI" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(readPendingClarifyForChat(chatId)).not.toBeNull());
+
+    let accepted;
+    await act(async () => {
+      accepted = await lastChatMessagesProps.onClarifyResolve(chatId, "fyi");
+    });
+    expect(accepted).toBe(false);
+    expect(durableStateAtHttp?.clarify).toBeNull();
+    expect(durableStateAtHttp?.fyis).toEqual([
+      expect.objectContaining({
+        requestedChannel: "fyi",
+        text: "Persist exactly one FYI",
+      }),
+    ]);
+    expect(readPendingClarifyForChat(chatId)).toBeNull();
+    expect(readPendingFyisForAttempt(chatId, runs[0].attemptId)).toHaveLength(1);
+    expect(readQueuedTurnsForAttempt(chatId, runs[0].attemptId)).toBeNull();
+    expect(window.unchainAPI.interject).toHaveBeenCalledTimes(2);
+  });
+
+  test("a late clarify-owned BTW cannot write into a newer run generation", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const attemptId = `attempt-generation-${runs.length + 1}`;
+      const run = { payload, handlers, attemptId };
+      runs.push(run);
+      return {
+        requestId: `request-generation-${runs.length}`,
+        executionId: payload.threadId,
+        attemptId,
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+    let resolveBtw;
+    window.unchainAPI.interject = jest.fn((payload) => {
+      if (payload.channel === "auto") {
+        return Promise.resolve({ resolved_channel: "clarify" });
+      }
+      return new Promise((resolve) => {
+        resolveBtw = resolve;
+      });
+    });
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Old generation owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Old generation side question" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(readPendingClarifyForChat(chatId)).not.toBeNull());
+    let oldSettlement;
+    act(() => {
+      oldSettlement = lastChatMessagesProps.onClarifyResolve(chatId, "btw");
+      runs[0].handlers.onDone({ finished_at: Date.now() });
+    });
+
+    await waitFor(() => expect(lastChatInputProps?.sendDisabled).toBe(false));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "New generation owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(2));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue B queue before A settles" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() =>
+      expect(
+        readQueuedTurnsForAttempt(chatId, runs[1].attemptId)?.items,
+      ).toEqual([
+        expect.objectContaining({
+          text: "B queue before A settles",
+          status: "queued",
+        }),
+      ]),
+    );
+    await act(async () => {
+      resolveBtw({ resolved_channel: "btw", answer: "Late old answer" });
+      await expect(oldSettlement).resolves.toBe(false);
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue B queue after A settles" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    const newOwner = getChatsStore().chatsById[chatId].messages.find(
+      (message) =>
+        message.role === "assistant" &&
+        message.meta?.attemptId === runs[1].attemptId,
+    );
+    expect(newOwner?.status).toBe("streaming");
+    expect(newOwner?.traceFrames || []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "side_answer" })]),
+    );
+    expect(newOwner?.interjections || []).toEqual([]);
+    expect(
+      readQueuedTurnsForAttempt(chatId, runs[0].attemptId)?.items,
+    ).toEqual([
+      expect.objectContaining({
+        text: "Old generation side question",
+        status: "queued",
+      }),
+    ]);
+    expect(
+      readQueuedTurnsForAttempt(chatId, runs[1].attemptId)?.items,
+    ).toEqual([
+      expect.objectContaining({
+        text: "B queue before A settles",
+        status: "queued",
+      }),
+      expect.objectContaining({
+        text: "B queue after A settles",
+        status: "queued",
+      }),
+    ]);
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+      expect.objectContaining({ text: "B queue before A settles" }),
+      expect.objectContaining({ text: "B queue after A settles" }),
+    ]);
+    expect(runs).toHaveLength(2);
+  });
+
+  test("removes an error fallback when its delayed clarify-owned BTW succeeds", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    let resolveBtw;
+    window.unchainAPI.interject = jest.fn((payload) => {
+      if (payload.channel === "auto") {
+        return Promise.resolve({ resolved_channel: "clarify" });
+      }
+      return new Promise((resolve) => {
+        resolveBtw = resolve;
+      });
+    });
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Error owner with delayed BTW" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Answer after the owner errors" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(readPendingClarifyForChat(chatId)).not.toBeNull());
+
+    let settlementPromise;
+    act(() => {
+      settlementPromise = lastChatMessagesProps.onClarifyResolve(chatId, "btw");
+    });
+    const [{ messageId }] = readPendingFyisForAttempt(
+      chatId,
+      runs[0].attemptId,
+    );
+    act(() => {
+      runs[0].handlers.onError(
+        Object.assign(new Error("owner failed"), { code: "stream_error" }),
+      );
+    });
+    expect(
+      readQueuedTurnsForAttempt(chatId, runs[0].attemptId)?.items,
+    ).toEqual([
+      expect.objectContaining({ id: messageId, status: "queued" }),
+    ]);
+
+    await act(async () => {
+      resolveBtw({ resolved_channel: "btw", answer: "Delayed stable answer" });
+      await expect(settlementPromise).resolves.toBe(true);
+    });
+
+    const ownerAssistant = getChatsStore().chatsById[chatId].messages.find(
+      (message) =>
+        message.role === "assistant" &&
+        message.meta?.attemptId === runs[0].attemptId,
+    );
+    expect(
+      ownerAssistant?.traceFrames?.filter(
+        (frame) =>
+          frame.type === "side_answer" &&
+          frame.payload?.message_id === messageId,
+      ),
+    ).toHaveLength(1);
+    expect(
+      ownerAssistant?.interjections?.filter(
+        (record) => record.id === `btw-${messageId}`,
+      ),
+    ).toHaveLength(1);
+    expect(readPendingFyisForAttempt(chatId, runs[0].attemptId)).toEqual([]);
+    expect(readQueuedTurnsForAttempt(chatId, runs[0].attemptId)).toBeNull();
+    expect(runs).toHaveLength(1);
+  });
+
+  test("reconciles a persisted BTW receipt before remount queue recovery", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    const firstView = renderChat();
+    await waitForReady();
+    firstView.unmount();
+
+    const attemptId = "attempt-persisted-btw-receipt";
+    const messageId = "fyi-client-persisted-btw-receipt";
+    setChatMessages(
+      chatId,
+      [
+        {
+          id: "user-persisted-btw-receipt",
+          role: "user",
+          content: "Persisted receipt owner",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: "assistant-persisted-btw-receipt",
+          role: "assistant",
+          content: "done",
+          status: "done",
+          createdAt: 2,
+          updatedAt: 3,
+          meta: { attemptId },
+          traceFrames: [
+            {
+              seq: 3,
+              ts: 3,
+              type: "side_answer",
+              stage: "client",
+              payload: {
+                message_id: messageId,
+                question: "Recovered side question",
+                answer: "Recovered side answer",
+              },
+            },
+          ],
+          interjections: [
+            {
+              id: `btw-${messageId}`,
+              type: "btw",
+              text: "Recovered side question",
+              answer: "Recovered side answer",
+              origin: "user",
+              ts: 3,
+            },
+          ],
+        },
+      ],
+      { source: "test" },
+    );
+    writePendingFyi({
+      chatId,
+      attemptId,
+      messageId,
+      text: "Recovered side question",
+      requestedChannel: "btw",
+      threadId: chatId,
+    });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId,
+      items: [
+        { id: messageId, text: "Recovered side question", status: "queued" },
+      ],
+    });
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(readPendingFyisForAttempt(chatId, attemptId)).toEqual([]);
+      expect(readQueuedTurnsForAttempt(chatId, attemptId)).toBeNull();
+    });
+    const ownerAssistant = getChatsStore().chatsById[chatId].messages.find(
+      (message) => message.id === "assistant-persisted-btw-receipt",
+    );
+    expect(
+      ownerAssistant.traceFrames.filter(
+        (frame) => frame.payload?.message_id === messageId,
+      ),
+    ).toHaveLength(1);
+    expect(
+      ownerAssistant.interjections.filter(
+        (record) => record.id === `btw-${messageId}`,
+      ),
+    ).toHaveLength(1);
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("does not reconcile a partial persisted BTW receipt", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const attemptId = "attempt-partial-btw-receipt";
+    const messageId = "fyi-client-partial-btw-receipt";
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    setChatMessages(
+      chatId,
+      [
+        {
+          id: "assistant-partial-btw-receipt",
+          role: "assistant",
+          content: "failed",
+          status: "error",
+          createdAt: 1,
+          updatedAt: 2,
+          meta: { attemptId },
+          traceFrames: [
+            {
+              seq: 2,
+              ts: 2,
+              type: "side_answer",
+              payload: { message_id: messageId },
+            },
+          ],
+          interjections: [],
+        },
+      ],
+      { source: "test" },
+    );
+    writePendingFyi({
+      chatId,
+      attemptId,
+      messageId,
+      text: "Partial receipt must stay recoverable",
+      requestedChannel: "btw",
+      threadId: chatId,
+    });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId,
+      items: [
+        {
+          id: messageId,
+          text: "Partial receipt must stay recoverable",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.startStreamV4 = jest.fn();
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() =>
+      expect(readQueuedTurnsForAttempt(chatId, attemptId)?.items).toEqual([
+        expect.objectContaining({ id: messageId, status: "queued" }),
+      ]),
+    );
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("tombstones a stopped hung BTW before a successor starts its own BTW", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      const attemptId = `attempt-stop-btw-${runs.length + 1}`;
+      const run = { payload, handlers, attemptId };
+      runs.push(run);
+      return {
+        requestId: `request-stop-btw-${runs.length}`,
+        executionId: payload.threadId,
+        attemptId,
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+    let resolveStoppedBtw;
+    let btwDispatchCount = 0;
+    window.unchainAPI.interject = jest.fn((payload) => {
+      if (payload.channel === "auto") {
+        return Promise.resolve({ resolved_channel: "clarify" });
+      }
+      btwDispatchCount += 1;
+      if (btwDispatchCount === 1) {
+        return new Promise((resolve) => {
+          resolveStoppedBtw = resolve;
+        });
+      }
+      return Promise.resolve({
+        resolved_channel: "btw",
+        answer: "Successor side answer",
+      });
+    });
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Stopped BTW owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hung stopped side question" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(readPendingClarifyForChat(chatId)).not.toBeNull());
+
+    jest.useFakeTimers();
+    let stoppedSettlement;
+    try {
+      act(() => {
+        stoppedSettlement = lastChatMessagesProps.onClarifyResolve(chatId, "btw");
+      });
+      fireEvent.click(screen.getByTestId("stop-button"));
+      act(() => {
+        jest.advanceTimersByTime(40_000);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+
+    await waitFor(() => expect(lastChatInputProps?.sendDisabled).toBe(false));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Successor BTW owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(2));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Successor side question" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(readPendingClarifyForChat(chatId)).not.toBeNull());
+    let successorAccepted;
+    await act(async () => {
+      successorAccepted = await lastChatMessagesProps.onClarifyResolve(
+        chatId,
+        "btw",
+      );
+    });
+    expect(successorAccepted).toBe(true);
+
+    await act(async () => {
+      resolveStoppedBtw({
+        resolved_channel: "btw",
+        answer: "Stale stopped answer",
+      });
+      await expect(stoppedSettlement).resolves.toBe(false);
+    });
+    const ownerMessages = getChatsStore().chatsById[chatId].messages.filter(
+      (message) => message.role === "assistant",
+    );
+    const stoppedOwner = ownerMessages.find(
+      (message) => message.meta?.attemptId === runs[0].attemptId,
+    );
+    const successorOwner = ownerMessages.find(
+      (message) => message.meta?.attemptId === runs[1].attemptId,
+    );
+    expect(stoppedOwner?.traceFrames || []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "side_answer" })]),
+    );
+    expect(
+      successorOwner?.traceFrames?.filter(
+        (frame) =>
+          frame.type === "side_answer" &&
+          frame.payload?.question === "Successor side question",
+      ),
+    ).toHaveLength(1);
+    expect(btwDispatchCount).toBe(2);
+    expect(runs).toHaveLength(2);
+  });
+
+  test("keeps an existing queue visible when a BTW intent transition cannot persist", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    let resolveInterject;
+    window.unchainAPI.interject = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveInterject = resolve;
+        }),
+    );
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Transition owner" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/queue Existing queue item" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "BTW transition item" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() =>
+      expect(
+        readPendingFyisForAttempt(chatId, runs[0].attemptId),
+      ).toHaveLength(1),
+    );
+
+    const nativeSetItem = window.localStorage.setItem.bind(
+      window.localStorage,
+    );
+    const storageSpy = jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function setItem(key, value) {
+        if (key === QUEUED_TURN_OUTBOX_STORAGE_KEY) {
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        return nativeSetItem(key, value);
+      });
+    await act(async () => {
+      resolveInterject({ resolved_channel: "btw", answer: "Saved answer" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    storageSpy.mockRestore();
+
+    expect(
+      readQueuedTurnsForAttempt(chatId, runs[0].attemptId)?.items,
+    ).toEqual([
+      expect.objectContaining({ text: "Existing queue item", status: "queued" }),
+    ]);
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+      expect.objectContaining({ text: "Existing queue item", status: "queued" }),
+    ]);
+    expect(
+      readPendingFyisForAttempt(chatId, runs[0].attemptId),
+    ).toHaveLength(1);
+  });
+
+  test("removes a queue-only FYI fallback when persisted replay evidence already acknowledged it", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    const seededMessages = getChatsStore().chatsById[chatId].messages;
+    setChatMessages(
+      chatId,
+      [
+        seededMessages[0],
+        {
+          ...seededMessages[1],
+          traceFrames: [
+            {
+              seq: 3,
+              ts: 3,
+              type: "fyi_injected",
+              payload: {
+                messages: [
+                  {
+                    message_id: "fyi-queue-only-ack",
+                    origin: "user",
+                    text: "Already injected",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      { source: "test" },
+    );
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "fyi-queue-only-ack",
+          text: "Already injected",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(async () => ({
+      requestId: "request-reattach",
+      executionId: chatId,
+      attemptId: "attempt-reattach",
+      terminal: false,
+      detach: jest.fn(),
+      disconnect: jest.fn(),
+      cancel: jest.fn(),
+    }));
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-reattach"),
+      ).toBeNull();
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]);
+    });
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
   });
 });

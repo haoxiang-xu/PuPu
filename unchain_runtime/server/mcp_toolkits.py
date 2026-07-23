@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import re
@@ -52,6 +53,39 @@ def _data_dir(explicit: str | Path | None = None) -> Path:
     if raw:
         return Path(raw)
     return Path.home() / ".pupu"
+
+
+def _mcp_runtime_workdir(
+    toolkit_id: str,
+    data_dir: str | Path | None = None,
+) -> str:
+    normalized = str(toolkit_id or "").strip()
+    safe_label = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-").lower()
+    safe_label = (safe_label or "toolkit")[:48]
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+    data_root = _data_dir(data_dir)
+    workdirs_root = data_root / "mcp_runtime" / "workdirs"
+    candidate = workdirs_root / f"{safe_label}-{digest}"
+    try:
+        data_root.mkdir(parents=True, exist_ok=True)
+        resolved_data_root = data_root.resolve()
+        workdirs_root.mkdir(parents=True, exist_ok=True)
+        resolved_workdirs_root = workdirs_root.resolve()
+        resolved_workdirs_root.relative_to(resolved_data_root)
+        candidate.mkdir(parents=False, exist_ok=True)
+        resolved_candidate = candidate.resolve()
+        resolved_candidate.relative_to(resolved_workdirs_root)
+        if not resolved_candidate.is_dir():
+            raise OSError("MCP runtime work directory is not a directory")
+    except McpToolkitError:
+        raise
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise McpToolkitError(
+            "mcp_runtime_workdir_failed",
+            "Unable to prepare an isolated MCP runtime work directory",
+            500,
+        ) from exc
+    return str(resolved_candidate)
 
 
 def _store_path(data_dir: str | Path | None = None) -> Path:
@@ -549,6 +583,7 @@ def _resolve_mcp_config(
         "command": str(managed.get("command") or command).strip(),
         "args": args,
         "env": env,
+        "cwd": _mcp_runtime_workdir(entry.get("toolkit_id", ""), data_dir),
         "secret_keys": _secret_keys(entry),
         "secret_values": secret_values,
         "workspace_root": resolved_workspace,
@@ -593,6 +628,7 @@ def _discover_tools(
             command=resolved_config["command"],
             args=list(resolved_config.get("args") or []),
             env=dict(resolved_config.get("env") or {}),
+            cwd=str(resolved_config.get("cwd") or ""),
             transport="stdio",
         )
     elif transport == "streamable_http":
@@ -1204,6 +1240,7 @@ def build_mcp_runtime_toolkit(
             command=str(record.get("command") or ""),
             args=list(record.get("args") or []),
             env=env,
+            cwd=_mcp_runtime_workdir(record.get("toolkit_id", ""), data_dir),
             transport="stdio",
         )
     elif transport == "streamable_http":

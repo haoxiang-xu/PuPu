@@ -160,9 +160,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "chrome-devtools-mcp@1.6.0"]
+        "args": ["-y", "chrome-devtools-mcp@1.6.0", "--no-usage-statistics", "--no-performance-crux"]
       },
-      "setupPreview": "npx -y chrome-devtools-mcp@1.6.0",
+      "setupPreview": "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
       "prerequisites": ["Node.js LTS", "npm", "Chrome current stable or newer"],
       "secrets": [],
       "tools": [

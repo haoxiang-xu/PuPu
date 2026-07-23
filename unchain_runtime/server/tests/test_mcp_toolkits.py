@@ -270,7 +270,14 @@ class McpToolkitServiceTests(unittest.TestCase):
             toolkit_factory=FakeMCPToolkit,
         )
 
-        self.assertIn("/Users/red/project", FakeMCPToolkit.instances[-1].kwargs["args"])
+        discovery = FakeMCPToolkit.instances[-1]
+        self.assertIn("/Users/red/project", discovery.kwargs["args"])
+        self.assertNotEqual(discovery.kwargs["cwd"], "/Users/red/project")
+        self.assertTrue(
+            Path(discovery.kwargs["cwd"]).is_relative_to(
+                (self.data_dir / "mcp_runtime" / "workdirs").resolve()
+            )
+        )
         installed = get_installed_mcp_toolkit(
             "mcp.workspace.filesystem",
             data_dir=self.data_dir,
@@ -288,6 +295,20 @@ class McpToolkitServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(ctx.exception.code, "mcp_install_failed")
+        self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
+
+    def test_stdio_runtime_workdir_failure_is_explicit(self):
+        (self.data_dir / "mcp_runtime").write_text("not a directory")
+
+        with self.assertRaises(McpToolkitError) as ctx:
+            install_mcp_toolkit(
+                "memory.memory",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_workdir_failed")
+        self.assertEqual(ctx.exception.status, 500)
         self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
 
     def test_secret_stdio_entry_requires_all_secret_values(self):
@@ -348,6 +369,7 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertEqual(kwargs["transport"], "streamable_http")
         self.assertEqual(kwargs["url"], "https://api.githubcopilot.com/mcp/")
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer ghp-test")
+        self.assertNotIn("cwd", kwargs)
 
         persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
         record = persisted["toolkits"][0]
@@ -970,6 +992,64 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertTrue(toolkit.connected)
         self.assertEqual(toolkit.kwargs["command"], "npx")
 
+    def test_stdio_discovery_health_and_runtime_share_unpersisted_workdir(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        discovery_cwd = FakeMCPToolkit.instances[-1].kwargs["cwd"]
+
+        check_mcp_toolkit_health(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        health_cwd = FakeMCPToolkit.instances[-1].kwargs["cwd"]
+        runtime = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertEqual(discovery_cwd, health_cwd)
+        self.assertEqual(discovery_cwd, runtime.kwargs["cwd"])
+        self.assertTrue(Path(discovery_cwd).is_dir())
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        self.assertNotIn("cwd", persisted["toolkits"][0])
+
+    def test_stdio_runtime_workdirs_are_toolkit_specific_and_hostile_id_safe(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        memory_cwd = Path(FakeMCPToolkit.instances[-1].kwargs["cwd"])
+        escape_name = f"mcp-workdir-escape-{self.data_dir.name}"
+        hostile_toolkit_id = f"mcp.custom../../../../{escape_name}"
+        install_mcp_toolkit(
+            "custom",
+            custom_recipe={
+                "toolkit_id": hostile_toolkit_id,
+                "toolkit_name": "Hostile ID Fixture",
+                "mcp": {
+                    "transport": "stdio",
+                    "command": "echo",
+                    "args": ["ok"],
+                },
+            },
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        hostile_cwd = Path(FakeMCPToolkit.instances[-1].kwargs["cwd"])
+        expected_root = (self.data_dir / "mcp_runtime" / "workdirs").resolve()
+
+        self.assertNotEqual(memory_cwd, hostile_cwd)
+        self.assertTrue(hostile_cwd.is_dir())
+        self.assertTrue(hostile_cwd.is_relative_to(expected_root))
+        self.assertNotIn("..", hostile_cwd.name)
+        self.assertFalse((self.data_dir.parent / escape_name).exists())
+
     def test_build_runtime_rejects_unhealthy_installed_record(self):
         install_mcp_toolkit(
             "memory.memory",
@@ -1335,6 +1415,7 @@ class McpToolkitServiceTests(unittest.TestCase):
             toolkit.kwargs["headers"]["Authorization"],
             "Bearer ghp-test",
         )
+        self.assertNotIn("cwd", toolkit.kwargs)
 
     def test_build_runtime_toolkit_resolves_github_oauth_before_pat_header(self):
         save_mcp_oauth_token(

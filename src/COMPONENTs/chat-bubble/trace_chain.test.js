@@ -505,6 +505,40 @@ describe("TraceChain final_message draft timeline", () => {
     ).toBeInTheDocument();
   });
 
+  test("fails closed while a persisted confirmation trace is not hydrated", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-persisted",
+          confirmation_id: "confirm-persisted",
+          requires_confirmation: true,
+          tool_name: "delete_file",
+          arguments: { path: "demo.txt" },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision,
+      toolConfirmationUiStateById: {},
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Allow once" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Always allow" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
+    expect(onToolConfirmationDecision).not.toHaveBeenCalled();
+  });
+
   test("computer confirmations never render the session approval action", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),

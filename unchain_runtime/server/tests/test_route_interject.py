@@ -82,6 +82,51 @@ def test_interject_fyi_posts_to_channel(client):
         release_interject_channels("t-fyi")
 
 
+def test_interject_fyi_uses_client_message_id_and_retries_idempotently(client):
+    from interaction_channels import register_interject_channels, release_interject_channels
+
+    ch = register_interject_channels("t-fyi-idempotent", "task")
+    payload = {
+        "thread_id": "t-fyi-idempotent",
+        "text": "note",
+        "channel": "fyi",
+        "message_id": "fyi_client_exact_1",
+    }
+    try:
+        first = client.post("/chat/interject", json=payload)
+        assert first.status_code == 200
+        assert first.get_json() == {
+            "resolved_channel": "fyi",
+            "message_id": "fyi_client_exact_1",
+        }
+        assert [message.message_id for message in ch.fyi.drain()] == [
+            "fyi_client_exact_1"
+        ]
+
+        retry = client.post("/chat/interject", json=payload)
+        assert retry.status_code == 200
+        assert retry.get_json() == first.get_json()
+        assert ch.fyi.pending_count() == 0
+    finally:
+        release_interject_channels("t-fyi-idempotent")
+
+
+@pytest.mark.parametrize("message_id", [{"nested": True}, ["bad"]])
+def test_interject_rejects_non_string_message_id(client, message_id):
+    resp = client.post(
+        "/chat/interject",
+        json={
+            "thread_id": "t-fyi-invalid-id",
+            "text": "note",
+            "channel": "fyi",
+            "message_id": message_id,
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.get_json()["error"]["code"] == "invalid_request"
+
+
 def test_interject_btw_returns_answer_and_posts_system_note(client, monkeypatch):
     import route_interject
     from interaction_channels import register_interject_channels, release_interject_channels

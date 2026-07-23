@@ -15,6 +15,7 @@ import { BUILTIN_COMPUTER_TOOLKIT_ID } from "../plugin_settings_registry";
 import { SettingsSection } from "../../settings/appearance";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import SuspenseFallback from "../../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
 import PlaceholderBlock from "../components/placeholder_block";
@@ -53,23 +54,63 @@ const PluginsInstalledPage = ({
 
   const { run: loadCatalog, pending, error: loadError } = useAsyncAction(
     useCallback(async () => {
-      const payload = await api.unchain.listToolModalCatalog();
-      const list = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
-      const visible = list.filter(
+      const [catalogResult, installedMcpResult] = await Promise.allSettled([
+        api.unchain.listToolModalCatalog(),
+        api.unchain.listMcpToolkits(),
+      ]);
+      if (catalogResult.status === "rejected" && installedMcpResult.status === "rejected") {
+        throw catalogResult.reason || installedMcpResult.reason;
+      }
+
+      const catalog = catalogResult.status === "fulfilled" ? catalogResult.value : {};
+      const list = Array.isArray(catalog?.toolkits) ? catalog.toolkits : [];
+      const visibleCatalog = list.filter(
         (tk) =>
           tk.source !== "plugin" &&
           !tk.hidden &&
           !isBaseToolkitId(tk.toolkitId),
       );
-      const validIds = visible.map((tk) => tk.toolkitId);
-      removeInvalidToolkitIds("global", validIds);
+      const validIds = visibleCatalog.map((tk) => tk.toolkitId);
+      if (catalogResult.status === "fulfilled") {
+        removeInvalidToolkitIds("global", validIds);
+      }
       const enabledIds = new Set(getDefaultToolkitSelection("global"));
-      return visible.map((tk) =>
-        withMcpStoreIcon({
-          ...tk,
-          defaultEnabled: enabledIds.has(tk.toolkitId),
-        }),
+      const installedPayload = installedMcpResult.status === "fulfilled"
+        ? installedMcpResult.value
+        : {};
+      const installedMcp = Array.isArray(installedPayload?.toolkits)
+        ? installedPayload.toolkits
+        : [];
+      const merged = new Map(
+        visibleCatalog.map((tk) => [
+          tk.toolkitId,
+          {
+            ...tk,
+            defaultEnabled: enabledIds.has(tk.toolkitId),
+          },
+        ]),
       );
+      for (const record of installedMcp) {
+        const toolkitId = String(record?.toolkitId || "").trim();
+        if (!toolkitId || isBaseToolkitId(toolkitId)) continue;
+        const existing = merged.get(toolkitId);
+        if (existing) {
+          merged.set(toolkitId, {
+            ...record,
+            ...existing,
+            status: record.status || existing.status,
+            lastError: record.lastError || existing.lastError,
+            releaseBlocked: Boolean(record.releaseBlocked || existing.releaseBlocked),
+          });
+        } else {
+          merged.set(toolkitId, {
+            ...record,
+            source: record.source || "mcp",
+            defaultEnabled: false,
+          });
+        }
+      }
+      return [...merged.values()].map((tk) => withMcpStoreIcon(tk));
     }, []),
     { label: "plugins_installed_catalog_load", pendingDelayMs: 0, onError: () => {} },
   );
@@ -219,6 +260,16 @@ const PluginsInstalledPage = ({
     const isComputer =
       tk.toolkitId === BUILTIN_COMPUTER_TOOLKIT_ID ||
       tk.settingsKind === "computer_use";
+    const normalizedStatus = String(tk.status || "").trim().toLowerCase();
+    const needsAttention =
+      ["error", "unavailable"].includes(normalizedStatus) ||
+      Boolean(tk.releaseBlocked) ||
+      (String(tk.authType || "").toLowerCase() === "oauth" &&
+        String(tk.authStatus || "").toLowerCase() !== "connected");
+    const openDetail = () =>
+      isComputer
+        ? onOpenPluginSettings?.(tk.toolkitId)
+        : onOpenDetail?.({ ...presentation, raw: tk });
     return (
       <PluginListRow
         key={tk.toolkitId}
@@ -228,14 +279,28 @@ const PluginsInstalledPage = ({
         command={presentation.commands[0]?.name}
         description={presentation.tagline}
         fallbackColor={presentation.sourceBadge?.color}
-        onOpenDetail={() =>
-          isComputer
-            ? onOpenPluginSettings?.(tk.toolkitId)
-            : onOpenDetail?.({ ...presentation, raw: tk })
-        }
+        onOpenDetail={openDetail}
         testId={`installed-row-${tk.toolkitId}`}
       >
-        {isComputer ? (
+        {needsAttention ? (
+          <Button
+            label={t("toolkit.installed_needs_attention")}
+            onClick={openDetail}
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              paddingVertical: 3,
+              paddingHorizontal: 11,
+              borderRadius: 999,
+              color: isDark ? "#fdba74" : "#c2410c",
+              root: {
+                background: isDark
+                  ? "rgba(253,186,116,0.10)"
+                  : "rgba(194,65,12,0.08)",
+              },
+            }}
+          />
+        ) : isComputer ? (
           <ComputerStatusPill isDark={isDark} />
         ) : (
           <Tooltip

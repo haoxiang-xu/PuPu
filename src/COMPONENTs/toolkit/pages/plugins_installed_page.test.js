@@ -19,6 +19,7 @@ jest.mock("../../../SERVICEs/api", () => ({
   default: {
     unchain: {
       listToolModalCatalog: jest.fn(),
+      listMcpToolkits: jest.fn(),
     },
   },
 }));
@@ -121,6 +122,8 @@ describe("PluginsInstalledPage", () => {
   beforeEach(() => {
     api.unchain.listToolModalCatalog.mockReset();
     api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: CATALOG });
+    api.unchain.listMcpToolkits.mockReset();
+    api.unchain.listMcpToolkits.mockResolvedValue({ toolkits: [] });
     getDefaultToolkitSelection.mockReturnValue([]);
     setDefaultToolkitEnabled.mockReturnValue([]);
     removeInvalidToolkitIds.mockClear();
@@ -160,6 +163,68 @@ describe("PluginsInstalledPage", () => {
       { name: "/plan", title: "Plan First", description: "Draft a plan first." },
     ]);
     expect(arg.raw.toolkitId).toBe("plan");
+  });
+
+  test("keeps an unavailable MCP install visible with a Needs attention path to detail", async () => {
+    const onOpenDetail = jest.fn();
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          entryId: "figma-remote",
+          toolkitId: "mcp.dev.figma-remote",
+          toolkitName: "Figma",
+          toolkitDescription: "Previously installed remote MCP.",
+          source: "mcp",
+          status: "error",
+          releaseBlocked: true,
+          lastError: "This MCP toolkit is not available in this release",
+          tools: [],
+          skills: [],
+        },
+      ],
+    });
+
+    await renderPage({ onOpenDetail });
+
+    const row = screen.getByTestId("installed-row-mcp.dev.figma-remote");
+    expect(within(row).getByText("Figma")).toBeInTheDocument();
+    const attention = within(row).getByRole("button", { name: "Needs attention" });
+    expect(within(row).queryByTestId("switch")).not.toBeInTheDocument();
+
+    fireEvent.click(attention);
+    expect(onOpenDetail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "mcp.dev.figma-remote",
+        raw: expect.objectContaining({
+          toolkitId: "mcp.dev.figma-remote",
+          status: "error",
+          releaseBlocked: true,
+        }),
+      }),
+    );
+  });
+
+  test("still renders MCP install records when the selectable catalog request fails", async () => {
+    api.unchain.listToolModalCatalog.mockRejectedValue(new Error("catalog unavailable"));
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          toolkitId: "mcp.custom.offline",
+          toolkitName: "Offline MCP",
+          toolkitDescription: "Needs repair.",
+          source: "mcp",
+          status: "unavailable",
+          tools: [],
+          skills: [],
+        },
+      ],
+    });
+
+    await renderPage();
+
+    expect(screen.getByText("Offline MCP")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Needs attention" })).toBeInTheDocument();
+    expect(removeInvalidToolkitIds).not.toHaveBeenCalled();
   });
 
   test("toggling the switch writes back through setDefaultToolkitEnabled", async () => {

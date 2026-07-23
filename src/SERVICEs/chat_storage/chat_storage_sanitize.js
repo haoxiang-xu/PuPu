@@ -847,6 +847,11 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
       chat?.selectedWorkspaceIds,
     ),
+    selectedRecipeName:
+      typeof chat?.selectedRecipeName === "string" &&
+      chat.selectedRecipeName.trim()
+        ? trimText(chat.selectedRecipeName.trim(), 200)
+        : "Default",
     systemPromptOverrides: sanitizeSystemPromptOverrides(
       chat?.systemPromptOverrides,
     ),
@@ -870,6 +875,7 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     cleaned.agentOrchestration = { ...DEFAULT_AGENT_ORCHESTRATION };
     cleaned.selectedToolkits = [];
     cleaned.selectedWorkspaceIds = [];
+    cleaned.selectedRecipeName = "Default";
     cleaned.systemPromptOverrides = {};
     cleaned.isTransientNewChat = false;
     cleaned.threadId =

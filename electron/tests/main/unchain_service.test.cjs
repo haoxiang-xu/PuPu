@@ -1,7 +1,12 @@
 const path = require("path");
+const { createHook } = require("async_hooks");
 const { EventEmitter } = require("events");
+const { Readable } = require("stream");
 const { CHANNELS } = require("../../shared/channels");
-const { createUnchainService } = require("../../main/services/unchain/service");
+const {
+  createNodeStreamFetch,
+  createUnchainService,
+} = require("../../main/services/unchain/service");
 
 const createRuntimeContract = (overrides = {}) => {
   const { capabilities: capabilityOverrides = {}, ...contractOverrides } =
@@ -71,6 +76,52 @@ const createAvailableNet = () => ({
     };
   },
 });
+
+const createNodeRequestHarness = () => {
+  let respondToRequest = null;
+  const responseEndResources = new Set();
+  const request = new EventEmitter();
+  request.destroyed = false;
+  request.setTimeout = jest.fn();
+  request.end = jest.fn();
+  request.destroy = jest.fn(() => {
+    request.destroyed = true;
+  });
+  const requestImpl = jest.fn((_url, _options, onResponse) => {
+    respondToRequest = onResponse;
+    return request;
+  });
+  return {
+    request,
+    requestImpl,
+    respond(response) {
+      if (typeof respondToRequest !== "function") {
+        throw new Error("Node request has not started");
+      }
+      const hook = createHook({
+        init(_asyncId, type, _triggerAsyncId, resource) {
+          if (type === "STREAM_END_OF_STREAM") {
+            responseEndResources.add(resource);
+          }
+        },
+      });
+      hook.enable();
+      try {
+        respondToRequest(response);
+      } finally {
+        hook.disable();
+      }
+    },
+    disposeResponseEndResources() {
+      // Node 24 releases Readable.toWeb() EOS bookkeeping on GC, even after
+      // the source stream closes. Dispose it explicitly in this test fixture.
+      responseEndResources.forEach((resource) => {
+        resource.emitDestroy();
+      });
+      responseEndResources.clear();
+    },
+  };
+};
 
 const createRangeBusyNet = ({ ephemeralPort }) => ({
   createServer() {
@@ -144,6 +195,132 @@ const createStartupServiceHarness = () => {
   return { fakeProcess, service, spawn };
 };
 
+const createReplayStreamResponse = (body) => {
+  const encoder = new TextEncoder();
+  const reader = {
+    read: jest
+      .fn()
+      .mockResolvedValueOnce({
+        done: false,
+        value: encoder.encode(body),
+      })
+      .mockResolvedValueOnce({ done: true }),
+  };
+  return {
+    reader,
+    response: {
+      ok: true,
+      body: { getReader: () => reader },
+    },
+  };
+};
+
+const buildRuntimeEventStreamBody = (prefix, count, extraPayload = {}) => {
+  const blocks = [];
+  for (let index = 1; index <= count; index += 1) {
+    blocks.push(
+      `event: runtime_event\ndata: ${JSON.stringify({
+        schema_version: "v4",
+        event_id: `${prefix}-${index}`,
+        type: "step.delta",
+        seq: index,
+        ...extraPayload,
+      })}\n\n`,
+    );
+  }
+  blocks.push('event: done\ndata: {"ok":true}\n\n');
+  return blocks.join("");
+};
+
+const createReplayTarget = (id, send = jest.fn()) => ({
+  id,
+  send,
+  isDestroyed: jest.fn(() => false),
+  getType: jest.fn(() => "window"),
+});
+
+const flushReplayStream = async () => {
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+};
+
+const startDetachedReplayStream = (
+  service,
+  sender,
+  { requestId, executionId, attemptId, attachmentId },
+) => {
+  service.handleStreamStartV4(
+    { sender },
+    {
+      requestId,
+      attachmentId,
+      payload: {
+        threadId: executionId,
+        attempt_id: attemptId,
+        message: "replay test",
+        options: {},
+      },
+    },
+  );
+  service.handleStreamDetach(
+    { sender },
+    {
+      requestId,
+      executionId,
+      attemptId,
+      attachmentId,
+    },
+  );
+};
+
+const createReplayTestService = async ({
+  streamFetchImpl,
+  targets,
+  streamReplayConfig,
+}) => {
+  const fakeProcess = createFakeSpawnProcess();
+  const spawn = jest.fn(() => fakeProcess);
+  global.fetch = jest
+    .fn()
+    .mockResolvedValueOnce(createCompatibleHealthResponse());
+  process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+  const service = createUnchainService({
+    app: {
+      isPackaged: false,
+      getAppPath: jest.fn(() => "/app"),
+      getPath: jest.fn(() => "/tmp/pupu"),
+      getVersion: jest.fn(() => "0.1.1"),
+    },
+    fs: { existsSync: jest.fn(() => true) },
+    path,
+    spawn,
+    spawnSync: jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    })),
+    crypto: {
+      randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+    },
+    net: createAvailableNet(),
+    streamRequestImpl: streamFetchImpl,
+    streamReplayConfig,
+    webContents: {
+      fromId: jest.fn((id) => targets.get(id) || null),
+      getAllWebContents: jest.fn(() => Array.from(targets.values())),
+    },
+    runtimeService: {},
+    getAppIsQuitting: () => false,
+  });
+  await service.startMiso();
+  return service;
+};
+
 describe("unchain service session memory replacement", () => {
   const originalFetch = global.fetch;
   const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
@@ -156,6 +333,204 @@ describe("unchain service session memory replacement", () => {
       process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
     }
     jest.clearAllMocks();
+  });
+
+  test("node stream fetch keeps a quiet chunked body open without an inactivity timeout", async () => {
+    const harness = createNodeRequestHarness();
+    const streamFetch = createNodeStreamFetch({
+      httpRequest: harness.requestImpl,
+    });
+    const controller = new AbortController();
+    const responsePromise = streamFetch(
+      "http://127.0.0.1:5888/chat/stream/v4",
+      {
+        method: "POST",
+        headers: { "x-unchain-auth": "test-token" },
+        body: '{"message":"hello"}',
+        signal: controller.signal,
+      },
+    );
+    const incomingResponse = new Readable({ read() {} });
+    incomingResponse.statusCode = 200;
+    incomingResponse.statusMessage = "OK";
+    harness.respond(incomingResponse);
+    let reader = null;
+    try {
+      const response = await responsePromise;
+      expect(response).toMatchObject({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+      });
+      expect(response.body).toEqual(
+        expect.objectContaining({ getReader: expect.any(Function) }),
+      );
+      expect(harness.requestImpl).toHaveBeenCalledTimes(1);
+      expect(harness.request.setTimeout).toHaveBeenCalledWith(0);
+      expect(harness.request.end).toHaveBeenCalledWith('{"message":"hello"}');
+
+      reader = response.body.getReader();
+      incomingResponse.push("event: runtime_");
+      const firstChunk = await reader.read();
+      expect(Buffer.from(firstChunk.value).toString("utf8")).toBe(
+        "event: runtime_",
+      );
+
+      let quietReadSettled = false;
+      const quietRead = reader.read().then((result) => {
+        quietReadSettled = true;
+        return result;
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(quietReadSettled).toBe(false);
+
+      incomingResponse.push("event\ndata: {}\n\n");
+      incomingResponse.push(null);
+      const secondChunk = await quietRead;
+      expect(Buffer.from(secondChunk.value).toString("utf8")).toBe(
+        "event\ndata: {}\n\n",
+      );
+      await expect(reader.read()).resolves.toEqual({
+        done: true,
+        value: undefined,
+      });
+      expect(harness.requestImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      if (reader) {
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
+      incomingResponse.destroy();
+      await new Promise((resolve) => setImmediate(resolve));
+      harness.disposeResponseEndResources();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  });
+
+  test("node stream fetch exposes non-2xx response text", async () => {
+    const harness = createNodeRequestHarness();
+    const streamFetch = createNodeStreamFetch({
+      httpRequest: harness.requestImpl,
+    });
+    const responsePromise = streamFetch(
+      "http://127.0.0.1:5888/chat/stream/v4",
+      {
+        method: "POST",
+      },
+    );
+    const incomingResponse = new Readable({ read() {} });
+    incomingResponse.statusCode = 409;
+    incomingResponse.statusMessage = "Conflict";
+    harness.respond(incomingResponse);
+    incomingResponse.push('{"error":{"code":"execution_lease_conflict"}}');
+    incomingResponse.push(null);
+    try {
+      const response = await responsePromise;
+      expect(response).toMatchObject({
+        ok: false,
+        status: 409,
+        statusText: "Conflict",
+      });
+      await expect(response.text()).resolves.toBe(
+        '{"error":{"code":"execution_lease_conflict"}}',
+      );
+    } finally {
+      incomingResponse.destroy();
+      await new Promise((resolve) => setImmediate(resolve));
+      harness.disposeResponseEndResources();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  });
+
+  test("node stream fetch aborts an active response body", async () => {
+    const harness = createNodeRequestHarness();
+    const streamFetch = createNodeStreamFetch({
+      httpRequest: harness.requestImpl,
+    });
+    const abortListeners = new Set();
+    const signal = {
+      aborted: false,
+      reason: undefined,
+      addEventListener(event, listener) {
+        if (event === "abort") {
+          abortListeners.add(listener);
+        }
+      },
+      removeEventListener(event, listener) {
+        if (event === "abort") {
+          abortListeners.delete(listener);
+        }
+      },
+    };
+    const responsePromise = streamFetch(
+      "http://127.0.0.1:5888/chat/stream/v4",
+      {
+        method: "POST",
+        signal,
+      },
+    );
+    const incomingResponse = new Readable({ read() {} });
+    incomingResponse.statusCode = 200;
+    harness.respond(incomingResponse);
+
+    const response = await responsePromise;
+    const reader = response.body.getReader();
+    try {
+      const pendingRead = reader.read();
+      const abortError = new Error("stream cancelled");
+      abortError.name = "AbortError";
+      signal.reason = abortError;
+      signal.aborted = true;
+      for (const listener of [...abortListeners]) {
+        listener();
+      }
+
+      const readError = await pendingRead.then(
+        () => null,
+        (error) => error,
+      );
+      expect(readError).not.toBeNull();
+      expect(
+        `${readError?.name || ""}${
+          typeof readError?.message === "string" && readError.message.trim()
+            ? `: ${readError.message.trim()}`
+            : ""
+        }`,
+      ).toMatch(/^AbortError(?:: .*(?:abort|cancel).*)?$/i);
+      expect(harness.request.destroy).toHaveBeenCalledTimes(1);
+      expect(harness.request.destroy).toHaveBeenCalledWith(abortError);
+      expect(harness.requestImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+      incomingResponse.destroy();
+      await new Promise((resolve) => setImmediate(resolve));
+      harness.disposeResponseEndResources();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  });
+
+  test("node stream fetch propagates a connection error without retrying", async () => {
+    const harness = createNodeRequestHarness();
+    const streamFetch = createNodeStreamFetch({
+      httpRequest: harness.requestImpl,
+    });
+    const responsePromise = streamFetch(
+      "http://127.0.0.1:5888/chat/stream/v4",
+      {
+        method: "POST",
+      },
+    );
+    const connectionError = Object.assign(
+      new Error("connect ECONNREFUSED 127.0.0.1:5888"),
+      { code: "ECONNREFUSED" },
+    );
+    harness.request.emit("error", connectionError);
+
+    await expect(responsePromise).rejects.toBe(connectionError);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(harness.requestImpl).toHaveBeenCalledTimes(1);
+    expect(harness.request.end).toHaveBeenCalledTimes(1);
   });
 
   test("startup validates and exposes the release runtime contract", async () => {
@@ -1972,13 +2347,13 @@ describe("unchain service session memory replacement", () => {
 
     global.fetch = jest
       .fn()
-      .mockResolvedValueOnce(createCompatibleHealthResponse())
-      .mockResolvedValueOnce({
-        ok: true,
-        body: {
-          getReader: () => reader,
-        },
-      });
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+    const streamRequestImpl = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      body: {
+        getReader: () => reader,
+      },
+    });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
@@ -2005,6 +2380,7 @@ describe("unchain service session memory replacement", () => {
         randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
       },
       net: createAvailableNet(),
+      streamRequestImpl,
       webContents: {
         fromId: jest.fn(() => target),
         getAllWebContents: jest.fn(() => [target]),
@@ -2175,7 +2551,7 @@ describe("unchain service session memory replacement", () => {
         randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
       },
       net: createAvailableNet(),
-      streamFetchImpl,
+      streamRequestImpl: streamFetchImpl,
       webContents: {
         fromId: jest.fn(() => target),
         getAllWebContents: jest.fn(() => [target]),
@@ -2190,6 +2566,7 @@ describe("unchain service session memory replacement", () => {
       { sender: { id: 91 } },
       {
         requestId: "req-v4-1",
+        attachmentId: "attachment-v4-1",
         payload: {
           threadId: "chat-v4-1",
           attempt_id: "req-v4-1",
@@ -2212,6 +2589,7 @@ describe("unchain service session memory replacement", () => {
     });
     expect(target.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: "req-v4-1",
+      streamSeq: 1,
       event: "runtime_event",
       data: {
         schema_version: "v4",
@@ -2222,9 +2600,943 @@ describe("unchain service session memory replacement", () => {
     });
     expect(target.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: "req-v4-1",
+      streamSeq: 2,
       event: "done",
       data: { ok: true },
     });
+  });
+
+  test("handleStreamStartV4 preserves a structured error code from a non-2xx response", async () => {
+    const streamFetchImpl = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      text: jest.fn().mockResolvedValue(
+        JSON.stringify({
+          error: {
+            code: "execution_lease_conflict",
+            message: "execution is already leased by another owner",
+          },
+        }),
+      ),
+    });
+    const target = createReplayTarget(98);
+    const service = await createReplayTestService({
+      streamFetchImpl,
+      targets: new Map([[98, target]]),
+    });
+
+    service.handleStreamStartV4(
+      { sender: target },
+      {
+        requestId: "req-v4-lease-conflict",
+        attachmentId: "attachment-v4-lease-conflict",
+        payload: {
+          threadId: "chat-v4-lease-conflict",
+          attempt_id: "attempt-v4-lease-conflict",
+          message: "hello",
+          options: {},
+        },
+      },
+    );
+
+    await flushReplayStream();
+
+    expect(target.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: "req-v4-lease-conflict",
+      streamSeq: 1,
+      event: "error",
+      data: {
+        code: "execution_lease_conflict",
+        message: "execution is already leased by another owner",
+      },
+    });
+  });
+
+  test("handleStreamStartV4 fails closed when upstream ends without a terminal event", async () => {
+    const { response } = createReplayStreamResponse(
+      'event: runtime_event\ndata: {"schema_version":"v4","event_id":"evt-before-eof","type":"step.delta","seq":1}\n\n',
+    );
+    const streamFetchImpl = jest.fn().mockResolvedValueOnce(response);
+    const target = createReplayTarget(92);
+    const service = await createReplayTestService({
+      streamFetchImpl,
+      targets: new Map([[92, target]]),
+    });
+
+    service.handleStreamStartV4(
+      { sender: { id: 92 } },
+      {
+        requestId: "req-v4-unexpected-eof",
+        attachmentId: "attachment-v4-unexpected-eof",
+        payload: {
+          threadId: "chat-v4-unexpected-eof",
+          attempt_id: "attempt-v4-unexpected-eof",
+          message: "hello",
+          options: {},
+        },
+      },
+    );
+
+    await flushReplayStream();
+
+    expect(target.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: "req-v4-unexpected-eof",
+      streamSeq: 2,
+      event: "error",
+      data: {
+        code: "unexpected_stream_eof",
+        message: "Miso stream ended before a terminal event",
+      },
+    });
+    expect(
+      target.send.mock.calls.some(
+        ([channel, envelope]) =>
+          channel === CHANNELS.UNCHAIN.STREAM_EVENT &&
+          envelope.requestId === "req-v4-unexpected-eof" &&
+          envelope.event === "done",
+      ),
+    ).toBe(false);
+  });
+
+  test("detaches without aborting and replays only the matching V4 attempt", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    const encoder = new TextEncoder();
+    let releaseDetachedStream;
+    const reader = {
+      read: jest
+        .fn()
+        .mockResolvedValueOnce({
+          done: false,
+          value: encoder.encode(
+            'event: runtime_event\ndata: {"schema_version":"v4","event_id":"evt-before-detach","type":"step.delta","seq":1}\n\n',
+          ),
+        })
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseDetachedStream = () =>
+                resolve({
+                  done: false,
+                  value: encoder.encode(
+                    'event: runtime_event\ndata: {"schema_version":"v4","event_id":"evt-after-attach","type":"step.delta","seq":2}\n\nevent: done\ndata: {"ok":true}\n\n',
+                  ),
+                });
+            }),
+        )
+        .mockResolvedValueOnce({ done: true }),
+    };
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+    const streamFetchImpl = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      body: { getReader: () => reader },
+    });
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const firstTarget = {
+      id: 91,
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+    const attachedTarget = {
+      id: 92,
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+    const targets = new Map([
+      [91, firstTarget],
+      [92, attachedTarget],
+    ]);
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      streamRequestImpl: streamFetchImpl,
+      webContents: {
+        fromId: jest.fn((id) => targets.get(id) || null),
+        getAllWebContents: jest.fn(() => Array.from(targets.values())),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    service.handleStreamStartV4(
+      { sender: firstTarget },
+      {
+        requestId: "req-reattach",
+        attachmentId: "attachment-initial",
+        payload: {
+          threadId: "chat-reattach",
+          attempt_id: "attempt-reattach",
+          message: "keep running",
+          options: {},
+        },
+      },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    service.handleStreamDetach(
+      { sender: firstTarget },
+      {
+        requestId: "req-reattach",
+        executionId: "chat-reattach",
+        attemptId: "attempt-reattach",
+        attachmentId: "attachment-initial",
+      },
+    );
+    expect(reader.read).toHaveBeenCalledTimes(2);
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachedTarget },
+        {
+          requestId: "req-reattach",
+          executionId: "chat-reattach",
+          attemptId: "wrong-attempt",
+          attachmentId: "attachment-wrong",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: false, code: "stream_identity_mismatch" });
+    expect(attachedTarget.send).not.toHaveBeenCalled();
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachedTarget },
+        {
+          requestId: "req-reattach",
+          executionId: "chat-reattach",
+          attemptId: "attempt-reattach",
+          attachmentId: "attachment-current",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({
+      ok: true,
+      active: true,
+      terminal: false,
+      replayed_through_seq: 1,
+    });
+    expect(attachedTarget.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({
+        requestId: "req-reattach",
+        streamSeq: 1,
+        event: "runtime_event",
+        data: expect.objectContaining({ event_id: "evt-before-detach" }),
+      }),
+    );
+
+    service.handleStreamDetach(
+      { sender: attachedTarget },
+      {
+        requestId: "req-reattach",
+        executionId: "chat-reattach",
+        attemptId: "attempt-reattach",
+        attachmentId: "attachment-initial",
+      },
+    );
+
+    releaseDetachedStream();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(attachedTarget.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({
+        requestId: "req-reattach",
+        streamSeq: 2,
+        event: "runtime_event",
+        data: expect.objectContaining({ event_id: "evt-after-attach" }),
+      }),
+    );
+    expect(attachedTarget.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({
+        requestId: "req-reattach",
+        streamSeq: 3,
+        event: "done",
+      }),
+    );
+    expect(firstTarget.send).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps buffering when a renderer send fails and replays to a healthy attachment", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    const encoder = new TextEncoder();
+    const reader = {
+      read: jest.fn().mockResolvedValueOnce({
+        done: false,
+        value: encoder.encode(
+          'event: runtime_event\ndata: {"schema_version":"v4","event_id":"evt-before-send-failure","type":"step.delta","seq":1}\n\nevent: done\ndata: {"ok":true}\n\n',
+        ),
+      }),
+    };
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+    const streamFetchImpl = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      body: { getReader: () => reader },
+    });
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const failingTarget = {
+      id: 93,
+      send: jest.fn(() => {
+        throw new Error("renderer was destroyed during send");
+      }),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+    const healthyTarget = {
+      id: 94,
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+    const targets = new Map([
+      [93, failingTarget],
+      [94, healthyTarget],
+    ]);
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      streamRequestImpl: streamFetchImpl,
+      webContents: {
+        fromId: jest.fn((id) => targets.get(id) || null),
+        getAllWebContents: jest.fn(() => Array.from(targets.values())),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    service.handleStreamStartV4(
+      { sender: failingTarget },
+      {
+        requestId: "req-send-failure",
+        attachmentId: "attachment-failing",
+        payload: {
+          threadId: "chat-send-failure",
+          attempt_id: "attempt-send-failure",
+          message: "keep buffering",
+          options: {},
+        },
+      },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(failingTarget.send).toHaveBeenCalledTimes(1);
+    expect(
+      service.attachMisoStreamV4(
+        { sender: failingTarget },
+        {
+          requestId: "req-send-failure",
+          executionId: "chat-send-failure",
+          attemptId: "attempt-send-failure",
+          attachmentId: "attachment-still-failing",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({
+      ok: false,
+      code: "stream_attach_target_unavailable",
+      replayed_through_seq: 0,
+    });
+    expect(failingTarget.send).toHaveBeenCalledTimes(2);
+    expect(
+      service.attachMisoStreamV4(
+        { sender: healthyTarget },
+        {
+          requestId: "req-send-failure",
+          executionId: "chat-send-failure",
+          attemptId: "attempt-send-failure",
+          attachmentId: "attachment-healthy",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({
+      ok: true,
+      active: false,
+      terminal: true,
+      replayed_through_seq: 2,
+    });
+    expect(healthyTarget.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({
+        streamSeq: 1,
+        event: "runtime_event",
+        data: expect.objectContaining({ event_id: "evt-before-send-failure" }),
+      }),
+    );
+    expect(healthyTarget.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({ streamSeq: 2, event: "done" }),
+    );
+  });
+
+  test("sends duplicate_request only to the new requester without adding it to replay", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    let releaseStream;
+    const encoder = new TextEncoder();
+    const reader = {
+      read: jest
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseStream = () =>
+                resolve({
+                  done: false,
+                  value: encoder.encode('event: done\ndata: {"ok":true}\n\n'),
+                });
+            }),
+        )
+        .mockResolvedValueOnce({ done: true }),
+    };
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+    const streamFetchImpl = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      body: { getReader: () => reader },
+    });
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const firstTarget = {
+      id: 95,
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+    const duplicateTarget = {
+      id: 96,
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+    const replayTarget = {
+      id: 97,
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+    const targets = new Map([
+      [95, firstTarget],
+      [96, duplicateTarget],
+      [97, replayTarget],
+    ]);
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      streamRequestImpl: streamFetchImpl,
+      webContents: {
+        fromId: jest.fn((id) => targets.get(id) || null),
+        getAllWebContents: jest.fn(() => Array.from(targets.values())),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    service.handleStreamStartV4(
+      { sender: firstTarget },
+      {
+        requestId: "req-duplicate",
+        attachmentId: "attachment-original",
+        payload: {
+          threadId: "chat-duplicate",
+          attempt_id: "attempt-duplicate",
+          message: "original",
+          options: {},
+        },
+      },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    service.handleStreamStartV4(
+      { sender: duplicateTarget },
+      {
+        requestId: "req-duplicate",
+        attachmentId: "attachment-duplicate",
+        payload: {
+          threadId: "chat-duplicate",
+          attempt_id: "attempt-duplicate",
+          message: "duplicate",
+          options: {},
+        },
+      },
+    );
+
+    expect(duplicateTarget.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      {
+        requestId: "req-duplicate",
+        event: "error",
+        data: {
+          code: "duplicate_request",
+          message: "Request is already active",
+        },
+      },
+    );
+    expect(firstTarget.send).not.toHaveBeenCalled();
+    expect(
+      service.attachMisoStreamV4(
+        { sender: replayTarget },
+        {
+          requestId: "req-duplicate",
+          executionId: "chat-duplicate",
+          attemptId: "attempt-duplicate",
+          attachmentId: "attachment-replay",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: true, replayed_through_seq: 0 });
+    expect(replayTarget.send).not.toHaveBeenCalled();
+
+    releaseStream();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(replayTarget.send).toHaveBeenCalledWith(
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      expect.objectContaining({ streamSeq: 1, event: "done" }),
+    );
+  });
+
+  test("retains 20,001 small runtime events without creating a replay gap", async () => {
+    const { response } = createReplayStreamResponse(
+      buildRuntimeEventStreamBody("long-run", 20001),
+    );
+    const streamFetchImpl = jest.fn().mockResolvedValueOnce(response);
+    const sourceTarget = createReplayTarget(301);
+    let replayCount = 0;
+    let firstReplaySeq = 0;
+    let lastReplaySeq = 0;
+    const replayTarget = createReplayTarget(302, (_channel, envelope) => {
+      replayCount += 1;
+      firstReplaySeq ||= envelope.streamSeq;
+      lastReplaySeq = envelope.streamSeq;
+    });
+    const targets = new Map([
+      [sourceTarget.id, sourceTarget],
+      [replayTarget.id, replayTarget],
+    ]);
+    const service = await createReplayTestService({
+      streamFetchImpl,
+      targets,
+    });
+
+    startDetachedReplayStream(service, sourceTarget, {
+      requestId: "req-long-replay",
+      executionId: "chat-long-replay",
+      attemptId: "attempt-long-replay",
+      attachmentId: "attachment-long-source",
+    });
+    await flushReplayStream();
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: replayTarget },
+        {
+          requestId: "req-long-replay",
+          executionId: "chat-long-replay",
+          attemptId: "attempt-long-replay",
+          attachmentId: "attachment-long-replay",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({
+      ok: true,
+      terminal: true,
+      active: false,
+      replayed_through_seq: 20002,
+    });
+    expect(replayCount).toBe(20002);
+    expect(firstReplaySeq).toBe(1);
+    expect(lastReplaySeq).toBe(20002);
+  });
+
+  test("fails closed on a replay gap after the injected event limit advances the head", async () => {
+    const { response } = createReplayStreamResponse(
+      buildRuntimeEventStreamBody("count-limit", 4100),
+    );
+    const sourceTarget = createReplayTarget(303);
+    const replayed = [];
+    const replayTarget = createReplayTarget(304, (_channel, envelope) => {
+      replayed.push(envelope);
+    });
+    const targets = new Map([
+      [sourceTarget.id, sourceTarget],
+      [replayTarget.id, replayTarget],
+    ]);
+    const service = await createReplayTestService({
+      streamFetchImpl: jest.fn().mockResolvedValueOnce(response),
+      targets,
+      streamReplayConfig: {
+        maxEvents: 3,
+        maxBytes: 1024 * 1024,
+        ttlMs: 1000,
+      },
+    });
+
+    startDetachedReplayStream(service, sourceTarget, {
+      requestId: "req-count-limit",
+      executionId: "chat-count-limit",
+      attemptId: "attempt-count-limit",
+      attachmentId: "attachment-count-source",
+    });
+    await flushReplayStream();
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: replayTarget },
+        {
+          requestId: "req-count-limit",
+          executionId: "chat-count-limit",
+          attemptId: "attempt-count-limit",
+          attachmentId: "attachment-count-gap",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({
+      ok: false,
+      code: "stream_replay_gap",
+      first_available_seq: 4099,
+      requested_after_seq: 0,
+    });
+    expect(replayed).toHaveLength(0);
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: replayTarget },
+        {
+          requestId: "req-count-limit",
+          executionId: "chat-count-limit",
+          attemptId: "attempt-count-limit",
+          attachmentId: "attachment-count-valid",
+          afterSeq: 4098,
+        },
+      ),
+    ).toMatchObject({ ok: true, replayed_through_seq: 4101 });
+    expect(replayed.map((envelope) => envelope.streamSeq)).toEqual([
+      4099, 4100, 4101,
+    ]);
+  });
+
+  test("evicts an oversized event by byte budget without retaining its payload", async () => {
+    const { response } = createReplayStreamResponse(
+      buildRuntimeEventStreamBody("byte-limit", 1, {
+        delta: "x".repeat(4096),
+      }),
+    );
+    const sourceTarget = createReplayTarget(305);
+    const replayed = [];
+    const replayTarget = createReplayTarget(306, (_channel, envelope) => {
+      replayed.push(envelope);
+    });
+    const targets = new Map([
+      [sourceTarget.id, sourceTarget],
+      [replayTarget.id, replayTarget],
+    ]);
+    const service = await createReplayTestService({
+      streamFetchImpl: jest.fn().mockResolvedValueOnce(response),
+      targets,
+      streamReplayConfig: {
+        maxEvents: 100,
+        maxBytes: 512,
+        ttlMs: 1000,
+      },
+    });
+
+    startDetachedReplayStream(service, sourceTarget, {
+      requestId: "req-byte-limit",
+      executionId: "chat-byte-limit",
+      attemptId: "attempt-byte-limit",
+      attachmentId: "attachment-byte-source",
+    });
+    await flushReplayStream();
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: replayTarget },
+        {
+          requestId: "req-byte-limit",
+          executionId: "chat-byte-limit",
+          attemptId: "attempt-byte-limit",
+          attachmentId: "attachment-byte-gap",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({
+      ok: false,
+      code: "stream_replay_gap",
+      first_available_seq: 2,
+    });
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: replayTarget },
+        {
+          requestId: "req-byte-limit",
+          executionId: "chat-byte-limit",
+          attemptId: "attempt-byte-limit",
+          attachmentId: "attachment-byte-valid",
+          afterSeq: 1,
+        },
+      ),
+    ).toMatchObject({ ok: true, replayed_through_seq: 2 });
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]).toMatchObject({
+      streamSeq: 2,
+      event: "done",
+      data: { ok: true },
+    });
+    expect(JSON.stringify(replayed)).not.toContain("xxxxxxxx");
+  });
+
+  test("keeps capped replay state isolated across three concurrent streams", async () => {
+    const streamCases = [
+      {
+        key: "a",
+        sourceId: 307,
+        replayId: 310,
+        eventCount: 5,
+        afterSeq: 3,
+        expectedEventIds: ["parallel-a-4", "parallel-a-5"],
+      },
+      {
+        key: "b",
+        sourceId: 308,
+        replayId: 311,
+        eventCount: 2,
+        afterSeq: 0,
+        expectedEventIds: ["parallel-b-1", "parallel-b-2"],
+      },
+      {
+        key: "c",
+        sourceId: 309,
+        replayId: 312,
+        eventCount: 4,
+        afterSeq: 2,
+        expectedEventIds: ["parallel-c-3", "parallel-c-4"],
+      },
+    ];
+    const responses = new Map(
+      streamCases.map((streamCase) => [
+        `chat-parallel-${streamCase.key}`,
+        createReplayStreamResponse(
+          buildRuntimeEventStreamBody(
+            `parallel-${streamCase.key}`,
+            streamCase.eventCount,
+          ),
+        ).response,
+      ]),
+    );
+    const streamFetchImpl = jest.fn(async (_url, options) => {
+      const requestPayload = JSON.parse(options.body);
+      return responses.get(requestPayload.threadId);
+    });
+    const targets = new Map();
+    for (const streamCase of streamCases) {
+      streamCase.sourceTarget = createReplayTarget(streamCase.sourceId);
+      streamCase.replayed = [];
+      streamCase.replayTarget = createReplayTarget(
+        streamCase.replayId,
+        (_channel, envelope) => {
+          streamCase.replayed.push(envelope);
+        },
+      );
+      targets.set(streamCase.sourceId, streamCase.sourceTarget);
+      targets.set(streamCase.replayId, streamCase.replayTarget);
+    }
+    const service = await createReplayTestService({
+      streamFetchImpl,
+      targets,
+      streamReplayConfig: {
+        maxEvents: 3,
+        maxBytes: 1024 * 1024,
+        ttlMs: 1000,
+      },
+    });
+
+    for (const streamCase of streamCases) {
+      startDetachedReplayStream(service, streamCase.sourceTarget, {
+        requestId: `req-parallel-${streamCase.key}`,
+        executionId: `chat-parallel-${streamCase.key}`,
+        attemptId: `attempt-parallel-${streamCase.key}`,
+        attachmentId: `attachment-parallel-${streamCase.key}-source`,
+      });
+    }
+    await flushReplayStream();
+
+    for (const streamCase of streamCases) {
+      expect(
+        service.attachMisoStreamV4(
+          { sender: streamCase.replayTarget },
+          {
+            requestId: `req-parallel-${streamCase.key}`,
+            executionId: `chat-parallel-${streamCase.key}`,
+            attemptId: `attempt-parallel-${streamCase.key}`,
+            attachmentId: `attachment-parallel-${streamCase.key}-replay`,
+            afterSeq: streamCase.afterSeq,
+          },
+        ),
+      ).toMatchObject({ ok: true, terminal: true, active: false });
+      expect(
+        streamCase.replayed
+          .filter((envelope) => envelope.event === "runtime_event")
+          .map((envelope) => envelope.data.event_id),
+      ).toEqual(streamCase.expectedEventIds);
+      expect(
+        streamCase.replayed.every(
+          (envelope) =>
+            envelope.requestId === `req-parallel-${streamCase.key}`,
+        ),
+      ).toBe(true);
+      expect(streamCase.replayed.at(-1)).toMatchObject({ event: "done" });
+    }
+  });
+
+  test("keeps a detached terminal replay attachable until the injected TTL expires", async () => {
+    const { response } = createReplayStreamResponse(
+      buildRuntimeEventStreamBody("terminal-delay", 1),
+    );
+    const sourceTarget = createReplayTarget(313);
+    const replayTarget = createReplayTarget(314);
+    const expiredTarget = createReplayTarget(315);
+    const targets = new Map([
+      [sourceTarget.id, sourceTarget],
+      [replayTarget.id, replayTarget],
+      [expiredTarget.id, expiredTarget],
+    ]);
+    const service = await createReplayTestService({
+      streamFetchImpl: jest.fn().mockResolvedValueOnce(response),
+      targets,
+      streamReplayConfig: {
+        maxEvents: 100,
+        maxBytes: 1024 * 1024,
+        ttlMs: 1000,
+      },
+    });
+
+    jest.useFakeTimers();
+    try {
+      startDetachedReplayStream(service, sourceTarget, {
+        requestId: "req-terminal-delay",
+        executionId: "chat-terminal-delay",
+        attemptId: "attempt-terminal-delay",
+        attachmentId: "attachment-terminal-source",
+      });
+      for (let iteration = 0; iteration < 20; iteration += 1) {
+        await Promise.resolve();
+      }
+
+      jest.advanceTimersByTime(750);
+      expect(
+        service.attachMisoStreamV4(
+          { sender: replayTarget },
+          {
+            requestId: "req-terminal-delay",
+            executionId: "chat-terminal-delay",
+            attemptId: "attempt-terminal-delay",
+            attachmentId: "attachment-terminal-replay",
+            afterSeq: 0,
+          },
+        ),
+      ).toMatchObject({
+        ok: true,
+        terminal: true,
+        active: false,
+        replayed_through_seq: 2,
+      });
+
+      jest.advanceTimersByTime(251);
+      expect(
+        service.attachMisoStreamV4(
+          { sender: expiredTarget },
+          {
+            requestId: "req-terminal-delay",
+            executionId: "chat-terminal-delay",
+            attemptId: "attempt-terminal-delay",
+            attachmentId: "attachment-terminal-expired",
+            afterSeq: 0,
+          },
+        ),
+      ).toMatchObject({ ok: false, code: "stream_not_found" });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test("cancelMisoExecution posts active V4 identity without disconnecting transport", async () => {
@@ -2267,14 +3579,14 @@ describe("unchain service session memory replacement", () => {
       .mockResolvedValueOnce(createCompatibleHealthResponse())
       .mockResolvedValueOnce({
         ok: true,
-        body: {
-          getReader: () => reader,
-        },
-      })
-      .mockResolvedValueOnce({
-        ok: true,
         text: async () => JSON.stringify(cancelAck),
       });
+    const streamRequestImpl = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      body: {
+        getReader: () => reader,
+      },
+    });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
@@ -2301,6 +3613,7 @@ describe("unchain service session memory replacement", () => {
         randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
       },
       net: createAvailableNet(),
+      streamRequestImpl,
       webContents: {
         fromId: jest.fn(() => target),
         getAllWebContents: jest.fn(() => [target]),
@@ -2315,6 +3628,7 @@ describe("unchain service session memory replacement", () => {
       { sender: { id: 91 } },
       {
         requestId: "req-v4-cancel",
+        attachmentId: "attachment-v4-cancel",
         payload: {
           threadId: "chat-v4-cancel",
           attempt_id: "req-v4-cancel",
@@ -2335,15 +3649,15 @@ describe("unchain service session memory replacement", () => {
       }),
     ).resolves.toEqual(cancelAck);
 
-    expect(global.fetch.mock.calls[2][0]).toContain("/chat/executions/cancel");
-    expect(global.fetch.mock.calls[2][1]).toMatchObject({
+    expect(global.fetch.mock.calls[1][0]).toContain("/chat/executions/cancel");
+    expect(global.fetch.mock.calls[1][1]).toMatchObject({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-unchain-auth": "auth-token-123",
       },
     });
-    expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toEqual({
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
       execution_id: "chat-v4-cancel",
       attempt_id: "req-v4-cancel",
       source_attempt_id: "source-v4-cancel",

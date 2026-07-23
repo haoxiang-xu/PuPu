@@ -130,4 +130,78 @@ describe("test_bridge chat_storage_adapter (v3 lazy messages)", () => {
     expect(config.last_message_role).toBe("assistant");
     expect(bridge.readMessages).toHaveBeenCalledWith(CHAT_B);
   });
+
+  test("selectTreeNode returns the exact committed chat and tree-node identity", () => {
+    const adapter = makeAdapter();
+
+    expect(adapter.selectTreeNode(CHAT_B)).toEqual({
+      chat_id: CHAT_B,
+      node_id: NODE_B,
+      active_chat_id: CHAT_B,
+    });
+    expect(adapter.getActiveChatId()).toBe(CHAT_B);
+  });
+
+  test("selectTreeNode fails closed for an unknown chat", () => {
+    const adapter = makeAdapter();
+
+    expect(() => adapter.selectTreeNode("missing-chat")).toThrow(
+      expect.objectContaining({ code: "chat_not_found", status: 404 }),
+    );
+    expect(adapter.getActiveChatId()).toBe(CHAT_A);
+  });
+
+  test("setChatCharacter is idempotent for a default chat and null", () => {
+    const adapter = makeAdapter();
+
+    expect(adapter.setChatCharacter(CHAT_A, null)).toEqual({
+      ok: true,
+      character_id: null,
+    });
+    expect(adapter.getChatDetail(CHAT_A).character_id).toBeNull();
+  });
+
+  test("setChatCharacter is idempotent for the canonical character id", () => {
+    const snapshot = bridge.bootstrap();
+    bridge.bootstrap.mockReturnValue({
+      ...snapshot,
+      chatMetasById: {
+        ...snapshot.chatMetasById,
+        [CHAT_A]: {
+          ...snapshot.chatMetasById[CHAT_A],
+          kind: "character",
+          characterId: "character-a",
+          characterName: "Character A",
+          threadId: "main",
+        },
+      },
+    });
+    const adapter = makeAdapter();
+
+    expect(adapter.setChatCharacter(CHAT_A, "character-a")).toEqual({
+      ok: true,
+      character_id: "character-a",
+    });
+    expect(adapter.getChatDetail(CHAT_A).character_id).toBe("character-a");
+  });
+
+  test("setChatCharacter fails closed instead of mutating chat identity", () => {
+    const adapter = makeAdapter();
+
+    expect(() => adapter.setChatCharacter(CHAT_A, "character-b")).toThrow(
+      expect.objectContaining({
+        code: "character_update_unsupported",
+        status: 409,
+      }),
+    );
+    expect(adapter.getChatDetail(CHAT_A).character_id).toBeNull();
+  });
+
+  test("setChatCharacter rejects an unknown chat", () => {
+    const adapter = makeAdapter();
+
+    expect(() => adapter.setChatCharacter("missing-chat", null)).toThrow(
+      expect.objectContaining({ code: "chat_not_found", status: 404 }),
+    );
+  });
 });

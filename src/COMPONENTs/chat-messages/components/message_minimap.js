@@ -196,7 +196,9 @@ const MessageMinimap = ({
 
   // 刻度池:数量 = min(消息数, 窗口容量)。容量依赖轨道真实高度 → 挂载/resize 时
   // setState 一次(合法重排点),其余时间 React 不参与。
-  const [poolSize, setPoolSize] = useState(0);
+  const fallbackPoolSize = winCapacity(0);
+  const [poolSize, setPoolSize] = useState(fallbackPoolSize);
+  const poolSizeRef = useRef(fallbackPoolSize);
 
   const stackRef = useRef(null);
   const trackRef = useRef(null);
@@ -251,6 +253,34 @@ const MessageMinimap = ({
   useEffect(() => {
     ensureStyle();
   }, []);
+
+  const hasMessages = messages.length > 0;
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    if (!track || !hasMessages) return undefined;
+
+    const syncPoolSize = () => {
+      const trackHeight = track.clientHeight;
+      // A hidden/detached ancestor can briefly report zero during reload or a
+      // chat switch. Treat that as a transient layout gap, never as a real
+      // ten-slot capacity; accepting it creates a 43↔10 feedback loop.
+      if (!Number.isFinite(trackHeight) || trackHeight <= 2 * PADV) return;
+      const nextPoolSize = winCapacity(trackHeight - 2 * PADV);
+      if (poolSizeRef.current === nextPoolSize) return;
+      poolSizeRef.current = nextPoolSize;
+      setPoolSize(nextPoolSize);
+    };
+
+    syncPoolSize();
+    const poolResizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(syncPoolSize)
+        : null;
+    if (poolResizeObserver) poolResizeObserver.observe(track);
+    return () => {
+      if (poolResizeObserver) poolResizeObserver.disconnect();
+    };
+  }, [bottomViewportInset, hasMessages]);
 
   const REDUCED =
     typeof window !== "undefined" &&
@@ -479,7 +509,13 @@ const MessageMinimap = ({
 
       const scrollable = el.scrollHeight - el.clientHeight > 1;
       if (stackRef.current) {
-        stackRef.current.style.display = scrollable || isWindowed(count, u) ? "" : "none";
+        const visible = scrollable || isWindowed(count, u);
+        // Keep the measured track in layout while visually hidden. display:none
+        // collapses clientHeight to zero, which changes the calculated capacity
+        // and can immediately make the minimap decide to show itself again.
+        stackRef.current.style.visibility = visible ? "visible" : "hidden";
+        stackRef.current.style.pointerEvents = visible ? "auto" : "none";
+        stackRef.current.setAttribute("aria-hidden", visible ? "false" : "true");
       }
     };
     const paint = () => {
@@ -799,22 +835,18 @@ const MessageMinimap = ({
     track.addEventListener("keydown", onKeyDown);
     el.addEventListener("scroll", onScroll, { passive: true });
 
-    // 池容量 = 窗口容量:挂载与 resize 时各校准一次(合法 setState 点)
-    const syncPool = () => {
-      const cap = winCapacity(usable());
-      setPoolSize((prev) => (prev === cap ? prev : cap));
-    };
-    syncPool();
-    const ro =
+    // Geometry painting observes both surfaces, but pool-size state is owned by
+    // the isolated measurement effect above so this command effect cannot feed
+    // its own dependency cycle.
+    const paintResizeObserver =
       typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(() => {
-            syncPool();
             if (!latestRef.current.isStreaming) paint();
           })
         : null;
-    if (ro) {
-      ro.observe(track);
-      ro.observe(el);
+    if (paintResizeObserver) {
+      paintResizeObserver.observe(track);
+      paintResizeObserver.observe(el);
     }
     // 流式兜底:直播膨胀不产生 scroll 事件时(用户上翻脱离吸底),透镜/进度仍每 400ms 跟上
     let streamTimer = null;
@@ -838,7 +870,7 @@ const MessageMinimap = ({
       if (paintQueued != null && typeof window.cancelAnimationFrame === "function") {
         window.cancelAnimationFrame(paintQueued);
       }
-      if (ro) ro.disconnect();
+      if (paintResizeObserver) paintResizeObserver.disconnect();
       if (streamTimer != null) clearInterval(streamTimer);
       stopCrawl();
       cancelFlash();

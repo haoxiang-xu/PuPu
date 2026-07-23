@@ -92,6 +92,16 @@ def chat_interject() -> Response:
     thread_id = str(payload.get("thread_id") or "").strip()
     text = str(payload.get("text") or "").strip()
     channel = str(payload.get("channel") or "auto").strip().lower()
+    raw_message_id = payload.get("message_id")
+    if raw_message_id is not None and not isinstance(raw_message_id, str):
+        return root._json_error("invalid_request", "message_id must be a string", 400)
+    client_message_id = str(raw_message_id or "").strip()
+    if len(client_message_id) > 200:
+        return root._json_error(
+            "invalid_request",
+            "message_id must be at most 200 characters",
+            400,
+        )
     if channel == "steer":  # legacy client compat: pre-rename clients send "steer"
         channel = "queue"
     if not thread_id or not text:
@@ -121,7 +131,10 @@ def chat_interject() -> Response:
             return jsonify({"resolved_channel": channel})
 
     if channel == "fyi":
-        message_id = channels.fyi.post(text)
+        message_id = channels.fyi.post(
+            text,
+            message_id=client_message_id or None,
+        )
         if get_interject_channels(thread_id) is not channels:
             # The run released (and possibly re-registered) this entry
             # between our lookup and the post above — the queued message

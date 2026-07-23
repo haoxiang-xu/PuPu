@@ -1,4 +1,5 @@
 import { toPluginPresentation, loadStoreCuration } from "./plugin_presentation";
+import registry from "./mcp_toolkit_registry.json";
 
 const ENTRY = {
   toolkitId: "plan",
@@ -94,5 +95,32 @@ describe("loadStoreCuration", () => {
     expect(Array.isArray(c.essentials)).toBe(true);
     expect(c.collections.length).toBeGreaterThan(0);
     expect(c.collections[0].gradient).toHaveLength(2);
+  });
+
+  test("recommends only release-gated MCP entries that require no credentials", () => {
+    const c = loadStoreCuration();
+    const recommendedIds = new Set([
+      c.featured?.pluginId,
+      ...c.essentials,
+      ...c.collections.flatMap((collection) => collection.pluginIds),
+    ].filter(Boolean));
+    const entriesByToolkitId = new Map(
+      registry.entries.map((entry) => [entry.toolkitId, entry]),
+    );
+
+    expect([...recommendedIds].sort()).toEqual([
+      "mcp.browser.chrome-devtools",
+      "mcp.browser.playwright",
+      "mcp.memory.memory",
+      "mcp.workspace.fetch",
+      "mcp.workspace.filesystem",
+      "mcp.workspace.markitdown",
+      "mcp.workspace.sqlite",
+    ]);
+    for (const toolkitId of recommendedIds) {
+      const entry = entriesByToolkitId.get(toolkitId);
+      expect(entry).toMatchObject({ status: "available", installable: true });
+      expect(entry.secrets || []).toHaveLength(0);
+    }
   });
 });

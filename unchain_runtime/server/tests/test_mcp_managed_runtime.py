@@ -1,5 +1,7 @@
+import io
 import json
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -133,6 +135,91 @@ class ManagedMcpRuntimeTests(unittest.TestCase):
                 )
 
         self.assertEqual(ctx.exception.code, "mcp_runtime_checksum_failed")
+
+    def test_safe_extract_allows_relative_symlink_that_stays_inside_root(self):
+        archive_path = self.data_dir / "safe-relative-link.tar.gz"
+        target_dir = self.data_dir / "extracted"
+        payload = b"#!/usr/bin/env node\n"
+        with tarfile.open(archive_path, "w:gz") as archive:
+            target = tarfile.TarInfo(
+                "node-test/lib/node_modules/corepack/dist/corepack.js"
+            )
+            target.size = len(payload)
+            archive.addfile(target, io.BytesIO(payload))
+            link = tarfile.TarInfo("node-test/bin/corepack")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "../lib/node_modules/corepack/dist/corepack.js"
+            archive.addfile(link)
+
+        mcp_managed_runtime._safe_extract_tar(archive_path, target_dir)
+
+        extracted_link = target_dir / "node-test" / "bin" / "corepack"
+        self.assertTrue(extracted_link.is_symlink())
+        self.assertEqual(extracted_link.read_bytes(), payload)
+
+    def test_safe_extract_rejects_relative_symlink_that_escapes_root(self):
+        archive_path = self.data_dir / "escaping-symlink.tar.gz"
+        target_dir = self.data_dir / "extracted"
+        with tarfile.open(archive_path, "w:gz") as archive:
+            link = tarfile.TarInfo("node-test/bin/escape")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "../../../outside.txt"
+            archive.addfile(link)
+
+        with self.assertRaises(McpManagedRuntimeError) as ctx:
+            mcp_managed_runtime._safe_extract_tar(archive_path, target_dir)
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_install_failed")
+        self.assertFalse((self.data_dir / "outside.txt").exists())
+
+    def test_safe_extract_rejects_absolute_symlink_target(self):
+        archive_path = self.data_dir / "absolute-symlink.tar.gz"
+        target_dir = self.data_dir / "extracted"
+        with tarfile.open(archive_path, "w:gz") as archive:
+            link = tarfile.TarInfo("node-test/bin/escape")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "/etc/passwd"
+            archive.addfile(link)
+
+        with self.assertRaises(McpManagedRuntimeError) as ctx:
+            mcp_managed_runtime._safe_extract_tar(archive_path, target_dir)
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_install_failed")
+
+    def test_safe_extract_allows_archive_root_hardlink_inside_root(self):
+        archive_path = self.data_dir / "safe-hardlink.tar.gz"
+        target_dir = self.data_dir / "extracted"
+        payload = b"node-binary"
+        with tarfile.open(archive_path, "w:gz") as archive:
+            target = tarfile.TarInfo("node-test/bin/node")
+            target.size = len(payload)
+            archive.addfile(target, io.BytesIO(payload))
+            link = tarfile.TarInfo("node-test/bin/node-copy")
+            link.type = tarfile.LNKTYPE
+            link.linkname = "node-test/bin/node"
+            archive.addfile(link)
+
+        mcp_managed_runtime._safe_extract_tar(archive_path, target_dir)
+
+        self.assertEqual(
+            (target_dir / "node-test" / "bin" / "node-copy").read_bytes(),
+            payload,
+        )
+
+    def test_safe_extract_rejects_archive_root_hardlink_that_escapes_root(self):
+        archive_path = self.data_dir / "escaping-hardlink.tar.gz"
+        target_dir = self.data_dir / "extracted"
+        with tarfile.open(archive_path, "w:gz") as archive:
+            link = tarfile.TarInfo("node-test/bin/escape")
+            link.type = tarfile.LNKTYPE
+            link.linkname = "../outside.txt"
+            archive.addfile(link)
+
+        with self.assertRaises(McpManagedRuntimeError) as ctx:
+            mcp_managed_runtime._safe_extract_tar(archive_path, target_dir)
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_install_failed")
+        self.assertFalse((self.data_dir / "outside.txt").exists())
 
 
 if __name__ == "__main__":

@@ -1,19 +1,19 @@
 {
   "featured": {
-    "pluginId": "mcp.dev.github-remote",
+    "pluginId": "mcp.browser.playwright",
     "kicker": "Editor's pick",
-    "headline": "GitHub, in the chat",
-    "blurb": "Repos, issues and pull requests — review and ship without leaving PuPu.",
+    "headline": "Browse and test, in the chat",
+    "blurb": "Navigate, inspect and automate web flows with the release-tested Playwright MCP server.",
     "gradient": [
       "#6478f6",
       "#4a5bd8"
     ]
   },
   "essentials": [
-    "mcp.productivity.notion-remote",
-    "mcp.dev.figma-remote",
-    "mcp.devops.grafana",
-    "mcp.browser.chrome-devtools"
+    "mcp.browser.playwright",
+    "mcp.browser.chrome-devtools",
+    "mcp.workspace.filesystem",
+    "mcp.memory.memory"
   ],
   "collections": [
     {
@@ -25,23 +25,35 @@
         "#2f9a68"
       ],
       "pluginIds": [
-        "agent_reach",
+        "mcp.browser.playwright",
         "mcp.browser.chrome-devtools"
       ]
     },
     {
-      "id": "ship-it-pack",
-      "title": "Ship-It Pack",
-      "blurb": "Plan, code review, monitor, announce.",
+      "id": "workspace-kit",
+      "title": "Workspace Kit",
+      "blurb": "Read files, convert documents and fetch web content.",
       "gradient": [
         "#f6a341",
         "#ea7547"
       ],
       "pluginIds": [
-        "plan",
-        "mcp.dev.github-remote",
-        "mcp.devops.grafana",
-        "mcp.productivity.discord"
+        "mcp.workspace.filesystem",
+        "mcp.workspace.markitdown",
+        "mcp.workspace.fetch"
+      ]
+    },
+    {
+      "id": "local-knowledge-kit",
+      "title": "Local Knowledge Kit",
+      "blurb": "Keep structured notes and query local data without credentials.",
+      "gradient": [
+        "#6478f6",
+        "#4a5bd8"
+      ],
+      "pluginIds": [
+        "mcp.memory.memory",
+        "mcp.workspace.sqlite"
       ]
     }
   ],

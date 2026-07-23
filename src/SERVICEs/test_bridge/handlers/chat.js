@@ -7,8 +7,8 @@ export const createChatHandlers = ({ chatStorage }) => ({
   listChats: async () => ({ chats: chatStorage.listChatsSummary() }),
   getChat: async ({ id }) => chatStorage.getChatDetail(id),
   activateChat: async ({ id }) => {
-    chatStorage.selectTreeNode(id);
-    return { ok: true };
+    const activated = chatStorage.selectTreeNode(id);
+    return { ok: true, ...activated };
   },
   renameChat: async ({ id, title }) => {
     chatStorage.setChatTitle(id, title);

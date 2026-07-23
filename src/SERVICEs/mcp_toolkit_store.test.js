@@ -768,12 +768,19 @@ describe("mcp_toolkit_store", () => {
         sourceRepo: "https://github.com/ChromeDevTools/chrome-devtools-mcp",
       }),
     );
-    expect(chrome.mcp).toEqual(
-      expect.objectContaining({
-        transport: "stdio",
-        command: "npx",
-        args: ["-y", "chrome-devtools-mcp@1.6.0"],
-      }),
+    expect(chrome.mcp).toEqual({
+      transport: "stdio",
+      command: "npx",
+      args: [
+        "-y",
+        "chrome-devtools-mcp@1.6.0",
+        "--no-usage-statistics",
+        "--no-performance-crux",
+      ],
+      headers: [],
+    });
+    expect(chrome.setupPreview).toBe(
+      "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
     );
     expect(chrome.secrets).toEqual([]);
     expect(

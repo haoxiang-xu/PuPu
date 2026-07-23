@@ -6,7 +6,6 @@ const {
   ipcMain,
   webContents,
   nativeTheme,
-  net: electronNet,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -95,7 +94,7 @@ if (!gotSingleInstanceLock) {
     spawnSync,
     crypto,
     net,
-    streamFetchImpl: electronNet.fetch.bind(electronNet),
+    // Localhost SSE transport is owned by the service's Node adapter.
     shell,
     webContents,
     runtimeService,

@@ -88,4 +88,24 @@ describe("test-api/commands", () => {
       message: "boom",
     });
   });
+
+  test("unsupported character mutation maps to conflict without renderer status", async () => {
+    const reg = createCommandRegistry();
+    reg.register({
+      method: "POST",
+      path: "/v1/character",
+      handler: async () => {
+        throw Object.assign(new Error("character chats are immutable"), {
+          code: "character_update_unsupported",
+        });
+      },
+    });
+    const result = await reg.dispatch({
+      method: "POST",
+      path: "/v1/character",
+      body: {},
+    });
+    expect(result.status).toBe(409);
+    expect(result.body.error.code).toBe("character_update_unsupported");
+  });
 });

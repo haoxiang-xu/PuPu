@@ -151,6 +151,7 @@ const PluginsCategoriesPage = ({
   const registryItems = useMemo(
     () =>
       filteredRegistryEntries
+        .filter((entry) => entry?.status !== "needs_review")
         .map((entry) => ({
           kind: "registry",
           key: entry.id,

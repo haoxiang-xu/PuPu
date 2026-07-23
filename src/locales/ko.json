@@ -476,6 +476,7 @@
     "nav_installed": "설치됨",
     "search_placeholder_v2": "플러그인 검색",
     "installed_title": "설치됨",
+    "installed_needs_attention": "확인 필요",
     "pill_get": "받기",
     "pill_open": "열기",
     "section_commands": "명령어",

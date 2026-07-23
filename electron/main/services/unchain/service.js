@@ -1,3 +1,6 @@
+const { request: nodeHttpRequest } = require("http");
+const { request: nodeHttpsRequest } = require("https");
+const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
 const { createPortFinder } = require("../../../shared/port_utils");
 
@@ -14,6 +17,10 @@ const UNCHAIN_DURABLE_JOB_WORKER_FLAG = "--durable-job-worker";
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
+const UNCHAIN_STREAM_REPLAY_MAX_EVENTS = 100000;
+const UNCHAIN_STREAM_REPLAY_MAX_BYTES = 32 * 1024 * 1024;
+const UNCHAIN_STREAM_REPLAY_TTL_MS = 30 * 60 * 1000;
+const UNCHAIN_STREAM_REPLAY_COMPACT_MIN_HEAD = 4096;
 const UNCHAIN_EXECUTION_CANCEL_ENDPOINT = "/chat/executions/cancel";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_PENDING_INTERACTION_ENDPOINT = "/chat/interactions/pending";
@@ -71,6 +78,181 @@ const UNCHAIN_CHARACTERS_ENDPOINT = "/characters";
 const UNCHAIN_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
 const UNCHAIN_CHARACTER_BUILD_ENDPOINT = "/characters/build";
 const UNCHAIN_CHARACTER_IMPORT_ENDPOINT = "/characters/import";
+
+const resolvePositiveReplaySetting = (value, fallback) => {
+  const candidate = Number(value);
+  return Number.isSafeInteger(candidate) && candidate > 0
+    ? candidate
+    : fallback;
+};
+
+const createStreamAbortError = (signal) => {
+  if (signal?.reason instanceof Error) {
+    return signal.reason;
+  }
+  const error = new Error("The operation was aborted");
+  error.name = "AbortError";
+  error.code = "ABORT_ERR";
+  return error;
+};
+
+const readStreamBodyText = async (body) => {
+  const reader = body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let text = "";
+  try {
+    while (true) {
+      // eslint-disable-next-line no-await-in-loop
+      const { done, value } = await reader.read();
+      if (done) {
+        return text + decoder.decode();
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    if (typeof reader.releaseLock === "function") {
+      reader.releaseLock();
+    }
+  }
+};
+
+const createNodeStreamFetch = ({
+  httpRequest = nodeHttpRequest,
+  httpsRequest = nodeHttpsRequest,
+} = {}) => {
+  return (url, options = {}) =>
+    new Promise((resolve, reject) => {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(url);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      const requestImpl =
+        parsedUrl.protocol === "http:"
+          ? httpRequest
+          : parsedUrl.protocol === "https:"
+            ? httpsRequest
+            : null;
+      if (typeof requestImpl !== "function") {
+        reject(
+          new TypeError(
+            `Unsupported stream protocol: ${parsedUrl.protocol || "unknown"}`,
+          ),
+        );
+        return;
+      }
+
+      const signal = options.signal;
+      if (signal?.aborted) {
+        reject(createStreamAbortError(signal));
+        return;
+      }
+
+      let request = null;
+      let responseStream = null;
+      let responseSettled = false;
+      let abortHandled = false;
+      let abortListener = null;
+      const cleanupAbortListener = () => {
+        if (
+          signal &&
+          abortListener &&
+          typeof signal.removeEventListener === "function"
+        ) {
+          signal.removeEventListener("abort", abortListener);
+        }
+      };
+      const rejectBeforeResponse = (error) => {
+        if (responseSettled) {
+          return;
+        }
+        responseSettled = true;
+        cleanupAbortListener();
+        reject(error);
+      };
+
+      try {
+        request = requestImpl(
+          parsedUrl,
+          {
+            method: options.method || "GET",
+            headers: options.headers || {},
+          },
+          (incomingResponse) => {
+            if (responseSettled) {
+              incomingResponse.destroy();
+              return;
+            }
+
+            responseStream = incomingResponse;
+            let body;
+            try {
+              body = Readable.toWeb(incomingResponse);
+            } catch (error) {
+              incomingResponse.destroy();
+              rejectBeforeResponse(error);
+              return;
+            }
+
+            responseSettled = true;
+            incomingResponse.once("end", cleanupAbortListener);
+            incomingResponse.once("close", cleanupAbortListener);
+            incomingResponse.once("error", cleanupAbortListener);
+            const status = Number(incomingResponse.statusCode || 0);
+            resolve({
+              ok: status >= 200 && status < 300,
+              status,
+              statusText: incomingResponse.statusMessage || "",
+              body,
+              text: () => readStreamBodyText(body),
+            });
+          },
+        );
+      } catch (error) {
+        rejectBeforeResponse(error);
+        return;
+      }
+
+      request.once("error", rejectBeforeResponse);
+      if (typeof request.setTimeout === "function") {
+        request.setTimeout(0);
+      }
+
+      if (signal && typeof signal.addEventListener === "function") {
+        abortListener = () => {
+          if (abortHandled) {
+            return;
+          }
+          abortHandled = true;
+          const error = createStreamAbortError(signal);
+          if (responseStream && !responseStream.destroyed) {
+            responseStream.destroy(error);
+          }
+          if (request && !request.destroyed) {
+            request.destroy(error);
+          }
+          rejectBeforeResponse(error);
+        };
+        signal.addEventListener("abort", abortListener, { once: true });
+        if (signal.aborted) {
+          abortListener();
+          return;
+        }
+      }
+
+      try {
+        request.end(options.body);
+      } catch (error) {
+        if (!request.destroyed) {
+          request.destroy(error);
+        }
+        rejectBeforeResponse(error);
+      }
+    });
+};
 
 class MisoRuntimeContractError extends Error {
   constructor(message, contract = null) {
@@ -229,7 +411,8 @@ const createUnchainService = ({
   spawnSync,
   crypto,
   net,
-  streamFetchImpl = (...args) => globalThis.fetch(...args),
+  streamRequestImpl = createNodeStreamFetch(),
+  streamReplayConfig = {},
   shell = {},
   webContents,
   runtimeService,
@@ -253,6 +436,23 @@ const createUnchainService = ({
   let lastComputerUseLocalBetaDesired = null;
 
   const unchainActiveStreams = new Map();
+  const unchainStreamReplays = new Map();
+  const replayConfig =
+    streamReplayConfig && typeof streamReplayConfig === "object"
+      ? streamReplayConfig
+      : {};
+  const streamReplayMaxEvents = resolvePositiveReplaySetting(
+    replayConfig.maxEvents,
+    UNCHAIN_STREAM_REPLAY_MAX_EVENTS,
+  );
+  const streamReplayMaxBytes = resolvePositiveReplaySetting(
+    replayConfig.maxBytes,
+    UNCHAIN_STREAM_REPLAY_MAX_BYTES,
+  );
+  const streamReplayTtlMs = resolvePositiveReplaySetting(
+    replayConfig.ttlMs,
+    UNCHAIN_STREAM_REPLAY_TTL_MS,
+  );
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const { findAvailablePort } = createPortFinder(net);
@@ -2584,17 +2784,154 @@ const createUnchainService = ({
     );
   };
 
-  const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
-    const target = webContents.fromId(targetWebContentsId);
-    if (!target || target.isDestroyed()) {
-      return;
+  const clearMisoStreamReplayExpiry = (streamState) => {
+    if (streamState?.replayExpiryTimer) {
+      clearTimeout(streamState.replayExpiryTimer);
+      streamState.replayExpiryTimer = null;
+    }
+  };
+
+  const expireMisoStreamReplay = (requestId, streamState) => {
+    clearMisoStreamReplayExpiry(streamState);
+    streamState.replayExpiryTimer = setTimeout(() => {
+      if (unchainStreamReplays.get(requestId) === streamState) {
+        unchainStreamReplays.delete(requestId);
+      }
+    }, streamReplayTtlMs);
+    if (typeof streamState.replayExpiryTimer.unref === "function") {
+      streamState.replayExpiryTimer.unref();
+    }
+  };
+
+  const isTerminalMisoStreamEvent = (event, data) =>
+    event === "done" ||
+    event === "error" ||
+    (event === "frame" &&
+      (data?.type === "done" || data?.type === "error"));
+
+  const measureMisoStreamReplayEnvelope = (envelope) => {
+    try {
+      return Buffer.byteLength(JSON.stringify(envelope), "utf8");
+    } catch {
+      return streamReplayMaxBytes + 1;
+    }
+  };
+
+  const trimMisoStreamReplay = (streamState) => {
+    while (
+      streamState.replayBuffer.length - streamState.replayHead >
+        streamReplayMaxEvents ||
+      streamState.replayBytes > streamReplayMaxBytes
+    ) {
+      const replayEntry = streamState.replayBuffer[streamState.replayHead];
+      streamState.replayBuffer[streamState.replayHead] = null;
+      streamState.replayHead += 1;
+      if (replayEntry) {
+        streamState.replayBytes = Math.max(
+          0,
+          streamState.replayBytes - replayEntry.byteSize,
+        );
+      }
     }
 
-    target.send(CHANNELS.UNCHAIN.STREAM_EVENT, {
+    if (
+      streamState.replayHead >= UNCHAIN_STREAM_REPLAY_COMPACT_MIN_HEAD &&
+      streamState.replayHead * 2 >= streamState.replayBuffer.length
+    ) {
+      streamState.replayBuffer = streamState.replayBuffer.slice(
+        streamState.replayHead,
+      );
+      streamState.replayHead = 0;
+    }
+  };
+
+  const recordMisoStreamEvent = (requestId, event, data) => {
+    const streamState = unchainStreamReplays.get(requestId);
+    if (!streamState) {
+      return null;
+    }
+    const streamSeq = streamState.nextReplaySeq;
+    streamState.nextReplaySeq += 1;
+    const envelope = { requestId, event, data, streamSeq };
+    const byteSize = measureMisoStreamReplayEnvelope(envelope);
+    streamState.replayBuffer.push({ envelope, byteSize });
+    streamState.replayBytes += byteSize;
+    trimMisoStreamReplay(streamState);
+    if (isTerminalMisoStreamEvent(event, data)) {
+      streamState.terminal = true;
+      streamState.terminalStreamSeq = streamSeq;
+    }
+    return envelope;
+  };
+
+  const resolveMisoStreamTarget = (targetOrId) => {
+    try {
+      const target =
+        targetOrId && typeof targetOrId.send === "function"
+          ? targetOrId
+          : webContents.fromId(
+              typeof targetOrId === "number" ? targetOrId : targetOrId?.id,
+            );
+      if (!target || typeof target.send !== "function") {
+        return null;
+      }
+      if (
+        typeof target.isDestroyed === "function" &&
+        target.isDestroyed()
+      ) {
+        return null;
+      }
+      return target;
+    } catch {
+      return null;
+    }
+  };
+
+  const sendMisoStreamEnvelope = (targetOrId, envelope) => {
+    const target = resolveMisoStreamTarget(targetOrId);
+    if (!target) {
+      return false;
+    }
+    try {
+      target.send(CHANNELS.UNCHAIN.STREAM_EVENT, envelope);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const emitMisoStreamDirectEvent = (target, requestId, event, data) =>
+    sendMisoStreamEnvelope(target, {
       requestId,
       event,
       data,
     });
+
+  const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
+    const streamState = unchainStreamReplays.get(requestId);
+    const envelope =
+      recordMisoStreamEvent(requestId, event, data) || {
+        requestId,
+        event,
+        data,
+      };
+    const attachedWebContentsId = streamState
+      ? streamState.attachedWebContentsId
+      : targetWebContentsId;
+    if (!attachedWebContentsId) {
+      return;
+    }
+    const attachedAttachmentId = streamState?.attachmentId || "";
+    const sent = sendMisoStreamEnvelope(attachedWebContentsId, envelope);
+    if (
+      !sent &&
+      streamState &&
+      streamState.attachedWebContentsId === attachedWebContentsId &&
+      streamState.attachmentId === attachedAttachmentId
+    ) {
+      streamState.attachedWebContentsId = null;
+      streamState.attachmentId = "";
+    }
   };
 
   const emitMisoRuntimeLog = (level, text) => {
@@ -3117,9 +3454,9 @@ const createUnchainService = ({
     }
 
     if (!sawTerminalEvent && !controller.signal.aborted) {
-      emitMisoStreamEvent(webContentsId, requestId, "done", {
-        cancelled: false,
-        reason: "stream_closed",
+      emitMisoStreamEvent(webContentsId, requestId, "error", {
+        code: "unexpected_stream_eof",
+        message: "Miso stream ended before a terminal event",
       });
     }
   };
@@ -3128,6 +3465,7 @@ const createUnchainService = ({
     requestId,
     payload,
     sender,
+    attachmentId = "",
     endpoint = UNCHAIN_STREAM_ENDPOINT,
   }) => {
     if (typeof requestId !== "string" || !requestId.trim()) {
@@ -3139,7 +3477,7 @@ const createUnchainService = ({
         typeof unchainStatusReason === "string" && unchainStatusReason.trim()
           ? `: ${unchainStatusReason.trim()}`
           : "";
-      emitMisoStreamEvent(sender.id, requestId, "error", {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
         code: "unchain_not_ready",
         message: `Miso service is not ready (${unchainStatus})${reasonSuffix}`,
       });
@@ -3166,7 +3504,7 @@ const createUnchainService = ({
         workspaceRootCandidate,
       );
       if (!validation.valid) {
-        emitMisoStreamEvent(sender.id, requestId, "error", {
+        emitMisoStreamDirectEvent(sender, requestId, "error", {
           code: "invalid_workspace_root",
           message: validation.reason || "Invalid workspace root",
         });
@@ -3182,8 +3520,11 @@ const createUnchainService = ({
       requestPayload.options = requestOptions;
     }
 
-    if (unchainActiveStreams.has(requestId)) {
-      emitMisoStreamEvent(sender.id, requestId, "error", {
+    if (
+      unchainActiveStreams.has(requestId) ||
+      unchainStreamReplays.has(requestId)
+    ) {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
         code: "duplicate_request",
         message: "Request is already active",
       });
@@ -3202,26 +3543,48 @@ const createUnchainService = ({
       requestPayload.attempt_id ?? requestPayload.attemptId;
     const sourceAttemptIdCandidate =
       requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
-    unchainActiveStreams.set(requestId, {
+    const executionId =
+      typeof executionIdCandidate === "string"
+        ? executionIdCandidate.trim()
+        : "";
+    const attemptId =
+      typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "";
+    const sourceAttemptId =
+      typeof sourceAttemptIdCandidate === "string"
+        ? sourceAttemptIdCandidate.trim()
+        : "";
+    const normalizedAttachmentId =
+      typeof attachmentId === "string" ? attachmentId.trim() : "";
+    const replayEnabled = Boolean(
+      endpoint === UNCHAIN_STREAM_V4_ENDPOINT && executionId && attemptId,
+    );
+    const streamState = {
       controller,
       webContentsId: sender.id,
-      executionId:
-        typeof executionIdCandidate === "string"
-          ? executionIdCandidate.trim()
-          : "",
-      attemptId:
-        typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "",
-      sourceAttemptId:
-        typeof sourceAttemptIdCandidate === "string"
-          ? sourceAttemptIdCandidate.trim()
-          : "",
+      attachedWebContentsId: sender.id,
+      attachmentId: normalizedAttachmentId,
+      executionId,
+      attemptId,
+      sourceAttemptId,
       requestOptions: { ...requestPayload.options },
-    });
+      replayBuffer: [],
+      replayHead: 0,
+      replayBytes: 0,
+      nextReplaySeq: 1,
+      terminal: false,
+      terminalStreamSeq: 0,
+      replayExpiryTimer: null,
+    };
+    unchainActiveStreams.set(requestId, streamState);
+    if (replayEnabled) {
+      unchainStreamReplays.set(requestId, streamState);
+    }
 
     try {
-      // Node's global fetch (Undici) terminates quiet response bodies after five
-      // minutes. The Electron entrypoint injects Chromium's fetch for SSE only.
-      const response = await streamFetchImpl(
+      // Keep localhost SSE outside Chromium's network lifecycle. Display sleep
+      // can suspend Electron net.fetch, while Undici terminates quiet bodies
+      // after five minutes. The Node request adapter has no inactivity timeout.
+      const response = await streamRequestImpl(
         `http://${UNCHAIN_HOST}:${unchainPort}${endpoint}`,
         {
           method: "POST",
@@ -3236,10 +3599,15 @@ const createUnchainService = ({
 
       if (!response.ok) {
         const bodyText = await response.text();
+        let code = "upstream_http_error";
         let message = `Miso stream request failed (${response.status})`;
         if (bodyText) {
           try {
             const parsed = JSON.parse(bodyText);
+            const serverCode = parsed?.error?.code;
+            if (typeof serverCode === "string" && serverCode.trim()) {
+              code = serverCode.trim();
+            }
             const serverMessage = parsed?.error?.message || parsed?.message;
             if (serverMessage) {
               message = serverMessage;
@@ -3250,7 +3618,7 @@ const createUnchainService = ({
         }
 
         emitMisoStreamEvent(sender.id, requestId, "error", {
-          code: "upstream_http_error",
+          code,
           message,
         });
         return;
@@ -3277,6 +3645,9 @@ const createUnchainService = ({
       });
     } finally {
       unchainActiveStreams.delete(requestId);
+      if (unchainStreamReplays.get(requestId) === streamState) {
+        expireMisoStreamReplay(requestId, streamState);
+      }
     }
   };
 
@@ -3293,6 +3664,176 @@ const createUnchainService = ({
     }
     streamState.controller.abort();
     return true;
+  };
+
+  const readMisoStreamAttachmentIdentity = (payload = {}) => {
+    const requestIdCandidate = payload.request_id ?? payload.requestId;
+    const executionIdCandidate =
+      payload.execution_id ??
+      payload.executionId ??
+      payload.session_id ??
+      payload.sessionId;
+    const attemptIdCandidate = payload.attempt_id ?? payload.attemptId;
+    const attachmentIdCandidate =
+      payload.attachment_id ?? payload.attachmentId;
+    return {
+      requestId:
+        typeof requestIdCandidate === "string"
+          ? requestIdCandidate.trim()
+          : "",
+      executionId:
+        typeof executionIdCandidate === "string"
+          ? executionIdCandidate.trim()
+          : "",
+      attemptId:
+        typeof attemptIdCandidate === "string"
+          ? attemptIdCandidate.trim()
+          : "",
+      attachmentId:
+        typeof attachmentIdCandidate === "string"
+          ? attachmentIdCandidate.trim()
+          : "",
+    };
+  };
+
+  const matchesMisoStreamAttachmentIdentity = (streamState, identity) =>
+    Boolean(
+      streamState &&
+        identity.requestId &&
+        identity.executionId &&
+        identity.attemptId &&
+        streamState.executionId === identity.executionId &&
+        streamState.attemptId === identity.attemptId,
+    );
+
+  const detachMisoStream = (senderId, payload = {}) => {
+    const identity = readMisoStreamAttachmentIdentity(payload);
+    const streamState = identity.requestId
+      ? unchainStreamReplays.get(identity.requestId)
+      : null;
+    if (!matchesMisoStreamAttachmentIdentity(streamState, identity)) {
+      return false;
+    }
+    if (
+      streamState.attachedWebContentsId &&
+      streamState.attachedWebContentsId !== senderId
+    ) {
+      return false;
+    }
+    if (
+      streamState.attachmentId &&
+      streamState.attachmentId !== identity.attachmentId
+    ) {
+      return false;
+    }
+    streamState.attachedWebContentsId = null;
+    streamState.attachmentId = "";
+    return true;
+  };
+
+  const attachMisoStreamV4 = (event, payload = {}) => {
+    const identity = readMisoStreamAttachmentIdentity(payload);
+    if (
+      !identity.requestId ||
+      !identity.executionId ||
+      !identity.attemptId ||
+      !identity.attachmentId
+    ) {
+      return {
+        ok: false,
+        code: "invalid_stream_attach_identity",
+        message:
+          "request_id, execution_id, attempt_id, and attachment_id are required to attach a stream",
+      };
+    }
+    const streamState = unchainStreamReplays.get(identity.requestId);
+    if (!streamState) {
+      return {
+        ok: false,
+        code: "stream_not_found",
+        message: "The requested stream is no longer available for replay",
+      };
+    }
+    if (!matchesMisoStreamAttachmentIdentity(streamState, identity)) {
+      return {
+        ok: false,
+        code: "stream_identity_mismatch",
+        message: "The stream identity does not match this execution attempt",
+      };
+    }
+
+    const afterSeqCandidate = payload.after_seq ?? payload.afterSeq;
+    const afterSeqNumber = Number(afterSeqCandidate);
+    const afterSeq = Number.isInteger(afterSeqNumber)
+      ? Math.max(0, afterSeqNumber)
+      : 0;
+    const firstAvailableSeq =
+      streamState.replayBuffer[streamState.replayHead]?.envelope?.streamSeq ||
+      streamState.nextReplaySeq;
+    if (afterSeq < firstAvailableSeq - 1) {
+      return {
+        ok: false,
+        code: "stream_replay_gap",
+        message: "The requested stream replay is no longer complete",
+        first_available_seq: firstAvailableSeq,
+        requested_after_seq: afterSeq,
+      };
+    }
+
+    const target = resolveMisoStreamTarget(event?.sender);
+    if (!target) {
+      return {
+        ok: false,
+        code: "stream_attach_target_unavailable",
+        message: "The renderer is unavailable for stream replay",
+      };
+    }
+    streamState.attachedWebContentsId = streamState.terminal
+      ? null
+      : target.id;
+    streamState.attachmentId = streamState.terminal
+      ? ""
+      : identity.attachmentId;
+    let replayedThroughSeq = afterSeq;
+    for (
+      let replayIndex = streamState.replayHead;
+      replayIndex < streamState.replayBuffer.length;
+      replayIndex += 1
+    ) {
+      const envelope = streamState.replayBuffer[replayIndex]?.envelope;
+      if (!envelope) {
+        continue;
+      }
+      if (envelope.streamSeq <= afterSeq) {
+        continue;
+      }
+      if (!sendMisoStreamEnvelope(target, envelope)) {
+        if (
+          streamState.attachedWebContentsId === target.id &&
+          streamState.attachmentId === identity.attachmentId
+        ) {
+          streamState.attachedWebContentsId = null;
+          streamState.attachmentId = "";
+        }
+        return {
+          ok: false,
+          code: "stream_attach_target_unavailable",
+          message: "The renderer became unavailable during stream replay",
+          replayed_through_seq: replayedThroughSeq,
+        };
+      }
+      replayedThroughSeq = envelope.streamSeq;
+    }
+    return {
+      ok: true,
+      request_id: identity.requestId,
+      execution_id: identity.executionId,
+      attempt_id: identity.attemptId,
+      attachment_id: identity.attachmentId,
+      replayed_through_seq: replayedThroughSeq,
+      terminal: streamState.terminal,
+      active: unchainActiveStreams.get(identity.requestId) === streamState,
+    };
   };
 
   const cancelMisoExecution = async (payload = {}) => {
@@ -3414,11 +3955,17 @@ const createUnchainService = ({
   const handleStreamStartV4 = (event, payload) => {
     const requestId = payload?.requestId;
     const requestPayload = payload?.payload || {};
+    const attachmentId = payload?.attachmentId ?? payload?.attachment_id;
     void startMisoStreamV4({
       requestId,
       payload: requestPayload,
       sender: event.sender,
+      attachmentId,
     });
+  };
+
+  const handleStreamDetach = (event, payload) => {
+    detachMisoStream(event?.sender?.id, payload || {});
   };
 
   const handleStreamCancel = (_event, payload) => {
@@ -3490,13 +4037,16 @@ const createUnchainService = ({
     getMisoPendingInteraction,
     submitMisoInterject,
     cancelMisoExecution,
+    attachMisoStreamV4,
     handleStreamStart,
     handleStreamStartV2,
     handleStreamStartV4,
+    handleStreamDetach,
     handleStreamCancel,
   };
 };
 
 module.exports = {
+  createNodeStreamFetch,
   createUnchainService,
 };

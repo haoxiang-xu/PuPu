@@ -598,6 +598,7 @@
     "search_placeholder_v2": "搜索插件",
     "category_empty_search": "没有匹配搜索条件的插件。",
     "installed_title": "已安装",
+    "installed_needs_attention": "需要处理",
     "installed_no_matches": "没有匹配搜索条件的已安装插件。",
     "pill_get": "获取",
     "pill_open": "打开",

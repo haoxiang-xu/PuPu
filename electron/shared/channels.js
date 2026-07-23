@@ -106,6 +106,8 @@ const CHANNELS = Object.freeze({
     STREAM_START: "unchain:stream:start",
     STREAM_START_V2: "unchain:stream:start-v2",
     STREAM_START_V4: "unchain:stream:start-v4",
+    STREAM_ATTACH_V4: "unchain:stream:attach-v4",
+    STREAM_DETACH: "unchain:stream:detach",
     STREAM_CANCEL: "unchain:stream:cancel",
     STREAM_EVENT: "unchain:stream:event",
     RUNTIME_LOG: "unchain:runtime-log",

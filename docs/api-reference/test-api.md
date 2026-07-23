@@ -28,18 +28,25 @@ Base: `http://127.0.0.1:<port>/v1`
 | POST | `/chats` | `{title?, model?}` | `{chat_id, created_at}` |
 | GET | `/chats` | — | `{chats: [...]}` |
 | GET | `/chats/:id` | — | `{id, title, model, character_id, toolkits, messages}` |
-| POST | `/chats/:id/activate` | — | `{ok: true}` |
+| POST | `/chats/:id/activate` | — | `{ok: true, chat_id, node_id, active_chat_id}`; fails closed if the exact chat cannot be selected |
 | PATCH | `/chats/:id` | `{title?}` | `{ok: true}` |
 | DELETE | `/chats/:id` | — | `{ok: true}` |
 
-### Messages (blocking only in Phase 1)
+### Messages and async runs
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
 | POST | `/chats/:id/messages` | `{text, attachments?}` | `{message_id, role, content, tool_calls?, finish_reason, latency_ms}` |
 | POST | `/chats/:id/cancel` | — | `{ok, was_streaming}` |
+| POST | `/chats/:id/runs` | `{text, attachments?}` | `{chat_id, execution_id, attempt_id, status}` |
+| GET | `/chats/:id/runs/:attempt_id` | — | `{chat_id, execution_id, attempt_id, status, message_id?, content?}` |
+| POST | `/chats/:id/runs/:attempt_id/cancel` | — | `{ok, chat_id, execution_id, attempt_id, status}` |
 
 The blocking call holds the HTTP connection open until the assistant message completes (default timeout 5min).
+Async start returns as soon as the runtime has assigned an attempt id. Activate the
+chat before starting either form of request. Status and cancel are always scoped to
+the chat and attempt ids in the URL; PuPu never falls back to the currently visible
+chat when either id is wrong.
 
 ### Catalog and selection
 
@@ -50,16 +57,23 @@ The blocking call holds the HTTP connection open until the assistant message com
 | GET | `/catalog/characters` | — | `{characters: [...]}` |
 | POST | `/chats/:id/model` | `{model_id}` | `{ok, model_id}` |
 | POST | `/chats/:id/toolkits` | `{toolkit_ids: [...]}` | `{ok}` (override, not delta) |
-| POST | `/chats/:id/character` | `{character_id\|null}` | `{ok}` |
+| POST | `/chats/:id/character` | `{character_id\|null}` | `{ok, character_id}` when the requested value already matches |
+
+An existing chat's character identity cannot be changed through the Test API.
+The endpoint is idempotent when `character_id` exactly matches the chat's current
+canonical value (including `null` for a default chat); any actual change fails
+closed with `409 character_update_unsupported`. Open or create the canonical
+character chat instead so its thread, memory, and orchestration invariants stay
+aligned.
 
 ### Errors
 
 | Status | Code | Meaning |
 |---|---|---|
 | 400 | `invalid_payload` / `invalid_json` | Bad body |
-| 404 | `chat_not_found` / `not_found` | Unknown id/route |
+| 404 | `chat_not_found` / `run_not_found` / `not_found` | Unknown chat, run, or route |
 | 408 | `ipc_timeout` | Renderer didn't respond |
-| 409 | `no_handler` / `chat_not_active` | Command unregistered or chat not active |
+| 409 | `no_handler` / `chat_not_active` / `attempt_mismatch` / `run_already_active` / `run_not_active` / `character_update_unsupported` | Command unavailable, the addressed chat/attempt cannot own the operation, or an existing chat's character identity would change |
 | 500 | `handler_error` / `server_error` | Handler threw |
 | 503 | `not_ready` / `no_window` | Renderer test bridge not yet `markReady()`, or no focused window |
 

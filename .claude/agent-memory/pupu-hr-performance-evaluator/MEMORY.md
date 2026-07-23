@@ -1,2 +1,3 @@
 - [取证方法论](methods.md) — 多信号取证路径 + 裁撤双证 + 新角色/休眠误判防护
 - [团队花名册](team_roster.md) — reorg 后顶层 3 线 + HR，全 18 人归属、我的 scope/方法论/红线、与 org-architect 分界
+- [市场调研增编把关](market-research-overlap-gate.md) — 2026-07-21 拟建 market-research vs 巡/ai-researcher/智 重叠地图;能力真缺口但需求薄,别造第二个 growth-ops

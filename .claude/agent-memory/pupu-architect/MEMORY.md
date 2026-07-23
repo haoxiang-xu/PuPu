@@ -9,3 +9,4 @@
 - [0.1.9-0.2.0 三份前置设计定案](roadmap-predesigns-019-020.md) — 2026-07-05 Gemini=native kernel(compat判死)+白名单收敛;skills=hybrid渐进披露全Flask侧;external runner=进程边界实现subagent抽象+0.2.0冻结面
 - [computer use 门B启用路径定案](computer-use-gate-b-enable-path.md) — 2026-07-18 渲染层期望态+POST runtime override 不重启;红线=funnel门1永不读request flag;memory_factory私有副本必须收敛
 - [skill 展开岔口2定案](skill-expansion-fork2-decision.md) — 2026-07-18 裁D(A契约+渲染折叠sidecar composer.v1);否决B隐藏注入(content=模型真相是承重不变量);always模式才走before_model
+- [AGPL 换证评读定案](license-agpl-switch-review.md) — 2026-07-21 硬门PASS/CLA §4已覆盖relicense/建议0.1.9放大发布前换/unchain保持Apache;真单向门=CLA管线非license文本

@@ -3,6 +3,9 @@ const { CHANNELS } = require("../../shared/channels");
 const createRequestId = () =>
   `unchain-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const createAttachmentId = () =>
+  `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 const createMisoStreamClient = (ipcRenderer) => {
   const activeMisoStreamCleanups = new Map();
 
@@ -155,10 +158,35 @@ const createMisoStreamClient = (ipcRenderer) => {
     activeMisoStreamCleanups.set(requestId, cleanup);
   };
 
-  const registerRuntimeEventStreamListener = (requestId, handlers = {}) => {
-    const listener = (_event, envelope = {}) => {
+  const registerRuntimeEventStreamListener = (
+    requestId,
+    handlers = {},
+    observer = {},
+  ) => {
+    cleanupMisoStreamListener(requestId);
+
+    let cleaned = false;
+    let listener = null;
+    const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      if (listener) {
+        ipcRenderer.removeListener(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
+      }
+      if (activeMisoStreamCleanups.get(requestId) === cleanup) {
+        activeMisoStreamCleanups.delete(requestId);
+      }
+    };
+
+    listener = (_event, envelope = {}) => {
       if (envelope.requestId !== requestId) {
         return;
+      }
+
+      if (typeof observer.onEnvelope === "function") {
+        observer.onEnvelope(envelope);
       }
 
       const eventName = envelope.event;
@@ -166,7 +194,12 @@ const createMisoStreamClient = (ipcRenderer) => {
 
       if (eventName === "runtime_event") {
         if (typeof handlers.onRuntimeEvent === "function") {
-          handlers.onRuntimeEvent(data);
+          const streamSeq = Number(envelope.streamSeq || 0);
+          if (streamSeq > 0) {
+            handlers.onRuntimeEvent(data, { streamSeq });
+          } else {
+            handlers.onRuntimeEvent(data);
+          }
         }
         return;
       }
@@ -178,7 +211,7 @@ const createMisoStreamClient = (ipcRenderer) => {
             message: data.message || "Unknown stream error",
           });
         }
-        cleanupMisoStreamListener(requestId);
+        cleanup();
         return;
       }
 
@@ -193,22 +226,20 @@ const createMisoStreamClient = (ipcRenderer) => {
         } else if (typeof handlers.onDone === "function") {
           handlers.onDone(data);
         }
-        cleanupMisoStreamListener(requestId);
+        cleanup();
       }
     };
 
     ipcRenderer.on(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
-
-    const cleanup = () => {
-      ipcRenderer.removeListener(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
-    };
-
     activeMisoStreamCleanups.set(requestId, cleanup);
+    return cleanup;
   };
 
-  const registerMisoStreamV4Listener = (requestId, handlers = {}) => {
-    registerRuntimeEventStreamListener(requestId, handlers);
-  };
+  const registerMisoStreamV4Listener = (
+    requestId,
+    handlers = {},
+    observer = {},
+  ) => registerRuntimeEventStreamListener(requestId, handlers, observer);
 
   const startStream = (payload, handlers = {}) => {
     const requestId = createRequestId();
@@ -259,6 +290,7 @@ const createMisoStreamClient = (ipcRenderer) => {
 
   const startStreamV4 = (payload, handlers = {}) => {
     const requestId = createRequestId();
+    const attachmentId = createAttachmentId();
     const requestPayload =
       payload && typeof payload === "object" ? { ...payload } : {};
     const attemptIdCandidate =
@@ -278,27 +310,183 @@ const createMisoStreamClient = (ipcRenderer) => {
         ? executionIdCandidate.trim()
         : "";
 
-    registerMisoStreamV4Listener(requestId, handlers);
+    const listenerCleanup = registerMisoStreamV4Listener(requestId, handlers);
 
     ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_START_V4, {
       requestId,
+      attachmentId,
       payload: {
         ...requestPayload,
         attempt_id: attemptId,
       },
     });
 
-    const disconnect = () => {
+    const detach = () => {
+      ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_DETACH, {
+        requestId,
+        executionId,
+        attemptId,
+        attachmentId,
+      });
+      listenerCleanup();
+    };
+
+    const cancel = () => {
       ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
-      cleanupMisoStreamListener(requestId);
+      listenerCleanup();
     };
 
     return {
       requestId,
       executionId,
       attemptId,
-      disconnect,
-      cancel: disconnect,
+      attachmentId,
+      detach,
+      disconnect: cancel,
+      cancel,
+    };
+  };
+
+  const attachStreamV4 = async (payload = {}, handlers = {}) => {
+    const requestIdCandidate = payload.requestId ?? payload.request_id;
+    const executionIdCandidate =
+      payload.executionId ??
+      payload.execution_id ??
+      payload.sessionId ??
+      payload.session_id;
+    const attemptIdCandidate = payload.attemptId ?? payload.attempt_id;
+    const requestId =
+      typeof requestIdCandidate === "string" ? requestIdCandidate.trim() : "";
+    const executionId =
+      typeof executionIdCandidate === "string"
+        ? executionIdCandidate.trim()
+        : "";
+    const attemptId =
+      typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "";
+    const afterSeqCandidate = payload.afterSeq ?? payload.after_seq;
+    const afterSeq = Number.isInteger(Number(afterSeqCandidate))
+      ? Math.max(0, Number(afterSeqCandidate))
+      : 0;
+    const attachmentId = createAttachmentId();
+
+    if (!requestId || !executionId || !attemptId) {
+      const error = new TypeError(
+        "request_id, execution_id, and attempt_id are required to attach a stream",
+      );
+      error.code = "invalid_stream_attach_identity";
+      throw error;
+    }
+
+    let highestObservedStreamSeq = 0;
+    let pendingReplayDelivery = null;
+    const listenerCleanup = registerMisoStreamV4Listener(
+      requestId,
+      handlers,
+      {
+        onEnvelope: (envelope) => {
+          const streamSeq = Number(envelope?.streamSeq || 0);
+          if (
+            Number.isInteger(streamSeq) &&
+            streamSeq > highestObservedStreamSeq
+          ) {
+            highestObservedStreamSeq = streamSeq;
+          }
+          if (
+            pendingReplayDelivery &&
+            highestObservedStreamSeq >= pendingReplayDelivery.targetSeq
+          ) {
+            const { resolve, timeoutId } = pendingReplayDelivery;
+            pendingReplayDelivery = null;
+            clearTimeout(timeoutId);
+            resolve();
+          }
+        },
+      },
+    );
+    let result;
+    try {
+      result = await ipcRenderer.invoke(CHANNELS.UNCHAIN.STREAM_ATTACH_V4, {
+        requestId,
+        executionId,
+        attemptId,
+        attachmentId,
+        afterSeq,
+      });
+    } catch (error) {
+      listenerCleanup();
+      throw error;
+    }
+    if (!result?.ok) {
+      listenerCleanup();
+      const error = new Error(result?.message || "Unable to attach stream");
+      error.code = result?.code || "stream_attach_failed";
+      error.details = result || null;
+      throw error;
+    }
+
+    const replayedThroughSeq = Number(result.replayed_through_seq || 0);
+    if (
+      Number.isInteger(replayedThroughSeq) &&
+      replayedThroughSeq > highestObservedStreamSeq
+    ) {
+      try {
+        await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            pendingReplayDelivery = null;
+            const error = new Error(
+              "Timed out while delivering the attached stream replay",
+            );
+            error.code = "stream_replay_delivery_timeout";
+            error.details = {
+              request_id: requestId,
+              execution_id: executionId,
+              attempt_id: attemptId,
+              replayed_through_seq: replayedThroughSeq,
+              observed_through_seq: highestObservedStreamSeq,
+            };
+            reject(error);
+          }, 1000);
+          pendingReplayDelivery = {
+            targetSeq: replayedThroughSeq,
+            timeoutId,
+            resolve,
+          };
+          if (highestObservedStreamSeq >= replayedThroughSeq) {
+            pendingReplayDelivery = null;
+            clearTimeout(timeoutId);
+            resolve();
+          }
+        });
+      } catch (error) {
+        listenerCleanup();
+        throw error;
+      }
+    }
+
+    const detach = () => {
+      ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_DETACH, {
+        requestId,
+        executionId,
+        attemptId,
+        attachmentId,
+      });
+      listenerCleanup();
+    };
+    const cancel = () => {
+      ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
+      listenerCleanup();
+    };
+    return {
+      requestId,
+      executionId,
+      attemptId,
+      attachmentId,
+      replayedThroughSeq,
+      active: result.active === true,
+      terminal: result.terminal === true,
+      detach,
+      disconnect: cancel,
+      cancel,
     };
   };
 
@@ -308,6 +496,7 @@ const createMisoStreamClient = (ipcRenderer) => {
     cancelExecution,
     startStreamV2,
     startStreamV4,
+    attachStreamV4,
     __debug: {
       getActiveListenerCount: () => activeMisoStreamCleanups.size,
       cleanupMisoStreamListener,

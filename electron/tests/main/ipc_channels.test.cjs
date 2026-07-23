@@ -61,6 +61,18 @@ describe("ipc channel parity", () => {
     expect(PRELOAD_SEND_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
   });
 
+  test("v4 stream attach/detach channels are classified on both sides", () => {
+    // attach-v4 is a request/response invoke → main handle
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(
+      CHANNELS.UNCHAIN.STREAM_ATTACH_V4,
+    );
+    expect(IPC_HANDLE_CHANNELS).toContain(CHANNELS.UNCHAIN.STREAM_ATTACH_V4);
+
+    // detach is fire-and-forget send → main on
+    expect(PRELOAD_SEND_CHANNELS).toContain(CHANNELS.UNCHAIN.STREAM_DETACH);
+    expect(IPC_ON_CHANNELS).toContain(CHANNELS.UNCHAIN.STREAM_DETACH);
+  });
+
   test("skill-repo download channel is classified on both sides", () => {
     expect(PRELOAD_INVOKE_CHANNELS).toContain(
       CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,

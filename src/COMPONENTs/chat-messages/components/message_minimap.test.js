@@ -86,6 +86,82 @@ test("无消息时不渲染", () => {
   expect(container.querySelector("[data-mm-track]")).toBeNull();
 });
 
+test("12 条短消息在不可滚动的 boot window 中隐藏时保留轨道几何", () => {
+  const originalResizeObserver = global.ResizeObserver;
+  const originalClientHeight = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "clientHeight",
+  );
+  const observers = [];
+  class ControlledResizeObserver {
+    constructor(callback) {
+      this.callback = callback;
+      this.active = true;
+      observers.push(this);
+    }
+    observe() {}
+    disconnect() {
+      this.active = false;
+    }
+  }
+  global.ResizeObserver = ControlledResizeObserver;
+  window.ResizeObserver = ControlledResizeObserver;
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get() {
+      if (this.hasAttribute?.("data-mm-track")) {
+        const stack = this.closest("[data-mm-stack]");
+        return stack?.style.display === "none" ? 0 : 447;
+      }
+      return 0;
+    },
+  });
+  const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+
+  try {
+    const messages = Array.from({ length: 12 }, (_, index) =>
+      msg(`m${index}`, index % 2 ? "assistant" : "user", "short"),
+    );
+    const props = baseProps({ messages });
+    Object.defineProperty(props.messagesRef.current, "scrollHeight", {
+      value: 400,
+      configurable: true,
+    });
+    const { container, unmount } = render(<MessageMinimap {...props} />);
+
+    const stack = container.querySelector("[data-mm-stack]");
+    expect(stack.style.visibility).toBe("hidden");
+    expect(stack.style.display).not.toBe("none");
+    expect(container.querySelectorAll("[data-mm-tick]")).toHaveLength(12);
+
+    act(() => {
+      observers
+        .filter((observer) => observer.active)
+        .forEach((observer) => observer.callback([]));
+    });
+
+    expect(stack.style.visibility).toBe("hidden");
+    expect(stack.style.display).not.toBe("none");
+    expect(consoleError.mock.calls.flat().join("\n")).not.toContain(
+      "Maximum update depth exceeded",
+    );
+    unmount();
+  } finally {
+    consoleError.mockRestore();
+    global.ResizeObserver = originalResizeObserver;
+    window.ResizeObserver = originalResizeObserver;
+    if (originalClientHeight) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "clientHeight",
+        originalClientHeight,
+      );
+    } else {
+      delete HTMLElement.prototype.clientHeight;
+    }
+  }
+});
+
 test("底部导航调用全局回到底部,不只滚当前窗口", () => {
   const props = baseProps();
   const { container } = render(<MessageMinimap {...props} />);

@@ -1534,10 +1534,17 @@ const TraceChain = ({
         const confirmationResult = callId
           ? confirmationStatusByCallId.get(callId)
           : "";
-        const confirmationUiState =
-          confirmationId && toolConfirmationUiStateById
-            ? toolConfirmationUiStateById[confirmationId] || {}
-            : {};
+        const hasAuthoritativeConfirmationUiState = Boolean(
+          confirmationId &&
+            toolConfirmationUiStateById &&
+            Object.prototype.hasOwnProperty.call(
+              toolConfirmationUiStateById,
+              confirmationId,
+            ),
+        );
+        const confirmationUiState = hasAuthoritativeConfirmationUiState
+          ? toolConfirmationUiStateById[confirmationId] || {}
+          : {};
         const persistedUserResponse =
           callId && confirmationUserResponseByCallId.has(callId)
             ? confirmationUserResponseByCallId.get(callId)
@@ -1629,6 +1636,8 @@ const TraceChain = ({
           }
 
           const canTakeAction =
+            hasAuthoritativeConfirmationUiState &&
+            uiStatus === "idle" &&
             !isResolved &&
             !uiResolved &&
             !isSubmitting &&

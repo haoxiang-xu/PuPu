@@ -739,6 +739,9 @@ export const createUnchainApi = () => {
     isRuntimeEventStreamV4Available: () =>
       hasBridgeMethod("unchainAPI", "startStreamV4"),
 
+    isRuntimeEventStreamV4AttachAvailable: () =>
+      hasBridgeMethod("unchainAPI", "attachStreamV4"),
+
     isExecutionCancellationBridgeAvailable: () =>
       hasBridgeMethod("unchainAPI", "cancelExecution"),
 
@@ -1635,10 +1638,19 @@ export const createUnchainApi = () => {
         if (!threadId || !text) {
           throw new FrontendApiError("invalid_interject_payload", "threadId and text are required");
         }
+        const messageId =
+          typeof payload.messageId === "string" ? payload.messageId.trim() : "";
+        if (payload.messageId != null && !messageId) {
+          throw new FrontendApiError(
+            "invalid_interject_payload",
+            "messageId must be a non-empty string when provided",
+          );
+        }
         const requestPayload = {
           thread_id: threadId,
           text,
           channel: typeof payload.channel === "string" && payload.channel ? payload.channel : "auto",
+          ...(messageId ? { message_id: messageId } : {}),
           ...(isObject(payload.options) ? { options: payload.options } : {}),
         };
         const response = await method(requestPayload);
@@ -2054,6 +2066,43 @@ export const createUnchainApi = () => {
           error,
           "unchain_stream_v4_start_failed",
           "Failed to start Unchain v4 stream",
+        );
+      }
+    },
+
+    attachStreamV4: async (payload, handlers = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "attachStreamV4");
+        const streamHandle = await method(payload, handlers);
+        if (
+          !isObject(streamHandle) ||
+          typeof streamHandle.detach !== "function" ||
+          (typeof streamHandle.disconnect !== "function" &&
+            typeof streamHandle.cancel !== "function")
+        ) {
+          throw new FrontendApiError(
+            "invalid_stream_handle",
+            "Unchain bridge returned an invalid attached stream handle",
+          );
+        }
+        return streamHandle;
+      } catch (error) {
+        if (
+          typeof error?.code === "string" &&
+          error.code.trim() &&
+          error.code !== "api_error"
+        ) {
+          throw new FrontendApiError(
+            error.code.trim(),
+            error.message || "Failed to attach to the existing Unchain v4 stream",
+            error,
+            error.details ?? null,
+          );
+        }
+        throw toFrontendApiError(
+          error,
+          "unchain_stream_v4_attach_failed",
+          "Failed to attach to the existing Unchain v4 stream",
         );
       }
     },

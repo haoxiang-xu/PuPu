@@ -213,7 +213,19 @@ class McpRegistryTests(unittest.TestCase):
         self.assertEqual(entry["license"], "Apache-2.0")
         self.assertEqual(entry["mcp"]["transport"], "stdio")
         self.assertEqual(entry["mcp"]["command"], "npx")
-        self.assertEqual(entry["mcp"]["args"], ["-y", "chrome-devtools-mcp@1.6.0"])
+        self.assertEqual(
+            entry["mcp"]["args"],
+            [
+                "-y",
+                "chrome-devtools-mcp@1.6.0",
+                "--no-usage-statistics",
+                "--no-performance-crux",
+            ],
+        )
+        self.assertEqual(
+            entry["setup_preview"],
+            "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
+        )
         self.assertEqual(entry["secrets"], [])
         self.assertIn("performance trace", entry["readme_markdown"])
 

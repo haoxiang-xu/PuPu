@@ -41,14 +41,53 @@ const registerBuiltinCommands = ({ registry, bridge, logs, getMainWindow, electr
     handler: (ctx) =>
       bridge.invoke(
         "sendMessage",
-        { id: ctx.params.id, ...(ctx.body || {}) },
+        { ...(ctx.body || {}), id: ctx.params.id },
         { timeout: 5 * 60 * 1000 },
       ),
   });
   registry.register({
     method: "POST",
     path: "/v1/chats/:id/cancel",
-    handler: (ctx) => bridge.invoke("cancelMessage", { id: ctx.params.id }),
+    handler: (ctx) =>
+      bridge.invoke("cancelMessage", {
+        ...(ctx.body || {}),
+        id: ctx.params.id,
+      }),
+  });
+
+  // Async run control. Every operation is addressed by both chat id and the
+  // exact runtime attempt id; the renderer rejects mismatches rather than
+  // falling back to whichever chat happens to be active.
+  registry.register({
+    method: "POST",
+    path: "/v1/chats/:id/runs",
+    validator: (body) =>
+      body && typeof body.text === "string" ? null : "body.text required",
+    handler: (ctx) =>
+      bridge.invoke(
+        "startChatRun",
+        { ...(ctx.body || {}), id: ctx.params.id },
+        { timeout: 60 * 1000 },
+      ),
+  });
+  registry.register({
+    method: "GET",
+    path: "/v1/chats/:id/runs/:attempt_id",
+    handler: (ctx) =>
+      bridge.invoke("getChatRun", {
+        id: ctx.params.id,
+        attempt_id: ctx.params.attempt_id,
+      }),
+  });
+  registry.register({
+    method: "POST",
+    path: "/v1/chats/:id/runs/:attempt_id/cancel",
+    handler: (ctx) =>
+      bridge.invoke("cancelChatRun", {
+        ...(ctx.body || {}),
+        id: ctx.params.id,
+        attempt_id: ctx.params.attempt_id,
+      }),
   });
 
   // Catalog + selection

@@ -29,6 +29,7 @@ describe("api.unchain.interject", () => {
       threadId: "thread_456",
       text: "Hello world",
       channel: "auto",
+      messageId: "  fyi_client_1  ",
       options: { key: "value" },
     });
 
@@ -38,6 +39,7 @@ describe("api.unchain.interject", () => {
       thread_id: "thread_456",
       text: "Hello world",
       channel: "auto",
+      message_id: "fyi_client_1",
       options: { key: "value" },
     });
     expect(result).toEqual(mockResponse);
@@ -131,6 +133,22 @@ describe("api.unchain.interject", () => {
     const [payload] = window.unchainAPI.interject.mock.calls[0];
     expect(payload.options).toBeUndefined();
   });
+
+  test.each(["", "   ", 123, {}])(
+    "rejects invalid optional messageId %p",
+    async (messageId) => {
+      await expect(
+        api.unchain.interject({
+          threadId: "thread_456",
+          text: "Hello",
+          messageId,
+        }),
+      ).rejects.toMatchObject({
+        code: "invalid_interject_payload",
+        message: "messageId must be a non-empty string when provided",
+      });
+    },
+  );
 
   test("throws FrontendApiError when threadId is missing", async () => {
     await expect(

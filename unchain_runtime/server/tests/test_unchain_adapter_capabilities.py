@@ -657,6 +657,209 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(response_holder["value"]["approved"], True)
 
+    def test_root_tool_confirmation_keeps_live_round_trip_with_owner_scope(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        response_holder: dict[str, object] = {}
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        def invoke_callback() -> None:
+            tracker.observe(
+                {
+                    "type": "interaction_requested",
+                    "run_id": "root-run",
+                    "interaction_request": {
+                        "interaction_id": "interaction-root",
+                        "session_id": "chat-root",
+                        "source_run_id": "root-run",
+                        "kind": "tool_approval",
+                        "payload": {"call_id": "call-root"},
+                    },
+                }
+            )
+            response_holder["value"] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-root",
+                    "arguments": {"path": "tmp.txt"},
+                }
+            )
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertEqual(
+            emitted_events[0].get("confirmation_id"),
+            "interaction-root",
+        )
+        self.assertTrue(
+            unchain_adapter.submit_tool_confirmation(
+                confirmation_id="interaction-root",
+                approved=True,
+            )
+        )
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(response_holder["value"]["approved"], True)
+
+    def test_child_tool_confirmation_fails_closed_without_live_waiter(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        tracker.observe(
+            {
+                "type": "interaction_requested",
+                "run_id": "child-run",
+                "interaction_request": {
+                    "interaction_id": "interaction-child",
+                    "session_id": "chat-root:developer.worker.1",
+                    "source_run_id": "child-run",
+                    "kind": "tool_approval",
+                    "payload": {"call_id": "call-child"},
+                },
+            }
+        )
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        response = confirm_cb(
+            {
+                "tool_name": "delete_file",
+                "call_id": "call-child",
+                "arguments": {"path": "tmp.txt"},
+            }
+        )
+
+        self.assertEqual(
+            response,
+            {
+                "approved": False,
+                "reason": "subagent_tool_approval_unsupported",
+                "modified_arguments": None,
+            },
+        )
+        self.assertEqual(emitted_events, [])
+        self.assertFalse(
+            unchain_adapter.submit_tool_confirmation(
+                confirmation_id="interaction-child",
+                approved=True,
+            )
+        )
+
+    def test_non_durable_child_tool_confirmation_also_fails_closed(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        tracker.observe(
+            {
+                "type": "tool_call",
+                "run_id": "child-run",
+                "tool_name": "delete_file",
+                "call_id": "call-child",
+                "arguments": {"path": "tmp.txt"},
+            }
+        )
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=False,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        response = confirm_cb(
+            {
+                "tool_name": "delete_file",
+                "call_id": "call-child",
+                "arguments": {"path": "tmp.txt"},
+            }
+        )
+
+        self.assertEqual(
+            response,
+            {
+                "approved": False,
+                "reason": "subagent_tool_approval_unsupported",
+                "modified_arguments": None,
+            },
+        )
+        self.assertEqual(emitted_events, [])
+
+    def test_parallel_child_confirmations_with_same_call_id_fail_closed(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        barrier = threading.Barrier(3)
+        responses: dict[int, dict[str, object]] = {}
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        def invoke_child(worker_index: int) -> None:
+            tracker.observe(
+                {
+                    "type": "interaction_requested",
+                    "run_id": f"child-run-{worker_index}",
+                    "interaction_request": {
+                        "interaction_id": f"interaction-child-{worker_index}",
+                        "session_id": f"chat-root:worker-{worker_index}",
+                        "source_run_id": f"child-run-{worker_index}",
+                        "kind": "tool_approval",
+                        "payload": {"call_id": "shared-call"},
+                    },
+                }
+            )
+            barrier.wait(timeout=2)
+            responses[worker_index] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "shared-call",
+                    "arguments": {"path": f"tmp-{worker_index}.txt"},
+                }
+            )
+
+        workers = [
+            threading.Thread(
+                target=invoke_child,
+                args=(worker_index,),
+                daemon=True,
+            )
+            for worker_index in range(3)
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+
+        self.assertEqual(len(responses), 3)
+        self.assertTrue(
+            all(response.get("approved") is False for response in responses.values())
+        )
+        self.assertEqual(emitted_events, [])
+        for worker_index in range(3):
+            self.assertFalse(
+                unchain_adapter.submit_tool_confirmation(
+                    confirmation_id=f"interaction-child-{worker_index}",
+                    approved=True,
+                )
+            )
+
     def test_submit_tool_confirmation_returns_false_for_unknown_id(self) -> None:
         submitted = unchain_adapter.submit_tool_confirmation(
             confirmation_id="unknown-confirmation-id",

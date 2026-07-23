@@ -612,6 +612,116 @@ class DurableInteractionHostTests(unittest.TestCase):
             "interaction-1",
         )
 
+    def test_tracker_preserves_child_interaction_ownership(self) -> None:
+        tracker = host.DurableInteractionIdTracker()
+        tracker.observe(
+            {
+                "type": "interaction_requested",
+                "run_id": "child-run-1",
+                "interaction_request": {
+                    "interaction_id": "interaction-child-1",
+                    "session_id": "chat-1:developer.worker.1",
+                    "source_run_id": "child-run-1",
+                    "kind": "tool_approval",
+                    "payload": {"call_id": "shared-call"},
+                },
+            }
+        )
+
+        self.assertEqual(
+            tracker.resolve_owner("tool_approval", "shared-call"),
+            {
+                "interaction_id": "interaction-child-1",
+                "session_id": "chat-1:developer.worker.1",
+                "source_run_id": "child-run-1",
+                "event_run_id": "child-run-1",
+            },
+        )
+
+    def test_tracker_preserves_latest_interaction_without_call_id(self) -> None:
+        tracker = host.DurableInteractionIdTracker()
+        tracker.observe(
+            {
+                "type": "interaction_requested",
+                "run_id": "root-run",
+                "interaction_request": {
+                    "interaction_id": "interaction-max-budget",
+                    "session_id": "chat-root",
+                    "source_run_id": "root-run",
+                    "kind": "max_budget",
+                    "payload": {
+                        "effective_max": 6,
+                        "suggested_extra_iterations": 6,
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(
+            tracker.resolve("max_budget", allow_latest=True),
+            "interaction-max-budget",
+        )
+        self.assertEqual(
+            tracker.resolve_owner("max_budget", allow_latest=True),
+            {
+                "interaction_id": "interaction-max-budget",
+                "session_id": "chat-root",
+                "source_run_id": "root-run",
+                "event_run_id": "root-run",
+            },
+        )
+
+    def test_tracker_isolates_same_call_id_by_observer_thread(self) -> None:
+        tracker = host.DurableInteractionIdTracker()
+        barrier = threading.Barrier(3)
+        resolved: dict[int, dict[str, str]] = {}
+
+        def observe_and_resolve(worker_index: int) -> None:
+            tracker.observe(
+                {
+                    "type": "interaction_requested",
+                    "run_id": f"child-run-{worker_index}",
+                    "interaction_request": {
+                        "interaction_id": f"interaction-{worker_index}",
+                        "session_id": f"chat-1:worker-{worker_index}",
+                        "source_run_id": f"child-run-{worker_index}",
+                        "kind": "tool_approval",
+                        "payload": {"call_id": "shared-call"},
+                    },
+                }
+            )
+            barrier.wait(timeout=2)
+            resolved[worker_index] = tracker.resolve_owner(
+                "tool_approval",
+                "shared-call",
+            )
+
+        workers = [
+            threading.Thread(
+                target=observe_and_resolve,
+                args=(worker_index,),
+                daemon=True,
+            )
+            for worker_index in range(3)
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+
+        self.assertEqual(
+            {
+                worker_index: owner.get("interaction_id")
+                for worker_index, owner in resolved.items()
+            },
+            {
+                0: "interaction-0",
+                1: "interaction-1",
+                2: "interaction-2",
+            },
+        )
+
     def test_human_input_legacy_payload_is_normalized_for_durable_receipt(self) -> None:
         request = self._seed_request(
             kind="human_input",

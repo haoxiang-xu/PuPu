@@ -469,6 +469,8 @@ const ChatInterface = () => {
     t,
   });
   const {
+    cancelRunForTest: streamCancelRunForTest,
+    getRunForTest: streamGetRunForTest,
     sendForTest: streamSendForTest,
     stopStream: streamStopStream,
     isStreaming: streamIsStreaming,
@@ -498,6 +500,15 @@ const ChatInterface = () => {
             messages: session.messages,
           })
         : session.messages;
+      const activeStreamMessages =
+        activeStreamsRef.current.get(currentChatId)?.messages;
+      if (
+        !streamIsStreaming &&
+        Array.isArray(activeStreamMessages) &&
+        activeStreamMessages !== session.messages
+      ) {
+        return;
+      }
       // T3(B 批性能):done 边沿 finalizeStreamPersist 已同步写过同一数组引用
       // (flushSync → setMessages 传递的就是 finalize 那份),这里跳过重复的整库写
       // (实测 ~47ms 长任务)。引用不匹配(subagent 链路/后续真实变更)照常落盘。
@@ -521,23 +532,46 @@ const ChatInterface = () => {
     if (typeof window === "undefined" || !window.__pupuTestBridge) {
       return undefined;
     }
-    const off1 = window.__pupuTestBridge.register(
+    const offSendMessage = window.__pupuTestBridge.register(
       "sendMessage",
-      streamSendForTest,
+      (payload = {}) =>
+        streamSendForTest({ ...payload, wait_for_completion: true }),
     );
-    const off2 = window.__pupuTestBridge.register(
+    const offStartRun = window.__pupuTestBridge.register(
+      "startChatRun",
+      (payload = {}) =>
+        streamSendForTest({ ...payload, wait_for_completion: false }),
+    );
+    const offGetRun = window.__pupuTestBridge.register(
+      "getChatRun",
+      streamGetRunForTest,
+    );
+    const offCancelRun = window.__pupuTestBridge.register(
+      "cancelChatRun",
+      streamCancelRunForTest,
+    );
+    const offCancelMessage = window.__pupuTestBridge.register(
       "cancelMessage",
-      async () => {
-        const wasStreaming = !!streamIsStreaming;
-        streamStopStream();
-        return { ok: true, was_streaming: wasStreaming };
+      async (payload = {}) => {
+        try {
+          const result = await streamCancelRunForTest(payload);
+          return { ...result, was_streaming: true };
+        } catch (error) {
+          if (!payload?.attempt_id && error?.code === "run_not_active") {
+            return { ok: true, was_streaming: false };
+          }
+          throw error;
+        }
       },
     );
     return () => {
-      off1 && off1();
-      off2 && off2();
+      offSendMessage && offSendMessage();
+      offStartRun && offStartRun();
+      offGetRun && offGetRun();
+      offCancelRun && offCancelRun();
+      offCancelMessage && offCancelMessage();
     };
-  }, [streamSendForTest, streamStopStream, streamIsStreaming]);
+  }, [streamCancelRunForTest, streamGetRunForTest, streamSendForTest]);
 
   const refreshUnchainStatus = useCallback(async () => {
     try {

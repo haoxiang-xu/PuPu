@@ -606,6 +606,7 @@
     "search_placeholder_v2": "Search plugins",
     "category_empty_search": "No plugins match your search.",
     "installed_title": "Installed",
+    "installed_needs_attention": "Needs attention",
     "installed_no_matches": "No installed plugins match your search.",
     "pill_get": "GET",
     "pill_open": "OPEN",

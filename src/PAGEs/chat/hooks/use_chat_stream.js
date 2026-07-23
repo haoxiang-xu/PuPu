@@ -20,6 +20,7 @@ import {
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
 import { isRuntimeEventStreamEnabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
+import { createRuntimeEventStreamReplayProjector } from "../../../SERVICEs/runtime_events/stream_replay_projector";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
   isToolConfirmationCacheable,
@@ -65,11 +66,39 @@ import {
   removeTurnMutation,
 } from "../../../SERVICEs/turn_mutation_outbox";
 import {
+  bindQueuedTurnOwnersToAttempt,
+  convertPendingFyiToClarify,
+  createPendingFyiMessageId,
+  createQueuedTurnClientOperationId,
+  fallbackPendingClarifyToQueue,
+  migratePendingFyiForAttemptToQueue,
+  migratePendingFyiToQueue,
+  readPendingClarifyForChat,
+  readPendingFyiOutbox,
+  readPendingFyisForAttempt,
+  readQueuedTurnsForAttempt,
+  readQueuedTurnsForChat,
+  readQueuedTurnsForClientOperation,
+  resolvePendingFyiIntent,
+  removePendingClarify,
+  removePendingFyisForAttempt,
+  removeQueuedTurnsForAttempt,
+  removeQueuedTurnsForClientOperation,
+  transitionPendingClarifyToPendingFyi,
+  writePendingFyi,
+  writePendingClarify,
+  writeQueuedTurnsForAttempt,
+  writeQueuedTurnsForClientOperation,
+} from "../../../SERVICEs/queued_turn_outbox";
+import {
   start as progressStart,
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
+import { getChatsStore } from "../../../SERVICEs/chat_storage";
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
+const STREAM_REATTACH_FLUSH_MS = 100;
+const CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS = 40_000;
 
 /* Process-local ownership complements the durable localStorage outbox. It
    survives Chat page remounts, so an old async finally cannot unlock a newer
@@ -370,6 +399,13 @@ const emitCustomProviderSendErrorToast = (error, translate) => {
 
 const STREAM_TRACE_LEVEL = "minimal";
 const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
+const QUEUE_RELAY_ACCEPTANCE_RECONCILE_MS = 1500;
+const QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES = 2;
+const QUEUE_RELAY_AUTHORITATIVE_ACCEPTANCE_EVENTS = Object.freeze([
+  "run.started",
+  "turn.started",
+  "step.started",
+]);
 const SUBAGENT_STATE_FLUSH_MS = 100;
 const DURABLE_RESUME_MAX_RETRIES = 7;
 const EXECUTION_CANCEL_DISCONNECT_GRACE_MS = 1500;
@@ -395,6 +431,35 @@ const LEGACY_PLAN_RESULT_KEYS = [
 
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+
+const isAuthoritativeQueueAcceptanceEvent = (event) => {
+  if (QUEUE_RELAY_AUTHORITATIVE_ACCEPTANCE_EVENTS.includes(event?.type)) {
+    return true;
+  }
+  const stepType = event?.payload?.step_type ?? event?.payload?.stepType;
+  return Boolean(
+    event?.type === "step.delta" &&
+      stepType === "model_response" &&
+      typeof event?.payload?.delta === "string" &&
+      event.payload.delta.length > 0,
+  );
+};
+
+const isProvenNeverRegisteredCancellation = (response) => {
+  if (response?.state !== "cancelled") {
+    return false;
+  }
+  if (response?.disposition === "cancelled_before_register") {
+    return true;
+  }
+  const execution = response?.execution;
+  return Boolean(
+    response?.disposition === "unchanged" &&
+      isObject(execution) &&
+      Object.prototype.hasOwnProperty.call(execution, "registered_at_ms") &&
+      execution.registered_at_ms === null,
+  );
+};
 
 const isPlanDocArtifact = (artifact) =>
   isObject(artifact) && artifact.type === "plan_doc";
@@ -496,6 +561,50 @@ const normalizeAgentOrchestration = (value) => {
   return { ...DEFAULT_AGENT_ORCHESTRATION };
 };
 
+const snapshotStoredRunContext = (store, targetChatId) => {
+  const chat = store?.chatsById?.[targetChatId];
+  if (!chat || typeof chat !== "object") {
+    return null;
+  }
+  const modelId =
+    typeof chat.model === "string"
+      ? chat.model.trim()
+      : typeof chat.model?.id === "string"
+        ? chat.model.id.trim()
+        : "";
+  const kind = chat.kind === "character" ? "character" : "default";
+  const characterId =
+    typeof chat.characterId === "string" ? chat.characterId.trim() : "";
+  return {
+    modelId,
+    threadId:
+      typeof chat.threadId === "string" && chat.threadId.trim()
+        ? chat.threadId.trim()
+        : targetChatId,
+    selectedToolkits: Array.isArray(chat.selectedToolkits)
+      ? [...chat.selectedToolkits]
+      : [],
+    selectedWorkspaceIds: Array.isArray(chat.selectedWorkspaceIds)
+      ? [...chat.selectedWorkspaceIds]
+      : [],
+    selectedRecipeName:
+      typeof chat.selectedRecipeName === "string" &&
+      chat.selectedRecipeName.trim()
+        ? chat.selectedRecipeName.trim()
+        : "Default",
+    agentOrchestration: normalizeAgentOrchestration(chat.agentOrchestration),
+    systemPromptOverrides:
+      chat.systemPromptOverrides &&
+      typeof chat.systemPromptOverrides === "object" &&
+      !Array.isArray(chat.systemPromptOverrides)
+        ? { ...chat.systemPromptOverrides }
+        : {},
+    kind,
+    characterId,
+    isCharacterChat: kind === "character" && Boolean(characterId),
+  };
+};
+
 const getTraceFrameIteration = (frame) => {
   const frameIteration = Number(frame?.iteration);
   if (Number.isFinite(frameIteration)) {
@@ -541,6 +650,7 @@ const requestExecutionCancellationAndDisconnect = ({
   identity,
   handle,
   reason = "user_stop",
+  idempotencyKey = "",
 }) => {
   let disconnected = false;
   const disconnectOnce = () => {
@@ -574,7 +684,10 @@ const requestExecutionCancellationAndDisconnect = ({
         ? { request_id: normalizedIdentity.requestId }
         : {}),
       reason,
-      idempotency_key: `stop:${normalizedIdentity.attemptId}`,
+      idempotency_key:
+        typeof idempotencyKey === "string" && idempotencyKey.trim()
+          ? idempotencyKey.trim()
+          : `stop:${normalizedIdentity.attemptId}`,
     }),
   ).then((response) => ({ ok: true, response }))
     .catch((error) => {
@@ -778,6 +891,7 @@ export const useChatStream = ({
   const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
   const confirmationRuntimeByChatIdRef = useRef(new Map());
   const durableInteractionLookupByChatIdRef = useRef(new Map());
+  const reattachingChatIdsRef = useRef(new Set());
   const runContextByChatIdRef = useRef(new Map());
   const durableResumeStartedKeysRef = useRef(new Set());
   const durableResumeStartedKeysByChatIdRef = useRef(new Map());
@@ -786,6 +900,10 @@ export const useChatStream = ({
   const stoppedRunChatIdsRef = useRef(new Set());
   const queueRelayTimersByChatIdRef = useRef(new Map());
   const queueRelayAttemptsByChatIdRef = useRef(new Map());
+  const queueAttemptIdByChatIdRef = useRef(new Map());
+  const queueClientOperationIdByChatIdRef = useRef(new Map());
+  const runClientOperationIdByChatIdRef = useRef(new Map());
+  const relayQueuedTurnsAfterRunRef = useRef(null);
   const confirmationRetryWaitersByChatIdRef = useRef(new Map());
   const renderRuntimeByChatIdRef = useRef(new Map());
   // Interject (mid-run "fyi"/"btw"/"queue"/"clarify") bookkeeping — all keyed
@@ -794,6 +912,7 @@ export const useChatStream = ({
   const queuedTurnsByChatIdRef = useRef(new Map()); // chatId -> createQueuedTurnBuffer() instance for that chat's active run
   const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
   const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
+  const clarifyBtwBarrierByChatIdRef = useRef(new Map()); // chatId -> exact clarify-owned BTW awaiting settlement
   const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
 
   const isChatRunPending = useCallback(
@@ -841,6 +960,27 @@ export const useChatStream = ({
         typeof modelIdRef?.current === "string" ? modelIdRef.current : "",
       threadId:
         typeof threadIdRef?.current === "string" ? threadIdRef.current : "",
+      selectedToolkits: Array.isArray(selectedToolkits)
+        ? [...selectedToolkits]
+        : [],
+      selectedWorkspaceIds: Array.isArray(selectedWorkspaceIds)
+        ? [...selectedWorkspaceIds]
+        : [],
+      selectedRecipeName:
+        typeof selectedRecipeName === "string" && selectedRecipeName.trim()
+          ? selectedRecipeName.trim()
+          : "Default",
+      agentOrchestration: normalizeAgentOrchestration(agentOrchestration),
+      systemPromptOverrides:
+        systemPromptOverrides &&
+        typeof systemPromptOverrides === "object" &&
+        !Array.isArray(systemPromptOverrides)
+          ? { ...systemPromptOverrides }
+          : {},
+      kind: isCharacterChat ? "character" : "default",
+      characterId:
+        typeof characterId === "string" ? characterId.trim() : "",
+      isCharacterChat,
     });
   }
 
@@ -1372,6 +1512,908 @@ export const useChatStream = ({
     [updateInterjectStateByChatId],
   );
 
+  const syncPendingFyiStateForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const pending = readPendingFyisForAttempt(targetChatId, attemptId);
+      if (pending.length > 0) {
+        pendingFyiCountByChatIdRef.current.set(
+          targetChatId,
+          pending.length,
+        );
+      } else {
+        pendingFyiCountByChatIdRef.current.delete(targetChatId);
+      }
+      syncInterjectStateForChat(targetChatId);
+      return pending;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const fallbackPendingFyisForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const pending = readPendingFyisForAttempt(targetChatId, attemptId);
+      if (pending.length === 0) {
+        syncPendingFyiStateForAttempt(targetChatId, attemptId);
+        return { queue: null, migrated: [] };
+      }
+      const migrated = migratePendingFyiForAttemptToQueue(
+        targetChatId,
+        attemptId,
+      );
+      if (!migrated) {
+        setStreamErrorForChat(
+          targetChatId,
+          "The pending FYI is still saved and will be recovered after reload.",
+        );
+        syncPendingFyiStateForAttempt(targetChatId, attemptId);
+        return null;
+      }
+      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (!queuedTurns) {
+        queuedTurns = createQueuedTurnBuffer(migrated.queue.items);
+        queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
+      } else {
+        queuedTurns.hydrate(migrated.queue.items);
+      }
+      queueAttemptIdByChatIdRef.current.set(targetChatId, attemptId);
+      queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      syncPendingFyiStateForAttempt(targetChatId, attemptId);
+      return migrated;
+    },
+    [setStreamErrorForChat, syncPendingFyiStateForAttempt],
+  );
+
+  const syncDurableQueueForAttempt = useCallback(
+    (targetChatId, attemptId, queue) => {
+      const exactAttemptId =
+        typeof attemptId === "string" ? attemptId.trim() : "";
+      if (!targetChatId || !exactAttemptId) return false;
+      const items = Array.isArray(queue?.items)
+        ? queue.items.filter((item) => item?.status === "queued")
+        : [];
+      if (items.length > 0) {
+        let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+        if (!queuedTurns) {
+          queuedTurns = createQueuedTurnBuffer(items);
+          queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
+        } else {
+          queuedTurns.hydrate(items);
+        }
+        queueAttemptIdByChatIdRef.current.set(targetChatId, exactAttemptId);
+        queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      } else if (
+        queueAttemptIdByChatIdRef.current.get(targetChatId) === exactAttemptId
+      ) {
+        queuedTurnsByChatIdRef.current.delete(targetChatId);
+        queueAttemptIdByChatIdRef.current.delete(targetChatId);
+      }
+      syncPendingFyiStateForAttempt(targetChatId, exactAttemptId);
+      return true;
+    },
+    [syncPendingFyiStateForAttempt],
+  );
+
+  const acknowledgeInjectedFyisForAttempt = useCallback(
+    (targetChatId, attemptId, messages) => {
+      let queueChanged = false;
+      let latestQueue = null;
+      for (const entry of Array.isArray(messages) ? messages : []) {
+        const messageId =
+          typeof entry?.message_id === "string"
+            ? entry.message_id.trim()
+            : typeof entry?.messageId === "string"
+              ? entry.messageId.trim()
+              : "";
+        if (!messageId) continue;
+        const resolved = resolvePendingFyiIntent({
+          chatId: targetChatId,
+          attemptId,
+          messageId,
+        });
+        if (resolved) {
+          queueChanged = queueChanged || resolved.removedQueuedFallback;
+          latestQueue = resolved.queue || null;
+        }
+      }
+      if (queueChanged) {
+        syncDurableQueueForAttempt(targetChatId, attemptId, latestQueue);
+      } else {
+        syncPendingFyiStateForAttempt(targetChatId, attemptId);
+      }
+    },
+    [syncDurableQueueForAttempt, syncPendingFyiStateForAttempt],
+  );
+
+  const persistQueuedTurnBufferForAttempt = useCallback(
+    (
+      targetChatId,
+      queuedTurns,
+      explicitAttemptId = "",
+      explicitClientOperationId = "",
+      { preserveRelayed = true } = {},
+    ) => {
+      const attemptId =
+        (typeof explicitAttemptId === "string"
+          ? explicitAttemptId.trim()
+          : "") || queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const clientOperationId =
+        (typeof explicitClientOperationId === "string"
+          ? explicitClientOperationId.trim()
+          : "") ||
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+        "";
+      if (!targetChatId || (!attemptId && !clientOperationId) || !queuedTurns) {
+        return false;
+      }
+      const snapshot = queuedTurns.snapshot();
+      const durableOwner = attemptId
+        ? readQueuedTurnsForAttempt(targetChatId, attemptId)
+        : readQueuedTurnsForClientOperation(targetChatId, clientOperationId);
+      const relayedItemsById = new Map();
+
+      if (preserveRelayed) {
+        for (const item of durableOwner?.items || []) {
+          if (item.status === "relayed") {
+            relayedItemsById.set(item.id, { ...item, status: "relayed" });
+          }
+        }
+
+        const relayState = queueRelayAttemptsByChatIdRef.current.get(
+          targetChatId,
+        );
+        const relayOwnerMatches = attemptId
+          ? relayState?.attemptId === attemptId
+          : Boolean(
+              clientOperationId &&
+                relayState?.clientOperationId === clientOperationId,
+            );
+        if (
+          relayState?.buffer === queuedTurns &&
+          relayState.inFlight === true &&
+          relayOwnerMatches
+        ) {
+          const inFlightIds = new Set(relayState.inFlightIds || []);
+          for (const item of snapshot) {
+            if (inFlightIds.has(item.id)) {
+              relayedItemsById.set(item.id, {
+                ...item,
+                status: "relayed",
+              });
+            }
+          }
+        }
+      }
+
+      const mergedItemsById = new Map(relayedItemsById);
+      for (const item of snapshot) {
+        if (item.status === "queued" && !mergedItemsById.has(item.id)) {
+          mergedItemsById.set(item.id, { ...item, status: "queued" });
+        }
+      }
+      const items = Array.from(mergedItemsById.values());
+      if (items.length === 0) {
+        if (attemptId) {
+          removeQueuedTurnsForAttempt(targetChatId, attemptId);
+        } else {
+          removeQueuedTurnsForClientOperation(
+            targetChatId,
+            clientOperationId,
+          );
+        }
+        return true;
+      }
+      const entry = {
+        chatId: targetChatId,
+        items,
+      };
+      return Boolean(
+        attemptId
+          ? writeQueuedTurnsForAttempt({ ...entry, attemptId })
+          : writeQueuedTurnsForClientOperation({
+              ...entry,
+              clientOperationId,
+            }),
+      );
+    },
+    [],
+  );
+
+  const pushQueuedTurn = useCallback(
+    (targetChatId, text) => {
+      const currentAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const attemptId =
+        currentAttemptId ||
+        executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+        "";
+      const currentClientOperationId =
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+      const clientOperationId = attemptId
+        ? ""
+        : currentClientOperationId ||
+          runClientOperationIdByChatIdRef.current.get(targetChatId) ||
+          "";
+      if (!targetChatId || (!attemptId && !clientOperationId)) {
+        const message =
+          "Could not save this queued message yet. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `queue-owner-unavailable-${targetChatId}`,
+        });
+        return false;
+      }
+
+      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      const createdBuffer = !queuedTurns;
+      if (!queuedTurns) {
+        queuedTurns = createQueuedTurnBuffer();
+      }
+      const queuedId = queuedTurns.push(text);
+      if (!queuedId) {
+        const message =
+          "The queued-message limit was reached. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `queue-capacity-${targetChatId}`,
+        });
+        return false;
+      }
+      const persisted = persistQueuedTurnBufferForAttempt(
+        targetChatId,
+        queuedTurns,
+        attemptId,
+        clientOperationId,
+      );
+      if (!persisted) {
+        queuedTurns.remove(queuedId);
+        if (createdBuffer) {
+          queuedTurnsByChatIdRef.current.delete(targetChatId);
+        }
+        const message =
+          "Could not save this queued message. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `queue-persist-failed-${targetChatId}`,
+        });
+        syncInterjectStateForChat(targetChatId);
+        return false;
+      }
+
+      queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
+      if (attemptId) {
+        queueAttemptIdByChatIdRef.current.set(targetChatId, attemptId);
+        queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      } else {
+        queueClientOperationIdByChatIdRef.current.set(
+          targetChatId,
+          clientOperationId,
+        );
+      }
+      syncInterjectStateForChat(targetChatId);
+      return true;
+    },
+    [
+      persistQueuedTurnBufferForAttempt,
+      setStreamErrorForChat,
+      syncInterjectStateForChat,
+    ],
+  );
+
+  const hydrateQueuedTurnsForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const normalizedAttemptId =
+        typeof attemptId === "string" ? attemptId.trim() : "";
+      if (!targetChatId || !normalizedAttemptId) {
+        return null;
+      }
+
+      const currentAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const currentBuffer = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (currentBuffer) {
+        return currentAttemptId === normalizedAttemptId ? currentBuffer : null;
+      }
+
+      const persisted = readQueuedTurnsForAttempt(
+        targetChatId,
+        normalizedAttemptId,
+      );
+      if (persisted) {
+        const retryableItems = persisted.items.filter(
+          (item) => item.status === "queued",
+        );
+        if (retryableItems.length === 0) {
+          /* `relayed` items are the exact request already submitted under this
+             attempt. Keep that durable correlation while reattaching; replayed
+             acceptance will ACK it. Hydrating it as queued would duplicate the
+             same logical turn after the attached run completes. */
+          return null;
+        }
+        const hydrated = createQueuedTurnBuffer(retryableItems);
+        queuedTurnsByChatIdRef.current.set(targetChatId, hydrated);
+        queueAttemptIdByChatIdRef.current.set(
+          targetChatId,
+          normalizedAttemptId,
+        );
+        syncInterjectStateForChat(targetChatId);
+        return hydrated;
+      }
+
+      return null;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const acknowledgeRelayedQueuedTurnsForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const normalizedAttemptId =
+        typeof attemptId === "string" ? attemptId.trim() : "";
+      if (!targetChatId || !normalizedAttemptId) return false;
+      const persisted = readQueuedTurnsForAttempt(
+        targetChatId,
+        normalizedAttemptId,
+      );
+      if (!persisted) return false;
+      const relayedItems = persisted.items.filter(
+        (item) => item.status === "relayed",
+      );
+      if (relayedItems.length === 0) return false;
+      const queuedRemainder = persisted.items.filter(
+        (item) => item.status === "queued",
+      );
+      if (queuedRemainder.length > 0) {
+        writeQueuedTurnsForAttempt({
+          chatId: targetChatId,
+          attemptId: normalizedAttemptId,
+          items: queuedRemainder,
+        });
+      } else {
+        removeQueuedTurnsForAttempt(targetChatId, normalizedAttemptId);
+      }
+      syncInterjectStateForChat(targetChatId);
+      return true;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const hydrateQueuedTurnsForClientOperation = useCallback(
+    (targetChatId, clientOperationId) => {
+      const normalizedClientOperationId =
+        typeof clientOperationId === "string" ? clientOperationId.trim() : "";
+      if (!targetChatId || !normalizedClientOperationId) return null;
+
+      const currentBuffer = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (currentBuffer) {
+        return queueClientOperationIdByChatIdRef.current.get(targetChatId) ===
+          normalizedClientOperationId
+          ? currentBuffer
+          : null;
+      }
+      const persisted = readQueuedTurnsForChat(targetChatId).find(
+        (entry) =>
+          entry.clientOperationId === normalizedClientOperationId,
+      );
+      if (!persisted) return null;
+      const retryableItems = persisted.items.filter(
+        (item) => item.status === "queued",
+      );
+      if (retryableItems.length === 0) {
+        removeQueuedTurnsForClientOperation(
+          targetChatId,
+          normalizedClientOperationId,
+        );
+        return null;
+      }
+      const hydrated = createQueuedTurnBuffer(retryableItems);
+      queuedTurnsByChatIdRef.current.set(targetChatId, hydrated);
+      queueClientOperationIdByChatIdRef.current.set(
+        targetChatId,
+        normalizedClientOperationId,
+      );
+      syncInterjectStateForChat(targetChatId);
+      return hydrated;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const fallbackPendingClarifyForChat = useCallback(
+    (targetChatId, explicitPending = null) => {
+      const pending =
+        explicitPending ||
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (!pending?.id) return null;
+      const migrated = fallbackPendingClarifyToQueue({
+        chatId: targetChatId,
+        id: pending.id,
+      });
+      if (!migrated?.queue) return null;
+
+      pendingClarifyByChatIdRef.current.delete(targetChatId);
+      const hydrated = createQueuedTurnBuffer(
+        migrated.queue.items.filter((item) => item.status === "queued"),
+      );
+      queuedTurnsByChatIdRef.current.set(targetChatId, hydrated);
+      if (migrated.queue.attemptId) {
+        queueAttemptIdByChatIdRef.current.set(
+          targetChatId,
+          migrated.queue.attemptId,
+        );
+        queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      } else {
+        queueAttemptIdByChatIdRef.current.delete(targetChatId);
+        queueClientOperationIdByChatIdRef.current.set(
+          targetChatId,
+          migrated.queue.clientOperationId,
+        );
+      }
+      syncInterjectStateForChat(targetChatId);
+      return pending;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const isClarifyBtwBarrierCurrentOwner = useCallback(
+    (barrier) => {
+      if (
+        !barrier?.chatId ||
+        !barrier.attemptId ||
+        !isRunGenerationCurrent(barrier.chatId, barrier.runGeneration)
+      ) {
+        return false;
+      }
+      const executionOwner =
+        executionIdentityByChatIdRef.current.get(barrier.chatId)?.attemptId ||
+        "";
+      if (executionOwner) {
+        return executionOwner === barrier.attemptId;
+      }
+      return (
+        queueAttemptIdByChatIdRef.current.get(barrier.chatId) ===
+        barrier.attemptId
+      );
+    },
+    [isRunGenerationCurrent],
+  );
+
+  const tombstoneClarifyBtwBarrierForChat = useCallback((targetChatId) => {
+    const barrier =
+      clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+    if (!barrier) return false;
+    barrier.settled = true;
+    barrier.tombstoned = true;
+    if (barrier.timeoutId != null) {
+      clearTimeout(barrier.timeoutId);
+      barrier.timeoutId = null;
+    }
+    clarifyBtwBarrierByChatIdRef.current.delete(targetChatId);
+    return true;
+  }, []);
+
+  const settleClarifyBtwBarrier = useCallback(
+    (
+      barrier,
+      { disposition = "migrate", accepted = false } = {},
+    ) => {
+      if (
+        !barrier ||
+        barrier.settled ||
+        clarifyBtwBarrierByChatIdRef.current.get(barrier.chatId) !== barrier
+      ) {
+        return false;
+      }
+      barrier.settled = true;
+      if (barrier.timeoutId != null) clearTimeout(barrier.timeoutId);
+      clarifyBtwBarrierByChatIdRef.current.delete(barrier.chatId);
+      const ownsCurrentRuntime =
+        isClarifyBtwBarrierCurrentOwner(barrier);
+
+      let durableSettled = true;
+      let queue = null;
+      if (disposition === "resolve") {
+        const resolved = resolvePendingFyiIntent({
+          chatId: barrier.chatId,
+          attemptId: barrier.attemptId,
+          messageId: barrier.messageId,
+        });
+        if (resolved) {
+          queue = resolved.queue || null;
+          if (ownsCurrentRuntime) {
+            syncDurableQueueForAttempt(
+              barrier.chatId,
+              barrier.attemptId,
+              queue,
+            );
+          }
+        } else {
+          // A side-answer receipt is only successful once the exact durable
+          // intent can be removed. If that write fails, fall back once to the
+          // exact same-id queue item and report the BTW settlement as failed.
+          accepted = false;
+          const migrated = migratePendingFyiToQueue({
+            chatId: barrier.chatId,
+            attemptId: barrier.attemptId,
+            messageId: barrier.messageId,
+          });
+          durableSettled = Boolean(migrated?.queue);
+          queue = migrated?.queue || null;
+          if (queue && ownsCurrentRuntime) {
+            syncDurableQueueForAttempt(
+              barrier.chatId,
+              barrier.attemptId,
+              queue,
+            );
+          }
+        }
+      } else if (disposition === "migrate") {
+        accepted = false;
+        const migrated = migratePendingFyiToQueue({
+          chatId: barrier.chatId,
+          attemptId: barrier.attemptId,
+          messageId: barrier.messageId,
+        });
+        durableSettled = Boolean(migrated?.queue);
+        queue = migrated?.queue || null;
+        if (queue && ownsCurrentRuntime) {
+          syncDurableQueueForAttempt(
+            barrier.chatId,
+            barrier.attemptId,
+            queue,
+          );
+        }
+      } else if (disposition === "queued") {
+        const exactQueue = readQueuedTurnsForAttempt(
+          barrier.chatId,
+          barrier.attemptId,
+        );
+        durableSettled = Boolean(
+          exactQueue?.items?.some((item) => item.id === barrier.messageId),
+        );
+        queue = exactQueue || null;
+      } else if (disposition === "preserve") {
+        durableSettled = readPendingFyisForAttempt(
+          barrier.chatId,
+          barrier.attemptId,
+        ).some(
+          (entry) =>
+            entry.messageId === barrier.messageId &&
+            entry.chatId === barrier.chatId &&
+            entry.attemptId === barrier.attemptId,
+        );
+      } else if (disposition === "converted") {
+        durableSettled = Boolean(readPendingClarifyForChat(barrier.chatId));
+      }
+
+      if (!durableSettled) {
+        if (ownsCurrentRuntime) {
+          syncPendingFyiStateForAttempt(barrier.chatId, barrier.attemptId);
+          setStreamErrorForChat(
+            barrier.chatId,
+            "The side question is still saved and will be recovered after reload.",
+          );
+        }
+        return false;
+      }
+
+      if (barrier.terminal) {
+        if (ownsCurrentRuntime) {
+          const fallback = fallbackPendingFyisForAttempt(
+            barrier.chatId,
+            barrier.attemptId,
+          );
+          if (!fallback) return false;
+          if (
+            barrier.terminal.status === "done" &&
+            hookMountedRef.current
+          ) {
+            relayQueuedTurnsAfterRunRef.current?.(
+              barrier.terminal.relayContext,
+            );
+          }
+        } else if (
+          readPendingFyisForAttempt(
+            barrier.chatId,
+            barrier.attemptId,
+          ).length > 0 &&
+          !migratePendingFyiForAttemptToQueue(
+            barrier.chatId,
+            barrier.attemptId,
+          )
+        ) {
+          return false;
+        }
+      } else if (queue && ownsCurrentRuntime) {
+        syncDurableQueueForAttempt(barrier.chatId, barrier.attemptId, queue);
+      }
+      return accepted;
+    },
+    [
+      fallbackPendingFyisForAttempt,
+      isClarifyBtwBarrierCurrentOwner,
+      setStreamErrorForChat,
+      syncDurableQueueForAttempt,
+      syncPendingFyiStateForAttempt,
+    ],
+  );
+
+  useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (!targetChatId) return;
+    const storedMessages =
+      activeChatIdRef.current === targetChatId &&
+      Array.isArray(messagesRef.current)
+        ? messagesRef.current
+        : storageApi.getChatMessages?.(targetChatId) || [];
+
+    // A renderer can crash after persisting the stable BTW receipt but before
+    // removing its durable intent/fallback. Reconcile that exact receipt before
+    // queue hydration or terminal relay. Both halves are required so a partial
+    // message write can never acknowledge an unanswered side question.
+    readPendingFyiOutbox()
+      .filter(
+        (entry) =>
+          entry.chatId === targetChatId && entry.requestedChannel === "btw",
+      )
+      .forEach((entry) => {
+        const ownerAssistant = [...storedMessages].reverse().find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.meta?.attemptId === entry.attemptId,
+        );
+        const hasStableFrame = Boolean(
+          ownerAssistant?.traceFrames?.some(
+            (frame) =>
+              frame?.type === "side_answer" &&
+              frame?.payload?.message_id === entry.messageId,
+          ),
+        );
+        const hasStableRecord = Boolean(
+          ownerAssistant?.interjections?.some(
+            (record) => record?.id === `btw-${entry.messageId}`,
+          ),
+        );
+        if (hasStableFrame && hasStableRecord) {
+          resolvePendingFyiIntent({
+            chatId: targetChatId,
+            attemptId: entry.attemptId,
+            messageId: entry.messageId,
+          });
+        }
+      });
+
+    if (!queuedTurnsByChatIdRef.current.has(targetChatId)) {
+      const exactAssistant = [...storedMessages].reverse().find((message) => {
+        const attemptId =
+          typeof message?.meta?.attemptId === "string"
+            ? message.meta.attemptId.trim()
+            : "";
+        return Boolean(
+          message?.role === "assistant" &&
+            attemptId &&
+            readQueuedTurnsForAttempt(targetChatId, attemptId),
+        );
+      });
+      const exactAttempt = exactAssistant?.meta?.attemptId;
+      if (exactAttempt) {
+        const hydrated = hydrateQueuedTurnsForAttempt(
+          targetChatId,
+          exactAttempt,
+        );
+        if (hydrated && exactAssistant.status === "done") {
+          relayQueuedTurnsAfterRunRef.current?.({
+            targetChatId,
+            nextStreamMessages: storedMessages,
+            characterAgentConfig: null,
+            runContext: null,
+          });
+        }
+      } else {
+        const pendingClientEntry = readQueuedTurnsForChat(targetChatId)
+          .filter((entry) => entry.clientOperationId)
+          .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+        if (pendingClientEntry) {
+          hydrateQueuedTurnsForClientOperation(
+            targetChatId,
+            pendingClientEntry.clientOperationId,
+          );
+        }
+      }
+    }
+
+    storedMessages.forEach((sourceAssistant) => {
+      const sourceAttemptId =
+        typeof sourceAssistant?.meta?.attemptId === "string"
+          ? sourceAssistant.meta.attemptId.trim()
+          : "";
+      if (sourceAssistant?.role !== "assistant" || !sourceAttemptId) return;
+      const persistedFyiMessages = [
+        sourceAssistant.traceFrames,
+        ...Object.values(sourceAssistant.subagentFrames || {}),
+      ].flatMap((frames) =>
+        (Array.isArray(frames) ? frames : [])
+          .filter((frame) => frame?.type === "fyi_injected")
+          .flatMap((frame) =>
+            Array.isArray(frame.payload?.messages)
+              ? frame.payload.messages
+              : [],
+          ),
+      );
+      if (persistedFyiMessages.length > 0) {
+        acknowledgeInjectedFyisForAttempt(
+          targetChatId,
+          sourceAttemptId,
+          persistedFyiMessages,
+        );
+      }
+    });
+
+    const pendingFyisByAttempt = new Map();
+    readPendingFyiOutbox()
+      .filter((entry) => entry.chatId === targetChatId)
+      .forEach((entry) => {
+        if (!pendingFyisByAttempt.has(entry.attemptId)) {
+          pendingFyisByAttempt.set(entry.attemptId, []);
+        }
+        pendingFyisByAttempt.get(entry.attemptId).push(entry);
+      });
+    pendingFyisByAttempt.forEach((_entries, sourceAttemptId) => {
+      const sourceAssistant = [...storedMessages].reverse().find(
+        (message) =>
+          message?.role === "assistant" &&
+          message?.meta?.attemptId === sourceAttemptId,
+      );
+      if (
+        readPendingFyisForAttempt(targetChatId, sourceAttemptId).length === 0
+      ) {
+        return;
+      }
+      const sourceCanResume = Boolean(
+        sourceAssistant?.status === "streaming" &&
+          sourceAssistant?.meta?.requestId &&
+          sourceAssistant?.meta?.executionSessionId,
+      );
+      if (sourceCanResume) {
+        syncPendingFyiStateForAttempt(targetChatId, sourceAttemptId);
+        return;
+      }
+      const migrated = fallbackPendingFyisForAttempt(
+        targetChatId,
+        sourceAttemptId,
+      );
+      if (migrated && sourceAssistant?.status === "done") {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: storedMessages,
+          characterAgentConfig: null,
+          runContext: null,
+        });
+      }
+    });
+
+    const durableClarify = readPendingClarifyForChat(targetChatId);
+    if (!durableClarify) return;
+    const sourceAssistant = [...storedMessages].reverse().find((message) => {
+      if (message?.role !== "assistant") return false;
+      if (durableClarify.sourceAttemptId) {
+        return message?.meta?.attemptId === durableClarify.sourceAttemptId;
+      }
+      return (
+        message?.meta?.queueClientOperationId ===
+        durableClarify.clientOperationId
+      );
+    });
+    const sourceCanResume = Boolean(
+      sourceAssistant?.status === "streaming" &&
+        sourceAssistant?.meta?.requestId &&
+        sourceAssistant?.meta?.attemptId &&
+        sourceAssistant?.meta?.executionSessionId,
+    );
+    if (sourceCanResume) {
+      pendingClarifyByChatIdRef.current.set(targetChatId, durableClarify);
+      return;
+    }
+    const fallback = fallbackPendingClarifyForChat(
+      targetChatId,
+      durableClarify,
+    );
+    if (fallback) {
+      const nextMessages = storedMessages.map((message) => ({
+        ...message,
+        ...(Array.isArray(message?.traceFrames)
+          ? {
+              traceFrames: message.traceFrames.map((frame) =>
+                frame?.type === "clarify_request" &&
+                frame?.payload?.id === fallback.id
+                  ? {
+                      ...frame,
+                      payload: {
+                        ...frame.payload,
+                        status: "resolved_default",
+                      },
+                    }
+                  : frame,
+              ),
+            }
+          : {}),
+      }));
+      commitForegroundMessages(targetChatId, nextMessages);
+      storageApi.setChatMessages(targetChatId, nextMessages, {
+        source: "clarify-durable-fallback",
+      });
+      /* Mirror the fyi-fallback recovery above: once a pending clarify for an
+         already-done owner has been migrated into the queue, schedule the exact
+         relay so the recovered question actually launches its successor. Error
+         or cancelled owners stay queued without auto-run — only a done owner
+         relays. */
+      if (sourceAssistant?.status === "done") {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: nextMessages,
+          characterAgentConfig: null,
+          runContext: null,
+        });
+      }
+    }
+  }, [
+    activeChatIdRef,
+    acknowledgeInjectedFyisForAttempt,
+    chatId,
+    commitForegroundMessages,
+    fallbackPendingClarifyForChat,
+    fallbackPendingFyisForAttempt,
+    hydrateQueuedTurnsForClientOperation,
+    hydrateQueuedTurnsForAttempt,
+    messagesRef,
+    storageApi,
+    syncPendingFyiStateForAttempt,
+  ]);
+
+  const clearQueuedTurnsForChat = useCallback(
+    (targetChatId, explicitAttemptId = "") => {
+      // Stop/cancel must tombstone the in-flight clarify-owned BTW before its
+      // durable intent is cleared, so a late promise or timeout cannot revive
+      // the stopped owner or occupy the barrier slot needed by a successor.
+      tombstoneClarifyBtwBarrierForChat(targetChatId);
+      const attemptIds = new Set([
+        typeof explicitAttemptId === "string" ? explicitAttemptId.trim() : "",
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "",
+      ]);
+      attemptIds.forEach((attemptId) => {
+        if (attemptId) {
+          removeQueuedTurnsForAttempt(targetChatId, attemptId);
+          removePendingFyisForAttempt(targetChatId, attemptId);
+        }
+      });
+      const clientOperationIds = new Set([
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) || "",
+        runClientOperationIdByChatIdRef.current.get(targetChatId) || "",
+      ]);
+      clientOperationIds.forEach((clientOperationId) => {
+        if (clientOperationId) {
+          removeQueuedTurnsForClientOperation(
+            targetChatId,
+            clientOperationId,
+          );
+        }
+      });
+      const pendingClarify =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (pendingClarify?.id) {
+        removePendingClarify(targetChatId, pendingClarify.id);
+      }
+      queuedTurnsByChatIdRef.current.delete(targetChatId);
+      queueAttemptIdByChatIdRef.current.delete(targetChatId);
+      queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      runClientOperationIdByChatIdRef.current.delete(targetChatId);
+      pendingClarifyByChatIdRef.current.delete(targetChatId);
+      pendingFyiCountByChatIdRef.current.delete(targetChatId);
+      syncInterjectStateForChat(targetChatId);
+    },
+    [syncInterjectStateForChat, tombstoneClarifyBtwBarrierForChat],
+  );
+
   const clearConfirmationResolutionTimer = useCallback(
     (targetChatId, confirmationId) => {
       const normalizedId =
@@ -1433,21 +2475,28 @@ export const useChatStream = ({
   );
 
   const markConfirmationFollowupSignalByCallId = useCallback(
-    (targetChatId, callId) => {
+    (targetChatId, callId, confirmationId = "") => {
       const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
-      if (!normalizedCallId) {
+      const normalizedConfirmationId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedCallId && !normalizedConfirmationId) {
         return;
       }
 
       const runtime = getConfirmationRuntimeForChat(targetChatId, {
         create: false,
       });
-      const confirmationId = runtime?.confirmationIdByCallId.get(normalizedCallId);
-      if (!confirmationId) {
+      const resolvedConfirmationId =
+        normalizedConfirmationId ||
+        runtime?.confirmationIdByCallId.get(normalizedCallId);
+      if (!resolvedConfirmationId) {
         return;
       }
-      runtime.followupSignalById.set(confirmationId, true);
-      resolveSubmittedConfirmationFromSignal(targetChatId, confirmationId);
+      runtime.followupSignalById.set(resolvedConfirmationId, true);
+      resolveSubmittedConfirmationFromSignal(
+        targetChatId,
+        resolvedConfirmationId,
+      );
     },
     [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal],
   );
@@ -1456,7 +2505,7 @@ export const useChatStream = ({
     const runtime = getConfirmationRuntimeForChat(targetChatId, {
       create: false,
     });
-    runtime?.confirmationIdByCallId.forEach((confirmationId) => {
+    runtime?.confirmationCallIdById.forEach((_callId, confirmationId) => {
       if (confirmationId) {
         runtime.followupSignalById.set(confirmationId, true);
         resolveSubmittedConfirmationFromSignal(targetChatId, confirmationId);
@@ -1465,37 +2514,60 @@ export const useChatStream = ({
   }, [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal]);
 
   const clearResolvedToolConfirmationByCallId = useCallback(
-    (targetChatId, callId) => {
-      if (typeof callId !== "string" || !callId.trim()) {
+    (targetChatId, callId, confirmationId = "") => {
+      const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
+      const normalizedConfirmationId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedCallId && !normalizedConfirmationId) {
         return;
       }
       const runtime = getConfirmationRuntimeForChat(targetChatId, {
         create: false,
       });
-      const confirmationId = runtime?.confirmationIdByCallId.get(callId);
-      if (!confirmationId) {
+      const resolvedConfirmationId =
+        normalizedConfirmationId ||
+        runtime?.confirmationIdByCallId.get(normalizedCallId);
+      if (!resolvedConfirmationId) {
         return;
       }
 
-      runtime.confirmationIdByCallId.delete(callId);
-      runtime.confirmationCallIdById.delete(confirmationId);
-      runtime.sessionIdByConfirmationId.delete(confirmationId);
-      runtime.followupSignalById.delete(confirmationId);
-      clearConfirmationResolutionTimer(targetChatId, confirmationId);
+      if (
+        normalizedCallId &&
+        runtime.confirmationIdByCallId.get(normalizedCallId) ===
+          resolvedConfirmationId
+      ) {
+        runtime.confirmationIdByCallId.delete(normalizedCallId);
+      }
+      runtime.confirmationCallIdById.delete(resolvedConfirmationId);
+      if (
+        normalizedCallId &&
+        !runtime.confirmationIdByCallId.has(normalizedCallId)
+      ) {
+        for (const [candidateId, candidateCallId] of
+          runtime.confirmationCallIdById.entries()) {
+          if (candidateCallId === normalizedCallId) {
+            runtime.confirmationIdByCallId.set(normalizedCallId, candidateId);
+            break;
+          }
+        }
+      }
+      runtime.sessionIdByConfirmationId.delete(resolvedConfirmationId);
+      runtime.followupSignalById.delete(resolvedConfirmationId);
+      clearConfirmationResolutionTimer(targetChatId, resolvedConfirmationId);
       updatePendingToolConfirmationRequests(targetChatId, (previous) => {
-        if (!previous || !previous[confirmationId]) {
+        if (!previous || !previous[resolvedConfirmationId]) {
           return previous;
         }
         const next = { ...previous };
-        delete next[confirmationId];
+        delete next[resolvedConfirmationId];
         return next;
       });
       updateToolConfirmationUiState(targetChatId, (previous) => {
-        if (!previous || !previous[confirmationId]) {
+        if (!previous || !previous[resolvedConfirmationId]) {
           return previous;
         }
         const next = { ...previous };
-        delete next[confirmationId];
+        delete next[resolvedConfirmationId];
         return next;
       });
     },
@@ -1545,6 +2617,8 @@ export const useChatStream = ({
     if (!currentChatId) {
       return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
+    const executionIdentity =
+      executionIdentityByChatIdRef.current.get(currentChatId) || null;
 
     // Invalidate first. Any lookup, retry, receipt, or queue callback that was
     // already in flight must observe the tombstone before transport teardown.
@@ -1558,18 +2632,15 @@ export const useChatStream = ({
     clearDurableResumeStartedKeysForChat(currentChatId);
     clearConfirmationRetryWaitersForChat(currentChatId);
     clearQueueRelayTimersForChat(currentChatId);
-    queuedTurnsByChatIdRef.current.delete(currentChatId);
+    clearQueuedTurnsForChat(currentChatId, executionIdentity?.attemptId);
     pendingFyiCountByChatIdRef.current.delete(currentChatId);
     pendingClarifyByChatIdRef.current.delete(currentChatId);
-    syncInterjectStateForChat(currentChatId);
     updateDurableInteractionForChat(currentChatId, null);
     clearAllPendingToolConfirmations(currentChatId);
     updatePendingContinuationRequestForChat(currentChatId, null);
 
     clearActiveTokenFlushController(currentChatId, "flush");
     const handle = streamHandlesRef.current.get(currentChatId);
-    const executionIdentity =
-      executionIdentityByChatIdRef.current.get(currentChatId) || null;
     executionIdentityByChatIdRef.current.delete(currentChatId);
     const queuedCancellation = enqueueExecutionCancel({
       ...(executionIdentity || {}),
@@ -1624,6 +2695,7 @@ export const useChatStream = ({
     activeStreamsRef,
     activeStreamingMessageStore,
     clearConfirmationRetryWaitersForChat,
+    clearQueuedTurnsForChat,
     clearActiveTokenFlushController,
     clearAllPendingToolConfirmations,
     clearDurableResumeStartedKeysForChat,
@@ -1633,7 +2705,6 @@ export const useChatStream = ({
     messagesRef,
     setMessages,
     storageApi,
-    syncInterjectStateForChat,
     updateDurableInteractionForChat,
     updatePendingContinuationRequestForChat,
   ]);
@@ -1712,6 +2783,18 @@ export const useChatStream = ({
       const decisionFrameType = approved ? "tool_confirmed" : "tool_denied";
       const patchTime = Date.now();
       let changed = false;
+      const containsExactRequest = (frames) =>
+        (Array.isArray(frames) ? frames : []).some(
+          (frame) =>
+            frame?.type === "tool_call" &&
+            frame?.payload?.confirmation_id === normalizedConfirmationId,
+        );
+      const hasExactRequestFrame = streamMessages.some((message) => {
+        if (containsExactRequest(message?.traceFrames)) return true;
+        return Object.values(message?.subagentFrames || {}).some((frames) =>
+          containsExactRequest(frames),
+        );
+      });
 
       const appendDecisionFrame = (frames) => {
         const list = Array.isArray(frames) ? frames : [];
@@ -1719,7 +2802,7 @@ export const useChatStream = ({
           (frame) =>
             frame?.type === "tool_call" &&
             (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              frame?.payload?.call_id === callId),
+              (!hasExactRequestFrame && frame?.payload?.call_id === callId)),
         );
         if (!requestFrame) {
           return { frames: list, changed: false };
@@ -1728,7 +2811,8 @@ export const useChatStream = ({
         const alreadyRecorded = list.some(
           (frame) =>
             frame?.type === decisionFrameType &&
-            frame?.payload?.call_id === callId,
+            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
+              (!hasExactRequestFrame && frame?.payload?.call_id === callId)),
         );
         if (alreadyRecorded) {
           return { frames: list, changed: false };
@@ -1911,14 +2995,116 @@ export const useChatStream = ({
     [applyToStreamingAssistantMessage],
   );
 
-  const appendLocalInterjectionRecord = useCallback(
-    (targetChatId, record) =>
-      applyToStreamingAssistantMessage(targetChatId, (message) => ({
-        ...message,
-        updatedAt: Date.now(),
-        interjections: [...(message.interjections || []), record],
-      })),
-    [applyToStreamingAssistantMessage],
+  const appendLocalBtwResultForOwner = useCallback(
+    ({
+      targetChatId,
+      attemptId,
+      executionAttemptId,
+      messageId,
+      question,
+      answer,
+      ts,
+    }) => {
+      const streamState = activeStreamsRef.current.get(targetChatId);
+      const hasActiveStreamMessages = Array.isArray(streamState?.messages);
+      const sourceMessages = hasActiveStreamMessages
+        ? streamState.messages
+        : activeChatIdRef.current === targetChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : storageApi.getChatMessages?.(targetChatId) || [];
+      const stableMessageId =
+        typeof messageId === "string" ? messageId.trim() : "";
+      const receiptId = stableMessageId ? `btw-${stableMessageId}` : "";
+      let ownerFound = false;
+      let changed = false;
+      const sideAnswerFrame = {
+        seq: ts,
+        ts,
+        type: "side_answer",
+        stage: "client",
+        payload: {
+          ...(stableMessageId ? { message_id: stableMessageId } : {}),
+          question,
+          answer,
+        },
+      };
+      const record = buildInterjectionRecord({
+        type: "btw",
+        text: question,
+        origin: "user",
+        answer,
+        ts,
+      });
+      if (receiptId) record.id = receiptId;
+      const ownsResult = (message) =>
+        Boolean(
+          message?.role === "assistant" &&
+            (executionAttemptId
+              ? message?.meta?.attemptId === executionAttemptId
+              : message?.meta?.queueClientOperationId === attemptId),
+        );
+      const containsReceipt = (message) => {
+        if (!ownsResult(message)) return false;
+        const hasFrame = (message.traceFrames || []).some((frame) =>
+          stableMessageId
+            ? frame?.type === "side_answer" &&
+              frame?.payload?.message_id === stableMessageId
+            : frame?.type === "side_answer" &&
+              frame?.ts === ts &&
+              frame?.payload?.question === question,
+        );
+        const hasRecord = (message.interjections || []).some(
+          (entry) => entry?.id === record.id,
+        );
+        return hasFrame && hasRecord;
+      };
+      const nextMessages = sourceMessages.map((message) => {
+        if (!ownsResult(message)) return message;
+        ownerFound = true;
+        const hasFrame = (message.traceFrames || []).some((frame) =>
+          stableMessageId
+            ? frame?.type === "side_answer" &&
+              frame?.payload?.message_id === stableMessageId
+            : frame?.type === "side_answer" &&
+              frame?.ts === ts &&
+              frame?.payload?.question === question,
+        );
+        const hasRecord = (message.interjections || []).some(
+          (entry) => entry?.id === record.id,
+        );
+        if (hasFrame && hasRecord) return message;
+        changed = true;
+        return {
+          ...message,
+          updatedAt: Date.now(),
+          traceFrames: [
+            ...(message.traceFrames || []),
+            ...(hasFrame ? [] : [sideAnswerFrame]),
+          ],
+          interjections: [
+            ...(message.interjections || []),
+            ...(hasRecord ? [] : [record]),
+          ],
+        };
+      });
+      if (!ownerFound) return false;
+      if (changed) {
+        if (hasActiveStreamMessages) {
+          activeStreamsRef.current.set(targetChatId, {
+            messages: nextMessages,
+          });
+        }
+        cancelBackgroundPersist(targetChatId);
+        commitForegroundMessages(targetChatId, nextMessages);
+        storageApi.setChatMessages(targetChatId, nextMessages, {
+          source: "interject-btw-result",
+        });
+      }
+      const persistedMessages = storageApi.getChatMessages?.(targetChatId) || [];
+      return persistedMessages.some(containsReceipt);
+    },
+    [activeChatIdRef, activeStreamsRef, commitForegroundMessages, messagesRef, storageApi],
   );
 
   const updateLocalClarifyFrame = useCallback(
@@ -2038,16 +3224,16 @@ export const useChatStream = ({
         targetChatId;
       const requestFrame = findToolCallFrameByCallId(targetChatId, callId);
       const toolName =
-        typeof requestFrame?.payload?.tool_name === "string"
-          ? requestFrame.payload.tool_name
-          : typeof confirmationRequest?.toolName === "string"
-            ? confirmationRequest.toolName
+        typeof confirmationRequest?.toolName === "string"
+          ? confirmationRequest.toolName
+          : typeof requestFrame?.payload?.tool_name === "string"
+            ? requestFrame.payload.tool_name
             : "";
       const toolkitId =
-        typeof requestFrame?.payload?.toolkit_id === "string"
-          ? requestFrame.payload.toolkit_id
-          : typeof confirmationRequest?.toolkitId === "string"
-            ? confirmationRequest.toolkitId
+        typeof confirmationRequest?.toolkitId === "string"
+          ? confirmationRequest.toolkitId
+          : typeof requestFrame?.payload?.toolkit_id === "string"
+            ? requestFrame.payload.toolkit_id
             : "";
 
       const shouldCacheSessionDecision =
@@ -2058,15 +3244,21 @@ export const useChatStream = ({
           toolName,
         }) && toolName !== HUMAN_INPUT_TOOL_NAME;
       const interactConfig =
-        requestFrame?.payload?.interact_config &&
-        typeof requestFrame.payload.interact_config === "object"
-          ? requestFrame.payload.interact_config
-          : {};
+        confirmationRequest?.interactConfig &&
+        typeof confirmationRequest.interactConfig === "object"
+          ? confirmationRequest.interactConfig
+          : requestFrame?.payload?.interact_config &&
+              typeof requestFrame.payload.interact_config === "object"
+            ? requestFrame.payload.interact_config
+            : {};
       const requestArguments =
-        requestFrame?.payload?.arguments &&
-        typeof requestFrame.payload.arguments === "object"
-          ? requestFrame.payload.arguments
-          : {};
+        confirmationRequest?.arguments &&
+        typeof confirmationRequest.arguments === "object"
+          ? confirmationRequest.arguments
+          : requestFrame?.payload?.arguments &&
+              typeof requestFrame.payload.arguments === "object"
+            ? requestFrame.payload.arguments
+            : {};
 
       if (toolName === HUMAN_INPUT_TOOL_NAME) {
         unchainLogger.log("ask_user_question_submit", {
@@ -2554,12 +3746,68 @@ export const useChatStream = ({
       runContext: requestedRunContext = null,
       turnMutationOperationId = "",
       onConsumed = null,
+      onReject = null,
+      relayItemIds = [],
+      relayItems = [],
+      relaySourceAttemptId = "",
+      relaySourceClientOperationId = "",
     }) => {
+      /* Queue-relay acceptance protocol (see relayQueuedTurnsAfterRun):
+         onConsumed fires exactly once, and only on authoritative server
+         acceptance evidence (V4 run/turn/step.started, V2
+         run_started/response_received/final_message, any token, or a successful
+         done fallback). onReject fires at most once, only when the run reaches a
+         terminal failure BEFORE any acceptance evidence and was NOT cancelled by
+         the user — a Stop/cancel must never resurrect a relayed turn. The two
+         are mutually exclusive. */
       let requestConsumed = false;
+      let requestRejected = false;
+      let queueRelayAcceptanceTimer = null;
+      let queueRelayAcceptanceReattachCount = 0;
+      let streamHandle = null;
+      const clearQueueRelayAcceptanceTimer = () => {
+        if (queueRelayAcceptanceTimer == null) return;
+        const timerId = queueRelayAcceptanceTimer;
+        clearTimeout(timerId);
+        const trackedTimers =
+          queueRelayTimersByChatIdRef.current.get(targetChatId);
+        trackedTimers?.delete(timerId);
+        if (trackedTimers?.size === 0) {
+          queueRelayTimersByChatIdRef.current.delete(targetChatId);
+        }
+        queueRelayAcceptanceTimer = null;
+      };
+      const isQueueRelayRequest =
+        typeof onConsumed === "function" || typeof onReject === "function";
+      const exactRelayItemIds = new Set(
+        (Array.isArray(relayItemIds) ? relayItemIds : [])
+          .filter((itemId) => typeof itemId === "string")
+          .map((itemId) => itemId.trim())
+          .filter(Boolean),
+      );
+      const exactRelayItems = (Array.isArray(relayItems) ? relayItems : [])
+        .filter(
+          (item) =>
+            exactRelayItemIds.has(item?.id) &&
+            typeof item?.text === "string" &&
+            item.text.trim(),
+        )
+        .map((item) => ({
+          id: item.id,
+          text: item.text,
+          status: "queued",
+        }));
       const markRequestConsumed = () => {
-        if (requestConsumed) return;
+        if (requestConsumed || requestRejected) return;
         requestConsumed = true;
+        clearQueueRelayAcceptanceTimer();
         if (typeof onConsumed === "function") onConsumed();
+      };
+      const rejectRequestBeforeAcceptance = () => {
+        if (requestConsumed || requestRejected) return;
+        requestRejected = true;
+        clearQueueRelayAcceptanceTimer();
+        if (typeof onReject === "function") onReject();
       };
       const isDurableResume = Boolean(
         mode === "resume_interaction" &&
@@ -2658,6 +3906,11 @@ export const useChatStream = ({
         Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
           ? requestedRunGeneration
           : beginRunGeneration(targetChatId);
+      const runClientOperationId = createQueuedTurnClientOperationId();
+      runClientOperationIdByChatIdRef.current.set(
+        targetChatId,
+        runClientOperationId,
+      );
       if (
         !Number.isInteger(requestedRunGeneration) ||
         requestedRunGeneration <= 0
@@ -2732,9 +3985,82 @@ export const useChatStream = ({
             : typeof threadIdRef?.current === "string"
               ? threadIdRef.current
               : "";
+      const runSelectedToolkits = Array.isArray(
+        requestedRunContext?.selectedToolkits,
+      )
+        ? [...requestedRunContext.selectedToolkits]
+        : Array.isArray(storedRunContext?.selectedToolkits)
+          ? [...storedRunContext.selectedToolkits]
+          : Array.isArray(selectedToolkits)
+            ? [...selectedToolkits]
+            : [];
+      const runSelectedWorkspaceIds = Array.isArray(
+        requestedRunContext?.selectedWorkspaceIds,
+      )
+        ? [...requestedRunContext.selectedWorkspaceIds]
+        : Array.isArray(storedRunContext?.selectedWorkspaceIds)
+          ? [...storedRunContext.selectedWorkspaceIds]
+          : Array.isArray(selectedWorkspaceIds)
+            ? [...selectedWorkspaceIds]
+            : [];
+      const runSelectedRecipeName =
+        typeof requestedRunContext?.selectedRecipeName === "string"
+          ? requestedRunContext.selectedRecipeName
+          : typeof storedRunContext?.selectedRecipeName === "string"
+            ? storedRunContext.selectedRecipeName
+            : typeof selectedRecipeName === "string"
+              ? selectedRecipeName
+              : "Default";
+      const runAgentOrchestration = normalizeAgentOrchestration(
+        requestedRunContext?.agentOrchestration ||
+          storedRunContext?.agentOrchestration ||
+          agentOrchestration,
+      );
+      const runSystemPromptOverrides =
+        requestedRunContext?.systemPromptOverrides &&
+        typeof requestedRunContext.systemPromptOverrides === "object" &&
+        !Array.isArray(requestedRunContext.systemPromptOverrides)
+          ? { ...requestedRunContext.systemPromptOverrides }
+          : storedRunContext?.systemPromptOverrides &&
+              typeof storedRunContext.systemPromptOverrides === "object" &&
+              !Array.isArray(storedRunContext.systemPromptOverrides)
+            ? { ...storedRunContext.systemPromptOverrides }
+            : systemPromptOverrides &&
+                typeof systemPromptOverrides === "object" &&
+                !Array.isArray(systemPromptOverrides)
+              ? { ...systemPromptOverrides }
+              : {};
+      const runKind =
+        requestedRunContext?.kind === "character" ||
+        requestedRunContext?.kind === "default"
+          ? requestedRunContext.kind
+          : storedRunContext?.kind === "character" ||
+              storedRunContext?.kind === "default"
+            ? storedRunContext.kind
+            : isCharacterChat
+              ? "character"
+              : "default";
+      const runCharacterId =
+        typeof requestedRunContext?.characterId === "string"
+          ? requestedRunContext.characterId.trim()
+          : typeof storedRunContext?.characterId === "string"
+            ? storedRunContext.characterId.trim()
+            : typeof characterId === "string"
+              ? characterId.trim()
+              : "";
+      const runIsCharacterChat =
+        runKind === "character" && Boolean(runCharacterId);
       const effectiveRunContext = {
         modelId: runModelId,
         threadId: runThreadId,
+        selectedToolkits: runSelectedToolkits,
+        selectedWorkspaceIds: runSelectedWorkspaceIds,
+        selectedRecipeName: runSelectedRecipeName,
+        agentOrchestration: runAgentOrchestration,
+        systemPromptOverrides: runSystemPromptOverrides,
+        kind: runKind,
+        characterId: runCharacterId,
+        isCharacterChat: runIsCharacterChat,
       };
       runContextByChatIdRef.current.set(targetChatId, effectiveRunContext);
       if (
@@ -2905,18 +4231,16 @@ export const useChatStream = ({
       let effectiveModelId = runModelId;
       let effectiveThreadId = targetChatId;
       let effectiveMemoryNamespace = "";
-      let effectiveToolkits = selectedToolkits;
+      let effectiveToolkits = runSelectedToolkits;
       if (Array.isArray(extraToolkits) && extraToolkits.length > 0) {
         // Command-driven ephemeral selection: the run carries the plugin(s)
         // whose commands were used, without persisting them to the session.
         effectiveToolkits = [
-          ...new Set([...(selectedToolkits || []), ...extraToolkits]),
+          ...new Set([...(runSelectedToolkits || []), ...extraToolkits]),
         ];
       }
-      let effectiveWorkspaceIds = selectedWorkspaceIds;
-      let effectiveAgentOrchestration = normalizeAgentOrchestration(
-        agentOrchestration,
-      );
+      let effectiveWorkspaceIds = runSelectedWorkspaceIds;
+      let effectiveAgentOrchestration = runAgentOrchestration;
       let forceMemoryEnabled = false;
 
       if (isDurableResume) {
@@ -2942,6 +4266,7 @@ export const useChatStream = ({
         subagentMetaByRunId: {},
         meta: {
           model: effectiveModelId,
+          queueClientOperationId: runClientOperationId,
           ...(turnMutationOperationId
             ? { turnMutationOperationId }
             : {}),
@@ -3065,10 +4390,17 @@ export const useChatStream = ({
       };
 
       let resolvedCharacterConfig = characterAgentConfig;
-      if (isCharacterChat && !isDurableResume) {
+      if (runIsCharacterChat && !isDurableResume) {
         if (!resolvedCharacterConfig) {
           try {
-            resolvedCharacterConfig = await buildCharacterRunConfig(runThreadId);
+            resolvedCharacterConfig =
+              isCharacterChat && runCharacterId === characterId
+                ? await buildCharacterRunConfig(runThreadId)
+                : await api.unchain.buildCharacterAgentConfig({
+                    characterId: runCharacterId,
+                    threadId: runThreadId || "main",
+                    humanId: "local_user",
+                  });
             if (!isCurrentRun()) {
               releaseComposerDraftClaim();
               return false;
@@ -3129,7 +4461,7 @@ export const useChatStream = ({
 
         if (decisionAction === "ignore" || decisionAction === "defer") {
           characterLogger.log(decisionAction, {
-            characterId,
+            characterId: runCharacterId,
             reason: characterDecision.reason || "unknown",
             courtesyMessage: courtesyMessage || null,
             evaluation: characterDecision.evaluation || null,
@@ -3460,6 +4792,134 @@ export const useChatStream = ({
         scheduleSubagentStateFlush();
       };
 
+      /* Reads back the just-persisted chat snapshot and confirms every fresh
+         interjection record actually landed. storageApi.setChatMessages
+         swallows backend persist failures (see chat_storage writeStore), so a
+         synchronous write is not by itself proof of durability — we verify the
+         durable read reflects the parent-assistant interjection before we allow
+         the exact-ACK to clear the outbox. Records-less frames carry no
+         rendered interjection (the raw frame was persisted by the caller), so
+         they are treated as durable and still exact-ACK. */
+      const fyiInterjectionSnapshotIsDurable = (chatId, messageId, records) => {
+        if (!Array.isArray(records) || records.length === 0) {
+          return true;
+        }
+        const persisted =
+          typeof storageApi.getChatMessages === "function"
+            ? storageApi.getChatMessages(chatId)
+            : null;
+        if (!Array.isArray(persisted)) return false;
+        const assistant = persisted.find((message) => message?.id === messageId);
+        const persistedIds = new Set(
+          (Array.isArray(assistant?.interjections)
+            ? assistant.interjections
+            : []
+          ).map((record) => record?.id),
+        );
+        return records.every((record) => persistedIds.has(record.id));
+      };
+
+      /* Shared fyi_injected handling for both the root assistant stream AND any
+         subagent (child) stream. Persists a parent-assistant interjection with a
+         STABLE id derived from the durable message_id (deduped by id, never by
+         text), then synchronously persists the exact updated chat snapshot
+         (raw fyi frame from the caller — root -> traceFrames, child ->
+         subagentFrames — plus the interjection) through storageApi and only
+         exact-ACKs the durable pending FYI once that snapshot is verified
+         durable. The ACK removes the outbox entry, so it must never run ahead of
+         durability: doing so before the 2s background persister (or on a
+         swallowed backend failure) would drop the injected FYI while the outbox
+         no longer holds it, resurrecting a spurious successor on remount. On a
+         non-durable snapshot we keep the durable FYI intent (queue fallback),
+         surface an error, and do NOT ACK. */
+      const applyFyiParentInterjectionAndAck = (frame, patchTime) => {
+        const entries = Array.isArray(frame?.payload?.messages)
+          ? frame.payload.messages
+          : [];
+        const eventId =
+          typeof frame?.payload?.runtime_event_id === "string" &&
+          frame.payload.runtime_event_id.trim()
+            ? frame.payload.runtime_event_id.trim()
+            : `seq-${frame?.seq || 0}`;
+        const records = [];
+        entries.forEach((entry, index) => {
+          if (entry?.origin !== "user") return;
+          const text = typeof entry?.text === "string" ? entry.text : "";
+          if (!text.trim()) return;
+          const messageId =
+            typeof entry?.message_id === "string"
+              ? entry.message_id.trim()
+              : typeof entry?.messageId === "string"
+                ? entry.messageId.trim()
+                : "";
+          records.push({
+            id: messageId ? `fyi-${messageId}` : `fyi-${eventId}-${index}`,
+            type: "fyi",
+            text,
+            origin: "user",
+            ts: patchTime,
+          });
+        });
+        if (records.length > 0) {
+          const nextStreamMessages = streamMessages.map((message) => {
+            if (message.id !== assistantMessageId) return message;
+            const existingIds = new Set(
+              (Array.isArray(message.interjections)
+                ? message.interjections
+                : []
+              ).map((record) => record?.id),
+            );
+            const fresh = records.filter(
+              (record) => !existingIds.has(record.id),
+            );
+            if (fresh.length === 0) return message;
+            return {
+              ...message,
+              updatedAt: patchTime,
+              interjections: [...(message.interjections || []), ...fresh],
+            };
+          });
+          syncStreamMessages(nextStreamMessages);
+        }
+        const fyiAttemptId =
+          executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+          queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+          "";
+        /* Persist the exact updated snapshot synchronously BEFORE the ACK, then
+           verify it landed durably. Never rely on React microtasks or the 2s
+           background persister here — the outbox entry is about to be removed. */
+        let snapshotDurable = false;
+        try {
+          storageApi.setChatMessages(targetChatId, streamMessages, {
+            source: "chat-page",
+          });
+          snapshotDurable = fyiInterjectionSnapshotIsDurable(
+            targetChatId,
+            assistantMessageId,
+            records,
+          );
+        } catch (persistError) {
+          snapshotDurable = false;
+        }
+        if (!snapshotDurable) {
+          if (fyiAttemptId) {
+            fallbackPendingFyisForAttempt(targetChatId, fyiAttemptId);
+          }
+          setStreamErrorForChat(
+            targetChatId,
+            "The pending FYI is still saved and will be recovered after reload.",
+          );
+          return;
+        }
+        if (fyiAttemptId) {
+          acknowledgeInjectedFyisForAttempt(
+            targetChatId,
+            fyiAttemptId,
+            entries,
+          );
+        }
+      };
+
       let bufferedTokenDelta = "";
       let pendingTokenFlushHandle = null;
       let pendingTokenFlushHandleType = null;
@@ -3743,6 +5203,7 @@ export const useChatStream = ({
               return;
             }
             if (effect.type === "token") {
+              markRequestConsumed();
               handlers.onToken?.(effect.delta);
               return;
             }
@@ -3773,17 +5234,19 @@ export const useChatStream = ({
             })
           : null;
 
-        const streamHandle = startStream(payload, {
-          onRuntimeEvent: (runtimeEvent) => {
-            if (!isCurrentRun()) {
+        let lastRuntimeStreamSeq = 0;
+        const runtimeEventHandlers = {
+          onRuntimeEvent: (runtimeEvent, streamMeta = {}) => {
+            if (runtimeEventStreamFailed || !isCurrentRun()) {
               return;
             }
-            if (
-              ["run.started", "turn.started", "step.started"].includes(
-                runtimeEvent?.type,
-              )
-            ) {
+            const streamSeq = Number(streamMeta.streamSeq);
+            if (Number.isInteger(streamSeq) && streamSeq > lastRuntimeStreamSeq) {
+              lastRuntimeStreamSeq = streamSeq;
+            }
+            if (isAuthoritativeQueueAcceptanceEvent(runtimeEvent)) {
               acknowledgeTurnMutationRun();
+              markRequestConsumed();
             }
             if (runtimeEventBatcher) {
               runtimeEventBatcher.enqueue(runtimeEvent);
@@ -3802,6 +5265,24 @@ export const useChatStream = ({
             if (runtimeEventStreamFailed) {
               return;
             }
+            const doneError =
+              done?.error && typeof done.error === "object"
+                ? done.error
+                : null;
+            if (doneError) {
+              runtimeEventStreamFailed = true;
+              handlers.onError?.({
+                code:
+                  typeof doneError.code === "string"
+                    ? doneError.code
+                    : "stream_failed",
+                message:
+                  typeof doneError.message === "string"
+                    ? doneError.message
+                    : "The stream failed.",
+              });
+              return;
+            }
             const traceProps = adaptTree(runtimeEventActivityTree);
             const donePayload =
               traceProps.bundle && !(done?.bundle && typeof done.bundle === "object")
@@ -3814,30 +5295,75 @@ export const useChatStream = ({
               runtimeEventBatcher?.cancel();
               return;
             }
+            clearQueueRelayAcceptanceTimer();
             runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
             handlers.onError?.(error);
           },
-        });
-
-        if (runtimeEventBatcher && streamHandle) {
-          const wrappedHandle = { ...streamHandle };
-          if (typeof streamHandle.disconnect === "function") {
+        };
+        const wrapRuntimeEventStreamHandle = (rawHandle) => {
+          if (!rawHandle) return rawHandle;
+          const wrappedHandle = { ...rawHandle };
+          wrappedHandle.quarantineQueueRelayAcceptance = () => {
+            runtimeEventBatcher?.cancel();
+            runtimeEventStreamFailed = true;
+          };
+          wrappedHandle.failQueueRelayAcceptance = (error) => {
+            if (runtimeEventStreamFailed || !isCurrentRun()) {
+              return false;
+            }
+            runtimeEventHandlers.onError(error);
+            return true;
+          };
+          if (runtimeEventBatcher && typeof rawHandle.disconnect === "function") {
             wrappedHandle.disconnect = (...args) => {
               runtimeEventBatcher.cancel();
-              return streamHandle.disconnect(...args);
+              return rawHandle.disconnect(...args);
             };
           }
-          if (typeof streamHandle.cancel === "function") {
+          if (runtimeEventBatcher && typeof rawHandle.cancel === "function") {
             wrappedHandle.cancel = (...args) => {
               runtimeEventBatcher.cancel();
-              return streamHandle.cancel(...args);
+              return rawHandle.cancel(...args);
+            };
+          }
+          const requestId =
+            typeof rawHandle.requestId === "string"
+              ? rawHandle.requestId.trim()
+              : "";
+          const executionId =
+            typeof rawHandle.executionId === "string"
+              ? rawHandle.executionId.trim()
+              : "";
+          const attemptId =
+            typeof rawHandle.attemptId === "string"
+              ? rawHandle.attemptId.trim()
+              : "";
+          const attachAvailable =
+            typeof api.unchain.isRuntimeEventStreamV4AttachAvailable ===
+              "function" &&
+            api.unchain.isRuntimeEventStreamV4AttachAvailable() &&
+            typeof api.unchain.attachStreamV4 === "function";
+          if (attachAvailable && requestId && executionId && attemptId) {
+            wrappedHandle.reconcileQueueRelayAcceptance = async () => {
+              const attachedHandle = await api.unchain.attachStreamV4(
+                {
+                  requestId,
+                  executionId,
+                  attemptId,
+                  afterSeq: lastRuntimeStreamSeq,
+                },
+                runtimeEventHandlers,
+              );
+              return wrapRuntimeEventStreamHandle(attachedHandle);
             };
           }
           return wrappedHandle;
-        }
+        };
 
-        return streamHandle;
+        return wrapRuntimeEventStreamHandle(
+          startStream(payload, runtimeEventHandlers),
+        );
         };
 
         const runtimeEventStreamAvailable =
@@ -3865,7 +5391,29 @@ export const useChatStream = ({
           });
         }
 
-        return api.unchain.startStreamV2(payload, handlers);
+        return api.unchain.startStreamV2(payload, {
+          ...handlers,
+          onDone: (done = {}) => {
+            const doneError =
+              done.error && typeof done.error === "object"
+                ? done.error
+                : null;
+            if (doneError) {
+              handlers.onError?.({
+                code:
+                  typeof doneError.code === "string"
+                    ? doneError.code
+                    : "stream_failed",
+                message:
+                  typeof doneError.message === "string"
+                    ? doneError.message
+                    : "The stream failed.",
+              });
+              return;
+            }
+            handlers.onDone?.(done);
+          },
+        });
       };
 
       const scheduleDurableResumeRetry = (error, sourceMessages) => {
@@ -3909,6 +5457,17 @@ export const useChatStream = ({
             lastError: errorMessage,
           });
           return false;
+        }
+
+        const retrySourceAttemptId =
+          executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+          queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+          "";
+        if (retrySourceAttemptId) {
+          fallbackPendingFyisForAttempt(
+            targetChatId,
+            retrySourceAttemptId,
+          );
         }
 
         const retryMessages = (Array.isArray(sourceMessages)
@@ -4104,14 +5663,300 @@ export const useChatStream = ({
         return true;
       };
 
-      let streamHandle = null;
+      const rejectQueueRelayBeforeAcceptance = ({ disconnect = false } = {}) => {
+        if (
+          !isQueueRelayRequest ||
+          requestConsumed ||
+          requestRejected ||
+          !isCurrentRun()
+        ) {
+          return false;
+        }
+        clearQueueRelayAcceptanceTimer();
+        if (disconnect) {
+          disconnectStreamTransport(
+            streamHandlesRef.current.get(targetChatId) || streamHandle,
+          );
+        }
+        cancelBackgroundPersist(targetChatId);
+        streamHandlesRef.current.delete(targetChatId);
+        activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+        flushSubagentState(Date.now());
+        activeFlushScheduler.flushSync();
+        disposeBufferedTokenFlush();
+        releaseTokenFlushController();
+        rollbackOptimistic();
+        rejectRequestBeforeAcceptance();
+        return true;
+      };
+
+      const terminalizeUnverifiedQueueRelay = (
+        expectedHandle,
+        { code, message },
+        { allowConsumed = false } = {},
+      ) => {
+        if (
+          (!allowConsumed && requestConsumed) ||
+          requestRejected ||
+          !isCurrentRun() ||
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle
+        ) {
+          return false;
+        }
+        clearQueueRelayAcceptanceTimer();
+        return (
+          expectedHandle?.failQueueRelayAcceptance?.({
+            code: code || "queue_relay_acceptance_unverified",
+            message:
+              message ||
+              "The queued follow-up could not be verified safely. It was not restarted.",
+          }) === true
+        );
+      };
+
+      const cancelAndSettleUnverifiedQueueRelay = async ({
+        expectedHandle,
+        code,
+        message,
+        retryWhenNeverRegistered = false,
+      }) => {
+        if (
+          requestRejected ||
+          !isCurrentRun() ||
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle
+        ) {
+          return;
+        }
+        clearQueueRelayAcceptanceTimer();
+        const currentIdentity =
+          executionIdentityByChatIdRef.current.get(targetChatId) || null;
+        const exactIdentity = normalizedExecutionIdentity({
+          sessionId: expectedHandle?.executionId || effectiveThreadId,
+          attemptId: expectedHandle?.attemptId,
+          requestId: expectedHandle?.requestId,
+          sourceAttemptId:
+            currentIdentity?.attemptId === expectedHandle?.attemptId
+              ? currentIdentity.sourceAttemptId || ""
+              : "",
+        });
+        const queuedCancellation = exactIdentity
+          ? enqueueExecutionCancel({
+              ...exactIdentity,
+              reason: "queue_relay_acceptance_unverified",
+              createdAt: Date.now(),
+            })
+          : null;
+        const cancelResult = await requestExecutionCancellationAndDisconnect({
+          identity: queuedCancellation || exactIdentity,
+          handle: expectedHandle,
+          reason: "queue_relay_acceptance_unverified",
+          idempotencyKey: exactIdentity
+            ? `queue-relay-acceptance:${exactIdentity.attemptId}`
+            : "",
+        });
+        if (cancelResult?.ok && queuedCancellation) {
+          removeExecutionCancel(
+            queuedCancellation.sessionId,
+            queuedCancellation.attemptId,
+          );
+        }
+        if (
+          requestRejected ||
+          !isCurrentRun() ||
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle
+        ) {
+          return;
+        }
+        if (requestConsumed) {
+          terminalizeUnverifiedQueueRelay(
+            expectedHandle,
+            {
+              code: "queue_relay_transport_lost_after_acceptance",
+              message:
+                "The queued follow-up was accepted while its transport was being recovered, then the exact execution was cancelled. It was not restarted.",
+            },
+            { allowConsumed: true },
+          );
+          return;
+        }
+        const cancelResponse = cancelResult?.response;
+        const provenNeverRegistered = Boolean(
+          cancelResult?.ok &&
+            isProvenNeverRegisteredCancellation(cancelResponse),
+        );
+        if (retryWhenNeverRegistered && provenNeverRegistered) {
+          expectedHandle?.quarantineQueueRelayAcceptance?.();
+          rejectQueueRelayBeforeAcceptance();
+          return;
+        }
+        terminalizeUnverifiedQueueRelay(expectedHandle, { code, message });
+      };
+
+      const scheduleQueueRelayAcceptanceReconciliation = () => {
+        clearQueueRelayAcceptanceTimer();
+        if (
+          !isQueueRelayRequest ||
+          requestConsumed ||
+          requestRejected ||
+          !isCurrentRun()
+        ) {
+          return;
+        }
+        queueRelayAcceptanceTimer = scheduleQueueRelayTimer(
+          targetChatId,
+          activeRunGeneration,
+          () => {
+          queueRelayAcceptanceTimer = null;
+            void (async () => {
+              if (
+                requestConsumed ||
+                requestRejected ||
+                !isCurrentRun()
+              ) {
+                return;
+              }
+              const expectedHandle = streamHandle;
+              if (
+                !expectedHandle ||
+                streamHandlesRef.current.get(targetChatId) !== expectedHandle
+              ) {
+                return;
+              }
+              if (
+                queueRelayAcceptanceReattachCount >=
+                QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+              ) {
+                await cancelAndSettleUnverifiedQueueRelay({
+                  expectedHandle,
+                  code: "queue_relay_acceptance_timeout",
+                  message:
+                    "The queued follow-up did not provide acceptance evidence in time. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              if (
+                typeof expectedHandle.reconcileQueueRelayAcceptance !==
+                "function"
+              ) {
+                await cancelAndSettleUnverifiedQueueRelay({
+                  expectedHandle,
+                  code: "queue_relay_reattach_unavailable",
+                  message:
+                    "The queued follow-up could not be reattached safely. Its exact execution was cancelled and it was not restarted.",
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              queueRelayAcceptanceReattachCount += 1;
+              try {
+                const attachedHandle =
+                  await expectedHandle.reconcileQueueRelayAcceptance();
+                if (
+                  !isCurrentRun() ||
+                  streamHandlesRef.current.get(targetChatId) !== expectedHandle
+                ) {
+                  attachedHandle?.detach?.();
+                  return;
+                }
+                streamHandle = attachedHandle;
+                streamHandlesRef.current.set(targetChatId, attachedHandle);
+                if (requestRejected) {
+                  return;
+                }
+                if (requestConsumed) {
+                  if (
+                    attachedHandle?.terminal === true ||
+                    attachedHandle?.active === false
+                  ) {
+                    terminalizeUnverifiedQueueRelay(
+                      attachedHandle,
+                      {
+                        code: "queue_relay_transport_lost_after_acceptance",
+                        message:
+                          "The queued follow-up was accepted, but its recovered transport was already closed. It was not restarted.",
+                      },
+                      { allowConsumed: true },
+                    );
+                  }
+                  return;
+                }
+                if (
+                  attachedHandle?.terminal === true ||
+                  attachedHandle?.active === false
+                ) {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle: attachedHandle,
+                    code: "queue_relay_terminal_without_acceptance",
+                    message:
+                      "The queued follow-up ended without verifiable acceptance evidence. It was not restarted.",
+                    retryWhenNeverRegistered: true,
+                  });
+                  return;
+                }
+                scheduleQueueRelayAcceptanceReconciliation();
+              } catch (error) {
+                if (!isCurrentRun() || requestRejected) {
+                  return;
+                }
+                const errorCode =
+                  typeof error?.code === "string" ? error.code : "";
+                if (requestConsumed) {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle,
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The queued follow-up was accepted during replay, but reconnecting its transport failed. Its exact execution was cancelled and it was not restarted.",
+                  });
+                  return;
+                }
+                if (errorCode === "stream_not_found") {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle,
+                    code: "queue_relay_stream_not_found",
+                    message:
+                      "The queued follow-up stream was not found. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                    retryWhenNeverRegistered: true,
+                  });
+                  return;
+                }
+                if (
+                  errorCode === "stream_replay_gap" ||
+                  errorCode === "stream_identity_mismatch"
+                ) {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle,
+                    code: errorCode || "queue_relay_replay_unavailable",
+                    message:
+                      errorCode === "stream_replay_gap"
+                        ? "The queued follow-up could not be replayed completely. Its exact execution was cancelled and it was not restarted."
+                        : "The queued follow-up identity could not be verified. Its exact execution was cancelled and it was not restarted.",
+                  });
+                  return;
+                }
+                if (
+                  queueRelayAcceptanceReattachCount <
+                  QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+                ) {
+                  scheduleQueueRelayAcceptanceReconciliation();
+                  return;
+                }
+                await cancelAndSettleUnverifiedQueueRelay({
+                  expectedHandle,
+                  code: errorCode || "queue_relay_reattach_failed",
+                  message:
+                    "The queued follow-up could not be verified after reconnecting. Its exact execution was cancelled and it was not restarted.",
+                  retryWhenNeverRegistered: true,
+                });
+              }
+            })();
+          },
+          QUEUE_RELAY_ACCEPTANCE_RECONCILE_MS,
+        );
+      };
+
       try {
-        const systemPromptOverridesObject =
-          systemPromptOverrides &&
-          typeof systemPromptOverrides === "object" &&
-          !Array.isArray(systemPromptOverrides)
-            ? systemPromptOverrides
-            : {};
+        const systemPromptOverridesObject = runSystemPromptOverrides;
 
         const durableInteractionsRequired =
           !isDurableResume &&
@@ -4119,8 +5964,9 @@ export const useChatStream = ({
           typeof api.unchain.isDurableInteractionBridgeAvailable ===
             "function" &&
           api.unchain.isDurableInteractionBridgeAvailable() &&
-          (isCharacterChat ||
-            (!selectedRecipeName || selectedRecipeName === "Default")) &&
+          (runIsCharacterChat ||
+            (!runSelectedRecipeName ||
+              runSelectedRecipeName === "Default")) &&
           effectiveAgentOrchestration.mode === "default";
 
         const streamPayload = isDurableResume
@@ -4148,15 +5994,15 @@ export const useChatStream = ({
                 ...(effectiveWorkspaceIds.length > 0 && {
                   selectedWorkspaceIds: effectiveWorkspaceIds,
                 }),
-                ...(!isCharacterChat &&
-                  selectedRecipeName &&
-                  selectedRecipeName !== "Default" && {
-                    recipe_name: selectedRecipeName,
+                ...(!runIsCharacterChat &&
+                  runSelectedRecipeName &&
+                  runSelectedRecipeName !== "Default" && {
+                    recipe_name: runSelectedRecipeName,
                   }),
-                ...(!isCharacterChat && {
+                ...(!runIsCharacterChat && {
                   agent_orchestration: effectiveAgentOrchestration,
                 }),
-                ...(isCharacterChat
+                ...(runIsCharacterChat
                   ? {
                       agent_instructions:
                         typeof resolvedCharacterConfig?.instructions ===
@@ -4175,7 +6021,11 @@ export const useChatStream = ({
               trace_level: STREAM_TRACE_LEVEL,
             };
 
-        markRequestConsumed();
+        /* Queue relay consume-on-acceptance (see relayQueuedTurnsAfterRun):
+           do NOT mark consumed merely because startChatStream returned a handle
+           — the server may still reject (e.g. execution_lease_conflict) before
+           accepting. onConsumed fires only on the authoritative acceptance
+           evidence handled inside these callbacks. */
         streamHandle = startChatStream(
           streamPayload,
           {
@@ -4197,9 +6047,11 @@ export const useChatStream = ({
                 )
               ) {
                 acknowledgeTurnMutationRun();
+                markRequestConsumed();
               }
               frame = scrubLegacyPlanToolResultFrame(frame);
               if (frame.type === "token_delta") {
+                markRequestConsumed();
                 renderRuntime.lastTokenRunId =
                   frame.run_id || frame.payload?.run_id || "";
                 return;
@@ -4545,7 +6397,15 @@ export const useChatStream = ({
                     typeof frame.payload?.call_id === "string"
                       ? frame.payload.call_id
                       : "";
-                  clearResolvedToolConfirmationByCallId(targetChatId, callId);
+                  const confirmationId =
+                    typeof frame.payload?.confirmation_id === "string"
+                      ? frame.payload.confirmation_id
+                      : "";
+                  clearResolvedToolConfirmationByCallId(
+                    targetChatId,
+                    callId,
+                    confirmationId,
+                  );
                 } else if (frame.type === "tool_result") {
                   const callId =
                     typeof frame.payload?.call_id === "string"
@@ -4563,7 +6423,15 @@ export const useChatStream = ({
                       result: frame.payload?.result,
                     });
                   }
-                  markConfirmationFollowupSignalByCallId(targetChatId, callId);
+                  const confirmationId =
+                    typeof frame.payload?.confirmation_id === "string"
+                      ? frame.payload.confirmation_id
+                      : "";
+                  markConfirmationFollowupSignalByCallId(
+                    targetChatId,
+                    callId,
+                    confirmationId,
+                  );
                 }
               };
 
@@ -4611,6 +6479,19 @@ export const useChatStream = ({
                   upsertSubagentMeta(frameRunId, {
                     status: "failed",
                   });
+                }
+
+                /* A fyi_injected frame emitted by a subagent (child run) must
+                   still persist the parent-assistant interjection and exact-ACK
+                   the durable pending FYI — otherwise the frame is only routed
+                   into the subagent sub-timeline and the pending FYI survives in
+                   the outbox, resurrecting a spurious successor on remount.
+                   Flush the child frame immediately so it is durable before the
+                   ACK clears the outbox entry. */
+                if (frame.type === "fyi_injected") {
+                  syncAssistantSubagentState(patchTime, { immediate: true });
+                  applyFyiParentInterjectionAndAck(frame, patchTime);
+                  return;
                 }
 
                 syncAssistantSubagentState(patchTime, {
@@ -4835,7 +6716,15 @@ export const useChatStream = ({
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
                     : "";
-                clearResolvedToolConfirmationByCallId(targetChatId, callId);
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id
+                    : "";
+                clearResolvedToolConfirmationByCallId(
+                  targetChatId,
+                  callId,
+                  confirmationId,
+                );
               } else if (frame.type === "tool_result") {
                 const callId =
                   typeof frame.payload?.call_id === "string"
@@ -4853,7 +6742,15 @@ export const useChatStream = ({
                     result: frame.payload?.result,
                   });
                 }
-                markConfirmationFollowupSignalByCallId(targetChatId, callId);
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id
+                    : "";
+                markConfirmationFollowupSignalByCallId(
+                  targetChatId,
+                  callId,
+                  confirmationId,
+                );
               } else if (frame.type === "error" || frame.type === "done") {
                 markAllPendingConfirmationFollowupSignals(targetChatId);
                 updatePendingContinuationRequestForChat(targetChatId, null);
@@ -5005,43 +6902,20 @@ export const useChatStream = ({
               }
 
               if (frame.type === "fyi_injected") {
-                const fyiMessages = Array.isArray(frame.payload?.messages)
-                  ? frame.payload.messages
-                  : [];
-                const fyiRecords = fyiMessages
-                  .filter((entry) => entry?.origin === "user")
-                  .map((entry) =>
-                    buildInterjectionRecord({
-                      type: "fyi",
-                      text: typeof entry?.text === "string" ? entry.text : "",
-                      origin: "user",
-                      ts: patchTime,
-                    }),
-                  )
-                  .filter((record) => record.text);
-
-                const nextStreamMessages = streamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  return {
-                    ...message,
-                    updatedAt: patchTime,
-                    traceFrames: [...(message.traceFrames || []), frame],
-                    ...(fyiRecords.length > 0
-                      ? {
-                          interjections: [
-                            ...(message.interjections || []),
-                            ...fyiRecords,
-                          ],
-                        }
-                      : {}),
-                  };
-                });
+                /* Persist the raw frame onto the root assistant's traceFrames
+                   first, then run the shared interjection + exact-ACK handling
+                   (stable ids derived from message_id, deduped by id). */
+                const nextStreamMessages = streamMessages.map((message) =>
+                  message.id === assistantMessageId
+                    ? {
+                        ...message,
+                        updatedAt: patchTime,
+                        traceFrames: [...(message.traceFrames || []), frame],
+                      }
+                    : message,
+                );
                 syncStreamMessages(nextStreamMessages);
-
-                // The server just injected everything that was pending —
-                // clear the "queued" badge for this chat.
-                pendingFyiCountByChatIdRef.current.delete(targetChatId);
-                syncInterjectStateForChat(targetChatId);
+                applyFyiParentInterjectionAndAck(frame, patchTime);
                 return;
               }
 
@@ -5065,7 +6939,7 @@ export const useChatStream = ({
                 typeof meta.thread_id === "string" &&
                 meta.thread_id.trim()
               ) {
-                if (!isCharacterChat) {
+                if (!runIsCharacterChat) {
                   storageApi.setChatThreadId(targetChatId, meta.thread_id, {
                     source: "chat-page",
                   });
@@ -5073,14 +6947,17 @@ export const useChatStream = ({
               }
 
               if (meta && typeof meta.model === "string" && meta.model.trim()) {
-                if (!isCharacterChat) {
+                if (!runIsCharacterChat) {
                   storageApi.setChatModel(
                     targetChatId,
                     { id: meta.model },
                     { source: "chat-page" },
                   );
                 }
-                if (!isCharacterChat && activeChatIdRef.current === targetChatId) {
+                if (
+                  !runIsCharacterChat &&
+                  activeChatIdRef.current === targetChatId
+                ) {
                   modelIdRef.current = meta.model;
                   setSelectedModelId(meta.model);
                 }
@@ -5109,6 +6986,10 @@ export const useChatStream = ({
               if (!isCurrentRun()) {
                 return;
               }
+              /* Successful done is authoritative acceptance evidence too — a
+                 very fast run may finish before any token/lifecycle frame was
+                 observed. Consume the relayed turn here as a done fallback. */
+              markRequestConsumed();
               updatePendingContinuationRequestForChat(targetChatId, null);
               /* Sync closure with external updates before building final messages. */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
@@ -5156,44 +7037,44 @@ export const useChatStream = ({
               // never lost, and mark the frame so the UI stops showing it as
               // pending.
               const pendingClarifyOnDone =
-                pendingClarifyByChatIdRef.current.get(targetChatId);
+                pendingClarifyByChatIdRef.current.get(targetChatId) ||
+                readPendingClarifyForChat(targetChatId);
               if (pendingClarifyOnDone) {
-                pendingClarifyByChatIdRef.current.delete(targetChatId);
-                let queuedTurnsForClarify =
-                  queuedTurnsByChatIdRef.current.get(targetChatId);
-                if (!queuedTurnsForClarify) {
-                  queuedTurnsForClarify = createQueuedTurnBuffer();
-                  queuedTurnsByChatIdRef.current.set(
+                const clarifiedFallback = fallbackPendingClarifyForChat(
+                  targetChatId,
+                );
+                if (clarifiedFallback) {
+                  nextStreamMessages = nextStreamMessages.map((message) => {
+                    if (message.id !== assistantMessageId) return message;
+                    const frames = Array.isArray(message.traceFrames)
+                      ? message.traceFrames
+                      : [];
+                    return {
+                      ...message,
+                      traceFrames: frames.map((frame) =>
+                        frame?.type === "clarify_request" &&
+                        frame?.payload?.id === pendingClarifyOnDone.id
+                          ? {
+                              ...frame,
+                              payload: {
+                                ...frame.payload,
+                                status: "resolved_default",
+                              },
+                            }
+                          : frame,
+                      ),
+                    };
+                  });
+                } else {
+                  setStreamErrorForChat(
                     targetChatId,
-                    queuedTurnsForClarify,
+                    "The pending clarification is still saved and will be recovered after reload.",
                   );
                 }
-                queuedTurnsForClarify.push(pendingClarifyOnDone.text);
-                nextStreamMessages = nextStreamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  const frames = Array.isArray(message.traceFrames)
-                    ? message.traceFrames
-                    : [];
-                  return {
-                    ...message,
-                    traceFrames: frames.map((frame) =>
-                      frame?.type === "clarify_request" &&
-                      frame?.payload?.id === pendingClarifyOnDone.id
-                        ? {
-                            ...frame,
-                            payload: {
-                              ...frame.payload,
-                              status: "resolved_default",
-                            },
-                          }
-                        : frame,
-                    ),
-                  };
-                });
               }
               syncStreamMessages(nextStreamMessages);
 
-              if (!isCharacterChat && nextAgentOrchestration) {
+              if (!runIsCharacterChat && nextAgentOrchestration) {
                 storageApi.setChatAgentOrchestration(
                   targetChatId,
                   nextAgentOrchestration,
@@ -5284,146 +7165,43 @@ export const useChatStream = ({
                 });
               }
 
-              pendingFyiCountByChatIdRef.current.delete(targetChatId);
+              const terminalAttemptId =
+                executionIdentityByChatIdRef.current.get(targetChatId)
+                  ?.attemptId ||
+                queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+                "";
+              const pendingClarifyBtwBarrier =
+                clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+              const holdsExactClarifyBtw = Boolean(
+                pendingClarifyBtwBarrier &&
+                  !pendingClarifyBtwBarrier.settled &&
+                  pendingClarifyBtwBarrier.attemptId === terminalAttemptId &&
+                  pendingClarifyBtwBarrier.runGeneration === activeRunGeneration,
+              );
+              if (terminalAttemptId && !holdsExactClarifyBtw) {
+                fallbackPendingFyisForAttempt(
+                  targetChatId,
+                  terminalAttemptId,
+                );
+              }
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-              // Queue relay: anything queued locally (explicit /queue, a
-              // resolved_channel:"queue" from the server, or the clarify
-              // fallback above) merges into one follow-up turn now that this
-              // run has fully ended and persisted.
-              const queuedTurnsOnDone = queuedTurnsByChatIdRef.current.get(targetChatId);
-              if (queuedTurnsOnDone && queuedTurnsOnDone.size() > 0) {
-                const queuedSnapshot = queuedTurnsOnDone.peekMerged();
-                if (queuedSnapshot.text) {
-                  let relayState =
-                    queueRelayAttemptsByChatIdRef.current.get(targetChatId);
-                  if (!relayState || relayState.buffer !== queuedTurnsOnDone) {
-                    relayState = {
-                      buffer: queuedTurnsOnDone,
-                      inFlight: false,
-                      retryCount: 0,
-                      attempt: null,
-                    };
-                    relayState.attempt = () => {
-                      if (
-                        queuedTurnsByChatIdRef.current.get(targetChatId) !==
-                          queuedTurnsOnDone ||
-                        relayState.inFlight
-                      ) {
-                        return;
-                      }
-                      const relaySnapshot = queuedTurnsOnDone.peekMerged();
-                      if (!relaySnapshot.text) return;
-                      if (
-                        isChatRunPending(targetChatId) ||
-                        durableInteractionByChatIdRef.current[targetChatId]
-                          ?.status
-                      ) {
-                        relayState.retryCount += 1;
-                        scheduleQueueRelayRetryTimer(
-                          targetChatId,
-                          relayState.attempt,
-                          Math.min(
-                            4000,
-                            250 * 2 ** Math.min(relayState.retryCount - 1, 4),
-                          ),
-                        );
-                        return;
-                      }
-
-                      relayState.inFlight = true;
-                      queuedTurnsOnDone.markRelayed(relaySnapshot.ids);
-                      syncInterjectStateForChat(targetChatId);
-                      let relayConsumed = false;
-                      const retryUnconsumedRelay = () => {
-                        queuedTurnsOnDone.markQueued(relaySnapshot.ids);
-                        syncInterjectStateForChat(targetChatId);
-                        relayState.retryCount += 1;
-                        scheduleQueueRelayRetryTimer(
-                          targetChatId,
-                          relayState.attempt,
-                          Math.min(
-                            4000,
-                            250 * 2 ** Math.min(relayState.retryCount - 1, 4),
-                          ),
-                        );
-                      };
-                      const acknowledgeConsumedRelay = () => {
-                        queueRelayAttemptsByChatIdRef.current.delete(
-                          targetChatId,
-                        );
-                        scheduleQueueRelayRetryTimer(
-                          targetChatId,
-                          () => {
-                            if (
-                              queuedTurnsByChatIdRef.current.get(
-                                targetChatId,
-                              ) !== queuedTurnsOnDone
-                            ) {
-                              return;
-                            }
-                            queuedTurnsOnDone.removeMany(relaySnapshot.ids);
-                            if (queuedTurnsOnDone.size() === 0) {
-                              queuedTurnsByChatIdRef.current.delete(
-                                targetChatId,
-                              );
-                            }
-                            syncInterjectStateForChat(targetChatId);
-                          },
-                          1600,
-                        );
-                      };
-                      const relayBaseMessages =
-                        activeChatIdRef.current === targetChatId &&
-                        Array.isArray(messagesRef.current)
-                          ? messagesRef.current
-                          : storageApi.getChatMessages?.(targetChatId) ||
-                            nextStreamMessages;
-                      void runTurnRequest({
-                        mode: "send",
-                        chatId: targetChatId,
-                        text: relaySnapshot.text,
-                        attachments: [],
-                        baseMessages: relayBaseMessages,
-                        clearComposer: false,
-                        missingAttachmentPayloadMode: "block",
-                        characterAgentConfig: resolvedCharacterConfig,
-                        runContext: effectiveRunContext,
-                        onConsumed: () => {
-                          relayConsumed = true;
-                        },
-                      })
-                        .then((started) => {
-                          relayState.inFlight = false;
-                          if (!started && !relayConsumed) {
-                            retryUnconsumedRelay();
-                            return;
-                          }
-                          acknowledgeConsumedRelay();
-                        })
-                        .catch(() => {
-                          relayState.inFlight = false;
-                          if (relayConsumed) {
-                            acknowledgeConsumedRelay();
-                          } else {
-                            retryUnconsumedRelay();
-                          }
-                        });
-                    };
-                    queueRelayAttemptsByChatIdRef.current.set(
-                      targetChatId,
-                      relayState,
-                    );
-                  }
-                  scheduleQueueRelayRetryTimer(
-                    targetChatId,
-                    relayState.attempt,
-                    0,
-                  );
-                }
-              } else if (queuedTurnsOnDone) {
-                queuedTurnsByChatIdRef.current.delete(targetChatId);
-                syncInterjectStateForChat(targetChatId);
+              const terminalRelayContext = {
+                targetChatId,
+                nextStreamMessages,
+                characterAgentConfig: resolvedCharacterConfig,
+                runContext: effectiveRunContext,
+              };
+              if (holdsExactClarifyBtw) {
+                // The owner is fully persisted/settled above, but its clarify-
+                // owned BTW is still in flight. Hold only terminal queue relay;
+                // the exact barrier releases it after receipt or fallback.
+                pendingClarifyBtwBarrier.terminal = {
+                  status: "done",
+                  relayContext: terminalRelayContext,
+                };
+              } else {
+                relayQueuedTurnsAfterRunRef.current?.(terminalRelayContext);
               }
             },
             onError: (error) => {
@@ -5446,6 +7224,8 @@ export const useChatStream = ({
               }
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
+              const wasCancelled =
+                errorCode === "cancelled" || error?.cancelled === true;
               const errorTime = Date.now();
 
               if (isDurableResume) {
@@ -5481,6 +7261,17 @@ export const useChatStream = ({
                 if (activeChatIdRef.current === targetChatId) {
                   setStreamError(
                     "Memory is unavailable for this request. Retrying with recent history.",
+                  );
+                }
+                const retrySourceAttemptId =
+                  executionIdentityByChatIdRef.current.get(targetChatId)
+                    ?.attemptId ||
+                  queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+                  "";
+                if (retrySourceAttemptId) {
+                  fallbackPendingFyisForAttempt(
+                    targetChatId,
+                    retrySourceAttemptId,
                   );
                 }
                 cancelBackgroundPersist(targetChatId);
@@ -5519,7 +7310,36 @@ export const useChatStream = ({
                   characterAgentConfig: resolvedCharacterConfig,
                   runGeneration: activeRunGeneration,
                   runContext: effectiveRunContext,
+                  /* This is an internal transparent retry, not a terminal
+                     failure. Carry the queue-relay acceptance callbacks forward
+                     so the retry's acceptance (or its own terminal reject)
+                     settles the relay exactly once. */
+                  onConsumed,
+                  onReject,
+                  relayItemIds,
+                  relayItems,
+                  relaySourceAttemptId,
+                  relaySourceClientOperationId,
                 });
+                return;
+              }
+
+              /* Pre-acceptance ownership rejection of a relayed queue turn: the
+                 server refused the run because another owns the execution lease
+                 (execution_lease_conflict), before any acceptance evidence. Roll
+                 the optimistic turn back so the relay's retry re-adds it exactly
+                 once — never a double successor — then hand control to the
+                 relay's reject callback. This is scoped to the exact lease
+                 conflict code: any other terminal error surfaces normally, and a
+                 normal user send (no onReject) never reaches here. A user cancel
+                 is excluded (wasCancelled) so Stop never resurrects the turn. */
+              if (
+                !requestConsumed &&
+                !wasCancelled &&
+                errorCode === "execution_lease_conflict" &&
+                typeof onReject === "function"
+              ) {
+                rejectQueueRelayBeforeAcceptance();
                 return;
               }
 
@@ -5532,7 +7352,11 @@ export const useChatStream = ({
               const traceHasContent =
                 Array.isArray(currentAssistantMsg?.traceFrames) &&
                 currentAssistantMsg.traceFrames.length > 0;
-              if (activeChatIdRef.current === targetChatId && !traceHasContent) {
+              if (
+                !wasCancelled &&
+                activeChatIdRef.current === targetChatId &&
+                !traceHasContent
+              ) {
                 setStreamError(errorMessage);
               }
               streamHandlesRef.current.delete(targetChatId);
@@ -5560,6 +7384,17 @@ export const useChatStream = ({
                 const hasTrace =
                   Array.isArray(message.traceFrames) &&
                   message.traceFrames.length > 0;
+
+                if (wasCancelled) {
+                  return finalizeStreamingMessage(message, {
+                    status: "cancelled",
+                    updatedAt: errorTime,
+                    content:
+                      typeof message.content === "string"
+                        ? message.content
+                        : "",
+                  });
+                }
 
                 const errorFrame = {
                   seq: (message.traceFrames?.length || 0) + 1,
@@ -5594,40 +7429,40 @@ export const useChatStream = ({
               // error, so resolve any pending clarify into the queued-turns
               // buffer here too; the message must never be silently dropped.
               const pendingClarifyOnError =
-                pendingClarifyByChatIdRef.current.get(targetChatId);
+                pendingClarifyByChatIdRef.current.get(targetChatId) ||
+                readPendingClarifyForChat(targetChatId);
               if (pendingClarifyOnError) {
-                pendingClarifyByChatIdRef.current.delete(targetChatId);
-                let queuedTurnsForClarify =
-                  queuedTurnsByChatIdRef.current.get(targetChatId);
-                if (!queuedTurnsForClarify) {
-                  queuedTurnsForClarify = createQueuedTurnBuffer();
-                  queuedTurnsByChatIdRef.current.set(
+                const clarifiedFallback = fallbackPendingClarifyForChat(
+                  targetChatId,
+                );
+                if (clarifiedFallback) {
+                  nextStreamMessages = nextStreamMessages.map((message) => {
+                    if (message.id !== assistantMessageId) return message;
+                    const frames = Array.isArray(message.traceFrames)
+                      ? message.traceFrames
+                      : [];
+                    return {
+                      ...message,
+                      traceFrames: frames.map((frame) =>
+                        frame?.type === "clarify_request" &&
+                        frame?.payload?.id === pendingClarifyOnError.id
+                          ? {
+                              ...frame,
+                              payload: {
+                                ...frame.payload,
+                                status: "resolved_default",
+                              },
+                            }
+                          : frame,
+                      ),
+                    };
+                  });
+                } else {
+                  setStreamErrorForChat(
                     targetChatId,
-                    queuedTurnsForClarify,
+                    "The pending clarification is still saved and will be recovered after reload.",
                   );
                 }
-                queuedTurnsForClarify.push(pendingClarifyOnError.text);
-                nextStreamMessages = nextStreamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  const frames = Array.isArray(message.traceFrames)
-                    ? message.traceFrames
-                    : [];
-                  return {
-                    ...message,
-                    traceFrames: frames.map((frame) =>
-                      frame?.type === "clarify_request" &&
-                      frame?.payload?.id === pendingClarifyOnError.id
-                        ? {
-                            ...frame,
-                            payload: {
-                              ...frame.payload,
-                              status: "resolved_default",
-                            },
-                          }
-                        : frame,
-                    ),
-                  };
-                });
               }
               syncStreamMessages(nextStreamMessages);
               if (activeChatIdRef.current !== targetChatId) {
@@ -5636,7 +7471,38 @@ export const useChatStream = ({
               clearStreamingMessageStore(targetChatId, assistantMessageId);
               activeStreamsRef.current.delete(targetChatId);
 
-              pendingFyiCountByChatIdRef.current.delete(targetChatId);
+              const failedAttemptId =
+                executionIdentityByChatIdRef.current.get(targetChatId)
+                  ?.attemptId ||
+                queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+                "";
+              const pendingClarifyBtwBarrier =
+                clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+              const ownsFailedClarifyBtw = Boolean(
+                pendingClarifyBtwBarrier &&
+                  !pendingClarifyBtwBarrier.settled &&
+                  pendingClarifyBtwBarrier.attemptId === failedAttemptId &&
+                  pendingClarifyBtwBarrier.runGeneration === activeRunGeneration,
+              );
+              if (ownsFailedClarifyBtw) {
+                pendingClarifyBtwBarrier.terminal = {
+                  status: wasCancelled ? "cancelled" : "error",
+                  relayContext: {
+                    targetChatId,
+                    nextStreamMessages,
+                    characterAgentConfig: resolvedCharacterConfig,
+                    runContext: effectiveRunContext,
+                  },
+                };
+                settleClarifyBtwBarrier(pendingClarifyBtwBarrier, {
+                  disposition: "migrate",
+                });
+              } else if (failedAttemptId) {
+                fallbackPendingFyisForAttempt(
+                  targetChatId,
+                  failedAttemptId,
+                );
+              }
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
               const queuedTurnsOnError =
@@ -5716,6 +7582,16 @@ export const useChatStream = ({
           : typeof streamHandle?.requestId === "string"
             ? streamHandle.requestId.trim()
             : "";
+      const previousAttemptId =
+        executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+        "";
+      if (
+        streamAttemptId &&
+        previousAttemptId &&
+        previousAttemptId !== streamAttemptId
+      ) {
+        fallbackPendingFyisForAttempt(targetChatId, previousAttemptId);
+      }
       if (effectiveThreadId && streamAttemptId) {
         executionIdentityByChatIdRef.current.set(targetChatId, {
           sessionId: effectiveThreadId,
@@ -5729,6 +7605,121 @@ export const useChatStream = ({
             : "",
           runGeneration: activeRunGeneration,
         });
+        syncPendingFyiStateForAttempt(targetChatId, streamAttemptId);
+      }
+      const queuedTurnsForIdentity =
+        queuedTurnsByChatIdRef.current.get(targetChatId);
+      const relayStateForBinding =
+        queueRelayAttemptsByChatIdRef.current.get(targetChatId);
+      const relayInFlightIds = new Set(
+        exactRelayItemIds.size > 0
+          ? exactRelayItemIds
+          : isQueueRelayRequest &&
+              relayStateForBinding?.buffer === queuedTurnsForIdentity &&
+              Array.isArray(relayStateForBinding.inFlightIds)
+            ? relayStateForBinding.inFlightIds
+            : [],
+      );
+      const sourceQueueAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+        (typeof relaySourceAttemptId === "string"
+          ? relaySourceAttemptId.trim()
+          : "");
+      const sourceQueueClientOperationId =
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+        (typeof relaySourceClientOperationId === "string"
+          ? relaySourceClientOperationId.trim()
+          : "");
+      const durableClarifyForIdentity =
+        readPendingClarifyForChat(targetChatId);
+      if (
+        streamAttemptId &&
+        (queuedTurnsForIdentity ||
+          exactRelayItems.length > 0 ||
+          durableClarifyForIdentity)
+      ) {
+        const queuedItemsForBinding = queuedTurnsForIdentity
+          ? queuedTurnsForIdentity.snapshot()
+          : exactRelayItems;
+        const bound = bindQueuedTurnOwnersToAttempt({
+          chatId: targetChatId,
+          targetAttemptId: streamAttemptId,
+          sourceAttemptId: sourceQueueAttemptId,
+          clientOperationIds: [
+            sourceQueueClientOperationId,
+            runClientOperationId,
+          ].filter(Boolean),
+          ...(queuedTurnsForIdentity || exactRelayItems.length > 0
+            ? {
+                /* A queue relay is not consumed when the transport merely
+                   returns a handle. Preserve only this relay's exact in-flight
+                   ids plus the true queued remainder under the new attempt.
+                   Older accepted ids can coexist in the shared buffer during
+                   their delayed visual cleanup and must never be resurrected.
+                   A synchronous acceptance may happen before handle return; in
+                   that case bind only the true remainder. Normal non-relay
+                   sends retain the existing queued-only behavior. */
+                items:
+                  isQueueRelayRequest
+                    ? !requestConsumed
+                      ? queuedItemsForBinding
+                        .filter(
+                          (item) =>
+                            item.status === "queued" ||
+                            relayInFlightIds.has(item.id),
+                        )
+                        .map((item) => ({
+                          ...item,
+                          status: relayInFlightIds.has(item.id)
+                            ? "relayed"
+                            : "queued",
+                        }))
+                      : queuedTurnsForIdentity
+                        ? queuedItemsForBinding.filter(
+                            (item) => item.status === "queued",
+                          )
+                        : []
+                    : queuedItemsForBinding.filter(
+                        (item) => item.status === "queued",
+                      ),
+              }
+            : {}),
+        });
+        if (!bound) {
+          setStreamErrorForChat(
+            targetChatId,
+            "The run started, but its queued messages could not be rebound safely.",
+          );
+        } else {
+          if (queuedTurnsForIdentity) {
+            const relayState = queueRelayAttemptsByChatIdRef.current.get(
+              targetChatId,
+            );
+            if (
+              isQueueRelayRequest &&
+              relayState?.buffer === queuedTurnsForIdentity &&
+              relayState.attemptId === sourceQueueAttemptId &&
+              relayState.clientOperationId === sourceQueueClientOperationId
+            ) {
+              relayState.attemptId = streamAttemptId;
+              relayState.clientOperationId = "";
+            }
+            queueAttemptIdByChatIdRef.current.set(
+              targetChatId,
+              streamAttemptId,
+            );
+            queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+          }
+          const reboundClarify = bound.clarifies.find(
+            (item) => item.id === durableClarifyForIdentity?.id,
+          );
+          if (reboundClarify) {
+            pendingClarifyByChatIdRef.current.set(
+              targetChatId,
+              reboundClarify,
+            );
+          }
+        }
       }
 
       if (streamHandle?.requestId) {
@@ -5750,7 +7741,12 @@ export const useChatStream = ({
             : message,
         );
         syncStreamMessages(nextStreamMessages);
+        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
+          source: "stream-identity",
+        });
       }
+
+      scheduleQueueRelayAcceptanceReconciliation();
 
       return true;
     },
@@ -5770,6 +7766,8 @@ export const useChatStream = ({
       clearConfirmationResolutionTimer,
       clearDurableResumeStartedKeysForChat,
       clearResolvedToolConfirmationByCallId,
+      fallbackPendingClarifyForChat,
+      fallbackPendingFyisForAttempt,
       getConfirmationRuntimeForChat,
       hydrateAttachmentPayloads,
       agentOrchestration,
@@ -5781,12 +7779,14 @@ export const useChatStream = ({
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
       messagesRef,
+      persistQueuedTurnBufferForAttempt,
       resolveAttachmentPayloads,
       scheduleQueueRelayTimer,
       scheduleQueueRelayRetryTimer,
       selectedToolkits,
       selectedWorkspaceIds,
       selectedRecipeName,
+      settleClarifyBtwBarrier,
       setDraftAttachments,
       setInputValue,
       setMessages,
@@ -5803,6 +7803,286 @@ export const useChatStream = ({
       updatePendingContinuationRequestForChat,
     ],
   );
+
+  const relayQueuedTurnsAfterRun = useCallback(
+    ({
+      targetChatId,
+      nextStreamMessages,
+      characterAgentConfig = null,
+      runContext = null,
+    }) => {
+      const queuedTurnsOnDone =
+        queuedTurnsByChatIdRef.current.get(targetChatId);
+      const queueAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const queueClientOperationId =
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+      if (!queuedTurnsOnDone || queuedTurnsOnDone.size() === 0) {
+        if (queuedTurnsOnDone) {
+          queuedTurnsByChatIdRef.current.delete(targetChatId);
+          queueAttemptIdByChatIdRef.current.delete(targetChatId);
+          if (queueAttemptId) {
+            removeQueuedTurnsForAttempt(targetChatId, queueAttemptId);
+          }
+          syncInterjectStateForChat(targetChatId);
+        }
+        return;
+      }
+
+      const queuedSnapshot = queuedTurnsOnDone.peekMerged();
+      if (!queuedSnapshot.text) return;
+
+      let relayState =
+        queueRelayAttemptsByChatIdRef.current.get(targetChatId);
+      if (!relayState || relayState.buffer !== queuedTurnsOnDone) {
+        relayState = {
+          buffer: queuedTurnsOnDone,
+          attemptId: queueAttemptId,
+          clientOperationId: queueClientOperationId,
+          inFlight: false,
+          inFlightIds: [],
+          retryCount: 0,
+          attempt: null,
+        };
+        const relayOwnerIsCurrent = () => {
+          if (
+            queuedTurnsByChatIdRef.current.get(targetChatId) !==
+            queuedTurnsOnDone
+          ) {
+            return false;
+          }
+          if (relayState.attemptId) {
+            return (
+              (queueAttemptIdByChatIdRef.current.get(targetChatId) || "") ===
+              relayState.attemptId
+            );
+          }
+          return Boolean(
+            relayState.clientOperationId &&
+              (queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+                "") === relayState.clientOperationId,
+          );
+        };
+        relayState.attempt = () => {
+          if (
+            !relayOwnerIsCurrent() ||
+            relayState.inFlight
+          ) {
+            return;
+          }
+          const relaySnapshot = queuedTurnsOnDone.peekMerged();
+          if (!relaySnapshot.text) return;
+          const relayIds = new Set(relaySnapshot.ids);
+          const relayDurableItems = queuedTurnsOnDone
+            .snapshot()
+            .filter((item) => relayIds.has(item.id))
+            .map((item) => ({ ...item, status: "queued" }));
+          if (
+            isChatRunPending(targetChatId) ||
+            durableInteractionByChatIdRef.current[targetChatId]?.status
+          ) {
+            relayState.retryCount += 1;
+            scheduleQueueRelayRetryTimer(
+              targetChatId,
+              relayState.attempt,
+              Math.min(
+                4000,
+                250 * 2 ** Math.min(relayState.retryCount - 1, 4),
+              ),
+            );
+            return;
+          }
+
+          relayState.inFlight = true;
+          relayState.inFlightIds = [...relaySnapshot.ids];
+          queuedTurnsOnDone.markRelayed(relaySnapshot.ids);
+          syncInterjectStateForChat(targetChatId);
+          let relayConsumed = false;
+          let relayRejected = false;
+          const removeConsumedRelayFromOutbox = () => {
+            const consumedIds = new Set(relaySnapshot.ids);
+            const durableRemainder = queuedTurnsOnDone
+              .snapshot()
+              .filter(
+                (item) =>
+                  item.status === "queued" && !consumedIds.has(item.id),
+              );
+            if (relayState.attemptId && durableRemainder.length > 0) {
+              writeQueuedTurnsForAttempt({
+                chatId: targetChatId,
+                attemptId: relayState.attemptId,
+                items: durableRemainder,
+              });
+            } else if (relayState.attemptId) {
+              removeQueuedTurnsForAttempt(
+                targetChatId,
+                relayState.attemptId,
+              );
+            } else if (
+              relayState.clientOperationId &&
+              durableRemainder.length > 0
+            ) {
+              writeQueuedTurnsForClientOperation({
+                chatId: targetChatId,
+                clientOperationId: relayState.clientOperationId,
+                items: durableRemainder,
+              });
+            } else if (relayState.clientOperationId) {
+              removeQueuedTurnsForClientOperation(
+                targetChatId,
+                relayState.clientOperationId,
+              );
+            }
+          };
+          const retryUnconsumedRelay = () => {
+            if (!relayOwnerIsCurrent()) {
+              return;
+            }
+            queuedTurnsOnDone.markQueued(relaySnapshot.ids);
+            persistQueuedTurnBufferForAttempt(
+              targetChatId,
+              queuedTurnsOnDone,
+              relayState.attemptId,
+              relayState.clientOperationId,
+              { preserveRelayed: false },
+            );
+            syncInterjectStateForChat(targetChatId);
+            relayState.retryCount += 1;
+            scheduleQueueRelayRetryTimer(
+              targetChatId,
+              relayState.attempt,
+              Math.min(
+                4000,
+                250 * 2 ** Math.min(relayState.retryCount - 1, 4),
+              ),
+            );
+          };
+          const acknowledgeConsumedRelay = () => {
+            queueRelayAttemptsByChatIdRef.current.delete(targetChatId);
+            scheduleQueueRelayRetryTimer(
+              targetChatId,
+              () => {
+                if (
+                  queuedTurnsByChatIdRef.current.get(targetChatId) !==
+                  queuedTurnsOnDone
+                ) {
+                  /* The accepted ids were reconciled synchronously above. A
+                     replacement buffer may now contain fresh clarify/FYI work
+                     under the same owner, so this old visual cleanup must not
+                     mutate durable state it no longer owns. */
+                  return;
+                }
+                queuedTurnsOnDone.removeMany(relaySnapshot.ids);
+                const currentRelayState =
+                  queueRelayAttemptsByChatIdRef.current.get(targetChatId);
+                const newerRelayOwnsBuffer = Boolean(
+                  currentRelayState &&
+                    currentRelayState !== relayState &&
+                    currentRelayState.buffer === queuedTurnsOnDone,
+                );
+                if (!newerRelayOwnsBuffer) {
+                  const currentQueueAttemptId =
+                    queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+                  const currentQueueClientOperationId =
+                    queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+                    "";
+                  persistQueuedTurnBufferForAttempt(
+                    targetChatId,
+                    queuedTurnsOnDone,
+                    currentQueueAttemptId,
+                    currentQueueClientOperationId,
+                  );
+                }
+                if (queuedTurnsOnDone.size() === 0) {
+                  queuedTurnsByChatIdRef.current.delete(targetChatId);
+                  queueAttemptIdByChatIdRef.current.delete(targetChatId);
+                  queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+                }
+                syncInterjectStateForChat(targetChatId);
+              },
+              1600,
+            );
+          };
+          const relayBaseMessages =
+            storageApi.getChatMessages?.(targetChatId) ||
+            (activeChatIdRef.current === targetChatId &&
+            Array.isArray(messagesRef.current)
+              ? messagesRef.current
+              : nextStreamMessages);
+          void runTurnRequest({
+            mode: "send",
+            chatId: targetChatId,
+            text: relaySnapshot.text,
+            attachments: [],
+            baseMessages: relayBaseMessages,
+            clearComposer: false,
+            missingAttachmentPayloadMode: "block",
+            characterAgentConfig,
+            runContext,
+            /* onConsumed fires only on authoritative server acceptance. Only
+               then may we remove the durable outbox data and schedule the 1.6s
+               cleanup — never merely because startStream returned a handle. */
+            onConsumed: () => {
+              if (relayConsumed || relayRejected) return;
+              relayConsumed = true;
+              relayState.inFlight = false;
+              removeConsumedRelayFromOutbox();
+              acknowledgeConsumedRelay();
+            },
+            /* onReject fires on a terminal pre-acceptance failure (e.g. an
+               execution_lease_conflict) that was not a user cancel. Reset
+               relayed->queued and retry, but only if the same buffer+owner is
+               still current. */
+            onReject: () => {
+              if (relayConsumed || relayRejected) return;
+              relayRejected = true;
+              relayState.inFlight = false;
+              retryUnconsumedRelay();
+            },
+            relayItemIds: relaySnapshot.ids,
+            relayItems: relayDurableItems,
+            relaySourceAttemptId: relayState.attemptId,
+            relaySourceClientOperationId: relayState.clientOperationId,
+          })
+            .then((started) => {
+              /* The promise resolves when startStream returns a handle — that
+                 is NOT acceptance. Acceptance (onConsumed) and pre-accept
+                 rejection (onReject) are both delivered asynchronously via the
+                 stream callbacks, so wait for them. When the run never started
+                 at all (early return / synchronous startup throw) leave the
+                 durable outbox intact for later recovery and do NOT auto-retry
+                 here — an immediate retry could duplicate the optimistic turn. */
+              if (!started && !relayConsumed && !relayRejected) {
+                relayState.inFlight = false;
+              }
+            })
+            .catch(() => {
+              /* runTurnRequest itself rejected before any acceptance. Treat it
+                 like a pre-accept rejection: reset relayed->queued and retry,
+                 guarded on the same buffer+owner. */
+              if (!relayConsumed && !relayRejected) {
+                relayRejected = true;
+                relayState.inFlight = false;
+                retryUnconsumedRelay();
+              }
+            });
+        };
+        queueRelayAttemptsByChatIdRef.current.set(targetChatId, relayState);
+      }
+      scheduleQueueRelayRetryTimer(targetChatId, relayState.attempt, 0);
+    },
+    [
+      activeChatIdRef,
+      isChatRunPending,
+      messagesRef,
+      persistQueuedTurnBufferForAttempt,
+      runTurnRequest,
+      scheduleQueueRelayRetryTimer,
+      storageApi,
+      syncInterjectStateForChat,
+    ],
+  );
+  relayQueuedTurnsAfterRunRef.current = relayQueuedTurnsAfterRun;
 
   const lookupDurableInteraction = useCallback(
     async (
@@ -6227,7 +8507,1049 @@ export const useChatStream = ({
       typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
     if (
       !targetChatId ||
+      streamingChatIdsRef.current.has(targetChatId) ||
+      reattachingChatIdsRef.current.has(targetChatId)
+    ) {
+      return undefined;
+    }
+
+    const storedMessages =
+      activeChatIdRef.current === targetChatId &&
+      Array.isArray(messagesRef.current)
+        ? messagesRef.current
+        : storageApi.getChatMessages?.(targetChatId) || [];
+    const assistantMessage = [...storedMessages]
+      .reverse()
+      .find(
+        (message) =>
+          message?.role === "assistant" &&
+          message?.status === "streaming" &&
+          typeof message?.meta?.requestId === "string" &&
+          message.meta.requestId.trim() &&
+          typeof message?.meta?.attemptId === "string" &&
+          message.meta.attemptId.trim() &&
+          typeof message?.meta?.executionSessionId === "string" &&
+          message.meta.executionSessionId.trim(),
+      );
+    if (!assistantMessage) {
+      return undefined;
+    }
+
+    const requestId = assistantMessage.meta.requestId.trim();
+    const attemptId = assistantMessage.meta.attemptId.trim();
+    const executionSessionId =
+      assistantMessage.meta.executionSessionId.trim();
+    const assistantMessageId = assistantMessage.id;
+    const runGeneration = ensureRecoveryRunGeneration(targetChatId);
+    if (
+      !assistantMessageId ||
+      !runGeneration ||
+      !isRunGenerationCurrent(targetChatId, runGeneration)
+    ) {
+      return undefined;
+    }
+    hydrateQueuedTurnsForAttempt(targetChatId, attemptId);
+
+    const projector = createRuntimeEventStreamReplayProjector();
+    let latestProjection = null;
+    let flushTimer = null;
+    let terminalReceived = false;
+    let replayAcceptanceObserved = false;
+    let replayAcceptanceTimer = null;
+    let replayAcceptanceReattachCount = 0;
+    let lastReplayStreamSeq = 0;
+    let currentAttachedHandle = null;
+    let replayCancellationPending = false;
+    const managedReplayConfirmationIds = new Set();
+
+    const readCurrentMessages = () => {
+      const activeMessages =
+        activeStreamsRef.current.get(targetChatId)?.messages;
+      if (Array.isArray(activeMessages)) return activeMessages;
+      if (
+        activeChatIdRef.current === targetChatId &&
+        Array.isArray(messagesRef.current)
+      ) {
+        return messagesRef.current;
+      }
+      return storageApi.getChatMessages?.(targetChatId) || storedMessages;
+    };
+
+    const clearFlushTimer = () => {
+      if (flushTimer == null) return;
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    };
+
+    const clearReplayAcceptanceTimer = () => {
+      if (replayAcceptanceTimer == null) return;
+      const timerId = replayAcceptanceTimer;
+      clearTimeout(timerId);
+      const trackedTimers =
+        queueRelayTimersByChatIdRef.current.get(targetChatId);
+      trackedTimers?.delete(timerId);
+      if (trackedTimers?.size === 0) {
+        queueRelayTimersByChatIdRef.current.delete(targetChatId);
+      }
+      replayAcceptanceTimer = null;
+    };
+
+    const hasUnverifiedRelayedTurn = () =>
+      Boolean(
+        !replayAcceptanceObserved &&
+          readQueuedTurnsForAttempt(targetChatId, attemptId)?.items?.some(
+            (item) => item.status === "relayed",
+          ),
+      );
+
+    const markReplayAcceptanceObserved = () => {
+      if (replayAcceptanceObserved) return;
+      replayAcceptanceObserved = true;
+      clearReplayAcceptanceTimer();
+      acknowledgeRelayedQueuedTurnsForAttempt(targetChatId, attemptId);
+    };
+
+    const restoreRejectedRelayedTurn = () => {
+      if (replayAcceptanceObserved) return false;
+      const persisted = readQueuedTurnsForAttempt(targetChatId, attemptId);
+      if (!persisted?.items?.some((item) => item.status === "relayed")) {
+        return false;
+      }
+
+      const currentMessages = readCurrentMessages();
+      const turnMessageIds = collectTurnMessageIds(
+        currentMessages,
+        assistantMessageId,
+      );
+      const ownsExactUserTurn = currentMessages.some(
+        (message) =>
+          message?.role === "user" && turnMessageIds.has(message?.id),
+      );
+      if (!turnMessageIds.has(assistantMessageId) || !ownsExactUserTurn) {
+        return false;
+      }
+
+      const retryableItems = persisted.items.map((item) => ({
+        ...item,
+        status: "queued",
+      }));
+      const restored = writeQueuedTurnsForAttempt({
+        chatId: targetChatId,
+        attemptId,
+        items: retryableItems,
+      });
+      if (!restored) return false;
+
+      const restoredBuffer = createQueuedTurnBuffer(retryableItems);
+      queuedTurnsByChatIdRef.current.set(targetChatId, restoredBuffer);
+      queueAttemptIdByChatIdRef.current.set(targetChatId, attemptId);
+      queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+
+      const rollbackMessages = currentMessages.filter(
+        (message) => !turnMessageIds.has(message?.id),
+      );
+      clearStreamingMessageStore(targetChatId, assistantMessageId);
+      activeStreamsRef.current.set(targetChatId, {
+        messages: rollbackMessages,
+      });
+      commitForegroundMessages(targetChatId, rollbackMessages);
+      storageApi.setChatMessages(targetChatId, rollbackMessages, {
+        source: "stream-reattach-lease-retry-rollback",
+      });
+      syncInterjectStateForChat(targetChatId);
+      return true;
+    };
+
+    const reconcileReplayInteractions = (projection = {}) => {
+      const projectedUiState =
+        projection.toolConfirmationUiStateById &&
+        typeof projection.toolConfirmationUiStateById === "object"
+          ? projection.toolConfirmationUiStateById
+          : {};
+      const frameGroups = [
+        projection.traceFrames,
+        ...Object.values(projection.subagentFrames || {}),
+      ];
+      const currentPendingIds = new Set();
+
+      for (const frames of frameGroups) {
+        for (const frame of Array.isArray(frames) ? frames : []) {
+          if (frame?.type !== "tool_call") continue;
+          const callId =
+            typeof frame.payload?.call_id === "string"
+              ? frame.payload.call_id.trim()
+              : "";
+          const confirmationId =
+            typeof frame.payload?.confirmation_id === "string"
+              ? frame.payload.confirmation_id.trim()
+              : "";
+          const requiresConfirmation =
+            frame.payload?.requires_confirmation === true ||
+            Boolean(confirmationId);
+          if (!callId || !confirmationId || !requiresConfirmation) continue;
+
+          const replayedUi = projectedUiState[confirmationId] || null;
+          if (replayedUi?.resolved === true) continue;
+          currentPendingIds.add(confirmationId);
+
+          const runtime = getConfirmationRuntimeForChat(targetChatId);
+          runtime.confirmationIdByCallId.set(callId, confirmationId);
+          runtime.confirmationCallIdById.set(confirmationId, callId);
+          runtime.sessionIdByConfirmationId.set(
+            confirmationId,
+            executionSessionId,
+          );
+          if (runtime.followupSignalById.get(confirmationId) !== true) {
+            runtime.followupSignalById.set(confirmationId, false);
+          }
+
+          const request = buildToolConfirmationRequest({
+            frame,
+            confirmationId,
+            callId,
+            toolName:
+              typeof frame.payload?.tool_name === "string"
+                ? frame.payload.tool_name
+                : "",
+            requestedAt: Number.isFinite(Number(frame.ts))
+              ? Number(frame.ts)
+              : Date.now(),
+            ownerMessageId: assistantMessageId,
+            chatId: targetChatId,
+            sessionId: executionSessionId,
+          });
+          updatePendingToolConfirmationRequests(targetChatId, (previous) =>
+            previous[confirmationId]
+              ? previous
+              : { ...previous, [confirmationId]: request },
+          );
+          updateToolConfirmationUiState(targetChatId, (previous) =>
+            previous[confirmationId]
+              ? previous
+              : {
+                  ...previous,
+                  [confirmationId]: {
+                    status: "idle",
+                    error: "",
+                    resolved: false,
+                  },
+                },
+          );
+        }
+      }
+
+      for (const confirmationId of managedReplayConfirmationIds) {
+        if (currentPendingIds.has(confirmationId)) continue;
+        const replayedUi = projectedUiState[confirmationId] || null;
+        if (replayedUi?.resolved !== true) {
+          // Replay projections can be temporarily incomplete while a stream is
+          // reconnecting. Absence is not proof that the durable interaction was
+          // resolved, so retain ownership until an explicit resolution arrives.
+          currentPendingIds.add(confirmationId);
+          continue;
+        }
+        const runtime = getConfirmationRuntimeForChat(targetChatId, {
+          create: false,
+        });
+        const callId = runtime?.confirmationCallIdById.get(confirmationId);
+        if (
+          callId &&
+          runtime?.confirmationIdByCallId.get(callId) === confirmationId
+        ) {
+          runtime.confirmationIdByCallId.delete(callId);
+        }
+        runtime?.confirmationCallIdById.delete(confirmationId);
+        if (callId && runtime && !runtime.confirmationIdByCallId.has(callId)) {
+          for (const [candidateId, candidateCallId] of
+            runtime.confirmationCallIdById.entries()) {
+            if (candidateCallId === callId) {
+              runtime.confirmationIdByCallId.set(callId, candidateId);
+              break;
+            }
+          }
+        }
+        runtime?.sessionIdByConfirmationId.delete(confirmationId);
+        runtime?.followupSignalById.delete(confirmationId);
+        updatePendingToolConfirmationRequests(targetChatId, (previous) => {
+          if (!previous[confirmationId]) return previous;
+          const next = { ...previous };
+          delete next[confirmationId];
+          return next;
+        });
+        updateToolConfirmationUiState(targetChatId, (previous) => {
+          if (!previous[confirmationId]) return previous;
+          const next = { ...previous };
+          delete next[confirmationId];
+          return next;
+        });
+      }
+
+      managedReplayConfirmationIds.clear();
+      currentPendingIds.forEach((confirmationId) => {
+        managedReplayConfirmationIds.add(confirmationId);
+      });
+    };
+
+    const replayedFyiRecords = (projection = {}) => {
+      const frameGroups = [
+        projection.traceFrames,
+        ...Object.values(projection.subagentFrames || {}),
+      ];
+      const records = [];
+      const recordIds = new Set();
+      const messages = [];
+      let sawFyiFrame = false;
+
+      for (const frames of frameGroups) {
+        for (const frame of Array.isArray(frames) ? frames : []) {
+          if (frame?.type !== "fyi_injected") continue;
+          sawFyiFrame = true;
+          const eventId =
+            typeof frame.payload?.runtime_event_id === "string"
+              ? frame.payload.runtime_event_id
+              : `seq-${frame.seq || 0}`;
+          const entries = Array.isArray(frame.payload?.messages)
+            ? frame.payload.messages
+            : [];
+          messages.push(...entries);
+          entries.forEach((entry, index) => {
+            const text =
+              entry?.origin === "user" && typeof entry.text === "string"
+                ? entry.text
+                : "";
+            if (!text) return;
+            const messageId =
+              typeof entry?.message_id === "string"
+                ? entry.message_id.trim()
+                : typeof entry?.messageId === "string"
+                  ? entry.messageId.trim()
+                  : "";
+            const recordId = messageId
+              ? `fyi-${messageId}`
+              : `fyi-${eventId}-${index}`;
+            if (recordIds.has(recordId)) return;
+            recordIds.add(recordId);
+            records.push({
+              id: recordId,
+              type: "fyi",
+              text,
+              origin: "user",
+              ts: Number.isFinite(Number(frame.ts))
+                ? Number(frame.ts)
+                : Date.now(),
+            });
+          });
+        }
+      }
+
+      return sawFyiFrame ? { records, messages } : null;
+    };
+
+    const applyLatestProjection = ({ status, error, bundle } = {}) => {
+      clearFlushTimer();
+      if (
+        !hookMountedRef.current ||
+        !isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        return [];
+      }
+      const projection = latestProjection || {};
+      const updatedAt = Date.now();
+      const replayedFyi = replayedFyiRecords(projection);
+      const nextMessages = readCurrentMessages().map((message) => {
+        if (message?.id !== assistantMessageId) return message;
+        const materialized = finalizeStreamingMessage(message);
+        const projectedContent =
+          typeof projection.content === "string"
+            ? projection.content
+            : materialized.content || "";
+        const nextError =
+          error && typeof error === "object"
+            ? {
+                code:
+                  typeof error.code === "string" ? error.code : "unknown",
+                message:
+                  typeof error.message === "string"
+                    ? error.message
+                    : "The attached stream failed",
+              }
+            : projection.error && typeof projection.error === "object"
+              ? { ...projection.error }
+              : null;
+        const projectedBundle =
+          bundle && typeof bundle === "object"
+            ? bundle
+            : projection.bundle && typeof projection.bundle === "object"
+              ? projection.bundle
+              : null;
+        return {
+          ...materialized,
+          content:
+            status === "error" && !projectedContent
+              ? `[error] ${nextError?.message || "The attached stream failed"}`
+              : projectedContent,
+          status: status || projection.status || "streaming",
+          updatedAt,
+          traceFrames: Array.isArray(projection.traceFrames)
+            ? projection.traceFrames
+            : message.traceFrames || [],
+          subagentFrames:
+            projection.subagentFrames &&
+            typeof projection.subagentFrames === "object"
+              ? projection.subagentFrames
+              : message.subagentFrames || {},
+          subagentMetaByRunId:
+            projection.subagentMetaByRunId &&
+            typeof projection.subagentMetaByRunId === "object"
+              ? projection.subagentMetaByRunId
+              : message.subagentMetaByRunId || {},
+          runArtifactSummary:
+            projection.runArtifactSummary !== undefined
+              ? projection.runArtifactSummary
+              : message.runArtifactSummary,
+          artifactSummariesByTurnId:
+            projection.artifactSummariesByTurnId &&
+            typeof projection.artifactSummariesByTurnId === "object"
+              ? projection.artifactSummariesByTurnId
+              : message.artifactSummariesByTurnId || {},
+          ...(replayedFyi
+            ? {
+                interjections: [
+                  ...(Array.isArray(message.interjections)
+                    ? message.interjections.filter(
+                        (record) => record?.type !== "fyi",
+                      )
+                    : []),
+                  ...replayedFyi.records,
+                ],
+              }
+            : {}),
+          meta: {
+            ...(message.meta || {}),
+            ...(projectedBundle ? { bundle: { ...projectedBundle } } : {}),
+            ...(nextError ? { error: nextError } : {}),
+          },
+        };
+      });
+      activeStreamsRef.current.set(targetChatId, { messages: nextMessages });
+      commitForegroundMessages(targetChatId, nextMessages);
+      storageApi.setChatMessages(targetChatId, nextMessages, {
+        source: "stream-reattach",
+      });
+      reconcileReplayInteractions(projection);
+      if (replayedFyi) {
+        acknowledgeInjectedFyisForAttempt(
+          targetChatId,
+          attemptId,
+          replayedFyi.messages,
+        );
+      }
+      return nextMessages;
+    };
+
+    const scheduleProjectionFlush = () => {
+      if (flushTimer != null) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        applyLatestProjection();
+      }, STREAM_REATTACH_FLUSH_MS);
+    };
+
+    const finishAttachedStream = ({ status, error, bundle } = {}) => {
+      if (terminalReceived) return;
+      terminalReceived = true;
+      clearReplayAcceptanceTimer();
+      let nextMessages = applyLatestProjection({ status, error, bundle });
+      const pendingClarify =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (pendingClarify) {
+        const fallback = fallbackPendingClarifyForChat(
+          targetChatId,
+          pendingClarify,
+        );
+        if (fallback) {
+          nextMessages = nextMessages.map((message) => ({
+            ...message,
+            ...(Array.isArray(message?.traceFrames)
+              ? {
+                  traceFrames: message.traceFrames.map((frame) =>
+                    frame?.type === "clarify_request" &&
+                    frame?.payload?.id === pendingClarify.id
+                      ? {
+                          ...frame,
+                          payload: {
+                            ...frame.payload,
+                            status: "resolved_default",
+                          },
+                        }
+                      : frame,
+                  ),
+                }
+              : {}),
+          }));
+          commitForegroundMessages(targetChatId, nextMessages);
+        } else {
+          setStreamErrorForChat(
+            targetChatId,
+            "The pending clarification is still saved and will be recovered after reload.",
+          );
+        }
+      }
+      fallbackPendingFyisForAttempt(targetChatId, attemptId);
+      reattachingChatIdsRef.current.delete(targetChatId);
+      streamHandlesRef.current.delete(targetChatId);
+      executionIdentityByChatIdRef.current.delete(targetChatId);
+      streamingChatIdsRef.current.delete(targetChatId);
+      activeStreamsRef.current.delete(targetChatId);
+      activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+      clearAllPendingToolConfirmations(targetChatId);
+      updatePendingContinuationRequestForChat(targetChatId, null);
+      syncInterjectStateForChat(targetChatId);
+      setStreamingChatIds((previous) => {
+        const next = new Set(previous);
+        next.delete(targetChatId);
+        return next;
+      });
+      if (nextMessages.length > 0) {
+        finalizeStreamPersist({
+          storageApi,
+          chatId: targetChatId,
+          messages: nextMessages,
+          isForeground: activeChatIdRef.current === targetChatId,
+          flushBackgroundPersist,
+        });
+      }
+      if (status === "done") {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: nextMessages,
+          characterAgentConfig: null,
+          runContext: runContextByChatIdRef.current.get(targetChatId) || null,
+        });
+      }
+      return nextMessages;
+    };
+
+    const finishAttachedError = (
+      error,
+      bundle,
+      { retryRelayedTurn = false } = {},
+    ) => {
+      if (
+        terminalReceived ||
+        !isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        return;
+      }
+      const shouldRetryRelayedTurn = Boolean(
+        (error?.code === "execution_lease_conflict" || retryRelayedTurn) &&
+          restoreRejectedRelayedTurn(),
+      );
+      const nextMessages = finishAttachedStream({
+        status: "error",
+        error,
+        bundle,
+      });
+      if (shouldRetryRelayedTurn) {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: nextMessages,
+          characterAgentConfig: null,
+          runContext: runContextByChatIdRef.current.get(targetChatId) || null,
+        });
+        return;
+      }
+      setStreamErrorForChat(
+        targetChatId,
+        error?.message || "The attached stream failed.",
+      );
+    };
+
+    const settleUnavailableStream = (error) => {
+      if (terminalReceived) return;
+      terminalReceived = true;
+      clearReplayAcceptanceTimer();
+      clearFlushTimer();
+      fallbackPendingFyisForAttempt(targetChatId, attemptId);
+      reattachingChatIdsRef.current.delete(targetChatId);
+      streamHandlesRef.current.delete(targetChatId);
+      executionIdentityByChatIdRef.current.delete(targetChatId);
+      streamingChatIdsRef.current.delete(targetChatId);
+      activeStreamsRef.current.delete(targetChatId);
+      activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+      setStreamingChatIds((previous) => {
+        const next = new Set(previous);
+        next.delete(targetChatId);
+        return next;
+      });
+      const { changed, nextMessages } = settleStreamingAssistantMessages(
+        readCurrentMessages(),
+      );
+      if (changed) {
+        commitForegroundMessages(targetChatId, nextMessages);
+        storageApi.setChatMessages(targetChatId, nextMessages, {
+          source: "stream-reattach-unavailable",
+        });
+      }
+      const pendingClarify =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (pendingClarify) {
+        fallbackPendingClarifyForChat(targetChatId, pendingClarify);
+      }
+      setStreamErrorForChat(
+        targetChatId,
+        error?.code === "stream_replay_gap"
+          ? "This interrupted run is too old to replay safely. It was not restarted."
+          : "This interrupted run is no longer available. It was not restarted.",
+      );
+    };
+
+    const cancelAndSettleUnverifiedReattach = async ({
+      expectedHandle = null,
+      error,
+      retryWhenNeverRegistered = false,
+    }) => {
+      if (
+        terminalReceived ||
+        replayCancellationPending ||
+        !isRunGenerationCurrent(targetChatId, runGeneration) ||
+        (expectedHandle &&
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle)
+      ) {
+        return;
+      }
+      replayCancellationPending = true;
+      clearReplayAcceptanceTimer();
+      const queuedCancellation = enqueueExecutionCancel({
+        sessionId: executionSessionId,
+        attemptId,
+        requestId,
+        reason: "queue_relay_acceptance_unverified",
+        createdAt: Date.now(),
+      });
+      const cancelResult = await requestExecutionCancellationAndDisconnect({
+        identity: queuedCancellation,
+        handle: expectedHandle,
+        reason: "queue_relay_acceptance_unverified",
+        idempotencyKey: `queue-relay-acceptance:${attemptId}`,
+      });
+      if (cancelResult?.ok && queuedCancellation) {
+        removeExecutionCancel(
+          queuedCancellation.sessionId,
+          queuedCancellation.attemptId,
+        );
+      }
+      if (
+        terminalReceived ||
+        !isRunGenerationCurrent(targetChatId, runGeneration) ||
+        (expectedHandle &&
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle)
+      ) {
+        return;
+      }
+      const cancelResponse = cancelResult?.response;
+      const provenNeverRegistered = Boolean(
+        cancelResult?.ok &&
+          isProvenNeverRegisteredCancellation(cancelResponse),
+      );
+      finishAttachedError(
+        error || {
+          code: "queue_relay_acceptance_unverified",
+          message:
+            "The recovered queued follow-up could not be verified safely. It was not restarted.",
+        },
+        undefined,
+        {
+          retryRelayedTurn: Boolean(
+            retryWhenNeverRegistered &&
+              !replayAcceptanceObserved &&
+              provenNeverRegistered,
+          ),
+        },
+      );
+    };
+
+    const reattachHandlers = {
+      onRuntimeEvent: (runtimeEvent, streamMeta = {}) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        const streamSeq = Number(streamMeta.streamSeq);
+        if (Number.isInteger(streamSeq) && streamSeq > lastReplayStreamSeq) {
+          lastReplayStreamSeq = streamSeq;
+        }
+        if (isAuthoritativeQueueAcceptanceEvent(runtimeEvent)) {
+          markReplayAcceptanceObserved();
+        }
+        latestProjection = projector.append(
+          runtimeEvent,
+          streamMeta.streamSeq,
+        );
+        scheduleProjectionFlush();
+      },
+      onDone: (done = {}) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        const projectedError =
+          latestProjection?.error && typeof latestProjection.error === "object"
+            ? latestProjection.error
+            : null;
+        const doneError =
+          done.error && typeof done.error === "object" ? done.error : null;
+        if (latestProjection?.status === "error" || doneError) {
+          const terminalError = projectedError || doneError;
+          finishAttachedError(
+            terminalError,
+            done.bundle && typeof done.bundle === "object"
+              ? done.bundle
+              : undefined,
+          );
+          return;
+        }
+        markReplayAcceptanceObserved();
+        finishAttachedStream({
+          status: "done",
+          bundle:
+            done.bundle && typeof done.bundle === "object"
+              ? done.bundle
+              : undefined,
+        });
+      },
+      onError: (error) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        const wasCancelled = error?.code === "cancelled";
+        if (wasCancelled) {
+          if (hasUnverifiedRelayedTurn()) {
+            void cancelAndSettleUnverifiedReattach({
+              error: {
+                code: "queue_relay_cancelled_without_acceptance",
+                message:
+                  "The recovered queued follow-up was cancelled without verifiable acceptance evidence.",
+              },
+              retryWhenNeverRegistered: true,
+            });
+          } else {
+            finishAttachedStream({ status: "cancelled" });
+          }
+        } else {
+          finishAttachedError(error);
+        }
+      },
+    };
+
+    const scheduleReplayAcceptanceReconciliation = () => {
+      clearReplayAcceptanceTimer();
+      if (
+        terminalReceived ||
+        !isRunGenerationCurrent(targetChatId, runGeneration) ||
+        !hasUnverifiedRelayedTurn()
+      ) {
+        return;
+      }
+      replayAcceptanceTimer = scheduleQueueRelayTimer(
+        targetChatId,
+        runGeneration,
+        () => {
+          replayAcceptanceTimer = null;
+          void (async () => {
+            if (
+              terminalReceived ||
+              !isRunGenerationCurrent(targetChatId, runGeneration) ||
+              !hasUnverifiedRelayedTurn()
+            ) {
+              return;
+            }
+            const expectedHandle = currentAttachedHandle;
+            if (
+              !expectedHandle ||
+              streamHandlesRef.current.get(targetChatId) !== expectedHandle
+            ) {
+              return;
+            }
+            if (
+              replayAcceptanceReattachCount >=
+              QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+            ) {
+              await cancelAndSettleUnverifiedReattach({
+                expectedHandle,
+                error: {
+                  code: "queue_relay_acceptance_timeout",
+                  message:
+                    "The recovered queued follow-up did not provide acceptance evidence in time. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                },
+                retryWhenNeverRegistered: true,
+              });
+              return;
+            }
+            replayAcceptanceReattachCount += 1;
+            try {
+              const attachedHandle = await api.unchain.attachStreamV4(
+                {
+                  requestId,
+                  executionId: executionSessionId,
+                  attemptId,
+                  afterSeq: lastReplayStreamSeq,
+                },
+                reattachHandlers,
+              );
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration) ||
+                streamHandlesRef.current.get(targetChatId) !== expectedHandle
+              ) {
+                attachedHandle?.detach?.();
+                return;
+              }
+              currentAttachedHandle = attachedHandle;
+              streamHandlesRef.current.set(targetChatId, attachedHandle);
+              if (!hasUnverifiedRelayedTurn()) {
+                if (
+                  attachedHandle?.terminal === true ||
+                  attachedHandle?.active === false
+                ) {
+                  finishAttachedError({
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The recovered queued follow-up was accepted, but its transport was already closed. It was not restarted.",
+                  });
+                }
+                return;
+              }
+              if (
+                attachedHandle?.terminal === true ||
+                attachedHandle?.active === false
+              ) {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle: attachedHandle,
+                  error: {
+                    code: "queue_relay_terminal_without_acceptance",
+                    message:
+                      "The recovered queued follow-up ended without verifiable acceptance evidence. It was not restarted.",
+                  },
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              scheduleReplayAcceptanceReconciliation();
+            } catch (attachError) {
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration)
+              ) {
+                return;
+              }
+              const errorCode =
+                typeof attachError?.code === "string" ? attachError.code : "";
+              if (replayAcceptanceObserved) {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle,
+                  error: {
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The recovered queued follow-up was accepted during replay, but reconnecting its transport failed. Its exact execution was cancelled and it was not restarted.",
+                  },
+                });
+                return;
+              }
+              if (errorCode === "stream_not_found") {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle,
+                  error: {
+                    code: "queue_relay_stream_not_found",
+                    message:
+                      "The recovered queued follow-up stream was not found. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                  },
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              if (
+                errorCode === "stream_replay_gap" ||
+                errorCode === "stream_identity_mismatch" ||
+                replayAcceptanceReattachCount >=
+                  QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+              ) {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle,
+                  error: {
+                    code: errorCode || "queue_relay_reattach_failed",
+                    message:
+                      errorCode === "stream_replay_gap"
+                        ? "The recovered queued follow-up could not be replayed completely. Its exact execution was cancelled and it was not restarted."
+                        : "The recovered queued follow-up could not be verified after reconnecting. Its exact execution was cancelled and it was not restarted.",
+                  },
+                  retryWhenNeverRegistered: Boolean(
+                    errorCode !== "stream_replay_gap" &&
+                      errorCode !== "stream_identity_mismatch",
+                  ),
+                });
+                return;
+              }
+              scheduleReplayAcceptanceReconciliation();
+            }
+          })();
+        },
+        QUEUE_RELAY_ACCEPTANCE_RECONCILE_MS,
+      );
+    };
+
+    const attachAvailable =
+      typeof api.unchain.isRuntimeEventStreamV4AttachAvailable === "function" &&
+      api.unchain.isRuntimeEventStreamV4AttachAvailable() &&
+      typeof api.unchain.attachStreamV4 === "function";
+    if (!attachAvailable) {
+      settleUnavailableStream({ code: "stream_attach_unavailable" });
+      return undefined;
+    }
+
+    reattachingChatIdsRef.current.add(targetChatId);
+    streamingChatIdsRef.current.add(targetChatId);
+    activeStreamsRef.current.set(targetChatId, { messages: storedMessages });
+    activeRunThreadIdByChatIdRef.current.set(
+      targetChatId,
+      executionSessionId,
+    );
+    executionIdentityByChatIdRef.current.set(targetChatId, {
+      sessionId: executionSessionId,
+      attemptId,
+      requestId,
+      sourceAttemptId: "",
+      runGeneration,
+    });
+    syncPendingFyiStateForAttempt(targetChatId, attemptId);
+    setStreamingChatIds((previous) => new Set(previous).add(targetChatId));
+
+    void api.unchain
+      .attachStreamV4(
+        {
+          requestId,
+          executionId: executionSessionId,
+          attemptId,
+          // Rebuild from the beginning. Replacing the projected text avoids
+          // duplicate tokens even when a partial message was already persisted.
+          afterSeq: 0,
+        },
+        reattachHandlers,
+      )
+      .then((handle) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          handle?.detach?.();
+          return;
+        }
+        currentAttachedHandle = handle;
+        streamHandlesRef.current.set(targetChatId, handle);
+        if (handle?.terminal === true || handle?.active === false) {
+          if (hasUnverifiedRelayedTurn()) {
+            void cancelAndSettleUnverifiedReattach({
+              expectedHandle: handle,
+              error: {
+                code: "queue_relay_terminal_without_acceptance",
+                message:
+                  "The recovered queued follow-up ended without verifiable acceptance evidence. It was not restarted.",
+              },
+              retryWhenNeverRegistered: true,
+            });
+          } else {
+            finishAttachedError({
+              code: "stream_closed_without_terminal_event",
+              message:
+                "The recovered stream closed before a terminal event was received.",
+            });
+          }
+          return;
+        }
+        scheduleReplayAcceptanceReconciliation();
+      })
+      .catch((error) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        if (replayAcceptanceObserved || hasUnverifiedRelayedTurn()) {
+          void cancelAndSettleUnverifiedReattach({
+            error:
+              replayAcceptanceObserved
+                ? {
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The recovered queued follow-up was accepted during replay, but reconnecting its transport failed. Its exact execution was cancelled and it was not restarted.",
+                  }
+                : {
+                    code:
+                      typeof error?.code === "string"
+                        ? error.code
+                        : "queue_relay_reattach_failed",
+                    message:
+                      error?.code === "stream_replay_gap"
+                        ? "The recovered queued follow-up could not be replayed completely. Its exact execution was cancelled and it was not restarted."
+                        : "The recovered queued follow-up stream could not be verified. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                  },
+            retryWhenNeverRegistered: Boolean(
+              !replayAcceptanceObserved &&
+                error?.code !== "stream_replay_gap" &&
+                error?.code !== "stream_identity_mismatch",
+            ),
+          });
+          return;
+        }
+        settleUnavailableStream(error);
+      });
+
+    // Chat switches do not detach this listener. The hook-level unmount
+    // cleanup owns transport detach for every active chat.
+    return undefined;
+  }, [
+    activeChatIdRef,
+    activeStreamsRef,
+    acknowledgeRelayedQueuedTurnsForAttempt,
+    acknowledgeInjectedFyisForAttempt,
+    chatId,
+    clearAllPendingToolConfirmations,
+    clearStreamingMessageStore,
+    commitForegroundMessages,
+    ensureRecoveryRunGeneration,
+    fallbackPendingClarifyForChat,
+    fallbackPendingFyisForAttempt,
+    getConfirmationRuntimeForChat,
+    hydrateQueuedTurnsForAttempt,
+    isRunGenerationCurrent,
+    messagesRef,
+    scheduleQueueRelayTimer,
+    setStreamErrorForChat,
+    storageApi,
+    syncInterjectStateForChat,
+    syncPendingFyiStateForAttempt,
+    updatePendingContinuationRequestForChat,
+    updatePendingToolConfirmationRequests,
+    updateToolConfirmationUiState,
+  ]);
+
+  useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (
+      !targetChatId ||
       isStreaming ||
+      reattachingChatIdsRef.current.has(targetChatId) ||
       typeof api.unchain.isDurableInteractionBridgeAvailable !== "function" ||
       !api.unchain.isDurableInteractionBridgeAvailable()
     ) {
@@ -6319,61 +9641,604 @@ export const useChatStream = ({
     updateDurableInteractionForChat,
   ]);
 
-  const sendForTest = useCallback(
-    ({ text = "", attachments = [] } = {}) => {
-      const chatId = activeChatIdRef.current;
-      if (!chatId) {
-        return Promise.reject(
-          Object.assign(new Error("no active chat"), {
-            code: "no_active_chat",
-          }),
-        );
+  const readMessagesForTest = useCallback(
+    (targetChatId) => {
+      const streamMessages =
+        activeStreamsRef.current.get(targetChatId)?.messages;
+      if (Array.isArray(streamMessages)) {
+        return streamMessages;
       }
-      if (durableInteractionByChatIdRef.current[chatId]?.status) {
-        return Promise.reject(
-          Object.assign(
-            new Error("This chat is restoring an interrupted run."),
-            { code: "durable_interaction_in_progress" },
+      if (
+        activeChatIdRef.current === targetChatId &&
+        Array.isArray(messagesRef.current)
+      ) {
+        return messagesRef.current;
+      }
+      if (typeof storageApi.getChatMessages === "function") {
+        const storedMessages = storageApi.getChatMessages(targetChatId);
+        return Array.isArray(storedMessages) ? storedMessages : [];
+      }
+      return [];
+    },
+    [activeChatIdRef, activeStreamsRef, messagesRef, storageApi],
+  );
+
+  const getRunForTest = useCallback(
+    ({ id, attempt_id: requestedAttemptId, attemptId } = {}) => {
+      const targetChatId = typeof id === "string" ? id.trim() : "";
+      const normalizedAttemptId =
+        typeof (requestedAttemptId ?? attemptId) === "string"
+          ? (requestedAttemptId ?? attemptId).trim()
+          : "";
+      if (!targetChatId) {
+        throw Object.assign(new Error("chat id is required"), {
+          code: "invalid_request",
+        });
+      }
+      if (!normalizedAttemptId) {
+        throw Object.assign(new Error("attempt_id is required"), {
+          code: "invalid_request",
+        });
+      }
+
+      const identity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      const identityMatches = identity?.attemptId === normalizedAttemptId;
+      const messagesForChat = readMessagesForTest(targetChatId);
+      const assistantMessage = [...messagesForChat]
+        .reverse()
+        .find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.meta?.attemptId === normalizedAttemptId,
+        );
+      if (!identityMatches && !assistantMessage) {
+        throw Object.assign(
+          new Error(
+            `run ${normalizedAttemptId} was not found for chat ${targetChatId}`,
           ),
+          { code: "run_not_found" },
         );
       }
-      const baseLen = (messagesRef.current || []).length;
+
+      const messageStatus =
+        typeof assistantMessage?.status === "string"
+          ? assistantMessage.status
+          : "";
+      const isRunning =
+        identityMatches && streamingChatIdsRef.current.has(targetChatId);
+      const status = isRunning
+        ? "running"
+        : messageStatus === "done"
+          ? "completed"
+          : messageStatus === "error"
+            ? "failed"
+            : messageStatus === "cancelled"
+              ? "cancelled"
+              : messageStatus === "streaming"
+                ? "interrupted"
+                : "completed";
+      const executionId =
+        (identityMatches && identity?.sessionId) ||
+        assistantMessage?.meta?.executionSessionId ||
+        targetChatId;
+      const content =
+        typeof assistantMessage?.content === "string"
+          ? assistantMessage.content
+          : assistantMessage?.content == null
+            ? ""
+            : JSON.stringify(assistantMessage.content);
+      const pendingRequestsRef =
+        pendingToolConfirmationRequestsByChatIdRef.current[targetChatId] || {};
+      const pendingRequestsRendered =
+        pendingToolConfirmationRequestsByChatId[targetChatId] || {};
+      const confirmationUiRef =
+        toolConfirmationUiStateByChatIdRef.current[targetChatId] || {};
+      const confirmationUiRendered =
+        toolConfirmationUiStateByChatId[targetChatId] || {};
+      const confirmationRuntime =
+        confirmationRuntimeByChatIdRef.current.get(targetChatId) || null;
+      const requestSummary = (requests) =>
+        Object.fromEntries(
+          Object.entries(requests).map(([confirmationId, request]) => [
+            confirmationId,
+            {
+              confirmation_id: request?.confirmationId || confirmationId,
+              call_id: request?.callId || "",
+              owner_message_id: request?.ownerMessageId || "",
+              session_id: request?.sessionId || "",
+            },
+          ]),
+        );
+      const traceGroups = [
+        assistantMessage?.traceFrames,
+        ...Object.values(assistantMessage?.subagentFrames || {}),
+      ];
+      const confirmationTraceFrames = traceGroups.flatMap((frames) =>
+        (Array.isArray(frames) ? frames : [])
+          .filter(
+            (frame) =>
+              frame?.type === "tool_call" &&
+              (frame.payload?.call_id || frame.payload?.confirmation_id),
+          )
+          .map((frame) => ({
+            type: frame.type,
+            seq: frame.seq ?? null,
+            call_id: frame.payload?.call_id || "",
+            confirmation_id: frame.payload?.confirmation_id || "",
+            requires_confirmation:
+              frame.payload?.requires_confirmation === true,
+            tool_name: frame.payload?.tool_name || "",
+          })),
+      );
+
+      return {
+        chat_id: targetChatId,
+        execution_id: executionId,
+        attempt_id: normalizedAttemptId,
+        status,
+        message_id: assistantMessage?.id || null,
+        content,
+        tool_calls: assistantMessage?.tool_calls || null,
+        finish_reason: assistantMessage?.finish_reason || null,
+        started_at: assistantMessage?.createdAt || null,
+        updated_at: assistantMessage?.updatedAt || null,
+        error: assistantMessage?.meta?.error || null,
+        confirmation_debug: {
+          pending_requests_ref: requestSummary(pendingRequestsRef),
+          pending_requests_rendered: requestSummary(pendingRequestsRendered),
+          ui_state_ref: confirmationUiRef,
+          ui_state_rendered: confirmationUiRendered,
+          runtime: confirmationRuntime
+            ? {
+                confirmation_id_by_call_id: Object.fromEntries(
+                  confirmationRuntime.confirmationIdByCallId,
+                ),
+                confirmation_call_id_by_id: Object.fromEntries(
+                  confirmationRuntime.confirmationCallIdById,
+                ),
+                session_id_by_confirmation_id: Object.fromEntries(
+                  confirmationRuntime.sessionIdByConfirmationId,
+                ),
+              }
+            : null,
+          trace_frames: confirmationTraceFrames,
+        },
+      };
+    },
+    [
+      pendingToolConfirmationRequestsByChatId,
+      readMessagesForTest,
+      streamingChatIdsRef,
+      toolConfirmationUiStateByChatId,
+    ],
+  );
+
+  const cancelRunForTest = useCallback(
+    async ({ id, attempt_id: requestedAttemptId, attemptId } = {}) => {
+      const targetChatId = typeof id === "string" ? id.trim() : "";
+      const normalizedAttemptId =
+        typeof (requestedAttemptId ?? attemptId) === "string"
+          ? (requestedAttemptId ?? attemptId).trim()
+          : "";
+      if (!targetChatId) {
+        throw Object.assign(new Error("chat id is required"), {
+          code: "invalid_request",
+        });
+      }
+
+      const identity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      if (
+        !identity?.attemptId ||
+        !streamingChatIdsRef.current.has(targetChatId)
+      ) {
+        throw Object.assign(
+          new Error(`chat ${targetChatId} has no active run`),
+          { code: "run_not_active" },
+        );
+      }
+      if (normalizedAttemptId && identity.attemptId !== normalizedAttemptId) {
+        throw Object.assign(
+          new Error(
+            `attempt ${normalizedAttemptId} does not own chat ${targetChatId}`,
+          ),
+          { code: "attempt_mismatch" },
+        );
+      }
+
+      const handle = streamHandlesRef.current.get(targetChatId) || null;
+      /* Fence the cancel to the exact run (A) we captured. During the await
+         below, A can finish and a queue relay can start a fresh run (B) that
+         reuses this chat id. Capture A's generation + identity now so that,
+         after the await, we can tell whether we are still cancelling A or would
+         otherwise clobber B's live handle / FYI / queue state. */
+      const capturedRunGeneration = getRunGeneration(targetChatId);
+      const capturedSessionId = identity.sessionId;
+      const capturedAttemptId = identity.attemptId;
+      const capturedMessages = materializeStreamingMessages(
+        targetChatId,
+        readMessagesForTest(targetChatId),
+      );
+      const capturedStreamingAssistant = capturedMessages.find(
+        (message) =>
+          message?.role === "assistant" &&
+          message?.status === "streaming" &&
+          message?.meta?.attemptId === capturedAttemptId,
+      );
+      /* Tombstone queue relay intent before awaiting backend cancellation. A
+         pre-acceptance lease conflict can arrive while cancelExecution is
+         pending; clearing the relay owner now makes its onReject callback
+         fail closed instead of scheduling a successor behind the cancel. */
+      clearQueueRelayTimersForChat(targetChatId);
+      clearQueuedTurnsForChat(targetChatId, capturedAttemptId);
+      const result = await requestExecutionCancellationAndDisconnect({
+        identity,
+        handle,
+        reason: "test_api_cancel",
+      });
+      if (!result?.ok) {
+        throw Object.assign(new Error("failed to cancel the exact run"), {
+          code: "execution_cancel_failed",
+        });
+      }
+      const currentIdentity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      const stillExactOwner =
+        isRunGenerationCurrent(targetChatId, capturedRunGeneration) &&
+        currentIdentity?.attemptId === capturedAttemptId &&
+        currentIdentity?.sessionId === capturedSessionId;
+      if (!stillExactOwner) {
+        const messagesAfterAwait = materializeStreamingMessages(
+          targetChatId,
+          readMessagesForTest(targetChatId),
+        );
+        const exactAssistantAfterAwait = messagesAfterAwait.find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.meta?.attemptId === capturedAttemptId,
+        );
+        const newerOwnerExists = Boolean(
+          currentIdentity?.attemptId &&
+            currentIdentity.attemptId !== capturedAttemptId,
+        );
+        const newerStreamingAssistantExists = messagesAfterAwait.some(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.status === "streaming" &&
+            message?.id !== capturedStreamingAssistant?.id,
+        );
+        if (
+          !newerOwnerExists &&
+          !newerStreamingAssistantExists &&
+          capturedStreamingAssistant &&
+          (!exactAssistantAfterAwait ||
+            exactAssistantAfterAwait.status === "streaming")
+        ) {
+          const tombstone = finalizeStreamingMessage(
+            exactAssistantAfterAwait || capturedStreamingAssistant,
+            {
+              content: "",
+              status: "cancelled",
+              updatedAt: Date.now(),
+            },
+          );
+          const nextMessages = exactAssistantAfterAwait
+            ? messagesAfterAwait.map((message) =>
+                message.id === exactAssistantAfterAwait.id ? tombstone : message,
+              )
+            : [...messagesAfterAwait, tombstone];
+          clearStreamingMessageStore(targetChatId, tombstone.id);
+          activeStreamsRef.current.delete(targetChatId);
+          streamingChatIdsRef.current.delete(targetChatId);
+          commitForegroundMessages(targetChatId, nextMessages);
+          storageApi.setChatMessages(targetChatId, nextMessages, {
+            source: "test-api-cancel-terminal-race",
+          });
+        }
+        /* A already terminated and a successor (B) — or nothing — now owns the
+           chat. Report A's cancellation without mutating the current (B) run's
+           handle, streaming set, FYI, or queued-turn state. */
+        return {
+          ok: true,
+          chat_id: targetChatId,
+          execution_id: capturedSessionId,
+          attempt_id: capturedAttemptId,
+          status: "cancel_requested",
+          cancellation: result.response || null,
+        };
+      }
+      invalidateRunGeneration(targetChatId);
+      clearConfirmationRetryWaitersForChat(targetChatId);
+      clearQueueRelayTimersForChat(targetChatId);
+      clearQueuedTurnsForChat(targetChatId, identity.attemptId);
+      pendingFyiCountByChatIdRef.current.delete(targetChatId);
+      pendingClarifyByChatIdRef.current.delete(targetChatId);
+      clearAllPendingToolConfirmations(targetChatId);
+      updatePendingContinuationRequestForChat(targetChatId, null);
+      streamHandlesRef.current.delete(targetChatId);
+      executionIdentityByChatIdRef.current.delete(targetChatId);
+      streamingChatIdsRef.current.delete(targetChatId);
+      activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+      const materializedMessages = materializeStreamingMessages(
+        targetChatId,
+        readMessagesForTest(targetChatId),
+      );
+      const exactStreamingAssistant =
+        materializedMessages.find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.status === "streaming" &&
+            message?.meta?.attemptId === identity.attemptId,
+        ) || capturedStreamingAssistant;
+      const settled = settleStreamingAssistantMessages(materializedMessages);
+      let nextMessages = settled.nextMessages;
+      if (
+        exactStreamingAssistant &&
+        !nextMessages.some(
+          (message) => message?.id === exactStreamingAssistant.id,
+        )
+      ) {
+        /* Exact Test API runs need a terminal tombstone even when cancellation
+           happens before the first token. Otherwise the empty placeholder is
+           dropped and a follow-up GET incorrectly becomes run_not_found. */
+        nextMessages = [
+          ...nextMessages,
+          finalizeStreamingMessage(exactStreamingAssistant, {
+            content: "",
+            status: "cancelled",
+            updatedAt: Date.now(),
+          }),
+        ];
+      }
+      materializedMessages.forEach((message) => {
+        if (message?.role === "assistant" && message?.status === "streaming") {
+          clearStreamingMessageStore(targetChatId, message.id);
+        }
+      });
+      activeStreamsRef.current.delete(targetChatId);
+      cancelBackgroundPersist(targetChatId);
+      commitForegroundMessages(targetChatId, nextMessages);
+      storageApi.setChatMessages(targetChatId, nextMessages, {
+        source: "test-api-cancel",
+      });
+      setStreamingChatIds((previous) => {
+        const next = new Set(previous);
+        next.delete(targetChatId);
+        return next;
+      });
+      return {
+        ok: true,
+        chat_id: targetChatId,
+        execution_id: identity.sessionId,
+        attempt_id: identity.attemptId,
+        status: "cancel_requested",
+        cancellation: result.response || null,
+      };
+    },
+    [
+      activeStreamsRef,
+      clearAllPendingToolConfirmations,
+      clearConfirmationRetryWaitersForChat,
+      clearQueuedTurnsForChat,
+      clearQueueRelayTimersForChat,
+      clearStreamingMessageStore,
+      commitForegroundMessages,
+      getRunGeneration,
+      invalidateRunGeneration,
+      isRunGenerationCurrent,
+      materializeStreamingMessages,
+      readMessagesForTest,
+      storageApi,
+      streamingChatIdsRef,
+      updatePendingContinuationRequestForChat,
+    ],
+  );
+
+  const sendForTest = useCallback(
+    async ({
+      id,
+      text = "",
+      attachments = [],
+      wait_for_completion: waitForCompletionSnake,
+      waitForCompletion: waitForCompletionCamel,
+    } = {}) => {
+      const targetChatId = typeof id === "string" ? id.trim() : "";
+      const activeChatId = activeChatIdRef.current;
+      if (!targetChatId) {
+        throw Object.assign(new Error("chat id is required"), {
+          code: "invalid_request",
+        });
+      }
+      const exactStore = getChatsStore();
+      const exactRunContext = snapshotStoredRunContext(
+        exactStore,
+        targetChatId,
+      );
+      if (!exactRunContext) {
+        throw Object.assign(new Error(`chat ${targetChatId} not found`), {
+          code: "chat_not_found",
+        });
+      }
+      if (
+        !activeChatId ||
+        activeChatId !== targetChatId ||
+        exactStore?.activeChatId !== targetChatId
+      ) {
+        throw Object.assign(
+          new Error(
+            `chat ${targetChatId} is not active; activate it before starting a run`,
+          ),
+          { code: "chat_not_active" },
+        );
+      }
+      if (
+        exactRunContext.kind === "character" &&
+        !exactRunContext.characterId
+      ) {
+        throw Object.assign(
+          new Error(`chat ${targetChatId} has an invalid character config`),
+          { code: "chat_config_unavailable" },
+        );
+      }
+      if (
+        exactRunContext.kind !== "character" &&
+        (!exactRunContext.modelId ||
+          exactRunContext.modelId === "unchain-unset")
+      ) {
+        throw Object.assign(
+          new Error(`chat ${targetChatId} has no runnable model config`),
+          { code: "chat_config_unavailable" },
+        );
+      }
+      if (durableInteractionByChatIdRef.current[targetChatId]?.status) {
+        throw Object.assign(
+          new Error("This chat is restoring an interrupted run."),
+          { code: "durable_interaction_in_progress" },
+        );
+      }
+      if (
+        streamingChatIdsRef.current.has(targetChatId) ||
+        runPreflightGenerationByChatIdRef.current.has(targetChatId)
+      ) {
+        throw Object.assign(new Error("This chat already has an active run."), {
+          code: "run_already_active",
+        });
+      }
+
+      const waitForCompletion =
+        waitForCompletionSnake !== undefined
+          ? waitForCompletionSnake !== false
+          : waitForCompletionCamel !== undefined
+            ? waitForCompletionCamel !== false
+            : true;
+      const baseMessages = readMessagesForTest(targetChatId);
+      const baseMessageIds = new Set(
+        baseMessages
+          .map((message) => message?.id)
+          .filter((messageId) => typeof messageId === "string" && messageId),
+      );
       const startedAt = Date.now();
-      void runTurnRequest({
+      const started = await runTurnRequest({
         mode: "send",
-        chatId,
+        chatId: targetChatId,
         text,
         attachments,
-        baseMessages: messagesRef.current,
+        baseMessages,
         clearComposer: true,
         missingAttachmentPayloadMode: "block",
+        runContext: exactRunContext,
       });
+      if (!started) {
+        throw Object.assign(new Error("run did not start"), {
+          code: "run_start_failed",
+        });
+      }
+
+      const identity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      const attemptIdValue =
+        typeof identity?.attemptId === "string"
+          ? identity.attemptId.trim()
+          : "";
+      if (!waitForCompletion) {
+        if (!attemptIdValue) {
+          throw Object.assign(
+            new Error("runtime did not return an attempt identity"),
+            { code: "run_identity_unavailable" },
+          );
+        }
+        return getRunForTest({ id: targetChatId, attempt_id: attemptIdValue });
+      }
+
       return new Promise((resolve, reject) => {
         let timer;
+        const finish = (callback) => {
+          clearInterval(interval);
+          clearTimeout(timer);
+          callback();
+        };
         const interval = setInterval(() => {
-          const msgs = messagesRef.current || [];
-          const last = msgs[msgs.length - 1];
-          const stillStreaming = streamingChatIdsRef.current.has(chatId);
+          if (attemptIdValue) {
+            let snapshot;
+            try {
+              snapshot = getRunForTest({
+                id: targetChatId,
+                attempt_id: attemptIdValue,
+              });
+            } catch (error) {
+              if (error?.code === "run_not_found") {
+                return;
+              }
+              finish(() => reject(error));
+              return;
+            }
+            if (snapshot.status === "completed") {
+              finish(() =>
+                resolve({
+                  message_id: snapshot.message_id,
+                  role: "assistant",
+                  content: snapshot.content,
+                  tool_calls: snapshot.tool_calls,
+                  finish_reason: snapshot.finish_reason || "stop",
+                  latency_ms: Date.now() - startedAt,
+                  chat_id: targetChatId,
+                  execution_id: snapshot.execution_id,
+                  attempt_id: attemptIdValue,
+                }),
+              );
+            } else if (
+              ["failed", "cancelled", "interrupted"].includes(snapshot.status)
+            ) {
+              finish(() =>
+                reject(
+                  Object.assign(
+                    new Error(
+                      snapshot.error?.message ||
+                        `run ended with status ${snapshot.status}`,
+                    ),
+                    {
+                      code: snapshot.error?.code || `run_${snapshot.status}`,
+                    },
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+
+          // Legacy V2 compatibility: V2 handles do not expose attempt ids, but
+          // the blocking /messages endpoint must still resolve from this exact
+          // chat rather than whichever chat is currently visible.
+          const messagesForChat = readMessagesForTest(targetChatId);
+          const last = [...messagesForChat]
+            .reverse()
+            .find(
+              (message) =>
+                message?.role === "assistant" &&
+                !baseMessageIds.has(message?.id),
+            );
+          const stillStreaming = streamingChatIdsRef.current.has(targetChatId);
           if (
-            msgs.length > baseLen &&
             !stillStreaming &&
             last &&
-            last.role === "assistant" &&
-            last.content
+            last.status !== "error" &&
+            last.status !== "streaming"
           ) {
-            clearInterval(interval);
-            clearTimeout(timer);
-            resolve({
-              message_id: last.id,
-              role: "assistant",
-              content:
-                typeof last.content === "string"
-                  ? last.content
-                  : JSON.stringify(last.content),
-              tool_calls: last.tool_calls || null,
-              finish_reason: last.finish_reason || "stop",
-              latency_ms: Date.now() - startedAt,
-            });
+            finish(() =>
+              resolve({
+                message_id: last.id,
+                role: "assistant",
+                content:
+                  typeof last.content === "string"
+                    ? last.content
+                    : JSON.stringify(last.content),
+                tool_calls: last.tool_calls || null,
+                finish_reason: last.finish_reason || "stop",
+                latency_ms: Date.now() - startedAt,
+                chat_id: targetChatId,
+              }),
+            );
           }
         }, 100);
         timer = setTimeout(
@@ -6387,7 +10252,13 @@ export const useChatStream = ({
         );
       });
     },
-    [activeChatIdRef, messagesRef, runTurnRequest, streamingChatIdsRef],
+    [
+      activeChatIdRef,
+      getRunForTest,
+      readMessagesForTest,
+      runTurnRequest,
+      streamingChatIdsRef,
+    ],
   );
 
   /* sendNewTurn(options) — options is optional and only consulted when it is
@@ -6452,20 +10323,73 @@ export const useChatStream = ({
           return;
         }
         if (!thisChatHasStreamHandle) {
+          const preflightInterject = extractCommands(text ?? "", {
+            isStreaming: true,
+          });
+          const normalizedPreflightText = text.trim();
+          const isExplicitQueue =
+            preflightInterject.commands.some(
+              (command) => command?.channel === "queue",
+            ) || normalizedPreflightText.startsWith("/queue ");
+          const preflightQueueBody =
+            preflightInterject.body.trim() ||
+            (normalizedPreflightText.startsWith("/queue ")
+              ? normalizedPreflightText.slice("/queue".length).trim()
+              : "");
+          if (
+            isExplicitQueue &&
+            !hasAttachments &&
+            preflightQueueBody
+          ) {
+            if (pushQueuedTurn(currentChatId, preflightQueueBody)) {
+              setInputValue("");
+              setDraftAttachments([]);
+            }
+            return;
+          }
           /* The run is still in local preflight, so there is no backend
-             execution to interject into yet. Keep the new draft intact and
-             refuse a second run instead of replacing the first generation. */
+             execution to interject into yet. Explicit queue input can wait
+             locally for the exact attempt identity; every other channel keeps
+             the draft intact and refuses a second run. */
           toast.info("This chat is still preparing. Please wait.", {
             dedupeKey: `chat-preflight-${currentChatId}`,
           });
           return;
         }
+        // Fail closed on attachments: the interject channels are text-only, so
+        // a follow-up carrying attachments cannot be addressed to the running
+        // response without silently dropping the attachments. Keep the composer
+        // (text + attachments) intact and never call interject — the user can
+        // resend once the current response finishes.
+        if (hasAttachments) {
+          toast.info(
+            "Attachments can't be added to a response that's already running. Wait for it to finish, then send them.",
+            { dedupeKey: `chat-active-attachment-${currentChatId}` },
+          );
+          return;
+        }
         // A send arrived while this chat's run is still active: route it
         // through the interject channels (fyi/btw/queue/clarify) instead of
         // silently dropping it.
-        setInputValue("");
-        setDraftAttachments([]);
-        handleInterjectRef.current?.(currentChatId, text);
+        const interjectResult = handleInterjectRef.current?.(
+          currentChatId,
+          text,
+        );
+        void Promise.resolve(interjectResult).then((accepted) => {
+          if (
+            accepted !== true ||
+            activeChatIdRef.current !== currentChatId ||
+            inputValueRef.current.trim() !== text ||
+            !sameDraftAttachments(
+              draftAttachmentsRef.current,
+              currentDraftAttachments,
+            )
+          ) {
+            return;
+          }
+          setInputValue("");
+          setDraftAttachments([]);
+        });
         return;
       }
 
@@ -6531,6 +10455,7 @@ export const useChatStream = ({
       isCharacterChat,
       isChatRunPending,
       messagesRef,
+      pushQueuedTurn,
       runTurnRequest,
       setDraftAttachments,
       setInputValue,
@@ -6539,45 +10464,203 @@ export const useChatStream = ({
     ],
   );
 
-  const pushQueuedTurn = useCallback(
-    (targetChatId, text) => {
-      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
-      if (!queuedTurns) {
-        queuedTurns = createQueuedTurnBuffer();
-        queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
-      }
-      queuedTurns.push(text);
-      syncInterjectStateForChat(targetChatId);
-    },
-    [syncInterjectStateForChat],
-  );
-
   /* Sends {threadId, text: body, channel} to the server and dispatches on
      whatever resolved_channel comes back — NOT on the channel we asked for,
      since the server (not the client) decides how a given run can actually
      absorb a mid-run message. `channel: "queue"` (explicit /queue) is the
      one case that never touches the server: it is purely a local buffer. */
   const dispatchInterjectChannel = useCallback(
-    (targetChatId, body, channel) => {
+    (targetChatId, body, channel, options = {}) => {
       if (channel === "queue") {
-        pushQueuedTurn(targetChatId, body);
-        return;
+        return pushQueuedTurn(targetChatId, body);
       }
 
       const runGeneration = getRunGeneration(targetChatId);
       const threadId =
         activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
-      const isCurrentDispatch = () =>
+      const isGenerationCurrent = () =>
         isRunGenerationCurrent(targetChatId, runGeneration);
-      if (!isCurrentDispatch()) {
-        return;
+      if (!isGenerationCurrent()) {
+        return false;
       }
 
-      api.unchain
-        .interject({ threadId, text: body, channel })
+      const executionAttemptId =
+        executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+        "";
+      const sourceClientOperationId =
+        runClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+      const sourceAttemptId =
+        executionAttemptId || sourceClientOperationId;
+      const suppliedPendingFyiIntent =
+        options?.pendingFyiIntent &&
+        typeof options.pendingFyiIntent === "object"
+          ? options.pendingFyiIntent
+          : null;
+      const usesSuppliedPendingFyiIntent = Boolean(suppliedPendingFyiIntent);
+      const isCurrentDispatch = () => {
+        if (!isGenerationCurrent()) return false;
+        if (!sourceAttemptId) return true;
+        if (
+          sourceClientOperationId &&
+          runClientOperationIdByChatIdRef.current.get(targetChatId) !==
+            sourceClientOperationId
+        ) {
+          return false;
+        }
+        if (executionAttemptId) {
+          return (
+            executionIdentityByChatIdRef.current.get(targetChatId)
+              ?.attemptId === executionAttemptId
+          );
+        }
+        return true;
+      };
+      const needsDurableFyiIntent =
+        channel === "fyi" || channel === "auto" || usesSuppliedPendingFyiIntent;
+      const messageId = usesSuppliedPendingFyiIntent
+        ? suppliedPendingFyiIntent.messageId
+        : needsDurableFyiIntent
+          ? createPendingFyiMessageId()
+          : "";
+      if (needsDurableFyiIntent && !sourceAttemptId) {
+        const message =
+          "Could not address this message to the active run. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `interject-owner-unavailable-${targetChatId}`,
+        });
+        return usesSuppliedPendingFyiIntent
+          ? Promise.resolve(false)
+          : false;
+      }
+      if (needsDurableFyiIntent) {
+        const saved = usesSuppliedPendingFyiIntent
+          ? readPendingFyisForAttempt(targetChatId, sourceAttemptId).find(
+              (entry) =>
+                entry.chatId === targetChatId &&
+                entry.attemptId === sourceAttemptId &&
+                entry.messageId === suppliedPendingFyiIntent.messageId &&
+                entry.requestedChannel === channel &&
+                entry.threadId === threadId &&
+                entry.text === body &&
+                suppliedPendingFyiIntent.chatId === entry.chatId &&
+                suppliedPendingFyiIntent.attemptId === entry.attemptId &&
+                suppliedPendingFyiIntent.requestedChannel ===
+                  entry.requestedChannel &&
+                suppliedPendingFyiIntent.threadId === entry.threadId &&
+                suppliedPendingFyiIntent.text === entry.text,
+            ) || null
+          : writePendingFyi({
+              chatId: targetChatId,
+              attemptId: sourceAttemptId,
+              messageId,
+              text: body,
+              requestedChannel: channel,
+              threadId,
+            });
+        if (!saved) {
+          const message =
+            "Could not save this in-run message. Your input was kept.";
+          setStreamErrorForChat(targetChatId, message);
+          toast.error(message, {
+            dedupeKey: `interject-persist-failed-${targetChatId}`,
+          });
+          return usesSuppliedPendingFyiIntent
+            ? Promise.resolve(false)
+            : false;
+        }
+        if (!executionAttemptId) {
+          // Legacy V2 transports do not expose a server attempt id. Their
+          // per-run client operation id is still an exact, durable owner and
+          // is cleared/fallen back with this run only.
+          queueAttemptIdByChatIdRef.current.set(
+            targetChatId,
+            sourceAttemptId,
+          );
+          queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+        }
+        syncPendingFyiStateForAttempt(targetChatId, sourceAttemptId);
+      }
+
+      let clarifyBtwBarrier = null;
+      if (usesSuppliedPendingFyiIntent && channel === "btw") {
+        const clarifyId =
+          typeof options?.clarifyId === "string" ? options.clarifyId.trim() : "";
+        const clarifyRunGeneration = Number(options?.runGeneration);
+        const existingBarrier =
+          clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+        if (
+          !clarifyId ||
+          clarifyRunGeneration !== runGeneration ||
+          existingBarrier
+        ) {
+          setStreamErrorForChat(
+            targetChatId,
+            "The side question could not be bound to its exact run. It remains saved for recovery.",
+          );
+          return Promise.resolve(false);
+        }
+        clarifyBtwBarrier = {
+          key: [
+            targetChatId,
+            clarifyId,
+            messageId,
+            sourceAttemptId,
+            runGeneration,
+          ].join(":"),
+          chatId: targetChatId,
+          clarifyId,
+          messageId,
+          attemptId: sourceAttemptId,
+          runGeneration,
+          settled: false,
+          terminal: null,
+          timeoutId: null,
+        };
+        clarifyBtwBarrierByChatIdRef.current.set(
+          targetChatId,
+          clarifyBtwBarrier,
+        );
+      }
+
+      const timeoutPromise = clarifyBtwBarrier
+        ? new Promise((_, reject) => {
+            clarifyBtwBarrier.timeoutId = setTimeout(() => {
+              settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                disposition: "migrate",
+              });
+              reject(
+                Object.assign(new Error("Side question timed out."), {
+                  code: "interject_btw_timeout",
+                }),
+              );
+            }, CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS);
+          })
+        : null;
+      let interjectRequest;
+      try {
+        interjectRequest = Promise.resolve(
+          api.unchain.interject({
+          threadId,
+          text: body,
+          channel,
+          ...(messageId ? { messageId } : {}),
+          }),
+        );
+      } catch (error) {
+        interjectRequest = Promise.reject(error);
+      }
+      const dispatchPromise = (timeoutPromise
+        ? Promise.race([interjectRequest, timeoutPromise])
+        : interjectRequest)
         .then((result) => {
           if (!isCurrentDispatch()) {
-            return;
+            if (clarifyBtwBarrier) {
+              settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                disposition: "migrate",
+              });
+            }
+            return false;
           }
           const rawResolvedChannel =
             result && typeof result.resolved_channel === "string"
@@ -6591,53 +10674,231 @@ export const useChatStream = ({
           const dispatchTime = Date.now();
 
           if (resolvedChannel === "fyi") {
-            pendingFyiCountByChatIdRef.current.set(
-              targetChatId,
-              (pendingFyiCountByChatIdRef.current.get(targetChatId) || 0) + 1,
-            );
-            syncInterjectStateForChat(targetChatId);
+            const acceptedMessageId =
+              typeof result?.message_id === "string"
+                ? result.message_id.trim()
+                : "";
+            if (
+              needsDurableFyiIntent &&
+              acceptedMessageId !== messageId
+            ) {
+              setStreamErrorForChat(
+                targetChatId,
+                "The runtime did not confirm the addressed FYI. It remains saved for recovery.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : true;
+            }
             toast.success("Queued — will be injected next step", {
               dedupeKey: "interject-fyi-queued",
             });
-            return;
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "preserve",
+                  accepted: true,
+                })
+              : true;
           }
 
           if (resolvedChannel === "btw") {
             const answer =
               typeof result?.answer === "string" ? result.answer : "";
-            appendLocalTraceFrame(targetChatId, {
-              seq: dispatchTime,
-              ts: dispatchTime,
-              type: "side_answer",
-              stage: "client",
-              payload: { question: body, answer },
-            });
-            appendLocalInterjectionRecord(
+            const recorded = appendLocalBtwResultForOwner({
               targetChatId,
-              buildInterjectionRecord({
-                type: "btw",
-                text: body,
-                origin: "user",
-                answer,
-                ts: dispatchTime,
-              }),
-            );
-            return;
+              attemptId: sourceAttemptId,
+              executionAttemptId,
+              messageId,
+              question: body,
+              answer,
+              ts: dispatchTime,
+            });
+            if (!recorded) {
+              setStreamErrorForChat(
+                targetChatId,
+                needsDurableFyiIntent
+                  ? "The side answer arrived after its owner changed. The question remains queued."
+                  : "The side answer arrived after its owner changed. Your input was kept.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : needsDurableFyiIntent;
+            }
+            if (needsDurableFyiIntent) {
+              if (clarifyBtwBarrier) {
+                if (!clarifyBtwBarrier.settled) {
+                  return settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "resolve",
+                    accepted: true,
+                  });
+                }
+                // onError may already have migrated this exact intent to its
+                // same-id fallback while the HTTP request was still in flight.
+                // A later successful receipt wins over that fallback, but it
+                // may update live refs only while the original owner remains
+                // the exact current runtime owner.
+                const lateResolved = resolvePendingFyiIntent({
+                  chatId: targetChatId,
+                  attemptId: sourceAttemptId,
+                  messageId,
+                });
+                if (
+                  lateResolved &&
+                  isClarifyBtwBarrierCurrentOwner(clarifyBtwBarrier)
+                ) {
+                  syncDurableQueueForAttempt(
+                    targetChatId,
+                    sourceAttemptId,
+                    lateResolved.queue || null,
+                  );
+                }
+                return Boolean(lateResolved);
+              }
+              const resolved = resolvePendingFyiIntent({
+                chatId: targetChatId,
+                attemptId: sourceAttemptId,
+                messageId,
+              });
+              if (resolved) {
+                syncDurableQueueForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                  resolved.queue || null,
+                );
+              } else {
+                syncPendingFyiStateForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                );
+              }
+              if (!resolved &&
+                readPendingFyisForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                ).some((entry) => entry.messageId === messageId)
+              ) {
+                setStreamErrorForChat(
+                  targetChatId,
+                  "The side answer arrived, but its saved intent could not be finalized.",
+                );
+              }
+            }
+            return true;
           }
 
           if (resolvedChannel === "queue") {
-            pushQueuedTurn(targetChatId, body);
-            return;
+            if (!needsDurableFyiIntent) {
+              return pushQueuedTurn(targetChatId, body);
+            }
+            const migrated = migratePendingFyiToQueue({
+              chatId: targetChatId,
+              attemptId: sourceAttemptId,
+              messageId,
+            });
+            if (!migrated?.queue) {
+              setStreamErrorForChat(
+                targetChatId,
+                "This message is still saved and will be recovered after the run settles.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : true;
+            }
+            syncDurableQueueForAttempt(
+              targetChatId,
+              sourceAttemptId,
+              migrated.queue,
+            );
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "queued",
+                  accepted: true,
+                })
+              : true;
           }
 
           if (resolvedChannel === "clarify") {
+            const ownerStillActive = Boolean(
+              streamingChatIdsRef.current.has(targetChatId) &&
+                streamHandlesRef.current.has(targetChatId),
+            );
+            if (needsDurableFyiIntent && !ownerStillActive) {
+              const migrated = migratePendingFyiToQueue({
+                chatId: targetChatId,
+                attemptId: sourceAttemptId,
+                messageId,
+              });
+              if (migrated?.queue) {
+                syncDurableQueueForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                  migrated.queue,
+                );
+              }
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: migrated?.queue ? "queued" : "migrate",
+                    accepted: Boolean(migrated?.queue),
+                  })
+                : true;
+            }
             const clarifyId = `clarify-${dispatchTime}-${Math.random()
               .toString(16)
               .slice(2)}`;
-            pendingClarifyByChatIdRef.current.set(targetChatId, {
-              id: clarifyId,
-              text: body,
-            });
+            const clientOperationId =
+              runClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+            const durableClarify = needsDurableFyiIntent
+              ? convertPendingFyiToClarify({
+                  chatId: targetChatId,
+                  attemptId: sourceAttemptId,
+                  messageId,
+                  clarifyId,
+                })
+              : writePendingClarify({
+                  chatId: targetChatId,
+                  ...(sourceAttemptId
+                    ? { sourceAttemptId }
+                    : { clientOperationId }),
+                  id: clarifyId,
+                  text: body,
+                });
+            if (!durableClarify) {
+              if (needsDurableFyiIntent) {
+                const migrated = migratePendingFyiToQueue({
+                  chatId: targetChatId,
+                  attemptId: sourceAttemptId,
+                  messageId,
+                });
+                if (migrated?.queue) {
+                  syncDurableQueueForAttempt(
+                    targetChatId,
+                    sourceAttemptId,
+                    migrated.queue,
+                  );
+                  return clarifyBtwBarrier
+                    ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                        disposition: "queued",
+                        accepted: true,
+                      })
+                    : true;
+                }
+              }
+              setStreamErrorForChat(
+                targetChatId,
+                "Could not save this clarification. Your input was kept.",
+              );
+              return false;
+            }
+            pendingClarifyByChatIdRef.current.set(
+              targetChatId,
+              durableClarify,
+            );
             appendLocalTraceFrame(targetChatId, {
               seq: dispatchTime,
               ts: dispatchTime,
@@ -6654,7 +10915,12 @@ export const useChatStream = ({
                 status: "pending",
               },
             });
-            return;
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "converted",
+                  accepted: true,
+                })
+              : true;
           }
 
           // resolved_channel === "new_run": graph-recipe runs never register
@@ -6667,9 +10933,49 @@ export const useChatStream = ({
             streamingChatIdsRef.current.has(targetChatId) &&
               streamHandlesRef.current.has(targetChatId),
           );
+          if (needsDurableFyiIntent) {
+            const migrated = migratePendingFyiToQueue({
+              chatId: targetChatId,
+              attemptId: sourceAttemptId,
+              messageId,
+            });
+            if (!migrated?.queue) {
+              setStreamErrorForChat(
+                targetChatId,
+                "This message is still saved and will be recovered after the run settles.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : true;
+            }
+            syncDurableQueueForAttempt(
+              targetChatId,
+              sourceAttemptId,
+              migrated.queue,
+            );
+            if (!stillActive && !clarifyBtwBarrier) {
+              relayQueuedTurnsAfterRunRef.current?.({
+                targetChatId,
+                nextStreamMessages:
+                  activeStreamsRef.current.get(targetChatId)?.messages ||
+                  storageApi.getChatMessages?.(targetChatId) ||
+                  [],
+                characterAgentConfig: null,
+                runContext:
+                  runContextByChatIdRef.current.get(targetChatId) || null,
+              });
+            }
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "queued",
+                  accepted: true,
+                })
+              : true;
+          }
           if (stillActive) {
-            pushQueuedTurn(targetChatId, body);
-            return;
+            return pushQueuedTurn(targetChatId, body);
           }
 
           if (targetChatId === activeChatIdRef.current) {
@@ -6678,39 +10984,49 @@ export const useChatStream = ({
               chatId: targetChatId,
               bypassInterject: true,
             });
-          } else {
-            // Background chat + no active run to relay into: we have no
-            // reliable snapshot of that chat's persisted messages here (only
-            // the active chat's messagesRef is available), so sending would
-            // risk attaching this turn to the wrong chat. Log and drop
-            // rather than corrupt another chat's history.
-            unchainLogger.warn("interject_new_run_dropped_background", {
-              chatId: targetChatId,
-            });
+            return true;
           }
+          return pushQueuedTurn(targetChatId, body);
         })
         .catch((error) => {
+          if (clarifyBtwBarrier && !clarifyBtwBarrier.settled) {
+            settleClarifyBtwBarrier(clarifyBtwBarrier, {
+              disposition: "migrate",
+            });
+          }
           if (!isCurrentDispatch()) {
-            return;
+            return false;
           }
           setStreamErrorForChat(
             targetChatId,
             error?.message || "Failed to send interjection.",
           );
+          return false;
         });
+
+      if (needsDurableFyiIntent && !usesSuppliedPendingFyiIntent) {
+        void dispatchPromise;
+        return true;
+      }
+      return dispatchPromise;
     },
     [
       activeChatIdRef,
-      appendLocalInterjectionRecord,
+      activeStreamsRef,
+      appendLocalBtwResultForOwner,
       appendLocalTraceFrame,
       getRunGeneration,
+      isClarifyBtwBarrierCurrentOwner,
       isRunGenerationCurrent,
       pushQueuedTurn,
       sendNewTurn,
+      settleClarifyBtwBarrier,
       setStreamErrorForChat,
+      storageApi,
       streamHandlesRef,
       streamingChatIdsRef,
-      syncInterjectStateForChat,
+      syncDurableQueueForAttempt,
+      syncPendingFyiStateForAttempt,
     ],
   );
 
@@ -6730,8 +11046,8 @@ export const useChatStream = ({
       );
       const channel = channelCommand ? channelCommand.channel : "auto";
       const trimmedBody = (body || "").trim();
-      if (!trimmedBody) return;
-      dispatchInterjectChannel(targetChatId, trimmedBody, channel);
+      if (!trimmedBody) return false;
+      return dispatchInterjectChannel(targetChatId, trimmedBody, channel);
     },
     [dispatchInterjectChannel],
   );
@@ -6744,10 +11060,24 @@ export const useChatStream = ({
       if (!queuedTurns) {
         return;
       }
+      const previousItems = queuedTurns.snapshot();
       queuedTurns.remove(id);
+      if (!persistQueuedTurnBufferForAttempt(targetChatId, queuedTurns)) {
+        queuedTurns.hydrate(previousItems);
+        setStreamErrorForChat(
+          targetChatId,
+          "Could not update the queued messages. Nothing was removed.",
+        );
+        return;
+      }
       syncInterjectStateForChat(targetChatId);
     },
-    [activeChatIdRef, syncInterjectStateForChat],
+    [
+      activeChatIdRef,
+      persistQueuedTurnBufferForAttempt,
+      setStreamErrorForChat,
+      syncInterjectStateForChat,
+    ],
   );
 
   /* onClarifyResolve(value) resolves the active chat's pending clarify, or
@@ -6760,15 +11090,72 @@ export const useChatStream = ({
         : activeChatIdRef.current;
       const value = hasExplicitChatId ? maybeValue : chatIdOrValue;
 
-      const pending = pendingClarifyByChatIdRef.current.get(targetChatId);
+      const pending =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
       if (!pending) {
-        return;
+        return false;
       }
+      if (value === "queue") {
+        const fallback = fallbackPendingClarifyForChat(targetChatId, pending);
+        if (!fallback) return false;
+        updateLocalClarifyFrame(targetChatId, pending.id, {
+          status: "resolved",
+        });
+        return true;
+      }
+      if (value !== "fyi" && value !== "btw") return false;
+
+      const sourceAttemptId =
+        pending.sourceAttemptId || pending.clientOperationId || "";
+      const threadId =
+        activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+      const runGeneration = getRunGeneration(targetChatId);
+      const messageId = createPendingFyiMessageId();
+      const pendingFyiIntent = transitionPendingClarifyToPendingFyi({
+        chatId: targetChatId,
+        clarifyId: pending.id,
+        attemptId: sourceAttemptId,
+        messageId,
+        requestedChannel: value,
+        threadId,
+      });
+      if (!pendingFyiIntent) {
+        setStreamErrorForChat(
+          targetChatId,
+          "Could not save this clarification choice. Please try again.",
+        );
+        return false;
+      }
+
+      // The durable outbox now contains the FYI/BTW intent and no clarify.
+      // Only after that atomic transition may the UI stop presenting the
+      // clarify frame or any network request begin.
       pendingClarifyByChatIdRef.current.delete(targetChatId);
-      updateLocalClarifyFrame(targetChatId, pending.id, { status: "resolved" });
-      dispatchInterjectChannel(targetChatId, pending.text, value);
+      syncPendingFyiStateForAttempt(targetChatId, sourceAttemptId);
+      updateLocalClarifyFrame(targetChatId, pending.id, {
+        status: "resolved",
+      });
+      return dispatchInterjectChannel(
+        targetChatId,
+        pendingFyiIntent.text,
+        value,
+        {
+          pendingFyiIntent,
+          clarifyId: pending.id,
+          runGeneration,
+        },
+      );
     },
-    [activeChatIdRef, dispatchInterjectChannel, updateLocalClarifyFrame],
+    [
+      activeChatIdRef,
+      dispatchInterjectChannel,
+      fallbackPendingClarifyForChat,
+      getRunGeneration,
+      setStreamErrorForChat,
+      syncPendingFyiStateForAttempt,
+      updateLocalClarifyFrame,
+    ],
   );
 
   const interjectState = interjectStateByChatId[chatId] || {
@@ -7385,6 +11772,11 @@ export const useChatStream = ({
     ) {
       return undefined;
     }
+    if (owner.recoveryRunToken) {
+      return undefined;
+    }
+    const recoveryRunToken = {};
+    owner.recoveryRunToken = recoveryRunToken;
 
     let cancelled = false;
     let retryTimer = null;
@@ -7601,7 +11993,24 @@ export const useChatStream = ({
       } else if (!started && !cancelled) {
         scheduleRetry(new Error("The recovered run did not start."));
       }
-    })();
+    })().finally(() => {
+      if (owner.recoveryRunToken !== recoveryRunToken) {
+        return;
+      }
+      delete owner.recoveryRunToken;
+      if (
+        cancelled &&
+        hookMountedRef.current &&
+        ownsTurnMutation(owner) &&
+        readTurnMutationOutbox().some(
+          (item) =>
+            item.chatId === targetChatId &&
+            item.operationId === entry.operationId,
+        )
+      ) {
+        setTurnMutationVersion((version) => version + 1);
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -7636,6 +12045,7 @@ export const useChatStream = ({
     const durableResumeRetryTimers = durableResumeRetryTimersRef.current;
     const durableInteractionLookups =
       durableInteractionLookupByChatIdRef.current;
+    const reattachingChatIds = reattachingChatIdsRef.current;
     const runContextsByChatId = runContextByChatIdRef.current;
     const durableResumeStartedKeys = durableResumeStartedKeysRef.current;
     const durableResumeStartedKeysByChatId =
@@ -7644,6 +12054,11 @@ export const useChatStream = ({
     const stoppedRunChatIds = stoppedRunChatIdsRef.current;
     const queueRelayTimersByChatId = queueRelayTimersByChatIdRef.current;
     const queueRelayAttemptsByChatId = queueRelayAttemptsByChatIdRef.current;
+    const queueAttemptIdsByChatId = queueAttemptIdByChatIdRef.current;
+    const queueClientOperationIdsByChatId =
+      queueClientOperationIdByChatIdRef.current;
+    const runClientOperationIdsByChatId =
+      runClientOperationIdByChatIdRef.current;
     const confirmationRetryWaitersByChatId =
       confirmationRetryWaitersByChatIdRef.current;
     const renderRuntimeByChatId = renderRuntimeByChatIdRef.current;
@@ -7659,7 +12074,11 @@ export const useChatStream = ({
       // Renderer lifecycle is transport lifecycle, not execution intent.
       // Navigation, reload, and HMR must never silently turn into user Stop.
       for (const handle of streamHandles.values()) {
-        disconnectStreamTransport(handle);
+        if (handle && typeof handle.detach === "function") {
+          handle.detach();
+        } else {
+          disconnectStreamTransport(handle);
+        }
       }
       streamHandles.clear();
       executionIdentities.clear();
@@ -7679,11 +12098,15 @@ export const useChatStream = ({
       pendingContinuationRequestsByChatIdRef.current = {};
       activeRunThreadIdByChatId.clear();
       queuedTurnsByChatId.clear();
+      queueAttemptIdsByChatId.clear();
+      queueClientOperationIdsByChatId.clear();
+      runClientOperationIdsByChatId.clear();
       pendingFyiCountByChatId.clear();
       pendingClarifyByChatId.clear();
       durableResumeRetryTimers.forEach((timerId) => clearTimeout(timerId));
       durableResumeRetryTimers.clear();
       durableInteractionLookups.clear();
+      reattachingChatIds.clear();
       runContextsByChatId.clear();
       durableResumeStartedKeys.clear();
       durableResumeStartedKeysByChatId.clear();
@@ -7725,6 +12148,8 @@ export const useChatStream = ({
     onQueueUndo,
     pendingContinuationRequest,
     pendingToolConfirmationRequests,
+    cancelRunForTest,
+    getRunForTest,
     resendTurn,
     sendNewTurn,
     sendForTest,

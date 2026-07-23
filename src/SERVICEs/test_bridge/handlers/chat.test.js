@@ -15,7 +15,17 @@ const makeFakeStorage = () => {
       return { id };
     },
     selectTreeNode: (id) => {
+      if (!state.chats.some((chat) => chat.id === id)) {
+        throw Object.assign(new Error(`chat ${id} not found`), {
+          code: "chat_not_found",
+        });
+      }
       state.active = id;
+      return {
+        chat_id: id,
+        node_id: `node-${id}`,
+        active_chat_id: id,
+      };
     },
     setChatTitle: (id, title) => {
       const chat = state.chats.find((c) => c.id === id);
@@ -80,8 +90,22 @@ describe("chat handlers", () => {
     storage.createChatInSelectedContext({ title: "A" });
     storage.createChatInSelectedContext({ title: "B" });
     const h = createChatHandlers({ chatStorage: storage });
-    await h.activateChat({ id: "c1" });
+    await expect(h.activateChat({ id: "c1" })).resolves.toEqual({
+      ok: true,
+      chat_id: "c1",
+      node_id: "node-c1",
+      active_chat_id: "c1",
+    });
     expect(storage.state.active).toBe("c1");
+  });
+
+  test("activateChat fails closed for an unknown chat", async () => {
+    const storage = makeFakeStorage();
+    const h = createChatHandlers({ chatStorage: storage });
+
+    await expect(h.activateChat({ id: "missing" })).rejects.toMatchObject({
+      code: "chat_not_found",
+    });
   });
 
   test("renameChat updates title", async () => {

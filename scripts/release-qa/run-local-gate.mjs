@@ -14,6 +14,7 @@ import {
   writeJson,
   writeText,
 } from "./reporting.mjs";
+import { buildLocalGateChecks } from "./local-gate-checks.mjs";
 import { computeWorktreeFingerprint } from "./worktree-fingerprint.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -27,61 +28,12 @@ const siblingUnchain = path.resolve(ROOT, "..", "unchain", "src");
 const pythonPath = process.env.PYTHONPATH ||
   (fs.existsSync(siblingUnchain) ? siblingUnchain : "");
 
-const checks = [
-  {
-    name: "diff whitespace integrity",
-    command: "git diff --check",
-    cwd: ROOT,
-  },
-  {
-    name: "frontend tests",
-    command: "npm run test:frontend -- --passWithNoTests",
-    cwd: ROOT,
-    env: { CI: "true" },
-  },
-  {
-    name: "electron tests",
-    command: "npm run test:electron",
-    cwd: ROOT,
-  },
-  {
-    name: "python backend tests",
-    command: `${PYTHON} -m pytest tests/ -q --tb=short`,
-    cwd: path.join(ROOT, "unchain_runtime", "server"),
-    env: pythonPath ? { PYTHONPATH: pythonPath } : {},
-  },
-  {
-    name: "MCP registry validation",
-    command: "npm run validate:mcp",
-    cwd: ROOT,
-  },
-  {
-    name: "web production build",
-    command: "npm run build",
-    cwd: ROOT,
-    env: { CI: "true", PUPU_BUILD_VERSION: packageJson.version },
-  },
-  {
-    name: "release QA script tests",
-    command: "npm run test:release-qa",
-    cwd: ROOT,
-  },
-  {
-    name: "third-party notice script tests",
-    command: "npm run test:notices",
-    cwd: ROOT,
-  },
-  {
-    name: "Playwright Electron release smoke",
-    command: "npm run test:e2e",
-    cwd: ROOT,
-    env: {
-      PUPU_E2E_RELEASE: "1",
-      PUPU_E2E_PORT: "2917",
-      PUPU_E2E_WEB_URL: "http://127.0.0.1:2917/#",
-    },
-  },
-];
+const checks = buildLocalGateChecks({
+  root: ROOT,
+  python: PYTHON,
+  pythonPath,
+  version: packageJson.version,
+});
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 const initialHead = spawnSync("git", ["rev-parse", "HEAD"], {

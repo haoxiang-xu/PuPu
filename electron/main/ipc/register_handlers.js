@@ -48,6 +48,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.PENDING_INTERACTION,
   CHANNELS.UNCHAIN.INTERJECT,
   CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+  CHANNELS.UNCHAIN.STREAM_ATTACH_V4,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
   CHANNELS.UNCHAIN.PICK_WORKSPACE_ROOT,
@@ -96,6 +97,7 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
   CHANNELS.UNCHAIN.STREAM_START_V4,
+  CHANNELS.UNCHAIN.STREAM_DETACH,
   CHANNELS.UNCHAIN.STREAM_CANCEL,
   ...CHAT_STORAGE_ON_CHANNELS,
 ]);
@@ -377,6 +379,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     async (_event, payload = {}) => unchainService.cancelMisoExecution(payload),
   );
   ipcMain.handle(
+    CHANNELS.UNCHAIN.STREAM_ATTACH_V4,
+    async (event, payload = {}) =>
+      unchainService.attachMisoStreamV4(event, payload),
+  );
+  ipcMain.handle(
     CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
     (_event, payload = {}) => runtimeService.setChromeTerminalOpen(payload),
   );
@@ -562,6 +569,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V4, (event, payload) => {
     unchainService.handleStreamStartV4(event, payload);
+  });
+
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_DETACH, (event, payload) => {
+    unchainService.handleStreamDetach(event, payload);
   });
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_CANCEL, (event, payload) => {

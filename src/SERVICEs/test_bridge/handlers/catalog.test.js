@@ -82,10 +82,35 @@ describe("catalog handlers", () => {
     await h.setToolkits({ id: "c1", toolkit_ids: ["a", "b"] });
     expect(d.calls).toContainEqual(["toolkits", "c1", ["a", "b"]]);
   });
-  test("setCharacter accepts null to clear", async () => {
+  test("setCharacter returns the storage adapter's idempotent result", async () => {
     const d = makeDeps();
+    d.chatStorage.setChatCharacter = jest.fn(() => ({
+      ok: true,
+      character_id: null,
+    }));
     const h = createCatalogHandlers(d);
-    await h.setCharacter({ id: "c1", character_id: null });
-    expect(d.calls).toContainEqual(["character", "c1", null]);
+    await expect(
+      h.setCharacter({ id: "c1", character_id: null }),
+    ).resolves.toEqual({ ok: true, character_id: null });
+    expect(d.chatStorage.setChatCharacter).toHaveBeenCalledWith("c1", null);
+  });
+
+  test("setCharacter propagates fail-closed adapter errors", async () => {
+    const d = makeDeps();
+    const error = Object.assign(new Error("character update unsupported"), {
+      code: "character_update_unsupported",
+      status: 409,
+    });
+    d.chatStorage.setChatCharacter = jest.fn(() => {
+      throw error;
+    });
+    const h = createCatalogHandlers(d);
+
+    await expect(
+      h.setCharacter({ id: "c1", character_id: "ch2" }),
+    ).rejects.toMatchObject({
+      code: "character_update_unsupported",
+      status: 409,
+    });
   });
 });

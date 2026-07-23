@@ -3,6 +3,7 @@ import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
   getChatMessages,
+  getChatsStore,
   setChatMessages,
   setChatModel,
   setChatSessionBundle,
@@ -17,6 +18,41 @@ import {
 } from "./background_stream_persister";
 
 const DRAFT_PERSIST_DELAY_MS = 250;
+
+const snapshotSessionBundle = (chat) => ({
+  selectedToolkits: Array.isArray(chat?.selectedToolkits)
+    ? chat.selectedToolkits
+    : [],
+  agentOrchestration:
+    chat?.agentOrchestration && typeof chat.agentOrchestration === "object"
+      ? chat.agentOrchestration
+      : { mode: "default" },
+  selectedWorkspaceIds: Array.isArray(chat?.selectedWorkspaceIds)
+    ? chat.selectedWorkspaceIds
+    : [],
+  selectedRecipeName:
+    typeof chat?.selectedRecipeName === "string" &&
+    chat.selectedRecipeName.trim()
+      ? chat.selectedRecipeName.trim()
+      : "Default",
+});
+
+const sessionBundleFingerprint = (bundle) =>
+  JSON.stringify(snapshotSessionBundle(bundle));
+
+export const hasReattachableStreamingAssistant = (messages) =>
+  Array.isArray(messages) &&
+  messages.some(
+    (message) =>
+      message?.role === "assistant" &&
+      message?.status === "streaming" &&
+      typeof message?.meta?.requestId === "string" &&
+      message.meta.requestId.trim() &&
+      typeof message?.meta?.attemptId === "string" &&
+      message.meta.attemptId.trim() &&
+      typeof message?.meta?.executionSessionId === "string" &&
+      message.meta.executionSessionId.trim(),
+  );
 
 export const useChatSessionState = ({
   bootstrapped: bootstrappedProp,
@@ -75,6 +111,7 @@ export const useChatSessionState = ({
       ? initialChat.threadId
       : initialChat.id || `chat-${Date.now()}`,
   );
+  const initialStoreReconcileDoneRef = useRef(false);
   const draftPersistTimerRef = useRef(null);
   const composerRevisionByChatIdRef = useRef(new Map());
   const latestDraftByChatIdRef = useRef(
@@ -165,7 +202,7 @@ export const useChatSessionState = ({
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeChatsStore((nextStore, event = {}) => {
+    const reconcileStoreSnapshot = (nextStore, event = {}) => {
       if (event.source === "chat-page") {
         return;
       }
@@ -181,6 +218,28 @@ export const useChatSessionState = ({
       }
 
       if (nextActiveId === currentActiveId) {
+        /* External writers (notably the Test API) update the canonical chat
+           store synchronously, while React state may not commit until a later
+           render. Keep every run-affecting field aligned with that exact active
+           chat instead of leaving model/toolkit closures from an older chat. */
+        const nextModelId =
+          typeof nextActiveChat.model?.id === "string" &&
+          nextActiveChat.model.id.trim()
+            ? nextActiveChat.model.id
+            : "unchain-unset";
+        modelIdRef.current = nextModelId;
+        setSelectedModelId(nextModelId);
+        threadIdRef.current =
+          typeof nextActiveChat.threadId === "string" &&
+          nextActiveChat.threadId.trim()
+            ? nextActiveChat.threadId
+            : nextActiveId;
+        setAgentOrchestration(
+          nextActiveChat.agentOrchestration || { mode: "default" },
+        );
+        setSelectedToolkits(nextActiveChat.selectedToolkits || []);
+        setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
+        setSelectedRecipeName(nextActiveChat.selectedRecipeName || "Default");
         setActiveChatKind(
           nextActiveChat.kind === "character" ? "character" : "default",
         );
@@ -195,17 +254,14 @@ export const useChatSessionState = ({
             : "",
         );
         setActiveCharacterAvatar(nextActiveChat.characterAvatar || null);
+        systemPromptOverridesRef.current =
+          nextActiveChat.systemPromptOverrides || {};
 
         if (event.type === "chat_update_messages") {
           const nextMessages = nextActiveChat.messages || [];
           messagesRef.current = nextMessages;
           setMessages(nextMessages);
           return;
-        }
-
-        if (event.type === "chat_update_system_prompt_overrides") {
-          systemPromptOverridesRef.current =
-            nextActiveChat.systemPromptOverrides || {};
         }
         return;
       }
@@ -293,7 +349,20 @@ export const useChatSessionState = ({
           ? nextActiveChat.model.id
           : "unchain-unset";
       setSelectedModelId(modelIdRef.current);
-    });
+    };
+
+    // The Test API, reload restoration, or another mounted surface can switch
+    // the canonical chat after render but before this passive effect subscribes.
+    // Store notifications are edge-triggered, so subscribe first and then read
+    // the latest snapshot to close that lost-event window.
+    const unsubscribe = subscribeChatsStore(reconcileStoreSnapshot);
+    if (!initialStoreReconcileDoneRef.current) {
+      initialStoreReconcileDoneRef.current = true;
+      reconcileStoreSnapshot(getChatsStore(), {
+        source: "chat-store-reconcile",
+        type: "chat_store_reconcile",
+      });
+    }
 
     return () => {
       unsubscribe();
@@ -328,9 +397,12 @@ export const useChatSessionState = ({
         continue;
       }
 
-      const { changed, nextMessages } = settleStreamingAssistantMessages(
-        getChatMessages(chatId),
-      );
+      const storedMessages = getChatMessages(chatId);
+      if (hasReattachableStreamingAssistant(storedMessages)) {
+        continue;
+      }
+      const { changed, nextMessages } =
+        settleStreamingAssistantMessages(storedMessages);
       if (!changed) {
         continue;
       }
@@ -418,11 +490,24 @@ export const useChatSessionState = ({
   const flushPendingSessionBundle = useCallback(() => {
     const pending = pendingSessionBundleRef.current;
     pendingSessionBundleRef.current = null;
-    if (pending) {
-      setChatSessionBundle(pending.chatId, pending.bundle, {
-        source: "chat-page",
-      });
+    if (!pending) {
+      return;
     }
+    const canonicalChat = getChatsStore()?.chatsById?.[pending.chatId];
+    if (!canonicalChat) {
+      return;
+    }
+    const canonicalFingerprint = sessionBundleFingerprint(canonicalChat);
+    const pendingFingerprint = sessionBundleFingerprint(pending.bundle);
+    if (
+      canonicalFingerprint !== pending.baseFingerprint &&
+      canonicalFingerprint !== pendingFingerprint
+    ) {
+      return;
+    }
+    setChatSessionBundle(pending.chatId, pending.bundle, {
+      source: "chat-page",
+    });
   }, []);
 
   useEffect(() => {
@@ -440,8 +525,21 @@ export const useChatSessionState = ({
       flushPendingSessionBundle();
     }
 
+    const existingPending = pendingSessionBundleRef.current;
+    const canonicalChat = getChatsStore()?.chatsById?.[currentChatId];
+    const canonicalFingerprint = sessionBundleFingerprint(canonicalChat);
+    const existingPendingFingerprint =
+      existingPending?.chatId === currentChatId
+        ? sessionBundleFingerprint(existingPending.bundle)
+        : "";
     pendingSessionBundleRef.current = {
       chatId: currentChatId,
+      baseFingerprint:
+        existingPending?.chatId === currentChatId
+          ? existingPendingFingerprint === canonicalFingerprint
+            ? canonicalFingerprint
+            : existingPending.baseFingerprint
+          : canonicalFingerprint,
       bundle: {
         selectedToolkits,
         agentOrchestration,

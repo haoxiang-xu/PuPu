@@ -16,8 +16,17 @@ const compilePath = (pattern) => {
 const codeToStatus = (code) => {
   switch (code) {
     case "chat_not_found":
+    case "run_not_found":
       return 404;
+    case "invalid_request":
+      return 400;
+    case "attempt_mismatch":
+    case "chat_not_active":
+    case "character_update_unsupported":
+    case "durable_interaction_in_progress":
     case "no_handler":
+    case "run_already_active":
+    case "run_not_active":
       return 409;
     case "ipc_timeout":
       return 408;

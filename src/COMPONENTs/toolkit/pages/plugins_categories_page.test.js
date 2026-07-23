@@ -347,6 +347,51 @@ describe("PluginsCategoriesPage — row click", () => {
   });
 });
 
+describe("PluginsCategoriesPage — release gating", () => {
+  test("hides needs-review entries from the ordinary Store", async () => {
+    const needsReviewEntry = {
+      id: "external-review",
+      toolkitId: "mcp.external.review",
+      toolkitName: "External Review",
+      toolkitDescription: "Pending review.",
+      source: "mcp_registry",
+      status: "needs_review",
+      installable: false,
+      tools: [],
+    };
+    listMcpStoreEntries.mockReturnValue([...REGISTRY_ENTRIES, needsReviewEntry]);
+    searchMcpStoreEntries.mockImplementation((entries) => entries);
+
+    await renderPage();
+
+    expect(screen.queryByText("External Review")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Needs review" })).not.toBeInTheDocument();
+  });
+
+  test("a coming-soon OAuth entry never exposes Connect", async () => {
+    const comingSoonEntry = {
+      id: "remote-pending",
+      toolkitId: "mcp.remote.pending",
+      toolkitName: "Remote Pending",
+      toolkitDescription: "Provider approval pending.",
+      source: "mcp",
+      status: "coming_soon",
+      installable: false,
+      auth: { oauth: { releaseStatus: "ready" } },
+      tools: [],
+    };
+    listMcpStoreEntries.mockReturnValue([comingSoonEntry]);
+    searchMcpStoreEntries.mockImplementation((entries) => entries);
+
+    await renderPage();
+
+    const row = screen.getByTestId("category-row-remote-pending");
+    expect(within(row).getByText("Coming soon")).toBeInTheDocument();
+    expect(within(row).queryByText("Connect")).not.toBeInTheDocument();
+    expect(within(row).getByRole("button")).toBeDisabled();
+  });
+});
+
 /* store-final (2026-07-17): "Toolkits"/"MCP"/"Skills" are now ALWAYS on
    screen as the segmented control's own CEO-approved labels (vocabulary
    rule: category NAMES are approved, only PER-ITEM copy must avoid

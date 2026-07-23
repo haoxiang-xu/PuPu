@@ -5,7 +5,7 @@ import UserMessageBody from "./components/user_message_body";
 import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
-import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
+import { mergePendingConfirmationTraceState } from "./pending_confirmation_trace_frames";
 import ArtifactSummarySections from "./artifact-summary/artifact_summary_sections";
 
 const ChatBubble = ({
@@ -81,7 +81,13 @@ const ChatBubble = ({
   // Only consider tool / reasoning activity as worthy of the full trace
   // chain UI.  Infrastructure frames like stream_started, final_message,
   // done etc. should NOT cause the trace chain to take over the bubble.
-  const hasToolActivity = traceFrames.some(
+  const confirmationTraceState = mergePendingConfirmationTraceState({
+    frames: traceFrames,
+    subagentFrames: message.subagentFrames,
+    requests: pendingToolConfirmationRequests,
+  });
+  const traceChainFrames = confirmationTraceState.frames;
+  const hasToolActivity = traceChainFrames.some(
     (f) =>
       f.type === "tool_call" ||
       f.type === "tool_result" ||
@@ -91,21 +97,13 @@ const ChatBubble = ({
       f.type === "side_answer" ||
       f.type === "clarify_request",
   );
-  const pendingToolConfirmationFrames = hasToolActivity
-    ? []
-    : buildPendingConfirmationTraceFrames(pendingToolConfirmationRequests);
-  const hasVisibleTraceActivity =
-    hasToolActivity || pendingToolConfirmationFrames.length > 0;
+  const hasVisibleTraceActivity = hasToolActivity;
   const hasTokenSummary =
     isAssistant &&
     message.status === "done" &&
     typeof message.meta?.bundle?.consumed_tokens === "number" &&
     message.meta.bundle.consumed_tokens > 0;
   const shouldRenderTraceChain = hasVisibleTraceActivity || hasTokenSummary;
-  const traceChainFrames = hasToolActivity
-    ? traceFrames
-    : pendingToolConfirmationFrames;
-
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -135,7 +133,7 @@ const ChatBubble = ({
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
           bundle={message.meta?.bundle}
-          subagentFrames={message.subagentFrames}
+          subagentFrames={confirmationTraceState.subagentFrames}
           subagentMetaByRunId={message.subagentMetaByRunId}
         />
       )}

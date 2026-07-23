@@ -703,12 +703,41 @@ def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> in
     return cancelled
 
 
+def _interaction_owner_is_descendant(
+    owner: Dict[str, str],
+    *,
+    root_session_id: str = "",
+    root_run_id: str = "",
+) -> bool:
+    if not isinstance(owner, dict) or not owner:
+        return False
+    normalized_root_session_id = str(root_session_id or "").strip()
+    normalized_root_run_id = str(root_run_id or "").strip()
+    owner_session_id = str(owner.get("session_id") or "").strip()
+    owner_run_id = str(
+        owner.get("source_run_id") or owner.get("event_run_id") or ""
+    ).strip()
+    if (
+        normalized_root_session_id
+        and owner_session_id
+        and owner_session_id != normalized_root_session_id
+    ):
+        return True
+    return bool(
+        normalized_root_run_id
+        and owner_run_id
+        and owner_run_id != normalized_root_run_id
+    )
+
+
 def _make_tool_confirm_callback(
     emit_event,
     cancel_event: threading.Event | None = None,
     toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
     interaction_id_tracker: DurableInteractionIdTracker | None = None,
     require_durable_interaction_id: bool = False,
+    root_session_id: str = "",
+    root_run_id: str = "",
 ):
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
@@ -721,14 +750,28 @@ def _make_tool_confirm_callback(
             if not str(request_payload.get("toolkit_name", "") or "").strip():
                 request_payload["toolkit_name"] = toolkit_meta.get("toolkit_name", "")
         suppress_event = bool(request_payload.get("_skip_emit_event"))
-        durable_interaction_id = (
-            interaction_id_tracker.resolve(
+        interaction_owner = (
+            interaction_id_tracker.resolve_owner(
                 "tool_approval",
                 str(request_payload.get("call_id") or ""),
             )
             if interaction_id_tracker is not None
-            else ""
+            else {}
         )
+        if _interaction_owner_is_descendant(
+            interaction_owner,
+            root_session_id=root_session_id,
+            root_run_id=root_run_id,
+        ):
+            return _normalize_tool_confirmation_response(
+                {
+                    "approved": False,
+                    "reason": "subagent_tool_approval_unsupported",
+                }
+            )
+        durable_interaction_id = str(
+            interaction_owner.get("interaction_id") or ""
+        ).strip()
         if require_durable_interaction_id and not durable_interaction_id:
             raise DurableInteractionHostError(
                 "durable_interaction_id_unavailable",
@@ -6572,6 +6615,8 @@ def stream_chat_events(
             toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
+            root_session_id=normalized_session_id,
+            root_run_id=execution_run_id,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,
@@ -6999,6 +7044,8 @@ def resume_chat_interaction_events(
             toolkit_meta_by_tool_name=toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
+            root_session_id=normalized_session_id,
+            root_run_id=resume_run_id,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,
