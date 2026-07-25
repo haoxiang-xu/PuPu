@@ -9,7 +9,9 @@ the foundation for future in-app agent control.
 
 ### Local before tagging
 
-Run:
+The complete release qualification is defined by the
+[Pre-release Full-Test Runbook](../conventions/release-full-test.md). Its base
+local gate is:
 
 ```bash
 npm run qa:release
@@ -29,6 +31,11 @@ release summary since the latest tag and inspect the relevant repository files:
 Both return the same structured `GO`, `NO-GO`, or `NEEDS-HUMAN-TEST` schema. The
 strict local gate passes only when both return `GO`. AI findings are evidence and
 risk discovery; deterministic failures always remain authoritative.
+
+The base command is non-paid and intentionally excludes both the deterministic
+20-minute single-root run and the paid six-cell live-model matrix. The full-test
+runbook runs those as separate phases, and the paid phase requires an explicit
+cost authorization.
 
 ### GitHub on every PR
 

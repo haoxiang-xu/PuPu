@@ -99,6 +99,28 @@ test("macOS sleep guard watches the Playwright process with fixed flags", async 
   });
 });
 
+test("macOS sleep guard forwards an explicit closed environment", async () => {
+  const fakeChild = new FakeChild(7654);
+  let spawnOptions = null;
+  const guard = startSleepGuard({
+    platform: "darwin",
+    watchedPid: 4321,
+    environment: { PATH: "/usr/bin", TMPDIR: "/tmp/live-cell" },
+    spawnImpl: (_command, _args, options) => {
+      spawnOptions = options;
+      queueMicrotask(() => fakeChild.markSpawned());
+      return fakeChild;
+    },
+  });
+
+  await guard.ready;
+  assert.deepEqual(spawnOptions, {
+    stdio: "ignore",
+    env: { PATH: "/usr/bin", TMPDIR: "/tmp/live-cell" },
+  });
+  fakeChild.markExited(0, null);
+});
+
 test("macOS sleep guard reports asynchronous spawn failures", async () => {
   const fakeChild = new FakeChild(null);
   const guard = startSleepGuard({

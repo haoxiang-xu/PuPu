@@ -61,6 +61,61 @@ describe("ipc channel parity", () => {
     expect(PRELOAD_SEND_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
   });
 
+  test("settings storage channels are classified on both sides", () => {
+    // bootstrap is sendSync → main on-sync
+    expect(IPC_ON_SYNC_CHANNELS).toContain(
+      CHANNELS.SETTINGS_STORAGE.BOOTSTRAP_READ,
+    );
+    expect(PRELOAD_SEND_SYNC_CHANNELS).toContain(
+      CHANNELS.SETTINGS_STORAGE.BOOTSTRAP_READ,
+    );
+
+    // mutations are invoke → main handle
+    [
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_LEGACY,
+      CHANNELS.SETTINGS_STORAGE.SET_NAMESPACE,
+      CHANNELS.SETTINGS_STORAGE.DELETE_NAMESPACE,
+    ].forEach((channel) => {
+      expect(PRELOAD_INVOKE_CHANNELS).toContain(channel);
+      expect(IPC_HANDLE_CHANNELS).toContain(channel);
+      // sync IPC is bootstrap-only (plan §4.2)
+      expect(PRELOAD_SEND_SYNC_CHANNELS).not.toContain(channel);
+    });
+  });
+
+  test("settings storage handlers are wired through registerIpcHandlers", () => {
+    const handleChannels = new Set();
+    const onChannels = new Set();
+    const ipcMain = {
+      handle: jest.fn((channel) => handleChannels.add(channel)),
+      on: jest.fn((channel) => onChannels.add(channel)),
+    };
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService: {},
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+        settingsStorageService: {},
+      },
+    });
+
+    expect(onChannels.has(CHANNELS.SETTINGS_STORAGE.BOOTSTRAP_READ)).toBe(true);
+    [
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_LEGACY,
+      CHANNELS.SETTINGS_STORAGE.SET_NAMESPACE,
+      CHANNELS.SETTINGS_STORAGE.DELETE_NAMESPACE,
+    ].forEach((channel) => {
+      expect(handleChannels.has(channel)).toBe(true);
+    });
+  });
+
   test("v4 stream attach/detach channels are classified on both sides", () => {
     // attach-v4 is a request/response invoke → main handle
     expect(PRELOAD_INVOKE_CHANNELS).toContain(
@@ -106,6 +161,7 @@ describe("ipc channel parity", () => {
         runtimeService,
         screenshotService: {},
         chatStorageService: {},
+        settingsStorageService: {},
       },
     });
 
@@ -152,6 +208,7 @@ describe("ipc channel parity", () => {
         runtimeService: {},
         screenshotService: {},
         chatStorageService: {},
+        settingsStorageService: {},
       },
     });
 
@@ -189,6 +246,7 @@ describe("ipc channel parity", () => {
         runtimeService: {},
         screenshotService: {},
         chatStorageService: {},
+        settingsStorageService: {},
       },
     });
 
@@ -239,6 +297,7 @@ describe("ipc channel parity", () => {
       services: {
         windowService: {}, updateService: {}, ollamaService: {}, unchainService,
         runtimeService: {}, screenshotService: {}, chatStorageService: {},
+        settingsStorageService: {},
       },
     });
 

@@ -42,6 +42,7 @@ describe("preload API contract", () => {
         "osInfo",
         "runtime",
         "screenshotAPI",
+        "settingsStorageAPI",
         "themeAPI",
         "windowStateAPI",
       ].sort(),
@@ -143,6 +144,57 @@ describe("preload API contract", () => {
     expect(ipcRenderer.send).toHaveBeenLastCalledWith(
       CHANNELS.CHAT_STORAGE.APPLY_OPS,
       ops,
+    );
+  });
+
+  test("settings storage API keeps required method surface", () => {
+    expect(Object.keys(exposed.settingsStorageAPI).sort()).toEqual(
+      ["bootstrap", "deleteNamespace", "migrateLegacy", "setNamespace"].sort(),
+    );
+    ["bootstrap", "migrateLegacy", "setNamespace", "deleteNamespace"].forEach(
+      (method) => {
+        expect(typeof exposed.settingsStorageAPI[method]).toBe("function");
+      },
+    );
+
+    ipcRenderer.sendSync.mockReturnValueOnce({
+      available: true,
+      namespaces: {},
+    });
+    const snapshot = exposed.settingsStorageAPI.bootstrap();
+    expect(ipcRenderer.sendSync).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.BOOTSTRAP_READ,
+    );
+    expect(snapshot).toEqual({ available: true, namespaces: {} });
+
+    exposed.settingsStorageAPI.setNamespace(
+      "appearance",
+      { theme_mode: "dark_mode" },
+      { expectedRevision: 2 },
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.SET_NAMESPACE,
+      {
+        namespace: "appearance",
+        value: { theme_mode: "dark_mode" },
+        options: { expectedRevision: 2 },
+      },
+    );
+
+    exposed.settingsStorageAPI.deleteNamespace("dev");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DELETE_NAMESPACE,
+      { namespace: "dev" },
+    );
+
+    const migrationPayload = {
+      migrationVersion: 1,
+      settingsRoot: { app: { setup_completed: true } },
+    };
+    exposed.settingsStorageAPI.migrateLegacy(migrationPayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_LEGACY,
+      migrationPayload,
     );
   });
 

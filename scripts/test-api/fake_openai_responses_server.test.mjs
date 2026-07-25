@@ -19,6 +19,9 @@ const {
   createFakeOpenAIResponsesServer,
   serializeSse,
 } = require(fixturePath);
+const {
+  buildAgentLongRunPrompt,
+} = require("./single-agent-long-run-lib.cjs");
 
 const toolSchema = (name) => ({
   type: "function",
@@ -42,9 +45,20 @@ const soakBody = ({ lane = "A", phase = "probe", iteration = 0 } = {}) => ({
     "soak_fail_once",
     "soak_checkpoint",
     "spawn_worker_batch",
+    "delegate_to_subagent",
     "ask_user_question",
   ].map(toolSchema),
   stream: true,
+});
+
+const agentLongRunBody = ({ lane = "A", rootToolCalls = 12 } = {}) => ({
+  ...soakBody({ lane }),
+  input: [
+    {
+      role: "user",
+      content: buildAgentLongRunPrompt({ lane, rootToolCalls }),
+    },
+  ],
 });
 
 const childBody = ({
@@ -382,6 +396,74 @@ describe("deterministic fake OpenAI Responses fixture", () => {
     assert.equal(nextTurn.plan.kind, "tool");
     assert.equal(nextTurn.plan.tool.name, "soak_probe");
     assert.equal(nextTurn.plan.tool.arguments.iteration, 4);
+  });
+
+  it("keeps one root response chain alive for many fixed tool iterations", () => {
+    const initial = agentLongRunBody({ lane: "B", rootToolCalls: 12 });
+    const input = [...initial.input];
+    const observedTools = [];
+
+    for (let step = 0; step < 12; step += 1) {
+      const envelope = buildResponseEnvelope({ ...initial, input });
+      const call = envelope.response.output[0];
+      assert.equal(envelope.plan.label, "agent-long-root-tool");
+      assert.equal(envelope.plan.scenario.iteration, step);
+      assert.equal(call.type, "function_call");
+      observedTools.push(call.name);
+      input.push(call, {
+        type: "function_call_output",
+        call_id: call.call_id,
+        output: JSON.stringify({ ok: true, step }),
+      });
+      if (step === 0) {
+        input.push({
+          role: "user",
+          content: "<fyi_message>AGENT_LONG_RUN_FYI lane=B</fyi_message>",
+        });
+      }
+    }
+
+    const completed = buildResponseEnvelope({ ...initial, input });
+    assert.equal(completed.plan.label, "agent-long-root-final");
+    assert.equal(completed.plan.scenario.iteration, 12);
+    assert.equal(
+      finalText(completed),
+      "AGENT_LONG_RUN_OK lane=B root_tool_calls=12 saw_fyi=true",
+    );
+    assert.equal(observedTools.length, 12);
+    assert.equal(observedTools[0], "soak_wait");
+    assert.ok(observedTools.includes("soak_gate"));
+    assert.ok(observedTools.includes("spawn_worker_batch"));
+    assert.ok(observedTools.includes("delegate_to_subagent"));
+  });
+
+  it("does not count quoted root markers inside child-agent requests", () => {
+    const envelope = buildResponseEnvelope({
+      ...childBody({
+        scenario: "happy",
+        lane: "C",
+        target: "soak-explore-c",
+      }),
+      input: [
+        {
+          role: "system",
+          content: buildAgentLongRunPrompt({
+            lane: "C",
+            rootToolCalls: 24,
+          }),
+        },
+        {
+          role: "user",
+          content:
+            "SOAK_CHILD|scenario=happy|lane=C|target=soak-explore-c",
+        },
+      ],
+    });
+    assert.equal(envelope.plan.label, "multiagent-child");
+    assert.equal(
+      finalText(envelope),
+      "SOAK_CHILD_OK lane=C target=soak-explore-c",
+    );
   });
 
   it("keeps an in-run BTW ahead of the tool result out of the root continuation route", () => {

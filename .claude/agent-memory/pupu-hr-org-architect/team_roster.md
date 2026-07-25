@@ -1,6 +1,6 @@
 ---
 name: team_roster
-description: 我（pupu-hr-org-architect / 组织架构师）眼里的 PuPu 全员花名册 — 3 线+HR、18 人归属、我的 scope 与边界
+description: 我（pupu-hr-org-architect / 组织架构师）眼里的 PuPu 全员花名册 — 3 线+HR、22 人归属、我的 scope 与边界
 metadata:
   type: project
 ---
@@ -31,15 +31,15 @@ metadata:
 - **建议 vs 执行**：我**只出结构建议，不创建/删除/编辑任何 agent 或 memory 文件**；CEO 批准后由主 Claude 执行。
 - **跨团队 vs 团队内**：我设计团队之间、团队的存废与编制；不插手某团队内部的具体任务分配。
 
-# 全员表（18 人，3 线 + HR）
+# 全员表（22 人，3 线 + HR）
 
 ## 顶层：CEO 直面 3 条 line + 1 个 advisory 部门
 
 ```
 CEO = Haoxiang Xu
-├─ CTO「帅」    pupu-cto         技术/架构总线
-├─ COO「发」    pupu-coo         发布门禁 + 增长督导
-├─ AI「智」     pupu-llm-expert  AI 战略（独立，无下属）
+├─ CTO「帅」    pupu-cto         技术交付总线（含 chief architect）
+├─ COO「发」    pupu-coo         业务操盘 + 发布 go/no-go
+├─ AI「智」     pupu-llm-expert  AI 战略（独立；辖 research arm）
 └─ HR（advisory） pupu-hr-head   组织治理（按需召集，非日常汇报线）
 ```
 
@@ -48,6 +48,7 @@ CEO = Haoxiang Xu
 | 花名 | subagent_type | 归属 | scope |
 |---|---|---|---|
 | 帅 | pupu-cto | 顶层·CTO | 系统架构、IPC 边界、跨层技术决策、公共原语守门 |
+| — | pupu-architect | CTO·chief architect | 最终架构技术权威、feature placement、设计切片与 design sign-off |
 | — | pupu-dev-chat-core | Chat体验组 **lead** | 主聊天页、流式编排、输入面板、side-menu；流契约定义方 |
 | — | pupu-dev-chat-bubble | Chat体验组 | 消息气泡渲染（markdown/trace_chain/artifact） |
 | — | pupu-dev-settings | 配置扩展组 **lead** | 设置modal、模型配置、memory、workspace、localStorage settings |
@@ -64,14 +65,17 @@ CEO = Haoxiang Xu
 
 | 花名 | subagent_type | 归属 | scope |
 |---|---|---|---|
-| 发 | pupu-coo | 顶层·COO | 发布门禁 go/no-go、回归/构建验证、跨仓兼容、增长督导 |
+| 发 | pupu-coo | 顶层·COO | 业务操盘、发布 go/no-go、跨仓兼容裁断 |
 | 巡 | pupu-growth-ops | COO 线 | 增长巡检、健康度评分、COO 周报；向 COO 汇报 |
+| — | pupu-market-analyst | COO 线 | 外部竞品、定价、变现、定位与趋势情报；向 COO 汇报 |
+| 检 | pupu-release-full-test | COO 线 | 冻结 candidate、执行完整发布测试与证据保全；向 COO 提建议，无最终裁决权 |
 
 ## AI 线「智」
 
 | 花名 | subagent_type | 归属 | scope |
 |---|---|---|---|
 | 智 | pupu-llm-expert | 顶层·AI | 模型/provider 策略、prompt、unchain 编排、RAG、tool-use 语义 |
+| — | pupu-ai-researcher | AI·research arm | Codex 驱动、零先验/证伪式调查；无持久记忆，只交报告 |
 
 ## HR 部门（advisory，2026-06-10 成立，3 角色）
 
@@ -96,3 +100,6 @@ CEO = Haoxiang Xu
 - 2026-06-10: **reorg** — 顶层收敛为 3 线；product-ops 升 COO 收编 growth-ops；CTO 下分 3 sub-team + 横向直挂。
 - 2026-06-10: **HR 部门成立**（我所在部门）。
 - 2026-06-10: **建 backend dev「擎」**，横向直挂 CTO，填补后端 0-owner 真空（HR 首次实战建议 + 三方会，CEO 批准）。
+- 2026-07-21: **COO 业务操盘手重定义 + 建 market-analyst**，COO 保留发布裁决。
+- 2026-07-23: **建 release-full-test「检」**，把固定全测执行与证据链直挂 COO；不是 manager，不拿 go/no-go 权。
+- 2026-07-23: 花名册审计补回此前漏记但早已 active 的 `pupu-architect` 与 `pupu-ai-researcher`；不是本日新建。

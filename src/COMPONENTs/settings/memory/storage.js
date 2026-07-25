@@ -1,4 +1,9 @@
-const SETTINGS_KEY = "settings";
+import {
+  readNamespace,
+  updateNamespace,
+} from "../../../SERVICEs/settings_repository";
+
+const MEMORY_NAMESPACE = "memory";
 const EMBEDDING_PROVIDER_OPTIONS = new Set(["auto", "openai", "ollama"]);
 
 const isObject = (v) => v != null && typeof v === "object" && !Array.isArray(v);
@@ -16,23 +21,6 @@ const clampThreshold = (value, fallback = 0) => {
   }
   const clamped = Math.min(1, Math.max(0, numeric));
   return Number(clamped.toFixed(2));
-};
-
-const readRoot = () => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-    return isObject(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-};
-
-const writeRoot = (root) => {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(root));
-  } catch {
-    /* ignore */
-  }
 };
 
 export const DEFAULT_MEMORY_SETTINGS = {
@@ -121,14 +109,16 @@ export const normalizeMemorySettings = (value) => {
 };
 
 export const readMemorySettings = () => {
-  const root = readRoot();
-  const saved = isObject(root.memory) ? root.memory : {};
+  const memory = readNamespace(MEMORY_NAMESPACE, {});
+  const saved = isObject(memory) ? memory : {};
   return normalizeMemorySettings({ ...DEFAULT_MEMORY_SETTINGS, ...saved });
 };
 
 export const writeMemorySettings = (patch) => {
-  const root = readRoot();
-  const current = isObject(root.memory) ? root.memory : {};
-  root.memory = normalizeMemorySettings({ ...current, ...patch });
-  writeRoot(root);
+  /* Fire-and-forget mirrors the previous try/catch write silence (the
+     repository fallback still applies the write synchronously). */
+  updateNamespace(MEMORY_NAMESPACE, (current) => {
+    const saved = isObject(current) ? current : {};
+    return normalizeMemorySettings({ ...saved, ...patch });
+  }).catch(() => {});
 };

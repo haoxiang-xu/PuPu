@@ -25,6 +25,7 @@ const startSleepGuard = ({
   watchedPid,
   spawnImpl = spawn,
   command = CAFFEINATE_PATH,
+  environment = null,
 } = {}) => {
   const state = {
     kind: platform === "darwin" ? "caffeinate" : "none",
@@ -94,12 +95,14 @@ const startSleepGuard = ({
   }
 
   try {
+    const spawnOptions = { stdio: "ignore" };
+    if (environment && typeof environment === "object") {
+      spawnOptions.env = { ...environment };
+    }
     guardProcess = spawnImpl(
       command,
       [...CAFFEINATE_FLAGS, "-w", String(watchedPid)],
-      {
-        stdio: "ignore",
-      },
+      spawnOptions,
     );
   } catch (error) {
     state.error = errorMessage(error);

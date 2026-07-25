@@ -128,6 +128,44 @@ describe("feature_flags service", () => {
     });
   });
 
+  test("falls back to defaults when the settings JSON is corrupted", () => {
+    const { readFeatureFlags, writeFeatureFlags } = loadFeatureFlagsModule();
+
+    window.localStorage.setItem("settings", "{not valid json");
+
+    expect(readFeatureFlags()).toEqual({
+      enable_user_access_to_agents: false,
+      enable_user_access_to_characters: false,
+      enable_app_update_settings: true,
+      enable_theme_color_customization: false,
+      enable_custom_model_providers: false,
+      enable_computer_use: false,
+    });
+
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+
+    expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
+      feature_flags: {
+        enable_user_access_to_agents: true,
+        enable_user_access_to_characters: false,
+        enable_app_update_settings: true,
+        enable_theme_color_customization: false,
+        enable_custom_model_providers: false,
+        enable_computer_use: false,
+      },
+    });
+  });
+
+  test("ignores flag keys outside the definitions on write", () => {
+    const { writeFeatureFlags, readFeatureFlags } = loadFeatureFlagsModule();
+
+    writeFeatureFlags({ totally_unknown_flag: true });
+
+    expect(readFeatureFlags().totally_unknown_flag).toBeUndefined();
+    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
+    expect(root.feature_flags.totally_unknown_flag).toBeUndefined();
+  });
+
   test("notifies subscribers when feature flags change", () => {
     const { subscribeFeatureFlags, writeFeatureFlags } = loadFeatureFlagsModule();
     const listener = jest.fn();

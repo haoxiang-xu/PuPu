@@ -18,8 +18,13 @@
 
 import { emitModelCatalogRefresh } from "./model_catalog_refresh";
 import { normalizeModelInputCapabilities } from "./api.shared";
+import { readNamespace, updateNamespace } from "./settings_repository";
+import {
+  readCustomProviderSecrets,
+  writeCustomProviderSecrets,
+} from "./settings_secret_adapter";
 
-const SETTINGS_KEY = "settings";
+const MODEL_PROVIDERS_NAMESPACE = "model_providers";
 
 /** Current config schema version for a stored custom provider entry. */
 export const CUSTOM_PROVIDER_CONFIG_VERSION = 1;
@@ -92,34 +97,18 @@ const storeError = (code, message) => {
 };
 
 /* ------------------------------------------------------------------ */
-/* localStorage root read/write (mirrors model_providers/storage.js)   */
+/* Storage split (Phase 1B T5, settings-sqlite-migration-plan §3.7)    */
 /* ------------------------------------------------------------------ */
+/* Provider DEFINITIONS (custom_providers[]) live in the settings
+ * repository namespace "model_providers". Provider SECRETS
+ * (custom_provider_secrets{}) stay in localStorage["settings"] behind
+ * settings_secret_adapter until Phase 4 — they never enter the repository
+ * snapshot, SQL, or IPC. */
 
-const readSettingsRoot = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(SETTINGS_KEY) || "{}");
-    return isObject(parsed) ? parsed : {};
-  } catch (_error) {
-    return {};
-  }
+const readModelProvidersBranch = () => {
+  const branch = readNamespace(MODEL_PROVIDERS_NAMESPACE, {});
+  return isObject(branch) ? branch : {};
 };
-
-const writeSettingsRoot = (root) => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return;
-  }
-  try {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(root));
-  } catch (_error) {
-    /* ignore write errors — parity with existing helpers */
-  }
-};
-
-const readModelProvidersBranch = (root) =>
-  isObject(root.model_providers) ? root.model_providers : {};
 
 /* ------------------------------------------------------------------ */
 /* Addressing                                                          */
@@ -314,8 +303,7 @@ const sanitizeStoredEntry = (entry) => {
  * with a console.warn (no field values printed).
  */
 export const readCustomProviders = () => {
-  const root = readSettingsRoot();
-  const branch = readModelProvidersBranch(root);
+  const branch = readModelProvidersBranch();
   const rawList = Array.isArray(branch.custom_providers)
     ? branch.custom_providers
     : [];
@@ -404,7 +392,7 @@ const isHighVersionRawEntry = (raw) => {
  * caller's clean list (the clean list wins for an addressable slug).
  */
 const readPreservedRawEntries = () => {
-  const branch = readModelProvidersBranch(readSettingsRoot());
+  const branch = readModelProvidersBranch();
   const rawList = Array.isArray(branch.custom_providers)
     ? branch.custom_providers
     : [];
@@ -420,8 +408,7 @@ const readPreservedRawEntries = () => {
  * never silently delete a newer-PuPu config (C10 / §3). Preserved entries are
  * appended after the clean list; ordering among them is unchanged.
  */
-const persistCustomProviders = (root, list) => {
-  const branch = readModelProvidersBranch(root);
+const persistCustomProviders = (list) => {
   const cleanSlugs = new Set(
     (Array.isArray(list) ? list : [])
       .map((entry) =>
@@ -435,11 +422,16 @@ const persistCustomProviders = (root, list) => {
     // A clean entry for the same slug supersedes the preserved raw one.
     return !(rawSlug && cleanSlugs.has(rawSlug));
   });
-  root.model_providers = {
-    ...branch,
-    custom_providers: [...(Array.isArray(list) ? list : []), ...preserved],
-  };
-  writeSettingsRoot(root);
+  const nextProviders = [...(Array.isArray(list) ? list : []), ...preserved];
+  // Fire-and-forget mirrors the legacy synchronous write's silent error
+  // handling (the repository fallback still applies the write synchronously).
+  // The updater output never contains a secret field: `current` comes from
+  // the repository (secret-stripped by contract) and we only set
+  // custom_providers on top of it.
+  updateNamespace(MODEL_PROVIDERS_NAMESPACE, (current) => ({
+    ...(isObject(current) ? current : {}),
+    custom_providers: nextProviders,
+  })).catch(() => {});
 };
 
 /**
@@ -452,7 +444,6 @@ export const addCustomProvider = (def) => {
   if (!isObject(def) || typeof def.id !== "string" || !def.id) {
     throw storeError("invalid_provider_definition", "Definition is missing an id");
   }
-  const root = readSettingsRoot();
   const list = readCustomProviders();
   if (list.some((p) => p.id === def.id)) {
     throw storeError("provider_id_exists", `Provider id already exists: ${def.id}`);
@@ -467,7 +458,7 @@ export const addCustomProvider = (def) => {
     created_at: timestamp,
     updated_at: timestamp,
   };
-  persistCustomProviders(root, [...list, entry]);
+  persistCustomProviders([...list, entry]);
   emitModelCatalogRefresh();
   return entry;
 };
@@ -486,7 +477,6 @@ export const updateCustomProvider = (slug, def) => {
   if (!isObject(def)) {
     throw storeError("invalid_provider_definition", "Definition must be an object");
   }
-  const root = readSettingsRoot();
   const list = readCustomProviders();
   const index = list.findIndex((p) => p.id === cleaned);
   if (index === -1) {
@@ -504,7 +494,7 @@ export const updateCustomProvider = (slug, def) => {
   };
   const nextList = [...list];
   nextList[index] = merged;
-  persistCustomProviders(root, nextList);
+  persistCustomProviders(nextList);
   emitModelCatalogRefresh();
   return merged;
 };
@@ -518,14 +508,12 @@ export const removeCustomProvider = (slug) => {
   if (!cleaned) {
     return false;
   }
-  const root = readSettingsRoot();
   const list = readCustomProviders();
   const nextList = list.filter((p) => p.id !== cleaned);
   const removed = nextList.length !== list.length;
 
   // Preserve high-version raw entries authored by a newer PuPu (C10 / §3), but
   // honor an explicit removal of that very slug — the user asked to delete it.
-  const branch = readModelProvidersBranch(root);
   const preserved = readPreservedRawEntries().filter((raw) => {
     const rawSlug =
       isObject(raw) && typeof raw.id === "string" ? raw.id.trim() : "";
@@ -537,20 +525,32 @@ export const removeCustomProvider = (slug) => {
     return rawSlug === cleaned;
   });
 
-  // Remove the secret map entry in the same write to avoid an orphan.
-  const secrets = isObject(branch.custom_provider_secrets)
-    ? { ...branch.custom_provider_secrets }
-    : {};
-  const hadSecret = Object.prototype.hasOwnProperty.call(secrets, cleaned);
-  if (hadSecret) {
-    delete secrets[cleaned];
-  }
-  root.model_providers = {
-    ...branch,
+  const hadSecret = Object.prototype.hasOwnProperty.call(
+    readCustomProviderSecrets(),
+    cleaned,
+  );
+
+  updateNamespace(MODEL_PROVIDERS_NAMESPACE, (current) => ({
+    ...(isObject(current) ? current : {}),
     custom_providers: [...nextList, ...preserved],
-    custom_provider_secrets: secrets,
-  };
-  writeSettingsRoot(root);
+  }))
+    .then(() => {
+      // Linked secret delete goes through the adapter (its own store) so the
+      // definition removal can never leave an orphaned secret behind (§3 /
+      // A2). It runs only AFTER the definition removal persisted: if the SQL
+      // persist fails, the repository rolls the definition back, and the
+      // secret must survive with it — deleting it first would resurrect the
+      // provider with its API key permanently gone. repairCorruptRoot keeps
+      // the legacy clobber semantics of this store's writers.
+      if (hadSecret) {
+        const secrets = readCustomProviderSecrets();
+        if (Object.prototype.hasOwnProperty.call(secrets, cleaned)) {
+          delete secrets[cleaned];
+          writeCustomProviderSecrets(secrets, { repairCorruptRoot: true });
+        }
+      }
+    })
+    .catch(() => {});
 
   if (removed || hadSecret || removedHighVersion) {
     emitModelCatalogRefresh();
@@ -564,7 +564,6 @@ export const setCustomProviderEnabled = (slug, enabled) => {
   if (!cleaned) {
     throw storeError("invalid_provider_definition", "slug is required");
   }
-  const root = readSettingsRoot();
   const list = readCustomProviders();
   const index = list.findIndex((p) => p.id === cleaned);
   if (index === -1) {
@@ -576,7 +575,7 @@ export const setCustomProviderEnabled = (slug, enabled) => {
     enabled: enabled === true,
     updated_at: nowIso(),
   };
-  persistCustomProviders(root, nextList);
+  persistCustomProviders(nextList);
   emitModelCatalogRefresh();
   return nextList[index];
 };
@@ -591,10 +590,7 @@ export const getCustomProviderSecret = (slug) => {
   if (!cleaned) {
     return "";
   }
-  const branch = readModelProvidersBranch(readSettingsRoot());
-  const secrets = isObject(branch.custom_provider_secrets)
-    ? branch.custom_provider_secrets
-    : {};
+  const secrets = readCustomProviderSecrets();
   const value = secrets[cleaned];
   return typeof value === "string" ? value : "";
 };
@@ -609,18 +605,16 @@ export const setCustomProviderSecret = (slug, value) => {
     return;
   }
   const trimmed = typeof value === "string" ? value.trim() : "";
-  const root = readSettingsRoot();
-  const branch = readModelProvidersBranch(root);
-  const secrets = isObject(branch.custom_provider_secrets)
-    ? { ...branch.custom_provider_secrets }
-    : {};
+  const secrets = readCustomProviderSecrets();
   if (trimmed) {
     secrets[cleaned] = trimmed;
   } else {
     delete secrets[cleaned];
   }
-  root.model_providers = { ...branch, custom_provider_secrets: secrets };
-  writeSettingsRoot(root);
+  // repairCorruptRoot: the legacy implementation read the root through a
+  // catch-all ({} on corrupt JSON) and then saved — the secret was persisted
+  // even if that clobbered an unparseable blob. Keep that behavior here.
+  writeCustomProviderSecrets(secrets, { repairCorruptRoot: true });
   emitModelCatalogRefresh();
 };
 

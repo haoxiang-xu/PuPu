@@ -8,6 +8,13 @@ const CHANNELS = Object.freeze({
     APPLY_OPS: "chat-storage:apply-ops",
     WRITE: "chat-storage:write",
   }),
+  SETTINGS_STORAGE: Object.freeze({
+    BOOTSTRAP_READ: "settings-storage:bootstrap-read",
+    MIGRATE_LEGACY: "settings-storage:migrate-legacy",
+    SET_NAMESPACE: "settings-storage:set-namespace",
+    DELETE_NAMESPACE: "settings-storage:delete-namespace",
+    // Phase 2+: TOKEN_USAGE_APPEND / TOKEN_USAGE_QUERY / TOKEN_USAGE_CLEAR
+  }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",
     CHECK_AND_DOWNLOAD: "update:check-and-download",

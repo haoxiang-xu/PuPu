@@ -18,6 +18,10 @@ import {
   setCustomProviderSecret,
   updateCustomProvider,
 } from "./custom_provider_store";
+import {
+  flushSettingsWrites,
+  resetSettingsRepositoryForTests,
+} from "./settings_repository";
 
 const diagCodes = (result) =>
   (result.diagnostics || []).map((d) => d.code);
@@ -47,6 +51,12 @@ const validRawProvider = (overrides = {}) => ({
 beforeEach(() => {
   localStorage.clear();
   jest.restoreAllMocks();
+  resetSettingsRepositoryForTests();
+});
+
+afterEach(() => {
+  delete window.settingsStorageAPI;
+  resetSettingsRepositoryForTests();
 });
 
 describe("normalizeCustomProvider — 宽进严出", () => {
@@ -266,14 +276,30 @@ describe("definition store CRUD", () => {
     expect(findCustomProvider("attacker-slug")).toBeNull();
   });
 
-  test("removeCustomProvider deletes the linked secret", () => {
+  test("removeCustomProvider deletes the linked secret", async () => {
     addValid();
     setCustomProviderSecret("sap-hyperspace", "hs-key-123");
     expect(hasCustomProviderSecret("sap-hyperspace")).toBe(true);
     removeCustomProvider("sap-hyperspace");
     expect(findCustomProvider("sap-hyperspace")).toBeNull();
+    // the linked secret delete is chained AFTER the definition persist
+    // succeeds (atomicity: a failed persist must keep the secret) — settle
+    // the queue before asserting.
+    await flushSettingsWrites();
     expect(hasCustomProviderSecret("sap-hyperspace")).toBe(false);
     expect(getCustomProviderSecret("sap-hyperspace")).toBe("");
+  });
+
+  test("setCustomProviderSecret on a corrupt settings root repairs the root and saves (legacy clobber parity)", () => {
+    localStorage.setItem("settings", "{ not json");
+    setCustomProviderSecret("sap-hyperspace", "hs-repaired-key");
+    // legacy readSettingsRoot() returned {} for a corrupt blob and the write
+    // persisted anyway — the secret must not be silently dropped
+    expect(getCustomProviderSecret("sap-hyperspace")).toBe("hs-repaired-key");
+    expect(
+      JSON.parse(localStorage.getItem("settings")).model_providers
+        .custom_provider_secrets,
+    ).toEqual({ "sap-hyperspace": "hs-repaired-key" });
   });
 
   test("setCustomProviderEnabled toggles flag", () => {
@@ -604,5 +630,122 @@ describe("buildProviderInjectionPayload — no secret fields", () => {
     expect(serialized).not.toContain("hs-key");
     expect(serialized).not.toContain("api_key");
     expect(serialized).not.toContain("apiKey");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Phase 1B T5: SQL-mode split — definitions to the repository,       */
+/* secrets to the adapter (localStorage), never crossing over.        */
+/* ------------------------------------------------------------------ */
+
+describe("SQL mode — definition/secret split (T5 invariant)", () => {
+  const sqlBootstrap = (overrides = {}) => ({
+    available: true,
+    degraded: false,
+    schemaVersion: 1,
+    migration: { state: "complete", version: 1, digest: "d", migratedAt: 1 },
+    namespaces: {},
+    revisions: {},
+    ...overrides,
+  });
+
+  const installBridge = (overrides = {}) => {
+    const bridgeApi = {
+      bootstrap: jest.fn(() => sqlBootstrap()),
+      migrateLegacy: jest.fn(() =>
+        Promise.resolve({ status: "already-complete" }),
+      ),
+      setNamespace: jest.fn((namespace) =>
+        Promise.resolve({ ok: true, namespace, revision: 0, updatedAt: 1 }),
+      ),
+      deleteNamespace: jest.fn((namespace) =>
+        Promise.resolve({ ok: true, namespace, deleted: true }),
+      ),
+      ...overrides,
+    };
+    window.settingsStorageAPI = bridgeApi;
+    return bridgeApi;
+  };
+
+  const parseLocalRoot = () =>
+    JSON.parse(window.localStorage.getItem("settings") || "{}");
+
+  test("add + secret: definition goes to setNamespace, secret stays in localStorage", async () => {
+    const bridgeApi = installBridge();
+    const norm = normalizeCustomProvider(validRawProvider());
+
+    addCustomProvider(norm.provider);
+    setCustomProviderSecret("sap-hyperspace", "hs-sql-secret");
+    await flushSettingsWrites();
+
+    // Definition write reached the repository IPC surface…
+    expect(bridgeApi.setNamespace).toHaveBeenCalledTimes(1);
+    const [namespace, value] = bridgeApi.setNamespace.mock.calls[0];
+    expect(namespace).toBe("model_providers");
+    expect(value.custom_providers).toHaveLength(1);
+    expect(value.custom_providers[0].id).toBe("sap-hyperspace");
+    // …and NEVER carried a secret.
+    const serialized = JSON.stringify(bridgeApi.setNamespace.mock.calls);
+    expect(serialized).not.toContain("hs-sql-secret");
+    expect(serialized).not.toContain("custom_provider_secrets");
+
+    // Secret lives only in the localStorage root (adapter path).
+    expect(parseLocalRoot().model_providers.custom_provider_secrets).toEqual({
+      "sap-hyperspace": "hs-sql-secret",
+    });
+    // Merged view still works for callers.
+    expect(getCustomProviderSecret("sap-hyperspace")).toBe("hs-sql-secret");
+    expect(readCustomProviders()).toHaveLength(1);
+  });
+
+  test("removeCustomProvider deletes the definition upstream and the secret locally", async () => {
+    const bridgeApi = installBridge();
+    const norm = normalizeCustomProvider(validRawProvider());
+    addCustomProvider(norm.provider);
+    setCustomProviderSecret("sap-hyperspace", "hs-sql-secret");
+
+    expect(removeCustomProvider("sap-hyperspace")).toBe(true);
+    await flushSettingsWrites();
+
+    expect(readCustomProviders()).toEqual([]);
+    expect(getCustomProviderSecret("sap-hyperspace")).toBe("");
+    expect(
+      parseLocalRoot().model_providers.custom_provider_secrets,
+    ).toEqual({});
+    const lastCall =
+      bridgeApi.setNamespace.mock.calls[
+        bridgeApi.setNamespace.mock.calls.length - 1
+      ];
+    expect(lastCall[1].custom_providers).toEqual([]);
+    expect(JSON.stringify(bridgeApi.setNamespace.mock.calls)).not.toContain(
+      "hs-sql-secret",
+    );
+  });
+
+  test("failed SQL persist on remove keeps the secret alive with the rolled-back definition", async () => {
+    const bridgeApi = installBridge();
+    const norm = normalizeCustomProvider(validRawProvider());
+    addCustomProvider(norm.provider);
+    setCustomProviderSecret("sap-hyperspace", "hs-sql-secret");
+    await flushSettingsWrites(); // the add is durably persisted
+
+    // From here on, persistence fails: the repository rolls the optimistic
+    // definition removal back — the provider survives, so its API key must
+    // survive too (a deleted secret would resurrect the provider broken).
+    bridgeApi.setNamespace.mockImplementation(() =>
+      Promise.reject(new Error("[storage_io_error] disk full")),
+    );
+
+    expect(removeCustomProvider("sap-hyperspace")).toBe(true);
+    await flushSettingsWrites();
+
+    // definition rolled back…
+    expect(readCustomProviders()).toHaveLength(1);
+    expect(findCustomProvider("sap-hyperspace")).not.toBeNull();
+    // …and the linked secret was NOT deleted
+    expect(getCustomProviderSecret("sap-hyperspace")).toBe("hs-sql-secret");
+    expect(parseLocalRoot().model_providers.custom_provider_secrets).toEqual({
+      "sap-hyperspace": "hs-sql-secret",
+    });
   });
 });

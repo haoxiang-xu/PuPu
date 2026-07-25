@@ -189,7 +189,12 @@ describe("ConfigContainer side menu persistence", () => {
         const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
         expect(root?.ui?.side_menu_open).toBe(true);
       });
-      expect(settingsWriteCount()).toBe(1);
+      /* Settings now persist per namespace (settings repository, plan §4.4):
+         the first save commits the two changed sections ("appearance" seeded
+         for the first time + "ui") as two writes. The redundancy guard this
+         test locks is below: the second toggle changes only "ui", so exactly
+         one more write happens — "appearance" is not rewritten unchanged. */
+      expect(settingsWriteCount()).toBe(2);
 
       fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
 
@@ -197,7 +202,7 @@ describe("ConfigContainer side menu persistence", () => {
         const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
         expect(root?.ui?.side_menu_open).toBe(false);
       });
-      expect(settingsWriteCount()).toBe(2);
+      expect(settingsWriteCount()).toBe(3);
     } finally {
       setItem.mockRestore();
     }

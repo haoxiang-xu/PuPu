@@ -35,6 +35,7 @@ test("release QA paths both include the fixed long-run harness suite", () => {
       PUPU_E2E_PORT: "2917",
       PUPU_E2E_WEB_URL: "http://127.0.0.1:2917/#",
       PUPU_DETERMINISTIC_SOAK: "0",
+      PUPU_SINGLE_AGENT_LONG_RUN: "0",
       PUPU_LIVE_LONG_RUN: "0",
       PUPU_LIVE_CELL_ID: "",
     },
@@ -53,6 +54,8 @@ test("release QA paths both include the fixed long-run harness suite", () => {
     "scripts/test-api/deterministic-soak-lib.test.mjs",
     "scripts/test-api/deterministic-soak-runner-lib.test.mjs",
     "scripts/test-api/fake_openai_responses_server.test.mjs",
+    "scripts/test-api/single-agent-long-run-lib.test.mjs",
+    "scripts/test-api/run-single-agent-long-run.test.mjs",
     "scripts/test-api/live-long-run-lib.test.mjs",
     "scripts/test-api/run-live-long-runs.test.mjs",
   ];

@@ -1,6 +1,6 @@
 ---
 name: team_roster
-description: 我（HR 绩效考评官）认识的 PuPu 全员花名册 — reorg 后顶层 3 线 + HR，全 18 人归属、我的 scope/方法论/红线、委托关系
+description: 我（HR 绩效考评官）认识的 PuPu 全员花名册 — 当前顶层 3 线 + HR，全 22 人归属、我的 scope/方法论/红线、委托关系
 metadata:
   type: project
 ---
@@ -41,18 +41,20 @@ CEO 直接面对 3 条 line + 1 个 advisory 部门：
 
 ```
 CEO
-├─ CTO「帅」      pupu-cto         技术/架构总线
-├─ COO「发」      pupu-coo         发布门禁 + 增长督导
-├─ AI「智」       pupu-llm-expert  AI 战略（独立，无下属）
+├─ CTO「帅」      pupu-cto         技术交付总线（含 chief architect）
+├─ COO「发」      pupu-coo         业务操盘 + 发布 go/no-go
+├─ AI「智」       pupu-llm-expert  AI 战略（独立；辖 research arm）
 └─ HR（advisory） pupu-hr-head     组织治理（按需召集，非日常汇报线）← 我在这
 ```
 
-# 全 18 人归属
+# 全 22 人归属
 
 **顶层 / line owner**
-- pupu-cto「帅」— 顶层·CTO：系统架构、IPC 边界、跨层技术决策、公共原语守门。
-- pupu-coo「发」— 顶层·COO：发布门禁 go/no-go、回归/构建验证、跨仓兼容、增长督导。
-- pupu-llm-expert「智」— 顶层·AI：模型/provider 策略、prompt、unchain 编排、RAG、tool-use 语义（独立，无下属）。
+- pupu-cto「帅」— 顶层·CTO：技术交付、派活/排序、conventions、CEO/跨团队联络。
+- pupu-architect — CTO·chief architect：最终架构技术权威、feature placement、设计切片与 design sign-off。
+- pupu-coo「发」— 顶层·COO：业务操盘、发布 go/no-go、跨仓兼容裁断。
+- pupu-llm-expert「智」— 顶层·AI：模型/provider 策略、prompt、unchain 编排、RAG、tool-use 语义。
+- pupu-ai-researcher — AI·research arm：Codex 驱动、零先验/证伪式调查，无持久记忆，只交报告。
 
 **CTO 线 · Chat体验组**
 - pupu-dev-chat-core（lead）— 主聊天页、流式编排、输入面板、side-menu；流契约定义方。
@@ -75,13 +77,15 @@ CEO
 
 **COO 线**
 - pupu-growth-ops「巡」— 增长巡检、健康度评分、COO 周报；向 COO 汇报。
+- pupu-market-analyst — 外部竞品、定价、变现、定位与趋势情报；向 COO 汇报。
+- pupu-release-full-test「检」— 冻结 candidate、执行完整发布测试与证据保全；向 COO 提建议，无最终裁决权。
 
 **HR 部门（advisory，3 角色）**
 - pupu-hr-head — 组织治理负责人，advisory，统筹+合成；**委托我行事**。
 - pupu-hr-org-architect — 组织架构（怎么长）：建部门/角色 warrant、层级、合并拆分。**结构由它管，不是我**。
 - pupu-hr-performance-evaluator — **我**：绩效（谁在贡献）；多信号取证、裁撤双证。
 
-合计 **18 个 agent**。
+合计 **22 个 agent**。
 
 # 跟 org-architect 的分界（重要，别越界）
 
@@ -102,3 +106,6 @@ CEO
 - CTO 下分 3 sub-team 各设 lead + 4 横向直挂；agents/ 重组为镜像组织树。
 - HR 部门成立（advisory，3 角色，含我）。
 - 建 backend dev「擎」填补后端 0-owner 真空（HR 首次实战建议 + 三方会，CEO 批准）。
+- 2026-06-19/20: chief architect 与 AI researcher 已上线；2026-07-23 花名册审计补回此前漏记。
+- 2026-07-21: COO 业务操盘手重定义，新增 market-analyst。
+- 2026-07-23: 新增 release-full-test「检」，全测执行与最终发布裁决分权。

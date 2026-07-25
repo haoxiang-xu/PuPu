@@ -4573,6 +4573,31 @@ describe("ChatInterface stop flow", () => {
       );
     });
 
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 4,
+        ts: 125,
+        run_id: "root-confirmation-collision",
+        type: "response_received",
+        payload: {},
+      });
+    });
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      const childRequest = Object.values(
+        assistantMessage?.subagentFrames || {},
+      )
+        .flat()
+        .find(
+          (frame) =>
+            frame.type === "tool_call" &&
+            frame.payload?.confirmation_id === "confirm-child-shared",
+        );
+      expect(childRequest).toBeDefined();
+    });
+
     await act(async () => {
       await lastChatMessagesProps.onToolConfirmationDecision({
         confirmationId: "confirm-child-shared",
@@ -4627,7 +4652,7 @@ describe("ChatInterface stop flow", () => {
 
     act(() => {
       streamHandlers.onFrame({
-        seq: 4,
+        seq: 5,
         ts: 130,
         run_id: "root-confirmation-collision",
         type: "tool_call",

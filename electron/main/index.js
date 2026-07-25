@@ -22,6 +22,9 @@ const { createUnchainService } = require("./services/unchain/service");
 const { createUpdateService } = require("./services/update/service");
 const { createScreenshotService } = require("./services/screenshot/service");
 const { createChatStorageService } = require("./services/chat_storage/service");
+const {
+  createSettingsStorageService,
+} = require("./services/settings_storage/service");
 const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 const sqlite = require("node:sqlite");
@@ -69,6 +72,13 @@ if (!gotSingleInstanceLock) {
   });
 
   const chatStorageService = createChatStorageService({
+    app,
+    fs,
+    path,
+    sqlite,
+  });
+
+  const settingsStorageService = createSettingsStorageService({
     app,
     fs,
     path,
@@ -136,6 +146,7 @@ if (!gotSingleInstanceLock) {
       runtimeService,
       screenshotService,
       chatStorageService,
+      settingsStorageService,
     },
   });
 
@@ -147,6 +158,9 @@ if (!gotSingleInstanceLock) {
 
   app.on("before-quit", () => {
     chatStorageService.close();
+  });
+  app.on("before-quit", () => {
+    settingsStorageService.close();
   });
   app.on("before-quit", stopBackgroundServices);
   app.on("before-quit", () => {
@@ -165,6 +179,10 @@ if (!gotSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     await chatStorageService.init();
+    // Must complete before the renderer window exists: the renderer's
+    // synchronous bootstrap read depends on it. init() never throws — a broken
+    // settings.db puts the service in degraded mode (file left in place).
+    await settingsStorageService.init();
 
     // S6a: clear any leftover skill-pack temp dirs from a prior crashed install.
     runtimeService.sweepLeftoverSkillpackDirs();

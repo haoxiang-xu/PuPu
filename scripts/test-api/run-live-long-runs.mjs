@@ -10,10 +10,21 @@ const require = createRequire(import.meta.url);
 const {
   LIVE_DURATION_MS,
   LIVE_MATRIX,
-  LIVE_MAX_ITERATIONS,
-  LIVE_MIN_ITERATIONS,
+  LIVE_ROOT_MAX_ITERATIONS,
+  LIVE_WAIT_COUNT,
+  computeLiveMcpTimeScale,
   selectLiveCells,
 } = require("./live-long-run-lib.cjs");
+const {
+  MCP_TOOLKIT_ID,
+} = require("./deterministic-soak-lib.cjs");
+const {
+  requiresSleepGuard,
+  sleepGuardCleanupError,
+  sleepGuardRuntimeError,
+  sleepGuardStartupError,
+  startSleepGuard,
+} = require("./deterministic-soak-runner-lib.cjs");
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SCRIPT_DIR = path.dirname(SCRIPT_PATH);
@@ -33,9 +44,8 @@ Runs six independent real-model cells by default:
 Options:
   --confirm-cost              required acknowledgement for paid API calls
   --cell ID                   run one cell; repeat to select several (default all)
-  --parallel N                number of isolated cells in flight, 1-3 (default 1)
+  --parallel N                number of isolated cells in flight, 1-3 (default 3)
   --duration-minutes N        duration per cell (default 20)
-  --max-iterations N          workload iterations per cell (default 12)
   --allow-short               permit duration below 20m; report is smoke-only
   --credentials-file PATH     mode-0600 JSON containing provider API keys
   --python PATH               Python interpreter containing the mcp package
@@ -68,9 +78,8 @@ const parseArgs = (argv) => {
     help: false,
     confirmCost: false,
     cells: [],
-    parallel: 1,
+    parallel: 3,
     durationMinutes: LIVE_DURATION_MS / 60000,
-    maxIterations: LIVE_MAX_ITERATIONS,
     allowShort: false,
     credentialsFile: "",
     python: "",
@@ -82,7 +91,6 @@ const parseArgs = (argv) => {
     "--cell",
     "--parallel",
     "--duration-minutes",
-    "--max-iterations",
     "--credentials-file",
     "--python",
     "--report-dir",
@@ -120,12 +128,6 @@ const parseArgs = (argv) => {
         throw new Error("--duration-minutes must be greater than 0 and at most 360");
       }
       options.durationMinutes = duration;
-    }
-    if (arg === "--max-iterations") {
-      options.maxIterations = parseInteger(arg, value, {
-        min: LIVE_MIN_ITERATIONS,
-        max: 100,
-      });
     }
     if (arg === "--credentials-file") options.credentialsFile = value;
     if (arg === "--python") options.python = value;
@@ -202,14 +204,25 @@ const pythonCandidates = (explicit) => [
   "python",
 ];
 
-const resolvePython = (explicit) => {
+const resolvePython = (
+  explicit,
+  {
+    environment = process.env,
+    spawnSyncImpl = spawnSync,
+  } = {},
+) => {
   const failures = [];
   const candidates = [...new Set(pythonCandidates(explicit).filter(Boolean))];
   for (const candidate of candidates) {
-    const probe = spawnSync(
+    const probe = spawnSyncImpl(
       candidate,
       ["-c", "import pathlib,sys,mcp; print(pathlib.Path(sys.executable).resolve())"],
-      { cwd: REPO_ROOT, encoding: "utf8", timeout: 15000 },
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 15000,
+        env: stripProviderSecrets(environment),
+      },
     );
     if (probe.status === 0 && probe.stdout.trim()) return probe.stdout.trim();
     failures.push(
@@ -222,7 +235,7 @@ const resolvePython = (explicit) => {
 };
 
 const buildSubagentTemplates = () =>
-  ["a", "b"].map((suffix) => ({
+  ["a", "b", "c"].map((suffix) => ({
     filename: `live-observer-${suffix}.skeleton`,
     value: {
       name: `live-observer-${suffix}`,
@@ -232,18 +245,61 @@ const buildSubagentTemplates = () =>
         "Return the exact LIVE_CHILD_OK marker requested by the parent.",
         "Do not call tools, ask questions, or delegate.",
       ].join("\n"),
-      allowed_modes: ["worker"],
+      allowed_modes: suffix === "c" ? ["delegate"] : ["worker"],
       output_mode: "last_message",
       memory_policy: "ephemeral",
-      parallel_safe: true,
-      allowed_tools: [],
+      parallel_safe: suffix !== "c",
+      allowed_tools: ["soak_probe"],
       model: null,
     },
   }));
 
-const prepareIsolatedHome = (homeDir) => {
+const buildLiveRecipe = (cell) => {
+  const coreTools =
+    cell.workload === "coding"
+      ? ["read", "write"]
+      : cell.workload === "web"
+        ? ["web_fetch"]
+        : [];
+  return {
+    name: "Default",
+    description: `Isolated single-root live recipe for ${cell.id}.`,
+    model: null,
+    max_iterations: LIVE_ROOT_MAX_ITERATIONS,
+    merge_with_user_selected: false,
+    agent: {
+      prompt_format: "skeleton",
+      prompt: "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
+    },
+    toolkits: [
+      ...(coreTools.length
+        ? [{ id: "core", enabled_tools: coreTools }]
+        : []),
+      {
+        id: MCP_TOOLKIT_ID,
+        enabled_tools: [
+          "soak_wait",
+          "soak_gate",
+          "soak_checkpoint",
+          "soak_probe",
+        ],
+      },
+    ],
+    subagent_pool: ["a", "b", "c"].map((suffix) => ({
+      kind: "ref",
+      template_name: `live-observer-${suffix}`,
+      disabled_tools: [],
+    })),
+  };
+};
+
+const prepareIsolatedHome = (homeDir, cell) => {
+  fs.mkdirSync(homeDir, { recursive: true, mode: 0o700 });
+  if (process.platform !== "win32") fs.chmodSync(homeDir, 0o700);
   const subagentDir = path.join(homeDir, ".pupu", "subagents");
+  const recipeDir = path.join(homeDir, ".pupu", "agent_recipes");
   fs.mkdirSync(subagentDir, { recursive: true });
+  fs.mkdirSync(recipeDir, { recursive: true });
   for (const template of buildSubagentTemplates()) {
     fs.writeFileSync(
       path.join(subagentDir, template.filename),
@@ -251,7 +307,12 @@ const prepareIsolatedHome = (homeDir) => {
       { encoding: "utf8", mode: 0o600 },
     );
   }
-  return subagentDir;
+  fs.writeFileSync(
+    path.join(recipeDir, "Default.recipe"),
+    `${JSON.stringify(buildLiveRecipe(cell), null, 2)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+  return { subagentDir, recipeDir };
 };
 
 const defaultReportDir = () => {
@@ -259,9 +320,38 @@ const defaultReportDir = () => {
   return path.join(REPO_ROOT, "test-results", "live-long-runs", stamp);
 };
 
+const assertFreshReportDirectory = (reportDir) => {
+  const resolved = path.resolve(reportDir);
+  if (!fs.existsSync(resolved)) return resolved;
+  const stat = fs.statSync(resolved);
+  if (!stat.isDirectory()) {
+    throw new Error(`live report path is not a directory: ${resolved}`);
+  }
+  if (fs.readdirSync(resolved).length > 0) {
+    throw new Error(
+      `live report directory must be new or empty; refusing to reuse ${resolved}`,
+    );
+  }
+  return resolved;
+};
+
 const writeJson = (filePath, value) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+};
+
+const writeCredentialHandoff = (filePath, { cell, credential }) => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(
+    filePath,
+    `${JSON.stringify({
+      cell_id: cell.id,
+      settings_key: cell.settingsKey,
+      credential,
+    })}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+  if (process.platform !== "win32") fs.chmodSync(filePath, 0o600);
 };
 
 const waitForChild = (child) =>
@@ -269,6 +359,44 @@ const waitForChild = (child) =>
     child.once("error", reject);
     child.once("exit", (code, signal) => resolve({ code, signal }));
   });
+
+const signalChildTree = ({
+  child,
+  signal = "SIGTERM",
+  platform = process.platform,
+  killGroup = process.kill,
+}) => {
+  if (!child || !Number.isSafeInteger(child.pid) || child.pid <= 0) {
+    return false;
+  }
+  if (platform !== "win32") {
+    try {
+      killGroup(-child.pid, signal);
+      return true;
+    } catch (_) {
+      // Fall through to the direct child when the process group is gone.
+    }
+  }
+  try {
+    return child.kill(signal);
+  } catch (_) {
+    return false;
+  }
+};
+
+const buildPlaywrightArgs = ({ playwrightCli, outputPath, headed }) => {
+  const args = [
+    playwrightCli,
+    "test",
+    "e2e/pupu-live-long-run.spec.js",
+    "--workers=1",
+    "--retries=0",
+    `--output=${outputPath}`,
+    "--reporter=line",
+  ];
+  if (headed) args.push("--headed");
+  return args;
+};
 
 const safeReadCellReport = (reportPath) => {
   try {
@@ -279,11 +407,35 @@ const safeReadCellReport = (reportPath) => {
 };
 
 const stripProviderSecrets = (environment) => {
-  const cleaned = { ...environment };
-  for (const cell of LIVE_MATRIX) {
-    for (const name of cell.credentialNames) delete cleaned[name];
+  const allowedNames = new Set([
+    "PATH",
+    "TMPDIR",
+    "TMP",
+    "TEMP",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "TZ",
+    "TERM",
+    "COLORTERM",
+    "FORCE_COLOR",
+    "NO_COLOR",
+    "CI",
+    "DISPLAY",
+    "WAYLAND_DISPLAY",
+    "XDG_RUNTIME_DIR",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "SystemRoot",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+  ]);
+  const cleaned = {};
+  for (const name of allowedNames) {
+    if (typeof environment[name] === "string" && environment[name]) {
+      cleaned[name] = environment[name];
+    }
   }
-  delete cleaned.PUPU_LIVE_PROVIDER_API_KEY;
   return cleaned;
 };
 
@@ -314,10 +466,11 @@ const main = async () => {
     credentials.set(cell.id, credential);
   }
 
-  const needsMcp = options.selectedCells.some((cell) => cell.workload === "mcp");
-  const pythonPath = needsMcp ? resolvePython(options.python) : "";
-  const reportDir = path.resolve(options.reportDir || defaultReportDir());
+  const reportDir = assertFreshReportDirectory(
+    options.reportDir || defaultReportDir(),
+  );
   fs.mkdirSync(reportDir, { recursive: true });
+  const pythonPath = resolvePython(options.python);
   const summaryPath = path.join(reportDir, "matrix-report.json");
   const playwrightCli = require.resolve("@playwright/test/cli");
   const startedAt = Date.now();
@@ -332,9 +485,14 @@ const main = async () => {
     full_matrix_cell_count: LIVE_MATRIX.length,
     parallelism: options.parallel,
     duration_per_cell_ms: options.durationMs,
-    max_iterations_per_cell: options.maxIterations,
+    root_max_iterations_per_cell: LIVE_ROOT_MAX_ITERATIONS,
+    root_attempts_per_cell: 1,
+    in_run_waits_per_cell: LIVE_WAIT_COUNT,
+    mcp_time_scale: computeLiveMcpTimeScale(options.durationMs),
     qualification:
-      options.durationMs >= LIVE_DURATION_MS ? "long-run" : "smoke-only",
+      options.durationMs >= LIVE_DURATION_MS
+        ? "agent-long-run"
+        : "smoke-only",
     report_dir: reportDir,
     cells: options.selectedCells.map((cell) => ({
       cell_id: cell.id,
@@ -353,7 +511,7 @@ const main = async () => {
   const forwardSignal = (signal) => {
     abortedSignal = signal;
     for (const child of activeChildren) {
-      if (child.exitCode == null && child.signalCode == null) child.kill(signal);
+      signalChildTree({ child, signal });
     }
   };
   process.once("SIGINT", () => forwardSignal("SIGINT"));
@@ -374,7 +532,16 @@ const main = async () => {
       const auditPath = path.join(cellDir, "mcp-audit.jsonl");
       const playwrightOutput = path.join(cellDir, "playwright-artifacts");
       fs.mkdirSync(workspaceRoot, { recursive: true });
-      prepareIsolatedHome(homeDir);
+      prepareIsolatedHome(homeDir, cell);
+      const credentialHandoffPath = path.join(
+        homeDir,
+        ".pupu",
+        "live-provider-credential.json",
+      );
+      writeCredentialHandoff(credentialHandoffPath, {
+        cell,
+        credential: credentials.get(cell.id).value,
+      });
       writeJson(reportPath, {
         schema_version: 1,
         kind: "pupu-live-model-long-run-cell",
@@ -383,7 +550,9 @@ const main = async () => {
         provider: cell.provider,
         model_id: cell.modelId,
         qualification:
-          options.durationMs >= LIVE_DURATION_MS ? "long-run" : "smoke-only",
+          options.durationMs >= LIVE_DURATION_MS
+            ? "agent-long-run"
+            : "smoke-only",
         target_duration_ms: options.durationMs,
         status: "launching",
         started_at: new Date().toISOString(),
@@ -394,15 +563,11 @@ const main = async () => {
       summary.cells[index].started_at = new Date().toISOString();
       writeJson(summaryPath, summary);
 
-      const playwrightArgs = [
+      const playwrightArgs = buildPlaywrightArgs({
         playwrightCli,
-        "test",
-        "e2e/pupu-live-long-run.spec.js",
-        "--workers=1",
-        `--output=${playwrightOutput}`,
-        "--reporter=line",
-      ];
-      if (options.headed) playwrightArgs.push("--headed");
+        outputPath: playwrightOutput,
+        headed: options.headed,
+      });
       const port = options.basePort + LIVE_MATRIX.findIndex((item) => item.id === cell.id);
       const childEnv = stripProviderSecrets(process.env);
       Object.assign(childEnv, {
@@ -417,14 +582,16 @@ const main = async () => {
         XDG_CONFIG_HOME: path.join(homeDir, ".config"),
         PUPU_LIVE_LONG_RUN: "1",
         PUPU_LIVE_CELL_ID: cell.id,
-        PUPU_LIVE_PROVIDER_API_KEY: credentials.get(cell.id).value,
+        PUPU_LIVE_PROVIDER_CREDENTIAL_FILE: credentialHandoffPath,
         PUPU_LIVE_DURATION_MS: String(options.durationMs),
-        PUPU_LIVE_MAX_ITERATIONS: String(options.maxIterations),
         PUPU_LIVE_REPORT_PATH: reportPath,
         PUPU_LIVE_WORKSPACE_ROOT: workspaceRoot,
         PUPU_LIVE_MCP_AUDIT_PATH: auditPath,
-        PUPU_LIVE_MCP_TIME_SCALE: process.env.PUPU_LIVE_MCP_TIME_SCALE || "0.1",
+        PUPU_LIVE_MCP_TIME_SCALE: String(
+          computeLiveMcpTimeScale(options.durationMs),
+        ),
         PUPU_LIVE_PYTHON: pythonPath,
+        UNCHAIN_MAX_ITERATIONS: String(LIVE_ROOT_MAX_ITERATIONS),
         PUPU_E2E_RELEASE: "1",
         PUPU_E2E_PORT: String(port),
         PUPU_E2E_WEB_URL: `http://127.0.0.1:${port}/#`,
@@ -434,15 +601,74 @@ const main = async () => {
         cwd: REPO_ROOT,
         env: childEnv,
         stdio: "inherit",
+        detached: process.platform !== "win32",
       });
       activeChildren.add(child);
+      const childOutcome = waitForChild(child);
       let outcome;
+      let sleepGuard = null;
+      let guardFailure = null;
+      let playwrightSettled = false;
+      const guardRequired = requiresSleepGuard({
+        platform: process.platform,
+        profileName:
+          options.durationMs >= LIVE_DURATION_MS ? "full" : "quick",
+      });
       try {
-        outcome = await waitForChild(child);
+        sleepGuard = startSleepGuard({
+          platform: process.platform,
+          watchedPid: child.pid,
+          environment: stripProviderSecrets(process.env),
+        });
+        const guardSnapshot = await sleepGuard.ready;
+        summary.cells[index].sleep_guard = guardSnapshot;
+        writeJson(summaryPath, summary);
+        const startupError = sleepGuardStartupError(guardSnapshot);
+        if (startupError && guardRequired) {
+          guardFailure = startupError;
+          signalChildTree({ child, signal: "SIGTERM" });
+        }
+        sleepGuard.settled?.then((snapshot) => {
+          if (playwrightSettled) return;
+          const runtimeError = sleepGuardRuntimeError(snapshot);
+          if (!runtimeError) return;
+          guardFailure = guardFailure || runtimeError;
+          if (
+            guardRequired &&
+            child.exitCode == null &&
+            child.signalCode == null
+          ) {
+            signalChildTree({ child, signal: "SIGTERM" });
+          }
+        });
+        outcome = await childOutcome;
       } catch (error) {
         outcome = { code: 1, signal: null, error: error.message };
+        signalChildTree({ child, signal: "SIGTERM" });
+        await childOutcome.catch(() => {});
       } finally {
+        playwrightSettled = true;
+        if (sleepGuard) {
+          const finalGuardSnapshot = await sleepGuard.close();
+          summary.cells[index].sleep_guard = finalGuardSnapshot;
+          const cleanupError = sleepGuardCleanupError(finalGuardSnapshot);
+          if (cleanupError && guardRequired) {
+            guardFailure = guardFailure || cleanupError;
+          }
+        }
+        if (outcome?.code !== 0 || abortedSignal || guardFailure) {
+          signalChildTree({ child, signal: "SIGTERM" });
+        }
         activeChildren.delete(child);
+        fs.rmSync(credentialHandoffPath, { force: true });
+        fs.rmSync(homeDir, { recursive: true, force: true });
+      }
+      if (guardFailure && guardRequired) {
+        outcome = {
+          code: 1,
+          signal: outcome?.signal || null,
+          error: [guardFailure, outcome?.error].filter(Boolean).join("; "),
+        };
       }
       let cellReport = safeReadCellReport(reportPath);
       if (
@@ -547,11 +773,17 @@ if (path.resolve(process.argv[1] || "") === path.resolve(SCRIPT_PATH)) {
 
 export {
   COST_ACKNOWLEDGEMENT,
+  assertFreshReportDirectory,
+  buildLiveRecipe,
+  buildPlaywrightArgs,
   buildSubagentTemplates,
   parseArgs,
   prepareIsolatedHome,
   readCredentialFile,
   resolveCredential,
+  resolvePython,
+  signalChildTree,
   stripProviderSecrets,
   usage,
+  writeCredentialHandoff,
 };

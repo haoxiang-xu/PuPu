@@ -51,34 +51,38 @@ import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
+import {
+  readSettingsRoot,
+  readNamespace,
+  updateNamespace,
+} from "../../SERVICEs/settings_repository";
 import * as bootProgress from "../../SERVICEs/boot_progress";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
-const SETTINGS_STORAGE_KEY = "settings";
-
 const loadSettingsStorage = () => {
   try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    return readSettingsRoot();
   } catch {}
   return null;
 };
 
 const saveSettingsStorage = (updatesByPath) => {
   try {
-    const root = loadSettingsStorage() || {};
-    let changed = false;
-    Object.entries(updatesByPath).forEach(([path, data]) => {
-      const section = root[path] || {};
+    /* Per-namespace writes (settings-sqlite-migration-plan §4.4): each changed
+       top-level key is committed through its own updateNamespace — never a
+       whole-root overwrite. Unchanged sections are skipped entirely so idle
+       re-renders don't cause redundant persistence. */
+    Object.entries(updatesByPath).forEach(([namespace, data]) => {
+      const section = readNamespace(namespace, undefined) || {};
       const sectionChanged = Object.entries(data).some(
         ([key, value]) => section[key] !== value,
       );
       if (!sectionChanged) return;
-      root[path] = { ...section, ...data };
-      changed = true;
+      updateNamespace(namespace, (current) => ({
+        ...(current || {}),
+        ...data,
+      })).catch(() => {});
     });
-    if (!changed) return;
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
   } catch {}
 };
 

@@ -1,6 +1,6 @@
 - [COO 业务操盘授权](coo-business-mandate.md) — 2026-07-21 从质检长升格激进业务操盘手；目标盈利、高话语权、主动给项目走向；每轮出创始人备忘录
-- [Team Roster](team_roster.md) — COO「发」=我（2026-06-10 升格，原 product-ops），下辖 growth-ops「巡」；CEO 3 直属之一；全员角色边界
-- [Handoff Protocol](handoff_protocol.md) — 与 qa-tester / mcp-store-curator / security-expert（守签字才放行）的交接：何时自己干、何时引用他们结论
+- [Team Roster](team_roster.md) — COO「发」=我；下辖 growth-ops「巡」/market-analyst/release-full-test「检」；全员角色边界
+- [Handoff Protocol](handoff_protocol.md) — 与 release-full-test / qa / MCP curator / security 的交接：谁执行、谁交证据、谁裁决
 - [Registry is a shared FE/BE file](registry-frontend-backend-shared-file.md) — src/SERVICEs/mcp_toolkit_registry.json 被 Python 后端读取；改它必须两侧都跑测试，删条目易炸 backend pytest
 - [Release license/bundling boundary](release-license-bundling-boundary.md) — 安装包真正捆绑啥 vs 运行时 npx/uvx 拉取啥；第三方 NOTICE 聚合缺口；auto-update 走 GitHub releases
 - [react-router-dom jest main 字段坏](react-router-dom-jest-main-field.md) — 5 前端套件同挂 "Cannot find module react-router-dom"，根因 rr-dom 7.x main 指向不存在的 dist/main.js，npm ci 修不了，需 jest moduleNameMapper/换版本

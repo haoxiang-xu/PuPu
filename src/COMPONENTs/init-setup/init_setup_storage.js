@@ -1,16 +1,13 @@
-const SETTINGS_KEY = "settings";
+import {
+  readNamespace,
+  updateNamespace,
+} from "../../SERVICEs/settings_repository";
 
-const readSettings = () => {
-  try {
-    return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  } catch {
-    return {};
-  }
-};
+const APP_NAMESPACE = "app";
 
 export const isSetupComplete = () => {
   try {
-    return !!readSettings()?.app?.setup_completed;
+    return !!readNamespace(APP_NAMESPACE, {})?.setup_completed;
   } catch {
     return false;
   }
@@ -18,9 +15,10 @@ export const isSetupComplete = () => {
 
 export const markSetupComplete = () => {
   try {
-    const root = readSettings();
-    root.app = { ...(root.app || {}), setup_completed: true };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(root));
+    updateNamespace(APP_NAMESPACE, (current) => ({
+      ...(current || {}),
+      setup_completed: true,
+    })).catch(() => {});
   } catch {
     /* ignore */
   }

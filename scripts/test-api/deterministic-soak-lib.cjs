@@ -190,7 +190,7 @@ const buildSubagentTemplates = () =>
           "The closed-world fake model determines the exact response and tool arguments.",
           "Never delegate or invent an additional action.",
         ].join("\n"),
-        allowed_modes: ["worker"],
+        allowed_modes: ["delegate", "worker"],
         output_mode: "last_message",
         memory_policy: "ephemeral",
         parallel_safe: true,

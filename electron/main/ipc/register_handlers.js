@@ -5,6 +5,11 @@ const {
   CHAT_STORAGE_SYNC_CHANNELS,
   CHAT_STORAGE_ON_CHANNELS,
 } = require("../services/chat_storage/register_handlers");
+const {
+  registerSettingsStorageHandlers,
+  SETTINGS_STORAGE_SYNC_CHANNELS,
+  SETTINGS_STORAGE_INVOKE_CHANNELS,
+} = require("../services/settings_storage/register_handlers");
 
 const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.APP.GET_VERSION,
@@ -88,6 +93,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.DELETE_SKILL_PACK,
   CHANNELS.SCREENSHOT.CAPTURE,
   CHANNELS.SCREENSHOT.CHECK_AVAILABILITY,
+  ...SETTINGS_STORAGE_INVOKE_CHANNELS,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -102,7 +108,10 @@ const IPC_ON_CHANNELS = Object.freeze([
   ...CHAT_STORAGE_ON_CHANNELS,
 ]);
 
-const IPC_ON_SYNC_CHANNELS = Object.freeze([...CHAT_STORAGE_SYNC_CHANNELS]);
+const IPC_ON_SYNC_CHANNELS = Object.freeze([
+  ...CHAT_STORAGE_SYNC_CHANNELS,
+  ...SETTINGS_STORAGE_SYNC_CHANNELS,
+]);
 
 const MAIN_EVENT_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_EVENT,
@@ -121,9 +130,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     runtimeService,
     screenshotService,
     chatStorageService,
+    settingsStorageService,
   } = services;
 
   registerChatStorageHandlers({ ipcMain, chatStorageService });
+  registerSettingsStorageHandlers({ ipcMain, settingsStorageService });
 
   ipcMain.on(CHANNELS.THEME.SET_BACKGROUND_COLOR, (_event, color) => {
     windowService.handleThemeSetBackgroundColor(color);

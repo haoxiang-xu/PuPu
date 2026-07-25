@@ -63,6 +63,7 @@ export const buildLocalGateChecks = ({
       PUPU_E2E_PORT: "2917",
       PUPU_E2E_WEB_URL: "http://127.0.0.1:2917/#",
       PUPU_DETERMINISTIC_SOAK: "0",
+      PUPU_SINGLE_AGENT_LONG_RUN: "0",
       PUPU_LIVE_LONG_RUN: "0",
       PUPU_LIVE_CELL_ID: "",
     },

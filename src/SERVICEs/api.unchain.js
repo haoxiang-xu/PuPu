@@ -24,6 +24,8 @@ import {
   readCustomProviders,
 } from "./custom_provider_store";
 import { isFeatureFlagEnabled } from "./feature_flags";
+import { readNamespace } from "./settings_repository";
+import { readProviderSecret } from "./settings_secret_adapter";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
@@ -38,30 +40,11 @@ const sanitizeSystemPromptV2Sections = (
     keepEmptyStrings,
   });
 
-const readModelProvidersSettings = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-
-  try {
-    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-    return isObject(root?.model_providers) ? root.model_providers : {};
-  } catch (_error) {
-    return {};
-  }
-};
-
+// Runtime settings come from the settings repository (synchronous snapshot
+// getter — the request-assembly path must stay synchronous, plan §2.2/§6-1B).
 const readRuntimeSettings = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-
-  try {
-    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-    return isObject(root?.runtime) ? root.runtime : {};
-  } catch (_error) {
-    return {};
-  }
+  const runtime = readNamespace("runtime", {});
+  return isObject(runtime) ? runtime : {};
 };
 
 const parseProviderFromModelValue = (modelValue) => {
@@ -138,22 +121,16 @@ const detectProviderFromStreamPayload = (payload) => {
   return "";
 };
 
+// Official provider API keys are secrets: they stay in localStorage behind
+// settings_secret_adapter until Phase 4 (plan §3.7) and never transit the
+// settings repository. readProviderSecret always returns a string.
 const getStoredProviderApiKey = (provider) => {
-  const settings = readModelProvidersSettings();
-  if (!settings || typeof settings !== "object") {
-    return "";
-  }
-
   if (provider === "openai") {
-    return typeof settings.openai_api_key === "string"
-      ? settings.openai_api_key.trim()
-      : "";
+    return readProviderSecret("openai_api_key").trim();
   }
 
   if (provider === "anthropic") {
-    return typeof settings.anthropic_api_key === "string"
-      ? settings.anthropic_api_key.trim()
-      : "";
+    return readProviderSecret("anthropic_api_key").trim();
   }
 
   return "";

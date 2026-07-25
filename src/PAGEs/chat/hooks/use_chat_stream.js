@@ -2486,9 +2486,12 @@ export const useChatStream = ({
       const runtime = getConfirmationRuntimeForChat(targetChatId, {
         create: false,
       });
+      if (!runtime) {
+        return;
+      }
       const resolvedConfirmationId =
         normalizedConfirmationId ||
-        runtime?.confirmationIdByCallId.get(normalizedCallId);
+        runtime.confirmationIdByCallId.get(normalizedCallId);
       if (!resolvedConfirmationId) {
         return;
       }
@@ -2524,9 +2527,12 @@ export const useChatStream = ({
       const runtime = getConfirmationRuntimeForChat(targetChatId, {
         create: false,
       });
+      if (!runtime) {
+        return;
+      }
       const resolvedConfirmationId =
         normalizedConfirmationId ||
-        runtime?.confirmationIdByCallId.get(normalizedCallId);
+        runtime.confirmationIdByCallId.get(normalizedCallId);
       if (!resolvedConfirmationId) {
         return;
       }
@@ -2766,6 +2772,11 @@ export const useChatStream = ({
       });
       const callId =
         runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
+      const hasAuthoritativeConfirmationRequest = Boolean(
+        pendingToolConfirmationRequestsByChatIdRef.current[
+          normalizedTargetChatId
+        ]?.[normalizedConfirmationId],
+      );
       const streamState = activeStreamsRef.current.get(normalizedTargetChatId);
       const hasActiveStreamMessages = Array.isArray(streamState?.messages);
       const streamMessages = hasActiveStreamMessages
@@ -2795,6 +2806,8 @@ export const useChatStream = ({
           containsExactRequest(frames),
         );
       });
+      const allowCallIdFallback =
+        !hasAuthoritativeConfirmationRequest && !hasExactRequestFrame;
 
       const appendDecisionFrame = (frames) => {
         const list = Array.isArray(frames) ? frames : [];
@@ -2802,7 +2815,7 @@ export const useChatStream = ({
           (frame) =>
             frame?.type === "tool_call" &&
             (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              (!hasExactRequestFrame && frame?.payload?.call_id === callId)),
+              (allowCallIdFallback && frame?.payload?.call_id === callId)),
         );
         if (!requestFrame) {
           return { frames: list, changed: false };
@@ -2812,7 +2825,7 @@ export const useChatStream = ({
           (frame) =>
             frame?.type === decisionFrameType &&
             (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              (!hasExactRequestFrame && frame?.payload?.call_id === callId)),
+              (allowCallIdFallback && frame?.payload?.call_id === callId)),
         );
         if (alreadyRecorded) {
           return { frames: list, changed: false };

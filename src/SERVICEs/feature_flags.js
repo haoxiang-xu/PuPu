@@ -1,4 +1,6 @@
-const SETTINGS_STORAGE_KEY = "settings";
+import { readNamespace, replaceNamespace } from "./settings_repository";
+
+const FEATURE_FLAGS_NAMESPACE = "feature_flags";
 const buildFeatureFlagsEnv = process.env.REACT_APP_BUILD_FEATURE_FLAGS;
 const isProductionBuildRuntime = process.env.NODE_ENV === "production";
 
@@ -56,21 +58,6 @@ const buildFeatureFlagDefaults = readBuildFeatureFlagDefaults();
 const isObject = (value) =>
   value != null && typeof value === "object" && !Array.isArray(value);
 
-const readSettingsRoot = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}",
-    );
-    return isObject(parsed) ? parsed : {};
-  } catch (_error) {
-    return {};
-  }
-};
-
 const resolveFlagDefaultValue = (key, definition, fallbackFlags = {}) =>
   fallbackFlags[key] === true ||
   (fallbackFlags[key] !== false && definition.defaultValue === true);
@@ -105,8 +92,10 @@ export const readFeatureFlags = () => {
     return buildDefaults;
   }
 
-  const root = readSettingsRoot();
-  return normalizeFeatureFlags(root.feature_flags, buildDefaults);
+  return normalizeFeatureFlags(
+    readNamespace(FEATURE_FLAGS_NAMESPACE, {}),
+    buildDefaults,
+  );
 };
 
 export const isFeatureFlagEnabled = (key) => {
@@ -127,15 +116,9 @@ export const writeFeatureFlags = (patch = {}) => {
     }
   });
 
-  if (typeof window !== "undefined" && window.localStorage) {
-    try {
-      const root = readSettingsRoot();
-      root.feature_flags = next;
-      window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
-    } catch (_error) {
-      // no-op: keep in-memory updates available to current subscribers
-    }
-  }
+  // Persist failures stay silent: keep in-memory updates available to
+  // current subscribers (mirrors the previous try/catch localStorage write).
+  replaceNamespace(FEATURE_FLAGS_NAMESPACE, next).catch(() => {});
 
   emitFeatureFlagsChange(next);
   return next;

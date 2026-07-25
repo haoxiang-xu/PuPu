@@ -11,6 +11,11 @@ const {
   MARKER,
   REQUIRED_ROOT_PHASES,
 } = require("../deterministic-soak-lib.cjs");
+const {
+  AGENT_LONG_RUN_PHASE,
+  buildAgentLongRunTool,
+  parseAgentLongRunMarker,
+} = require("../single-agent-long-run-lib.cjs");
 
 const WAIT_MILLISECONDS = 65000;
 const GATE_CHECKPOINT = "durable-pause";
@@ -24,7 +29,7 @@ const PHASE_ALIASES = Object.freeze({
   sleep: "wait",
   web: "probe",
 });
-const VALID_PHASES = new Set(REQUIRED_ROOT_PHASES);
+const VALID_PHASES = new Set([...REQUIRED_ROOT_PHASES, AGENT_LONG_RUN_PHASE]);
 const CHILD_SCENARIO_BY_PHASE = Object.freeze({
   multiagent: "happy",
   "child-question": "question",
@@ -173,6 +178,23 @@ const parseRootMarker = (body) => {
         itemIndex,
       };
     }
+  });
+  return found;
+};
+
+const parseAgentLongRunScenario = (body) => {
+  const items = inputItems(body);
+  let found = null;
+  items.forEach((item, itemIndex) => {
+    if (!item || typeof item !== "object" || item.role !== "user") return;
+    const parsed = parseAgentLongRunMarker(itemText(item));
+    if (!parsed) return;
+    found = {
+      ...parsed,
+      phase: AGENT_LONG_RUN_PHASE,
+      requestedPhase: AGENT_LONG_RUN_PHASE,
+      itemIndex,
+    };
   });
   return found;
 };
@@ -740,6 +762,46 @@ const planResponse = (body = {}) => {
   const child = parseChildMarker(body);
   if (child) return planChildResponse(body, child);
 
+  const agentLongRun = parseAgentLongRunScenario(body);
+  if (agentLongRun) {
+    const completedRootTools = inputItems(body).filter(
+      (item, index) =>
+        index > agentLongRun.itemIndex &&
+        item &&
+        typeof item === "object" &&
+        item.type === "function_call_output",
+    ).length;
+    const scenario = {
+      ...agentLongRun,
+      iteration: completedRootTools,
+    };
+    if (completedRootTools >= agentLongRun.rootToolCalls) {
+      const sawFyi = stringsFromValue(body?.input, []).some((value) =>
+        value.includes(`AGENT_LONG_RUN_FYI lane=${agentLongRun.lane}`),
+      );
+      return directTextPlan(
+        body,
+        [
+          `AGENT_LONG_RUN_OK lane=${agentLongRun.lane}`,
+          `root_tool_calls=${agentLongRun.rootToolCalls}`,
+          `saw_fyi=${sawFyi}`,
+        ].join(" "),
+        "agent-long-root-final",
+        { scenario },
+      );
+    }
+    return toolPlan({
+      body,
+      scenario,
+      tool: buildAgentLongRunTool({
+        lane: agentLongRun.lane,
+        step: completedRootTools,
+        rootToolCalls: agentLongRun.rootToolCalls,
+      }),
+      label: "agent-long-root-tool",
+    });
+  }
+
   let scenario = parseRootMarker(body);
   let hasToolResult = false;
   if (scenario) {
@@ -948,6 +1010,7 @@ const auditRecord = (ordinal, requestUrl, envelope) => ({
     "",
   phase: envelope.plan.scenario?.phase || "",
   iteration: envelope.plan.scenario?.iteration ?? null,
+  root_tool_calls: envelope.plan.scenario?.rootToolCalls ?? null,
   tool_name: envelope.plan.tool?.name || "",
   direct_target:
     envelope.plan.child?.target ||
@@ -960,8 +1023,10 @@ const auditRecord = (ordinal, requestUrl, envelope) => ({
   latest_user_preview: latestUserText(envelope.plan.body).slice(0, 1200),
   has_function_call_output:
     latestFunctionCallOutputIndex(envelope.plan.body) >= 0,
-  saw_fyi: stringsFromValue(envelope.plan.body?.input, []).some((value) =>
-    value.includes("SOAK_FYI"),
+  saw_fyi: stringsFromValue(envelope.plan.body?.input, []).some(
+    (value) =>
+      value.includes("SOAK_FYI") ||
+      value.includes("AGENT_LONG_RUN_FYI"),
   ),
   ...(latestFunctionCallOutputIndex(envelope.plan.body) >= 0
     ? { function_output_previews: functionOutputPreviews(envelope.plan.body) }

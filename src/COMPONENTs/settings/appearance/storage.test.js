@@ -7,6 +7,7 @@ import {
   resetThemeSettings,
   clearThemeCustomColor,
 } from "./storage";
+import { getSettingsPersistenceStatus } from "../../../SERVICEs/settings_repository";
 
 describe("appearance theme storage", () => {
   beforeEach(() => window.localStorage.clear());
@@ -156,5 +157,33 @@ describe("theme details channel (chipBorder + border tier alpha overrides)", () 
     expect(exported.details.light_mode.chipBorder).toBe("#123456");
     expect(exported.details.light_mode.borderAlphaMid).toBe(0.4);
     expect(exported.details.dark_mode.chipBorder).toBe("#654321");
+  });
+});
+
+describe("write failures (legacy bare-setItem contract)", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  /* The pre-repository writeRoot called localStorage.setItem without
+     try/catch: a quota error propagated synchronously out of every
+     writeTheme* helper. The repository conversion must keep that contract in
+     fallback mode. */
+  test("writeThemePreset throws synchronously on a storage write failure", () => {
+    const spy = jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    try {
+      expect(() => writeThemePreset("ocean")).toThrow(
+        /localstorage_write_failed/,
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(getSettingsPersistenceStatus().lastErrorCode).toBe(
+      "localstorage_write_failed",
+    );
+    // the write really was dropped — readback still sees the default
+    expect(readThemeSettings().preset).toBe("default");
   });
 });
