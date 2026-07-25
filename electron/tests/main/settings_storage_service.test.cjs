@@ -219,7 +219,7 @@ describeIfSqlite("settings storage service (sqlite)", () => {
     const snapshot = service.getBootstrapSnapshot();
     expect(snapshot.available).toBe(true);
     expect(snapshot.degraded).toBe(false);
-    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.schemaVersion).toBe(2);
     expect(snapshot.namespaces).toEqual({});
     expect(snapshot.revisions).toEqual({});
     expect(snapshot.migration).toEqual({
@@ -461,12 +461,48 @@ describeIfSqlite("settings storage service (sqlite)", () => {
             }),
           ),
       ],
+      // Phase 2 store codes (each also locked in its own per-store suite:
+      // settings_storage_token_usage / _toolkit_prefs / _computer_use).
+      // Listed here too so this test keeps its "every code in the table"
+      // exhaustiveness claim.
+      [
+        "invalid_token_usage_record",
+        () => service.appendTokenUsage({ consumed_tokens: 0 }),
+      ],
+      [
+        "invalid_token_usage_query",
+        () => service.queryTokenUsage({ limit: 0 }),
+      ],
+      [
+        "invalid_default_toolkits_payload",
+        () => service.replaceDefaultToolkitsScope("  ", []),
+      ],
+      [
+        "invalid_toolkit_auto_approve_payload",
+        () => service.replaceToolkitAutoApprove({ toolkits: "not-an-array" }),
+      ],
+      [
+        "invalid_computer_use_preference",
+        () => service.setComputerUsePreference("unknown_key", {}),
+      ],
     ];
 
     for (const [code, trigger] of cases) {
       const error = expectThrowCode(trigger, code);
       expect(error.message.startsWith(`[${code}] `)).toBe(true);
     }
+  });
+
+  test("service.js source stays plain text (no raw control bytes — file(1)/grep must keep working)", () => {
+    // A raw NUL once slipped in as a template-literal separator and flipped
+    // the whole file to "data" for file(1)/BSD grep, breaking grep-based
+    // inspection workflows. Separators must be written as escape sequences.
+    const source = fs.readFileSync(
+      require.resolve("../../main/services/settings_storage/service.js"),
+      "utf8",
+    );
+    // eslint-disable-next-line no-control-regex
+    expect(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(source)).toBe(false);
   });
 
   test("deleteNamespace removes the row and reports whether it existed", () => {

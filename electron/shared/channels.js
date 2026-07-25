@@ -13,7 +13,29 @@ const CHANNELS = Object.freeze({
     MIGRATE_LEGACY: "settings-storage:migrate-legacy",
     SET_NAMESPACE: "settings-storage:set-namespace",
     DELETE_NAMESPACE: "settings-storage:delete-namespace",
-    // Phase 2+: TOKEN_USAGE_APPEND / TOKEN_USAGE_QUERY / TOKEN_USAGE_CLEAR
+    // Phase 2 — token_usage structured store (plan §3.2 / §4.2)
+    TOKEN_USAGE_APPEND: "settings-storage:token-usage-append",
+    TOKEN_USAGE_QUERY: "settings-storage:token-usage-query",
+    TOKEN_USAGE_CLEAR: "settings-storage:token-usage-clear",
+    TOKEN_USAGE_MIGRATE_LEGACY: "settings-storage:token-usage-migrate-legacy",
+    // Phase 2 — toolkit preference structured stores (plan §3.3)
+    DEFAULT_TOOLKITS_READ_ALL: "settings-storage:default-toolkits-read-all",
+    DEFAULT_TOOLKITS_REPLACE_SCOPE:
+      "settings-storage:default-toolkits-replace-scope",
+    DEFAULT_TOOLKITS_MIGRATE_LEGACY:
+      "settings-storage:default-toolkits-migrate-legacy",
+    TOOLKIT_AUTO_APPROVE_READ_ALL:
+      "settings-storage:toolkit-auto-approve-read-all",
+    TOOLKIT_AUTO_APPROVE_REPLACE_ALL:
+      "settings-storage:toolkit-auto-approve-replace-all",
+    TOOLKIT_AUTO_APPROVE_MIGRATE_LEGACY:
+      "settings-storage:toolkit-auto-approve-migrate-legacy",
+    // Phase 2 — computer use preference KV store (plan §3.4)
+    COMPUTER_USE_PREFS_READ_ALL: "settings-storage:computer-use-read-all",
+    COMPUTER_USE_PREFS_SET_KEY: "settings-storage:computer-use-set-key",
+    COMPUTER_USE_PREFS_CLEAR_KEY: "settings-storage:computer-use-clear-key",
+    COMPUTER_USE_PREFS_MIGRATE_LEGACY:
+      "settings-storage:computer-use-migrate-legacy",
   }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",

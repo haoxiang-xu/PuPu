@@ -1,8 +1,67 @@
+// Agent/Recipe folder tree storage — Phase 2 S4 of the settings SQLite
+// migration (docs/architecture/settings-sqlite-migration-plan.md §3.5).
+//
+// The tree is stored WHOLE as the settings namespace "agent_folder_tree_v1"
+// (no relational split — §3.5 is explicit about that). All SQL-mode reads and
+// writes go through settings_repository, which already provides the in-memory
+// snapshot, the optimistic-update/rollback semantics, and the single FIFO
+// persistence queue — no new IPC surface is needed.
+//
+// Modes (decided per call via the repository, no local caching):
+// - SQL mode (repository mode === "sql"): reads clone the namespace value out
+//   of the repository snapshot (fresh object per call, mirroring the legacy
+//   fresh-JSON.parse semantics); writes are optimistic + fire-and-forget
+//   queued IPC. Persistence failures are logged (store name + error code
+//   only, never tree content) and never thrown — identical to the legacy
+//   saveRaw try/catch noop.
+// - Fallback mode (browser dev / Jest / degraded Electron): the pre-S4 code
+//   path, byte-for-byte — standalone localStorage key, silent write failures.
+//
+// Migration: "agent_folder_tree_v1" is a STANDALONE localStorage key, so the
+// Phase 1B settings-root migration never carried it. On first use in SQL mode,
+// if the namespace is absent and a parseable legacy tree exists, it is written
+// once via replaceNamespace (the namespace mechanism is naturally idempotent —
+// once present, no re-seed). The legacy key is preserved read-only. If the
+// seed write fails, this store degrades to localStorage for the rest of the
+// session (per-store migration contract) and retries next boot.
+
+import {
+  readNamespace,
+  replaceNamespace,
+  getSettingsPersistenceStatus,
+} from "./settings_repository";
+import { parseSettingsStorageErrorCode } from "./bridges/settings_storage_bridge";
+
 const STORAGE_KEY = "agent_folder_tree_v1";
 const ROOT_ORDER_KEY = "__root__";
 const FOLDER_NODE_PREFIX = "folder:";
 
-function loadRaw() {
+// Sentinel distinguishing "namespace absent" from any storable JSON value.
+const NAMESPACE_MISSING = Object.freeze({});
+
+// Session flags for the one-time legacy seed. `legacySeedAttempted` keeps the
+// seed from re-running (the optimistic snapshot makes retries pointless while
+// it holds); `sqlDisabledThisSession` is the per-store degradation switch —
+// a failed seed import must leave legacy localStorage authoritative for the
+// whole session (retry next boot), never a half-adopted SQL namespace.
+let legacySeedAttempted = false;
+let sqlDisabledThisSession = false;
+
+const isSqlBacked = () =>
+  !sqlDisabledThisSession && getSettingsPersistenceStatus().mode === "sql";
+
+const warnPersistFailed = (error) => {
+  const code =
+    parseSettingsStorageErrorCode(error) ||
+    (error && error.code) ||
+    "settings_storage_error";
+  // Log contains the store name and error code only — never tree content.
+  console.warn("[agent-folder-storage] persist failed:", code);
+};
+
+// Legacy standalone-key read — the pre-S4 loadRaw, unchanged. Also serves as
+// the seed source in SQL mode (legacy stays read-only afterwards).
+function readLegacyRaw() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
@@ -14,7 +73,58 @@ function loadRaw() {
   }
 }
 
+// One-time first-use migration (SQL mode only). Idempotence comes from the
+// namespace itself: once it exists (seeded or user-written), no re-seed.
+function seedNamespaceFromLegacy() {
+  if (legacySeedAttempted) return;
+  legacySeedAttempted = true;
+  if (readNamespace(STORAGE_KEY, NAMESPACE_MISSING) !== NAMESPACE_MISSING) {
+    return; // already migrated (or already written) — nothing to do
+  }
+  const legacy = readLegacyRaw();
+  if (!legacy) return; // no legacy tree (or unparseable) — nothing to migrate
+  replaceNamespace(STORAGE_KEY, legacy).catch((error) => {
+    warnPersistFailed(error);
+    // Import failed and the repository rolled the namespace back: degrade
+    // this store to localStorage for the session so the user keeps seeing
+    // the legacy tree; the seed retries on the next boot.
+    sqlDisabledThisSession = true;
+    console.warn(
+      "[agent-folder-storage] legacy seed failed; using localStorage for this session",
+    );
+  });
+}
+
+function loadRaw() {
+  if (isSqlBacked()) {
+    seedNamespaceFromLegacy();
+    if (sqlDisabledThisSession) return readLegacyRaw();
+    const value = readNamespace(STORAGE_KEY, null);
+    // Same corruption tolerance as the legacy parse: non-object ⇒ null.
+    if (!value || typeof value !== "object") return null;
+    try {
+      // Fresh clone per read — legacy JSON.parse returned a new object every
+      // call, and repository snapshot values must never be mutated in place.
+      return JSON.parse(JSON.stringify(value));
+    } catch (_exc) {
+      return null;
+    }
+  }
+  return readLegacyRaw();
+}
+
 function saveRaw(state) {
+  if (isSqlBacked()) {
+    seedNamespaceFromLegacy();
+    if (!sqlDisabledThisSession) {
+      // Optimistic snapshot update + queued IPC via the repository. Failures
+      // roll back inside the repository and are only logged here — the legacy
+      // writer swallowed write failures too (never throws to callers).
+      replaceNamespace(STORAGE_KEY, state).catch(warnPersistFailed);
+      return;
+    }
+    // Seed just failed synchronously above — fall through to legacy.
+  }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (_exc) {
@@ -201,4 +311,11 @@ export function applyAgentExplorerReorder({ data, root } = {}) {
     folderOrder,
     itemOrder,
   });
+}
+
+// Test-only: reset the one-time seed / degradation flags so the next call
+// re-evaluates the mode and migration from scratch.
+export function resetAgentFolderStorageForTests() {
+  legacySeedAttempted = false;
+  sqlDisabledThisSession = false;
 }

@@ -17,7 +17,16 @@
 /*  A record that does not validate is treated as "not enabled", never as on.     */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+import {
+  isComputerUsePrefsSqlMode,
+  readComputerUsePreferenceRecord,
+  writeComputerUsePreferenceRecord,
+  clearComputerUsePreferenceRecord,
+  validateEnabledRecord,
+} from "./computer_use_preferences_sql";
+
 const STORAGE_KEY = "computer_use_enabled";
+const PREF_KEY = "enabled";
 
 // Bump when the persisted shape changes in a way that invalidates old records.
 export const ENABLED_STORE_VERSION = 1;
@@ -25,35 +34,26 @@ export const ENABLED_STORE_VERSION = 1;
 const hasLocalStorage = () =>
   typeof window !== "undefined" && !!window.localStorage;
 
-const isValidIsoTimestamp = (value) => {
-  if (typeof value !== "string" || !value) return false;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed);
-};
-
 /**
  * Read the raw enablement record, or null when absent / corrupted / mis-shaped.
  * A record is only returned when it is shaped
  * { version:int, enabled:bool, updatedAt:ISO }.
+ *
+ * Phase 2 (S3): in Electron with the SQL preload bridge the record lives in
+ * the computer_use_preferences table (read from a bootstrap-seeded mirror);
+ * everywhere else the legacy localStorage path below is byte-identical to
+ * pre-S3. Both paths FAIL CLOSED: anything unusable reads back as OFF.
  */
 export const readComputerUseEnabledRecord = () => {
+  if (isComputerUsePrefsSqlMode()) {
+    return validateEnabledRecord(readComputerUsePreferenceRecord(PREF_KEY));
+  }
   if (!hasLocalStorage()) return null;
 
   try {
     const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
-    if (
-      raw &&
-      typeof raw === "object" &&
-      Number.isInteger(raw.version) &&
-      typeof raw.enabled === "boolean" &&
-      isValidIsoTimestamp(raw.updatedAt)
-    ) {
-      return {
-        version: raw.version,
-        enabled: raw.enabled,
-        updatedAt: raw.updatedAt,
-      };
-    }
+    const record = validateEnabledRecord(raw);
+    if (record) return record;
   } catch (_error) {
     // corrupted — treated as OFF
   }
@@ -81,6 +81,10 @@ export const writeComputerUseEnabled = (enabled) => {
     updatedAt: new Date().toISOString(),
   };
 
+  if (isComputerUsePrefsSqlMode()) {
+    writeComputerUsePreferenceRecord(PREF_KEY, record);
+    return record;
+  }
   if (hasLocalStorage()) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
@@ -95,6 +99,10 @@ export const writeComputerUseEnabled = (enabled) => {
  * Remove any stored desired state. After clearing, reads are OFF.
  */
 export const clearComputerUseEnabled = () => {
+  if (isComputerUsePrefsSqlMode()) {
+    clearComputerUsePreferenceRecord(PREF_KEY);
+    return;
+  }
   if (!hasLocalStorage()) return;
   try {
     window.localStorage.removeItem(STORAGE_KEY);

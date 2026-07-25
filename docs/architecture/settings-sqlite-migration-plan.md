@@ -1243,6 +1243,87 @@ src/COMPONENTs/init-setup/steps/workspace.test.js
 scoped detect-changes（staged scope）：28 files / 104 symbols / 5 processes /
 risk MEDIUM——即计划指定转换的高扇入符号本身，签名零变化、payload 等价已锁。
 
+## 11C. Phase 2 实施记录与裁决（2026-07-24，实施后追加）
+
+状态：Phase 2 四切片（S1 token_usage / S2 toolkit prefs / S3 computer use /
+S4 agent folders）已实施，五视角审查 17 findings 经三轮修复 + 一轮 Minor 修复
+（10 条）全部关闭。测试：renderer 300 suites / 2720、electron 145 / 1301 全绿。
+真机冒烟通过（见 11C.4）。**Phase 2 改动未 commit**（39 文件白名单见 11C.5）。
+
+### 11C.0 历史事件：a1fa965 大杂烩提交
+
+Phase 2 窗口期内，一次并发提交 a1fa965（已推送 origin/dev，不可改写）把
+Phase 1A/1B 全部 47 文件 + 并发 live-long-run 工作 + org 文件共 93 个文件扫进
+一个 commit，提交信息只描述 secret adapter。已抽验提交内容为 1A/1B 审查后终态
+（含 globalThis 修复），内容无损，仅历史归因受损。§10 的分批提交计划对
+1A/1B 就此作废；**Phase 2 白名单（11C.5）建议尽快独立干净提交，避免再次被扫**。
+
+### 11C.1 CRITICAL impact 披露（CLAUDE.md 规定必须报告 CEO）
+
+刷新索引后 scoped detect-changes：39 files / 499 symbols / **56 affected
+processes / risk CRITICAL**。评估：toolkit 自动批准与 token 记录位于聊天发送
+热路径，扇入大是计划范围的固有属性。缓解证据：全部 store 导出签名零变化、
+调用方零改动（use_chat_stream.js 未触碰）、五视角审查 + 四轮修复、双全量测试
+零回归、真机冒烟覆盖热路径（2907 真实回复 / 2908 干净的 provider 错误路径）。
+
+### 11C.2 契约与裁决
+
+1. per-store 迁移协议落地：DB meta `<store>_migration_state` + digest 幂等 +
+   失败整体回滚 + session 降级 localStorage；**SQL 状态权威**（Minor 修复 #1：
+   marker 与 SQL 不一致时以 SQL 为准，complete 时本地补写 marker）。
+2. bootstrap 会话级共享缓存（bridge `getSessionBootstrapSnapshot()`）——
+   每 store 每会话至多一次 sendSync，热路径无重复同步 IPC。
+3. **批准裁决**：SQL 模式下 `clearTokenUsageRecords` 同时把 legacy key 写成
+   `{records:[]}`（防清除后旧记录经同步兼容读复活）——"legacy 只读"的
+   显式例外，方向是收窄。
+4. **批准裁决**：token_usage UI 下拉框候选集在 SQL 模式来自所选时间窗而非
+   全量（统计数字不变）；后续如需全量候选，加 DISTINCT 查询 IPC。
+5. 'All' 聚合截断方向 = 保最新弃最旧（DESC 扫描后 reverse 输出，未截断时
+   字节级等价）；SQL 侧聚合是未来项（当前量级 << 5 万上限）。
+6. `parseSettingsStorageErrorCode` 修复 `^` 锚定（Electron invoke 包装前缀
+   使生产解析完全失效——Phase 1B 遗留缺陷，本轮授权修复并补真实前缀测试）。
+7. S3 新增共享内部模块 `src/SERVICEs/computer_use_preferences_sql.js`
+   （三 key 一表一迁移，比三份拷贝正确）——scope 偏离批准。
+8. 安全面复核：computer toolkit 拒缓存批准在 SQL 模式锁定；fail-closed 全
+   路径（无行/损坏/version 不匹配/镜像未就绪/迁移失败）成立；DB 重置 +
+   marker 在场时 auto-approve 从 legacy 重建（narrowLegacyStore 保证 legacy
+   跟随 revoke 收窄，无扩权）。
+
+### 11C.3 遗留携带项
+
+- toolkit_auto_approve 的真机首用未触达（只在真实工具调用审批时初始化）——
+  下次带工具调用的 QA 顺手看一眼 `toolkit_auto_approve_migration_state`。
+- agent folder 真机首用同理（需打开 recipe 列表 UI）。
+- 探针在无 key origin 的失败信息干净（"Provider 'openai' requires API key"）；
+  dev 端口漂移致 secret 随 origin 碎片化仍是 Phase 4 待根治项。
+- S4 已知窗口：repository SQL→降级切换瞬间的少量树操作可能留在 settings 根
+  而非 standalone key（报告 S4 节有细节，偏好级数据，接受）。
+- query limit/offset 语义现为"最新端优先"——外部 QA 脚本如有假设需同步。
+
+### 11C.4 真机冒烟证据（2026-07-24）
+
+- schema v1→v2 就地升级（真实 DB，先由 19:16 的 S1 时代主进程升级建表，
+  终态主进程补齐 S2/S3 表——增量 CREATE TABLE IF NOT EXISTS 路径实证）。
+- **token_usage 迁移**：origin 2907 legacy 327 条 → SQL 328 行（含探针新增
+  1 条），`token_usage_migration_state=complete`，探针回复 "OK"。
+- **主进程旧代码 + renderer 新 bundle 的混布场景**：S2/S3 IPC 缺失时 store
+  按设计降级 localStorage，聊天零中断——fail-safe 实证。
+- **default_toolkits 迁移**：origin 2908 触发，marker complete，
+  `global|core|0` 入表。
+- **computer use fail-closed**：无 legacy → 0 行、默认关闭。
+- 每轮退出后 `PRAGMA integrity_check` = ok。
+
+### 11C.5 Phase 2 提交白名单（39 文件，独立提交，禁 git add -A）
+
+以 `git status --porcelain | grep -E "^.. (src|electron)/"` 的当前全集为准
+（a1fa965 之后 src/electron 两树下的改动全部属于 Phase 2）：
+electron 面 = settings_storage 三件套 + shared/preload channels + bridge +
+7 个 settings_storage 测试（.cjs/.js/src stub 齐全）+ ipc_channels/api_contract；
+renderer 面 = token_usage {storage,index} / default_toolkit_store /
+toolkit_auto_approve_store / computer_use 三 store + 共享
+computer_use_preferences_sql / agent_folder_storage / bridges 及全部 co-located
+测试。精确清单可随时用上述 grep 重新生成。
+
 ## 12. 实现 Agent 的首个行动清单
 
 1. 读取仓库规则和本计划。

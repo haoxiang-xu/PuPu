@@ -5,11 +5,16 @@ import {
   readComputerUseEnabledRecord,
   writeComputerUseEnabled,
 } from "./computer_use_enabled_store";
+import {
+  flushComputerUsePreferenceWrites,
+  resetComputerUsePreferencesForTests,
+} from "./computer_use_preferences_sql";
 
 const STORAGE_KEY = "computer_use_enabled";
 
 beforeEach(() => {
   window.localStorage.clear();
+  resetComputerUsePreferencesForTests();
 });
 
 describe("computer_use_enabled_store — read/write roundtrip", () => {
@@ -100,5 +105,108 @@ describe("computer_use_enabled_store — fail-closed corruption handling", () =>
     expect(readComputerUseEnabledRecord()).not.toBeNull();
     // ...but the version gate makes it NOT persisted-enabled (fail-closed).
     expect(isComputerUseEnabledPersisted()).toBe(false);
+  });
+});
+
+describe("computer_use_enabled_store (SQL mode)", () => {
+  const ISO = "2026-07-24T10:00:00.000Z";
+
+  const installApi = (entries = {}) => {
+    const api = {
+      bootstrap: jest.fn(() => ({
+        available: true,
+        degraded: false,
+        namespaces: {},
+        revisions: {},
+        computerUse: { entries },
+      })),
+      migrateLegacy: jest.fn(() => Promise.resolve({ status: "complete" })),
+      setNamespace: jest.fn(() => Promise.resolve({ ok: true })),
+      deleteNamespace: jest.fn(() => Promise.resolve({ ok: true })),
+      readComputerUsePreferences: jest.fn(() =>
+        Promise.resolve({ ok: true, entries: {} }),
+      ),
+      setComputerUsePreference: jest.fn((key) =>
+        Promise.resolve({ ok: true, key }),
+      ),
+      clearComputerUsePreference: jest.fn((key) =>
+        Promise.resolve({ ok: true, key, cleared: true }),
+      ),
+      migrateLegacyComputerUse: jest.fn(() =>
+        Promise.resolve({ status: "complete", digest: "d1", migratedAt: 1 }),
+      ),
+    };
+    window.settingsStorageAPI = api;
+    return api;
+  };
+
+  afterEach(() => {
+    delete window.settingsStorageAPI;
+    resetComputerUsePreferencesForTests();
+  });
+
+  test("reads the SQL-backed desired state", () => {
+    installApi({
+      enabled: { version: ENABLED_STORE_VERSION, enabled: true, updatedAt: ISO },
+    });
+    expect(readComputerUseEnabledRecord()).toEqual({
+      version: ENABLED_STORE_VERSION,
+      enabled: true,
+      updatedAt: ISO,
+    });
+    expect(isComputerUseEnabledPersisted()).toBe(true);
+  });
+
+  test("FAIL CLOSED: absent / corrupt / version-mismatched SQL records read as OFF", () => {
+    installApi({});
+    expect(readComputerUseEnabledRecord()).toBeNull();
+    expect(isComputerUseEnabledPersisted()).toBe(false);
+
+    resetComputerUsePreferencesForTests();
+    installApi({ enabled: { version: ENABLED_STORE_VERSION, enabled: "yes" } });
+    expect(readComputerUseEnabledRecord()).toBeNull();
+    expect(isComputerUseEnabledPersisted()).toBe(false);
+
+    resetComputerUsePreferencesForTests();
+    installApi({
+      enabled: {
+        version: ENABLED_STORE_VERSION + 1,
+        enabled: true,
+        updatedAt: ISO,
+      },
+    });
+    // shaped record reads back, but the version gate keeps it OFF
+    expect(readComputerUseEnabledRecord()).not.toBeNull();
+    expect(isComputerUseEnabledPersisted()).toBe(false);
+  });
+
+  test("write round-trips through the mirror and persists via the bridge", async () => {
+    const api = installApi({});
+    const written = writeComputerUseEnabled(true);
+    expect(readComputerUseEnabledRecord()).toEqual(written);
+    expect(isComputerUseEnabledPersisted()).toBe(true);
+
+    writeComputerUseEnabled(false);
+    expect(isComputerUseEnabledPersisted()).toBe(false);
+
+    await flushComputerUsePreferenceWrites();
+    expect(api.setComputerUsePreference).toHaveBeenCalledTimes(2);
+    expect(api.setComputerUsePreference).toHaveBeenLastCalledWith(
+      "enabled",
+      expect.objectContaining({ enabled: false }),
+    );
+    // SQL is authoritative — the legacy key is untouched
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  test("clear clears via the bridge and reads back OFF", async () => {
+    const api = installApi({
+      enabled: { version: ENABLED_STORE_VERSION, enabled: true, updatedAt: ISO },
+    });
+    clearComputerUseEnabled();
+    expect(readComputerUseEnabledRecord()).toBeNull();
+    expect(isComputerUseEnabledPersisted()).toBe(false);
+    await flushComputerUsePreferenceWrites();
+    expect(api.clearComputerUsePreference).toHaveBeenCalledWith("enabled");
   });
 });

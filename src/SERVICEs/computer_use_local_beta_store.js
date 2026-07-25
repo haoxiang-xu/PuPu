@@ -1,4 +1,12 @@
+import {
+  isComputerUsePrefsSqlMode,
+  readComputerUsePreferenceRecord,
+  writeComputerUsePreferenceRecord,
+  validateLocalBetaRecord,
+} from "./computer_use_preferences_sql";
+
 const STORAGE_KEY = "computer_use_local_beta_enabled";
+const PREF_KEY = "local_beta_enabled";
 const VERSION = 1;
 
 const storage = () =>
@@ -6,7 +14,17 @@ const storage = () =>
     ? window.localStorage
     : null;
 
+// Phase 2 (S3): in Electron with the SQL preload bridge the record lives in
+// the computer_use_preferences table (read from a bootstrap-seeded mirror);
+// everywhere else the legacy localStorage path is byte-identical to pre-S3.
+// Both paths FAIL CLOSED: absent / corrupt / stale records read as OFF.
 export const isComputerUseLocalBetaPersisted = () => {
+  if (isComputerUsePrefsSqlMode()) {
+    const record = validateLocalBetaRecord(
+      readComputerUsePreferenceRecord(PREF_KEY),
+    );
+    return record?.version === VERSION && record?.enabled === true;
+  }
   try {
     const raw = JSON.parse(storage()?.getItem(STORAGE_KEY) || "null");
     return raw?.version === VERSION && raw?.enabled === true;
@@ -21,6 +39,10 @@ export const writeComputerUseLocalBeta = (enabled) => {
     enabled: enabled === true,
     updatedAt: new Date().toISOString(),
   };
+  if (isComputerUsePrefsSqlMode()) {
+    writeComputerUsePreferenceRecord(PREF_KEY, record);
+    return record;
+  }
   try {
     storage()?.setItem(STORAGE_KEY, JSON.stringify(record));
   } catch (_error) {

@@ -1,7 +1,17 @@
 import React from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../CONTAINERs/config/context";
 import { TokenUsageSettings } from "./index";
+import {
+  resetTokenUsageStorageForTests,
+  TOKEN_USAGE_MIGRATION_MARKER_KEY,
+} from "./storage";
 
 let lastBarChartProps = null;
 
@@ -219,5 +229,88 @@ describe("TokenUsageSettings", () => {
     // Assert old hardcoded values are no longer in the file
     expect(sourceFile).not.toMatch(/rgba\(14,165,233/);
     expect(sourceFile).not.toMatch(/rgba\(249,115,22/);
+  });
+});
+
+describe("TokenUsageSettings — SQL mode (Phase 2)", () => {
+  const DAY = 86_400_000;
+
+  const installSqlBridge = (records) => {
+    window.settingsStorageAPI = {
+      bootstrap: jest.fn(() => ({
+        available: true,
+        degraded: false,
+        schemaVersion: 2,
+        migration: { state: "complete" },
+        namespaces: {},
+        revisions: {},
+      })),
+      migrateLegacy: jest.fn(() => Promise.resolve({ status: "complete" })),
+      setNamespace: jest.fn(() => Promise.resolve({ ok: true })),
+      deleteNamespace: jest.fn(() => Promise.resolve({ ok: true })),
+      appendTokenUsage: jest.fn(() => Promise.resolve({ ok: true, id: 1 })),
+      queryTokenUsage: jest.fn(() =>
+        Promise.resolve({ ok: true, records }),
+      ),
+      clearTokenUsage: jest.fn(() => Promise.resolve({ ok: true, cleared: 0 })),
+      migrateLegacyTokenUsage: jest.fn(() =>
+        Promise.resolve({ status: "complete", digest: "d", migratedAt: 1 }),
+      ),
+    };
+    return window.settingsStorageAPI;
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    lastBarChartProps = null;
+    resetTokenUsageStorageForTests();
+    // marker present → no migration attempt from the UI mount
+    window.localStorage.setItem(
+      TOKEN_USAGE_MIGRATION_MARKER_KEY,
+      JSON.stringify({ digest: "d", completedAt: 1 }),
+    );
+  });
+
+  afterEach(() => {
+    resetTokenUsageStorageForTests();
+    delete window.settingsStorageAPI;
+  });
+
+  test("loads the selected date range through the SQL bridge query", async () => {
+    const now = Date.now();
+    const api = installSqlBridge([
+      {
+        timestamp: now,
+        provider: "openai",
+        model: "gpt-5",
+        model_id: "openai:gpt-5",
+        consumed_tokens: 31,
+        input_tokens: 20,
+        output_tokens: 11,
+      },
+    ]);
+
+    renderTokenUsageSettings();
+
+    await waitFor(() => expectStatCardValue("Consumed Tokens", "31"));
+    expect(api.queryTokenUsage).toHaveBeenCalled();
+    const query = api.queryTokenUsage.mock.calls[0][0];
+    // default range is 30d — a bounded SQL range query, not a full pull
+    expect(typeof query.startMs).toBe("number");
+    expect(typeof query.endMs).toBe("number");
+    expect(Math.round((query.endMs - query.startMs) / DAY)).toBe(30);
+    expectStatCardValue("Requests", "1");
+  });
+
+  test("changing the range re-queries SQL ('all' = unbounded start)", async () => {
+    const api = installSqlBridge([]);
+    renderTokenUsageSettings();
+    await waitFor(() => expect(api.queryTokenUsage).toHaveBeenCalledTimes(1));
+
+    const rangeSelect = screen.getAllByTestId("mock-select")[3];
+    fireEvent.change(rangeSelect, { target: { value: "all" } });
+
+    await waitFor(() => expect(api.queryTokenUsage).toHaveBeenCalledTimes(2));
+    expect(api.queryTokenUsage.mock.calls[1][0].startMs).toBe(0);
   });
 });

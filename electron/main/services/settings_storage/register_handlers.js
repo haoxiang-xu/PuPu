@@ -11,6 +11,20 @@ const SETTINGS_STORAGE_INVOKE_CHANNELS = Object.freeze([
   CHANNELS.SETTINGS_STORAGE.MIGRATE_LEGACY,
   CHANNELS.SETTINGS_STORAGE.SET_NAMESPACE,
   CHANNELS.SETTINGS_STORAGE.DELETE_NAMESPACE,
+  CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_APPEND,
+  CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_QUERY,
+  CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_CLEAR,
+  CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_MIGRATE_LEGACY,
+  CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_READ_ALL,
+  CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_REPLACE_SCOPE,
+  CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_MIGRATE_LEGACY,
+  CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_READ_ALL,
+  CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_REPLACE_ALL,
+  CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_MIGRATE_LEGACY,
+  CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_READ_ALL,
+  CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
+  CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
+  CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
 ]);
 
 // Failure logs must not amplify attacker-controlled payloads: the namespace
@@ -98,6 +112,228 @@ const registerSettingsStorageHandlers = ({
         console.warn(
           "[settings-storage] delete-namespace failed:",
           describeNamespaceForLog(payload && payload.namespace),
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  // ---- Phase 2: token_usage structured store -------------------------------
+  // Failure logs carry the store name and the error code only — never record
+  // contents or query values.
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_APPEND,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.appendTokenUsage(payload.record);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] token-usage-append failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_QUERY,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.queryTokenUsage(payload.query);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] token-usage-query failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_CLEAR, async () => {
+    try {
+      return settingsStorageService.clearTokenUsage();
+    } catch (error) {
+      console.warn(
+        "[settings-storage] token-usage-clear failed:",
+        error.code || error.message,
+      );
+      throw error;
+    }
+  });
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_MIGRATE_LEGACY,
+    async (_event, payload) => {
+      try {
+        return settingsStorageService.migrateLegacyTokenUsage(payload);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] token-usage-migrate-legacy failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  // ---- Phase 2: toolkit preference structured stores (plan §3.3) -----------
+  // Same logging policy: store name + error code only — never toolkit ids,
+  // tool names or scope keys from the payload.
+
+  ipcMain.handle(CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_READ_ALL, async () => {
+    try {
+      return settingsStorageService.readDefaultToolkits();
+    } catch (error) {
+      console.warn(
+        "[settings-storage] default-toolkits-read-all failed:",
+        error.code || error.message,
+      );
+      throw error;
+    }
+  });
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_REPLACE_SCOPE,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.replaceDefaultToolkitsScope(
+          payload.scopeKey,
+          payload.toolkitIds,
+        );
+      } catch (error) {
+        console.warn(
+          "[settings-storage] default-toolkits-replace-scope failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_MIGRATE_LEGACY,
+    async (_event, payload) => {
+      try {
+        return settingsStorageService.migrateLegacyDefaultToolkits(payload);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] default-toolkits-migrate-legacy failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_READ_ALL,
+    async () => {
+      try {
+        return settingsStorageService.readToolkitAutoApprove();
+      } catch (error) {
+        console.warn(
+          "[settings-storage] toolkit-auto-approve-read-all failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_REPLACE_ALL,
+    async (_event, payload) => {
+      try {
+        return settingsStorageService.replaceToolkitAutoApprove(payload);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] toolkit-auto-approve-replace-all failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_MIGRATE_LEGACY,
+    async (_event, payload) => {
+      try {
+        return settingsStorageService.migrateLegacyToolkitAutoApprove(payload);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] toolkit-auto-approve-migrate-legacy failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  // ---- Phase 2: computer use preference KV store (plan §3.4) ---------------
+  // Same logging policy: store name + error code only — record contents
+  // (consent timestamps, enablement flags) never reach the logs.
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_READ_ALL,
+    async () => {
+      try {
+        return settingsStorageService.readComputerUsePreferences();
+      } catch (error) {
+        console.warn(
+          "[settings-storage] computer-use-read-all failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.setComputerUsePreference(
+          payload.key,
+          payload.value,
+        );
+      } catch (error) {
+        console.warn(
+          "[settings-storage] computer-use-set-key failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.clearComputerUsePreference(payload.key);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] computer-use-clear-key failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
+    async (_event, payload) => {
+      try {
+        return settingsStorageService.migrateLegacyComputerUse(payload);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] computer-use-migrate-legacy failed:",
           error.code || error.message,
         );
         throw error;

@@ -1,9 +1,21 @@
-import { useContext, useState, useMemo, useCallback, useRef } from "react";
+import {
+  useContext,
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import { BarChart } from "../../../BUILTIN_COMPONENTs/bar_chart";
 import { SettingsSection } from "../appearance";
-import { readTokenUsageRecords, clearTokenUsageRecords } from "./storage";
+import {
+  readTokenUsageRecords,
+  clearTokenUsageRecords,
+  queryTokenUsage,
+  isTokenUsageSqlBacked,
+} from "./storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
@@ -715,12 +727,34 @@ export const TokenUsageSettings = () => {
   const isDark = onThemeMode === "dark_mode";
   const fontFamily = theme?.font?.fontFamily || "inherit";
 
-  // State
+  // State. The initial sync read is the instant paint (full fidelity in
+  // fallback mode; legacy snapshot + session appends in SQL mode).
   const [records, setRecords] = useState(() => readTokenUsageRecords());
   const [provider, setProvider] = useState(ALL);
   const [model, setModel] = useState(ALL);
   const [range, setRange] = useState("30d");
   const [granularity, setGranularity] = useState("day");
+
+  // SQL mode (Electron, Phase 2+): the selected date range runs as a SQL
+  // query instead of pulling the ever-growing full record set into the
+  // renderer (plan §3.2). Fallback mode keeps the legacy sync path — the
+  // effect is a no-op there. Rows arrive oldest-first; past the 50k query
+  // cap the NEWEST rows are kept (see queryTokenUsage in ./storage.js), so
+  // a truncated "All" range under-counts ancient usage, never recent usage.
+  useEffect(() => {
+    if (!isTokenUsageSqlBacked()) return undefined;
+    let cancelled = false;
+    queryTokenUsage({ startMs: rangeToCutoff(range), endMs: Date.now() })
+      .then((rows) => {
+        if (!cancelled) setRecords(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (!cancelled) setRecords(readTokenUsageRecords());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [range]);
 
   // Translated versions of module-level constants
   const rangeOptions = useMemo(() => RANGE_OPTIONS.map(opt => ({

@@ -16,7 +16,16 @@
 /*  prompting only trains reflexive clicking).                                    */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+import {
+  isComputerUsePrefsSqlMode,
+  readComputerUsePreferenceRecord,
+  writeComputerUsePreferenceRecord,
+  clearComputerUsePreferenceRecord,
+  validateConsentRecord,
+} from "./computer_use_preferences_sql";
+
 const STORAGE_KEY = "computer_use_consent";
+const PREF_KEY = "consent";
 
 // Bump this when computer use changes in a way that warrants re-consent.
 export const CONSENT_VERSION = 1;
@@ -24,29 +33,27 @@ export const CONSENT_VERSION = 1;
 const hasLocalStorage = () =>
   typeof window !== "undefined" && !!window.localStorage;
 
-const isValidIsoTimestamp = (value) => {
-  if (typeof value !== "string" || !value) return false;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed);
-};
-
 /**
  * Read the raw consent record, or null when absent / corrupted.
  * A record is only returned when it is shaped { version:int, acceptedAt:ISO }.
+ *
+ * Phase 2 (S3): in Electron with the SQL preload bridge the record lives in
+ * the computer_use_preferences table (read from a bootstrap-seeded mirror);
+ * everywhere else the legacy localStorage path below is byte-identical to
+ * pre-S3. Both paths FAIL CLOSED: anything unusable reads as no consent.
  */
 export const readComputerUseConsent = () => {
+  if (isComputerUsePrefsSqlMode()) {
+    // The mirror only holds validated records; re-validate anyway so the
+    // fail-closed gate never depends on how the record got there.
+    return validateConsentRecord(readComputerUsePreferenceRecord(PREF_KEY));
+  }
   if (!hasLocalStorage()) return null;
 
   try {
     const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
-    if (
-      raw &&
-      typeof raw === "object" &&
-      Number.isInteger(raw.version) &&
-      isValidIsoTimestamp(raw.acceptedAt)
-    ) {
-      return { version: raw.version, acceptedAt: raw.acceptedAt };
-    }
+    const record = validateConsentRecord(raw);
+    if (record) return record;
   } catch (_error) {
     // corrupted — treated as no consent
   }
@@ -73,6 +80,10 @@ export const recordComputerUseConsent = () => {
     acceptedAt: new Date().toISOString(),
   };
 
+  if (isComputerUsePrefsSqlMode()) {
+    writeComputerUsePreferenceRecord(PREF_KEY, record);
+    return record;
+  }
   if (hasLocalStorage()) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
@@ -88,6 +99,10 @@ export const recordComputerUseConsent = () => {
  * "turn off computer use" flow can also clear consent if desired).
  */
 export const clearComputerUseConsent = () => {
+  if (isComputerUsePrefsSqlMode()) {
+    clearComputerUsePreferenceRecord(PREF_KEY);
+    return;
+  }
   if (!hasLocalStorage()) return;
   try {
     window.localStorage.removeItem(STORAGE_KEY);

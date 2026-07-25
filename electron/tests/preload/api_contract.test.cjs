@@ -149,13 +149,49 @@ describe("preload API contract", () => {
 
   test("settings storage API keeps required method surface", () => {
     expect(Object.keys(exposed.settingsStorageAPI).sort()).toEqual(
-      ["bootstrap", "deleteNamespace", "migrateLegacy", "setNamespace"].sort(),
+      [
+        "bootstrap",
+        "deleteNamespace",
+        "migrateLegacy",
+        "setNamespace",
+        "appendTokenUsage",
+        "queryTokenUsage",
+        "clearTokenUsage",
+        "migrateLegacyTokenUsage",
+        "readDefaultToolkits",
+        "replaceDefaultToolkitsScope",
+        "migrateLegacyDefaultToolkits",
+        "readToolkitAutoApprove",
+        "replaceToolkitAutoApprove",
+        "migrateLegacyToolkitAutoApprove",
+        "readComputerUsePreferences",
+        "setComputerUsePreference",
+        "clearComputerUsePreference",
+        "migrateLegacyComputerUse",
+      ].sort(),
     );
-    ["bootstrap", "migrateLegacy", "setNamespace", "deleteNamespace"].forEach(
-      (method) => {
-        expect(typeof exposed.settingsStorageAPI[method]).toBe("function");
-      },
-    );
+    [
+      "bootstrap",
+      "migrateLegacy",
+      "setNamespace",
+      "deleteNamespace",
+      "appendTokenUsage",
+      "queryTokenUsage",
+      "clearTokenUsage",
+      "migrateLegacyTokenUsage",
+      "readDefaultToolkits",
+      "replaceDefaultToolkitsScope",
+      "migrateLegacyDefaultToolkits",
+      "readToolkitAutoApprove",
+      "replaceToolkitAutoApprove",
+      "migrateLegacyToolkitAutoApprove",
+      "readComputerUsePreferences",
+      "setComputerUsePreference",
+      "clearComputerUsePreference",
+      "migrateLegacyComputerUse",
+    ].forEach((method) => {
+      expect(typeof exposed.settingsStorageAPI[method]).toBe("function");
+    });
 
     ipcRenderer.sendSync.mockReturnValueOnce({
       available: true,
@@ -195,6 +231,121 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.SETTINGS_STORAGE.MIGRATE_LEGACY,
       migrationPayload,
+    );
+
+    const tokenRecord = {
+      timestamp: 1,
+      provider: "openai",
+      model: "gpt-5",
+      model_id: "openai:gpt-5",
+      consumed_tokens: 42,
+    };
+    exposed.settingsStorageAPI.appendTokenUsage(tokenRecord);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_APPEND,
+      { record: tokenRecord },
+    );
+
+    exposed.settingsStorageAPI.queryTokenUsage({ startMs: 1, endMs: 2 });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_QUERY,
+      { query: { startMs: 1, endMs: 2 } },
+    );
+
+    exposed.settingsStorageAPI.clearTokenUsage();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_CLEAR,
+    );
+
+    const tokenMigrationPayload = { migrationVersion: 1, records: [tokenRecord] };
+    exposed.settingsStorageAPI.migrateLegacyTokenUsage(tokenMigrationPayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_MIGRATE_LEGACY,
+      tokenMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.readDefaultToolkits();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_READ_ALL,
+    );
+
+    exposed.settingsStorageAPI.replaceDefaultToolkitsScope("global", ["core"]);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_REPLACE_SCOPE,
+      { scopeKey: "global", toolkitIds: ["core"] },
+    );
+
+    const defaultToolkitsMigrationPayload = {
+      migrationVersion: 1,
+      scopes: { global: ["core"] },
+    };
+    exposed.settingsStorageAPI.migrateLegacyDefaultToolkits(
+      defaultToolkitsMigrationPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_MIGRATE_LEGACY,
+      defaultToolkitsMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.readToolkitAutoApprove();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_READ_ALL,
+    );
+
+    const autoApprovePayload = {
+      toolkits: ["core"],
+      tools: [{ toolkitId: "core", toolName: "write_file" }],
+    };
+    exposed.settingsStorageAPI.replaceToolkitAutoApprove(autoApprovePayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_REPLACE_ALL,
+      autoApprovePayload,
+    );
+
+    const autoApproveMigrationPayload = {
+      migrationVersion: 1,
+      toolkits: ["core"],
+      tools: [],
+    };
+    exposed.settingsStorageAPI.migrateLegacyToolkitAutoApprove(
+      autoApproveMigrationPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_MIGRATE_LEGACY,
+      autoApproveMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.readComputerUsePreferences();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_READ_ALL,
+    );
+
+    const consentValue = { version: 1, acceptedAt: "2026-07-24T10:00:00.000Z" };
+    exposed.settingsStorageAPI.setComputerUsePreference(
+      "consent",
+      consentValue,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
+      { key: "consent", value: consentValue },
+    );
+
+    exposed.settingsStorageAPI.clearComputerUsePreference("enabled");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
+      { key: "enabled" },
+    );
+
+    const computerUseMigrationPayload = {
+      migrationVersion: 1,
+      records: { consent: consentValue },
+    };
+    exposed.settingsStorageAPI.migrateLegacyComputerUse(
+      computerUseMigrationPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
+      computerUseMigrationPayload,
     );
   });
 
