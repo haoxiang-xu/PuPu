@@ -52,6 +52,18 @@ const CHANNELS = Object.freeze({
     // returns a status object only (never a secret value or ciphertext).
     MIGRATE_PROVIDER_CREDENTIALS:
       "settings-storage:migrate-provider-credentials",
+    // Phase 5 — reset settings (plan §6-Phase5). A single SQL transaction that
+    // clears the non-sensitive settings + preference tables (settings /
+    // default_toolkits / toolkit_auto_approve / tool_auto_approve /
+    // computer_use_preferences) so every store reads back its DEFAULT_*.
+    // NEVER touches provider_credentials (API keys), token_usage_records,
+    // asset_metadata (MCP icons) or the meta migration state. Returns a status
+    // object with cleared row counts only — never a value or a secret.
+    RESET_SETTINGS: "settings-storage:reset-settings",
+    // Phase 5 — read-only settings.db metadata for the Local Storage page's
+    // "SQLite Settings database" category. Returns { sizeBytes, tables:
+    // [{ name, rows }] } — metadata ONLY, never a stored value or secret.
+    DB_STATS: "settings-storage:db-stats",
   }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",

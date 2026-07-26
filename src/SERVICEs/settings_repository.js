@@ -48,6 +48,16 @@ import {
   settingsStorageBridge,
   parseSettingsStorageErrorCode,
 } from "./bridges/settings_storage_bridge";
+// NOTE (plan §6-Phase5): a settings reset must ALSO drop the structured stores'
+// own SQL-mode in-memory mirrors (default toolkits, toolkit/tool auto-approve,
+// computer-use consent) — they are seeded once from the bootstrap snapshot and
+// never subscribe to this repository, so without an explicit reset they keep
+// serving pre-reset consent / auto-approvals / default-toolkit selections for
+// the rest of the session. That mirror-reset is orchestrated by the reset
+// COORDINATION POINT (src/COMPONENTs/settings/local_storage) right after
+// resetSettings() resolves — deliberately NOT here, so this low-level
+// repository never reverse-depends on the higher-level stores (which already
+// depend on it for computeSettingsMigrationDigest).
 
 const SETTINGS_STORAGE_KEY = "settings";
 export const SETTINGS_MIGRATION_MARKER_KEY = "pupu.settings_sql_migration.v1";
@@ -58,6 +68,28 @@ const SENSITIVE_MODEL_PROVIDER_KEYS = Object.freeze([
   "openai_api_key",
   "anthropic_api_key",
   "custom_provider_secrets",
+]);
+
+// Phase 5 (plan §6-Phase5): the standalone non-sensitive legacy preference
+// keys a settings reset strips from localStorage so a rollback to release N-1
+// (where localStorage is authoritative again) does NOT revive stale settings.
+// These mirror the STORAGE_KEY of each converted standalone store. The reset
+// is a STRIP-clear, never localStorage.clear() — the secret fields (inside the
+// `settings` root's model_providers namespace), the boot palette, the outbox
+// keys and the uiTesting prefs (plan §1.3 exclusions) are all preserved.
+// NOTE: `token_usage` is deliberately NOT listed here. The SQL reset preserves
+// the token_usage_records table (token history is not a resettable preference),
+// so the fallback path must likewise preserve its authoritative localStorage
+// mirror — otherwise a reset would wipe usage history in fallback mode while
+// keeping it in SQL mode. In SQL mode the localStorage `token_usage` key is a
+// dead dual-kept mirror and harmlessly survives.
+const LEGACY_RESETTABLE_STANDALONE_KEYS = Object.freeze([
+  "default_toolkits",
+  "toolkit_auto_approve",
+  "computer_use_consent",
+  "computer_use_enabled",
+  "computer_use_local_beta_enabled",
+  "agent_folder_tree_v1",
 ]);
 
 // Mirrors SETTINGS_STORAGE_LIMITS in
@@ -793,6 +825,103 @@ export const deleteNamespace = (namespace) => {
       throw error;
     }
   });
+};
+
+// Phase 5 (plan §6-Phase5): strip the non-sensitive settings root + standalone
+// preference keys from localStorage WITHOUT localStorage.clear(). The three
+// provider-secret fields (adapter-owned) are preserved verbatim; the boot
+// palette, outbox and uiTesting keys are never listed here so they survive.
+const stripNonSensitiveLegacySettings = () => {
+  if (!hasLocalStorage()) return;
+  // settings root: keep only the adapter-owned secret fields (if any exist).
+  try {
+    const root = readLocalRoot();
+    const providers = isPlainObject(root[MODEL_PROVIDERS_NAMESPACE])
+      ? root[MODEL_PROVIDERS_NAMESPACE]
+      : null;
+    const residual = {};
+    if (providers) {
+      for (const key of SENSITIVE_MODEL_PROVIDER_KEYS) {
+        if (hasOwn(providers, key)) {
+          residual[key] = providers[key];
+        }
+      }
+    }
+    if (Object.keys(residual).length > 0) {
+      writeLocalRoot({ [MODEL_PROVIDERS_NAMESPACE]: residual });
+    } else {
+      window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
+    }
+  } catch (_error) {
+    // best-effort: a strip failure must not abort the reset (SQL is already
+    // the authority in SQL mode; the fallback path degrades gracefully)
+  }
+  for (const key of LEGACY_RESETTABLE_STANDALONE_KEYS) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (_error) {
+      // best-effort per key
+    }
+  }
+};
+
+// Reset all non-sensitive settings + preferences to their defaults
+// (plan §6-Phase5). In SQL mode this runs the main-process SQL reset
+// transaction THROUGH the FIFO write queue, then strips the dual-kept legacy
+// localStorage, then empties the in-memory snapshot and notifies subscribers so
+// every converted store reads back its DEFAULT_*. In fallback mode (browser /
+// Jest / degraded) it is the strip-clear alone. NEVER clears provider secrets,
+// boot palette, outbox or uiTesting; NEVER localStorage.clear(). Provider API
+// keys, token-usage history and MCP icons are preserved: in SQL mode they live
+// in tables the reset transaction excludes; token-usage history's localStorage
+// mirror is likewise excluded from the strip list so the fallback path
+// preserves it too. The structured stores' in-memory mirrors are reset by the
+// coordination point after this resolves (see the import note at the top).
+export const resetSettings = async () => {
+  const s = ensureInit();
+  if (s.mode === "sql") {
+    // Route the SQL reset THROUGH the same global FIFO queue every namespace
+    // write uses, so it is serialized behind any already-queued setNamespace.
+    // A direct (unqueued) reset raced with an in-flight write: the write could
+    // land at the main process AFTER the reset's DELETE and survive it (then
+    // reappear on the next bootstrap). Queued, the reset's DELETE cannot run
+    // until every prior write has been acked; writes enqueued AFTER the reset
+    // run after the DELETE, as intended.
+    return enqueue(s, async () => {
+      if (state !== s) return { ok: false };
+      if (s.mode !== "sql") {
+        // Degraded to fallback while this reset waited in the queue (a queued
+        // migration failed): strip-clear the now-authoritative localStorage.
+        const oldKeys = Object.keys(readLocalRoot());
+        stripNonSensitiveLegacySettings();
+        notifyMany([
+          ...oldKeys,
+          ...LEGACY_RESETTABLE_STANDALONE_KEYS,
+          MODEL_PROVIDERS_NAMESPACE,
+        ]);
+        return { ok: true, mode: "localStorage" };
+      }
+      // If the SQL reset rejects, propagate and leave localStorage untouched so
+      // the reset is all-or-nothing from the user's perspective.
+      const result = await settingsStorageBridge.resetSettings();
+      if (state !== s) return { ok: false };
+      stripNonSensitiveLegacySettings();
+      const oldKeys = s.snapshot ? Object.keys(s.snapshot) : [];
+      s.snapshot = Object.create(null);
+      s.revisions = Object.create(null);
+      notifyMany([...oldKeys, MODEL_PROVIDERS_NAMESPACE]);
+      return { ok: true, mode: "sql", result };
+    });
+  }
+  // Fallback mode: strip-clear the non-sensitive legacy localStorage directly.
+  const oldKeys = Object.keys(readLocalRoot());
+  stripNonSensitiveLegacySettings();
+  notifyMany([
+    ...oldKeys,
+    ...LEGACY_RESETTABLE_STANDALONE_KEYS,
+    MODEL_PROVIDERS_NAMESPACE,
+  ]);
+  return { ok: true, mode: "localStorage" };
 };
 
 export const subscribeSettings = (listener) => {

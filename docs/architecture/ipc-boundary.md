@@ -52,7 +52,7 @@ Renderer listens: ipcRenderer.on(channel, callback)
 
 ## Exposed Window APIs
 
-Eleven production global objects are exposed via `contextBridge.exposeInMainWorld`
+Twelve production global objects are exposed via `contextBridge.exposeInMainWorld`
 (plus `window.__pupuTestBridge`, which is exposed only outside production):
 
 | Global | Source Bridge | Purpose |
@@ -68,6 +68,12 @@ Eleven production global objects are exposed via `contextBridge.exposeInMainWorl
 | `window.windowStateAPI` | `window_state_bridge.js` | Minimize, maximize, close |
 | `window.screenshotAPI` | `screenshot_bridge.js` | Capture window screenshot, check availability |
 | `window.chatStorageAPI` | `chat_storage_bridge.js` | Bootstrap-read and write chat storage |
+| `window.settingsStorageAPI` | `settings_storage_bridge.js` | Bootstrap-read (sendSync) and write App Settings to `settings.db` |
+
+> **Secret-read never crosses IPC.** The main-process decrypted-secret reader
+> (`readDecryptedProviderSecret`) is an internal method and is deliberately
+> **not** exposed on any channel or bridge. The renderer sends secret
+> *descriptors*, never receives raw key values (see Request Flow & Streaming).
 
 ---
 
@@ -85,6 +91,34 @@ All IPC channels are defined in `electron/shared/channels.js`.
 |---------|---------|
 | `chat-storage:bootstrap-read` | invoke/handle |
 | `chat-storage:write` | invoke/handle |
+
+### SETTINGS_STORAGE Channels
+
+Back the `settings.db` App-Settings store. `bootstrap-read` is the only
+synchronous channel (renderer repository needs a snapshot at module-init);
+everything else is `invoke/handle` so persistence is acknowledged.
+
+| Channel | Pattern |
+|---------|---------|
+| `settings-storage:bootstrap-read` | sendSync (synchronous) |
+| `settings-storage:migrate-legacy` | invoke/handle |
+| `settings-storage:set-namespace` | invoke/handle |
+| `settings-storage:delete-namespace` | invoke/handle |
+| `settings-storage:token-usage-append` | invoke/handle |
+| `settings-storage:token-usage-query` | invoke/handle |
+| `settings-storage:token-usage-clear` | invoke/handle |
+| `settings-storage:default-toolkits-*` (get/set) | invoke/handle |
+| `settings-storage:toolkit-auto-approve-*` | invoke/handle |
+| `settings-storage:computer-use-*` (get/set per key) | invoke/handle |
+| `settings-storage:mcp-icon-*` (get/set/delete) | invoke/handle |
+| `settings-storage:migrate-provider-credentials` | invoke/handle |
+| `settings-storage:reset-settings` | invoke/handle |
+
+> The authoritative, exact channel names live in `electron/shared/channels.js`
+> under `SETTINGS_STORAGE`; the list above is grouped by store. Secret ciphertext
+> is written via the inbound `migrate-provider-credentials` channel (renderer
+> hands its own legacy plaintext to main for encryption and only gets a status
+> back) — there is **no** channel that reads a stored secret value back out.
 
 ### UPDATE Channels
 | Channel | Pattern |
@@ -224,13 +258,14 @@ and the dev Test API.
 
 ## Main Process Services
 
-Eight services are initialized in `electron/main/index.js`:
+Services are initialized in `electron/main/index.js`:
 
 | Service | Factory | Responsibilities |
 |---------|---------|-----------------|
 | `windowService` | `createMainWindowService` | Main window lifecycle, single-instance lock |
 | `runtimeService` | `createRuntimeService` | File system, workspace, dialogs |
 | `chatStorageService` | `createChatStorageService` | Chat-storage bootstrap-read and write |
+| `settingsStorageService` | `createSettingsStorageService` | `settings.db` schema/migration, namespace + structured-store read/write, `safeStorage` secret encryption, MCP-icon assets; `init()` runs before the renderer window is created |
 | `ollamaService` | `createOllamaService` | Ollama server lifecycle, model install |
 | `unchainService` | `createUnchainService` | Flask sidecar lifecycle, HTTP proxy, SSE relay |
 | `updateService` | `createUpdateService` | electron-updater auto-update |

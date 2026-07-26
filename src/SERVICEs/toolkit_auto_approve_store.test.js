@@ -6,6 +6,7 @@ import {
   isToolkitAutoApproveSqlBacked,
   flushToolkitAutoApproveWrites,
   resetToolkitAutoApproveStoreForTests,
+  resetToolkitAutoApproveMirrorForSettingsReset,
   TOOLKIT_AUTO_APPROVE_MIGRATION_MARKER_KEY,
 } from "./toolkit_auto_approve_store";
 
@@ -599,5 +600,38 @@ describe("toolkit_auto_approve_store (SQL mode)", () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  test("SECURITY: reset-settings mirror reset empties the SQL-mode approvals (fail closed)", () => {
+    installToolkitPrefsApi({
+      toolkits: ["core"],
+      tools: [{ toolkitId: "core", toolName: "write_file" }],
+    });
+    expect(isToolkitAutoApproveSqlBacked()).toBe(true);
+    expect(isToolkitAutoApprove("core")).toBe(true);
+    expect(isToolAutoApproved("core", "write_file")).toBe(true);
+
+    // Simulates settings_repository.resetSettings() after the SQL tables were
+    // cleared: no approval may survive in the mirror for the rest of the session.
+    resetToolkitAutoApproveMirrorForSettingsReset();
+
+    expect(getAutoApproveToolkits()).toEqual([]);
+    expect(isToolkitAutoApprove("core")).toBe(false);
+    expect(isToolAutoApproved("core", "write_file")).toBe(false);
+  });
+
+  test("reset-settings mirror reset is a no-op when never initialized or not SQL-backed", () => {
+    expect(() => resetToolkitAutoApproveMirrorForSettingsReset()).not.toThrow();
+    expect(isToolkitAutoApproveSqlBacked()).toBe(false);
+
+    // Fallback mode: reads come from the stripped localStorage; the helper
+    // leaves the legacy store untouched.
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({ version: 2, toolkits: ["core"], tools: [] }),
+    );
+    expect(getAutoApproveToolkits()).toEqual(["core"]);
+    resetToolkitAutoApproveMirrorForSettingsReset();
+    expect(getAutoApproveToolkits()).toEqual(["core"]);
   });
 });

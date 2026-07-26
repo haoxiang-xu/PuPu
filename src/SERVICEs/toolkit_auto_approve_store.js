@@ -600,6 +600,22 @@ export const flushToolkitAutoApproveWrites = async () => {
   } while (state === s && tail !== s.queueTail);
 };
 
+// Reset-settings (plan §6-Phase5). SECURITY-RELEVANT: this store gates which
+// tool confirmations are skipped, so its reset is fail-closed. After the
+// main-process SQL transaction clears the toolkit_auto_approve + tool_auto_approve
+// tables, the settings-reset coordination point (src/COMPONENTs/settings/
+// local_storage) calls this once resetSettings() resolves to empty the SQL-mode
+// in-memory mirror for the REST of the session — otherwise the pre-reset
+// approvals stay live (the agent could keep auto-approving on stale mirror
+// state) until the next app launch. No-op when the store was never initialized
+// (no mirror to clear) or is not SQL-backed (fallback reads hit the
+// already-stripped localStorage directly). Never runs ensureInit().
+export const resetToolkitAutoApproveMirrorForSettingsReset = () => {
+  const s = state;
+  if (!s || s.mode !== "sql") return;
+  seedMirror(s, [], []);
+};
+
 /** Test-only: drop module state so the next call re-runs init. */
 export const resetToolkitAutoApproveStoreForTests = () => {
   state = null;

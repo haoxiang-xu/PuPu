@@ -72,6 +72,16 @@ const PROVIDER_CREDENTIALS_MIGRATION_METHODS = Object.freeze([
   "migrateProviderCredentials",
 ]);
 
+// Phase 5 reset-settings + read-only db-stats surface (plan §6-Phase5). Probed
+// separately from REQUIRED_METHODS for the same old-preload reason: a
+// pre-Phase-5 preload keeps every other store fully available while the reset
+// control falls back to the renderer's strip-clear path and the "SQLite
+// Settings database" storage category renders as unavailable.
+const RESET_AND_DB_STATS_METHODS = Object.freeze([
+  "resetSettings",
+  "getDbStats",
+]);
+
 // Matches the FIRST "[<code>] " token ANYWHERE in the message — deliberately
 // not anchored to the start: by the time an ipcRenderer.invoke rejection
 // reaches the renderer, Electron has wrapped it as
@@ -241,6 +251,15 @@ export const isProviderCredentialsMigrationBridgeAvailable = () => {
   return true;
 };
 
+export const isResetAndDbStatsBridgeAvailable = () => {
+  const api = resolveApi();
+  if (!api) return false;
+  for (const method of RESET_AND_DB_STATS_METHODS) {
+    if (typeof api[method] !== "function") return false;
+  }
+  return true;
+};
+
 const invokeBridge = (operation, args) => {
   const api = resolveApi();
   if (!api) return Promise.reject(unavailableError(operation));
@@ -357,6 +376,15 @@ export const settingsStorageBridge = {
     isProviderCredentialsMigrationBridgeAvailable,
   migrateProviderCredentials: (payload) =>
     invokeOptionalBridge("migrateProviderCredentials", [payload]),
+
+  // Phase 5 reset-settings + read-only db-stats (plan §6-Phase5). resetSettings
+  // clears the non-sensitive settings/preference tables in one SQL transaction;
+  // getDbStats returns settings.db metadata only. Same no-swallowing rule — the
+  // repository orchestrates the reset and the metrics reader logs and hides the
+  // "SQLite Settings database" category on failure.
+  isResetAndDbStatsAvailable: isResetAndDbStatsBridgeAvailable,
+  resetSettings: () => invokeOptionalBridge("resetSettings", []),
+  getDbStats: () => invokeOptionalBridge("getDbStats", []),
 };
 
 export default settingsStorageBridge;

@@ -61,6 +61,16 @@ const makeFakeService = (overrides = {}) => ({
     migrated: ["openai"],
     failed: [],
   })),
+  resetSettings: jest.fn(() => ({
+    ok: true,
+    cleared: { settings: 3 },
+    preserved: ["provider_credentials", "token_usage_records"],
+  })),
+  getDbStats: jest.fn(() => ({
+    ok: true,
+    sizeBytes: 4096,
+    tables: [{ name: "settings", rows: 3 }],
+  })),
   ...overrides,
 });
 
@@ -143,6 +153,8 @@ describe("settings storage IPC handlers", () => {
       CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
       CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
       CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
+      CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
+      CHANNELS.SETTINGS_STORAGE.DB_STATS,
     ]) {
       expect(ipcMain.getHandle(channel)).toBeDefined();
       expect(ipcMain.getOn(channel)).toBeUndefined();
@@ -781,8 +793,67 @@ describe("settings storage IPC handlers", () => {
         CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
         CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
         CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+        CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
+        CHANNELS.SETTINGS_STORAGE.DB_STATS,
       ].sort(),
     );
+  });
+
+  // ---- Phase 5: reset settings + read-only db stats (plan §6-Phase5) -------
+
+  test("reset-settings delegates to the service and resolves its status", async () => {
+    const ipcMain = makeFakeIpcMain();
+    const service = makeFakeService();
+    registerSettingsStorageHandlers({
+      ipcMain,
+      settingsStorageService: service,
+    });
+
+    const handler = ipcMain.getHandle(CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS);
+    expect(handler).toBeDefined();
+    await expect(handler({})).resolves.toMatchObject({ ok: true });
+    expect(service.resetSettings).toHaveBeenCalledTimes(1);
+  });
+
+  test("reset-settings rethrows service failures (code only in the log)", async () => {
+    const ipcMain = makeFakeIpcMain();
+    const failure = Object.assign(new Error("[settings_storage_unavailable] x"), {
+      code: "settings_storage_unavailable",
+    });
+    const service = makeFakeService({
+      resetSettings: jest.fn(() => {
+        throw failure;
+      }),
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      registerSettingsStorageHandlers({
+        ipcMain,
+        settingsStorageService: service,
+      });
+      await expect(
+        ipcMain.getHandle(CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS)({}),
+      ).rejects.toBe(failure);
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("db-stats delegates to the service and resolves metadata only", async () => {
+    const ipcMain = makeFakeIpcMain();
+    const service = makeFakeService();
+    registerSettingsStorageHandlers({
+      ipcMain,
+      settingsStorageService: service,
+    });
+
+    const handler = ipcMain.getHandle(CHANNELS.SETTINGS_STORAGE.DB_STATS);
+    expect(handler).toBeDefined();
+    const result = await handler({});
+    expect(result).toMatchObject({ ok: true, sizeBytes: 4096 });
+    expect(result.tables).toEqual([{ name: "settings", rows: 3 }]);
+    expect(service.getDbStats).toHaveBeenCalledTimes(1);
   });
 
   // ---- Phase 4 (S7): provider secret migration trigger --------------------

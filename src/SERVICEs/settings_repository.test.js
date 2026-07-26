@@ -4,6 +4,7 @@ import {
   replaceNamespace,
   updateNamespace,
   deleteNamespace,
+  resetSettings,
   subscribeSettings,
   flushSettingsWrites,
   getSettingsPersistenceStatus,
@@ -1093,5 +1094,260 @@ describe("quit-time flush wiring (beforeunload/pagehide)", () => {
     await waitFor(() => getSettingsPersistenceStatus().pendingWrites === 0);
     expect(api.bootstrap).toHaveBeenCalledTimes(1);
     expect(api.setNamespace).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5: resetSettings (plan §6-Phase5)
+// ---------------------------------------------------------------------------
+
+describe("resetSettings (Phase 5)", () => {
+  const BOOT_PALETTE_KEY = "pupu_boot_palette";
+  const OUTBOX_KEY = "pupu.turn_mutation_outbox.v1";
+  const UITESTING_KEY = "pupu.uiTesting.prefs";
+
+  const seedLegacyEverything = () => {
+    seedRoot({
+      app: { setup_completed: true },
+      appearance: { theme_mode: "dark_mode" },
+      model_providers: {
+        custom_providers: [{ id: "x" }],
+        openai_api_key: "sk-secret-openai",
+        anthropic_api_key: "sk-secret-anthropic",
+        custom_provider_secrets: { x: "hs-secret" },
+      },
+    });
+    window.localStorage.setItem("token_usage", JSON.stringify([{ a: 1 }]));
+    window.localStorage.setItem("default_toolkits", JSON.stringify({ g: [] }));
+    window.localStorage.setItem("toolkit_auto_approve", JSON.stringify({}));
+    window.localStorage.setItem("computer_use_consent", JSON.stringify({}));
+    window.localStorage.setItem("computer_use_enabled", JSON.stringify({}));
+    window.localStorage.setItem(
+      "computer_use_local_beta_enabled",
+      JSON.stringify({}),
+    );
+    window.localStorage.setItem("agent_folder_tree_v1", JSON.stringify({}));
+    // protected keys (plan §1.3) — MUST survive a reset
+    window.localStorage.setItem(BOOT_PALETTE_KEY, JSON.stringify({ c: 1 }));
+    window.localStorage.setItem(OUTBOX_KEY, JSON.stringify({ o: 1 }));
+    window.localStorage.setItem(UITESTING_KEY, JSON.stringify({ u: 1 }));
+    // chats (separate storage) — never touched by a settings reset
+    window.localStorage.setItem("chats", JSON.stringify({ z: 1 }));
+  };
+
+  const expectProtectedSurvived = () => {
+    expect(window.localStorage.getItem(BOOT_PALETTE_KEY)).toBe(
+      JSON.stringify({ c: 1 }),
+    );
+    expect(window.localStorage.getItem(OUTBOX_KEY)).toBe(
+      JSON.stringify({ o: 1 }),
+    );
+    expect(window.localStorage.getItem(UITESTING_KEY)).toBe(
+      JSON.stringify({ u: 1 }),
+    );
+    expect(window.localStorage.getItem("chats")).toBe(JSON.stringify({ z: 1 }));
+  };
+
+  const expectStandaloneCleared = () => {
+    for (const key of [
+      "default_toolkits",
+      "toolkit_auto_approve",
+      "computer_use_consent",
+      "computer_use_enabled",
+      "computer_use_local_beta_enabled",
+      "agent_folder_tree_v1",
+    ]) {
+      expect(window.localStorage.getItem(key)).toBeNull();
+    }
+  };
+
+  // token_usage history is deliberately preserved by a reset (mirrors the SQL
+  // path preserving token_usage_records — it is not a resettable preference).
+  const expectTokenUsagePreserved = () => {
+    expect(window.localStorage.getItem("token_usage")).toBe(
+      JSON.stringify([{ a: 1 }]),
+    );
+  };
+
+  test("fallback mode strips non-sensitive legacy but preserves secrets + §1.3 keys", async () => {
+    // no bridge → fallback mode
+    seedLegacyEverything();
+
+    await resetSettings();
+
+    // secret fields survive inside the settings root; non-secret namespaces gone
+    const root = parseRoot();
+    expect(root.app).toBeUndefined();
+    expect(root.appearance).toBeUndefined();
+    expect(root.model_providers).toEqual({
+      openai_api_key: "sk-secret-openai",
+      anthropic_api_key: "sk-secret-anthropic",
+      custom_provider_secrets: { x: "hs-secret" },
+    });
+    expectStandaloneCleared();
+    expectTokenUsagePreserved();
+    expectProtectedSurvived();
+  });
+
+  test("fallback mode removes the settings key entirely when no secrets exist", async () => {
+    seedRoot({ app: { setup_completed: true }, ui: { side_menu_open: true } });
+
+    await resetSettings();
+
+    expect(window.localStorage.getItem("settings")).toBeNull();
+  });
+
+  test("fallback mode NEVER calls localStorage.clear()", async () => {
+    seedLegacyEverything();
+    const clearSpy = jest.spyOn(Storage.prototype, "clear");
+    try {
+      await resetSettings();
+      expect(clearSpy).not.toHaveBeenCalled();
+    } finally {
+      clearSpy.mockRestore();
+    }
+  });
+
+  test("SQL mode runs the SQL reset, strips legacy, empties the snapshot + notifies", async () => {
+    const api = installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          migration: {
+            state: "complete",
+            version: 1,
+            digest: "d",
+            migratedAt: 1,
+          },
+          namespaces: { appearance: { theme_mode: "dark_mode" } },
+          revisions: { appearance: 0 },
+        }),
+      ),
+      resetSettings: jest.fn(() =>
+        Promise.resolve({ ok: true, cleared: { settings: 1 } }),
+      ),
+    });
+
+    // Prime SQL mode + capture a subscriber notification.
+    expect(readNamespace("appearance", null)).toEqual({
+      theme_mode: "dark_mode",
+    });
+    const seen = [];
+    const unsub = subscribeSettings(({ namespace }) => seen.push(namespace));
+
+    // Seed dual-kept legacy localStorage (secret + protected + standalone).
+    seedLegacyEverything();
+
+    const result = await resetSettings();
+    expect(result).toMatchObject({ ok: true, mode: "sql" });
+    expect(api.resetSettings).toHaveBeenCalledTimes(1);
+
+    // Snapshot is empty now → reads fall through to the caller's default.
+    expect(readNamespace("appearance", "DEFAULT")).toBe("DEFAULT");
+    // Subscribers were notified for the cleared namespace.
+    expect(seen).toContain("appearance");
+
+    // Legacy localStorage was strip-cleared: secrets + §1.3 keys survive.
+    const root = parseRoot();
+    expect(root.app).toBeUndefined();
+    expect(root.model_providers).toEqual({
+      openai_api_key: "sk-secret-openai",
+      anthropic_api_key: "sk-secret-anthropic",
+      custom_provider_secrets: { x: "hs-secret" },
+    });
+    expectStandaloneCleared();
+    expectTokenUsagePreserved();
+    expectProtectedSurvived();
+
+    unsub();
+  });
+
+  test("SQL mode propagates a reset IPC failure and leaves localStorage untouched", async () => {
+    const failure = Object.assign(new Error("[boom] reset failed"), {
+      code: "boom",
+    });
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          migration: {
+            state: "complete",
+            version: 1,
+            digest: "d",
+            migratedAt: 1,
+          },
+          namespaces: { appearance: { theme_mode: "dark_mode" } },
+          revisions: { appearance: 0 },
+        }),
+      ),
+      resetSettings: jest.fn(() => Promise.reject(failure)),
+    });
+    // Prime SQL mode.
+    expect(readNamespace("appearance", null)).toEqual({
+      theme_mode: "dark_mode",
+    });
+    seedRoot({ app: { setup_completed: true } });
+
+    await expect(resetSettings()).rejects.toBe(failure);
+    // localStorage was NOT stripped because the SQL reset rejected first.
+    expect(parseRoot().app).toEqual({ setup_completed: true });
+  });
+
+  test("SQL mode: reset is queued behind an in-flight write (no write survives)", async () => {
+    const order = [];
+    const setAck = deferred();
+    const api = installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          migration: {
+            state: "complete",
+            version: 1,
+            digest: "d",
+            migratedAt: 1,
+          },
+          namespaces: { appearance: { theme_mode: "dark_mode" } },
+          revisions: { appearance: 0 },
+        }),
+      ),
+      setNamespace: jest.fn(async (namespace) => {
+        order.push(`set:${namespace}:start`);
+        await setAck.promise;
+        order.push(`set:${namespace}:ack`);
+        return { ok: true, namespace, revision: 1, updatedAt: 2 };
+      }),
+      resetSettings: jest.fn(async () => {
+        order.push("reset:run");
+        return { ok: true, cleared: { settings: 1 } };
+      }),
+    });
+
+    // Prime SQL mode (bootstrap is complete → no migration is queued).
+    expect(readNamespace("appearance", null)).toEqual({
+      theme_mode: "dark_mode",
+    });
+
+    // Start a write whose IPC will not ack until we release setAck.
+    const writePromise = replaceNamespace("ui", { side_menu_open: true });
+    await tick();
+    expect(order).toEqual(["set:ui:start"]);
+
+    // Fire the reset while that write is still in flight.
+    const resetPromise = resetSettings();
+    await tick();
+    // The reset's DELETE must NOT have run yet — it is queued behind the write.
+    expect(api.resetSettings).not.toHaveBeenCalled();
+
+    // Release the write's ack; the reset then runs strictly after it.
+    setAck.resolve();
+    const writeResult = await writePromise;
+    const resetResult = await resetPromise;
+
+    expect(writeResult).toMatchObject({ ok: true, namespace: "ui" });
+    expect(resetResult).toMatchObject({ ok: true, mode: "sql" });
+    // Ordering proves DB safety: the write's IPC completed BEFORE the DELETE, so
+    // an in-flight write can no longer land after the reset and survive it.
+    expect(order).toEqual(["set:ui:start", "set:ui:ack", "reset:run"]);
+    // After the reset the concurrent write and the seeded namespace both read
+    // back the caller's default (the in-memory snapshot was emptied).
+    expect(readNamespace("ui", "DEFAULT")).toBe("DEFAULT");
+    expect(readNamespace("appearance", "DEFAULT")).toBe("DEFAULT");
   });
 });

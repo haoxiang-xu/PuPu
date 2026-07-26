@@ -155,6 +155,17 @@ const createSettingsStorageBridge = (ipcRenderer) => {
       payload,
     );
 
+  // ---- Phase 5: reset settings + read-only db stats (plan §6-Phase5) -------
+  // resetSettings clears the non-sensitive settings/preference tables in one
+  // SQL transaction (secrets, token history and MCP icons are kept); getDbStats
+  // returns settings.db metadata only. Both resolve to plain status objects and
+  // never carry a stored value or a secret.
+  const resetSettings = () =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS);
+
+  const getDbStats = () =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.DB_STATS);
+
   return {
     bootstrap,
     migrateLegacy,
@@ -180,6 +191,8 @@ const createSettingsStorageBridge = (ipcRenderer) => {
     listMcpIconOwners,
     migrateMcpIconsLegacy,
     migrateProviderCredentials,
+    resetSettings,
+    getDbStats,
   };
 };
 

@@ -3014,6 +3014,108 @@ const createSettingsStorageService = ({
     };
   };
 
+  // ---- Phase 5: reset settings + db stats (plan §6-Phase5) -----------------
+
+  // The non-sensitive tables cleared by a settings reset. Deleting every
+  // `settings` namespace row makes each converted store read back its own
+  // DEFAULT_* on the next bootstrap; clearing the toolkit-preference and
+  // computer-use tables returns those stores to their fail-closed / default
+  // state. Wholly EXCLUDED (never cleared): provider_credentials (API key
+  // ciphertext), token_usage_records (token history) and asset_metadata (MCP
+  // icon metadata + the icon files on disk). The meta table is only PARTIALLY
+  // preserved: its migration-state keys are kept (so a reset never triggers a
+  // re-migration), but the one default_toolkits empty-scopes preference key is
+  // cleared below — so `meta` is NOT reported as a wholly-preserved table in
+  // the return value. The chats.db is a separate database entirely and is never
+  // touched here.
+  const RESET_SETTINGS_TABLES = Object.freeze([
+    "settings",
+    "default_toolkits",
+    "toolkit_auto_approve",
+    "tool_auto_approve",
+    "computer_use_preferences",
+  ]);
+
+  // Reset every non-sensitive setting + preference in ONE transaction. A
+  // failure rolls back the whole delete (the renderer's snapshot stays intact).
+  // The return value carries per-table cleared row counts only — never a value.
+  const resetSettings = () => {
+    requireDb();
+    return db.tx(() => {
+      const cleared = {};
+      for (const table of RESET_SETTINGS_TABLES) {
+        const result = db.prepare(`DELETE FROM ${table}`).run();
+        cleared[table] = Number(result.changes);
+      }
+      // The explicit-empty-scopes marker for default_toolkits is an app
+      // preference (NOT migration state): a scope the user explicitly emptied
+      // reads back as [] instead of the ["core"] default. Clear it too so a
+      // reset genuinely returns to defaults. This is a single targeted meta
+      // key — the migration-state meta keys are left untouched.
+      db.prepare("DELETE FROM meta WHERE key = ?").run(
+        DEFAULT_TOOLKITS_EMPTY_SCOPES_META_KEY,
+      );
+      return {
+        ok: true,
+        cleared,
+        // Identity list of the tables a reset preserves WHOLLY (documentation
+        // for callers/tests — never any value or secret). `meta` is omitted on
+        // purpose: its migration-state keys survive, but the reset also clears
+        // the default_toolkits empty-scopes key above, so the table is only
+        // partially preserved and does not belong in a wholly-preserved list.
+        preserved: Object.freeze([
+          "provider_credentials",
+          "token_usage_records",
+          "asset_metadata",
+        ]),
+      };
+    });
+  };
+
+  // Read-only settings.db metadata (plan §6-Phase5). Returns the on-disk byte
+  // size (main file plus any WAL/SHM sidecars) and a per-table row count over a
+  // fixed allow-list of table names. NEVER returns a stored value or a secret —
+  // only COUNT(*) and file sizes. A per-table count failure yields rows:0 for
+  // that table rather than taking down the whole call.
+  const DB_STATS_TABLES = Object.freeze([
+    "settings",
+    "meta",
+    "token_usage_records",
+    "default_toolkits",
+    "toolkit_auto_approve",
+    "tool_auto_approve",
+    "computer_use_preferences",
+    "asset_metadata",
+    "provider_credentials",
+  ]);
+
+  const getDbStats = () => {
+    requireDb();
+    let sizeBytes = 0;
+    for (const suffix of ["", "-wal", "-shm"]) {
+      try {
+        const filePath = `${dbPath}${suffix}`;
+        if (fs.existsSync(filePath)) {
+          sizeBytes += Number(fs.statSync(filePath).size) || 0;
+        }
+      } catch (_error) {
+        // a missing/unreadable sidecar just contributes 0 bytes
+      }
+    }
+    const tables = DB_STATS_TABLES.map((name) => {
+      let rows = 0;
+      try {
+        // Table name comes from the fixed allow-list above, never user input.
+        const row = db.prepare(`SELECT COUNT(*) AS c FROM ${name}`).get();
+        rows = row ? Number(row.c) : 0;
+      } catch (_error) {
+        rows = 0;
+      }
+      return { name, rows };
+    });
+    return { ok: true, sizeBytes, tables };
+  };
+
   // before-quit hook. WAL makes per-transaction durability sufficient — this
   // just releases the connection cleanly. Idempotent.
   const close = () => {
@@ -3057,6 +3159,9 @@ const createSettingsStorageService = ({
     // Phase 4 (S2): legacy→ciphertext secret migration + dual-keep.
     migrateProviderCredentials,
     getProviderCredentialsMigrationMeta,
+    // Phase 5: reset settings + read-only db stats (plan §6-Phase5).
+    resetSettings,
+    getDbStats,
     close,
   };
 };

@@ -1063,3 +1063,187 @@ describeIfSqlite("settings storage service (sqlite)", () => {
     expect(fs.existsSync(path.join(dir, "chats.db"))).toBe(false);
   });
 });
+
+// ---- Phase 5: reset settings + read-only db stats (plan §6-Phase5) ---------
+
+describeIfSqlite("settings storage reset + db stats (sqlite)", () => {
+  let dir;
+  let services;
+
+  // Deterministic fake safeStorage so a reset test can seed a real
+  // provider_credentials row and assert the reset PRESERVES it.
+  const makeFakeSafeStorage = () => ({
+    isEncryptionAvailable: () => true,
+    getSelectedStorageBackend: () => "gnome_libsecret",
+    encryptString: (str) => Buffer.from(`enc::${str}`, "utf8"),
+    decryptString: (buf) => Buffer.from(buf).toString("utf8").replace(/^enc::/, ""),
+  });
+
+  const makeService = () => {
+    const service = createSettingsStorageService({
+      app: fakeApp(dir),
+      fs,
+      path,
+      sqlite,
+      safeStorage: makeFakeSafeStorage(),
+      // darwin: gate-3 keyring check skipped, so setProviderCredential works.
+      platform: "darwin",
+    });
+    services.push(service);
+    return service;
+  };
+
+  const openRawDb = () => new sqlite.DatabaseSync(path.join(dir, "settings.db"));
+
+  const countRows = (table) => {
+    const raw = openRawDb();
+    try {
+      return Number(raw.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get().c);
+    } finally {
+      raw.close();
+    }
+  };
+
+  // Seed one row into every reset-relevant + reset-preserved table.
+  const seedEverything = (service) => {
+    service.setNamespace("app", { setup_completed: true });
+    service.setNamespace("appearance", { theme_mode: "dark_mode" });
+    service.replaceDefaultToolkitsScope("global", ["core", "web"]);
+    service.replaceToolkitAutoApprove({ toolkits: ["core"], tools: [] });
+    service.setComputerUsePreference("enabled", {
+      version: 1,
+      enabled: true,
+      updatedAt: new Date().toISOString(),
+    });
+    service.appendTokenUsage({
+      timestamp: Date.now(),
+      provider: "openai",
+      model: "gpt-4.1",
+      model_id: "openai:gpt-4.1",
+      consumed_tokens: 100,
+      input_tokens: 60,
+      output_tokens: 40,
+    });
+    service.setProviderCredential("provider", "openai", "sk-preserve-me");
+  };
+
+  beforeEach(() => {
+    dir = makeTempDir();
+    services = [];
+  });
+
+  afterEach(() => {
+    for (const service of services) {
+      try {
+        service.close();
+      } catch (_error) {
+        // already closed
+      }
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("resetSettings before init fails with settings_storage_unavailable", () => {
+    const service = makeService();
+    expectThrowCode(() => service.resetSettings(), "settings_storage_unavailable");
+  });
+
+  test("resetSettings clears settings + preference tables, preserves secrets/token/icons (meta only partially)", () => {
+    const service = makeService();
+    service.init();
+    seedEverything(service);
+
+    // Sanity: everything is present before the reset.
+    expect(countRows("settings")).toBeGreaterThan(0);
+    expect(countRows("default_toolkits")).toBeGreaterThan(0);
+    expect(countRows("toolkit_auto_approve")).toBeGreaterThan(0);
+    expect(countRows("computer_use_preferences")).toBeGreaterThan(0);
+    expect(countRows("token_usage_records")).toBe(1);
+    expect(countRows("provider_credentials")).toBe(1);
+
+    const result = service.resetSettings();
+    expect(result.ok).toBe(true);
+    expect(result.cleared.settings).toBeGreaterThan(0);
+    expect(result.cleared.default_toolkits).toBeGreaterThan(0);
+    expect(result.cleared.toolkit_auto_approve).toBeGreaterThan(0);
+    expect(result.cleared.computer_use_preferences).toBeGreaterThan(0);
+    // `meta` is deliberately absent: its migration-state keys survive, but the
+    // reset clears the default_toolkits empty-scopes key, so the table is only
+    // partially preserved and is not listed as a wholly-preserved table.
+    expect([...result.preserved].sort()).toEqual([
+      "asset_metadata",
+      "provider_credentials",
+      "token_usage_records",
+    ]);
+    expect(result.preserved).not.toContain("meta");
+
+    // Cleared tables are empty.
+    expect(countRows("settings")).toBe(0);
+    expect(countRows("default_toolkits")).toBe(0);
+    expect(countRows("toolkit_auto_approve")).toBe(0);
+    expect(countRows("tool_auto_approve")).toBe(0);
+    expect(countRows("computer_use_preferences")).toBe(0);
+
+    // Preserved tables are UNTOUCHED.
+    expect(countRows("token_usage_records")).toBe(1);
+    expect(countRows("provider_credentials")).toBe(1);
+    // meta still holds the migration schema_version row.
+    expect(countRows("meta")).toBeGreaterThan(0);
+
+    // The preserved secret is still decryptable after the reset.
+    expect(service.readDecryptedProviderSecret("provider", "openai")).toBe(
+      "sk-preserve-me",
+    );
+
+    // Bootstrap now reads back an empty settings surface (stores → defaults).
+    const snapshot = service.getBootstrapSnapshot();
+    expect(snapshot.namespaces).toEqual({});
+  });
+
+  test("resetSettings clears the default_toolkits explicit-empty-scopes meta", () => {
+    const service = makeService();
+    service.init();
+    // Explicitly empty a scope: it persists as [] via the empty-scopes meta.
+    service.replaceDefaultToolkitsScope("global", []);
+    service.resetSettings();
+    // After reset the scope reads back the ["core"] default, not [].
+    const scopes = service.readDefaultToolkits().scopes;
+    expect(scopes.global === undefined || scopes.global).toBeTruthy();
+    const globalScope = scopes.global;
+    if (globalScope !== undefined) {
+      expect(globalScope).not.toEqual([]);
+    }
+  });
+
+  test("getDbStats returns metadata only (size + per-table row counts)", () => {
+    const service = makeService();
+    service.init();
+    seedEverything(service);
+
+    const stats = service.getDbStats();
+    expect(stats.ok).toBe(true);
+    expect(typeof stats.sizeBytes).toBe("number");
+    expect(stats.sizeBytes).toBeGreaterThan(0);
+    expect(Array.isArray(stats.tables)).toBe(true);
+
+    const byName = Object.fromEntries(
+      stats.tables.map((entry) => [entry.name, entry.rows]),
+    );
+    expect(byName.settings).toBeGreaterThan(0);
+    expect(byName.token_usage_records).toBe(1);
+    expect(byName.provider_credentials).toBe(1);
+
+    // Metadata only: every table entry is exactly { name, rows } — no values.
+    for (const entry of stats.tables) {
+      expect(Object.keys(entry).sort()).toEqual(["name", "rows"]);
+      expect(typeof entry.rows).toBe("number");
+    }
+    // The stats JSON must never carry a stored secret.
+    expect(JSON.stringify(stats)).not.toContain("sk-preserve-me");
+  });
+
+  test("getDbStats before init fails with settings_storage_unavailable", () => {
+    const service = makeService();
+    expectThrowCode(() => service.getDbStats(), "settings_storage_unavailable");
+  });
+});

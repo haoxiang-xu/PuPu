@@ -52,7 +52,10 @@ Built by `_session_collection_name()` / the prefix helpers in `memory_embeddings
 
 ## Frontend Configuration
 
-Memory settings are stored in `localStorage.settings.memory` and injected into the payload by `injectMemoryIntoPayload()` in `api.unchain.js`.
+Memory settings are authoritative in the `memory` namespace of `settings.db`
+(read through the settings repository memory snapshot; `localStorage.settings.memory`
+remains a browser/degraded fallback). They are injected into the payload by
+`injectMemoryIntoPayload()` in `api.unchain.js`.
 
 Injected fields:
 
@@ -64,6 +67,18 @@ Injected fields:
 | `memory_embedding_model` | string? | Specific model (optional) |
 | `memory_long_term_enabled` | boolean | Long-term memory toggle |
 | `memory_long_term_namespace` | string | Namespace (default: `"pupu:default"`) |
+
+### Embedding API Key
+
+When embeddings resolve to OpenAI, the OpenAI key is **not** placed in the memory
+payload by the renderer. Like all provider secrets it now lives as
+`safeStorage`-encrypted ciphertext in `settings.db`'s `provider_credentials`
+table. The renderer emits a secret descriptor `{ kind: "provider", id: "openai",
+channel: "embedding" }` (the built-in provider name lives in `id`, not `kind`);
+the main process decrypts and injects the key before the request
+leaves (see [Request Flow & Streaming](request-flow-and-streaming.md#4-provider-secret-injection-main-process)).
+The dedicated `embedding` channel exists so a payload can carry, for example, an
+Anthropic chat model key and an OpenAI embedding key at the same time.
 
 ---
 

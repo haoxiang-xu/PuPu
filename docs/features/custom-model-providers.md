@@ -1,7 +1,20 @@
 # 自定义 Model Provider（可分享 JSON 配置）— 设计文档
 
-> **状态：设计稿，未实施**（2026-07-15）
+> **状态：设计稿；核心已实施**（设计 2026-07-15）
 > 产出方式：4 份代码勘察 → 3 份独立设计（最小改动 / 产品优先 / 健壮安全优先）→ 3 视角评审（架构 / 安全 / 产品）→ 合成。评审记录见 §14。
+>
+> **存储勘误（App Settings → SQLite 迁移后，2026-07-25）**：本文 §3 / §9.7 描述的
+> "定义与 secret 明文存 localStorage" 已过期。迁移后：
+> - **定义**（`custom_providers`）存 `settings.db` 的 `model_providers` namespace（经
+>   settings repository / `custom_provider_store.js`），仍是可分享、无密钥的形状；
+> - **secret**（原 `custom_provider_secrets`）与内置 openai/anthropic key 一样，改存
+>   `settings.db` 的 `provider_credentials` 表，经 Electron `safeStorage` 加密（机器绑定密文）；
+> - 每请求的 key 注入**从 renderer 移到主进程**：renderer 只发 secret 描述符
+>   `{ kind: "custom_provider", id, channel }`，主进程解密后注入并剥除描述符（原
+>   `options.custom_provider_api_key` 专名字段仍是主进程注入到出站 payload 的落点）。
+> - 删除 legacy 明文 localStorage secret 是独立的 N+1 变更，本阶段**未做**（dual-keep 只读保留）。
+>
+> 其余架构（协议孪生映射、白名单导出、catalog 前端合并、`model_io_factory` 闭包）不变。
 > 动机场景：SAP Hyperspace LLM proxy —— 本地 `hai proxy start` 在 `http://localhost:6655/anthropic` 暴露 Anthropic 兼容 Messages API，`x-api-key` 认证，模型 ID 形如 `anthropic--claude-4.5-haiku`。
 > 文中 file:line 引用来自勘察时点（dev 分支），行号漂移时以函数名为准。
 
@@ -490,7 +503,9 @@ provider 行 [导出] → `buildProviderExportPayload(slug)` → Electron `showS
 4. **日志红线**：Flask 新增 `_redact_secrets(obj)`（key 名匹配 `/(api[_-]?key|authorization|x-api-key|token|secret)/i` → `"***"`），任何 logger 打印 options/custom_provider/测试请求体前必须过之，SDK 异常 message 上抛前同样过滤；Electron 不新增 payload 级日志；前端禁止 console.log 注入后 payload；单测断言 key 值不出现在 redact 输出。
 5. **恶意分享配置威胁模型**：base_url 钓 key → 审查卡片高亮 + 独立 key 槽（拿不到官方 key）+ 默认 disabled + 覆盖导入强制重验（§8.3）；视觉仿冒 → 保留字名单 + Custom 徽标 + base_url 常驻展示；原型污染/超深 JSON → 白名单拷贝 + forbidden_key + 256KB 上限；明文 http 远端 → 警告 + 常驻徽标（localhost 放行，对齐 custom MCP 先例）。
 6. **服务端重校验**：前端校验只做门控，adapter 全量重验，不信任 renderer。
-7. **已知限制**：key 明文存 localStorage（与 openai_api_key 现状同级），OS keychain 迁移列为独立议题，不阻塞本功能。
+7. **已实施更新**（原"已知限制"）：secret 已随 App Settings→SQLite 迁移，改存
+   `settings.db` `provider_credentials` 表、经 `safeStorage` 加密（与 openai/anthropic key 同级），
+   不再是 localStorage 明文。legacy 明文 localStorage 副本 dual-keep 只读保留，删除是独立 N+1 变更（见顶部勘误）。
 
 ---
 

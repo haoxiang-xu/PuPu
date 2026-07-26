@@ -173,22 +173,97 @@ const unsubscribe = subscribeChatsStore(callback);
 
 ---
 
-## Storage Helpers (Other)
+## App Settings Storage (SQLite)
 
-Settings are stored separately under `localStorage.getItem("settings")`:
+> App Settings no longer live authoritatively in `localStorage`. In Electron the
+> single source of truth is a SQLite database managed by the main process. This
+> section reflects the completed App-Settings → SQLite migration (see
+> [settings-sqlite-migration-plan.md](settings-sqlite-migration-plan.md)).
 
-```javascript
-{
-  model_providers: { ... },
-  memory: { ... },
-  runtime: { workspaces: [...], workspace_root: "..." },
-  appearance: { theme_mode: "dark_mode" | "light_mode" | "sync_with_browser" },
-  ui: { side_menu_open: boolean },
-  feature_flags: { ... },
-}
+### Data Authority
+
+```text
+Electron runtime
+  SQLite  userData/settings.db   = authoritative App Settings
+  renderer memory snapshot       = synchronous read cache (bootstrapped from SQL)
+  localStorage                   = fallback backend (browser/Jest/degraded)
+                                 + read-only dual-keep of legacy keys
+
+Browser / non-Electron
+  localStorage                   = fallback backend
 ```
 
-> Never write to localStorage directly from components. Always use SERVICEs helpers.
+Components never decide which backend is live. That decision exists only inside
+the unified renderer repository (`src/SERVICEs/settings_repository.js`).
+
+### Database Location & Tables
+
+`userData/settings.db` (separate from `chats.db`; WAL journal, `foreign_keys=ON`,
+`busy_timeout=5000`, `schema_version = 2`):
+
+| Table | Holds |
+|-------|-------|
+| `settings` | Per-namespace JSON blobs (`app`, `appearance`, `ui`, `runtime`, `memory`, `model_providers`, `feature_flags`, `dev`, `agent_folder_tree_v1`, plus any unknown namespaces preserved verbatim) |
+| `meta` | `schema_version`, per-store `<store>_migration_state` / digest markers |
+| `token_usage_records` | Token usage rows (queried by date window, not loaded whole) |
+| `default_toolkits` | Per-scope default toolkit selection |
+| `toolkit_auto_approve` | Toolkit-level auto-approval |
+| `tool_auto_approve` | Tool-level auto-approval (`toolkitId` + `tool_name`) |
+| `computer_use_preferences` | `consent` / `enabled` / `local_beta_enabled` (fail-closed) |
+| `asset_metadata` | Custom MCP icon file metadata (icons themselves live on disk) |
+| `provider_credentials` | `safeStorage`-encrypted provider secret ciphertext |
+
+### Renderer Repository
+
+`settings_repository.js` holds the one in-memory snapshot and a per-namespace
+serialized write queue:
+
+- **Bootstrap** — preload exposes a synchronous `sendSync` read
+  (`settings-storage:bootstrap-read`) so business getters stay synchronous at
+  module-init time.
+- **Getters are synchronous** — they read the memory snapshot.
+- **Mutations are async** — an optimistic in-memory update, then an
+  `invoke/handle` IPC persist; writes to the same namespace are serialized so a
+  late mutation never overwrites a newer one.
+- Logs carry only namespace + error code, never values.
+
+### localStorage: Fallback + Dual-Keep
+
+- In browser/Jest/degraded mode the repository transparently falls back to
+  `localStorage` — existing store helpers keep their `localStorage` fallback
+  paths **intentionally** (do not remove them).
+- After a successful migration the legacy `localStorage` keys are **kept
+  read-only (dual-keep)**, not double-written. Deleting migrated non-secret keys
+  is a separate N+1 change and is **not** done in this phase. SQL migration state
+  (not the local marker) is authoritative when deciding cleanup.
+- "Reset settings" runs a SQL transaction — it must **never** call
+  `localStorage.clear()` (that would nuke boot palette, crash-recovery outboxes,
+  and legacy secrets).
+
+### Secrets
+
+Provider API keys (`openai` / `anthropic` / custom-provider secrets) live as
+`safeStorage`-encrypted ciphertext in the `provider_credentials` table. The
+encryption is machine-bound (`safeStorage.isEncryptionAvailable()` gated,
+fail-closed when unavailable). The ordinary `settings` snapshot and bootstrap
+IPC are stripped of raw secrets — only non-sensitive provider definitions plus a
+"configured" boolean travel to the renderer. Legacy plaintext `localStorage`
+secrets are dual-keep read-only for cross-version rollback; their deletion is a
+separate N+1 change. See
+[Request Flow & Streaming](request-flow-and-streaming.md) for how secrets are
+injected in the main process.
+
+### Custom MCP Icons on Disk
+
+Icon bytes are stored as files under
+`userData/assets/mcp-icons/<sanitized-id>-<sha256-prefix>.<ext>` (PNG stored as
+decoded bytes, SVG as raw UTF-8 text); `asset_metadata` holds only the metadata
+row. Writes are atomic (temp file + rename → upsert SQL → delete old file), and
+a missing file self-heals by dropping the SQL row.
+
+> Never write to `localStorage` directly from components. Always go through the
+> settings repository / SERVICEs store helpers, and secrets only through the
+> secret adapter.
 
 ---
 

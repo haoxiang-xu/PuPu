@@ -174,6 +174,8 @@ describe("preload API contract", () => {
         "listMcpIconOwners",
         "migrateMcpIconsLegacy",
         "migrateProviderCredentials",
+        "resetSettings",
+        "getDbStats",
       ].sort(),
     );
     [
@@ -201,6 +203,8 @@ describe("preload API contract", () => {
       "listMcpIconOwners",
       "migrateMcpIconsLegacy",
       "migrateProviderCredentials",
+      "resetSettings",
+      "getDbStats",
     ].forEach((method) => {
       expect(typeof exposed.settingsStorageAPI[method]).toBe("function");
     });

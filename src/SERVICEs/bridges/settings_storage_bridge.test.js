@@ -6,6 +6,7 @@ import {
   isComputerUsePrefsBridgeAvailable,
   isMcpIconBridgeAvailable,
   isProviderCredentialsMigrationBridgeAvailable,
+  isResetAndDbStatsBridgeAvailable,
   parseSettingsStorageErrorCode,
   getSessionBootstrapSnapshot,
   getSqlStoreMigrationMeta,
@@ -108,6 +109,17 @@ const installMockApiWithProviderCredentialsMigration = (overrides = {}) =>
         migratedCount: 1,
         failedCount: 0,
       }),
+    ),
+    ...overrides,
+  });
+
+const installMockApiWithResetAndDbStats = (overrides = {}) =>
+  installMockApi({
+    resetSettings: jest.fn(() =>
+      Promise.resolve({ ok: true, cleared: { settings: 2 } }),
+    ),
+    getDbStats: jest.fn(() =>
+      Promise.resolve({ ok: true, sizeBytes: 4096, tables: [] }),
     ),
     ...overrides,
   });
@@ -303,6 +315,48 @@ describe("availability probing", () => {
         credentials: {},
       }),
     ).rejects.toThrow(/^\[settings_storage_unavailable\]/);
+  });
+
+  test("reset + db-stats availability is probed separately from the Phase 1A surface", () => {
+    // a pre-Phase-5 preload: base bridge available, reset/db-stats NOT
+    installMockApi();
+    expect(isSettingsStorageBridgeAvailable()).toBe(true);
+    expect(isResetAndDbStatsBridgeAvailable()).toBe(false);
+    expect(settingsStorageBridge.isResetAndDbStatsAvailable()).toBe(false);
+
+    const api = installMockApiWithResetAndDbStats();
+    expect(isResetAndDbStatsBridgeAvailable()).toBe(true);
+
+    // removing either method flips only this probe
+    delete api.getDbStats;
+    expect(isResetAndDbStatsBridgeAvailable()).toBe(false);
+    expect(isSettingsStorageBridgeAvailable()).toBe(true);
+  });
+
+  test("resetSettings forwards through the optional invoker (no args)", async () => {
+    const api = installMockApiWithResetAndDbStats();
+    await expect(settingsStorageBridge.resetSettings()).resolves.toEqual({
+      ok: true,
+      cleared: { settings: 2 },
+    });
+    expect(api.resetSettings).toHaveBeenCalledWith();
+  });
+
+  test("getDbStats forwards through the optional invoker (no args)", async () => {
+    const api = installMockApiWithResetAndDbStats();
+    await expect(settingsStorageBridge.getDbStats()).resolves.toEqual({
+      ok: true,
+      sizeBytes: 4096,
+      tables: [],
+    });
+    expect(api.getDbStats).toHaveBeenCalledWith();
+  });
+
+  test("resetSettings rejects when the bridge method is absent", async () => {
+    installMockApi();
+    await expect(settingsStorageBridge.resetSettings()).rejects.toThrow(
+      /^\[settings_storage_unavailable\]/,
+    );
   });
 });
 

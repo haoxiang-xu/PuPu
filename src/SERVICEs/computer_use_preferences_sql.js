@@ -474,6 +474,25 @@ export const flushComputerUsePreferenceWrites = async () => {
   } while (state === s && tail !== s.queueTail);
 };
 
+// Reset-settings (plan §6-Phase5). SECURITY-RELEVANT: the consent/enabled
+// mirror gates the computer-use auto-approval path, so its reset is fail-closed.
+// After the main-process SQL transaction clears the computer_use_preferences
+// table, the settings-reset coordination point (src/COMPONENTs/settings/
+// local_storage) calls this once resetSettings() resolves to empty the SQL-mode
+// in-memory mirror for the REST of the session — otherwise readComputerUseConsent()
+// / readComputerUseEnabled() keep returning the pre-reset records (the agent
+// could keep auto-approving on stale consent) until the next app launch. The
+// mirror stays "ready" so cleared reads return the fail-closed default (null =
+// NOT consented / NOT enabled), never a not-ready null. No-op when the store
+// was never initialized (no mirror to clear) or is not SQL-backed (fallback
+// reads hit the already-stripped localStorage directly). Never runs ensureInit().
+export const resetComputerUsePreferencesMirrorForSettingsReset = () => {
+  const s = state;
+  if (!s || s.mode !== "sql") return;
+  s.mirrorEntries = Object.create(null);
+  s.mirrorReady = true;
+};
+
 /** Test-only: drop module state so the next call re-runs init. */
 export const resetComputerUsePreferencesForTests = () => {
   state = null;

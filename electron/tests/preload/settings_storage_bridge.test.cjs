@@ -450,7 +450,38 @@ describe("settingsStorageAPI bridge", () => {
     );
   });
 
-  test("bridge surface is exactly the Phase 1A + Phase 2 + Phase 3 + Phase 4 method set", () => {
+  test("resetSettings invokes the reset channel without a payload", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { ok: true, cleared: { settings: 2 } },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+
+    await expect(api.resetSettings()).resolves.toEqual({
+      ok: true,
+      cleared: { settings: 2 },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
+    );
+  });
+
+  test("getDbStats invokes the db-stats channel without a payload", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { ok: true, sizeBytes: 4096, tables: [] },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+
+    await expect(api.getDbStats()).resolves.toEqual({
+      ok: true,
+      sizeBytes: 4096,
+      tables: [],
+    });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DB_STATS,
+    );
+  });
+
+  test("bridge surface is exactly the Phase 1A + Phase 2 + Phase 3 + Phase 4 + Phase 5 method set", () => {
     const api = createSettingsStorageBridge(makeFakeIpcRenderer());
     expect(Object.keys(api).sort()).toEqual(
       [
@@ -478,6 +509,8 @@ describe("settingsStorageAPI bridge", () => {
         "listMcpIconOwners",
         "migrateMcpIconsLegacy",
         "migrateProviderCredentials",
+        "resetSettings",
+        "getDbStats",
       ].sort(),
     );
   });

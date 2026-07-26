@@ -5,6 +5,7 @@ import {
   isDefaultToolkitsSqlBacked,
   flushDefaultToolkitWrites,
   resetDefaultToolkitStoreForTests,
+  resetDefaultToolkitMirrorForSettingsReset,
   DEFAULT_TOOLKITS_MIGRATION_MARKER_KEY,
 } from "./default_toolkit_store";
 
@@ -470,5 +471,37 @@ describe("default_toolkit_store (SQL mode)", () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  test("reset-settings mirror reset reseeds the SQL-mode mirror to the core default", () => {
+    installToolkitPrefsApi({
+      scopes: { global: ["core", "zeta"], ws1: ["mcp.memory.memory"] },
+    });
+    expect(isDefaultToolkitsSqlBacked()).toBe(true);
+    expect(getDefaultToolkitSelection("global")).toEqual(["core", "zeta"]);
+    expect(getDefaultToolkitSelection("ws1")).toEqual(["mcp.memory.memory"]);
+
+    // Simulates settings_repository.resetSettings() after the SQL tables were
+    // cleared: the mirror must read back defaults for the rest of the session.
+    resetDefaultToolkitMirrorForSettingsReset();
+
+    expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
+    expect(getDefaultToolkitSelection("ws1")).toEqual([]);
+  });
+
+  test("reset-settings mirror reset is a no-op when the store was never initialized or not SQL-backed", () => {
+    // Never initialized (no bridge, state === null): must not throw or force init.
+    expect(() => resetDefaultToolkitMirrorForSettingsReset()).not.toThrow();
+    expect(isDefaultToolkitsSqlBacked()).toBe(false);
+
+    // Fallback mode (bridge missing): reads come straight from the stripped
+    // localStorage, so the reset helper leaves the store untouched.
+    window.localStorage.setItem(
+      "default_toolkits",
+      JSON.stringify({ version: 2, scopes: { global: ["core", "zeta"] } }),
+    );
+    expect(getDefaultToolkitSelection("global")).toEqual(["core", "zeta"]);
+    resetDefaultToolkitMirrorForSettingsReset();
+    expect(getDefaultToolkitSelection("global")).toEqual(["core", "zeta"]);
   });
 });

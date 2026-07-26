@@ -31,6 +31,8 @@ const SETTINGS_STORAGE_INVOKE_CHANNELS = Object.freeze([
   CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
   CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
   CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+  CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
+  CHANNELS.SETTINGS_STORAGE.DB_STATS,
 ]);
 
 // Failure logs must not amplify attacker-controlled payloads: the namespace
@@ -454,6 +456,36 @@ const registerSettingsStorageHandlers = ({
       }
     },
   );
+
+  // ---- Phase 5: reset settings + read-only db stats (plan §6-Phase5) -------
+  // reset-settings clears the non-sensitive settings/preference tables in one
+  // transaction; db-stats returns settings.db metadata only. Both log the
+  // store name + error code only — the reset return carries row counts and the
+  // stats return carries file size / row counts, never a value or a secret.
+
+  ipcMain.handle(CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS, async () => {
+    try {
+      return settingsStorageService.resetSettings();
+    } catch (error) {
+      console.warn(
+        "[settings-storage] reset-settings failed:",
+        error.code || error.message,
+      );
+      throw error;
+    }
+  });
+
+  ipcMain.handle(CHANNELS.SETTINGS_STORAGE.DB_STATS, async () => {
+    try {
+      return settingsStorageService.getDbStats();
+    } catch (error) {
+      console.warn(
+        "[settings-storage] db-stats failed:",
+        error.code || error.message,
+      );
+      throw error;
+    }
+  });
 };
 
 module.exports = {

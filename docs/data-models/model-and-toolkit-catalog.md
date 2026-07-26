@@ -51,37 +51,51 @@ Returned by `api.unchain.getModelCatalog()`:
 
 ## Provider Key Storage
 
-Stored in `localStorage.settings.model_providers`:
+Provider configuration is split between a **non-sensitive** part and the
+**secret**:
 
-```javascript
-{
-  openai: { api_key: string },
-  anthropic: { api_key: string },
-}
-```
+- **Non-sensitive** provider definitions live in the `model_providers` namespace
+  of `settings.db` (read through the settings repository; `localStorage.settings.model_providers`
+  is a browser/degraded fallback). The ordinary settings snapshot exposes only
+  provider definitions plus a "configured" boolean — never a raw key.
+- **Secrets** (`openai` / `anthropic` API keys) live as `safeStorage`-encrypted
+  ciphertext in the `provider_credentials` table of `settings.db`.
 
-Injected into the payload at stream time by `injectProviderApiKeyIntoPayload()`.
+Keys are injected at stream time by the **main process**, not the renderer: the
+renderer emits a secret descriptor `[{ kind, id, channel }]` and the main process
+decrypts and injects the value before the POST (see
+[Request Flow & Streaming](../architecture/request-flow-and-streaming.md#4-provider-secret-injection-main-process)).
 
 Supported remote providers: `openai`, `anthropic`.
 
+> Legacy plaintext `localStorage` secrets are dual-keep read-only for rollback;
+> deleting them is a separate N+1 change, not done in this phase.
+
 ## Custom Provider Storage
 
-User-defined providers live under the same `localStorage.settings.model_providers` namespace, physically split between shareable definitions and local-only secrets (design: `docs/features/custom-model-providers.md`):
+User-defined provider **definitions** live in the `model_providers` namespace of
+`settings.db` (shareable, never contain a key); their **secrets** live in the
+same `provider_credentials` table as the built-in keys, encrypted via
+`safeStorage` (design: `docs/features/custom-model-providers.md`):
 
 ```javascript
+// model_providers namespace (non-sensitive, shareable)
 {
   custom_providers: [           // shareable definitions — never contain a key
     { config_version, id, display_name, protocol, base_url, auth,
       extra_headers, timeout_seconds, default_model, models: [...],
       notes, enabled, source, created_at, updated_at }
   ],
-  custom_provider_secrets: {    // local-only, keyed by slug
-    "<slug>": "<api key value>"
-  },
 }
+// provider_credentials table (safeStorage ciphertext), descriptor kind: "custom_provider"
 ```
 
-Read/write only through `src/SERVICEs/custom_provider_store.js`. Model IDs are addressed as `custom.<slug>:<model_id>`; the definition plus the key (dedicated `custom_provider_api_key` option field) are injected per request by `injectCustomProviderIntoPayload()`. Custom models are merged into the picker catalog client-side — the backend `/models/catalog` does not know about them.
+Read/write only through `src/SERVICEs/custom_provider_store.js` (definitions) and
+the secret adapter (keys). Model IDs are addressed as `custom.<slug>:<model_id>`;
+the definition is injected per request, and the key is injected by the main
+process via the `kind: "custom_provider"` secret descriptor. Custom models are
+merged into the picker catalog client-side — the backend `/models/catalog` does
+not know about them.
 
 ---
 
@@ -156,13 +170,22 @@ description = "What this tool does"
 
 ## Frontend Toolkit Stores
 
+Both stores are authoritative in `settings.db` structured tables (with a
+`localStorage` fallback for browser/degraded mode). The store module signatures
+are unchanged — callers do not know which backend is live.
+
 ### Default Toolkit Store (`default_toolkit_store.js`)
 
-Persists the user's default toolkit selection. New chats inherit these defaults.
+Persists the user's default toolkit selection in the `default_toolkits` table
+(per-scope rows). New chats inherit these defaults.
 
 ### Toolkit Auto-Approve Store (`toolkit_auto_approve_store.js`)
 
-Persists toolkit-level auto-approval plus tool-level keys in `toolkitId:toolName` form so confirmation-required tools can be auto-approved without cross-toolkit collisions.
+Persists toolkit-level auto-approval in `toolkit_auto_approve` and tool-level
+approval in `tool_auto_approve` (`toolkitId` + `tool_name` rows), so
+confirmation-required tools can be auto-approved without cross-toolkit
+collisions. The computer toolkit is never allowed to cache approval, and
+migration never widens the approved set.
 
 ---
 

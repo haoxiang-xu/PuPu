@@ -1471,6 +1471,69 @@ preload+renderer bridge、unchain/service.js（注入接缝）、api.unchain.js�
 provider_secret_status/provider_secret_migration + boot_sync、App.js（触发挂载）、及全部 co-located 测试
 （三变体 .cjs/.js/src stub）。精确清单用上述 grep 重生成。
 
+## 11F. Phase 5 实施记录与裁决（2026-07-26，实施后追加）
+
+状态：Phase 5（清理 + 文档）已实施。代码切片 ‖ 文档切片并行，四视角审查
+（reset-safety xhigh / correctness / conventions / docs-accuracy）8 findings 经两轮修复 +
+一轮 4 条 Minor 修复全部关闭。测试 electron 150 suites / 1429、renderer 310 suites / 2955 全绿。
+非破坏性冒烟通过（DB_STATS 元数据）。改动未 commit（43 文件白名单见 11F.4）。
+
+### 11F.1 Reset Settings（CEO 拍板范围 = 只清非敏感设置+偏好）
+
+- 主进程 `resetSettings()` 一个 SQL 事务：清 `settings` 全 namespace + `default_toolkits` +
+  `toolkit_auto_approve` + `tool_auto_approve` + `computer_use_preferences`。
+- **保留**：`provider_credentials`（API key 密文）、`token_usage_records`（token 历史）、
+  `asset_metadata` + 图标文件、`meta`（迁移状态）、`chats.db`。
+- **绝不用 `localStorage.clear()`**：改为剥离式清 legacy 非敏感 key，**不碰** secret 三字段 /
+  pupu_boot_palette / outbox 三兄弟 / uiTesting。
+- IPC `RESET_SETTINGS` + `DB_STATS`（只读元数据，size/rows，无任何 value/secret）。
+- `local_storage/index.js` 的 `handleClearAll` 从 `localStorage.clear()` 改为调 reset-settings
+  （confirm 门控保留）。reset 后同步调三个 store 的 `reset*MirrorForSettingsReset()` 立即撤销
+  auto-approve/computer-use consent（安全控制本会话即失效，不等重启）；镜像 reset 编排在协调层
+  （local_storage/index.js），避免 settings_repository 反向依赖上层 store。
+- SQL reset 走 repository FIFO 队列（防 in-flight 写 ack 幸存 reset）。
+
+### 11F.2 Local Storage 页分类 + 文档
+
+- Local Storage 设置页三分类：Browser cache / SQLite Settings database（经 DB_STATS）/ Runtime files；
+  storage_metrics 增 SQLite DB 大小。11 个 locale 补文案。
+- 9 份文档更新到 SQLite 权威架构（storage-model/ipc-boundary/request-flow/memory-system/
+  model-and-toolkit-catalog/workspace-system/custom-model-providers/project-conventions/DEV_GUIDE）。
+  据 §11-§11E 已实施事实，未臆造"已删 legacy secret"（实为 dual-keep N+1 才删）。
+
+### 11F.3 遗留
+
+- reset 镜像撤销责任在组件层（local_storage/index.js），resetSettings 未来若有新 caller 需一并调
+  三个镜像 reset（当前唯一 caller 两处已覆盖）。替代方案是 subscribe/event 解耦，本轮按"不反向依赖"处理。
+- custom-model-providers.md 是设计稿型文档，只加顶部存储勘误块 + 更新一处，§3 的旧 localStorage
+  shape 代码块保留但已被勘误块标注过期。storage-model.md 的 chat 存储章节仍描述 localStorage
+  （chat 存储迁移不在本迁移范围）。
+- **删 legacy localStorage secret 仍是 N+1 独立变更**（本 Phase 未做，dual-keep 保留）。
+
+### 11F.4 Phase 5 提交白名单（43 文件，独立提交，禁 git add -A）
+
+`git status --porcelain | grep -E "^.. (src|electron|docs)/"` 全集：settings_storage
+service/register_handlers、shared+preload channels、preload+renderer bridge、settings_repository、
+local_storage/{index,utils/storage_metrics}、11 locale、9 docs 及 co-located 测试。
+
+## 11G. 迁移全景（2026-07-26，5 阶段完成）
+
+App Settings → SQLite 迁移**五阶段全部实施完成**（未 commit，各阶段独立白名单）：
+
+| Phase | 内容 | 状态 | commit |
+|---|---|---|---|
+| 1A | settings.db 基础设施 + IPC + repository 契约 | 冒烟过 | a1fa965（并发提交） |
+| 1B | renderer repository + 核心 namespace 迁移 | 真机冒烟过 | a1fa965 |
+| 2 | 结构化 store（token_usage/toolkit/computer_use/agent folders） | 真机冒烟过 | c2695d0 |
+| 3 | MCP 图标落磁盘 + asset_metadata | 真机冒烟过（含路径穿越） | db501e3 |
+| 4 | provider secret → safeStorage 加密 + 注入移主进程 | 真机三态冒烟过 | db501e3 |
+| 5 | 清理 + reset SQL 事务 + 9 文档 | 非破坏冒烟过 | 未提交 |
+
+单向门（已过，不可轻易回退）：settings.db schema v2、各 store 迁移契约、secret 描述符列表契约、
+renderer 稳态不见原始 secret 的安全姿态。**未做（future）**：删 legacy localStorage（N+1，需
+configuredCredentials live-refresh 前置）、MCP/OAuth `~/.pupu/*.json` 加密（独立 backend 工作）、
+storage-model.md 的 chat 存储章节（chat 迁移不在本范围）。
+
 ## 12. 实现 Agent 的首个行动清单
 
 1. 读取仓库规则和本计划。

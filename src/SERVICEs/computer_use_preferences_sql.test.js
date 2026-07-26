@@ -6,6 +6,7 @@ import {
   clearComputerUsePreferenceRecord,
   flushComputerUsePreferenceWrites,
   resetComputerUsePreferencesForTests,
+  resetComputerUsePreferencesMirrorForSettingsReset,
   validateConsentRecord,
   validateEnabledRecord,
   validateLocalBetaRecord,
@@ -539,5 +540,35 @@ describe("legacy migration", () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+});
+
+describe("reset-settings mirror reset (Phase 5)", () => {
+  test("SECURITY: empties the SQL-mode consent/enabled mirror so reads fail closed", () => {
+    installComputerUseApi({
+      entries: { consent: consent(), enabled: enabled() },
+    });
+    expect(isComputerUsePrefsSqlMode()).toBe(true);
+    expect(readComputerUsePreferenceRecord("consent")).toEqual(consent());
+    expect(readComputerUsePreferenceRecord("enabled")).toEqual(enabled());
+
+    // Simulates settings_repository.resetSettings() after the SQL table was
+    // cleared: consent/enabled must read back the fail-closed default (null)
+    // for the rest of the session, not the pre-reset records.
+    resetComputerUsePreferencesMirrorForSettingsReset();
+
+    expect(readComputerUsePreferenceRecord("consent")).toBeNull();
+    expect(readComputerUsePreferenceRecord("enabled")).toBeNull();
+    expect(readComputerUsePreferenceRecord("local_beta_enabled")).toBeNull();
+    // Still SQL-backed (the store is not degraded) — the mirror stays ready.
+    expect(isComputerUsePrefsSqlMode()).toBe(true);
+  });
+
+  test("is a no-op when the store was never initialized or is not SQL-backed", () => {
+    // Never initialized (no bridge): must not throw or force init.
+    expect(() =>
+      resetComputerUsePreferencesMirrorForSettingsReset(),
+    ).not.toThrow();
+    expect(isComputerUsePrefsSqlMode()).toBe(false);
   });
 });

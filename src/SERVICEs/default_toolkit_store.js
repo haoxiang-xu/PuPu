@@ -495,6 +495,22 @@ export const flushDefaultToolkitWrites = async () => {
   } while (state === s && tail !== s.queueTail);
 };
 
+// Reset-settings (plan §6-Phase5). After the main-process SQL transaction
+// clears the default_toolkits table, the settings-reset coordination point
+// (src/COMPONENTs/settings/local_storage) calls this once resetSettings()
+// resolves so the SQL-mode in-memory mirror is reseeded to the default scopes
+// (global → ["core"]) for the REST of the session — otherwise reads keep
+// serving the pre-reset selection until the next app launch. No-op when the
+// store was never initialized (no mirror to clear) or is not SQL-backed
+// (fallback reads hit the already-stripped localStorage directly). Never runs
+// ensureInit(): resetting must not force a store into existence / trigger a
+// bootstrap sendSync.
+export const resetDefaultToolkitMirrorForSettingsReset = () => {
+  const s = state;
+  if (!s || s.mode !== "sql") return;
+  seedMirrorFromScopes(s, {});
+};
+
 /** Test-only: drop module state so the next call re-runs init. */
 export const resetDefaultToolkitStoreForTests = () => {
   state = null;
