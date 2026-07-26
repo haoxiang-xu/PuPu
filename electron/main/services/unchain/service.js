@@ -416,6 +416,10 @@ const createUnchainService = ({
   shell = {},
   webContents,
   runtimeService,
+  // Phase 4 (S4): main-internal provider-secret reader. Injected exactly the way
+  // runtimeService is (index.js). Its readDecryptedProviderSecret is a
+  // MAIN-INTERNAL method — never on the IPC allowlist, never bridged to renderer.
+  settingsStorageService,
   getAppIsQuitting,
 }) => {
   let unchainProcess = null;
@@ -2212,8 +2216,24 @@ const createUnchainService = ({
     const messages = Array.isArray(payload?.messages) ? payload.messages : [];
     const options =
       payload?.options && typeof payload.options === "object"
-        ? payload.options
+        ? { ...payload.options }
         : {};
+    // Phase 4 (S4): this is a secret-bearing outbound path too (memory
+    // re-extraction needs the model key). Run the SAME strip+inject helper so
+    // the descriptor never leaks to Flask and a decryption failure fails closed
+    // instead of a keyless forward (contract B2).
+    const secretInjection = applyProviderSecretInjection(options);
+    if (!secretInjection.ok) {
+      return {
+        applied: false,
+        error: {
+          code: secretInjection.code,
+          message: secretInjection.message,
+          retryable: false,
+          status: 0,
+        },
+      };
+    }
     const operationIdRaw = payload?.operationId ?? payload?.operation_id;
     const operationId =
       typeof operationIdRaw === "string" ? operationIdRaw.trim() : "";
@@ -3461,6 +3481,144 @@ const createUnchainService = ({
     }
   };
 
+  // ---- Phase 4 (S4): provider-secret strip+inject seam ----------------------
+  // Frozen v2 descriptor contract (phase4-descriptor-contract.md). The renderer
+  // no longer writes secret VALUES into options; it writes a non-sensitive
+  // descriptor list:
+  //   options.__pupu_secret_injection = [{ kind, id, channel }, ...]
+  // INVARIANT (B2): every main outbound path that forwards renderer-normalized
+  // options to Flask MUST run this helper first. It decrypts each descriptor via
+  // the main-internal reader, writes the SAME byte-for-byte field set the
+  // renderer wrote today (per the fixed (id, channel) table below), and ALWAYS
+  // strips the descriptor so Flask never sees it. On any decryption failure it
+  // returns a fail-closed result — the caller must never keyless-forward.
+  const PROVIDER_SECRET_INJECTION_KEY = "__pupu_secret_injection";
+
+  // (kind, id, channel) -> exact ordered field set. This is the mechanical
+  // byte-equivalence guarantee: main replays the identical fields the renderer
+  // used to write. Custom providers use a DEDICATED named channel and NEVER the
+  // generic api_key/apiKey (A8/§9.1; gate 7 red line #9).
+  const resolveProviderSecretFieldNames = (kind, id, channel) => {
+    if (kind === "provider" && id === "openai" && channel === "model") {
+      return ["openaiApiKey", "openai_api_key", "apiKey", "api_key"];
+    }
+    if (kind === "provider" && id === "openai" && channel === "embedding") {
+      return ["openaiApiKey", "openai_api_key"];
+    }
+    if (kind === "provider" && id === "anthropic" && channel === "model") {
+      return ["anthropicApiKey", "anthropic_api_key"];
+    }
+    if (
+      kind === "custom_provider" &&
+      channel === "model" &&
+      typeof id === "string" &&
+      id.startsWith("custom.")
+    ) {
+      return ["custom_provider_api_key", "customProviderApiKey"];
+    }
+    return null;
+  };
+
+  const readProviderSecretForInjection = (kind, id) => {
+    if (
+      !settingsStorageService ||
+      typeof settingsStorageService.readDecryptedProviderSecret !== "function"
+    ) {
+      return null;
+    }
+    try {
+      // readDecryptedProviderSecret is documented never-throw, but stay
+      // defensive: a throw must NEVER crash the send chain.
+      return settingsStorageService.readDecryptedProviderSecret(kind, id);
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const providerSecretStorageIsAvailable = () => {
+    if (
+      !settingsStorageService ||
+      typeof settingsStorageService.getSecretStorageStatus !== "function"
+    ) {
+      return false;
+    }
+    try {
+      return settingsStorageService.getSecretStorageStatus() === "available";
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  // Mutates `options` in place (contract §4). Returns { ok: true } on success or
+  // { ok: false, code, message } when any descriptor entry could not be
+  // resolved. The descriptor is ALWAYS stripped first — success or failure,
+  // Flask never sees it.
+  const applyProviderSecretInjection = (options) => {
+    if (!options || typeof options !== "object") {
+      return { ok: true };
+    }
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        options,
+        PROVIDER_SECRET_INJECTION_KEY,
+      )
+    ) {
+      // No descriptor -> forward as-is (legacy-injected key during the migration
+      // window, or a legitimately keyless request).
+      return { ok: true };
+    }
+
+    const list = options[PROVIDER_SECRET_INJECTION_KEY];
+    // Strip unconditionally: Flask must NEVER see the descriptor.
+    delete options[PROVIDER_SECRET_INJECTION_KEY];
+
+    if (!Array.isArray(list) || list.length === 0) {
+      // Malformed/empty descriptor: nothing to inject, already stripped.
+      return { ok: true };
+    }
+
+    let failed = false;
+    for (const entry of list) {
+      if (!entry || typeof entry !== "object") {
+        failed = true;
+        continue;
+      }
+      const fieldNames = resolveProviderSecretFieldNames(
+        entry.kind,
+        entry.id,
+        entry.channel,
+      );
+      if (!fieldNames) {
+        // Unknown (kind, id, channel): renderer/main desync. Fail closed rather
+        // than silently forward a request the renderer meant to authenticate.
+        failed = true;
+        continue;
+      }
+      const secret = readProviderSecretForInjection(entry.kind, entry.id);
+      if (typeof secret !== "string" || secret.length === 0) {
+        failed = true;
+        continue;
+      }
+      for (const fieldName of fieldNames) {
+        options[fieldName] = secret;
+      }
+    }
+
+    if (failed) {
+      // Distinguish a storage-layer outage from a merely-missing credential so
+      // the renderer can surface the right message. Never leak values.
+      const code = providerSecretStorageIsAvailable()
+        ? "provider_missing_api_key"
+        : "secret_storage_unavailable";
+      const message =
+        code === "secret_storage_unavailable"
+          ? "Provider secret storage is unavailable"
+          : "A configured provider secret could not be resolved";
+      return { ok: false, code, message };
+    }
+    return { ok: true };
+  };
+
   const startMisoStream = async ({
     requestId,
     payload,
@@ -3518,6 +3676,19 @@ const createUnchainService = ({
       };
     } else {
       requestPayload.options = requestOptions;
+    }
+
+    // Phase 4 (S4): decrypt + inject provider secrets from the descriptor list,
+    // then strip the descriptor. Runs after the workspaceRoot injection and
+    // before the POST — this is V1/V2/V4's single choke point. Fail-closed: on
+    // any decryption failure emit a structured error and never keyless-POST.
+    const secretInjection = applyProviderSecretInjection(requestPayload.options);
+    if (!secretInjection.ok) {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
+        code: secretInjection.code,
+        message: secretInjection.message,
+      });
+      return;
     }
 
     if (

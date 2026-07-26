@@ -1324,6 +1324,153 @@ toolkit_auto_approve_store / computer_use 三 store + 共享
 computer_use_preferences_sql / agent_folder_storage / bridges 及全部 co-located
 测试。精确清单可随时用上述 grep 重新生成。
 
+## 11D. Phase 3 实施记录与裁决（2026-07-25，实施后追加）
+
+状态：Phase 3（Custom MCP Icon 落盘 + `asset_metadata`）已实施，四视角审查
+6 findings（4 C/I 一轮修复 + 2 Minor 同根因由 controller 修复）全部关闭。
+测试：renderer 301 suites / 2767、electron 146 / 1332 全绿。**真机冒烟通过**
+（见 11D.3）。改动未 commit（17 文件白名单见 11D.4）。
+
+> 过程注记：首次实施 agent 撞 Fable 5 用量上限中途死亡、零持久改动；切 Opus 4.8
+> 后 resume workflow 从头重跑（errored agent 无缓存），干净完成。
+
+### 11D.1 契约与裁决
+
+1. 图标 FILES 落 `<userData>/assets/mcp-icons/<sanitized-id>-<sha256前缀>.<ext>`，
+   `asset_metadata`（settings.db）只存元数据；schema_version 保持 2（增量建表，
+   与 S2/S3 同判例）。
+2. **SVG 内容模型偏离（已处理）**：brief 假设 content 恒为 base64，实际 SVG 以
+   RAW UTF-8 文本存/渲染（PNG=base64）。按 mime 无损往返：磁盘存解码字节，
+   getMcpIconAsset 按 mime 重编码，`getCustomMcpIcon` 输出与 ToolkitIcon 渲染
+   字节级不变、调用方签名零改动。SVG 不做 sanitize——与 legacy 一致、经
+   `<img src=data:...>` 渲染不执行脚本，无 XSS 回归。
+3. **SVG 尺寸上限对齐（controller 修复的 Minor 根因）**：renderer 原按 400,000
+   字符统一放行，但主进程按 300,000 解码字节封顶。PNG 两者等价（400k base64
+   字符≈300k 字节），SVG 是裸文本会造成 300–400KB 区间"本会话乐观显示、
+   下次启动被主进程静默丢弃"。已改 `isValidIcon` 为 mime-aware：SVG 按 UTF-8
+   字节对齐 300,000、PNG 保持 400,000 字符（legacy 不变）。补两条测试。
+4. get 返回 `{ok:true, icon:{mime, content}|null}`；文件缺失或路径损坏时删行
+   自愈（SQL 行绝不 outlive 文件）。
+5. 写序：临时文件+rename 原子落位 → upsert SQL → 删旧文件；SQL 失败删新文件。
+   任何路径不留悬空引用。
+6. 方法并入 service.js（非独立 asset_service.js）——共享 db/tx/meta/errorWithCode/
+   迁移信封闭包，主进程侧每个 store 都住 service.js（S3 的 shared-module 是
+   renderer 侧）。
+
+### 11D.2 遗留携带项
+
+- 迁移路径本次真机未走（测试机 legacy 图标为 0，冒烟走全新写入）——迁移逻辑
+  由 25 个 electron 单测覆盖（含幂等/drop-and-count/digest-mismatch）；带真实
+  legacy 图标的机器首用时顺手看一眼 `mcp_icons_migration_state`。
+- 一帧 null 闪烁（迁移完成→惰性 hydrate 之间）+ hydrate 失败本会话降级通用
+  glyph、下次自愈——偏好级，接受。
+- durable-interaction 恢复报 `interaction_integrity_error`（app 日志），旧问题
+  与 Phase 3 无关，仍归该线 owner。
+
+### 11D.3 真机冒烟证据（2026-07-25，Opus 4.8）
+
+- `asset_metadata` 表在 Phase 3 主进程 init 时自动建（增量 CREATE TABLE）。
+- **set**：1×1 PNG → 磁盘 70 字节文件 + 表行，byteSize 一致，ext 由验证过的
+  mime 派生（`.png`）。
+- **get 往返**：读回文件字节重编码 base64 与输入字节级一致。
+- **路径穿越中和**：toolkitId=`mcp.custom.../../../../../../tmp/evil` 被 sanitize
+  成安全的 in-dir 文件名（点/斜杠→`_`），`/tmp/evil` 未被创建，文件留在
+  mcp-icons 内。
+- **bad mime**：`image/gif` 被拒（`[invalid_mcp_icon]` 前缀错误）。
+- **重启持久化**：SIGTERM 后文件+行存活，新主进程 getMcpIconAsset 读回
+  `persisted=true`。
+- **delete 清理**：删除同时清行与文件（0 行 0 文件，无悬空/无孤儿）。
+- 全程 `PRAGMA integrity_check` = ok。
+
+> 冒烟工程注记：Electron app + CRA dev server 与 `react-scripts test` 同跑会 CPU
+> 饥饿，导致无关套件（color_picker/persist_cadence/chat）出现 951s–4335s 超时假
+> 失败——跑全量测试前必须先停掉 app 实例。停后干净重跑 301/2767 全绿。
+
+### 11D.4 Phase 3 提交白名单（17 文件，独立提交，禁 git add -A）
+
+以 `git status --porcelain | grep -E "^.. (src|electron)/"` 当前全集为准：
+settings_storage service/register_handlers、shared/preload channels、preload+
+renderer bridge、custom_mcp_icon_store，及全部 co-located 测试
+（`settings_storage_mcp_icons` 三变体 .cjs/.js/src stub + 修改的
+ipc_channels/api_contract/handlers/service/bridge 测试）。
+
+## 11E. Phase 4 实施记录与裁决（2026-07-25，实施后追加）
+
+状态：Phase 4（provider secret 迁移到 safeStorage 加密存储）已实施并**真机三态冒烟通过**。
+7 切片（S1 密文表+safeStorage / S2 迁移+dual-keep / S3 configuredCredentials 信号 /
+S4 main 注入接缝 / S5 renderer 去 secret / S6 字节等价 / **S7 迁移触发接线=激活**）。
+三道签字门全过：安全 GO、架构师冻结契约、llm-expert 字节等价 CO-SIGN。
+测试：electron 150 suites / 1419、renderer 310 suites / 2925 全绿。改动未 commit（44 文件白名单见 11E.5）。
+
+> 过程注记：本 Phase 跨多次 agent 死亡（Fable 5 额度、连接中断），均零持久改动、resume/重派恢复；
+> 所有设计/审查 agent（security/architect/llm-expert）因 Fable 额度尽，一律用 `model:opus` 覆盖派发。
+
+### 11E.1 三道签字门
+
+1. **安全 GO（有条件）**：方案 B（Electron `safeStorage` 加密 BLOB 存 settings.db 专表），
+   零新依赖、机器绑定密文防备份外带；门 5（注入移 main）路由 CTO ADR。全文本地
+   `phase4-security-decision.md`，裁决入 pupu-security-expert 记忆。
+2. **CTO ADR（门 5 = (a) 注入移主进程）**：renderer 发非敏感描述符、main 在 POST 前解密注入并剥除；
+   独立复核认定 (b) 是"付全款拿半货"。全文本地 `phase4-cto-adr.md`。
+3. **架构师冻结检查点（CEO 指定，赚回成本）**：REVISE 抓到**漏第 4 条 secret 路
+   `injectOpenAIEmbeddingKeyIfNeeded`**——`model=anthropic + memory + openai embedding` 同一 payload
+   需两个不同 secret，单对象描述符表达不了 → 改为 **`[{kind,id,channel}]` 列表**；并修正字节等价
+   陷阱（短路按 provider **id** 去重复刻今日 first-writer-wins，不看 channel）。冻结签字后 S4/S5 并行。
+4. **llm-expert CO-SIGN**：模型可见字段字节等价（口径=字段集/值等价、JSON key 顺序不作差异，
+   provider SDK 按字段名读）；亲跑三套 characterization 全绿；明确 ratify S5 双短路（删值短路会 VETO）。
+
+### 11E.2 架构（门 5）
+
+- 稳态：renderer 发 `options.__pupu_secret_injection = [{kind,id,channel}]`（无值无密文），
+  main 在 `startMisoStream`（V1/V2/V4 唯一 choke）+ `replaceMisoSessionMemory` 两条出站路
+  按 (id,channel) 固定字段集表解密注入、**必剥描述符**、fail-closed（解密失败 emit-error 绝不 keyless）。
+- renderer 稳态**绝不读 secret 值**；`readDecryptedProviderSecret` 是 main 内部方法、绝不上 IPC。
+- 三态：稳态发描述符 / 首启过渡+degraded 回退读 legacy（今日行为，字节等价）。
+  `authoritative = secretStorageStatus==="available" AND configuredCredentials.includes(id)`；
+  `configured = SQL OR legacyHasSecret`（OR-legacy 消除过渡窗"有 key 发不出"）。
+
+### 11E.3 裁决（controller）
+
+1. **S5 双短路**：保留今日基于值的 `hasAnyApiKey` 短路（捕获调用方显式 key）+ 新增 list 按 id 去重
+   （捕获 embedding→model 塌缩）——互补，删值短路会破坏字节等价。**接受**（llm-expert 会 VETO 删除）。
+2. **S7 bootstrap providerCredentials 增补**：S3 的 storeMigrations map 漏了 providerCredentials 键，
+   幂等分支形同虚设 → 触发器每启动重发。补该键（identity-only 无 secret）是必要最小触碰。**接受**。
+3. **S7 红线 ledger carve-out**：新 migrate channel 名含 'credential' 命中禁词 regex（原意禁 stored-secret
+   **读** channel），但这条是**入站写方向**（renderer 交出自己 legacy 明文给 main 加密、只回 status），
+   非读。精确名白名单 carve-out 合理、S7 安全视角审查已过。**接受**。
+4. **S7 Minor 已修**：入站 secret channel 的 handler 日志去掉 `|| error.message` 回退、改
+   code-only + `uncoded_error` 占位（防非编码抛错泄漏 payload 文本）。
+
+### 11E.4 真机三态冒烟证据（2026-07-25，真 macOS Keychain）
+
+- **状态 1 首启过渡**：configuredCredentials 快照在迁移前取（空）→ authoritative=false → 走 legacy 路，
+  openai:gpt-4.1 探针 "OK"（零回归）。
+- **状态 2 迁移完成**：boot 触发 S7 迁移 → `provider_credentials` 出现 2 行**真实 Keychain 加密**密文
+  （openai 179B / anthropic 115B，hex 无 `sk-` 明文），migration_state=complete，**legacy 保留（dual-keep）**。
+- **状态 3 重启稳态**：bootstrap `secretStorageStatus="available"` + `configuredCredentials=["anthropic","openai"]`
+  → authoritative=true → **renderer 发描述符、不读原始 key** → main 解密注入 → openai:gpt-4.1 探针 "OK"。
+  R1 收益（renderer 稳态见不到 key）在真机兑现。
+- 每轮退出 `PRAGMA integrity_check` = ok。
+
+### 11E.5 遗留与后续
+
+- **删 legacy localStorage secret = N+1 独立变更，本 Phase 明确不做**（dual-keep 保跨版本回滚兜底）。
+  硬前置（架构师 N1）：删 legacy 前 `configuredCredentials` 必须改可 live-refresh，否则 N+1 后
+  "会话内新增 key 立即用"回归。
+- **MCP/OAuth secret（`~/.pupu/*.json` 明文 0600）= OUT of Phase 4**，defer 独立 backend 工作项
+  （owner pupu-dev-backend）。
+- 残余风险（安全签字附带接受）：R2（同用户+代码执行恶意软件仍可解密文，桌面无硬件令牌不可根除）、
+  Linux 无 keyring minority 保持现状明文（fail-closed 绝不更糟）。
+- 两 characterization 文件靠逐字常量同步，建议后续抽共享 fixture。
+
+### 11E.6 Phase 4 提交白名单（44 文件，独立提交，禁 git add -A）
+
+以 `git status --porcelain | grep -E "^.. (src|electron)/"` 当前全集为准（c2695d0 之后 src/electron
+两树改动全属 Phase 4）：settings_storage service/register_handlers/db、shared+preload channels、
+preload+renderer bridge、unchain/service.js（注入接缝）、api.unchain.js（去 secret）、
+provider_secret_status/provider_secret_migration + boot_sync、App.js（触发挂载）、及全部 co-located 测试
+（三变体 .cjs/.js/src stub）。精确清单用上述 grep 重生成。
+
 ## 12. 实现 Agent 的首个行动清单
 
 1. 读取仓库规则和本计划。

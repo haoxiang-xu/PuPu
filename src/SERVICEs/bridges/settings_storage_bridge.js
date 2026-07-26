@@ -52,6 +52,26 @@ const COMPUTER_USE_PREFS_METHODS = Object.freeze([
   "migrateLegacyComputerUse",
 ]);
 
+// Phase 3 custom MCP icon asset surface (plan §3.6). Probed separately from
+// REQUIRED_METHODS for the same old-preload reason: a pre-Phase-3 preload keeps
+// every other store fully available while the icon store falls back to
+// localStorage (the exact legacy base64 behavior).
+const MCP_ICON_METHODS = Object.freeze([
+  "getMcpIconAsset",
+  "setMcpIconAsset",
+  "deleteMcpIconAsset",
+  "listMcpIconOwners",
+  "migrateMcpIconsLegacy",
+]);
+
+// Phase 4 (S7) provider secret migration trigger. Probed separately from
+// REQUIRED_METHODS for the same old-preload reason: a pre-Phase-4 preload keeps
+// every other store fully available while the provider secret migration simply
+// never fires (the renderer stays on the legacy localStorage secret path).
+const PROVIDER_CREDENTIALS_MIGRATION_METHODS = Object.freeze([
+  "migrateProviderCredentials",
+]);
+
 // Matches the FIRST "[<code>] " token ANYWHERE in the message — deliberately
 // not anchored to the start: by the time an ipcRenderer.invoke rejection
 // reaches the renderer, Electron has wrapped it as
@@ -139,6 +159,41 @@ export const getSqlStoreMigrationMeta = (storeKey) => {
     : null;
 };
 
+// ---- Phase 4 (S3): non-sensitive provider secret existence signals --------
+// Both ride the SAME session bootstrap snapshot as the Phase 2 migration meta
+// (one sendSync per session). They are the renderer's ONLY secret-adjacent
+// bootstrap reads and they never carry a secret value or ciphertext — only the
+// identity list and the safeStorage availability string (gate 7 red line #2).
+//
+// Reading from the session-cached snapshot (not a live re-bootstrap) gives the
+// intended steady-state semantics from the descriptor contract §3.5: newly
+// migrated credentials only become "configured" on the NEXT boot, so the
+// descriptor-only injection path activates after a restart, never mid-session.
+
+// The configured-credential identity list ("openai" | "anthropic" |
+// "custom.<slug>"). Returns [] when the snapshot is unavailable or predates
+// the field (older main process) — the renderer then relies purely on the
+// legacy dual-keep signal, never wrongly treating a provider as unconfigured.
+export const getBootstrapConfiguredCredentials = () => {
+  const snapshot = getSessionBootstrapSnapshot();
+  if (!snapshot || snapshot.available !== true) return [];
+  const list = snapshot.configuredCredentials;
+  if (!Array.isArray(list)) return [];
+  return list.filter((id) => typeof id === "string" && id.length > 0);
+};
+
+// safeStorage availability from S1's gate-3 probe. Anything other than the
+// exact "available" string (missing field, "unavailable", malformed) is read
+// as unavailable — fail-closed, so a malformed snapshot can never authorize
+// the descriptor-only injection path.
+export const getBootstrapSecretStorageStatus = () => {
+  const snapshot = getSessionBootstrapSnapshot();
+  if (!snapshot || snapshot.available !== true) return "unavailable";
+  return snapshot.secretStorageStatus === "available"
+    ? "available"
+    : "unavailable";
+};
+
 export const isSettingsStorageBridgeAvailable = () => resolveApi() !== null;
 
 export const isTokenUsageBridgeAvailable = () => {
@@ -163,6 +218,24 @@ export const isComputerUsePrefsBridgeAvailable = () => {
   const api = resolveApi();
   if (!api) return false;
   for (const method of COMPUTER_USE_PREFS_METHODS) {
+    if (typeof api[method] !== "function") return false;
+  }
+  return true;
+};
+
+export const isMcpIconBridgeAvailable = () => {
+  const api = resolveApi();
+  if (!api) return false;
+  for (const method of MCP_ICON_METHODS) {
+    if (typeof api[method] !== "function") return false;
+  }
+  return true;
+};
+
+export const isProviderCredentialsMigrationBridgeAvailable = () => {
+  const api = resolveApi();
+  if (!api) return false;
+  for (const method of PROVIDER_CREDENTIALS_MIGRATION_METHODS) {
     if (typeof api[method] !== "function") return false;
   }
   return true;
@@ -261,6 +334,29 @@ export const settingsStorageBridge = {
     invokeOptionalBridge("clearComputerUsePreference", [key]),
   migrateLegacyComputerUse: (payload) =>
     invokeOptionalBridge("migrateLegacyComputerUse", [payload]),
+
+  // Phase 3 custom MCP icon asset store (plan §3.6). Same no-swallowing rule;
+  // the icon store decides what a failure means (a failed hydrate/write logs
+  // the code, a failed migration degrades the store to localStorage).
+  isMcpIconAvailable: isMcpIconBridgeAvailable,
+  getMcpIconAsset: (toolkitId) =>
+    invokeOptionalBridge("getMcpIconAsset", [toolkitId]),
+  setMcpIconAsset: (toolkitId, icon) =>
+    invokeOptionalBridge("setMcpIconAsset", [toolkitId, icon]),
+  deleteMcpIconAsset: (toolkitId) =>
+    invokeOptionalBridge("deleteMcpIconAsset", [toolkitId]),
+  listMcpIconOwners: () => invokeOptionalBridge("listMcpIconOwners", []),
+  migrateMcpIconsLegacy: (payload) =>
+    invokeOptionalBridge("migrateMcpIconsLegacy", [payload]),
+
+  // Phase 4 (S7) provider secret migration trigger. Write-direction only: the
+  // payload carries the renderer's legacy secrets for encryption; the resolved
+  // value is a status object (never a secret). Same no-swallowing rule — the
+  // migration module fires it and-forgets, logging the code on failure.
+  isProviderCredentialsMigrationAvailable:
+    isProviderCredentialsMigrationBridgeAvailable,
+  migrateProviderCredentials: (payload) =>
+    invokeOptionalBridge("migrateProviderCredentials", [payload]),
 };
 
 export default settingsStorageBridge;

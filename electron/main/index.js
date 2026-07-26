@@ -83,6 +83,10 @@ if (!gotSingleInstanceLock) {
     fs,
     path,
     sqlite,
+    // Phase 4 (S1): encrypted provider-credential storage. init() runs inside
+    // app.whenReady(), so safeStorage's "usable only after ready" precondition
+    // is already satisfied by the existing service ordering.
+    safeStorage: require("electron").safeStorage,
   });
 
   const ollamaService = createOllamaService({
@@ -108,6 +112,10 @@ if (!gotSingleInstanceLock) {
     shell,
     webContents,
     runtimeService,
+    // Phase 4 (S4): main-internal provider-secret reader used by the stream
+    // strip+inject seam. Created above (before unchainService), so it is
+    // available to inject here just like runtimeService.
+    settingsStorageService,
     getAppIsQuitting: () => appIsQuitting,
   });
 

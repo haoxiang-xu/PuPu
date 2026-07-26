@@ -4145,3 +4145,548 @@ describe("unchain service computer use enable path", () => {
     expect(spawn.mock.calls[0][2].env).not.toHaveProperty("PUPU_COMPUTER_USE");
   });
 });
+
+// Phase 4 (S4): main-side provider-secret strip+inject seam. Frozen v2
+// descriptor contract (phase4-descriptor-contract.md): renderer sends a
+// non-sensitive list options.__pupu_secret_injection = [{ kind, id, channel }];
+// main decrypts, writes the byte-equivalent field set, and ALWAYS strips the
+// descriptor. Sentinel keys only — a real key must never appear in a fixture.
+describe("unchain service provider-secret injection (Phase 4 S4)", () => {
+  const originalFetch = global.fetch;
+  const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
+
+  const OPENAI_SECRET = "sk-openai-SENTINEL-never-log-000";
+  const ANTHROPIC_SECRET = "sk-anthropic-SENTINEL-never-log-1";
+  const CUSTOM_SECRET = "sk-custom-SENTINEL-never-log-222";
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalEnvPython == null) {
+      delete process.env.UNCHAIN_PYTHON_BIN;
+    } else {
+      process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
+    }
+    jest.clearAllMocks();
+  });
+
+  const createSecretStore = ({ status = "available", secrets } = {}) => {
+    const table =
+      secrets || {
+        "provider:openai": OPENAI_SECRET,
+        "provider:anthropic": ANTHROPIC_SECRET,
+        "custom_provider:custom.myslug": CUSTOM_SECRET,
+      };
+    return {
+      getSecretStorageStatus: jest.fn(() => status),
+      readDecryptedProviderSecret: jest.fn((kind, id) => {
+        // Mirror the real S1 reader: it returns null whenever secret storage is
+        // not "available", regardless of what rows exist.
+        if (status !== "available") {
+          return null;
+        }
+        const key = `${kind}:${id}`;
+        return Object.prototype.hasOwnProperty.call(table, key)
+          ? table[key]
+          : null;
+      }),
+    };
+  };
+
+  const createDoneStreamImpl = () =>
+    jest.fn().mockResolvedValue({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: jest.fn().mockResolvedValue({ done: true }),
+        }),
+      },
+    });
+
+  const flush = async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+  };
+
+  const createReadyStreamService = async ({
+    settingsStorageService,
+    streamRequestImpl,
+  }) => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse());
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const sender = createReplayTarget(1);
+    const targets = new Map([[1, sender]]);
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync: jest.fn(() => ({
+        status: 0,
+        stdout: JSON.stringify({
+          version: "3.12.2",
+          major: 3,
+          minor: 12,
+          missing: [],
+        }),
+      })),
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      streamRequestImpl,
+      webContents: {
+        fromId: jest.fn((id) => targets.get(id) || null),
+        getAllWebContents: jest.fn(() => Array.from(targets.values())),
+      },
+      runtimeService: {},
+      settingsStorageService,
+      getAppIsQuitting: () => false,
+    });
+    await service.startMiso();
+    return { service, sender };
+  };
+
+  const driveStreamV2 = (service, sender, requestId, options) => {
+    service.handleStreamStartV2(
+      { sender },
+      { requestId, payload: { message: "hi", options } },
+    );
+  };
+
+  const parseSentBody = (streamRequestImpl) => {
+    expect(streamRequestImpl).toHaveBeenCalledTimes(1);
+    const requestInit = streamRequestImpl.mock.calls[0][1];
+    return JSON.parse(requestInit.body);
+  };
+
+  test("injects the openai model field set (4 fields) and strips the descriptor", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-openai-model", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "openai", channel: "model" },
+      ],
+    });
+    await flush();
+
+    const body = parseSentBody(streamRequestImpl);
+    expect(body.options).toMatchObject({
+      openaiApiKey: OPENAI_SECRET,
+      openai_api_key: OPENAI_SECRET,
+      apiKey: OPENAI_SECRET,
+      api_key: OPENAI_SECRET,
+    });
+    expect(body.options).not.toHaveProperty("__pupu_secret_injection");
+    expect(settingsStorageService.readDecryptedProviderSecret).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+    );
+    // No anthropic / custom bleed.
+    expect(body.options).not.toHaveProperty("anthropicApiKey");
+    expect(body.options).not.toHaveProperty("custom_provider_api_key");
+  });
+
+  test("injects only the 2-field openai embedding set (no generic api_key)", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-openai-embed", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "openai", channel: "embedding" },
+      ],
+    });
+    await flush();
+
+    const body = parseSentBody(streamRequestImpl);
+    expect(body.options.openaiApiKey).toBe(OPENAI_SECRET);
+    expect(body.options.openai_api_key).toBe(OPENAI_SECRET);
+    expect(body.options).not.toHaveProperty("apiKey");
+    expect(body.options).not.toHaveProperty("api_key");
+    expect(body.options).not.toHaveProperty("__pupu_secret_injection");
+  });
+
+  test("injects the anthropic model field set (2 fields)", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-anthropic", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "anthropic", channel: "model" },
+      ],
+    });
+    await flush();
+
+    const body = parseSentBody(streamRequestImpl);
+    expect(body.options.anthropicApiKey).toBe(ANTHROPIC_SECRET);
+    expect(body.options.anthropic_api_key).toBe(ANTHROPIC_SECRET);
+    expect(body.options).not.toHaveProperty("api_key");
+    expect(body.options).not.toHaveProperty("apiKey");
+    expect(body.options).not.toHaveProperty("openaiApiKey");
+  });
+
+  test("custom provider uses the dedicated channel and never pollutes api_key", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-custom", {
+      __pupu_secret_injection: [
+        { kind: "custom_provider", id: "custom.myslug", channel: "model" },
+      ],
+    });
+    await flush();
+
+    const body = parseSentBody(streamRequestImpl);
+    expect(body.options.custom_provider_api_key).toBe(CUSTOM_SECRET);
+    expect(body.options.customProviderApiKey).toBe(CUSTOM_SECRET);
+    // Gate 7 red line #9 — custom secret NEVER lands on generic api_key.
+    expect(body.options).not.toHaveProperty("api_key");
+    expect(body.options).not.toHaveProperty("apiKey");
+    expect(body.options).not.toHaveProperty("openaiApiKey");
+    expect(body.options).not.toHaveProperty("__pupu_secret_injection");
+    expect(settingsStorageService.readDecryptedProviderSecret).toHaveBeenCalledWith(
+      "custom_provider",
+      "custom.myslug",
+    );
+  });
+
+  test("injects two distinct secrets in one payload (anthropic model + openai embedding)", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-dual", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "openai", channel: "embedding" },
+        { kind: "provider", id: "anthropic", channel: "model" },
+      ],
+    });
+    await flush();
+
+    const body = parseSentBody(streamRequestImpl);
+    expect(body.options.openaiApiKey).toBe(OPENAI_SECRET);
+    expect(body.options.openai_api_key).toBe(OPENAI_SECRET);
+    expect(body.options.anthropicApiKey).toBe(ANTHROPIC_SECRET);
+    expect(body.options.anthropic_api_key).toBe(ANTHROPIC_SECRET);
+    // Embedding must not spill generic keys, and anthropic must not either.
+    expect(body.options).not.toHaveProperty("api_key");
+    expect(body.options).not.toHaveProperty("apiKey");
+    expect(body.options).not.toHaveProperty("__pupu_secret_injection");
+  });
+
+  test("forwards options unchanged when no descriptor is present (transition window)", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    // Legacy-injected key with NO descriptor — must pass through untouched and
+    // the reader must never be consulted.
+    driveStreamV2(service, sender, "req-legacy", {
+      openaiApiKey: "legacy-inline-key",
+      openai_api_key: "legacy-inline-key",
+      apiKey: "legacy-inline-key",
+      api_key: "legacy-inline-key",
+    });
+    await flush();
+
+    const body = parseSentBody(streamRequestImpl);
+    expect(body.options.openaiApiKey).toBe("legacy-inline-key");
+    expect(body.options.api_key).toBe("legacy-inline-key");
+    expect(
+      settingsStorageService.readDecryptedProviderSecret,
+    ).not.toHaveBeenCalled();
+  });
+
+  test("fails closed with provider_missing_api_key when a configured secret cannot decrypt", async () => {
+    // Storage available, but the requested credential row resolves to null.
+    const settingsStorageService = createSecretStore({ secrets: {} });
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-missing", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "openai", channel: "model" },
+      ],
+    });
+    await flush();
+
+    // Never keyless-POST.
+    expect(streamRequestImpl).not.toHaveBeenCalled();
+    expect(sender.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: "req-missing",
+      event: "error",
+      data: {
+        code: "provider_missing_api_key",
+        message: "A configured provider secret could not be resolved",
+      },
+    });
+  });
+
+  test("fails closed with secret_storage_unavailable when the secret store is degraded", async () => {
+    const settingsStorageService = createSecretStore({ status: "unavailable" });
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-degraded", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "anthropic", channel: "model" },
+      ],
+    });
+    await flush();
+
+    expect(streamRequestImpl).not.toHaveBeenCalled();
+    expect(sender.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: "req-degraded",
+      event: "error",
+      data: {
+        code: "secret_storage_unavailable",
+        message: "Provider secret storage is unavailable",
+      },
+    });
+  });
+
+  test("fails closed (no crash) when settingsStorageService was never injected", async () => {
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService: undefined,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-no-service", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "openai", channel: "model" },
+      ],
+    });
+    await flush();
+
+    expect(streamRequestImpl).not.toHaveBeenCalled();
+    expect(sender.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: "req-no-service",
+      event: "error",
+      data: {
+        code: "secret_storage_unavailable",
+        message: "Provider secret storage is unavailable",
+      },
+    });
+  });
+
+  test("fails closed on an unknown (kind, id, channel) descriptor entry", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    driveStreamV2(service, sender, "req-unknown", {
+      __pupu_secret_injection: [
+        { kind: "provider", id: "openai", channel: "reasoning" },
+      ],
+    });
+    await flush();
+
+    expect(streamRequestImpl).not.toHaveBeenCalled();
+    const errorCall = sender.send.mock.calls.find(
+      (call) => call[1] && call[1].event === "error",
+    );
+    expect(errorCall).toBeTruthy();
+    expect(errorCall[1].data.code).toBe("provider_missing_api_key");
+  });
+
+  test("never writes a secret value to console output", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service, sender } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    const spies = ["log", "info", "warn", "error", "debug"].map((level) =>
+      jest.spyOn(console, level).mockImplementation(() => {}),
+    );
+    try {
+      driveStreamV2(service, sender, "req-log", {
+        __pupu_secret_injection: [
+          { kind: "provider", id: "openai", channel: "model" },
+        ],
+      });
+      await flush();
+    } finally {
+      spies.forEach((spy) => spy.mockRestore());
+    }
+
+    const logged = spies
+      .flatMap((spy) => spy.mock.calls)
+      .flat()
+      .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
+      .join("\n");
+    expect(logged).not.toContain(OPENAI_SECRET);
+  });
+
+  test("does not expose the secret reader or the injection helper on the service surface", async () => {
+    const settingsStorageService = createSecretStore();
+    const streamRequestImpl = createDoneStreamImpl();
+    const { service } = await createReadyStreamService({
+      settingsStorageService,
+      streamRequestImpl,
+    });
+
+    // Reverse assertion: the main-internal reader/helper is never re-exported
+    // by the unchain service surface (and therefore never bridgeable to IPC).
+    expect(service).not.toHaveProperty("readDecryptedProviderSecret");
+    expect(service).not.toHaveProperty("applyProviderSecretInjection");
+    expect(service).not.toHaveProperty("settingsStorageService");
+    for (const value of Object.values(service)) {
+      expect(value).not.toBe(
+        settingsStorageService.readDecryptedProviderSecret,
+      );
+    }
+  });
+
+  // ---- Second outbound secret path: replaceMisoSessionMemory (contract B2) ---
+  const createReadyMemoryService = async ({
+    settingsStorageService,
+    memoryResponse,
+  }) => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValue(
+        memoryResponse || {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ applied: true }),
+        },
+      );
+    global.fetch = fetchMock;
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync: jest.fn(() => ({
+        status: 0,
+        stdout: JSON.stringify({
+          version: "3.12.2",
+          major: 3,
+          minor: 12,
+          missing: [],
+        }),
+      })),
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      settingsStorageService,
+      getAppIsQuitting: () => false,
+    });
+    await service.startMiso();
+    return { service, fetchMock };
+  };
+
+  test("replaceMisoSessionMemory injects the descriptor and strips it from the Flask body", async () => {
+    const settingsStorageService = createSecretStore();
+    const { service, fetchMock } = await createReadyMemoryService({
+      settingsStorageService,
+    });
+
+    const result = await service.replaceMisoSessionMemory({
+      sessionId: "sess-1",
+      messages: [],
+      options: {
+        __pupu_secret_injection: [
+          { kind: "provider", id: "anthropic", channel: "model" },
+        ],
+      },
+    });
+
+    expect(result).toEqual({ applied: true });
+    // Call 0 = health ping; call 1 = the memory replace POST.
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(body.options.anthropicApiKey).toBe(ANTHROPIC_SECRET);
+    expect(body.options.anthropic_api_key).toBe(ANTHROPIC_SECRET);
+    expect(body.options).not.toHaveProperty("__pupu_secret_injection");
+  });
+
+  test("replaceMisoSessionMemory fails closed (no keyless POST) when decryption fails", async () => {
+    const settingsStorageService = createSecretStore({ status: "unavailable" });
+    const { service, fetchMock } = await createReadyMemoryService({
+      settingsStorageService,
+    });
+
+    const result = await service.replaceMisoSessionMemory({
+      sessionId: "sess-2",
+      messages: [],
+      options: {
+        __pupu_secret_injection: [
+          { kind: "provider", id: "openai", channel: "model" },
+        ],
+      },
+    });
+
+    expect(result).toEqual({
+      applied: false,
+      error: {
+        code: "secret_storage_unavailable",
+        message: "Provider secret storage is unavailable",
+        retryable: false,
+        status: 0,
+      },
+    });
+    // Only the health ping fired — the replace POST never happened.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

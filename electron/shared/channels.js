@@ -36,6 +36,22 @@ const CHANNELS = Object.freeze({
     COMPUTER_USE_PREFS_CLEAR_KEY: "settings-storage:computer-use-clear-key",
     COMPUTER_USE_PREFS_MIGRATE_LEGACY:
       "settings-storage:computer-use-migrate-legacy",
+    // Phase 3 — custom MCP icon asset store (plan §3.6). Icons live on disk
+    // under userData/assets/mcp-icons; SQL (asset_metadata) holds only the
+    // metadata, and the renderer reads content on demand through these.
+    MCP_ICON_GET: "settings-storage:mcp-icon-get",
+    MCP_ICON_SET: "settings-storage:mcp-icon-set",
+    MCP_ICON_DELETE: "settings-storage:mcp-icon-delete",
+    MCP_ICON_LIST_OWNERS: "settings-storage:mcp-icon-list-owners",
+    MCP_ICON_MIGRATE_LEGACY: "settings-storage:mcp-icon-migrate-legacy",
+    // Phase 4 (S7) — provider secret migration trigger (plan §3.7 / §11B).
+    // The ONLY inbound channel that carries plaintext provider secrets: the
+    // renderer hands its own legacy localStorage keys to the main process to be
+    // encrypted into provider_credentials. Write-direction only — no read
+    // channel for stored secrets ever exists (gate 7 red line #8). The handler
+    // returns a status object only (never a secret value or ciphertext).
+    MIGRATE_PROVIDER_CREDENTIALS:
+      "settings-storage:migrate-provider-credentials",
   }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",

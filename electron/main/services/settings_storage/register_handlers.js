@@ -25,6 +25,12 @@ const SETTINGS_STORAGE_INVOKE_CHANNELS = Object.freeze([
   CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
   CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
   CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
+  CHANNELS.SETTINGS_STORAGE.MCP_ICON_GET,
+  CHANNELS.SETTINGS_STORAGE.MCP_ICON_SET,
+  CHANNELS.SETTINGS_STORAGE.MCP_ICON_DELETE,
+  CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
+  CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
+  CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
 ]);
 
 // Failure logs must not amplify attacker-controlled payloads: the namespace
@@ -335,6 +341,114 @@ const registerSettingsStorageHandlers = ({
         console.warn(
           "[settings-storage] computer-use-migrate-legacy failed:",
           error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  // ---- Phase 3: custom MCP icon asset store (plan §3.6) --------------------
+  // Same logging policy: store name + error code only — never toolkit ids or
+  // icon bytes from the payload.
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.MCP_ICON_GET,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.getMcpIconAsset(payload.toolkitId);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] mcp-icon-get failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.MCP_ICON_SET,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.setMcpIconAsset(
+          payload.toolkitId,
+          payload.icon,
+        );
+      } catch (error) {
+        console.warn(
+          "[settings-storage] mcp-icon-set failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.MCP_ICON_DELETE,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.deleteMcpIconAsset(payload.toolkitId);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] mcp-icon-delete failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS, async () => {
+    try {
+      return settingsStorageService.listMcpIconOwners();
+    } catch (error) {
+      console.warn(
+        "[settings-storage] mcp-icon-list-owners failed:",
+        error.code || error.message,
+      );
+      throw error;
+    }
+  });
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
+    async (_event, payload) => {
+      try {
+        return settingsStorageService.migrateMcpIconsLegacy(payload);
+      } catch (error) {
+        console.warn(
+          "[settings-storage] mcp-icon-migrate-legacy failed:",
+          error.code || error.message,
+        );
+        throw error;
+      }
+    },
+  );
+
+  // ---- Phase 4 (S7): provider secret migration trigger --------------------
+  // This is the ONE inbound channel whose payload carries plaintext provider
+  // secrets (the renderer's own legacy localStorage keys, handed in to be
+  // encrypted). Two invariants beyond the shared "code only" logging policy:
+  //   * The payload is NEVER logged — not on success and not on failure. Only
+  //     the error CODE is printed, so a rejected/malformed payload cannot leak
+  //     a key into the logs.
+  //   * The service returns a status object only (status / migratedCount /
+  //     failedCount / secretStorageStatus + identity ids) — never a secret
+  //     value or ciphertext. Read-direction secret access has no channel at
+  //     all (gate 7 red line #8); this handler is write-direction only.
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+    async (_event, payload) => {
+      try {
+        return settingsStorageService.migrateProviderCredentials(payload);
+      } catch (error) {
+        // Code only — this is the sole inbound channel carrying plaintext
+        // provider secrets, so never log error.message (it could embed
+        // payload-derived text). An uncoded throw logs a stable placeholder.
+        console.warn(
+          "[settings-storage] migrate-provider-credentials failed:",
+          error.code || "uncoded_error",
         );
         throw error;
       }

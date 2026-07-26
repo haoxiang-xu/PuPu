@@ -17,3 +17,4 @@
 - [S0/S1 rich-tool-result 评审](s0-s1-rich-tool-result-review.md) — 已放行(155363a修复复核通过);budget毁截图曾是veto条件;OpenAI官方已支持image-in-tool-output;DP1/DP2裁决
 - [computer use 调研](computer-use-research.md) — 2026-07-13;unchain tool_result 纯文本=核心缺口;浏览器捆绑 Playwright MCP、GUI 手自建;Anthropic 先行
 - [截图注入 A/B eval](computer-use-injection-eval.md) — 门B前置;四层防御哪层可隔离、真实截图无注入hook须裸API harness(test-api attachments不算)、12图素材+ICR/FRR指标
+- [Phase4 secret 注入会签](phase4-secret-injection-cosign.md) — 2026-07-25 我 CO-SIGN 字节等价(字段集+值 key-order无关);裁定:保留值短路是模型可见行为必需项,删它=VETO

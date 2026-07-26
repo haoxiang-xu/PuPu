@@ -23,7 +23,9 @@
 //   subscribeSettings(listener)           returns unsubscribe
 //   flushSettingsWrites()                 Promise, resolves when queue drains
 //   getSettingsPersistenceStatus()        { mode, degraded, pendingWrites,
-//                                           lastErrorCode, warnings }
+//                                           lastErrorCode, warnings,
+//                                           secretStorageStatus,
+//                                           configuredCredentials }
 //
 // Core semantics:
 // - Getters are ALWAYS synchronous. SQL mode reads the in-memory snapshot;
@@ -232,6 +234,13 @@ const createInitialState = () => ({
   revisions: Object.create(null),
   pendingWrites: 0,
   queueTail: Promise.resolve(),
+  // Phase 4 (S3): non-sensitive secret-storage status carried on the degraded
+  // channel. secretStorageStatus is the safeStorage gate-3 availability;
+  // configuredCredentials is the provider_credentials identity list. Both are
+  // captured from the bootstrap snapshot (SQL mode) and NEVER hold a secret
+  // value or ciphertext.
+  secretStorageStatus: "unavailable",
+  configuredCredentials: [],
 });
 
 const notify = (namespace) => {
@@ -467,6 +476,16 @@ const ensureInit = () => {
     return s;
   }
   s.mode = "sql";
+  // Phase 4 (S3): capture the non-sensitive secret-storage signals for the
+  // status/degraded channel. Fail-closed defaults on a missing/malformed field
+  // (older main process, or a snapshot that predates S3).
+  s.secretStorageStatus =
+    snapshot.secretStorageStatus === "available" ? "available" : "unavailable";
+  s.configuredCredentials = Array.isArray(snapshot.configuredCredentials)
+    ? snapshot.configuredCredentials.filter(
+        (id) => typeof id === "string" && id.length > 0,
+      )
+    : [];
   // isPlainObject accepts null-prototype maps (it only rejects null/arrays).
   const namespaces = isPlainObject(snapshot.namespaces)
     ? snapshot.namespaces
@@ -803,6 +822,11 @@ export const getSettingsPersistenceStatus = () => {
     pendingWrites: s.pendingWrites,
     lastErrorCode: s.lastErrorCode,
     warnings: s.warnings.map((warning) => ({ ...warning })),
+    // Phase 4 (S3): non-sensitive secret-storage signals. A degraded backend
+    // reports unavailable / [] regardless of the last captured snapshot
+    // (fail-closed) — a degraded settings.db can serve no encrypted secret.
+    secretStorageStatus: s.degraded ? "unavailable" : s.secretStorageStatus,
+    configuredCredentials: s.degraded ? [] : [...s.configuredCredentials],
   };
 };
 

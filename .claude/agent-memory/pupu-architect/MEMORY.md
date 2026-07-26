@@ -11,3 +11,4 @@
 - [skill 展开岔口2定案](skill-expansion-fork2-decision.md) — 2026-07-18 裁D(A契约+渲染折叠sidecar composer.v1);否决B隐藏注入(content=模型真相是承重不变量);always模式才走before_model
 - [2026-07 健康评估基线](code-health-baseline-2026-07.md) — use_chat_stream实测12k行/adapter 7.3k/routes已拆完;五项优先级+不动名单+GitNexus动态import盲区
 - [AGPL 换证评读定案](license-agpl-switch-review.md) — 2026-07-21 硬门PASS/CLA §4已覆盖relicense/建议0.1.9放大发布前换/unchain保持Apache;真单向门=CLA管线非license文本
+- [Phase4 secret 描述符契约审查](phase4-secret-descriptor-contract-review.md) — 2026-07-25 REVISE:renderer secret注入有4条路非3条(漏injectOpenAIEmbeddingKeyIfNeeded L279);单描述符无法载"embedding-openai+model双secret"→须改带channel列表;冻结形状=单向门;B2 replaceMisoSessionMemory须strip+inject;N+1删legacy前configuredCredentials须live-refresh

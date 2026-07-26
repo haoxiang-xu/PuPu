@@ -17,12 +17,19 @@ const DB_FILE_NAME = "settings.db";
 // Database-level schema version. v2 = Phase 2 token_usage_records table +
 // indexes. The per-row settings.schema_version stays at
 // SETTINGS_ROW_SCHEMA_VERSION — namespace value shapes did not change.
+// Phase 4 (S1) adds the provider_credentials table as a pure additive
+// `CREATE TABLE IF NOT EXISTS` increment — same judgement as S2/S3/Phase 3,
+// a new table does NOT bump SCHEMA_VERSION.
 const SCHEMA_VERSION = 2;
 const SETTINGS_ROW_SCHEMA_VERSION = 1;
 const SUPPORTED_LEGACY_MIGRATION_VERSION = 1;
 const SUPPORTED_TOKEN_USAGE_MIGRATION_VERSION = 1;
 const SUPPORTED_TOOLKIT_PREFS_MIGRATION_VERSION = 1;
 const SUPPORTED_COMPUTER_USE_MIGRATION_VERSION = 1;
+const SUPPORTED_MCP_ICONS_MIGRATION_VERSION = 1;
+// Phase 4 (S2): the provider-secret migration envelope version. Bumped only if
+// the legacy→ciphertext migration contract changes shape.
+const SUPPORTED_PROVIDER_CREDENTIALS_MIGRATION_VERSION = 1;
 
 // Input limits (plan §7.2) — centralized constants, covered by tests.
 const SETTINGS_STORAGE_LIMITS = Object.freeze({
@@ -76,6 +83,51 @@ const COMPUTER_USE_LIMITS = Object.freeze({
   VALUE_MAX_BYTES: 4096, // per-key value_json cap (records are tiny)
 });
 
+// Custom MCP icon asset store (plan §3.6). Icons are stored as FILES under
+// userData/assets/mcp-icons; the asset_metadata table keeps only the metadata.
+// The renderer never gets icon bytes in the bootstrap snapshot (they can be
+// large) — it reads them on demand through the mcp-icon IPC channels.
+//
+// Content encoding is mime-dependent and MUST round-trip losslessly, because
+// the renderer's ToolkitIcon reads png content as base64 but svg content as
+// RAW UTF-8 text (src/COMPONENTs/toolkit/components/toolkit_icon.js). The file
+// on disk always holds the decoded bytes; getMcpIconAsset re-encodes per mime
+// so the returned `content` is byte-identical to what was stored.
+const MCP_ICON_ASSET_OWNER_TYPE = "mcp_icon";
+const MCP_ICON_MIME_EXT = Object.freeze({
+  "image/png": "png",
+  "image/svg+xml": "svg",
+});
+const MCP_ICON_LIMITS = Object.freeze({
+  MAX_ENTRIES: 100, // mirrors the legacy MAX_ENTRIES cap
+  // Decoded-byte ceiling: the legacy store capped content STRING length at
+  // 400_000 (base64 for png, raw text for svg). 400_000 base64 chars decode to
+  // ~300_000 bytes, so this decoded-byte cap is the equivalent-or-stricter
+  // bound the plan §3.6 asks for, applied uniformly to the on-disk file size.
+  MAX_DECODED_BYTES: 300_000,
+  OWNER_ID_MAX_LENGTH: 200, // toolkit id length cap
+  SANITIZED_FILENAME_MAX_LENGTH: 60, // sanitized-id prefix cap (plan §3.6)
+});
+// The assets directory lives under userData, split into path segments so the
+// service joins them with the platform separator.
+const MCP_ICONS_ASSETS_SEGMENTS = Object.freeze(["assets", "mcp-icons"]);
+// Filename charset (plan §3.6): the sanitized toolkit-id prefix keeps only
+// these characters; everything else becomes "_". The extension is decided by
+// the validated mime — NEVER by user input.
+// eslint-disable-next-line no-useless-escape
+const MCP_ICON_FILENAME_SAFE_PATTERN = /[^a-z0-9._-]/g;
+// Strict base64 (png content). Whitespace is stripped before the test.
+const MCP_ICON_BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
+
+// Per-store migration meta for the custom MCP icon store (plan §3.6). Same
+// four-key state machine as the other Phase 2/3 stores.
+const MCP_ICONS_META_KEYS = Object.freeze({
+  STATE: "mcp_icons_migration_state",
+  VERSION: "mcp_icons_migration_version",
+  DIGEST: "mcp_icons_migration_digest",
+  MIGRATED_AT: "mcp_icons_migrated_at",
+});
+
 // Secrets never enter the settings table or the bootstrap snapshot
 // (plan §3.7 / Phase 1B completion bar). Stripped on write AND on read.
 const SENSITIVE_MODEL_PROVIDER_KEYS = Object.freeze([
@@ -84,6 +136,44 @@ const SENSITIVE_MODEL_PROVIDER_KEYS = Object.freeze([
   "custom_provider_secrets",
 ]);
 const MODEL_PROVIDERS_NAMESPACE = "model_providers";
+
+// ---- Phase 4 (S1): provider credential ciphertext store ------------------
+// (plan §3.7, phase4-cto-adr §3.4/S1, phase4-security-decision §3 gate 3.)
+// Provider API keys live ENCRYPTED (Electron safeStorage BLOB) in a DEDICATED
+// table — NEVER in the `settings` table, NEVER in the bootstrap snapshot,
+// NEVER logged. Plaintext exists only transiently inside setProviderCredential
+// (encrypt) and readDecryptedProviderSecret (decrypt — the narrow S4 injection
+// seam, a main-internal method that is NEVER exposed over any IPC channel).
+const PROVIDER_CREDENTIAL_KINDS = Object.freeze([
+  "provider", // owner_id = "openai" | "anthropic"
+  "custom_provider", // owner_id = "custom.<slug>"
+]);
+const PROVIDER_CREDENTIAL_LIMITS = Object.freeze({
+  OWNER_ID_MAX_LENGTH: 200,
+});
+const SECRET_STORAGE_STATUS = Object.freeze({
+  AVAILABLE: "available",
+  UNAVAILABLE: "unavailable",
+});
+// Gate 3 (phase4-security-decision §3): on Linux, safeStorage is only trusted
+// when the selected backend is a real OS keyring. `basic_text` (Electron's
+// hardcoded-password fallback) and `unknown` are REFUSED — we never fall back
+// to plaintext encryption and never call setUsePlainTextEncryption().
+const SAFE_SECRET_STORAGE_LINUX_BACKENDS = Object.freeze(
+  new Set(["gnome_libsecret", "kwallet", "kwallet5", "kwallet6"]),
+);
+
+// Per-store migration meta for the Phase 4 (S2) provider-secret migration
+// (gate 4). Same four-key state machine as the other per-store migrations. The
+// DIGEST here is computed over the credential IDENTITY set only (which
+// providers/slugs are present) — NEVER over secret plaintext — so no
+// secret-derived material is ever persisted to the meta table.
+const PROVIDER_CREDENTIALS_META_KEYS = Object.freeze({
+  STATE: "provider_credentials_migration_state",
+  VERSION: "provider_credentials_migration_version",
+  DIGEST: "provider_credentials_migration_digest",
+  MIGRATED_AT: "provider_credentials_migrated_at",
+});
 
 const MIGRATION_STATE = Object.freeze({
   NOT_STARTED: "not_started",
@@ -206,6 +296,26 @@ CREATE TABLE IF NOT EXISTS computer_use_preferences (
   value_json     TEXT NOT NULL,
   schema_version INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS asset_metadata (
+  asset_id       TEXT PRIMARY KEY,
+  owner_type     TEXT NOT NULL,
+  owner_id       TEXT NOT NULL,
+  relative_path  TEXT NOT NULL,
+  mime_type      TEXT NOT NULL,
+  byte_size      INTEGER NOT NULL,
+  sha256         TEXT NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  UNIQUE(owner_type, owner_id)
+);
+
+CREATE TABLE IF NOT EXISTS provider_credentials (
+  credential_kind TEXT NOT NULL,
+  owner_id        TEXT NOT NULL,
+  ciphertext      BLOB NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  PRIMARY KEY (credential_kind, owner_id)
 );
 `;
 
@@ -481,14 +591,109 @@ const validateComputerUsePreferenceValue = (key, value) => {
   return null;
 };
 
-const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
+// ---- custom MCP icon asset helpers (plan §3.6) ---------------------------
+// Pure functions (no db/fs) — the file/SQL orchestration lives in the service
+// closure below where fs/path/app are in scope.
+
+const sha256Hex = (buffer) =>
+  crypto.createHash("sha256").update(buffer).digest("hex");
+
+// A stable per-owner asset_id (opaque, bounded). Derived only from the owner
+// identity, so re-setting an owner's icon keeps the same primary key. The ":"
+// separator is safe (owner_type is a fixed literal with no colon).
+const mcpIconAssetId = (ownerId) =>
+  sha256Hex(Buffer.from(`${MCP_ICON_ASSET_OWNER_TYPE}:${ownerId}`, "utf8"));
+
+// Sanitize a toolkit id into the filename prefix: keep only the plan §3.6
+// charset, replace the rest with "_", cap the length. Never trusted for
+// directory structure — the resolved path is re-checked against the assets dir.
+const sanitizeToolkitIdForFilename = (ownerId) => {
+  const cleaned = String(ownerId)
+    .replace(MCP_ICON_FILENAME_SAFE_PATTERN, "_")
+    .slice(0, MCP_ICON_LIMITS.SANITIZED_FILENAME_MAX_LENGTH);
+  return cleaned.length > 0 ? cleaned : "icon";
+};
+
+// Build the on-disk filename for an owner's icon. It embeds a short hash of the
+// FULL owner id (guarantees distinct owners never collide on one file, even if
+// their sanitized prefixes match — so deletes never orphan another owner's
+// row: the plan's "不共享/各自文件" recommendation, made robust) plus a content
+// hash (a content change yields a new filename, enabling write-new→rename→
+// delete-old atomic replacement). The extension comes from the validated mime.
+const buildMcpIconFilename = (ownerId, contentBytes, ext) => {
+  const prefix = sanitizeToolkitIdForFilename(ownerId);
+  const ownerHash = sha256Hex(Buffer.from(String(ownerId), "utf8")).slice(0, 8);
+  const contentHash = sha256Hex(contentBytes).slice(0, 16);
+  return `${prefix}-${ownerHash}-${contentHash}.${ext}`;
+};
+
+// Decode a renderer icon `content` into the on-disk bytes for its mime, or null
+// when it cannot be represented. png content is base64 (strict-validated then
+// round-trip-checked so lenient garbage is rejected); svg content is raw UTF-8
+// text stored verbatim.
+const decodeMcpIconBytes = (mime, content) => {
+  if (typeof content !== "string" || content.length === 0) return null;
+  if (mime === "image/png") {
+    const compact = content.replace(/\s+/g, "");
+    if (
+      compact.length === 0 ||
+      compact.length % 4 !== 0 ||
+      !MCP_ICON_BASE64_PATTERN.test(compact)
+    ) {
+      return null;
+    }
+    const bytes = Buffer.from(compact, "base64");
+    // Round-trip guard: Buffer's base64 decode is lenient, so re-encode and
+    // require the canonical form to match the input — rejects malformed base64.
+    if (bytes.length === 0 || bytes.toString("base64") !== compact) return null;
+    return bytes;
+  }
+  if (mime === "image/svg+xml") {
+    const bytes = Buffer.from(content, "utf8");
+    return bytes.length > 0 ? bytes : null;
+  }
+  return null;
+};
+
+// Re-encode on-disk bytes back into the renderer `content` for its mime
+// (inverse of decodeMcpIconBytes): png → base64, svg → raw UTF-8 text.
+const encodeMcpIconContent = (mime, bytes) => {
+  if (mime === "image/svg+xml") return bytes.toString("utf8");
+  return bytes.toString("base64");
+};
+
+const createSettingsStorageService = ({
+  app,
+  fs,
+  path,
+  sqlite,
+  // Phase 4 (S1): Electron's safeStorage, injected from index.js. OPTIONAL so
+  // every pre-Phase-4 construction (and the existing test fleet) keeps working
+  // — when absent the secret-storage subsystem simply reports "unavailable" and
+  // every credential write fails closed (never plaintext).
+  safeStorage,
+  // Injected only for testability of the Linux gate-3 branch; defaults to the
+  // real host platform. index.js never passes it.
+  platform,
+} = {}) => {
   if (!app || !fs || !path || !sqlite) {
     throw new Error("createSettingsStorageService: missing dependencies");
   }
+  const resolvedPlatform =
+    typeof platform === "string" && platform.length > 0
+      ? platform
+      : process.platform;
 
   let db = null;
   let dbPath = null;
   let degradedReason = null;
+  // Absolute path to userData/assets/mcp-icons, set in init(). The directory is
+  // created lazily on the first icon write (keeps init lean + degraded-safe).
+  let mcpIconsDir = null;
+  // Phase 4 (S1): whether encrypted provider-credential storage is usable on
+  // this machine (gate 3). Set in init() by probeSecretStorage(); stays
+  // "unavailable" until a successful probe. Never plaintext, never a key.
+  let secretStorageStatus = SECRET_STORAGE_STATUS.UNAVAILABLE;
 
   const requireDb = () => {
     if (!db) {
@@ -500,6 +705,43 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
       );
     }
     return db;
+  };
+
+  // ---- Phase 4 (S1): safeStorage availability probe (gate 3) ---------------
+  // Returns "available" only when safeStorage is genuinely usable:
+  //   available === true AND (non-Linux OR Linux with a real keyring backend).
+  // Explicitly refuses `basic_text`/`unknown` on Linux. NEVER calls
+  // setUsePlainTextEncryption. Any thrown probe error → "unavailable"
+  // (fail closed — an unusable probe must never be read as usable).
+  const probeSecretStorage = () => {
+    if (
+      !safeStorage ||
+      typeof safeStorage.isEncryptionAvailable !== "function"
+    ) {
+      return SECRET_STORAGE_STATUS.UNAVAILABLE;
+    }
+    let available = false;
+    try {
+      available = safeStorage.isEncryptionAvailable() === true;
+    } catch (_error) {
+      return SECRET_STORAGE_STATUS.UNAVAILABLE;
+    }
+    if (!available) return SECRET_STORAGE_STATUS.UNAVAILABLE;
+    if (resolvedPlatform === "linux") {
+      let backend = null;
+      try {
+        backend =
+          typeof safeStorage.getSelectedStorageBackend === "function"
+            ? safeStorage.getSelectedStorageBackend()
+            : null;
+      } catch (_error) {
+        return SECRET_STORAGE_STATUS.UNAVAILABLE;
+      }
+      if (!SAFE_SECRET_STORAGE_LINUX_BACKENDS.has(backend)) {
+        return SECRET_STORAGE_STATUS.UNAVAILABLE;
+      }
+    }
+    return SECRET_STORAGE_STATUS.AVAILABLE;
   };
 
   // ---- validation ----------------------------------------------------------
@@ -664,6 +906,7 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
     try {
       const userDataDir = app.getPath("userData");
       dbPath = path.join(userDataDir, DB_FILE_NAME);
+      mcpIconsDir = path.join(userDataDir, ...MCP_ICONS_ASSETS_SEGMENTS);
       db = createSettingsDb({ dbPath, sqlite });
       db.exec(SCHEMA_SQL);
       const storedSchemaVersion = readMetaValue(META_KEYS.SCHEMA_VERSION);
@@ -681,6 +924,10 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
         });
       }
       degradedReason = null;
+      // Gate 3: probe encrypted-credential storage now that app is ready (the
+      // caller runs init() inside app.whenReady()). No secret is touched here —
+      // only the boolean availability of the OS keyring is inspected.
+      secretStorageStatus = probeSecretStorage();
     } catch (error) {
       // Corruption policy (plan §7.3): NEVER delete the file; enter degraded
       // mode. The renderer keeps its localStorage fallback in Phase 1B.
@@ -692,6 +939,7 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
         }
       }
       db = null;
+      secretStorageStatus = SECRET_STORAGE_STATUS.UNAVAILABLE;
       const fileExists = dbPath ? fs.existsSync(dbPath) : false;
       degradedReason = fileExists ? "open-failed" : "init-failed";
       console.error(
@@ -787,6 +1035,17 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
           TOOLKIT_AUTO_APPROVE_META_KEYS,
         ),
         computerUse: getStoreMigrationMetaFor(COMPUTER_USE_META_KEYS),
+        // Phase 3: only the icon migration META rides the snapshot — the icon
+        // CONTENT is read on demand (getMcpIconAsset), never bootstrapped.
+        mcpIcons: getStoreMigrationMetaFor(MCP_ICONS_META_KEYS),
+        // Phase 4 (S7): the provider-credentials migration META lets the
+        // renderer's migration trigger (provider_secret_migration.js) skip a
+        // re-migration once SQL is complete. Identity-only, like every other
+        // per-store meta here — NEVER a secret value or ciphertext. Because
+        // legacy secrets are kept under dual-keep (never deleted in release N),
+        // this meta is the sole across-boot idempotency signal: without it the
+        // trigger would re-fire every launch.
+        providerCredentials: getProviderCredentialsMigrationMeta(),
       };
     } catch (error) {
       console.warn(
@@ -795,6 +1054,27 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
       );
       storeMigrations = undefined;
     }
+    // Phase 4 (S3): the non-sensitive provider-credential existence signal.
+    // configuredCredentials is the IDENTITY list (owner ids: "openai" |
+    // "anthropic" | "custom.<slug>") of rows present in the
+    // provider_credentials table — NEVER a secret value, NEVER ciphertext
+    // (gate 7 red line #2). The renderer combines it with the legacy dual-keep
+    // signal to decide whether descriptor-only secret injection (S4/S5) is
+    // authoritative for a given provider. Failure-isolated like the sections
+    // above (§7.3): a listing error yields [] so the renderer safely falls
+    // back to the legacy secret path rather than losing the ability to inject.
+    let configuredCredentials;
+    try {
+      configuredCredentials = listProviderCredentialOwners().owners.map(
+        (owner) => owner.ownerId,
+      );
+    } catch (error) {
+      console.warn(
+        "[settings-storage] provider credential signal unavailable in bootstrap:",
+        error.code || error.message,
+      );
+      configuredCredentials = [];
+    }
     return {
       available: true,
       degraded: false,
@@ -802,6 +1082,12 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
       migration: getMigrationMeta(),
       namespaces,
       revisions,
+      // Phase 4 (S3): safeStorage availability from the gate-3 probe plus the
+      // non-sensitive configured-credential identity list. Both let the
+      // renderer gate the S5 descriptor-injection path; no secret value or
+      // ciphertext ever crosses this boundary.
+      secretStorageStatus,
+      configuredCredentials,
       ...(toolkitPrefs !== undefined ? { toolkitPrefs } : {}),
       ...(computerUse !== undefined ? { computerUse } : {}),
       ...(storeMigrations !== undefined ? { storeMigrations } : {}),
@@ -1945,6 +2231,789 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
     };
   };
 
+  // ---- Phase 3: custom MCP icon asset store (plan §3.6) --------------------
+  // Icons live as files under userData/assets/mcp-icons; asset_metadata holds
+  // only the metadata. The write order (write new file → upsert SQL → delete
+  // old file) is recoverable: on SQL failure the just-written new file is
+  // removed, so SQL is NEVER left pointing at a missing file and no orphan file
+  // is left behind. Reads self-heal: a missing file drops the SQL row.
+
+  const ensureMcpIconsDir = () => {
+    if (!mcpIconsDir) {
+      throw errorWithCode(
+        "settings storage service used before init()",
+        "settings_storage_unavailable",
+      );
+    }
+    fs.mkdirSync(mcpIconsDir, { recursive: true });
+    return mcpIconsDir;
+  };
+
+  // Resolve a stored relative filename to an absolute path and REJECT anything
+  // that escapes the assets directory (defense in depth — the filename is
+  // generated, but a hostile/corrupt stored relative_path must never traverse).
+  const resolveMcpIconPath = (relativePath) => {
+    if (!mcpIconsDir) {
+      throw errorWithCode(
+        "settings storage service used before init()",
+        "settings_storage_unavailable",
+      );
+    }
+    if (typeof relativePath !== "string" || relativePath.length === 0) {
+      throw errorWithCode(
+        "mcp-icon: relative path must be a non-empty string",
+        "invalid_mcp_icon_path",
+      );
+    }
+    const abs = path.resolve(mcpIconsDir, relativePath);
+    const rel = path.relative(mcpIconsDir, abs);
+    if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+      throw errorWithCode(
+        "mcp-icon: resolved path escapes the assets directory",
+        "invalid_mcp_icon_path",
+      );
+    }
+    return abs;
+  };
+
+  // Clean/validate the owner id (the custom toolkit id). Throws on direct
+  // writes (the renderer only ever sends mcp.custom.* ids — a violation is a
+  // bug, never data); returns null for reads/migration so they can skip it.
+  const cleanMcpIconOwnerId = (ownerId, { throwOnInvalid = true } = {}) => {
+    const trimmed = typeof ownerId === "string" ? ownerId.trim() : "";
+    if (
+      !trimmed ||
+      trimmed.length > MCP_ICON_LIMITS.OWNER_ID_MAX_LENGTH ||
+      trimmed === "__proto__"
+    ) {
+      if (throwOnInvalid) {
+        throw errorWithCode(
+          "mcp-icon: toolkitId must be a non-empty string within " +
+            `${MCP_ICON_LIMITS.OWNER_ID_MAX_LENGTH} characters`,
+          "invalid_mcp_icon",
+        );
+      }
+      return null;
+    }
+    return trimmed;
+  };
+
+  const safeUnlinkMcpIconFile = (relativePath) => {
+    try {
+      const abs = resolveMcpIconPath(relativePath);
+      fs.unlinkSync(abs);
+    } catch (error) {
+      if (error && error.code === "ENOENT") return;
+      // A file-delete failure is not fatal: the SQL row is already gone (delete
+      // path) or replaced (set path), so nothing dangles. Warn with code only.
+      console.warn(
+        "[settings-storage] mcp-icon file unlink failed:",
+        (error && error.code) || "unlink-failed",
+      );
+    }
+  };
+
+  // Atomically write bytes to absPath via a unique temp file + rename.
+  const atomicWriteMcpIconFile = (absPath, bytes) => {
+    const tmpPath =
+      `${absPath}.tmp-${process.pid}-${Date.now()}-` +
+      Math.random().toString(36).slice(2);
+    try {
+      fs.writeFileSync(tmpPath, bytes);
+      fs.renameSync(tmpPath, absPath);
+    } catch (error) {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch (_cleanupError) {
+        // temp file may not exist; surface the original error
+      }
+      throw error;
+    }
+  };
+
+  // Decode + validate an icon value (mime + content) into { bytes, mime, ext,
+  // sha }. Throws on direct writes; the migration path calls the underlying
+  // helpers directly so it can drop-and-count instead.
+  const validateMcpIconValue = (value) => {
+    const mime = isPlainObject(value) ? value.mime : undefined;
+    const content = isPlainObject(value) ? value.content : undefined;
+    if (!MCP_ICON_MIME_EXT[mime]) {
+      throw errorWithCode(
+        "mcp-icon: mime must be image/png or image/svg+xml",
+        "invalid_mcp_icon",
+      );
+    }
+    const bytes = decodeMcpIconBytes(mime, content);
+    if (!bytes) {
+      throw errorWithCode(
+        "mcp-icon: content is not decodable for its mime",
+        "invalid_mcp_icon",
+      );
+    }
+    if (bytes.length > MCP_ICON_LIMITS.MAX_DECODED_BYTES) {
+      throw errorWithCode(
+        `mcp-icon: decoded size exceeds ${MCP_ICON_LIMITS.MAX_DECODED_BYTES} bytes`,
+        "mcp_icon_too_large",
+      );
+    }
+    return { bytes, mime, ext: MCP_ICON_MIME_EXT[mime], sha: sha256Hex(bytes) };
+  };
+
+  const readMcpIconOwnerRow = (ownerId) =>
+    requireDb()
+      .prepare(
+        "SELECT asset_id, relative_path FROM asset_metadata " +
+          "WHERE owner_type = ? AND owner_id = ?",
+      )
+      .get(MCP_ICON_ASSET_OWNER_TYPE, ownerId);
+
+  const countMcpIconOwners = () =>
+    Number(
+      requireDb()
+        .prepare(
+          "SELECT COUNT(*) AS c FROM asset_metadata WHERE owner_type = ?",
+        )
+        .get(MCP_ICON_ASSET_OWNER_TYPE).c,
+    );
+
+  const setMcpIconAsset = (toolkitId, value) => {
+    requireDb();
+    const ownerId = cleanMcpIconOwnerId(toolkitId);
+    const { bytes, mime, ext, sha } = validateMcpIconValue(value);
+    const filename = buildMcpIconFilename(ownerId, bytes, ext);
+    const absPath = resolveMcpIconPath(filename);
+    const updatedAt = Date.now();
+
+    const existing = readMcpIconOwnerRow(ownerId);
+    // Entry cap: only counts against a NEW owner (a re-set replaces in place).
+    if (!existing && countMcpIconOwners() >= MCP_ICON_LIMITS.MAX_ENTRIES) {
+      throw errorWithCode(
+        `mcp-icon: entry cap of ${MCP_ICON_LIMITS.MAX_ENTRIES} reached`,
+        "mcp_icon_cap_reached",
+      );
+    }
+    const oldRelativePath = existing ? existing.relative_path : null;
+
+    ensureMcpIconsDir();
+    // 1. Write the new file first.
+    atomicWriteMcpIconFile(absPath, bytes);
+    // 2. Upsert SQL. On failure, remove the new file so SQL never points at a
+    //    missing file and no orphan file is left behind — BUT only when the
+    //    file we wrote is a fresh one. When identical content is re-set for an
+    //    existing owner, buildMcpIconFilename is deterministic so filename ===
+    //    oldRelativePath: the surviving (rolled-back) row still references that
+    //    file, so unlinking it would strand the row and destroy a valid icon.
+    //    Mirror the migration path's `keep = oldRelativePaths` guard.
+    try {
+      db.tx(() => {
+        db.prepare(
+          "INSERT INTO asset_metadata(asset_id, owner_type, owner_id, " +
+            "relative_path, mime_type, byte_size, sha256, updated_at) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
+            "ON CONFLICT(owner_type, owner_id) DO UPDATE SET " +
+            "asset_id = excluded.asset_id, " +
+            "relative_path = excluded.relative_path, " +
+            "mime_type = excluded.mime_type, " +
+            "byte_size = excluded.byte_size, " +
+            "sha256 = excluded.sha256, " +
+            "updated_at = excluded.updated_at",
+        ).run(
+          mcpIconAssetId(ownerId),
+          MCP_ICON_ASSET_OWNER_TYPE,
+          ownerId,
+          filename,
+          mime,
+          bytes.length,
+          sha,
+          updatedAt,
+        );
+      });
+    } catch (error) {
+      if (filename !== oldRelativePath) safeUnlinkMcpIconFile(filename);
+      throw error;
+    }
+    // 3. Delete the previous file if the content (hence filename) changed.
+    if (oldRelativePath && oldRelativePath !== filename) {
+      safeUnlinkMcpIconFile(oldRelativePath);
+    }
+    return {
+      ok: true,
+      toolkitId: ownerId,
+      relativePath: filename,
+      mime,
+      byteSize: bytes.length,
+      sha256: sha,
+    };
+  };
+
+  const getMcpIconAsset = (toolkitId) => {
+    requireDb();
+    const ownerId = cleanMcpIconOwnerId(toolkitId, { throwOnInvalid: false });
+    if (!ownerId) return { ok: true, icon: null };
+    const row = requireDb()
+      .prepare(
+        "SELECT relative_path, mime_type FROM asset_metadata " +
+          "WHERE owner_type = ? AND owner_id = ?",
+      )
+      .get(MCP_ICON_ASSET_OWNER_TYPE, ownerId);
+    if (!row) return { ok: true, icon: null };
+    let absPath;
+    try {
+      absPath = resolveMcpIconPath(row.relative_path);
+    } catch (_error) {
+      // Corrupt/hostile stored path → self-heal by dropping the row.
+      db.prepare(
+        "DELETE FROM asset_metadata WHERE owner_type = ? AND owner_id = ?",
+      ).run(MCP_ICON_ASSET_OWNER_TYPE, ownerId);
+      return { ok: true, icon: null };
+    }
+    let bytes;
+    try {
+      bytes = fs.readFileSync(absPath);
+    } catch (_error) {
+      // File missing → self-heal: the SQL row must never outlive its file.
+      db.prepare(
+        "DELETE FROM asset_metadata WHERE owner_type = ? AND owner_id = ?",
+      ).run(MCP_ICON_ASSET_OWNER_TYPE, ownerId);
+      return { ok: true, icon: null };
+    }
+    return {
+      ok: true,
+      icon: {
+        mime: row.mime_type,
+        content: encodeMcpIconContent(row.mime_type, bytes),
+      },
+    };
+  };
+
+  const deleteMcpIconAsset = (toolkitId) => {
+    requireDb();
+    const ownerId = cleanMcpIconOwnerId(toolkitId, { throwOnInvalid: false });
+    if (!ownerId) return { ok: true, deleted: false };
+    const row = readMcpIconOwnerRow(ownerId);
+    // SQL first, then the file (plan §3.6): once the row is gone nothing
+    // dangles, so a subsequent file-delete failure only warns.
+    const result = db
+      .prepare(
+        "DELETE FROM asset_metadata WHERE owner_type = ? AND owner_id = ?",
+      )
+      .run(MCP_ICON_ASSET_OWNER_TYPE, ownerId);
+    if (row && row.relative_path) {
+      safeUnlinkMcpIconFile(row.relative_path);
+    }
+    return { ok: true, deleted: Number(result.changes) > 0 };
+  };
+
+  const listMcpIconOwners = () => {
+    requireDb();
+    const rows = db
+      .prepare(
+        "SELECT owner_id, mime_type, byte_size, sha256, updated_at " +
+          "FROM asset_metadata WHERE owner_type = ? " +
+          "ORDER BY updated_at ASC, owner_id ASC",
+      )
+      .all(MCP_ICON_ASSET_OWNER_TYPE);
+    return {
+      ok: true,
+      owners: rows.map((row) => ({
+        toolkitId: row.owner_id,
+        mime: row.mime_type,
+        byteSize: Number(row.byte_size),
+        sha256: row.sha256,
+        updatedAt: Number(row.updated_at),
+      })),
+    };
+  };
+
+  // Per-store legacy import (plan §3.6). Drop-and-count like the toolkit prefs:
+  // an invalid entry (bad mime / undecodable / oversize / bad id) is discarded
+  // with a count-only diagnostic — an icon is a display asset, "宁缺勿滥". Files
+  // are written BEFORE the SQL transaction; on any failure the files written
+  // this run are removed (and db.tx rolls the rows back). A full replace means
+  // any pre-existing files not re-referenced are unlinked after commit.
+  const migrateMcpIconsLegacy = (payload) => {
+    requireDb();
+    const label = "mcp-icons-migrate-legacy";
+    const { normalized, digest } = normalizeStoreMigrationEnvelope(
+      payload,
+      label,
+      SUPPORTED_MCP_ICONS_MIGRATION_VERSION,
+    );
+    if (!isPlainObject(normalized.icons)) {
+      throw errorWithCode(
+        `${label}: icons must be an object`,
+        "invalid_migration_payload",
+      );
+    }
+    const completed = resolveCompletedStoreMigration(
+      MCP_ICONS_META_KEYS,
+      digest,
+      SUPPORTED_MCP_ICONS_MIGRATION_VERSION,
+    );
+    if (completed) return completed;
+
+    const migratedAt = Date.now();
+    let droppedEntries = 0;
+    const toInsert = [];
+    const writtenFiles = [];
+    // Pre-existing files (unlinked after a successful full-replace commit).
+    const oldRelativePaths = db
+      .prepare("SELECT relative_path FROM asset_metadata WHERE owner_type = ?")
+      .all(MCP_ICON_ASSET_OWNER_TYPE)
+      .map((row) => row.relative_path);
+
+    try {
+      ensureMcpIconsDir();
+      for (const [rawId, value] of Object.entries(normalized.icons)) {
+        const ownerId = cleanMcpIconOwnerId(rawId, { throwOnInvalid: false });
+        const mime = isPlainObject(value) ? value.mime : undefined;
+        const content = isPlainObject(value) ? value.content : undefined;
+        if (!ownerId || !MCP_ICON_MIME_EXT[mime]) {
+          droppedEntries += 1;
+          continue;
+        }
+        const bytes = decodeMcpIconBytes(mime, content);
+        if (!bytes || bytes.length > MCP_ICON_LIMITS.MAX_DECODED_BYTES) {
+          droppedEntries += 1;
+          continue;
+        }
+        if (toInsert.length >= MCP_ICON_LIMITS.MAX_ENTRIES) {
+          droppedEntries += 1;
+          continue;
+        }
+        const ext = MCP_ICON_MIME_EXT[mime];
+        const filename = buildMcpIconFilename(ownerId, bytes, ext);
+        const absPath = resolveMcpIconPath(filename);
+        atomicWriteMcpIconFile(absPath, bytes);
+        writtenFiles.push(filename);
+        toInsert.push({
+          ownerId,
+          filename,
+          mime,
+          byteSize: bytes.length,
+          sha: sha256Hex(bytes),
+        });
+      }
+      db.tx(() => {
+        upsertMeta(MCP_ICONS_META_KEYS.STATE, MIGRATION_STATE.IN_PROGRESS);
+        // Full replace: the legacy payload is the complete desired state.
+        db.prepare(
+          "DELETE FROM asset_metadata WHERE owner_type = ?",
+        ).run(MCP_ICON_ASSET_OWNER_TYPE);
+        for (const entry of toInsert) {
+          db.prepare(
+            "INSERT INTO asset_metadata(asset_id, owner_type, owner_id, " +
+              "relative_path, mime_type, byte_size, sha256, updated_at) " +
+              "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          ).run(
+            mcpIconAssetId(entry.ownerId),
+            MCP_ICON_ASSET_OWNER_TYPE,
+            entry.ownerId,
+            entry.filename,
+            entry.mime,
+            entry.byteSize,
+            entry.sha,
+            migratedAt,
+          );
+        }
+        upsertMeta(
+          MCP_ICONS_META_KEYS.VERSION,
+          SUPPORTED_MCP_ICONS_MIGRATION_VERSION,
+        );
+        upsertMeta(MCP_ICONS_META_KEYS.DIGEST, digest);
+        upsertMeta(MCP_ICONS_META_KEYS.MIGRATED_AT, migratedAt);
+        upsertMeta(MCP_ICONS_META_KEYS.STATE, MIGRATION_STATE.COMPLETE);
+      });
+    } catch (error) {
+      // Roll back the files written this run (db.tx already rolled the rows).
+      const keep = new Set(oldRelativePaths);
+      for (const filename of writtenFiles) {
+        if (!keep.has(filename)) safeUnlinkMcpIconFile(filename);
+      }
+      throw error;
+    }
+    // Commit succeeded: unlink pre-existing files no longer referenced.
+    const referenced = new Set(toInsert.map((entry) => entry.filename));
+    for (const relativePath of oldRelativePaths) {
+      if (!referenced.has(relativePath)) safeUnlinkMcpIconFile(relativePath);
+    }
+    if (droppedEntries > 0) {
+      console.warn(
+        `[settings-storage] mcp-icons migration dropped ${droppedEntries} ` +
+          "invalid entrie(s)",
+      );
+    }
+    return {
+      status: "complete",
+      ok: true,
+      digest,
+      migratedAt,
+      importedCount: toInsert.length,
+      droppedEntries,
+    };
+  };
+
+  // ---- Phase 4 (S1): provider credential ciphertext store ------------------
+  // ALL methods below are MAIN-INTERNAL. readDecryptedProviderSecret is the
+  // narrow seam S4 uses at the POST-to-Flask choke point; it — and none of
+  // these — is ever placed on any IPC allowlist / bridge / channel.
+
+  // Shared shape gate for (kind, ownerId). Throws [invalid_credential];
+  // messages carry the kind/ownerId identity only — never a secret value.
+  const validateCredentialTarget = (kind, ownerId) => {
+    if (!PROVIDER_CREDENTIAL_KINDS.includes(kind)) {
+      throw errorWithCode(
+        `invalid credential kind: must be one of ${PROVIDER_CREDENTIAL_KINDS.join(
+          ", ",
+        )}`,
+        "invalid_credential",
+      );
+    }
+    if (
+      typeof ownerId !== "string" ||
+      ownerId.length === 0 ||
+      ownerId.length > PROVIDER_CREDENTIAL_LIMITS.OWNER_ID_MAX_LENGTH ||
+      // "__proto__" would assign through the inherited Object.prototype accessor
+      // on any plain-object map built from listProviderCredentialOwners.
+      ownerId === "__proto__"
+    ) {
+      throw errorWithCode(
+        "invalid credential ownerId: must be a non-empty string within " +
+          `${PROVIDER_CREDENTIAL_LIMITS.OWNER_ID_MAX_LENGTH} chars`,
+        "invalid_credential",
+      );
+    }
+  };
+
+  // Encrypt + upsert a provider secret. Fails closed when secret storage is
+  // unavailable (gate 3) — NEVER writes plaintext. The plaintext argument is
+  // encrypted immediately and never logged / never returned.
+  const setProviderCredential = (kind, ownerId, plaintext) => {
+    requireDb();
+    validateCredentialTarget(kind, ownerId);
+    if (typeof plaintext !== "string" || plaintext.length === 0) {
+      throw errorWithCode(
+        "provider credential value must be a non-empty string",
+        "invalid_credential",
+      );
+    }
+    if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) {
+      throw errorWithCode(
+        "encrypted credential storage is unavailable on this machine",
+        "secret_storage_unavailable",
+      );
+    }
+    let ciphertext;
+    try {
+      ciphertext = safeStorage.encryptString(plaintext);
+    } catch (_error) {
+      // Never surface the plaintext or the underlying crypto error detail.
+      throw errorWithCode(
+        "failed to encrypt provider credential",
+        "secret_storage_unavailable",
+      );
+    }
+    const updatedAt = Date.now();
+    return db.tx(() => {
+      db.prepare(
+        "INSERT INTO provider_credentials(credential_kind, owner_id, ciphertext, updated_at) " +
+          "VALUES (?, ?, ?, ?) " +
+          "ON CONFLICT(credential_kind, owner_id) DO UPDATE SET " +
+          "ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
+      ).run(kind, ownerId, ciphertext, updatedAt);
+      return { ok: true, kind, ownerId, updatedAt };
+    });
+  };
+
+  // The narrow S4 injection seam. Decrypt a single credential to plaintext, or
+  // null when there is no row / storage is unavailable / decryption fails. This
+  // NEVER throws — a failed decrypt is read as "no key" (fail-closed read), so
+  // the send-time assembly chain can never be crashed by it.
+  const readDecryptedProviderSecret = (kind, ownerId) => {
+    if (!db) return null;
+    if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) return null;
+    if (
+      !PROVIDER_CREDENTIAL_KINDS.includes(kind) ||
+      typeof ownerId !== "string" ||
+      ownerId.length === 0
+    ) {
+      return null;
+    }
+    let row;
+    try {
+      row = db
+        .prepare(
+          "SELECT ciphertext FROM provider_credentials " +
+            "WHERE credential_kind = ? AND owner_id = ?",
+        )
+        .get(kind, ownerId);
+    } catch (_error) {
+      return null;
+    }
+    if (!row || row.ciphertext == null) return null;
+    try {
+      const plaintext = safeStorage.decryptString(Buffer.from(row.ciphertext));
+      return typeof plaintext === "string" && plaintext.length > 0
+        ? plaintext
+        : null;
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  // Delete a credential row. Cleanup path — works regardless of secret storage
+  // availability (an unavailable machine may still need to drop a stale row).
+  const deleteProviderCredential = (kind, ownerId) => {
+    requireDb();
+    validateCredentialTarget(kind, ownerId);
+    const result = db
+      .prepare(
+        "DELETE FROM provider_credentials WHERE credential_kind = ? AND owner_id = ?",
+      )
+      .run(kind, ownerId);
+    return { ok: true, kind, ownerId, deleted: Number(result.changes) > 0 };
+  };
+
+  // Existence check — NEVER decrypts. Used by higher slices for gating.
+  const hasProviderCredential = (kind, ownerId) => {
+    requireDb();
+    validateCredentialTarget(kind, ownerId);
+    const row = db
+      .prepare(
+        "SELECT 1 AS present FROM provider_credentials " +
+          "WHERE credential_kind = ? AND owner_id = ?",
+      )
+      .get(kind, ownerId);
+    return { ok: true, kind, ownerId, present: !!row };
+  };
+
+  // Identity-only listing for S3's configuredCredentials signal: returns
+  // { kind, ownerId, updatedAt } rows — NEVER the ciphertext, NEVER a secret.
+  const listProviderCredentialOwners = () => {
+    requireDb();
+    const rows = db
+      .prepare(
+        "SELECT credential_kind, owner_id, updated_at FROM provider_credentials " +
+          "ORDER BY credential_kind ASC, owner_id ASC",
+      )
+      .all();
+    return {
+      ok: true,
+      owners: rows.map((row) => ({
+        kind: row.credential_kind,
+        ownerId: row.owner_id,
+        updatedAt: Number(row.updated_at),
+      })),
+    };
+  };
+
+  const getSecretStorageStatus = () => secretStorageStatus;
+
+  // Identity-only migration meta reader (S3 will ride this on the bootstrap
+  // snapshot; kept main-internal here). Same shape as the other per-store
+  // migration metas — never carries a secret or a ciphertext.
+  const getProviderCredentialsMigrationMeta = () =>
+    getStoreMigrationMetaFor(PROVIDER_CREDENTIALS_META_KEYS);
+
+  // ---- Phase 4 (S2): provider secret migration + dual-keep + round-trip -----
+  // (phase4-s2-brief, phase4-security-decision §3 gate 4, plan §11C per-store
+  // protocol.) Moves the three legacy localStorage secrets (openai / anthropic
+  // / custom.<slug>, passed IN as a payload — main cannot read renderer
+  // localStorage) into the S1 ciphertext table.
+  //
+  //   * PER-CREDENTIAL judgement: each credential is encrypted, upserted and
+  //     round-trip verified (readDecryptedProviderSecret === plaintext) INSIDE
+  //     its own transaction. A failed round-trip rolls that one row back and
+  //     leaves the credential on legacy — it is NOT counted complete, while the
+  //     others still migrate (brief: "任一条往返失败 → 该条保留 legacy").
+  //   * gate 3 fail-closed: secret storage unavailable → NO migration, legacy
+  //     stays authoritative (zero regression). Never writes plaintext.
+  //   * dual-keep: this method NEVER touches legacy localStorage (renderer-
+  //     owned). After a complete migration legacy is kept as a read-only
+  //     rollback mirror for release N; SQL ciphertext is always the read
+  //     authority. Deleting legacy is an N+1 change, out of scope here.
+  //   * idempotent replay: the digest over the credential IDENTITY set (never
+  //     the secret values) drives resolveCompletedStoreMigration — a replay of
+  //     an already-complete set is a no-op that writes nothing.
+  //
+  // SECRET DISCIPLINE: plaintext lives only transiently inside encrypt/verify;
+  // it is never logged, never returned, and never hashed into persisted meta.
+  const migrateProviderCredentials = (payload) => {
+    const label = "provider-credentials-migrate";
+    // gate 3: unavailable (or degraded db, which forces status unavailable) →
+    // do not migrate. Legacy stays authoritative. This is a correct no-op, not
+    // an error, so it returns a status rather than throwing.
+    if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) {
+      return {
+        status: "skipped-unavailable",
+        secretStorageStatus,
+        migratedCount: 0,
+        failedCount: 0,
+      };
+    }
+    requireDb();
+    if (!isPlainObject(payload)) {
+      throw errorWithCode(
+        `${label}: payload must be an object`,
+        "invalid_migration_payload",
+      );
+    }
+    if (
+      payload.migrationVersion !==
+      SUPPORTED_PROVIDER_CREDENTIALS_MIGRATION_VERSION
+    ) {
+      throw errorWithCode(
+        `${label}: unsupported migrationVersion`,
+        "unsupported_migration_version",
+      );
+    }
+    const credentials = isPlainObject(payload.credentials)
+      ? payload.credentials
+      : {};
+
+    // Build the ordered target list (identity + plaintext). Only non-empty
+    // string values are treated as a legacy secret worth migrating; anything
+    // else is simply absent.
+    const targets = [];
+    const pushTarget = (kind, ownerId, id, value) => {
+      if (typeof value === "string" && value.length > 0) {
+        targets.push({ kind, ownerId, id, plaintext: value });
+      }
+    };
+    pushTarget("provider", "openai", "openai", credentials.openai);
+    pushTarget("provider", "anthropic", "anthropic", credentials.anthropic);
+    const customMap = isPlainObject(credentials.custom)
+      ? credentials.custom
+      : {};
+    for (const slug of Object.keys(customMap).sort()) {
+      // "__proto__" is skipped up front — it would fail validateCredentialTarget
+      // anyway, but never let it near a plain-object key path.
+      if (slug === "__proto__") continue;
+      pushTarget(
+        "custom_provider",
+        `custom.${slug}`,
+        `custom.${slug}`,
+        customMap[slug],
+      );
+    }
+
+    // Digest over the IDENTITY set ONLY (sorted "kind:ownerId" list) — never
+    // over secret values. Gives replay-idempotency on "which credentials were
+    // migrated" without persisting any secret-derived bytes.
+    const identityList = targets
+      .map((t) => `${t.kind}:${t.ownerId}`)
+      .sort();
+    const digest = crypto
+      .createHash("sha256")
+      .update(canonicalize(identityList), "utf8")
+      .digest("hex");
+
+    // SQL is authority once COMPLETE: an already-complete replay of the same
+    // identity set writes nothing (idempotent); a different set is refused so a
+    // stale bulk migration can never clobber the now-authoritative ciphertext.
+    const completed = resolveCompletedStoreMigration(
+      PROVIDER_CREDENTIALS_META_KEYS,
+      digest,
+      SUPPORTED_PROVIDER_CREDENTIALS_MIGRATION_VERSION,
+    );
+    if (completed) return completed;
+
+    const migratedAt = Date.now();
+    const migrated = [];
+    const failed = [];
+
+    // Mark in_progress up front so an interrupted run leaves a recoverable
+    // residue (not_started/in_progress both re-attempt on the next launch).
+    db.tx(() => {
+      upsertMeta(
+        PROVIDER_CREDENTIALS_META_KEYS.STATE,
+        MIGRATION_STATE.IN_PROGRESS,
+      );
+    });
+
+    for (const target of targets) {
+      try {
+        // A malformed identity (bad slug / oversize owner) is dropped-and-kept
+        // on legacy rather than failing the whole migration.
+        validateCredentialTarget(target.kind, target.ownerId);
+        let ciphertext;
+        try {
+          ciphertext = safeStorage.encryptString(target.plaintext);
+        } catch (_encryptError) {
+          failed.push(target.id);
+          continue;
+        }
+        // Upsert + round-trip verify atomically. readDecryptedProviderSecret
+        // sees the uncommitted row on this same connection; a mismatch throws,
+        // db.tx rolls the row back, and the credential stays on legacy.
+        db.tx(() => {
+          db.prepare(
+            "INSERT INTO provider_credentials(credential_kind, owner_id, ciphertext, updated_at) " +
+              "VALUES (?, ?, ?, ?) " +
+              "ON CONFLICT(credential_kind, owner_id) DO UPDATE SET " +
+              "ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
+          ).run(target.kind, target.ownerId, ciphertext, migratedAt);
+          const check = readDecryptedProviderSecret(
+            target.kind,
+            target.ownerId,
+          );
+          if (check !== target.plaintext) {
+            // Message carries NO secret — only the failure category.
+            throw errorWithCode(
+              `${label}: round-trip verification failed`,
+              "secret_roundtrip_failed",
+            );
+          }
+        });
+        migrated.push(target.id);
+      } catch (_error) {
+        // Any per-credential failure (invalid target / encrypt / round-trip /
+        // rollback) keeps that credential on legacy; never surfaces a secret.
+        failed.push(target.id);
+      }
+    }
+
+    // COMPLETE only when every present legacy secret migrated AND verified.
+    // A partial run leaves STATE at in_progress with NO version/digest stamp,
+    // so the next launch always re-attempts the failed credential(s).
+    const complete = failed.length === 0;
+    if (complete) {
+      db.tx(() => {
+        upsertMeta(
+          PROVIDER_CREDENTIALS_META_KEYS.VERSION,
+          SUPPORTED_PROVIDER_CREDENTIALS_MIGRATION_VERSION,
+        );
+        upsertMeta(PROVIDER_CREDENTIALS_META_KEYS.DIGEST, digest);
+        upsertMeta(PROVIDER_CREDENTIALS_META_KEYS.MIGRATED_AT, migratedAt);
+        upsertMeta(
+          PROVIDER_CREDENTIALS_META_KEYS.STATE,
+          MIGRATION_STATE.COMPLETE,
+        );
+      });
+    }
+
+    if (failed.length > 0) {
+      // Count-only diagnostic — identity ids are not secrets, but we keep the
+      // log to a bare count to stay well clear of the secret surface.
+      console.warn(
+        `[settings-storage] provider-credentials migration kept ${failed.length} ` +
+          "credential(s) on legacy (round-trip not verified)",
+      );
+    }
+
+    return {
+      status: complete ? "complete" : "in-progress",
+      ok: complete,
+      digest,
+      migratedAt,
+      migratedCount: migrated.length,
+      failedCount: failed.length,
+      // Identity ids only (openai / anthropic / custom.<slug>) — never values.
+      migrated,
+      failed,
+    };
+  };
+
   // before-quit hook. WAL makes per-transaction durability sufficient — this
   // just releases the connection cleanly. Idempotent.
   const close = () => {
@@ -1973,6 +3042,21 @@ const createSettingsStorageService = ({ app, fs, path, sqlite } = {}) => {
     setComputerUsePreference,
     clearComputerUsePreference,
     migrateLegacyComputerUse,
+    setMcpIconAsset,
+    getMcpIconAsset,
+    deleteMcpIconAsset,
+    listMcpIconOwners,
+    migrateMcpIconsLegacy,
+    // Phase 4 (S1): provider credential ciphertext store (main-internal only).
+    setProviderCredential,
+    readDecryptedProviderSecret,
+    deleteProviderCredential,
+    hasProviderCredential,
+    listProviderCredentialOwners,
+    getSecretStorageStatus,
+    // Phase 4 (S2): legacy→ciphertext secret migration + dual-keep.
+    migrateProviderCredentials,
+    getProviderCredentialsMigrationMeta,
     close,
   };
 };
@@ -1985,5 +3069,13 @@ module.exports = {
   TOOLKIT_PREFS_LIMITS,
   COMPUTER_USE_LIMITS,
   COMPUTER_USE_PREF_KEYS,
+  MCP_ICON_LIMITS,
+  MCP_ICON_MIME_EXT,
   SENSITIVE_MODEL_PROVIDER_KEYS,
+  PROVIDER_CREDENTIAL_KINDS,
+  PROVIDER_CREDENTIAL_LIMITS,
+  SECRET_STORAGE_STATUS,
+  SAFE_SECRET_STORAGE_LINUX_BACKENDS,
+  PROVIDER_CREDENTIALS_META_KEYS,
+  SUPPORTED_PROVIDER_CREDENTIALS_MIGRATION_VERSION,
 };

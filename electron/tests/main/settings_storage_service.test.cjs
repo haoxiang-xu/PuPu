@@ -31,6 +31,7 @@ const {
   computeLegacyMigrationDigest,
   SETTINGS_STORAGE_LIMITS,
   SENSITIVE_MODEL_PROVIDER_KEYS,
+  MCP_ICON_LIMITS,
 } = require("../../main/services/settings_storage/service");
 
 const makeTempDir = () =>
@@ -484,6 +485,60 @@ describeIfSqlite("settings storage service (sqlite)", () => {
       [
         "invalid_computer_use_preference",
         () => service.setComputerUsePreference("unknown_key", {}),
+      ],
+      // Phase 3 MCP-icon store codes (also locked in the dedicated
+      // settings_storage_mcp_icons suite). Listed here so this test keeps its
+      // "every code in the table" exhaustiveness claim.
+      [
+        "invalid_mcp_icon",
+        () =>
+          service.setMcpIconAsset("mcp.custom.bad-mime", {
+            mime: "image/gif",
+            content: "AAAA",
+          }),
+      ],
+      [
+        "mcp_icon_too_large",
+        () =>
+          // svg content is stored as raw UTF-8, so its byte length is its
+          // string length: overshoot the decoded-byte ceiling directly.
+          service.setMcpIconAsset("mcp.custom.too-large", {
+            mime: "image/svg+xml",
+            content: "x".repeat(MCP_ICON_LIMITS.MAX_DECODED_BYTES + 1),
+          }),
+      ],
+      [
+        "mcp_icon_cap_reached",
+        () => {
+          const smallSvg = { mime: "image/svg+xml", content: "<svg/>" };
+          for (let i = 0; i < MCP_ICON_LIMITS.MAX_ENTRIES; i += 1) {
+            service.setMcpIconAsset(`mcp.custom.cap-${i}`, smallSvg);
+          }
+          // The (cap + 1)th distinct owner is refused.
+          service.setMcpIconAsset("mcp.custom.cap-overflow", smallSvg);
+        },
+      ],
+      // NOTE: invalid_mcp_icon_path is deliberately NOT triggered here. It is
+      // internal-only — resolveMcpIconPath throws it, but every caller either
+      // feeds it a generated (safe) filename or catches it to self-heal
+      // (getMcpIconAsset drops the hostile row and returns null), so it never
+      // crosses the ipcMain boundary and has no renderer-facing surface. Its
+      // "[<code>] " prefix comes from the same errorWithCode helper the codes
+      // above prove, and its reachability is locked by the
+      // settings_storage_mcp_icons "hostile stored relative_path" self-heal test.
+      //
+      // Phase 4 (S1) provider-credential store codes (also locked in the
+      // dedicated settings_storage_provider_credentials suite). Listed here so
+      // this test keeps its "every code in the table" exhaustiveness claim.
+      // The base `service` above is built WITHOUT safeStorage, so its secret
+      // storage status is "unavailable" — a valid write therefore fails closed.
+      [
+        "invalid_credential",
+        () => service.setProviderCredential("not_a_kind", "openai", "sk"),
+      ],
+      [
+        "secret_storage_unavailable",
+        () => service.setProviderCredential("provider", "openai", "sk-valid"),
       ],
     ];
 

@@ -168,6 +168,12 @@ describe("preload API contract", () => {
         "setComputerUsePreference",
         "clearComputerUsePreference",
         "migrateLegacyComputerUse",
+        "getMcpIconAsset",
+        "setMcpIconAsset",
+        "deleteMcpIconAsset",
+        "listMcpIconOwners",
+        "migrateMcpIconsLegacy",
+        "migrateProviderCredentials",
       ].sort(),
     );
     [
@@ -189,6 +195,12 @@ describe("preload API contract", () => {
       "setComputerUsePreference",
       "clearComputerUsePreference",
       "migrateLegacyComputerUse",
+      "getMcpIconAsset",
+      "setMcpIconAsset",
+      "deleteMcpIconAsset",
+      "listMcpIconOwners",
+      "migrateMcpIconsLegacy",
+      "migrateProviderCredentials",
     ].forEach((method) => {
       expect(typeof exposed.settingsStorageAPI[method]).toBe("function");
     });
@@ -346,6 +358,55 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
       computerUseMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.getMcpIconAsset("mcp.custom.local-test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_GET,
+      { toolkitId: "mcp.custom.local-test" },
+    );
+
+    const iconValue = { mime: "image/png", content: "aGVsbG8=" };
+    exposed.settingsStorageAPI.setMcpIconAsset(
+      "mcp.custom.local-test",
+      iconValue,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_SET,
+      { toolkitId: "mcp.custom.local-test", icon: iconValue },
+    );
+
+    exposed.settingsStorageAPI.deleteMcpIconAsset("mcp.custom.local-test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_DELETE,
+      { toolkitId: "mcp.custom.local-test" },
+    );
+
+    exposed.settingsStorageAPI.listMcpIconOwners();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
+    );
+
+    const iconMigrationPayload = {
+      migrationVersion: 1,
+      icons: { "mcp.custom.local-test": iconValue },
+    };
+    exposed.settingsStorageAPI.migrateMcpIconsLegacy(iconMigrationPayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
+      iconMigrationPayload,
+    );
+
+    const providerCredentialsPayload = {
+      migrationVersion: 1,
+      credentials: { openai: "sk-SENTINEL" },
+    };
+    exposed.settingsStorageAPI.migrateProviderCredentials(
+      providerCredentialsPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+      providerCredentialsPayload,
     );
   });
 

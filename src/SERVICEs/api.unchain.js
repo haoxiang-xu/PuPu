@@ -26,6 +26,10 @@ import {
 import { isFeatureFlagEnabled } from "./feature_flags";
 import { readNamespace } from "./settings_repository";
 import { readProviderSecret } from "./settings_secret_adapter";
+import {
+  providerSecretConfigured,
+  secretInjectionAuthoritative,
+} from "./provider_secret_status";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
@@ -136,6 +140,50 @@ const getStoredProviderApiKey = (provider) => {
   return "";
 };
 
+// Phase 4 (S5): non-sensitive provider-secret injection descriptor.
+//
+// The renderer no longer writes secret VALUES into the request payload in
+// steady state. Instead it appends a descriptor list under this options key —
+// each entry is { kind, id, channel } with NO value and NO ciphertext — and
+// the main process decrypts + injects the real field set just before POST,
+// then strips the whole descriptor so Flask never sees it (descriptor contract
+// §1-§4, CTO ADR §3). The list is append-only: model + embedding secret paths
+// can both contribute (the only same-id double-channel case is openai).
+const SECRET_INJECTION_OPTION_KEY = "__pupu_secret_injection";
+
+// Reads the current descriptor list off an options object. Always returns an
+// array and never mutates; a malformed / missing value reads as empty.
+const readSecretInjectionList = (options) => {
+  const list = isObject(options) ? options[SECRET_INJECTION_OPTION_KEY] : null;
+  return Array.isArray(list) ? list : [];
+};
+
+// True when the descriptor list already carries an entry for `id`, IGNORING
+// channel. This is the descriptor-mode re-expression of today's hasAnyApiKey
+// short-circuit (first-writer-wins across the embedding + model paths): once a
+// provider id is in the list, a later injection point for the same id skips
+// entirely rather than merging a field set (descriptor contract §3). The only
+// same-id pair is (openai, embedding) then (openai, model) collapsing to one
+// 2-field write — byte-equivalent to today's short-circuit.
+const secretInjectionListHasId = (options, id) =>
+  readSecretInjectionList(options).some(
+    (entry) => isObject(entry) && entry.id === id,
+  );
+
+// Returns a NEW options object with one descriptor appended to the injection
+// list (immutable, mirroring the surrounding spread style). Carries only
+// { kind, id, channel } — never a secret value.
+const appendSecretInjectionDescriptor = (options, descriptor) => {
+  const currentOptions = isObject(options) ? options : {};
+  return {
+    ...currentOptions,
+    [SECRET_INJECTION_OPTION_KEY]: [
+      ...readSecretInjectionList(currentOptions),
+      descriptor,
+    ],
+  };
+};
+
 const injectProviderApiKeyIntoPayload = (payload) => {
   if (!isObject(payload)) {
     return payload;
@@ -146,15 +194,16 @@ const injectProviderApiKeyIntoPayload = (payload) => {
     return payload;
   }
 
-  const apiKey = getStoredProviderApiKey(provider);
-  if (!apiKey) {
-    return payload;
-  }
-
   const currentOptions = isObject(payload.options) ? payload.options : {};
   const providerSpecificCamelKey =
     provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
   const providerSpecificSnakeKey = `${provider}_api_key`;
+
+  // Today's value-based short-circuit, preserved verbatim: an explicit key
+  // already sitting in options (caller-supplied, or written by an earlier
+  // LEGACY injection) wins and nothing further happens. In descriptor mode no
+  // values land, so this only ever fires for caller-explicit keys or the
+  // transition/degraded legacy path.
   const hasAnyApiKey = [
     currentOptions[providerSpecificCamelKey],
     currentOptions[providerSpecificSnakeKey],
@@ -163,6 +212,31 @@ const injectProviderApiKeyIntoPayload = (payload) => {
       : []),
   ].some((value) => typeof value === "string" && value.trim().length > 0);
   if (hasAnyApiKey) {
+    return payload;
+  }
+
+  // Steady state (safeStorage available + credential migrated to SQL): emit a
+  // descriptor, never read the secret value. The short-circuit is re-expressed
+  // as a descriptor-list membership check so the embedding-then-model collapse
+  // stays byte-equivalent to today (descriptor contract §3).
+  if (secretInjectionAuthoritative(provider)) {
+    if (secretInjectionListHasId(currentOptions, provider)) {
+      return payload;
+    }
+    return {
+      ...payload,
+      options: appendSecretInjectionDescriptor(currentOptions, {
+        kind: "provider",
+        id: provider,
+        channel: "model",
+      }),
+    };
+  }
+
+  // Legacy fallback (first-boot transition / degraded): read the localStorage
+  // secret and write the byte-identical field set today writes.
+  const apiKey = getStoredProviderApiKey(provider);
+  if (!apiKey) {
     return payload;
   }
 
@@ -268,6 +342,8 @@ const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
     return currentOptions;
   }
 
+  // Today's value-based short-circuit, preserved verbatim: an explicit openai
+  // key already in options (caller-supplied or legacy-injected) wins.
   const hasOpenAIEmbeddingKey = [
     currentOptions.openaiApiKey,
     currentOptions.openai_api_key,
@@ -276,6 +352,23 @@ const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
     return currentOptions;
   }
 
+  // Steady state: emit the embedding descriptor (main injects the 2-field
+  // openai set), never read the value. This path sits EARLY in the assembly
+  // chain (inside injectMemoryIntoPayload), so an openai chat model reached
+  // later short-circuits on this list entry -> a single 2-field collapse that
+  // is byte-equivalent to today's shared-key behavior (descriptor contract §3).
+  if (secretInjectionAuthoritative("openai")) {
+    if (secretInjectionListHasId(currentOptions, "openai")) {
+      return currentOptions;
+    }
+    return appendSecretInjectionDescriptor(currentOptions, {
+      kind: "provider",
+      id: "openai",
+      channel: "embedding",
+    });
+  }
+
+  // Legacy fallback: read the localStorage openai key, write the 2-field set.
   const openaiApiKey = getStoredProviderApiKey("openai");
   if (!openaiApiKey) {
     return currentOptions;
@@ -605,8 +698,12 @@ const injectCustomProviderIntoPayload = (payload) => {
 
   const authMode = definition.auth?.mode || "none";
   const requiresKey = authMode !== "none";
-  const secret = requiresKey ? getCustomProviderSecret(slug) : "";
-  if (requiresKey && !secret) {
+  const credentialId = customProviderKey(slug);
+
+  // requiresKey is now decided by a boolean EXISTENCE signal (SQL identity list
+  // OR legacy localStorage), never by reading the secret value itself. Missing
+  // key remains a send-time block with the same structured error (UX unchanged).
+  if (requiresKey && !providerSecretConfigured(credentialId)) {
     throw new FrontendApiError(
       "custom_provider_missing_api_key",
       `Custom provider requires an API key: ${slug}`,
@@ -615,14 +712,29 @@ const injectCustomProviderIntoPayload = (payload) => {
 
   const sanitizedDefinition = buildProviderInjectionPayload(definition);
   const currentOptions = isObject(payload.options) ? payload.options : {};
-  const nextOptions = {
+  let nextOptions = {
     ...currentOptions,
     custom_provider: sanitizedDefinition,
   };
-  if (secret) {
-    // Dedicated named channel ONLY — never the generic api_key/apiKey path.
-    nextOptions.custom_provider_api_key = secret;
-    nextOptions.customProviderApiKey = secret;
+
+  if (requiresKey) {
+    if (secretInjectionAuthoritative(credentialId)) {
+      // Steady state: emit a descriptor; main decrypts into the DEDICATED named
+      // channel. Never read the secret value here.
+      nextOptions = appendSecretInjectionDescriptor(nextOptions, {
+        kind: "custom_provider",
+        id: credentialId,
+        channel: "model",
+      });
+    } else {
+      // Legacy fallback: read the localStorage secret and write it through the
+      // dedicated named channel ONLY — never the generic api_key/apiKey path.
+      const secret = getCustomProviderSecret(slug);
+      if (secret) {
+        nextOptions.custom_provider_api_key = secret;
+        nextOptions.customProviderApiKey = secret;
+      }
+    }
   }
 
   return {
@@ -669,7 +781,12 @@ const mergeCustomProvidersIntoCatalog = (catalog) => {
       continue;
     }
     const authMode = def.auth?.mode || "none";
-    if (authMode !== "none" && !getCustomProviderSecret(def.id)) {
+    // Gate on the boolean existence signal (SQL identity list OR legacy), never
+    // on the secret value — the catalog only needs "is a key configured?".
+    if (
+      authMode !== "none" &&
+      !providerSecretConfigured(customProviderKey(def.id))
+    ) {
       continue;
     }
     const providerKey = customProviderKey(def.id);

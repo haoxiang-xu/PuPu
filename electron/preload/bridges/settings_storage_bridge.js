@@ -3,7 +3,8 @@ const { CHANNELS } = require("../../shared/channels");
 // window.settingsStorageAPI — Phase 1A surface + the Phase 2 structured
 // stores: token_usage (append/query/clear), the toolkit preference stores
 // (default_toolkits / toolkit_auto_approve) and the computer use preference
-// KV store (read/set/clear), each with a per-store legacy migration.
+// KV store (read/set/clear) — plus the Phase 3 custom MCP icon asset store
+// (get/set/delete/list-owners) — each with a per-store legacy migration.
 // bootstrap() is the single synchronous call (module-init snapshot); all
 // mutations are invoke-based promises so callers see explicit acks/errors.
 const createSettingsStorageBridge = (ipcRenderer) => {
@@ -119,6 +120,41 @@ const createSettingsStorageBridge = (ipcRenderer) => {
       payload,
     );
 
+  // ---- Phase 3: custom MCP icon asset store (plan §3.6) --------------------
+
+  const getMcpIconAsset = (toolkitId) =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.MCP_ICON_GET, { toolkitId });
+
+  const setMcpIconAsset = (toolkitId, icon) =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.MCP_ICON_SET, {
+      toolkitId,
+      icon,
+    });
+
+  const deleteMcpIconAsset = (toolkitId) =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.MCP_ICON_DELETE, {
+      toolkitId,
+    });
+
+  const listMcpIconOwners = () =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS);
+
+  const migrateMcpIconsLegacy = (payload) =>
+    ipcRenderer.invoke(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
+      payload,
+    );
+
+  // ---- Phase 4 (S7): provider secret migration trigger --------------------
+  // Write-direction only: forwards the renderer's legacy provider secrets to
+  // main for encryption into provider_credentials. The resolved value is a
+  // status object (never a secret); no read-direction secret channel exists.
+  const migrateProviderCredentials = (payload) =>
+    ipcRenderer.invoke(
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+      payload,
+    );
+
   return {
     bootstrap,
     migrateLegacy,
@@ -138,6 +174,12 @@ const createSettingsStorageBridge = (ipcRenderer) => {
     setComputerUsePreference,
     clearComputerUsePreference,
     migrateLegacyComputerUse,
+    getMcpIconAsset,
+    setMcpIconAsset,
+    deleteMcpIconAsset,
+    listMcpIconOwners,
+    migrateMcpIconsLegacy,
+    migrateProviderCredentials,
   };
 };
 

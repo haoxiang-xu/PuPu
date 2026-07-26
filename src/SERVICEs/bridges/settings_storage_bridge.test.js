@@ -4,9 +4,13 @@ import {
   isTokenUsageBridgeAvailable,
   isToolkitPrefsBridgeAvailable,
   isComputerUsePrefsBridgeAvailable,
+  isMcpIconBridgeAvailable,
+  isProviderCredentialsMigrationBridgeAvailable,
   parseSettingsStorageErrorCode,
   getSessionBootstrapSnapshot,
   getSqlStoreMigrationMeta,
+  getBootstrapConfiguredCredentials,
+  getBootstrapSecretStorageStatus,
   resetSessionBootstrapSnapshotForTests,
 } from "./settings_storage_bridge";
 
@@ -76,6 +80,34 @@ const installMockApiWithComputerUsePrefs = (overrides = {}) =>
     ),
     migrateLegacyComputerUse: jest.fn(() =>
       Promise.resolve({ status: "complete" }),
+    ),
+    ...overrides,
+  });
+
+const installMockApiWithMcpIcons = (overrides = {}) =>
+  installMockApi({
+    getMcpIconAsset: jest.fn(() => Promise.resolve({ ok: true, icon: null })),
+    setMcpIconAsset: jest.fn(() => Promise.resolve({ ok: true })),
+    deleteMcpIconAsset: jest.fn(() =>
+      Promise.resolve({ ok: true, deleted: true }),
+    ),
+    listMcpIconOwners: jest.fn(() =>
+      Promise.resolve({ ok: true, owners: [] }),
+    ),
+    migrateMcpIconsLegacy: jest.fn(() =>
+      Promise.resolve({ status: "complete" }),
+    ),
+    ...overrides,
+  });
+
+const installMockApiWithProviderCredentialsMigration = (overrides = {}) =>
+  installMockApi({
+    migrateProviderCredentials: jest.fn(() =>
+      Promise.resolve({
+        status: "complete",
+        migratedCount: 1,
+        failedCount: 0,
+      }),
     ),
     ...overrides,
   });
@@ -172,6 +204,105 @@ describe("availability probing", () => {
     const api = installMockApiWithComputerUsePrefs();
     delete api.bootstrap;
     expect(isComputerUsePrefsBridgeAvailable()).toBe(false);
+  });
+
+  test("mcp icon availability is probed separately from the Phase 1A surface", () => {
+    // a pre-Phase-3 preload: base bridge available, mcp icon store NOT
+    installMockApi();
+    expect(isSettingsStorageBridgeAvailable()).toBe(true);
+    expect(isMcpIconBridgeAvailable()).toBe(false);
+    expect(settingsStorageBridge.isMcpIconAvailable()).toBe(false);
+
+    const api = installMockApiWithMcpIcons();
+    expect(isMcpIconBridgeAvailable()).toBe(true);
+
+    // any missing mcp-icon method flips only the mcp-icon probe
+    delete api.getMcpIconAsset;
+    expect(isMcpIconBridgeAvailable()).toBe(false);
+    expect(isSettingsStorageBridgeAvailable()).toBe(true);
+  });
+
+  test("mcp icon availability is false without the base Phase 1A surface", () => {
+    const api = installMockApiWithMcpIcons();
+    delete api.bootstrap;
+    expect(isMcpIconBridgeAvailable()).toBe(false);
+  });
+
+  test("mcp icon bridge methods forward through the optional invoker", async () => {
+    const api = installMockApiWithMcpIcons();
+    await expect(
+      settingsStorageBridge.getMcpIconAsset("mcp.custom.a"),
+    ).resolves.toEqual({ ok: true, icon: null });
+    expect(api.getMcpIconAsset).toHaveBeenCalledWith("mcp.custom.a");
+
+    await settingsStorageBridge.setMcpIconAsset("mcp.custom.a", {
+      mime: "image/png",
+      content: "aGVsbG8=",
+    });
+    expect(api.setMcpIconAsset).toHaveBeenCalledWith("mcp.custom.a", {
+      mime: "image/png",
+      content: "aGVsbG8=",
+    });
+
+    await settingsStorageBridge.deleteMcpIconAsset("mcp.custom.a");
+    expect(api.deleteMcpIconAsset).toHaveBeenCalledWith("mcp.custom.a");
+
+    await settingsStorageBridge.listMcpIconOwners();
+    expect(api.listMcpIconOwners).toHaveBeenCalled();
+
+    const payload = { migrationVersion: 1, icons: {} };
+    await settingsStorageBridge.migrateMcpIconsLegacy(payload);
+    expect(api.migrateMcpIconsLegacy).toHaveBeenCalledWith(payload);
+  });
+
+  test("provider credentials migration availability is probed separately from the Phase 1A surface", () => {
+    // a pre-Phase-4 preload: base bridge available, provider migration NOT
+    installMockApi();
+    expect(isSettingsStorageBridgeAvailable()).toBe(true);
+    expect(isProviderCredentialsMigrationBridgeAvailable()).toBe(false);
+    expect(
+      settingsStorageBridge.isProviderCredentialsMigrationAvailable(),
+    ).toBe(false);
+
+    const api = installMockApiWithProviderCredentialsMigration();
+    expect(isProviderCredentialsMigrationBridgeAvailable()).toBe(true);
+
+    // removing the method flips only this probe
+    delete api.migrateProviderCredentials;
+    expect(isProviderCredentialsMigrationBridgeAvailable()).toBe(false);
+    expect(isSettingsStorageBridgeAvailable()).toBe(true);
+  });
+
+  test("provider credentials migration availability is false without the base Phase 1A surface", () => {
+    const api = installMockApiWithProviderCredentialsMigration();
+    delete api.bootstrap;
+    expect(isProviderCredentialsMigrationBridgeAvailable()).toBe(false);
+  });
+
+  test("migrateProviderCredentials forwards through the optional invoker", async () => {
+    const api = installMockApiWithProviderCredentialsMigration();
+    const payload = {
+      migrationVersion: 1,
+      credentials: { openai: "sk-SENTINEL" },
+    };
+    await expect(
+      settingsStorageBridge.migrateProviderCredentials(payload),
+    ).resolves.toEqual({
+      status: "complete",
+      migratedCount: 1,
+      failedCount: 0,
+    });
+    expect(api.migrateProviderCredentials).toHaveBeenCalledWith(payload);
+  });
+
+  test("migrateProviderCredentials rejects when the bridge method is absent", async () => {
+    installMockApi();
+    await expect(
+      settingsStorageBridge.migrateProviderCredentials({
+        migrationVersion: 1,
+        credentials: {},
+      }),
+    ).rejects.toThrow(/^\[settings_storage_unavailable\]/);
   });
 });
 
@@ -611,5 +742,94 @@ describe("getSqlStoreMigrationMeta", () => {
     });
     expect(getSqlStoreMigrationMeta("tokenUsage")).toBeNull();
     expect(getSqlStoreMigrationMeta("unknownStore")).toBeNull();
+  });
+});
+
+describe("provider secret bootstrap signals (S3)", () => {
+  test("configuredCredentials + secretStorageStatus come from an available snapshot", () => {
+    installMockApi({
+      bootstrap: jest.fn(() => ({
+        available: true,
+        namespaces: {},
+        revisions: {},
+        secretStorageStatus: "available",
+        configuredCredentials: ["openai", "anthropic", "custom.foo"],
+      })),
+    });
+    expect(getBootstrapConfiguredCredentials()).toEqual([
+      "openai",
+      "anthropic",
+      "custom.foo",
+    ]);
+    expect(getBootstrapSecretStorageStatus()).toBe("available");
+  });
+
+  test("configuredCredentials → [] when snapshot is unavailable or predates the field", () => {
+    expect(getBootstrapConfiguredCredentials()).toEqual([]); // no bridge
+    resetSessionBootstrapSnapshotForTests();
+
+    installMockApi(); // available snapshot, no configuredCredentials field
+    expect(getBootstrapConfiguredCredentials()).toEqual([]);
+    resetSessionBootstrapSnapshotForTests();
+
+    installMockApi({
+      bootstrap: jest.fn(() => ({
+        available: true,
+        namespaces: {},
+        revisions: {},
+        configuredCredentials: "not-an-array",
+      })),
+    });
+    expect(getBootstrapConfiguredCredentials()).toEqual([]);
+  });
+
+  test("configuredCredentials filters non-string / empty identity entries", () => {
+    installMockApi({
+      bootstrap: jest.fn(() => ({
+        available: true,
+        namespaces: {},
+        revisions: {},
+        configuredCredentials: ["openai", "", 7, null, "custom.bar"],
+      })),
+    });
+    expect(getBootstrapConfiguredCredentials()).toEqual([
+      "openai",
+      "custom.bar",
+    ]);
+  });
+
+  test("secretStorageStatus is fail-closed: anything but 'available' → 'unavailable'", () => {
+    expect(getBootstrapSecretStorageStatus()).toBe("unavailable"); // no bridge
+    resetSessionBootstrapSnapshotForTests();
+
+    installMockApi(); // available snapshot, no secretStorageStatus field
+    expect(getBootstrapSecretStorageStatus()).toBe("unavailable");
+    resetSessionBootstrapSnapshotForTests();
+
+    installMockApi({
+      bootstrap: jest.fn(() => ({
+        available: true,
+        namespaces: {},
+        revisions: {},
+        secretStorageStatus: "basic_text",
+      })),
+    });
+    expect(getBootstrapSecretStorageStatus()).toBe("unavailable");
+  });
+
+  test("both signals ride the single shared session snapshot (one sendSync)", () => {
+    const api = installMockApi({
+      bootstrap: jest.fn(() => ({
+        available: true,
+        namespaces: {},
+        revisions: {},
+        secretStorageStatus: "available",
+        configuredCredentials: ["openai"],
+      })),
+    });
+    getBootstrapConfiguredCredentials();
+    getBootstrapSecretStorageStatus();
+    getSessionBootstrapSnapshot();
+    expect(api.bootstrap).toHaveBeenCalledTimes(1);
   });
 });

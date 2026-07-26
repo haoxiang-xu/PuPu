@@ -53,6 +53,14 @@ const makeFakeService = (overrides = {}) => ({
     cleared: true,
   })),
   migrateLegacyComputerUse: jest.fn(() => ({ status: "complete" })),
+  migrateProviderCredentials: jest.fn(() => ({
+    status: "complete",
+    ok: true,
+    migratedCount: 1,
+    failedCount: 0,
+    migrated: ["openai"],
+    failed: [],
+  })),
   ...overrides,
 });
 
@@ -767,7 +775,92 @@ describe("settings storage IPC handlers", () => {
         CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
         CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
         CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
+        CHANNELS.SETTINGS_STORAGE.MCP_ICON_GET,
+        CHANNELS.SETTINGS_STORAGE.MCP_ICON_SET,
+        CHANNELS.SETTINGS_STORAGE.MCP_ICON_DELETE,
+        CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
+        CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
+        CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
       ].sort(),
     );
+  });
+
+  // ---- Phase 4 (S7): provider secret migration trigger --------------------
+
+  test("migrate-provider-credentials delegates the payload and resolves the status", async () => {
+    const ipcMain = makeFakeIpcMain();
+    const service = makeFakeService();
+    registerSettingsStorageHandlers({
+      ipcMain,
+      settingsStorageService: service,
+    });
+
+    const handler = ipcMain.getHandle(
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+    );
+    expect(handler).toBeDefined();
+    expect(
+      ipcMain.getOn(CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS),
+    ).toBeUndefined();
+
+    const payload = {
+      migrationVersion: 1,
+      credentials: {
+        openai: "sk-SENTINEL-openai",
+        anthropic: "sk-ant-SENTINEL",
+        custom: { "my-slug": "SENTINEL-custom" },
+      },
+    };
+    const result = await handler({}, payload);
+    // Status object only — no secret value round-trips back to the caller.
+    expect(result).toEqual({
+      status: "complete",
+      ok: true,
+      migratedCount: 1,
+      failedCount: 0,
+      migrated: ["openai"],
+      failed: [],
+    });
+    expect(service.migrateProviderCredentials).toHaveBeenCalledWith(payload);
+  });
+
+  test("migrate-provider-credentials logs the code only — never the secret payload", async () => {
+    const ipcMain = makeFakeIpcMain();
+    const failure = Object.assign(
+      new Error("[invalid_migration_payload] bad"),
+      { code: "invalid_migration_payload" },
+    );
+    const service = makeFakeService({
+      migrateProviderCredentials: jest.fn(() => {
+        throw failure;
+      }),
+    });
+    registerSettingsStorageHandlers({
+      ipcMain,
+      settingsStorageService: service,
+    });
+
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const payload = {
+        migrationVersion: 1,
+        credentials: {
+          openai: "sk-SENTINEL-openai",
+          custom: { slug: "SENTINEL-custom-secret" },
+        },
+      };
+      await expect(
+        ipcMain.getHandle(
+          CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+        )({}, payload),
+      ).rejects.toBe(failure);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const logged = JSON.stringify(warnSpy.mock.calls);
+      // The plaintext secrets must never reach the logs — only the code.
+      expect(logged).not.toContain("SENTINEL");
+      expect(logged).toContain("invalid_migration_payload");
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

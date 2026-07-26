@@ -354,7 +354,103 @@ describe("settingsStorageAPI bridge", () => {
     );
   });
 
-  test("bridge surface is exactly the Phase 1A + Phase 2 method set", () => {
+  test("getMcpIconAsset invokes with the toolkit id envelope", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { ok: true, icon: null },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+
+    await expect(
+      api.getMcpIconAsset("mcp.custom.local-test"),
+    ).resolves.toEqual({ ok: true, icon: null });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_GET,
+      { toolkitId: "mcp.custom.local-test" },
+    );
+  });
+
+  test("setMcpIconAsset invokes with the toolkit id + icon envelope", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({ invokeReturn: { ok: true } });
+    const api = createSettingsStorageBridge(ipcRenderer);
+    const icon = { mime: "image/png", content: "aGVsbG8=" };
+
+    await expect(
+      api.setMcpIconAsset("mcp.custom.local-test", icon),
+    ).resolves.toEqual({ ok: true });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_SET,
+      { toolkitId: "mcp.custom.local-test", icon },
+    );
+  });
+
+  test("deleteMcpIconAsset invokes with the toolkit id envelope", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { ok: true, deleted: true },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+
+    await expect(
+      api.deleteMcpIconAsset("mcp.custom.local-test"),
+    ).resolves.toEqual({ ok: true, deleted: true });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_DELETE,
+      { toolkitId: "mcp.custom.local-test" },
+    );
+  });
+
+  test("listMcpIconOwners invokes the list channel", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { ok: true, owners: [] },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+
+    await expect(api.listMcpIconOwners()).resolves.toEqual({
+      ok: true,
+      owners: [],
+    });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
+    );
+  });
+
+  test("migrateMcpIconsLegacy invokes with the raw payload", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { status: "complete" },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+    const payload = { migrationVersion: 1, icons: {} };
+
+    await expect(api.migrateMcpIconsLegacy(payload)).resolves.toEqual({
+      status: "complete",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
+      payload,
+    );
+  });
+
+  test("migrateProviderCredentials invokes with the raw payload", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { status: "complete", migratedCount: 1, failedCount: 0 },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+    const payload = {
+      migrationVersion: 1,
+      credentials: { openai: "sk-SENTINEL" },
+    };
+
+    await expect(api.migrateProviderCredentials(payload)).resolves.toEqual({
+      status: "complete",
+      migratedCount: 1,
+      failedCount: 0,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+      payload,
+    );
+  });
+
+  test("bridge surface is exactly the Phase 1A + Phase 2 + Phase 3 + Phase 4 method set", () => {
     const api = createSettingsStorageBridge(makeFakeIpcRenderer());
     expect(Object.keys(api).sort()).toEqual(
       [
@@ -376,6 +472,12 @@ describe("settingsStorageAPI bridge", () => {
         "setComputerUsePreference",
         "clearComputerUsePreference",
         "migrateLegacyComputerUse",
+        "getMcpIconAsset",
+        "setMcpIconAsset",
+        "deleteMcpIconAsset",
+        "listMcpIconOwners",
+        "migrateMcpIconsLegacy",
+        "migrateProviderCredentials",
       ].sort(),
     );
   });

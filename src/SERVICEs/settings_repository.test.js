@@ -191,6 +191,9 @@ describe("fallback mode (bridge missing)", () => {
       pendingWrites: 0,
       lastErrorCode: null,
       warnings: [],
+      // Phase 4 (S3): no SQL bridge → no encrypted secret storage.
+      secretStorageStatus: "unavailable",
+      configuredCredentials: [],
     });
     await flushSettingsWrites(); // trivially resolves
   });
@@ -884,6 +887,93 @@ describe("degraded bootstrap", () => {
     const status = getSettingsPersistenceStatus();
     expect(status.mode).toBe("localStorage");
     expect(status.degraded).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4 (S3): non-sensitive secret-storage signals on the status channel
+// ---------------------------------------------------------------------------
+
+describe("secret-storage status signals (S3)", () => {
+  test("SQL bootstrap carries secretStorageStatus + configuredCredentials to status", () => {
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai", "custom.hyperspace"],
+        }),
+      ),
+    });
+    const status = getSettingsPersistenceStatus();
+    expect(status.mode).toBe("sql");
+    expect(status.secretStorageStatus).toBe("available");
+    expect(status.configuredCredentials).toEqual([
+      "openai",
+      "custom.hyperspace",
+    ]);
+    // The list is a detached copy — mutating it must not corrupt repo state.
+    status.configuredCredentials.push("anthropic");
+    expect(getSettingsPersistenceStatus().configuredCredentials).toEqual([
+      "openai",
+      "custom.hyperspace",
+    ]);
+  });
+
+  test("fail-closed defaults when the fields are absent / malformed", () => {
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "unknown_backend",
+          configuredCredentials: "not-an-array",
+        }),
+      ),
+    });
+    const status = getSettingsPersistenceStatus();
+    expect(status.secretStorageStatus).toBe("unavailable");
+    expect(status.configuredCredentials).toEqual([]);
+  });
+
+  test("non-string identity entries are filtered out", () => {
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai", "", 42, null, "anthropic"],
+        }),
+      ),
+    });
+    expect(getSettingsPersistenceStatus().configuredCredentials).toEqual([
+      "openai",
+      "anthropic",
+    ]);
+  });
+
+  test("degraded backend reports unavailable / [] regardless of any snapshot", () => {
+    installBridge({
+      bootstrap: jest.fn(() => ({
+        available: false,
+        degraded: true,
+        reason: "open-failed",
+      })),
+    });
+    const status = getSettingsPersistenceStatus();
+    expect(status.degraded).toBe(true);
+    expect(status.secretStorageStatus).toBe("unavailable");
+    expect(status.configuredCredentials).toEqual([]);
+  });
+
+  test("never surfaces a secret value (only identities + status)", () => {
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai", "anthropic"],
+        }),
+      ),
+    });
+    const json = JSON.stringify(getSettingsPersistenceStatus());
+    expect(json).not.toContain("sk-");
+    expect(json).toContain("openai");
   });
 });
 
