@@ -61,6 +61,18 @@ const makeFakeService = (overrides = {}) => ({
     migrated: ["openai"],
     failed: [],
   })),
+  persistProviderCredential: jest.fn(() => ({
+    ok: true,
+    status: "stored",
+    kind: "provider",
+    ownerId: "openai",
+  })),
+  deleteProviderCredential: jest.fn(() => ({
+    ok: true,
+    kind: "provider",
+    ownerId: "openai",
+    deleted: true,
+  })),
   resetSettings: jest.fn(() => ({
     ok: true,
     cleared: { settings: 3 },
@@ -153,6 +165,8 @@ describe("settings storage IPC handlers", () => {
       CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
       CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
       CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
+      CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+      CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
       CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
       CHANNELS.SETTINGS_STORAGE.DB_STATS,
     ]) {
@@ -793,6 +807,8 @@ describe("settings storage IPC handlers", () => {
         CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
         CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
         CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+        CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+        CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
         CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
         CHANNELS.SETTINGS_STORAGE.DB_STATS,
       ].sort(),
@@ -930,6 +946,70 @@ describe("settings storage IPC handlers", () => {
       // The plaintext secrets must never reach the logs — only the code.
       expect(logged).not.toContain("SENTINEL");
       expect(logged).toContain("invalid_migration_payload");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("steady-state provider credential set/delete are acknowledged and never return plaintext", async () => {
+    const ipcMain = makeFakeIpcMain();
+    const service = makeFakeService();
+    registerSettingsStorageHandlers({
+      ipcMain,
+      settingsStorageService: service,
+    });
+
+    const plaintext = "sk-SENTINEL-steady-state";
+    const stored = await ipcMain.getHandle(
+      CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+    )({}, { kind: "provider", ownerId: "openai", plaintext });
+    expect(service.persistProviderCredential).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+      plaintext,
+    );
+    expect(stored).toMatchObject({ ok: true, status: "stored" });
+    expect(JSON.stringify(stored)).not.toContain(plaintext);
+
+    const deleted = await ipcMain.getHandle(
+      CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
+    )({}, { kind: "provider", ownerId: "openai" });
+    expect(service.deleteProviderCredential).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+    );
+    expect(deleted).toMatchObject({ ok: true, deleted: true });
+  });
+
+  test("steady-state provider set failure logs code only, never plaintext", async () => {
+    const failure = Object.assign(
+      new Error("[storage_io_error] SENTINEL must not be logged"),
+      { code: "storage_io_error" },
+    );
+    const ipcMain = makeFakeIpcMain();
+    const service = makeFakeService({
+      persistProviderCredential: jest.fn(() => {
+        throw failure;
+      }),
+    });
+    registerSettingsStorageHandlers({
+      ipcMain,
+      settingsStorageService: service,
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(
+        ipcMain.getHandle(
+          CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+        )({}, {
+          kind: "provider",
+          ownerId: "openai",
+          plaintext: "sk-SENTINEL-secret",
+        }),
+      ).rejects.toBe(failure);
+      const logged = JSON.stringify(warnSpy.mock.calls);
+      expect(logged).toContain("storage_io_error");
+      expect(logged).not.toContain("SENTINEL");
     } finally {
       warnSpy.mockRestore();
     }

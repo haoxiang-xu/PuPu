@@ -188,6 +188,7 @@ const writeMigrationMarker = (digest, completedAt) => {
 };
 
 let state = null;
+let settingsQuitBarrierActive = false;
 
 const createInitialState = () => ({
   mode: "localStorage", // "sql" | "localStorage"
@@ -331,6 +332,7 @@ const ensureInit = () => {
  *           max_context_window_tokens?: number, chatId?: string }} record
  */
 export const appendTokenUsageRecord = (record) => {
+  if (settingsQuitBarrierActive) return;
   const normalized = normalizeTokenUsageRecord(record);
   if (!normalized) {
     return;
@@ -386,6 +388,7 @@ export const readTokenUsageRecords = () => {
 
 /** Remove every record. */
 export const clearTokenUsageRecords = () => {
+  if (settingsQuitBarrierActive) return;
   const s = ensureInit();
   if (s.mode === "localStorage") {
     writeRoot({ records: [] });
@@ -483,8 +486,32 @@ export const flushTokenUsageWrites = async () => {
   } while (state === s && tail !== s.queueTail);
 };
 
+/**
+ * Stop admitting token mutations synchronously, then wait until every
+ * previously accepted FIFO operation has settled. The queue's established
+ * contract is settle-tail: individual IPC failures are logged by the
+ * operation and still settle the tail. This prevents renderer teardown from
+ * truncating accepted IPC; it does not relabel a logged write failure as a
+ * successful write.
+ */
+export const beginTokenUsageQuitDrain = async () => {
+  settingsQuitBarrierActive = true;
+  const s = state;
+  if (!s) return;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endTokenUsageQuitDrain = () => {
+  settingsQuitBarrierActive = false;
+};
+
 /** Test-only: drop module state so the next call re-runs init. */
 export const resetTokenUsageStorageForTests = () => {
   state = null;
+  settingsQuitBarrierActive = false;
   resetSessionBootstrapSnapshotForTests();
 };

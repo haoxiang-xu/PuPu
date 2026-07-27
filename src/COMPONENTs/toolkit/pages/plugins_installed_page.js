@@ -1,4 +1,11 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import api from "../../../SERVICEs/api";
 import {
   getDefaultToolkitSelection,
@@ -51,6 +58,7 @@ const PluginsInstalledPage = ({
   const { t } = useTranslation();
   const [toolkits, setToolkits] = useState([]);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const toggleMutationIdsRef = useRef(new Map());
 
   const { run: loadCatalog, pending, error: loadError } = useAsyncAction(
     useCallback(async () => {
@@ -136,6 +144,9 @@ const PluginsInstalledPage = ({
   useEffect(() => subscribeToolkitCatalogRefresh(() => reload()), [reload]);
 
   const handleToggleEnabled = useCallback((toolkitId, enabled) => {
+    const mutationId =
+      (toggleMutationIdsRef.current.get(toolkitId) || 0) + 1;
+    toggleMutationIdsRef.current.set(toolkitId, mutationId);
     const nextIds = setDefaultToolkitEnabled("global", toolkitId, enabled);
     const enabledSet = new Set(nextIds);
     setToolkits((prev) =>
@@ -144,6 +155,23 @@ const PluginsInstalledPage = ({
         defaultEnabled: enabledSet.has(tk.toolkitId),
       })),
     );
+    if (nextIds?.persistence) {
+      const reconcile = () => {
+        if (toggleMutationIdsRef.current.get(toolkitId) !== mutationId) {
+          return;
+        }
+        const persistedEnabled = new Set(
+          getDefaultToolkitSelection("global"),
+        );
+        setToolkits((prev) =>
+          prev.map((tk) => ({
+            ...tk,
+            defaultEnabled: persistedEnabled.has(tk.toolkitId),
+          })),
+        );
+      };
+      nextIds.persistence.then(reconcile, reconcile);
+    }
   }, []);
 
   /* Delete now lives entirely in the plugin detail page, wired through the

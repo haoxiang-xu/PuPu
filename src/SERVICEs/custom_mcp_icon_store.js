@@ -187,6 +187,7 @@ const buildLegacyMigrationIcons = () => {
 };
 
 let state = null;
+let settingsQuitBarrierActive = false;
 
 const createInitialState = () => ({
   mode: "localStorage", // "sql" | "localStorage"
@@ -455,6 +456,7 @@ export function getCustomMcpIcon(toolkitId) {
 /* Persists an uploaded icon for a custom toolkitId. Invalid icons are ignored.
    Passing a nullish icon removes any existing entry. */
 export function setCustomMcpIcon(toolkitId, icon) {
+  if (settingsQuitBarrierActive) return;
   if (!isCustomToolkitId(toolkitId)) return;
   if (icon == null) {
     removeCustomMcpIcon(toolkitId);
@@ -484,6 +486,7 @@ export function setCustomMcpIcon(toolkitId, icon) {
 
 /* Drops the stored icon for a custom toolkitId (called on delete). */
 export function removeCustomMcpIcon(toolkitId) {
+  if (settingsQuitBarrierActive) return;
   if (!isCustomToolkitId(toolkitId)) return;
   const s = ensureInit();
   if (s.mode === "localStorage") {
@@ -512,8 +515,34 @@ export async function flushCustomMcpIconWrites() {
   }
 }
 
+/**
+ * Stop admitting icon mutations synchronously, then wait until the existing
+ * FIFO settle-tail is stable. A rejected icon IPC is already code-only logged
+ * by its operation; this boundary guarantees it settled before teardown, not
+ * that a rejected write became durable.
+ *
+ * Deliberately never calls ensureInit(): an unused icon store has no accepted
+ * write to drain. A later read may still start a retryable legacy migration or
+ * read-only hydrate, but legacy remains durable until migration commits.
+ */
+export async function beginCustomMcpIconQuitDrain() {
+  settingsQuitBarrierActive = true;
+  const s = state;
+  if (!s) return;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+}
+
+export function endCustomMcpIconQuitDrain() {
+  settingsQuitBarrierActive = false;
+}
+
 /* Test-only: drop module state so the next call re-runs init. */
 export function resetCustomMcpIconStoreForTests() {
   state = null;
+  settingsQuitBarrierActive = false;
   resetSessionBootstrapSnapshotForTests();
 }

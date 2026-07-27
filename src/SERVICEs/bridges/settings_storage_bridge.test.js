@@ -6,12 +6,15 @@ import {
   isComputerUsePrefsBridgeAvailable,
   isMcpIconBridgeAvailable,
   isProviderCredentialsMigrationBridgeAvailable,
+  isProviderCredentialsWriteBridgeAvailable,
   isResetAndDbStatsBridgeAvailable,
   parseSettingsStorageErrorCode,
   getSessionBootstrapSnapshot,
   getSqlStoreMigrationMeta,
   getBootstrapConfiguredCredentials,
   getBootstrapSecretStorageStatus,
+  markSecretStorageUnavailableForSession,
+  setRuntimeProviderCredentialPresence,
   resetSessionBootstrapSnapshotForTests,
 } from "./settings_storage_bridge";
 
@@ -109,6 +112,17 @@ const installMockApiWithProviderCredentialsMigration = (overrides = {}) =>
         migratedCount: 1,
         failedCount: 0,
       }),
+    ),
+    ...overrides,
+  });
+
+const installMockApiWithProviderCredentialWrites = (overrides = {}) =>
+  installMockApi({
+    setProviderCredential: jest.fn(() =>
+      Promise.resolve({ ok: true, status: "stored" }),
+    ),
+    deleteProviderCredential: jest.fn(() =>
+      Promise.resolve({ ok: true, deleted: true }),
     ),
     ...overrides,
   });
@@ -315,6 +329,32 @@ describe("availability probing", () => {
         credentials: {},
       }),
     ).rejects.toThrow(/^\[settings_storage_unavailable\]/);
+  });
+
+  test("provider credential steady-state writes are probed and forwarded separately", async () => {
+    installMockApi();
+    expect(isProviderCredentialsWriteBridgeAvailable()).toBe(false);
+    expect(
+      settingsStorageBridge.isProviderCredentialsWriteAvailable(),
+    ).toBe(false);
+
+    const api = installMockApiWithProviderCredentialWrites();
+    expect(isProviderCredentialsWriteBridgeAvailable()).toBe(true);
+    await settingsStorageBridge.setProviderCredential(
+      "provider",
+      "openai",
+      "sk-SENTINEL",
+    );
+    expect(api.setProviderCredential).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+      "sk-SENTINEL",
+    );
+    await settingsStorageBridge.deleteProviderCredential("provider", "openai");
+    expect(api.deleteProviderCredential).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+    );
   });
 
   test("reset + db-stats availability is probed separately from the Phase 1A surface", () => {
@@ -885,5 +925,36 @@ describe("provider secret bootstrap signals (S3)", () => {
     getBootstrapSecretStorageStatus();
     getSessionBootstrapSnapshot();
     expect(api.bootstrap).toHaveBeenCalledTimes(1);
+  });
+
+  test("live secret-storage downgrade overrides the cached available snapshot", () => {
+    installMockApi({
+      bootstrap: jest.fn(() => ({
+        available: true,
+        namespaces: {},
+        revisions: {},
+        secretStorageStatus: "available",
+        configuredCredentials: ["openai"],
+      })),
+    });
+    expect(getBootstrapSecretStorageStatus()).toBe("available");
+    markSecretStorageUnavailableForSession();
+    expect(getBootstrapSecretStorageStatus()).toBe("unavailable");
+    // Identity survives so legacy fallback can still report configured.
+    expect(getBootstrapConfiguredCredentials()).toEqual(["openai"]);
+  });
+
+  test("runtime presence overrides immediately add and revoke SQL authority", () => {
+    installMockApi({
+      bootstrap: jest.fn(() => ({
+        available: true,
+        namespaces: {},
+        revisions: {},
+        configuredCredentials: ["openai"],
+      })),
+    });
+    setRuntimeProviderCredentialPresence("openai", false);
+    setRuntimeProviderCredentialPresence("custom.new", true);
+    expect(getBootstrapConfiguredCredentials()).toEqual(["custom.new"]);
   });
 });

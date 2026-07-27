@@ -23,7 +23,9 @@ jest.mock("../../../../SERVICEs/custom_provider_store", () => ({
   updateCustomProvider: jest.fn(),
   normalizeCustomProvider: jest.fn(),
   setCustomProviderEnabled: jest.fn(),
-  removeCustomProviderSecret: jest.fn(),
+  removeCustomProviderSecret: jest.fn(() =>
+    Promise.resolve({ ok: true, status: "deleted" }),
+  ),
 }));
 
 const providerDef = (overrides = {}) => ({
@@ -35,6 +37,15 @@ const providerDef = (overrides = {}) => ({
   models: [{ id: "m1" }],
   ...overrides,
 });
+
+const durableDefinition = (definition = {}, persistence = Promise.resolve()) => {
+  const result = { ...definition };
+  Object.defineProperty(result, "persistence", {
+    value: persistence,
+    enumerable: false,
+  });
+  return result;
+};
 
 describe("parseImportText", () => {
   test("rejects empty input", () => {
@@ -126,13 +137,29 @@ describe("classifyConflict", () => {
 });
 
 describe("commitImport", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    addCustomProvider.mockImplementation((definition) =>
+      durableDefinition(definition),
+    );
+    updateCustomProvider.mockImplementation((_slug, definition) =>
+      durableDefinition(definition),
+    );
+    removeCustomProviderSecret.mockResolvedValue({
+      ok: true,
+      status: "deleted",
+    });
+  });
 
-  test("new: adds disabled with the given source", () => {
-    const r = commitImport(providerDef(), "new", { source: "preset" });
+  test("new: adds disabled with the given source", async () => {
+    const r = await commitImport(providerDef(), "new", { source: "preset" });
     expect(addCustomProvider).toHaveBeenCalledWith(
       expect.objectContaining({ id: "prov", enabled: false, source: "preset" }),
     );
+    expect(removeCustomProviderSecret).toHaveBeenCalledWith("prov");
+    expect(
+      removeCustomProviderSecret.mock.invocationCallOrder[0],
+    ).toBeLessThan(addCustomProvider.mock.invocationCallOrder[0]);
     expect(r).toEqual({
       ok: true,
       slug: "prov",
@@ -141,10 +168,10 @@ describe("commitImport", () => {
     });
   });
 
-  test("overwrite with changed endpoint: forces disabled + wipes secret (FM20)", () => {
+  test("overwrite with changed endpoint: forces disabled + wipes secret (FM20)", async () => {
     findCustomProvider.mockReturnValue(providerDef({ enabled: true }));
     const incoming = providerDef({ base_url: "https://new.example" });
-    const r = commitImport(incoming, "overwrite");
+    const r = await commitImport(incoming, "overwrite");
     expect(removeCustomProviderSecret).toHaveBeenCalledWith("prov");
     expect(updateCustomProvider).toHaveBeenCalledWith(
       "prov",
@@ -153,10 +180,10 @@ describe("commitImport", () => {
     expect(r.endpointChanged).toBe(true);
   });
 
-  test("overwrite with same endpoint: preserves enabled, no secret wipe", () => {
+  test("overwrite with same endpoint: preserves enabled, no secret wipe", async () => {
     findCustomProvider.mockReturnValue(providerDef({ enabled: true }));
     const incoming = providerDef({ display_name: "Renamed" });
-    const r = commitImport(incoming, "overwrite");
+    const r = await commitImport(incoming, "overwrite");
     expect(removeCustomProviderSecret).not.toHaveBeenCalled();
     expect(updateCustomProvider).toHaveBeenCalledWith(
       "prov",
@@ -165,30 +192,48 @@ describe("commitImport", () => {
     expect(r.endpointChanged).toBe(false);
   });
 
-  test("rename: re-normalizes with a free slug and adds disabled", () => {
+  test("rename: re-normalizes with a free slug and adds disabled", async () => {
     readCustomProviders.mockReturnValue([{ id: "prov" }]);
     normalizeCustomProvider.mockReturnValue({
       ok: true,
       provider: providerDef({ id: "prov-2" }),
       diagnostics: [],
     });
-    const r = commitImport(providerDef(), "rename", { source: "import" });
+    const r = await commitImport(providerDef(), "rename", { source: "import" });
     expect(normalizeCustomProvider).toHaveBeenCalledWith(
       expect.objectContaining({ id: "prov-2" }),
     );
     expect(addCustomProvider).toHaveBeenCalledWith(
       expect.objectContaining({ id: "prov-2", enabled: false, source: "import" }),
     );
+    expect(removeCustomProviderSecret).toHaveBeenCalledWith("prov-2");
+    expect(
+      removeCustomProviderSecret.mock.invocationCallOrder[0],
+    ).toBeLessThan(addCustomProvider.mock.invocationCallOrder[0]);
     expect(r.slug).toBe("prov-2");
   });
 
-  test("new: surfaces store errors (e.g. provider_id_exists) as diagnostics", () => {
+  test("new: an orphan credential delete failure prevents definition creation", async () => {
+    removeCustomProviderSecret.mockResolvedValue({
+      ok: false,
+      status: "not-synced",
+      errorCode: "storage_io_error",
+    });
+
+    const r = await commitImport(providerDef(), "new");
+
+    expect(r.ok).toBe(false);
+    expect(r.diagnostics[0].code).toBe("storage_io_error");
+    expect(addCustomProvider).not.toHaveBeenCalled();
+  });
+
+  test("new: surfaces store errors (e.g. provider_id_exists) as diagnostics", async () => {
     addCustomProvider.mockImplementation(() => {
       const e = new Error("Provider id already exists: prov");
       e.code = "provider_id_exists";
       throw e;
     });
-    const r = commitImport(providerDef(), "new");
+    const r = await commitImport(providerDef(), "new");
     expect(r.ok).toBe(false);
     expect(r.diagnostics[0].code).toBe("provider_id_exists");
   });

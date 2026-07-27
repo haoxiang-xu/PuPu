@@ -235,6 +235,31 @@ describe("PluginsInstalledPage", () => {
     expect(setDefaultToolkitEnabled).toHaveBeenCalledWith("global", "plan", true);
   });
 
+  test("a rejected toggle reconciles the switch to the store rollback", async () => {
+    let rejectPersistence;
+    const persistence = new Promise((_resolve, reject) => {
+      rejectPersistence = reject;
+    });
+    const optimistic = ["plan"];
+    Object.defineProperty(optimistic, "persistence", {
+      value: persistence,
+      enumerable: false,
+    });
+    setDefaultToolkitEnabled.mockReturnValue(optimistic);
+    getDefaultToolkitSelection.mockReturnValue([]);
+    await renderPage();
+
+    const planSwitch = screen.getAllByTestId("switch")[0];
+    fireEvent.click(planSwitch);
+    expect(planSwitch).toHaveTextContent("on");
+
+    await act(async () => {
+      rejectPersistence(new Error("[settings_storage_unavailable] gone"));
+      await expect(persistence).rejects.toThrow(/settings_storage_unavailable/);
+    });
+    expect(planSwitch).toHaveTextContent("off");
+  });
+
   /* T3: two SettingsSections group rows by source — Built-in (builtin/local)
      and MCP — matching mockup screen ③'s "Built-in" / "MCP" section
      headers. */

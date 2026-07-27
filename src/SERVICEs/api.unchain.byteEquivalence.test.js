@@ -88,6 +88,14 @@ const installStorageBridge = ({
       Promise.resolve({ ok: true, namespace: ns, revision: 0, updatedAt: 1 }),
     deleteNamespace: (ns) =>
       Promise.resolve({ ok: true, namespace: ns, deleted: true }),
+    setProviderCredential: () =>
+      Promise.resolve({
+        ok: true,
+        status:
+          secretStorageStatus === "available" ? "stored" : "legacy-only",
+      }),
+    deleteProviderCredential: () =>
+      Promise.resolve({ ok: true, deleted: true }),
   };
 };
 
@@ -255,10 +263,10 @@ describe("renderer legacy assembly matches the main suite's inline field set", (
     expect(payload.options).not.toHaveProperty("__pupu_secret_injection");
   });
 
-  test("custom provider → dedicated channel only (values), never api_key", () => {
+  test("custom provider → dedicated channel only (values), never api_key", async () => {
     seedCustomProvider();
-    setCustomProviderSecret("myslug", SENTINEL.custom);
     installStorageBridge({ secretStorageStatus: "unavailable" });
+    await setCustomProviderSecret("myslug", SENTINEL.custom);
 
     const payload = driveV2({
       modelId: "custom.myslug:anthropic--claude-4.5-haiku",
@@ -327,13 +335,15 @@ describe("renderer steady-state emits exactly the main suite's descriptor list",
     expect(serialized).not.toContain(SENTINEL.anthropic);
   });
 
-  test("custom provider → [{custom_provider, custom.myslug, model}], no value channel", () => {
+  test("custom provider → [{custom_provider, custom.myslug, model}], no value channel", async () => {
     seedCustomProvider();
-    setCustomProviderSecret("myslug", SENTINEL.custom);
     installStorageBridge({
       secretStorageStatus: "available",
       configuredCredentials: ["custom.myslug"],
     });
+    // A runtime mutation becomes descriptor-authoritative only after main's
+    // write-only credential channel explicitly acknowledges SQL durability.
+    await setCustomProviderSecret("myslug", SENTINEL.custom);
 
     const payload = driveV2({
       modelId: "custom.myslug:anthropic--claude-4.5-haiku",

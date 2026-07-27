@@ -9,7 +9,8 @@
 //   read — from the bootstrap snapshot's toolkitPrefs section (SQL authority)
 //   or, before the per-store migration completes, from the legacy store.
 //   Writes update the mirror optimistically and queue a full-scope replace
-//   over IPC (fire-and-forget; failures log the error code only).
+//   over IPC. Failures roll back to the last SQL-confirmed value; callers can
+//   optionally await a non-enumerable `persistence` promise on the result.
 //
 // Alias normalization (workspace → core etc., toolkit_id_aliases.js) stays
 // renderer-only: payloads cross the IPC boundary already normalized and the
@@ -123,6 +124,24 @@ const readStore = () => {
   return initialStore;
 };
 
+const readLegacySelectionWithoutRepair = (scopeKey) => {
+  const fallback =
+    scopeKey === GLOBAL_SCOPE ? [...DEFAULT_GLOBAL_TOOLKITS] : [];
+  if (typeof window === "undefined" || !window.localStorage) return fallback;
+  try {
+    const raw = JSON.parse(
+      window.localStorage.getItem(STORAGE_KEY) || "null",
+    );
+    if (!isObject(raw) || !isObject(raw.scopes)) return fallback;
+    if (!Object.prototype.hasOwnProperty.call(raw.scopes, scopeKey)) {
+      return fallback;
+    }
+    return sanitizeIds(raw.scopes[scopeKey]);
+  } catch {
+    return fallback;
+  }
+};
+
 /* ─────────────────────── legacy (localStorage) mutations ─────────────────── */
 
 const legacyGetDefaultToolkitSelection = (scopeKey) => {
@@ -210,6 +229,8 @@ const writeMigrationMarker = (digest, completedAt) => {
 };
 
 let state = null;
+let settingsResetBarrierActive = false;
+let settingsQuitBarrierActive = false;
 
 const createInitialState = () => ({
   mode: "localStorage", // "sql" | "localStorage"
@@ -219,6 +240,16 @@ const createInitialState = () => ({
   // Null prototype: scope keys are arbitrary strings and must always land as
   // own keys (never a prototype write).
   mirrorScopes: Object.create(null),
+  // Last SQL-acknowledged value and latest optimistic mutation are tracked
+  // per scope. This lets independent scopes settle independently and lets a
+  // queued operation rebase after a rejected predecessor.
+  confirmedScopes: Object.create(null),
+  latestMutationIds: Object.create(null),
+  // Scope-local legacy checkpoints are only populated while migration is
+  // pending. SQL success advances them; latest rejection restores them.
+  confirmedLegacyScopes: Object.create(null),
+  pendingLegacyScopes: Object.create(null),
+  nextMutationId: 0,
   pendingWrites: 0,
   queueTail: Promise.resolve(),
 });
@@ -245,20 +276,30 @@ const degradeToFallback = (s, errorCode) => {
   s.degraded = true;
   if (errorCode) s.lastErrorCode = errorCode;
   s.mirrorScopes = Object.create(null);
+  s.confirmedScopes = Object.create(null);
+  s.latestMutationIds = Object.create(null);
+  // A failed migration leaves localStorage authoritative, including every
+  // optimistic write made while it was pending.
+  s.confirmedLegacyScopes = Object.create(null);
+  s.pendingLegacyScopes = Object.create(null);
 };
 
 const seedMirrorFromScopes = (s, scopes) => {
   s.mirrorScopes = Object.create(null);
+  s.confirmedScopes = Object.create(null);
   const sanitized = sanitizeScopes(scopes);
   for (const scopeKey of Object.keys(sanitized)) {
     // Trimmed identity (main-process parity). A trim collision resolves
     // last-wins — the same order the main-process migration import applies.
-    s.mirrorScopes[normalizeScopeKeyForSql(scopeKey)] = sanitized[scopeKey];
+    const normalizedScopeKey = normalizeScopeKeyForSql(scopeKey);
+    s.mirrorScopes[normalizedScopeKey] = [...sanitized[scopeKey]];
+    s.confirmedScopes[normalizedScopeKey] = [...sanitized[scopeKey]];
   }
   // Legacy readStore() default: an absent global scope reads as ["core"].
   // Never injected for an explicitly-empty global (own key, [] value).
   if (s.mirrorScopes[GLOBAL_SCOPE] === undefined) {
     s.mirrorScopes[GLOBAL_SCOPE] = [...DEFAULT_GLOBAL_TOOLKITS];
+    s.confirmedScopes[GLOBAL_SCOPE] = [...DEFAULT_GLOBAL_TOOLKITS];
   }
 };
 
@@ -388,7 +429,99 @@ const ensureInit = () => {
   return s;
 };
 
-const enqueueReplaceScope = (s, scopeKey, ids) => {
+const applyScopeIntent = (ids, intent) => {
+  const current = sanitizeIds(ids);
+  if (intent.type === "set-enabled") {
+    if (intent.enabled) {
+      return current.includes(intent.toolkitId)
+        ? current
+        : sanitizeIds([...current, intent.toolkitId]);
+    }
+    return current.filter((id) => id !== intent.toolkitId);
+  }
+  if (intent.type === "retain-valid") {
+    const validSet = new Set(intent.validIds);
+    return current.filter((id) => validSet.has(id));
+  }
+  return current;
+};
+
+const hasOwn = (target, key) =>
+  Object.prototype.hasOwnProperty.call(target, key);
+
+const readLegacyScopeSnapshot = (scopeKey) => {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  const store = readStore();
+  if (!hasOwn(store.scopes, scopeKey)) {
+    return { present: false, ids: [] };
+  }
+  return { present: true, ids: sanitizeIds(store.scopes[scopeKey]) };
+};
+
+const legacyScopeSnapshotsEqual = (left, right) =>
+  !!left &&
+  !!right &&
+  left.present === right.present &&
+  left.ids.length === right.ids.length &&
+  left.ids.every((id, index) => id === right.ids[index]);
+
+const restoreLegacyScopeSnapshot = (scopeKey, snapshot) => {
+  if (!snapshot) return false;
+  const store = readStore();
+  if (snapshot.present) {
+    store.scopes[scopeKey] = [...snapshot.ids];
+  } else {
+    delete store.scopes[scopeKey];
+  }
+  writeStore(store);
+  return true;
+};
+
+const applyLegacyScopeMutation = (s, scopeKey, ids) => {
+  const current = readLegacyScopeSnapshot(scopeKey);
+  if (!current) return false;
+  if (!hasOwn(s.confirmedLegacyScopes, scopeKey)) {
+    s.confirmedLegacyScopes[scopeKey] = current;
+  }
+  const after = { present: true, ids: [...ids] };
+  if (!restoreLegacyScopeSnapshot(scopeKey, after)) return false;
+  s.pendingLegacyScopes[scopeKey] = after;
+  return true;
+};
+
+const confirmLegacyScopeIntent = (s, scopeKey, intent) => {
+  if (!hasOwn(s.confirmedLegacyScopes, scopeKey)) return;
+  const confirmed = s.confirmedLegacyScopes[scopeKey];
+  s.confirmedLegacyScopes[scopeKey] = {
+    present: true,
+    ids: applyScopeIntent(confirmed.ids, intent),
+  };
+};
+
+const settleLatestLegacyScope = (s, scopeKey) => {
+  if (
+    !hasOwn(s.pendingLegacyScopes, scopeKey) ||
+    !hasOwn(s.confirmedLegacyScopes, scopeKey)
+  ) {
+    return;
+  }
+  const pending = s.pendingLegacyScopes[scopeKey];
+  delete s.pendingLegacyScopes[scopeKey];
+  const current = readLegacyScopeSnapshot(scopeKey);
+  if (!legacyScopeSnapshotsEqual(current, pending)) {
+    // Preserve a newer/external writer for this scope.
+    return;
+  }
+  restoreLegacyScopeSnapshot(scopeKey, s.confirmedLegacyScopes[scopeKey]);
+};
+
+const enqueueReplaceScope = (
+  s,
+  scopeKey,
+  intent,
+  mutationId,
+  wroteLegacy,
+) =>
   enqueue(s, async () => {
     if (state !== s) return;
     if (s.mode !== "sql") {
@@ -397,39 +530,112 @@ const enqueueReplaceScope = (s, scopeKey, ids) => {
       // to localStorage — nothing to replay.
       return;
     }
+    // Build the replace payload only after predecessors for this FIFO have
+    // settled. Reusing the optimistic call-time array would make a later
+    // success persist an earlier rejected enable/disable.
+    const rebasedIds = applyScopeIntent(
+      s.confirmedScopes[scopeKey],
+      intent,
+    );
     try {
-      await settingsStorageBridge.replaceDefaultToolkitsScope(scopeKey, ids);
+      const ack = await settingsStorageBridge.replaceDefaultToolkitsScope(
+        scopeKey,
+        rebasedIds,
+      );
+      if (state === s) {
+        s.confirmedScopes[scopeKey] = [...rebasedIds];
+        if (wroteLegacy) {
+          confirmLegacyScopeIntent(s, scopeKey, intent);
+        }
+        s.lastErrorCode = null;
+        if (s.latestMutationIds[scopeKey] === mutationId) {
+          s.mirrorScopes[scopeKey] = [...rebasedIds];
+          settleLatestLegacyScope(s, scopeKey);
+        }
+      }
+      return ack;
     } catch (error) {
       const code =
         parseSettingsStorageErrorCode(error) || "settings_storage_error";
-      s.lastErrorCode = code;
+      if (state === s) {
+        s.lastErrorCode = code;
+        if (s.latestMutationIds[scopeKey] === mutationId) {
+          s.mirrorScopes[scopeKey] = sanitizeIds(
+            s.confirmedScopes[scopeKey],
+          );
+          settleLatestLegacyScope(s, scopeKey);
+        }
+      }
       console.warn("[default-toolkit-store] scope persist failed:", code);
+      throw error;
     }
   });
-};
 
-const legacySetScopeInStore = (scopeKey, ids) => {
-  const store = readStore();
-  store.scopes[scopeKey] = [...ids];
-  writeStore(store);
-};
-
-const commitScope = (s, scopeKey, ids) => {
-  s.mirrorScopes[scopeKey] = ids;
+const commitScope = (s, scopeKey, ids, intent) => {
+  s.mirrorScopes[scopeKey] = [...ids];
+  let wroteLegacy = false;
   if (!s.migrated) {
     // Migration pending: localStorage remains the authority — write through
     // with the exact legacy mutation so a failed migration loses nothing.
-    legacySetScopeInStore(scopeKey, ids);
+    wroteLegacy = applyLegacyScopeMutation(s, scopeKey, ids);
   }
+  let persistence = null;
   if (isSqlSafeScopeKey(scopeKey)) {
-    enqueueReplaceScope(s, scopeKey, ids);
+    const mutationId = ++s.nextMutationId;
+    s.latestMutationIds[scopeKey] = mutationId;
+    persistence = enqueueReplaceScope(
+      s,
+      scopeKey,
+      intent,
+      mutationId,
+      wroteLegacy,
+    );
   } else {
     console.warn(
       "[default-toolkit-store] scope key not persistable to SQL; " +
         "kept renderer-local",
     );
   }
-  return [...ids];
+  const result = [...ids];
+  if (persistence) {
+    // Preserve the historical enumerable array shape while allowing callers
+    // that render an optimistic control to observe persistence failure.
+    Object.defineProperty(result, "persistence", {
+      value: persistence,
+      enumerable: false,
+    });
+  }
+  return result;
+};
+
+const createSettingsResetBlockedPersistence = () => {
+  const error = new Error(
+    "[settings_reset_in_progress] default toolkit write blocked",
+  );
+  error.code = "settings_reset_in_progress";
+  const persistence = Promise.reject(error);
+  // Preserve fire-and-forget compatibility for callers that only consume the
+  // synchronous array result.
+  persistence.catch(() => {});
+  return persistence;
+};
+
+const createSettingsQuitBlockedPersistence = () => {
+  const error = new Error(
+    "[settings_quit_in_progress] default toolkit write blocked",
+  );
+  error.code = "settings_quit_in_progress";
+  const persistence = Promise.reject(error);
+  persistence.catch(() => {});
+  return persistence;
+};
+
+const attachPersistence = (result, persistence) => {
+  Object.defineProperty(result, "persistence", {
+    value: persistence,
+    enumerable: false,
+  });
+  return result;
 };
 
 /* ───────────────────────────── public surface ───────────────────────────── */
@@ -447,7 +653,32 @@ export const setDefaultToolkitEnabled = (
   toolkitId,
   enabled,
 ) => {
+  if (settingsQuitBarrierActive) {
+    const s = state;
+    const current =
+      !s || s.mode === "localStorage"
+        ? readLegacySelectionWithoutRepair(scopeKey)
+        : sanitizeIds(s.mirrorScopes[normalizeScopeKeyForSql(scopeKey)]);
+    if (!normalizeToolkitId(toolkitId)) return current;
+    return attachPersistence(
+      [...current],
+      createSettingsQuitBlockedPersistence(),
+    );
+  }
   const s = ensureInit();
+  if (settingsResetBarrierActive) {
+    const current =
+      s.mode === "localStorage"
+        ? readLegacySelectionWithoutRepair(scopeKey)
+        : sanitizeIds(
+            s.mirrorScopes[normalizeScopeKeyForSql(scopeKey)],
+          );
+    if (!normalizeToolkitId(toolkitId)) return current;
+    return attachPersistence(
+      [...current],
+      createSettingsResetBlockedPersistence(),
+    );
+  }
   if (s.mode === "localStorage") {
     return legacySetDefaultToolkitEnabled(scopeKey, toolkitId, enabled);
   }
@@ -458,28 +689,49 @@ export const setDefaultToolkitEnabled = (
     return current;
   }
 
-  let next;
-  if (enabled) {
-    next = current.includes(normalizedToolkitId)
-      ? current
-      : [...current, normalizedToolkitId];
-  } else {
-    next = current.filter((id) => id !== normalizedToolkitId);
-  }
-
-  return commitScope(s, sqlScopeKey, sanitizeIds(next));
+  const intent = {
+    type: "set-enabled",
+    toolkitId: normalizedToolkitId,
+    enabled: !!enabled,
+  };
+  const next = applyScopeIntent(current, intent);
+  return commitScope(s, sqlScopeKey, next, intent);
 };
 
 export const removeInvalidToolkitIds = (scopeKey = GLOBAL_SCOPE, validIds) => {
+  if (settingsQuitBarrierActive) {
+    const s = state;
+    const current =
+      !s || s.mode === "localStorage"
+        ? readLegacySelectionWithoutRepair(scopeKey)
+        : sanitizeIds(s.mirrorScopes[normalizeScopeKeyForSql(scopeKey)]);
+    return attachPersistence(
+      [...current],
+      createSettingsQuitBlockedPersistence(),
+    );
+  }
   const s = ensureInit();
+  if (settingsResetBarrierActive) {
+    const current =
+      s.mode === "localStorage"
+        ? readLegacySelectionWithoutRepair(scopeKey)
+        : sanitizeIds(
+            s.mirrorScopes[normalizeScopeKeyForSql(scopeKey)],
+          );
+    return attachPersistence(
+      [...current],
+      createSettingsResetBlockedPersistence(),
+    );
+  }
   if (s.mode === "localStorage") {
     return legacyRemoveInvalidToolkitIds(scopeKey, validIds);
   }
   const sqlScopeKey = normalizeScopeKeyForSql(scopeKey);
-  const validSet = new Set(sanitizeIds(validIds));
+  const sanitizedValidIds = sanitizeIds(validIds);
   const current = sanitizeIds(s.mirrorScopes[sqlScopeKey]);
-  const pruned = current.filter((id) => validSet.has(id));
-  return commitScope(s, sqlScopeKey, pruned);
+  const intent = { type: "retain-valid", validIds: sanitizedValidIds };
+  const pruned = applyScopeIntent(current, intent);
+  return commitScope(s, sqlScopeKey, pruned, intent);
 };
 
 /** True when this session persists default toolkits to SQL (Electron, Phase 2+). */
@@ -493,6 +745,39 @@ export const flushDefaultToolkitWrites = async () => {
     tail = s.queueTail;
     await tail;
   } while (state === s && tail !== s.queueTail);
+};
+
+/**
+ * Synchronously closes this store to new SQL mutations, then resolves after
+ * every operation queued before the barrier has settled.
+ */
+export const beginDefaultToolkitSettingsReset = async () => {
+  const s = ensureInit();
+  settingsResetBarrierActive = true;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endDefaultToolkitSettingsReset = () => {
+  settingsResetBarrierActive = false;
+};
+
+export const beginDefaultToolkitQuitDrain = async () => {
+  settingsQuitBarrierActive = true;
+  const s = state;
+  if (!s) return;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endDefaultToolkitQuitDrain = () => {
+  settingsQuitBarrierActive = false;
 };
 
 // Reset-settings (plan §6-Phase5). After the main-process SQL transaction
@@ -509,10 +794,15 @@ export const resetDefaultToolkitMirrorForSettingsReset = () => {
   const s = state;
   if (!s || s.mode !== "sql") return;
   seedMirrorFromScopes(s, {});
+  s.latestMutationIds = Object.create(null);
+  s.confirmedLegacyScopes = Object.create(null);
+  s.pendingLegacyScopes = Object.create(null);
 };
 
 /** Test-only: drop module state so the next call re-runs init. */
 export const resetDefaultToolkitStoreForTests = () => {
   state = null;
+  settingsResetBarrierActive = false;
+  settingsQuitBarrierActive = false;
   resetSessionBootstrapSnapshotForTests();
 };

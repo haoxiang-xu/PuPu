@@ -1,4 +1,5 @@
 const { CHANNELS } = require("../../shared/channels");
+const { pathToFileURL } = require("url");
 
 const getDevServerUrl = () =>
   process.env.ELECTRON_START_URL || "http://localhost:2907/#";
@@ -7,6 +8,33 @@ const getDevServerOrigin = () => {
     return new URL(getDevServerUrl()).origin;
   } catch {
     return "http://localhost:2907";
+  }
+};
+
+const isAllowedAppNavigation = ({
+  url,
+  isPackaged,
+  devServerOrigin,
+  productionEntryPath,
+}) => {
+  try {
+    const target = new URL(url);
+    if (!isPackaged) {
+      return (
+        (target.protocol === "http:" || target.protocol === "https:") &&
+        target.origin === devServerOrigin
+      );
+    }
+
+    if (target.protocol !== "file:" || target.hostname !== "") {
+      return false;
+    }
+    const targetWithoutRoute = new URL(target.href);
+    targetWithoutRoute.hash = "";
+    targetWithoutRoute.search = "";
+    return targetWithoutRoute.href === pathToFileURL(productionEntryPath).href;
+  } catch {
+    return false;
   }
 };
 const PROD_ENTRY_HASH = "/";
@@ -319,11 +347,17 @@ const createMainWindowService = ({
 
     mainWindow.webContents.on("will-navigate", (event, url) => {
       const devServerOrigin = getDevServerOrigin();
-      const isLocalAppUrl =
-        url.startsWith("file://") || url.startsWith(devServerOrigin);
+      const isLocalAppUrl = isAllowedAppNavigation({
+        url,
+        isPackaged: app.isPackaged,
+        devServerOrigin,
+        productionEntryPath: resolveBuildPath("index.html"),
+      });
       if (!isLocalAppUrl) {
         event.preventDefault();
-        shell.openExternal(url);
+        if (/^https?:/i.test(url)) {
+          shell.openExternal(url);
+        }
       }
     });
 
@@ -428,4 +462,5 @@ const createMainWindowService = ({
 
 module.exports = {
   createMainWindowService,
+  isAllowedAppNavigation,
 };

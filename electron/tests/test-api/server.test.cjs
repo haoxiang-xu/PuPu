@@ -152,4 +152,27 @@ describe("test-api/server", () => {
     expect(res.body.error.code).toBe("invalid_json");
     await server.close();
   });
+
+  test("runs afterResponse only after the JSON response finishes", async () => {
+    const registry = createCommandRegistry();
+    const afterResponse = jest.fn();
+    registry.register({
+      method: "POST",
+      path: "/v1/finish-first",
+      handler: async () => ({ ok: true }),
+      afterResponse,
+    });
+    const server = await createServer({
+      registry,
+      isReady: () => true,
+    });
+    const res = await httpRequest(server.port, {
+      method: "POST",
+      path: "/v1/finish-first",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(afterResponse).toHaveBeenCalledTimes(1);
+    await server.close();
+  });
 });

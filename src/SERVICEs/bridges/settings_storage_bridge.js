@@ -72,6 +72,14 @@ const PROVIDER_CREDENTIALS_MIGRATION_METHODS = Object.freeze([
   "migrateProviderCredentials",
 ]);
 
+// Steady-state provider credential mutation surface. Kept separate from the
+// one-shot migration probe so mixed-version preload/main sessions safely stay
+// on the legacy dual-keep path instead of assuming writes reached SQL.
+const PROVIDER_CREDENTIALS_WRITE_METHODS = Object.freeze([
+  "setProviderCredential",
+  "deleteProviderCredential",
+]);
+
 // Phase 5 reset-settings + read-only db-stats surface (plan §6-Phase5). Probed
 // separately from REQUIRED_METHODS for the same old-preload reason: a
 // pre-Phase-5 preload keeps every other store fully available while the reset
@@ -80,6 +88,14 @@ const PROVIDER_CREDENTIALS_MIGRATION_METHODS = Object.freeze([
 const RESET_AND_DB_STATS_METHODS = Object.freeze([
   "resetSettings",
   "getDbStats",
+]);
+
+// Renderer/main quit handshake. Optional for mixed-version sessions: an old
+// preload simply leaves main's fail-closed coordinator to cancel the quit.
+const QUIT_DRAIN_METHODS = Object.freeze([
+  "onQuitDrainRequest",
+  "onQuitDrainAbort",
+  "sendQuitDrainResult",
 ]);
 
 // Matches the FIRST "[<code>] " token ANYWHERE in the message — deliberately
@@ -134,6 +150,8 @@ export const parseSettingsStorageErrorCode = (error) => {
 // forgotten by every store's test-reset helper.
 
 let sessionBootstrapSnapshot;
+const runtimeProviderCredentialPresenceOverrides = new Map();
+let runtimeSecretStorageUnavailable = false;
 
 export const getSessionBootstrapSnapshot = () => {
   if (sessionBootstrapSnapshot === undefined) {
@@ -145,6 +163,8 @@ export const getSessionBootstrapSnapshot = () => {
 /** Test-only: forget the session-cached bootstrap snapshot. */
 export const resetSessionBootstrapSnapshotForTests = () => {
   sessionBootstrapSnapshot = undefined;
+  runtimeProviderCredentialPresenceOverrides.clear();
+  runtimeSecretStorageUnavailable = false;
 };
 
 /**
@@ -186,10 +206,28 @@ export const getSqlStoreMigrationMeta = (storeKey) => {
 // legacy dual-keep signal, never wrongly treating a provider as unconfigured.
 export const getBootstrapConfiguredCredentials = () => {
   const snapshot = getSessionBootstrapSnapshot();
-  if (!snapshot || snapshot.available !== true) return [];
-  const list = snapshot.configuredCredentials;
-  if (!Array.isArray(list)) return [];
-  return list.filter((id) => typeof id === "string" && id.length > 0);
+  const configured = new Set();
+  if (snapshot && snapshot.available === true) {
+    const list = snapshot.configuredCredentials;
+    if (Array.isArray(list)) {
+      for (const id of list) {
+        if (typeof id === "string" && id.length > 0) configured.add(id);
+      }
+    }
+  }
+  for (const [id, present] of runtimeProviderCredentialPresenceOverrides) {
+    if (present) configured.add(id);
+    else configured.delete(id);
+  }
+  return [...configured];
+};
+
+// Apply the result (or pending fail-closed state) of a steady-state credential
+// mutation to this session's identity-only authority signal. No value is
+// accepted or retained here — just an id and a boolean.
+export const setRuntimeProviderCredentialPresence = (id, present) => {
+  if (typeof id !== "string" || id.length === 0) return;
+  runtimeProviderCredentialPresenceOverrides.set(id, present === true);
 };
 
 // safeStorage availability from S1's gate-3 probe. Anything other than the
@@ -197,11 +235,18 @@ export const getBootstrapConfiguredCredentials = () => {
 // as unavailable — fail-closed, so a malformed snapshot can never authorize
 // the descriptor-only injection path.
 export const getBootstrapSecretStorageStatus = () => {
+  if (runtimeSecretStorageUnavailable) return "unavailable";
   const snapshot = getSessionBootstrapSnapshot();
   if (!snapshot || snapshot.available !== true) return "unavailable";
   return snapshot.secretStorageStatus === "available"
     ? "available"
     : "unavailable";
+};
+
+// Non-sensitive live downgrade after main reports a real Keychain failure.
+// This never accepts an owner id, value, ciphertext, or error message.
+export const markSecretStorageUnavailableForSession = () => {
+  runtimeSecretStorageUnavailable = true;
 };
 
 export const isSettingsStorageBridgeAvailable = () => resolveApi() !== null;
@@ -251,10 +296,28 @@ export const isProviderCredentialsMigrationBridgeAvailable = () => {
   return true;
 };
 
+export const isProviderCredentialsWriteBridgeAvailable = () => {
+  const api = resolveApi();
+  if (!api) return false;
+  for (const method of PROVIDER_CREDENTIALS_WRITE_METHODS) {
+    if (typeof api[method] !== "function") return false;
+  }
+  return true;
+};
+
 export const isResetAndDbStatsBridgeAvailable = () => {
   const api = resolveApi();
   if (!api) return false;
   for (const method of RESET_AND_DB_STATS_METHODS) {
+    if (typeof api[method] !== "function") return false;
+  }
+  return true;
+};
+
+export const isSettingsQuitDrainBridgeAvailable = () => {
+  const api = resolveApi();
+  if (!api) return false;
+  for (const method of QUIT_DRAIN_METHODS) {
     if (typeof api[method] !== "function") return false;
   }
   return true;
@@ -376,6 +439,12 @@ export const settingsStorageBridge = {
     isProviderCredentialsMigrationBridgeAvailable,
   migrateProviderCredentials: (payload) =>
     invokeOptionalBridge("migrateProviderCredentials", [payload]),
+  isProviderCredentialsWriteAvailable:
+    isProviderCredentialsWriteBridgeAvailable,
+  setProviderCredential: (kind, ownerId, plaintext) =>
+    invokeOptionalBridge("setProviderCredential", [kind, ownerId, plaintext]),
+  deleteProviderCredential: (kind, ownerId) =>
+    invokeOptionalBridge("deleteProviderCredential", [kind, ownerId]),
 
   // Phase 5 reset-settings + read-only db-stats (plan §6-Phase5). resetSettings
   // clears the non-sensitive settings/preference tables in one SQL transaction;
@@ -385,6 +454,26 @@ export const settingsStorageBridge = {
   isResetAndDbStatsAvailable: isResetAndDbStatsBridgeAvailable,
   resetSettings: () => invokeOptionalBridge("resetSettings", []),
   getDbStats: () => invokeOptionalBridge("getDbStats", []),
+
+  // Quit durability control plane. Payloads contain request identity/status
+  // only; no settings value or provider credential can travel on these paths.
+  isQuitDrainAvailable: isSettingsQuitDrainBridgeAvailable,
+  onQuitDrainRequest: (listener) => {
+    const api = resolveApi();
+    if (!api || typeof api.onQuitDrainRequest !== "function") return () => {};
+    return api.onQuitDrainRequest(listener);
+  },
+  onQuitDrainAbort: (listener) => {
+    const api = resolveApi();
+    if (!api || typeof api.onQuitDrainAbort !== "function") return () => {};
+    return api.onQuitDrainAbort(listener);
+  },
+  sendQuitDrainResult: (result) => {
+    const api = resolveApi();
+    if (!api || typeof api.sendQuitDrainResult !== "function") return false;
+    api.sendQuitDrainResult(result);
+    return true;
+  },
 };
 
 export default settingsStorageBridge;

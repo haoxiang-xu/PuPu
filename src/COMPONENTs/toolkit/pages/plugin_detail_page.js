@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
@@ -372,7 +372,14 @@ const PluginDetailPage = ({
     isToolkitAutoApprove(entry?.toolkitId),
   );
   const [showApproveAutoConfirm, setShowApproveAutoConfirm] = useState(false);
+  const autoApproveMutationRef = useRef(0);
+  const activeToolkitIdRef = useRef(entry?.toolkitId);
+  // Keep this current during render so an old promise cannot win the small
+  // window before the entry-change effect runs.
+  activeToolkitIdRef.current = entry?.toolkitId;
   useEffect(() => {
+    autoApproveMutationRef.current += 1;
+    setShowApproveAutoConfirm(false);
     setAutoApprove(isToolkitAutoApprove(entry?.toolkitId));
   }, [entry?.toolkitId]);
   const handleAutoApproveToggle = (val) => {
@@ -380,14 +387,41 @@ const PluginDetailPage = ({
       setShowApproveAutoConfirm(true);
       return;
     }
+    const toolkitId = entry?.toolkitId;
+    const mutationId = ++autoApproveMutationRef.current;
     const toolNames = toolList.map((tool) => tool.name || tool.title || "");
-    setToolkitAutoApprove(entry?.toolkitId, false, toolNames);
+    const result = setToolkitAutoApprove(
+      toolkitId,
+      false,
+      toolNames,
+    );
     setAutoApprove(false);
+    result?.persistence?.catch(() => {
+      if (
+        activeToolkitIdRef.current !== toolkitId ||
+        autoApproveMutationRef.current !== mutationId
+      ) {
+        return;
+      }
+      // The store has rolled back to its last SQL-confirmed state.
+      setAutoApprove(isToolkitAutoApprove(toolkitId));
+    });
   };
   const confirmAutoApprove = () => {
+    const toolkitId = entry?.toolkitId;
+    const mutationId = ++autoApproveMutationRef.current;
     const toolNames = toolList.map((tool) => tool.name || tool.title || "");
-    setToolkitAutoApprove(entry?.toolkitId, true, toolNames);
+    const result = setToolkitAutoApprove(toolkitId, true, toolNames);
     setAutoApprove(true);
+    result?.persistence?.catch(() => {
+      if (
+        activeToolkitIdRef.current !== toolkitId ||
+        autoApproveMutationRef.current !== mutationId
+      ) {
+        return;
+      }
+      setAutoApprove(isToolkitAutoApprove(toolkitId));
+    });
   };
 
   /* ── Docs (About kv row) — store entries already embed readmeMarkdown

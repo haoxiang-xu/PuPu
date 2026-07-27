@@ -21,6 +21,7 @@ const createTestApiService = ({
   let port = null;
 
   const isEnabled = () =>
+    electron?.app?.isPackaged !== true &&
     env.NODE_ENV !== "production" && env.PUPU_TEST_API_DISABLE !== "1";
 
   const start = async ({ webContents } = {}) => {
@@ -47,6 +48,7 @@ const createTestApiService = ({
       logs,
       getMainWindow,
       electron,
+      allowAppQuit: env.PUPU_E2E === "1",
     });
 
     server = await createServer({ registry, isReady: () => bridge.isReady() });

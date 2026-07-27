@@ -151,4 +151,17 @@ describe("test-api integration", () => {
     await svc.start({ webContents: makeFakeWebContents(ipcMain) });
     expect(svc.getPort()).toBe(null);
   });
+
+  test("does not start in a packaged app even when E2E env is injected", async () => {
+    const ipcMain = new EventEmitter();
+    svc = createTestApiService({
+      env: { PUPU_E2E: "1" },
+      ipcMain,
+      portFilePath: portFile,
+      electron: { app: { isPackaged: true } },
+    });
+    await svc.start({ webContents: makeFakeWebContents(ipcMain) });
+    expect(fs.existsSync(portFile)).toBe(false);
+    expect(svc.getPort()).toBe(null);
+  });
 });

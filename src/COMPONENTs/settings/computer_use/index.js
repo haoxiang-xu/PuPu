@@ -260,14 +260,34 @@ export const ComputerUseSettings = () => {
       ) return;
       setLocalBetaBusy(true);
       setToggleError("");
+      const previousEnabled = isComputerUseLocalBetaPersisted();
+      let desiredPersisted = false;
       try {
+        const desiredRecord = writeComputerUseLocalBeta(enabled);
+        await desiredRecord.persistence;
+        desiredPersisted = true;
         const result = await runtimeBridge.setComputerUseLocalBetaEnabled(enabled);
-        writeComputerUseLocalBeta(result.enabled === true);
-        setLocalBetaExpected(result.enabled === true);
-        if (!enabled) setProbeResult(null);
+        const effectiveEnabled = result.enabled === true;
+        if (effectiveEnabled !== enabled) {
+          const effectiveRecord = writeComputerUseLocalBeta(effectiveEnabled);
+          await effectiveRecord.persistence;
+        }
+        setLocalBetaExpected(effectiveEnabled);
+        if (!effectiveEnabled) setProbeResult(null);
         await loadStatus();
         emitToolkitCatalogRefresh({ source: "computer_local_beta" });
       } catch (localError) {
+        if (desiredPersisted) {
+          try {
+            const rollbackRecord =
+              writeComputerUseLocalBeta(previousEnabled);
+            await rollbackRecord.persistence;
+            setLocalBetaExpected(previousEnabled);
+          } catch (_rollbackError) {
+            // The original error is the actionable result. A quit barrier can
+            // legitimately block rollback because the renderer is exiting.
+          }
+        }
         setToggleError(localError?.message || t("computer_use.local_beta_failed"));
       } finally {
         setLocalBetaBusy(false);

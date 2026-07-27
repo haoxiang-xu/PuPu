@@ -130,6 +130,40 @@ const stableStringify = (obj) => {
   return JSON.stringify(keys.map((k) => [k, obj[k]]));
 };
 
+const awaitDefinitionPersistence = async (result) => {
+  const persistence = result?.persistence;
+  if (!persistence || typeof persistence.then !== "function") {
+    const error = new Error("Provider definition write was not acknowledged");
+    error.code = "provider_definition_write_failed";
+    throw error;
+  }
+  await persistence;
+};
+
+const credentialDeleteFailure = (result, message) => ({
+  ok: false,
+  diagnostics: [
+    {
+      code: result?.errorCode || "credential_write_failed",
+      path: "provider.api_key",
+      message,
+      severity: "error",
+    },
+  ],
+});
+
+const definitionWriteFailure = (error) => ({
+  ok: false,
+  diagnostics: [
+    {
+      code: error?.code || "provider_definition_write_failed",
+      path: "provider.id",
+      message: error?.message || "Could not persist this provider.",
+      severity: "error",
+    },
+  ],
+});
+
 /**
  * Commit an import decision. `provider` is the normalized definition.
  * `mode` is one of:
@@ -143,7 +177,11 @@ const stableStringify = (obj) => {
  * Returns { ok, slug, requiresKey, endpointChanged } or { ok:false, diagnostics }.
  * source is stamped onto new/renamed writes ("import" | "preset").
  */
-export const commitImport = (provider, mode, { source = "import" } = {}) => {
+export const commitImport = async (
+  provider,
+  mode,
+  { source = "import" } = {},
+) => {
   const requiresKey = (provider.auth?.mode || "none") !== "none";
 
   if (mode === "overwrite") {
@@ -156,11 +194,22 @@ export const commitImport = (provider, mode, { source = "import" } = {}) => {
       const next = { ...provider };
       if (changed) {
         next.enabled = false;
-        removeCustomProviderSecret(provider.id);
+        const credentialResult = await removeCustomProviderSecret(provider.id);
+        if (!credentialResult || credentialResult.ok !== true) {
+          return credentialDeleteFailure(
+            credentialResult,
+            "Could not revoke the existing credential; the provider was not overwritten.",
+          );
+        }
       } else {
         next.enabled = existing.enabled === true;
       }
-      updateCustomProvider(provider.id, next);
+      try {
+        const updated = updateCustomProvider(provider.id, next);
+        await awaitDefinitionPersistence(updated);
+      } catch (error) {
+        return definitionWriteFailure(error);
+      }
       return {
         ok: true,
         slug: provider.id,
@@ -190,25 +239,39 @@ export const commitImport = (provider, mode, { source = "import" } = {}) => {
     if (!renamed.ok) {
       return { ok: false, diagnostics: renamed.diagnostics };
     }
-    addCustomProvider({ ...renamed.provider, enabled: false, source });
+    const credentialResult = await removeCustomProviderSecret(freeSlug);
+    if (!credentialResult || credentialResult.ok !== true) {
+      return credentialDeleteFailure(
+        credentialResult,
+        "Could not clear an orphaned credential for the renamed provider.",
+      );
+    }
+    try {
+      const added = addCustomProvider({
+        ...renamed.provider,
+        enabled: false,
+        source,
+      });
+      await awaitDefinitionPersistence(added);
+    } catch (error) {
+      return definitionWriteFailure(error);
+    }
     return { ok: true, slug: freeSlug, requiresKey, endpointChanged: false };
   }
 
   // mode === "new"
+  const credentialResult = await removeCustomProviderSecret(provider.id);
+  if (!credentialResult || credentialResult.ok !== true) {
+    return credentialDeleteFailure(
+      credentialResult,
+      "Could not clear an orphaned credential for the new provider.",
+    );
+  }
   try {
-    addCustomProvider({ ...provider, enabled: false, source });
+    const added = addCustomProvider({ ...provider, enabled: false, source });
+    await awaitDefinitionPersistence(added);
   } catch (error) {
-    return {
-      ok: false,
-      diagnostics: [
-        {
-          code: error?.code || "add_failed",
-          path: "provider.id",
-          message: error?.message || "Could not add this provider.",
-          severity: "error",
-        },
-      ],
-    };
+    return definitionWriteFailure(error);
   }
   return { ok: true, slug: provider.id, requiresKey, endpointChanged: false };
 };

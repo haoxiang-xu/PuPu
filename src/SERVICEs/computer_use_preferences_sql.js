@@ -122,6 +122,8 @@ const validateRecordForKey = (key, raw) => {
 /* ───────────────────────────── module state ─────────────────────────────── */
 
 let state = null;
+let settingsResetBarrierActive = false;
+let settingsQuitBarrierActive = false;
 
 const createInitialState = () => ({
   mode: "localStorage", // "sql" | "localStorage"
@@ -134,6 +136,18 @@ const createInitialState = () => ({
   // Null prototype: keys are fixed, but keep the same own-key discipline as
   // every other snapshot-fed map.
   mirrorEntries: Object.create(null),
+  // Last records acknowledged by SQL. Optimistic mutations never change this
+  // map until their IPC succeeds, so a rejected narrowing operation can roll
+  // back to exactly what the next bootstrap will serve.
+  confirmedEntries: Object.create(null),
+  // Exact legacy localStorage bytes last paired with an acknowledged SQL
+  // mutation. Optimistic dual-kept writes are restored from here when their
+  // SQL operation rejects, so a fallback session cannot revive a failed grant
+  // or permanently retain a failed revocation.
+  confirmedLegacyEntries: Object.create(null),
+  pendingLegacyEntries: Object.create(null),
+  latestMutationIds: Object.create(null),
+  nextMutationId: 0,
   pendingWrites: 0,
   queueTail: Promise.resolve(),
 });
@@ -160,6 +174,10 @@ const degradeToFallback = (s, errorCode) => {
   s.degraded = true;
   if (errorCode) s.lastErrorCode = errorCode;
   s.mirrorEntries = Object.create(null);
+  s.confirmedEntries = Object.create(null);
+  s.confirmedLegacyEntries = Object.create(null);
+  s.pendingLegacyEntries = Object.create(null);
+  s.latestMutationIds = Object.create(null);
   s.mirrorReady = false;
 };
 
@@ -175,13 +193,15 @@ const readLegacyRaw = (key) => {
 };
 
 const seedMirrorFromEntries = (s, entries) => {
-  s.mirrorEntries = Object.create(null);
+  const normalized = Object.create(null);
   if (isObject(entries)) {
     for (const key of PREF_KEYS) {
       const record = validateRecordForKey(key, entries[key]);
-      if (record) s.mirrorEntries[key] = record;
+      if (record) normalized[key] = record;
     }
   }
+  s.mirrorEntries = normalized;
+  s.confirmedEntries = Object.assign(Object.create(null), normalized);
   s.mirrorReady = true;
 };
 
@@ -264,6 +284,7 @@ const runComputerUseMigration = async (s, records) => {
       writeMigrationMarker(result.digest || digest, result.migratedAt);
       s.migrated = true;
       s.mirrorEntries = Object.create(null);
+      s.confirmedEntries = Object.create(null);
       s.mirrorReady = false;
       await reloadMirrorFromSql(s);
     } else if (status === "refused-stale-digest") {
@@ -276,6 +297,7 @@ const runComputerUseMigration = async (s, records) => {
       );
       s.migrated = true;
       s.mirrorEntries = Object.create(null);
+      s.confirmedEntries = Object.create(null);
       s.mirrorReady = false;
       await reloadMirrorFromSql(s);
     } else {
@@ -354,7 +376,75 @@ const ensureInit = () => {
   return s;
 };
 
-const enqueueSet = (s, key, record) => {
+const restoreConfirmedEntry = (s, key) => {
+  if (Object.prototype.hasOwnProperty.call(s.confirmedEntries, key)) {
+    s.mirrorEntries[key] = s.confirmedEntries[key];
+  } else {
+    delete s.mirrorEntries[key];
+  }
+};
+
+const readLegacyEntrySnapshot = (key) => {
+  if (!hasLocalStorage()) return null;
+  try {
+    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEYS[key]);
+    return { present: raw !== null, raw };
+  } catch {
+    return null;
+  }
+};
+
+const legacyEntrySnapshotsEqual = (left, right) =>
+  !!left &&
+  !!right &&
+  left.present === right.present &&
+  (!left.present || left.raw === right.raw);
+
+const restoreLegacyEntrySnapshot = (key, snapshot) => {
+  if (!hasLocalStorage() || !snapshot) return false;
+  try {
+    if (snapshot.present) {
+      window.localStorage.setItem(LEGACY_STORAGE_KEYS[key], snapshot.raw);
+    } else {
+      window.localStorage.removeItem(LEGACY_STORAGE_KEYS[key]);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const applyLegacyEntryMutation = (s, key, nextSnapshot) => {
+  const current = readLegacyEntrySnapshot(key);
+  if (!current || !nextSnapshot) return null;
+  if (!Object.prototype.hasOwnProperty.call(s.confirmedLegacyEntries, key)) {
+    s.confirmedLegacyEntries[key] = current;
+  }
+  if (!restoreLegacyEntrySnapshot(key, nextSnapshot)) return null;
+  s.pendingLegacyEntries[key] = nextSnapshot;
+  return { after: nextSnapshot };
+};
+
+const confirmLegacyEntryMutation = (s, key, legacyMutation) => {
+  if (legacyMutation) {
+    s.confirmedLegacyEntries[key] = legacyMutation.after;
+  }
+};
+
+const settleLatestLegacyEntry = (s, key) => {
+  const pending = s.pendingLegacyEntries[key];
+  if (!pending) return;
+  delete s.pendingLegacyEntries[key];
+  const current = readLegacyEntrySnapshot(key);
+  if (!legacyEntrySnapshotsEqual(current, pending)) {
+    // A non-repository writer changed the legacy key after our optimistic
+    // mutation. Never overwrite that newer external value during rollback.
+    return;
+  }
+  restoreLegacyEntrySnapshot(key, s.confirmedLegacyEntries[key]);
+};
+
+const enqueueSet = (s, key, record, mutationId, legacyMutation) =>
   enqueue(s, async () => {
     if (state !== s || s.mode !== "sql") {
       // Degraded after this write was queued (failed migration). Degradation
@@ -363,34 +453,78 @@ const enqueueSet = (s, key, record) => {
       return;
     }
     try {
-      await settingsStorageBridge.setComputerUsePreference(key, record);
+      const ack = await settingsStorageBridge.setComputerUsePreference(
+        key,
+        record,
+      );
+      if (state === s) {
+        s.confirmedEntries[key] = record;
+        confirmLegacyEntryMutation(s, key, legacyMutation);
+        s.lastErrorCode = null;
+        if (s.latestMutationIds[key] === mutationId) {
+          s.mirrorEntries[key] = record;
+          settleLatestLegacyEntry(s, key);
+        }
+      }
+      return ack;
     } catch (error) {
       const code =
         parseSettingsStorageErrorCode(error) || "settings_storage_error";
       s.lastErrorCode = code;
       console.warn(`[computer-use-prefs] persist failed for "${key}":`, code);
+      if (state === s && s.latestMutationIds[key] === mutationId) {
+        restoreConfirmedEntry(s, key);
+        settleLatestLegacyEntry(s, key);
+      }
+      throw error;
     }
   });
-};
 
-const enqueueClear = (s, key) => {
+const enqueueClear = (s, key, mutationId, legacyMutation) =>
   enqueue(s, async () => {
     if (state !== s || s.mode !== "sql") return;
     try {
-      await settingsStorageBridge.clearComputerUsePreference(key);
+      const ack = await settingsStorageBridge.clearComputerUsePreference(key);
+      if (state === s) {
+        delete s.confirmedEntries[key];
+        confirmLegacyEntryMutation(s, key, legacyMutation);
+        s.lastErrorCode = null;
+        if (s.latestMutationIds[key] === mutationId) {
+          delete s.mirrorEntries[key];
+          settleLatestLegacyEntry(s, key);
+        }
+      }
+      return ack;
     } catch (error) {
       const code =
         parseSettingsStorageErrorCode(error) || "settings_storage_error";
       s.lastErrorCode = code;
       console.warn(`[computer-use-prefs] clear failed for "${key}":`, code);
+      if (state === s && s.latestMutationIds[key] === mutationId) {
+        restoreConfirmedEntry(s, key);
+        settleLatestLegacyEntry(s, key);
+      }
+      throw error;
     }
   });
-};
 
 /* ──────────────────── surface consumed by the three stores ──────────────── */
 
 /** True when this session persists computer use prefs to SQL (Electron, S3+). */
 export const isComputerUsePrefsSqlMode = () => ensureInit().mode === "sql";
+
+export const isComputerUsePreferencesSettingsResetActive = () =>
+  settingsResetBarrierActive;
+
+/** Non-sensitive persistence health for UI/diagnostics. */
+export const getComputerUsePreferencesPersistenceStatus = () => {
+  const s = ensureInit();
+  return {
+    mode: s.mode,
+    pendingWrites: s.pendingWrites,
+    lastErrorCode: s.lastErrorCode,
+  };
+};
 
 /**
  * Synchronous mirror read. null when the record is absent, invalid, or the
@@ -411,7 +545,27 @@ export const readComputerUsePreferenceRecord = (key) => {
 const isNarrowingRecord = (key, record) =>
   (key === "enabled" || key === "local_beta_enabled") &&
   isObject(record) &&
-  record.enabled === false;
+    record.enabled === false;
+
+const createSettingsResetBlockedPersistence = () => {
+  const error = new Error(
+    "[settings_reset_in_progress] computer-use preference write blocked",
+  );
+  error.code = "settings_reset_in_progress";
+  const persistence = Promise.reject(error);
+  persistence.catch(() => {});
+  return persistence;
+};
+
+const createSettingsQuitBlockedPersistence = () => {
+  const error = new Error(
+    "[settings_quit_in_progress] computer-use preference write blocked",
+  );
+  error.code = "settings_quit_in_progress";
+  const persistence = Promise.reject(error);
+  persistence.catch(() => {});
+  return persistence;
+};
 
 /**
  * Optimistic mirror write + queued SQL persist. While the migration is
@@ -421,26 +575,34 @@ const isNarrowingRecord = (key, record) =>
  * the frozen legacy copy can never stay wider than the user's latest intent.
  */
 export const writeComputerUsePreferenceRecord = (key, record) => {
+  if (settingsQuitBarrierActive) {
+    return createSettingsQuitBlockedPersistence();
+  }
   const s = ensureInit();
-  if (s.mode !== "sql") return;
+  if (settingsResetBarrierActive) {
+    return createSettingsResetBlockedPersistence();
+  }
+  if (s.mode !== "sql") return Promise.resolve();
+  const mutationId = ++s.nextMutationId;
+  s.latestMutationIds[key] = mutationId;
   s.mirrorEntries[key] = record;
-  if (hasLocalStorage()) {
+  const currentLegacy = readLegacyEntrySnapshot(key);
+  const writeThrough =
+    !!currentLegacy &&
+    (!s.migrated ||
+      (isNarrowingRecord(key, record) && currentLegacy.present));
+  let legacyMutation = null;
+  if (writeThrough) {
     try {
-      const writeThrough =
-        !s.migrated ||
-        (isNarrowingRecord(key, record) &&
-          window.localStorage.getItem(LEGACY_STORAGE_KEYS[key]) != null);
-      if (writeThrough) {
-        window.localStorage.setItem(
-          LEGACY_STORAGE_KEYS[key],
-          JSON.stringify(record),
-        );
-      }
+      legacyMutation = applyLegacyEntryMutation(s, key, {
+        present: true,
+        raw: JSON.stringify(record),
+      });
     } catch {
-      // quota — mirror + queued SQL write still carry the state
+      // serialization/quota — mirror + queued SQL write still carry the state
     }
   }
-  enqueueSet(s, key, record);
+  return enqueueSet(s, key, record, mutationId, legacyMutation);
 };
 
 /**
@@ -451,17 +613,109 @@ export const writeComputerUsePreferenceRecord = (key, record) => {
  * localStorage.
  */
 export const clearComputerUsePreferenceRecord = (key) => {
-  const s = ensureInit();
-  if (s.mode !== "sql") return;
-  delete s.mirrorEntries[key];
-  if (hasLocalStorage()) {
-    try {
-      window.localStorage.removeItem(LEGACY_STORAGE_KEYS[key]);
-    } catch {
-      // ignore
-    }
+  if (settingsQuitBarrierActive) {
+    return createSettingsQuitBlockedPersistence();
   }
-  enqueueClear(s, key);
+  const s = ensureInit();
+  if (settingsResetBarrierActive) {
+    return createSettingsResetBlockedPersistence();
+  }
+  if (s.mode !== "sql") return Promise.resolve();
+  const mutationId = ++s.nextMutationId;
+  s.latestMutationIds[key] = mutationId;
+  delete s.mirrorEntries[key];
+  const legacyMutation = applyLegacyEntryMutation(s, key, {
+    present: false,
+    raw: null,
+  });
+  return enqueueClear(s, key, mutationId, legacyMutation);
+};
+
+/**
+ * Admit a future narrowing clear into the preference FIFO now, but do not
+ * remove authorization from any mirror or durable store until `prerequisite`
+ * resolves. This is used by consent revocation: desired=false is queued first,
+ * the sidecar must confirm OFF, and only then may consent be deleted. Because
+ * the complete conditional clear already owns a FIFO slot, quit/reset drains
+ * cannot destroy the renderer in the await-before-clear gap.
+ */
+export const clearComputerUsePreferenceRecordAfter = (
+  key,
+  prerequisite,
+) => {
+  if (settingsQuitBarrierActive) {
+    return createSettingsQuitBlockedPersistence();
+  }
+  const s = ensureInit();
+  if (settingsResetBarrierActive) {
+    return createSettingsResetBlockedPersistence();
+  }
+  if (!PREF_KEYS.includes(key)) {
+    return Promise.reject(
+      Object.assign(new Error("invalid computer-use preference key"), {
+        code: "invalid_preference_key",
+      }),
+    );
+  }
+  const mutationId = ++s.nextMutationId;
+  s.latestMutationIds[key] = mutationId;
+
+  return enqueue(s, async () => {
+    try {
+      await prerequisite;
+    } catch (error) {
+      if (state === s && s.latestMutationIds[key] === mutationId) {
+        // The reserved clear never ran. Reconcile any older optimistic write
+        // that settled while this later operation owned latestMutationIds.
+        restoreConfirmedEntry(s, key);
+        settleLatestLegacyEntry(s, key);
+      }
+      throw error;
+    }
+    if (state !== s) return;
+
+    if (s.mode !== "sql") {
+      try {
+        if (hasLocalStorage()) {
+          window.localStorage.removeItem(LEGACY_STORAGE_KEYS[key]);
+        }
+      } catch (_error) {
+        // Legacy clear keeps its historical best-effort behavior.
+      }
+      return;
+    }
+
+    const legacyMutation = applyLegacyEntryMutation(s, key, {
+      present: false,
+      raw: null,
+    });
+    try {
+      const ack = await settingsStorageBridge.clearComputerUsePreference(key);
+      if (state === s) {
+        delete s.confirmedEntries[key];
+        confirmLegacyEntryMutation(s, key, legacyMutation);
+        s.lastErrorCode = null;
+        if (s.latestMutationIds[key] === mutationId) {
+          delete s.mirrorEntries[key];
+          settleLatestLegacyEntry(s, key);
+        }
+      }
+      return ack;
+    } catch (error) {
+      const code =
+        parseSettingsStorageErrorCode(error) || "settings_storage_error";
+      s.lastErrorCode = code;
+      console.warn(
+        `[computer-use-prefs] conditional clear failed for "${key}":`,
+        code,
+      );
+      if (state === s && s.latestMutationIds[key] === mutationId) {
+        restoreConfirmedEntry(s, key);
+        settleLatestLegacyEntry(s, key);
+      }
+      throw error;
+    }
+  });
 };
 
 /** Resolve when every queued computer-use operation has settled (tests/QA). */
@@ -472,6 +726,35 @@ export const flushComputerUsePreferenceWrites = async () => {
     tail = s.queueTail;
     await tail;
   } while (state === s && tail !== s.queueTail);
+};
+
+export const beginComputerUsePreferencesSettingsReset = async () => {
+  const s = ensureInit();
+  settingsResetBarrierActive = true;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endComputerUsePreferencesSettingsReset = () => {
+  settingsResetBarrierActive = false;
+};
+
+export const beginComputerUsePreferencesQuitDrain = async () => {
+  settingsQuitBarrierActive = true;
+  const s = state;
+  if (!s) return;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endComputerUsePreferencesQuitDrain = () => {
+  settingsQuitBarrierActive = false;
 };
 
 // Reset-settings (plan §6-Phase5). SECURITY-RELEVANT: the consent/enabled
@@ -490,11 +773,17 @@ export const resetComputerUsePreferencesMirrorForSettingsReset = () => {
   const s = state;
   if (!s || s.mode !== "sql") return;
   s.mirrorEntries = Object.create(null);
+  s.confirmedEntries = Object.create(null);
+  s.confirmedLegacyEntries = Object.create(null);
+  s.pendingLegacyEntries = Object.create(null);
+  s.latestMutationIds = Object.create(null);
   s.mirrorReady = true;
 };
 
 /** Test-only: drop module state so the next call re-runs init. */
 export const resetComputerUsePreferencesForTests = () => {
   state = null;
+  settingsResetBarrierActive = false;
+  settingsQuitBarrierActive = false;
   resetSessionBootstrapSnapshotForTests();
 };

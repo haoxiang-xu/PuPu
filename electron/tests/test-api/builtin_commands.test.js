@@ -6,19 +6,24 @@ const {
 } = require("../../main/services/test-api/commands");
 
 describe("test-api builtin chat run commands", () => {
-  const makeHarness = () => {
+  const makeHarness = ({ allowAppQuit = false } = {}) => {
     const registry = createCommandRegistry();
     const bridge = {
       invoke: jest.fn(async (command, payload) => ({ command, payload })),
     };
+    const quit = jest.fn();
     registerBuiltinCommands({
       registry,
       bridge,
       logs: { tail: jest.fn(() => []) },
       getMainWindow: jest.fn(() => null),
-      electron: { BrowserWindow: { getFocusedWindow: jest.fn(() => null) } },
+      electron: {
+        app: { quit },
+        BrowserWindow: { getFocusedWindow: jest.fn(() => null) },
+      },
+      allowAppQuit,
     });
-    return { registry, bridge };
+    return { registry, bridge, quit };
   };
 
   test("forwards the path chat id to both blocking messages and async start", async () => {
@@ -124,5 +129,33 @@ describe("test-api builtin chat run commands", () => {
       status: 409,
       body: { error: { code: "attempt_mismatch" } },
     });
+  });
+
+  test("only exposes graceful app quit to the E2E harness", async () => {
+    const disabled = makeHarness();
+    const denied = await disabled.registry.dispatch({
+      method: "POST",
+      path: "/v1/debug/quit",
+      body: null,
+      query: {},
+    });
+    expect(denied).toMatchObject({
+      status: 404,
+      body: { error: { code: "not_found" } },
+    });
+    expect(disabled.quit).not.toHaveBeenCalled();
+
+    const enabled = makeHarness({ allowAppQuit: true });
+    const accepted = await enabled.registry.dispatch({
+      method: "POST",
+      path: "/v1/debug/quit",
+      body: null,
+      query: {},
+    });
+    expect(accepted).toMatchObject({ status: 200, body: { ok: true } });
+    expect(accepted.afterResponse).toEqual(expect.any(Function));
+    expect(enabled.quit).not.toHaveBeenCalled();
+    accepted.afterResponse();
+    expect(enabled.quit).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,13 @@
-const registerBuiltinCommands = ({ registry, bridge, logs, getMainWindow, electron }) => {
+const registerBuiltinCommands = ({
+  registry,
+  bridge,
+  logs,
+  getMainWindow,
+  electron,
+  allowAppQuit = false,
+}) => {
+  const electronApi = electron || require("electron");
+
   // Chat lifecycle
   registry.register({
     method: "POST",
@@ -159,9 +168,27 @@ const registerBuiltinCommands = ({ registry, bridge, logs, getMainWindow, electr
       return { entries: logs.tail({ source, n, since }) };
     },
   });
+  if (allowAppQuit) {
+    registry.register({
+      method: "POST",
+      path: "/v1/debug/quit",
+      handler: () => {
+        if (!electronApi?.app || typeof electronApi.app.quit !== "function") {
+          throw Object.assign(new Error("Electron app quit is unavailable"), {
+            code: "app_quit_unavailable",
+            status: 503,
+          });
+        }
+        return { ok: true };
+      },
+      // The server runs this only after the HTTP response emits "finish", so the
+      // E2E client receives the acknowledgement before app.quit() closes it.
+      afterResponse: () => electronApi.app.quit(),
+    });
+  }
 
   const getWin = () => {
-    const { BrowserWindow } = electron || require("electron");
+    const { BrowserWindow } = electronApi;
     return BrowserWindow.getFocusedWindow() || (getMainWindow && getMainWindow());
   };
 

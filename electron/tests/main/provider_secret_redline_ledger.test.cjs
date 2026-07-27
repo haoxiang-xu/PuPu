@@ -374,28 +374,34 @@ describeIfSqlite("provider secret red-line ledger (Phase 4 S6)", () => {
     // forbidden; a getter would.
     const forbidden = /(secret|credential|decrypt|reveal)/i;
     const forbiddenGetter = /(read|get|fetch|return)[-_]?(provider[-_]?)?(api[-_]?)?key/i;
-    // Write-direction carve-out (Phase 4 S7): the provider-credential MIGRATION
-    // channel legitimately contains "credential" but is INBOUND-ONLY — the
-    // renderer hands its own legacy secrets to main to be encrypted, and the
-    // handler returns a status object (never a stored secret / ciphertext).
-    // It is the sole allowed write channel; every OTHER channel still must not
-    // match, so a future stored-secret READ channel would still trip this test.
+    // Exact write-direction carve-out: migration plus the two steady-state
+    // mutations legitimately contain "credential" but are INBOUND-ONLY. Their
+    // handlers return status metadata, never a stored secret or ciphertext.
+    // Every OTHER channel still must not match, so any future secret read
+    // channel trips this test.
     const writeDirectionCarveOut = new Set([
       CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+      CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+      CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
     ]);
     for (const channel of channelStrings) {
       if (writeDirectionCarveOut.has(channel)) continue;
       expect(channel).not.toMatch(forbidden);
       expect(channel).not.toMatch(forbiddenGetter);
     }
-    // The carve-out channel exists and is exactly the write-direction migrate
-    // channel — never a getter (no read/get/fetch/return-key verb).
-    expect(channelStrings).toContain(
-      CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
-    );
-    expect(CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS).not.toMatch(
-      forbiddenGetter,
-    );
+    // Keep the exception list exact and auditable. Even carved-out channels
+    // must have a write verb and may never acquire read/get/decrypt semantics.
+    expect([...writeDirectionCarveOut]).toEqual([
+      "settings-storage:migrate-provider-credentials",
+      "settings-storage:set-provider-credential",
+      "settings-storage:delete-provider-credential",
+    ]);
+    const forbiddenReadDirection = /(read|get|fetch|return|decrypt|reveal)/i;
+    for (const channel of writeDirectionCarveOut) {
+      expect(channelStrings).toContain(channel);
+      expect(channel).not.toMatch(forbiddenGetter);
+      expect(channel).not.toMatch(forbiddenReadDirection);
+    }
   });
 
   test("#8 the settings-storage IPC handler module never references the secret reader", () => {

@@ -2,6 +2,7 @@ import {
   isComputerUsePrefsSqlMode,
   readComputerUsePreferenceRecord,
   writeComputerUsePreferenceRecord,
+  isComputerUsePreferencesSettingsResetActive,
   validateLocalBetaRecord,
 } from "./computer_use_preferences_sql";
 
@@ -39,8 +40,13 @@ export const writeComputerUseLocalBeta = (enabled) => {
     enabled: enabled === true,
     updatedAt: new Date().toISOString(),
   };
-  if (isComputerUsePrefsSqlMode()) {
-    writeComputerUsePreferenceRecord(PREF_KEY, record);
+  const resetActive = isComputerUsePreferencesSettingsResetActive();
+  if (resetActive || isComputerUsePrefsSqlMode()) {
+    const persistence = writeComputerUsePreferenceRecord(PREF_KEY, record);
+    Object.defineProperty(record, "persistence", {
+      value: persistence,
+      enumerable: false,
+    });
     return record;
   }
   try {

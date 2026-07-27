@@ -22,6 +22,7 @@ import {
   readComputerUsePreferenceRecord,
   writeComputerUsePreferenceRecord,
   clearComputerUsePreferenceRecord,
+  isComputerUsePreferencesSettingsResetActive,
   validateEnabledRecord,
 } from "./computer_use_preferences_sql";
 
@@ -45,7 +46,10 @@ const hasLocalStorage = () =>
  * pre-S3. Both paths FAIL CLOSED: anything unusable reads back as OFF.
  */
 export const readComputerUseEnabledRecord = () => {
-  if (isComputerUsePrefsSqlMode()) {
+  if (
+    isComputerUsePreferencesSettingsResetActive() ||
+    isComputerUsePrefsSqlMode()
+  ) {
     return validateEnabledRecord(readComputerUsePreferenceRecord(PREF_KEY));
   }
   if (!hasLocalStorage()) return null;
@@ -81,8 +85,18 @@ export const writeComputerUseEnabled = (enabled) => {
     updatedAt: new Date().toISOString(),
   };
 
-  if (isComputerUsePrefsSqlMode()) {
-    writeComputerUsePreferenceRecord(PREF_KEY, record);
+  if (
+    isComputerUsePreferencesSettingsResetActive() ||
+    isComputerUsePrefsSqlMode()
+  ) {
+    const persistence = writeComputerUsePreferenceRecord(PREF_KEY, record);
+    // Preserve the long-standing synchronous record return while giving the
+    // controller an explicit acknowledgement it can await before declaring
+    // success or pushing the desired state to the sidecar.
+    Object.defineProperty(record, "persistence", {
+      value: persistence,
+      enumerable: false,
+    });
     return record;
   }
   if (hasLocalStorage()) {
@@ -99,14 +113,17 @@ export const writeComputerUseEnabled = (enabled) => {
  * Remove any stored desired state. After clearing, reads are OFF.
  */
 export const clearComputerUseEnabled = () => {
-  if (isComputerUsePrefsSqlMode()) {
-    clearComputerUsePreferenceRecord(PREF_KEY);
-    return;
+  if (
+    isComputerUsePreferencesSettingsResetActive() ||
+    isComputerUsePrefsSqlMode()
+  ) {
+    return clearComputerUsePreferenceRecord(PREF_KEY);
   }
-  if (!hasLocalStorage()) return;
+  if (!hasLocalStorage()) return Promise.resolve();
   try {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch (_error) {
     // ignore
   }
+  return Promise.resolve();
 };

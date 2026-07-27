@@ -6,6 +6,7 @@ const CHANNELS = Object.freeze({
     BOOTSTRAP_READ: "chat-storage:bootstrap-read",
     READ_MESSAGES: "chat-storage:read-messages",
     APPLY_OPS: "chat-storage:apply-ops",
+    APPLY_OPS_SYNC: "chat-storage:apply-ops-sync",
     WRITE: "chat-storage:write",
   }),
   SETTINGS_STORAGE: Object.freeze({
@@ -52,6 +53,12 @@ const CHANNELS = Object.freeze({
     // returns a status object only (never a secret value or ciphertext).
     MIGRATE_PROVIDER_CREDENTIALS:
       "settings-storage:migrate-provider-credentials",
+    // Steady-state provider credential mutations. Both are invoke/handle
+    // channels with an explicit durability ack. SET is write-direction only
+    // and may carry plaintext; DELETE carries identity only. No credential
+    // read channel is exposed to the renderer.
+    SET_PROVIDER_CREDENTIAL: "settings-storage:set-provider-credential",
+    DELETE_PROVIDER_CREDENTIAL: "settings-storage:delete-provider-credential",
     // Phase 5 — reset settings (plan §6-Phase5). A single SQL transaction that
     // clears the non-sensitive settings + preference tables (settings /
     // default_toolkits / toolkit_auto_approve / tool_auto_approve /
@@ -64,6 +71,12 @@ const CHANNELS = Object.freeze({
     // "SQLite Settings database" category. Returns { sizeBytes, tables:
     // [{ name, rows }] } — metadata ONLY, never a stored value or secret.
     DB_STATS: "settings-storage:db-stats",
+    // Quit durability handshake. Main asks the renderer to close admission
+    // and drain every settings FIFO before Electron starts renderer unload.
+    // The result is control metadata only: { requestId, ok, errorCode? }.
+    QUIT_DRAIN_REQUEST: "settings-storage:quit-drain-request",
+    QUIT_DRAIN_RESULT: "settings-storage:quit-drain-result",
+    QUIT_DRAIN_ABORT: "settings-storage:quit-drain-abort",
   }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",

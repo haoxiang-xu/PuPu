@@ -151,10 +151,20 @@ const PROVIDER_CREDENTIAL_KINDS = Object.freeze([
 const PROVIDER_CREDENTIAL_LIMITS = Object.freeze({
   OWNER_ID_MAX_LENGTH: 200,
 });
+const OFFICIAL_PROVIDER_CREDENTIAL_OWNERS = Object.freeze(
+  new Set(["openai", "anthropic"]),
+);
+const CUSTOM_PROVIDER_CREDENTIAL_OWNER_PATTERN =
+  /^custom\.([a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?)$/;
 const SECRET_STORAGE_STATUS = Object.freeze({
   AVAILABLE: "available",
   UNAVAILABLE: "unavailable",
 });
+// macOS can report safeStorage as available before discovering that the
+// default Keychain is missing. The first real encrypt then opens a system
+// dialog and throws. Persist a non-sensitive cooldown so automatic boot
+// migration does not reopen that dialog on every launch.
+const PROVIDER_CREDENTIAL_RETRY_BACKOFF_MS = 24 * 60 * 60 * 1000;
 // Gate 3 (phase4-security-decision §3): on Linux, safeStorage is only trusted
 // when the selected backend is a real OS keyring. `basic_text` (Electron's
 // hardcoded-password fallback) and `unknown` are REFUSED — we never fall back
@@ -173,6 +183,7 @@ const PROVIDER_CREDENTIALS_META_KEYS = Object.freeze({
   VERSION: "provider_credentials_migration_version",
   DIGEST: "provider_credentials_migration_digest",
   MIGRATED_AT: "provider_credentials_migrated_at",
+  RETRY_AFTER: "provider_credentials_keychain_retry_after",
 });
 
 const MIGRATION_STATE = Object.freeze({
@@ -824,6 +835,55 @@ const createSettingsStorageService = ({
     }
   };
 
+  const isProviderCredentialRetryBackoffActive = () => {
+    const retryAfter = readMetaValue(
+      PROVIDER_CREDENTIALS_META_KEYS.RETRY_AFTER,
+    );
+    return (
+      Number.isFinite(retryAfter) &&
+      retryAfter > Date.now()
+    );
+  };
+
+  const latchSecretStorageUnavailable = () => {
+    secretStorageStatus = SECRET_STORAGE_STATUS.UNAVAILABLE;
+    try {
+      db.tx(() => {
+        upsertMeta(
+          PROVIDER_CREDENTIALS_META_KEYS.RETRY_AFTER,
+          Date.now() + PROVIDER_CREDENTIAL_RETRY_BACKOFF_MS,
+        );
+      });
+    } catch (_error) {
+      // The in-memory latch still prevents a dialog loop in this session.
+      // Never surface crypto/storage details or secret-derived material.
+    }
+  };
+
+  const clearProviderCredentialRetryBackoff = () => {
+    requireDb()
+      .prepare("DELETE FROM meta WHERE key = ?")
+      .run(PROVIDER_CREDENTIALS_META_KEYS.RETRY_AFTER);
+  };
+
+  const encryptProviderCredential = (plaintext) => {
+    if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) {
+      throw errorWithCode(
+        "encrypted credential storage is unavailable on this machine",
+        "secret_storage_unavailable",
+      );
+    }
+    try {
+      return safeStorage.encryptString(plaintext);
+    } catch (_error) {
+      latchSecretStorageUnavailable();
+      throw errorWithCode(
+        "failed to encrypt provider credential",
+        "secret_storage_unavailable",
+      );
+    }
+  };
+
   // Upsert a settings row; revision is 0 on insert, previous+1 on update.
   const upsertNamespaceRow = (namespace, json, updatedAt) => {
     const existing = requireDb()
@@ -924,10 +984,12 @@ const createSettingsStorageService = ({
         });
       }
       degradedReason = null;
-      // Gate 3: probe encrypted-credential storage now that app is ready (the
-      // caller runs init() inside app.whenReady()). No secret is touched here —
-      // only the boolean availability of the OS keyring is inspected.
-      secretStorageStatus = probeSecretStorage();
+      // A prior real crypto failure is stronger evidence than the lightweight
+      // availability probe. During its cooldown do not call safeStorage at all:
+      // on macOS even probing/first use can reopen the missing-Keychain dialog.
+      secretStorageStatus = isProviderCredentialRetryBackoffActive()
+        ? SECRET_STORAGE_STATUS.UNAVAILABLE
+        : probeSecretStorage();
     } catch (error) {
       // Corruption policy (plan §7.3): NEVER delete the file; enter degraded
       // mode. The renderer keeps its localStorage fallback in Phase 1B.
@@ -2654,35 +2716,40 @@ const createSettingsStorageService = ({
   };
 
   // ---- Phase 4 (S1): provider credential ciphertext store ------------------
-  // ALL methods below are MAIN-INTERNAL. readDecryptedProviderSecret is the
-  // narrow seam S4 uses at the POST-to-Flask choke point; it — and none of
-  // these — is ever placed on any IPC allowlist / bridge / channel.
+  // Ciphertext reads remain MAIN-INTERNAL. readDecryptedProviderSecret is the
+  // narrow seam S4 uses at the POST-to-Flask choke point and is never placed
+  // on any IPC allowlist. The steady-state renderer surface added below is
+  // write/delete only and returns identity/status metadata, never a secret.
 
-  // Shared shape gate for (kind, ownerId). Throws [invalid_credential];
-  // messages carry the kind/ownerId identity only — never a secret value.
-  const validateCredentialTarget = (kind, ownerId) => {
-    if (!PROVIDER_CREDENTIAL_KINDS.includes(kind)) {
-      throw errorWithCode(
-        `invalid credential kind: must be one of ${PROVIDER_CREDENTIAL_KINDS.join(
-          ", ",
-        )}`,
-        "invalid_credential",
-      );
-    }
+  // The renderer's configured-credential signal carries ownerId only, while
+  // SQL keys rows by (kind, ownerId). Enforce the one-to-one identity mapping
+  // here so a malformed write cannot create an owner that bootstrap reports
+  // as configured but the send-time reader can never resolve.
+  const isValidCredentialTarget = (kind, ownerId) => {
     if (
       typeof ownerId !== "string" ||
       ownerId.length === 0 ||
       ownerId.length > PROVIDER_CREDENTIAL_LIMITS.OWNER_ID_MAX_LENGTH ||
-      // "__proto__" would assign through the inherited Object.prototype accessor
-      // on any plain-object map built from listProviderCredentialOwners.
       ownerId === "__proto__"
     ) {
-      throw errorWithCode(
-        "invalid credential ownerId: must be a non-empty string within " +
-          `${PROVIDER_CREDENTIAL_LIMITS.OWNER_ID_MAX_LENGTH} chars`,
-        "invalid_credential",
-      );
+      return false;
     }
+    if (kind === "provider") {
+      return OFFICIAL_PROVIDER_CREDENTIAL_OWNERS.has(ownerId);
+    }
+    if (kind !== "custom_provider") return false;
+    return CUSTOM_PROVIDER_CREDENTIAL_OWNER_PATTERN.test(ownerId);
+  };
+
+  // Shared shape gate for (kind, ownerId). Throws [invalid_credential];
+  // messages never carry a secret value.
+  const validateCredentialTarget = (kind, ownerId) => {
+    if (isValidCredentialTarget(kind, ownerId)) return;
+    throw errorWithCode(
+      "invalid credential target: provider owners must be openai/anthropic " +
+        "and custom_provider owners must be custom.<legal-slug>",
+      "invalid_credential",
+    );
   };
 
   // Encrypt + upsert a provider secret. Fails closed when secret storage is
@@ -2697,22 +2764,7 @@ const createSettingsStorageService = ({
         "invalid_credential",
       );
     }
-    if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) {
-      throw errorWithCode(
-        "encrypted credential storage is unavailable on this machine",
-        "secret_storage_unavailable",
-      );
-    }
-    let ciphertext;
-    try {
-      ciphertext = safeStorage.encryptString(plaintext);
-    } catch (_error) {
-      // Never surface the plaintext or the underlying crypto error detail.
-      throw errorWithCode(
-        "failed to encrypt provider credential",
-        "secret_storage_unavailable",
-      );
-    }
+    const ciphertext = encryptProviderCredential(plaintext);
     const updatedAt = Date.now();
     return db.tx(() => {
       db.prepare(
@@ -2721,6 +2773,7 @@ const createSettingsStorageService = ({
           "ON CONFLICT(credential_kind, owner_id) DO UPDATE SET " +
           "ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
       ).run(kind, ownerId, ciphertext, updatedAt);
+      clearProviderCredentialRetryBackoff();
       return { ok: true, kind, ownerId, updatedAt };
     });
   };
@@ -2732,13 +2785,7 @@ const createSettingsStorageService = ({
   const readDecryptedProviderSecret = (kind, ownerId) => {
     if (!db) return null;
     if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) return null;
-    if (
-      !PROVIDER_CREDENTIAL_KINDS.includes(kind) ||
-      typeof ownerId !== "string" ||
-      ownerId.length === 0
-    ) {
-      return null;
-    }
+    if (!isValidCredentialTarget(kind, ownerId)) return null;
     let row;
     try {
       row = db
@@ -2757,6 +2804,10 @@ const createSettingsStorageService = ({
         ? plaintext
         : null;
     } catch (_error) {
+      // A thrown decrypt is a machine/keyring outage, not a missing row. Latch
+      // it so repeated descriptors cannot reopen the same Keychain dialog.
+      // The ciphertext is deliberately retained for a later recovered session.
+      latchSecretStorageUnavailable();
       return null;
     }
   };
@@ -2772,6 +2823,51 @@ const createSettingsStorageService = ({
       )
       .run(kind, ownerId);
     return { ok: true, kind, ownerId, deleted: Number(result.changes) > 0 };
+  };
+
+  // Renderer-facing steady-state write seam. The caller has already written
+  // the legacy dual-keep copy before invoking this method. When safeStorage is
+  // unavailable (including an encryptString failure after the init probe), a
+  // stale ciphertext row is removed so it can never become authoritative on a
+  // later restart. The result contains identity + status only — never
+  // plaintext or ciphertext.
+  const persistProviderCredential = (kind, ownerId, plaintext) => {
+    requireDb();
+    validateCredentialTarget(kind, ownerId);
+    if (typeof plaintext !== "string" || plaintext.length === 0) {
+      throw errorWithCode(
+        "provider credential value must be a non-empty string",
+        "invalid_credential",
+      );
+    }
+
+    if (secretStorageStatus !== SECRET_STORAGE_STATUS.AVAILABLE) {
+      const removed = deleteProviderCredential(kind, ownerId);
+      return {
+        ok: true,
+        status: "legacy-only",
+        kind,
+        ownerId,
+        deletedStale: removed.deleted,
+      };
+    }
+
+    try {
+      const stored = setProviderCredential(kind, ownerId, plaintext);
+      return { ...stored, status: "stored" };
+    } catch (error) {
+      if (error && error.code === "secret_storage_unavailable") {
+        const removed = deleteProviderCredential(kind, ownerId);
+        return {
+          ok: true,
+          status: "legacy-only",
+          kind,
+          ownerId,
+          deletedStale: removed.deleted,
+        };
+      }
+      throw error;
+    }
   };
 
   // Existence check — NEVER decrypts. Used by higher slices for gating.
@@ -2799,11 +2895,15 @@ const createSettingsStorageService = ({
       .all();
     return {
       ok: true,
-      owners: rows.map((row) => ({
-        kind: row.credential_kind,
-        ownerId: row.owner_id,
-        updatedAt: Number(row.updated_at),
-      })),
+      owners: rows
+        .filter((row) =>
+          isValidCredentialTarget(row.credential_kind, row.owner_id),
+        )
+        .map((row) => ({
+          kind: row.credential_kind,
+          ownerId: row.owner_id,
+          updatedAt: Number(row.updated_at),
+        })),
     };
   };
 
@@ -2931,18 +3031,13 @@ const createSettingsStorageService = ({
       );
     });
 
-    for (const target of targets) {
+    for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+      const target = targets[targetIndex];
       try {
         // A malformed identity (bad slug / oversize owner) is dropped-and-kept
         // on legacy rather than failing the whole migration.
         validateCredentialTarget(target.kind, target.ownerId);
-        let ciphertext;
-        try {
-          ciphertext = safeStorage.encryptString(target.plaintext);
-        } catch (_encryptError) {
-          failed.push(target.id);
-          continue;
-        }
+        const ciphertext = encryptProviderCredential(target.plaintext);
         // Upsert + round-trip verify atomically. readDecryptedProviderSecret
         // sees the uncommitted row on this same connection; a mismatch throws,
         // db.tx rolls the row back, and the credential stays on legacy.
@@ -2964,12 +3059,32 @@ const createSettingsStorageService = ({
               "secret_roundtrip_failed",
             );
           }
+          clearProviderCredentialRetryBackoff();
         });
         migrated.push(target.id);
-      } catch (_error) {
+      } catch (error) {
         // Any per-credential failure (invalid target / encrypt / round-trip /
         // rollback) keeps that credential on legacy; never surfaces a secret.
         failed.push(target.id);
+        if (
+          error?.code === "secret_storage_unavailable" ||
+          secretStorageStatus === SECRET_STORAGE_STATUS.UNAVAILABLE
+        ) {
+          // A round-trip decrypt exception latches the status inside the
+          // transaction; persist its cooldown now that rollback has completed.
+          latchSecretStorageUnavailable();
+          // A missing/unusable Keychain is machine-wide for this session.
+          // Stop immediately so one boot migration can trigger at most one
+          // system dialog; every untouched target remains on legacy.
+          for (
+            let remainingIndex = targetIndex + 1;
+            remainingIndex < targets.length;
+            remainingIndex += 1
+          ) {
+            failed.push(targets[remainingIndex].id);
+          }
+          break;
+        }
       }
     }
 
@@ -3149,8 +3264,10 @@ const createSettingsStorageService = ({
     deleteMcpIconAsset,
     listMcpIconOwners,
     migrateMcpIconsLegacy,
-    // Phase 4 (S1): provider credential ciphertext store (main-internal only).
+    // Phase 4: provider credential ciphertext store. Decrypted reads stay
+    // main-internal; persistProviderCredential is the write-only IPC seam.
     setProviderCredential,
+    persistProviderCredential,
     readDecryptedProviderSecret,
     deleteProviderCredential,
     hasProviderCredential,
@@ -3180,6 +3297,7 @@ module.exports = {
   PROVIDER_CREDENTIAL_KINDS,
   PROVIDER_CREDENTIAL_LIMITS,
   SECRET_STORAGE_STATUS,
+  PROVIDER_CREDENTIAL_RETRY_BACKOFF_MS,
   SAFE_SECRET_STORAGE_LINUX_BACKENDS,
   PROVIDER_CREDENTIALS_META_KEYS,
   SUPPORTED_PROVIDER_CREDENTIALS_MIGRATION_VERSION,

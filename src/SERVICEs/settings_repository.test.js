@@ -7,6 +7,8 @@ import {
   resetSettings,
   subscribeSettings,
   flushSettingsWrites,
+  beginSettingsQuitDrain,
+  endSettingsQuitDrain,
   getSettingsPersistenceStatus,
   resetSettingsRepositoryForTests,
   computeSettingsMigrationDigest,
@@ -361,6 +363,49 @@ describe("SQL authority mode", () => {
     expect(api.migrateLegacy).not.toHaveBeenCalled();
   });
 
+  test.each(["not_started", "in_progress"])(
+    "partial SQL rows with migration %s are merged with legacy and fully migrated",
+    async (migrationState) => {
+      seedRoot({
+        appearance: { theme_mode: "light_mode" },
+        ui: { side_menu_open: true },
+      });
+      const api = installBridge({
+        bootstrap: jest.fn(() =>
+          sqlBootstrap({
+            migration: {
+              state: migrationState,
+              version: null,
+              digest: null,
+              migratedAt: null,
+            },
+            namespaces: {
+              appearance: { theme_mode: "dark_mode" },
+              sql_only: { preserved: true },
+            },
+            revisions: { appearance: 2, sql_only: 1 },
+          }),
+        ),
+      });
+
+      // An incomplete migration means legacy is still authoritative for
+      // overlapping namespaces, while SQL-only partial rows must not vanish.
+      expect(readNamespace("appearance", null)).toEqual({
+        theme_mode: "light_mode",
+      });
+      expect(readNamespace("ui", null)).toEqual({ side_menu_open: true });
+      expect(readNamespace("sql_only", null)).toEqual({ preserved: true });
+
+      await flushSettingsWrites();
+      expect(api.migrateLegacy).toHaveBeenCalledTimes(1);
+      expect(api.migrateLegacy.mock.calls[0][0].settingsRoot).toEqual({
+        appearance: { theme_mode: "light_mode" },
+        sql_only: { preserved: true },
+        ui: { side_menu_open: true },
+      });
+    },
+  );
+
   test("optimistic write: visible immediately, persisted via IPC, localStorage untouched", async () => {
     const legacyRaw = JSON.stringify({ ui: { side_menu_open: true } });
     window.localStorage.setItem(SETTINGS_KEY, legacyRaw);
@@ -449,6 +494,54 @@ describe("SQL authority mode", () => {
     expect(api.setNamespace).toHaveBeenCalledTimes(2);
     expect(api.setNamespace.mock.calls[1][1]).toEqual({ v: 2 });
     expect(readNamespace("ui", null)).toEqual({ v: 2 });
+  });
+
+  test("updateNamespace rebases after an earlier optimistic write fails", async () => {
+    const first = deferred();
+    const api = installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          migration: { state: "complete", version: 1, digest: "d", migratedAt: 1 },
+          namespaces: {
+            ui: { theme: "light", locale: "en" },
+          },
+          revisions: { ui: 0 },
+        }),
+      ),
+      setNamespace: jest
+        .fn()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementation((namespace) =>
+          Promise.resolve({ ok: true, namespace, revision: 2, updatedAt: 2 }),
+        ),
+    });
+
+    readNamespace("ui", null); // init
+    const failed = replaceNamespace("ui", { theme: "dark", locale: "en" });
+    const later = updateNamespace("ui", (current) => ({
+      ...current,
+      locale: "fr",
+    }));
+    expect(readNamespace("ui", null)).toEqual({
+      theme: "dark",
+      locale: "fr",
+    });
+
+    await tick();
+    first.reject(new Error("[settings_storage_unavailable] transient"));
+    await expect(failed).rejects.toThrow(/settings_storage_unavailable/);
+    await later;
+
+    // The later RMW is recomputed from the last confirmed SQL value, so the
+    // rejected "dark" change cannot hitchhike into its successful payload.
+    expect(api.setNamespace.mock.calls[1][1]).toEqual({
+      theme: "light",
+      locale: "fr",
+    });
+    expect(readNamespace("ui", null)).toEqual({
+      theme: "light",
+      locale: "fr",
+    });
   });
 
   test("same-namespace writes stay FIFO through the queue", async () => {
@@ -831,6 +924,37 @@ describe("empty DB first boot — legacy seed and migration", () => {
     expect(api.setNamespace.mock.calls[0][1]).toEqual({
       side_menu_open: false,
     });
+  });
+
+  test("first-boot migration captures legacy before same-turn optimistic writes", async () => {
+    seedRoot({ ui: { side_menu_open: true } });
+    const gate = deferred();
+    const api = installBridge({
+      migrateLegacy: jest.fn(() => gate.promise),
+      setNamespace: jest.fn(() =>
+        Promise.reject(new Error("[settings_storage_unavailable] gone")),
+      ),
+    });
+
+    expect(readNamespace("ui", null)).toEqual({ side_menu_open: true });
+    const failedWrite = replaceNamespace("ui", { side_menu_open: false });
+    expect(readNamespace("ui", null)).toEqual({ side_menu_open: false });
+
+    await waitFor(() => api.migrateLegacy.mock.calls.length === 1);
+    expect(api.migrateLegacy.mock.calls[0][0].settingsRoot.ui).toEqual({
+      side_menu_open: true,
+    });
+    expect(api.setNamespace).not.toHaveBeenCalled();
+
+    gate.resolve({
+      status: "complete",
+      digest: "digest-abc",
+      migratedAt: 123,
+    });
+    await expect(failedWrite).rejects.toThrow(/settings_storage_unavailable/);
+    // The rejected second operation was neither part of migration nor left in
+    // the optimistic snapshot.
+    expect(readNamespace("ui", null)).toEqual({ side_menu_open: true });
   });
 
   test("mutation queued behind a failing migration lands in localStorage instead", async () => {
@@ -1349,5 +1473,51 @@ describe("resetSettings (Phase 5)", () => {
     // back the caller's default (the in-memory snapshot was emptied).
     expect(readNamespace("ui", "DEFAULT")).toBe("DEFAULT");
     expect(readNamespace("appearance", "DEFAULT")).toBe("DEFAULT");
+  });
+
+  test("quit drain waits for a reset admitted before its async preparation", async () => {
+    const preparation = deferred();
+    const api = installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          migration: {
+            state: "complete",
+            version: 1,
+            digest: "d",
+            migratedAt: 1,
+          },
+        }),
+      ),
+      resetSettings: jest.fn(() =>
+        Promise.resolve({ ok: true, cleared: { settings: 1 } }),
+      ),
+    });
+    readNamespace("appearance", null);
+
+    const resetPromise = resetSettings({
+      beforeReset: () => preparation.promise,
+    });
+    const quitDrain = beginSettingsQuitDrain();
+    let quitDrained = false;
+    quitDrain.then(() => {
+      quitDrained = true;
+    });
+
+    await tick();
+    expect(quitDrained).toBe(false);
+    expect(api.resetSettings).not.toHaveBeenCalled();
+    await expect(
+      replaceNamespace("ui", { compact: true }),
+    ).rejects.toMatchObject({ code: "settings_quit_in_progress" });
+
+    preparation.resolve();
+    await expect(resetPromise).resolves.toMatchObject({
+      ok: true,
+      mode: "sql",
+    });
+    await quitDrain;
+    expect(api.resetSettings).toHaveBeenCalledTimes(1);
+    expect(quitDrained).toBe(true);
+    endSettingsQuitDrain();
   });
 });

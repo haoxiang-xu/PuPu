@@ -1,18 +1,26 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
 import CustomProviderList, { isInsecureRemote } from "./custom_provider_list";
 import {
   hasCustomProviderSecret,
+  flushCustomProviderMutations,
   removeCustomProvider,
   setCustomProviderEnabled,
 } from "../../../../SERVICEs/custom_provider_store";
+import { toast } from "../../../../SERVICEs/toast";
 
 jest.mock("../../../../SERVICEs/custom_provider_store", () => ({
   __esModule: true,
   hasCustomProviderSecret: jest.fn(() => false),
   removeCustomProvider: jest.fn(),
+  flushCustomProviderMutations: jest.fn(() => Promise.resolve([])),
   setCustomProviderEnabled: jest.fn(),
+}));
+
+jest.mock("../../../../SERVICEs/toast", () => ({
+  __esModule: true,
+  toast: { success: jest.fn(), error: jest.fn() },
 }));
 
 jest.mock("../../../../BUILTIN_COMPONENTs/icon/icon", () => ({
@@ -39,6 +47,15 @@ const provider = (overrides = {}) => ({
   enabled: true,
   ...overrides,
 });
+
+const durableDefinition = (definition = {}, persistence = Promise.resolve()) => {
+  const result = { ...definition };
+  Object.defineProperty(result, "persistence", {
+    value: persistence,
+    enumerable: false,
+  });
+  return result;
+};
 
 const renderList = (providers, extra = {}) =>
   render(
@@ -75,6 +92,10 @@ describe("CustomProviderList", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     hasCustomProviderSecret.mockReturnValue(false);
+    flushCustomProviderMutations.mockResolvedValue([]);
+    setCustomProviderEnabled.mockImplementation((slug, enabled) =>
+      durableDefinition({ id: slug, enabled }),
+    );
   });
 
   test("renders the empty hint when there are no providers", () => {
@@ -101,12 +122,24 @@ describe("CustomProviderList", () => {
     expect(screen.getAllByText("Cleartext").length).toBe(1);
   });
 
-  test("toggling the enabled switch calls setCustomProviderEnabled and onChanged", () => {
+  test("toggling the enabled switch waits for persistence before onChanged", async () => {
     const onChanged = jest.fn();
     renderList([provider({ enabled: true })], { onChanged });
     fireEvent.click(screen.getByRole("switch"));
     expect(setCustomProviderEnabled).toHaveBeenCalledWith("sap-hyperspace", false);
-    expect(onChanged).toHaveBeenCalled();
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  test("a rejected toggle persistence ack reports an error", async () => {
+    setCustomProviderEnabled.mockImplementation((slug, enabled) =>
+      durableDefinition(
+        { id: slug, enabled },
+        Promise.reject(new Error("definition IPC rejected")),
+      ),
+    );
+    renderList([provider({ enabled: true })]);
+    fireEvent.click(screen.getByRole("switch"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
   test("edit button invokes onEdit with the slug", () => {
@@ -116,7 +149,7 @@ describe("CustomProviderList", () => {
     expect(onEdit).toHaveBeenCalledWith("sap-hyperspace");
   });
 
-  test("delete confirmation calls removeCustomProvider and onChanged", () => {
+  test("delete confirmation calls removeCustomProvider and onChanged", async () => {
     const onChanged = jest.fn();
     renderList([provider()], { onChanged });
     // open the confirm modal
@@ -126,7 +159,24 @@ describe("CustomProviderList", () => {
     // last "Delete" is the modal confirm
     fireEvent.click(deleteButtons[deleteButtons.length - 1]);
     expect(removeCustomProvider).toHaveBeenCalledWith("sap-hyperspace");
-    expect(onChanged).toHaveBeenCalled();
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  test("failed credential deletion keeps the confirmation open and reports failure", async () => {
+    flushCustomProviderMutations.mockResolvedValue([
+      {
+        ok: false,
+        status: "delete-failed-tombstoned",
+        errorCode: "storage_io_error",
+      },
+    ]);
+    renderList([provider()]);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
+    fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(2);
   });
 
   test("key status dot reflects hasCustomProviderSecret", () => {

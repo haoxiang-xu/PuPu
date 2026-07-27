@@ -1,5 +1,8 @@
 const path = require("path");
-const { createMainWindowService } = require("../../main/window/main_window");
+const {
+  createMainWindowService,
+  isAllowedAppNavigation,
+} = require("../../main/window/main_window");
 
 const originalElectronStartUrl = process.env.ELECTRON_START_URL;
 
@@ -209,5 +212,59 @@ describe("main window service", () => {
     willNavigateHandler(blockedEvent, "http://localhost:2907/");
     expect(blockedEvent.preventDefault).toHaveBeenCalledTimes(1);
     expect(shell.openExternal).toHaveBeenCalledWith("http://localhost:2907/");
+  });
+
+  test("compares development navigation by parsed origin, not string prefix", () => {
+    const common = {
+      isPackaged: false,
+      devServerOrigin: "http://localhost:3912",
+      productionEntryPath: "/app/build/index.html",
+    };
+
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "http://localhost:3912/settings",
+      }),
+    ).toBe(true);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "http://localhost:3912@evil.example/settings",
+      }),
+    ).toBe(false);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "http://localhost:3912.evil.example/settings",
+      }),
+    ).toBe(false);
+  });
+
+  test("packaged navigation is restricted to the exact build entry file", () => {
+    const common = {
+      isPackaged: true,
+      devServerOrigin: "http://localhost:3912",
+      productionEntryPath: "/app/build/index.html",
+    };
+
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "file:///app/build/index.html#/settings",
+      }),
+    ).toBe(true);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "file:///tmp/build/index.html#/settings",
+      }),
+    ).toBe(false);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "file://evil.example/app/build/index.html",
+      }),
+    ).toBe(false);
   });
 });

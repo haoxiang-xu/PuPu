@@ -4,7 +4,10 @@ import {
   isToolkitAutoApprove,
   setToolkitAutoApprove,
   isToolkitAutoApproveSqlBacked,
+  getToolkitAutoApprovePersistenceStatus,
   flushToolkitAutoApproveWrites,
+  beginToolkitAutoApproveSettingsReset,
+  endToolkitAutoApproveSettingsReset,
   resetToolkitAutoApproveStoreForTests,
   resetToolkitAutoApproveMirrorForSettingsReset,
   TOOLKIT_AUTO_APPROVE_MIGRATION_MARKER_KEY,
@@ -236,6 +239,289 @@ describe("toolkit_auto_approve_store (SQL mode)", () => {
     expect(window.localStorage.getItem("toolkit_auto_approve")).toBeNull();
   });
 
+  test("failed revoke rolls back to confirmed SQL and restart cannot resurrect a hidden approval", async () => {
+    window.localStorage.setItem(
+      TOOLKIT_AUTO_APPROVE_MIGRATION_MARKER_KEY,
+      JSON.stringify({ digest: "d1", completedAt: 1 }),
+    );
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["core"],
+        tools: ["core:write_file"],
+      }),
+    );
+    const rejectReplace = jest.fn(() =>
+      Promise.reject(new Error("[settings_storage_unavailable] gone")),
+    );
+    installToolkitPrefsApi({
+      toolkits: ["core"],
+      tools: [{ toolkitId: "core", toolName: "write_file" }],
+      overrides: { replaceToolkitAutoApprove: rejectReplace },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = setToolkitAutoApprove("core", false, ["write_file"]);
+      expect(isToolkitAutoApprove("core")).toBe(false);
+      expect(isToolAutoApproved("core", "write_file")).toBe(false);
+
+      await expect(result.persistence).rejects.toThrow(
+        /settings_storage_unavailable/,
+      );
+      await flushToolkitAutoApproveWrites();
+      // Rejected persistence restores the last SQL-confirmed approval instead
+      // of leaving a false "revoked" mirror that would revive on restart.
+      expect(isToolkitAutoApprove("core")).toBe(true);
+      expect(isToolAutoApproved("core", "write_file")).toBe(true);
+      expect(
+        JSON.parse(window.localStorage.getItem("toolkit_auto_approve")),
+      ).toEqual({
+        version: 2,
+        toolkits: ["core"],
+        tools: ["core:write_file"],
+      });
+      expect(JSON.stringify(warnSpy.mock.calls)).toContain(
+        "settings_storage_unavailable",
+      );
+      expect(getToolkitAutoApprovePersistenceStatus().lastErrorCode).toBe(
+        "settings_storage_unavailable",
+      );
+
+      resetToolkitAutoApproveStoreForTests();
+      installToolkitPrefsApi({
+        toolkits: ["core"],
+        tools: [{ toolkitId: "core", toolName: "write_file" }],
+        overrides: { replaceToolkitAutoApprove: rejectReplace },
+      });
+      expect(isToolkitAutoApprove("core")).toBe(true);
+      expect(isToolAutoApproved("core", "write_file")).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("latest failed grant restores legacy narrowed by an older failed revoke", async () => {
+    window.localStorage.setItem(
+      TOOLKIT_AUTO_APPROVE_MIGRATION_MARKER_KEY,
+      JSON.stringify({ digest: "d1", completedAt: 1 }),
+    );
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["core"],
+        tools: ["core:write_file"],
+      }),
+    );
+    installToolkitPrefsApi({
+      toolkits: ["core"],
+      tools: [{ toolkitId: "core", toolName: "write_file" }],
+      overrides: {
+        replaceToolkitAutoApprove: jest
+          .fn()
+          .mockRejectedValueOnce(
+            new Error("[settings_storage_unavailable] revoke"),
+          )
+          .mockRejectedValueOnce(
+            new Error("[settings_storage_unavailable] grant"),
+          ),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const failedRevoke = setToolkitAutoApprove(
+        "core",
+        false,
+        ["write_file"],
+      );
+      const failedGrant = setToolkitAutoApprove(
+        "core",
+        true,
+        ["write_file"],
+      );
+
+      await expect(failedRevoke.persistence).rejects.toThrow(/revoke/);
+      await expect(failedGrant.persistence).rejects.toThrow(/grant/);
+      expect(isToolkitAutoApprove("core")).toBe(true);
+      expect(isToolAutoApproved("core", "write_file")).toBe(true);
+      expect(
+        JSON.parse(window.localStorage.getItem("toolkit_auto_approve")),
+      ).toEqual({
+        version: 2,
+        toolkits: ["core"],
+        tools: ["core:write_file"],
+      });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("a successful grant rebases after an older rejected grant instead of persisting it", async () => {
+    const api = installToolkitPrefsApi({
+      overrides: {
+        replaceToolkitAutoApprove: jest
+          .fn()
+          .mockRejectedValueOnce(
+            new Error("[settings_storage_unavailable] alpha"),
+          )
+          .mockResolvedValueOnce({ ok: true }),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const failedAlpha = setToolkitAutoApprove(
+        "mcp.alpha",
+        true,
+        ["read"],
+      );
+      const successfulBeta = setToolkitAutoApprove(
+        "mcp.beta",
+        true,
+        ["write"],
+      );
+
+      await expect(failedAlpha.persistence).rejects.toThrow(/alpha/);
+      await expect(successfulBeta.persistence).resolves.toEqual({ ok: true });
+      expect(api.replaceToolkitAutoApprove.mock.calls).toEqual([
+        [
+          {
+            toolkits: ["mcp.alpha"],
+            tools: [{ toolkitId: "mcp.alpha", toolName: "read" }],
+          },
+        ],
+        [
+          {
+            toolkits: ["mcp.beta"],
+            tools: [{ toolkitId: "mcp.beta", toolName: "write" }],
+          },
+        ],
+      ]);
+      expect(isToolkitAutoApprove("mcp.alpha")).toBe(false);
+      expect(isToolAutoApproved("mcp.alpha", "read")).toBe(false);
+      expect(isToolkitAutoApprove("mcp.beta")).toBe(true);
+      expect(isToolAutoApproved("mcp.beta", "write")).toBe(true);
+
+      resetToolkitAutoApproveStoreForTests();
+      installToolkitPrefsApi({
+        toolkits: ["mcp.beta"],
+        tools: [{ toolkitId: "mcp.beta", toolName: "write" }],
+      });
+      expect(isToolkitAutoApprove("mcp.alpha")).toBe(false);
+      expect(isToolkitAutoApprove("mcp.beta")).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("a successful revoke rebases after an older rejected revoke and restores matching legacy fallback", async () => {
+    window.localStorage.setItem(
+      TOOLKIT_AUTO_APPROVE_MIGRATION_MARKER_KEY,
+      JSON.stringify({ digest: "d1", completedAt: 1 }),
+    );
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["mcp.alpha", "mcp.beta"],
+        tools: ["mcp.alpha:read", "mcp.beta:write"],
+      }),
+    );
+    const api = installToolkitPrefsApi({
+      toolkits: ["mcp.alpha", "mcp.beta"],
+      tools: [
+        { toolkitId: "mcp.alpha", toolName: "read" },
+        { toolkitId: "mcp.beta", toolName: "write" },
+      ],
+      overrides: {
+        replaceToolkitAutoApprove: jest
+          .fn()
+          .mockRejectedValueOnce(
+            new Error("[settings_storage_unavailable] alpha"),
+          )
+          .mockResolvedValueOnce({ ok: true }),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const failedAlpha = setToolkitAutoApprove("mcp.alpha", false);
+      const successfulBeta = setToolkitAutoApprove("mcp.beta", false);
+
+      await expect(failedAlpha.persistence).rejects.toThrow(/alpha/);
+      await expect(successfulBeta.persistence).resolves.toEqual({ ok: true });
+      expect(api.replaceToolkitAutoApprove.mock.calls).toEqual([
+        [
+          {
+            toolkits: ["mcp.beta"],
+            tools: [{ toolkitId: "mcp.beta", toolName: "write" }],
+          },
+        ],
+        [
+          {
+            toolkits: ["mcp.alpha"],
+            tools: [{ toolkitId: "mcp.alpha", toolName: "read" }],
+          },
+        ],
+      ]);
+      expect(isToolkitAutoApprove("mcp.alpha")).toBe(true);
+      expect(isToolAutoApproved("mcp.alpha", "read")).toBe(true);
+      expect(isToolkitAutoApprove("mcp.beta")).toBe(false);
+      expect(isToolAutoApproved("mcp.beta", "write")).toBe(false);
+      expect(
+        JSON.parse(window.localStorage.getItem("toolkit_auto_approve")),
+      ).toEqual({
+        version: 2,
+        toolkits: ["mcp.alpha"],
+        tools: ["mcp.alpha:read"],
+      });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("the reset barrier rejects a new grant before changing mirror, legacy, or SQL", async () => {
+    const api = installToolkitPrefsApi({ toolkits: ["core"] });
+    await beginToolkitAutoApproveSettingsReset();
+    try {
+      const blocked = setToolkitAutoApprove(
+        "mcp.alpha",
+        true,
+        ["read"],
+      );
+      expect(blocked).toEqual({ toolkits: ["core"], tools: [] });
+      await expect(blocked.persistence).rejects.toMatchObject({
+        code: "settings_reset_in_progress",
+      });
+      expect(isToolkitAutoApprove("mcp.alpha")).toBe(false);
+      expect(api.replaceToolkitAutoApprove).not.toHaveBeenCalled();
+      expect(window.localStorage.getItem("toolkit_auto_approve")).toBeNull();
+    } finally {
+      endToolkitAutoApproveSettingsReset();
+    }
+  });
+
+  test("an uninitialized reset barrier owns first initialization and blocks the concurrent first mutation", async () => {
+    const api = installToolkitPrefsApi();
+
+    const drain = beginToolkitAutoApproveSettingsReset();
+    const blocked = setToolkitAutoApprove(
+      "mcp.alpha",
+      true,
+      ["read"],
+    );
+    await drain;
+    try {
+      await expect(blocked.persistence).rejects.toMatchObject({
+        code: "settings_reset_in_progress",
+      });
+      expect(api.bootstrap).toHaveBeenCalledTimes(1);
+      expect(api.replaceToolkitAutoApprove).not.toHaveBeenCalled();
+      expect(isToolkitAutoApprove("mcp.alpha")).toBe(false);
+    } finally {
+      endToolkitAutoApproveSettingsReset();
+    }
+  });
+
   test("first use with legacy data runs the per-store migration (computer entries pre-dropped)", async () => {
     window.localStorage.setItem(
       "toolkit_auto_approve",
@@ -281,6 +567,65 @@ describe("toolkit_auto_approve_store (SQL mode)", () => {
     expect(
       window.settingsStorageAPI.migrateLegacyToolkitAutoApprove,
     ).not.toHaveBeenCalled();
+  });
+
+  test("first migration freezes legacy before a same-turn grant and restores fallback when its SQL write fails", async () => {
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["core"],
+        tools: ["core:write_file"],
+      }),
+    );
+    const api = installToolkitPrefsApi({
+      storeMigrations: {
+        toolkitAutoApprove: {
+          state: "not_started",
+          version: null,
+          digest: null,
+          migratedAt: null,
+        },
+      },
+      overrides: {
+        replaceToolkitAutoApprove: jest.fn(() =>
+          Promise.reject(new Error("[settings_storage_unavailable] gone")),
+        ),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = setToolkitAutoApprove("mcp.new", true, ["read"]);
+      expect(isToolkitAutoApprove("mcp.new")).toBe(true);
+
+      await expect(result.persistence).rejects.toThrow(
+        /settings_storage_unavailable/,
+      );
+      expect(
+        api.migrateLegacyToolkitAutoApprove.mock.calls[0][0].toolkits,
+      ).toEqual(["core"]);
+      expect(
+        api.migrateLegacyToolkitAutoApprove.mock.calls[0][0].tools,
+      ).toEqual([{ toolkitId: "core", toolName: "write_file" }]);
+      expect(isToolkitAutoApprove("mcp.new")).toBe(false);
+      expect(isToolkitAutoApprove("core")).toBe(true);
+      expect(
+        JSON.parse(window.localStorage.getItem("toolkit_auto_approve")),
+      ).toEqual({
+        version: 2,
+        toolkits: ["core"],
+        tools: ["core:write_file"],
+      });
+
+      // A bridge-degraded/older renderer reads the same rolled-back legacy
+      // permission set instead of reviving the failed grant.
+      resetToolkitAutoApproveStoreForTests();
+      delete window.settingsStorageAPI;
+      expect(isToolkitAutoApprove("mcp.new")).toBe(false);
+      expect(isToolkitAutoApprove("core")).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   test("writes before migration completion also write through to localStorage", async () => {

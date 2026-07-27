@@ -77,11 +77,14 @@ describe("computer_use_local_beta_store (SQL mode)", () => {
 
     const record = writeComputerUseLocalBeta(true);
     expect(record).toMatchObject({ version: 1, enabled: true });
+    expect(record.persistence).toBeInstanceOf(Promise);
+    expect(Object.keys(record)).not.toContain("persistence");
     expect(isComputerUseLocalBetaPersisted()).toBe(true);
 
     writeComputerUseLocalBeta(false);
     expect(isComputerUseLocalBetaPersisted()).toBe(false);
 
+    await record.persistence;
     await flushComputerUsePreferenceWrites();
     expect(api.setComputerUsePreference).toHaveBeenCalledTimes(2);
     expect(api.setComputerUsePreference.mock.calls[0][0]).toBe(

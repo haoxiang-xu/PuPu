@@ -25,6 +25,9 @@ const { createChatStorageService } = require("./services/chat_storage/service");
 const {
   createSettingsStorageService,
 } = require("./services/settings_storage/service");
+const {
+  createSettingsQuitCoordinator,
+} = require("./services/settings_storage/quit_coordinator");
 const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 const sqlite = require("node:sqlite");
@@ -158,23 +161,30 @@ if (!gotSingleInstanceLock) {
     },
   });
 
+  const settingsQuitCoordinator = createSettingsQuitCoordinator({
+    app,
+    ipcMain,
+    getMainWindow: windowService.getMainWindow,
+    getWindowCount: () => BrowserWindow.getAllWindows().length,
+  });
+  settingsQuitCoordinator.start();
+
   const stopBackgroundServices = () => {
     appIsQuitting = true;
     ollamaService.stopOllama();
     unchainService.stopMiso();
   };
 
-  app.on("before-quit", () => {
+  // before-quit is cancelable by renderer beforeunload. Defer shutdown until
+  // will-quit so a failed chat drain cannot leave a still-running app with its
+  // sidecars stopped and appIsQuitting stuck true.
+  app.on("will-quit", () => {
+    settingsQuitCoordinator.dispose({ abortRenderer: false });
+    stopBackgroundServices();
+    void testApiService.stop();
     chatStorageService.close();
-  });
-  app.on("before-quit", () => {
     settingsStorageService.close();
   });
-  app.on("before-quit", stopBackgroundServices);
-  app.on("before-quit", () => {
-    void testApiService.stop();
-  });
-  app.on("will-quit", stopBackgroundServices);
 
   app.on("second-instance", () => {
     const existingMainWindow = windowService.getMainWindow();

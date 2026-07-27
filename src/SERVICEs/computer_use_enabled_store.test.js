@@ -6,6 +6,8 @@ import {
   writeComputerUseEnabled,
 } from "./computer_use_enabled_store";
 import {
+  beginComputerUsePreferencesSettingsReset,
+  endComputerUsePreferencesSettingsReset,
   flushComputerUsePreferenceWrites,
   resetComputerUsePreferencesForTests,
 } from "./computer_use_preferences_sql";
@@ -111,7 +113,7 @@ describe("computer_use_enabled_store — fail-closed corruption handling", () =>
 describe("computer_use_enabled_store (SQL mode)", () => {
   const ISO = "2026-07-24T10:00:00.000Z";
 
-  const installApi = (entries = {}) => {
+  const installApi = (entries = {}, overrides = {}) => {
     const api = {
       bootstrap: jest.fn(() => ({
         available: true,
@@ -135,6 +137,7 @@ describe("computer_use_enabled_store (SQL mode)", () => {
       migrateLegacyComputerUse: jest.fn(() =>
         Promise.resolve({ status: "complete", digest: "d1", migratedAt: 1 }),
       ),
+      ...overrides,
     };
     window.settingsStorageAPI = api;
     return api;
@@ -197,6 +200,39 @@ describe("computer_use_enabled_store (SQL mode)", () => {
     );
     // SQL is authoritative — the legacy key is untouched
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  test("a degraded reset barrier rejects enablement before legacy or sidecar callers can advance", async () => {
+    const original = {
+      version: ENABLED_STORE_VERSION,
+      enabled: false,
+      updatedAt: ISO,
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(original));
+    installApi(
+      {},
+      {
+        migrateLegacyComputerUse: jest.fn(() =>
+          Promise.reject(
+            new Error("[settings_storage_unavailable] migrate failed"),
+          ),
+        ),
+      },
+    );
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await beginComputerUsePreferencesSettingsReset();
+      const blocked = writeComputerUseEnabled(true);
+      await expect(blocked.persistence).rejects.toMatchObject({
+        code: "settings_reset_in_progress",
+      });
+      expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toEqual(
+        original,
+      );
+    } finally {
+      endComputerUsePreferencesSettingsReset();
+      warnSpy.mockRestore();
+    }
   });
 
   test("clear clears via the bridge and reads back OFF", async () => {

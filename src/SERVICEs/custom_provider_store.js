@@ -23,8 +23,48 @@ import {
   readCustomProviderSecrets,
   writeCustomProviderSecrets,
 } from "./settings_secret_adapter";
+import {
+  flushProviderCredentialWrites,
+  persistCustomProviderSecret,
+} from "./provider_credential_persistence";
 
 const MODEL_PROVIDERS_NAMESPACE = "model_providers";
+const pendingCustomProviderMutations = new Set();
+
+const trackCustomProviderMutation = (promise) => {
+  const tracked = Promise.resolve(promise).catch(() => ({
+    ok: false,
+    status: "not-synced",
+    errorCode: "provider_definition_write_failed",
+  }));
+  pendingCustomProviderMutations.add(tracked);
+  tracked.finally(() => pendingCustomProviderMutations.delete(tracked));
+  return tracked;
+};
+
+const attachPersistence = (value, persistence) => {
+  const durable = Promise.resolve(persistence);
+  // Many legacy callers intentionally use these CRUD helpers synchronously.
+  // Mark the rejection as observed while preserving the original rejecting
+  // promise for durability-aware callers that await `value.persistence`.
+  durable.catch(() => {});
+  Object.defineProperty(value, "persistence", {
+    value: durable,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return value;
+};
+
+export const flushCustomProviderMutations = async () => {
+  const results = [];
+  while (pendingCustomProviderMutations.size > 0) {
+    results.push(...(await Promise.all([...pendingCustomProviderMutations])));
+  }
+  await flushProviderCredentialWrites();
+  return results;
+};
 
 /** Current config schema version for a stored custom provider entry. */
 export const CUSTOM_PROVIDER_CONFIG_VERSION = 1;
@@ -423,15 +463,14 @@ const persistCustomProviders = (list) => {
     return !(rawSlug && cleanSlugs.has(rawSlug));
   });
   const nextProviders = [...(Array.isArray(list) ? list : []), ...preserved];
-  // Fire-and-forget mirrors the legacy synchronous write's silent error
-  // handling (the repository fallback still applies the write synchronously).
   // The updater output never contains a secret field: `current` comes from
   // the repository (secret-stripped by contract) and we only set
-  // custom_providers on top of it.
-  updateNamespace(MODEL_PROVIDERS_NAMESPACE, (current) => ({
+  // custom_providers on top of it. Callers that need a durable ordering point
+  // await the returned promise.
+  return updateNamespace(MODEL_PROVIDERS_NAMESPACE, (current) => ({
     ...(isObject(current) ? current : {}),
     custom_providers: nextProviders,
-  })).catch(() => {});
+  }));
 };
 
 /**
@@ -458,9 +497,9 @@ export const addCustomProvider = (def) => {
     created_at: timestamp,
     updated_at: timestamp,
   };
-  persistCustomProviders([...list, entry]);
+  const persistence = persistCustomProviders([...list, entry]);
   emitModelCatalogRefresh();
-  return entry;
+  return attachPersistence(entry, persistence);
 };
 
 /**
@@ -494,9 +533,9 @@ export const updateCustomProvider = (slug, def) => {
   };
   const nextList = [...list];
   nextList[index] = merged;
-  persistCustomProviders(nextList);
+  const persistence = persistCustomProviders(nextList);
   emitModelCatalogRefresh();
-  return merged;
+  return attachPersistence(merged, persistence);
 };
 
 /**
@@ -509,6 +548,7 @@ export const removeCustomProvider = (slug) => {
     return false;
   }
   const list = readCustomProviders();
+  const existing = list.find((p) => p.id === cleaned) || null;
   const nextList = list.filter((p) => p.id !== cleaned);
   const removed = nextList.length !== list.length;
 
@@ -519,38 +559,57 @@ export const removeCustomProvider = (slug) => {
       isObject(raw) && typeof raw.id === "string" ? raw.id.trim() : "";
     return rawSlug !== cleaned;
   });
-  const removedHighVersion = readPreservedRawEntries().some((raw) => {
+  const highVersionEntry = readPreservedRawEntries().find((raw) => {
     const rawSlug =
       isObject(raw) && typeof raw.id === "string" ? raw.id.trim() : "";
     return rawSlug === cleaned;
   });
+  const removedHighVersion = !!highVersionEntry;
 
   const hadSecret = Object.prototype.hasOwnProperty.call(
     readCustomProviderSecrets(),
     cleaned,
   );
 
-  updateNamespace(MODEL_PROVIDERS_NAMESPACE, (current) => ({
-    ...(isObject(current) ? current : {}),
-    custom_providers: [...nextList, ...preserved],
-  }))
-    .then(() => {
-      // Linked secret delete goes through the adapter (its own store) so the
-      // definition removal can never leave an orphaned secret behind (§3 /
-      // A2). It runs only AFTER the definition removal persisted: if the SQL
-      // persist fails, the repository rolls the definition back, and the
-      // secret must survive with it — deleting it first would resurrect the
-      // provider with its API key permanently gone. repairCorruptRoot keeps
-      // the legacy clobber semantics of this store's writers.
-      if (hadSecret) {
-        const secrets = readCustomProviderSecrets();
-        if (Object.prototype.hasOwnProperty.call(secrets, cleaned)) {
-          delete secrets[cleaned];
-          writeCustomProviderSecrets(secrets, { repairCorruptRoot: true });
+  const definitionToDisable = existing || highVersionEntry;
+  const disabledList = definitionToDisable
+    ? [
+        ...nextList,
+        {
+          ...definitionToDisable,
+          enabled: false,
+          updated_at: nowIso(),
+        },
+      ]
+    : nextList;
+
+  trackCustomProviderMutation(
+    // First persist a disabled tombstone. If credential revocation or the
+    // final definition delete fails, the slug remains reserved and cannot
+    // silently re-attach to the orphaned credential.
+    persistCustomProviders(disabledList)
+      .then(() => setCustomProviderSecret(cleaned, ""))
+      .then((credentialResult) => {
+        if (!credentialResult || credentialResult.ok !== true) {
+          return {
+            ...(credentialResult || {}),
+            ok: false,
+            status: "delete-failed-tombstoned",
+            errorCode:
+              credentialResult?.errorCode || "credential_write_failed",
+            tombstoned: true,
+          };
         }
-      }
-    })
-    .catch(() => {});
+        return updateNamespace(MODEL_PROVIDERS_NAMESPACE, (current) => ({
+          ...(isObject(current) ? current : {}),
+          custom_providers: [...nextList, ...preserved],
+        })).then(() => ({
+          ok: true,
+          status: "deleted",
+          credentialStatus: credentialResult.status,
+        }));
+      }),
+  );
 
   if (removed || hadSecret || removedHighVersion) {
     emitModelCatalogRefresh();
@@ -575,9 +634,9 @@ export const setCustomProviderEnabled = (slug, enabled) => {
     enabled: enabled === true,
     updated_at: nowIso(),
   };
-  persistCustomProviders(nextList);
+  const persistence = persistCustomProviders(nextList);
   emitModelCatalogRefresh();
-  return nextList[index];
+  return attachPersistence(nextList[index], persistence);
 };
 
 /* ------------------------------------------------------------------ */
@@ -606,6 +665,8 @@ export const setCustomProviderSecret = (slug, value) => {
   }
   const trimmed = typeof value === "string" ? value.trim() : "";
   const secrets = readCustomProviderSecrets();
+  const hadPrevious = Object.prototype.hasOwnProperty.call(secrets, cleaned);
+  const previous = secrets[cleaned];
   if (trimmed) {
     secrets[cleaned] = trimmed;
   } else {
@@ -614,13 +675,36 @@ export const setCustomProviderSecret = (slug, value) => {
   // repairCorruptRoot: the legacy implementation read the root through a
   // catch-all ({} on corrupt JSON) and then saved — the secret was persisted
   // even if that clobbered an unparseable blob. Keep that behavior here.
-  writeCustomProviderSecrets(secrets, { repairCorruptRoot: true });
-  emitModelCatalogRefresh();
+  const writeLegacy = () => {
+    const wroteLegacy = writeCustomProviderSecrets(secrets, {
+      repairCorruptRoot: true,
+    });
+    emitModelCatalogRefresh();
+    return wroteLegacy;
+  };
+  const restoreEntry = (present, restoredValue) => {
+    const restored = readCustomProviderSecrets();
+    if (present) {
+      restored[cleaned] = restoredValue;
+    } else {
+      delete restored[cleaned];
+    }
+    const restoredOk = writeCustomProviderSecrets(restored, {
+      repairCorruptRoot: true,
+    });
+    emitModelCatalogRefresh();
+    return restoredOk;
+  };
+  return persistCustomProviderSecret(cleaned, trimmed, writeLegacy, {
+    restorePrevious: () => restoreEntry(hadPrevious, previous),
+    restoreCurrent: () =>
+      restoreEntry(trimmed.length > 0, trimmed),
+  });
 };
 
 /** Remove a secret value for a slug. */
 export const removeCustomProviderSecret = (slug) => {
-  setCustomProviderSecret(slug, "");
+  return setCustomProviderSecret(slug, "");
 };
 
 /** UI-only boolean: does this slug currently have a stored secret? */

@@ -61,6 +61,16 @@ const MAX_EXTRA_HEADER_ROWS = 10;
 let modelRowSeq = 1;
 const nextRowId = () => `mrow-${modelRowSeq++}`;
 
+const awaitDefinitionPersistence = async (result) => {
+  const persistence = result?.persistence;
+  if (!persistence || typeof persistence.then !== "function") {
+    const error = new Error("Provider definition write was not acknowledged");
+    error.code = "provider_definition_write_failed";
+    throw error;
+  }
+  await persistence;
+};
+
 /** Blank editable model row. */
 const emptyModelRow = () => ({
   rowId: nextRowId(),
@@ -289,6 +299,7 @@ const CustomProviderEditor = ({
   const [diagnostics, setDiagnostics] = useState([]);
   const [testState, setTestState] = useState(null); // {ok, latency_ms} | {error}
   const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   /* ── C12: scroll to + focus the API-key input on request ── */
   // The key input lives inside Modal, which mounts its children on a LATER tick
@@ -521,22 +532,72 @@ const CustomProviderEditor = ({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     const result = runNormalize();
     setDiagnostics(result.diagnostics || []);
     if (!result.ok) {
       return;
     }
     const provider = result.provider;
-
     let savedSlug = provider.id;
+
+    setSaving(true);
     try {
-      if (isEdit) {
-        updateCustomProvider(slug, provider);
-        savedSlug = slug;
-      } else {
-        addCustomProvider(provider);
+      // Persist the new endpoint disabled before touching its credential.
+      // This closes the old-endpoint/new-key window: even if a later step
+      // fails or the process exits, the changed/new definition cannot run.
+      const disabledProvider = { ...provider, enabled: false };
+      const definitionResult = isEdit
+        ? updateCustomProvider(slug, disabledProvider)
+        : addCustomProvider(disabledProvider);
+      await awaitDefinitionPersistence(definitionResult);
+      savedSlug = isEdit ? slug : provider.id;
+
+      // auth:none performs an explicit delete so a re-created slug cannot
+      // inherit a credential left by an older build.
+      const trimmed = requiresKey ? (secret || "").trim() : "";
+      const credentialResult = await setCustomProviderSecret(
+        savedSlug,
+        trimmed,
+      );
+      if (!credentialResult || credentialResult.ok !== true) {
+        setDiagnostics([
+          {
+            code:
+              credentialResult?.errorCode || "credential_write_failed",
+            path: "provider.api_key",
+            message: t("model_providers.custom.save_failed"),
+            severity: "error",
+          },
+        ]);
+        toast.error(t("model_providers.custom.save_failed"), {
+          dedupeKey: `custom_provider_credential_failed_${savedSlug}`,
+        });
+        return;
       }
+
+      // Required-key providers with an empty key must be disabled. A valid key
+      // (or auth:none) enables only after credential persistence succeeded.
+      const autoEnabled = !requiresKey || !!trimmed;
+      const enabledResult = setCustomProviderEnabled(savedSlug, autoEnabled);
+      await awaitDefinitionPersistence(enabledResult);
+
+      if (autoEnabled) {
+        toast.success(
+          t("model_providers.custom.auto_enabled", {
+            name: provider.display_name,
+          }),
+          { dedupeKey: `custom_provider_enabled_${savedSlug}` },
+        );
+      } else {
+        toast.success(t("model_providers.custom.saved"), {
+          dedupeKey: `custom_provider_saved_${savedSlug}`,
+        });
+      }
+
+      onSaved?.(savedSlug);
+      onClose?.();
     } catch (error) {
       // Surface store-level failures (e.g. provider_id_exists) as a diagnostic.
       setDiagnostics([
@@ -547,41 +608,9 @@ const CustomProviderEditor = ({
           severity: "error",
         },
       ]);
-      return;
+    } finally {
+      setSaving(false);
     }
-
-    // Persist the secret through the dedicated secret store (never inline).
-    let autoEnabled = false;
-    if (requiresKey) {
-      const trimmed = (secret || "").trim();
-      setCustomProviderSecret(savedSlug, trimmed);
-      // §8.3 auto-enable: a required secret was saved and the provider
-      // validated -> enable it and lightly notify.
-      if (trimmed) {
-        setCustomProviderEnabled(savedSlug, true);
-        autoEnabled = true;
-      }
-    } else {
-      // mode === "none": no key needed, enable on successful save.
-      setCustomProviderEnabled(savedSlug, true);
-      autoEnabled = true;
-    }
-
-    if (autoEnabled) {
-      toast.success(
-        t("model_providers.custom.auto_enabled", {
-          name: provider.display_name,
-        }),
-        { dedupeKey: `custom_provider_enabled_${savedSlug}` },
-      );
-    } else {
-      toast.success(t("model_providers.custom.saved"), {
-        dedupeKey: `custom_provider_saved_${savedSlug}`,
-      });
-    }
-
-    onSaved?.(savedSlug);
-    onClose?.();
   };
 
   if (!open) {
@@ -1395,7 +1424,7 @@ const CustomProviderEditor = ({
           />
           <Button
             label={t("model_providers.custom.save")}
-            disabled={!canSave}
+            disabled={!canSave || saving}
             onClick={handleSave}
             style={{
               fontSize: 12.5,

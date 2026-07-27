@@ -99,6 +99,7 @@ export const PluginsShell = ({
   const [detailVisible, setDetailVisible] = useState(false);
   const slideTimer = useRef(null);
   const storeEntriesByIdRef = useRef(new Map());
+  const autoEnableMutationIdsRef = useRef(new Map());
 
   const openDetail = useCallback((detail) => {
     setSelectedToolkit(detail);
@@ -260,7 +261,10 @@ export const PluginsShell = ({
   const [, setAutoEnableRevision] = useState(0);
 
   const handleToggleAutoEnable = useCallback((toolkitId, val) => {
-    setDefaultToolkitEnabled("global", toolkitId, val);
+    const mutationId =
+      (autoEnableMutationIdsRef.current.get(toolkitId) || 0) + 1;
+    autoEnableMutationIdsRef.current.set(toolkitId, mutationId);
+    const result = setDefaultToolkitEnabled("global", toolkitId, val);
     setAutoEnableRevision((v) => v + 1);
     setSelectedToolkit((prev) =>
       prev?.kind === "installed" && prev.toolkit?.toolkitId === toolkitId
@@ -268,6 +272,33 @@ export const PluginsShell = ({
         : prev,
     );
     installedHandlersRef.current?.reload?.();
+    if (result?.persistence) {
+      const reconcile = () => {
+        if (
+          autoEnableMutationIdsRef.current.get(toolkitId) !== mutationId
+        ) {
+          return;
+        }
+        const persistedEnabled = getDefaultToolkitSelection("global").includes(
+          toolkitId,
+        );
+        setAutoEnableRevision((v) => v + 1);
+        setSelectedToolkit((prev) =>
+          prev?.kind === "installed" &&
+          prev.toolkit?.toolkitId === toolkitId
+            ? {
+                ...prev,
+                toolkit: {
+                  ...prev.toolkit,
+                  defaultEnabled: persistedEnabled,
+                },
+              }
+            : prev,
+        );
+        installedHandlersRef.current?.reload?.();
+      };
+      result.persistence.then(reconcile, reconcile);
+    }
   }, []);
 
   const handleDeletePlugin = useCallback(

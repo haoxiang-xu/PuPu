@@ -4,6 +4,8 @@ import {
   removeCustomMcpIcon,
   isCustomMcpIconSqlBacked,
   flushCustomMcpIconWrites,
+  beginCustomMcpIconQuitDrain,
+  endCustomMcpIconQuitDrain,
   resetCustomMcpIconStoreForTests,
   MCP_ICONS_MIGRATION_MARKER_KEY,
 } from "./custom_mcp_icon_store";
@@ -384,5 +386,69 @@ describe("custom_mcp_icon_store — SQL mode", () => {
         window.localStorage.getItem(MCP_ICONS_MIGRATION_MARKER_KEY) || "null",
       ),
     ).not.toBeNull();
+  });
+});
+
+describe("custom_mcp_icon_store — quit drain", () => {
+  test("uninitialized barrier blocks set/remove and abort restores admission", async () => {
+    const { api } = installSqlBackend();
+
+    await beginCustomMcpIconQuitDrain();
+    expect(api.bootstrap).not.toHaveBeenCalled();
+    setCustomMcpIcon("mcp.custom.blocked", pngIcon);
+    removeCustomMcpIcon("mcp.custom.blocked");
+    expect(api.setMcpIconAsset).not.toHaveBeenCalled();
+    expect(api.deleteMcpIconAsset).not.toHaveBeenCalled();
+
+    endCustomMcpIconQuitDrain();
+    setCustomMcpIcon("mcp.custom.allowed", pngIcon);
+    await flushCustomMcpIconWrites();
+    expect(api.bootstrap).toHaveBeenCalledTimes(1);
+    expect(api.setMcpIconAsset).toHaveBeenCalledTimes(1);
+  });
+
+  test("waits for an accepted icon write to settle before resolving", async () => {
+    const { api } = installSqlBackend();
+    let resolveSet;
+    api.setMcpIconAsset.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSet = resolve;
+        }),
+    );
+
+    setCustomMcpIcon("mcp.custom.pending", pngIcon);
+    let drained = false;
+    const drain = beginCustomMcpIconQuitDrain().then(() => {
+      drained = true;
+    });
+    await Promise.resolve();
+    expect(drained).toBe(false);
+
+    resolveSet({ ok: true });
+    await drain;
+    expect(drained).toBe(true);
+  });
+
+  test("a rejected icon write still settles the established FIFO boundary", async () => {
+    const { api } = installSqlBackend();
+    let rejectSet;
+    api.setMcpIconAsset.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectSet = reject;
+        }),
+    );
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      setCustomMcpIcon("mcp.custom.pending", pngIcon);
+      const drain = beginCustomMcpIconQuitDrain();
+      await Promise.resolve();
+      rejectSet(new Error("[settings_storage_error] unavailable"));
+      await expect(drain).resolves.toBeUndefined();
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

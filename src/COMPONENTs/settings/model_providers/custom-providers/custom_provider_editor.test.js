@@ -1,5 +1,11 @@
 import React from "react";
-import { fireEvent, render, screen, act } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  act,
+  waitFor,
+} from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
 import CustomProviderEditor from "./custom_provider_editor";
 import {
@@ -20,7 +26,9 @@ jest.mock("../../../../SERVICEs/custom_provider_store", () => ({
   updateCustomProvider: jest.fn(),
   findCustomProvider: jest.fn(() => null),
   normalizeCustomProvider: jest.fn(),
-  setCustomProviderSecret: jest.fn(),
+  setCustomProviderSecret: jest.fn(() =>
+    Promise.resolve({ ok: true, status: "stored" }),
+  ),
   getCustomProviderSecret: jest.fn(() => ""),
   setCustomProviderEnabled: jest.fn(),
 }));
@@ -98,6 +106,28 @@ const fillRequired = () => {
   );
 };
 
+const durableDefinition = (definition = {}, persistence = Promise.resolve()) => {
+  const result = { ...definition };
+  Object.defineProperty(result, "persistence", {
+    value: persistence,
+    enumerable: false,
+  });
+  return result;
+};
+
+beforeEach(() => {
+  setCustomProviderSecret.mockResolvedValue({ ok: true, status: "stored" });
+  addCustomProvider.mockImplementation((definition) =>
+    durableDefinition(definition),
+  );
+  updateCustomProvider.mockImplementation((_slug, definition) =>
+    durableDefinition(definition),
+  );
+  setCustomProviderEnabled.mockImplementation((slug, enabled) =>
+    durableDefinition({ id: slug, enabled }),
+  );
+});
+
 describe("CustomProviderEditor gating", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -155,11 +185,12 @@ describe("CustomProviderEditor diagnostics", () => {
 describe("CustomProviderEditor save + auto-enable", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    setCustomProviderSecret.mockResolvedValue({ ok: true, status: "stored" });
     findCustomProvider.mockReturnValue(null);
     getCustomProviderSecret.mockReturnValue("");
   });
 
-  test("saving with a required key stores secret and auto-enables (§8.3)", () => {
+  test("saving with a required key stores secret and auto-enables (§8.3)", async () => {
     normalizeCustomProvider.mockReturnValue({
       ok: true,
       diagnostics: [],
@@ -184,7 +215,7 @@ describe("CustomProviderEditor save + auto-enable", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(addCustomProvider).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(addCustomProvider).toHaveBeenCalledTimes(1));
     expect(setCustomProviderSecret).toHaveBeenCalledWith("myprov", "hs-secret");
     expect(setCustomProviderEnabled).toHaveBeenCalledWith("myprov", true);
     expect(toast.success).toHaveBeenCalled();
@@ -192,7 +223,7 @@ describe("CustomProviderEditor save + auto-enable", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  test("saving without a key does NOT auto-enable a key-requiring provider", () => {
+  test("saving without a key does NOT auto-enable a key-requiring provider", async () => {
     normalizeCustomProvider.mockReturnValue({
       ok: true,
       diagnostics: [],
@@ -210,13 +241,13 @@ describe("CustomProviderEditor save + auto-enable", () => {
     // no key entered
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(addCustomProvider).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(addCustomProvider).toHaveBeenCalledTimes(1));
     // empty secret is written through (clears any stale value) but NOT enabled
     expect(setCustomProviderSecret).toHaveBeenCalledWith("myprov", "");
-    expect(setCustomProviderEnabled).not.toHaveBeenCalled();
+    expect(setCustomProviderEnabled).toHaveBeenCalledWith("myprov", false);
   });
 
-  test("edit mode calls updateCustomProvider against the addressed slug", () => {
+  test("edit mode calls updateCustomProvider against the addressed slug", async () => {
     findCustomProvider.mockReturnValue({
       id: "existing",
       display_name: "Existing",
@@ -240,12 +271,92 @@ describe("CustomProviderEditor save + auto-enable", () => {
     renderEditor({ slug: "existing" });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(updateCustomProvider).toHaveBeenCalledWith(
-      "existing",
-      expect.objectContaining({ id: "existing" }),
+    await waitFor(() =>
+      expect(updateCustomProvider).toHaveBeenCalledWith(
+        "existing",
+        expect.objectContaining({ id: "existing" }),
+      ),
     );
     // auth.mode none -> auto-enable on save
     expect(setCustomProviderEnabled).toHaveBeenCalledWith("existing", true);
+  });
+
+  test("waits for the disabled definition ack before writing the credential", async () => {
+    let resolveDefinition;
+    const definitionAck = new Promise((resolve) => {
+      resolveDefinition = resolve;
+    });
+    addCustomProvider.mockImplementation((definition) =>
+      durableDefinition(definition, definitionAck),
+    );
+    normalizeCustomProvider.mockReturnValue({
+      ok: true,
+      diagnostics: [],
+      provider: {
+        id: "myprov",
+        display_name: "My Provider",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        auth: { mode: "x-api-key" },
+        models: [{ id: "model-a" }],
+      },
+    });
+    renderEditor();
+    fillRequired();
+    fireEvent.change(screen.getByPlaceholderText("Enter your API key"), {
+      target: { value: "hs-secret" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(addCustomProvider).toHaveBeenCalledTimes(1));
+    expect(addCustomProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "myprov", enabled: false }),
+    );
+    expect(setCustomProviderSecret).not.toHaveBeenCalled();
+
+    await act(async () => resolveDefinition());
+    await waitFor(() =>
+      expect(setCustomProviderSecret).toHaveBeenCalledWith(
+        "myprov",
+        "hs-secret",
+      ),
+    );
+  });
+
+  test("an async definition rejection never writes the new credential", async () => {
+    const error = Object.assign(new Error("definition IPC rejected"), {
+      code: "storage_io_error",
+    });
+    addCustomProvider.mockImplementation((definition) =>
+      durableDefinition(definition, Promise.reject(error)),
+    );
+    normalizeCustomProvider.mockReturnValue({
+      ok: true,
+      diagnostics: [],
+      provider: {
+        id: "myprov",
+        display_name: "My Provider",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        auth: { mode: "x-api-key" },
+        models: [{ id: "model-a" }],
+      },
+    });
+    const onSaved = jest.fn();
+    const onClose = jest.fn();
+    renderEditor({ onSaved, onClose });
+    fillRequired();
+    fireEvent.change(screen.getByPlaceholderText("Enter your API key"), {
+      target: { value: "hs-new-key" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText(/definition IPC rejected/i)).toBeTruthy();
+    expect(setCustomProviderSecret).not.toHaveBeenCalled();
+    expect(setCustomProviderEnabled).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
@@ -281,15 +392,13 @@ describe("CustomProviderEditor test connection", () => {
       target: { value: "hs-secret" },
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
 
     expect(api.unchain.testCustomProvider).toHaveBeenCalledWith(
       expect.objectContaining({ id: "myprov" }),
       "hs-secret",
     );
-    expect(screen.getByText(/Connected \(42 ms\)/)).toBeTruthy();
+    expect(await screen.findByText(/Connected \(42 ms\)/)).toBeTruthy();
   });
 
   test("Test connection button is enabled once the facade exists and fields are valid (S4b)", () => {
@@ -327,10 +436,8 @@ describe("CustomProviderEditor test connection", () => {
     fireEvent.change(screen.getByPlaceholderText("Enter your API key"), {
       target: { value: "bad-key" },
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
-    });
-    expect(screen.getByText(/provider_auth_failed/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(await screen.findByText(/provider_auth_failed/)).toBeTruthy();
   });
 });
 
@@ -343,6 +450,7 @@ describe("CustomProviderEditor test connection", () => {
 describe("CustomProviderEditor field round-trip (C4)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    setCustomProviderSecret.mockResolvedValue({ ok: true, status: "stored" });
     getCustomProviderSecret.mockReturnValue("");
     // Pass-through normalize: echo the raw the editor built so we can assert the
     // form re-emitted the previously-invisible fields.
@@ -369,13 +477,15 @@ describe("CustomProviderEditor field round-trip (C4)", () => {
     metadata: { revision: 1 },
   };
 
-  test("Save preserves default_model, description and metadata.revision", () => {
+  test("Save preserves default_model, description and metadata.revision", async () => {
     findCustomProvider.mockReturnValue(presetDef);
 
     renderEditor({ slug: "sap-hyperspace" });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(updateCustomProvider).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(updateCustomProvider).toHaveBeenCalledTimes(1),
+    );
     const [, savedProvider] = updateCustomProvider.mock.calls[0];
     expect(savedProvider.default_model).toBe("anthropic--claude-4.5-haiku");
     expect(savedProvider.description).toBe("SAP internal LLM proxy");
@@ -391,7 +501,7 @@ describe("CustomProviderEditor field round-trip (C4)", () => {
     expect(screen.getByText("Set default")).toBeTruthy();
   });
 
-  test("re-selecting a different default model updates default_model on Save", () => {
+  test("re-selecting a different default model updates default_model on Save", async () => {
     findCustomProvider.mockReturnValue(presetDef);
     renderEditor({ slug: "sap-hyperspace" });
 
@@ -399,6 +509,9 @@ describe("CustomProviderEditor field round-trip (C4)", () => {
     fireEvent.click(screen.getByText("Set default"));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
+    await waitFor(() =>
+      expect(updateCustomProvider).toHaveBeenCalledTimes(1),
+    );
     const [, savedProvider] = updateCustomProvider.mock.calls[0];
     expect(savedProvider.default_model).toBe("anthropic--claude-4.5-sonnet");
   });

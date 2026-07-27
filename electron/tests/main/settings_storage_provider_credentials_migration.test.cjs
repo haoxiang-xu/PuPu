@@ -60,6 +60,7 @@ const makeFakeSafeStorage = (opts = {}) => {
     available = true,
     backend = "gnome_libsecret",
     throwOnEncryptValues = new Set(),
+    throwOnDecrypt = false,
     corruptValues = new Set(),
   } = opts;
   const calls = { encrypt: 0, decrypt: 0 };
@@ -82,6 +83,7 @@ const makeFakeSafeStorage = (opts = {}) => {
     },
     decryptString: (buf) => {
       calls.decrypt += 1;
+      if (throwOnDecrypt) throw new Error("decrypt boom");
       const s = Buffer.from(buf).toString("utf8");
       if (!s.startsWith(SENTINEL_ENC_PREFIX)) {
         throw new Error("not our ciphertext");
@@ -312,6 +314,68 @@ describeIfSqlite("provider secret migration (S2)", () => {
     );
   });
 
+  test("first Keychain encrypt failure stops the remaining migration targets", () => {
+    const safeStorage = makeFakeSafeStorage({
+      throwOnEncryptValues: new Set(["sk-openai-boom"]),
+    });
+    const service = startService({ safeStorage, platform: "darwin" });
+    service.setProviderCredential(
+      "custom_provider",
+      "custom.keep",
+      "existing-ciphertext",
+    );
+    const encryptsBeforeMigration = safeStorage.calls.encrypt;
+
+    const result = service.migrateProviderCredentials(
+      envelope({
+        openai: "sk-openai-boom",
+        anthropic: "sk-anthropic-unreached",
+        custom: { keep: "replacement-unreached" },
+      }),
+    );
+
+    expect(safeStorage.calls.encrypt - encryptsBeforeMigration).toBe(1);
+    expect(result.status).toBe("in-progress");
+    expect(result.migrated).toEqual([]);
+    expect(result.failed).toEqual([
+      "openai",
+      "anthropic",
+      "custom.keep",
+    ]);
+    expect(result.failedCount).toBe(3);
+    expect(service.getSecretStorageStatus()).toBe("unavailable");
+    // The failure never deletes a pre-existing, untouched ciphertext row.
+    expect(rawCredentialRows().map((row) => row.owner_id)).toEqual([
+      "custom.keep",
+    ]);
+    expect(service.getProviderCredentialsMigrationMeta().state).toBe(
+      "in_progress",
+    );
+  });
+
+  test("round-trip decrypt exception latches, persists backoff, and stops", () => {
+    const safeStorage = makeFakeSafeStorage({ throwOnDecrypt: true });
+    const service = startService({ safeStorage, platform: "darwin" });
+
+    const result = service.migrateProviderCredentials(
+      envelope({
+        openai: "sk-openai",
+        anthropic: "sk-anthropic-unreached",
+      }),
+    );
+
+    expect(safeStorage.calls.encrypt).toBe(1);
+    expect(safeStorage.calls.decrypt).toBe(1);
+    expect(result.migrated).toEqual([]);
+    expect(result.failed).toEqual(["openai", "anthropic"]);
+    expect(result.status).toBe("in-progress");
+    expect(service.getSecretStorageStatus()).toBe("unavailable");
+    expect(rawCredentialRows()).toEqual([]);
+    expect(
+      rawMetaValue(PROVIDER_CREDENTIALS_META_KEYS.RETRY_AFTER),
+    ).toBeGreaterThan(Date.now());
+  });
+
   test("partial migration completes on a retry once the credential verifies", () => {
     // First run: anthropic corrupt → in_progress.
     const corrupt = makeFakeSafeStorage({
@@ -469,6 +533,29 @@ describeIfSqlite("provider secret migration (S2)", () => {
     const result = service.migrateProviderCredentials(payload);
     expect(result.migrated.sort()).toEqual(["custom.safe", "openai"]);
     expect(result.status).toBe("complete");
+  });
+
+  test("invalid custom identities stay on legacy and never enter bootstrap", () => {
+    const service = startService({ safeStorage: makeFakeSafeStorage() });
+    const result = service.migrateProviderCredentials(
+      envelope({
+        custom: {
+          Valid: "bad-uppercase",
+          "-bad": "bad-edge",
+          valid: "safe-key",
+        },
+      }),
+    );
+
+    expect(result.status).toBe("in-progress");
+    expect(result.migrated).toEqual(["custom.valid"]);
+    expect(result.failed.sort()).toEqual([
+      "custom.-bad",
+      "custom.Valid",
+    ]);
+    expect(service.getBootstrapSnapshot().configuredCredentials).toEqual([
+      "custom.valid",
+    ]);
   });
 
   // ---- digest discipline ---------------------------------------------------

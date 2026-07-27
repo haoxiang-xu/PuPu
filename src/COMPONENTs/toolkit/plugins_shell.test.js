@@ -8,6 +8,7 @@ import {
 } from "../../SERVICEs/mcp_install";
 import { getMcpStoreEntry } from "../../SERVICEs/mcp_toolkit_store";
 import { getPluginSettingsEntry } from "./plugin_settings_registry";
+import * as defaultToolkitStore from "../../SERVICEs/default_toolkit_store";
 
 jest.mock("../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
   __esModule: true,
@@ -460,6 +461,53 @@ describe("PluginsShell", () => {
     });
 
     expect(screen.getByText("Auto Enabled: true")).toBeInTheDocument();
+  });
+
+  test("a rejected detail auto-enable reconciles to the store rollback", async () => {
+    getInstalledMcpIds.mockResolvedValue(new Set(["mcp.installed.ready"]));
+    let rejectPersistence;
+    const persistence = new Promise((_resolve, reject) => {
+      rejectPersistence = reject;
+    });
+    const optimistic = ["mcp.installed.ready"];
+    Object.defineProperty(optimistic, "persistence", {
+      value: persistence,
+      enumerable: false,
+    });
+    let persistedEnabled = false;
+    const setSpy = jest
+      .spyOn(defaultToolkitStore, "setDefaultToolkitEnabled")
+      .mockImplementation(() => {
+        persistedEnabled = true;
+        return optimistic;
+      });
+    const getSpy = jest
+      .spyOn(defaultToolkitStore, "getDefaultToolkitSelection")
+      .mockImplementation(() =>
+        persistedEnabled ? ["mcp.installed.ready"] : [],
+      );
+    try {
+      await renderShell({ activePage: "store" });
+      await act(async () => {
+        fireEvent.click(screen.getByText("Open Installed-Ready Entry"));
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByText("Enable Auto Enable From Detail"));
+      });
+      expect(screen.getByText("Auto Enabled: true")).toBeInTheDocument();
+
+      await act(async () => {
+        persistedEnabled = false;
+        rejectPersistence(new Error("[settings_storage_unavailable] gone"));
+        await expect(persistence).rejects.toThrow(
+          /settings_storage_unavailable/,
+        );
+      });
+      expect(screen.getByText("Auto Enabled: false")).toBeInTheDocument();
+    } finally {
+      setSpy.mockRestore();
+      getSpy.mockRestore();
+    }
   });
 
   /* S1: the Installed page's synthetic Computer row opens the builtin

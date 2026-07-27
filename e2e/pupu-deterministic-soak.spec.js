@@ -825,28 +825,88 @@ test("three-chat deterministic long-run preserves exact ownership across control
     const fakeReady = await fakeServer.start();
     const customProvider = buildCustomProviderDefinition(fakeReady.baseUrl);
 
-    await debugEval(
+    await poll(
+      async () =>
+        debugEval(
+          testApi,
+          `
+            const snapshot = window.settingsStorageAPI?.bootstrap?.();
+            return snapshot?.available === true &&
+              snapshot?.migration?.state === "complete"
+              ? { ready: true }
+              : null;
+          `,
+        ),
+      {
+        timeoutMs: profile.phaseTimeoutMs,
+        label: "settings SQL migration completion",
+      },
+    );
+    const persistenceSetup = await debugEval(
       testApi,
       `
-        const root = JSON.parse(localStorage.getItem("settings") || "{}");
-        const providers = root.model_providers && typeof root.model_providers === "object"
-          ? root.model_providers
-          : {};
-        root.feature_flags = {
-          ...(root.feature_flags || {}),
+        const storage = window.settingsStorageAPI;
+        const before = storage.bootstrap();
+        const namespaces = before.namespaces || {};
+        const featureFlags = await storage.setNamespace("feature_flags", {
+          ...(namespaces.feature_flags || {}),
           enable_custom_model_providers: true,
-        };
-        root.model_providers = {
-          ...providers,
+        });
+        const modelProviders = await storage.setNamespace("model_providers", {
+          ...(namespaces.model_providers || {}),
           custom_providers: [${JSON.stringify(customProvider)}],
+        });
+        const legacyRoot = JSON.parse(
+          localStorage.getItem("settings") || "{}"
+        );
+        const legacyProviders =
+          legacyRoot.model_providers &&
+          typeof legacyRoot.model_providers === "object"
+            ? legacyRoot.model_providers
+            : {};
+        legacyRoot.model_providers = {
+          ...legacyProviders,
           custom_provider_secrets: {
-            ...(providers.custom_provider_secrets || {}),
+            ...(legacyProviders.custom_provider_secrets || {}),
             ${JSON.stringify(CUSTOM_PROVIDER_SLUG)}: "pupu-fixture-key",
           },
         };
-        localStorage.setItem("settings", JSON.stringify(root));
-        return { stored: true };
+        localStorage.setItem("settings", JSON.stringify(legacyRoot));
+        const credential = await storage.setProviderCredential(
+          "custom_provider",
+          ${JSON.stringify(`custom.${CUSTOM_PROVIDER_SLUG}`)},
+          "pupu-fixture-key"
+        );
+        const after = storage.bootstrap();
+        return {
+          feature_flags: featureFlags,
+          model_providers: modelProviders,
+          credential,
+          configured_credentials: after.configuredCredentials || [],
+          legacy_contains_secret: String(
+            localStorage.getItem("settings") || ""
+          ).includes("pupu-fixture-key"),
+        };
       `,
+    );
+    const customCredentialId = `custom.${CUSTOM_PROVIDER_SLUG}`;
+    const credentialAuthorityReady =
+      (persistenceSetup?.credential?.status === "stored" &&
+        persistenceSetup?.configured_credentials?.includes(
+          customCredentialId,
+        )) ||
+      (persistenceSetup?.credential?.status === "legacy-only" &&
+        !persistenceSetup?.configured_credentials?.includes(
+          customCredentialId,
+        ));
+    assertTrue(
+      "deterministic fixture persisted through SQL-authoritative settings and write-only credential APIs",
+      persistenceSetup?.feature_flags?.ok === true &&
+        persistenceSetup?.model_providers?.ok === true &&
+        persistenceSetup?.credential?.ok === true &&
+        credentialAuthorityReady &&
+        persistenceSetup?.legacy_contains_secret === true,
+      { persistence_setup: persistenceSetup },
     );
     await reloadAndAudit("provider-configuration");
 
@@ -873,8 +933,8 @@ test("three-chat deterministic long-run preserves exact ownership across control
     const storedCustomModel = await debugEval(
       testApi,
       `
-        const settings = JSON.parse(localStorage.getItem("settings") || "{}");
-        const providers = settings.model_providers || {};
+        const snapshot = window.settingsStorageAPI.bootstrap();
+        const providers = snapshot.namespaces?.model_providers || {};
         const definition = (providers.custom_providers || []).find(
           (item) => item && item.id === ${JSON.stringify(CUSTOM_PROVIDER_SLUG)},
         );

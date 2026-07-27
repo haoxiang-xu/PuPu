@@ -256,6 +256,7 @@ export const computeSettingsMigrationDigest = async (payload) => {
 
 const listeners = new Set();
 let state = null;
+let settingsQuitBarrierActive = false;
 
 const createInitialState = () => ({
   mode: "localStorage", // "sql" | "localStorage"
@@ -263,7 +264,13 @@ const createInitialState = () => ({
   lastErrorCode: null,
   warnings: [], // { code, key?, errorCode? } — names/codes only, never values
   snapshot: null, // null-prototype namespace map (SQL mode only)
+  // Last values acknowledged by SQL. Kept separate from the optimistic
+  // snapshot so a failed mutation can be rolled back even when later
+  // read-modify-write calls were composed on top of it.
+  confirmedSnapshot: null,
   revisions: Object.create(null),
+  latestMutationIds: Object.create(null),
+  nextMutationId: 0,
   pendingWrites: 0,
   queueTail: Promise.resolve(),
   // Phase 4 (S3): non-sensitive secret-storage status carried on the degraded
@@ -318,7 +325,9 @@ const degradeToFallback = (s, errorCode) => {
   s.degraded = true;
   if (errorCode) s.lastErrorCode = errorCode;
   s.snapshot = null;
+  s.confirmedSnapshot = null;
   s.revisions = Object.create(null);
+  s.latestMutationIds = Object.create(null);
   notifyMany([...oldKeys, ...Object.keys(readLocalRoot())]);
 };
 
@@ -415,17 +424,17 @@ const rebuildSnapshotFromBootstrap = (s) => {
   }
   const oldKeys = s.snapshot ? Object.keys(s.snapshot) : [];
   s.snapshot = toNullProtoMap(snapshot.namespaces || {});
+  s.confirmedSnapshot = toNullProtoMap(snapshot.namespaces || {});
   s.revisions = toNullProtoMap(snapshot.revisions || {});
   notifyMany([...oldKeys, ...Object.keys(s.snapshot)]);
 };
 
-const runLegacyMigration = async (s) => {
+const runLegacyMigration = async (s, capturedSettingsRoot) => {
   if (state !== s) return; // repository was reset (tests)
-  // Detached plain-object copy of the (pre-cleaned, secret-stripped) snapshot.
-  const settingsRoot = {};
-  for (const key of Object.keys(s.snapshot)) {
-    settingsRoot[key] = s.snapshot[key];
-  }
+  // Captured during init, before same-turn optimistic mutations can touch the
+  // snapshot. Those writes stay later FIFO operations and cannot hitchhike
+  // into the all-or-nothing migration transaction.
+  const settingsRoot = capturedSettingsRoot;
   // Phase 1B payload (§5.2): settingsRoot + reserved empty standalone region.
   const payloadBase = {
     migrationVersion: SETTINGS_MIGRATION_VERSION,
@@ -461,9 +470,7 @@ const runLegacyMigration = async (s) => {
       // An unrecognized resolution leaves the migration outcome unknown —
       // treat it exactly like a rejection: staying in SQL mode would let
       // later mutations persist rows while migration meta says not_started,
-      // and the next bootstrap would then take that partial store as
-      // authoritative (namespaces non-empty ⇒ SQL wins) and silently drop
-      // every untouched legacy namespace.
+      // leaving an ambiguous mixture of partial SQL and legacy authority.
       s.warnings.push({ code: "migration_unknown_status" });
       console.warn(
         "[settings-repository] legacy migration returned an unknown status; " +
@@ -476,9 +483,8 @@ const runLegacyMigration = async (s) => {
     const code = parseSettingsStorageErrorCode(error) || "settings_storage_error";
     // Any migration failure leaves localStorage authoritative (retry next
     // boot). Persisting later mutations to SQL before a completed migration
-    // would make a partial SQL store look authoritative on the next bootstrap
-    // (namespaces non-empty ⇒ SQL wins) and silently drop every other
-    // namespace — so the whole session degrades to the localStorage backend.
+    // would create mixed authority, so the whole session degrades to the
+    // localStorage backend.
     s.warnings.push({ code: "migration_failed", errorCode: code });
     console.warn("[settings-repository] legacy migration failed:", code);
     degradeToFallback(s, code);
@@ -524,17 +530,31 @@ const ensureInit = () => {
     : {};
   const migrationComplete =
     !!snapshot.migration && snapshot.migration.state === "complete";
-  const hasNamespaces = Object.keys(namespaces).length > 0;
-  if (migrationComplete || hasNamespaces) {
+  if (migrationComplete) {
     // SQL is authoritative — legacy localStorage values are ignored.
     s.snapshot = toNullProtoMap(namespaces);
+    s.confirmedSnapshot = toNullProtoMap(namespaces);
     s.revisions = toNullProtoMap(snapshot.revisions || {});
     return s;
   }
-  // Empty database on first boot after upgrade: seed the snapshot from the
-  // legacy root and queue the migration as the first persistence operation.
-  s.snapshot = readAndPrecleanLegacyRoot(s.warnings);
-  enqueue(s, () => runLegacyMigration(s));
+  // An incomplete migration never makes SQL authoritative merely because one
+  // or more partial/pilot rows exist. Preserve SQL-only rows, but let the
+  // still-authoritative legacy root win overlaps and import the complete union
+  // in one transaction. This prevents a lone partial row from silently hiding
+  // every untouched legacy namespace.
+  const merged = toNullProtoMap(namespaces);
+  const legacy = readAndPrecleanLegacyRoot(s.warnings);
+  for (const namespace of Object.keys(legacy)) {
+    merged[namespace] = legacy[namespace];
+  }
+  s.snapshot = merged;
+  s.confirmedSnapshot = toNullProtoMap(merged);
+  s.revisions = toNullProtoMap(snapshot.revisions || {});
+  const capturedSettingsRoot = {};
+  for (const namespace of Object.keys(merged)) {
+    capturedSettingsRoot[namespace] = jsonClone(merged[namespace]);
+  }
+  enqueue(s, () => runLegacyMigration(s, capturedSettingsRoot));
   return s;
 };
 
@@ -627,8 +647,142 @@ const fallbackDeleteNamespace = (s, namespace) => {
 };
 
 // ---------------------------------------------------------------------------
+// SQL optimistic mutation helpers
+// ---------------------------------------------------------------------------
+
+const prepareSqlNamespaceValue = (namespace, value) => {
+  const cloned = jsonClone(value);
+  if (namespace === MODEL_PROVIDERS_NAMESPACE && !isPlainObject(cloned)) {
+    throw errorWithCode(
+      'namespace "model_providers" value must be a plain object',
+      "invalid_value",
+    );
+  }
+  return namespace === MODEL_PROVIDERS_NAMESPACE
+    ? stripModelProviderSecrets(cloned)
+    : cloned;
+};
+
+const namespaceStatesEqual = (
+  leftPresent,
+  leftValue,
+  rightPresent,
+  rightValue,
+) =>
+  leftPresent === rightPresent &&
+  (!leftPresent || canonicalize(leftValue) === canonicalize(rightValue));
+
+const restoreConfirmedNamespace = (s, namespace) => {
+  const confirmedPresent = hasOwn(s.confirmedSnapshot, namespace);
+  const currentPresent = hasOwn(s.snapshot, namespace);
+  const currentValue = s.snapshot[namespace];
+  const confirmedValue = s.confirmedSnapshot[namespace];
+  if (
+    namespaceStatesEqual(
+      currentPresent,
+      currentValue,
+      confirmedPresent,
+      confirmedValue,
+    )
+  ) {
+    return;
+  }
+  if (confirmedPresent) {
+    s.snapshot[namespace] = confirmedValue;
+  } else {
+    delete s.snapshot[namespace];
+  }
+  notify(namespace);
+};
+
+const enqueueSqlNamespaceMutation = (
+  s,
+  namespace,
+  optimisticWritten,
+  resolvePersistedWritten,
+) => {
+  const mutationId = ++s.nextMutationId;
+  s.latestMutationIds[namespace] = mutationId;
+  s.snapshot[namespace] = optimisticWritten;
+  notify(namespace);
+
+  return enqueue(s, async () => {
+    if (state !== s) return { ok: false, namespace };
+    if (s.mode !== "sql") {
+      // Degraded after this mutation was queued (failed migration):
+      // honor the optimistic value against authoritative localStorage.
+      return fallbackSetNamespace(s, namespace, optimisticWritten);
+    }
+
+    let persistedWritten = optimisticWritten;
+    try {
+      if (typeof resolvePersistedWritten === "function") {
+        persistedWritten = resolvePersistedWritten();
+      }
+      const ack = await settingsStorageBridge.setNamespace(
+        namespace,
+        persistedWritten,
+      );
+      if (state === s) {
+        s.confirmedSnapshot[namespace] = persistedWritten;
+        if (ack && typeof ack.revision === "number") {
+          s.revisions[namespace] = ack.revision;
+        }
+        // A migration re-read or a failed predecessor may have changed the
+        // value underneath this operation. If this is still the latest local
+        // intent, expose the exact rebased value that SQL acknowledged.
+        if (s.latestMutationIds[namespace] === mutationId) {
+          const currentPresent = hasOwn(s.snapshot, namespace);
+          if (
+            !namespaceStatesEqual(
+              currentPresent,
+              s.snapshot[namespace],
+              true,
+              persistedWritten,
+            )
+          ) {
+            s.snapshot[namespace] = persistedWritten;
+            notify(namespace);
+          }
+        }
+      }
+      return ack;
+    } catch (error) {
+      if (state === s) {
+        const code =
+          parseSettingsStorageErrorCode(error) || "settings_storage_error";
+        s.lastErrorCode = code;
+        console.warn(
+          "[settings-repository] persist failed:",
+          namespace,
+          code,
+        );
+        // Only the latest mutation may change the visible snapshot. When this
+        // operation was superseded, its successor will either establish a new
+        // confirmed value or roll the whole optimistic chain back.
+        if (s.latestMutationIds[namespace] === mutationId) {
+          restoreConfirmedNamespace(s, namespace);
+        }
+      }
+      throw error;
+    }
+  });
+};
+
+// ---------------------------------------------------------------------------
 // public API
 // ---------------------------------------------------------------------------
+
+const createSettingsQuitBlockedPersistence = () => {
+  const error = errorWithCode(
+    "settings write blocked while quit is being prepared",
+    "settings_quit_in_progress",
+  );
+  const persistence = Promise.reject(error);
+  // Most legacy callers intentionally fire-and-forget repository writes.
+  persistence.catch(() => {});
+  return persistence;
+};
 
 export const readSettingsRoot = () => {
   const s = ensureInit();
@@ -659,6 +813,9 @@ export const readNamespace = (namespace, fallback) => {
 };
 
 export const replaceNamespace = (namespace, value, options) => {
+  if (settingsQuitBarrierActive) {
+    return createSettingsQuitBlockedPersistence();
+  }
   const s = ensureInit();
   if (typeof namespace !== "string" || namespace.length === 0) {
     return Promise.reject(
@@ -709,73 +866,93 @@ export const replaceNamespace = (namespace, value, options) => {
     }
   }
 
-  // SQL mode: optimistic snapshot update + queued IPC persistence.
   const written =
     namespace === MODEL_PROVIDERS_NAMESPACE
       ? stripModelProviderSecrets(cloned)
       : cloned;
-  const hadPrev = hasOwn(s.snapshot, namespace);
-  const prev = s.snapshot[namespace];
-  s.snapshot[namespace] = written;
-  notify(namespace);
-
-  return enqueue(s, async () => {
-    if (state !== s) return { ok: false, namespace };
-    if (s.mode !== "sql") {
-      // Degraded after this mutation was queued (failed migration):
-      // honor the write against the now-authoritative localStorage backend.
-      return fallbackSetNamespace(s, namespace, written);
-    }
-    try {
-      const ack = await settingsStorageBridge.setNamespace(namespace, written);
-      if (state === s && ack && typeof ack.revision === "number") {
-        s.revisions[namespace] = ack.revision;
-      }
-      return ack;
-    } catch (error) {
-      if (state === s) {
-        const code =
-          parseSettingsStorageErrorCode(error) || "settings_storage_error";
-        s.lastErrorCode = code;
-        console.warn(
-          "[settings-repository] persist failed:",
-          namespace,
-          code,
-        );
-        // Roll back only if no newer optimistic value superseded this one.
-        if (s.snapshot[namespace] === written) {
-          if (hadPrev) {
-            s.snapshot[namespace] = prev;
-          } else {
-            delete s.snapshot[namespace];
-          }
-          notify(namespace);
-        }
-      }
-      throw error;
-    }
-  });
+  return enqueueSqlNamespaceMutation(s, namespace, written);
 };
 
 export const updateNamespace = (namespace, updater, options) => {
-  ensureInit();
+  if (settingsQuitBarrierActive) {
+    return createSettingsQuitBlockedPersistence();
+  }
+  const s = ensureInit();
+  if (
+    typeof namespace !== "string" ||
+    namespace.length === 0 ||
+    namespace === "__proto__"
+  ) {
+    return Promise.reject(
+      errorWithCode(
+        "namespace must be a legal non-empty string",
+        "invalid_namespace",
+      ),
+    );
+  }
   if (typeof updater !== "function") {
     return Promise.reject(
       errorWithCode("updater must be a function", "invalid_updater"),
     );
   }
+  const basePresent =
+    s.mode === "sql" && !!s.snapshot && hasOwn(s.snapshot, namespace);
+  let baseAtCall;
   let next;
   try {
     const current = readNamespace(namespace, undefined);
     const base = current === undefined ? undefined : jsonClone(current);
+    baseAtCall = base === undefined ? undefined : jsonClone(base);
     next = updater(base);
   } catch (error) {
     return Promise.reject(error);
   }
-  return replaceNamespace(namespace, next, options);
+  if (s.mode !== "sql") {
+    return replaceNamespace(namespace, next, options);
+  }
+
+  let optimisticWritten;
+  try {
+    optimisticWritten = prepareSqlNamespaceValue(namespace, next);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  // If a queued predecessor fails, the updater's original base included a
+  // value SQL never accepted. Re-run the updater against the last confirmed
+  // base just before its own IPC; pure read-modify-write updaters then cannot
+  // accidentally carry rejected fields into a later successful write.
+  const resolvePersistedWritten = () => {
+    const confirmedPresent = hasOwn(s.confirmedSnapshot, namespace);
+    const confirmedValue = s.confirmedSnapshot[namespace];
+    if (
+      namespaceStatesEqual(
+        basePresent,
+        baseAtCall,
+        confirmedPresent,
+        confirmedValue,
+      )
+    ) {
+      return optimisticWritten;
+    }
+    const confirmedBase = confirmedPresent
+      ? jsonClone(confirmedValue)
+      : undefined;
+    return prepareSqlNamespaceValue(namespace, updater(confirmedBase));
+  };
+
+  return enqueueSqlNamespaceMutation(
+    s,
+    namespace,
+    optimisticWritten,
+    resolvePersistedWritten,
+  );
 };
 
 export const deleteNamespace = (namespace) => {
+  if (settingsQuitBarrierActive) {
+    return createSettingsQuitBlockedPersistence();
+  }
   const s = ensureInit();
   if (typeof namespace !== "string" || namespace.length === 0) {
     return Promise.reject(
@@ -796,8 +973,9 @@ export const deleteNamespace = (namespace) => {
     }
   }
 
+  const mutationId = ++s.nextMutationId;
+  s.latestMutationIds[namespace] = mutationId;
   const hadPrev = hasOwn(s.snapshot, namespace);
-  const prev = s.snapshot[namespace];
   if (hadPrev) {
     delete s.snapshot[namespace];
     notify(namespace);
@@ -809,17 +987,27 @@ export const deleteNamespace = (namespace) => {
       return fallbackDeleteNamespace(s, namespace);
     }
     try {
-      return await settingsStorageBridge.deleteNamespace(namespace);
+      const ack = await settingsStorageBridge.deleteNamespace(namespace);
+      if (state === s) {
+        delete s.confirmedSnapshot[namespace];
+        delete s.revisions[namespace];
+        if (
+          s.latestMutationIds[namespace] === mutationId &&
+          hasOwn(s.snapshot, namespace)
+        ) {
+          delete s.snapshot[namespace];
+          notify(namespace);
+        }
+      }
+      return ack;
     } catch (error) {
       if (state === s) {
         const code =
           parseSettingsStorageErrorCode(error) || "settings_storage_error";
         s.lastErrorCode = code;
         console.warn("[settings-repository] delete failed:", namespace, code);
-        // Restore only if nothing re-created the namespace meanwhile.
-        if (hadPrev && !hasOwn(s.snapshot, namespace)) {
-          s.snapshot[namespace] = prev;
-          notify(namespace);
+        if (s.latestMutationIds[namespace] === mutationId) {
+          restoreConfirmedNamespace(s, namespace);
         }
       }
       throw error;
@@ -877,51 +1065,55 @@ const stripNonSensitiveLegacySettings = () => {
 // mirror is likewise excluded from the strip list so the fallback path
 // preserves it too. The structured stores' in-memory mirrors are reset by the
 // coordination point after this resolves (see the import note at the top).
-export const resetSettings = async () => {
-  const s = ensureInit();
-  if (s.mode === "sql") {
-    // Route the SQL reset THROUGH the same global FIFO queue every namespace
-    // write uses, so it is serialized behind any already-queued setNamespace.
-    // A direct (unqueued) reset raced with an in-flight write: the write could
-    // land at the main process AFTER the reset's DELETE and survive it (then
-    // reappear on the next bootstrap). Queued, the reset's DELETE cannot run
-    // until every prior write has been acked; writes enqueued AFTER the reset
-    // run after the DELETE, as intended.
-    return enqueue(s, async () => {
-      if (state !== s) return { ok: false };
-      if (s.mode !== "sql") {
-        // Degraded to fallback while this reset waited in the queue (a queued
-        // migration failed): strip-clear the now-authoritative localStorage.
-        const oldKeys = Object.keys(readLocalRoot());
-        stripNonSensitiveLegacySettings();
-        notifyMany([
-          ...oldKeys,
-          ...LEGACY_RESETTABLE_STANDALONE_KEYS,
-          MODEL_PROVIDERS_NAMESPACE,
-        ]);
-        return { ok: true, mode: "localStorage" };
-      }
-      // If the SQL reset rejects, propagate and leave localStorage untouched so
-      // the reset is all-or-nothing from the user's perspective.
-      const result = await settingsStorageBridge.resetSettings();
-      if (state !== s) return { ok: false };
-      stripNonSensitiveLegacySettings();
-      const oldKeys = s.snapshot ? Object.keys(s.snapshot) : [];
-      s.snapshot = Object.create(null);
-      s.revisions = Object.create(null);
-      notifyMany([...oldKeys, MODEL_PROVIDERS_NAMESPACE]);
-      return { ok: true, mode: "sql", result };
-    });
+export const resetSettings = async ({ beforeReset } = {}) => {
+  if (settingsQuitBarrierActive) {
+    throw errorWithCode(
+      "settings reset blocked while quit is being prepared",
+      "settings_quit_in_progress",
+    );
   }
-  // Fallback mode: strip-clear the non-sensitive legacy localStorage directly.
-  const oldKeys = Object.keys(readLocalRoot());
-  stripNonSensitiveLegacySettings();
-  notifyMany([
-    ...oldKeys,
-    ...LEGACY_RESETTABLE_STANDALONE_KEYS,
-    MODEL_PROVIDERS_NAMESPACE,
-  ]);
-  return { ok: true, mode: "localStorage" };
+  if (beforeReset !== undefined && typeof beforeReset !== "function") {
+    throw errorWithCode(
+      "beforeReset must be a function",
+      "invalid_reset_preparation",
+    );
+  }
+  const s = ensureInit();
+  // Admit the complete reset into the repository FIFO before any asynchronous
+  // sidecar-disable or structured-store drain work begins. A quit barrier that
+  // arrives after resetSettings() returns therefore waits for the already
+  // accepted reset instead of destroying the renderer halfway through it.
+  return enqueue(s, async () => {
+    if (beforeReset) {
+      await beforeReset();
+    }
+    if (state !== s) return { ok: false };
+    if (s.mode !== "sql") {
+      // Fallback mode, or a queued SQL migration that degraded before this
+      // reset reached the head of the FIFO: strip the authoritative legacy
+      // settings only after the preparation step has completed.
+      const oldKeys = Object.keys(readLocalRoot());
+      stripNonSensitiveLegacySettings();
+      notifyMany([
+        ...oldKeys,
+        ...LEGACY_RESETTABLE_STANDALONE_KEYS,
+        MODEL_PROVIDERS_NAMESPACE,
+      ]);
+      return { ok: true, mode: "localStorage" };
+    }
+    // If the SQL reset rejects, propagate and leave localStorage untouched so
+    // the reset is all-or-nothing from the user's perspective.
+    const result = await settingsStorageBridge.resetSettings();
+    if (state !== s) return { ok: false };
+    stripNonSensitiveLegacySettings();
+    const oldKeys = s.snapshot ? Object.keys(s.snapshot) : [];
+    s.snapshot = Object.create(null);
+    s.confirmedSnapshot = Object.create(null);
+    s.revisions = Object.create(null);
+    s.latestMutationIds = Object.create(null);
+    notifyMany([...oldKeys, MODEL_PROVIDERS_NAMESPACE]);
+    return { ok: true, mode: "sql", result };
+  });
 };
 
 export const subscribeSettings = (listener) => {
@@ -943,6 +1135,25 @@ export const flushSettingsWrites = async () => {
   } while (state === s && tail !== s.queueTail);
 };
 
+/**
+ * Close admission synchronously, then wait for the repository FIFO as it
+ * existed before the barrier. Never initializes an unused repository.
+ */
+export const beginSettingsQuitDrain = async () => {
+  settingsQuitBarrierActive = true;
+  const s = state;
+  if (!s) return;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endSettingsQuitDrain = () => {
+  settingsQuitBarrierActive = false;
+};
+
 export const getSettingsPersistenceStatus = () => {
   const s = ensureInit();
   return {
@@ -962,6 +1173,7 @@ export const getSettingsPersistenceStatus = () => {
 // Test-only: drop all repository state so the next call re-runs init.
 export const resetSettingsRepositoryForTests = () => {
   state = null;
+  settingsQuitBarrierActive = false;
   listeners.clear();
 };
 

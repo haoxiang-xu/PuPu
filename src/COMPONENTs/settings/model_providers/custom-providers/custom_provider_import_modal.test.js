@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../../CONTAINERs/config/context";
 import CustomProviderImportModal from "./custom_provider_import_modal";
 import {
@@ -151,7 +151,7 @@ describe("CustomProviderImportModal — conflict resolution", () => {
     expect(screen.getByRole("button", { name: "Import as copy" })).toBeTruthy();
   });
 
-  test("overwrite calls commitImport('overwrite') and reports imported", () => {
+  test("overwrite calls commitImport('overwrite') and reports imported", async () => {
     parseImportText.mockReturnValue({ ok: true, data: {} });
     validateImport.mockReturnValue({ ok: true, provider: providerDef(), diagnostics: [] });
     classifyConflict.mockReturnValue({
@@ -175,10 +175,12 @@ describe("CustomProviderImportModal — conflict resolution", () => {
       "overwrite",
       { source: "import" },
     );
-    expect(toast.success).toHaveBeenCalled();
-    expect(onImported).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: "prov", requiresKey: true }),
+    await waitFor(() =>
+      expect(onImported).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: "prov", requiresKey: true }),
+      ),
     );
+    expect(toast.success).toHaveBeenCalled();
   });
 
   test("rename calls commitImport('rename')", () => {

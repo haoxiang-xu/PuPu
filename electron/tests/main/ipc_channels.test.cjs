@@ -54,11 +54,25 @@ describe("ipc channel parity", () => {
     expect(IPC_ON_SYNC_CHANNELS).toContain(
       CHANNELS.CHAT_STORAGE.READ_MESSAGES,
     );
-    expect(IPC_ON_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
+    expect(IPC_HANDLE_CHANNELS).toContain(
+      CHANNELS.CHAT_STORAGE.APPLY_OPS,
+    );
     expect(PRELOAD_SEND_SYNC_CHANNELS).toContain(
       CHANNELS.CHAT_STORAGE.READ_MESSAGES,
     );
-    expect(PRELOAD_SEND_CHANNELS).toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(
+      CHANNELS.CHAT_STORAGE.APPLY_OPS,
+    );
+    expect(IPC_ON_SYNC_CHANNELS).toContain(
+      CHANNELS.CHAT_STORAGE.APPLY_OPS_SYNC,
+    );
+    expect(PRELOAD_SEND_SYNC_CHANNELS).toContain(
+      CHANNELS.CHAT_STORAGE.APPLY_OPS_SYNC,
+    );
+    expect(IPC_ON_CHANNELS).not.toContain(CHANNELS.CHAT_STORAGE.APPLY_OPS);
+    expect(PRELOAD_SEND_CHANNELS).not.toContain(
+      CHANNELS.CHAT_STORAGE.APPLY_OPS,
+    );
   });
 
   test("settings storage channels are classified on both sides", () => {
@@ -96,6 +110,8 @@ describe("ipc channel parity", () => {
       CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
       CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
       CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+      CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+      CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
       // Phase 5 — reset-settings + db-stats (plan §6-Phase5)
       CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
       CHANNELS.SETTINGS_STORAGE.DB_STATS,
@@ -104,6 +120,30 @@ describe("ipc channel parity", () => {
       expect(IPC_HANDLE_CHANNELS).toContain(channel);
       // sync IPC is bootstrap-only (plan §4.2)
       expect(PRELOAD_SEND_SYNC_CHANNELS).not.toContain(channel);
+    });
+  });
+
+  test("settings quit drain uses only asynchronous control channels", () => {
+    expect(PRELOAD_SEND_CHANNELS).toContain(
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_RESULT,
+    );
+    expect(IPC_ON_CHANNELS).toContain(
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_RESULT,
+    );
+    [
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_REQUEST,
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_ABORT,
+    ].forEach((channel) => {
+      expect(MAIN_EVENT_CHANNELS).toContain(channel);
+      expect(PRELOAD_EVENT_CHANNELS).toContain(channel);
+    });
+    [
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_REQUEST,
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_RESULT,
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_ABORT,
+    ].forEach((channel) => {
+      expect(PRELOAD_SEND_SYNC_CHANNELS).not.toContain(channel);
+      expect(IPC_ON_SYNC_CHANNELS).not.toContain(channel);
     });
   });
 
@@ -155,6 +195,8 @@ describe("ipc channel parity", () => {
       CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
       CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
       CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+      CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+      CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
       // Phase 5 — reset-settings + db-stats (plan §6-Phase5)
       CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
       CHANNELS.SETTINGS_STORAGE.DB_STATS,

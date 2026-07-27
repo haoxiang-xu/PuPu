@@ -472,7 +472,6 @@ const ChatInterface = () => {
     cancelRunForTest: streamCancelRunForTest,
     getRunForTest: streamGetRunForTest,
     sendForTest: streamSendForTest,
-    stopStream: streamStopStream,
     isStreaming: streamIsStreaming,
   } = stream;
 

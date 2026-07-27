@@ -104,7 +104,10 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     });
     expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledWith(
       identity,
-      handlers,
+      expect.objectContaining({
+        onRuntimeEvent: handlers.onRuntimeEvent,
+        onError: expect.any(Function),
+      }),
     );
   });
 

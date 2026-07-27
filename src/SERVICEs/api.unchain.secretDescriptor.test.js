@@ -87,6 +87,14 @@ const installStorageBridge = ({
       Promise.resolve({ ok: true, namespace: ns, revision: 0, updatedAt: 1 }),
     deleteNamespace: (ns) =>
       Promise.resolve({ ok: true, namespace: ns, deleted: true }),
+    setProviderCredential: () =>
+      Promise.resolve({
+        ok: true,
+        status:
+          secretStorageStatus === "available" ? "stored" : "legacy-only",
+      }),
+    deleteProviderCredential: () =>
+      Promise.resolve({ ok: true, deleted: true }),
   };
 };
 
@@ -188,6 +196,46 @@ describe("official provider descriptor emission (steady state)", () => {
     expect(payload.options.apiKey).toBeUndefined();
     expect(payload.options.api_key).toBeUndefined();
     expect(JSON.stringify(payload)).not.toContain(SENTINEL.openai);
+  });
+
+  test("a live Keychain outage makes the next stream use the legacy fallback", () => {
+    installStorageBridge({
+      secretStorageStatus: "available",
+      configuredCredentials: ["openai"],
+    });
+    seedLegacy({ openai_api_key: SENTINEL.openai });
+    const onError = jest.fn();
+
+    api.unchain.startStreamV2(
+      {
+        message: "first",
+        options: { modelId: "openai:gpt-5", memory_enabled: false },
+      },
+      { onError },
+    );
+    const [firstPayload, firstHandlers] =
+      window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(descriptorList(firstPayload)).toEqual([
+      { kind: "provider", id: "openai", channel: "model" },
+    ]);
+
+    firstHandlers.onError({
+      code: "secret_storage_unavailable",
+      message: "Provider secret storage is unavailable",
+    });
+    expect(onError).toHaveBeenCalledWith({
+      code: "secret_storage_unavailable",
+      message: "Provider secret storage is unavailable",
+    });
+
+    api.unchain.startStreamV2({
+      message: "second",
+      options: { modelId: "openai:gpt-5", memory_enabled: false },
+    });
+    const secondPayload = window.unchainAPI.startStreamV2.mock.calls[1][0];
+    expect(secondPayload.options.__pupu_secret_injection).toBeUndefined();
+    expect(secondPayload.options.openai_api_key).toBe(SENTINEL.openai);
+    expect(secondPayload.options.api_key).toBe(SENTINEL.openai);
   });
 
   test("anthropic model, memory off → single {provider, anthropic, model} descriptor", () => {
@@ -319,6 +367,44 @@ describe("official provider descriptor emission (steady state)", () => {
     ]);
     expect(JSON.stringify(payload)).not.toContain(SENTINEL.openai);
   });
+
+  test("a local Keychain failure during memory replacement downgrades the next request", async () => {
+    installStorageBridge({
+      secretStorageStatus: "available",
+      configuredCredentials: ["openai"],
+    });
+    seedLegacy({ openai_api_key: SENTINEL.openai });
+    const outageResponse = {
+      applied: false,
+      error: {
+        code: "secret_storage_unavailable",
+        message: "Provider secret storage is unavailable",
+        retryable: false,
+        status: 0,
+      },
+    };
+    window.unchainAPI.replaceSessionMemory
+      .mockResolvedValueOnce(outageResponse)
+      .mockResolvedValueOnce({ applied: true });
+
+    const response = await api.unchain.replaceSessionMemory({
+      sessionId: "chat-1",
+      messages: [{ role: "user", content: "first" }],
+      options: { modelId: "openai:gpt-5", memory_enabled: false },
+    });
+    expect(response).toBe(outageResponse);
+
+    await api.unchain.replaceSessionMemory({
+      sessionId: "chat-1",
+      messages: [{ role: "user", content: "second" }],
+      options: { modelId: "openai:gpt-5", memory_enabled: false },
+    });
+    const secondPayload =
+      window.unchainAPI.replaceSessionMemory.mock.calls[1][0];
+    expect(secondPayload.options.__pupu_secret_injection).toBeUndefined();
+    expect(secondPayload.options.openai_api_key).toBe(SENTINEL.openai);
+    expect(secondPayload.options.api_key).toBe(SENTINEL.openai);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -326,15 +412,16 @@ describe("official provider descriptor emission (steady state)", () => {
 // ---------------------------------------------------------------------------
 
 describe("custom provider descriptor emission (steady state)", () => {
-  test("authoritative custom provider → sanitized def + custom descriptor, no value channel", () => {
+  test("authoritative custom provider → sanitized def + custom descriptor, no value channel", async () => {
     seedCustomProvider();
-    // Legacy secret present as a SENTINEL that must NOT be injected in steady
-    // state (main will decrypt from SQL instead).
-    setCustomProviderSecret("sap-hyperspace", SENTINEL.custom);
     installStorageBridge({
       secretStorageStatus: "available",
       configuredCredentials: ["custom.sap-hyperspace"],
     });
+    // Legacy secret present as a SENTINEL that must NOT be injected in steady
+    // state. Await the write-only SQL durability ack: pending mutations
+    // deliberately revoke descriptor authority and fall back to legacy.
+    await setCustomProviderSecret("sap-hyperspace", SENTINEL.custom);
     readCustomProviderSecrets.mockClear();
 
     const payload = driveV2({

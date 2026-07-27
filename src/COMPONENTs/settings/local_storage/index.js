@@ -18,10 +18,6 @@ import {
   readSettingsDbStats,
   isSettingsDbStatsAvailable,
 } from "./utils/storage_metrics";
-import { resetSettings } from "../../../SERVICEs/settings_repository";
-import { resetDefaultToolkitMirrorForSettingsReset } from "../../../SERVICEs/default_toolkit_store";
-import { resetToolkitAutoApproveMirrorForSettingsReset } from "../../../SERVICEs/toolkit_auto_approve_store";
-import { resetComputerUsePreferencesMirrorForSettingsReset } from "../../../SERVICEs/computer_use_preferences_sql";
 import StorageKeyRow from "./components/storage_key_row";
 import StorageBar from "./components/storage_bar";
 import OllamaModelRow from "./components/ollama_model_row";
@@ -31,6 +27,7 @@ import McpToolkitsSection from "./components/mcp_toolkits_section";
 import { api } from "../../../SERVICEs/api";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { resetAllSettingsSafely } from "./reset_settings_coordinator";
 
 const OllamaSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
@@ -473,31 +470,6 @@ const RuntimeFileRow = ({
 };
 
 const SETTINGS_STORAGE_KEY = "settings";
-
-// After a settings reset clears the SQL tables, the structured stores' SQL-mode
-// in-memory mirrors (default toolkits, toolkit/tool auto-approve, computer-use
-// consent) still serve their PRE-reset values for the rest of the session — they
-// are seeded once from bootstrap and never subscribe to the repository. Drop them
-// here, at the reset coordination point, right after a successful resetSettings()
-// so the security-relevant controls (auto-approve, computer-use consent) take
-// effect this session instead of surviving until the next relaunch. Each helper
-// self-guards (no-op unless its store is SQL-initialized), so calling all three
-// unconditionally is safe. Orchestrated here rather than inside
-// settings_repository so the low-level repository never reverse-depends on the
-// higher-level stores (plan §6-Phase5).
-const resetStructuredStoreMirrors = () => {
-  for (const resetMirror of [
-    resetDefaultToolkitMirrorForSettingsReset,
-    resetToolkitAutoApproveMirrorForSettingsReset,
-    resetComputerUsePreferencesMirrorForSettingsReset,
-  ]) {
-    try {
-      resetMirror();
-    } catch (_error) {
-      // best-effort: one mirror failing must not abort the others
-    }
-  }
-};
 
 // Plan §1.3 excluded keys that the raw dev-delete button must never remove:
 // the boot palette, the durable outbox trio and the uiTesting prefs all live
@@ -1353,10 +1325,7 @@ export const LocalStorageSettings = () => {
       // (plan §6-Phase5).
       if (key === SETTINGS_STORAGE_KEY) {
         try {
-          await resetSettings();
-          // Drop the structured stores' SQL-mode mirrors so consent /
-          // auto-approvals / default-toolkit selections revoke this session.
-          resetStructuredStoreMirrors();
+          await resetAllSettingsSafely();
         } catch {}
         refresh();
         return;
@@ -1382,10 +1351,7 @@ export const LocalStorageSettings = () => {
     // boot palette, outbox, uiTesting and the legacy provider secrets).
     setConfirmClear(false);
     try {
-      await resetSettings();
-      // Drop the structured stores' SQL-mode mirrors so consent / auto-approvals
-      // / default-toolkit selections revoke immediately (not at next relaunch).
-      resetStructuredStoreMirrors();
+      await resetAllSettingsSafely();
     } catch {}
     refresh();
   }, [refresh]);

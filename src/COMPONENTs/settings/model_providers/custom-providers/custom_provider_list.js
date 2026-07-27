@@ -3,11 +3,13 @@ import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
+  flushCustomProviderMutations,
   hasCustomProviderSecret,
   removeCustomProvider,
   setCustomProviderEnabled,
 } from "../../../../SERVICEs/custom_provider_store";
 import ConfirmDeleteProviderModal from "./confirm_delete_provider_modal";
+import { toast } from "../../../../SERVICEs/toast";
 
 /** Human protocol badge label. */
 const PROTOCOL_LABEL = {
@@ -41,6 +43,7 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) =>
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mutating, setMutating] = useState(false);
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const textColor = isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.85)";
@@ -57,15 +60,38 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) =>
   const insecure = isInsecureRemote(provider.base_url);
   const modelCount = Array.isArray(provider.models) ? provider.models.length : 0;
 
-  const toggleEnabled = () => {
-    setCustomProviderEnabled(provider.id, !enabled);
-    onChanged?.();
+  const toggleEnabled = async () => {
+    if (mutating) return;
+    setMutating(true);
+    try {
+      const result = setCustomProviderEnabled(provider.id, !enabled);
+      if (!result?.persistence || typeof result.persistence.then !== "function") {
+        throw new Error("Provider definition write was not acknowledged");
+      }
+      await result.persistence;
+      onChanged?.();
+    } catch (_error) {
+      toast.error(t("model_providers.custom.save_failed"), {
+        dedupeKey: `custom_provider_toggle_failed_${provider.id}`,
+      });
+      onChanged?.();
+    } finally {
+      setMutating(false);
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     removeCustomProvider(provider.id);
-    setConfirmOpen(false);
+    const results = await flushCustomProviderMutations();
+    const failed = results.some((result) => result && result.ok === false);
     onChanged?.();
+    if (failed) {
+      toast.error(t("model_providers.custom.save_failed"), {
+        dedupeKey: `custom_provider_delete_failed_${provider.id}`,
+      });
+      return;
+    }
+    setConfirmOpen(false);
   };
 
   const badgeStyle = {
@@ -193,6 +219,7 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) =>
         aria-checked={enabled}
         aria-label={t("model_providers.custom.enabled_label")}
         onClick={toggleEnabled}
+        disabled={mutating}
         style={{
           flexShrink: 0,
           width: 34,

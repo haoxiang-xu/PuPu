@@ -41,6 +41,7 @@ const {
   PROVIDER_CREDENTIAL_LIMITS,
   SECRET_STORAGE_STATUS,
   SAFE_SECRET_STORAGE_LINUX_BACKENDS,
+  PROVIDER_CREDENTIALS_META_KEYS,
 } = require("../../main/services/settings_storage/service");
 
 const makeTempDir = () =>
@@ -82,14 +83,22 @@ const makeFakeSafeStorage = (opts = {}) => {
     throwOnEncrypt = false,
     throwOnDecrypt = false,
   } = opts;
-  const calls = { setUsePlainTextEncryption: 0, encrypt: 0, decrypt: 0 };
+  const calls = {
+    setUsePlainTextEncryption: 0,
+    available: 0,
+    backend: 0,
+    encrypt: 0,
+    decrypt: 0,
+  };
   return {
     calls,
     isEncryptionAvailable: () => {
+      calls.available += 1;
       if (throwOnAvailable) throw new Error("isEncryptionAvailable boom");
       return available;
     },
     getSelectedStorageBackend: () => {
+      calls.backend += 1;
       if (throwOnBackend) throw new Error("getSelectedStorageBackend boom");
       return backend;
     },
@@ -184,6 +193,16 @@ describeIfSqlite("provider credential store (sqlite)", () => {
             "FROM provider_credentials ORDER BY credential_kind, owner_id",
         )
         .all();
+    } finally {
+      raw.close();
+    }
+  };
+
+  const rawMetaValue = (key) => {
+    const raw = openRawDb();
+    try {
+      const row = raw.prepare("SELECT value FROM meta WHERE key = ?").get(key);
+      return row ? JSON.parse(row.value) : undefined;
     } finally {
       raw.close();
     }
@@ -394,6 +413,54 @@ describeIfSqlite("provider credential store (sqlite)", () => {
     );
   });
 
+  test("steady-state persist rotates ciphertext and returns metadata only", () => {
+    const service = startService({ safeStorage: makeFakeSafeStorage() });
+    const plaintext = "sk-steady-state-rotated";
+    const result = service.persistProviderCredential(
+      "provider",
+      "openai",
+      plaintext,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      status: "stored",
+      kind: "provider",
+      ownerId: "openai",
+    });
+    expect(JSON.stringify(result)).not.toContain(plaintext);
+    expect(service.readDecryptedProviderSecret("provider", "openai")).toBe(
+      plaintext,
+    );
+  });
+
+  test("steady-state rotate and clear survive service restarts", () => {
+    const safeStorage = makeFakeSafeStorage();
+    const first = startService({ safeStorage });
+    first.setProviderCredential("provider", "openai", "sk-A");
+    first.close();
+
+    const rotated = startService({ safeStorage });
+    expect(
+      rotated.persistProviderCredential("provider", "openai", "sk-B").status,
+    ).toBe("stored");
+    rotated.close();
+
+    const afterRotate = startService({ safeStorage });
+    expect(
+      afterRotate.readDecryptedProviderSecret("provider", "openai"),
+    ).toBe("sk-B");
+    afterRotate.deleteProviderCredential("provider", "openai");
+    afterRotate.close();
+
+    const afterClear = startService({ safeStorage });
+    expect(afterClear.hasProviderCredential("provider", "openai").present).toBe(
+      false,
+    );
+    expect(
+      afterClear.readDecryptedProviderSecret("provider", "openai"),
+    ).toBeNull();
+  });
+
   // ---- degraded write refusal ---------------------------------------------
 
   test("write is refused (fail closed) when secret storage is unavailable", () => {
@@ -424,17 +491,144 @@ describeIfSqlite("provider credential store (sqlite)", () => {
     expect(rawCredentialRows().length).toBe(0);
   });
 
+  test("steady-state persist removes stale SQL authority when safeStorage is unavailable", () => {
+    const writer = startService({ safeStorage: makeFakeSafeStorage() });
+    writer.setProviderCredential("provider", "openai", "sk-old");
+    writer.close();
+
+    const degraded = startService({
+      safeStorage: makeFakeSafeStorage({ available: false }),
+      platform: "darwin",
+    });
+    const result = degraded.persistProviderCredential(
+      "provider",
+      "openai",
+      "sk-new-legacy-copy",
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      status: "legacy-only",
+      deletedStale: true,
+    });
+    expect(JSON.stringify(result)).not.toContain("sk-new-legacy-copy");
+    expect(rawCredentialRows()).toEqual([]);
+  });
+
+  test("steady-state encrypt failure removes the previous ciphertext row", () => {
+    const safeStorage = makeFakeSafeStorage();
+    const service = startService({ safeStorage });
+    service.setProviderCredential("provider", "openai", "sk-old");
+    safeStorage.encryptString = () => {
+      throw new Error("encrypt boom");
+    };
+
+    const result = service.persistProviderCredential(
+      "provider",
+      "openai",
+      "sk-new-legacy-copy",
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      status: "legacy-only",
+      deletedStale: true,
+    });
+    expect(rawCredentialRows()).toEqual([]);
+  });
+
+  test("first encrypt failure latches the session and restart backoff skips safeStorage", () => {
+    const failingStorage = makeFakeSafeStorage({ throwOnEncrypt: true });
+    const service = startService({
+      safeStorage: failingStorage,
+      platform: "darwin",
+    });
+
+    expect(
+      service.persistProviderCredential(
+        "provider",
+        "openai",
+        "sk-first-failure",
+      ).status,
+    ).toBe("legacy-only");
+    expect(
+      service.persistProviderCredential(
+        "provider",
+        "anthropic",
+        "sk-must-not-retry",
+      ).status,
+    ).toBe("legacy-only");
+    expect(failingStorage.calls.encrypt).toBe(1);
+    expect(service.getSecretStorageStatus()).toBe("unavailable");
+    service.close();
+
+    const restartStorage = makeFakeSafeStorage();
+    const restarted = startService({
+      safeStorage: restartStorage,
+      platform: "darwin",
+    });
+    expect(restartStorage.calls.available).toBe(0);
+    expect(restartStorage.calls.backend).toBe(0);
+    expect(restartStorage.calls.encrypt).toBe(0);
+    expect(restartStorage.calls.decrypt).toBe(0);
+    expect(restarted.getBootstrapSnapshot().secretStorageStatus).toBe(
+      "unavailable",
+    );
+  });
+
+  test("an expired backoff retries once and a successful store clears it", () => {
+    const failing = startService({
+      safeStorage: makeFakeSafeStorage({ throwOnEncrypt: true }),
+      platform: "darwin",
+    });
+    failing.persistProviderCredential(
+      "provider",
+      "openai",
+      "sk-first-failure",
+    );
+    failing.close();
+
+    const raw = openRawDb();
+    try {
+      raw
+        .prepare("UPDATE meta SET value = ? WHERE key = ?")
+        .run(
+          JSON.stringify(Date.now() - 1),
+          PROVIDER_CREDENTIALS_META_KEYS.RETRY_AFTER,
+        );
+    } finally {
+      raw.close();
+    }
+
+    const recoveredStorage = makeFakeSafeStorage();
+    const recovered = startService({
+      safeStorage: recoveredStorage,
+      platform: "darwin",
+    });
+    expect(recoveredStorage.calls.available).toBe(1);
+    expect(
+      recovered.persistProviderCredential(
+        "provider",
+        "openai",
+        "sk-recovered",
+      ).status,
+    ).toBe("stored");
+    expect(recoveredStorage.calls.encrypt).toBe(1);
+    expect(
+      rawMetaValue(PROVIDER_CREDENTIALS_META_KEYS.RETRY_AFTER),
+    ).toBeUndefined();
+  });
+
   // ---- fail-closed reads ---------------------------------------------------
 
   test("read returns null (never throws) when decryption fails", () => {
-    const safeStorage = makeFakeSafeStorage();
+    const safeStorage = makeFakeSafeStorage({ throwOnDecrypt: true });
     const service = startService({ safeStorage });
     service.setProviderCredential("provider", "openai", "sk-will-corrupt");
-    // Flip decrypt to throw AFTER a successful write.
-    safeStorage.decryptString = () => {
-      throw new Error("decrypt boom");
-    };
     expect(service.readDecryptedProviderSecret("provider", "openai")).toBeNull();
+    expect(service.readDecryptedProviderSecret("provider", "openai")).toBeNull();
+    expect(service.getSecretStorageStatus()).toBe("unavailable");
+    // The second read is blocked by the session latch; ciphertext is retained.
+    expect(safeStorage.calls.decrypt).toBe(1);
+    expect(rawCredentialRows()).toHaveLength(1);
   });
 
   test("read returns null for a missing row / unknown kind / empty owner (no throw)", () => {
@@ -551,6 +745,20 @@ describeIfSqlite("provider credential store (sqlite)", () => {
         "invalid_credential",
       );
     }
+    // kind and owner are one identity: mismatches must never create a
+    // bootstrap false-positive that send-time lookup cannot resolve.
+    for (const [kind, ownerId] of [
+      ["provider", "custom.foo"],
+      ["provider", "openai-typo"],
+      ["custom_provider", "openai"],
+      ["custom_provider", "custom.OpenAI"],
+      ["custom_provider", "custom.-bad"],
+    ]) {
+      expectThrowCode(
+        () => service.persistProviderCredential(kind, ownerId, "sk"),
+        "invalid_credential",
+      );
+    }
     // empty / non-string plaintext
     for (const badValue of ["", 42, null, undefined, {}]) {
       expectThrowCode(
@@ -558,10 +766,17 @@ describeIfSqlite("provider credential store (sqlite)", () => {
         "invalid_credential",
       );
     }
-    // longest legal owner id is accepted
+    // Longest legal custom slug (32 chars) is accepted.
     expect(
-      service.setProviderCredential("provider", "o".repeat(200), "sk-ok").ok,
+      service.setProviderCredential(
+        "custom_provider",
+        `custom.${"o".repeat(32)}`,
+        "sk-ok",
+      ).ok,
     ).toBe(true);
+    expect(service.getBootstrapSnapshot().configuredCredentials).toEqual([
+      `custom.${"o".repeat(32)}`,
+    ]);
   });
 
   test("readDecryptedProviderSecret never throws on invalid input (returns null)", () => {

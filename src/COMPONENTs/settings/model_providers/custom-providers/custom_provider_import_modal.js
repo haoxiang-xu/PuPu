@@ -173,9 +173,9 @@ const CustomProviderImportModal = ({
 
   /* ── import step ── */
 
-  const doImport = (mode) => {
+  const doImport = async (mode) => {
     if (!review) return;
-    const result = commitImport(review.provider, mode, { source });
+    const result = await commitImport(review.provider, mode, { source });
     if (!result.ok) {
       setDiagnostics(result.diagnostics || []);
       return;

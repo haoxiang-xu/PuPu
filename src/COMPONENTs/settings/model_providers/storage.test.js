@@ -18,6 +18,11 @@ import {
   flushSettingsWrites,
   resetSettingsRepositoryForTests,
 } from "../../../SERVICEs/settings_repository";
+import {
+  beginProviderCredentialQuitDrain,
+  endProviderCredentialQuitDrain,
+  resetProviderCredentialPersistenceForTests,
+} from "../../../SERVICEs/provider_credential_persistence";
 
 const SETTINGS_KEY = "settings";
 
@@ -31,11 +36,14 @@ const parseRoot = () =>
 beforeEach(() => {
   window.localStorage.clear();
   resetSettingsRepositoryForTests();
+  resetProviderCredentialPersistenceForTests();
 });
 
 afterEach(() => {
   delete window.settingsStorageAPI;
+  endProviderCredentialQuitDrain();
   resetSettingsRepositoryForTests();
+  resetProviderCredentialPersistenceForTests();
 });
 
 describe("readModelProviders / writeModelProviders — fallback characterization", () => {
@@ -124,6 +132,48 @@ describe("readModelProviders / writeModelProviders — fallback characterization
     writeModelProviders({ openai_api_key: "sk-after-corrupt" });
     expect(window.localStorage.getItem(SETTINGS_KEY)).toBe("{ not json");
   });
+
+  test("quit barrier blocks official and custom secrets before lazy legacy writes", async () => {
+    seedRoot({
+      model_providers: {
+        openai_api_key: "sk-before-quit",
+        custom_provider_secrets: { slug: "custom-before-quit" },
+      },
+    });
+    await beginProviderCredentialQuitDrain();
+
+    const results = await writeModelProviders({
+      openai_api_key: "sk-must-not-land",
+      custom_provider_secrets: { slug: "custom-must-not-land" },
+    });
+
+    expect(results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "openai",
+          ok: false,
+          status: "not-synced",
+          errorCode: "settings_quit_in_progress",
+        }),
+        expect.objectContaining({
+          id: "custom.slug",
+          ok: false,
+          status: "not-synced",
+          errorCode: "settings_quit_in_progress",
+        }),
+      ]),
+    );
+    expect(readModelProviders().openai_api_key).toBe("sk-before-quit");
+    expect(readModelProviders().custom_provider_secrets).toEqual({
+      slug: "custom-before-quit",
+    });
+    expect(parseRoot().model_providers.openai_api_key).toBe(
+      "sk-before-quit",
+    );
+    expect(parseRoot().model_providers.custom_provider_secrets).toEqual({
+      slug: "custom-before-quit",
+    });
+  });
 });
 
 describe("SQL mode — secret split (T5 invariant)", () => {
@@ -148,6 +198,12 @@ describe("SQL mode — secret split (T5 invariant)", () => {
       ),
       deleteNamespace: jest.fn((namespace) =>
         Promise.resolve({ ok: true, namespace, deleted: true }),
+      ),
+      setProviderCredential: jest.fn((kind, ownerId) =>
+        Promise.resolve({ ok: true, status: "stored", kind, ownerId }),
+      ),
+      deleteProviderCredential: jest.fn((kind, ownerId) =>
+        Promise.resolve({ ok: true, deleted: true, kind, ownerId }),
       ),
       ...overrides,
     };
@@ -210,5 +266,148 @@ describe("SQL mode — secret split (T5 invariant)", () => {
     expect(bridgeApi.setNamespace).not.toHaveBeenCalled();
     expect(parseRoot().model_providers.openai_api_key).toBe("sk-only-secret");
     expect(readModelProviders().openai_api_key).toBe("sk-only-secret");
+  });
+
+  test("steady-state rotation updates SQL and survives as the new dual-keep value", async () => {
+    seedRoot({ model_providers: { openai_api_key: "sk-A" } });
+    const bridgeApi = installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai"],
+        }),
+      ),
+    });
+
+    const results = await writeModelProviders({ openai_api_key: "sk-B" });
+    expect(results).toEqual([
+      expect.objectContaining({ ok: true, status: "stored", id: "openai" }),
+    ]);
+    expect(bridgeApi.setProviderCredential).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+      "sk-B",
+    );
+    expect(readModelProviders().openai_api_key).toBe("sk-B");
+  });
+
+  test("failed SQL rotation rolls legacy back instead of resurrecting a stale key on restart", async () => {
+    seedRoot({ model_providers: { openai_api_key: "sk-A" } });
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai"],
+        }),
+      ),
+      setProviderCredential: jest.fn(() =>
+        Promise.reject(
+          new Error(
+            "Error invoking remote method: [storage_io_error] disk full",
+          ),
+        ),
+      ),
+    });
+
+    const results = await writeModelProviders({ openai_api_key: "sk-B" });
+    expect(results[0]).toMatchObject({
+      ok: false,
+      status: "not-synced",
+      errorCode: "storage_io_error",
+    });
+    expect(readModelProviders().openai_api_key).toBe("sk-A");
+  });
+
+  test("clear deletes SQL authority; failed delete restores the legacy key", async () => {
+    seedRoot({ model_providers: { openai_api_key: "sk-A" } });
+    const bridgeApi = installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai"],
+        }),
+      ),
+    });
+    await writeModelProviders({ openai_api_key: "" });
+    expect(bridgeApi.deleteProviderCredential).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+    );
+    expect(readModelProviders().openai_api_key || "").toBe("");
+
+    seedRoot({ model_providers: { openai_api_key: "sk-restored" } });
+    resetSettingsRepositoryForTests();
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai"],
+        }),
+      ),
+      deleteProviderCredential: jest.fn(() =>
+        Promise.reject(
+          new Error(
+            "Error invoking remote method: [storage_io_error] disk full",
+          ),
+        ),
+      ),
+    });
+    const results = await writeModelProviders({ openai_api_key: "" });
+    expect(results[0].ok).toBe(false);
+    expect(readModelProviders().openai_api_key).toBe("sk-restored");
+  });
+
+  test("rapid same-identity writes: first failure then success keeps the newest legacy value", async () => {
+    seedRoot({ model_providers: { openai_api_key: "sk-A" } });
+    const setProviderCredential = jest
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("Error invoking remote method: [storage_io_error] first"),
+      )
+      .mockResolvedValueOnce({ ok: true, status: "stored" });
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai"],
+        }),
+      ),
+      setProviderCredential,
+    });
+
+    const first = writeModelProviders({ openai_api_key: "sk-B" });
+    const second = writeModelProviders({ openai_api_key: "sk-C" });
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult[0].ok).toBe(false);
+    expect(secondResult[0].ok).toBe(true);
+    expect(readModelProviders().openai_api_key).toBe("sk-C");
+    expect(setProviderCredential.mock.calls.map((call) => call[2])).toEqual([
+      "sk-B",
+      "sk-C",
+    ]);
+  });
+
+  test("rapid same-identity double failure restores the confirmed legacy baseline", async () => {
+    seedRoot({ model_providers: { openai_api_key: "sk-A" } });
+    installBridge({
+      bootstrap: jest.fn(() =>
+        sqlBootstrap({
+          secretStorageStatus: "available",
+          configuredCredentials: ["openai"],
+        }),
+      ),
+      setProviderCredential: jest.fn(() =>
+        Promise.reject(
+          new Error("Error invoking remote method: [storage_io_error] failed"),
+        ),
+      ),
+    });
+
+    const first = writeModelProviders({ openai_api_key: "sk-B" });
+    const second = writeModelProviders({ openai_api_key: "sk-C" });
+    const results = await Promise.all([first, second]);
+    expect(results[0][0].ok).toBe(false);
+    expect(results[1][0].ok).toBe(false);
+    expect(readModelProviders().openai_api_key).toBe("sk-A");
   });
 });

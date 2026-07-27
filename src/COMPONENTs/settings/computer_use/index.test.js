@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../CONTAINERs/config/context";
 import {
   ComputerUseSettings,
@@ -6,6 +12,10 @@ import {
   permissionBadgePalette,
 } from "./index";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
+import {
+  isComputerUseLocalBetaPersisted,
+  writeComputerUseLocalBeta,
+} from "../../../SERVICEs/computer_use_local_beta_store";
 
 jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
@@ -27,6 +37,23 @@ jest.mock("../../../SERVICEs/bridges/unchain_bridge", () => ({
       Promise.resolve({ ok: true }),
     ),
   },
+}));
+
+jest.mock("../../../BUILTIN_COMPONENTs/input/switch", () => ({
+  SemiSwitch: ({ on, set_on }) => (
+    <button
+      data-testid="computer-use-test-switch"
+      data-on={on ? "1" : "0"}
+      onClick={() => set_on(!on)}
+    >
+      switch
+    </button>
+  ),
+}));
+
+jest.mock("../../../SERVICEs/computer_use_local_beta_store", () => ({
+  isComputerUseLocalBetaPersisted: jest.fn(() => false),
+  writeComputerUseLocalBeta: jest.fn(),
 }));
 
 const withProviders = (ui, themeMode = "light_mode") =>
@@ -60,6 +87,16 @@ const macCapabilities = (overrides = {}) => ({
   },
 });
 
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((next, fail) => {
+    resolve = next;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
   delete runtimeBridge.isComputerUseLocalBetaAvailable;
@@ -67,6 +104,15 @@ beforeEach(() => {
   delete runtimeBridge.probeComputerUseModel;
   runtimeBridge.isComputerUseStatusAvailable.mockReturnValue(true);
   runtimeBridge.isComputerUsePrivacySettingsAvailable.mockReturnValue(true);
+  isComputerUseLocalBetaPersisted.mockReturnValue(false);
+  writeComputerUseLocalBeta.mockImplementation((enabled) => {
+    const record = { enabled: enabled === true };
+    Object.defineProperty(record, "persistence", {
+      value: Promise.resolve(),
+      enumerable: false,
+    });
+    return record;
+  });
 });
 
 describe("PermissionBadge", () => {
@@ -248,5 +294,55 @@ describe("ComputerUseSettings", () => {
       ),
     );
     expect(await screen.findByText(/Probe passed/)).toBeInTheDocument();
+  });
+
+  test("persists a local-beta OFF choice before awaiting the runtime", async () => {
+    const persistence = deferred();
+    const runtimeResult = deferred();
+    runtimeBridge.isComputerUseLocalBetaAvailable = jest.fn(() => true);
+    runtimeBridge.setComputerUseLocalBetaEnabled = jest.fn(
+      () => runtimeResult.promise,
+    );
+    runtimeBridge.getComputerUseStatus.mockResolvedValue({
+      ...macCapabilities(),
+      localBetaEnabled: true,
+      active: {},
+    });
+    isComputerUseLocalBetaPersisted.mockReturnValue(true);
+    writeComputerUseLocalBeta.mockReturnValue({
+      enabled: false,
+      persistence: persistence.promise,
+    });
+
+    withProviders(<ComputerUseSettings />);
+    const switches = await screen.findAllByTestId(
+      "computer-use-test-switch",
+    );
+    const localBetaSwitch = switches[switches.length - 1];
+    await waitFor(() =>
+      expect(localBetaSwitch).toHaveAttribute("data-on", "1"),
+    );
+    fireEvent.click(localBetaSwitch);
+
+    expect(writeComputerUseLocalBeta).toHaveBeenCalledWith(false);
+    expect(
+      runtimeBridge.setComputerUseLocalBetaEnabled,
+    ).not.toHaveBeenCalled();
+
+    persistence.resolve();
+    await waitFor(() =>
+      expect(
+        runtimeBridge.setComputerUseLocalBetaEnabled,
+      ).toHaveBeenCalledWith(false),
+    );
+    await act(async () => {
+      runtimeResult.resolve({ enabled: false });
+      await runtimeResult.promise;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(runtimeBridge.getComputerUseStatus).toHaveBeenCalledTimes(2),
+    );
   });
 });

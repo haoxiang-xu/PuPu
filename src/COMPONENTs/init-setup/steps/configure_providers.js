@@ -73,17 +73,28 @@ const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
   const [status, setStatus] = useState(() =>
     readModelProviders()[storageKey] ? "ok" : "idle",
   );
+  const [saving, setSaving] = useState(false);
   const statusLabel =
     status === "ok" ? "Saved" : status === "error" ? "Invalid key" : "";
 
   const mutedColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.38)";
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
+    if (saving) return;
     const trimmed = value.trim();
     if (!trimmed) return;
-    writeModelProviders({ [storageKey]: trimmed });
-    setStatus("ok");
-  }, [value, storageKey]);
+    setSaving(true);
+    try {
+      const results = await writeModelProviders({ [storageKey]: trimmed });
+      setStatus(
+        Array.isArray(results) && results.every((result) => result.ok === true)
+          ? "ok"
+          : "error",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [value, storageKey, saving]);
 
   const canSave = value.trim().length > 0;
 
@@ -128,7 +139,7 @@ const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
             prefix_icon="check"
             label="Save"
             onClick={handleSave}
-            disabled={!canSave}
+            disabled={!canSave || saving}
             style={{
               root: {
                 fontSize: 13,

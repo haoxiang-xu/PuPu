@@ -5,48 +5,62 @@ const createChatStorageBridge = (ipcRenderer) => {
     throw new Error("createChatStorageBridge: ipcRenderer is required");
   }
 
-  const bootstrap = () => {
-    try {
-      const value = ipcRenderer.sendSync(
-        CHANNELS.CHAT_STORAGE.BOOTSTRAP_READ,
-      );
-      return value == null ? null : value;
-    } catch (error) {
-      console.error("[chat-storage] bootstrap IPC failed:", error);
-      return null;
+  const unwrapResponse = (response, operation) => {
+    if (response && response.ok === true) {
+      return response.value;
     }
+    const message =
+      response?.error?.message ||
+      `Chat storage ${operation} did not receive a commit acknowledgement`;
+    const error = new Error(message);
+    error.code = response?.error?.code || "chat_storage_ipc_failed";
+    throw error;
+  };
+
+  const bootstrap = () => {
+    const response = ipcRenderer.sendSync(
+      CHANNELS.CHAT_STORAGE.BOOTSTRAP_READ,
+    );
+    const value = unwrapResponse(response, "bootstrap");
+    return value == null ? null : value;
   };
 
   const write = (payload) => {
-    try {
-      ipcRenderer.send(CHANNELS.CHAT_STORAGE.WRITE, payload);
-    } catch (error) {
-      console.error("[chat-storage] write IPC failed:", error);
-    }
+    const response = ipcRenderer.sendSync(CHANNELS.CHAT_STORAGE.WRITE, payload);
+    unwrapResponse(response, "write");
+    return true;
   };
 
   const readMessages = (chatId) => {
-    try {
-      const value = ipcRenderer.sendSync(
-        CHANNELS.CHAT_STORAGE.READ_MESSAGES,
-        chatId,
-      );
-      return Array.isArray(value) ? value : [];
-    } catch (error) {
-      console.error("[chat-storage] read-messages IPC failed:", error);
-      return [];
+    const response = ipcRenderer.sendSync(
+      CHANNELS.CHAT_STORAGE.READ_MESSAGES,
+      chatId,
+    );
+    const value = unwrapResponse(response, "read-messages");
+    if (!Array.isArray(value)) {
+      throw new Error("Chat storage read-messages returned an invalid payload");
     }
+    return value;
   };
 
-  const applyOps = (ops) => {
-    try {
-      ipcRenderer.send(CHANNELS.CHAT_STORAGE.APPLY_OPS, ops);
-    } catch (error) {
-      console.error("[chat-storage] apply-ops IPC failed:", error);
-    }
+  const applyOps = (ops) =>
+    ipcRenderer
+      .invoke(CHANNELS.CHAT_STORAGE.APPLY_OPS, ops)
+      .then((response) => {
+        unwrapResponse(response, "apply-ops");
+        return true;
+      });
+
+  const applyOpsSync = (ops) => {
+    const response = ipcRenderer.sendSync(
+      CHANNELS.CHAT_STORAGE.APPLY_OPS_SYNC,
+      ops,
+    );
+    unwrapResponse(response, "apply-ops-sync");
+    return true;
   };
 
-  return { bootstrap, write, readMessages, applyOps };
+  return { bootstrap, write, readMessages, applyOps, applyOpsSync };
 };
 
 module.exports = { createChatStorageBridge };

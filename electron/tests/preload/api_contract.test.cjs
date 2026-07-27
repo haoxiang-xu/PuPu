@@ -123,15 +123,30 @@ describe("preload API contract", () => {
     expect(unchain.startStreamV3).toBeUndefined();
   });
 
-  test("chat storage API keeps required method surface", () => {
+  test("chat storage API keeps required method surface", async () => {
     expect(Object.keys(exposed.chatStorageAPI).sort()).toEqual(
-      ["applyOps", "bootstrap", "readMessages", "write"].sort(),
+      [
+        "applyOps",
+        "applyOpsSync",
+        "bootstrap",
+        "readMessages",
+        "write",
+      ].sort(),
     );
-    ["bootstrap", "write", "readMessages", "applyOps"].forEach((method) => {
+    [
+      "bootstrap",
+      "write",
+      "readMessages",
+      "applyOps",
+      "applyOpsSync",
+    ].forEach((method) => {
       expect(typeof exposed.chatStorageAPI[method]).toBe("function");
     });
 
-    ipcRenderer.sendSync.mockReturnValueOnce([{ role: "user" }]);
+    ipcRenderer.sendSync.mockReturnValueOnce({
+      ok: true,
+      value: [{ role: "user" }],
+    });
     const messages = exposed.chatStorageAPI.readMessages("chat-1");
     expect(ipcRenderer.sendSync).toHaveBeenLastCalledWith(
       CHANNELS.CHAT_STORAGE.READ_MESSAGES,
@@ -140,8 +155,9 @@ describe("preload API contract", () => {
     expect(messages).toEqual([{ role: "user" }]);
 
     const ops = [{ type: "delete_chats", chatIds: ["chat-1"] }];
-    exposed.chatStorageAPI.applyOps(ops);
-    expect(ipcRenderer.send).toHaveBeenLastCalledWith(
+    ipcRenderer.invoke.mockResolvedValueOnce({ ok: true, value: null });
+    await exposed.chatStorageAPI.applyOps(ops);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.CHAT_STORAGE.APPLY_OPS,
       ops,
     );
@@ -174,8 +190,13 @@ describe("preload API contract", () => {
         "listMcpIconOwners",
         "migrateMcpIconsLegacy",
         "migrateProviderCredentials",
+        "setProviderCredential",
+        "deleteProviderCredential",
         "resetSettings",
         "getDbStats",
+        "onQuitDrainRequest",
+        "onQuitDrainAbort",
+        "sendQuitDrainResult",
       ].sort(),
     );
     [
@@ -203,8 +224,13 @@ describe("preload API contract", () => {
       "listMcpIconOwners",
       "migrateMcpIconsLegacy",
       "migrateProviderCredentials",
+      "setProviderCredential",
+      "deleteProviderCredential",
       "resetSettings",
       "getDbStats",
+      "onQuitDrainRequest",
+      "onQuitDrainAbort",
+      "sendQuitDrainResult",
     ].forEach((method) => {
       expect(typeof exposed.settingsStorageAPI[method]).toBe("function");
     });

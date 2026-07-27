@@ -40,12 +40,13 @@ const codeToStatus = (code) => {
 const createCommandRegistry = () => {
   const routes = [];
 
-  const register = ({ method, path, validator, handler }) => {
+  const register = ({ method, path, validator, handler, afterResponse }) => {
     routes.push({
       method: method.toUpperCase(),
       ...compilePath(path),
       validator,
       handler,
+      afterResponse,
     });
   };
 
@@ -70,7 +71,11 @@ const createCommandRegistry = () => {
       }
       try {
         const data = await route.handler({ params, body, query, raw });
-        return { status: 200, body: data };
+        const result = { status: 200, body: data };
+        if (typeof route.afterResponse === "function") {
+          result.afterResponse = route.afterResponse;
+        }
+        return result;
       } catch (e) {
         const code = e.code || "handler_error";
         const status = e.status || codeToStatus(code);

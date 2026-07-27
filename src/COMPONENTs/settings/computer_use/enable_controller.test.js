@@ -88,6 +88,20 @@ describe("disableComputerUse", () => {
     expect(runtimeBridge.setComputerUseEnabled).toHaveBeenCalledWith(false);
     expect(result.pushed).toBe(true);
   });
+
+  test("persistence failure is reported and never pushes a divergent sidecar state", async () => {
+    writeComputerUseEnabled.mockReturnValue({
+      persistence: Promise.reject(
+        new Error("[settings_storage_unavailable] gone"),
+      ),
+    });
+
+    const result = await disableComputerUse();
+
+    expect(result.pushed).toBe(false);
+    expect(result.persistenceFailed).toBe(true);
+    expect(runtimeBridge.setComputerUseEnabled).not.toHaveBeenCalled();
+  });
 });
 
 describe("resyncComputerUseEnabledOnBoot — three states", () => {

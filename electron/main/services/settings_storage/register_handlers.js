@@ -31,6 +31,8 @@ const SETTINGS_STORAGE_INVOKE_CHANNELS = Object.freeze([
   CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
   CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
   CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+  CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+  CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
   CHANNELS.SETTINGS_STORAGE.RESET_SETTINGS,
   CHANNELS.SETTINGS_STORAGE.DB_STATS,
 ]);
@@ -428,10 +430,10 @@ const registerSettingsStorageHandlers = ({
     },
   );
 
-  // ---- Phase 4 (S7): provider secret migration trigger --------------------
-  // This is the ONE inbound channel whose payload carries plaintext provider
-  // secrets (the renderer's own legacy localStorage keys, handed in to be
-  // encrypted). Two invariants beyond the shared "code only" logging policy:
+  // ---- Phase 4: provider secret write-only channels -----------------------
+  // Migration and steady-state SET carry plaintext provider secrets from the
+  // renderer to main for immediate encryption. Invariants beyond the shared
+  // "code only" logging policy:
   //   * The payload is NEVER logged — not on success and not on failure. Only
   //     the error CODE is printed, so a rejected/malformed payload cannot leak
   //     a key into the logs.
@@ -445,11 +447,50 @@ const registerSettingsStorageHandlers = ({
       try {
         return settingsStorageService.migrateProviderCredentials(payload);
       } catch (error) {
-        // Code only — this is the sole inbound channel carrying plaintext
-        // provider secrets, so never log error.message (it could embed
-        // payload-derived text). An uncoded throw logs a stable placeholder.
+        // Code only — never log error.message (it could embed payload-derived
+        // text). An uncoded throw logs a stable placeholder.
         console.warn(
           "[settings-storage] migrate-provider-credentials failed:",
+          error.code || "uncoded_error",
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.persistProviderCredential(
+          payload.kind,
+          payload.ownerId,
+          payload.plaintext,
+        );
+      } catch (error) {
+        // Code only. Never log payload, ownerId, plaintext, or error.message:
+        // malformed values are attacker-controlled and may themselves contain
+        // credential material.
+        console.warn(
+          "[settings-storage] set-provider-credential failed:",
+          error.code || "uncoded_error",
+        );
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
+    async (_event, payload = {}) => {
+      try {
+        return settingsStorageService.deleteProviderCredential(
+          payload.kind,
+          payload.ownerId,
+        );
+      } catch (error) {
+        console.warn(
+          "[settings-storage] delete-provider-credential failed:",
           error.code || "uncoded_error",
         );
         throw error;

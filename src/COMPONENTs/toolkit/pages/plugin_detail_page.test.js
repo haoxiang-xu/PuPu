@@ -566,7 +566,7 @@ describe("PluginDetailPage — dual auth", () => {
 describe("PluginDetailPage — Auto Approve", () => {
   beforeEach(() => {
     isToolkitAutoApprove.mockReturnValue(false);
-    setToolkitAutoApprove.mockClear();
+    setToolkitAutoApprove.mockReset();
   });
 
   test("is not shown for a not-yet-installed plugin", () => {
@@ -603,6 +603,90 @@ describe("PluginDetailPage — Auto Approve", () => {
       "plan_start",
       "plan_finalize",
     ]);
+  });
+
+  test("a rejected revoke restores the switch to the SQL-confirmed state", async () => {
+    isToolkitAutoApprove.mockReturnValue(true);
+    setToolkitAutoApprove.mockReturnValue({
+      persistence: Promise.reject(
+        new Error("[settings_storage_unavailable] gone"),
+      ),
+    });
+    renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
+
+    const row = screen.getByText("Auto Approve").closest("div");
+    const toggle = within(row.parentElement.parentElement).getByTestId("switch");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveTextContent("off");
+
+    await waitFor(() => expect(toggle).toHaveTextContent("on"));
+  });
+
+  test("changing toolkit closes an old auto-approve confirmation", async () => {
+    const view = renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
+    const row = screen.getByText("Auto Approve").closest("div");
+    fireEvent.click(
+      within(row.parentElement.parentElement).getByTestId("switch"),
+    );
+    expect(screen.getByText("Enable Auto Approve?")).toBeInTheDocument();
+
+    view.rerender(
+      <PluginDetailPage
+        presentation={toPluginPresentation(NOTION_ENTRY)}
+        entry={NOTION_ENTRY}
+        isDark={false}
+        installedIds={new Set()}
+        forceInstalled
+        onBack={() => {}}
+        onCloseModal={() => {}}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Enable Auto Approve?"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(setToolkitAutoApprove).not.toHaveBeenCalled();
+  });
+
+  test("an old toolkit rejection cannot roll back the newly selected toolkit", async () => {
+    let rejectPersistence;
+    const persistence = new Promise((_resolve, reject) => {
+      rejectPersistence = reject;
+    });
+    isToolkitAutoApprove.mockImplementation(
+      (toolkitId) => toolkitId === "plan",
+    );
+    setToolkitAutoApprove.mockReturnValue({ persistence });
+    const view = renderPage({ entry: PLAN_ENTRY, forceInstalled: true });
+    const planRow = screen.getByText("Auto Approve").closest("div");
+    fireEvent.click(
+      within(planRow.parentElement.parentElement).getByTestId("switch"),
+    );
+
+    view.rerender(
+      <PluginDetailPage
+        presentation={toPluginPresentation(NOTION_ENTRY)}
+        entry={NOTION_ENTRY}
+        isDark={false}
+        installedIds={new Set()}
+        forceInstalled
+        onBack={() => {}}
+        onCloseModal={() => {}}
+      />,
+    );
+    const notionRow = screen.getByText("Auto Approve").closest("div");
+    const notionToggle = within(
+      notionRow.parentElement.parentElement,
+    ).getByTestId("switch");
+    await waitFor(() => expect(notionToggle).toHaveTextContent("off"));
+
+    act(() => {
+      rejectPersistence(new Error("[settings_storage_unavailable] gone"));
+    });
+    await waitFor(() => expect(notionToggle).toHaveTextContent("off"));
+    expect(isToolkitAutoApprove).not.toHaveBeenLastCalledWith("plan");
   });
 });
 

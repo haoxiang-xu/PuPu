@@ -357,37 +357,101 @@ test("three parallel root agents remain one attempt while tools and subagents ru
     fakeServer = createFakeOpenAIResponsesServer({ auditPath: fakeAuditPath });
     const fakeReady = await fakeServer.start();
     const customProvider = buildCustomProviderDefinition(fakeReady.baseUrl);
-    await debugEval(
+
+    await poll(
+      async () =>
+        debugEval(
+          testApi,
+          `
+            const snapshot = window.settingsStorageAPI?.bootstrap?.();
+            return snapshot?.available === true &&
+              snapshot?.migration?.state === "complete"
+              ? { ready: true }
+              : null;
+          `,
+        ),
+      {
+        timeoutMs: profile.phaseTimeoutMs,
+        label: "settings SQL migration completion",
+      },
+    );
+    const persistenceSetup = await debugEval(
       testApi,
       `
-        const root = JSON.parse(localStorage.getItem("settings") || "{}");
-        const providers = root.model_providers && typeof root.model_providers === "object"
-          ? root.model_providers
-          : {};
-        root.feature_flags = {
-          ...(root.feature_flags || {}),
+        const storage = window.settingsStorageAPI;
+        const before = storage.bootstrap();
+        const namespaces = before.namespaces || {};
+        const featureFlags = await storage.setNamespace("feature_flags", {
+          ...(namespaces.feature_flags || {}),
           enable_custom_model_providers: true,
-        };
-        root.memory = {
-          ...(root.memory || {}),
+        });
+        const memory = await storage.setNamespace("memory", {
+          ...(namespaces.memory || {}),
           enabled: false,
-        };
-        root.model_providers = {
-          ...providers,
+        });
+        const modelProviders = await storage.setNamespace("model_providers", {
+          ...(namespaces.model_providers || {}),
           custom_providers: [${JSON.stringify(customProvider)}],
+        });
+        const legacyRoot = JSON.parse(
+          localStorage.getItem("settings") || "{}"
+        );
+        const legacyProviders =
+          legacyRoot.model_providers &&
+          typeof legacyRoot.model_providers === "object"
+            ? legacyRoot.model_providers
+            : {};
+        legacyRoot.model_providers = {
+          ...legacyProviders,
           custom_provider_secrets: {
-            ...(providers.custom_provider_secrets || {}),
+            ...(legacyProviders.custom_provider_secrets || {}),
             ${JSON.stringify(CUSTOM_PROVIDER_SLUG)}: "pupu-fixture-key",
           },
         };
-        localStorage.setItem("settings", JSON.stringify(root));
-        localStorage.setItem("toolkit_auto_approve", JSON.stringify({
-          version: 2,
+        localStorage.setItem("settings", JSON.stringify(legacyRoot));
+        const credential = await storage.setProviderCredential(
+          "custom_provider",
+          ${JSON.stringify(`custom.${CUSTOM_PROVIDER_SLUG}`)},
+          "pupu-fixture-key"
+        );
+        const autoApprove = await storage.replaceToolkitAutoApprove({
           toolkits: ["core"],
           tools: [],
-        }));
-        return { configured: true };
+        });
+        const after = storage.bootstrap();
+        return {
+          feature_flags: featureFlags,
+          memory,
+          model_providers: modelProviders,
+          credential,
+          auto_approve: autoApprove,
+          configured_credentials: after.configuredCredentials || [],
+          legacy_contains_secret: String(
+            localStorage.getItem("settings") || ""
+          ).includes("pupu-fixture-key"),
+        };
       `,
+    );
+    const customCredentialId = `custom.${CUSTOM_PROVIDER_SLUG}`;
+    const credentialAuthorityReady =
+      (persistenceSetup?.credential?.status === "stored" &&
+        persistenceSetup?.configured_credentials?.includes(
+          customCredentialId,
+        )) ||
+      (persistenceSetup?.credential?.status === "legacy-only" &&
+        !persistenceSetup?.configured_credentials?.includes(
+          customCredentialId,
+        ));
+    assertReport(
+      "long-run fixture persisted through SQL-authoritative settings and write-only credential APIs",
+      persistenceSetup?.feature_flags?.ok === true &&
+        persistenceSetup?.memory?.ok === true &&
+        persistenceSetup?.model_providers?.ok === true &&
+        persistenceSetup?.credential?.ok === true &&
+        persistenceSetup?.auto_approve?.ok === true &&
+        credentialAuthorityReady &&
+        persistenceSetup?.legacy_contains_secret === true,
+      { persistence_setup: persistenceSetup },
     );
     await reloadAndWait({
       appWindow,

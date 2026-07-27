@@ -155,6 +155,22 @@ const createSettingsStorageBridge = (ipcRenderer) => {
       payload,
     );
 
+  // Steady-state write/delete surface. SET is the only additional method that
+  // carries plaintext and only in the renderer→main direction. Both resolve
+  // to identity/status metadata; there is deliberately no credential reader.
+  const setProviderCredential = (kind, ownerId, plaintext) =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL, {
+      kind,
+      ownerId,
+      plaintext,
+    });
+
+  const deleteProviderCredential = (kind, ownerId) =>
+    ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL, {
+      kind,
+      ownerId,
+    });
+
   // ---- Phase 5: reset settings + read-only db stats (plan §6-Phase5) -------
   // resetSettings clears the non-sensitive settings/preference tables in one
   // SQL transaction (secrets, token history and MCP icons are kept); getDbStats
@@ -165,6 +181,44 @@ const createSettingsStorageBridge = (ipcRenderer) => {
 
   const getDbStats = () =>
     ipcRenderer.invoke(CHANNELS.SETTINGS_STORAGE.DB_STATS);
+
+  // ---- Quit durability control plane --------------------------------------
+  // Lifecycle messages deliberately never carry a settings value. The preload
+  // also rebuilds the renderer's acknowledgement from an allowlist so extra
+  // fields (including an accidentally supplied secret/value) cannot cross the
+  // renderer → main trust boundary.
+  const subscribeToQuitEvent = (channel, listener) => {
+    if (typeof listener !== "function") return () => {};
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on(channel, wrapped);
+    return () => {
+      ipcRenderer.removeListener(channel, wrapped);
+    };
+  };
+
+  const onQuitDrainRequest = (listener) =>
+    subscribeToQuitEvent(
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_REQUEST,
+      listener,
+    );
+
+  const onQuitDrainAbort = (listener) =>
+    subscribeToQuitEvent(CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_ABORT, listener);
+
+  const sendQuitDrainResult = (result = {}) => {
+    const requestId =
+      typeof result.requestId === "string" ? result.requestId : "";
+    const ok = result.ok === true;
+    const payload = { requestId, ok };
+    if (!ok) {
+      payload.errorCode =
+        typeof result.errorCode === "string" &&
+        /^[a-z0-9_]{1,80}$/.test(result.errorCode)
+          ? result.errorCode
+          : "settings_quit_drain_failed";
+    }
+    ipcRenderer.send(CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_RESULT, payload);
+  };
 
   return {
     bootstrap,
@@ -191,8 +245,13 @@ const createSettingsStorageBridge = (ipcRenderer) => {
     listMcpIconOwners,
     migrateMcpIconsLegacy,
     migrateProviderCredentials,
+    setProviderCredential,
+    deleteProviderCredential,
     resetSettings,
     getDbStats,
+    onQuitDrainRequest,
+    onQuitDrainAbort,
+    sendQuitDrainResult,
   };
 };
 

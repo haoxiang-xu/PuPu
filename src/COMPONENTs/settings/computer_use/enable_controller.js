@@ -72,7 +72,16 @@ const pushEnabledToSidecar = async (enabled) => {
  * pushes true (which re-verifies consent as a belt-and-braces guard).
  */
 export const enableComputerUse = async () => {
-  writeComputerUseEnabled(true);
+  const written = writeComputerUseEnabled(true);
+  try {
+    await written?.persistence;
+  } catch (error) {
+    return {
+      pushed: false,
+      persistenceFailed: true,
+      error,
+    };
+  }
   return pushEnabledToSidecar(true);
 };
 
@@ -81,7 +90,16 @@ export const enableComputerUse = async () => {
  * pushes false. The consent record is intentionally left intact (per-install).
  */
 export const disableComputerUse = async () => {
-  writeComputerUseEnabled(false);
+  const written = writeComputerUseEnabled(false);
+  try {
+    await written?.persistence;
+  } catch (error) {
+    return {
+      pushed: false,
+      persistenceFailed: true,
+      error,
+    };
+  }
   return pushEnabledToSidecar(false);
 };
 

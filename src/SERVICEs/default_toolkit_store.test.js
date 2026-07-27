@@ -4,6 +4,8 @@ import {
   setDefaultToolkitEnabled,
   isDefaultToolkitsSqlBacked,
   flushDefaultToolkitWrites,
+  beginDefaultToolkitSettingsReset,
+  endDefaultToolkitSettingsReset,
   resetDefaultToolkitStoreForTests,
   resetDefaultToolkitMirrorForSettingsReset,
   DEFAULT_TOOLKITS_MIGRATION_MARKER_KEY,
@@ -198,6 +200,290 @@ describe("default_toolkit_store (SQL mode)", () => {
     ]);
     // legacy key untouched in SQL mode (no legacy data existed)
     expect(window.localStorage.getItem("default_toolkits")).toBeNull();
+  });
+
+  test("a rejected scope write rolls back the optimistic mirror and stays rolled back after restart", async () => {
+    const rejectReplace = jest.fn(() =>
+      Promise.reject(new Error("[settings_storage_unavailable] gone")),
+    );
+    installToolkitPrefsApi({
+      scopes: { global: ["core"] },
+      overrides: { replaceDefaultToolkitsScope: rejectReplace },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = setDefaultToolkitEnabled(
+        "global",
+        "mcp.alpha",
+        true,
+      );
+      expect(result).toEqual(["core", "mcp.alpha"]);
+      expect(Object.keys(result)).toEqual(["0", "1"]);
+      expect(getDefaultToolkitSelection("global")).toEqual([
+        "core",
+        "mcp.alpha",
+      ]);
+
+      await expect(result.persistence).rejects.toThrow(
+        /settings_storage_unavailable/,
+      );
+      await flushDefaultToolkitWrites();
+      expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
+
+      resetDefaultToolkitStoreForTests();
+      installToolkitPrefsApi({
+        scopes: { global: ["core"] },
+        overrides: { replaceDefaultToolkitsScope: rejectReplace },
+      });
+      expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("a same-turn grant rejected after migration restores the legacy fallback", async () => {
+    window.localStorage.setItem(
+      "default_toolkits",
+      JSON.stringify({ version: 2, scopes: { global: ["core"] } }),
+    );
+    const api = installToolkitPrefsApi({
+      scopes: {},
+      storeMigrations: {
+        defaultToolkits: {
+          state: "not_started",
+          version: null,
+          digest: null,
+          migratedAt: null,
+        },
+      },
+      overrides: {
+        replaceDefaultToolkitsScope: jest.fn(() =>
+          Promise.reject(new Error("[settings_storage_unavailable] gone")),
+        ),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = setDefaultToolkitEnabled(
+        "global",
+        "mcp.alpha",
+        true,
+      );
+      expect(getDefaultToolkitSelection("global")).toEqual([
+        "core",
+        "mcp.alpha",
+      ]);
+
+      await expect(result.persistence).rejects.toThrow(
+        /settings_storage_unavailable/,
+      );
+      expect(api.migrateLegacyDefaultToolkits).toHaveBeenCalledTimes(1);
+      expect(
+        api.migrateLegacyDefaultToolkits.mock.calls[0][0].scopes,
+      ).toEqual({ global: ["core"] });
+      expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
+      expect(
+        JSON.parse(window.localStorage.getItem("default_toolkits")).scopes
+          .global,
+      ).toEqual(["core"]);
+
+      resetDefaultToolkitStoreForTests();
+      delete window.settingsStorageAPI;
+      expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("a successful enable rebases after an older rejected enable", async () => {
+    const api = installToolkitPrefsApi({
+      scopes: { global: ["core"] },
+      overrides: {
+        replaceDefaultToolkitsScope: jest
+          .fn()
+          .mockRejectedValueOnce(
+            new Error("[settings_storage_unavailable] alpha"),
+          )
+          .mockResolvedValueOnce({ ok: true }),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const failedAlpha = setDefaultToolkitEnabled(
+        "global",
+        "mcp.alpha",
+        true,
+      );
+      const successfulBeta = setDefaultToolkitEnabled(
+        "global",
+        "mcp.beta",
+        true,
+      );
+
+      await expect(failedAlpha.persistence).rejects.toThrow(/alpha/);
+      await expect(successfulBeta.persistence).resolves.toEqual({ ok: true });
+      expect(api.replaceDefaultToolkitsScope.mock.calls).toEqual([
+        ["global", ["core", "mcp.alpha"]],
+        ["global", ["core", "mcp.beta"]],
+      ]);
+      expect(getDefaultToolkitSelection("global")).toEqual([
+        "core",
+        "mcp.beta",
+      ]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("a successful disable rebases after an older rejected disable", async () => {
+    const api = installToolkitPrefsApi({
+      scopes: { global: ["core", "mcp.alpha", "mcp.beta"] },
+      overrides: {
+        replaceDefaultToolkitsScope: jest
+          .fn()
+          .mockRejectedValueOnce(
+            new Error("[settings_storage_unavailable] alpha"),
+          )
+          .mockResolvedValueOnce({ ok: true }),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const failedAlpha = setDefaultToolkitEnabled(
+        "global",
+        "mcp.alpha",
+        false,
+      );
+      const successfulBeta = setDefaultToolkitEnabled(
+        "global",
+        "mcp.beta",
+        false,
+      );
+
+      await expect(failedAlpha.persistence).rejects.toThrow(/alpha/);
+      await expect(successfulBeta.persistence).resolves.toEqual({ ok: true });
+      expect(api.replaceDefaultToolkitsScope.mock.calls).toEqual([
+        ["global", ["core", "mcp.beta"]],
+        ["global", ["core", "mcp.alpha"]],
+      ]);
+      expect(getDefaultToolkitSelection("global")).toEqual([
+        "core",
+        "mcp.alpha",
+      ]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("the reset barrier blocks new mutations before they touch mirror or SQL", async () => {
+    const api = installToolkitPrefsApi({ scopes: { global: ["core"] } });
+    await beginDefaultToolkitSettingsReset();
+    try {
+      const blocked = setDefaultToolkitEnabled(
+        "global",
+        "mcp.alpha",
+        true,
+      );
+      expect(blocked).toEqual(["core"]);
+      await expect(blocked.persistence).rejects.toMatchObject({
+        code: "settings_reset_in_progress",
+      });
+      expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
+      expect(api.replaceDefaultToolkitsScope).not.toHaveBeenCalled();
+    } finally {
+      endDefaultToolkitSettingsReset();
+    }
+  });
+
+  test("the reset barrier still blocks legacy writes after a queued migration degrades", async () => {
+    window.localStorage.setItem(
+      "default_toolkits",
+      JSON.stringify({ version: 2, scopes: { global: ["core"] } }),
+    );
+    const api = installToolkitPrefsApi({
+      scopes: {},
+      overrides: {
+        migrateLegacyDefaultToolkits: jest.fn(() =>
+          Promise.reject(
+            new Error("[settings_storage_unavailable] migrate failed"),
+          ),
+        ),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await beginDefaultToolkitSettingsReset();
+      expect(isDefaultToolkitsSqlBacked()).toBe(false);
+      const blocked = setDefaultToolkitEnabled(
+        "global",
+        "mcp.alpha",
+        true,
+      );
+      await expect(blocked.persistence).rejects.toMatchObject({
+        code: "settings_reset_in_progress",
+      });
+      expect(
+        JSON.parse(window.localStorage.getItem("default_toolkits")).scopes
+          .global,
+      ).toEqual(["core"]);
+      expect(api.replaceDefaultToolkitsScope).not.toHaveBeenCalled();
+    } finally {
+      endDefaultToolkitSettingsReset();
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("a reset barrier drains delayed migration before SQL reset so restart cannot resurrect it", async () => {
+    window.localStorage.setItem(
+      "default_toolkits",
+      JSON.stringify({
+        version: 2,
+        scopes: { global: ["core", "mcp.alpha"] },
+      }),
+    );
+    let resolveMigration;
+    const api = installToolkitPrefsApi({
+      scopes: {},
+      storeMigrations: {
+        defaultToolkits: {
+          state: "not_started",
+          version: null,
+          digest: null,
+          migratedAt: null,
+        },
+      },
+      overrides: {
+        migrateLegacyDefaultToolkits: jest.fn(
+          () =>
+            new Promise((resolve) => {
+              resolveMigration = resolve;
+            }),
+        ),
+      },
+    });
+    api.resetSettings = jest.fn(() => Promise.resolve({ ok: true }));
+
+    expect(getDefaultToolkitSelection("global")).toEqual([
+      "core",
+      "mcp.alpha",
+    ]);
+    const drain = beginDefaultToolkitSettingsReset();
+    const resetAfterDrain = drain.then(() => api.resetSettings());
+    while (!resolveMigration) {
+      await Promise.resolve();
+    }
+    expect(api.resetSettings).not.toHaveBeenCalled();
+
+    resolveMigration({ status: "complete", digest: "d1", migratedAt: 1 });
+    await resetAfterDrain;
+    resetDefaultToolkitMirrorForSettingsReset();
+    endDefaultToolkitSettingsReset();
+    expect(api.resetSettings).toHaveBeenCalledTimes(1);
+    expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
+
+    resetDefaultToolkitStoreForTests();
+    installToolkitPrefsApi({ scopes: {} });
+    expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
   });
 
   test("first use with legacy data runs the per-store migration and writes the marker", async () => {

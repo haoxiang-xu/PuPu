@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
+  flushStoreEmitSync,
   getChatMessages,
   getChatsStore,
   setChatMessages,
@@ -18,6 +19,52 @@ import {
 } from "./background_stream_persister";
 
 const DRAFT_PERSIST_DELAY_MS = 250;
+
+export const flushChatWritesBeforeUnload = (
+  event,
+  { flushDraft, flushSessionBundle } = {},
+) => {
+  let tailFlushSucceeded = true;
+  const runTailFlush = (label, flush) => {
+    if (typeof flush !== "function") return;
+    try {
+      flush();
+    } catch (error) {
+      tailFlushSucceeded = false;
+      console.error(label, error);
+    }
+  };
+
+  // Hook-local debounces have not reached the global store queue yet. Flush
+  // them first so the final synchronous drain can include their fresh ops.
+  runTailFlush("[chat-storage] draft tail flush failed:", flushDraft);
+  runTailFlush(
+    "[chat-storage] session bundle tail flush failed:",
+    flushSessionBundle,
+  );
+
+  // This flush can create fresh chat ops (stream messages are intentionally
+  // deferred during normal interaction). Drain those ops immediately in the
+  // same cancelable event.
+  try {
+    flushAllBackgroundPersist();
+  } catch (error) {
+    tailFlushSucceeded = false;
+    console.error("[chat-storage] background tail flush failed:", error);
+  }
+
+  let storeFlushSucceeded = false;
+  try {
+    storeFlushSucceeded = flushStoreEmitSync() === true;
+  } catch (error) {
+    console.error("[chat-storage] synchronous unload drain failed:", error);
+  }
+
+  if (tailFlushSucceeded && storeFlushSucceeded) return true;
+  event.preventDefault();
+  event.returnValue = "";
+  return false;
+};
 
 const snapshotSessionBundle = (chat) => ({
   selectedToolkits: Array.isArray(chat?.selectedToolkits)
@@ -375,17 +422,6 @@ export const useChatSessionState = ({
   ]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const onBeforeUnload = () => {
-      flushAllBackgroundPersist();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-    };
-  }, []);
-
-  useEffect(() => {
     // Bootstrap straggler settle, v3 lazy messages: non-active chats carry
     // `[]` placeholders, so scanning `chat.messages` would miss them. The
     // isGenerating META flag (maintained by setChatMessages) marks the only
@@ -509,6 +545,22 @@ export const useChatSessionState = ({
       source: "chat-page",
     });
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    // Flush hook-local debounces before the global queue drain. Otherwise an
+    // immediate app quit can lose the last composer or session edit even when
+    // the already-enqueued store operations were persisted successfully.
+    const onBeforeUnload = (event) =>
+      flushChatWritesBeforeUnload(event, {
+        flushDraft: flushDraftToStore,
+        flushSessionBundle: flushPendingSessionBundle,
+      });
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [flushDraftToStore, flushPendingSessionBundle]);
 
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;

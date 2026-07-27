@@ -119,6 +119,44 @@ describe("settingsStorageAPI bridge", () => {
     );
   });
 
+  test("quit drain control plane subscribes safely and strips extra result fields", () => {
+    const listeners = new Map();
+    const ipcRenderer = {
+      sendSync: jest.fn(),
+      invoke: jest.fn(),
+      send: jest.fn(),
+      on: jest.fn((channel, listener) => listeners.set(channel, listener)),
+      removeListener: jest.fn((channel, listener) => {
+        if (listeners.get(channel) === listener) listeners.delete(channel);
+      }),
+    };
+    const api = createSettingsStorageBridge(ipcRenderer);
+    const onRequest = jest.fn();
+    const unsubscribe = api.onQuitDrainRequest(onRequest);
+
+    listeners.get(CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_REQUEST)(
+      {},
+      { requestId: "request-1" },
+    );
+    expect(onRequest).toHaveBeenCalledWith({ requestId: "request-1" });
+
+    api.sendQuitDrainResult({
+      requestId: "request-1",
+      ok: true,
+      value: { mustNotCross: true },
+      plaintext: "must-not-cross",
+    });
+    expect(ipcRenderer.send).toHaveBeenCalledWith(
+      CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_RESULT,
+      { requestId: "request-1", ok: true },
+    );
+
+    unsubscribe();
+    expect(
+      listeners.has(CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_REQUEST),
+    ).toBe(false);
+  });
+
   test("mutation failures propagate (no silent fake success)", async () => {
     const failure = new Error("revision conflict");
     const ipcRenderer = {
@@ -450,6 +488,33 @@ describe("settingsStorageAPI bridge", () => {
     );
   });
 
+  test("steady-state provider set/delete use write-only invoke channels", async () => {
+    const ipcRenderer = makeFakeIpcRenderer({
+      invokeReturn: { ok: true, status: "stored" },
+    });
+    const api = createSettingsStorageBridge(ipcRenderer);
+
+    await api.setProviderCredential(
+      "provider",
+      "openai",
+      "sk-SENTINEL-steady",
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.SET_PROVIDER_CREDENTIAL,
+      {
+        kind: "provider",
+        ownerId: "openai",
+        plaintext: "sk-SENTINEL-steady",
+      },
+    );
+
+    await api.deleteProviderCredential("provider", "openai");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DELETE_PROVIDER_CREDENTIAL,
+      { kind: "provider", ownerId: "openai" },
+    );
+  });
+
   test("resetSettings invokes the reset channel without a payload", async () => {
     const ipcRenderer = makeFakeIpcRenderer({
       invokeReturn: { ok: true, cleared: { settings: 2 } },
@@ -509,8 +574,13 @@ describe("settingsStorageAPI bridge", () => {
         "listMcpIconOwners",
         "migrateMcpIconsLegacy",
         "migrateProviderCredentials",
+        "setProviderCredential",
+        "deleteProviderCredential",
         "resetSettings",
         "getDbStats",
+        "onQuitDrainRequest",
+        "onQuitDrainAbort",
+        "sendQuitDrainResult",
       ].sort(),
     );
   });

@@ -6,6 +6,8 @@ import {
   queryTokenUsage,
   isTokenUsageSqlBacked,
   flushTokenUsageWrites,
+  beginTokenUsageQuitDrain,
+  endTokenUsageQuitDrain,
   resetTokenUsageStorageForTests,
   TOKEN_USAGE_MIGRATION_MARKER_KEY,
 } from "./storage";
@@ -604,5 +606,78 @@ describe("token usage storage — queryTokenUsage fallback", () => {
         rows.map((r) => r.model_id),
       ),
     ).resolves.toEqual(["a"]);
+  });
+});
+
+describe("token usage storage — quit drain", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetTokenUsageStorageForTests();
+  });
+
+  afterEach(() => {
+    endTokenUsageQuitDrain();
+    resetTokenUsageStorageForTests();
+    delete window.settingsStorageAPI;
+  });
+
+  test("uninitialized barrier admits no append/clear and abort restores admission", async () => {
+    const api = installTokenUsageApi();
+
+    await beginTokenUsageQuitDrain();
+    expect(api.bootstrap).not.toHaveBeenCalled();
+    appendTokenUsageRecord(sampleRecord());
+    clearTokenUsageRecords();
+    expect(api.appendTokenUsage).not.toHaveBeenCalled();
+    expect(api.clearTokenUsage).not.toHaveBeenCalled();
+
+    endTokenUsageQuitDrain();
+    appendTokenUsageRecord(sampleRecord());
+    await flushTokenUsageWrites();
+    expect(api.bootstrap).toHaveBeenCalledTimes(1);
+    expect(api.appendTokenUsage).toHaveBeenCalledTimes(1);
+  });
+
+  test("waits for an accepted append to settle before resolving", async () => {
+    let resolveAppend;
+    const appendAck = new Promise((resolve) => {
+      resolveAppend = resolve;
+    });
+    installTokenUsageApi({
+      appendTokenUsage: jest.fn(() => appendAck),
+    });
+
+    appendTokenUsageRecord(sampleRecord());
+    let drained = false;
+    const drain = beginTokenUsageQuitDrain().then(() => {
+      drained = true;
+    });
+    await Promise.resolve();
+    expect(drained).toBe(false);
+
+    resolveAppend({ ok: true, id: 1 });
+    await drain;
+    expect(drained).toBe(true);
+  });
+
+  test("a rejected append still settles the established FIFO boundary", async () => {
+    let rejectAppend;
+    const appendAck = new Promise((_resolve, reject) => {
+      rejectAppend = reject;
+    });
+    installTokenUsageApi({
+      appendTokenUsage: jest.fn(() => appendAck),
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      appendTokenUsageRecord(sampleRecord());
+      const drain = beginTokenUsageQuitDrain();
+      await Promise.resolve();
+      rejectAppend(new Error("[settings_storage_error] unavailable"));
+      await expect(drain).resolves.toBeUndefined();
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

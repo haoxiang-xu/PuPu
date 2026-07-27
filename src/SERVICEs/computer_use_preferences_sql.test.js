@@ -1,10 +1,16 @@
 import {
   COMPUTER_USE_MIGRATION_MARKER_KEY,
   isComputerUsePrefsSqlMode,
+  getComputerUsePreferencesPersistenceStatus,
   readComputerUsePreferenceRecord,
   writeComputerUsePreferenceRecord,
   clearComputerUsePreferenceRecord,
+  clearComputerUsePreferenceRecordAfter,
   flushComputerUsePreferenceWrites,
+  beginComputerUsePreferencesSettingsReset,
+  endComputerUsePreferencesSettingsReset,
+  beginComputerUsePreferencesQuitDrain,
+  endComputerUsePreferencesQuitDrain,
   resetComputerUsePreferencesForTests,
   resetComputerUsePreferencesMirrorForSettingsReset,
   validateConsentRecord,
@@ -24,6 +30,16 @@ const enabled = (overrides = {}) => ({
   updatedAt: ISO,
   ...overrides,
 });
+
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((next, fail) => {
+    resolve = next;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+};
 
 const installComputerUseApi = ({
   entries = {},
@@ -70,6 +86,26 @@ beforeEach(() => {
 afterEach(() => {
   delete window.settingsStorageAPI;
   resetComputerUsePreferencesForTests();
+});
+
+test("settings reset barrier rejects new preference writes before mirror, legacy, or SQL changes", async () => {
+  const api = installComputerUseApi({
+    entries: { enabled: enabled({ enabled: false }) },
+  });
+  expect(isComputerUsePrefsSqlMode()).toBe(true);
+  await beginComputerUsePreferencesSettingsReset();
+  try {
+    await expect(
+      writeComputerUsePreferenceRecord("enabled", enabled()),
+    ).rejects.toMatchObject({ code: "settings_reset_in_progress" });
+    expect(readComputerUsePreferenceRecord("enabled")).toEqual(
+      enabled({ enabled: false }),
+    );
+    expect(api.setComputerUsePreference).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem("computer_use_enabled")).toBeNull();
+  } finally {
+    endComputerUsePreferencesSettingsReset();
+  }
 });
 
 describe("shape validators (fail closed)", () => {
@@ -184,6 +220,61 @@ describe("SQL mode writes", () => {
     expect(api.clearComputerUsePreference).toHaveBeenCalledWith("consent");
   });
 
+  test("conditional consent clear is admitted before await and keeps quit drain pending", async () => {
+    const api = installComputerUseApi({ entries: { consent: consent() } });
+    const prerequisite = deferred();
+    const clearPromise = clearComputerUsePreferenceRecordAfter(
+      "consent",
+      prerequisite.promise,
+    );
+
+    // Authorization remains valid until runtime OFF is confirmed.
+    expect(readComputerUsePreferenceRecord("consent")).toEqual(consent());
+    expect(api.clearComputerUsePreference).not.toHaveBeenCalled();
+
+    const quitDrain = beginComputerUsePreferencesQuitDrain();
+    let drained = false;
+    quitDrain.then(() => {
+      drained = true;
+    });
+    await Promise.resolve();
+    expect(drained).toBe(false);
+    await expect(
+      writeComputerUsePreferenceRecord("enabled", enabled()),
+    ).rejects.toMatchObject({ code: "settings_quit_in_progress" });
+
+    prerequisite.resolve();
+    await clearPromise;
+    await quitDrain;
+    expect(api.clearComputerUsePreference).toHaveBeenCalledWith("consent");
+    expect(readComputerUsePreferenceRecord("consent")).toBeNull();
+    expect(drained).toBe(true);
+    endComputerUsePreferencesQuitDrain();
+  });
+
+  test("rejected conditional clear preserves consent and still releases quit drain", async () => {
+    const api = installComputerUseApi({ entries: { consent: consent() } });
+    const prerequisite = deferred();
+    const clearPromise = clearComputerUsePreferenceRecordAfter(
+      "consent",
+      prerequisite.promise,
+    );
+    const quitDrain = beginComputerUsePreferencesQuitDrain();
+
+    prerequisite.reject(
+      Object.assign(new Error("disable not confirmed"), {
+        code: "computer_use_disable_not_confirmed",
+      }),
+    );
+    await expect(clearPromise).rejects.toMatchObject({
+      code: "computer_use_disable_not_confirmed",
+    });
+    await quitDrain;
+    expect(api.clearComputerUsePreference).not.toHaveBeenCalled();
+    expect(readComputerUsePreferenceRecord("consent")).toEqual(consent());
+    endComputerUsePreferencesQuitDrain();
+  });
+
   test("post-migration clear also removes the frozen legacy record (no resurrection in fallback sessions)", async () => {
     window.localStorage.setItem(
       COMPUTER_USE_MIGRATION_MARKER_KEY,
@@ -236,24 +327,114 @@ describe("SQL mode writes", () => {
     await flushComputerUsePreferenceWrites();
   });
 
-  test("a failed persist logs the code only and keeps the optimistic mirror", async () => {
+  test("failed disable/consent revocation rolls back to confirmed SQL and restart matches", async () => {
+    window.localStorage.setItem(
+      COMPUTER_USE_MIGRATION_MARKER_KEY,
+      JSON.stringify({ digest: "d1", completedAt: 1 }),
+    );
+    window.localStorage.setItem(
+      "computer_use_enabled",
+      JSON.stringify(enabled()),
+    );
+    window.localStorage.setItem(
+      "computer_use_consent",
+      JSON.stringify(consent()),
+    );
+    const failingOverrides = {
+      setComputerUsePreference: jest.fn(() =>
+        Promise.reject(new Error("[settings_storage_unavailable] gone")),
+      ),
+      clearComputerUsePreference: jest.fn(() =>
+        Promise.reject(new Error("[settings_storage_unavailable] gone")),
+      ),
+    };
     installComputerUseApi({
+      entries: { enabled: enabled(), consent: consent() },
       overrides: {
+        ...failingOverrides,
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      writeComputerUsePreferenceRecord(
+        "enabled",
+        enabled({ enabled: false }),
+      );
+      clearComputerUsePreferenceRecord("consent");
+      // Optimistic narrowing remains synchronous.
+      expect(readComputerUsePreferenceRecord("enabled").enabled).toBe(false);
+      expect(readComputerUsePreferenceRecord("consent")).toBeNull();
+      expect(
+        JSON.parse(window.localStorage.getItem("computer_use_enabled")).enabled,
+      ).toBe(false);
+      expect(window.localStorage.getItem("computer_use_consent")).toBeNull();
+
+      await flushComputerUsePreferenceWrites();
+      // Both rejected mutations roll back to the last acknowledged SQL state.
+      expect(readComputerUsePreferenceRecord("enabled")).toEqual(enabled());
+      expect(readComputerUsePreferenceRecord("consent")).toEqual(consent());
+      expect(
+        JSON.parse(window.localStorage.getItem("computer_use_enabled")),
+      ).toEqual(enabled());
+      expect(
+        JSON.parse(window.localStorage.getItem("computer_use_consent")),
+      ).toEqual(consent());
+
+      const logged = JSON.stringify(warnSpy.mock.calls);
+      expect(logged).toContain("settings_storage_unavailable");
+      expect(logged).not.toContain(ISO); // never record contents
+      expect(
+        getComputerUsePreferencesPersistenceStatus().lastErrorCode,
+      ).toBe("settings_storage_unavailable");
+
+      // Simulate the next renderer session while SQL still contains the old
+      // rows. The pre-restart and post-restart observable states must match.
+      resetComputerUsePreferencesForTests();
+      installComputerUseApi({
+        entries: { enabled: enabled(), consent: consent() },
+        overrides: failingOverrides,
+      });
+      expect(readComputerUsePreferenceRecord("enabled")).toEqual(enabled());
+      expect(readComputerUsePreferenceRecord("consent")).toEqual(consent());
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("latest failed grant restores a legacy key changed by an older failed reset", async () => {
+    window.localStorage.setItem(
+      COMPUTER_USE_MIGRATION_MARKER_KEY,
+      JSON.stringify({ digest: "d1", completedAt: 1 }),
+    );
+    window.localStorage.setItem(
+      "computer_use_consent",
+      JSON.stringify(consent()),
+    );
+    installComputerUseApi({
+      entries: { consent: consent() },
+      overrides: {
+        clearComputerUsePreference: jest.fn(() =>
+          Promise.reject(new Error("[settings_storage_unavailable] clear")),
+        ),
         setComputerUsePreference: jest.fn(() =>
-          Promise.reject(
-            new Error("[settings_storage_unavailable] gone"),
-          ),
+          Promise.reject(new Error("[settings_storage_unavailable] set")),
         ),
       },
     });
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      writeComputerUsePreferenceRecord("enabled", enabled());
-      await flushComputerUsePreferenceWrites();
-      expect(readComputerUsePreferenceRecord("enabled")).toEqual(enabled());
-      const logged = JSON.stringify(warnSpy.mock.calls);
-      expect(logged).toContain("settings_storage_unavailable");
-      expect(logged).not.toContain(ISO); // never record contents
+      const failedReset = clearComputerUsePreferenceRecord("consent");
+      const failedGrant = writeComputerUsePreferenceRecord(
+        "consent",
+        consent({ acceptedAt: "2026-07-25T10:00:00.000Z" }),
+      );
+
+      await expect(failedReset).rejects.toThrow(/clear/);
+      await expect(failedGrant).rejects.toThrow(/set/);
+      expect(readComputerUsePreferenceRecord("consent")).toEqual(consent());
+      expect(
+        JSON.parse(window.localStorage.getItem("computer_use_consent")),
+      ).toEqual(consent());
     } finally {
       warnSpy.mockRestore();
     }
@@ -261,6 +442,50 @@ describe("SQL mode writes", () => {
 });
 
 describe("legacy migration", () => {
+  test("a same-turn consent grant rejected after migration restores the legacy fallback", async () => {
+    window.localStorage.setItem(
+      "computer_use_enabled",
+      JSON.stringify(enabled({ enabled: false })),
+    );
+    const api = installComputerUseApi({
+      storeMigrations: {
+        computerUse: {
+          state: "not_started",
+          version: null,
+          digest: null,
+          migratedAt: null,
+        },
+      },
+      overrides: {
+        setComputerUsePreference: jest.fn(() =>
+          Promise.reject(new Error("[settings_storage_unavailable] gone")),
+        ),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(isComputerUsePrefsSqlMode()).toBe(true);
+      const failedGrant = writeComputerUsePreferenceRecord(
+        "consent",
+        consent(),
+      );
+      expect(
+        JSON.parse(window.localStorage.getItem("computer_use_consent")),
+      ).toEqual(consent());
+
+      await expect(failedGrant).rejects.toThrow(
+        /settings_storage_unavailable/,
+      );
+      expect(
+        api.migrateLegacyComputerUse.mock.calls[0][0].records.consent,
+      ).toBeUndefined();
+      expect(readComputerUsePreferenceRecord("consent")).toBeNull();
+      expect(window.localStorage.getItem("computer_use_consent")).toBeNull();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   test("legacy data + no marker → one migration envelope with the validated records", async () => {
     window.localStorage.setItem(
       "computer_use_consent",

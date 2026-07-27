@@ -30,10 +30,33 @@ import {
   providerSecretConfigured,
   secretInjectionAuthoritative,
 } from "./provider_secret_status";
+import {
+  markSecretStorageUnavailableForSession,
+} from "./bridges/settings_storage_bridge";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
 const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
+
+const withSecretStorageFailureLatch = (handlers = {}) => {
+  const currentHandlers = isObject(handlers) ? handlers : {};
+  const originalOnError = currentHandlers.onError;
+  return {
+    ...currentHandlers,
+    onError: (error) => {
+      if (error?.code === "secret_storage_unavailable") {
+        markSecretStorageUnavailableForSession();
+      }
+      if (typeof originalOnError === "function") {
+        originalOnError(error);
+      }
+    },
+  };
+};
+
+const isLocalSecretStorageFailure = (value) =>
+  value?.code === "secret_storage_unavailable" &&
+  Number(value?.status) === 0;
 
 const sanitizeSystemPromptV2Sections = (
   rawSections,
@@ -1762,7 +1785,10 @@ export const createUnchainApi = () => {
         const normalizedPayload = injectProviderApiKeyIntoPayload(
           payloadWithWorkspaceRoot,
         );
-        const streamHandle = method(normalizedPayload, handlers);
+        const streamHandle = method(
+          normalizedPayload,
+          withSecretStorageFailureLatch(handlers),
+        );
         if (
           !isObject(streamHandle) ||
           typeof streamHandle.cancel !== "function"
@@ -2105,8 +2131,20 @@ export const createUnchainApi = () => {
           "Unchain session memory replace request timed out",
         );
 
+        if (
+          response?.applied === false &&
+          isLocalSecretStorageFailure(response?.error)
+        ) {
+          markSecretStorageUnavailableForSession();
+        }
         return isObject(response) ? response : { applied: false };
       } catch (error) {
+        if (
+          isLocalSecretStorageFailure(error) ||
+          isLocalSecretStorageFailure(error?.details)
+        ) {
+          markSecretStorageUnavailableForSession();
+        }
         throw toFrontendApiError(
           error,
           "unchain_session_memory_replace_failed",
@@ -2119,7 +2157,10 @@ export const createUnchainApi = () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStreamV2");
         const normalizedPayload = normalizeUnchainV2Payload(payload);
-        const streamHandle = method(normalizedPayload, handlers);
+        const streamHandle = method(
+          normalizedPayload,
+          withSecretStorageFailureLatch(handlers),
+        );
         if (
           !isObject(streamHandle) ||
           typeof streamHandle.cancel !== "function"
@@ -2143,7 +2184,10 @@ export const createUnchainApi = () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStreamV4");
         const normalizedPayload = normalizeUnchainV2Payload(payload);
-        const streamHandle = method(normalizedPayload, handlers);
+        const streamHandle = method(
+          normalizedPayload,
+          withSecretStorageFailureLatch(handlers),
+        );
         if (
           !isObject(streamHandle) ||
           (typeof streamHandle.disconnect !== "function" &&
@@ -2167,7 +2211,10 @@ export const createUnchainApi = () => {
     attachStreamV4: async (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "attachStreamV4");
-        const streamHandle = await method(payload, handlers);
+        const streamHandle = await method(
+          payload,
+          withSecretStorageFailureLatch(handlers),
+        );
         if (
           !isObject(streamHandle) ||
           typeof streamHandle.detach !== "function" ||

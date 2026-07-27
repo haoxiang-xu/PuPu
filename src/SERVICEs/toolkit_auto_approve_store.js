@@ -182,6 +182,85 @@ const readStore = () => {
   return initialStore;
 };
 
+const readLegacyStoreSnapshot = () => {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return { present: raw !== null, raw };
+  } catch {
+    return null;
+  }
+};
+
+const legacyStoreSnapshotsEqual = (left, right) =>
+  !!left &&
+  !!right &&
+  left.present === right.present &&
+  (!left.present || left.raw === right.raw);
+
+const restoreLegacyStoreSnapshot = (snapshot) => {
+  if (
+    typeof window === "undefined" ||
+    !window.localStorage ||
+    !snapshot
+  ) {
+    return false;
+  }
+  try {
+    if (snapshot.present) {
+      window.localStorage.setItem(STORAGE_KEY, snapshot.raw);
+    } else {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const storeFromLegacySnapshot = (snapshot) => {
+  if (!snapshot || !snapshot.present) return createDefaultStore();
+  try {
+    const raw = JSON.parse(snapshot.raw || "null");
+    if (raw && typeof raw === "object") {
+      return {
+        version: SCHEMA_VERSION,
+        toolkits: sanitizeToolkitIds(raw.toolkits),
+        tools:
+          raw.version === SCHEMA_VERSION
+            ? sanitizeToolKeys(raw.tools)
+            : migrateLegacyToolKeys(raw.tools),
+      };
+    }
+  } catch {
+    // A corrupt legacy value cannot contribute an approval.
+  }
+  return createDefaultStore();
+};
+
+const narrowLegacyStoreSnapshot = (snapshot, toolkits, toolKeys) => {
+  if (!snapshot || !snapshot.present) return snapshot;
+  const legacy = storeFromLegacySnapshot(snapshot);
+  const toolkitSet = new Set(toolkits);
+  const toolKeySet = new Set(toolKeys);
+  const narrowedToolkits = legacy.toolkits.filter((id) => toolkitSet.has(id));
+  const narrowedTools = legacy.tools.filter((key) => toolKeySet.has(key));
+  if (
+    narrowedToolkits.length === legacy.toolkits.length &&
+    narrowedTools.length === legacy.tools.length
+  ) {
+    return snapshot;
+  }
+  return {
+    present: true,
+    raw: JSON.stringify({
+      version: SCHEMA_VERSION,
+      toolkits: narrowedToolkits,
+      tools: narrowedTools,
+    }),
+  };
+};
+
 /* ───────────────────────────── SQL mode machinery ───────────────────────── */
 
 // "toolkitId:toolName" keys (legacy/internal shape) ↔ structured IPC entries.
@@ -236,6 +315,8 @@ const writeMigrationMarker = (digest, completedAt) => {
 };
 
 let state = null;
+let settingsResetBarrierActive = false;
+let settingsQuitBarrierActive = false;
 
 const createInitialState = () => ({
   mode: "localStorage", // "sql" | "localStorage"
@@ -244,6 +325,17 @@ const createInitialState = () => ({
   migrated: false, // SQL is the authority (migration complete or unneeded)
   mirrorToolkits: [],
   mirrorTools: [], // "toolkitId:toolName" keys
+  // Last replace-all payload acknowledged by SQL. Rejected optimistic changes
+  // roll back here, keeping the current session aligned with the next boot.
+  confirmedToolkits: [],
+  confirmedTools: [],
+  // Exact dual-kept legacy bytes paired with the latest acknowledged SQL
+  // mutation. A rejected optimistic grant/revoke restores this snapshot so a
+  // fallback session cannot diverge from the SQL-confirmed permission set.
+  confirmedLegacyStore: null,
+  pendingLegacyStore: null,
+  latestMutationId: 0,
+  nextMutationId: 0,
   pendingWrites: 0,
   queueTail: Promise.resolve(),
 });
@@ -269,11 +361,20 @@ const degradeToFallback = (s, errorCode) => {
   if (errorCode) s.lastErrorCode = errorCode;
   s.mirrorToolkits = [];
   s.mirrorTools = [];
+  s.confirmedToolkits = [];
+  s.confirmedTools = [];
+  s.confirmedLegacyStore = null;
+  s.pendingLegacyStore = null;
+  s.latestMutationId = 0;
 };
 
 const seedMirror = (s, toolkits, toolKeys) => {
-  s.mirrorToolkits = sanitizeToolkitIds(toolkits);
-  s.mirrorTools = sanitizeToolKeys(toolKeys);
+  const normalizedToolkits = sanitizeToolkitIds(toolkits);
+  const normalizedTools = sanitizeToolKeys(toolKeys);
+  s.mirrorToolkits = normalizedToolkits;
+  s.mirrorTools = normalizedTools;
+  s.confirmedToolkits = [...normalizedToolkits];
+  s.confirmedTools = [...normalizedTools];
 };
 
 // Reload the mirror from SQL inside a queued op — used when SQL was already
@@ -404,11 +505,15 @@ const ensureInit = () => {
     const legacyStore = readStore();
     seedMirror(s, legacyStore.toolkits, legacyStore.tools);
     s.migrated = false;
+    // Freeze the import envelope now. The queued closure must not observe a
+    // same-turn optimistic permission change before migration starts.
+    const migrationToolkits = [...s.mirrorToolkits];
+    const migrationTools = [...s.mirrorTools];
     enqueue(s, () =>
       runToolkitAutoApproveMigration(
         s,
-        [...s.mirrorToolkits],
-        [...s.mirrorTools],
+        migrationToolkits,
+        migrationTools,
       ),
     );
   } else {
@@ -421,22 +526,126 @@ const ensureInit = () => {
   return s;
 };
 
-const enqueueReplaceAll = (s, toolkits, toolKeys) => {
-  const payload = { toolkits, tools: toolKeysToEntries(toolKeys) };
-  enqueue(s, async () => {
+const restoreConfirmedMirror = (s) => {
+  s.mirrorToolkits = [...s.confirmedToolkits];
+  s.mirrorTools = [...s.confirmedTools];
+};
+
+const applyLegacyStoreMutation = (s, store) => {
+  const current = readLegacyStoreSnapshot();
+  if (!current) return null;
+  if (s.confirmedLegacyStore === null) {
+    s.confirmedLegacyStore = current;
+  }
+  let raw;
+  try {
+    raw = JSON.stringify(store);
+  } catch {
+    return null;
+  }
+  const after = { present: true, raw };
+  if (!restoreLegacyStoreSnapshot(after)) return null;
+  s.pendingLegacyStore = after;
+  return { after };
+};
+
+const confirmLegacyStoreForPersistedState = (s, toolkits, toolKeys) => {
+  if (s.confirmedLegacyStore === null) {
+    s.confirmedLegacyStore = readLegacyStoreSnapshot();
+  }
+  s.confirmedLegacyStore = narrowLegacyStoreSnapshot(
+    s.confirmedLegacyStore,
+    toolkits,
+    toolKeys,
+  );
+};
+
+const settleLatestLegacyStore = (s) => {
+  const pending = s.pendingLegacyStore;
+  if (!pending || s.confirmedLegacyStore === null) return;
+  s.pendingLegacyStore = null;
+  const current = readLegacyStoreSnapshot();
+  if (!legacyStoreSnapshotsEqual(current, pending)) {
+    // Do not overwrite an external/newer localStorage writer.
+    return;
+  }
+  restoreLegacyStoreSnapshot(s.confirmedLegacyStore);
+};
+
+const applyAutoApproveIntent = (toolkits, toolKeys, intent) => {
+  let nextToolkits = sanitizeToolkitIds(toolkits);
+  let nextTools = sanitizeToolKeys(toolKeys);
+  if (intent.enabled) {
+    if (!nextToolkits.includes(intent.toolkitId)) {
+      nextToolkits = [...nextToolkits, intent.toolkitId];
+    }
+    const toolSet = new Set(nextTools);
+    for (const toolKey of intent.safeToolKeys) {
+      toolSet.add(toolKey);
+    }
+    nextTools = [...toolSet];
+  } else {
+    nextToolkits = nextToolkits.filter((id) => id !== intent.toolkitId);
+    const removePrefix = `${intent.toolkitId}:`;
+    nextTools = nextTools.filter(
+      (toolKey) => !toolKey.startsWith(removePrefix),
+    );
+  }
+  return {
+    toolkits: sanitizeToolkitIds(nextToolkits),
+    tools: sanitizeToolKeys(nextTools),
+  };
+};
+
+const enqueueReplaceAll = (s, intent, mutationId) => {
+  return enqueue(s, async () => {
     if (state !== s) return;
     if (s.mode !== "sql") {
       // Degradation only happens pre-migration, where every write already
       // went through to localStorage — nothing to replay.
       return;
     }
+    // Rebase this semantic operation only after every predecessor settles.
+    // A captured optimistic replace-all payload could otherwise carry a
+    // rejected predecessor into SQL when this operation succeeds.
+    const rebased = applyAutoApproveIntent(
+      s.confirmedToolkits,
+      s.confirmedTools,
+      intent,
+    );
+    const payload = {
+      toolkits: rebased.toolkits,
+      tools: toolKeysToEntries(rebased.tools),
+    };
     try {
-      await settingsStorageBridge.replaceToolkitAutoApprove(payload);
+      const ack =
+        await settingsStorageBridge.replaceToolkitAutoApprove(payload);
+      if (state === s) {
+        s.confirmedToolkits = [...rebased.toolkits];
+        s.confirmedTools = [...rebased.tools];
+        confirmLegacyStoreForPersistedState(
+          s,
+          rebased.toolkits,
+          rebased.tools,
+        );
+        s.lastErrorCode = null;
+        if (s.latestMutationId === mutationId) {
+          s.mirrorToolkits = [...rebased.toolkits];
+          s.mirrorTools = [...rebased.tools];
+          settleLatestLegacyStore(s);
+        }
+      }
+      return ack;
     } catch (error) {
       const code =
         parseSettingsStorageErrorCode(error) || "settings_storage_error";
       s.lastErrorCode = code;
       console.warn("[toolkit-auto-approve-store] persist failed:", code);
+      if (state === s && s.latestMutationId === mutationId) {
+        restoreConfirmedMirror(s);
+        settleLatestLegacyStore(s);
+      }
+      throw error;
     }
   });
 };
@@ -447,15 +656,15 @@ const enqueueReplaceAll = (s, toolkits, toolKeys) => {
 // back to localStorage cannot resurrect a revoked approval. Never adds
 // anything (one-directional toward fail-closed, so no widening
 // dual-authority can form), and never creates the legacy key.
-const narrowLegacyStore = (toolkits, toolKeys) => {
-  if (typeof window === "undefined" || !window.localStorage) return;
+const narrowLegacyStore = (s, toolkits, toolKeys) => {
+  if (typeof window === "undefined" || !window.localStorage) return null;
   let hasLegacy = false;
   try {
     hasLegacy = window.localStorage.getItem(STORAGE_KEY) != null;
   } catch {
-    return;
+    return null;
   }
-  if (!hasLegacy) return;
+  if (!hasLegacy) return null;
   const legacy = readStore();
   const toolkitSet = new Set(toolkits);
   const toolKeySet = new Set(toolKeys);
@@ -465,30 +674,66 @@ const narrowLegacyStore = (toolkits, toolKeys) => {
     narrowedToolkits.length === legacy.toolkits.length &&
     narrowedTools.length === legacy.tools.length
   ) {
-    return;
+    return null;
   }
-  writeStore({
+  return applyLegacyStoreMutation(s, {
     version: SCHEMA_VERSION,
     toolkits: narrowedToolkits,
     tools: narrowedTools,
   });
 };
 
-const commitMirror = (s, toolkits, toolKeys) => {
+const commitMirror = (s, toolkits, toolKeys, intent) => {
+  const mutationId = ++s.nextMutationId;
+  s.latestMutationId = mutationId;
   s.mirrorToolkits = toolkits;
   s.mirrorTools = toolKeys;
+  if (s.confirmedLegacyStore === null) {
+    s.confirmedLegacyStore = readLegacyStoreSnapshot();
+  }
   if (!s.migrated) {
     // Migration pending: localStorage remains the authority — write through
     // so a failed migration loses nothing.
-    writeStore({
+    applyLegacyStoreMutation(s, {
       version: SCHEMA_VERSION,
       toolkits: [...toolkits],
       tools: [...toolKeys],
     });
   } else {
-    narrowLegacyStore(toolkits, toolKeys);
+    narrowLegacyStore(s, toolkits, toolKeys);
   }
-  enqueueReplaceAll(s, [...toolkits], [...toolKeys]);
+  return enqueueReplaceAll(s, intent, mutationId);
+};
+
+const createSettingsResetBlockedPersistence = () => {
+  const error = new Error(
+    "[settings_reset_in_progress] auto-approve write blocked",
+  );
+  error.code = "settings_reset_in_progress";
+  const persistence = Promise.reject(error);
+  persistence.catch(() => {});
+  return persistence;
+};
+
+const createSettingsQuitBlockedPersistence = () => {
+  const error = new Error(
+    "[settings_quit_in_progress] auto-approve write blocked",
+  );
+  error.code = "settings_quit_in_progress";
+  const persistence = Promise.reject(error);
+  persistence.catch(() => {});
+  return persistence;
+};
+
+const createResult = (toolkits, tools, persistence = null) => {
+  const result = { toolkits, tools };
+  if (persistence) {
+    Object.defineProperty(result, "persistence", {
+      value: persistence,
+      enumerable: false,
+    });
+  }
+  return result;
 };
 
 /* ───────────────────────────── public surface ───────────────────────────── */
@@ -512,9 +757,34 @@ export const isToolAutoApproved = (toolkitId, toolName) => {
 };
 
 export const setToolkitAutoApprove = (toolkitId, enabled, toolNames = []) => {
+  if (settingsQuitBarrierActive) {
+    const s = state;
+    const legacyStore =
+      !s || s.mode === "localStorage"
+        ? storeFromLegacySnapshot(readLegacyStoreSnapshot())
+        : null;
+    const currentToolkits = sanitizeToolkitIds(
+      s && s.mode === "sql" ? s.mirrorToolkits : legacyStore.toolkits,
+    );
+    const currentTools = sanitizeToolKeys(
+      s && s.mode === "sql" ? s.mirrorTools : legacyStore.tools,
+    );
+    if (!normalizeToolkitId(toolkitId)) {
+      return { toolkits: currentToolkits, tools: currentTools };
+    }
+    return createResult(
+      currentToolkits,
+      currentTools,
+      createSettingsQuitBlockedPersistence(),
+    );
+  }
   const s = ensureInit();
   const sqlMode = s.mode === "sql";
-  const store = sqlMode ? null : readStore();
+  const store = sqlMode
+    ? null
+    : settingsResetBarrierActive
+      ? storeFromLegacySnapshot(readLegacyStoreSnapshot())
+      : readStore();
   const normalizedToolkitId = normalizeToolkitId(toolkitId);
   let currentToolkits = sanitizeToolkitIds(
     sqlMode ? s.mirrorToolkits : store.toolkits,
@@ -523,6 +793,13 @@ export const setToolkitAutoApprove = (toolkitId, enabled, toolNames = []) => {
 
   if (!normalizedToolkitId) {
     return { toolkits: currentToolkits, tools: currentTools };
+  }
+  if (settingsResetBarrierActive) {
+    return createResult(
+      currentToolkits,
+      currentTools,
+      createSettingsResetBlockedPersistence(),
+    );
   }
 
   const safeToolKeys = [];
@@ -548,36 +825,30 @@ export const setToolkitAutoApprove = (toolkitId, enabled, toolNames = []) => {
     );
   }
 
-  if (enabled) {
-    if (!currentToolkits.includes(normalizedToolkitId)) {
-      currentToolkits = [...currentToolkits, normalizedToolkitId];
-    }
-    const toolSet = new Set(currentTools);
-    for (const toolKey of safeToolKeys) {
-      toolSet.add(toolKey);
-    }
-    currentTools = [...toolSet];
-  } else {
-    currentToolkits = currentToolkits.filter((id) => id !== normalizedToolkitId);
-    const removePrefix = `${normalizedToolkitId}:`;
-    const removeSet = new Set(safeToolKeys);
-    currentTools = currentTools.filter(
-      (toolKey) =>
-        !toolKey.startsWith(removePrefix) && !removeSet.has(toolKey),
-    );
-  }
-
-  currentToolkits = sanitizeToolkitIds(currentToolkits);
-  currentTools = sanitizeToolKeys(currentTools);
+  const intent = {
+    toolkitId: normalizedToolkitId,
+    enabled: !!enabled,
+    safeToolKeys,
+  };
+  const optimistic = applyAutoApproveIntent(
+    currentToolkits,
+    currentTools,
+    intent,
+  );
+  currentToolkits = optimistic.toolkits;
+  currentTools = optimistic.tools;
+  let persistence = null;
   if (sqlMode) {
-    commitMirror(s, currentToolkits, currentTools);
+    persistence = commitMirror(s, currentToolkits, currentTools, intent);
   } else {
     store.toolkits = currentToolkits;
     store.tools = currentTools;
     writeStore(store);
   }
 
-  return { toolkits: currentToolkits, tools: currentTools };
+  // Keep the existing enumerable return shape stable while allowing UI
+  // callers to await the actual SQL outcome and undo optimistic controls.
+  return createResult(currentToolkits, currentTools, persistence);
 };
 
 export const getAutoApproveToolkits = () => {
@@ -590,6 +861,16 @@ export const getAutoApproveToolkits = () => {
 /** True when this session persists auto-approvals to SQL (Electron, Phase 2+). */
 export const isToolkitAutoApproveSqlBacked = () => ensureInit().mode === "sql";
 
+/** Non-sensitive, observable persistence health for UI/diagnostics. */
+export const getToolkitAutoApprovePersistenceStatus = () => {
+  const s = ensureInit();
+  return {
+    mode: s.mode,
+    pendingWrites: s.pendingWrites,
+    lastErrorCode: s.lastErrorCode,
+  };
+};
+
 /** Resolve when every queued auto-approve operation has settled (tests/QA). */
 export const flushToolkitAutoApproveWrites = async () => {
   const s = ensureInit();
@@ -598,6 +879,35 @@ export const flushToolkitAutoApproveWrites = async () => {
     tail = s.queueTail;
     await tail;
   } while (state === s && tail !== s.queueTail);
+};
+
+export const beginToolkitAutoApproveSettingsReset = async () => {
+  const s = ensureInit();
+  settingsResetBarrierActive = true;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endToolkitAutoApproveSettingsReset = () => {
+  settingsResetBarrierActive = false;
+};
+
+export const beginToolkitAutoApproveQuitDrain = async () => {
+  settingsQuitBarrierActive = true;
+  const s = state;
+  if (!s) return;
+  let tail;
+  do {
+    tail = s.queueTail;
+    await tail;
+  } while (state === s && tail !== s.queueTail);
+};
+
+export const endToolkitAutoApproveQuitDrain = () => {
+  settingsQuitBarrierActive = false;
 };
 
 // Reset-settings (plan §6-Phase5). SECURITY-RELEVANT: this store gates which
@@ -614,10 +924,15 @@ export const resetToolkitAutoApproveMirrorForSettingsReset = () => {
   const s = state;
   if (!s || s.mode !== "sql") return;
   seedMirror(s, [], []);
+  s.confirmedLegacyStore = null;
+  s.pendingLegacyStore = null;
+  s.latestMutationId = 0;
 };
 
 /** Test-only: drop module state so the next call re-runs init. */
 export const resetToolkitAutoApproveStoreForTests = () => {
   state = null;
+  settingsResetBarrierActive = false;
+  settingsQuitBarrierActive = false;
   resetSessionBootstrapSnapshotForTests();
 };

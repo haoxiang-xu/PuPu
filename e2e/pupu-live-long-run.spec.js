@@ -546,30 +546,90 @@ for (const cell of LIVE_MATRIX) {
         );
         assertReport("Unchain sidecar is ready", runtimeStatus.ready);
 
-        await debugEval(
+        await poll(
+          async () =>
+            debugEval(
+              testApi,
+              `
+                const snapshot = window.settingsStorageAPI?.bootstrap?.();
+                return snapshot?.available === true &&
+                  snapshot?.migration?.state === "complete"
+                  ? { ready: true }
+                  : null;
+              `,
+            ),
+          {
+            timeoutMs: phaseTimeoutMs,
+            label: "settings SQL migration completion",
+          },
+        );
+        const persistenceSetup = await debugEval(
           testApi,
           `
-            const root = JSON.parse(localStorage.getItem("settings") || "{}");
-            root.memory = {
-              ...(root.memory || {}),
+            const storage = window.settingsStorageAPI;
+            const before = storage.bootstrap();
+            const namespaces = before.namespaces || {};
+            const memory = await storage.setNamespace("memory", {
+              ...(namespaces.memory || {}),
               enabled: false,
-            };
-            root.model_providers = {
-              ...(root.model_providers || {}),
+            });
+            const runtime = await storage.setNamespace("runtime", {
+              ...(namespaces.runtime || {}),
+              workspace_root: ${JSON.stringify(workspaceRoot)},
+            });
+            const legacyRoot = JSON.parse(
+              localStorage.getItem("settings") || "{}"
+            );
+            const legacyProviders =
+              legacyRoot.model_providers &&
+              typeof legacyRoot.model_providers === "object"
+                ? legacyRoot.model_providers
+                : {};
+            legacyRoot.model_providers = {
+              ...legacyProviders,
               ${JSON.stringify(cell.settingsKey)}: ${JSON.stringify(credential)},
             };
-            root.runtime = {
-              ...(root.runtime || {}),
-              workspace_root: ${JSON.stringify(workspaceRoot)},
-            };
-            localStorage.setItem("settings", JSON.stringify(root));
-            localStorage.setItem("toolkit_auto_approve", JSON.stringify({
-              version: 2,
+            localStorage.setItem("settings", JSON.stringify(legacyRoot));
+            const credentialResult = await storage.setProviderCredential(
+              "provider",
+              ${JSON.stringify(cell.provider)},
+              ${JSON.stringify(credential)}
+            );
+            const autoApprove = await storage.replaceToolkitAutoApprove({
               toolkits: [],
               tools: [],
-            }));
-            return { configured: true };
+            });
+            const after = storage.bootstrap();
+            return {
+              memory,
+              runtime,
+              credential: credentialResult,
+              auto_approve: autoApprove,
+              configured_credentials: after.configuredCredentials || [],
+              legacy_contains_secret: String(
+                localStorage.getItem("settings") || ""
+              ).includes(${JSON.stringify(credential)}),
+            };
           `,
+        );
+        const credentialAuthorityReady =
+          (persistenceSetup?.credential?.status === "stored" &&
+            persistenceSetup?.configured_credentials?.includes(
+              cell.provider,
+            )) ||
+          (persistenceSetup?.credential?.status === "legacy-only" &&
+            !persistenceSetup?.configured_credentials?.includes(
+              cell.provider,
+            ));
+        assertReport(
+          "live credential and run settings use SQL-authoritative write APIs",
+          persistenceSetup?.memory?.ok === true &&
+            persistenceSetup?.runtime?.ok === true &&
+            persistenceSetup?.credential?.ok === true &&
+            persistenceSetup?.auto_approve?.ok === true &&
+            credentialAuthorityReady &&
+            persistenceSetup?.legacy_contains_secret === true,
+          { persistence_setup: redactSecrets(persistenceSetup, [credential]) },
         );
         await reloadAndWait({
           appWindow,
@@ -750,26 +810,42 @@ for (const cell of LIVE_MATRIX) {
         const clearedCredential = await debugEval(
           testApi,
           `
-            const root = JSON.parse(localStorage.getItem("settings") || "{}");
-            if (root.model_providers && typeof root.model_providers === "object") {
-              delete root.model_providers[${JSON.stringify(cell.settingsKey)}];
+            const storage = window.settingsStorageAPI;
+            const legacyRoot = JSON.parse(
+              localStorage.getItem("settings") || "{}"
+            );
+            if (
+              legacyRoot.model_providers &&
+              typeof legacyRoot.model_providers === "object"
+            ) {
+              delete legacyRoot.model_providers[
+                ${JSON.stringify(cell.settingsKey)}
+              ];
             }
-            localStorage.setItem("settings", JSON.stringify(root));
+            localStorage.setItem("settings", JSON.stringify(legacyRoot));
+            const deleted = await storage.deleteProviderCredential(
+              "provider",
+              ${JSON.stringify(cell.provider)}
+            );
+            const snapshot = storage.bootstrap();
             return {
-              setting_present: Boolean(
-                root.model_providers &&
-                root.model_providers[${JSON.stringify(cell.settingsKey)}]
+              deleted,
+              configured: (snapshot.configuredCredentials || []).includes(
+                ${JSON.stringify(cell.provider)}
               ),
-              serialized_contains_secret: JSON.stringify(root).includes(
-                ${JSON.stringify(credential)}
-              ),
+              legacy_contains_secret: String(
+                localStorage.getItem("settings") || ""
+              ).includes(${JSON.stringify(credential)}),
             };
           `,
         );
         assertReport(
           "provider credential was cleared before any renderer reload",
-          clearedCredential?.setting_present === false &&
-            clearedCredential?.serialized_contains_secret === false,
+          clearedCredential?.deleted?.ok === true &&
+            clearedCredential?.deleted?.deleted ===
+              (persistenceSetup?.credential?.status === "stored") &&
+            clearedCredential?.configured === false &&
+            clearedCredential?.legacy_contains_secret === false,
           { cleared: true },
         );
         persistReport();
