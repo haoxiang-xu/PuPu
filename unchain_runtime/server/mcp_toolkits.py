@@ -617,6 +617,31 @@ def _tool_to_dict(tool: Any) -> Dict[str, Any]:
     }
 
 
+def _describe_exception_chain(exc: BaseException, _depth: int = 0) -> str:
+    """Flatten an exception into a single diagnosable line.
+
+    An MCP stdio connect failure surfaces as an asyncio TaskGroup
+    ExceptionGroup whose str() is just "unhandled errors in a TaskGroup
+    (1 sub-exception)" — the actual cause (a missing interpreter, a server
+    that exited, a protocol error) is only reachable through .exceptions and
+    __cause__. Without this the install error reaching the UI is unactionable.
+    """
+    label = f"{type(exc).__name__}: {exc}"
+    if _depth >= 4:
+        return label
+    parts = [
+        _describe_exception_chain(sub, _depth + 1)
+        for sub in (getattr(exc, "exceptions", None) or [])
+    ]
+    if not parts:
+        nested = exc.__cause__ or exc.__context__
+        if nested is not None and nested is not exc:
+            parts = [_describe_exception_chain(nested, _depth + 1)]
+    if not parts:
+        return label
+    return f"{label} [{'; '.join(parts)}]"
+
+
 def _discover_tools(
     resolved_config: Dict[str, Any],
     toolkit_factory: Callable[..., Any] | None = None,
@@ -873,7 +898,9 @@ def install_mcp_toolkit(
     except McpToolkitError:
         raise
     except Exception as exc:
-        raise McpToolkitError("mcp_install_failed", str(exc), 502) from exc
+        raise McpToolkitError(
+            "mcp_install_failed", _describe_exception_chain(exc), 502
+        ) from exc
 
     record = _record_from_entry(
         entry,

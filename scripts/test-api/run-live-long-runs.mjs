@@ -661,7 +661,9 @@ const main = async () => {
         }
         activeChildren.delete(child);
         fs.rmSync(credentialHandoffPath, { force: true });
-        fs.rmSync(homeDir, { recursive: true, force: true });
+        if (!process.env.PUPU_LIVE_KEEP_HOME) {
+          fs.rmSync(homeDir, { recursive: true, force: true });
+        }
       }
       if (guardFailure && guardRequired) {
         outcome = {
