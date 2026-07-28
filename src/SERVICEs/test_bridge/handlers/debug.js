@@ -7,10 +7,11 @@ export const registerDebugHandlers = ({
   getCatalogCounts,
   getIsStreaming,
 }) => {
-  bridge.register("getStateSnapshot", async () =>
+  bridge.register("getStateSnapshot", async ({ chat_id: chatId } = {}) =>
     collectStateSnapshot({
       chatStorage,
       window,
+      chatId,
       configContext: getConfigContext
         ? getConfigContext()
         : { isDark: false, locale: "en" },

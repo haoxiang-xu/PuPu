@@ -125,6 +125,7 @@ export function buildJobReport({
       head_ref: cleanString(git.head_ref),
       base_ref: cleanString(git.base_ref),
       run_id: cleanString(git.run_id),
+      worktree_fingerprint: cleanString(git.worktree_fingerprint),
     },
     platform: {
       name: cleanString(platform.name) || cleanString(platform.os) || "unknown",

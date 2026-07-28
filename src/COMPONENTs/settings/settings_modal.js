@@ -31,8 +31,6 @@ const SettingsModalLoading = () => {
 
 export const SettingsModal = ({ open, onClose }) => {
   useModalLifecycle("settings-modal", open);
-  const { onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
 
   return (
     <Modal
@@ -43,8 +41,8 @@ export const SettingsModal = ({ open, onClose }) => {
         height: 600,
         maxHeight: "80vh",
         padding: 0,
-        backgroundColor: isDark ? "#141414" : "#ffffff",
-        color: isDark ? "#fff" : "#222",
+        backgroundColor: "var(--pupu-background)",
+        color: "var(--pupu-text)",
         display: "flex",
         overflow: "hidden",
       }}

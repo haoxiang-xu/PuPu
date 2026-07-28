@@ -44,10 +44,37 @@ export const buildChatStorageAdapter = () => ({
 
   selectTreeNode: (chatId) => {
     const store = cs.getChatsStore();
-    const nodeId = findNodeIdForChat(store, chatId);
-    if (nodeId) {
-      cs.selectTreeNode({ nodeId }, { source: TEST_API_SOURCE });
+    if (!store?.chatsById?.[chatId]) {
+      throw Object.assign(new Error(`chat ${chatId} not found`), {
+        code: "chat_not_found",
+        status: 404,
+      });
     }
+    const nodeId = findNodeIdForChat(store, chatId);
+    if (!nodeId) {
+      throw Object.assign(
+        new Error(`chat ${chatId} has no selectable tree node`),
+        { code: "chat_not_active", status: 409 },
+      );
+    }
+    const nextStore = cs.selectTreeNode(
+      { nodeId },
+      { source: TEST_API_SOURCE },
+    );
+    const activeChatId = nextStore?.activeChatId || null;
+    if (activeChatId !== chatId) {
+      throw Object.assign(
+        new Error(
+          `chat ${chatId} activation did not commit; active chat is ${activeChatId || "none"}`,
+        ),
+        { code: "chat_not_active", status: 409 },
+      );
+    }
+    return {
+      chat_id: chatId,
+      node_id: nodeId,
+      active_chat_id: activeChatId,
+    };
   },
 
   setChatTitle: (chatId, title) => {
@@ -74,6 +101,7 @@ export const buildChatStorageAdapter = () => ({
       model: unwrapModel(chat.model || chat.selectedModelId),
       toolkits: chat.selectedToolkits || chat.toolkits || [],
       character_id: chat.characterId || chat.character_id || null,
+      is_streaming: chat.isGenerating === true,
       last_message_role: messages.length
         ? messages[messages.length - 1].role
         : null,
@@ -107,13 +135,33 @@ export const buildChatStorageAdapter = () => ({
   },
 
   setChatCharacter: (id, charId) => {
-    // No dedicated setter exists for "switch character on existing chat".
-    // For Phase 1, mutate the in-memory chat record. openCharacterChat creates
-    // a new chat which is not what test API wants here.
     const store = cs.getChatsStore();
     const chat = store?.chatsById?.[id];
-    if (chat) {
-      chat.characterId = charId;
+    if (!chat) {
+      throw Object.assign(new Error(`chat ${id} not found`), {
+        code: "chat_not_found",
+        status: 404,
+      });
     }
+
+    const currentCharacterId =
+      chat.characterId || chat.character_id || null;
+    const requestedCharacterId = charId ?? null;
+    if (requestedCharacterId === currentCharacterId) {
+      return { ok: true, character_id: currentCharacterId };
+    }
+
+    // Character chats carry coupled identity, thread, memory, and orchestration
+    // invariants. Mutating only characterId creates a chat that looks switched
+    // but still owns the previous character's runtime state.
+    throw Object.assign(
+      new Error(
+        "changing character on an existing chat is unsupported; open the canonical character chat instead",
+      ),
+      {
+        code: "character_update_unsupported",
+        status: 409,
+      },
+    );
   },
 });

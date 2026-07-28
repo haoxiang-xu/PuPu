@@ -12,6 +12,14 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
       startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
+      attachStreamV4: jest.fn(async () => ({
+        active: true,
+        detach: jest.fn(),
+        cancel: jest.fn(),
+      })),
+      cancelExecution: jest.fn(async () => ({ status: "cancel_requested" })),
+      getPendingInteraction: jest.fn(async () => ({ status: "none" })),
+      respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
@@ -76,6 +84,111 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_embedding_provider).toBe("openai");
     expect(payload.options.memory_vector_top_k).toBe(3);
+  });
+
+  test("attaches to an existing V4 attempt without rebuilding its payload", async () => {
+    const identity = {
+      requestId: "request-1",
+      executionId: "chat-1",
+      attemptId: "attempt-1",
+      afterSeq: 0,
+    };
+    const handlers = { onRuntimeEvent: jest.fn() };
+
+    await expect(
+      api.unchain.attachStreamV4(identity, handlers),
+    ).resolves.toMatchObject({
+      active: true,
+      detach: expect.any(Function),
+      cancel: expect.any(Function),
+    });
+    expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledWith(
+      identity,
+      expect.objectContaining({
+        onRuntimeEvent: handlers.onRuntimeEvent,
+        onError: expect.any(Function),
+      }),
+    );
+  });
+
+  test("preserves an exact V4 replay error code and details", async () => {
+    const bridgeError = Object.assign(new Error("Replay history is incomplete"), {
+      code: "stream_replay_gap",
+      details: { first_available_seq: 12, requested_after_seq: 0 },
+    });
+    window.unchainAPI.attachStreamV4.mockRejectedValueOnce(bridgeError);
+
+    await expect(
+      api.unchain.attachStreamV4({
+        requestId: "request-gap",
+        executionId: "chat-gap",
+        attemptId: "attempt-gap",
+      }),
+    ).rejects.toMatchObject({
+      code: "stream_replay_gap",
+      message: "Replay history is incomplete",
+      details: { first_available_seq: 12, requested_after_seq: 0 },
+    });
+  });
+
+  test("forwards durable interaction session identifiers", async () => {
+    await api.unchain.getPendingInteraction({ session_id: "chat-1" });
+    await api.unchain.respondToolConfirmation({
+      confirmation_id: "interaction-1",
+      session_id: "chat-1",
+      approved: true,
+    });
+
+    expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({
+      session_id: "chat-1",
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: "interaction-1",
+      session_id: "chat-1",
+      approved: true,
+      reason: "",
+    });
+  });
+
+  test("forwards an exact execution cancellation identity", async () => {
+    await api.unchain.cancelExecution({
+      sessionId: " chat-1 ",
+      attemptId: " attempt-1 ",
+      reason: " user_stop ",
+      idempotencyKey: " stop-1 ",
+      sourceAttemptId: " attempt-source-1 ",
+      requestId: " request-1 ",
+    });
+
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      session_id: "chat-1",
+      attempt_id: "attempt-1",
+      reason: "user_stop",
+      source_attempt_id: "attempt-source-1",
+      request_id: "request-1",
+      idempotency_key: "stop-1",
+    });
+  });
+
+  test("rejects execution cancellation without an exact attempt", async () => {
+    await expect(
+      api.unchain.cancelExecution({ session_id: "chat-1" }),
+    ).rejects.toMatchObject({
+      code: "invalid_execution_cancel_request",
+    });
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
+
+  test("rejects non-boolean confirmation decisions", async () => {
+    await expect(
+      api.unchain.respondToolConfirmation({
+        confirmation_id: "interaction-1",
+        approved: "false",
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_confirmation_request",
+    });
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
   });
 
   test("respects explicit memory_enabled=false even when memory setting is enabled", () => {
@@ -259,9 +372,27 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
       },
     });
 
-    await api.unchain.replaceSessionMemory({
+    const structuredConflict = {
+      applied: false,
+      error: {
+        code: "session_revision_conflict",
+        message: "Session state changed before memory replacement",
+        retryable: false,
+        status: 409,
+        expected_revision: 7,
+        actual_revision: 8,
+      },
+    };
+    window.unchainAPI.replaceSessionMemory.mockResolvedValueOnce(
+      structuredConflict,
+    );
+
+    const result = await api.unchain.replaceSessionMemory({
       sessionId: "chat-1",
       messages: [{ role: "user", content: "hello" }],
+      operationId: " replace-1 ",
+      expectedSessionRevision: 7,
+      expectedCancelAttemptId: " run-1 ",
       options: {
         modelId: "anthropic:claude-sonnet-4-6",
       },
@@ -269,6 +400,12 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
 
     const [payload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(payload.session_id).toBe("chat-1");
+    expect(payload.operationId).toBe("replace-1");
+    expect(payload.operation_id).toBe("replace-1");
+    expect(payload.expectedSessionRevision).toBe(7);
+    expect(payload.expected_session_revision).toBe(7);
+    expect(payload.expectedCancelAttemptId).toBe("run-1");
+    expect(payload.expected_cancel_attempt_id).toBe("run-1");
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_embedding_provider).toBe("auto");
     expect(payload.options.memory_vector_min_score).toBe(0.4);
@@ -278,6 +415,7 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.openai_api_key).toBe("openai-key-123");
     expect(payload.options.anthropicApiKey).toBe("anthropic-key-456");
     expect(payload.options.anthropic_api_key).toBe("anthropic-key-456");
+    expect(result).toEqual(structuredConflict);
   });
 
   test("preserves agent_orchestration when normalizing startStreamV2 payload", () => {

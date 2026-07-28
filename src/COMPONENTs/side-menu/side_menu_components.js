@@ -137,8 +137,8 @@ export const ConfirmDeleteModal = ({
       width: 360,
       padding: "28px 28px 20px",
       backgroundColor: isDark
-        ? "var(--pupu-surface, #1a1a1a)"
-        : "var(--pupu-surface, #ffffff)",
+        ? "var(--pupu-background, #1a1a1a)"
+        : "var(--pupu-background, #ffffff)",
       display: "flex",
       flexDirection: "column",
       gap: 0,

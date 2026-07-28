@@ -2,6 +2,25 @@ const { CHANNELS } = require("../../shared/channels");
 
 const createMisoBridge = (ipcRenderer, streamClient) => ({
   getStatus: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_STATUS),
+  getComputerUseStatus: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS),
+  setComputerUseEnabled: (enabled = false) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED, {
+      enabled: Boolean(enabled),
+    }),
+  setComputerUseLocalBetaEnabled: (enabled = false) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED, {
+      enabled: Boolean(enabled),
+    }),
+  probeComputerUseModel: (model = "", force = false) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL, {
+      model: typeof model === "string" ? model : "",
+      force: force === true,
+    }),
+  openComputerUsePrivacySettings: (target = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS, {
+      target,
+    }),
   getModelCatalog: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MODEL_CATALOG),
   getToolkitCatalog: () =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG),
@@ -16,6 +35,11 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS),
   installMcpToolkit: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT, payload),
+  testCustomProvider: (definition = null, apiKey = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER, {
+      custom_provider: definition,
+      api_key: typeof apiKey === "string" ? apiKey : "",
+    }),
   deleteMcpToolkit: (toolkitId = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT, { toolkitId }),
   reloadMcpToolkits: (payload = {}) =>
@@ -32,8 +56,10 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     }),
   startMcpOAuth: (entryId = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.START_MCP_OAUTH, { entryId }),
-  getMcpOAuthStatus: (entryId = "") =>
-    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS, { entryId }),
+  cancelMcpOAuth: (state = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH, { state }),
+  getMcpOAuthStatus: (state = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS, { state }),
   disconnectMcpOAuth: (toolkitId = "") =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH, { toolkitId }),
   listMcpOAuthApps: () =>
@@ -70,6 +96,8 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
+  getPendingInteraction: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.PENDING_INTERACTION, payload),
   interject: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.INTERJECT, payload),
   setChromeTerminalOpen: (open = false) =>
@@ -146,10 +174,20 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.WRITE_FILE, { filePath, content }),
   readFile: (filePath) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.READ_FILE, { filePath }),
+  scanSkillDir: (directory) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SCAN_SKILL_DIR, { directory }),
+  downloadSkillRepo: (params = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO, params),
+  installSkillPack: (pack) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.INSTALL_SKILL_PACK, { pack }),
+  deleteSkillPack: (toolkitId) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_SKILL_PACK, { toolkitId }),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
+  cancelExecution: streamClient.cancelExecution,
   startStreamV2: streamClient.startStreamV2,
   startStreamV4: streamClient.startStreamV4,
+  attachStreamV4: streamClient.attachStreamV4,
 });
 
 module.exports = {

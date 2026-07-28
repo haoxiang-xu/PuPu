@@ -10,6 +10,7 @@ Embedding provider resolution order:
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import inspect
 import importlib.util
@@ -18,6 +19,7 @@ import os
 import re
 import sys
 import threading
+import time
 import uuid
 from types import MethodType, SimpleNamespace
 from typing import Any, Callable
@@ -36,6 +38,293 @@ _NO_EMBED_PROVIDERS = {"anthropic"}
 # Module-level singletons â€” one Qdrant client reused across all requests
 _qdrant_clients: dict[str, "QdrantClient"] = {}
 _qdrant_clients_lock = threading.Lock()
+
+_MEMORY_REPLACE_RECEIPTS_KEY = "memory_replace_receipts"
+_MEMORY_REPLACE_RECEIPT_LIMIT = 64
+_MEMORY_REPLACE_PENDING_LEASE_MS = 10 * 60 * 1000
+_memory_replace_process_owner_id = uuid.uuid4().hex
+_memory_replace_session_locks: dict[tuple[str, str], threading.Lock] = {}
+_memory_replace_session_locks_guard = threading.Lock()
+
+
+class MemorySessionReplaceError(RuntimeError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        status_code: int = 409,
+        retryable: bool = False,
+        expected_revision: int | None = None,
+        actual_revision: int | None = None,
+    ) -> None:
+        self.code = str(code or "memory_replace_failed")
+        self.status_code = int(status_code)
+        self.retryable = bool(retryable)
+        self.expected_revision = expected_revision
+        self.actual_revision = actual_revision
+        super().__init__(message)
+
+
+def _memory_replace_session_lock(data_dir: str, session_id: str) -> threading.Lock:
+    key = (str(data_dir), str(session_id))
+    with _memory_replace_session_locks_guard:
+        lock = _memory_replace_session_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _memory_replace_session_locks[key] = lock
+        return lock
+
+
+def _normalize_memory_replace_receipt_ledger(raw: object) -> dict[str, Any]:
+    if raw is None:
+        return {"schema_version": 1, "order": [], "entries": {}}
+    if not isinstance(raw, dict):
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger must be an object",
+        )
+
+    order_raw = raw.get("order", [])
+    entries_raw = raw.get("entries", {})
+    if (
+        raw.get("schema_version") != 1
+        or not isinstance(order_raw, list)
+        or not isinstance(entries_raw, dict)
+    ):
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger is invalid",
+        )
+
+    order: list[str] = []
+    entries: dict[str, dict[str, Any]] = {}
+    for operation_id_raw in order_raw:
+        operation_id = str(operation_id_raw or "").strip()
+        record = entries_raw.get(operation_id)
+        if not operation_id or operation_id in entries or not isinstance(record, dict):
+            raise MemorySessionReplaceError(
+                "memory_replace_receipt_corruption",
+                "Session memory replacement receipt ledger is invalid",
+            )
+        payload_hash = str(record.get("payload_hash") or "").strip()
+        status = str(record.get("status") or "").strip()
+        if not payload_hash or status not in {"pending", "terminal"}:
+            raise MemorySessionReplaceError(
+                "memory_replace_receipt_corruption",
+                "Session memory replacement receipt ledger is invalid",
+            )
+        if status == "terminal" and not isinstance(record.get("response"), dict):
+            raise MemorySessionReplaceError(
+                "memory_replace_receipt_corruption",
+                "Terminal session memory replacement receipt has no response",
+            )
+        order.append(operation_id)
+        entries[operation_id] = copy.deepcopy(record)
+
+    if set(entries_raw) != set(entries):
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger order is inconsistent",
+        )
+    if len(order) > _MEMORY_REPLACE_RECEIPT_LIMIT:
+        raise MemorySessionReplaceError(
+            "memory_replace_receipt_corruption",
+            "Session memory replacement receipt ledger exceeds its bound",
+        )
+    return {"schema_version": 1, "order": order, "entries": entries}
+
+
+def _memory_replace_receipt_record(
+    state: dict[str, Any],
+    operation_id: str,
+) -> dict[str, Any] | None:
+    ledger = _normalize_memory_replace_receipt_ledger(
+        state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+    )
+    record = ledger["entries"].get(operation_id)
+    return copy.deepcopy(record) if isinstance(record, dict) else None
+
+
+def _pending_memory_replace_receipt_is_live(record: dict[str, Any]) -> bool:
+    if str(record.get("owner_id") or "") == _memory_replace_process_owner_id:
+        return False
+
+    now_ms = int(time.time() * 1000)
+    lease_expires_at_ms = record.get("lease_expires_at_ms")
+    lease_is_current = not (
+        isinstance(lease_expires_at_ms, bool)
+        or not isinstance(lease_expires_at_ms, int)
+        or lease_expires_at_ms <= now_ms
+    )
+
+    owner_pid = record.get("owner_pid")
+    if isinstance(owner_pid, bool) or not isinstance(owner_pid, int) or owner_pid <= 0:
+        return lease_is_current
+    if owner_pid == os.getpid():
+        return lease_is_current
+    try:
+        os.kill(owner_pid, 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError):
+        return True
+    return True
+
+
+def _put_memory_replace_receipt(
+    state: dict[str, Any],
+    operation_id: str,
+    record: dict[str, Any],
+) -> None:
+    ledger = _normalize_memory_replace_receipt_ledger(
+        state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+    )
+    order = ledger["order"]
+    entries = ledger["entries"]
+
+    if operation_id not in entries:
+        while len(order) >= _MEMORY_REPLACE_RECEIPT_LIMIT:
+            terminal_operation_id = next(
+                (
+                    candidate
+                    for candidate in order
+                    if entries[candidate].get("status") == "terminal"
+                ),
+                "",
+            )
+            if not terminal_operation_id:
+                raise MemorySessionReplaceError(
+                    "memory_replace_in_progress",
+                    "Too many session memory replacements are still in progress",
+                    retryable=True,
+                )
+            order.remove(terminal_operation_id)
+            entries.pop(terminal_operation_id, None)
+        order.append(operation_id)
+    entries[operation_id] = copy.deepcopy(record)
+    state[_MEMORY_REPLACE_RECEIPTS_KEY] = ledger
+
+
+def _remove_matching_pending_memory_replace_receipt(
+    *,
+    store: Any,
+    session_id: str,
+    operation_id: str,
+    payload_hash: str,
+    owner_id: str,
+    attempt_id: str,
+) -> None:
+    for _ in range(16):
+        snapshot = _load_session_snapshot_compat(store, session_id)
+        state = copy.deepcopy(snapshot.state)
+        ledger = _normalize_memory_replace_receipt_ledger(
+            state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+        )
+        record = ledger["entries"].get(operation_id)
+        if (
+            not isinstance(record, dict)
+            or record.get("status") != "pending"
+            or record.get("payload_hash") != payload_hash
+            or record.get("owner_id") != owner_id
+            or record.get("attempt_id") != attempt_id
+        ):
+            return
+
+        ledger["entries"].pop(operation_id, None)
+        ledger["order"] = [
+            item for item in ledger["order"] if item != operation_id
+        ]
+        if ledger["order"]:
+            state[_MEMORY_REPLACE_RECEIPTS_KEY] = ledger
+        else:
+            state.pop(_MEMORY_REPLACE_RECEIPTS_KEY, None)
+        try:
+            _save_session_snapshot_compat(
+                store,
+                session_id,
+                state,
+                expected_revision=snapshot.revision,
+            )
+            return
+        except Exception as exc:
+            if getattr(exc, "code", "") == "session_revision_conflict":
+                continue
+            return
+
+
+def _memory_replace_payload_hash(
+    *,
+    session_id: str,
+    messages: list[dict[str, Any]],
+    options: dict[str, Any],
+    expected_cancel_attempt_id: str,
+) -> str:
+    canonical = {
+        "session_id": session_id,
+        "messages": messages,
+        "options": copy.deepcopy(options),
+        "expected_cancel_attempt_id": expected_cancel_attempt_id,
+    }
+    encoded = json.dumps(
+        canonical,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _memory_replace_messages_hash(messages: object) -> str:
+    encoded = json.dumps(
+        _sanitize_dialog_messages(messages),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _active_memory_replace_source_run_id(
+    state: dict[str, Any],
+) -> tuple[bool, str]:
+    active = False
+    source_run_ids: set[str] = set()
+
+    checkpoint = state.get("execution_checkpoint")
+    if checkpoint is not None:
+        active = True
+        if isinstance(checkpoint, dict):
+            source_run_id = str(checkpoint.get("source_run_id") or "").strip()
+            if source_run_id:
+                source_run_ids.add(source_run_id)
+
+    domain = state.get("execution_checkpoint_domain")
+    if domain is not None:
+        active = True
+        if isinstance(domain, dict):
+            owner_id = str(domain.get("owner_id") or "").strip()
+            if owner_id:
+                source_run_ids.add(owner_id)
+
+    journal = state.get("interaction_journal")
+    if isinstance(journal, dict):
+        active_id = str(journal.get("active_id") or "").strip()
+        if active_id:
+            active = True
+            entries = journal.get("entries")
+            entry = entries.get(active_id) if isinstance(entries, dict) else None
+            request = entry.get("request") if isinstance(entry, dict) else None
+            if isinstance(request, dict):
+                source_run_id = str(request.get("source_run_id") or "").strip()
+                if source_run_id:
+                    source_run_ids.add(source_run_id)
+
+    if len(source_run_ids) == 1:
+        return active, next(iter(source_run_ids))
+    return active, ""
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +398,34 @@ def _sessions_dir(data_dir: str) -> str:
     return str(p)
 
 
+def _computer_use_enabled() -> bool:
+    # Thin delegate to the shared gate (Gate B). ``computer_use_flag`` is a leaf
+    # module (only ``import os``), so this local import carries no cycle. Because
+    # _build_session_store is per-call, a runtime flip is captured on the next
+    # store construction — keeping screenshot sanitization in lockstep with the
+    # tool gate in unchain_adapter.
+    from computer_use_flag import is_enabled
+
+    return is_enabled()
+
+
+def _build_session_store(data_dir: str):
+    """Build the canonical session store for the current feature-flag state.
+
+    The wrapper always turns an existing screenshot marker into valid transcript
+    content, so disabling computer use cannot strand a previously saved
+    checkpoint. It only restores screenshot bytes and strips new tool-result
+    images while computer use is enabled; flag-off sessions otherwise retain the
+    base JsonFileSessionStore write behavior.
+    """
+    from session_transcript_media import build_sanitizing_session_store
+
+    return build_sanitizing_session_store(
+        _sessions_dir(data_dir),
+        sanitize_enabled=_computer_use_enabled(),
+    )
+
+
 def _long_term_profiles_dir(data_dir: str) -> str:
     from pathlib import Path
     p = Path(data_dir) / "memory" / "long_term_profiles"
@@ -139,9 +456,7 @@ def _qdrant_meta_path(data_dir: str) -> str:
 
 
 def _session_store_path(data_dir: str, session_id: str) -> str:
-    from unchain.memory import JsonFileSessionStore
-
-    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    store = _build_session_store(data_dir)
     path_getter = getattr(store, "_path", None)
     if not callable(path_getter):
         raise RuntimeError("JsonFileSessionStore path helper is unavailable")
@@ -159,9 +474,7 @@ def _long_term_profile_path(data_dir: str, namespace: str) -> str:
 
 
 def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
-    from unchain.memory import JsonFileSessionStore
-
-    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    store = _build_session_store(data_dir)
     try:
         state = store.load(str(session_id or ""))
     except Exception:
@@ -943,6 +1256,94 @@ def _filter_supported_constructor_kwargs(cls: Any, values: dict[str, Any]) -> di
     }
 
 
+def _accepts_var_keyword(parameters: dict[str, inspect.Parameter]) -> bool:
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+
+
+_BOUND_ARGUMENT_MISSING = object()
+
+
+def _bound_argument_value(
+    bound: inspect.BoundArguments,
+    name: str,
+    *,
+    default: Any = _BOUND_ARGUMENT_MISSING,
+) -> Any:
+    """Read a semantic argument from an explicit parameter or ``**kwargs``."""
+
+    if name in bound.arguments:
+        return bound.arguments[name]
+    for parameter_name, parameter in bound.signature.parameters.items():
+        if parameter.kind is not inspect.Parameter.VAR_KEYWORD:
+            continue
+        extras = bound.arguments.get(parameter_name)
+        if isinstance(extras, dict) and name in extras:
+            return extras[name]
+        break
+    if default is not _BOUND_ARGUMENT_MISSING:
+        return default
+    raise RuntimeError(f"wrapped runtime call is missing required argument {name!r}")
+
+
+def _set_bound_argument_value(
+    bound: inspect.BoundArguments,
+    name: str,
+    value: Any,
+) -> None:
+    """Update a semantic argument without losing a ``**kwargs`` bucket."""
+
+    parameter = bound.signature.parameters.get(name)
+    if parameter is not None and parameter.kind is not inspect.Parameter.VAR_KEYWORD:
+        bound.arguments[name] = value
+        return
+    for parameter_name, candidate in bound.signature.parameters.items():
+        if candidate.kind is not inspect.Parameter.VAR_KEYWORD:
+            continue
+        extras = bound.arguments.setdefault(parameter_name, {})
+        if not isinstance(extras, dict):  # pragma: no cover - inspect invariant
+            raise RuntimeError("wrapped runtime **kwargs payload is not a mapping")
+        extras[name] = value
+        return
+    raise RuntimeError(f"wrapped runtime call cannot update argument {name!r}")
+
+
+def _preserve_bound_method_signature(
+    wrapper: Callable[..., Any],
+    original_method: Callable[..., Any],
+) -> Callable[..., Any]:
+    """Keep runtime capability probes aligned with the wrapped method.
+
+    ``MethodType`` removes the first parameter when a function becomes bound.
+    Copying metadata from the original unbound function therefore preserves the
+    exact public signature, while the wrapper implementation can remain a
+    forward-compatible ``*args, **kwargs`` proxy.
+    """
+
+    original_function = getattr(original_method, "__func__", None)
+    if callable(original_function):
+        return functools.wraps(original_function)(wrapper)
+
+    try:
+        original_signature = inspect.signature(original_method)
+    except (TypeError, ValueError):
+        return wrapper
+    self_parameter = inspect.Parameter(
+        "self",
+        kind=inspect.Parameter.POSITIONAL_ONLY,
+    )
+    setattr(
+        wrapper,
+        "__signature__",
+        original_signature.replace(
+            parameters=(self_parameter, *original_signature.parameters.values())
+        ),
+    )
+    return wrapper
+
+
 def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
     similarity_search = getattr(vector_adapter, "similarity_search", None)
     if not callable(similarity_search):
@@ -956,94 +1357,57 @@ def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
 
     has_search = callable(getattr(client, "search", None))
     has_query_points = callable(getattr(client, "query_points", None))
-    has_query = callable(getattr(client, "query", None))
-    if has_search or (not has_query_points and not has_query):
+    if has_search:
         return vector_adapter
+    if not has_query_points:
+        raise RuntimeError(
+            "Qdrant vector search requires search() or query_points(); "
+            "query() is text-oriented and cannot safely replace vector search"
+        )
 
-    def _patched_similarity_search(
-        self,
-        *,
-        session_id: str,
-        query: str,
-        k: int,
-        min_score: float | None = None,
-    ) -> list[dict[str, Any]]:
-        collection = self._collection_name(session_id)
-        self._ensure_collection(collection)
-        query_vec = self._embed_fn([query])[0]
+    class _QdrantSearchCompatClient:
+        def __init__(self, raw_client: Any) -> None:
+            self._raw_client = raw_client
 
-        query_points_fn = getattr(self._client, "query_points", None)
-        query_fn = getattr(self._client, "query", None)
-        search_results: object
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self._raw_client, name)
 
-        if callable(query_points_fn):
+        def search(self, *args: Any, **kwargs: Any) -> list[Any]:
+            call_kwargs = dict(kwargs)
+            positional_names = ("collection_name", "query_vector")
+            if len(args) > len(positional_names):
+                raise TypeError(
+                    "Qdrant search compatibility accepts at most collection_name "
+                    "and query_vector positionally"
+                )
+            for name, value in zip(positional_names, args):
+                if name in call_kwargs:
+                    raise TypeError(f"Qdrant search received {name!r} twice")
+                call_kwargs[name] = value
+
+            if "query_vector" in call_kwargs:
+                query_vector = call_kwargs.pop("query_vector")
+            elif "query" in call_kwargs:
+                query_vector = call_kwargs.pop("query")
+            else:
+                raise TypeError("Qdrant search requires query_vector")
+            call_kwargs.setdefault("with_payload", True)
+
+            target = getattr(self._raw_client, "query_points", None)
+            if not callable(target):  # pragma: no cover - guarded above
+                raise AttributeError("Qdrant client has no query_points method")
+
             try:
-                search_results = query_points_fn(
-                    collection_name=collection,
-                    query=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-            except TypeError:
-                search_results = query_points_fn(
-                    collection_name=collection,
-                    query_vector=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-        elif callable(query_fn):
-            try:
-                search_results = query_fn(
-                    collection_name=collection,
-                    query=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-            except TypeError:
-                search_results = query_fn(
-                    collection_name=collection,
-                    query_vector=query_vec,
-                    limit=k,
-                    with_payload=True,
-                )
-        else:  # pragma: no cover - guarded above
-            raise AttributeError(
-                "Qdrant client has neither search nor query_points/query methods"
-            )
+                target_parameters = inspect.signature(target).parameters
+            except (TypeError, ValueError):
+                target_parameters = {}
+            if "query_vector" in target_parameters and "query" not in target_parameters:
+                call_kwargs["query_vector"] = query_vector
+            else:
+                call_kwargs["query"] = query_vector
+            return _extract_qdrant_hits(target(**call_kwargs))
 
-        hits = _extract_qdrant_hits(search_results)
-        recalled: list[dict[str, Any]] = []
-        for hit in hits:
-            payload = _extract_qdrant_payload(hit)
-            score = _extract_qdrant_score(hit)
-            if min_score is not None:
-                if score is None or score < float(min_score):
-                    continue
-
-            item: dict[str, Any] = {}
-            messages = payload.get("messages")
-            if isinstance(messages, list):
-                item["messages"] = copy.deepcopy(messages)
-            text = payload.get("text")
-            if isinstance(text, str) and text.strip():
-                item["text"] = text
-            role = payload.get("role")
-            if isinstance(role, str) and role.strip():
-                item["role"] = role.strip().lower()
-            index = payload.get("index")
-            if isinstance(index, int):
-                item["index"] = index
-            if score is not None:
-                item["score"] = score
-            if item:
-                recalled.append(item)
-        return recalled
-
-    setattr(
-        vector_adapter,
-        "similarity_search",
-        MethodType(_patched_similarity_search, vector_adapter),
-    )
+    setattr(vector_adapter, "_client", _QdrantSearchCompatClient(client))
     setattr(vector_adapter, "_pupu_qdrant_search_compat_patch", True)
     return vector_adapter
 
@@ -1057,23 +1421,62 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
 
     original_commit = commit_method
     try:
-        commit_params = inspect.signature(original_commit).parameters
-    except Exception:
-        commit_params = {}
+        commit_signature = inspect.signature(original_commit)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "memory commit overlap patch requires an inspectable commit_messages API"
+        ) from exc
+    commit_params = commit_signature.parameters
+    accepts_var_keyword = _accepts_var_keyword(commit_params)
+
+    legacy_optional_defaults: dict[str, Any] = {
+        "memory_namespace": None,
+        "model": None,
+        "long_term_extractor": None,
+        "expected_revision": None,
+        "summary_text": None,
+        "return_result": False,
+        "clear_execution_checkpoint_id": None,
+        "durable_receipt_ledger": None,
+        "execution_fence": None,
+    }
 
     def _patched_commit_messages(
         self,
-        session_id: str,
-        full_conversation: list[dict[str, Any]],
-        *,
-        memory_namespace: str | None = None,
-        model: str | None = None,
-        long_term_extractor: Callable[..., Any] | None = None,
-        expected_revision: int | None = None,
-        summary_text: str | None = None,
-        return_result: bool = False,
-        clear_execution_checkpoint_id: str | None = None,
+        *args: Any,
+        **kwargs: Any,
     ):
+        call_kwargs = dict(kwargs)
+        if not accepts_var_keyword:
+            for name, neutral_default in legacy_optional_defaults.items():
+                if name not in call_kwargs or name in commit_params:
+                    continue
+                value = call_kwargs.pop(name)
+                if value is neutral_default:
+                    continue
+                if name == "execution_fence":
+                    message = (
+                        "memory commit execution fencing is unsupported by the "
+                        "installed unchain runtime"
+                    )
+                elif name == "durable_receipt_ledger":
+                    message = (
+                        "memory commit durable receipt ledger is unsupported by the "
+                        "installed unchain runtime"
+                    )
+                else:
+                    message = (
+                        f"memory commit option {name!r} is unsupported by the "
+                        "installed unchain runtime"
+                    )
+                raise RuntimeError(message)
+        try:
+            bound = commit_signature.bind(*args, **call_kwargs)
+        except TypeError as exc:
+            raise RuntimeError(f"memory commit contract mismatch: {exc}") from exc
+
+        session_id = str(_bound_argument_value(bound, "session_id") or "")
+        full_conversation = _bound_argument_value(bound, "full_conversation")
         store_snapshot = None
         if session_id:
             try:
@@ -1094,31 +1497,27 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
             existing_messages,
             full_conversation,
         )
-        commit_kwargs = {
-            "session_id": session_id,
-            "full_conversation": merged_conversation,
-        }
-        if "memory_namespace" in commit_params:
-            commit_kwargs["memory_namespace"] = memory_namespace
-        if "model" in commit_params:
-            commit_kwargs["model"] = model
-        if "long_term_extractor" in commit_params:
-            commit_kwargs["long_term_extractor"] = long_term_extractor
-        if "expected_revision" in commit_params:
-            commit_kwargs["expected_revision"] = (
-                expected_revision
-                if expected_revision is not None
-                else getattr(store_snapshot, "revision", None)
+        _set_bound_argument_value(bound, "full_conversation", merged_conversation)
+        if (
+            ("expected_revision" in commit_params or accepts_var_keyword)
+            and _bound_argument_value(
+                bound,
+                "expected_revision",
+                default=None,
             )
-        if "summary_text" in commit_params:
-            commit_kwargs["summary_text"] = summary_text
-        if "return_result" in commit_params:
-            commit_kwargs["return_result"] = return_result
-        if "clear_execution_checkpoint_id" in commit_params:
-            commit_kwargs["clear_execution_checkpoint_id"] = (
-                clear_execution_checkpoint_id
+            is None
+        ):
+            _set_bound_argument_value(
+                bound,
+                "expected_revision",
+                getattr(store_snapshot, "revision", None),
             )
-        return original_commit(**commit_kwargs)
+        return original_commit(*bound.args, **bound.kwargs)
+
+    _patched_commit_messages = _preserve_bound_method_signature(
+        _patched_commit_messages,
+        original_commit,
+    )
 
     setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))
     setattr(manager, "_pupu_commit_overlap_patch", True)
@@ -1134,43 +1533,48 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
 
     original_prepare = prepare_method
     try:
-        prepare_params = inspect.signature(original_prepare).parameters
-    except Exception:
-        prepare_params = {}
+        prepare_signature = inspect.signature(original_prepare)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "memory diagnostics patch requires an inspectable prepare_messages API"
+        ) from exc
+    prepare_params = prepare_signature.parameters
+    accepts_var_keyword = _accepts_var_keyword(prepare_params)
+    legacy_optional_defaults: dict[str, Any] = {
+        "summary_generator": None,
+        "memory_namespace": None,
+        "provider": None,
+        "tool_resolver": None,
+        "supports_tools": None,
+    }
 
     def _patched_prepare_messages(
         self,
-        session_id: str,
-        incoming: list[dict[str, Any]],
-        *,
-        max_context_window_tokens: int,
-        model: str,
-        summary_generator: Callable[..., str] | None = None,
-        memory_namespace: str | None = None,
-        provider: str | None = None,
-        tool_resolver: Callable[..., Any] | None = None,
-        supports_tools: bool | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
+        call_kwargs = dict(kwargs)
+        if not accepts_var_keyword:
+            for name, neutral_default in legacy_optional_defaults.items():
+                if name not in call_kwargs or name in prepare_params:
+                    continue
+                value = call_kwargs.pop(name)
+                if value is neutral_default:
+                    continue
+                raise RuntimeError(
+                    f"memory prepare option {name!r} is unsupported by the "
+                    "installed unchain runtime"
+                )
+        try:
+            bound = prepare_signature.bind(*args, **call_kwargs)
+        except TypeError as exc:
+            raise RuntimeError(f"memory prepare contract mismatch: {exc}") from exc
+
+        session_id = str(_bound_argument_value(bound, "session_id") or "")
+        incoming = _bound_argument_value(bound, "incoming")
         clean_incoming = _sanitize_dialog_messages(incoming)
-
-        prepare_kwargs = {
-            "session_id": session_id,
-            "incoming": clean_incoming,
-            "max_context_window_tokens": max_context_window_tokens,
-            "model": model,
-        }
-        if "summary_generator" in prepare_params:
-            prepare_kwargs["summary_generator"] = summary_generator
-        if "memory_namespace" in prepare_params:
-            prepare_kwargs["memory_namespace"] = memory_namespace
-        if "provider" in prepare_params:
-            prepare_kwargs["provider"] = provider
-        if "tool_resolver" in prepare_params:
-            prepare_kwargs["tool_resolver"] = tool_resolver
-        if "supports_tools" in prepare_params:
-            prepare_kwargs["supports_tools"] = supports_tools
-
-        prepared = original_prepare(**prepare_kwargs)
+        _set_bound_argument_value(bound, "incoming", clean_incoming)
+        prepared = original_prepare(*bound.args, **bound.kwargs)
         prepared = _sanitize_dialog_messages(prepared)
 
         try:
@@ -1244,6 +1648,11 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
 
         return prepared
 
+    _patched_prepare_messages = _preserve_bound_method_signature(
+        _patched_prepare_messages,
+        original_prepare,
+    )
+
     setattr(manager, "prepare_messages", MethodType(_patched_prepare_messages, manager))
     setattr(manager, "_pupu_prepare_diagnostics_patch", True)
     return manager
@@ -1286,7 +1695,6 @@ def create_memory_manager_with_diagnostics(
 
     try:
         from unchain.memory import (
-            JsonFileSessionStore,
             LongTermMemoryConfig,
             MemoryConfig,
             MemoryManager,
@@ -1298,7 +1706,7 @@ def create_memory_manager_with_diagnostics(
         embed_fn, vector_size = _build_embed_runtime(embed_config)
         embedding_signature = _vector_embedding_signature(embed_config, vector_size)
 
-        store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+        store = _build_session_store(data_dir)
         collection_tag = _prepare_vector_collection_tag(
             store=store,
             client=qdrant_client,
@@ -1316,17 +1724,21 @@ def create_memory_manager_with_diagnostics(
         long_term_enabled = bool(options.get("memory_long_term_enabled"))
         long_term_config = None
         if long_term_enabled:
+            long_term_vector_adapter = QdrantLongTermVectorAdapter(
+                client=qdrant_client,
+                embed_fn=embed_fn,
+                vector_size=vector_size,
+                collection_prefix=_long_term_collection_prefix(
+                    embedding_signature
+                ),
+            )
+            long_term_vector_adapter = _patch_qdrant_similarity_search_compat(
+                long_term_vector_adapter
+            )
             long_term_kwargs = _filter_supported_constructor_kwargs(
                 LongTermMemoryConfig,
                 {
-                    "vector_adapter": QdrantLongTermVectorAdapter(
-                        client=qdrant_client,
-                        embed_fn=embed_fn,
-                        vector_size=vector_size,
-                        collection_prefix=_long_term_collection_prefix(
-                            embedding_signature
-                        ),
-                    ),
+                    "vector_adapter": long_term_vector_adapter,
                     "profile_base_dir": _long_term_profiles_dir(data_dir),
                     "vector_top_k": max(
                         0,
@@ -1404,43 +1816,53 @@ def create_memory_manager(options: dict[str, Any]):
     return manager
 
 
-def replace_short_term_session_memory(
+def _commit_short_term_session_memory_replacement(
     *,
+    store: Any,
+    data_dir: str,
     session_id: str,
-    messages: object,
-    options: dict[str, Any] | None = None,
+    retained_messages: list[dict[str, Any]],
+    raw_options: dict[str, Any],
+    replacement_cleanup: dict[str, bool],
+    previous_snapshot: Any,
+    operation_id: str = "",
+    operation_payload_hash: str = "",
 ) -> dict[str, Any]:
-    normalized_session_id = str(session_id or "").strip()
-    if not normalized_session_id:
-        raise ValueError("session_id is required")
-
-    data_dir = _normalize_data_dir(_data_dir())
-    if not data_dir:
-        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
-
     from unchain.memory import (
-        JsonFileSessionStore,
         QdrantVectorAdapter,
         collect_complete_turns_for_vector_index,
     )
 
-    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
-    raw_options = options if isinstance(options, dict) else {}
-    retained_messages = _sanitize_dialog_messages(messages)
-
-    previous_snapshot = _load_session_snapshot_compat(store, normalized_session_id)
+    from durable_interaction_host import (
+        DurableInteractionHostError,
+    )
     previous_state = previous_snapshot.state
+    previous_journal = previous_state.get("interaction_journal")
+    if (
+        "execution_checkpoint" in previous_state
+        or "execution_checkpoint_domain" in previous_state
+        or (
+            isinstance(previous_journal, dict)
+            and bool(previous_journal.get("active_id"))
+        )
+    ):
+        raise DurableInteractionHostError(
+            "session_memory_replace_conflict",
+            "A durable execution started while session memory was being replaced",
+            status_code=409,
+            retryable=True,
+        )
 
     old_tag = str(previous_state.get("vector_collection_tag", "") or "").strip()
     old_collection_name = _session_collection_name(
-        session_id=normalized_session_id,
+        session_id=session_id,
         collection_prefix=_vector_collection_prefix(old_tag),
     )
 
     new_tag = _fresh_vector_collection_tag()
     new_collection_prefix = _vector_collection_prefix(new_tag)
     new_collection_name = _session_collection_name(
-        session_id=normalized_session_id,
+        session_id=session_id,
         collection_prefix=new_collection_prefix,
     )
 
@@ -1482,7 +1904,7 @@ def replace_short_term_session_memory(
                 )
                 if texts:
                     vector_adapter.add_texts(
-                        session_id=normalized_session_id,
+                        session_id=session_id,
                         texts=texts,
                         metadatas=metadatas,
                     )
@@ -1497,14 +1919,43 @@ def replace_short_term_session_memory(
     next_state = dict(previous_state)
     next_state["messages"] = retained_messages
     next_state.pop("summary", None)
-    checkpoint_cleared = next_state.pop("execution_checkpoint", None) is not None
+    checkpoint_cleared = bool(
+        replacement_cleanup.get("execution_checkpoint_cleared")
+    )
     next_state["vector_indexed_until"] = vector_indexed_until
     next_state["vector_collection_tag"] = new_tag
     next_state["vector_embedding_signature"] = vector_signature
+
+    response = {
+        "applied": True,
+        "session_id": session_id,
+        "stored_message_count": len(retained_messages),
+        "vector_applied": vector_applied,
+        "vector_indexed_count": vector_indexed_count,
+        "vector_indexed_until": vector_indexed_until,
+        "vector_fallback_reason": vector_fallback_reason,
+    }
+    if checkpoint_cleared:
+        response["execution_checkpoint_cleared"] = True
+    if replacement_cleanup.get("orphaned_interaction_repaired"):
+        response["orphaned_interaction_repaired"] = True
+    if operation_id:
+        response["operation_id"] = operation_id
+        response["replayed"] = False
+        _put_memory_replace_receipt(
+            next_state,
+            operation_id,
+            {
+                "payload_hash": operation_payload_hash,
+                "status": "terminal",
+                "response": copy.deepcopy(response),
+            },
+        )
+
     try:
         persisted_snapshot = _save_session_snapshot_compat(
             store,
-            normalized_session_id,
+            session_id,
             next_state,
             expected_revision=previous_snapshot.revision,
         )
@@ -1527,22 +1978,338 @@ def replace_short_term_session_memory(
             old_collection_name,
         )
 
-    response = {
-        "applied": True,
-        "session_id": normalized_session_id,
-        "stored_message_count": len(retained_messages),
-        "vector_applied": vector_applied,
-        "vector_indexed_count": vector_indexed_count,
-        "vector_indexed_until": vector_indexed_until,
-        "vector_fallback_reason": vector_fallback_reason,
-    }
-    if checkpoint_cleared:
-        response["execution_checkpoint_cleared"] = True
     if isinstance(persisted_snapshot.revision, int):
         response["session_revision"] = persisted_snapshot.revision
     if cleanup_warning:
         response["cleanup_warning"] = cleanup_warning
     return response
+
+
+def replace_short_term_session_memory(
+    *,
+    session_id: str,
+    messages: object,
+    options: dict[str, Any] | None = None,
+    operation_id: object = None,
+    expected_session_revision: object = None,
+    expected_cancel_attempt_id: object = "",
+) -> dict[str, Any]:
+    normalized_session_id = str(session_id or "").strip()
+    if not normalized_session_id:
+        raise ValueError("session_id is required")
+
+    data_dir = _normalize_data_dir(_data_dir())
+    if not data_dir:
+        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
+
+    store = _build_session_store(data_dir)
+    raw_options = options if isinstance(options, dict) else {}
+    retained_messages = _sanitize_dialog_messages(messages)
+
+    from durable_interaction_host import prepare_session_memory_replacement
+
+    if operation_id is None:
+        replacement_cleanup = prepare_session_memory_replacement(
+            normalized_session_id
+        )
+        previous_snapshot = _load_session_snapshot_compat(
+            store,
+            normalized_session_id,
+        )
+        return _commit_short_term_session_memory_replacement(
+            store=store,
+            data_dir=data_dir,
+            session_id=normalized_session_id,
+            retained_messages=retained_messages,
+            raw_options=raw_options,
+            replacement_cleanup=replacement_cleanup,
+            previous_snapshot=previous_snapshot,
+        )
+
+    if not isinstance(operation_id, str) or not operation_id.strip():
+        raise ValueError("operation_id must be a non-empty string")
+    normalized_operation_id = operation_id.strip()
+    if len(normalized_operation_id) > 512:
+        raise ValueError("operation_id must be at most 512 characters")
+
+    if (
+        expected_session_revision is not None
+        and (
+            isinstance(expected_session_revision, bool)
+            or not isinstance(expected_session_revision, int)
+            or expected_session_revision < 0
+        )
+    ):
+        raise ValueError("expected_session_revision must be a non-negative integer")
+    normalized_expected_revision = expected_session_revision
+
+    if not isinstance(expected_cancel_attempt_id, str):
+        raise ValueError("expected_cancel_attempt_id must be a string")
+    normalized_expected_cancel_attempt_id = expected_cancel_attempt_id.strip()
+
+    payload_hash = _memory_replace_payload_hash(
+        session_id=normalized_session_id,
+        messages=retained_messages,
+        options=raw_options,
+        expected_cancel_attempt_id=normalized_expected_cancel_attempt_id,
+    )
+    operation_lock = _memory_replace_session_lock(
+        data_dir,
+        normalized_session_id,
+    )
+    arrival_snapshot = _load_session_snapshot_compat(
+        store,
+        normalized_session_id,
+    )
+    if (
+        isinstance(arrival_snapshot.revision, bool)
+        or not isinstance(arrival_snapshot.revision, int)
+    ):
+        raise MemorySessionReplaceError(
+            "durable_store_unavailable",
+            "Idempotent session memory replacement requires revisioned storage",
+            status_code=503,
+            retryable=True,
+        )
+    request_baseline_revision = (
+        normalized_expected_revision
+        if normalized_expected_revision is not None
+        else arrival_snapshot.revision
+    )
+
+    with operation_lock:
+        claim_attempt_id = uuid.uuid4().hex
+        claim_snapshot = None
+        for _ in range(16):
+            snapshot = _load_session_snapshot_compat(
+                store,
+                normalized_session_id,
+            )
+            if (
+                isinstance(snapshot.revision, bool)
+                or not isinstance(snapshot.revision, int)
+            ):
+                raise MemorySessionReplaceError(
+                    "durable_store_unavailable",
+                    "Idempotent session memory replacement requires revisioned storage",
+                    status_code=503,
+                    retryable=True,
+                )
+
+            state = copy.deepcopy(snapshot.state)
+            ledger = _normalize_memory_replace_receipt_ledger(
+                state.get(_MEMORY_REPLACE_RECEIPTS_KEY)
+            )
+            existing_record = ledger["entries"].get(normalized_operation_id)
+            taking_over_pending = False
+            if isinstance(existing_record, dict):
+                if existing_record.get("payload_hash") != payload_hash:
+                    raise MemorySessionReplaceError(
+                        "memory_replace_operation_conflict",
+                        "operation_id is already bound to a different replacement payload",
+                    )
+                if existing_record.get("status") == "terminal":
+                    response = copy.deepcopy(existing_record["response"])
+                    response["operation_id"] = normalized_operation_id
+                    response["replayed"] = True
+                    response["session_revision"] = snapshot.revision
+                    return response
+                if _pending_memory_replace_receipt_is_live(existing_record):
+                    raise MemorySessionReplaceError(
+                        "memory_replace_in_progress",
+                        "The session memory replacement operation is already in progress",
+                        retryable=True,
+                    )
+                if (
+                    existing_record.get("expected_session_revision")
+                    != normalized_expected_revision
+                ):
+                    raise MemorySessionReplaceError(
+                        "memory_replace_operation_conflict",
+                        "Pending operation has a different session revision precondition",
+                    )
+                baseline_messages_hash = str(
+                    existing_record.get("baseline_messages_hash") or ""
+                ).strip()
+                if (
+                    not baseline_messages_hash
+                    or baseline_messages_hash
+                    != _memory_replace_messages_hash(state.get("messages"))
+                ):
+                    _remove_matching_pending_memory_replace_receipt(
+                        store=store,
+                        session_id=normalized_session_id,
+                        operation_id=normalized_operation_id,
+                        payload_hash=payload_hash,
+                        owner_id=str(existing_record.get("owner_id") or ""),
+                        attempt_id=str(existing_record.get("attempt_id") or ""),
+                    )
+                    raise MemorySessionReplaceError(
+                        "session_revision_conflict",
+                        "Session messages changed after the replacement operation was claimed",
+                        expected_revision=normalized_expected_revision,
+                        actual_revision=snapshot.revision,
+                    )
+                taking_over_pending = True
+
+            if (
+                not taking_over_pending
+                and snapshot.revision != request_baseline_revision
+            ):
+                raise MemorySessionReplaceError(
+                    "session_revision_conflict",
+                    "Session state changed before memory replacement",
+                    expected_revision=request_baseline_revision,
+                    actual_revision=snapshot.revision,
+                )
+
+            active, source_run_id = _active_memory_replace_source_run_id(state)
+            if active and (
+                not normalized_expected_cancel_attempt_id
+                or source_run_id != normalized_expected_cancel_attempt_id
+            ):
+                raise MemorySessionReplaceError(
+                    "session_memory_replace_conflict",
+                    "Active durable execution does not match the expected cancellation attempt",
+                    retryable=True,
+                )
+
+            for other_operation_id in list(ledger["order"]):
+                other_record = ledger["entries"].get(other_operation_id)
+                if not isinstance(other_record, dict) or other_record.get("status") != "pending":
+                    continue
+                if other_operation_id == normalized_operation_id:
+                    continue
+                raise MemorySessionReplaceError(
+                    "memory_replace_in_progress",
+                    "Another session memory replacement must finish or replay first",
+                    retryable=True,
+                )
+
+            if ledger["order"]:
+                state[_MEMORY_REPLACE_RECEIPTS_KEY] = ledger
+            else:
+                state.pop(_MEMORY_REPLACE_RECEIPTS_KEY, None)
+            now_ms = int(time.time() * 1000)
+            _put_memory_replace_receipt(
+                state,
+                normalized_operation_id,
+                {
+                    "payload_hash": payload_hash,
+                    "status": "pending",
+                    "owner_id": _memory_replace_process_owner_id,
+                    "owner_pid": os.getpid(),
+                    "attempt_id": claim_attempt_id,
+                    "expected_session_revision": normalized_expected_revision,
+                    "claim_base_revision": snapshot.revision,
+                    "baseline_messages_hash": _memory_replace_messages_hash(
+                        state.get("messages")
+                    ),
+                    "claimed_at_ms": now_ms,
+                    "lease_expires_at_ms": now_ms + _MEMORY_REPLACE_PENDING_LEASE_MS,
+                },
+            )
+            try:
+                claim_snapshot = _save_session_snapshot_compat(
+                    store,
+                    normalized_session_id,
+                    state,
+                    expected_revision=snapshot.revision,
+                )
+                break
+            except Exception as exc:
+                if getattr(exc, "code", "") == "session_revision_conflict":
+                    continue
+                if getattr(exc, "code", "") in {
+                    "active_execution_lease",
+                    "execution_lease_conflict",
+                }:
+                    raise MemorySessionReplaceError(
+                        "session_memory_replace_conflict",
+                        "Session memory replacement cannot start while execution is active",
+                        retryable=True,
+                    ) from exc
+                raise
+
+        if claim_snapshot is None:
+            raise MemorySessionReplaceError(
+                "session_revision_conflict",
+                "Session state changed while claiming memory replacement",
+                expected_revision=request_baseline_revision,
+                actual_revision=None,
+                retryable=True,
+            )
+
+        replacement_cleanup = prepare_session_memory_replacement(
+            normalized_session_id,
+            expected_cancel_attempt_id=normalized_expected_cancel_attempt_id,
+        )
+        previous_snapshot = _load_session_snapshot_compat(
+            store,
+            normalized_session_id,
+        )
+        previous_state = previous_snapshot.state
+        claim_record = _memory_replace_receipt_record(
+            previous_state,
+            normalized_operation_id,
+        )
+        if (
+            not isinstance(claim_record, dict)
+            or claim_record.get("status") != "pending"
+            or claim_record.get("payload_hash") != payload_hash
+            or claim_record.get("owner_id") != _memory_replace_process_owner_id
+            or claim_record.get("attempt_id") != claim_attempt_id
+        ):
+            raise MemorySessionReplaceError(
+                "memory_replace_operation_conflict",
+                "Session memory replacement claim changed before commit",
+                retryable=True,
+            )
+
+        baseline_messages_hash = str(
+            claim_record.get("baseline_messages_hash") or ""
+        ).strip()
+        if (
+            not baseline_messages_hash
+            or baseline_messages_hash
+            != _memory_replace_messages_hash(previous_state.get("messages"))
+        ):
+            _remove_matching_pending_memory_replace_receipt(
+                store=store,
+                session_id=normalized_session_id,
+                operation_id=normalized_operation_id,
+                payload_hash=payload_hash,
+                owner_id=_memory_replace_process_owner_id,
+                attempt_id=claim_attempt_id,
+            )
+            raise MemorySessionReplaceError(
+                "session_revision_conflict",
+                "Session messages changed while preparing memory replacement",
+                expected_revision=claim_record.get("claim_base_revision"),
+                actual_revision=previous_snapshot.revision,
+            )
+
+        active, _source_run_id = _active_memory_replace_source_run_id(
+            previous_state
+        )
+        if active:
+            raise MemorySessionReplaceError(
+                "session_memory_replace_conflict",
+                "Durable execution could not be terminalized before memory replacement",
+                retryable=True,
+            )
+
+        return _commit_short_term_session_memory_replacement(
+            store=store,
+            data_dir=data_dir,
+            session_id=normalized_session_id,
+            retained_messages=retained_messages,
+            raw_options=raw_options,
+            replacement_cleanup=replacement_cleanup,
+            previous_snapshot=previous_snapshot,
+            operation_id=normalized_operation_id,
+            operation_payload_hash=payload_hash,
+        )
 
 
 def delete_short_term_session_memory(

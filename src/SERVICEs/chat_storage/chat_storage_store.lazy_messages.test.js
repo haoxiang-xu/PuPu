@@ -103,7 +103,10 @@ describe("chat_storage lazy messages (v3 ops protocol)", () => {
     await Promise.resolve();
   };
 
-  const allOps = () => bridge.applyOps.mock.calls.flatMap(([ops]) => ops);
+  const allOps = () =>
+    bridge.applyOps.mock.calls.flatMap(([payload]) =>
+      Array.isArray(payload) ? payload : payload?.ops || [],
+    );
 
   beforeEach(() => {
     jest.resetModules();
@@ -155,6 +158,24 @@ describe("chat_storage lazy messages (v3 ops protocol)", () => {
     expect(store.getChatMessages("chat-missing")).toEqual([]);
     expect(store.getChatMessages(null)).toEqual([]);
     expect(bridge.readMessages).not.toHaveBeenCalled();
+  });
+
+  test("message read failure aborts a switch without writing back an empty list", () => {
+    const store = require("./chat_storage_store");
+    store.getChatsStore();
+    bridge.applyOps.mockClear();
+    bridge.readMessages.mockImplementation(() => {
+      throw new Error("message payload is corrupt");
+    });
+
+    expect(() => store.getChatMessages(CHAT_B)).toThrow(
+      "message payload is corrupt",
+    );
+    expect(() =>
+      store.selectTreeNode({ nodeId: NODE_B }, { source: "test" }),
+    ).toThrow("message payload is corrupt");
+    expect(store.getChatsStore().activeChatId).toBe(CHAT_A);
+    expect(bridge.applyOps).not.toHaveBeenCalled();
   });
 
   test("chat switch preloads the new active chat's messages before emit", async () => {

@@ -59,7 +59,7 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 > registered handler and is not exposed through any preload bridge. It is a dead
 > channel and is intentionally omitted from this registry.
 
-**Status & Config (7):**
+**Status & Config (8):**
 
 | Channel | Pattern |
 |---------|---------|
@@ -68,6 +68,7 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `unchain:get-toolkit-catalog` | invoke/handle |
 | `unchain:list-tool-modal-catalog` | invoke/handle |
 | `unchain:get-toolkit-detail` | invoke/handle |
+| `unchain:test-custom-provider` | invoke/handle |
 | `unchain:set-chrome-terminal-open` | invoke/handle |
 | `unchain:sync-build-feature-flags-snapshot` | invoke/handle |
 

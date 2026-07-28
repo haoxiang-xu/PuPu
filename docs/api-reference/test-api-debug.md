@@ -4,12 +4,23 @@ All under `/v1/debug/*`.
 
 ## GET `/debug/state`
 
-Returns a structured snapshot of renderer state. Optional `?chat_id=` to scope (currently unused — always returns active chat snapshot).
+Returns a structured snapshot of renderer state. Optional `?chat_id=` scopes
+the model, toolkit, character, message summary, and streaming fields to that
+chat without activating it. `active_chat_id` and `active_chat` continue to
+describe the chat visible in the UI.
 
 ```json
 {
   "active_chat_id": "chat-...",
   "active_chat": {
+    "id": "chat-...",
+    "title": "...",
+    "model": "...",
+    "message_count": 3,
+    "last_message_role": "assistant"
+  },
+  "inspected_chat_id": "chat-...",
+  "inspected_chat": {
     "id": "chat-...",
     "title": "...",
     "model": "...",

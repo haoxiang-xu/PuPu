@@ -1,4 +1,13 @@
-const registerBuiltinCommands = ({ registry, bridge, logs, getMainWindow, electron }) => {
+const registerBuiltinCommands = ({
+  registry,
+  bridge,
+  logs,
+  getMainWindow,
+  electron,
+  allowAppQuit = false,
+}) => {
+  const electronApi = electron || require("electron");
+
   // Chat lifecycle
   registry.register({
     method: "POST",
@@ -41,14 +50,53 @@ const registerBuiltinCommands = ({ registry, bridge, logs, getMainWindow, electr
     handler: (ctx) =>
       bridge.invoke(
         "sendMessage",
-        { id: ctx.params.id, ...(ctx.body || {}) },
+        { ...(ctx.body || {}), id: ctx.params.id },
         { timeout: 5 * 60 * 1000 },
       ),
   });
   registry.register({
     method: "POST",
     path: "/v1/chats/:id/cancel",
-    handler: (ctx) => bridge.invoke("cancelMessage", { id: ctx.params.id }),
+    handler: (ctx) =>
+      bridge.invoke("cancelMessage", {
+        ...(ctx.body || {}),
+        id: ctx.params.id,
+      }),
+  });
+
+  // Async run control. Every operation is addressed by both chat id and the
+  // exact runtime attempt id; the renderer rejects mismatches rather than
+  // falling back to whichever chat happens to be active.
+  registry.register({
+    method: "POST",
+    path: "/v1/chats/:id/runs",
+    validator: (body) =>
+      body && typeof body.text === "string" ? null : "body.text required",
+    handler: (ctx) =>
+      bridge.invoke(
+        "startChatRun",
+        { ...(ctx.body || {}), id: ctx.params.id },
+        { timeout: 60 * 1000 },
+      ),
+  });
+  registry.register({
+    method: "GET",
+    path: "/v1/chats/:id/runs/:attempt_id",
+    handler: (ctx) =>
+      bridge.invoke("getChatRun", {
+        id: ctx.params.id,
+        attempt_id: ctx.params.attempt_id,
+      }),
+  });
+  registry.register({
+    method: "POST",
+    path: "/v1/chats/:id/runs/:attempt_id/cancel",
+    handler: (ctx) =>
+      bridge.invoke("cancelChatRun", {
+        ...(ctx.body || {}),
+        id: ctx.params.id,
+        attempt_id: ctx.params.attempt_id,
+      }),
   });
 
   // Catalog + selection
@@ -120,9 +168,27 @@ const registerBuiltinCommands = ({ registry, bridge, logs, getMainWindow, electr
       return { entries: logs.tail({ source, n, since }) };
     },
   });
+  if (allowAppQuit) {
+    registry.register({
+      method: "POST",
+      path: "/v1/debug/quit",
+      handler: () => {
+        if (!electronApi?.app || typeof electronApi.app.quit !== "function") {
+          throw Object.assign(new Error("Electron app quit is unavailable"), {
+            code: "app_quit_unavailable",
+            status: 503,
+          });
+        }
+        return { ok: true };
+      },
+      // The server runs this only after the HTTP response emits "finish", so the
+      // E2E client receives the acknowledgement before app.quit() closes it.
+      afterResponse: () => electronApi.app.quit(),
+    });
+  }
 
   const getWin = () => {
-    const { BrowserWindow } = electron || require("electron");
+    const { BrowserWindow } = electronApi;
     return BrowserWindow.getFocusedWindow() || (getMainWindow && getMainWindow());
   };
 

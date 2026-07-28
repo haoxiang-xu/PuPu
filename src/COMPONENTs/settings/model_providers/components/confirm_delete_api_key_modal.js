@@ -17,7 +17,6 @@ const ConfirmDeleteApiKeyModal = ({
     style={{
       width: 360,
       padding: "28px 28px 20px",
-      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
       display: "flex",
       flexDirection: "column",
       gap: 0,

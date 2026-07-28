@@ -4,6 +4,10 @@ import {
   loadAttachmentPayload,
   saveAttachmentPayload,
 } from "../../../SERVICEs/attachment_storage";
+import {
+  getChatsStore,
+  updateChatDraft,
+} from "../../../SERVICEs/chat_storage";
 import { toast } from "../../../SERVICEs/toast";
 import {
   createAttachmentPrompt,
@@ -42,6 +46,44 @@ export const useChatAttachments = ({
       : setInternalDraftAttachments;
   const attachmentFileInputRef = useRef(null);
   const attachmentPayloadByChatRef = useRef(new Map());
+  const activeChatIdRef = useRef(chatId);
+  activeChatIdRef.current = chatId;
+
+  const appendDraftAttachments = useCallback(
+    (targetChatId, attachments = []) => {
+      if (
+        !targetChatId ||
+        !Array.isArray(attachments) ||
+        attachments.length === 0
+      ) {
+        return;
+      }
+
+      if (activeChatIdRef.current === targetChatId) {
+        setDraftAttachments((previous) => {
+          const current = Array.isArray(previous) ? previous : [];
+          return [...current, ...attachments];
+        });
+        return;
+      }
+
+      const targetDraftAttachments =
+        getChatsStore()?.chatsById?.[targetChatId]?.draft?.attachments;
+      updateChatDraft(
+        targetChatId,
+        {
+          attachments: [
+            ...(Array.isArray(targetDraftAttachments)
+              ? targetDraftAttachments
+              : []),
+            ...attachments,
+          ],
+        },
+        { source: "chat-page" },
+      );
+    },
+    [setDraftAttachments],
+  );
 
   const getOrCreateChatAttachmentPayloadMap = useCallback((targetChatId) => {
     if (!targetChatId) {
@@ -239,7 +281,8 @@ export const useChatAttachments = ({
 
   const processFiles = useCallback(
     async (rawFiles) => {
-      if (!chatId || rawFiles.length === 0) {
+      const targetChatId = chatId;
+      if (!targetChatId || rawFiles.length === 0) {
         return;
       }
 
@@ -376,33 +419,37 @@ export const useChatAttachments = ({
       }
 
       if (attachmentEntries.length > 0) {
-        rememberAttachmentPayloads(chatId, payloadEntries);
+        rememberAttachmentPayloads(targetChatId, payloadEntries);
         payloadEntries.forEach(({ id, payload }, index) => {
           saveAttachmentPayload(id, payload, attachmentEntries[index]?.name).catch(
             () => {},
           );
         });
-        setDraftAttachments((previous) => {
-          const current = Array.isArray(previous) ? previous : [];
-          return [...current, ...attachmentEntries];
-        });
+        appendDraftAttachments(targetChatId, attachmentEntries);
       }
 
       if (attachmentEntries.length === 0) {
-        setStreamError(
-          warnings[0] || "No compatible attachments were selected.",
-        );
+        if (activeChatIdRef.current === targetChatId) {
+          setStreamError(
+            warnings[0] || "No compatible attachments were selected.",
+          );
+        }
         return;
       }
 
       if (warnings.length > 0) {
-        setStreamError(warnings[0]);
+        if (activeChatIdRef.current === targetChatId) {
+          setStreamError(warnings[0]);
+        }
         return;
       }
 
-      setStreamError("");
+      if (activeChatIdRef.current === targetChatId) {
+        setStreamError("");
+      }
     },
     [
+      appendDraftAttachments,
       attachmentsDisabledReason,
       attachmentsEnabled,
       chatId,
@@ -410,7 +457,6 @@ export const useChatAttachments = ({
       maxAttachmentBytes,
       maxAttachmentCount,
       rememberAttachmentPayloads,
-      setDraftAttachments,
       setStreamError,
       supportsImageAttachments,
       supportsPdfAttachments,
@@ -432,6 +478,10 @@ export const useChatAttachments = ({
   }, [attachmentsDisabledReason, attachmentsEnabled, setStreamError]);
 
   const handleScreenshot = useCallback(async () => {
+    const targetChatId = chatId;
+    if (!targetChatId) {
+      return;
+    }
     if (!attachmentsEnabled) {
       setStreamError(
         attachmentsDisabledReason ||
@@ -453,7 +503,7 @@ export const useChatAttachments = ({
     const result = await window.screenshotAPI.capture();
 
     if (!result?.ok) {
-      if (!result?.cancelled) {
+      if (!result?.cancelled && activeChatIdRef.current === targetChatId) {
         setStreamError(result?.error || "Screenshot failed.");
       }
       return;
@@ -462,9 +512,11 @@ export const useChatAttachments = ({
     // base64 length → approximate byte size
     const byteLength = Math.ceil((result.data.length * 3) / 4);
     if (byteLength > maxAttachmentBytes) {
-      setStreamError(
-        `Screenshot too large (max ${(maxAttachmentBytes / 1024 / 1024).toFixed(0)} MB). Try selecting a smaller region.`,
-      );
+      if (activeChatIdRef.current === targetChatId) {
+        setStreamError(
+          `Screenshot too large (max ${(maxAttachmentBytes / 1024 / 1024).toFixed(0)} MB). Try selecting a smaller region.`,
+        );
+      }
       return;
     }
 
@@ -485,10 +537,11 @@ export const useChatAttachments = ({
       source: { type: "base64", media_type: mimeType, data: result.data },
     };
 
-    rememberAttachmentPayloads(chatId, [{ id, payload }]);
+    rememberAttachmentPayloads(targetChatId, [{ id, payload }]);
     await saveAttachmentPayload(id, payload, "screenshot.png").catch(() => {});
-    setDraftAttachments((prev) => [...prev, metadata]);
+    appendDraftAttachments(targetChatId, [metadata]);
   }, [
+    appendDraftAttachments,
     attachmentsDisabledReason,
     attachmentsEnabled,
     chatId,
@@ -496,7 +549,6 @@ export const useChatAttachments = ({
     maxAttachmentBytes,
     maxAttachmentCount,
     rememberAttachmentPayloads,
-    setDraftAttachments,
     setStreamError,
     supportsImageAttachments,
   ]);

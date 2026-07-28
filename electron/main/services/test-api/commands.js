@@ -16,8 +16,17 @@ const compilePath = (pattern) => {
 const codeToStatus = (code) => {
   switch (code) {
     case "chat_not_found":
+    case "run_not_found":
       return 404;
+    case "invalid_request":
+      return 400;
+    case "attempt_mismatch":
+    case "chat_not_active":
+    case "character_update_unsupported":
+    case "durable_interaction_in_progress":
     case "no_handler":
+    case "run_already_active":
+    case "run_not_active":
       return 409;
     case "ipc_timeout":
       return 408;
@@ -31,12 +40,13 @@ const codeToStatus = (code) => {
 const createCommandRegistry = () => {
   const routes = [];
 
-  const register = ({ method, path, validator, handler }) => {
+  const register = ({ method, path, validator, handler, afterResponse }) => {
     routes.push({
       method: method.toUpperCase(),
       ...compilePath(path),
       validator,
       handler,
+      afterResponse,
     });
   };
 
@@ -61,7 +71,11 @@ const createCommandRegistry = () => {
       }
       try {
         const data = await route.handler({ params, body, query, raw });
-        return { status: 200, body: data };
+        const result = { status: 200, body: data };
+        if (typeof route.afterResponse === "function") {
+          result.afterResponse = route.afterResponse;
+        }
+        return result;
       } catch (e) {
         const code = e.code || "handler_error";
         const status = e.status || codeToStatus(code);

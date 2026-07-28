@@ -5,7 +5,7 @@ import UserMessageBody from "./components/user_message_body";
 import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
-import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
+import { mergePendingConfirmationTraceState } from "./pending_confirmation_trace_frames";
 import ArtifactSummarySections from "./artifact-summary/artifact_summary_sections";
 
 const resolveAvatarSrc = (avatar) => {
@@ -112,7 +112,13 @@ const CharacterChatBubble = ({
     isUser && Array.isArray(message?.attachments) ? message.attachments : [];
   const color = theme?.color || "#222";
 
-  const hasToolActivity = traceFrames.some(
+  const confirmationTraceState = mergePendingConfirmationTraceState({
+    frames: traceFrames,
+    subagentFrames: message.subagentFrames,
+    requests: pendingToolConfirmationRequests,
+  });
+  const traceChainFrames = confirmationTraceState.frames;
+  const hasToolActivity = traceChainFrames.some(
     (f) =>
       f.type === "tool_call" ||
       f.type === "tool_result" ||
@@ -122,21 +128,13 @@ const CharacterChatBubble = ({
       f.type === "side_answer" ||
       f.type === "clarify_request",
   );
-  const pendingToolConfirmationFrames = hasToolActivity
-    ? []
-    : buildPendingConfirmationTraceFrames(pendingToolConfirmationRequests);
-  const hasVisibleTraceActivity =
-    hasToolActivity || pendingToolConfirmationFrames.length > 0;
+  const hasVisibleTraceActivity = hasToolActivity;
   const hasTokenSummary =
     isAssistant &&
     message.status === "done" &&
     typeof message.meta?.bundle?.consumed_tokens === "number" &&
     message.meta.bundle.consumed_tokens > 0;
   const shouldRenderTraceChain = hasVisibleTraceActivity || hasTokenSummary;
-  const traceChainFrames = hasToolActivity
-    ? traceFrames
-    : pendingToolConfirmationFrames;
-
   const avatarSrc = resolveAvatarSrc(characterAvatar);
   const showImage = Boolean(avatarSrc) && !imageBroken;
   const fallbackInitial = (characterName || "C").charAt(0).toUpperCase();
@@ -171,6 +169,8 @@ const CharacterChatBubble = ({
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
           bundle={message.meta?.bundle}
+          subagentFrames={confirmationTraceState.subagentFrames}
+          subagentMetaByRunId={message.subagentMetaByRunId}
         />
       )}
       {isAssistant &&

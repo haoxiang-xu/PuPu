@@ -136,6 +136,7 @@ const ensureGooFilter = (blur) => {
  * @param {number}  spread    – how far dots travel from center, 0 – 1 (default 0.5)
  * @param {number}  stagger   – wave delay between successive dots ms  (default 0)
  * @param {boolean} spin      – slowly rotate the whole spinner        (default false)
+ * @param {boolean} play      – when false, cells rest gathered (no split) (default true)
  * @param {number}  spinSpeed – spin speed multiplier                   (default 1)
  */
 const CellSplitSpinner = ({
@@ -147,6 +148,7 @@ const CellSplitSpinner = ({
   stagger = 0,
   spin = false,
   spinSpeed = 1,
+  play = true,
   style,
   className = "",
   ariaLabel = "Loading",
@@ -252,7 +254,10 @@ const CellSplitSpinner = ({
         >
           <div
             className="mini-ui-cell-split__dot"
-            style={dot.delay ? { "--dot-delay": `${dot.delay}ms` } : undefined}
+            style={{
+              ...(dot.delay ? { "--dot-delay": `${dot.delay}ms` } : {}),
+              ...(play ? {} : { animation: "none" }),
+            }}
           />
         </div>
       ))}

@@ -19,6 +19,7 @@ import interactRegistry from "./interact_registry";
  *   uiState          – { status, error, resolved, decision } from the parent
  *   isDark           – dark-mode flag
  *   disabled         – true when the interaction has already been submitted
+ *   allowSessionApproval – false when this confirmation must never be cached
  */
 
 const NAV_BTN = {
@@ -45,6 +46,7 @@ const InteractWrapper = ({
   uiState,
   isDark,
   disabled,
+  allowSessionApproval = true,
 }) => {
   const [currentIdx, setCurrentIdx] = useState(0);
 
@@ -128,6 +130,7 @@ const InteractWrapper = ({
         uiState={uiState || {}}
         isDark={isDark}
         disabled={disabled}
+        allowSessionApproval={allowSessionApproval}
       />
     </div>
   );

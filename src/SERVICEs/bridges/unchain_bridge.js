@@ -55,6 +55,171 @@ export const runtimeBridge = {
     hasBridgeMethod("unchainAPI", "getCharacter") &&
     hasBridgeMethod("unchainAPI", "saveCharacter") &&
     hasBridgeMethod("unchainAPI", "deleteCharacter"),
+  isComputerUseStatusAvailable: () =>
+    hasBridgeMethod("unchainAPI", "getComputerUseStatus"),
+  isComputerUsePrivacySettingsAvailable: () =>
+    hasBridgeMethod("unchainAPI", "openComputerUsePrivacySettings"),
+  isComputerUseEnableAvailable: () =>
+    hasBridgeMethod("unchainAPI", "setComputerUseEnabled"),
+  isComputerUseLocalBetaAvailable: () =>
+    hasBridgeMethod("unchainAPI", "setComputerUseLocalBetaEnabled") &&
+    hasBridgeMethod("unchainAPI", "probeComputerUseModel"),
+
+  getComputerUseStatus: async () => {
+    if (!runtimeBridge.isComputerUseStatusAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.getComputerUseStatus is unavailable",
+      );
+    }
+
+    const response = await invokeUnchain("getComputerUseStatus", [], {
+      timeoutMs: 8000,
+      timeoutCode: "unchain_computer_use_status_timeout",
+      timeoutMessage: "Computer use status request timed out",
+      failureCode: "unchain_computer_use_status_failed",
+      failureMessage: "Failed to get computer use status",
+    });
+
+    const payload =
+      response && typeof response === "object" ? response : {};
+    const capabilities =
+      payload.capabilities && typeof payload.capabilities === "object"
+        ? payload.capabilities
+        : null;
+    /* Model-capability contract: the sidecar reports which model families
+       support computer use as a list of id prefixes (compared against the
+       provider-stripped model id). Absent on older sidecars — normalize to an
+       empty list so a missing field reads as "no supported models". */
+    const supportedModelPrefixes = Array.isArray(payload.supported_model_prefixes)
+      ? payload.supported_model_prefixes
+          .map((prefix) => (typeof prefix === "string" ? prefix.trim() : ""))
+          .filter(Boolean)
+      : [];
+
+    const normalized = {
+      enabled: Boolean(payload.enabled),
+      featureAvailable:
+        typeof payload.feature_available === "boolean"
+          ? payload.feature_available
+          : true,
+      reason: typeof payload.reason === "string" ? payload.reason : "",
+      capabilities,
+      supportedModelPrefixes,
+    };
+    if (typeof payload.local_beta_enabled === "boolean") {
+      normalized.localBetaEnabled = payload.local_beta_enabled;
+    }
+    if (payload.active && typeof payload.active === "object") {
+      normalized.active = { ...payload.active };
+    }
+    return normalized;
+  },
+
+  openComputerUsePrivacySettings: async (target = "") => {
+    if (!runtimeBridge.isComputerUsePrivacySettingsAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.openComputerUsePrivacySettings is unavailable",
+      );
+    }
+
+    const response = await invokeUnchain(
+      "openComputerUsePrivacySettings",
+      [target],
+      {
+        timeoutMs: 8000,
+        timeoutCode: "unchain_computer_use_privacy_timeout",
+        timeoutMessage: "Open System Settings request timed out",
+        failureCode: "unchain_computer_use_privacy_failed",
+        failureMessage: "Failed to open System Settings",
+      },
+    );
+
+    return {
+      ok: Boolean(response?.ok),
+      error: typeof response?.error === "string" ? response.error : "",
+    };
+  },
+
+  setComputerUseEnabled: async (enabled = false) => {
+    if (!runtimeBridge.isComputerUseEnableAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.setComputerUseEnabled is unavailable",
+      );
+    }
+
+    const nextEnabled = Boolean(enabled);
+    const response = await invokeUnchain(
+      "setComputerUseEnabled",
+      [nextEnabled],
+      {
+        timeoutMs: 8000,
+        timeoutCode: "unchain_computer_use_enable_timeout",
+        timeoutMessage: "Set computer use enabled request timed out",
+        failureCode: "unchain_computer_use_enable_failed",
+        failureMessage: "Failed to set computer use enabled",
+      },
+    );
+
+    return {
+      ok: Boolean(response?.ok),
+      enabled:
+        typeof response?.enabled === "boolean"
+          ? response.enabled
+          : nextEnabled,
+      error: typeof response?.error === "string" ? response.error : "",
+    };
+  },
+
+  setComputerUseLocalBetaEnabled: async (enabled = false) => {
+    if (!runtimeBridge.isComputerUseLocalBetaAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "local Computer Beta bridge is unavailable",
+      );
+    }
+    const nextEnabled = Boolean(enabled);
+    const response = await invokeUnchain(
+      "setComputerUseLocalBetaEnabled",
+      [nextEnabled],
+      {
+        timeoutMs: 8000,
+        timeoutCode: "unchain_computer_use_local_beta_timeout",
+        timeoutMessage: "Set local Computer Beta request timed out",
+        failureCode: "unchain_computer_use_local_beta_failed",
+        failureMessage: "Failed to set local Computer Beta",
+      },
+    );
+    return {
+      ok: Boolean(response?.ok),
+      enabled:
+        typeof response?.local_beta_enabled === "boolean"
+          ? response.local_beta_enabled
+          : nextEnabled,
+    };
+  },
+
+  probeComputerUseModel: async (model, force = true) => {
+    if (!runtimeBridge.isComputerUseLocalBetaAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "local Computer Beta probe bridge is unavailable",
+      );
+    }
+    return invokeUnchain(
+      "probeComputerUseModel",
+      [toTrimmedString(model), force === true],
+      {
+        timeoutMs: 50000,
+        timeoutCode: "unchain_computer_use_probe_timeout",
+        timeoutMessage: "Local Computer Beta probe timed out",
+        failureCode: "unchain_computer_use_probe_failed",
+        failureMessage: "Local Computer Beta probe failed",
+      },
+    );
+  },
 
   setChromeTerminalOpen: async (open = false) => {
     if (!runtimeBridge.isChromeTerminalControlAvailable()) {

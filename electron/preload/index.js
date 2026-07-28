@@ -14,6 +14,9 @@ const { createScreenshotBridge } = require("./bridges/screenshot_bridge");
 const {
   createChatStorageBridge,
 } = require("./bridges/chat_storage_bridge");
+const {
+  createSettingsStorageBridge,
+} = require("./bridges/settings_storage_bridge");
 
 const runtimeInfo = {
   isElectron: true,
@@ -69,6 +72,10 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld(
   "chatStorageAPI",
   createChatStorageBridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "settingsStorageAPI",
+  createSettingsStorageBridge(ipcRenderer),
 );
 
 const { install: installTestBridge } = require("./test_bridge_preload");

@@ -20,14 +20,29 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const [saved, setSaved] = useState(() => !!readModelProviders()[storage_key]);
   const [justSaved, setJustSaved] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
   const accentColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)";
   const successColor = "#4CAF50";
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
+    if (saving) return false;
     const trimmed = value.trim();
-    writeModelProviders({ [storage_key]: trimmed });
+    setSaving(true);
+    const results = await writeModelProviders({ [storage_key]: trimmed });
+    const durable = Array.isArray(results) && results.every((r) => r.ok === true);
+    if (!durable) {
+      const restored = readModelProviders()[storage_key] || "";
+      setValue(restored);
+      setSaved(!!restored);
+      setJustSaved(false);
+      toast.error(`${label} could not be saved securely. Please try again.`, {
+        dedupeKey: `api_key_save_failed_${storage_key}`,
+      });
+      setSaving(false);
+      return false;
+    }
     emitModelCatalogRefresh();
     setValue(trimmed);
     setSaved(!!trimmed);
@@ -37,19 +52,36 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         dedupeKey: `api_key_save_${storage_key}`,
       });
     }
-  }, [value, storage_key, label]);
+    setSaving(false);
+    return true;
+  }, [value, storage_key, label, saving]);
 
   const handleChange = useCallback((v) => {
     setValue(v);
     setJustSaved(false);
   }, []);
 
-  const handleClear = useCallback(() => {
-    writeModelProviders({ [storage_key]: "" });
+  const handleClear = useCallback(async () => {
+    if (saving) return false;
+    setSaving(true);
+    const results = await writeModelProviders({ [storage_key]: "" });
+    const durable = Array.isArray(results) && results.every((r) => r.ok === true);
+    if (!durable) {
+      const restored = readModelProviders()[storage_key] || "";
+      setValue(restored);
+      setSaved(!!restored);
+      toast.error(`${label} could not be cleared securely. Please try again.`, {
+        dedupeKey: `api_key_clear_failed_${storage_key}`,
+      });
+      setSaving(false);
+      return false;
+    }
     emitModelCatalogRefresh();
     setValue("");
     setSaved(false);
-  }, [storage_key]);
+    setSaving(false);
+    return true;
+  }, [storage_key, label, saving]);
 
   const isDirty = value.trim() !== (readModelProviders()[storage_key] || "");
 
@@ -85,6 +117,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
       <Button
         label={justSaved ? t("model_providers.saved") : t("model_providers.save")}
         onClick={handleSave}
+        disabled={saving}
         style={{
           paddingVertical: 2,
           paddingHorizontal: 8,
@@ -182,8 +215,9 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={() => {
-          handleClear();
-          setConfirmOpen(false);
+          handleClear().then((cleared) => {
+            if (cleared) setConfirmOpen(false);
+          });
         }}
         label={label}
         isDark={isDark}

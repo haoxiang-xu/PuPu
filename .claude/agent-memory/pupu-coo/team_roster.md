@@ -1,19 +1,21 @@
 ---
 name: team-roster
-description: PuPu agent team roster — COO (me, =发), my direct report growth-ops (巡), and the rest of the org with role boundaries
+description: PuPu agent team roster — COO (me, =发), my direct reports, and the rest of the org with role boundaries
 metadata:
   type: project
 ---
 
 PuPu org. Know who owns what so you don't duplicate or step on their work.
 
-- **pupu-coo (me / 发)** — COO. **2026-06-10 reorg: 原 pupu-product-ops「发」升格为 COO，agent 改名 pupu-coo，旧路径 agent-memory/pupu-product-ops 已废弃，只读写 agent-memory/pupu-coo/。** 我现在是 CEO 的 3 个直接下属之一（另两位：CTO「帅」、llm-expert「智」）。**下辖 growth-ops「巡」**（原直汇报 CEO，现向我汇报）。职责 = 原有 release engineering / QA validation / 发布门禁 go-no-go（保留）+ 新增对增长运营线（巡）的督导。仍是发布门禁负责人，仍 never commits。Motto: "无证据，不放行 / no evidence, no release."
+- **pupu-coo (me / 发)** — COO. **2026-06-10 reorg: 原 pupu-product-ops「发」升格为 COO，agent 改名 pupu-coo，旧路径 agent-memory/pupu-product-ops 已废弃，只读写 agent-memory/pupu-coo/。** 我现在是 CEO 的 3 个直接下属之一（另两位：CTO「帅」、llm-expert「智」）。下辖 growth-ops「巡」、market-analyst、release-full-test「检」。职责 = 业务操盘 + 发布门禁 go-no-go；完整发版测试的固定执行与证据保全下沉给检。仍是发布裁决负责人，仍 never commits。Motto: "无证据，不放行 / no evidence, no release."
 - **pupu-qa-tester (teammate A)** — PuPu-dedicated QA. Owns end-to-end per-feature verification across React→IPC→Flask→Provider: streaming pipeline, IPC boundary, Flask/persistence, UI regression. Tools: GitNexus + pupu-test-api + Jest. Motto: "绿灯不是终点，链路全通才是 / green isn't the finish line, a fully-connected chain is."
 - **mcp-store-curator (teammate B)** — MCP store curator. MCP server entry intake/categorization/dedup, field+transport+env validation, connectivity + tool-discovery checks, metadata collection. Only tests entry connectivity — not the whole app, not releases. Motto: "未经校验，绝不上架 / unvalidated, never listed."
 
 - **pupu-ux-designer (teammate C)** — Frontend/UX designer. Owns UX & visual interface: interaction flows, component design, layout, isDark light/dark parity, spacing/typography, micro-interactions, accessibility. Reuses existing `BUILTIN_COMPONENTs/` primitives and keeps PuPu's design language unified. Does NOT touch feature logic, IPC, or releases. Motto: "与代码同纹理，明暗皆统一 / with the grain of the code, unified across light and dark."
 
 - **pupu-growth-ops（巡 / 我的直接下属）** — Growth/项目运营. Runs the regular health "patrol" (巡船): GitHub traffic/downloads/community/releases/contributors → business judgment, weekly growth report, prioritized next actions. Uses the `pupu-growth-analyst` skill + `gh`. Does NOT touch code, releases, design, or the MCP store. **2026-06-10 reorg: 巡原本直汇报 CEO，现向我（COO）汇报。** 我把巡的增长巡检纳入运营视野；重大增长信号 + 发版决策一起对 CEO 负责。Motto: "数字不说话，巡船人替它说 / numbers don't talk, the patrol speaks for them."
+
+- **pupu-release-full-test（检 / 我的直接下属）** — Pre-release full-test operator. 冻结一个 PuPu+unchain candidate，先跑 deterministic release gate 与 3-parallel/20m fixed-response agent long-run；只有 CEO 明确授权付费后才跑 coding/MCP/web × OpenAI/Anthropic 的 6-cell live matrix。它只交 GO-RECOMMENDED / NO-GO / INCOMPLETE 证据建议，不拿最终 release 决策权，不修产品代码，不替代 feature QA。Motto: "同一候选、全量证据、无暗重试、无默认付费。"
 
 **关键边界（与 growth-ops，易混淆）：** 我管"这版能不能发"（发布前门禁）；巡管"发出去之后表现如何"（发布后下载率/采纳/市场信号）。release 边界首尾相接：我发 → 巡量 → 信号回我。巡发现某 release 下载率回落，把信号回给我评估是否回归或需补发。作为他的上级，我对巡的巡检节奏/优先级督导，重大信号由我汇总上呈 CEO。
 
@@ -28,13 +30,13 @@ PuPu org. Know who owns what so you don't duplicate or step on their work.
 **How to apply:** See [[handoff-protocol]] for when to hand off vs. cite their output.
 
 ## 汇报线 — COO 直接下属（2026-06-10 重组，覆盖 06-09 旧线）
-我（COO「发」）**直接向 Haoxiang Xu（CEO，haoxiangxu1998@gmail.com）汇报**，是 CEO 的 3 个直接下属之一：CTO「帅」、COO「发」=我、llm-expert「智」。`pupu-cto` 是我的**平级**（技术线 leader），不是上级；与 cto 的协作是构建/打包架构他定、我对具体 build 做门禁。**我的下辖：growth-ops「巡」**（06-09 时是 CEO 直属，06-10 改为向我汇报）。其余专才（ux-designer / mcp-store-curator / qa-tester）与 dev team 向 CTO 汇报。
+我（COO「发」）**直接向 Haoxiang Xu（CEO，haoxiangxu1998@gmail.com）汇报**，是 CEO 的 3 个直接下属之一：CTO「帅」、COO「发」=我、llm-expert「智」。`pupu-cto` 是我的**平级**（技术线 leader），不是上级；与 cto 的协作是构建/打包架构他定、我对具体 build 做门禁。**我的下辖：growth-ops「巡」、market-analyst、release-full-test「检」**。巡在 06-09 时是 CEO 直属，06-10 改为向我汇报；后两者是 COO 线直挂专员。其余专才（ux-designer / mcp-store-curator / qa-tester）与 dev team 向 CTO 汇报。
 **How to apply:** 我出 go/no-go，最终「发不发」授权在 CEO；巡的增长信号经我汇总上呈。CEO 指令与本花名册冲突时以 CEO 为准。
 ---
 
 ## 2026-06-10 reorg 首次全员见面会同步（新成员认识一下）
 
-reorg 后首次全员见面会补录。组织真相源以 HR `pupu-hr-head/org-chart.md` 为准（共 **18 个 agent**）。本次新增两拨成员，全员需认识：
+reorg 后首次全员见面会补录（历史快照）。当前组织真相源以 HR `pupu-hr-head/org-chart.md` 为准；不要从本段旧成员范围推导当前人数。
 
 **① 后端 dev「擎」= pupu-dev-backend**（2026-06-10 加入，横向直挂 CTO，与验/造/策同列，起步 1 人不设 lead）
 - 拥有：PuPu backend `unchain_runtime/server/`（该适配层**唯一真实副本**）+ unchain core 独立 repo 库。填补后端长期 **0-owner 真空**。

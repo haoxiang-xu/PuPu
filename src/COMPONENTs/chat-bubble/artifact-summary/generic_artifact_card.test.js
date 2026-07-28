@@ -21,6 +21,16 @@ const artifact = (snapshot, overrides = {}) => ({
   ...overrides,
 });
 
+describe("GenericArtifactCard theme (three-tier border strength)", () => {
+  test("table row hairline binds to the subtle border-strength tier", () => {
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "generic_artifact_card.js"),
+      "utf8",
+    );
+    expect(src).toMatch(/const border = "var\(--pupu-border-subtle\)"/);
+  });
+});
+
 describe("GenericArtifactCard", () => {
   test("renders markdown fallback content when expanded", () => {
     render(

@@ -17,6 +17,9 @@ import DemoPage from "./PAGEs/demo/demo";
 
 /* { Global hosts } ------------------------------------------------------------------------------------------------------------- */
 import ToastHost from "./BUILTIN_COMPONENTs/toast/toast_host";
+import BootOverlay from "./COMPONENTs/boot-overlay/boot_overlay";
+import ComputerUseBootSync from "./COMPONENTs/settings/computer_use/boot_sync";
+import ProviderSecretMigrationBootSync from "./COMPONENTs/settings/model_providers/provider_secret_migration_boot_sync";
 /* { Global hosts } ------------------------------------------------------------------------------------------------------------- */
 
 /* { Test bridge (dev only — dynamic import keeps prod main bundle clean) } */
@@ -28,6 +31,9 @@ const App = () => {
   return (
     <ConfigContainer>
       <ToastHost />
+      <BootOverlay />
+      <ComputerUseBootSync />
+      <ProviderSecretMigrationBootSync />
       <Router>
         <Routes>
           {/* { Main Routes } -------------------------------------------------------------------------------------------- */}

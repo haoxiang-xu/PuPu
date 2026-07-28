@@ -178,4 +178,31 @@ describe("normalizeModelCatalog", () => {
       supports_tools: false,
     });
   });
+
+  test("preserves normalized provider-specific computer-use capability", () => {
+    const normalized = normalizeModelCatalog({
+      active: { provider: "openai", model: "gpt-5.6" },
+      providers: { openai: ["gpt-5.6"] },
+      model_capabilities: {
+        "openai:gpt-5.6": {
+          input_modalities: ["text", "image"],
+          computer_use: {
+            supported: true,
+            mode: "provider_native",
+            protocol: "openai.responses.computer.v1",
+            stability: "stable",
+            reason: "",
+          },
+        },
+      },
+    });
+
+    expect(normalized.activeCapabilities.computer_use).toEqual({
+      supported: true,
+      mode: "provider_native",
+      protocol: "openai.responses.computer.v1",
+      stability: "stable",
+      reason: "",
+    });
+  });
 });

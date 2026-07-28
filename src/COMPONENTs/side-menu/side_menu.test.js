@@ -9,8 +9,8 @@ jest.mock("../settings/settings_modal_content", () => ({
   },
 }));
 
-jest.mock("../toolkit/toolkit_modal_content", () => ({
-  ToolkitModalContent: () => {
+jest.mock("../toolkit/plugins_shell", () => ({
+  PluginsShell: () => {
     throw new Promise(() => {});
   },
 }));
@@ -110,7 +110,7 @@ describe("SideMenu", () => {
 
   test.each([
     ["Settings", null],
-    ["Tools", null],
+    ["Plugins", null],
     ["Workspaces", null],
     [
       "Agents",

@@ -43,6 +43,12 @@ EXPLORE_RECIPE: dict = {
     "model": EXPLORE_SKELETON.get("model"),
     "max_iterations": None,
     "merge_with_user_selected": False,
+    "subagent_profile": {
+        "allowed_modes": ["delegate", "worker"],
+        "output_mode": "summary",
+        "memory_policy": "ephemeral",
+        "parallel_safe": True,
+    },
     "agent": {
         "prompt_format": "soul",
         "prompt": EXPLORE_PROMPT,
@@ -258,6 +264,14 @@ def _is_legacy_default_seed(data: object) -> bool:
     return pool == [{"kind": "ref", "template_name": "Explore", "disabled_tools": []}]
 
 
+def _is_legacy_explore_seed(data: object) -> bool:
+    if not isinstance(data, dict):
+        return False
+    legacy_seed = dict(EXPLORE_RECIPE)
+    legacy_seed.pop("subagent_profile", None)
+    return data == legacy_seed
+
+
 def _is_core_only_toolkit_refs(toolkits: object) -> bool:
     if not isinstance(toolkits, list) or len(toolkits) != 1:
         return False
@@ -307,7 +321,14 @@ def ensure_recipe_seeds_written(target_dir: Path) -> None:
         return
 
     explore_path = target_dir / "Explore.recipe"
-    if not explore_path.exists():
+    should_write_explore = not explore_path.exists()
+    if not should_write_explore:
+        try:
+            existing_explore = json.loads(explore_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing_explore = None
+        should_write_explore = _is_legacy_explore_seed(existing_explore)
+    if should_write_explore:
         try:
             _write_recipe(explore_path, EXPLORE_RECIPE)
         except OSError as exc:

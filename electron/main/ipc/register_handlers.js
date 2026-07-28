@@ -3,8 +3,14 @@ const { CHANNELS } = require("../../shared/channels");
 const {
   registerChatStorageHandlers,
   CHAT_STORAGE_SYNC_CHANNELS,
+  CHAT_STORAGE_INVOKE_CHANNELS,
   CHAT_STORAGE_ON_CHANNELS,
 } = require("../services/chat_storage/register_handlers");
+const {
+  registerSettingsStorageHandlers,
+  SETTINGS_STORAGE_SYNC_CHANNELS,
+  SETTINGS_STORAGE_INVOKE_CHANNELS,
+} = require("../services/settings_storage/register_handlers");
 
 const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.APP.GET_VERSION,
@@ -19,17 +25,24 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.OLLAMA.RESTART,
   CHANNELS.OLLAMA.LIBRARY_SEARCH,
   CHANNELS.UNCHAIN.GET_STATUS,
+  CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
+  CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+  CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED,
+  CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL,
+  CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
   CHANNELS.UNCHAIN.GET_MODEL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
   CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
   CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS,
   CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
   CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
   CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS,
   CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
   CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
   CHANNELS.UNCHAIN.START_MCP_OAUTH,
+  CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH,
   CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
   CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
   CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
@@ -38,7 +51,10 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
   CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
+  CHANNELS.UNCHAIN.PENDING_INTERACTION,
   CHANNELS.UNCHAIN.INTERJECT,
+  CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+  CHANNELS.UNCHAIN.STREAM_ATTACH_V4,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
   CHANNELS.UNCHAIN.PICK_WORKSPACE_ROOT,
@@ -72,8 +88,14 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG,
   CHANNELS.UNCHAIN.WRITE_FILE,
   CHANNELS.UNCHAIN.READ_FILE,
+  CHANNELS.UNCHAIN.SCAN_SKILL_DIR,
+  CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,
+  CHANNELS.UNCHAIN.INSTALL_SKILL_PACK,
+  CHANNELS.UNCHAIN.DELETE_SKILL_PACK,
   CHANNELS.SCREENSHOT.CAPTURE,
   CHANNELS.SCREENSHOT.CHECK_AVAILABILITY,
+  ...CHAT_STORAGE_INVOKE_CHANNELS,
+  ...SETTINGS_STORAGE_INVOKE_CHANNELS,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -83,11 +105,16 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
   CHANNELS.UNCHAIN.STREAM_START_V4,
+  CHANNELS.UNCHAIN.STREAM_DETACH,
   CHANNELS.UNCHAIN.STREAM_CANCEL,
+  CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_RESULT,
   ...CHAT_STORAGE_ON_CHANNELS,
 ]);
 
-const IPC_ON_SYNC_CHANNELS = Object.freeze([...CHAT_STORAGE_SYNC_CHANNELS]);
+const IPC_ON_SYNC_CHANNELS = Object.freeze([
+  ...CHAT_STORAGE_SYNC_CHANNELS,
+  ...SETTINGS_STORAGE_SYNC_CHANNELS,
+]);
 
 const MAIN_EVENT_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_EVENT,
@@ -95,6 +122,8 @@ const MAIN_EVENT_CHANNELS = Object.freeze([
   CHANNELS.OLLAMA.INSTALL_PROGRESS,
   CHANNELS.UPDATE.STATE_CHANGED,
   CHANNELS.WINDOW_STATE.LISTENER_EVENT,
+  CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_REQUEST,
+  CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_ABORT,
 ]);
 
 const registerIpcHandlers = ({ ipcMain, app, services }) => {
@@ -106,9 +135,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     runtimeService,
     screenshotService,
     chatStorageService,
+    settingsStorageService,
   } = services;
 
   registerChatStorageHandlers({ ipcMain, chatStorageService });
+  registerSettingsStorageHandlers({ ipcMain, settingsStorageService });
 
   ipcMain.on(CHANNELS.THEME.SET_BACKGROUND_COLOR, (_event, color) => {
     windowService.handleThemeSetBackgroundColor(color);
@@ -156,6 +187,64 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(CHANNELS.UNCHAIN.GET_STATUS, () =>
     unchainService.getMisoStatusPayload(),
   );
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS, async () =>
+    unchainService.getComputerUseStatusPayload(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+    async (_event, payload = {}) => {
+      const enabled = payload?.enabled;
+      // Trust boundary: this channel is a privileged runtime override. Require a
+      // strict boolean and reject anything else outright — no truthy coercion,
+      // so a compromised renderer cannot smuggle enable via "true"/1/{}/etc.
+      if (typeof enabled !== "boolean") {
+        const error = new Error(
+          "set-computer-use-enabled requires a strict boolean `enabled`",
+        );
+        error.code = "invalid_argument";
+        throw error;
+      }
+      return unchainService.setComputerUseEnabled(enabled);
+    },
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED,
+    async (_event, payload = {}) => {
+      if (typeof payload?.enabled !== "boolean") {
+        const error = new Error(
+          "set-computer-use-local-beta-enabled requires a strict boolean `enabled`",
+        );
+        error.code = "invalid_argument";
+        throw error;
+      }
+      return unchainService.setComputerUseLocalBetaEnabled(payload.enabled);
+    },
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL,
+    async (_event, payload = {}) => {
+      if (
+        typeof payload?.model !== "string" ||
+        !payload.model.trim() ||
+        typeof payload?.force !== "boolean"
+      ) {
+        const error = new Error(
+          "probe-computer-use-model requires `model` and boolean `force`",
+        );
+        error.code = "invalid_argument";
+        throw error;
+      }
+      return unchainService.probeComputerUseModel(
+        payload.model.trim(),
+        payload.force,
+      );
+    },
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
+    async (_event, payload = {}) =>
+      unchainService.openComputerUsePrivacySettings(payload?.target),
+  );
   ipcMain.handle(CHANNELS.UNCHAIN.GET_MODEL_CATALOG, async () =>
     unchainService.getMisoModelCatalogPayload(),
   );
@@ -180,6 +269,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
     async (_event, payload = {}) =>
       unchainService.installMisoMcpToolkit(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
+    async (_event, payload = {}) =>
+      unchainService.testMisoCustomProvider(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
@@ -207,9 +301,14 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
       unchainService.startMisoMcpOAuth(payload.entryId),
   );
   ipcMain.handle(
+    CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH,
+    async (_event, payload = {}) =>
+      unchainService.cancelMisoMcpOAuth(payload.state),
+  );
+  ipcMain.handle(
     CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
     async (_event, payload = {}) =>
-      unchainService.getMisoMcpOAuthStatus(payload.entryId),
+      unchainService.getMisoMcpOAuthStatus(payload.state),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
@@ -283,8 +382,22 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
       unchainService.submitMisoToolConfirmation(payload),
   );
   ipcMain.handle(
+    CHANNELS.UNCHAIN.PENDING_INTERACTION,
+    async (_event, payload = {}) =>
+      unchainService.getMisoPendingInteraction(payload),
+  );
+  ipcMain.handle(
     CHANNELS.UNCHAIN.INTERJECT,
     async (_event, payload = {}) => unchainService.submitMisoInterject(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+    async (_event, payload = {}) => unchainService.cancelMisoExecution(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.STREAM_ATTACH_V4,
+    async (event, payload = {}) =>
+      unchainService.attachMisoStreamV4(event, payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
@@ -437,6 +550,23 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(CHANNELS.UNCHAIN.READ_FILE, (_event, payload = {}) =>
     runtimeService.readFile(payload),
   );
+  ipcMain.handle(CHANNELS.UNCHAIN.SCAN_SKILL_DIR, (_event, payload = {}) =>
+    runtimeService.scanSkillDir(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DOWNLOAD_SKILL_REPO,
+    (_event, payload = {}) => runtimeService.downloadSkillRepo(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.INSTALL_SKILL_PACK,
+    async (_event, payload = {}) =>
+      unchainService.installMisoSkillPack(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_SKILL_PACK,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoSkillPack(payload.toolkitId),
+  );
 
   ipcMain.handle(CHANNELS.SCREENSHOT.CAPTURE, () =>
     screenshotService.capture(),
@@ -455,6 +585,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V4, (event, payload) => {
     unchainService.handleStreamStartV4(event, payload);
+  });
+
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_DETACH, (event, payload) => {
+    unchainService.handleStreamDetach(event, payload);
   });
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_CANCEL, (event, payload) => {

@@ -152,14 +152,25 @@ def _safe_extract_tar(archive_path: Path, target_dir: Path) -> None:
                         "mcp_runtime_install_failed",
                         f"Archive contains unsafe path: {member.name}",
                     )
-                if member.issym() or member.islnk():
-                    link_path = Path(member.linkname)
-                    if link_path.is_absolute() or ".." in link_path.parts:
-                        raise McpManagedRuntimeError(
-                            "mcp_runtime_install_failed",
-                            f"Archive contains unsafe link: {member.name}",
-                        )
-            archive.extractall(target_dir, members=members)
+                if member.issym():
+                    # Tar symlinks resolve from the member's parent directory.
+                    link_destination = (
+                        destination.parent / member.linkname
+                    ).resolve()
+                elif member.islnk():
+                    # Tar hardlinks resolve from the archive extraction root.
+                    link_destination = (target_dir / member.linkname).resolve()
+                else:
+                    continue
+                if (
+                    link_destination != root
+                    and not link_destination.is_relative_to(root)
+                ):
+                    raise McpManagedRuntimeError(
+                        "mcp_runtime_install_failed",
+                        f"Archive contains unsafe link: {member.name}",
+                    )
+            archive.extractall(target_dir, members=members, filter="data")
     except McpManagedRuntimeError:
         raise
     except Exception as exc:

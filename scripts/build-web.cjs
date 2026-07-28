@@ -10,6 +10,11 @@ const SNAPSHOT_PATH = path.join(
   ".local",
   "build_feature_flags.snapshot.json",
 );
+const RUNTIME_SNAPSHOT_PATH = path.join(
+  ROOT_DIR,
+  "build",
+  "build_feature_flags.json",
+);
 const REACT_SCRIPTS_BUILD_PATH = path.join(
   ROOT_DIR,
   "node_modules",
@@ -68,6 +73,10 @@ const result = spawnSync(process.execPath, [REACT_SCRIPTS_BUILD_PATH], {
 if (result.error) {
   console.error(`[build:web] Failed to start react-scripts build: ${result.error.message}`);
   process.exit(1);
+}
+
+if (result.status === 0) {
+  fs.writeFileSync(RUNTIME_SNAPSHOT_PATH, `${serializedFlags}\n`, "utf-8");
 }
 
 process.exit(result.status || 0);

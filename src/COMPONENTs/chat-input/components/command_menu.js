@@ -35,11 +35,11 @@ const CommandMenu = ({
   if (!Array.isArray(items) || items.length === 0) return null;
 
   const surfaceBg = isDark
-    ? "rgba(24, 24, 26, 0.66)"
-    : "rgba(255, 255, 255, 0.72)";
+    ? "rgba(var(--pupu-surface-rgb),0.66)"
+    : "rgba(var(--pupu-surface-rgb),0.72)";
   const border = isDark
-    ? "1px solid rgba(255,255,255,0.12)"
-    : "1px solid rgba(0,0,0,0.10)";
+    ? "1px solid rgba(var(--pupu-text-rgb),0.12)"
+    : "1px solid rgba(var(--pupu-text-rgb),0.10)";
   const shadow = isDark
     ? "0 10px 30px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.22)"
     : "0 10px 30px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)";
@@ -81,7 +81,7 @@ const CommandMenu = ({
       <SlidingHighlight
         refs={rowRefs}
         index={activeIndex}
-        color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+        color={isDark ? "rgba(var(--pupu-text-rgb),0.10)" : "rgba(var(--pupu-text-rgb),0.06)"}
         borderRadius={bare ? 14 : 7}
         measureKey={`${items.length}|${items[0]?.name ?? ""}|${visible}`}
       />
@@ -123,9 +123,12 @@ const CommandRow = ({
   rowHeight = ROW_HEIGHT,
   refCallback,
 }) => {
-  const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
-  const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.44)";
-  const iconColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
+  const nameColor = isDark ? "rgba(var(--pupu-text-rgb),0.92)" : "rgba(var(--pupu-text-rgb),0.86)";
+  const descColor = isDark ? "rgba(var(--pupu-text-rgb),0.42)" : "rgba(var(--pupu-text-rgb),0.44)";
+  const iconColor = isDark ? "rgba(var(--pupu-text-rgb),0.6)" : "rgba(var(--pupu-text-rgb),0.55)";
+  const sourceColor = isDark ? "rgba(var(--pupu-text-rgb),0.30)" : "rgba(var(--pupu-text-rgb),0.32)";
+  const hasSource =
+    typeof item.sourceLabel === "string" && item.sourceLabel.length > 0;
 
   /* Elevator Push entrance (bare/palette mode only) */
   const entranceStyle = entrance
@@ -211,6 +214,19 @@ const CommandRow = ({
       >
         {item.description}
       </span>
+      {hasSource ? (
+        <span
+          style={{
+            flex: "none",
+            fontSize: 10,
+            lineHeight: "16px",
+            color: sourceColor,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {item.sourceLabel}
+        </span>
+      ) : null}
     </div>
   );
 };

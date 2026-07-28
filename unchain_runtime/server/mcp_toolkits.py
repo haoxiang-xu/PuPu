@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import re
+import secrets
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -20,6 +23,7 @@ from mcp_secrets import (
     save_mcp_secret_values,
 )
 from mcp_oauth import (
+    _oauth_commit_lock,
     delete_mcp_oauth_token,
     get_mcp_oauth_status,
     get_valid_mcp_oauth_access_token,
@@ -37,6 +41,9 @@ class McpToolkitError(RuntimeError):
 MCP_TOOLKITS_FILENAME = "mcp_toolkits.json"
 
 INSTALLABLE_MCP_REGISTRY = mcp_registry.INSTALLABLE_MCP_REGISTRY
+_STORE_LOCKS: Dict[str, Any] = {}
+_STORE_LOCKS_LOCK = threading.Lock()
+_RELEASE_UNAVAILABLE_MESSAGE = "This MCP toolkit is not available in this release"
 
 
 def _data_dir(explicit: str | Path | None = None) -> Path:
@@ -48,8 +55,53 @@ def _data_dir(explicit: str | Path | None = None) -> Path:
     return Path.home() / ".pupu"
 
 
+def _mcp_runtime_workdir(
+    toolkit_id: str,
+    data_dir: str | Path | None = None,
+) -> str:
+    normalized = str(toolkit_id or "").strip()
+    safe_label = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-").lower()
+    safe_label = (safe_label or "toolkit")[:48]
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+    data_root = _data_dir(data_dir)
+    workdirs_root = data_root / "mcp_runtime" / "workdirs"
+    candidate = workdirs_root / f"{safe_label}-{digest}"
+    try:
+        data_root.mkdir(parents=True, exist_ok=True)
+        resolved_data_root = data_root.resolve()
+        workdirs_root.mkdir(parents=True, exist_ok=True)
+        resolved_workdirs_root = workdirs_root.resolve()
+        resolved_workdirs_root.relative_to(resolved_data_root)
+        candidate.mkdir(parents=False, exist_ok=True)
+        resolved_candidate = candidate.resolve()
+        resolved_candidate.relative_to(resolved_workdirs_root)
+        if not resolved_candidate.is_dir():
+            raise OSError("MCP runtime work directory is not a directory")
+    except McpToolkitError:
+        raise
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise McpToolkitError(
+            "mcp_runtime_workdir_failed",
+            "Unable to prepare an isolated MCP runtime work directory",
+            500,
+        ) from exc
+    return str(resolved_candidate)
+
+
 def _store_path(data_dir: str | Path | None = None) -> Path:
     return _data_dir(data_dir) / MCP_TOOLKITS_FILENAME
+
+
+def _store_scope_key(data_dir: str | Path | None = None) -> str:
+    return str(_store_path(data_dir).resolve())
+
+
+def _store_lock(data_dir: str | Path | None = None):
+    key = _store_scope_key(data_dir)
+    with _STORE_LOCKS_LOCK:
+        if key not in _STORE_LOCKS:
+            _STORE_LOCKS[key] = threading.RLock()
+        return _STORE_LOCKS[key]
 
 
 def _empty_store() -> Dict[str, Any]:
@@ -72,7 +124,20 @@ def _read_store(data_dir: str | Path | None = None) -> Dict[str, Any]:
 def _write_store(store: Dict[str, Any], data_dir: str | Path | None = None) -> None:
     path = _store_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(store, indent=2, sort_keys=True), encoding="utf-8")
+    temp_path = path.with_name(
+        f".{path.name}.{os.getpid()}.{threading.get_ident()}.{secrets.token_hex(4)}.tmp"
+    )
+    try:
+        temp_path.write_text(
+            json.dumps(store, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        os.replace(temp_path, path)
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _registry_entry(
@@ -226,6 +291,45 @@ def _entry_for_record(record: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(record.get("external_entry_snapshot"), dict):
         return copy.deepcopy(record["external_entry_snapshot"])
     return _registry_entry(record.get("entry_id", ""))
+
+
+def _record_release_gate_error(record: Dict[str, Any]) -> str:
+    """Return a fail-closed release error without trusting stale record health."""
+
+    if record.get("entry_id") == "custom":
+        return ""
+    external_snapshot = record.get("external_entry_snapshot")
+    if (
+        isinstance(external_snapshot, dict)
+        and str(external_snapshot.get("trust_level") or "").strip().lower()
+        == "external_approved"
+    ):
+        return ""
+    try:
+        curated_entry = mcp_registry.registry_entry_from_any_id(
+            record.get("entry_id") or record.get("toolkit_id") or ""
+        )
+    except KeyError:
+        return _RELEASE_UNAVAILABLE_MESSAGE
+    oauth_recipe = oauth_recipe_for_entry(curated_entry)
+    oauth_release_ready = bool(oauth_recipe) and str(
+        oauth_recipe.get("releaseStatus") or ""
+    ).strip().lower() == "ready"
+    if (
+        str(curated_entry.get("status") or "").strip().lower() != "available"
+        or (
+            not curated_entry.get("installable")
+            and not oauth_release_ready
+        )
+    ):
+        return _RELEASE_UNAVAILABLE_MESSAGE
+    return ""
+
+
+def _assert_record_release_available(record: Dict[str, Any]) -> None:
+    release_error = _record_release_gate_error(record)
+    if release_error:
+        raise McpToolkitError("mcp_entry_not_available", release_error, 403)
 
 
 def _secret_keys(entry: Dict[str, Any]) -> List[str]:
@@ -479,6 +583,7 @@ def _resolve_mcp_config(
         "command": str(managed.get("command") or command).strip(),
         "args": args,
         "env": env,
+        "cwd": _mcp_runtime_workdir(entry.get("toolkit_id", ""), data_dir),
         "secret_keys": _secret_keys(entry),
         "secret_values": secret_values,
         "workspace_root": resolved_workspace,
@@ -512,6 +617,31 @@ def _tool_to_dict(tool: Any) -> Dict[str, Any]:
     }
 
 
+def _describe_exception_chain(exc: BaseException, _depth: int = 0) -> str:
+    """Flatten an exception into a single diagnosable line.
+
+    An MCP stdio connect failure surfaces as an asyncio TaskGroup
+    ExceptionGroup whose str() is just "unhandled errors in a TaskGroup
+    (1 sub-exception)" — the actual cause (a missing interpreter, a server
+    that exited, a protocol error) is only reachable through .exceptions and
+    __cause__. Without this the install error reaching the UI is unactionable.
+    """
+    label = f"{type(exc).__name__}: {exc}"
+    if _depth >= 4:
+        return label
+    parts = [
+        _describe_exception_chain(sub, _depth + 1)
+        for sub in (getattr(exc, "exceptions", None) or [])
+    ]
+    if not parts:
+        nested = exc.__cause__ or exc.__context__
+        if nested is not None and nested is not exc:
+            parts = [_describe_exception_chain(nested, _depth + 1)]
+    if not parts:
+        return label
+    return f"{label} [{'; '.join(parts)}]"
+
+
 def _discover_tools(
     resolved_config: Dict[str, Any],
     toolkit_factory: Callable[..., Any] | None = None,
@@ -523,6 +653,7 @@ def _discover_tools(
             command=resolved_config["command"],
             args=list(resolved_config.get("args") or []),
             env=dict(resolved_config.get("env") or {}),
+            cwd=str(resolved_config.get("cwd") or ""),
             transport="stdio",
         )
     elif transport == "streamable_http":
@@ -577,6 +708,7 @@ def _record_to_frontend(
         oauth_status = get_mcp_oauth_status(record.get("toolkit_id", ""), data_dir=data_dir)
     workspace_meta = _workspace_meta_for_frontend(record)
 
+    release_error = _record_release_gate_error(record)
     frontend = {
         "entryId": record.get("entry_id", ""),
         "toolkitId": record.get("toolkit_id", ""),
@@ -584,15 +716,17 @@ def _record_to_frontend(
         "toolkitDescription": record.get("toolkit_description", ""),
         "toolkitIcon": record.get("toolkit_icon", {}),
         "source": "mcp",
-        "status": record.get("status", "unknown"),
+        "status": "error" if release_error else record.get("status", "unknown"),
         "license": record.get("license", ""),
         "sourceRepo": record.get("source_repo", ""),
         "docsUrl": record.get("docs_url", ""),
         "readmeMarkdown": record.get("readme_markdown", ""),
         "tools": list(record.get("tools", []) or []),
         "toolCount": len(record.get("tools", []) or []),
+        "skills": list(record.get("skills", []) or []),
         "lastCheckedAt": record.get("last_checked_at", 0),
-        "lastError": record.get("last_error", ""),
+        "lastError": release_error or record.get("last_error", ""),
+        "releaseBlocked": bool(release_error),
         "workspaceRoot": record.get("workspace_root", ""),
         "workspace_root": record.get("workspace_root", ""),
         "requiresWorkspace": workspace_meta["required"],
@@ -647,6 +781,7 @@ def _record_from_entry(
         "workspace_binding": workspace_meta["binding"],
         "workspace_placeholder": workspace_meta["placeholder"],
         "tools": tools,
+        "skills": copy.deepcopy(entry.get("skills") or []),
         "status": status,
         "last_error": last_error,
         "last_checked_at": now,
@@ -716,10 +851,41 @@ def install_mcp_toolkit(
         if normalized_entry_id == "custom"
         else _registry_entry(normalized_entry_id, data_dir=data_dir)
     )
+    if normalized_entry_id != "custom":
+        try:
+            curated_entry = mcp_registry.registry_entry_from_any_id(
+                normalized_entry_id
+            )
+        except KeyError:
+            curated_entry = None
+        if curated_entry is not None:
+            oauth_recipe = oauth_recipe_for_entry(curated_entry)
+            oauth_release_ready = bool(oauth_recipe) and str(
+                oauth_recipe.get("releaseStatus") or ""
+            ).strip().lower() == "ready"
+            entry_available = str(
+                curated_entry.get("status") or ""
+            ).strip().lower() == "available"
+            if not entry_available or (
+                not curated_entry.get("installable") and not oauth_release_ready
+            ):
+                raise McpToolkitError(
+                    "mcp_entry_not_available",
+                    "This MCP toolkit is not available in this release",
+                    403,
+                )
     toolkit_id = entry["toolkit_id"]
-    store = _read_store(data_dir)
-    if any(record.get("toolkit_id") == toolkit_id for record in store["toolkits"]):
-        raise McpToolkitError("mcp_already_installed", "MCP toolkit is already installed", 409)
+    with _store_lock(data_dir):
+        store = _read_store(data_dir)
+        if any(
+            record.get("toolkit_id") == toolkit_id
+            for record in store["toolkits"]
+        ):
+            raise McpToolkitError(
+                "mcp_already_installed",
+                "MCP toolkit is already installed",
+                409,
+            )
 
     resolved_config = _resolve_mcp_config(
         entry,
@@ -732,7 +898,9 @@ def install_mcp_toolkit(
     except McpToolkitError:
         raise
     except Exception as exc:
-        raise McpToolkitError("mcp_install_failed", str(exc), 502) from exc
+        raise McpToolkitError(
+            "mcp_install_failed", _describe_exception_chain(exc), 502
+        ) from exc
 
     record = _record_from_entry(
         entry,
@@ -740,17 +908,28 @@ def install_mcp_toolkit(
         tools,
         now=(now_fn or time.time)(),
     )
-    store["toolkits"].append(record)
-    if resolved_config.get("secret_keys"):
-        save_mcp_secret_values(
-            toolkit_id,
-            {
-                key: resolved_config["secret_values"][key]
-                for key in resolved_config.get("secret_keys", [])
-            },
-            data_dir=data_dir,
-        )
-    _write_store(store, data_dir)
+    with _store_lock(data_dir):
+        store = _read_store(data_dir)
+        if any(
+            current.get("toolkit_id") == toolkit_id
+            for current in store["toolkits"]
+        ):
+            raise McpToolkitError(
+                "mcp_already_installed",
+                "MCP toolkit is already installed",
+                409,
+            )
+        if resolved_config.get("secret_keys"):
+            save_mcp_secret_values(
+                toolkit_id,
+                {
+                    key: resolved_config["secret_values"][key]
+                    for key in resolved_config.get("secret_keys", [])
+                },
+                data_dir=data_dir,
+            )
+        store["toolkits"].append(record)
+        _write_store(store, data_dir)
     return {"toolkit": _record_to_frontend(record, data_dir)}
 
 
@@ -760,19 +939,27 @@ def delete_mcp_toolkit(
     data_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
     normalized = str(toolkit_id or "").strip()
-    store = _read_store(data_dir)
-    next_records = [
-        record for record in store["toolkits"] if record.get("toolkit_id") != normalized
-    ]
-    if len(next_records) == len(store["toolkits"]):
-        raise McpToolkitError("mcp_toolkit_not_found", "MCP toolkit is not installed", 404)
-    store["toolkits"] = next_records
-    delete_mcp_secret_values(normalized, data_dir=data_dir)
-    try:
-        delete_mcp_oauth_token(normalized, data_dir=data_dir)
-    except Exception:
-        pass
-    _write_store(store, data_dir)
+    with _oauth_commit_lock(normalized, data_dir):
+        with _store_lock(data_dir):
+            store = _read_store(data_dir)
+            next_records = [
+                record
+                for record in store["toolkits"]
+                if record.get("toolkit_id") != normalized
+            ]
+            if len(next_records) == len(store["toolkits"]):
+                raise McpToolkitError(
+                    "mcp_toolkit_not_found",
+                    "MCP toolkit is not installed",
+                    404,
+                )
+            store["toolkits"] = next_records
+            delete_mcp_secret_values(normalized, data_dir=data_dir)
+            try:
+                delete_mcp_oauth_token(normalized, data_dir=data_dir)
+            except Exception:
+                pass
+            _write_store(store, data_dir)
     return {"ok": True, "toolkitId": normalized}
 
 
@@ -788,12 +975,11 @@ def configure_mcp_toolkit(
     normalized = str(toolkit_id or "").strip()
     store = _read_store(data_dir)
     updated = None
-    records = []
     for record in store["toolkits"]:
         if record.get("toolkit_id") != normalized:
-            records.append(record)
             continue
 
+        _assert_record_release_available(record)
         entry = _entry_for_record(record)
         resolved_workspace = (
             str(workspace_root or "").strip()
@@ -818,26 +1004,41 @@ def configure_mcp_toolkit(
             tools,
             now=(now_fn or time.time)(),
         )
-        records.append(updated)
 
     if updated is None:
         raise McpToolkitError("mcp_toolkit_not_found", "MCP toolkit is not installed", 404)
 
-    if updated.get("secret_keys"):
-        save_mcp_secret_values(
-            normalized,
-            {
-                key: _resolve_secret_values(
-                    _entry_for_record(updated),
-                    secrets=secrets,
-                    data_dir=data_dir,
-                )[key]
-                for key in updated.get("secret_keys", [])
-            },
-            data_dir=data_dir,
-        )
-    store["toolkits"] = records
-    _write_store(store, data_dir)
+    with _store_lock(data_dir):
+        store = _read_store(data_dir)
+        found = False
+        records = []
+        for current in store["toolkits"]:
+            if current.get("toolkit_id") == normalized:
+                records.append(updated)
+                found = True
+            else:
+                records.append(current)
+        if not found:
+            raise McpToolkitError(
+                "mcp_toolkit_not_found",
+                "MCP toolkit is not installed",
+                404,
+            )
+        if updated.get("secret_keys"):
+            save_mcp_secret_values(
+                normalized,
+                {
+                    key: _resolve_secret_values(
+                        _entry_for_record(updated),
+                        secrets=secrets,
+                        data_dir=data_dir,
+                    )[key]
+                    for key in updated.get("secret_keys", [])
+                },
+                data_dir=data_dir,
+            )
+        store["toolkits"] = records
+        _write_store(store, data_dir)
     return {"toolkit": _record_to_frontend(updated, data_dir)}
 
 
@@ -851,6 +1052,7 @@ def _check_record_health(
 ) -> Dict[str, Any]:
     now = (now_fn or time.time)()
     try:
+        _assert_record_release_available(record)
         entry = _entry_for_record(record)
         resolved_workspace = str(workspace_root or "").strip() or str(record.get("workspace_root") or "")
         resolved_config = _resolve_mcp_config(
@@ -878,24 +1080,67 @@ def check_mcp_toolkit_health(
 ) -> Dict[str, Any]:
     normalized = str(toolkit_id or "").strip()
     store = _read_store(data_dir)
-    updated = None
-    records = []
-    for record in store["toolkits"]:
-        if record.get("toolkit_id") == normalized:
-            record = _check_record_health(
-                record,
-                workspace_root=workspace_root,
-                data_dir=data_dir,
-                toolkit_factory=toolkit_factory,
-                now_fn=now_fn,
-            )
-            updated = record
-        records.append(record)
-    if updated is None:
+    record = next(
+        (
+            current
+            for current in store["toolkits"]
+            if current.get("toolkit_id") == normalized
+        ),
+        None,
+    )
+    if record is None:
         raise McpToolkitError("mcp_toolkit_not_found", "MCP toolkit is not installed", 404)
-    store["toolkits"] = records
-    _write_store(store, data_dir)
+    updated = _check_record_health(
+        record,
+        workspace_root=workspace_root,
+        data_dir=data_dir,
+        toolkit_factory=toolkit_factory,
+        now_fn=now_fn,
+    )
+    with _store_lock(data_dir):
+        store = _read_store(data_dir)
+        found = False
+        records = []
+        for current in store["toolkits"]:
+            if current.get("toolkit_id") == normalized:
+                records.append(updated)
+                found = True
+            else:
+                records.append(current)
+        if not found:
+            raise McpToolkitError(
+                "mcp_toolkit_not_found",
+                "MCP toolkit is not installed",
+                404,
+            )
+        store["toolkits"] = records
+        _write_store(store, data_dir)
     return {"toolkit": _record_to_frontend(updated, data_dir)}
+
+
+def probe_mcp_toolkit_health(
+    toolkit_id: str,
+    *,
+    workspace_root: str = "",
+    data_dir: str | Path | None = None,
+    toolkit_factory: Callable[..., Any] | None = None,
+    now_fn: Callable[[], float] | None = None,
+) -> Dict[str, Any]:
+    record = _get_installed_record(toolkit_id, data_dir=data_dir)
+    if record is None:
+        raise McpToolkitError(
+            "mcp_toolkit_not_found",
+            "MCP toolkit is not installed",
+            404,
+        )
+    probed = _check_record_health(
+        copy.deepcopy(record),
+        workspace_root=workspace_root,
+        data_dir=data_dir,
+        toolkit_factory=toolkit_factory,
+        now_fn=now_fn,
+    )
+    return {"toolkit": _record_to_frontend(probed, data_dir)}
 
 
 def reload_mcp_toolkits(
@@ -916,10 +1161,80 @@ def reload_mcp_toolkits(
         )
         for record in store["toolkits"]
     ]
-    store["toolkits"] = updated
-    _write_store(store, data_dir)
-    toolkits = [_record_to_frontend(record, data_dir) for record in updated]
+    updated_by_id = {
+        str(record.get("toolkit_id") or ""): record
+        for record in updated
+        if str(record.get("toolkit_id") or "")
+    }
+    with _store_lock(data_dir):
+        store = _read_store(data_dir)
+        committed = [
+            updated_by_id.get(str(record.get("toolkit_id") or ""), record)
+            for record in store["toolkits"]
+        ]
+        store["toolkits"] = committed
+        _write_store(store, data_dir)
+    toolkits = [_record_to_frontend(record, data_dir) for record in committed]
     return {"toolkits": toolkits, "count": len(toolkits)}
+
+
+def _assert_mcp_runtime_record_available(
+    record: Dict[str, Any],
+    *,
+    data_dir: str | Path | None = None,
+) -> None:
+    if str(record.get("status") or "").strip().lower() != "available":
+        raise McpToolkitError(
+            "mcp_entry_not_available",
+            "This MCP toolkit is not available in this release",
+            403,
+        )
+    external_snapshot = record.get("external_entry_snapshot")
+    is_approved_external = (
+        isinstance(external_snapshot, dict)
+        and str(external_snapshot.get("trust_level") or "").strip().lower()
+        == "external_approved"
+    )
+    if record.get("entry_id") != "custom" and not is_approved_external:
+        try:
+            curated_entry = mcp_registry.registry_entry_from_any_id(
+                record.get("entry_id") or record.get("toolkit_id") or ""
+            )
+        except KeyError as exc:
+            raise McpToolkitError(
+                "mcp_entry_not_available",
+                "This MCP toolkit is not available in this release",
+                403,
+            ) from exc
+        oauth_recipe = oauth_recipe_for_entry(curated_entry)
+        oauth_release_ready = bool(oauth_recipe) and str(
+            oauth_recipe.get("releaseStatus") or ""
+        ).strip().lower() == "ready"
+        if (
+            str(curated_entry.get("status") or "").strip().lower()
+            != "available"
+            or (
+                not curated_entry.get("installable")
+                and not oauth_release_ready
+            )
+        ):
+            raise McpToolkitError(
+                "mcp_entry_not_available",
+                "This MCP toolkit is not available in this release",
+                403,
+            )
+    if record.get("auth_type") == "oauth":
+        oauth_status = get_mcp_oauth_status(
+            record.get("toolkit_id", ""),
+            data_dir=data_dir,
+        )
+        auth_status = str(oauth_status.get("authStatus") or "").strip().lower()
+        if auth_status not in {"connected", "expired"}:
+            raise McpToolkitError(
+                "mcp_oauth_required",
+                "This MCP toolkit requires OAuth setup",
+                400,
+            )
 
 
 def build_mcp_runtime_toolkit(
@@ -931,6 +1246,7 @@ def build_mcp_runtime_toolkit(
     record = _get_installed_record(toolkit_id, data_dir)
     if record is None:
         raise McpToolkitError("mcp_toolkit_not_found", "MCP toolkit is not installed", 404)
+    _assert_mcp_runtime_record_available(record, data_dir=data_dir)
     factory = toolkit_factory or _default_toolkit_factory()
     secret_keys = [str(key) for key in record.get("secret_keys", []) or [] if str(key).strip()]
     secret_values = get_mcp_secret_values(record["toolkit_id"], secret_keys, data_dir=data_dir)
@@ -951,6 +1267,7 @@ def build_mcp_runtime_toolkit(
             command=str(record.get("command") or ""),
             args=list(record.get("args") or []),
             env=env,
+            cwd=_mcp_runtime_workdir(record.get("toolkit_id", ""), data_dir),
             transport="stdio",
         )
     elif transport == "streamable_http":

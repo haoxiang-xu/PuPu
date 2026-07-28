@@ -1,5 +1,8 @@
 const path = require("path");
-const { createMainWindowService } = require("../../main/window/main_window");
+const {
+  createMainWindowService,
+  isAllowedAppNavigation,
+} = require("../../main/window/main_window");
 
 const originalElectronStartUrl = process.env.ELECTRON_START_URL;
 
@@ -29,7 +32,17 @@ const createMockWindowInstance = () => ({
 });
 
 describe("main window service", () => {
+  beforeEach(() => {
+    /* Dev path now calls loadDevUrlWhenReady() eagerly at window creation
+     * (not gated behind a "ready-to-show" event, unlike the mocked `once`
+     * used elsewhere in this file). Default to an immediate resolved dev
+     * server response so tests that don't care about dev polling never
+     * leave a dangling real fetch call or retry timer behind. */
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
   afterEach(() => {
+    delete global.fetch;
     if (originalElectronStartUrl == null) {
       delete process.env.ELECTRON_START_URL;
     } else {
@@ -62,6 +75,105 @@ describe("main window service", () => {
     expect(windowInstance.restore).toHaveBeenCalledTimes(1);
     expect(windowInstance.show).toHaveBeenCalledTimes(1);
     expect(windowInstance.focus).toHaveBeenCalledTimes(1);
+  });
+
+  test("packaged: loads build/index.html directly with no loading.html swap", () => {
+    const windowInstance = createMockWindowInstance();
+    const BrowserWindow = jest.fn(() => windowInstance);
+
+    const service = createMainWindowService({
+      app: {
+        getAppPath: () => "/app",
+        isPackaged: true,
+      },
+      BrowserWindow,
+      shell: { openExternal: jest.fn() },
+      fs: { existsSync: jest.fn(() => false) },
+      path,
+      nativeTheme: {},
+    });
+
+    service.createMainWindow();
+
+    expect(windowInstance.loadFile).toHaveBeenCalledTimes(1);
+    expect(windowInstance.loadFile).toHaveBeenCalledWith(
+      path.join("/app", "build", "index.html"),
+      { hash: "/" },
+    );
+    expect(
+      windowInstance.loadFile.mock.calls.some(([filePath]) =>
+        String(filePath).includes("loading.html"),
+      ),
+    ).toBe(false);
+
+    // Window stays hidden until ready-to-show fires.
+    expect(windowInstance.show).not.toHaveBeenCalled();
+
+    const readyToShowHandler = windowInstance.once.mock.calls.find(
+      ([eventName]) => eventName === "ready-to-show",
+    )?.[1];
+    expect(typeof readyToShowHandler).toBe("function");
+
+    readyToShowHandler();
+
+    expect(windowInstance.show).toHaveBeenCalledTimes(1);
+    expect(windowInstance.webContents.send).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ isMaximized: false }),
+    );
+    // Only the single direct loadFile call — no second navigation on show.
+    expect(windowInstance.loadFile).toHaveBeenCalledTimes(1);
+  });
+
+  test("dev: shows the themed window immediately without waiting on ready-to-show, then polls the dev server", async () => {
+    process.env.ELECTRON_START_URL = "http://localhost:2907/#";
+
+    const windowInstance = createMockWindowInstance();
+    const BrowserWindow = jest.fn(() => windowInstance);
+
+    const service = createMainWindowService({
+      app: {
+        getAppPath: () => "/app",
+        isPackaged: false,
+      },
+      BrowserWindow,
+      shell: { openExternal: jest.fn() },
+      fs: { existsSync: jest.fn(() => false) },
+      path,
+      nativeTheme: {},
+    });
+
+    service.createMainWindow();
+
+    // Dev path shows right away with the inline interim shell (data: URL).
+    expect(windowInstance.show).toHaveBeenCalledTimes(1);
+    expect(windowInstance.loadURL).toHaveBeenCalledWith(
+      expect.stringMatching(/^data:text\/html/),
+    );
+    expect(windowInstance.webContents.send).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ isMaximized: false }),
+    );
+    expect(windowInstance.loadFile).not.toHaveBeenCalled();
+    expect(
+      windowInstance.once.mock.calls.some(
+        ([eventName]) => eventName === "ready-to-show",
+      ),
+    ).toBe(false);
+
+    // Dev-server polling still happens via loadURL, same as before.
+    // Flush enough microtask ticks to drain the async fetch → loadURL chain.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:2907/#",
+      expect.objectContaining({ method: "HEAD" }),
+    );
+    expect(windowInstance.loadURL).toHaveBeenCalledWith(
+      "http://localhost:2907/#",
+    );
   });
 
   test("allows navigation to the configured development origin", () => {
@@ -100,5 +212,59 @@ describe("main window service", () => {
     willNavigateHandler(blockedEvent, "http://localhost:2907/");
     expect(blockedEvent.preventDefault).toHaveBeenCalledTimes(1);
     expect(shell.openExternal).toHaveBeenCalledWith("http://localhost:2907/");
+  });
+
+  test("compares development navigation by parsed origin, not string prefix", () => {
+    const common = {
+      isPackaged: false,
+      devServerOrigin: "http://localhost:3912",
+      productionEntryPath: "/app/build/index.html",
+    };
+
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "http://localhost:3912/settings",
+      }),
+    ).toBe(true);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "http://localhost:3912@evil.example/settings",
+      }),
+    ).toBe(false);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "http://localhost:3912.evil.example/settings",
+      }),
+    ).toBe(false);
+  });
+
+  test("packaged navigation is restricted to the exact build entry file", () => {
+    const common = {
+      isPackaged: true,
+      devServerOrigin: "http://localhost:3912",
+      productionEntryPath: "/app/build/index.html",
+    };
+
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "file:///app/build/index.html#/settings",
+      }),
+    ).toBe(true);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "file:///tmp/build/index.html#/settings",
+      }),
+    ).toBe(false);
+    expect(
+      isAllowedAppNavigation({
+        ...common,
+        url: "file://evil.example/app/build/index.html",
+      }),
+    ).toBe(false);
   });
 });

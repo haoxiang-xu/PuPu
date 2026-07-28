@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from recipe import parse_recipe_json
-from recipe_seeds import ensure_recipe_seeds_written
+from recipe_seeds import EXPLORE_RECIPE, ensure_recipe_seeds_written
 
 
 class EnsureRecipeSeedsTests(unittest.TestCase):
@@ -57,6 +57,46 @@ class EnsureRecipeSeedsTests(unittest.TestCase):
             self.assertEqual(recipe.name, "Explore")
             self.assertTrue(recipe.nodes)
             self.assertIn("You are Explore", recipe.agent.prompt)
+            self.assertEqual(
+                recipe.subagent_profile.allowed_modes,
+                ("delegate", "worker"),
+            )
+            self.assertIs(recipe.subagent_profile.parallel_safe, True)
+
+    def test_migrates_unmodified_legacy_explore_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp) / ".pupu" / "agent_recipes"
+            target_dir.mkdir(parents=True)
+            explore_path = target_dir / "Explore.recipe"
+            legacy_seed = dict(EXPLORE_RECIPE)
+            legacy_seed.pop("subagent_profile")
+            explore_path.write_text(json.dumps(legacy_seed), encoding="utf-8")
+
+            ensure_recipe_seeds_written(target_dir)
+
+            data = json.loads(explore_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                data["subagent_profile"]["allowed_modes"],
+                ["delegate", "worker"],
+            )
+            self.assertIs(data["subagent_profile"]["parallel_safe"], True)
+
+    def test_does_not_overwrite_customized_explore_recipe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp) / ".pupu" / "agent_recipes"
+            target_dir.mkdir(parents=True)
+            explore_path = target_dir / "Explore.recipe"
+            customized = dict(EXPLORE_RECIPE)
+            customized["description"] = "User-customized Explore"
+            customized.pop("subagent_profile")
+            explore_path.write_text(json.dumps(customized), encoding="utf-8")
+
+            ensure_recipe_seeds_written(target_dir)
+
+            self.assertEqual(
+                json.loads(explore_path.read_text(encoding="utf-8")),
+                customized,
+            )
 
     def test_migrates_legacy_default_seed(self):
         with tempfile.TemporaryDirectory() as tmp:

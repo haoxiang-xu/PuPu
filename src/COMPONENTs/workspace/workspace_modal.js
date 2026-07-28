@@ -31,8 +31,6 @@ const WorkspaceModalLoading = () => {
 
 export const WorkspaceModal = ({ open, onClose }) => {
   useModalLifecycle("workspace-modal", open);
-  const { onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
 
   return (
     <Modal
@@ -44,8 +42,7 @@ export const WorkspaceModal = ({ open, onClose }) => {
         height: 600,
         maxHeight: "80vh",
         padding: 0,
-        backgroundColor: isDark ? "#141414" : "#ffffff",
-        color: isDark ? "#fff" : "#222",
+        color: "var(--pupu-text)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

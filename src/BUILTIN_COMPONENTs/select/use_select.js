@@ -80,6 +80,14 @@ const normalise_options = (options) => {
     if (typeof item.group === "string" && Array.isArray(item.options)) {
       groups.push({
         group: item.group,
+        // Preserve the group's stable collapse key and badge markers so the
+        // dropdown/rail can (a) address collapse state by group_key rather than
+        // display name (C7) and (b) render a "Custom" badge for user-defined
+        // providers (C11). Built-in groups carry none of these — undefined
+        // fields keep their behavior byte-identical.
+        group_key: typeof item.group_key === "string" ? item.group_key : undefined,
+        is_custom: item.is_custom === true ? true : undefined,
+        badge: typeof item.badge === "string" ? item.badge : undefined,
         icon: item.icon ?? null,
         collapsed: !!item.collapsed,
         options: item.options.filter(Boolean),
@@ -135,6 +143,9 @@ export const build_filtered = (options, filterable, normalizedQuery) => {
     const forceOpen = isFiltering && items.length > 0; // auto‑expand matching groups
     filteredGroups.push({
       group: g.group,
+      group_key: g.group_key,
+      is_custom: g.is_custom,
+      badge: g.badge,
       icon: g.icon,
       collapsed: forceOpen ? false : g.collapsed,
       forceOpen,
@@ -172,6 +183,60 @@ export const rebuild_flat_selectable = (
   normalizedQuery,
 ) => {
   return build_filtered(options, filterable, normalizedQuery);
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *  useDropdownWheelGuard
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/**
+ * All three Select variants render their dropdown INLINE (no portal),
+ * absolutely positioned inside whatever scroll container hosts the
+ * Select. Wheel input over the open panel must never chain to that host
+ * container — either because the option list has too few rows to
+ * overflow (so it never becomes a scroll boundary) or because the wheel
+ * lands on chrome (padding, group headers, the search row) outside the
+ * list entirely.
+ *
+ * Must attach via a real, non-passive `addEventListener("wheel", ...)`.
+ * React registers its synthetic `onWheel` passively at the delegation
+ * root, so `preventDefault()` inside a JSX `onWheel` handler is a silent
+ * no-op. Attaching directly to the panel DOM node also lets us
+ * `stopPropagation()` — needed because Tooltip's own `onWheel` (an
+ * ancestor of this panel) imperatively forwards any unconsumed wheel
+ * delta to the trigger's nearest scrollable ancestor regardless of
+ * `defaultPrevented` (see tooltip.js `handle_tooltip_wheel`); without
+ * stopping propagation here that forward would still fire and the
+ * chaining bug would persist even though this guard "blocked" it.
+ */
+export const useDropdownWheelGuard = (open, panelRef, listRef) => {
+  useEffect(() => {
+    if (!open) return undefined;
+    const panel = panelRef.current;
+    if (!panel) return undefined;
+    const handle_wheel = (e) => {
+      const list = listRef.current;
+      if (!list || !list.contains(e.target)) {
+        // wheel over dropdown chrome (padding, group headers, search row)
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      const canScroll = list.scrollHeight > list.clientHeight;
+      const atTop = list.scrollTop <= 0 && e.deltaY < 0;
+      const atBottom =
+        list.scrollTop + list.clientHeight >= list.scrollHeight - 1 &&
+        e.deltaY > 0;
+      if (!canScroll || atTop || atBottom) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      // otherwise: list can still scroll in this direction — let the
+      // native scroll happen naturally, no chaining risk either way.
+    };
+    panel.addEventListener("wheel", handle_wheel, { passive: false });
+    return () => panel.removeEventListener("wheel", handle_wheel);
+  }, [open, panelRef, listRef]);
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

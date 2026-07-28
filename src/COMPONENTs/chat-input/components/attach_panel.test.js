@@ -24,7 +24,22 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     search_placeholder,
     dropdown_position = "bottom",
     custom_trigger,
+    multi = false,
+    value,
+    set_value = () => {},
   }) => {
+    const toggleOption = (item) => {
+      if (!item || item.disabled) return;
+      if (multi) {
+        const current = Array.isArray(value) ? value : [];
+        const next = current.includes(item.value)
+          ? current.filter((v) => v !== item.value)
+          : [...current, item.value];
+        set_value(next);
+      } else {
+        set_value(item.value);
+      }
+    };
     const renderOptionLabels = (items = []) =>
       items.flatMap((item) => {
         if (!item) return [];
@@ -35,9 +50,18 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
           ];
         }
         return [
-          <span key={`option-${item.value || item.label}`}>
+          <button
+            type="button"
+            key={`option-${item.value || item.label}`}
+            data-testid={`option-${item.value || item.label}`}
+            data-disabled={item.disabled ? "true" : "false"}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleOption(item);
+            }}
+          >
             {item.label || item.value}
-          </span>,
+          </button>,
         ];
       });
 
@@ -113,27 +137,27 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    const toolsSelect = screen.getByTestId("select-Search toolkits...");
+    const toolsSelect = screen.getByTestId("select-Search plugins...");
 
     expect(toolsSelect.getAttribute("data-open")).toBe("false");
 
     fireEvent.click(toolsSelect);
     expect(refreshToolkits).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "true",
     );
 
-    fireEvent.click(screen.getByTestId("select-Search toolkits..."));
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
     expect(refreshToolkits).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "false",
     );
 
-    fireEvent.click(screen.getByTestId("select-Search toolkits..."));
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
     expect(refreshToolkits).toHaveBeenCalledTimes(2);
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-open",
       "true",
     );
@@ -170,7 +194,7 @@ describe("AttachPanel toolkit selector refresh", () => {
       "data-dropdown-position",
       "top",
     );
-    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+    expect(screen.getByTestId("select-Search plugins...")).toHaveAttribute(
       "data-dropdown-position",
       "top",
     );
@@ -234,7 +258,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     );
 
     expect(screen.queryByTestId("select-Select model...")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("select-Search toolkits...")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("select-Search plugins...")).not.toBeInTheDocument();
     expect(screen.queryByTestId("select-Search workspaces...")).not.toBeInTheDocument();
   });
 
@@ -302,7 +326,7 @@ describe("AttachPanel toolkit selector refresh", () => {
 
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
-    expect(screen.getByTestId("select-Search toolkits...")).toBeInTheDocument();
+    expect(screen.getByTestId("select-Search plugins...")).toBeInTheDocument();
     await waitFor(() => {
       expect(onSelectRecipe).toHaveBeenCalledWith("Default");
     });
@@ -346,5 +370,262 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
     expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
+  });
+
+  test("renders the catalog-native Computer entry alongside other toolkits", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [
+        { value: "workspace_toolkit", label: "Workspace Files" },
+        { value: "builtin.computer", label: "Computer" },
+      ],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+      computerAvailable: true,
+      computerResolutionKnown: true,
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("option-workspace_toolkit")).toBeInTheDocument();
+    expect(screen.getByTestId("option-builtin.computer")).toBeInTheDocument();
+  });
+
+  test("omits Computer when the capability-filtered catalog yields none", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("option-workspace_toolkit")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("option-builtin.computer"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("selecting the Computer entry adds builtin.computer to the payload", () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "builtin.computer", label: "Computer" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+      computerAvailable: true,
+      computerResolutionKnown: true,
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={[]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("option-builtin.computer"));
+
+    expect(onToolkitsChange).toHaveBeenCalledWith(["builtin.computer"]);
+  });
+
+  test("an unsupported Computer entry is absent and cannot be selected", () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={[]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId("option-builtin.computer")).not.toBeInTheDocument();
+    expect(onToolkitsChange).not.toHaveBeenCalled();
+  });
+
+  test("uses one catalog refresh for toolkits and capability status", () => {
+    const refreshToolkits = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits,
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("select-Search plugins..."));
+    expect(refreshToolkits).toHaveBeenCalledTimes(1);
+  });
+
+  test("strips a residual builtin.computer when the model becomes unsupported", async () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+      computerAvailable: false,
+      computerResolutionKnown: true,
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={["builtin.computer"]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(onToolkitsChange).toHaveBeenCalledWith([]));
+  });
+
+  test("strips a residual builtin.computer when the master switch is off", async () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+      computerAvailable: false,
+      computerResolutionKnown: true,
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={["workspace_toolkit", "builtin.computer"]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onToolkitsChange).toHaveBeenCalledWith(["workspace_toolkit"]),
+    );
+  });
+
+  test("keeps builtin.computer selected and re-selectable on a supported model", () => {
+    const onToolkitsChange = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "builtin.computer", label: "Computer" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+      computerAvailable: true,
+      computerResolutionKnown: true,
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedModelId="anthropic:claude-opus-4-8"
+        selectedToolkits={["builtin.computer"]}
+        onToolkitsChange={onToolkitsChange}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    // selection is NOT stripped
+    expect(onToolkitsChange).not.toHaveBeenCalled();
+    // and the entry is present + enabled (re-selectable)
+    const entry = screen.getByTestId("option-builtin.computer");
+    expect(entry).toHaveAttribute("data-disabled", "false");
+  });
+});
+
+describe("attach panel semantic surface binding", () => {
+  test("frosted panel + pill backgrounds derive from semantic vars, not hardcoded rgba", () => {
+    const src = require("fs").readFileSync(
+      require("path").join(__dirname, "attach_panel.js"),
+      "utf8",
+    );
+    // near-opaque frosted surface must bind to the surface tier
+    expect(src).not.toMatch(/rgba\(28,28,28/);
+    expect(src).not.toMatch(/rgba\(252,252,252/);
+    expect(src).toMatch(/panelBg = isDark[\s\S]{0,140}var\(--pupu-surface-rgb\)/);
+    // pill overlay follows the neutral-overlay policy (text tier + alpha)
+    expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
+    // floating pill hairline border binds the mid border-strength tier (input-family)
+    expect(src).toMatch(/border: floating[\s\S]{0,80}var\(--pupu-border-mid\)/);
   });
 });

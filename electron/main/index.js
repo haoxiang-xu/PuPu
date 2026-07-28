@@ -22,6 +22,12 @@ const { createUnchainService } = require("./services/unchain/service");
 const { createUpdateService } = require("./services/update/service");
 const { createScreenshotService } = require("./services/screenshot/service");
 const { createChatStorageService } = require("./services/chat_storage/service");
+const {
+  createSettingsStorageService,
+} = require("./services/settings_storage/service");
+const {
+  createSettingsQuitCoordinator,
+} = require("./services/settings_storage/quit_coordinator");
 const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 const sqlite = require("node:sqlite");
@@ -75,6 +81,17 @@ if (!gotSingleInstanceLock) {
     sqlite,
   });
 
+  const settingsStorageService = createSettingsStorageService({
+    app,
+    fs,
+    path,
+    sqlite,
+    // Phase 4 (S1): encrypted provider-credential storage. init() runs inside
+    // app.whenReady(), so safeStorage's "usable only after ready" precondition
+    // is already satisfied by the existing service ordering.
+    safeStorage: require("electron").safeStorage,
+  });
+
   const ollamaService = createOllamaService({
     app,
     shell,
@@ -94,9 +111,14 @@ if (!gotSingleInstanceLock) {
     spawnSync,
     crypto,
     net,
+    // Localhost SSE transport is owned by the service's Node adapter.
     shell,
     webContents,
     runtimeService,
+    // Phase 4 (S4): main-internal provider-secret reader used by the stream
+    // strip+inject seam. Created above (before unchainService), so it is
+    // available to inject here just like runtimeService.
+    settingsStorageService,
     getAppIsQuitting: () => appIsQuitting,
   });
 
@@ -135,8 +157,17 @@ if (!gotSingleInstanceLock) {
       runtimeService,
       screenshotService,
       chatStorageService,
+      settingsStorageService,
     },
   });
+
+  const settingsQuitCoordinator = createSettingsQuitCoordinator({
+    app,
+    ipcMain,
+    getMainWindow: windowService.getMainWindow,
+    getWindowCount: () => BrowserWindow.getAllWindows().length,
+  });
+  settingsQuitCoordinator.start();
 
   const stopBackgroundServices = () => {
     appIsQuitting = true;
@@ -144,14 +175,16 @@ if (!gotSingleInstanceLock) {
     unchainService.stopMiso();
   };
 
-  app.on("before-quit", () => {
-    chatStorageService.close();
-  });
-  app.on("before-quit", stopBackgroundServices);
-  app.on("before-quit", () => {
+  // before-quit is cancelable by renderer beforeunload. Defer shutdown until
+  // will-quit so a failed chat drain cannot leave a still-running app with its
+  // sidecars stopped and appIsQuitting stuck true.
+  app.on("will-quit", () => {
+    settingsQuitCoordinator.dispose({ abortRenderer: false });
+    stopBackgroundServices();
     void testApiService.stop();
+    chatStorageService.close();
+    settingsStorageService.close();
   });
-  app.on("will-quit", stopBackgroundServices);
 
   app.on("second-instance", () => {
     const existingMainWindow = windowService.getMainWindow();
@@ -164,6 +197,13 @@ if (!gotSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     await chatStorageService.init();
+    // Must complete before the renderer window exists: the renderer's
+    // synchronous bootstrap read depends on it. init() never throws — a broken
+    // settings.db puts the service in degraded mode (file left in place).
+    await settingsStorageService.init();
+
+    // S6a: clear any leftover skill-pack temp dirs from a prior crashed install.
+    runtimeService.sweepLeftoverSkillpackDirs();
 
     updateService.applyUnsupportedRuntimeMessage();
 

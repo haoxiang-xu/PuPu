@@ -15,6 +15,8 @@ import { fetchOllamaModels } from "./utils/ollama_models";
 import {
   formatBytes,
   readLocalStorageEntriesAsync,
+  readSettingsDbStats,
+  isSettingsDbStatsAvailable,
 } from "./utils/storage_metrics";
 import StorageKeyRow from "./components/storage_key_row";
 import StorageBar from "./components/storage_bar";
@@ -25,6 +27,7 @@ import McpToolkitsSection from "./components/mcp_toolkits_section";
 import { api } from "../../../SERVICEs/api";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { resetAllSettingsSafely } from "./reset_settings_coordinator";
 
 const OllamaSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
@@ -467,6 +470,18 @@ const RuntimeFileRow = ({
 };
 
 const SETTINGS_STORAGE_KEY = "settings";
+
+// Plan §1.3 excluded keys that the raw dev-delete button must never remove:
+// the boot palette, the durable outbox trio and the uiTesting prefs all live
+// outside the settings migration and must survive a per-key delete.
+const PROTECTED_RAW_DELETE_KEYS = new Set([
+  "pupu_boot_palette",
+  "pupu.execution_cancel_outbox.v1",
+  "pupu.turn_mutation_outbox.v1",
+  "pupu.queued_turn_outbox.v1",
+  "pupu.uiTesting.prefs",
+]);
+
 const _isObject = (v) =>
   v != null && typeof v === "object" && !Array.isArray(v);
 const readRuntimeWorkspaceRoot = () => {
@@ -1025,6 +1040,187 @@ const CharactersSection = ({ isDark }) => {
   );
 };
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  SettingsDatabaseSection  (SQLite Settings database — plan §6-Phase5)        */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const SettingsDatabaseSection = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  // Metadata-only; the desktop bridge must be present. Hidden entirely in
+  // browser dev / Jest / degraded so there is no loading flash.
+  const hasBridge = isSettingsDbStatsAvailable();
+
+  const [status, setStatus] = useState("loading");
+  const [stats, setStats] = useState(null);
+
+  const load = useCallback(async () => {
+    setStatus("loading");
+    const result = await readSettingsDbStats();
+    if (!result) {
+      setStats(null);
+      setStatus("unavailable");
+      return;
+    }
+    setStats(result);
+    setStatus("ready");
+  }, []);
+
+  useEffect(() => {
+    if (hasBridge) load();
+  }, [hasBridge, load]);
+
+  if (!hasBridge) return null;
+
+  const totalRows = stats
+    ? stats.tables.reduce((sum, entry) => sum + entry.rows, 0)
+    : 0;
+  const maxRows = stats
+    ? stats.tables.reduce((max, entry) => Math.max(max, entry.rows), 0)
+    : 0;
+
+  const pill = (label) => (
+    <span
+      style={{
+        fontSize: 11,
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+        fontWeight: 500,
+        padding: "1px 8px",
+        borderRadius: 999,
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+        backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)",
+        color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
+        lineHeight: 1.5,
+        fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+  );
+
+  return (
+    <SettingsSection title={t("local_storage.section_settings_db")}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 0 6px",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            minWidth: 0,
+          }}
+        >
+          {status === "ready" && stats && (
+            <>
+              {pill(`${formatBytes(stats.sizeBytes)} on disk`)}
+              {pill(
+                `${totalRows} ${totalRows === 1 ? "row" : "rows"}`,
+              )}
+            </>
+          )}
+          {status === "loading" && pill(t("local_storage.loading"))}
+          {status === "unavailable" && pill(t("local_storage.unavailable"))}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Button
+            label={t("local_storage.reload")}
+            onClick={load}
+            style={{
+              fontSize: 12,
+              paddingVertical: 5,
+              paddingHorizontal: 10,
+              borderRadius: 6,
+              opacity: 0.45,
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        style={{
+          paddingBottom: 10,
+          fontSize: 12,
+          color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.42)",
+          fontFamily: theme?.font?.fontFamily || "inherit",
+        }}
+      >
+        {t("local_storage.settings_db_desc")}
+      </div>
+
+      {status === "ready" && stats && (
+        <div>
+          {stats.tables.map((entry) => (
+            <div
+              key={entry.name}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "9px 0",
+                borderBottom: `1px solid ${
+                  isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+                }`,
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 12,
+                  fontFamily: "'SF Mono', 'Fira Code', monospace",
+                  color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={entry.name}
+              >
+                {entry.name}
+              </span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexShrink: 0,
+                }}
+              >
+                <StorageBar
+                  ratio={maxRows > 0 ? entry.rows / maxRows : 0}
+                  isDark={isDark}
+                />
+                <span
+                  style={{
+                    fontSize: 11,
+                    width: 60,
+                    textAlign: "right",
+                    color: isDark
+                      ? "rgba(255,255,255,0.35)"
+                      : "rgba(0,0,0,0.35)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {entry.rows}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </SettingsSection>
+  );
+};
+
 let _cachedLocalStorageEntries = null;
 let _cachedAttachmentCount = null;
 let _cachedMemoryStats = null;
@@ -1121,7 +1317,26 @@ export const LocalStorageSettings = () => {
   }, [refresh]);
 
   const handleDelete = useCallback(
-    (key) => {
+    async (key) => {
+      // The `settings` row is the SQLite-backed settings root: its delete
+      // button opens the reset-settings modal, so route it through the
+      // repository reset (SQL transaction + strip-clear legacy) rather than a
+      // raw removeItem that would leave the SQL authority untouched
+      // (plan §6-Phase5).
+      if (key === SETTINGS_STORAGE_KEY) {
+        try {
+          await resetAllSettingsSafely();
+        } catch {}
+        refresh();
+        return;
+      }
+      // Never let this raw dev-delete remove the plan §1.3 excluded keys (boot
+      // palette, the outbox trio, uiTesting prefs) — they are outside the
+      // migration and must survive. Provider secrets live INSIDE the `settings`
+      // root (handled by the reset path above), so no separate key guards them.
+      if (PROTECTED_RAW_DELETE_KEYS.has(key)) {
+        return;
+      }
       try {
         localStorage.removeItem(key);
       } catch {}
@@ -1130,11 +1345,14 @@ export const LocalStorageSettings = () => {
     [refresh],
   );
 
-  const handleClearAll = useCallback(() => {
-    try {
-      localStorage.clear();
-    } catch {}
+  const handleClearAll = useCallback(async () => {
+    // Reset settings (plan §6-Phase5): a strip-clear of the non-sensitive
+    // settings + preferences, NEVER localStorage.clear() (which would wipe the
+    // boot palette, outbox, uiTesting and the legacy provider secrets).
     setConfirmClear(false);
+    try {
+      await resetAllSettingsSafely();
+    } catch {}
     refresh();
   }, [refresh]);
 
@@ -1143,7 +1361,7 @@ export const LocalStorageSettings = () => {
 
   return (
     <div>
-      <SettingsSection title={t("local_storage.section_system")}>
+      <SettingsSection title={t("local_storage.section_browser_cache")}>
         <div
           style={{
             display: "flex",
@@ -1239,7 +1457,7 @@ export const LocalStorageSettings = () => {
             />
             {entries.length > 0 && !confirmClear && (
               <Button
-                label={t("local_storage.clear_all_btn")}
+                label={t("local_storage.reset_settings_btn")}
                 onClick={() => setConfirmClear(true)}
                 style={{
                   fontSize: 12,
@@ -1260,7 +1478,7 @@ export const LocalStorageSettings = () => {
           <div style={{ paddingBottom: 8 }}>
             <ConfirmClearAll
               isDark={isDark}
-              label={t("local_storage.system_clear_all_confirm")}
+              label={t("local_storage.reset_settings_confirm")}
               onConfirm={handleClearAll}
               onCancel={() => setConfirmClear(false)}
             />
@@ -1317,6 +1535,7 @@ export const LocalStorageSettings = () => {
         )}
       </SettingsSection>
 
+      <SettingsDatabaseSection isDark={isDark} />
       <CharactersSection isDark={isDark} />
       <OllamaSection isDark={isDark} />
       <RuntimeSection isDark={isDark} />

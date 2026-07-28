@@ -17,10 +17,6 @@ on:
           - lite
           - release
         default: lite
-      post_comment:
-        description: "Post or update the PR QA comment"
-        type: boolean
-        default: true
       run_unchain_analysis:
         description: "Run optional Unchain advisory analysis"
         type: boolean
@@ -29,8 +25,6 @@ on:
 permissions:
   contents: read
   actions: read
-  pull-requests: write
-  issues: write
 
 jobs:
   deterministic-checks:
@@ -49,7 +43,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 3df32fbf57bb0c21e2c6dc5057298fd2d8687e01
+          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
           path: unchain
 
       - name: Set up Node
@@ -120,11 +114,23 @@ jobs:
           CI: true
         run: npm run build
 
+      - name: Validate MCP registry
+        id: mcp_registry
+        continue-on-error: true
+        working-directory: pupu
+        run: npm run validate:mcp
+
       - name: Release QA script tests
         id: release_qa_scripts
         continue-on-error: true
         working-directory: pupu
         run: npm run test:release-qa
+
+      - name: Third-party notice script tests
+        id: notice_scripts
+        continue-on-error: true
+        working-directory: pupu
+        run: npm run test:notices
 
       - name: Write deterministic QA report
         if: always()
@@ -137,7 +143,9 @@ jobs:
               {"name":"electron tests","command":"npm run test:electron","outcome":"${{ steps.electron.outcome }}"},
               {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
               {"name":"web build and version check","command":"npm run build","outcome":"${{ steps.web_build.outcome }}"},
-              {"name":"release QA script tests","command":"npm run test:release-qa","outcome":"${{ steps.release_qa_scripts.outcome }}"}
+              {"name":"MCP registry validation","command":"npm run validate:mcp","outcome":"${{ steps.mcp_registry.outcome }}"},
+              {"name":"release QA script tests","command":"npm run test:release-qa","outcome":"${{ steps.release_qa_scripts.outcome }}"},
+              {"name":"third-party notice script tests","command":"npm run test:notices","outcome":"${{ steps.notice_scripts.outcome }}"}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
 
@@ -153,6 +161,136 @@ jobs:
         working-directory: pupu
         run: |
           node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
+
+  unchain-dev-compatibility:
+    name: Unchain Dev Compatibility
+    runs-on: ubuntu-latest
+    # Advisory drift radar: tracks the MOVING unchain dev ref on purpose, so it
+    # must never hard-block a PuPu release — unchain-side churn is not a PuPu
+    # regression. The pytest step soft-fails and only emits a warning.
+    permissions:
+      contents: read
+    env:
+      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
+    steps:
+      - name: Checkout PuPu
+        uses: actions/checkout@v4
+        with:
+          path: pupu
+
+      - name: Checkout current Unchain dev
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: dev
+          path: unchain
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install compatibility test dependencies
+        working-directory: pupu
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r unchain_runtime/server/requirements.txt -e ../unchain pytest
+
+      - name: Run PuPu-Unchain compatibility contracts
+        id: compat
+        continue-on-error: true
+        working-directory: pupu/unchain_runtime/server
+        env:
+          PYTHONPATH: ${{ github.workspace }}/unchain/src
+        run: |
+          python -m pytest \
+            tests/test_memory_factory.py \
+            tests/test_session_transcript_media.py \
+            tests/test_durable_interaction_host.py \
+            -q --tb=short
+
+      - name: Warn on unchain dev drift (advisory only)
+        if: steps.compat.outcome != 'success'
+        run: |
+          echo "::warning title=Unchain dev drift::PuPu is not compatible with the current unchain dev branch (advisory only — release not blocked). Sync the memory-contract proxy before the next unchain upgrade."
+
+  playwright-electron:
+    name: Playwright Electron (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON((startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+    env:
+      QA_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && 'release' || 'lite' }}
+    steps:
+      - name: Checkout PuPu
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Electron runtime dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+
+      # Electron's SUID sandbox helper aborts on Linux runners unless it is
+      # root-owned with mode 4755 (the spawn in e2e/fixtures/pupu_app.js runs
+      # with sandboxing on).
+      - name: Configure Electron SUID sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Run Playwright Electron release smoke
+        id: playwright
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a npm run test:e2e
+          else
+            npm run test:e2e
+          fi
+
+      - name: Write Playwright QA report
+        if: always()
+        env:
+          QA_PLATFORM_NAME: playwright-${{ runner.os }}
+          QA_PLATFORM_COMMAND: npm run test:e2e
+          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
+          QA_CHECKS_JSON: |
+            [
+              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}"}
+            ]
+        run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
+
+      - name: Upload Playwright QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-qa-job-report-playwright-${{ runner.os }}
+          path: release-qa-job-report.json
+          retention-days: 30
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence-${{ runner.os }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            playwright-report/**/*
+            test-results/playwright/**/*
 
   package-matrix:
     name: Package ${{ matrix.name }}
@@ -187,7 +325,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 3df32fbf57bb0c21e2c6dc5057298fd2d8687e01
+          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
           path: unchain
 
       - name: Set up Node
@@ -255,6 +393,7 @@ jobs:
         with:
           name: pupu-package-${{ matrix.name }}
           if-no-files-found: warn
+          retention-days: 7
           path: |
             pupu/dist/**/*
             pupu/unchain_runtime/dist/**/*
@@ -265,6 +404,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - deterministic-checks
+      - unchain-dev-compatibility
+      - playwright-electron
       - package-matrix
     env:
       UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
@@ -278,7 +419,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 3df32fbf57bb0c21e2c6dc5057298fd2d8687e01
+          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
           path: unchain
 
       - name: Set up Python
@@ -302,7 +443,7 @@ jobs:
             --out-md release-qa-report.md
 
       - name: Install optional Unchain analyst dependencies
-        if: ${{ github.event.inputs.run_unchain_analysis != 'false' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.qa_mode == 'release' && inputs.run_unchain_analysis }}
         continue-on-error: true
         working-directory: pupu
         run: |
@@ -310,7 +451,7 @@ jobs:
           python -m pip install -e ../unchain openai anthropic
 
       - name: Run optional Unchain analyst
-        if: ${{ github.event.inputs.run_unchain_analysis != 'false' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.qa_mode == 'release' && inputs.run_unchain_analysis }}
         continue-on-error: true
         working-directory: pupu
         env:
@@ -350,37 +491,3 @@ jobs:
             pupu/release-qa-analysis.json
           if-no-files-found: ignore
 
-      - name: Comment on PR
-        if: ${{ github.event_name == 'pull_request' && github.event.inputs.post_comment != 'false' }}
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require("fs");
-            const marker = "<!-- pupu-release-qa -->";
-            const report = fs.readFileSync("pupu/release-qa-report.md", "utf8");
-            const body = `${marker}\n${report}`;
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-            const comments = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-            const existing = comments.data.find((comment) => comment.body && comment.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body,
-              });
-            }

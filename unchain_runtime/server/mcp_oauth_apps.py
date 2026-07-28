@@ -111,6 +111,15 @@ def configure_mcp_oauth_app(
     ).strip()
     entry = _validate_user_credentials_entry(toolkit_id)
     recipe = oauth_recipe_for_entry(entry)
+    if (
+        str(entry.get("status") or "") != "available"
+        or str(recipe.get("releaseStatus") or "") != "ready"
+    ):
+        raise McpOAuthAppError(
+            "mcp_oauth_release_unavailable",
+            "This MCP OAuth app cannot be configured in this release",
+            403,
+        )
     client_id = str(payload.get("clientId") or payload.get("client_id") or "").strip()
     client_secret = str(
         payload.get("clientSecret") or payload.get("client_secret") or ""
@@ -170,9 +179,24 @@ def list_mcp_oauth_apps(
     apps = []
     for entry in oauth_registry_entries():
         recipe = oauth_recipe_for_entry(entry)
+        release_ready = (
+            str(entry.get("status") or "") == "available"
+            and str(recipe.get("releaseStatus") or "") == "ready"
+        )
         if recipe.get("clientRegistration") != "user_credentials":
             continue
-        apps.append(_app_status(entry, store["apps"].get(entry["toolkit_id"])))
+        stored = store["apps"].get(entry["toolkit_id"])
+        if not release_ready and not isinstance(stored, dict):
+            continue
+        app = _app_status(entry, stored)
+        app.update(
+            {
+                "configurable": release_ready,
+                "connectable": release_ready,
+                "releaseBlocked": not release_ready,
+            }
+        )
+        apps.append(app)
     return {"apps": apps, "count": len(apps)}
 
 

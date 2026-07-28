@@ -85,7 +85,7 @@ export const QueueSummaryInline = ({ items = [], isDark = false }) => {
       >
         <Icon
           src="queue_arrow"
-          color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
+          color={isDark ? "rgba(var(--pupu-text-rgb),0.5)" : "rgba(var(--pupu-text-rgb),0.45)"}
           style={{ width: 14, height: 14 }}
         />
       </span>
@@ -107,7 +107,7 @@ export const QueueSummaryInline = ({ items = [], isDark = false }) => {
           flex: 1,
           minWidth: 0,
           fontSize: 12,
-          color: isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.8)",
+          color: isDark ? "rgba(var(--pupu-text-rgb),0.85)" : "rgba(var(--pupu-text-rgb),0.8)",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -176,7 +176,7 @@ const QueueRow = ({
         ) : (
           <Icon
             src="queue_arrow"
-            color={isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)"}
+            color={isDark ? "rgba(var(--pupu-text-rgb),0.45)" : "rgba(var(--pupu-text-rgb),0.4)"}
             style={{ width: 13, height: 13 }}
           />
         )}
@@ -190,8 +190,8 @@ const QueueRow = ({
           color: relayed
             ? relayedColor
             : isDark
-              ? "rgba(255,255,255,0.86)"
-              : "rgba(0,0,0,0.82)",
+              ? "rgba(var(--pupu-text-rgb),0.86)"
+              : "rgba(var(--pupu-text-rgb),0.82)",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -241,7 +241,7 @@ export const QueuePanel = ({
 }) => {
   const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
   const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
-  const hintColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const hintColor = isDark ? "rgba(var(--pupu-text-rgb),0.35)" : "rgba(var(--pupu-text-rgb),0.38)";
   const fallbackRowRefs = useRef([]);
   const refs = rowRefs || fallbackRowRefs;
 
@@ -258,11 +258,11 @@ export const QueuePanel = ({
         padding: PANEL_PAD,
         borderRadius: PANEL_RADIUS,
         backgroundColor: isDark
-          ? "rgba(28,28,28,0.85)"
-          : "rgba(252,252,252,0.9)",
+          ? "rgba(var(--pupu-surface-rgb),0.85)"
+          : "rgba(var(--pupu-surface-rgb),0.9)",
         border: isDark
-          ? "1px solid rgba(255,255,255,0.10)"
-          : "1px solid rgba(0,0,0,0.09)",
+          ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+          : "1px solid rgba(var(--pupu-text-rgb),0.09)",
         backdropFilter: "blur(20px) saturate(130%)",
         WebkitBackdropFilter: "blur(20px) saturate(130%)",
         boxShadow: isDark
@@ -282,7 +282,7 @@ export const QueuePanel = ({
       <SlidingHighlight
         refs={refs}
         index={activeIndex}
-        color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+        color={isDark ? "rgba(var(--pupu-text-rgb),0.10)" : "rgba(var(--pupu-text-rgb),0.06)"}
         borderRadius={ROW_RADIUS}
         measureKey={`${items.length}|${entered}`}
       />
@@ -462,8 +462,8 @@ export const QueueAttachSection = ({
           backgroundColor:
             segHover || open || highlightRing
               ? isDark
-                ? "rgba(255,255,255,0.07)"
-                : "rgba(0,0,0,0.05)"
+                ? "rgba(var(--pupu-text-rgb),0.07)"
+                : "rgba(var(--pupu-text-rgb),0.05)"
               : "transparent",
           transition: "background-color 160ms ease",
         }}

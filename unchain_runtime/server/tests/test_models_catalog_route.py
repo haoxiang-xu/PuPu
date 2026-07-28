@@ -209,7 +209,15 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"status": "ok"})
+        self.assertEqual(
+            response.get_json(),
+            {
+                "status": "ok",
+                "disposition": "live_only",
+                "durable": False,
+                "interaction_id": "confirm-1",
+            },
+        )
         submit_mock.assert_called_once_with(
             confirmation_id="confirm-1",
             approved=True,
@@ -743,6 +751,42 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             options={"modelId": "openai:gpt-5"},
         )
 
+    def test_replace_memory_session_forwards_idempotency_preconditions(self) -> None:
+        fake_memory_factory = types.SimpleNamespace(
+            replace_short_term_session_memory=mock.Mock(
+                return_value={
+                    "applied": True,
+                    "operation_id": "replace-1",
+                    "replayed": False,
+                    "session_revision": 8,
+                }
+            )
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.post(
+                "/memory/session/replace",
+                json={
+                    "session_id": "chat-1",
+                    "messages": [{"role": "user", "content": "replacement"}],
+                    "options": {"modelId": "openai:gpt-5"},
+                    "operation_id": "replace-1",
+                    "expected_session_revision": 7,
+                    "expected_cancel_attempt_id": "run-1",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["operation_id"], "replace-1")
+        fake_memory_factory.replace_short_term_session_memory.assert_called_once_with(
+            session_id="chat-1",
+            messages=[{"role": "user", "content": "replacement"}],
+            options={"modelId": "openai:gpt-5"},
+            operation_id="replace-1",
+            expected_session_revision=7,
+            expected_cancel_attempt_id="run-1",
+        )
+
     def test_replace_memory_session_requires_messages_array(self) -> None:
         response = self.client.post(
             "/memory/session/replace",
@@ -760,6 +804,7 @@ class ModelsCatalogRouteTests(unittest.TestCase):
     def test_replace_memory_session_returns_revision_conflict_as_409(self) -> None:
         class RevisionConflict(RuntimeError):
             code = "session_revision_conflict"
+            retryable = True
             expected_revision = 4
             actual_revision = 5
 
@@ -778,8 +823,68 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         payload = response.get_json()["error"]
         self.assertEqual(payload["code"], "session_revision_conflict")
+        self.assertTrue(payload["retryable"])
         self.assertEqual(payload["expected_revision"], 4)
         self.assertEqual(payload["actual_revision"], 5)
+
+    def test_replace_memory_session_preserves_structured_durable_error(self) -> None:
+        class DurableConflict(RuntimeError):
+            code = "orphaned_interaction_recovery_required"
+            status_code = 409
+            retryable = False
+
+        fake_memory_factory = types.SimpleNamespace(
+            replace_short_term_session_memory=mock.Mock(
+                side_effect=DurableConflict("cancel the pending interaction first")
+            )
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.post(
+                "/memory/session/replace",
+                json={"session_id": "chat-1", "messages": []},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.get_json()["error"]
+        self.assertEqual(
+            payload["code"],
+            "orphaned_interaction_recovery_required",
+        )
+        self.assertFalse(payload["retryable"])
+
+    def test_export_memory_session_returns_snapshot_revision(self) -> None:
+        store = object()
+        fake_memory_factory = types.SimpleNamespace(
+            _data_dir=mock.Mock(return_value="/tmp/pupu-memory"),
+            _normalize_data_dir=mock.Mock(return_value="/tmp/pupu-memory"),
+            _build_session_store=mock.Mock(return_value=store),
+            _load_session_snapshot_compat=mock.Mock(
+                return_value=types.SimpleNamespace(
+                    state={"messages": [{"role": "user", "content": "hello"}]},
+                    revision=12,
+                )
+            ),
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.get(
+                "/memory/session/export?session_id=chat-1"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(),
+            {
+                "session_id": "chat-1",
+                "messages": [{"role": "user", "content": "hello"}],
+                "session_revision": 12,
+            },
+        )
+        fake_memory_factory._load_session_snapshot_compat.assert_called_once_with(
+            store,
+            "chat-1",
+        )
 
 
 if __name__ == "__main__":

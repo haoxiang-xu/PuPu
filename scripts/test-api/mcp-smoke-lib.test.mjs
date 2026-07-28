@@ -135,10 +135,15 @@ describe("runMcpSmoke", () => {
           ],
         });
       }
-      if (parsed.pathname === "/mcp/oauth/status") {
+      if (
+        parsed.pathname === "/mcp/oauth/status" &&
+        parsed.searchParams.get("state") === "private"
+      ) {
         return json(200, {
-          entryId: parsed.searchParams.get("entry_id"),
-          authStatus: "missing",
+          entryId: "productivity.notion-remote",
+          toolkitId: "mcp.productivity.notion-remote",
+          authProvider: "notion",
+          authStatus: "pending",
         });
       }
       if (parsed.pathname === "/mcp/oauth/start" && body.entryId === "productivity.notion-remote") {
@@ -148,6 +153,14 @@ describe("runMcpSmoke", () => {
           authUrl: "https://mcp.notion.com/oauth?state=private",
           state: "private",
           expiresAt: 123,
+        });
+      }
+      if (parsed.pathname === "/mcp/oauth/cancel" && body.state === "private") {
+        return json(200, {
+          ok: true,
+          cancelled: true,
+          entryId: "productivity.notion-remote",
+          toolkitId: "mcp.productivity.notion-remote",
         });
       }
       return json(404, { error: { code: "missing", message: parsed.pathname } });
@@ -168,6 +181,21 @@ describe("runMcpSmoke", () => {
     assert.equal(summary.catalog.v1HasInstalledMcp, true);
     assert.equal(summary.oauthApps.apps[0].configured, true);
     assert.equal(summary.oauthStart.authUrlHost, "mcp.notion.com");
+    assert.equal(summary.oauthAttempt.authStatus, "pending");
+    assert.equal(summary.oauthCancel.cancelled, true);
+    assert.ok(
+      calls.some(
+        (call) =>
+          call.method === "GET" &&
+          call.path === "/mcp/oauth/status?state=private",
+      ),
+    );
+    assert.ok(
+      calls.some(
+        (call) =>
+          call.method === "POST" && call.path === "/mcp/oauth/cancel",
+      ),
+    );
     assert.equal(JSON.stringify(summary).includes("runtime-token"), false);
     assert.equal(JSON.stringify(summary).includes("private"), false);
     assert.ok(calls.every((call) => call.auth === "runtime-token"));
@@ -214,9 +242,6 @@ describe("runMcpSmoke", () => {
       }
       if (parsed.pathname === "/mcp/oauth/apps") {
         return json(200, { apps: [] });
-      }
-      if (parsed.pathname === "/mcp/oauth/status") {
-        return json(200, { entryId: parsed.searchParams.get("entry_id"), authStatus: "missing" });
       }
       return json(404, { error: { code: "missing", message: parsed.pathname } });
     };

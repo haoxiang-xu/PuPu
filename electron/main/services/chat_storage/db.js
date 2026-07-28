@@ -13,6 +13,11 @@ const createChatDb = ({ dbPath, sqlite } = {}) => {
   const { DatabaseSync } = sqlite;
   const db = new DatabaseSync(dbPath);
   db.exec("PRAGMA journal_mode = WAL;");
+  // A second PuPu process, antivirus scanner, backup tool, or a long-running
+  // checkpoint can briefly hold SQLite's writer lock.  Without a busy timeout
+  // node:sqlite fails immediately and the renderer has to retry a write that
+  // would normally become available a moment later.
+  db.exec("PRAGMA busy_timeout = 1000;");
 
   const statementCache = new Map();
 

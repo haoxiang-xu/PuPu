@@ -55,6 +55,7 @@ const PlanCard = ({ artifact, isDark, kindMeta }) => {
       style={{
         backgroundColor: cardBg,
         borderRadius: 10,
+        border: "1px solid var(--pupu-card-border, transparent)",
         color: primary,
         overflow: "hidden",
       }}

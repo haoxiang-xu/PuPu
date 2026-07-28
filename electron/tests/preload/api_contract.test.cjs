@@ -42,6 +42,7 @@ describe("preload API contract", () => {
         "osInfo",
         "runtime",
         "screenshotAPI",
+        "settingsStorageAPI",
         "themeAPI",
         "windowStateAPI",
       ].sort(),
@@ -61,15 +62,22 @@ describe("preload API contract", () => {
 
     [
       "getStatus",
+      "getComputerUseStatus",
+      "setComputerUseEnabled",
+      "setComputerUseLocalBetaEnabled",
+      "probeComputerUseModel",
+      "openComputerUsePrivacySettings",
       "getModelCatalog",
       "getToolkitCatalog",
       "listMcpToolkits",
       "installMcpToolkit",
+      "testCustomProvider",
       "deleteMcpToolkit",
       "reloadMcpToolkits",
       "checkMcpToolkitHealth",
       "configureMcpToolkit",
       "startMcpOAuth",
+      "cancelMcpOAuth",
       "getMcpOAuthStatus",
       "disconnectMcpOAuth",
       "listMcpOAuthApps",
@@ -86,6 +94,7 @@ describe("preload API contract", () => {
       "approveMcpStoreEntry",
       "revokeMcpStoreEntryApproval",
       "respondToolConfirmation",
+      "getPendingInteraction",
       "interject",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -107,21 +116,37 @@ describe("preload API contract", () => {
       "startStreamV2",
       "startStreamV4",
       "cancelStream",
+      "cancelExecution",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");
     });
     expect(unchain.startStreamV3).toBeUndefined();
   });
 
-  test("chat storage API keeps required method surface", () => {
+  test("chat storage API keeps required method surface", async () => {
     expect(Object.keys(exposed.chatStorageAPI).sort()).toEqual(
-      ["applyOps", "bootstrap", "readMessages", "write"].sort(),
+      [
+        "applyOps",
+        "applyOpsSync",
+        "bootstrap",
+        "readMessages",
+        "write",
+      ].sort(),
     );
-    ["bootstrap", "write", "readMessages", "applyOps"].forEach((method) => {
+    [
+      "bootstrap",
+      "write",
+      "readMessages",
+      "applyOps",
+      "applyOpsSync",
+    ].forEach((method) => {
       expect(typeof exposed.chatStorageAPI[method]).toBe("function");
     });
 
-    ipcRenderer.sendSync.mockReturnValueOnce([{ role: "user" }]);
+    ipcRenderer.sendSync.mockReturnValueOnce({
+      ok: true,
+      value: [{ role: "user" }],
+    });
     const messages = exposed.chatStorageAPI.readMessages("chat-1");
     expect(ipcRenderer.sendSync).toHaveBeenLastCalledWith(
       CHANNELS.CHAT_STORAGE.READ_MESSAGES,
@@ -130,10 +155,288 @@ describe("preload API contract", () => {
     expect(messages).toEqual([{ role: "user" }]);
 
     const ops = [{ type: "delete_chats", chatIds: ["chat-1"] }];
-    exposed.chatStorageAPI.applyOps(ops);
-    expect(ipcRenderer.send).toHaveBeenLastCalledWith(
+    ipcRenderer.invoke.mockResolvedValueOnce({ ok: true, value: null });
+    await exposed.chatStorageAPI.applyOps(ops);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.CHAT_STORAGE.APPLY_OPS,
       ops,
+    );
+  });
+
+  test("settings storage API keeps required method surface", () => {
+    expect(Object.keys(exposed.settingsStorageAPI).sort()).toEqual(
+      [
+        "bootstrap",
+        "deleteNamespace",
+        "migrateLegacy",
+        "setNamespace",
+        "appendTokenUsage",
+        "queryTokenUsage",
+        "clearTokenUsage",
+        "migrateLegacyTokenUsage",
+        "readDefaultToolkits",
+        "replaceDefaultToolkitsScope",
+        "migrateLegacyDefaultToolkits",
+        "readToolkitAutoApprove",
+        "replaceToolkitAutoApprove",
+        "migrateLegacyToolkitAutoApprove",
+        "readComputerUsePreferences",
+        "setComputerUsePreference",
+        "clearComputerUsePreference",
+        "migrateLegacyComputerUse",
+        "getMcpIconAsset",
+        "setMcpIconAsset",
+        "deleteMcpIconAsset",
+        "listMcpIconOwners",
+        "migrateMcpIconsLegacy",
+        "migrateProviderCredentials",
+        "setProviderCredential",
+        "deleteProviderCredential",
+        "resetSettings",
+        "getDbStats",
+        "onQuitDrainRequest",
+        "onQuitDrainAbort",
+        "sendQuitDrainResult",
+      ].sort(),
+    );
+    [
+      "bootstrap",
+      "migrateLegacy",
+      "setNamespace",
+      "deleteNamespace",
+      "appendTokenUsage",
+      "queryTokenUsage",
+      "clearTokenUsage",
+      "migrateLegacyTokenUsage",
+      "readDefaultToolkits",
+      "replaceDefaultToolkitsScope",
+      "migrateLegacyDefaultToolkits",
+      "readToolkitAutoApprove",
+      "replaceToolkitAutoApprove",
+      "migrateLegacyToolkitAutoApprove",
+      "readComputerUsePreferences",
+      "setComputerUsePreference",
+      "clearComputerUsePreference",
+      "migrateLegacyComputerUse",
+      "getMcpIconAsset",
+      "setMcpIconAsset",
+      "deleteMcpIconAsset",
+      "listMcpIconOwners",
+      "migrateMcpIconsLegacy",
+      "migrateProviderCredentials",
+      "setProviderCredential",
+      "deleteProviderCredential",
+      "resetSettings",
+      "getDbStats",
+      "onQuitDrainRequest",
+      "onQuitDrainAbort",
+      "sendQuitDrainResult",
+    ].forEach((method) => {
+      expect(typeof exposed.settingsStorageAPI[method]).toBe("function");
+    });
+
+    ipcRenderer.sendSync.mockReturnValueOnce({
+      available: true,
+      namespaces: {},
+    });
+    const snapshot = exposed.settingsStorageAPI.bootstrap();
+    expect(ipcRenderer.sendSync).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.BOOTSTRAP_READ,
+    );
+    expect(snapshot).toEqual({ available: true, namespaces: {} });
+
+    exposed.settingsStorageAPI.setNamespace(
+      "appearance",
+      { theme_mode: "dark_mode" },
+      { expectedRevision: 2 },
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.SET_NAMESPACE,
+      {
+        namespace: "appearance",
+        value: { theme_mode: "dark_mode" },
+        options: { expectedRevision: 2 },
+      },
+    );
+
+    exposed.settingsStorageAPI.deleteNamespace("dev");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DELETE_NAMESPACE,
+      { namespace: "dev" },
+    );
+
+    const migrationPayload = {
+      migrationVersion: 1,
+      settingsRoot: { app: { setup_completed: true } },
+    };
+    exposed.settingsStorageAPI.migrateLegacy(migrationPayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_LEGACY,
+      migrationPayload,
+    );
+
+    const tokenRecord = {
+      timestamp: 1,
+      provider: "openai",
+      model: "gpt-5",
+      model_id: "openai:gpt-5",
+      consumed_tokens: 42,
+    };
+    exposed.settingsStorageAPI.appendTokenUsage(tokenRecord);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_APPEND,
+      { record: tokenRecord },
+    );
+
+    exposed.settingsStorageAPI.queryTokenUsage({ startMs: 1, endMs: 2 });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_QUERY,
+      { query: { startMs: 1, endMs: 2 } },
+    );
+
+    exposed.settingsStorageAPI.clearTokenUsage();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_CLEAR,
+    );
+
+    const tokenMigrationPayload = { migrationVersion: 1, records: [tokenRecord] };
+    exposed.settingsStorageAPI.migrateLegacyTokenUsage(tokenMigrationPayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOKEN_USAGE_MIGRATE_LEGACY,
+      tokenMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.readDefaultToolkits();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_READ_ALL,
+    );
+
+    exposed.settingsStorageAPI.replaceDefaultToolkitsScope("global", ["core"]);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_REPLACE_SCOPE,
+      { scopeKey: "global", toolkitIds: ["core"] },
+    );
+
+    const defaultToolkitsMigrationPayload = {
+      migrationVersion: 1,
+      scopes: { global: ["core"] },
+    };
+    exposed.settingsStorageAPI.migrateLegacyDefaultToolkits(
+      defaultToolkitsMigrationPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.DEFAULT_TOOLKITS_MIGRATE_LEGACY,
+      defaultToolkitsMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.readToolkitAutoApprove();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_READ_ALL,
+    );
+
+    const autoApprovePayload = {
+      toolkits: ["core"],
+      tools: [{ toolkitId: "core", toolName: "write_file" }],
+    };
+    exposed.settingsStorageAPI.replaceToolkitAutoApprove(autoApprovePayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_REPLACE_ALL,
+      autoApprovePayload,
+    );
+
+    const autoApproveMigrationPayload = {
+      migrationVersion: 1,
+      toolkits: ["core"],
+      tools: [],
+    };
+    exposed.settingsStorageAPI.migrateLegacyToolkitAutoApprove(
+      autoApproveMigrationPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.TOOLKIT_AUTO_APPROVE_MIGRATE_LEGACY,
+      autoApproveMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.readComputerUsePreferences();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_READ_ALL,
+    );
+
+    const consentValue = { version: 1, acceptedAt: "2026-07-24T10:00:00.000Z" };
+    exposed.settingsStorageAPI.setComputerUsePreference(
+      "consent",
+      consentValue,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_SET_KEY,
+      { key: "consent", value: consentValue },
+    );
+
+    exposed.settingsStorageAPI.clearComputerUsePreference("enabled");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_CLEAR_KEY,
+      { key: "enabled" },
+    );
+
+    const computerUseMigrationPayload = {
+      migrationVersion: 1,
+      records: { consent: consentValue },
+    };
+    exposed.settingsStorageAPI.migrateLegacyComputerUse(
+      computerUseMigrationPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.COMPUTER_USE_PREFS_MIGRATE_LEGACY,
+      computerUseMigrationPayload,
+    );
+
+    exposed.settingsStorageAPI.getMcpIconAsset("mcp.custom.local-test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_GET,
+      { toolkitId: "mcp.custom.local-test" },
+    );
+
+    const iconValue = { mime: "image/png", content: "aGVsbG8=" };
+    exposed.settingsStorageAPI.setMcpIconAsset(
+      "mcp.custom.local-test",
+      iconValue,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_SET,
+      { toolkitId: "mcp.custom.local-test", icon: iconValue },
+    );
+
+    exposed.settingsStorageAPI.deleteMcpIconAsset("mcp.custom.local-test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_DELETE,
+      { toolkitId: "mcp.custom.local-test" },
+    );
+
+    exposed.settingsStorageAPI.listMcpIconOwners();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_LIST_OWNERS,
+    );
+
+    const iconMigrationPayload = {
+      migrationVersion: 1,
+      icons: { "mcp.custom.local-test": iconValue },
+    };
+    exposed.settingsStorageAPI.migrateMcpIconsLegacy(iconMigrationPayload);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MCP_ICON_MIGRATE_LEGACY,
+      iconMigrationPayload,
+    );
+
+    const providerCredentialsPayload = {
+      migrationVersion: 1,
+      credentials: { openai: "sk-SENTINEL" },
+    };
+    exposed.settingsStorageAPI.migrateProviderCredentials(
+      providerCredentialsPayload,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.SETTINGS_STORAGE.MIGRATE_PROVIDER_CREDENTIALS,
+      providerCredentialsPayload,
     );
   });
 
@@ -158,6 +461,43 @@ describe("preload API contract", () => {
       category: "c",
     });
 
+    exposed.unchainAPI.getComputerUseStatus();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
+    );
+
+    exposed.unchainAPI.setComputerUseEnabled(true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+      { enabled: true },
+    );
+
+    // Boundary tightening: the bridge coerces any non-boolean to a strict
+    // boolean before it crosses the IPC line — a truthy object becomes `true`.
+    exposed.unchainAPI.setComputerUseEnabled({ sneaky: "payload" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
+      { enabled: true },
+    );
+
+    exposed.unchainAPI.setComputerUseLocalBetaEnabled(true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.SET_COMPUTER_USE_LOCAL_BETA_ENABLED,
+      { enabled: true },
+    );
+
+    exposed.unchainAPI.probeComputerUseModel("qwen3.5:4b", true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.PROBE_COMPUTER_USE_MODEL,
+      { model: "qwen3.5:4b", force: true },
+    );
+
+    exposed.unchainAPI.openComputerUsePrivacySettings("accessibility");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.OPEN_COMPUTER_USE_PRIVACY_SETTINGS,
+      { target: "accessibility" },
+    );
+
     exposed.unchainAPI.setChromeTerminalOpen(true);
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
@@ -180,6 +520,24 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
       { sessionId: "chat-1", messages: [] },
+    );
+
+    exposed.unchainAPI.getPendingInteraction({ session_id: "chat-1" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.PENDING_INTERACTION,
+      { session_id: "chat-1" },
+    );
+
+    exposed.unchainAPI.cancelExecution({
+      executionId: "chat-1",
+      attemptId: "attempt-1",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CANCEL_EXECUTION,
+      {
+        executionId: "chat-1",
+        attemptId: "attempt-1",
+      },
     );
 
     exposed.unchainAPI.installMcpToolkit({
@@ -216,6 +574,28 @@ describe("preload API contract", () => {
       { toolkitId: "mcp.memory.memory" },
     );
 
+    exposed.unchainAPI.testCustomProvider(
+      {
+        id: "sap-hyperspace",
+        protocol: "anthropic",
+        base_url: "http://localhost:6655/anthropic",
+        models: [{ id: "anthropic--claude-4.5-haiku" }],
+      },
+      "hs-secret-key",
+    );
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
+      {
+        custom_provider: {
+          id: "sap-hyperspace",
+          protocol: "anthropic",
+          base_url: "http://localhost:6655/anthropic",
+          models: [{ id: "anthropic--claude-4.5-haiku" }],
+        },
+        api_key: "hs-secret-key",
+      },
+    );
+
     exposed.unchainAPI.configureMcpToolkit("mcp.memory.memory", {
       secrets: { OPENAI_API_KEY: "sk-test" },
     });
@@ -233,10 +613,16 @@ describe("preload API contract", () => {
       { entryId: "productivity.notion-remote" },
     );
 
-    exposed.unchainAPI.getMcpOAuthStatus("productivity.notion-remote");
+    exposed.unchainAPI.cancelMcpOAuth("state-123");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CANCEL_MCP_OAUTH,
+      { state: "state-123" },
+    );
+
+    exposed.unchainAPI.getMcpOAuthStatus("state-123");
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
-      { entryId: "productivity.notion-remote" },
+      { state: "state-123" },
     );
 
     exposed.unchainAPI.disconnectMcpOAuth("mcp.productivity.notion-remote");

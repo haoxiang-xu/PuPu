@@ -71,8 +71,10 @@ PuPu/
 │   │   ├── api.ollama.js         # Ollama API facade
 │   │   ├── api.shared.js         # Shared utilities, error class
 │   │   ├── api.system.js         # System info APIs
-│   │   ├── chat_storage.js       # Chat persistence (localStorage)
+│   │   ├── chat_storage.js       # Chat persistence
 │   │   ├── chat_storage/         # Storage internals (5 files)
+│   │   ├── settings_repository.js # App Settings repository (settings.db + fallback)
+│   │   ├── settings_secret_adapter.js # Provider-secret read/merge (safeStorage-backed)
 │   │   ├── bridges/              # Electron IPC bridge wrappers
 │   │   ├── system_prompt_sections.js
 │   │   ├── feature_flags.js
@@ -86,12 +88,14 @@ PuPu/
 │   │   ├── index.js              # Service initialization
 │   │   ├── ipc/                  # IPC handler registration
 │   │   ├── window/               # Main window management
-│   │   └── services/             # Runtime, Unchain, Ollama, Update
+│   │   └── services/             # Runtime, Unchain, Ollama, Update,
+│   │                             #   chat_storage, settings_storage
 │   ├── preload/                  # Renderer bridge
 │   │   ├── index.js              # contextBridge.exposeInMainWorld
-│   │   ├── bridges/              # 9 bridge factories (app_info, app_update,
-│   │   │                         #   chat_storage, ollama, ollama_library,
-│   │   │                         #   screenshot, theme, unchain, window_state)
+│   │   ├── bridges/              # bridge factories (app_info, app_update,
+│   │   │                         #   chat_storage, settings_storage, ollama,
+│   │   │                         #   ollama_library, screenshot, theme, unchain,
+│   │   │                         #   window_state)
 │   │   └── stream/               # SSE stream client
 │   └── shared/                   # IPC channel constants
 ├── unchain_runtime/              # Python Flask backend
@@ -157,7 +161,8 @@ npm run build:electron:linux       # Linux
 | [IPC Boundary](architecture/ipc-boundary.md) | Electron IPC patterns, bridge layers, channel registry |
 | [System Prompt V2](architecture/system-prompt-v2.md) | 3-layer prompt override architecture |
 | [Memory System](architecture/memory-system.md) | Embedding resolution, Qdrant integration, session vs long-term memory |
-| [Storage Model](architecture/storage-model.md) | localStorage persistence, schema versioning, tree structure |
+| [Storage Model](architecture/storage-model.md) | Chat persistence, and App Settings authoritative in `settings.db` (SQLite) with a `localStorage` fallback |
+| [App Settings → SQLite Migration](architecture/settings-sqlite-migration-plan.md) | Settings SQLite architecture, migration state machine, secret storage boundary |
 | **[Data Models](data-models/)** | |
 | [Chat Session & Messages](data-models/chat-session-and-messages.md) | Session shape, message shape, attachments, trace frames, subagent meta |
 | [Model & Toolkit Catalog](data-models/model-and-toolkit-catalog.md) | Model catalog, toolkit catalog V2, provider structure |
@@ -186,7 +191,7 @@ npm run build:electron:linux       # Linux
 3. **Custom router** - `BUILTIN_COMPONENTs/mini_react/mini_router.js`, not react-router-dom
 4. **Function components only** - no class components
 5. **Bridge-isolated IPC** - React never touches `ipcRenderer`; all access through `window.*API`
-6. **localStorage persistence** - chat storage in localStorage with 4.5MB limit and LRU eviction
+6. **Layered persistence** - chat storage with size management; App Settings are authoritative in `userData/settings.db` (SQLite, main process) accessed via a renderer settings repository, with `localStorage` as a browser/degraded fallback and read-only dual-keep of legacy keys. Provider secrets are `safeStorage`-encrypted in `settings.db` and injected in the main process
 7. **SSE streaming** - Flask sidecar streams V2 frames or V3 runtime events via SSE, relayed through Electron IPC
 8. **Unchain SDK** - agent orchestration via Unchain framework with modular prompt composition
 
@@ -200,6 +205,6 @@ npm run build:electron:linux       # Linux
 - **No new context providers** - check if ConfigContext covers it first
 - **Build order** - run `version:prepare-build` before `react-scripts build`
 - **Test sync** - Electron tests have `.js` and `.cjs` variants; keep them in sync
-- **Storage writes** - always go through SERVICEs helpers, never direct localStorage from components
+- **Storage writes** - always go through SERVICEs helpers, never direct localStorage from components; App Settings go through the settings repository (SQLite-authoritative), secrets only through the secret adapter, and reset uses a SQL transaction (never `localStorage.clear()`)
 - **Toolkit IDs** - use canonical `toolkitId` values (e.g. `core`), not legacy aliases such as `workspace_toolkit`
 - **Workspace paths** - never store raw paths in chat sessions; use IDs resolved at stream time

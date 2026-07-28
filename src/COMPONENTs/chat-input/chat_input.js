@@ -110,10 +110,16 @@ const ChatInput = ({
   const prevValueRef = useRef(value);
 
   /* ── Inline command tokens (overlay-dyed; the value string is untouched) ── */
-  const commandTokens = findCommandTokens(value, { isStreaming });
+  const commandTokens = findCommandTokens(value, {
+    isStreaming,
+    selectedToolkits,
+  });
   const activeTokens = commandTokens.filter((t) => t.active);
   const activeCommandNames = activeTokens.map((t) => t.name);
-  const { body: strippedBody } = extractCommands(value, { isStreaming });
+  const { body: strippedBody } = extractCommands(value, {
+    isStreaming,
+    selectedToolkits,
+  });
 
   /* Slash trigger at the caret (anywhere in the text) */
   const [slashTrigger, setSlashTrigger] = useState(null);
@@ -153,7 +159,10 @@ const ChatInput = ({
      the transparent textarea text exactly */
   const renderCommandOverlay = useCallback(
     (text) => {
-      const tokens = findCommandTokens(text, { isStreaming });
+      const tokens = findCommandTokens(text, {
+        isStreaming,
+        selectedToolkits,
+      });
       if (tokens.length === 0) return text;
       const pillBg = isDark ? "rgba(120,200,150,0.16)" : "rgba(40,150,80,0.13)";
       const pillColor = isDark
@@ -189,7 +198,7 @@ const ChatInput = ({
       parts.push(text.slice(cursor));
       return parts;
     },
-    [isStreaming, isDark],
+    [isStreaming, isDark, selectedToolkits],
   );
 
   /* descriptions are i18n keys (default English; t() passes unknown raw
@@ -198,7 +207,11 @@ const ChatInput = ({
   const commandItems = (
     slashTrigger
       ? listCommands(
-          { isStreaming, activeCommands: activeCommandNames },
+          {
+            isStreaming,
+            activeCommands: activeCommandNames,
+            selectedToolkits,
+          },
           slashTrigger.query,
         )
       : []
@@ -420,6 +433,7 @@ const ChatInput = ({
           )}
           <FloatingTextField
             textarea_ref={inputRef}
+            aria_label={placeholder}
             value={value}
             min_rows={5}
             max_display_rows={9}
@@ -516,8 +530,8 @@ const ChatInput = ({
               /* frosted: the themed surface at ~palette-family alpha, with
                  the same blur the palette panels use */
               backgroundColor: isDark
-                ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
-                : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)",
+                ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 60%, transparent)"
+                : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 72%, transparent)",
               backdropFilter: "blur(20px) saturate(130%)",
             }}
           />

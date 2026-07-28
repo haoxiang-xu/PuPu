@@ -117,6 +117,10 @@ export const OptionItem = ({
         display: "flex",
         alignItems: "center",
         position: "relative",
+        /* never let the flex column compress rows when the list scrolls —
+           without this, N rows taller than the panel shrink to fit (a
+           24px row rendered as ~19px once the list overflows). */
+        flexShrink: 0,
         height: itemHeight,
         padding: itemPadding,
         borderRadius: option_theme?.borderRadius ?? 5,
@@ -244,7 +248,13 @@ const GroupHeader = ({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => onToggle(group.group)}
+      onClick={() =>
+        onToggle(
+          typeof group.group_key === "string" && group.group_key
+            ? group.group_key
+            : group.group,
+        )
+      }
       style={{
         position: "relative",
         display: "flex",

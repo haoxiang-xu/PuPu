@@ -17,7 +17,7 @@
 │                   ├─ injectWorkspaceRootIntoPayload                │
 │                   ├─ injectSystemPromptV2IntoPayload               │
 │                   ├─ injectMemoryIntoPayload                       │
-│                   └─ injectProviderApiKeyIntoPayload               │
+│                   └─ (secret descriptors, not raw keys — see below)│
 │              └─ unchainBridge.startStreamV2/startStreamV3(...)     │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ELECTRON PRELOAD                                                    │
@@ -29,6 +29,8 @@
 │ ELECTRON MAIN                                                       │
 │                                                                     │
 │  register_handlers.js → unchainService.handleStreamStartV2/V3()    │
+│    └─ startMisoStream: decrypt + inject provider secrets from      │
+│         settings.db, strip the secret descriptors                  │
 │    └─ HTTP POST to Flask /chat/stream/v2 or /chat/stream/v3        │
 │    └─ SSE relay: read Flask SSE → webContents.send(STREAM_EVENT)   │
 ├─────────────────────────────────────────────────────────────────────┤
@@ -47,11 +49,17 @@ Events flow back through the same path: **Flask SSE → Electron main → IPC �
 
 ## Payload Injection Chain
 
-Before the payload leaves the renderer, `normalizeUnchainV2Payload()` applies four injections in order:
+Before the payload leaves the renderer, `normalizeUnchainV2Payload()` applies its
+injections in order. Non-secret injections read from the **settings repository
+memory snapshot** (authoritative in `settings.db`, with a `localStorage` fallback
+in browser/degraded mode). Provider secrets are the exception — the renderer no
+longer injects raw keys; it emits descriptors and the main process injects the
+decrypted values (see step 4).
 
 ### 1. Workspace Root Injection (`injectWorkspaceRootIntoPayload`)
 
-Resolves `selectedWorkspaceIds` to absolute paths from `localStorage.settings.runtime.workspaces`. Injects:
+Resolves `selectedWorkspaceIds` to absolute paths from the settings repository's
+`runtime.workspaces` (authoritative in `settings.db`). Injects:
 - `workspaceRoot`: primary workspace path
 - `workspace_root`: alias
 - `workspace_roots`: array of all selected workspace paths
@@ -64,7 +72,8 @@ Applies the 3-layer system prompt architecture (see [System Prompt V2](system-pr
 
 ### 3. Memory Injection (`injectMemoryIntoPayload`)
 
-Reads memory settings from `localStorage.settings.memory` and injects:
+Reads memory settings from the settings repository's `memory` namespace
+(authoritative in `settings.db`) and injects:
 - `memory_enabled`: boolean
 - `memory_session_id`: string
 - `memory_embedding_provider`: `"auto"` | `"openai"` | `"ollama"`
@@ -72,11 +81,40 @@ Reads memory settings from `localStorage.settings.memory` and injects:
 - `memory_long_term_enabled`: boolean
 - `memory_long_term_namespace`: string (default: `"pupu:default"`)
 
-### 4. Provider API Key Injection (`injectProviderApiKeyIntoPayload`)
+### 4. Provider Secret Injection (main process)
 
-Reads stored API keys from `localStorage.settings.model_providers` and injects them into the payload based on the selected model's provider.
+Provider API keys are **not** injected in the renderer. Since the secret →
+`safeStorage` migration, the flow is split across the process boundary:
 
-Supported remote providers: `openai`, `anthropic`.
+- **Renderer (steady state)** attaches a descriptor list
+  `options.__pupu_secret_injection = [{ kind, id, channel }]` — no key values,
+  no ciphertext. `kind` is `"provider"` for a built-in provider or
+  `"custom_provider"` for a user-defined one; the provider name itself is carried
+  in `id` (`"openai"` / `"anthropic"` for the built-ins, the credential id for a
+  custom provider) — so a built-in openai and anthropic descriptor share
+  `kind: "provider"` and differ only by `id`. `channel` distinguishes e.g. the
+  chat model key (`channel: "model"`) from an OpenAI embedding key
+  (`channel: "embedding"`), because one payload can need two different secrets
+  (an Anthropic chat model plus an OpenAI embedding key).
+- **Main process** — in `startMisoStream` (the single V1/V2/V4 outbound choke
+  point) and `replaceMisoSessionMemory`, `readDecryptedProviderSecret` decrypts
+  each `(id, channel)` from `settings.db`'s `provider_credentials`, injects the
+  key into a fixed field set, and then **strips the descriptor list** before the
+  POST. Decryption failure is fail-closed (emit an error, never send keyless).
+
+The steady-state renderer never reads a raw key. Authority is gated:
+`authoritative = secretStorageStatus === "available" AND configuredCredentials
+includes the id`. During the first-launch transition (or when `safeStorage` is
+unavailable / degraded) the renderer falls back to reading the dual-keep legacy
+`localStorage` secret so the request payload stays byte-equivalent to the
+pre-migration behavior.
+
+Supported remote providers: `openai`, `anthropic`, plus custom providers
+(descriptor `kind: "custom_provider"`).
+
+> Legacy plaintext `localStorage` secrets are kept read-only (dual-keep) for
+> cross-version rollback; deleting them is a separate N+1 change and is **not**
+> done in this phase.
 
 ---
 

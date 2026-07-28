@@ -270,7 +270,14 @@ class McpToolkitServiceTests(unittest.TestCase):
             toolkit_factory=FakeMCPToolkit,
         )
 
-        self.assertIn("/Users/red/project", FakeMCPToolkit.instances[-1].kwargs["args"])
+        discovery = FakeMCPToolkit.instances[-1]
+        self.assertIn("/Users/red/project", discovery.kwargs["args"])
+        self.assertNotEqual(discovery.kwargs["cwd"], "/Users/red/project")
+        self.assertTrue(
+            Path(discovery.kwargs["cwd"]).is_relative_to(
+                (self.data_dir / "mcp_runtime" / "workdirs").resolve()
+            )
+        )
         installed = get_installed_mcp_toolkit(
             "mcp.workspace.filesystem",
             data_dir=self.data_dir,
@@ -288,6 +295,20 @@ class McpToolkitServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(ctx.exception.code, "mcp_install_failed")
+        self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
+
+    def test_stdio_runtime_workdir_failure_is_explicit(self):
+        (self.data_dir / "mcp_runtime").write_text("not a directory")
+
+        with self.assertRaises(McpToolkitError) as ctx:
+            install_mcp_toolkit(
+                "memory.memory",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_workdir_failed")
+        self.assertEqual(ctx.exception.status, 500)
         self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
 
     def test_secret_stdio_entry_requires_all_secret_values(self):
@@ -348,6 +369,7 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertEqual(kwargs["transport"], "streamable_http")
         self.assertEqual(kwargs["url"], "https://api.githubcopilot.com/mcp/")
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer ghp-test")
+        self.assertNotIn("cwd", kwargs)
 
         persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
         record = persisted["toolkits"][0]
@@ -391,7 +413,8 @@ class McpToolkitServiceTests(unittest.TestCase):
                 toolkit_factory=FakeMCPToolkit,
             )
 
-        self.assertEqual(ctx.exception.code, "mcp_oauth_required")
+        self.assertEqual(ctx.exception.code, "mcp_entry_not_available")
+        self.assertEqual(ctx.exception.status, 403)
 
         save_mcp_oauth_token(
             "mcp.productivity.slack-remote",
@@ -405,16 +428,37 @@ class McpToolkitServiceTests(unittest.TestCase):
             },
             data_dir=self.data_dir,
         )
-        result = install_mcp_toolkit(
-            "productivity.slack-remote",
-            data_dir=self.data_dir,
-            toolkit_factory=FakeMCPToolkit,
-            now_fn=lambda: 1600.0,
-        )
+        with self.assertRaises(McpToolkitError) as token_ctx:
+            install_mcp_toolkit(
+                "productivity.slack-remote",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+                now_fn=lambda: 1600.0,
+            )
 
-        self.assertEqual(result["toolkit"]["toolkitId"], "mcp.productivity.slack-remote")
-        self.assertEqual(result["toolkit"]["authProvider"], "slack")
-        self.assertEqual(FakeMCPToolkit.instances[-1].kwargs["url"], "https://mcp.slack.com/mcp")
+        self.assertEqual(token_ctx.exception.code, "mcp_entry_not_available")
+        self.assertEqual(FakeMCPToolkit.instances, [])
+
+    def test_install_rejects_curated_entries_that_are_not_release_available(self):
+        for entry_id in (
+            "dev.figma-remote",
+            "devops.vercel-remote",
+            "productivity.discord",
+            "productivity.telegram",
+        ):
+            with self.subTest(entry_id=entry_id):
+                with self.assertRaises(McpToolkitError) as ctx:
+                    install_mcp_toolkit(
+                        entry_id,
+                        secrets={"DISCORD_TOKEN": "test-token"},
+                        data_dir=self.data_dir,
+                        toolkit_factory=FakeMCPToolkit,
+                    )
+
+                self.assertEqual(ctx.exception.code, "mcp_entry_not_available")
+                self.assertEqual(ctx.exception.status, 403)
+
+        self.assertEqual(FakeMCPToolkit.instances, [])
 
     def test_oauth_http_entry_requires_oauth_flow(self):
         with self.assertRaises(McpToolkitError) as ctx:
@@ -455,6 +499,35 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertEqual(result["toolkit"]["authType"], "oauth")
         self.assertEqual(result["toolkit"]["authProvider"], "notion")
         self.assertEqual(result["toolkit"]["authStatus"], "connected")
+
+    def test_release_ready_sentry_oauth_entry_remains_installable(self):
+        save_mcp_oauth_token(
+            "mcp.devops.sentry-remote",
+            {
+                "entry_id": "devops.sentry-remote",
+                "access_token": "sentry-access-token",
+                "refresh_token": "sentry-refresh-token",
+                "expires_at": 9999999999.0,
+                "token_endpoint": "https://mcp.sentry.dev/oauth/token",
+                "client_id": "sentry-client-id",
+            },
+            data_dir=self.data_dir,
+        )
+
+        result = install_mcp_toolkit(
+            "devops.sentry-remote",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+            now_fn=lambda: 1850.0,
+        )
+
+        kwargs = FakeMCPToolkit.instances[-1].kwargs
+        self.assertEqual(kwargs["url"], "https://mcp.sentry.dev/mcp")
+        self.assertEqual(
+            kwargs["headers"]["Authorization"],
+            "Bearer sentry-access-token",
+        )
+        self.assertEqual(result["toolkit"]["authProvider"], "sentry")
 
     def test_custom_stdio_recipe_installs_after_validation(self):
         result = install_mcp_toolkit(
@@ -581,6 +654,91 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertEqual(result["toolkits"][0]["tools"][0]["name"], "memory_read")
         self.assertEqual(result["toolkits"][0]["lastCheckedAt"], 2000.0)
         self.assertEqual(result["toolkits"][0]["lastError"], "")
+
+    def test_stale_figma_record_is_listed_as_release_blocked(self):
+        stale_record = {
+            "entry_id": "dev.figma-remote",
+            "toolkit_id": "mcp.dev.figma-remote",
+            "toolkit_name": "Figma",
+            "toolkit_description": "Stale installed Figma record",
+            "toolkit_icon": {},
+            "status": "available",
+            "last_error": "",
+            "last_checked_at": 1000.0,
+            "transport": "streamable_http",
+            "url": "https://mcp.figma.com/mcp",
+            "tools": [{"name": "get_design_context"}],
+            "skills": [],
+            "secret_keys": [],
+            "auth_type": "oauth",
+            "auth_provider": "figma",
+        }
+        (self.data_dir / "mcp_toolkits.json").write_text(
+            json.dumps({"version": 1, "toolkits": [stale_record]}),
+            encoding="utf-8",
+        )
+
+        listed = list_installed_mcp_toolkits(data_dir=self.data_dir)
+
+        self.assertEqual(listed[0]["status"], "error")
+        self.assertTrue(listed[0]["releaseBlocked"])
+        self.assertEqual(
+            listed[0]["lastError"],
+            "This MCP toolkit is not available in this release",
+        )
+        self.assertEqual(FakeMCPToolkit.instances, [])
+
+    def test_stale_figma_health_reload_and_configure_never_connect(self):
+        stale_record = {
+            "entry_id": "dev.figma-remote",
+            "toolkit_id": "mcp.dev.figma-remote",
+            "toolkit_name": "Figma",
+            "toolkit_description": "Stale installed Figma record",
+            "toolkit_icon": {},
+            "status": "available",
+            "last_error": "",
+            "last_checked_at": 1000.0,
+            "transport": "streamable_http",
+            "url": "https://mcp.figma.com/mcp",
+            "tools": [{"name": "get_design_context"}],
+            "skills": [],
+            "secret_keys": [],
+            "auth_type": "oauth",
+            "auth_provider": "figma",
+        }
+        (self.data_dir / "mcp_toolkits.json").write_text(
+            json.dumps({"version": 1, "toolkits": [stale_record]}),
+            encoding="utf-8",
+        )
+
+        checked = check_mcp_toolkit_health(
+            "mcp.dev.figma-remote",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+            now_fn=lambda: 2000.0,
+        )
+        reloaded = reload_mcp_toolkits(
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+            now_fn=lambda: 3000.0,
+        )
+        with self.assertRaises(McpToolkitError) as ctx:
+            configure_mcp_toolkit(
+                "mcp.dev.figma-remote",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        self.assertEqual(checked["toolkit"]["status"], "error")
+        self.assertEqual(reloaded["toolkits"][0]["status"], "error")
+        self.assertEqual(ctx.exception.code, "mcp_entry_not_available")
+        self.assertEqual(FakeMCPToolkit.instances, [])
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        self.assertEqual(persisted["toolkits"][0]["status"], "error")
+        self.assertEqual(
+            persisted["toolkits"][0]["last_error"],
+            "This MCP toolkit is not available in this release",
+        )
 
     def test_reload_secret_entry_uses_stored_secret_values(self):
         install_mcp_toolkit(
@@ -834,6 +992,312 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertTrue(toolkit.connected)
         self.assertEqual(toolkit.kwargs["command"], "npx")
 
+    def test_stdio_discovery_health_and_runtime_share_unpersisted_workdir(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        discovery_cwd = FakeMCPToolkit.instances[-1].kwargs["cwd"]
+
+        check_mcp_toolkit_health(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        health_cwd = FakeMCPToolkit.instances[-1].kwargs["cwd"]
+        runtime = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertEqual(discovery_cwd, health_cwd)
+        self.assertEqual(discovery_cwd, runtime.kwargs["cwd"])
+        self.assertTrue(Path(discovery_cwd).is_dir())
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        self.assertNotIn("cwd", persisted["toolkits"][0])
+
+    def test_stdio_runtime_workdirs_are_toolkit_specific_and_hostile_id_safe(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        memory_cwd = Path(FakeMCPToolkit.instances[-1].kwargs["cwd"])
+        escape_name = f"mcp-workdir-escape-{self.data_dir.name}"
+        hostile_toolkit_id = f"mcp.custom../../../../{escape_name}"
+        install_mcp_toolkit(
+            "custom",
+            custom_recipe={
+                "toolkit_id": hostile_toolkit_id,
+                "toolkit_name": "Hostile ID Fixture",
+                "mcp": {
+                    "transport": "stdio",
+                    "command": "echo",
+                    "args": ["ok"],
+                },
+            },
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        hostile_cwd = Path(FakeMCPToolkit.instances[-1].kwargs["cwd"])
+        expected_root = (self.data_dir / "mcp_runtime" / "workdirs").resolve()
+
+        self.assertNotEqual(memory_cwd, hostile_cwd)
+        self.assertTrue(hostile_cwd.is_dir())
+        self.assertTrue(hostile_cwd.is_relative_to(expected_root))
+        self.assertNotIn("..", hostile_cwd.name)
+        self.assertFalse((self.data_dir.parent / escape_name).exists())
+
+    def test_build_runtime_rejects_unhealthy_installed_record(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        path = self.data_dir / "mcp_toolkits.json"
+        persisted = json.loads(path.read_text())
+        for status in ("error", None):
+            with self.subTest(status=status):
+                record = persisted["toolkits"][0]
+                if status is None:
+                    record.pop("status", None)
+                else:
+                    record["status"] = status
+                path.write_text(json.dumps(persisted))
+                FakeMCPToolkit.instances = []
+
+                with self.assertRaises(McpToolkitError) as ctx:
+                    build_mcp_runtime_toolkit(
+                        "mcp.memory.memory",
+                        data_dir=self.data_dir,
+                        toolkit_factory=FakeMCPToolkit,
+                    )
+
+                self.assertEqual(ctx.exception.code, "mcp_entry_not_available")
+                self.assertEqual(ctx.exception.status, 403)
+        self.assertEqual(FakeMCPToolkit.instances, [])
+
+    def test_build_runtime_rejects_old_install_blocked_by_current_registry(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        path = self.data_dir / "mcp_toolkits.json"
+        persisted = json.loads(path.read_text())
+        record = persisted["toolkits"][0]
+        record.update(
+            {
+                "entry_id": "dev.figma-remote",
+                "toolkit_id": "mcp.dev.figma-remote",
+                "toolkit_name": "Figma Remote",
+                "status": "available",
+            }
+        )
+        path.write_text(json.dumps(persisted))
+        FakeMCPToolkit.instances = []
+
+        with self.assertRaises(McpToolkitError) as ctx:
+            build_mcp_runtime_toolkit(
+                "mcp.dev.figma-remote",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        self.assertEqual(ctx.exception.code, "mcp_entry_not_available")
+        self.assertEqual(ctx.exception.status, 403)
+        self.assertEqual(FakeMCPToolkit.instances, [])
+
+    def test_build_runtime_allows_release_supported_curated_auth_paths(self):
+        install_mcp_toolkit(
+            "dev.github-remote",
+            secrets={"GITHUB_MCP_PAT": "ghp-test"},
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        github = build_mcp_runtime_toolkit(
+            "mcp.dev.github-remote",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        self.assertEqual(
+            github.kwargs["headers"]["Authorization"],
+            "Bearer ghp-test",
+        )
+
+        for entry_id, toolkit_id, provider in (
+            (
+                "productivity.notion-remote",
+                "mcp.productivity.notion-remote",
+                "notion",
+            ),
+            (
+                "devops.sentry-remote",
+                "mcp.devops.sentry-remote",
+                "sentry",
+            ),
+        ):
+            with self.subTest(provider=provider):
+                save_mcp_oauth_token(
+                    toolkit_id,
+                    {
+                        "entry_id": entry_id,
+                        "access_token": f"{provider}-access-token",
+                        "expires_at": 9999999999.0,
+                    },
+                    data_dir=self.data_dir,
+                )
+                install_mcp_toolkit(
+                    entry_id,
+                    data_dir=self.data_dir,
+                    toolkit_factory=FakeMCPToolkit,
+                )
+                toolkit = build_mcp_runtime_toolkit(
+                    toolkit_id,
+                    data_dir=self.data_dir,
+                    toolkit_factory=FakeMCPToolkit,
+                )
+                self.assertEqual(
+                    toolkit.kwargs["headers"]["Authorization"],
+                    f"Bearer {provider}-access-token",
+                )
+
+    def test_build_runtime_allows_expired_oauth_token_to_refresh(self):
+        save_mcp_oauth_token(
+            "mcp.productivity.notion-remote",
+            {
+                "entry_id": "productivity.notion-remote",
+                "access_token": "notion-access-token",
+                "expires_at": 9999999999.0,
+            },
+            data_dir=self.data_dir,
+        )
+        install_mcp_toolkit(
+            "productivity.notion-remote",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        with mock.patch(
+            "mcp_toolkits.get_mcp_oauth_status",
+            return_value={"authStatus": "expired"},
+        ), mock.patch(
+            "mcp_toolkits.get_valid_mcp_oauth_access_token",
+            return_value="notion-refreshed-token",
+        ) as refresh:
+            toolkit = build_mcp_runtime_toolkit(
+                "mcp.productivity.notion-remote",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        refresh.assert_called_once_with(
+            "mcp.productivity.notion-remote",
+            data_dir=self.data_dir,
+        )
+        self.assertEqual(
+            toolkit.kwargs["headers"]["Authorization"],
+            "Bearer notion-refreshed-token",
+        )
+
+    def test_build_runtime_rejects_oauth_error_status(self):
+        save_mcp_oauth_token(
+            "mcp.productivity.notion-remote",
+            {
+                "entry_id": "productivity.notion-remote",
+                "access_token": "notion-access-token",
+                "expires_at": 9999999999.0,
+            },
+            data_dir=self.data_dir,
+        )
+        install_mcp_toolkit(
+            "productivity.notion-remote",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        with mock.patch(
+            "mcp_toolkits.get_mcp_oauth_status",
+            return_value={"authStatus": "error"},
+        ), self.assertRaises(McpToolkitError) as ctx:
+            build_mcp_runtime_toolkit(
+                "mcp.productivity.notion-remote",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        self.assertEqual(ctx.exception.code, "mcp_oauth_required")
+
+    def test_build_runtime_allows_custom_install(self):
+        install_mcp_toolkit(
+            "custom",
+            custom_recipe={
+                "toolkit_id": "mcp.custom.release-test",
+                "toolkit_name": "Release Test",
+                "mcp": {"transport": "stdio", "command": "echo", "args": ["ok"]},
+            },
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.custom.release-test",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertTrue(toolkit.connected)
+        self.assertEqual(toolkit.kwargs["command"], "echo")
+
+    def test_build_runtime_allows_approved_external_install(self):
+        imported = import_mcp_store_registry(
+            {
+                "registry": {
+                    "version": 1,
+                    "name": "External Runtime",
+                    "entries": [
+                        {
+                            "id": "external.runtime-approved",
+                            "toolkitId": "mcp.external.runtime-approved",
+                            "name": "External Runtime Approved",
+                            "description": "Approved external runtime entry",
+                            "category": "dev",
+                            "installable": True,
+                            "mcp": {
+                                "transport": "stdio",
+                                "command": "node",
+                                "args": ["server.js"],
+                            },
+                            "policySummary": {"reviewed": True},
+                        }
+                    ],
+                }
+            },
+            data_dir=self.data_dir,
+        )
+        approve_mcp_store_entry(
+            "external.runtime-approved",
+            registry_id=imported["registry"]["registryId"],
+            data_dir=self.data_dir,
+            acknowledged_risk=True,
+        )
+        install_mcp_toolkit(
+            "external.runtime-approved",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.external.runtime-approved",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertTrue(toolkit.connected)
+        self.assertEqual(toolkit.kwargs["command"], "node")
+
     def test_stdio_install_resolves_managed_runtime_and_persists_non_secret_env(self):
         self.managed_runtime_patch.stop()
         self.managed_runtime_patch = mock.patch(
@@ -951,6 +1415,7 @@ class McpToolkitServiceTests(unittest.TestCase):
             toolkit.kwargs["headers"]["Authorization"],
             "Bearer ghp-test",
         )
+        self.assertNotIn("cwd", toolkit.kwargs)
 
     def test_build_runtime_toolkit_resolves_github_oauth_before_pat_header(self):
         save_mcp_oauth_token(
@@ -1137,6 +1602,21 @@ class McpToolkitRouteTests(unittest.TestCase):
             callback_base_url="http://127.0.0.1:5879",
         )
 
+    def test_oauth_cancel_route_invalidates_exact_pending_state(self):
+        with mock.patch.object(
+            miso_routes,
+            "cancel_mcp_oauth_start",
+            return_value={"ok": True, "cancelled": True},
+        ) as cancel:
+            response = self.client.post(
+                "/mcp/oauth/cancel",
+                json={"state": "state-123"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"ok": True, "cancelled": True})
+        cancel.assert_called_once_with("state-123")
+
     def test_oauth_callback_route_does_not_require_auth_header(self):
         self.client.application.config["UNCHAIN_AUTH_TOKEN"] = "required-token"
         with mock.patch.object(
@@ -1156,7 +1636,7 @@ class McpToolkitRouteTests(unittest.TestCase):
     def test_oauth_status_and_disconnect_routes_proxy_adapter_functions(self):
         with mock.patch.object(
             miso_routes,
-            "get_mcp_oauth_status",
+            "get_mcp_oauth_attempt_status",
             return_value={
                 "entryId": "productivity.notion-remote",
                 "toolkitId": "mcp.productivity.notion-remote",
@@ -1164,12 +1644,12 @@ class McpToolkitRouteTests(unittest.TestCase):
             },
         ) as status:
             response = self.client.get(
-                "/mcp/oauth/status?entry_id=productivity.notion-remote",
+                "/mcp/oauth/status?state=state-123",
             )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["authStatus"], "connected")
-        status.assert_called_once_with("productivity.notion-remote")
+        status.assert_called_once_with("state-123")
 
         with mock.patch.object(
             miso_routes,
@@ -1287,14 +1767,89 @@ class McpToolkitAdapterTests(unittest.TestCase):
                          "toolkitDescription": "MCP memory",
                          "toolkitIcon": {"type": "builtin", "name": "server"},
                          "source": "mcp",
+                         "status": "available",
                          "tools": [{"name": "memory_read", "title": "Read"}],
                      }
                  ],
+             ), mock.patch(
+                 "computer_use_flag.is_feature_available", return_value=True
              ):
             payload = unchain_adapter.get_toolkit_catalog_v2()
 
-        self.assertEqual(payload["toolkits"][0]["toolkitId"], "mcp.memory.memory")
-        self.assertEqual(payload["count"], 1)
+        toolkit_ids = {item["toolkitId"] for item in payload["toolkits"]}
+        self.assertEqual(toolkit_ids, {"builtin.computer", "mcp.memory.memory"})
+        self.assertEqual(payload["count"], 2)
+
+    def test_catalog_excludes_unhealthy_mcp_entries(self):
+        with mock.patch.object(
+            unchain_adapter,
+            "list_installed_mcp_toolkits",
+            return_value=[
+                {"toolkitId": "mcp.memory.available", "status": "available"},
+                {"toolkitId": "mcp.memory.error", "status": "error"},
+                {"toolkitId": "mcp.memory.missing-status"},
+            ],
+        ):
+            entries = unchain_adapter._installed_mcp_catalog_entries()
+
+        self.assertEqual(
+            [entry["toolkitId"] for entry in entries],
+            ["mcp.memory.available"],
+        )
+
+    def test_catalog_excludes_release_blocked_and_disconnected_oauth_entries(self):
+        with mock.patch.object(
+            unchain_adapter,
+            "list_installed_mcp_toolkits",
+            return_value=[
+                {
+                    "entryId": "dev.figma-remote",
+                    "toolkitId": "mcp.dev.figma-remote",
+                    "status": "available",
+                    "authType": "oauth",
+                    "authStatus": "connected",
+                },
+                {
+                    "entryId": "productivity.notion-remote",
+                    "toolkitId": "mcp.productivity.notion-remote",
+                    "status": "available",
+                    "authType": "oauth",
+                    "authStatus": "missing",
+                },
+                {
+                    "entryId": "devops.sentry-remote",
+                    "toolkitId": "mcp.devops.sentry-remote",
+                    "status": "available",
+                    "authType": "oauth",
+                    "authStatus": "error",
+                },
+                {
+                    "entryId": "productivity.notion-remote",
+                    "toolkitId": "mcp.productivity.notion-expired",
+                    "status": "available",
+                    "authType": "oauth",
+                    "authStatus": "expired",
+                },
+                {
+                    "entryId": "productivity.notion-remote",
+                    "toolkitId": "mcp.productivity.notion-connected",
+                    "status": "available",
+                    "authType": "oauth",
+                    "authStatus": "connected",
+                },
+                {
+                    "entryId": "dev.github-remote",
+                    "toolkitId": "mcp.dev.github-pat",
+                    "status": "available",
+                },
+            ],
+        ):
+            entries = unchain_adapter._installed_mcp_catalog_entries()
+
+        self.assertEqual(
+            [entry["toolkitId"] for entry in entries],
+            ["mcp.productivity.notion-connected", "mcp.dev.github-pat"],
+        )
 
     def test_metadata_returns_installed_mcp_entry(self):
         with mock.patch.object(
@@ -1325,6 +1880,70 @@ class McpToolkitAdapterTests(unittest.TestCase):
             )
 
         self.assertEqual(built, [fake_toolkit])
+
+    def test_build_selected_toolkits_skips_stale_unavailable_mcp_selection(self):
+        fake_toolkit = object()
+
+        def build(toolkit_id):
+            if toolkit_id in {
+                "mcp.dev.figma-remote",
+                "mcp.memory.unhealthy",
+            }:
+                raise McpToolkitError(
+                    "mcp_entry_not_available",
+                    "This MCP toolkit is not available in this release",
+                    403,
+                )
+            return fake_toolkit
+
+        with mock.patch.object(
+            unchain_adapter,
+            "build_mcp_runtime_toolkit",
+            side_effect=build,
+        ), self.assertLogs(unchain_adapter._subagent_logger, level="WARNING") as logs:
+            built = unchain_adapter._build_selected_toolkits(
+                {
+                    "toolkits": [
+                        "mcp.dev.figma-remote",
+                        "mcp.memory.unhealthy",
+                        "mcp.memory.memory",
+                    ]
+                },
+            )
+
+        self.assertEqual(built, [fake_toolkit])
+        self.assertIn("mcp_entry_not_available", "\n".join(logs.output))
+
+    def test_build_selected_toolkits_skips_missing_or_expired_oauth_selection(self):
+        for code in (
+            "mcp_toolkit_not_found",
+            "mcp_oauth_required",
+            "mcp_oauth_expired",
+        ):
+            with self.subTest(code=code), mock.patch.object(
+                unchain_adapter,
+                "build_mcp_runtime_toolkit",
+                side_effect=McpToolkitError(code, "OAuth unavailable", 400),
+            ), self.assertLogs(unchain_adapter._subagent_logger, level="WARNING"):
+                built = unchain_adapter._build_selected_toolkits(
+                    {"toolkits": ["mcp.productivity.notion-remote"]},
+                )
+
+            self.assertEqual(built, [])
+
+    def test_build_selected_toolkits_keeps_secret_and_unknown_errors_blocking(self):
+        for code in ("mcp_secret_required", "mcp_oauth_refresh_failed"):
+            with self.subTest(code=code), mock.patch.object(
+                unchain_adapter,
+                "build_mcp_runtime_toolkit",
+                side_effect=McpToolkitError(code, "MCP setup failed", 400),
+            ):
+                with self.assertRaises(RuntimeError) as ctx:
+                    unchain_adapter._build_selected_toolkits(
+                        {"toolkits": ["mcp.memory.memory"]},
+                    )
+
+            self.assertIsInstance(ctx.exception.__cause__, McpToolkitError)
 
     def test_recipe_filter_resolves_mcp_toolkits_and_enabled_tools(self):
         fake_tool = type("FakeTool", (), {"name": "memory_read"})()

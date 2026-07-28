@@ -227,8 +227,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         ):
             model_capabilities = unchain_adapter.get_model_capability_catalog()
 
+        openai_capabilities = dict(model_capabilities["openai:gpt-5"])
+        openai_computer = openai_capabilities.pop("computer_use")
+        self.assertFalse(openai_computer["supported"])
         self.assertEqual(
-            model_capabilities["openai:gpt-5"],
+            openai_capabilities,
             {
                 "input_modalities": ["text", "image", "pdf"],
                 "input_source_types": {
@@ -237,16 +240,27 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 },
             },
         )
+        ollama_capabilities = dict(model_capabilities["ollama:deepseek-r1:14b"])
+        ollama_computer = ollama_capabilities.pop("computer_use")
+        self.assertFalse(ollama_computer["supported"])
         self.assertEqual(
-            model_capabilities["ollama:deepseek-r1:14b"],
+            ollama_capabilities,
             {
                 "input_modalities": ["text"],
                 "input_source_types": {},
                 "supports_tools": False,
             },
         )
+        anthropic_capabilities = dict(
+            model_capabilities["anthropic:claude-opus-4-6"]
+        )
+        anthropic_computer = anthropic_capabilities.pop("computer_use")
+        self.assertTrue(anthropic_computer["supported"])
         self.assertEqual(
-            model_capabilities["anthropic:claude-opus-4-6"],
+            anthropic_computer["protocol"], "anthropic.computer_20251124"
+        )
+        self.assertEqual(
+            anthropic_capabilities,
             {
                 "input_modalities": ["text", "image"],
                 "input_source_types": {"image": ["base64"]},
@@ -519,7 +533,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(result["approved"], True)
         self.assertEqual(result["reason"], "approved")
 
-    def test_make_tool_confirm_callback_returns_denied_when_cancelled(self) -> None:
+    def test_make_tool_confirm_callback_raises_when_transport_is_cancelled(self) -> None:
         cancel_event = threading.Event()
         emitted_events = []
         confirm_cb = unchain_adapter._make_tool_confirm_callback(
@@ -529,14 +543,17 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         response_holder: dict[str, object] = {}
 
         def invoke_callback() -> None:
-            response_holder["value"] = confirm_cb(
-                {
-                    "tool_name": "delete_file",
-                    "call_id": "call-cancelled",
-                    "arguments": {"path": "tmp.txt"},
-                    "description": "Delete a file",
-                }
-            )
+            try:
+                response_holder["value"] = confirm_cb(
+                    {
+                        "tool_name": "delete_file",
+                        "call_id": "call-cancelled",
+                        "arguments": {"path": "tmp.txt"},
+                        "description": "Delete a file",
+                    }
+                )
+            except Exception as exc:
+                response_holder["error"] = exc
 
         worker = threading.Thread(target=invoke_callback, daemon=True)
         worker.start()
@@ -554,19 +571,294 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         worker.join(timeout=2)
         self.assertFalse(worker.is_alive())
 
-        result = response_holder.get("value")
         submitted = unchain_adapter.submit_tool_confirmation(
             confirmation_id=confirmation_id,
             approved=True,
         )
 
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result.get("approved"), False)
-        self.assertEqual(
-            result.get("reason"),
-            "confirmation_cancelled_stream_terminated",
+        self.assertIsInstance(response_holder.get("error"), RuntimeError)
+        self.assertIn(
+            "stream cancelled",
+            str(response_holder.get("error")),
         )
         self.assertFalse(submitted)
+
+    def test_tool_confirmation_emit_failure_is_not_recorded_as_denial(self) -> None:
+        def fail_emit(_event) -> None:
+            raise RuntimeError("transport unavailable")
+
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(fail_emit)
+
+        with self.assertRaisesRegex(RuntimeError, "transport unavailable"):
+            confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-emit-failed",
+                    "arguments": {"path": "tmp.txt"},
+                }
+            )
+
+    def test_continuation_emit_failure_is_not_recorded_as_denial(self) -> None:
+        def fail_emit(_event) -> None:
+            raise RuntimeError("transport unavailable")
+
+        continuation_cb = unchain_adapter._make_continuation_callback(fail_emit)
+
+        with self.assertRaisesRegex(RuntimeError, "transport unavailable"):
+            continuation_cb({"iteration": 6})
+
+    def test_tool_confirmation_callback_reuses_durable_interaction_id(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        tracker.observe(
+            {
+                "type": "interaction_requested",
+                "interaction_request": {
+                    "interaction_id": "interaction-durable-1",
+                    "kind": "tool_approval",
+                    "payload": {"call_id": "call-durable-1"},
+                },
+            }
+        )
+        emitted_events = []
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+        )
+        response_holder: dict[str, object] = {}
+
+        worker = threading.Thread(
+            target=lambda: response_holder.update(
+                value=confirm_cb(
+                    {
+                        "tool_name": "delete_file",
+                        "call_id": "call-durable-1",
+                        "arguments": {"path": "tmp.txt"},
+                    }
+                )
+            ),
+            daemon=True,
+        )
+        worker.start()
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertEqual(
+            emitted_events[0].get("confirmation_id"),
+            "interaction-durable-1",
+        )
+        self.assertTrue(
+            unchain_adapter.submit_tool_confirmation(
+                confirmation_id="interaction-durable-1",
+                approved=True,
+            )
+        )
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(response_holder["value"]["approved"], True)
+
+    def test_root_tool_confirmation_keeps_live_round_trip_with_owner_scope(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        response_holder: dict[str, object] = {}
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        def invoke_callback() -> None:
+            tracker.observe(
+                {
+                    "type": "interaction_requested",
+                    "run_id": "root-run",
+                    "interaction_request": {
+                        "interaction_id": "interaction-root",
+                        "session_id": "chat-root",
+                        "source_run_id": "root-run",
+                        "kind": "tool_approval",
+                        "payload": {"call_id": "call-root"},
+                    },
+                }
+            )
+            response_holder["value"] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-root",
+                    "arguments": {"path": "tmp.txt"},
+                }
+            )
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertEqual(
+            emitted_events[0].get("confirmation_id"),
+            "interaction-root",
+        )
+        self.assertTrue(
+            unchain_adapter.submit_tool_confirmation(
+                confirmation_id="interaction-root",
+                approved=True,
+            )
+        )
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(response_holder["value"]["approved"], True)
+
+    def test_child_tool_confirmation_fails_closed_without_live_waiter(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        tracker.observe(
+            {
+                "type": "interaction_requested",
+                "run_id": "child-run",
+                "interaction_request": {
+                    "interaction_id": "interaction-child",
+                    "session_id": "chat-root:developer.worker.1",
+                    "source_run_id": "child-run",
+                    "kind": "tool_approval",
+                    "payload": {"call_id": "call-child"},
+                },
+            }
+        )
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        response = confirm_cb(
+            {
+                "tool_name": "delete_file",
+                "call_id": "call-child",
+                "arguments": {"path": "tmp.txt"},
+            }
+        )
+
+        self.assertEqual(
+            response,
+            {
+                "approved": False,
+                "reason": "subagent_tool_approval_unsupported",
+                "modified_arguments": None,
+            },
+        )
+        self.assertEqual(emitted_events, [])
+        self.assertFalse(
+            unchain_adapter.submit_tool_confirmation(
+                confirmation_id="interaction-child",
+                approved=True,
+            )
+        )
+
+    def test_non_durable_child_tool_confirmation_also_fails_closed(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        tracker.observe(
+            {
+                "type": "tool_call",
+                "run_id": "child-run",
+                "tool_name": "delete_file",
+                "call_id": "call-child",
+                "arguments": {"path": "tmp.txt"},
+            }
+        )
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=False,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        response = confirm_cb(
+            {
+                "tool_name": "delete_file",
+                "call_id": "call-child",
+                "arguments": {"path": "tmp.txt"},
+            }
+        )
+
+        self.assertEqual(
+            response,
+            {
+                "approved": False,
+                "reason": "subagent_tool_approval_unsupported",
+                "modified_arguments": None,
+            },
+        )
+        self.assertEqual(emitted_events, [])
+
+    def test_parallel_child_confirmations_with_same_call_id_fail_closed(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        emitted_events = []
+        barrier = threading.Barrier(3)
+        responses: dict[int, dict[str, object]] = {}
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        def invoke_child(worker_index: int) -> None:
+            tracker.observe(
+                {
+                    "type": "interaction_requested",
+                    "run_id": f"child-run-{worker_index}",
+                    "interaction_request": {
+                        "interaction_id": f"interaction-child-{worker_index}",
+                        "session_id": f"chat-root:worker-{worker_index}",
+                        "source_run_id": f"child-run-{worker_index}",
+                        "kind": "tool_approval",
+                        "payload": {"call_id": "shared-call"},
+                    },
+                }
+            )
+            barrier.wait(timeout=2)
+            responses[worker_index] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "shared-call",
+                    "arguments": {"path": f"tmp-{worker_index}.txt"},
+                }
+            )
+
+        workers = [
+            threading.Thread(
+                target=invoke_child,
+                args=(worker_index,),
+                daemon=True,
+            )
+            for worker_index in range(3)
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+
+        self.assertEqual(len(responses), 3)
+        self.assertTrue(
+            all(response.get("approved") is False for response in responses.values())
+        )
+        self.assertEqual(emitted_events, [])
+        for worker_index in range(3):
+            self.assertFalse(
+                unchain_adapter.submit_tool_confirmation(
+                    confirmation_id=f"interaction-child-{worker_index}",
+                    approved=True,
+                )
+            )
 
     def test_submit_tool_confirmation_returns_false_for_unknown_id(self) -> None:
         submitted = unchain_adapter.submit_tool_confirmation(
@@ -1243,6 +1535,64 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         module_names = [type(module).__name__ for module in agent.spec.modules]
         self.assertIn("MemoryModule", module_names)
 
+    def test_create_agent_mounts_application_durable_jobs_module(self) -> None:
+        import durable_job_runtime
+
+        durable_job_runtime._reset_durable_jobs_runtime_for_tests()
+        self.addCleanup(
+            durable_job_runtime._reset_durable_jobs_runtime_for_tests
+        )
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            workspace_root = Path(data_dir) / "workspace"
+            workspace_root.mkdir()
+            agent = unchain_adapter._create_agent(
+                {
+                    "provider": "ollama",
+                    "model": "deepseek-r1:14b",
+                    "workspace_root": str(workspace_root),
+                    "toolkits": ["workspace_toolkit"],
+                },
+                session_id="chat-jobs",
+            )
+            runtime = durable_job_runtime.get_durable_jobs_runtime()
+
+        jobs_modules = [
+            module
+            for module in agent.spec.modules
+            if type(module).__name__ == "JobsModule"
+        ]
+        self.assertEqual(len(jobs_modules), 1)
+        self.assertIsNotNone(runtime)
+        self.assertIs(jobs_modules[0], runtime.module)
+        self.assertEqual(len(agent._toolkits), 1)
+        self.assertIn("shell", agent._toolkits[0].tools)
+        self.assertEqual(
+            runtime.supervisor.store.base_dir,
+            Path(data_dir).resolve() / "jobs",
+        )
+        self.assertFalse(runtime.store_path.is_relative_to(workspace_root))
+
+    def test_create_agent_skips_jobs_module_when_runtime_is_unavailable(self) -> None:
+        with mock.patch.object(
+            unchain_adapter,
+            "get_durable_jobs_runtime",
+            return_value=None,
+        ):
+            agent = unchain_adapter._create_agent(
+                {
+                    "provider": "ollama",
+                    "model": "deepseek-r1:14b",
+                },
+                session_id="chat-no-jobs",
+            )
+
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertNotIn("JobsModule", module_names)
+
     def test_create_agent_skips_memory_module_when_memory_is_not_enabled(self) -> None:
         agent = unchain_adapter._create_agent(
             {
@@ -1382,6 +1732,373 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(fake_agent.last_messages[-1].get("role"), "user")
         self.assertEqual(fake_agent.last_messages[-1].get("content"), "hello")
 
+    def test_stream_chat_events_binds_attempt_to_run_and_lease_owner(self) -> None:
+        class FakeAgent:
+            provider = "openai"
+            max_iterations = 3
+            _memory_runtime = {
+                "requested": False,
+                "available": False,
+                "reason": "",
+            }
+            _toolkits = []
+
+            def __init__(self) -> None:
+                self.run_kwargs = None
+
+            def run(self, **kwargs):
+                self.run_kwargs = kwargs
+                callback = kwargs.get("callback")
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": kwargs.get("run_id"),
+                            "iteration": 0,
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    status="completed",
+                )
+
+        fake_agent = FakeAgent()
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_execution_control_call",
+            return_value=SimpleNamespace(
+                disposition="applied",
+                snapshot=SimpleNamespace(status="running"),
+            ),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_execution_cancellation_token",
+            return_value=None,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={},
+                    session_id="chat-attempt",
+                    attempt_id="attempt-exact",
+                )
+            )
+
+        self.assertEqual(fake_agent.run_kwargs["run_id"], "attempt-exact")
+        self.assertEqual(
+            fake_agent.run_kwargs["execution_owner_id"],
+            "attempt-exact",
+        )
+        self.assertEqual(events[-1]["run_id"], "attempt-exact")
+
+    def test_concurrent_duplicate_attempt_starts_exactly_one_agent_worker(self) -> None:
+        calls = 0
+        calls_lock = threading.Lock()
+
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, **_kwargs):
+                nonlocal calls
+                with calls_lock:
+                    calls += 1
+                time.sleep(0.08)
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    status="completed",
+                )
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            side_effect=lambda *_args, **_kwargs: FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            gate = threading.Barrier(2)
+            errors = []
+
+            def consume() -> None:
+                try:
+                    gate.wait(timeout=2)
+                    list(
+                        unchain_adapter.stream_chat_events(
+                            message="hello",
+                            history=[],
+                            attachments=[],
+                            options={},
+                            session_id="chat-duplicate",
+                            attempt_id="attempt-duplicate",
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - asserted below
+                    errors.append(exc)
+
+            workers = [threading.Thread(target=consume) for _ in range(2)]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join(timeout=3)
+
+        self.assertEqual(errors, [])
+        self.assertTrue(all(not worker.is_alive() for worker in workers))
+        self.assertEqual(calls, 1)
+
+    def test_dead_running_owner_is_reclaimed_before_agent_creation(self) -> None:
+        import execution_control
+
+        calls = 0
+
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, **_kwargs):
+                nonlocal calls
+                calls += 1
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "reclaimed"}],
+                    status="completed",
+                )
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            predecessor = execution_control.ExecutionControlRegistry(
+                data_dir,
+                process_owner_id="dead-process",
+                process_pid=707,
+                process_is_alive=lambda _pid: False,
+            )
+            predecessor.mark_running("chat-reclaim", "attempt-reclaim")
+            successor = execution_control.ExecutionControlRegistry(
+                data_dir,
+                process_owner_id="replacement-process",
+                process_pid=808,
+                process_is_alive=lambda _pid: False,
+            )
+            with mock.patch.object(
+                execution_control,
+                "_DEFAULT_REGISTRY",
+                successor,
+            ), mock.patch.object(
+                unchain_adapter,
+                "_create_agent",
+                return_value=FakeAgent(),
+            ), mock.patch.object(
+                unchain_adapter,
+                "_build_bundle_from_result",
+                return_value=None,
+            ):
+                events = list(
+                    unchain_adapter.stream_chat_events(
+                        message="continue after crash",
+                        history=[],
+                        attachments=[],
+                        options={},
+                        session_id="chat-reclaim",
+                        attempt_id="attempt-reclaim",
+                    )
+                )
+            snapshot = successor.snapshot("chat-reclaim", "attempt-reclaim")
+
+        self.assertEqual(calls, 1)
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertEqual(snapshot.status, "completed")
+        self.assertEqual(snapshot.owner_id, "replacement-process")
+        self.assertEqual(snapshot.owner_pid, 808)
+        self.assertEqual(snapshot.revision, 3)
+
+    def test_terminal_duplicate_attempt_never_recreates_agent(self) -> None:
+        import execution_control
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            for terminal_status in ("completed", "failed"):
+                attempt_id = f"attempt-{terminal_status}"
+                execution_control.mark_running("chat-terminal", attempt_id)
+                if terminal_status == "completed":
+                    execution_control.mark_completed("chat-terminal", attempt_id)
+                else:
+                    execution_control.mark_failed(
+                        "chat-terminal",
+                        attempt_id,
+                        reason="provider failed",
+                    )
+                with self.subTest(status=terminal_status), mock.patch.object(
+                    unchain_adapter,
+                    "_create_agent",
+                ) as create_agent:
+                    events = list(
+                        unchain_adapter.stream_chat_events(
+                            message="duplicate",
+                            history=[],
+                            attachments=[],
+                            options={},
+                            session_id="chat-terminal",
+                            attempt_id=attempt_id,
+                        )
+                    )
+                    self.assertEqual(events, [])
+                    create_agent.assert_not_called()
+
+    def test_normal_completion_stops_all_cancel_watcher_threads(self) -> None:
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, **_kwargs):
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    status="completed",
+                )
+
+        watched_names = {
+            "unchain-stream-confirm-cancel",
+            "unchain-stream-execution-cancel",
+        }
+        alive = set(watched_names)
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={},
+                    session_id="chat-watchers",
+                    cancel_event=threading.Event(),
+                    attempt_id="attempt-watchers",
+                )
+            )
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                alive = {
+                    thread.name
+                    for thread in threading.enumerate()
+                    if thread.name in watched_names
+                }
+                if not alive:
+                    break
+                time.sleep(0.02)
+
+        self.assertEqual(alive, set())
+
+    def test_memory_off_cancel_safe_point_prevents_next_tool_or_iteration(self) -> None:
+        from durable_interaction_host import cancel_chat_execution
+
+        release_after_cancel = threading.Event()
+        reached_after_cancelled_event = threading.Event()
+
+        class FakeAgent:
+            provider = "openai"
+            _memory_runtime = {"requested": False, "available": False, "reason": ""}
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+
+            def run(self, *, callback=None, run_id="", **_kwargs):
+                callback(
+                    {
+                        "type": "token_delta",
+                        "run_id": run_id,
+                        "iteration": 0,
+                        "delta": "started",
+                    }
+                )
+                release_after_cancel.wait(timeout=2)
+                callback(
+                    {
+                        "type": "tool_call",
+                        "run_id": run_id,
+                        "iteration": 1,
+                        "tool_name": "write_file",
+                        "call_id": "must-not-run",
+                    }
+                )
+                reached_after_cancelled_event.set()
+                return SimpleNamespace(messages=[], status="completed")
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            stream = unchain_adapter.stream_chat_events(
+                message="hello",
+                history=[],
+                attachments=[],
+                options={},
+                session_id="chat-memory-off-cancel",
+                attempt_id="attempt-memory-off-cancel",
+            )
+            first = next(stream)
+            self.assertEqual(first["type"], "token_delta")
+            cancel_chat_execution(
+                session_id="chat-memory-off-cancel",
+                attempt_id="attempt-memory-off-cancel",
+            )
+            release_after_cancel.set()
+            remaining = list(stream)
+
+        self.assertEqual(remaining, [])
+        self.assertFalse(reached_after_cancelled_event.is_set())
+
     def test_stream_chat_events_emits_memory_unavailable_and_stops_when_history_empty(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -1400,7 +2117,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         fake_agent = FakeAgent()
 
-        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ):
             events = list(
                 unchain_adapter.stream_chat_events(
                     message="hello",
@@ -1408,7 +2133,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     attachments=[],
                     options={"memory_enabled": True},
                     session_id="chat-1",
+                    attempt_id="attempt-memory-unavailable",
                 )
+            )
+
+            import execution_control
+
+            attempt_snapshot = execution_control.snapshot(
+                "chat-1",
+                "attempt-memory-unavailable",
             )
 
         self.assertFalse(fake_agent.run_called)
@@ -1417,6 +2150,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(events[0]["fallback_reason"], "embedding_provider_unavailable")
         self.assertEqual(events[1]["type"], "error")
         self.assertEqual(events[1]["code"], "memory_unavailable")
+        self.assertEqual(attempt_snapshot.status, "failed")
 
     def test_stream_chat_events_always_reports_developer_active_agent_in_bundle(self) -> None:
         class FakeAgent:
@@ -1542,7 +2276,166 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertFalse(events[0]["applied"])
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
 
-    def test_stream_chat_events_passes_memory_namespace_to_agent_run(self) -> None:
+    def test_stream_chat_events_fails_closed_when_durable_memory_is_required(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.model = "gpt-5"
+                self.run_called = False
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": False,
+                    "reason": "embedding_provider_unavailable",
+                }
+
+            def run(self, *args, **kwargs):
+                self.run_called = True
+                raise AssertionError("durable-required run must not start")
+
+        fake_agent = FakeAgent()
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ):
+            with self.assertRaises(
+                unchain_adapter.DurableInteractionHostError
+            ) as raised:
+                list(
+                    unchain_adapter.stream_chat_events(
+                        message="hello",
+                        history=[{"role": "user", "content": "previous"}],
+                        attachments=[],
+                        options={
+                            "memory_enabled": True,
+                            "durable_interactions_required": True,
+                        },
+                        session_id="chat-1",
+                    )
+                )
+
+        self.assertEqual(raised.exception.code, "durable_memory_unavailable")
+        self.assertTrue(raised.exception.retryable)
+        self.assertFalse(fake_agent.run_called)
+
+    def test_context_cleanup_keeps_only_the_active_pending_run(self) -> None:
+        with mock.patch.object(
+            unchain_adapter,
+            "get_pending_interaction",
+            return_value={
+                "status": "awaiting_response",
+                "source_run_id": "run-active",
+            },
+        ), mock.patch.object(
+            unchain_adapter,
+            "clear_resume_context",
+        ) as clear_context:
+            unchain_adapter._cleanup_durable_resume_contexts(
+                "chat-1",
+                ("run-old", "run-active"),
+            )
+
+        clear_context.assert_called_once_with("chat-1", "run-old")
+
+    def test_optional_memory_run_does_not_write_durable_resume_context(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.model = "gpt-5"
+                self.max_iterations = 3
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": True,
+                    "reason": "",
+                }
+
+            def run(self, **_kwargs):
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "save_resume_context",
+        ) as save_context:
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-1",
+                )
+            )
+
+        save_context.assert_not_called()
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
+    def test_stream_chat_events_preserves_durable_worker_error_code(self) -> None:
+        expected_error = unchain_adapter.DurableInteractionHostError(
+            "active_execution_lease",
+            "session is busy",
+            status_code=409,
+            retryable=True,
+        )
+
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.model = "gpt-5"
+                self.max_iterations = 3
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": True,
+                    "reason": "",
+                }
+
+            def run(self, **_kwargs):
+                raise expected_error
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "save_resume_context",
+        ), mock.patch.object(
+            unchain_adapter,
+            "get_pending_interaction",
+            return_value={"status": "none"},
+        ):
+            with self.assertRaises(
+                unchain_adapter.DurableInteractionHostError
+            ) as raised:
+                list(
+                    unchain_adapter.stream_chat_events(
+                        message="hello",
+                        history=[],
+                        attachments=[],
+                        options={
+                            "memory_enabled": True,
+                            "durable_interactions_required": True,
+                        },
+                        session_id="chat-1",
+                    )
+                )
+
+        self.assertIs(raised.exception, expected_error)
+        self.assertEqual(raised.exception.code, "active_execution_lease")
+        self.assertTrue(raised.exception.retryable)
+
+    def test_stream_chat_events_passes_memory_namespace_and_ignores_cleanup_lookup_failure(self) -> None:
         class FakeAgent:
             def __init__(self):
                 self.provider = "openai"
@@ -1571,6 +2464,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     "max_iterations": max_iterations,
                     "session_id": session_id,
                     "memory_namespace": memory_namespace,
+                    "run_id": _kwargs.get("run_id"),
                 }
                 if callable(callback):
                     callback(
@@ -1594,7 +2488,18 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         fake_agent = FakeAgent()
 
-        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ), mock.patch.object(
+            unchain_adapter,
+            "save_resume_context",
+        ) as save_context, mock.patch.object(
+            unchain_adapter,
+            "get_pending_interaction",
+            side_effect=RuntimeError("cleanup lookup unavailable"),
+        ):
             events = list(
                 unchain_adapter.stream_chat_events(
                     message="hello",
@@ -1603,6 +2508,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     options={
                         "memory_enabled": True,
                         "memory_namespace": "pupu:default",
+                        "durable_interactions_required": True,
                     },
                     session_id="chat-1",
                 )
@@ -1610,7 +2516,129 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertEqual(fake_agent.run_kwargs["session_id"], "chat-1")
         self.assertEqual(fake_agent.run_kwargs["memory_namespace"], "pupu:default")
+        self.assertTrue(fake_agent.run_kwargs["run_id"])
+        self.assertEqual(
+            save_context.call_args.kwargs["run_id"],
+            fake_agent.run_kwargs["run_id"],
+        )
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
+    def test_resume_chat_interaction_uses_bound_context_and_new_run_id(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.model = "gpt-5"
+                self._display_model = "openai:gpt-5"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": True,
+                    "reason": "",
+                }
+                self._toolkits = []
+                self.resume_kwargs = None
+
+            def resume_interaction(self, **kwargs):
+                self.resume_kwargs = kwargs
+                callback = kwargs.get("callback")
+                if callable(callback):
+                    callback(
+                        {
+                            "type": ["final_message"],
+                            "content": "invalid list event type",
+                        }
+                    )
+                    callback(
+                        {
+                            "type": {"kind": "final_message"},
+                            "content": "invalid object event type",
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": kwargs.get("run_id"),
+                            "iteration": 1,
+                            "timestamp": time.time(),
+                            "content": "resumed",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "resumed"}],
+                    consumed_tokens=3,
+                    input_tokens=2,
+                    output_tokens=1,
+                    status="completed",
+                    iteration=1,
+                    previous_response_id=None,
+                )
+
+        pending = {
+            "status": "receipt_recorded",
+            "session_id": "chat-1",
+            "interaction_id": "interaction-1",
+            "source_run_id": "run-original",
+            "provider": "openai",
+            "model": "gpt-5",
+            "resume_available": True,
+        }
+        fake_agent = FakeAgent()
+        with mock.patch.object(
+            unchain_adapter,
+            "get_pending_interaction",
+            side_effect=[pending, {"status": "none", "session_id": "chat-1"}],
+        ), mock.patch.object(
+            unchain_adapter,
+            "resolve_resume_options",
+            return_value={
+                "modelId": "openai:gpt-5",
+                "memory_enabled": True,
+                "durable_interactions_required": True,
+            },
+        ) as resolve_options, mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ), mock.patch.object(
+            unchain_adapter,
+            "save_resume_context",
+        ) as save_context, mock.patch.object(
+            unchain_adapter,
+            "clear_resume_context",
+        ) as clear_context:
+            events = list(
+                unchain_adapter.resume_chat_interaction_events(
+                    session_id="chat-1",
+                    interaction_id="interaction-1",
+                    options={"openai_api_key": "fresh-key"},
+                )
+            )
+
+        resolve_options.assert_called_once_with(
+            session_id="chat-1",
+            run_id="run-original",
+            fresh_options={"openai_api_key": "fresh-key"},
+            expected_provider="openai",
+            expected_model="gpt-5",
+        )
+        resumed_run_id = fake_agent.resume_kwargs["run_id"]
+        self.assertTrue(resumed_run_id)
+        self.assertEqual(save_context.call_args.kwargs["run_id"], resumed_run_id)
+        self.assertEqual(
+            clear_context.call_args_list,
+            [
+                mock.call("chat-1", "run-original"),
+                mock.call("chat-1", resumed_run_id),
+            ],
+        )
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertTrue(
+            all(isinstance(event.get("type"), str) for event in events)
+        )
+        self.assertFalse(
+            any("invalid" in str(event.get("content", "")) for event in events)
+        )
 
     def test_stream_chat_events_enriches_tool_events_with_toolkit_metadata(self) -> None:
         class FakeToolkit:
@@ -1924,6 +2952,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             {
                 "type": "message",
                 "content": [
+                    {"type": ["output_text"], "text": "invalid list type"},
+                    {"type": {"kind": "text"}, "text": "invalid object type"},
                     {"type": "output_text", "text": "Tool call completed."},
                 ],
             },
@@ -2148,7 +3178,9 @@ requires_confirmation = true
             payload = unchain_adapter.get_toolkit_catalog_v2()
 
         self.assertEqual(payload["count"], 1)
-        entry = payload["toolkits"][0]
+        entry = next(
+            row for row in payload["toolkits"] if row["toolkitId"] == "DemoToolkit"
+        )
         self.assertEqual(
             entry["toolkitIcon"],
             {
@@ -2223,7 +3255,10 @@ requires_confirmation = true
         self.assertTrue(entry["tools"][1]["requiresConfirmation"])
 
     def test_get_toolkit_catalog_v2_lists_only_public_builtin_toolkits(self) -> None:
-        payload = unchain_adapter.get_toolkit_catalog_v2()
+        with mock.patch(
+            "computer_use_flag.is_feature_available", return_value=True
+        ):
+            payload = unchain_adapter.get_toolkit_catalog_v2()
 
         builtin_ids = [
             entry["toolkitId"]
@@ -2231,7 +3266,32 @@ requires_confirmation = true
             if entry.get("source") == "builtin"
         ]
 
-        self.assertEqual(builtin_ids, ["core", "plan", "agent_reach"])
+        self.assertEqual(
+            builtin_ids,
+            ["core", "plan", "builtin.computer", "agent_reach"],
+        )
+
+        computer = next(
+            entry
+            for entry in payload["toolkits"]
+            if entry.get("toolkitId") == "builtin.computer"
+        )
+        self.assertEqual(computer["settingsKind"], "computer_use")
+        self.assertEqual(computer["capabilityRequirements"], ["computer_use"])
+        self.assertEqual([tool["name"] for tool in computer["tools"]], ["computer"])
+
+    def test_get_toolkit_catalog_v2_omits_computer_when_release_flag_is_off(
+        self,
+    ) -> None:
+        with mock.patch(
+            "computer_use_flag.is_feature_available", return_value=False
+        ):
+            payload = unchain_adapter.get_toolkit_catalog_v2()
+
+        self.assertNotIn(
+            "builtin.computer",
+            [entry.get("toolkitId") for entry in payload["toolkits"]],
+        )
 
     def test_get_toolkit_catalog_v2_exposes_artifact_kind_metadata(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
@@ -2650,6 +3710,12 @@ class MaterializeRecipeSubagentsTests(unittest.TestCase):
                     "description": "scout",
                     "model": None,
                     "max_iterations": None,
+                    "subagent_profile": {
+                        "allowed_modes": ["delegate", "worker"],
+                        "output_mode": "last_message",
+                        "memory_policy": "ephemeral",
+                        "parallel_safe": True,
+                    },
                     "agent": {"prompt_format": "soul", "prompt": "look"},
                     "toolkits": [],
                     "subagent_pool": [],
@@ -2676,6 +3742,97 @@ class MaterializeRecipeSubagentsTests(unittest.TestCase):
                 self.assertEqual(len(templates), 1)
                 self.assertEqual(templates[0].kw["name"], "Explore")
                 self.assertTrue(hasattr(templates[0].kw["agent"], "fork_for_subagent"))
+                self.assertEqual(
+                    templates[0].kw["allowed_modes"],
+                    ("delegate", "worker"),
+                )
+                self.assertEqual(templates[0].kw["output_mode"], "last_message")
+                self.assertIs(templates[0].kw["parallel_safe"], True)
+
+    def test_recipe_ref_without_profile_defaults_to_delegate_only(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, RecipeSubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_loader import save_recipe
+
+                save_recipe({
+                    "name": "Legacy",
+                    "description": "legacy scout",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "look"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                recipe = Recipe(
+                    name="Default", description="", model=None, max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="x"),
+                    toolkits=(),
+                    subagent_pool=(
+                        RecipeSubagentRef(
+                            kind="recipe_ref",
+                            recipe_name="Legacy",
+                            disabled_tools=(),
+                        ),
+                    ),
+                )
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe, toolkits=[],
+                    provider="anthropic", model="m", api_key="k", max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                    options={},
+                )
+
+        self.assertEqual(templates[0].kw["allowed_modes"], ("delegate",))
+        self.assertIs(templates[0].kw["parallel_safe"], False)
+
+    def test_recipe_ref_cannot_promote_child_worker_capability(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import parse_recipe_json
+        UA, TM, PM, ST = self._fake_modules()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_loader import save_recipe
+
+                save_recipe({
+                    "name": "DelegateOnly",
+                    "description": "serial child",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "work"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                parent_recipe = parse_recipe_json({
+                    "name": "Parent",
+                    "description": "",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "parent"},
+                    "toolkits": [],
+                    "subagent_pool": [
+                        {
+                            "kind": "recipe_ref",
+                            "recipe_name": "DelegateOnly",
+                            "disabled_tools": [],
+                            "allowed_modes": ["delegate", "worker"],
+                            "parallel_safe": True,
+                        }
+                    ],
+                })
+                templates = _materialize_recipe_subagents(
+                    recipe=parent_recipe, toolkits=[],
+                    provider="anthropic", model="m", api_key="k", max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                    options={},
+                )
+
+        self.assertEqual(templates[0].kw["allowed_modes"], ("delegate",))
+        self.assertIs(templates[0].kw["parallel_safe"], False)
 
     def test_recipe_ref_preserves_parent_optimizer_config_for_nested_recipe(self):
         from unchain_adapter import _materialize_recipe_subagents

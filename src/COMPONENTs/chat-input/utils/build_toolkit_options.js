@@ -13,7 +13,7 @@ const toDisplayName = (toolkit) => {
     toolkit?.class_name ||
     toolkit?.name ||
     toolkit?.toolkitId ||
-    "Unknown Toolkit";
+    "Unknown Plugin";
 
   return String(raw)
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -124,13 +124,21 @@ export const build_toolkit_options = (toolkits) => {
       ].filter(Boolean),
     )].join(" ");
 
-    return {
+    const option = {
       value,
       label,
       description: toolkitDescription || toolSummary,
       search,
       icon: buildToolkitOptionIcon(tk?.toolkitIcon),
     };
+    if (
+      Array.isArray(tk?.capabilityRequirements) &&
+      tk.capabilityRequirements.length > 0
+    ) {
+      option.capabilityRequirements = [...tk.capabilityRequirements];
+    }
+    if (tk?.settingsKind) option.settingsKind = tk.settingsKind;
+    return option;
   });
 };
 

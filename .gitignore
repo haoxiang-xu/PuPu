@@ -7,6 +7,9 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
+/.release-qa
 
 # production
 /build
@@ -35,6 +38,7 @@ __pycache__/
 
 # virtual environments
 .venv/
+.venv
 .venv-miso-build/
 .venv-unchain-build/
 venv/

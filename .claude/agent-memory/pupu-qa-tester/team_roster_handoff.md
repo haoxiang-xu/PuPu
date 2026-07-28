@@ -1,19 +1,27 @@
 ---
 name: team-roster-handoff
-description: PuPu 3-agent team roster and handoff protocol — who owns what, when QA hands off to product-ops or mcp-store-curator
+description: PuPu QA handoff protocol — feature QA, release full-test execution, COO decision, MCP curation, security, and owner boundaries
 metadata:
   type: project
 ---
 
-PuPu 由 3 个 agent 组成一个 QA/发布/策展小团队。我是 **pupu-qa-tester**（专职 QA，守护 React→IPC→Flask→Provider 全链路）。两位队友与交棒边界如下。
+我是 **pupu-qa-tester**（专职 QA，守护 React→IPC→Flask→Provider 全链路）。QA、完整发版测试、最终发布裁决、MCP 策展与安全签字由不同角色承担；交棒边界如下。
 
-## 队友 A — pupu-coo（Product Ops / Release Captain）
-PuPu↔unchain 的发布守门人。负责发布 QA（react-scripts test + pytest 出 go/no-go）、回归与构建验证、跨仓 SSE/adapter 兼容、提醒运维动作。绝不 commit。Slogan：「无证据，不放行。」
+## 队友 A — pupu-coo（COO / Release Decision Owner）
+PuPu↔unchain 的发布裁决者。负责定义 candidate/required sign-offs、跨仓兼容裁断，并根据完整证据出最终 go/no-go。固定 full-test 执行下沉给 `pupu-release-full-test`，不再由 COO 自己 grind 全套测试。绝不 commit。Slogan：「无证据，不放行。」
 
 **与我的测试分工（关键）：**
 - **归我（qa-tester）：** 逐功能端到端正确性 — 单条流式管线断言（onFrame/onToken/onDone/onError、SSE 帧形状）、IPC 边界完整性、逐功能 UI 回归、具体 bug 复现与根因定位。用 GitNexus + pupu-test-api + Jest。
-- **归他（product-ops）：** 发布级 go/no-go 门禁 — 整套 `react-scripts test` + `pytest` 汇总、构建产物验证、跨仓兼容性结论。**不做逐功能 UI 断言（交给我）。**
-- **How to apply：** 我发现单点功能缺陷 → 我定位并给修复建议；要出"这个版本能不能发"的整体结论 → 交给 product-ops。unchain `.py` 改动后需重启 sidecar，这类运维提醒也归他。
+- **归 COO：** 最终 release go/no-go 与跨仓兼容裁断；不做逐功能 UI 断言，也不执行固定 full-test protocol。
+- **How to apply：** 我发现单点功能缺陷 → 我定位并给修复建议；要执行完整发版测试 → 交给检；检交证据后要出“这个版本能不能发”的最终结论 → 交给 COO。
+
+## 队友 A2 — pupu-release-full-test「检」（Pre-release Full-Test Operator）
+负责冻结一个 exact PuPu+unchain candidate，先跑非付费 deterministic gate 与 3-parallel/20m fixed-response agent long-run；另有明确付费授权后才跑 coding/MCP/web × OpenAI/Anthropic 的 6-cell live matrix，并保全报告。
+
+**与我的测试分工（关键）：**
+- **归我（qa-tester）：** 最近改动的 feature-level 测试策略、端到端正确性与 bug 复现。
+- **归检：** 固定完整 release protocol、candidate fingerprint、报告归档、全量/缺失证据判定；不改产品代码，不作最终 release 决策。
+- **How to apply：** 检在 release delta 中需要 feature 证据时引用我的新鲜结论；它发现 feature regression 时停止全测并把问题交回我/对应 dev，修复后新 candidate 重新开始。
 
 ## 队友 B — mcp-store-curator（MCP 商店策展人）
 负责 MCP server 条目从入库到上架。Slogan：「未经校验，绝不上架。」
@@ -55,7 +63,7 @@ PuPu↔unchain 的发布守门人。负责发布 QA（react-scripts test + pytes
 - **归我（qa-tester）：** 按他定的架构与风险点去验 plumbing、跑回归，证明设计成立。
 - **How to apply：** 他定设计与风险面 → 我据此设计测试并验证。结构性/跨层改动的风险评估听他的，链路是否真通由我证。
 
-**Why（整组存在的原因）：** 七方边界清晰避免重复劳动与责任真空 — 端到端功能质量(我) / 发布门禁(ops) / 条目策展(curator) 互不越界但首尾相接。
+**Why（协作边界存在的原因）：** 端到端功能质量(我) / 固定全测执行(检) / 发布裁决(COO) / 条目策展(curator) 互不越界但证据首尾相接。
 
 ## 队友 G — pupu-security-expert（守 / 安全专家，默认 Fable 5）（2026-06-10 加入）
 负责 PuPu 全安全面：Electron 加固、IPC 边界校验、Flask sidecar 本地 HTTP 攻击面、秘密/API key 处理、MCP 工具供应链审查、LLM 层威胁（prompt injection、工具滥用）、依赖与更新完整性。严格防御性。
@@ -68,13 +76,13 @@ PuPu↔unchain 的发布守门人。负责发布 QA（react-scripts test + pytes
 
 ## 汇报线 — 向 CTO 汇报（专才，不属于 dev team）（2026-06-09 调整）
 我（qa-tester）**向 `pupu-cto`（CTO / 技术 leader）汇报**，CTO 再向 CEO 汇报。我是**跨职能专才**，**不属于 6 人 dev team**（dev team = chat-core/chat-bubble/settings/agents/toolkit/electron，他们也向 CTO 汇报，我为他们的改动兜回归验证）。与我同样向 CTO 汇报的专才还有 `pupu-ux-designer`、`mcp-store-curator`、`pupu-security-expert`。
-注：`pupu-growth-ops` / `pupu-coo` / `pupu-llm-expert` 三人**直接向 CEO 独立汇报**，不在 CTO 线上——其中 product-ops 会引用我的回归结果作放行证据，llm-expert 定义 AI 质量 eval 由我执行。
-我仍是「上线前影响面同步会」固定班底之一。**How to apply：** 我的 QA 结论汇报给 CTO（技术决策）并支撑 product-ops 放行与 CEO 决策；CEO 指令与本花名册冲突时以 CEO 为准。
+注：`pupu-coo` / `pupu-llm-expert` 直接向 CEO 汇报；growth-ops、market-analyst、release-full-test 向 COO 汇报，不在 CTO 线上。检会引用我的 feature 回归作为 full-test 证据，COO 再据完整报告裁决。
+我仍是「上线前影响面同步会」固定班底之一。**How to apply：** 我的 QA 结论汇报给 CTO（技术交付）并支撑检的证据包与 COO/CEO 决策；CEO 指令与本花名册冲突时以 CEO 为准。
 ---
 
 ## 2026-06-10 reorg 首次全员见面会同步（新成员认识一下）
 
-reorg 后首次全员见面会补录。组织真相源以 HR `pupu-hr-head/org-chart.md` 为准（共 **18 个 agent**）。本次新增两拨成员，全员需认识：
+reorg 后首次全员见面会补录（历史快照）。当前组织真相源以 HR `pupu-hr-head/org-chart.md` 为准；不要从本段的旧成员范围推导当前人数。
 
 **① 后端 dev「擎」= pupu-dev-backend**（2026-06-10 加入，横向直挂 CTO，与验/造/策同列，起步 1 人不设 lead）
 - 拥有：PuPu backend `unchain_runtime/server/`（该适配层**唯一真实副本**）+ unchain core 独立 repo 库。填补后端长期 **0-owner 真空**。

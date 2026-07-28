@@ -15,7 +15,7 @@ const LoadingDots = ({ isDark }) => (
           width: 6,
           height: 6,
           borderRadius: "50%",
-          background: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.25)",
+          background: isDark ? "rgba(var(--pupu-text-rgb),0.28)" : "rgba(var(--pupu-text-rgb),0.25)",
           animation: "toolkit-dot-pulse 1.1s ease-in-out infinite",
           animationDelay: `${i * 0.18}s`,
         }}

@@ -1,3 +1,6 @@
+const { request: nodeHttpRequest } = require("http");
+const { request: nodeHttpsRequest } = require("https");
+const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
 const { createPortFinder } = require("../../../shared/port_utils");
 
@@ -7,20 +10,56 @@ const UNCHAIN_PORT_RANGE_END = 5895;
 const UNCHAIN_BOOT_TIMEOUT_MS = 60000;
 const UNCHAIN_HEALTH_RETRY_MS = 250;
 const UNCHAIN_RESTART_DELAY_MS = 1500;
+const UNCHAIN_RUNTIME_CONTRACT_SCHEMA = "pupu.runtime-capabilities";
+const UNCHAIN_RUNTIME_CONTRACT_VERSION = 1;
+const UNCHAIN_DURABLE_JOBS_VERSION = "D4.1";
+const UNCHAIN_DURABLE_JOB_WORKER_FLAG = "--durable-job-worker";
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
+const UNCHAIN_STREAM_REPLAY_MAX_EVENTS = 100000;
+const UNCHAIN_STREAM_REPLAY_MAX_BYTES = 32 * 1024 * 1024;
+const UNCHAIN_STREAM_REPLAY_TTL_MS = 30 * 60 * 1000;
+const UNCHAIN_STREAM_REPLAY_COMPACT_MIN_HEAD = 4096;
+const UNCHAIN_EXECUTION_CANCEL_ENDPOINT = "/chat/executions/cancel";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
+const UNCHAIN_PENDING_INTERACTION_ENDPOINT = "/chat/interactions/pending";
 const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
+const UNCHAIN_COMPUTER_USE_STATUS_ENDPOINT = "/computer-use/status";
+const UNCHAIN_COMPUTER_USE_CONFIG_ENDPOINT = "/computer-use/config";
+const UNCHAIN_COMPUTER_USE_PROBE_ENDPOINT = "/computer-use/probe";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
+const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
+  "/models/custom-providers/test";
+
+// Allowlisted macOS System Settings deep links. The renderer may only pass a
+// known target key; it can never hand us an arbitrary URL to open.
+const COMPUTER_USE_PRIVACY_DEEP_LINKS = Object.freeze({
+  screen_recording:
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+  accessibility:
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+});
+const COMPUTER_USE_BUILD_FEATURE_KEY = "enable_computer_use";
+const COMPUTER_USE_RELEASE_ENV_KEY = "PUPU_FEATURE_COMPUTER_USE";
+const FEATURE_FLAG_TRUE_VALUES = new Set([
+  "1",
+  "true",
+  "yes",
+  "on",
+  "enabled",
+]);
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 const UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
 const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
 const UNCHAIN_MCP_TOOLKITS_ENDPOINT = "/mcp/toolkits";
 const UNCHAIN_MCP_TOOLKIT_INSTALL_ENDPOINT = "/mcp/toolkits/install";
 const UNCHAIN_MCP_TOOLKIT_RELOAD_ENDPOINT = "/mcp/toolkits/reload";
+const UNCHAIN_SKILLPACKS_ENDPOINT = "/skillpacks";
+const UNCHAIN_SKILLPACK_INSTALL_ENDPOINT = "/skillpacks/install";
 const UNCHAIN_MCP_OAUTH_START_ENDPOINT = "/mcp/oauth/start";
+const UNCHAIN_MCP_OAUTH_CANCEL_ENDPOINT = "/mcp/oauth/cancel";
 const UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT = "/mcp/oauth/status";
 const UNCHAIN_MCP_OAUTH_ENDPOINT = "/mcp/oauth";
 const UNCHAIN_MCP_OAUTH_APPS_ENDPOINT = "/mcp/oauth/apps";
@@ -40,6 +79,330 @@ const UNCHAIN_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
 const UNCHAIN_CHARACTER_BUILD_ENDPOINT = "/characters/build";
 const UNCHAIN_CHARACTER_IMPORT_ENDPOINT = "/characters/import";
 
+const resolvePositiveReplaySetting = (value, fallback) => {
+  const candidate = Number(value);
+  return Number.isSafeInteger(candidate) && candidate > 0
+    ? candidate
+    : fallback;
+};
+
+const createStreamAbortError = (signal) => {
+  if (signal?.reason instanceof Error) {
+    return signal.reason;
+  }
+  const error = new Error("The operation was aborted");
+  error.name = "AbortError";
+  error.code = "ABORT_ERR";
+  return error;
+};
+
+const readStreamBodyText = async (body) => {
+  const reader = body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let text = "";
+  try {
+    while (true) {
+      // eslint-disable-next-line no-await-in-loop
+      const { done, value } = await reader.read();
+      if (done) {
+        return text + decoder.decode();
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    if (typeof reader.releaseLock === "function") {
+      reader.releaseLock();
+    }
+  }
+};
+
+const createNodeStreamFetch = ({
+  httpRequest = nodeHttpRequest,
+  httpsRequest = nodeHttpsRequest,
+} = {}) => {
+  return (url, options = {}) =>
+    new Promise((resolve, reject) => {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(url);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      const requestImpl =
+        parsedUrl.protocol === "http:"
+          ? httpRequest
+          : parsedUrl.protocol === "https:"
+            ? httpsRequest
+            : null;
+      if (typeof requestImpl !== "function") {
+        reject(
+          new TypeError(
+            `Unsupported stream protocol: ${parsedUrl.protocol || "unknown"}`,
+          ),
+        );
+        return;
+      }
+
+      const signal = options.signal;
+      if (signal?.aborted) {
+        reject(createStreamAbortError(signal));
+        return;
+      }
+
+      let request = null;
+      let responseStream = null;
+      let responseSettled = false;
+      let abortHandled = false;
+      let abortListener = null;
+      const cleanupAbortListener = () => {
+        if (
+          signal &&
+          abortListener &&
+          typeof signal.removeEventListener === "function"
+        ) {
+          signal.removeEventListener("abort", abortListener);
+        }
+      };
+      const rejectBeforeResponse = (error) => {
+        if (responseSettled) {
+          return;
+        }
+        responseSettled = true;
+        cleanupAbortListener();
+        reject(error);
+      };
+
+      try {
+        request = requestImpl(
+          parsedUrl,
+          {
+            method: options.method || "GET",
+            headers: options.headers || {},
+          },
+          (incomingResponse) => {
+            if (responseSettled) {
+              incomingResponse.destroy();
+              return;
+            }
+
+            responseStream = incomingResponse;
+            let body;
+            try {
+              body = Readable.toWeb(incomingResponse);
+            } catch (error) {
+              incomingResponse.destroy();
+              rejectBeforeResponse(error);
+              return;
+            }
+
+            responseSettled = true;
+            incomingResponse.once("end", cleanupAbortListener);
+            incomingResponse.once("close", cleanupAbortListener);
+            incomingResponse.once("error", cleanupAbortListener);
+            const status = Number(incomingResponse.statusCode || 0);
+            resolve({
+              ok: status >= 200 && status < 300,
+              status,
+              statusText: incomingResponse.statusMessage || "",
+              body,
+              text: () => readStreamBodyText(body),
+            });
+          },
+        );
+      } catch (error) {
+        rejectBeforeResponse(error);
+        return;
+      }
+
+      request.once("error", rejectBeforeResponse);
+      if (typeof request.setTimeout === "function") {
+        request.setTimeout(0);
+      }
+
+      if (signal && typeof signal.addEventListener === "function") {
+        abortListener = () => {
+          if (abortHandled) {
+            return;
+          }
+          abortHandled = true;
+          const error = createStreamAbortError(signal);
+          if (responseStream && !responseStream.destroyed) {
+            responseStream.destroy(error);
+          }
+          if (request && !request.destroyed) {
+            request.destroy(error);
+          }
+          rejectBeforeResponse(error);
+        };
+        signal.addEventListener("abort", abortListener, { once: true });
+        if (signal.aborted) {
+          abortListener();
+          return;
+        }
+      }
+
+      try {
+        request.end(options.body);
+      } catch (error) {
+        if (!request.destroyed) {
+          request.destroy(error);
+        }
+        rejectBeforeResponse(error);
+      }
+    });
+};
+
+class MisoRuntimeContractError extends Error {
+  constructor(message, contract = null) {
+    super(message);
+    this.name = "MisoRuntimeContractError";
+    this.code = "miso_runtime_contract_incompatible";
+    this.retryable = false;
+    this.contract = contract;
+  }
+}
+
+const cloneRuntimeContract = (contract) => {
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    return null;
+  }
+  return JSON.parse(JSON.stringify(contract));
+};
+
+const readMisoHealthPayload = async (response) => {
+  try {
+    if (typeof response?.json === "function") {
+      return await response.json();
+    }
+    if (typeof response?.text === "function") {
+      const text = await response.text();
+      return JSON.parse(text);
+    }
+  } catch (error) {
+    throw new MisoRuntimeContractError(
+      `Miso health returned invalid JSON: ${error?.message || String(error)}`,
+    );
+  }
+  throw new MisoRuntimeContractError(
+    "Miso health response did not include a JSON body",
+  );
+};
+
+const validateMisoRuntimeContract = (healthPayload) => {
+  const contract = healthPayload?.contract;
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    throw new MisoRuntimeContractError(
+      "Miso runtime contract is missing from /health",
+    );
+  }
+
+  const fail = (reason) => {
+    throw new MisoRuntimeContractError(
+      `Incompatible Miso runtime contract: ${reason}`,
+      contract,
+    );
+  };
+  if (contract.schema !== UNCHAIN_RUNTIME_CONTRACT_SCHEMA) {
+    fail(
+      `expected schema ${UNCHAIN_RUNTIME_CONTRACT_SCHEMA}, received ${String(
+        contract.schema || "missing",
+      )}`,
+    );
+  }
+  if (contract.version !== UNCHAIN_RUNTIME_CONTRACT_VERSION) {
+    fail(
+      `expected version ${UNCHAIN_RUNTIME_CONTRACT_VERSION}, received ${String(
+        contract.version ?? "missing",
+      )}`,
+    );
+  }
+
+  const capabilities = contract.capabilities;
+  if (
+    !capabilities ||
+    typeof capabilities !== "object" ||
+    Array.isArray(capabilities)
+  ) {
+    fail("capabilities are missing");
+  }
+  for (const capability of [
+    "runtime_events_v4",
+    "execution_fencing",
+    "durable_interactions",
+    "exact_cancellation",
+  ]) {
+    if (capabilities[capability] !== true) {
+      const reason = contract.reasons?.[capability];
+      fail(
+        `${capability} is required${
+          typeof reason === "string" && reason.trim()
+            ? ` (${reason.trim()})`
+            : ""
+        }`,
+      );
+    }
+  }
+
+  const durableJobs = capabilities.durable_jobs;
+  if (
+    !durableJobs ||
+    typeof durableJobs !== "object" ||
+    Array.isArray(durableJobs)
+  ) {
+    fail("durable_jobs capability is missing");
+  }
+  if (durableJobs.version !== UNCHAIN_DURABLE_JOBS_VERSION) {
+    fail(
+      `expected durable_jobs ${UNCHAIN_DURABLE_JOBS_VERSION}, received ${String(
+        durableJobs.version || "missing",
+      )}`,
+    );
+  }
+  if (durableJobs.available !== true) {
+    const reason =
+      typeof durableJobs.reason === "string" ? durableJobs.reason.trim() : "";
+    fail(
+      `durable_jobs ${UNCHAIN_DURABLE_JOBS_VERSION} is unavailable${
+        reason ? ` (${reason})` : ""
+      }`,
+    );
+  }
+  if (capabilities.automatic_wake_resume !== false) {
+    fail("automatic_wake_resume must be explicitly false");
+  }
+  return contract;
+};
+
+const resolveComputerUseReleaseFlag = ({ app, fs, path }) => {
+  const explicit = process.env[COMPUTER_USE_RELEASE_ENV_KEY];
+  if (typeof explicit === "string" && explicit.trim()) {
+    return FEATURE_FLAG_TRUE_VALUES.has(explicit.trim().toLowerCase());
+  }
+
+  if (typeof fs?.readFileSync !== "function") {
+    return false;
+  }
+
+  const snapshotPath = app.isPackaged
+    ? path.join(app.getAppPath(), "build", "build_feature_flags.json")
+    : path.join(
+        app.getAppPath(),
+        ".local",
+        "build_feature_flags.snapshot.json",
+      );
+  try {
+    if (typeof fs.existsSync === "function" && !fs.existsSync(snapshotPath)) {
+      return false;
+    }
+    const payload = JSON.parse(fs.readFileSync(snapshotPath, "utf-8"));
+    return payload?.[COMPUTER_USE_BUILD_FEATURE_KEY] === true;
+  } catch {
+    return false;
+  }
+};
+
 const createUnchainService = ({
   app,
   fs,
@@ -48,21 +411,52 @@ const createUnchainService = ({
   spawnSync,
   crypto,
   net,
+  streamRequestImpl = createNodeStreamFetch(),
+  streamReplayConfig = {},
   shell = {},
   webContents,
   runtimeService,
+  // Phase 4 (S4): main-internal provider-secret reader. Injected exactly the way
+  // runtimeService is (index.js). Its readDecryptedProviderSecret is a
+  // MAIN-INTERNAL method — never on the IPC allowlist, never bridged to renderer.
+  settingsStorageService,
   getAppIsQuitting,
 }) => {
   let unchainProcess = null;
   let unchainPort = null;
   let unchainStatus = "stopped";
   let unchainStatusReason = "";
+  let unchainRuntimeContract = null;
   let unchainAuthToken = "";
   let unchainRestartTimer = null;
   let unchainIsStopping = false;
+  let unchainPreserveStatusOnStop = false;
   let unchainStartPromise = null;
+  // Tri-state desired computer-use flag. `null` = renderer has never expressed a
+  // preference (do not touch sidecar env or re-push on restart); `true`/`false`
+  // = last desired state, re-pushed after every ready transition so a sidecar
+  // crash-restart converges back to the user's choice with no renderer involved.
+  let lastComputerUseDesired = null;
+  let lastComputerUseLocalBetaDesired = null;
 
   const unchainActiveStreams = new Map();
+  const unchainStreamReplays = new Map();
+  const replayConfig =
+    streamReplayConfig && typeof streamReplayConfig === "object"
+      ? streamReplayConfig
+      : {};
+  const streamReplayMaxEvents = resolvePositiveReplaySetting(
+    replayConfig.maxEvents,
+    UNCHAIN_STREAM_REPLAY_MAX_EVENTS,
+  );
+  const streamReplayMaxBytes = resolvePositiveReplaySetting(
+    replayConfig.maxBytes,
+    UNCHAIN_STREAM_REPLAY_MAX_BYTES,
+  );
+  const streamReplayTtlMs = resolvePositiveReplaySetting(
+    replayConfig.ttlMs,
+    UNCHAIN_STREAM_REPLAY_TTL_MS,
+  );
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const { findAvailablePort } = createPortFinder(net);
@@ -120,6 +514,12 @@ const createUnchainService = ({
         continue;
       }
       if (!parsed.command.includes(matchToken)) {
+        continue;
+      }
+      // The frozen durable-job wrapper intentionally outlives the sidecar.
+      // It reuses the same packaged binary, so matching by executable path
+      // alone would destroy a healthy job whenever PuPu restarts.
+      if (parsed.command.includes(UNCHAIN_DURABLE_JOB_WORKER_FLAG)) {
         continue;
       }
       stalePids.push(parsed.pid);
@@ -415,11 +815,25 @@ const createUnchainService = ({
         `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_HEALTH_ENDPOINT}`,
         {
           method: "GET",
-          headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+          headers: unchainAuthToken
+            ? { "x-unchain-auth": unchainAuthToken }
+            : {},
         },
       );
-      return response.ok;
-    } catch {
+      if (!response.ok) {
+        return false;
+      }
+      const healthPayload = await readMisoHealthPayload(response);
+      unchainRuntimeContract = cloneRuntimeContract(healthPayload?.contract);
+      validateMisoRuntimeContract(healthPayload);
+      return true;
+    } catch (error) {
+      if (error?.code === "miso_runtime_contract_incompatible") {
+        unchainRuntimeContract = cloneRuntimeContract(
+          error.contract || unchainRuntimeContract,
+        );
+        throw error;
+      }
       return false;
     }
   };
@@ -429,19 +843,23 @@ const createUnchainService = ({
 
     while (Date.now() - startedAt < UNCHAIN_BOOT_TIMEOUT_MS) {
       if (!unchainProcess || unchainProcess.killed) {
-        return false;
+        return { ready: false, error: null };
       }
 
-      // eslint-disable-next-line no-await-in-loop
-      if (await pingMiso()) {
-        return true;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        if (await pingMiso()) {
+          return { ready: true, error: null };
+        }
+      } catch (error) {
+        return { ready: false, error };
       }
 
       // eslint-disable-next-line no-await-in-loop
       await sleep(UNCHAIN_HEALTH_RETRY_MS);
     }
 
-    return false;
+    return { ready: false, error: null };
   };
 
   const getMisoStatusPayload = () => ({
@@ -451,6 +869,7 @@ const createUnchainService = ({
     pid: unchainProcess?.pid || null,
     port: unchainPort,
     url: unchainPort ? `http://${UNCHAIN_HOST}:${unchainPort}` : null,
+    contract: cloneRuntimeContract(unchainRuntimeContract),
   });
 
   const ensureMisoReady = () => {
@@ -595,6 +1014,190 @@ const createUnchainService = ({
     );
   };
 
+  const getComputerUseDisabledPayload = (reason = "") => ({
+    enabled: false,
+    feature_available: false,
+    local_beta_enabled: false,
+    reason,
+    capabilities: null,
+    active: null,
+  });
+
+  const getComputerUseStatusPayload = async () => {
+    if (unchainStatus === "starting") {
+      return getComputerUseDisabledPayload("starting");
+    }
+    if (unchainStatus !== "ready" || !unchainPort) {
+      return getComputerUseDisabledPayload(unchainStatusReason || "not_ready");
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_COMPUTER_USE_STATUS_ENDPOINT}`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Computer use status request failed",
+      getComputerUseDisabledPayload("empty_response"),
+      "Invalid computer use status response",
+    );
+  };
+
+  const openComputerUsePrivacySettings = async (target = "") => {
+    const key = typeof target === "string" ? target.trim() : "";
+    const url = COMPUTER_USE_PRIVACY_DEEP_LINKS[key];
+    if (!url) {
+      return { ok: false, error: `Unknown privacy target: ${key || "(empty)"}` };
+    }
+    if (!shell || typeof shell.openExternal !== "function") {
+      return { ok: false, error: "openExternal is unavailable" };
+    }
+    try {
+      await shell.openExternal(url);
+      return { ok: true, target: key };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error?.message || "Failed to open System Settings",
+      };
+    }
+  };
+
+  // Runtime override POST to the sidecar. Assumes readiness has already been
+  // asserted by the caller (setComputerUseEnabled) or that we are inside the
+  // post-ready re-push path. Always sends the auth header; a missing token is a
+  // structured error rather than an unauthenticated write.
+  const pushComputerUseConfig = async (
+    enabled = undefined,
+    localBetaEnabled = undefined,
+  ) => {
+    if (!unchainAuthToken) {
+      const error = new Error(
+        "Computer use config request failed: missing auth token",
+      );
+      error.code = "missing_auth_token";
+      throw error;
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_COMPUTER_USE_CONFIG_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-unchain-auth": unchainAuthToken,
+        },
+        body: JSON.stringify({
+          ...(typeof enabled === "boolean" ? { enabled } : {}),
+          ...(typeof localBetaEnabled === "boolean"
+            ? { local_beta_enabled: localBetaEnabled }
+            : {}),
+        }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Computer use config request failed",
+      {
+        ...(typeof enabled === "boolean" ? { enabled } : {}),
+        ...(typeof localBetaEnabled === "boolean"
+          ? { local_beta_enabled: localBetaEnabled }
+          : {}),
+      },
+      "Invalid computer use config response",
+    );
+  };
+
+  // Renderer-driven enable/disable of computer use. Updates the desired-state
+  // cache FIRST (so a crash-restart re-push converges even if this POST fails),
+  // then performs the authorized runtime override POST. Strict boolean only.
+  const setComputerUseEnabled = async (enabled) => {
+    if (typeof enabled !== "boolean") {
+      const error = new Error(
+        "setComputerUseEnabled requires a strict boolean enabled flag",
+      );
+      error.code = "invalid_argument";
+      throw error;
+    }
+
+    lastComputerUseDesired = enabled;
+    ensureMisoReady();
+    const result = await pushComputerUseConfig(enabled);
+    return { ok: true, ...result };
+  };
+
+  const setComputerUseLocalBetaEnabled = async (enabled) => {
+    if (typeof enabled !== "boolean") {
+      const error = new Error(
+        "setComputerUseLocalBetaEnabled requires a strict boolean enabled flag",
+      );
+      error.code = "invalid_argument";
+      throw error;
+    }
+
+    lastComputerUseLocalBetaDesired = enabled;
+    ensureMisoReady();
+    const result = await pushComputerUseConfig(undefined, enabled);
+    return { ok: true, ...result };
+  };
+
+  const probeComputerUseModel = async (model, force = false) => {
+    if (typeof model !== "string" || !model.trim() || typeof force !== "boolean") {
+      const error = new Error("probeComputerUseModel requires a model and boolean force flag");
+      error.code = "invalid_argument";
+      throw error;
+    }
+    ensureMisoReady();
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_COMPUTER_USE_PROBE_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify({ model: model.trim(), force }),
+      },
+    );
+    return readJsonResponse(
+      response,
+      "Computer use model probe failed",
+      {},
+      "Invalid computer use probe response",
+    );
+  };
+
+  // Fire-and-forget re-push of the cached desired state after a ready
+  // transition. Never throws into the startup path: on failure the sidecar
+  // defaults fail-closed (off) plus the spawn env carries the same value, so a
+  // dropped re-push degrades safely rather than breaking boot.
+  const resyncComputerUseConfig = async () => {
+    if (
+      lastComputerUseDesired === null &&
+      lastComputerUseLocalBetaDesired === null
+    ) {
+      return;
+    }
+    try {
+      await pushComputerUseConfig(
+        lastComputerUseDesired === null ? undefined : lastComputerUseDesired,
+        lastComputerUseLocalBetaDesired === null
+          ? undefined
+          : lastComputerUseLocalBetaDesired,
+      );
+    } catch (error) {
+      emitMisoRuntimeLog(
+        "stderr",
+        `computer-use resync failed: ${error?.message || String(error)}`,
+      );
+    }
+  };
+
   const getMisoToolkitCatalogPayload = async () => {
     if (unchainStatus === "starting") {
       return { toolkits: [], artifactKinds: [], count: 0, source: "" };
@@ -733,6 +1336,204 @@ const createUnchainService = ({
       {},
       "Invalid Miso MCP toolkit install response",
     );
+  };
+
+  /* Skill-pack install/delete — persists an imported PURE-SKILL pack to the
+     backend skill_packs store (which never opens an MCP connection). The
+     descriptor is built entirely on the renderer (skill_pack_import.js); this
+     is a thin relay. Backend error codes (skill_pack_already_installed 409,
+     invalid_skill_pack 400) propagate via readJsonResponse's error.code. */
+  const installMisoSkillPack = async (payload = {}) => {
+    ensureMisoReady();
+
+    const source = payload && typeof payload === "object" ? payload : {};
+    const pack = source.pack && typeof source.pack === "object" ? source.pack : {};
+    const response = await fetch(buildMisoUrl(UNCHAIN_SKILLPACK_INSTALL_ENDPOINT), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+      },
+      body: JSON.stringify({ pack }),
+    });
+
+    return readJsonResponse(
+      response,
+      "Miso skill pack install request failed",
+      {},
+      "Invalid Miso skill pack install response",
+    );
+  };
+
+  const deleteMisoSkillPack = async (toolkitId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof toolkitId === "string" ? toolkitId.trim() : "";
+    if (!cleanId) {
+      throw new Error("toolkitId is required");
+    }
+
+    const response = await fetch(
+      buildMisoUrl(
+        `${UNCHAIN_SKILLPACKS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      ),
+      {
+        method: "DELETE",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso skill pack delete request failed",
+      {},
+      "Invalid Miso skill pack delete response",
+    );
+  };
+
+  // Custom Model Provider — test-connection relay (design §6.5 / §7.6).
+  //
+  // Contract: forwards { custom_provider, api_key } to Miso's
+  // POST /models/custom-providers/test. The request body carries a one-shot
+  // API key, so this method deliberately performs NO body-level logging
+  // (design §9.4 red line — no api_key may reach any log). It also returns a
+  // structured { ok:false, error:{ code, message } } on transport failure
+  // instead of throwing a raw exception, so the renderer always gets a shape
+  // it can render. Backend success/structured-failure bodies pass through
+  // untouched (Miso answers 200 for both; the `ok` field is the signal).
+  const testMisoCustomProvider = async (payload = {}) => {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const customProvider =
+      source.custom_provider && typeof source.custom_provider === "object"
+        ? source.custom_provider
+        : null;
+    const apiKey =
+      typeof source.api_key === "string" ? source.api_key : "";
+
+    if (!customProvider) {
+      return {
+        ok: false,
+        error: {
+          code: "custom_provider_invalid",
+          message: "custom_provider is required",
+        },
+      };
+    }
+
+    try {
+      ensureMisoReady();
+    } catch {
+      return {
+        ok: false,
+        error: {
+          code: "provider_service_unavailable",
+          message: "The model runtime is not ready",
+        },
+      };
+    }
+
+    // Timeout slightly larger than the backend's 15s hard probe timeout so the
+    // structured `provider_timeout` from Flask wins the race when the provider
+    // is merely slow; this abort only fires if the whole round-trip stalls.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    try {
+      const response = await fetch(
+        buildMisoUrl(UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(unchainAuthToken
+              ? { "x-unchain-auth": unchainAuthToken }
+              : {}),
+          },
+          body: JSON.stringify({
+            custom_provider: customProvider,
+            api_key: apiKey,
+          }),
+          signal: controller.signal,
+        },
+      );
+
+      const bodyText = await response.text();
+
+      if (!response.ok) {
+        let code = "provider_bad_response";
+        let message = `Custom provider test failed (${response.status})`;
+        if (bodyText) {
+          try {
+            const parsed = JSON.parse(bodyText);
+            const serverCode =
+              (typeof parsed?.code === "string" && parsed.code.trim()) ||
+              (typeof parsed?.error?.code === "string" &&
+                parsed.error.code.trim()) ||
+              "";
+            const serverMessage =
+              (typeof parsed?.message === "string" && parsed.message.trim()) ||
+              (typeof parsed?.error?.message === "string" &&
+                parsed.error.message.trim()) ||
+              (typeof parsed?.error === "string" && parsed.error.trim()) ||
+              "";
+            if (serverCode) {
+              code = serverCode;
+            }
+            if (serverMessage) {
+              message = serverMessage;
+            }
+          } catch {
+            // Non-JSON error body: keep the generic code, avoid echoing the
+            // raw body (it could contain redacted-but-sensitive fragments).
+          }
+        }
+        return { ok: false, error: { code, message } };
+      }
+
+      if (!bodyText) {
+        return {
+          ok: false,
+          error: {
+            code: "provider_bad_response",
+            message: "Empty response from model runtime",
+          },
+        };
+      }
+
+      try {
+        return JSON.parse(bodyText);
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "provider_bad_response",
+            message: "Invalid response from model runtime",
+          },
+        };
+      }
+    } catch (error) {
+      const aborted =
+        error &&
+        (error.name === "AbortError" || controller.signal.aborted);
+      if (aborted) {
+        return {
+          ok: false,
+          error: {
+            code: "provider_timeout",
+            message: "The provider did not respond in time.",
+          },
+        };
+      }
+      return {
+        ok: false,
+        error: {
+          code: "provider_unreachable",
+          message: "Could not reach the model runtime",
+        },
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   };
 
   const submitMisoInterject = async (payload = {}) => {
@@ -889,23 +1690,109 @@ const createUnchainService = ({
       "Invalid Miso MCP OAuth start response",
     );
     const authUrl = typeof payload.authUrl === "string" ? payload.authUrl : "";
-    if (authUrl && shell && typeof shell.openExternal === "function") {
-      await shell.openExternal(authUrl);
+    const state = typeof payload.state === "string" ? payload.state.trim() : "";
+    if (!state) {
+      throw new Error("Invalid Miso MCP OAuth start response: state is required");
+    }
+    if (!authUrl) {
+      const cancellation = await cancelMisoMcpOAuth(state);
+      if (cancellation?.cancelled !== true) {
+        const error = new Error(
+          "Invalid Miso MCP OAuth start response; the attempt could not be safely cancelled",
+        );
+        error.code = "mcp_oauth_start_cancel_failed";
+        throw error;
+      }
+      const error = new Error(
+        "Invalid Miso MCP OAuth start response: authorization URL is required",
+      );
+      error.code = "mcp_oauth_start_failed";
+      throw error;
+    }
+    if (!shell || typeof shell.openExternal !== "function") {
+      const cancellation = await cancelMisoMcpOAuth(state);
+      if (cancellation?.cancelled !== true) {
+        const error = new Error(
+          "The OAuth authorization page is unavailable and the attempt could not be safely cancelled",
+        );
+        error.code = "mcp_oauth_browser_open_cancel_failed";
+        throw error;
+      }
+      const error = new Error("The OAuth authorization page is unavailable");
+      error.code = "mcp_oauth_browser_open_failed";
+      throw error;
+    }
+    if (authUrl) {
+      try {
+        await shell.openExternal(authUrl);
+      } catch (openError) {
+        let cancellation;
+        try {
+          cancellation = await cancelMisoMcpOAuth(state);
+        } catch {
+          const error = new Error(
+            "Failed to open the OAuth authorization page and cancel the attempt",
+          );
+          error.code = "mcp_oauth_browser_open_cancel_failed";
+          throw error;
+        }
+        if (cancellation?.cancelled !== true) {
+          const error = new Error(
+            "Failed to open the OAuth authorization page; the attempt could not be safely cancelled",
+          );
+          error.code = "mcp_oauth_browser_open_cancel_failed";
+          throw error;
+        }
+        const error = new Error(
+          "Failed to open the OAuth authorization page; the attempt was cancelled",
+        );
+        error.code = "mcp_oauth_browser_open_failed";
+        error.cause = openError;
+        throw error;
+      }
     }
     return payload;
   };
 
-  const getMisoMcpOAuthStatus = async (entryId) => {
+  const cancelMisoMcpOAuth = async (state) => {
     ensureMisoReady();
 
-    const cleanEntryId = typeof entryId === "string" ? entryId.trim() : "";
-    if (!cleanEntryId) {
-      throw new Error("entryId is required");
+    const cleanState = typeof state === "string" ? state.trim() : "";
+    if (!cleanState) {
+      throw new Error("state is required");
+    }
+
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_MCP_OAUTH_CANCEL_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify({ state: cleanState }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP OAuth cancel request failed",
+      {},
+      "Invalid Miso MCP OAuth cancel response",
+    );
+  };
+
+  const getMisoMcpOAuthStatus = async (state) => {
+    ensureMisoReady();
+
+    const cleanState = typeof state === "string" ? state.trim() : "";
+    if (!cleanState) {
+      throw new Error("state is required");
     }
 
     const response = await fetch(
       buildMisoUrl(
-        `${UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT}?entry_id=${encodeURIComponent(cleanEntryId)}`,
+        `${UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT}?state=${encodeURIComponent(cleanState)}`,
       ),
       {
         method: "GET",
@@ -916,7 +1803,7 @@ const createUnchainService = ({
     return readJsonResponse(
       response,
       "Miso MCP OAuth status request failed",
-      { entryId: cleanEntryId, toolkitId: "", authStatus: "unknown" },
+      { entryId: "", toolkitId: "", authStatus: "unknown" },
       "Invalid Miso MCP OAuth status response",
     );
   };
@@ -1329,8 +2216,36 @@ const createUnchainService = ({
     const messages = Array.isArray(payload?.messages) ? payload.messages : [];
     const options =
       payload?.options && typeof payload.options === "object"
-        ? payload.options
+        ? { ...payload.options }
         : {};
+    // Phase 4 (S4): this is a secret-bearing outbound path too (memory
+    // re-extraction needs the model key). Run the SAME strip+inject helper so
+    // the descriptor never leaks to Flask and a decryption failure fails closed
+    // instead of a keyless forward (contract B2).
+    const secretInjection = applyProviderSecretInjection(options);
+    if (!secretInjection.ok) {
+      return {
+        applied: false,
+        error: {
+          code: secretInjection.code,
+          message: secretInjection.message,
+          retryable: false,
+          status: 0,
+        },
+      };
+    }
+    const operationIdRaw = payload?.operationId ?? payload?.operation_id;
+    const operationId =
+      typeof operationIdRaw === "string" ? operationIdRaw.trim() : "";
+    const expectedSessionRevisionRaw =
+      payload?.expectedSessionRevision ?? payload?.expected_session_revision;
+    const expectedSessionRevision = Number(expectedSessionRevisionRaw);
+    const expectedCancelAttemptIdRaw =
+      payload?.expectedCancelAttemptId ?? payload?.expected_cancel_attempt_id;
+    const expectedCancelAttemptId =
+      typeof expectedCancelAttemptIdRaw === "string"
+        ? expectedCancelAttemptIdRaw.trim()
+        : "";
 
     const response = await fetch(
       `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_REPLACE_SESSION_MEMORY_ENDPOINT}`,
@@ -1344,16 +2259,80 @@ const createUnchainService = ({
           session_id: sessionId,
           messages,
           options,
+          ...(operationId ? { operation_id: operationId } : {}),
+          ...(Number.isInteger(expectedSessionRevision) &&
+          expectedSessionRevision >= 0
+            ? { expected_session_revision: expectedSessionRevision }
+            : {}),
+          ...(expectedCancelAttemptId
+            ? { expected_cancel_attempt_id: expectedCancelAttemptId }
+            : {}),
         }),
       },
     );
 
-    return readJsonResponse(
-      response,
-      "Miso session memory replace request failed",
-      {},
-      "Invalid Miso session memory replace response",
-    );
+    const bodyText = await response.text();
+    if (!response.ok) {
+      const status = Number.isInteger(response.status) ? response.status : 0;
+      let parsed = null;
+      if (bodyText) {
+        try {
+          parsed = JSON.parse(bodyText);
+        } catch {
+          parsed = null;
+        }
+      }
+      const serverError =
+        parsed?.error &&
+        typeof parsed.error === "object" &&
+        !Array.isArray(parsed.error)
+          ? parsed.error
+          : {};
+      const code =
+        typeof serverError.code === "string" && serverError.code.trim()
+          ? serverError.code.trim()
+          : "memory_replace_failed";
+      const message =
+        (typeof serverError.message === "string" &&
+          serverError.message.trim()) ||
+        (bodyText && !parsed ? bodyText.slice(0, 200) : "") ||
+        `Miso session memory replace request failed (${status})`;
+      const expectedRevision = serverError.expected_revision;
+      const actualRevision = serverError.actual_revision;
+      return {
+        applied: false,
+        error: {
+          code,
+          message,
+          retryable: serverError.retryable === true,
+          status,
+          expected_revision:
+            Number.isInteger(expectedRevision) && expectedRevision >= 0
+              ? expectedRevision
+              : null,
+          actual_revision:
+            Number.isInteger(actualRevision) && actualRevision >= 0
+              ? actualRevision
+              : null,
+        },
+      };
+    }
+
+    if (!bodyText) {
+      throw new Error("Invalid Miso session memory replace response");
+    }
+    try {
+      const parsed = JSON.parse(bodyText);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Invalid Miso session memory replace response");
+      }
+      return parsed;
+    } catch (error) {
+      if (error?.message === "Invalid Miso session memory replace response") {
+        throw error;
+      }
+      throw new Error("Invalid Miso session memory replace response");
+    }
   };
 
   const getMisoSessionMemoryExport = async (sessionId) => {
@@ -1747,14 +2726,24 @@ const createUnchainService = ({
     if (!confirmationId) {
       throw new Error("confirmation_id is required");
     }
+    if (typeof payload?.approved !== "boolean") {
+      throw new Error("approved must be a boolean");
+    }
 
     const reasonRaw = payload?.reason;
     const requestBody = {
       confirmation_id: confirmationId,
-      approved: Boolean(payload?.approved),
+      approved: payload.approved,
       reason:
         typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
     };
+
+    const sessionIdRaw = payload?.session_id || payload?.sessionId;
+    const sessionId =
+      typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+    if (sessionId) {
+      requestBody.session_id = sessionId;
+    }
 
     const modifiedArguments = payload?.modified_arguments;
     if (modifiedArguments != null) {
@@ -1787,17 +2776,182 @@ const createUnchainService = ({
     );
   };
 
-  const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
-    const target = webContents.fromId(targetWebContentsId);
-    if (!target || target.isDestroyed()) {
-      return;
+  const getMisoPendingInteraction = async (payload = {}) => {
+    ensureMisoReady();
+
+    const sessionIdRaw = payload?.session_id || payload?.sessionId;
+    const sessionId =
+      typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+    if (!sessionId) {
+      throw new Error("session_id is required");
     }
 
-    target.send(CHANNELS.UNCHAIN.STREAM_EVENT, {
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_PENDING_INTERACTION_ENDPOINT}?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        method: "GET",
+        headers: {
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso pending interaction request failed",
+      { status: "none", session_id: sessionId },
+      "Invalid Miso pending interaction response",
+    );
+  };
+
+  const clearMisoStreamReplayExpiry = (streamState) => {
+    if (streamState?.replayExpiryTimer) {
+      clearTimeout(streamState.replayExpiryTimer);
+      streamState.replayExpiryTimer = null;
+    }
+  };
+
+  const expireMisoStreamReplay = (requestId, streamState) => {
+    clearMisoStreamReplayExpiry(streamState);
+    streamState.replayExpiryTimer = setTimeout(() => {
+      if (unchainStreamReplays.get(requestId) === streamState) {
+        unchainStreamReplays.delete(requestId);
+      }
+    }, streamReplayTtlMs);
+    if (typeof streamState.replayExpiryTimer.unref === "function") {
+      streamState.replayExpiryTimer.unref();
+    }
+  };
+
+  const isTerminalMisoStreamEvent = (event, data) =>
+    event === "done" ||
+    event === "error" ||
+    (event === "frame" &&
+      (data?.type === "done" || data?.type === "error"));
+
+  const measureMisoStreamReplayEnvelope = (envelope) => {
+    try {
+      return Buffer.byteLength(JSON.stringify(envelope), "utf8");
+    } catch {
+      return streamReplayMaxBytes + 1;
+    }
+  };
+
+  const trimMisoStreamReplay = (streamState) => {
+    while (
+      streamState.replayBuffer.length - streamState.replayHead >
+        streamReplayMaxEvents ||
+      streamState.replayBytes > streamReplayMaxBytes
+    ) {
+      const replayEntry = streamState.replayBuffer[streamState.replayHead];
+      streamState.replayBuffer[streamState.replayHead] = null;
+      streamState.replayHead += 1;
+      if (replayEntry) {
+        streamState.replayBytes = Math.max(
+          0,
+          streamState.replayBytes - replayEntry.byteSize,
+        );
+      }
+    }
+
+    if (
+      streamState.replayHead >= UNCHAIN_STREAM_REPLAY_COMPACT_MIN_HEAD &&
+      streamState.replayHead * 2 >= streamState.replayBuffer.length
+    ) {
+      streamState.replayBuffer = streamState.replayBuffer.slice(
+        streamState.replayHead,
+      );
+      streamState.replayHead = 0;
+    }
+  };
+
+  const recordMisoStreamEvent = (requestId, event, data) => {
+    const streamState = unchainStreamReplays.get(requestId);
+    if (!streamState) {
+      return null;
+    }
+    const streamSeq = streamState.nextReplaySeq;
+    streamState.nextReplaySeq += 1;
+    const envelope = { requestId, event, data, streamSeq };
+    const byteSize = measureMisoStreamReplayEnvelope(envelope);
+    streamState.replayBuffer.push({ envelope, byteSize });
+    streamState.replayBytes += byteSize;
+    trimMisoStreamReplay(streamState);
+    if (isTerminalMisoStreamEvent(event, data)) {
+      streamState.terminal = true;
+      streamState.terminalStreamSeq = streamSeq;
+    }
+    return envelope;
+  };
+
+  const resolveMisoStreamTarget = (targetOrId) => {
+    try {
+      const target =
+        targetOrId && typeof targetOrId.send === "function"
+          ? targetOrId
+          : webContents.fromId(
+              typeof targetOrId === "number" ? targetOrId : targetOrId?.id,
+            );
+      if (!target || typeof target.send !== "function") {
+        return null;
+      }
+      if (
+        typeof target.isDestroyed === "function" &&
+        target.isDestroyed()
+      ) {
+        return null;
+      }
+      return target;
+    } catch {
+      return null;
+    }
+  };
+
+  const sendMisoStreamEnvelope = (targetOrId, envelope) => {
+    const target = resolveMisoStreamTarget(targetOrId);
+    if (!target) {
+      return false;
+    }
+    try {
+      target.send(CHANNELS.UNCHAIN.STREAM_EVENT, envelope);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const emitMisoStreamDirectEvent = (target, requestId, event, data) =>
+    sendMisoStreamEnvelope(target, {
       requestId,
       event,
       data,
     });
+
+  const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
+    const streamState = unchainStreamReplays.get(requestId);
+    const envelope =
+      recordMisoStreamEvent(requestId, event, data) || {
+        requestId,
+        event,
+        data,
+      };
+    const attachedWebContentsId = streamState
+      ? streamState.attachedWebContentsId
+      : targetWebContentsId;
+    if (!attachedWebContentsId) {
+      return;
+    }
+    const attachedAttachmentId = streamState?.attachmentId || "";
+    const sent = sendMisoStreamEnvelope(attachedWebContentsId, envelope);
+    if (
+      !sent &&
+      streamState &&
+      streamState.attachedWebContentsId === attachedWebContentsId &&
+      streamState.attachmentId === attachedAttachmentId
+    ) {
+      streamState.attachedWebContentsId = null;
+      streamState.attachmentId = "";
+    }
   };
 
   const emitMisoRuntimeLog = (level, text) => {
@@ -1968,7 +3122,7 @@ const createUnchainService = ({
     }, UNCHAIN_RESTART_DELAY_MS);
   };
 
-  const stopMiso = () => {
+  const stopMiso = ({ preserveStatus = false } = {}) => {
     if (unchainRestartTimer) {
       clearTimeout(unchainRestartTimer);
       unchainRestartTimer = null;
@@ -1981,6 +3135,7 @@ const createUnchainService = ({
 
     if (unchainProcess && !unchainProcess.killed) {
       unchainIsStopping = true;
+      unchainPreserveStatusOnStop = Boolean(preserveStatus);
       unchainProcess.kill("SIGTERM");
       setTimeout(() => {
         if (unchainProcess && !unchainProcess.killed) {
@@ -1988,7 +3143,9 @@ const createUnchainService = ({
         }
       }, 1200);
     } else {
-      unchainStatus = "stopped";
+      if (!preserveStatus) {
+        unchainStatus = "stopped";
+      }
       if (getAppIsQuitting()) {
         unchainStatusReason = "";
       }
@@ -2005,6 +3162,7 @@ const createUnchainService = ({
 
     unchainStatus = "starting";
     unchainStatusReason = "";
+    unchainRuntimeContract = null;
 
     unchainStartPromise = (async () => {
       let entrypoint;
@@ -2035,6 +3193,11 @@ const createUnchainService = ({
       const devUnchainSourcePath = app.isPackaged
         ? null
         : resolveDevUnchainSourcePath();
+      const computerUseReleaseEnabled = resolveComputerUseReleaseFlag({
+        app,
+        fs,
+        path,
+      });
       unchainProcess = spawn(entrypoint.command, entrypoint.args, {
         detached: false,
         cwd: entrypoint.cwd,
@@ -2052,6 +3215,25 @@ const createUnchainService = ({
           PYTHONIOENCODING: process.env.PYTHONIOENCODING || "utf-8",
           PYTHONUTF8: process.env.PYTHONUTF8 || "1",
           ...(devUnchainSourcePath ? { UNCHAIN_SOURCE_PATH: devUnchainSourcePath } : {}),
+          // Hard release/build ceiling. Unlike PUPU_COMPUTER_USE below, this
+          // value never comes from the renderer's user toggle. Packaged apps
+          // read the build artifact; development may use the .local build
+          // snapshot or an explicit process env override.
+          [COMPUTER_USE_RELEASE_ENV_KEY]: computerUseReleaseEnabled ? "1" : "0",
+          // Belt-and-braces for the desired computer-use flag. Set AFTER the
+          // process.env spread so an explicit user choice wins over any dev
+          // PUPU_COMPUTER_USE in the ambient env. "0" is not in the sidecar's
+          // truthy set, so OFF parses as disabled. Omitted entirely when the
+          // renderer has never expressed a preference (null cache).
+          ...(lastComputerUseDesired !== null
+            ? { PUPU_COMPUTER_USE: lastComputerUseDesired ? "1" : "0" }
+            : {}),
+          ...(lastComputerUseLocalBetaDesired !== null
+            ? {
+                PUPU_COMPUTER_USE_LOCAL_BETA:
+                  lastComputerUseLocalBetaDesired ? "1" : "0",
+              }
+            : {}),
         },
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -2097,8 +3279,10 @@ const createUnchainService = ({
         unchainProcess = null;
 
         if (stoppedIntentionally) {
+          const preserveStatus = unchainPreserveStatusOnStop;
           unchainIsStopping = false;
-          if (!getAppIsQuitting()) {
+          unchainPreserveStatusOnStop = false;
+          if (!getAppIsQuitting() && !preserveStatus) {
             unchainStatus = "stopped";
           }
           return;
@@ -2113,27 +3297,39 @@ const createUnchainService = ({
         scheduleMisoRestart();
       });
 
-      const ready = await waitForMisoReady();
-      if (!ready) {
+      const readiness = await waitForMisoReady();
+      if (!readiness.ready) {
         const missingRuntime = unchainStatus === "not_found";
+        const contractError =
+          readiness.error?.code === "miso_runtime_contract_incompatible"
+            ? readiness.error
+            : null;
         if (!missingRuntime) {
           unchainStatus = "error";
           unchainStatusReason =
+            contractError?.message ||
             unchainStatusReason ||
             `Health check timed out after ${UNCHAIN_BOOT_TIMEOUT_MS}ms`;
         }
-        stopMiso();
+        stopMiso({ preserveStatus: Boolean(contractError) });
         if (missingRuntime) {
           unchainStatus = "not_found";
           unchainStatusReason = unchainStatusReason || "Miso runtime not found";
           return;
         }
-        scheduleMisoRestart();
+        if (!contractError) {
+          scheduleMisoRestart();
+        }
         return;
       }
 
       unchainStatus = "ready";
       unchainStatusReason = "";
+
+      // Re-assert the user's desired computer-use state after every ready
+      // transition (first boot AND crash-restart), with no renderer involved.
+      // Non-fatal by design (see resyncComputerUseConfig).
+      await resyncComputerUseConfig();
     })();
 
     try {
@@ -2278,17 +3474,156 @@ const createUnchainService = ({
     }
 
     if (!sawTerminalEvent && !controller.signal.aborted) {
-      emitMisoStreamEvent(webContentsId, requestId, "done", {
-        cancelled: false,
-        reason: "stream_closed",
+      emitMisoStreamEvent(webContentsId, requestId, "error", {
+        code: "unexpected_stream_eof",
+        message: "Miso stream ended before a terminal event",
       });
     }
+  };
+
+  // ---- Phase 4 (S4): provider-secret strip+inject seam ----------------------
+  // Frozen v2 descriptor contract (phase4-descriptor-contract.md). The renderer
+  // no longer writes secret VALUES into options; it writes a non-sensitive
+  // descriptor list:
+  //   options.__pupu_secret_injection = [{ kind, id, channel }, ...]
+  // INVARIANT (B2): every main outbound path that forwards renderer-normalized
+  // options to Flask MUST run this helper first. It decrypts each descriptor via
+  // the main-internal reader, writes the SAME byte-for-byte field set the
+  // renderer wrote today (per the fixed (id, channel) table below), and ALWAYS
+  // strips the descriptor so Flask never sees it. On any decryption failure it
+  // returns a fail-closed result — the caller must never keyless-forward.
+  const PROVIDER_SECRET_INJECTION_KEY = "__pupu_secret_injection";
+
+  // (kind, id, channel) -> exact ordered field set. This is the mechanical
+  // byte-equivalence guarantee: main replays the identical fields the renderer
+  // used to write. Custom providers use a DEDICATED named channel and NEVER the
+  // generic api_key/apiKey (A8/§9.1; gate 7 red line #9).
+  const resolveProviderSecretFieldNames = (kind, id, channel) => {
+    if (kind === "provider" && id === "openai" && channel === "model") {
+      return ["openaiApiKey", "openai_api_key", "apiKey", "api_key"];
+    }
+    if (kind === "provider" && id === "openai" && channel === "embedding") {
+      return ["openaiApiKey", "openai_api_key"];
+    }
+    if (kind === "provider" && id === "anthropic" && channel === "model") {
+      return ["anthropicApiKey", "anthropic_api_key"];
+    }
+    if (
+      kind === "custom_provider" &&
+      channel === "model" &&
+      typeof id === "string" &&
+      id.startsWith("custom.")
+    ) {
+      return ["custom_provider_api_key", "customProviderApiKey"];
+    }
+    return null;
+  };
+
+  const readProviderSecretForInjection = (kind, id) => {
+    if (
+      !settingsStorageService ||
+      typeof settingsStorageService.readDecryptedProviderSecret !== "function"
+    ) {
+      return null;
+    }
+    try {
+      // readDecryptedProviderSecret is documented never-throw, but stay
+      // defensive: a throw must NEVER crash the send chain.
+      return settingsStorageService.readDecryptedProviderSecret(kind, id);
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const providerSecretStorageIsAvailable = () => {
+    if (
+      !settingsStorageService ||
+      typeof settingsStorageService.getSecretStorageStatus !== "function"
+    ) {
+      return false;
+    }
+    try {
+      return settingsStorageService.getSecretStorageStatus() === "available";
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  // Mutates `options` in place (contract §4). Returns { ok: true } on success or
+  // { ok: false, code, message } when any descriptor entry could not be
+  // resolved. The descriptor is ALWAYS stripped first — success or failure,
+  // Flask never sees it.
+  const applyProviderSecretInjection = (options) => {
+    if (!options || typeof options !== "object") {
+      return { ok: true };
+    }
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        options,
+        PROVIDER_SECRET_INJECTION_KEY,
+      )
+    ) {
+      // No descriptor -> forward as-is (legacy-injected key during the migration
+      // window, or a legitimately keyless request).
+      return { ok: true };
+    }
+
+    const list = options[PROVIDER_SECRET_INJECTION_KEY];
+    // Strip unconditionally: Flask must NEVER see the descriptor.
+    delete options[PROVIDER_SECRET_INJECTION_KEY];
+
+    if (!Array.isArray(list) || list.length === 0) {
+      // Malformed/empty descriptor: nothing to inject, already stripped.
+      return { ok: true };
+    }
+
+    let failed = false;
+    for (const entry of list) {
+      if (!entry || typeof entry !== "object") {
+        failed = true;
+        continue;
+      }
+      const fieldNames = resolveProviderSecretFieldNames(
+        entry.kind,
+        entry.id,
+        entry.channel,
+      );
+      if (!fieldNames) {
+        // Unknown (kind, id, channel): renderer/main desync. Fail closed rather
+        // than silently forward a request the renderer meant to authenticate.
+        failed = true;
+        continue;
+      }
+      const secret = readProviderSecretForInjection(entry.kind, entry.id);
+      if (typeof secret !== "string" || secret.length === 0) {
+        failed = true;
+        continue;
+      }
+      for (const fieldName of fieldNames) {
+        options[fieldName] = secret;
+      }
+    }
+
+    if (failed) {
+      // Distinguish a storage-layer outage from a merely-missing credential so
+      // the renderer can surface the right message. Never leak values.
+      const code = providerSecretStorageIsAvailable()
+        ? "provider_missing_api_key"
+        : "secret_storage_unavailable";
+      const message =
+        code === "secret_storage_unavailable"
+          ? "Provider secret storage is unavailable"
+          : "A configured provider secret could not be resolved";
+      return { ok: false, code, message };
+    }
+    return { ok: true };
   };
 
   const startMisoStream = async ({
     requestId,
     payload,
     sender,
+    attachmentId = "",
     endpoint = UNCHAIN_STREAM_ENDPOINT,
   }) => {
     if (typeof requestId !== "string" || !requestId.trim()) {
@@ -2300,7 +3635,7 @@ const createUnchainService = ({
         typeof unchainStatusReason === "string" && unchainStatusReason.trim()
           ? `: ${unchainStatusReason.trim()}`
           : "";
-      emitMisoStreamEvent(sender.id, requestId, "error", {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
         code: "unchain_not_ready",
         message: `Miso service is not ready (${unchainStatus})${reasonSuffix}`,
       });
@@ -2327,7 +3662,7 @@ const createUnchainService = ({
         workspaceRootCandidate,
       );
       if (!validation.valid) {
-        emitMisoStreamEvent(sender.id, requestId, "error", {
+        emitMisoStreamDirectEvent(sender, requestId, "error", {
           code: "invalid_workspace_root",
           message: validation.reason || "Invalid workspace root",
         });
@@ -2343,8 +3678,24 @@ const createUnchainService = ({
       requestPayload.options = requestOptions;
     }
 
-    if (unchainActiveStreams.has(requestId)) {
-      emitMisoStreamEvent(sender.id, requestId, "error", {
+    // Phase 4 (S4): decrypt + inject provider secrets from the descriptor list,
+    // then strip the descriptor. Runs after the workspaceRoot injection and
+    // before the POST — this is V1/V2/V4's single choke point. Fail-closed: on
+    // any decryption failure emit a structured error and never keyless-POST.
+    const secretInjection = applyProviderSecretInjection(requestPayload.options);
+    if (!secretInjection.ok) {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
+        code: secretInjection.code,
+        message: secretInjection.message,
+      });
+      return;
+    }
+
+    if (
+      unchainActiveStreams.has(requestId) ||
+      unchainStreamReplays.has(requestId)
+    ) {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
         code: "duplicate_request",
         message: "Request is already active",
       });
@@ -2352,13 +3703,59 @@ const createUnchainService = ({
     }
 
     const controller = new AbortController();
-    unchainActiveStreams.set(requestId, {
+    const executionIdCandidate =
+      requestPayload.execution_id ??
+      requestPayload.executionId ??
+      requestPayload.session_id ??
+      requestPayload.sessionId ??
+      requestPayload.threadId ??
+      requestPayload.thread_id;
+    const attemptIdCandidate =
+      requestPayload.attempt_id ?? requestPayload.attemptId;
+    const sourceAttemptIdCandidate =
+      requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
+    const executionId =
+      typeof executionIdCandidate === "string"
+        ? executionIdCandidate.trim()
+        : "";
+    const attemptId =
+      typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "";
+    const sourceAttemptId =
+      typeof sourceAttemptIdCandidate === "string"
+        ? sourceAttemptIdCandidate.trim()
+        : "";
+    const normalizedAttachmentId =
+      typeof attachmentId === "string" ? attachmentId.trim() : "";
+    const replayEnabled = Boolean(
+      endpoint === UNCHAIN_STREAM_V4_ENDPOINT && executionId && attemptId,
+    );
+    const streamState = {
       controller,
       webContentsId: sender.id,
-    });
+      attachedWebContentsId: sender.id,
+      attachmentId: normalizedAttachmentId,
+      executionId,
+      attemptId,
+      sourceAttemptId,
+      requestOptions: { ...requestPayload.options },
+      replayBuffer: [],
+      replayHead: 0,
+      replayBytes: 0,
+      nextReplaySeq: 1,
+      terminal: false,
+      terminalStreamSeq: 0,
+      replayExpiryTimer: null,
+    };
+    unchainActiveStreams.set(requestId, streamState);
+    if (replayEnabled) {
+      unchainStreamReplays.set(requestId, streamState);
+    }
 
     try {
-      const response = await fetch(
+      // Keep localhost SSE outside Chromium's network lifecycle. Display sleep
+      // can suspend Electron net.fetch, while Undici terminates quiet bodies
+      // after five minutes. The Node request adapter has no inactivity timeout.
+      const response = await streamRequestImpl(
         `http://${UNCHAIN_HOST}:${unchainPort}${endpoint}`,
         {
           method: "POST",
@@ -2373,10 +3770,15 @@ const createUnchainService = ({
 
       if (!response.ok) {
         const bodyText = await response.text();
+        let code = "upstream_http_error";
         let message = `Miso stream request failed (${response.status})`;
         if (bodyText) {
           try {
             const parsed = JSON.parse(bodyText);
+            const serverCode = parsed?.error?.code;
+            if (typeof serverCode === "string" && serverCode.trim()) {
+              code = serverCode.trim();
+            }
             const serverMessage = parsed?.error?.message || parsed?.message;
             if (serverMessage) {
               message = serverMessage;
@@ -2387,7 +3789,7 @@ const createUnchainService = ({
         }
 
         emitMisoStreamEvent(sender.id, requestId, "error", {
-          code: "upstream_http_error",
+          code,
           message,
         });
         return;
@@ -2414,6 +3816,9 @@ const createUnchainService = ({
       });
     } finally {
       unchainActiveStreams.delete(requestId);
+      if (unchainStreamReplays.get(requestId) === streamState) {
+        expireMisoStreamReplay(requestId, streamState);
+      }
     }
   };
 
@@ -2430,6 +3835,272 @@ const createUnchainService = ({
     }
     streamState.controller.abort();
     return true;
+  };
+
+  const readMisoStreamAttachmentIdentity = (payload = {}) => {
+    const requestIdCandidate = payload.request_id ?? payload.requestId;
+    const executionIdCandidate =
+      payload.execution_id ??
+      payload.executionId ??
+      payload.session_id ??
+      payload.sessionId;
+    const attemptIdCandidate = payload.attempt_id ?? payload.attemptId;
+    const attachmentIdCandidate =
+      payload.attachment_id ?? payload.attachmentId;
+    return {
+      requestId:
+        typeof requestIdCandidate === "string"
+          ? requestIdCandidate.trim()
+          : "",
+      executionId:
+        typeof executionIdCandidate === "string"
+          ? executionIdCandidate.trim()
+          : "",
+      attemptId:
+        typeof attemptIdCandidate === "string"
+          ? attemptIdCandidate.trim()
+          : "",
+      attachmentId:
+        typeof attachmentIdCandidate === "string"
+          ? attachmentIdCandidate.trim()
+          : "",
+    };
+  };
+
+  const matchesMisoStreamAttachmentIdentity = (streamState, identity) =>
+    Boolean(
+      streamState &&
+        identity.requestId &&
+        identity.executionId &&
+        identity.attemptId &&
+        streamState.executionId === identity.executionId &&
+        streamState.attemptId === identity.attemptId,
+    );
+
+  const detachMisoStream = (senderId, payload = {}) => {
+    const identity = readMisoStreamAttachmentIdentity(payload);
+    const streamState = identity.requestId
+      ? unchainStreamReplays.get(identity.requestId)
+      : null;
+    if (!matchesMisoStreamAttachmentIdentity(streamState, identity)) {
+      return false;
+    }
+    if (
+      streamState.attachedWebContentsId &&
+      streamState.attachedWebContentsId !== senderId
+    ) {
+      return false;
+    }
+    if (
+      streamState.attachmentId &&
+      streamState.attachmentId !== identity.attachmentId
+    ) {
+      return false;
+    }
+    streamState.attachedWebContentsId = null;
+    streamState.attachmentId = "";
+    return true;
+  };
+
+  const attachMisoStreamV4 = (event, payload = {}) => {
+    const identity = readMisoStreamAttachmentIdentity(payload);
+    if (
+      !identity.requestId ||
+      !identity.executionId ||
+      !identity.attemptId ||
+      !identity.attachmentId
+    ) {
+      return {
+        ok: false,
+        code: "invalid_stream_attach_identity",
+        message:
+          "request_id, execution_id, attempt_id, and attachment_id are required to attach a stream",
+      };
+    }
+    const streamState = unchainStreamReplays.get(identity.requestId);
+    if (!streamState) {
+      return {
+        ok: false,
+        code: "stream_not_found",
+        message: "The requested stream is no longer available for replay",
+      };
+    }
+    if (!matchesMisoStreamAttachmentIdentity(streamState, identity)) {
+      return {
+        ok: false,
+        code: "stream_identity_mismatch",
+        message: "The stream identity does not match this execution attempt",
+      };
+    }
+
+    const afterSeqCandidate = payload.after_seq ?? payload.afterSeq;
+    const afterSeqNumber = Number(afterSeqCandidate);
+    const afterSeq = Number.isInteger(afterSeqNumber)
+      ? Math.max(0, afterSeqNumber)
+      : 0;
+    const firstAvailableSeq =
+      streamState.replayBuffer[streamState.replayHead]?.envelope?.streamSeq ||
+      streamState.nextReplaySeq;
+    if (afterSeq < firstAvailableSeq - 1) {
+      return {
+        ok: false,
+        code: "stream_replay_gap",
+        message: "The requested stream replay is no longer complete",
+        first_available_seq: firstAvailableSeq,
+        requested_after_seq: afterSeq,
+      };
+    }
+
+    const target = resolveMisoStreamTarget(event?.sender);
+    if (!target) {
+      return {
+        ok: false,
+        code: "stream_attach_target_unavailable",
+        message: "The renderer is unavailable for stream replay",
+      };
+    }
+    streamState.attachedWebContentsId = streamState.terminal
+      ? null
+      : target.id;
+    streamState.attachmentId = streamState.terminal
+      ? ""
+      : identity.attachmentId;
+    let replayedThroughSeq = afterSeq;
+    for (
+      let replayIndex = streamState.replayHead;
+      replayIndex < streamState.replayBuffer.length;
+      replayIndex += 1
+    ) {
+      const envelope = streamState.replayBuffer[replayIndex]?.envelope;
+      if (!envelope) {
+        continue;
+      }
+      if (envelope.streamSeq <= afterSeq) {
+        continue;
+      }
+      if (!sendMisoStreamEnvelope(target, envelope)) {
+        if (
+          streamState.attachedWebContentsId === target.id &&
+          streamState.attachmentId === identity.attachmentId
+        ) {
+          streamState.attachedWebContentsId = null;
+          streamState.attachmentId = "";
+        }
+        return {
+          ok: false,
+          code: "stream_attach_target_unavailable",
+          message: "The renderer became unavailable during stream replay",
+          replayed_through_seq: replayedThroughSeq,
+        };
+      }
+      replayedThroughSeq = envelope.streamSeq;
+    }
+    return {
+      ok: true,
+      request_id: identity.requestId,
+      execution_id: identity.executionId,
+      attempt_id: identity.attemptId,
+      attachment_id: identity.attachmentId,
+      replayed_through_seq: replayedThroughSeq,
+      terminal: streamState.terminal,
+      active: unchainActiveStreams.get(identity.requestId) === streamState,
+    };
+  };
+
+  const cancelMisoExecution = async (payload = {}) => {
+    ensureMisoReady();
+
+    const requestIdCandidate = payload?.requestId ?? payload?.request_id;
+    const requestId =
+      typeof requestIdCandidate === "string" ? requestIdCandidate.trim() : "";
+    const activeStream = requestId
+      ? unchainActiveStreams.get(requestId)
+      : undefined;
+
+    const executionIdCandidate =
+      payload?.execution_id ??
+      payload?.executionId ??
+      payload?.session_id ??
+      payload?.sessionId ??
+      activeStream?.executionId;
+    const attemptIdCandidate =
+      payload?.attempt_id ?? payload?.attemptId ?? activeStream?.attemptId;
+    const sourceAttemptIdCandidate =
+      payload?.source_attempt_id ??
+      payload?.sourceAttemptId ??
+      activeStream?.sourceAttemptId;
+    const executionId =
+      typeof executionIdCandidate === "string"
+        ? executionIdCandidate.trim()
+        : "";
+    const attemptId =
+      typeof attemptIdCandidate === "string" ? attemptIdCandidate.trim() : "";
+    const sourceAttemptId =
+      typeof sourceAttemptIdCandidate === "string"
+        ? sourceAttemptIdCandidate.trim()
+        : "";
+
+    if (!executionId) {
+      throw new TypeError("execution_id is required to cancel an execution");
+    }
+    if (!attemptId) {
+      throw new TypeError("attempt_id is required to cancel an execution");
+    }
+    if (
+      activeStream &&
+      ((activeStream.executionId && activeStream.executionId !== executionId) ||
+        (activeStream.attemptId && activeStream.attemptId !== attemptId) ||
+        (activeStream.sourceAttemptId &&
+          sourceAttemptId &&
+          activeStream.sourceAttemptId !== sourceAttemptId))
+    ) {
+      throw new Error("Cancel identity does not match the active stream attempt");
+    }
+
+    const cancelPayload = {
+      execution_id: executionId,
+      attempt_id: attemptId,
+    };
+    if (sourceAttemptId) {
+      cancelPayload.source_attempt_id = sourceAttemptId;
+    }
+    const reason =
+      typeof payload?.reason === "string" ? payload.reason.trim() : "";
+    const idempotencyKeyCandidate =
+      payload?.idempotency_key ?? payload?.idempotencyKey;
+    const idempotencyKey =
+      typeof idempotencyKeyCandidate === "string"
+        ? idempotencyKeyCandidate.trim()
+        : "";
+    if (reason) {
+      cancelPayload.reason = reason;
+    }
+    if (idempotencyKey) {
+      cancelPayload.idempotency_key = idempotencyKey;
+    }
+
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_EXECUTION_CANCEL_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-unchain-auth": unchainAuthToken,
+        },
+        body: JSON.stringify(cancelPayload),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Failed to cancel execution",
+      {
+        status: "ok",
+        execution_id: executionId,
+        attempt_id: attemptId,
+      },
+      "Invalid execution cancel response",
+    );
   };
 
   const handleStreamStart = (event, payload) => {
@@ -2455,11 +4126,17 @@ const createUnchainService = ({
   const handleStreamStartV4 = (event, payload) => {
     const requestId = payload?.requestId;
     const requestPayload = payload?.payload || {};
+    const attachmentId = payload?.attachmentId ?? payload?.attachment_id;
     void startMisoStreamV4({
       requestId,
       payload: requestPayload,
       sender: event.sender,
+      attachmentId,
     });
+  };
+
+  const handleStreamDetach = (event, payload) => {
+    detachMisoStream(event?.sender?.id, payload || {});
   };
 
   const handleStreamCancel = (_event, payload) => {
@@ -2473,17 +4150,26 @@ const createUnchainService = ({
     startMiso,
     stopMiso,
     getMisoStatusPayload,
+    getComputerUseStatusPayload,
+    setComputerUseEnabled,
+    setComputerUseLocalBetaEnabled,
+    probeComputerUseModel,
+    openComputerUsePrivacySettings,
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,
     getMisoToolModalCatalogPayload,
     getMisoToolkitDetailPayload,
     listMisoMcpToolkits,
     installMisoMcpToolkit,
+    testMisoCustomProvider,
     deleteMisoMcpToolkit,
+    installMisoSkillPack,
+    deleteMisoSkillPack,
     reloadMisoMcpToolkits,
     checkMisoMcpToolkitHealth,
     configureMisoMcpToolkit,
     startMisoMcpOAuth,
+    cancelMisoMcpOAuth,
     getMisoMcpOAuthStatus,
     disconnectMisoMcpOAuth,
     listMisoMcpOAuthApps,
@@ -2519,14 +4205,19 @@ const createUnchainService = ({
     exportMisoCharacter,
     importMisoCharacter,
     submitMisoToolConfirmation,
+    getMisoPendingInteraction,
     submitMisoInterject,
+    cancelMisoExecution,
+    attachMisoStreamV4,
     handleStreamStart,
     handleStreamStartV2,
     handleStreamStartV4,
+    handleStreamDetach,
     handleStreamCancel,
   };
 };
 
 module.exports = {
+  createNodeStreamFetch,
   createUnchainService,
 };

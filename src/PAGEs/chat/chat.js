@@ -15,12 +15,19 @@ import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
+  claimChatDraft,
+  getChatMessages,
+  markChatStarted,
   refreshCharacterChatMetadata,
+  releaseAllChatDraftClaims,
+  releaseChatDraftClaim,
+  replaceClaimedChatDraft,
   setChatAgentOrchestration,
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
   setChatThreadId,
+  updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
@@ -29,13 +36,17 @@ import {
   stop as progressStop,
 } from "../../SERVICEs/progress_bus";
 import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
-import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
+import { resolveCustomModelCapabilities } from "../../SERVICEs/custom_provider_store";
+import { LogoSVGs, UISVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
 import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
+import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
+import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
+import * as bootProgress from "../../SERVICEs/boot_progress";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -49,12 +60,22 @@ const UNCHAIN_STATUS_POLL_INTERVAL_READY_MS = 15000;
 const _OllamaSVG = LogoSVGs.ollama;
 const _OpenAISVG = LogoSVGs.open_ai;
 const _AnthropicSVG = LogoSVGs.Anthropic;
+/* generic fallback glyph for custom / unknown providers */
+const _CustomProviderSVG = UISVGs.server;
 
 const PROVIDER_ICON = {
   ollama: _OllamaSVG,
   openai: _OpenAISVG,
   anthropic: _AnthropicSVG,
 };
+
+/**
+ * Resolve the icon component for a provider chip. Built-in providers use their
+ * brand logo; custom.* (and any unrecognized) provider falls back to a generic
+ * glyph so the chip still renders (design §6.3).
+ */
+const resolveProviderIcon = (provider) =>
+  PROVIDER_ICON[provider] || _CustomProviderSVG;
 
 const HERO_PHRASES = [
   "How can I help you today?",
@@ -70,9 +91,47 @@ const isSameUnchainStatus = (current, next) =>
   current?.url === next?.url &&
   current?.reason === next?.reason;
 
+/* Rise-in wrapper that DROPS its animation once finished. The lingering
+   transform of `fill: both` turns a static wrapper into a stacking context,
+   and a stacking context on a NON-positioned element paints in the in-flow
+   background stage — underneath later inline text. With the animation left
+   on, the whole input subtree (incl. the floating attach panel, its z-index
+   notwithstanding) painted BELOW the greeting's glyphs, so the panel could
+   neither cover nor backdrop-blur them. Clearing the animation at its
+   resting frame restores normal paint order. */
+const RiseIn = ({ delay, style, children }) => {
+  const [settled, setSettled] = useState(false);
+  return (
+    <div
+      onAnimationEnd={(e) => {
+        /* animationend bubbles — only settle on our own rise */
+        if (e.target === e.currentTarget) setSettled(true);
+      }}
+      style={{
+        ...(settled
+          ? {}
+          : {
+              animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+              animationDelay: delay,
+            }),
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
 const HeroHeadline = ({ isDark }) => {
   const [heroText, setHeroText] = useState(HERO_PHRASES[0]);
   const [heroCursor, setHeroCursor] = useState(true);
+  /* Once the rise animation ends we DROP it. A lingering animation/transform
+     keeps this element on its own compositing layer, and a composited sibling
+     is invisible to the attach panel's backdrop-filter — so the frosted panel
+     can't blur the greeting while it's still "animating". Removing the
+     animation (already at its resting frame) lets the greeting rejoin the
+     normal backdrop, and the blur works. */
+  const [heroSettled, setHeroSettled] = useState(false);
   const heroPhraseRef = useRef(0);
   const heroCharRef = useRef(HERO_PHRASES[0].length);
   const heroDeletingRef = useRef(false);
@@ -126,9 +185,12 @@ const HeroHeadline = ({ isDark }) => {
 
   return (
     <div
+      onAnimationEnd={() => setHeroSettled(true)}
       style={{
-        animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-        animationDelay: "55ms",
+        animation: heroSettled
+          ? "none"
+          : "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+        animationDelay: heroSettled ? undefined : "55ms",
         fontSize: 22,
         fontWeight: 600,
         letterSpacing: "-0.3px",
@@ -163,7 +225,14 @@ const ChatInterface = () => {
   const { theme, onThemeMode } = useContext(ThemeContext) || {};
   const { onFragment } = useContext(NavigationContext) || {};
 
-  const [bootstrapped] = useState(() => bootstrapChatsStore());
+  const [bootstrapped] = useState(() => {
+    const result = bootstrapChatsStore();
+    /* Chat store hydration completing is the boot gate's second milestone
+       (S2, 55% -> 80%); this runs synchronously in the initializer, right
+       as hydration finishes. */
+    bootProgress.set(80);
+    return result;
+  });
   const initialChat = bootstrapped.activeChat;
   const [draftAttachments, setDraftAttachments] = useState(
     () => initialChat.draft?.attachments || [],
@@ -198,11 +267,18 @@ const ChatInterface = () => {
 
   const storageApi = useMemo(
     () => ({
+      getChatMessages,
+      claimChatDraft,
+      markChatStarted,
+      releaseAllChatDraftClaims,
       setChatAgentOrchestration,
       setChatGeneratedUnread,
       setChatMessages,
       setChatModel,
       setChatThreadId,
+      releaseChatDraftClaim,
+      replaceClaimedChatDraft,
+      updateChatDraft,
     }),
     [],
   );
@@ -216,9 +292,38 @@ const ChatInterface = () => {
   });
   const activeChatIdRef = session.activeChatIdRef;
   const modelIdRef = session.modelIdRef;
+  const setInputValue = session.setComposerInputValue;
   const setSelectedModelId = session.setSelectedModelId;
   const setSelectedToolkits = session.setSelectedToolkits;
   const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
+
+  /* Boot gate S3: chat page's first effect firing is "chat first-screen
+     rendered" — the readiness threshold the hero-boot-overlay design pins
+     the Enter gate to. One-time and idempotent (bootProgress.signalReady()
+     no-ops on repeat calls). Unlike the old release(), this does not
+     dismiss anything by itself — it only reveals the BootOverlay's Enter
+     button; the user drives the actual transition into chat. */
+  useEffect(() => {
+    bootProgress.signalReady();
+  }, []);
+
+  /* "Try in chat" from the Plugins app-store modal (plugin_detail_page.js):
+     the modal has no shared component tree with this page, so it prefills
+     the composer over a plain window event (src/SERVICEs/composer_prefill.js)
+     rather than a new context provider. Mounted once — session.setInputValue
+     is a stable useState setter and always targets whichever chat is
+     currently active. */
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handlePrefill = (event) => {
+      const text = typeof event?.detail?.text === "string" ? event.detail.text : "";
+      if (!text) return;
+      setInputValue(text);
+    };
+    window.addEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
+    return () => window.removeEventListener(PUPU_PREFILL_COMPOSER, handlePrefill);
+  }, [setInputValue]);
+
   const hasSelectedModel = useMemo(() => {
     if (session.isCharacterChat) {
       return true;
@@ -239,6 +344,8 @@ const ChatInterface = () => {
         ? session.selectedModelId.trim()
         : null;
 
+    // 1) Catalog hit (built-in models AND custom.* models merged into the
+    //    catalog via mergeCustomProvidersIntoCatalog).
     if (
       selectedModel &&
       modelCatalog?.modelCapabilities &&
@@ -248,10 +355,17 @@ const ChatInterface = () => {
       return modelCatalog.modelCapabilities[selectedModel];
     }
 
-    if (selectedModel && selectedModel === modelCatalog?.activeModel) {
-      return fallbackCapabilities;
+    // 2) Custom-capabilities hit — resolve directly from the definition store
+    //    so tool/attachment gating is correct even before the catalog has
+    //    refreshed after a custom provider change (design §6.4).
+    if (selectedModel) {
+      const customCapabilities = resolveCustomModelCapabilities(selectedModel);
+      if (customCapabilities) {
+        return customCapabilities;
+      }
     }
 
+    // 3) Default.
     return fallbackCapabilities;
   }, [modelCatalog, session.selectedModelId]);
 
@@ -279,6 +393,8 @@ const ChatInterface = () => {
     : modelSupportsAttachments
       ? ""
       : "Current model does not support image or file inputs.";
+
+  usePluginSkillSync(unchainStatus.ready);
 
   const effectiveSelectedToolkits = useMemo(
     () => (modelSupportsTools ? session.selectedToolkits : []),
@@ -309,7 +425,7 @@ const ChatInterface = () => {
     chatId: session.activeChatId,
     initialDraftAttachments: initialChat.draft?.attachments || [],
     draftAttachments,
-    setDraftAttachments,
+    setDraftAttachments: session.setComposerDraftAttachments,
     attachmentsEnabled,
     attachmentsDisabledReason,
     supportsImageAttachments,
@@ -325,6 +441,7 @@ const ChatInterface = () => {
     setMessages: session.setMessages,
     inputValue: session.inputValue,
     setInputValue: session.setInputValue,
+    composerRevisionByChatIdRef: session.composerRevisionByChatIdRef,
     draftAttachments,
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
@@ -349,15 +466,17 @@ const ChatInterface = () => {
     setAgentOrchestration: session.setAgentOrchestration,
     activeStreamsRef,
     streamingMessageStore: streamingMessageStoreRef.current,
+    t,
   });
   const {
+    cancelRunForTest: streamCancelRunForTest,
+    getRunForTest: streamGetRunForTest,
     sendForTest: streamSendForTest,
-    stopStream: streamStopStream,
     isStreaming: streamIsStreaming,
   } = stream;
 
   useEffect(() => {
-    const currentChatId = session.activeChatIdRef.current;
+    const currentChatId = session.activeChatId;
     if (!currentChatId) {
       return;
     }
@@ -380,6 +499,15 @@ const ChatInterface = () => {
             messages: session.messages,
           })
         : session.messages;
+      const activeStreamMessages =
+        activeStreamsRef.current.get(currentChatId)?.messages;
+      if (
+        !streamIsStreaming &&
+        Array.isArray(activeStreamMessages) &&
+        activeStreamMessages !== session.messages
+      ) {
+        return;
+      }
       // T3(B 批性能):done 边沿 finalizeStreamPersist 已同步写过同一数组引用
       // (flushSync → setMessages 传递的就是 finalize 那份),这里跳过重复的整库写
       // (实测 ~47ms 长任务)。引用不匹配(subagent 链路/后续真实变更)照常落盘。
@@ -397,29 +525,52 @@ const ChatInterface = () => {
         messagePersistTimerRef.current = null;
       }
     };
-  }, [session.messages, session.activeChatIdRef, storageApi, streamIsStreaming]);
+  }, [session.activeChatId, session.messages, storageApi, streamIsStreaming]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.__pupuTestBridge) {
       return undefined;
     }
-    const off1 = window.__pupuTestBridge.register(
+    const offSendMessage = window.__pupuTestBridge.register(
       "sendMessage",
-      streamSendForTest,
+      (payload = {}) =>
+        streamSendForTest({ ...payload, wait_for_completion: true }),
     );
-    const off2 = window.__pupuTestBridge.register(
+    const offStartRun = window.__pupuTestBridge.register(
+      "startChatRun",
+      (payload = {}) =>
+        streamSendForTest({ ...payload, wait_for_completion: false }),
+    );
+    const offGetRun = window.__pupuTestBridge.register(
+      "getChatRun",
+      streamGetRunForTest,
+    );
+    const offCancelRun = window.__pupuTestBridge.register(
+      "cancelChatRun",
+      streamCancelRunForTest,
+    );
+    const offCancelMessage = window.__pupuTestBridge.register(
       "cancelMessage",
-      async () => {
-        const wasStreaming = !!streamIsStreaming;
-        streamStopStream();
-        return { ok: true, was_streaming: wasStreaming };
+      async (payload = {}) => {
+        try {
+          const result = await streamCancelRunForTest(payload);
+          return { ...result, was_streaming: true };
+        } catch (error) {
+          if (!payload?.attempt_id && error?.code === "run_not_active") {
+            return { ok: true, was_streaming: false };
+          }
+          throw error;
+        }
       },
     );
     return () => {
-      off1 && off1();
-      off2 && off2();
+      offSendMessage && offSendMessage();
+      offStartRun && offStartRun();
+      offGetRun && offGetRun();
+      offCancelRun && offCancelRun();
+      offCancelMessage && offCancelMessage();
     };
-  }, [streamSendForTest, streamStopStream, streamIsStreaming]);
+  }, [streamCancelRunForTest, streamGetRunForTest, streamSendForTest]);
 
   const refreshUnchainStatus = useCallback(async () => {
     try {
@@ -562,15 +713,55 @@ const ChatInterface = () => {
     };
   }, [unchainStatus.ready, refreshModelCatalog]);
 
+  const isModelSelectionDisabled =
+    stream.isStreaming ||
+    session.isCharacterChat ||
+    stream.isDurableInteractionBlocked ||
+    stream.isTurnMutationBlocked;
+
   const onSelectModel = useCallback(
     (modelId) => {
+      if (
+        stream.isDurableInteractionBlocked ||
+        stream.isTurnMutationBlocked
+      ) {
+        return;
+      }
       session.handleSelectModel(modelId, stream.isStreaming);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session.handleSelectModel, stream.isStreaming],
+    [
+      session.handleSelectModel,
+      stream.isDurableInteractionBlocked,
+      stream.isTurnMutationBlocked,
+      stream.isStreaming,
+    ],
   );
 
   const effectiveDisclaimer = useMemo(() => {
+    if (
+      stream.durableInteractionStatus === "awaiting" ||
+      stream.durableInteractionStatus === "awaiting_response"
+    ) {
+      return "This run is waiting for your confirmation.";
+    }
+    if (stream.durableInteractionStatus === "checking") {
+      return "Checking for an interrupted Unchain run...";
+    }
+    if (
+      stream.durableInteractionStatus === "resuming" ||
+      stream.durableInteractionStatus === "receipt_recorded"
+    ) {
+      return "Restoring an interrupted Unchain run...";
+    }
+    if (stream.durableInteractionStatus === "retry_wait") {
+      return "Waiting to retry restoring the interrupted run...";
+    }
+    if (stream.durableInteractionStatus === "resume_failed") {
+      return stream.streamError
+        ? `Unchain could not restore the interrupted run: ${stream.streamError}`
+        : "Unchain could not restore the interrupted run.";
+    }
     if (stream.streamError) {
       return `Unchain error: ${stream.streamError}`;
     }
@@ -593,11 +784,14 @@ const ChatInterface = () => {
     hasSelectedModel,
     attachmentsDisabledReason,
     unchainStatus,
+    stream.durableInteractionStatus,
     stream.isStreaming,
     stream.streamError,
   ]);
 
   const isSendDisabled =
+    stream.isDurableInteractionBlocked ||
+    stream.isTurnMutationBlocked ||
     (!unchainStatus.ready && !stream.isStreaming) ||
     !hasSelectedModel;
 
@@ -676,10 +870,10 @@ const ChatInterface = () => {
   const sharedChatInputProps = useMemo(
     () => ({
       value: session.inputValue,
-      onChange: session.setInputValue,
+      onChange: session.setComposerInputValue,
       onSend: stream.sendNewTurn,
       onStop: stream.stopStream,
-      isStreaming: stream.isStreaming,
+      isStreaming: stream.canStop,
       sendDisabled: isSendDisabled,
       placeholder: unchainStatus.ready
         ? t("chat.placeholder")
@@ -696,7 +890,7 @@ const ChatInterface = () => {
       modelCatalog,
       selectedModelId: session.selectedModelId,
       onSelectModel,
-      modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
+      modelSelectDisabled: isModelSelectionDisabled,
       showModelSelector: !session.isCharacterChat,
       showToolSelector: !session.isCharacterChat && modelSupportsTools,
       showWorkspaceSelector: !session.isCharacterChat && modelSupportsTools,
@@ -711,12 +905,13 @@ const ChatInterface = () => {
       onQueueUndo: stream.onQueueUndo,
     }),
     [
-      session.inputValue, session.setInputValue, session.selectedModelId,
+      session.inputValue, session.setComposerInputValue, session.selectedModelId,
       session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
-      stream.sendNewTurn, stream.stopStream, stream.isStreaming,
+      stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
+      isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
@@ -784,16 +979,9 @@ const ChatInterface = () => {
             >
               <HeroHeadline isDark={isDark} />
 
-              <div
-                style={{
-                  animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-                  animationDelay: "100ms",
-                  width: "100%",
-                  marginBottom: 14,
-                }}
-              >
+              <RiseIn delay="100ms" style={{ width: "100%", marginBottom: 14 }}>
                 <ChatInput {...sharedChatInputProps} />
-              </div>
+              </RiseIn>
 
             {(() => {
               const providers = modelCatalog?.providers || {};
@@ -816,10 +1004,9 @@ const ChatInterface = () => {
               ];
               if (chips.length === 0) return null;
               return (
-                <div
+                <RiseIn
+                  delay="145ms"
                   style={{
-                    animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-                    animationDelay: "145ms",
                     display: "flex",
                     gap: 8,
                     flexWrap: "wrap",
@@ -829,10 +1016,11 @@ const ChatInterface = () => {
                 >
                   {chips.map((chip) => {
                     const active = session.selectedModelId === chip.id;
-                    const IconComp = PROVIDER_ICON[chip.provider];
+                    const IconComp = resolveProviderIcon(chip.provider);
                     return (
                       <button
                         key={chip.id}
+                        disabled={isModelSelectionDisabled}
                         onClick={() => onSelectModel(chip.id)}
                         style={{
                           display: "inline-flex",
@@ -843,7 +1031,9 @@ const ChatInterface = () => {
                           fontSize: 12.5,
                           fontWeight: active ? 550 : 450,
                           fontFamily: theme?.font?.fontFamily || "inherit",
-                          cursor: "pointer",
+                          cursor: isModelSelectionDisabled
+                            ? "not-allowed"
+                            : "pointer",
                           outline: "none",
                           whiteSpace: "nowrap",
                           transition:
@@ -875,9 +1065,10 @@ const ChatInterface = () => {
                               ? "0 6px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25)"
                               : "0 6px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.07)"
                             : "none",
+                          opacity: isModelSelectionDisabled ? 0.45 : 1,
                         }}
                         onMouseEnter={(event) => {
-                          if (active) return;
+                          if (active || isModelSelectionDisabled) return;
                           event.currentTarget.style.background = isDark
                             ? "rgba(255,255,255,0.08)"
                             : "rgba(0,0,0,0.06)";
@@ -889,7 +1080,7 @@ const ChatInterface = () => {
                             : "rgba(0,0,0,0.70)";
                         }}
                         onMouseLeave={(event) => {
-                          if (active) return;
+                          if (active || isModelSelectionDisabled) return;
                           event.currentTarget.style.background = isDark
                             ? "rgba(255,255,255,0.04)"
                             : "rgba(0,0,0,0.03)";
@@ -919,7 +1110,7 @@ const ChatInterface = () => {
                       </button>
                     );
                   })}
-                </div>
+                </RiseIn>
               );
             })()}
           </div>
@@ -930,6 +1121,10 @@ const ChatInterface = () => {
             chatId={session.activeChatId}
             messages={session.messages}
             isStreaming={stream.isStreaming}
+            disableActionButtons={
+              stream.isDurableInteractionBlocked ||
+              stream.isTurnMutationBlocked
+            }
             isCharacterChat={session.isCharacterChat}
             characterName={session.activeCharacterName}
             characterAvatar={session.activeCharacterAvatar}

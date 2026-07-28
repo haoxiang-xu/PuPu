@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { LocaleContext } from "../../CONTAINERs/config/context";
 import ChatInput from "./chat_input";
+import { registerCommand, unregisterBySource } from "../../SERVICEs/command_registry";
 
 // Renders ChatInput as a controlled component so keyboard interaction can
 // actually mutate `value`, the way the real chat page wires onChange.
@@ -9,6 +10,7 @@ const ControlledChatInput = ({
   isStreaming = false,
   onSend = () => {},
   initialValue = "",
+  selectedToolkits = [],
 }) => {
   const [value, setValue] = useState(initialValue);
   return (
@@ -20,6 +22,7 @@ const ControlledChatInput = ({
         onStop={() => {}}
         isStreaming={isStreaming}
         showAttachments={false}
+        selectedToolkits={selectedToolkits}
       />
     </LocaleContext.Provider>
   );
@@ -28,6 +31,13 @@ const ControlledChatInput = ({
 const getTextarea = () => screen.getByPlaceholderText(/./i);
 
 describe("ChatInput slash-command menu wiring", () => {
+  test("exposes a stable accessible name for AI and screen-reader control", () => {
+    render(<ControlledChatInput />);
+
+    expect(getTextarea()).toHaveAttribute("aria-label");
+    expect(getTextarea().getAttribute("aria-label")).toBeTruthy();
+  });
+
   test("typing '/' while streaming opens the command menu with matching commands", () => {
     render(<ControlledChatInput isStreaming />);
     const textarea = getTextarea();
@@ -220,5 +230,63 @@ describe("ChatInput slash-command menu wiring", () => {
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  describe("plugin skill commands (always visible while installed)", () => {
+    const PLUGIN_SOURCE = "plugin:plankit";
+
+    beforeEach(() => {
+      // Mirrors plugin_skill_sync's registration: phase-gated only — an
+      // installed plugin's skills always show in the composer menu; using
+      // one selects the plugin for that run alone (via sourceToolkitId).
+      registerCommand({
+        name: "/plan",
+        description: "Plan the task",
+        source: PLUGIN_SOURCE,
+        sourceLabel: "Plankit",
+        sourceToolkitId: "plankit",
+        availability: (ctx) => ctx.phase === "composer",
+      });
+    });
+
+    afterEach(() => {
+      unregisterBySource(PLUGIN_SOURCE);
+    });
+
+    test("lists a plugin skill command when its toolkit is selected and not streaming", () => {
+      render(
+        <ControlledChatInput
+          isStreaming={false}
+          selectedToolkits={["plankit"]}
+        />,
+      );
+      const textarea = getTextarea();
+
+      fireEvent.change(textarea, { target: { value: "/" } });
+
+      expect(screen.getByText("/plan")).toBeInTheDocument();
+    });
+
+    test("still lists the plugin skill command when its toolkit is NOT selected", () => {
+      render(
+        <ControlledChatInput isStreaming={false} selectedToolkits={[]} />,
+      );
+      const textarea = getTextarea();
+
+      fireEvent.change(textarea, { target: { value: "/" } });
+
+      expect(screen.getByText("/plan")).toBeInTheDocument();
+    });
+
+    test("hides the plugin skill command while streaming (composer phase only)", () => {
+      render(
+        <ControlledChatInput isStreaming={true} selectedToolkits={["plankit"]} />,
+      );
+      const textarea = getTextarea();
+
+      fireEvent.change(textarea, { target: { value: "/" } });
+
+      expect(screen.queryByText("/plan")).not.toBeInTheDocument();
+    });
   });
 });

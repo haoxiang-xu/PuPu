@@ -75,8 +75,8 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
           whiteSpace: "pre",
           padding: 8,
           margin: 0,
-          backgroundColor: isDark ? "#0d1117" : "#f6f8fa",
-          color: isDark ? "#e8e8e8" : "#1f2328",
+          backgroundColor: isDark ? "var(--pupu-surface)" : "var(--pupu-sidebar)",
+          color: "rgba(var(--pupu-text-rgb),0.92)",
           overflowX: "auto",
           overflowY: "auto",
           maxWidth: "100%",
@@ -96,7 +96,7 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
         style={{
           fontSize: 11.5,
           fontStyle: "italic",
-          color: isDark ? "#8c959f" : "#656d76",
+          color: "var(--pupu-text-muted)",
           padding: 8,
           fontFamily: FONT,
         }}
@@ -112,7 +112,7 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
         fontFamily: FONT,
         fontSize: 12,
         lineHeight: 1.55,
-        backgroundColor: isDark ? "#0d1117" : "#f6f8fa",
+        backgroundColor: isDark ? "var(--pupu-surface)" : "var(--pupu-sidebar)",
         borderRadius: 6,
         overflowX: "auto",
         overflowY: "auto",
@@ -124,16 +124,22 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
     >
       {rows.map((row, idx) => {
         let bg = "transparent";
-        let fg = isDark ? "#e8e8e8" : "#1f2328";
+        let fg = "rgba(var(--pupu-text-rgb),0.92)";
         if (row.kind === "added") {
-          bg = isDark ? "#0d331a" : "#e6ffec";
+          bg = isDark
+            ? "rgba(var(--pupu-success-rgb),0.16)"
+            : "rgba(var(--pupu-success-rgb),0.14)";
         } else if (row.kind === "removed") {
-          bg = isDark ? "#3a0d13" : "#ffebe9";
+          bg = isDark
+            ? "rgba(var(--pupu-danger-rgb),0.16)"
+            : "rgba(var(--pupu-danger-rgb),0.14)";
         } else if (row.kind === "hunk") {
-          bg = isDark ? "#0c2a4d" : "#ddf4ff";
-          fg = isDark ? "#79c0ff" : "#0969da";
+          bg = isDark
+            ? "rgba(var(--pupu-accent-rgb),0.18)"
+            : "rgba(var(--pupu-accent-rgb),0.14)";
+          fg = "var(--pupu-accent)";
         } else if (row.kind === "file-header") {
-          fg = isDark ? "#8c959f" : "#8c959f";
+          fg = "var(--pupu-text-muted)";
         }
         return (
           <div
@@ -153,7 +159,7 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
                 width: "2.5em",
                 textAlign: "right",
                 paddingRight: 8,
-                color: isDark ? "#6e7681" : "#8c959f",
+                color: "var(--pupu-text-muted)",
                 userSelect: "none",
               }}
             >
@@ -165,7 +171,7 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
                 width: "2.5em",
                 textAlign: "right",
                 paddingRight: 8,
-                color: isDark ? "#6e7681" : "#8c959f",
+                color: "var(--pupu-text-muted)",
                 userSelect: "none",
               }}
             >

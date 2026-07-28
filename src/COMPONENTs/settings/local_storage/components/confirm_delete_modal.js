@@ -11,7 +11,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => {
     style={{
       width: 360,
       padding: "28px 28px 20px",
-      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+      backgroundColor: "var(--pupu-background)",
       display: "flex",
       flexDirection: "column",
       gap: 0,
@@ -51,7 +51,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => {
       style={{
         fontSize: 15,
         fontWeight: 600,
-        color: isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)",
+        color: isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)",
         marginBottom: 8,
         lineHeight: 1.3,
       }}
@@ -63,8 +63,8 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => {
       style={{
         fontSize: 12,
         fontFamily: "'SF Mono', 'Fira Code', monospace",
-        color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
-        backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+        color: "rgba(var(--pupu-text-rgb),0.45)",
+        backgroundColor: isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.04)",
         padding: "6px 10px",
         borderRadius: 6,
         marginBottom: 24,

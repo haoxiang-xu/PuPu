@@ -42,8 +42,13 @@ const legacyStore = () => ({
   activeChatId: "chat-a",
   lruChatIds: ["chat-a", "chat-b"],
   tree: {
-    rootId: "root",
-    nodesById: { root: { id: "root", childrenIds: ["chat-a", "chat-b"] } },
+    root: ["node-a", "node-b"],
+    nodesById: {
+      "node-a": { id: "node-a", entity: "chat", chatId: "chat-a" },
+      "node-b": { id: "node-b", entity: "chat", chatId: "chat-b" },
+    },
+    selectedNodeId: "node-a",
+    expandedFolderIds: [],
   },
   ui: { sideMenuWidth: 240 },
   chatsById: {
@@ -66,6 +71,19 @@ const legacyStore = () => ({
     },
   },
 });
+
+const legacyV1Store = () => {
+  const {
+    tree: _tree,
+    lruChatIds: _lruChatIds,
+    ...common
+  } = legacyStore();
+  return {
+    ...common,
+    schemaVersion: 1,
+    chatOrder: ["chat-a", "chat-b"],
+  };
+};
 
 describeIfSqlite("chat storage service (sqlite)", () => {
   let dir;
@@ -134,6 +152,27 @@ describeIfSqlite("chat storage service (sqlite)", () => {
 
     // active chat messages ride along in full
     expect(snapshot.activeChatMessages).toEqual(
+      legacyStore().chatsById["chat-a"].messages,
+    );
+  });
+
+  test("corrupt chat JSON fails bootstrap instead of presenting an empty DB", () => {
+    const service = makeService();
+    service.init();
+    service.applyOps([{ type: "import_store", store: legacyStore() }]);
+
+    const rawDb = new sqlite.DatabaseSync(path.join(dir, "chats.db"));
+    try {
+      rawDb
+        .prepare("UPDATE chats SET meta = ? WHERE id = ?")
+        .run("{ definitely not json", "chat-b");
+    } finally {
+      rawDb.close();
+    }
+
+    expect(() => service.getBootstrapSnapshot()).toThrow();
+    // The healthy row and all messages remain untouched for recovery.
+    expect(service.readMessages("chat-a")).toEqual(
       legacyStore().chatsById["chat-a"].messages,
     );
   });
@@ -257,6 +296,105 @@ describeIfSqlite("chat storage service (sqlite)", () => {
     expect(service.getBootstrapSnapshot().chatMetasById.c2).toEqual({ id: "c2" });
   });
 
+  test("guard survives restart and skips an older physical journal replay", () => {
+    const first = makeService();
+    first.init();
+    const oldBatch = {
+      guard: { epoch: "renderer-stale-replay", sequence: 1 },
+      ops: [
+        {
+          type: "put_chat_meta",
+          chatId: "guarded",
+          meta: { id: "guarded", title: "Old title", updatedAt: 1 },
+        },
+      ],
+    };
+    const newerBatch = {
+      guard: { epoch: "renderer-stale-replay", sequence: 2 },
+      ops: [
+        {
+          type: "put_chat_meta",
+          chatId: "guarded",
+          meta: { id: "guarded", title: "New title", updatedAt: 2 },
+        },
+      ],
+    };
+
+    expect(first.applyOps(oldBatch)).toBe(true);
+    expect(first.applyOps(newerBatch)).toBe(true);
+    first.close();
+
+    const restarted = makeService();
+    restarted.init();
+    expect(restarted.applyOps(oldBatch)).toBe(false);
+    expect(restarted.getBootstrapSnapshot().chatMetasById.guarded).toMatchObject(
+      {
+        title: "New title",
+        updatedAt: 2,
+      },
+    );
+  });
+
+  test("guard marker and ops roll back atomically on a failed transaction", () => {
+    const service = makeService();
+    service.init();
+    const guard = { epoch: "renderer-atomic-rollback", sequence: 1 };
+
+    expect(() =>
+      service.applyOps({
+        guard,
+        ops: [
+          {
+            type: "put_chat_meta",
+            chatId: "atomic",
+            meta: { id: "atomic", title: "Must roll back" },
+          },
+          { type: "not_a_real_op" },
+        ],
+      }),
+    ).toThrow(/not_a_real_op/);
+    expect(service.getBootstrapSnapshot()).toBeNull();
+
+    expect(
+      service.applyOps({
+        guard,
+        ops: [
+          {
+            type: "put_chat_meta",
+            chatId: "atomic",
+            meta: { id: "atomic", title: "Committed retry" },
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(service.getBootstrapSnapshot().chatMetasById.atomic.title).toBe(
+      "Committed retry",
+    );
+  });
+
+  test("writer lock failure rolls back cleanly and the batch can be retried", () => {
+    const service = makeService();
+    service.init();
+    const blocker = new sqlite.DatabaseSync(path.join(dir, "chats.db"));
+    blocker.exec("BEGIN IMMEDIATE");
+    const ops = [
+      { type: "put_chat_meta", chatId: "locked", meta: { id: "locked" } },
+    ];
+
+    try {
+      expect(() => service.applyOps(ops)).toThrow(/locked/i);
+      expect(service.getBootstrapSnapshot()).toBeNull();
+    } finally {
+      blocker.exec("ROLLBACK");
+      blocker.close();
+    }
+
+    expect(() => service.applyOps(ops)).not.toThrow();
+    expect(service.getBootstrapSnapshot().chatMetasById.locked).toEqual({
+      id: "locked",
+    });
+  });
+
   test("write(store) is the legacy-compat alias for import_store", () => {
     const service = makeService();
     service.init();
@@ -282,6 +420,27 @@ describeIfSqlite("chat storage service (sqlite)", () => {
     expect(service.readMessages("stale")).toEqual([]);
   });
 
+  test("invalid import_store is rejected before DELETE and preserves the DB", () => {
+    const service = makeService();
+    service.init();
+    service.applyOps([{ type: "import_store", store: legacyStore() }]);
+    const before = service.getBootstrapSnapshot();
+    const beforeMessages = service.readMessages("chat-a");
+
+    let importError;
+    try {
+      service.applyOps([{ type: "import_store", store: {} }]);
+    } catch (error) {
+      importError = error;
+    }
+
+    expect(importError).toMatchObject({
+      code: "chat_legacy_source_invalid",
+    });
+    expect(service.getBootstrapSnapshot()).toEqual(before);
+    expect(service.readMessages("chat-a")).toEqual(beforeMessages);
+  });
+
   describe("import_store isGenerating derivation (legacy stranded streams)", () => {
     // Pre-V3 stores have no isGenerating meta field; if the app crashed
     // mid-stream, the last assistant message is stranded with
@@ -293,7 +452,12 @@ describeIfSqlite("chat storage service (sqlite)", () => {
       updatedAt: 1720000000000,
       activeChatId: "chat-done",
       lruChatIds: [],
-      tree: { rootId: "root", nodesById: { root: { id: "root", childrenIds: [] } } },
+      tree: {
+        root: [],
+        nodesById: {},
+        selectedNodeId: null,
+        expandedFolderIds: [],
+      },
       ui: {},
       chatsById: {
         "chat-stranded": {
@@ -399,6 +563,34 @@ describeIfSqlite("chat storage service (sqlite)", () => {
       );
     });
 
+    test("a real v1 chats.json remains migration-compatible", () => {
+      const legacyPath = path.join(dir, "chats.json");
+      const v1 = legacyV1Store();
+      // Deliberately opposite to updatedAt order: migration must preserve the
+      // user's explicit flat ordering rather than rebuilding newest-first.
+      v1.chatOrder = ["chat-b", "chat-a", "chat-b", "missing-chat"];
+      fs.writeFileSync(
+        legacyPath,
+        JSON.stringify(v1),
+        "utf8",
+      );
+
+      const service = makeService();
+      service.init();
+      const snapshot = service.getBootstrapSnapshot();
+      expect(snapshot.activeChatId).toBe("chat-a");
+      expect(snapshot.chatMetasById["chat-b"].title).toBe("Beta");
+      expect(snapshot.tree.root).toEqual(["chn-chat-b", "chn-chat-a"]);
+      expect(snapshot.tree.selectedNodeId).toBe("chn-chat-a");
+      expect(snapshot.tree.nodesById["chn-chat-b"]).toMatchObject({
+        entity: "chat",
+        chatId: "chat-b",
+        label: "Beta",
+      });
+      expect(fs.existsSync(legacyPath)).toBe(false);
+      expect(fs.existsSync(`${legacyPath}.migrated-bak`)).toBe(true);
+    });
+
     test("a second init does not re-import (DB non-empty guard)", () => {
       fs.writeFileSync(
         path.join(dir, "chats.json"),
@@ -425,8 +617,10 @@ describeIfSqlite("chat storage service (sqlite)", () => {
       expect(fs.existsSync(path.join(dir, "chats.json"))).toBe(true);
     });
 
-    test("corrupt chats.json → warn, leave file in place, empty DB", () => {
-      fs.writeFileSync(path.join(dir, "chats.json"), "{ not json", "utf8");
+    test("corrupt chats.json fails bootstrap closed and remains repairable", () => {
+      const legacyPath = path.join(dir, "chats.json");
+      const rawLegacy = "{ not json";
+      fs.writeFileSync(legacyPath, rawLegacy, "utf8");
       const warnSpy = jest
         .spyOn(console, "warn")
         .mockImplementation(() => {});
@@ -434,16 +628,91 @@ describeIfSqlite("chat storage service (sqlite)", () => {
       try {
         const service = makeService();
         expect(() => service.init()).not.toThrow();
-        expect(service.getBootstrapSnapshot()).toBeNull();
-        expect(fs.existsSync(path.join(dir, "chats.json"))).toBe(true);
-        expect(
-          fs.existsSync(path.join(dir, "chats.json.migrated-bak")),
-        ).toBe(false);
+        let bootstrapError;
+        try {
+          service.getBootstrapSnapshot();
+        } catch (error) {
+          bootstrapError = error;
+        }
+        expect(bootstrapError).toMatchObject({
+          code: "chat_legacy_source_unreadable",
+        });
+        expect(bootstrapError.message).toMatch(/source left untouched/i);
+        expect(fs.readFileSync(legacyPath, "utf8")).toBe(rawLegacy);
+        expect(fs.existsSync(`${legacyPath}.migrated-bak`)).toBe(false);
+
+        const rawDb = new sqlite.DatabaseSync(path.join(dir, "chats.db"));
+        try {
+          expect(
+            rawDb.prepare("SELECT COUNT(*) AS n FROM chats").get().n,
+          ).toBe(0);
+          expect(
+            rawDb.prepare("SELECT COUNT(*) AS n FROM meta").get().n,
+          ).toBe(0);
+        } finally {
+          rawDb.close();
+        }
         expect(warnSpy).toHaveBeenCalled();
+
+        // A repaired source must still migrate on the next launch. This is the
+        // regression for renderer seeding making the non-empty guard permanent.
+        service.close();
+        fs.writeFileSync(legacyPath, JSON.stringify(legacyStore()), "utf8");
+        const recovered = makeService();
+        recovered.init();
+        expect(recovered.getBootstrapSnapshot().activeChatId).toBe("chat-a");
+        expect(fs.existsSync(legacyPath)).toBe(false);
+        expect(fs.existsSync(`${legacyPath}.migrated-bak`)).toBe(true);
       } finally {
         warnSpy.mockRestore();
       }
     });
+
+    test.each([
+      ["array", []],
+      ["empty object", {}],
+    ])(
+      "parseable but invalid chats.json (%s) leaves source and DB untouched",
+      (_label, invalidLegacy) => {
+        const legacyPath = path.join(dir, "chats.json");
+        const rawLegacy = JSON.stringify(invalidLegacy);
+        fs.writeFileSync(legacyPath, rawLegacy, "utf8");
+        const warnSpy = jest
+          .spyOn(console, "warn")
+          .mockImplementation(() => {});
+
+        try {
+          const service = makeService();
+          expect(() => service.init()).not.toThrow();
+          let bootstrapError;
+          try {
+            service.getBootstrapSnapshot();
+          } catch (error) {
+            bootstrapError = error;
+          }
+          expect(bootstrapError).toMatchObject({
+            code: "chat_legacy_source_invalid",
+          });
+          expect(fs.readFileSync(legacyPath, "utf8")).toBe(rawLegacy);
+          expect(fs.existsSync(`${legacyPath}.migrated-bak`)).toBe(false);
+
+          const rawDb = new sqlite.DatabaseSync(path.join(dir, "chats.db"));
+          try {
+            expect(
+              rawDb.prepare("SELECT COUNT(*) AS n FROM chats").get().n,
+            ).toBe(0);
+            expect(
+              rawDb.prepare("SELECT COUNT(*) AS n FROM meta").get().n,
+            ).toBe(0);
+          } finally {
+            rawDb.close();
+          }
+          expect(warnSpy).toHaveBeenCalled();
+        } finally {
+          warnSpy.mockRestore();
+        }
+      },
+    );
   });
 
   test("applyOps rejects non-array input and refuses to run before init", () => {

@@ -1,5 +1,33 @@
 import { sanitizeMessage } from "./chat_storage_sanitize";
 
+describe("sanitizeMessage turn mutation recovery metadata", () => {
+  test("preserves the durable operation id and exact stream acknowledgement", () => {
+    const cleaned = sanitizeMessage({
+      id: "assistant-1",
+      role: "assistant",
+      content: "",
+      status: "streaming",
+      meta: {
+        model: "openai:gpt-5",
+        requestId: "request-1",
+        attemptId: "attempt-1",
+        executionSessionId: "session-1",
+        turnMutationOperationId: "turn-op-1",
+        turnMutationServerAcknowledged: true,
+      },
+    });
+
+    expect(cleaned.meta).toEqual({
+      model: "openai:gpt-5",
+      requestId: "request-1",
+      attemptId: "attempt-1",
+      executionSessionId: "session-1",
+      turnMutationOperationId: "turn-op-1",
+      turnMutationServerAcknowledged: true,
+    });
+  });
+});
+
 describe("sanitizeMessage assistant artifactSummariesByTurnId", () => {
   const validBucket = {
     order: 1,

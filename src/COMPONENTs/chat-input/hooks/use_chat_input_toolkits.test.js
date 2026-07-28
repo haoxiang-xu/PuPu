@@ -192,6 +192,7 @@ describe("use_chat_input_toolkits", () => {
           toolkitName: "Empty MCP",
           toolkitDescription: "Custom MCP",
           source: "mcp",
+          status: "available",
           hidden: false,
           toolkitIcon: {},
           tools: [{ title: "Ping", name: "ping" }],
@@ -217,6 +218,50 @@ describe("use_chat_input_toolkits", () => {
   });
 
   test("renders the real mcp glyph in the attach selector when catalog sends a generic tool icon", async () => {
+    /* Uses a toolkitId absent from the store registry on purpose: registry
+       entries all ship a brand icon now and would legitimately win over the
+       catalog icon (asserted in the next test). The generic-tool fallback
+       path is only reachable for custom/unlisted MCP servers. */
+    api.unchain.listToolModalCatalog.mockResolvedValueOnce({
+      toolkits: [
+        {
+          toolkitId: "mcp.custom.doc-converter",
+          toolkitName: "Mark It Down",
+          toolkitDescription: "Convert documents",
+          source: "mcp",
+          status: "available",
+          hidden: false,
+          toolkitIcon: {
+            type: "builtin",
+            name: "tool",
+            color: "#ffffff",
+            backgroundColor: "#111827",
+          },
+          tools: [{ title: "Convert", name: "convert_to_markdown" }],
+        },
+      ],
+    });
+
+    render(<RenderedOptionsHarness />);
+    fireEvent.click(screen.getByText("refresh"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Mark It Down")).toBeInTheDocument();
+    });
+
+    const option = screen.getByTestId("option-mcp.custom.doc-converter");
+    await waitFor(() => {
+      expect(option.querySelector("svg")).toBeInTheDocument();
+    });
+
+    expect(option.querySelector("[aria-hidden='true']")).toHaveStyle({
+      backgroundColor: "transparent",
+    });
+    expect(iconPathData(option)).toContain("M9.795 1.694");
+    expect(iconPathData(option)).not.toContain("M16.3303 13.497");
+  });
+
+  test("store registry brand icon beats a generic catalog icon in the attach selector", async () => {
     api.unchain.listToolModalCatalog.mockResolvedValueOnce({
       toolkits: [
         {
@@ -224,6 +269,7 @@ describe("use_chat_input_toolkits", () => {
           toolkitName: "Mark It Down",
           toolkitDescription: "Convert documents",
           source: "mcp",
+          status: "available",
           hidden: false,
           toolkitIcon: {
             type: "builtin",
@@ -245,14 +291,11 @@ describe("use_chat_input_toolkits", () => {
 
     const option = screen.getByTestId("option-mcp.workspace.markitdown");
     await waitFor(() => {
-      expect(option.querySelector("svg")).toBeInTheDocument();
+      expect(option.querySelector("img")).toBeInTheDocument();
     });
-
-    expect(option.querySelector("[aria-hidden='true']")).toHaveStyle({
-      backgroundColor: "transparent",
-    });
-    expect(iconPathData(option)).toContain("M9.795 1.694");
-    expect(iconPathData(option)).not.toContain("M16.3303 13.497");
+    expect(option.querySelector("img").getAttribute("src")).toContain(
+      "image/svg+xml",
+    );
   });
 
   test("shows a failure placeholder after an initial request error and retries on demand", async () => {

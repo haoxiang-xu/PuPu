@@ -155,6 +155,21 @@ def start_mcp_oauth_route() -> Response:
         return _mcp_error_response(root, exc)
 
 
+@api_blueprint.post("/mcp/oauth/cancel")
+def cancel_mcp_oauth_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    state = str(payload.get("state") or "").strip()
+
+    try:
+        return jsonify(root.cancel_mcp_oauth_start(state))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
 @api_blueprint.get("/mcp/oauth/callback")
 def mcp_oauth_callback_route() -> Response:
     root = _root()
@@ -196,15 +211,9 @@ def mcp_oauth_status_route() -> Response:
     if not root._is_authorized():
         return root._json_error("unauthorized", "Invalid auth token", 401)
 
-    entry_id = str(
-        request.args.get("entry_id")
-        or request.args.get("entryId")
-        or request.args.get("toolkit_id")
-        or request.args.get("toolkitId")
-        or ""
-    ).strip()
+    state = str(request.args.get("state") or "").strip()
     try:
-        return jsonify(root.get_mcp_oauth_status(entry_id))
+        return jsonify(root.get_mcp_oauth_attempt_status(state))
     except Exception as exc:
         return _mcp_error_response(root, exc)
 

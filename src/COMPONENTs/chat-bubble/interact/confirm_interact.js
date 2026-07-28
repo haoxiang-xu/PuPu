@@ -36,7 +36,11 @@ const buildActionStyle = (accent) => ({
   activeBackgroundColor: hexToRgba(accent, 0.28),
 });
 
-const ConfirmInteract = ({ onSubmit, disabled }) => {
+const ConfirmInteract = ({
+  onSubmit,
+  disabled,
+  allowSessionApproval = true,
+}) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const mt = theme?.modal || {};
@@ -53,11 +57,13 @@ const ConfirmInteract = ({ onSubmit, disabled }) => {
         onClick={() => onSubmit({ approved: true, scope: "once" })}
         style={buildActionStyle(successAccent)}
       />
-      <Button
-        label="Always allow"
-        onClick={() => onSubmit({ approved: true, scope: "session" })}
-        style={buildActionStyle(warningAccent)}
-      />
+      {allowSessionApproval ? (
+        <Button
+          label="Always allow"
+          onClick={() => onSubmit({ approved: true, scope: "session" })}
+          style={buildActionStyle(warningAccent)}
+        />
+      ) : null}
       <Button
         label="Deny"
         onClick={() => onSubmit({ approved: false, scope: "once" })}

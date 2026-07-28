@@ -1,21 +1,16 @@
-const SETTINGS_STORAGE_KEY = "settings";
+import {
+  readNamespace,
+  replaceNamespace,
+} from "../../../SERVICEs/settings_repository";
+
+const DEV_NAMESPACE = "dev";
 
 const isObject = (value) =>
   value != null && typeof value === "object" && !Array.isArray(value);
 
-const readSettingsRoot = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}",
-    );
-    return isObject(parsed) ? parsed : {};
-  } catch (_error) {
-    return {};
-  }
+const readDevSection = () => {
+  const dev = readNamespace(DEV_NAMESPACE, {});
+  return isObject(dev) ? dev : {};
 };
 
 export const isDevSettingsAvailable = () => {
@@ -31,8 +26,7 @@ export const isDevSettingsAvailable = () => {
 };
 
 export const readDevSettings = () => {
-  const root = readSettingsRoot();
-  const dev = isObject(root.dev) ? root.dev : {};
+  const dev = readDevSection();
 
   return {
     chrome_terminal_enabled: dev.chrome_terminal_enabled === true,
@@ -40,20 +34,16 @@ export const readDevSettings = () => {
 };
 
 export const writeDevSettings = (patch = {}) => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return readDevSettings();
-  }
-
-  const root = readSettingsRoot();
-  const current = isObject(root.dev) ? root.dev : {};
+  const current = readDevSection();
   const next = { ...current };
 
   if (Object.prototype.hasOwnProperty.call(patch, "chrome_terminal_enabled")) {
     next.chrome_terminal_enabled = patch.chrome_terminal_enabled === true;
   }
 
-  root.dev = next;
-  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+  // Persist failures stay silent; the returned value reflects the applied
+  // patch either way (mirrors the previous synchronous localStorage write).
+  replaceNamespace(DEV_NAMESPACE, next).catch(() => {});
 
   return {
     chrome_terminal_enabled: next.chrome_terminal_enabled === true,

@@ -164,4 +164,35 @@ describe("useChatSessionState bootstrap straggler settle (isGenerating meta driv
 
     view.unmount();
   });
+
+  test("preserves a streaming message that has an exact attach identity", () => {
+    bridge.readMessages.mockImplementation((chatId) => {
+      if (chatId !== CHAT_B) return [];
+      return CHAT_B_MESSAGES.map((message) =>
+        message.id === "msg-b2"
+          ? {
+              ...message,
+              meta: {
+                requestId: "req-b",
+                attemptId: "attempt-b",
+                executionSessionId: CHAT_B,
+              },
+            }
+          : { ...message },
+      );
+    });
+
+    const { cs, view } = renderSessionState();
+    const preserved = cs.getChatMessages(CHAT_B);
+
+    expect(
+      preserved.some(
+        (message) =>
+          message?.id === "msg-b2" && message?.status === "streaming",
+      ),
+    ).toBe(true);
+    expect(cs.getChatsStore().chatsById[CHAT_B].isGenerating).toBe(true);
+
+    view.unmount();
+  });
 });

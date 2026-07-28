@@ -68,6 +68,7 @@ jest.mock("../../../../SERVICEs/api", () => ({
 
 jest.mock("../../../../SERVICEs/mcp_install", () => ({
   __esModule: true,
+  ...jest.requireActual("../../../../SERVICEs/mcp_install"),
   deleteMcpEntry: jest.fn(() => Promise.resolve({ ok: true })),
 }));
 
@@ -365,7 +366,7 @@ describe("McpToolkitsSection", () => {
     ).toBeNull();
   });
 
-  test("OAuth toolkit renders auth status and supports reconnect and disconnect", async () => {
+  test("OAuth toolkit renders auth status and keeps reconnect out of Settings", async () => {
     api.unchain.listMcpToolkits.mockResolvedValue({
       toolkits: [
         {
@@ -391,12 +392,10 @@ describe("McpToolkitsSection", () => {
       ),
     ).toBeInTheDocument();
 
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_reconnect"));
-    });
-    expect(api.unchain.startMcpOAuth).toHaveBeenCalledWith(
-      "productivity.notion-remote",
-    );
+    expect(
+      screen.queryByTestId("btn-local_storage.mcp_reconnect"),
+    ).toBeNull();
+    expect(api.unchain.startMcpOAuth).not.toHaveBeenCalled();
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("btn-local_storage.mcp_disconnect"));
@@ -404,6 +403,36 @@ describe("McpToolkitsSection", () => {
     expect(api.unchain.disconnectMcpOAuth).toHaveBeenCalledWith(
       "mcp.productivity.notion-remote",
     );
+  });
+
+  test("blocked store OAuth keeps disconnect but hides reconnect", async () => {
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          entryId: "dev.figma-remote",
+          toolkitId: "mcp.dev.figma-remote",
+          toolkitName: "Figma",
+          status: "error",
+          authType: "oauth",
+          authProvider: "figma",
+          authStatus: "missing",
+          tools: [],
+          toolCount: 0,
+          toolkitIcon: { type: "builtin", name: "link" },
+        },
+      ],
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+    await screen.findByText("Figma");
+
+    expect(
+      screen.queryByTestId("btn-local_storage.mcp_reconnect"),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("btn-local_storage.mcp_disconnect"),
+    ).toBeInTheDocument();
+    expect(api.unchain.startMcpOAuth).not.toHaveBeenCalled();
   });
 
   test("empty state shows no installed message", async () => {
@@ -454,6 +483,44 @@ describe("McpToolkitsSection", () => {
 
     expect(api.unchain.deleteMcpOAuthApp).toHaveBeenCalledWith(
       "mcp.dev.github-remote",
+    );
+  });
+
+  test("release-blocked stored OAuth apps stay visible and deletable but not editable", async () => {
+    api.unchain.listMcpOAuthApps.mockResolvedValue({
+      apps: [
+        {
+          toolkitId: "mcp.productivity.slack-remote",
+          provider: "slack",
+          providerLabel: "Slack",
+          configured: true,
+          configurable: false,
+          connectable: false,
+          releaseBlocked: true,
+          clientIdPreview: "slac...t-id",
+          scopes: ["channels:read"],
+        },
+      ],
+      count: 1,
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+
+    await screen.findByText("Slack");
+    expect(
+      screen.queryByTestId("btn-local_storage.mcp_oauth_app_update"),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("btn-local_storage.mcp_oauth_app_delete"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId("btn-local_storage.mcp_oauth_app_delete"),
+      );
+    });
+    expect(api.unchain.deleteMcpOAuthApp).toHaveBeenCalledWith(
+      "mcp.productivity.slack-remote",
     );
   });
 });

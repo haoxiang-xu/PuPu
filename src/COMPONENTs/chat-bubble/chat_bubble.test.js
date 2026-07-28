@@ -124,6 +124,131 @@ describe("chat bubble continuation prompts", () => {
       scope: "once",
     });
   });
+
+  test.each([
+    ["plain", ChatBubble, {}],
+    [
+      "character",
+      CharacterChatBubble,
+      { characterName: "Lena", characterAvailability: "available" },
+    ],
+  ])(
+    "keeps a recovered confirmation actionable beside a bare %s tool trace",
+    (_label, Bubble, extraProps) => {
+      const onToolConfirmationDecision = jest.fn();
+
+      renderWithConfig(
+        <Bubble
+          {...extraProps}
+          message={streamingAssistantMessage}
+          traceFrames={[
+            {
+              seq: 1,
+              type: "tool_call",
+              payload: {
+                call_id: "call-1",
+                tool_name: "delete_file",
+                arguments: { path: "demo.txt" },
+              },
+            },
+          ]}
+          onToolConfirmationDecision={onToolConfirmationDecision}
+          toolConfirmationUiStateById={toolConfirmationUiStateById}
+          pendingToolConfirmationRequests={pendingToolConfirmationRequests}
+        />,
+      );
+
+      expect(screen.getAllByText("delete_file")).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+      expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+        confirmationId: "confirm-1",
+        approved: true,
+        scope: "once",
+      });
+    },
+  );
+
+  test("keeps a recovered subagent confirmation in the child timeline only", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const message = {
+      ...streamingAssistantMessage,
+      id: "assistant-child-confirmation",
+      subagentFrames: {
+        "child-run": [
+          {
+            seq: 1,
+            type: "tool_call",
+            payload: {
+              call_id: "call-1",
+              confirmation_id: "confirm-1",
+              requires_confirmation: true,
+              tool_name: "delete_file",
+              arguments: { path: "demo.txt" },
+              interact_type: "confirmation",
+              interact_config: {},
+            },
+          },
+        ],
+      },
+      subagentMetaByRunId: {
+        "child-run": {
+          subagentId: "developer.worker.1",
+          mode: "delegate",
+          template: "worker",
+          parentId: "developer",
+          lineage: ["developer", "developer.worker.1"],
+          status: "running",
+        },
+      },
+    };
+
+    renderWithConfig(
+      <CharacterChatBubble
+        message={message}
+        traceFrames={[
+          {
+            seq: 1,
+            type: "tool_call",
+            payload: {
+              call_id: "delegate-1",
+              tool_name: "delegate_to_subagent",
+              arguments: { target: "worker", task: "Delete demo.txt" },
+            },
+          },
+          {
+            seq: 2,
+            type: "tool_result",
+            payload: {
+              call_id: "delegate-1",
+              tool_name: "delegate_to_subagent",
+              result: {
+                agent_name: "developer.worker.1",
+                template_name: "worker",
+                status: "running",
+              },
+            },
+          },
+        ]}
+        onToolConfirmationDecision={onToolConfirmationDecision}
+        toolConfirmationUiStateById={toolConfirmationUiStateById}
+        pendingToolConfirmationRequests={pendingToolConfirmationRequests}
+        characterName="Lena"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Allow once" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(
+      1,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onToolConfirmationDecision).toHaveBeenCalledTimes(1);
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-1",
+      approved: true,
+      scope: "once",
+    });
+  });
 });
 
 describe("ChatBubble lazy trace chain", () => {

@@ -163,6 +163,16 @@ describe("createQueuedTurnBuffer", () => {
     expect(buffer.size()).toBe(2);
   });
 
+  test("push fails closed at the durable 64-item capacity", () => {
+    const buffer = createQueuedTurnBuffer();
+    for (let index = 0; index < 64; index += 1) {
+      expect(buffer.push(`item-${index}`)).not.toBeNull();
+    }
+    expect(buffer.push("overflow")).toBeNull();
+    expect(buffer.size()).toBe(64);
+    expect(buffer.list().some((item) => item.text === "overflow")).toBe(false);
+  });
+
   test("remove drops the matching entry only", () => {
     const buffer = createQueuedTurnBuffer();
     const id1 = buffer.push("first");
@@ -226,6 +236,26 @@ describe("createQueuedTurnBuffer", () => {
     buffer.push("second");
     expect(snapshot).toHaveLength(1);
     expect(buffer.list()).toHaveLength(2);
+  });
+
+  test("hydrates only valid items and returns detached snapshots", () => {
+    const buffer = createQueuedTurnBuffer([
+      { id: " queue-1 ", text: "first", status: "queued" },
+      { id: "queue-1", text: "replacement", status: "relayed" },
+      { id: "queue-2", text: "", status: "queued" },
+      { id: "queue-3", text: "third", status: "sending" },
+    ]);
+
+    expect(buffer.snapshot()).toEqual([
+      { id: "queue-1", text: "replacement", status: "relayed" },
+    ]);
+    const hydrated = buffer.hydrate([
+      { id: "queue-4", text: "fourth", status: "queued" },
+    ]);
+    hydrated[0].text = "mutated";
+    expect(buffer.list()).toEqual([
+      { id: "queue-4", text: "fourth", status: "queued" },
+    ]);
   });
 });
 

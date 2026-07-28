@@ -9,10 +9,38 @@ const SHELL_FILES = [
   "src/COMPONENTs/chat-input/chat_input.js",
   "src/COMPONENTs/chat-input/components/attach_panel.js",
   // P1 — verified real paths (2026-06-20)
-  "src/COMPONENTs/toolkit/components/toolkit_detail_panel.js",
   "src/COMPONENTs/agents/pages/characters_page.js",
   "src/COMPONENTs/agents/pages/recipes_page/recipe_canvas.js",
   "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+  // P3 — settings + init-setup shells (2026-07-13)
+  "src/COMPONENTs/settings/settings_modal.js",
+  "src/COMPONENTs/settings/local_storage/components/confirm_delete_modal.js",
+  "src/COMPONENTs/settings/local_storage/components/confirm_reset_settings_modal.js",
+  "src/COMPONENTs/init-setup/init_setup_modal.js",
+  "src/COMPONENTs/init-setup/steps/welcoming.js",
+  "src/COMPONENTs/init-setup/steps/select_providers.js",
+  "src/COMPONENTs/init-setup/steps/configure_providers.js",
+  "src/COMPONENTs/init-setup/steps/workspace.js",
+  "src/COMPONENTs/init-setup/steps/completion.js",
+  // P4 Task 1 — modal card background migration (2026-07-14)
+  "src/COMPONENTs/workspace/workspace_modal.js",
+  "src/COMPONENTs/agents/pages/recipes_page/subagent_picker.js",
+  "src/COMPONENTs/settings/dev/components/mcp_registries_modal.js",
+  "src/COMPONENTs/settings/model_providers/components/confirm_delete_api_key_modal.js",
+  "src/COMPONENTs/settings/settings_modal_content.js",
+  "src/COMPONENTs/ui-testing/ui_testing_modal.js",
+  "src/COMPONENTs/memory-inspect/memory_inspect_modal.js",
+  // F1 — agents modal card, missed in the P4 Task 1 sweep (2026-07-14)
+  "src/COMPONENTs/agents/agents_modal.js",
+  // P5 — plugins/toolkit UI (was an exclusion zone during the theme waves;
+  // concurrent owner shipped, now enrolled) (2026-07-17)
+  "src/COMPONENTs/toolkit/toolkit_modal.js",
+  "src/COMPONENTs/toolkit/plugins_shell.js",
+  "src/COMPONENTs/toolkit/pages/plugin_detail_page.js",
+  "src/COMPONENTs/toolkit/pages/plugins_installed_page.js",
+  "src/COMPONENTs/toolkit/pages/plugins_categories_page.js",
+  "src/COMPONENTs/toolkit/pages/plugins_discover_page.js",
+  "src/COMPONENTs/toolkit/pages/custom_mcp_page.js",
 ];
 
 // A line is a candidate if it BOTH mentions a background sink (a `background:` /

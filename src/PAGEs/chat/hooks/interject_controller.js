@@ -68,11 +68,35 @@ export const mergeQueuedTurnTexts = (texts) => {
  * (queue pile) can render + let the user undo individual entries before the
  * run ends.
  */
-export const createQueuedTurnBuffer = () => {
-  let items = [];
+const normalizeQueuedTurnItems = (value) => {
+  const deduplicated = new Map();
+  for (const item of Array.isArray(value) ? value : []) {
+    const id = typeof item?.id === "string" ? item.id.trim() : "";
+    const text = typeof item?.text === "string" ? item.text : "";
+    const status =
+      item?.status === "queued" || item?.status === "relayed"
+        ? item.status
+        : "";
+    if (!id || !text.trim() || !status) continue;
+    deduplicated.set(id, { id, text, status });
+  }
+  return Array.from(deduplicated.values()).slice(0, 64);
+};
+
+export const createQueuedTurnBuffer = (initialItems = []) => {
+  let items = normalizeQueuedTurnItems(initialItems);
+
+  const snapshot = () => items.map((item) => ({ ...item }));
 
   return {
     push(text) {
+      if (
+        typeof text !== "string" ||
+        !text.trim() ||
+        items.length >= 64
+      ) {
+        return null;
+      }
       const id = generateId("queue");
       items = [...items, { id, text, status: "queued" }];
       return id;
@@ -81,10 +105,37 @@ export const createQueuedTurnBuffer = () => {
       items = items.filter((item) => item.id !== id);
     },
     list() {
-      return items.map((item) => ({ ...item }));
+      return snapshot();
     },
-    markRelayed() {
-      items = items.map((item) => ({ ...item, status: "relayed" }));
+    snapshot,
+    hydrate(nextItems) {
+      items = normalizeQueuedTurnItems(nextItems);
+      return snapshot();
+    },
+    markRelayed(ids = null) {
+      const selectedIds = Array.isArray(ids) ? new Set(ids) : null;
+      items = items.map((item) =>
+        !selectedIds || selectedIds.has(item.id)
+          ? { ...item, status: "relayed" }
+          : item,
+      );
+    },
+    markQueued(ids) {
+      const selectedIds = new Set(Array.isArray(ids) ? ids : []);
+      items = items.map((item) =>
+        selectedIds.has(item.id) ? { ...item, status: "queued" } : item,
+      );
+    },
+    removeMany(ids) {
+      const selectedIds = new Set(Array.isArray(ids) ? ids : []);
+      items = items.filter((item) => !selectedIds.has(item.id));
+    },
+    peekMerged() {
+      const queuedItems = items.filter((item) => item.status === "queued");
+      return {
+        ids: queuedItems.map((item) => item.id),
+        text: mergeQueuedTurnTexts(queuedItems.map((item) => item.text)),
+      };
     },
     drainMerged() {
       const merged = mergeQueuedTurnTexts(items.map((item) => item.text));

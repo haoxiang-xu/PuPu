@@ -1,3 +1,5 @@
+import { settingsStorageBridge } from "../../../../SERVICEs/bridges/settings_storage_bridge";
+
 const getEstimatedByteSize = (str = "") => String(str).length * 2;
 
 const sortEntriesBySize = (entries) => entries.sort((a, b) => b.size - a.size);
@@ -26,6 +28,49 @@ export const formatBytes = (bytes) => {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 };
+
+// Phase 5 (plan §6-Phase5): read-only settings.db metadata for the "SQLite
+// Settings database" storage category. Returns { sizeBytes, tables } — metadata
+// ONLY, never a stored value or secret — or null when the bridge is
+// unavailable (browser dev / Jest / pre-Phase-5 preload / degraded backend), in
+// which case the caller hides or N/As the category. Never throws.
+export const readSettingsDbStats = async () => {
+  if (
+    typeof settingsStorageBridge.isResetAndDbStatsAvailable === "function" &&
+    !settingsStorageBridge.isResetAndDbStatsAvailable()
+  ) {
+    return null;
+  }
+  try {
+    const stats = await settingsStorageBridge.getDbStats();
+    if (!stats || typeof stats !== "object") return null;
+    const sizeBytes =
+      typeof stats.sizeBytes === "number" && stats.sizeBytes >= 0
+        ? stats.sizeBytes
+        : 0;
+    const tables = Array.isArray(stats.tables)
+      ? stats.tables
+          .filter(
+            (entry) =>
+              entry &&
+              typeof entry.name === "string" &&
+              typeof entry.rows === "number",
+          )
+          .map((entry) => ({ name: entry.name, rows: entry.rows }))
+      : [];
+    return { sizeBytes, tables };
+  } catch {
+    return null;
+  }
+};
+
+// Synchronous availability probe for the "SQLite Settings database" category
+// so the section can hide immediately (no loading flash) in browser dev / Jest
+// / a pre-Phase-5 preload rather than rendering then disappearing.
+export const isSettingsDbStatsAvailable = () =>
+  typeof settingsStorageBridge.isResetAndDbStatsAvailable === "function"
+    ? settingsStorageBridge.isResetAndDbStatsAvailable()
+    : false;
 
 export const readLocalStorageEntries = () => {
   try {

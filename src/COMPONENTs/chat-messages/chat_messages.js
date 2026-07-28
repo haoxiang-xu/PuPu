@@ -6,10 +6,13 @@ import MessageMinimap from "./components/message_minimap";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
 import { StreamingMessageStoreContext } from "../chat-bubble/components/streaming_message_store_context";
 
+const EMPTY_CONFIRMATION_STATE = Object.freeze({});
+
 const ChatMessages = ({
   chatId,
   messages = [],
   isStreaming = false,
+  disableActionButtons = false,
   isCharacterChat = false,
   characterName = "",
   characterAvatar = null,
@@ -76,6 +79,94 @@ const ChatMessages = ({
     [chatId, streamingMessageStore, notifyStreamingContentCommitted],
   );
 
+  const confirmationStateByMessageId = useMemo(() => {
+    const assistantMessageIds = new Set();
+    const ownerMessageIdByConfirmationId = new Map();
+    let fallbackOwnerMessageId = "";
+
+    const rememberFrameOwners = (messageId, frames) => {
+      if (!Array.isArray(frames)) {
+        return;
+      }
+      frames.forEach((frame) => {
+        const confirmationId =
+          typeof frame?.payload?.confirmation_id === "string"
+            ? frame.payload.confirmation_id.trim()
+            : "";
+        if (confirmationId && !ownerMessageIdByConfirmationId.has(confirmationId)) {
+          ownerMessageIdByConfirmationId.set(confirmationId, messageId);
+        }
+      });
+    };
+
+    messages.forEach((message) => {
+      const messageId =
+        typeof message?.id === "string" ? message.id.trim() : "";
+      if (!messageId || message?.role !== "assistant") {
+        return;
+      }
+      assistantMessageIds.add(messageId);
+      fallbackOwnerMessageId = messageId;
+      rememberFrameOwners(messageId, message.traceFrames);
+      const subagentFrames =
+        message?.subagentFrames && typeof message.subagentFrames === "object"
+          ? message.subagentFrames
+          : {};
+      Object.values(subagentFrames).forEach((frames) => {
+        rememberFrameOwners(messageId, frames);
+      });
+    });
+
+    const pendingByMessageId = {};
+    Object.entries(pendingToolConfirmationRequests || {}).forEach(
+      ([confirmationKey, request]) => {
+        if (!request || typeof request !== "object") {
+          return;
+        }
+        const confirmationId =
+          typeof request.confirmationId === "string" &&
+          request.confirmationId.trim()
+            ? request.confirmationId.trim()
+            : confirmationKey;
+        const explicitOwnerMessageId =
+          typeof request.ownerMessageId === "string" &&
+          assistantMessageIds.has(request.ownerMessageId.trim())
+            ? request.ownerMessageId.trim()
+            : "";
+        const ownerMessageId =
+          explicitOwnerMessageId ||
+          ownerMessageIdByConfirmationId.get(confirmationId) ||
+          fallbackOwnerMessageId;
+        if (!ownerMessageId) {
+          return;
+        }
+        ownerMessageIdByConfirmationId.set(confirmationId, ownerMessageId);
+        pendingByMessageId[ownerMessageId] = {
+          ...(pendingByMessageId[ownerMessageId] || {}),
+          [confirmationKey]: request,
+        };
+      },
+    );
+
+    const uiStateByMessageId = {};
+    Object.entries(toolConfirmationUiStateById || {}).forEach(
+      ([confirmationId, uiState]) => {
+        const ownerMessageId =
+          ownerMessageIdByConfirmationId.get(confirmationId) ||
+          fallbackOwnerMessageId;
+        if (!ownerMessageId) {
+          return;
+        }
+        uiStateByMessageId[ownerMessageId] = {
+          ...(uiStateByMessageId[ownerMessageId] || {}),
+          [confirmationId]: uiState,
+        };
+      },
+    );
+
+    return { pendingByMessageId, uiStateByMessageId };
+  }, [messages, pendingToolConfirmationRequests, toolConfirmationUiStateById]);
+
   return (
     <div
       style={{
@@ -123,6 +214,12 @@ const ChatMessages = ({
           >
             {visibleMessages.map((msg, index) => {
               const messageIndex = safeVisibleStart + index;
+              const messagePendingToolConfirmationRequests =
+                confirmationStateByMessageId.pendingByMessageId[msg.id] ||
+                EMPTY_CONFIRMATION_STATE;
+              const messageToolConfirmationUiStateById =
+                confirmationStateByMessageId.uiStateByMessageId[msg.id] ||
+                EMPTY_CONFIRMATION_STATE;
               return (
                 <div
                   key={msg.id}
@@ -152,12 +249,16 @@ const ChatMessages = ({
                       onResendMessage={onResendMessage}
                       onEditMessage={onEditMessage}
                       onToolConfirmationDecision={onToolConfirmationDecision}
-                      toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      toolConfirmationUiStateById={
+                        messageToolConfirmationUiStateById
+                      }
                       onClarifyResolve={onClarifyResolve}
                       pendingToolConfirmationRequests={
-                        pendingToolConfirmationRequests
+                        messagePendingToolConfirmationRequests
                       }
-                      disableActionButtons={isStreaming}
+                      disableActionButtons={
+                        isStreaming || disableActionButtons
+                      }
                       traceFrames={msg.traceFrames}
                       pendingContinuationRequest={
                         messageIndex === messages.length - 1
@@ -177,12 +278,16 @@ const ChatMessages = ({
                       onResendMessage={onResendMessage}
                       onEditMessage={onEditMessage}
                       onToolConfirmationDecision={onToolConfirmationDecision}
-                      toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      toolConfirmationUiStateById={
+                        messageToolConfirmationUiStateById
+                      }
                       onClarifyResolve={onClarifyResolve}
                       pendingToolConfirmationRequests={
-                        pendingToolConfirmationRequests
+                        messagePendingToolConfirmationRequests
                       }
-                      disableActionButtons={isStreaming}
+                      disableActionButtons={
+                        isStreaming || disableActionButtons
+                      }
                       traceFrames={msg.traceFrames}
                       pendingContinuationRequest={
                         messageIndex === messages.length - 1

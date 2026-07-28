@@ -1,4 +1,6 @@
-const SETTINGS_STORAGE_KEY = "settings";
+import { readNamespace, replaceNamespace } from "./settings_repository";
+
+const FEATURE_FLAGS_NAMESPACE = "feature_flags";
 const buildFeatureFlagsEnv = process.env.REACT_APP_BUILD_FEATURE_FLAGS;
 const isProductionBuildRuntime = process.env.NODE_ENV === "production";
 
@@ -38,6 +40,16 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show Theme colors in Appearance and apply saved semantic color presets/customizations.",
     defaultValue: false,
   },
+  enable_custom_model_providers: {
+    description:
+      "Show Custom Model Providers in Settings and allow custom models in catalogs, selectors, connection tests, and chat requests.",
+    defaultValue: false,
+  },
+  enable_computer_use: {
+    description:
+      "Ship the Computer toolkit and allow its separate consented user toggle to take effect. Requires an app restart after changing this build flag.",
+    defaultValue: false,
+  },
 };
 
 const listeners = new Set();
@@ -45,21 +57,6 @@ const buildFeatureFlagDefaults = readBuildFeatureFlagDefaults();
 
 const isObject = (value) =>
   value != null && typeof value === "object" && !Array.isArray(value);
-
-const readSettingsRoot = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}",
-    );
-    return isObject(parsed) ? parsed : {};
-  } catch (_error) {
-    return {};
-  }
-};
 
 const resolveFlagDefaultValue = (key, definition, fallbackFlags = {}) =>
   fallbackFlags[key] === true ||
@@ -95,8 +92,10 @@ export const readFeatureFlags = () => {
     return buildDefaults;
   }
 
-  const root = readSettingsRoot();
-  return normalizeFeatureFlags(root.feature_flags, buildDefaults);
+  return normalizeFeatureFlags(
+    readNamespace(FEATURE_FLAGS_NAMESPACE, {}),
+    buildDefaults,
+  );
 };
 
 export const isFeatureFlagEnabled = (key) => {
@@ -117,15 +116,9 @@ export const writeFeatureFlags = (patch = {}) => {
     }
   });
 
-  if (typeof window !== "undefined" && window.localStorage) {
-    try {
-      const root = readSettingsRoot();
-      root.feature_flags = next;
-      window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
-    } catch (_error) {
-      // no-op: keep in-memory updates available to current subscribers
-    }
-  }
+  // Persist failures stay silent: keep in-memory updates available to
+  // current subscribers (mirrors the previous try/catch localStorage write).
+  replaceNamespace(FEATURE_FLAGS_NAMESPACE, next).catch(() => {});
 
   emitFeatureFlagsChange(next);
   return next;

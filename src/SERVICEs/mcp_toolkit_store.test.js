@@ -47,10 +47,22 @@ describe("mcp_toolkit_store", () => {
     }
   });
 
-  test("entries may omit toolkitIcon and resolve to the mcp icon without background", () => {
-    const playwright = getMcpStoreEntry("browser.playwright");
-    expect(playwright.toolkitIcon).toBeUndefined();
-    expect(resolveMcpIcon(playwright)).toEqual(
+  test("every store entry carries its own brand icon — none falls back to the generic mcp glyph", () => {
+    /* Store-front invariant: a shelf of identical default glyphs is what the
+       icon pass removed. Registry entries must each declare an icon, and none
+       may resolve to the generic builtin "mcp" placeholder. The fallback path
+       itself is still exercised below with synthetic toolkits. */
+    for (const entry of listMcpStoreEntries()) {
+      const icon = resolveMcpIcon(entry);
+      expect(icon).toBeTruthy();
+      expect(icon).not.toMatchObject({ type: "builtin", name: "mcp" });
+    }
+  });
+
+  test("a toolkit that omits its icon resolves to the mcp icon without background", () => {
+    expect(
+      resolveMcpIcon({ toolkitId: "mcp.custom.local-noicon", source: "mcp" }),
+    ).toEqual(
       expect.objectContaining({
         type: "builtin",
         name: "mcp",
@@ -276,12 +288,14 @@ describe("mcp_toolkit_store", () => {
       ],
     });
 
+    /* playwright ships an explicit registry icon, so a "fallback" metadata
+       icon must lose to it — the registry svg wins, not the avatar png. */
     expect(resolveMcpIcon(getMcpStoreEntry("browser.playwright"))).toEqual(
-      expect.objectContaining({ type: "builtin", name: "mcp" }),
+      expect.objectContaining({ type: "file", mimeType: "image/svg+xml" }),
     );
-    expect(mcpStoreIconFor("mcp.browser.playwright")).toEqual(
-      expect.objectContaining({ type: "builtin", name: "mcp" }),
-    );
+    expect(mcpStoreIconFor("mcp.browser.playwright")).not.toMatchObject({
+      content: avatarIcon.content,
+    });
     expect(resolveMcpIcon(getMcpStoreEntry("dev.github-remote"))).toEqual(
       expect.objectContaining({ type: "builtin", name: "github" }),
     );
@@ -399,7 +413,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["markitdown-mcp"],
+        args: ["markitdown-mcp==0.0.1a4"],
       }),
     );
     expect(markitdown.secrets).toEqual([]);
@@ -446,7 +460,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-server-fetch"],
+        args: ["mcp-server-fetch==2026.7.10"],
       }),
     );
     expect(fetch.secrets).toEqual([]);
@@ -482,7 +496,8 @@ describe("mcp_toolkit_store", () => {
         category: "communication",
         source: "mcp",
         trustLevel: "needs_review",
-        installable: true,
+        status: "needs_review",
+        installable: false,
         license: "MIT",
         sourceRepo: "https://github.com/IQAIcom/mcp-discord",
         docsUrl: "https://github.com/IQAIcom/mcp-discord",
@@ -530,7 +545,8 @@ describe("mcp_toolkit_store", () => {
         category: "communication",
         source: "mcp",
         trustLevel: "needs_review",
-        installable: true,
+        status: "needs_review",
+        installable: false,
         license: "MIT",
         sourceRepo: "https://github.com/IQAIcom/mcp-telegram",
         docsUrl: "https://github.com/IQAIcom/mcp-telegram",
@@ -603,7 +619,11 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}"],
+        args: [
+          "mcp-server-sqlite==2025.4.25",
+          "--db-path",
+          "${WORKSPACE}/pupu-mcp.sqlite",
+        ],
       }),
     );
     // No connection string, password, or secret — it is a local file path only.
@@ -720,7 +740,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-grafana"],
+        args: ["mcp-grafana==0.17.2"],
       }),
     );
     expect(grafana.secrets).toEqual([
@@ -762,12 +782,19 @@ describe("mcp_toolkit_store", () => {
         sourceRepo: "https://github.com/ChromeDevTools/chrome-devtools-mcp",
       }),
     );
-    expect(chrome.mcp).toEqual(
-      expect.objectContaining({
-        transport: "stdio",
-        command: "npx",
-        args: ["-y", "chrome-devtools-mcp@latest"],
-      }),
+    expect(chrome.mcp).toEqual({
+      transport: "stdio",
+      command: "npx",
+      args: [
+        "-y",
+        "chrome-devtools-mcp@1.6.0",
+        "--no-usage-statistics",
+        "--no-performance-crux",
+      ],
+      headers: [],
+    });
+    expect(chrome.setupPreview).toBe(
+      "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
     );
     expect(chrome.secrets).toEqual([]);
     expect(
@@ -836,6 +863,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "notion",
         clientRegistration: "dynamic",
+        releaseStatus: "ready",
         transport: "streamable_http",
       }),
     );
@@ -845,6 +873,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "github",
         clientRegistration: "user_credentials",
+        releaseStatus: "app_required",
       }),
     );
 
@@ -854,6 +883,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "slack",
         clientRegistration: "user_credentials",
+        releaseStatus: "app_required",
         mcpUrl: "https://mcp.slack.com/mcp",
       }),
     );
@@ -862,6 +892,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "sentry",
         clientRegistration: "dynamic",
+        releaseStatus: "ready",
       }),
     );
 
@@ -870,6 +901,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "vercel",
         clientRegistration: "dynamic",
+        releaseStatus: "approval_required",
       }),
     );
 
@@ -879,6 +911,7 @@ describe("mcp_toolkit_store", () => {
         toolkitId: "mcp.dev.figma-remote",
         toolkitName: "Figma",
         category: "dev",
+        status: "coming_soon",
         installable: false,
       }),
     );
@@ -893,6 +926,7 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         provider: "figma",
         clientRegistration: "dynamic",
+        releaseStatus: "approval_required",
         mcpUrl: "https://mcp.figma.com/mcp",
         protectedResourceMetadataUrl: "https://mcp.figma.com/.well-known/oauth-protected-resource",
         authorizationServerMetadataUrl: "https://api.figma.com/.well-known/oauth-authorization-server",

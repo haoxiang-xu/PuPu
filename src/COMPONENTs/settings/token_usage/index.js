@@ -1,9 +1,21 @@
-import { useContext, useState, useMemo, useCallback, useRef } from "react";
+import {
+  useContext,
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import { BarChart } from "../../../BUILTIN_COMPONENTs/bar_chart";
 import { SettingsSection } from "../appearance";
-import { readTokenUsageRecords, clearTokenUsageRecords } from "./storage";
+import {
+  readTokenUsageRecords,
+  clearTokenUsageRecords,
+  queryTokenUsage,
+  isTokenUsageSqlBacked,
+} from "./storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
@@ -51,14 +63,14 @@ const BREAKDOWN_SERIES = [
   {
     key: "input",
     labelKey: "input",
-    lightColor: "rgba(14,165,233,0.84)",
-    darkColor: "rgba(56,189,248,0.9)",
+    lightColor: "rgba(var(--pupu-text-rgb),0.38)",
+    darkColor: "rgba(var(--pupu-text-rgb),0.5)",
   },
   {
     key: "output",
     labelKey: "output",
-    lightColor: "rgba(249,115,22,0.84)",
-    darkColor: "rgba(251,146,60,0.9)",
+    lightColor: "rgba(var(--pupu-accent-rgb),0.84)",
+    darkColor: "rgba(var(--pupu-accent-rgb),0.9)",
   },
 ];
 
@@ -546,12 +558,12 @@ const TokenBreakdownChart = ({
                         : hoveredBar.tooltipAnchor === "left"
                           ? { left: 0 }
                           : { left: "50%", transform: "translateX(-50%)" }),
-                      backgroundColor: isDark ? "#2a2a2a" : "#fff",
-                      border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                      backgroundColor: "var(--pupu-surface)",
+                      border: "1px solid rgba(var(--pupu-text-rgb),0.1)",
                       borderRadius: 6,
                       padding: "6px 8px",
                       fontSize: 11,
-                      color: isDark ? "#fff" : "#222",
+                      color: "var(--pupu-text)",
                       whiteSpace: "nowrap",
                       zIndex: 10,
                       boxShadow: isDark
@@ -715,12 +727,34 @@ export const TokenUsageSettings = () => {
   const isDark = onThemeMode === "dark_mode";
   const fontFamily = theme?.font?.fontFamily || "inherit";
 
-  // State
+  // State. The initial sync read is the instant paint (full fidelity in
+  // fallback mode; legacy snapshot + session appends in SQL mode).
   const [records, setRecords] = useState(() => readTokenUsageRecords());
   const [provider, setProvider] = useState(ALL);
   const [model, setModel] = useState(ALL);
   const [range, setRange] = useState("30d");
   const [granularity, setGranularity] = useState("day");
+
+  // SQL mode (Electron, Phase 2+): the selected date range runs as a SQL
+  // query instead of pulling the ever-growing full record set into the
+  // renderer (plan §3.2). Fallback mode keeps the legacy sync path — the
+  // effect is a no-op there. Rows arrive oldest-first; past the 50k query
+  // cap the NEWEST rows are kept (see queryTokenUsage in ./storage.js), so
+  // a truncated "All" range under-counts ancient usage, never recent usage.
+  useEffect(() => {
+    if (!isTokenUsageSqlBacked()) return undefined;
+    let cancelled = false;
+    queryTokenUsage({ startMs: rangeToCutoff(range), endMs: Date.now() })
+      .then((rows) => {
+        if (!cancelled) setRecords(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (!cancelled) setRecords(readTokenUsageRecords());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [range]);
 
   // Translated versions of module-level constants
   const rangeOptions = useMemo(() => RANGE_OPTIONS.map(opt => ({

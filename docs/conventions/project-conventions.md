@@ -187,26 +187,50 @@ const MyModal = ({ isOpen, onClose }) => {
 
 ## Storage Patterns
 
-### Settings Storage
+### Settings Storage (SQLite-authoritative)
+
+App Settings are authoritative in `settings.db` (main process), accessed through
+the renderer settings repository (`src/SERVICEs/settings_repository.js`). Store
+helpers read from the repository's synchronous memory snapshot and persist
+through it — they do **not** touch `localStorage` except as the built-in
+fallback the repository provides for browser/Jest/degraded mode.
 
 ```javascript
-const STORAGE_KEY = "settings";
+import {
+  readNamespace,
+  replaceNamespace,
+} from "../../SERVICEs/settings_repository";
 
-export const readMySettings = () => {
-  try {
-    const root = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    return root?.my_section || {};
-  } catch { return {}; }
-};
+const NAMESPACE = "my_section";
 
-export const writeMySettings = (updates) => {
-  const root = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-  root.my_section = { ...(root.my_section || {}), ...updates };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(root));
-};
+// getter stays synchronous (reads the memory snapshot)
+export const readMySettings = () => readNamespace(NAMESPACE, {});
+
+// mutation persists via async IPC; returns a Promise
+export const writeMySettings = (updates) =>
+  replaceNamespace(NAMESPACE, { ...readMySettings(), ...updates });
 ```
 
-> Never write to localStorage directly from components. Always use SERVICEs helpers.
+Rules:
+
+- **Settings go through the repository / store helpers**, never raw
+  `localStorage` from components. The repository owns the SQL-vs-fallback
+  decision; components must not branch on it.
+- **The intentional `localStorage` fallback inside store helpers stays** — it
+  keeps browser dev and Jest working. Do not delete it.
+- **Secrets never go through the ordinary settings path.** Provider keys are
+  read/written only through the secret adapter (`settings_secret_adapter.js`) and
+  stored as `safeStorage` ciphertext in `settings.db`; they are stripped from the
+  settings snapshot and injected in the main process.
+- **"Reset settings" runs a SQL transaction**, never `localStorage.clear()`
+  (which would also destroy the boot palette, crash-recovery outboxes, and
+  legacy secrets).
+- After a successful migration, legacy `localStorage` keys are **dual-keep
+  read-only**, not double-written; SQL migration state is authoritative.
+
+Structured stores (token usage, toolkit prefs, computer-use prefs, MCP icons)
+follow the same pattern but persist to their own `settings.db` tables via
+dedicated IPC channels.
 
 ---
 
@@ -235,7 +259,10 @@ Custom mini router in `BUILTIN_COMPONENTs/mini_react/mini_router.js`:
 4. **No new context providers** — check ConfigContext first
 5. **Build order** — run `version:prepare-build` before `react-scripts build`
 6. **Test sync** — Electron tests have `.js` and `.cjs` variants; keep in sync
-7. **Storage writes** — always through SERVICEs helpers
+7. **Storage writes** — always through SERVICEs helpers; App Settings go through
+   the settings repository (SQLite-authoritative), secrets only through the
+   secret adapter, and "reset settings" uses a SQL transaction, never
+   `localStorage.clear()`
 8. **Toolkit IDs** — use canonical `toolkitId` values, not aliases
 9. **Workspace paths** — use IDs in sessions, resolve to paths at stream time
 10. **Character chats** — force empty toolkits, workspaces, orchestration, overrides

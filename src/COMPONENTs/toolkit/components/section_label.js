@@ -10,7 +10,7 @@ const SectionLabel = ({ children, isDark }) => {
         textTransform: "uppercase",
         letterSpacing: "1.6px",
         fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-        color: isDark ? "#fff" : "#222",
+        color: "var(--pupu-text)",
         opacity: 0.3,
         padding: "20px 0 10px",
         userSelect: "none",

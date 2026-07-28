@@ -2,8 +2,12 @@ import {
   SEMANTIC_DEFAULTS,
   SEMANTIC_PRESETS,
 } from "../../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+import {
+  readNamespace,
+  updateNamespace,
+} from "../../../SERVICEs/settings_repository";
 
-const SETTINGS_STORAGE_KEY = "settings";
+const APPEARANCE_NAMESPACE = "appearance";
 
 const DERIVED_TIERS = ["sidebar", "surface"];
 
@@ -27,21 +31,9 @@ const stripAutoTiers = (theme) => {
   return theme;
 };
 
-const readRoot = () => {
-  if (typeof window === "undefined" || !window.localStorage) return {};
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}",
-    );
-    return isObject(parsed) ? parsed : {};
-  } catch (_e) {
-    return {};
-  }
-};
-
-const writeRoot = (root) => {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+const readAppearance = () => {
+  const appearance = readNamespace(APPEARANCE_NAMESPACE, {});
+  return isObject(appearance) ? appearance : {};
 };
 
 const defaultTheme = () => ({
@@ -50,24 +42,45 @@ const defaultTheme = () => ({
 });
 
 export const readThemeSettings = () => {
-  const root = readRoot();
-  const appearance = isObject(root.appearance) ? root.appearance : {};
+  const appearance = readAppearance();
   const theme = isObject(appearance.theme) ? appearance.theme : {};
   const custom = isObject(theme.custom) ? theme.custom : {};
-  return stripAutoTiers({
+  const result = stripAutoTiers({
     preset: typeof theme.preset === "string" ? theme.preset : "default",
     custom: {
       light_mode: isObject(custom.light_mode) ? { ...custom.light_mode } : {},
       dark_mode: isObject(custom.dark_mode) ? { ...custom.dark_mode } : {},
     },
   });
+  if (isObject(theme.details)) {
+    result.details = {
+      light_mode: isObject(theme.details.light_mode)
+        ? { ...theme.details.light_mode }
+        : {},
+      dark_mode: isObject(theme.details.dark_mode)
+        ? { ...theme.details.dark_mode }
+        : {},
+    };
+  }
+  return result;
 };
 
 const persist = (theme) => {
-  const root = readRoot();
-  const appearance = isObject(root.appearance) ? root.appearance : {};
-  root.appearance = { ...appearance, theme };
-  writeRoot(root);
+  /* Merge into the namespace so sibling appearance keys (theme_mode, locale)
+     survive. Legacy parity: the pre-repository writeRoot called
+     localStorage.setItem bare, so a synchronous write failure (quota) must
+     keep throwing to the caller — throwSyncWriteErrors restores that in
+     fallback mode. Everything else (SQL-mode async persistence, missing
+     localStorage) stays silent via the noop catch, mirroring the legacy
+     early-return/fire-and-forget behavior. */
+  updateNamespace(
+    APPEARANCE_NAMESPACE,
+    (current) => {
+      const appearance = isObject(current) ? current : {};
+      return { ...appearance, theme };
+    },
+    { throwSyncWriteErrors: true },
+  ).catch(() => {});
 };
 
 export const writeThemePreset = (preset) => {
@@ -89,6 +102,16 @@ export const writeThemeCustom = (custom) => {
   theme.custom = {
     light_mode: isObject(custom?.light_mode) ? custom.light_mode : {},
     dark_mode: isObject(custom?.dark_mode) ? custom.dark_mode : {},
+  };
+  persist(theme);
+  return theme;
+};
+
+export const writeThemeDetails = (details) => {
+  const theme = readThemeSettings();
+  theme.details = {
+    light_mode: isObject(details?.light_mode) ? details.light_mode : {},
+    dark_mode: isObject(details?.dark_mode) ? details.dark_mode : {},
   };
   persist(theme);
   return theme;

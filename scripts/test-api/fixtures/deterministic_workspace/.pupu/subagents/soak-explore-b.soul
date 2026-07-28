@@ -1,0 +1,5 @@
+---
+name: soak-explore-b
+description: Deterministic worker B for release soak coverage
+---
+Return exactly the deterministic result requested by the soak coordinator. Do not call tools or ask the user questions.

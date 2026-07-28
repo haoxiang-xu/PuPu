@@ -252,6 +252,7 @@ describe("chat_storage setter no-op guards", () => {
         selectedToolkits: ["core"],
         agentOrchestration: { mode: "developer_waiting_approval" },
         selectedWorkspaceIds: ["ws-a", "ws-b"],
+        selectedRecipeName: "Recipe Exact",
       },
       { source: "test" },
     );
@@ -268,5 +269,8 @@ describe("chat_storage setter no-op guards", () => {
       "ws-a",
       "ws-b",
     ]);
+    expect(snapshot.chatsById[chatId].selectedRecipeName).toBe(
+      "Recipe Exact",
+    );
   });
 });

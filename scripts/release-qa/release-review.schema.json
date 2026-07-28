@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "recommendation": {
+      "type": "string",
+      "enum": ["GO", "NO-GO", "NEEDS-HUMAN-TEST"]
+    },
+    "summary": { "type": "string" },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "title": { "type": "string" },
+          "evidence": { "type": "string" },
+          "recommendation": { "type": "string" }
+        },
+        "required": ["severity", "title", "evidence", "recommendation"]
+      }
+    },
+    "missing_tests": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["recommendation", "summary", "risks", "missing_tests"]
+}

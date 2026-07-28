@@ -29,7 +29,7 @@ export function setupKindForEntry(entry) {
   if (requiresWorkspace(entry)) return "workspace";
   if (hasOAuthRecipe(entry) && !(entry.secrets || []).length) return "oauth";
   if (entry.mcp?.transport === "http") {
-    return (entry.secrets || []).length > 0 ? "http_secret" : "oauth";
+    return (entry.secrets || []).length > 0 ? "http_secret" : "direct";
   }
   if ((entry.secrets || []).length > 0) return "secrets";
   return "direct";
@@ -45,17 +45,37 @@ export function isEntryInstallable(entry) {
 }
 
 export function isEntryOAuthConnectable(entry) {
-  return Boolean(entry) && (hasOAuthRecipe(entry) || setupKindForEntry(entry) === "oauth");
+  if (!entry || !hasOAuthRecipe(entry)) return false;
+  if (entry.status !== "available") return false;
+  return entry.auth.oauth.releaseStatus === "ready";
 }
 
 /* installed | installable | needs_review | oauth | coming_soon */
 export function entryInstallState(entry, installedIds) {
   if (!entry) return "coming_soon";
-  if (installedIds && installedIds.has(entry.toolkitId)) return "installed";
   if (entry.status === "needs_review") return "needs_review";
-  if (setupKindForEntry(entry) === "oauth") return "oauth";
+  if (entry.status !== "available") return "coming_soon";
+  if (installedIds && installedIds.has(entry.toolkitId)) return "installed";
+  if (
+    setupKindForEntry(entry) === "oauth" &&
+    isEntryOAuthConnectable(entry)
+  ) {
+    return "oauth";
+  }
   if (isEntryInstallable(entry)) return "installable";
   return "coming_soon";
+}
+
+/* An entry "opens setup" when clicking its GET-equivalent pill should not
+   fire a bare install — it needs a secrets form, an http-secret form, or a
+   custom recipe form first (see usePluginInstallState / plugin_tile.js /
+   plugins_discover_page.js, all of which gate on this before calling
+   install directly). Shared here so the state-derivation and the click
+   gating never drift from each other. */
+export function entryOpensSetup(entry, installedIds) {
+  if (!entry) return false;
+  if (entryInstallState(entry, installedIds) !== "installable") return false;
+  return ["secrets", "http_secret", "custom"].includes(setupKindForEntry(entry));
 }
 
 /* Workspace-scoped MCP entries must receive the agent workspace root. */
@@ -259,38 +279,75 @@ export async function connectMcpOAuthEntry(
     throw err;
   }
 
-  throwIfAborted(signal);
-  await api.unchain.startMcpOAuth(entry.id);
-  let lastStatus = null;
-  const attempts = Math.max(1, Number(maxAttempts) || 1);
-  for (let i = 0; i < attempts; i += 1) {
+  let startResult = null;
+  try {
     throwIfAborted(signal);
-    lastStatus = await api.unchain.getMcpOAuthStatus(entry.id);
+    startResult = await api.unchain.startMcpOAuth(entry.id);
     throwIfAborted(signal);
-    if (lastStatus?.authStatus === "connected") {
-      const toolkitId = lastStatus.toolkitId || entry.toolkitId;
-      setDefaultToolkitEnabled("global", toolkitId, true);
-      emitToolkitCatalogRefresh();
-      return { ok: true, toolkitId };
-    }
-    if (["expired", "error"].includes(lastStatus?.authStatus)) {
-      const err = new Error(lastStatus?.lastError || "OAuth connection failed");
-      err.code =
-        lastStatus?.authStatus === "expired"
-          ? "mcp_oauth_expired"
-          : "mcp_oauth_start_failed";
+    const state =
+      typeof startResult?.state === "string" ? startResult.state.trim() : "";
+    if (!state) {
+      const err = new Error("OAuth start did not return an attempt state");
+      err.code = "mcp_oauth_start_failed";
       throw err;
     }
-    if (i < attempts - 1) {
-      await delay(pollDelayMs, signal);
+    let lastStatus = null;
+    const attempts = Math.max(1, Number(maxAttempts) || 1);
+    for (let i = 0; i < attempts; i += 1) {
       throwIfAborted(signal);
+      lastStatus = await api.unchain.getMcpOAuthStatus(state);
+      throwIfAborted(signal);
+      if (lastStatus?.authStatus === "connected") {
+        const toolkitId = lastStatus.toolkitId || entry.toolkitId;
+        setDefaultToolkitEnabled("global", toolkitId, true);
+        emitToolkitCatalogRefresh();
+        return { ok: true, toolkitId };
+      }
+      if (["expired", "error", "cancelled"].includes(lastStatus?.authStatus)) {
+        const err = new Error(lastStatus?.lastError || "OAuth connection failed");
+        err.code =
+          lastStatus?.authStatus === "expired"
+            ? "mcp_oauth_expired"
+            : lastStatus?.authStatus === "cancelled"
+              ? "mcp_oauth_attempt_cancelled"
+              : "mcp_oauth_start_failed";
+        throw err;
+      }
+      if (i < attempts - 1) {
+        await delay(pollDelayMs, signal);
+        throwIfAborted(signal);
+      }
     }
-  }
 
-  const err = new Error("OAuth connection is still pending");
-  err.code = "mcp_oauth_pending";
-  err.status = lastStatus;
-  throw err;
+    const err = new Error("OAuth connection is still pending");
+    err.code = "mcp_oauth_pending";
+    err.status = lastStatus;
+    throw err;
+  } catch (error) {
+    const state =
+      typeof startResult?.state === "string" ? startResult.state.trim() : "";
+    if (
+      [
+        "mcp_oauth_cancelled",
+        "mcp_oauth_pending",
+        "mcp_oauth_status_failed",
+        "mcp_oauth_status_timeout",
+      ].includes(error?.code) &&
+      state &&
+      typeof api.unchain.cancelMcpOAuth === "function"
+    ) {
+      const cancellation = await api.unchain.cancelMcpOAuth(state);
+      if (cancellation?.cancelled !== true) {
+        const cancellationError = new Error(
+          "OAuth attempt could not be safely cancelled",
+        );
+        cancellationError.code = "mcp_oauth_cancel_failed";
+        cancellationError.cause = error;
+        throw cancellationError;
+      }
+    }
+    throw error;
+  }
 }
 
 export async function deleteMcpEntry(toolkitId) {

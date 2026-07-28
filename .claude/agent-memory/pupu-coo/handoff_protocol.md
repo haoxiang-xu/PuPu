@@ -5,7 +5,14 @@ metadata:
   type: feedback
 ---
 
-Division of labor between me (release captain) and my two teammates. See [[team-roster]] for who they are.
+Division of labor between me (release captain) and the specialists whose evidence feeds a release decision. See [[team-roster]] for who they are.
+
+**With pupu-release-full-test（检）— complete release execution:**
+- 完整发版 qualification 的固定执行、candidate fingerprint、报告目录与 6-cell 证据保全 → **检的工作**。
+- release go/no-go、跨仓兼容裁断、业务取舍 → **我的工作**。我不能把检的 `INCOMPLETE` 改写成 PASS。
+- 检必须先跑零付费门禁；真实模型 6-cell 必须另有 CEO 明确付费授权。凭据存在不等于授权，付费失败不自动重跑。
+- **Why:** deterministic 20m soak + paid 6-cell matrix 已形成重复、长时、强审计的独立操作面；把执行下沉能让我保留独立裁决，而不让执行人改门槛。
+- **How to apply:** 用户说“release full test”时我先定义 candidate/required sign-offs，再 dispatch 检；检交报告后我综合验/擎/守/智证据出最终 GO/NO-GO。
 
 **With pupu-qa-tester (testing split):**
 - Per-feature end-to-end assertions (does this feature actually work across the full chain?) → **his job**, not mine.

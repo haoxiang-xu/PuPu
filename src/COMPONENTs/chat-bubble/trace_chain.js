@@ -20,6 +20,7 @@ import {
 } from "./components/streaming_message_store_context";
 import InteractWrapper from "./interact/interact_wrapper";
 import { normalizeStreamingChunks } from "../../SERVICEs/streaming_message_chunks";
+import { isToolConfirmationCacheable } from "../../SERVICEs/tool_confirmation_cache_policy";
 import {
   FINALITY,
   getFrameFinality,
@@ -347,6 +348,8 @@ const ToolTag = ({ name, isDark, compact = false }) => (
       padding: compact ? "1px 6px" : "1px 7px",
       borderRadius: compact ? 4 : 5,
       background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+      /* off by default; themes opt in via the JSON details channel */
+      border: "1px solid var(--pupu-chip-border, transparent)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: compact ? "0.74em" : "0.82em",
       letterSpacing: 0.1,
@@ -371,6 +374,7 @@ const CountBadge = ({ count, isDark }) => (
       height: 16,
       borderRadius: 8,
       background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.055)",
+      border: "1px solid var(--pupu-chip-border, transparent)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: "0.72em",
       color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
@@ -402,6 +406,7 @@ const SubagentTag = ({ name, isDark }) => (
       padding: "1px 7px",
       borderRadius: 5,
       background: isDark ? "rgba(168,130,255,0.10)" : "rgba(124,58,237,0.07)",
+      border: "1px solid var(--pupu-chip-border, transparent)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: "0.82em",
       letterSpacing: 0.1,
@@ -1529,10 +1534,17 @@ const TraceChain = ({
         const confirmationResult = callId
           ? confirmationStatusByCallId.get(callId)
           : "";
-        const confirmationUiState =
-          confirmationId && toolConfirmationUiStateById
-            ? toolConfirmationUiStateById[confirmationId] || {}
-            : {};
+        const hasAuthoritativeConfirmationUiState = Boolean(
+          confirmationId &&
+            toolConfirmationUiStateById &&
+            Object.prototype.hasOwnProperty.call(
+              toolConfirmationUiStateById,
+              confirmationId,
+            ),
+        );
+        const confirmationUiState = hasAuthoritativeConfirmationUiState
+          ? toolConfirmationUiStateById[confirmationId] || {}
+          : {};
         const persistedUserResponse =
           callId && confirmationUserResponseByCallId.has(callId)
             ? confirmationUserResponseByCallId.get(callId)
@@ -1624,6 +1636,8 @@ const TraceChain = ({
           }
 
           const canTakeAction =
+            hasAuthoritativeConfirmationUiState &&
+            uiStatus === "idle" &&
             !isResolved &&
             !uiResolved &&
             !isSubmitting &&
@@ -1683,6 +1697,10 @@ const TraceChain = ({
                   uiState={effectiveConfirmationUiState}
                   isDark={isDark}
                   disabled={false}
+                  allowSessionApproval={isToolConfirmationCacheable(
+                    frame.payload?.toolkit_id,
+                    frame.payload?.tool_name,
+                  )}
                 />
               ) : null}
             </div>

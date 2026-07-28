@@ -15,6 +15,7 @@
       "license": "Apache-2.0",
       "sourceRepo": "https://github.com/microsoft/playwright-mcp",
       "docsUrl": "https://github.com/microsoft/playwright-mcp",
+      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg width=\"400\" height=\"400\" viewBox=\"0 0 400 400\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M136.444 221.556C123.558 225.213 115.104 231.625 109.535 238.032C114.869 233.364 122.014 229.08 131.652 226.348C141.51 223.554 149.92 223.574 156.869 224.915V219.481C150.941 218.939 144.145 219.371 136.444 221.556ZM108.946 175.876L61.0895 188.484C61.0895 188.484 61.9617 189.716 63.5767 191.36L104.153 180.668C104.153 180.668 103.578 188.077 98.5847 194.705C108.03 187.559 108.946 175.876 108.946 175.876ZM149.005 288.347C81.6582 306.486 46.0272 228.438 35.2396 187.928C30.2556 169.229 28.0799 155.067 27.5 145.928C27.4377 144.979 27.4665 144.179 27.5336 143.446C24.04 143.657 22.3674 145.473 22.7077 150.721C23.2876 159.855 25.4633 174.016 30.4473 192.721C41.2301 233.225 76.8659 311.273 144.213 293.134C158.872 289.185 169.885 281.992 178.152 272.81C170.532 279.692 160.995 285.112 149.005 288.347ZM161.661 128.11V132.903H188.077C187.535 131.206 186.989 129.677 186.447 128.11H161.661Z\" fill=\"#2D4552\"/><path d=\"M193.981 167.584C205.861 170.958 212.144 179.287 215.465 186.658L228.711 190.42C228.711 190.42 226.904 164.623 203.57 157.995C181.741 151.793 168.308 170.124 166.674 172.496C173.024 167.972 182.297 164.268 193.981 167.584ZM299.422 186.777C277.573 180.547 264.145 198.916 262.535 201.255C268.89 196.736 278.158 193.031 289.837 196.362C301.698 199.741 307.976 208.06 311.307 215.436L324.572 219.212C324.572 219.212 322.736 193.41 299.422 186.777ZM286.262 254.795L176.072 223.99C176.072 223.99 177.265 230.038 181.842 237.869L274.617 263.805C282.255 259.386 286.262 254.795 286.262 254.795ZM209.867 321.102C122.618 297.71 133.166 186.543 147.284 133.865C153.097 112.156 159.073 96.0203 164.029 85.204C161.072 84.5953 158.623 86.1529 156.203 91.0746C150.941 101.747 144.212 119.124 137.7 143.45C123.586 196.127 113.038 307.29 200.283 330.682C241.406 341.699 273.442 324.955 297.323 298.659C274.655 319.19 245.714 330.701 209.867 321.102Z\" fill=\"#2D4552\"/><path d=\"M161.661 262.296V239.863L99.3324 257.537C99.3324 257.537 103.938 230.777 136.444 221.556C146.302 218.762 154.713 218.781 161.661 220.123V128.11H192.869C189.471 117.61 186.184 109.526 183.423 103.909C178.856 94.612 174.174 100.775 163.545 109.665C156.059 115.919 137.139 129.261 108.668 136.933C80.1966 144.61 57.179 142.574 47.5752 140.911C33.9601 138.562 26.8387 135.572 27.5049 145.928C28.0847 155.062 30.2605 169.224 35.2445 187.928C46.0272 228.433 81.663 306.481 149.01 288.342C166.602 283.602 179.019 274.233 187.626 262.291H161.661V262.296ZM61.0848 188.484L108.946 175.876C108.946 175.876 107.551 194.288 89.6087 199.018C71.6614 203.743 61.0848 188.484 61.0848 188.484Z\" fill=\"#E2574C\"/><path d=\"M341.786 129.174C329.345 131.355 299.498 134.072 262.612 124.185C225.716 114.304 201.236 97.0224 191.537 88.8994C177.788 77.3834 171.74 69.3802 165.788 81.4857C160.526 92.163 153.797 109.54 147.284 133.866C133.171 186.543 122.623 297.706 209.867 321.098C297.093 344.47 343.53 242.92 357.644 190.238C364.157 165.917 367.013 147.5 367.799 135.625C368.695 122.173 359.455 126.078 341.786 129.174ZM166.497 172.756C166.497 172.756 180.246 151.372 203.565 158C226.899 164.628 228.706 190.425 228.706 190.425L166.497 172.756ZM223.42 268.713C182.403 256.698 176.077 223.99 176.077 223.99L286.262 254.796C286.262 254.791 264.021 280.578 223.42 268.713ZM262.377 201.495C262.377 201.495 276.107 180.126 299.422 186.773C322.736 193.411 324.572 219.208 324.572 219.208L262.377 201.495Z\" fill=\"#2EAD33\"/><path d=\"M139.88 246.04L99.3324 257.532C99.3324 257.532 103.737 232.44 133.607 222.496L110.647 136.33L108.663 136.933C80.1918 144.611 57.1742 142.574 47.5704 140.911C33.9554 138.563 26.834 135.572 27.5001 145.929C28.08 155.063 30.2557 169.224 35.2397 187.929C46.0225 228.433 81.6583 306.481 149.005 288.342L150.989 287.719L139.88 246.04ZM61.0848 188.485L108.946 175.876C108.946 175.876 107.551 194.288 89.6087 199.018C71.6615 203.743 61.0848 188.485 61.0848 188.485Z\" fill=\"#D65348\"/><path d=\"M225.27 269.163L223.415 268.712C182.398 256.698 176.072 223.99 176.072 223.99L232.89 239.872L262.971 124.281L262.607 124.185C225.711 114.304 201.232 97.0224 191.532 88.8994C177.783 77.3834 171.735 69.3802 165.783 81.4857C160.526 92.163 153.797 109.54 147.284 133.866C133.171 186.543 122.623 297.706 209.867 321.097L211.655 321.5L225.27 269.163ZM166.497 172.756C166.497 172.756 180.246 151.372 203.565 158C226.899 164.628 228.706 190.425 228.706 190.425L166.497 172.756Z\" fill=\"#1D8D22\"/><path d=\"M141.946 245.451L131.072 248.537C133.641 263.019 138.169 276.917 145.276 289.195C146.513 288.922 147.74 288.687 149 288.342C152.302 287.451 155.364 286.348 158.312 285.145C150.371 273.361 145.118 259.789 141.946 245.451ZM137.7 143.451C132.112 164.307 127.113 194.326 128.489 224.436C130.952 223.367 133.554 222.371 136.444 221.551L138.457 221.101C136.003 188.939 141.308 156.165 147.284 133.866C148.799 128.225 150.318 122.978 151.832 118.085C149.393 119.637 146.767 121.228 143.776 122.867C141.759 129.093 139.722 135.898 137.7 143.451Z\" fill=\"#C04B41\"/></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -39,9 +40,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@playwright/mcp@latest"]
+        "args": ["-y", "@playwright/mcp@0.0.78"]
       },
-      "setupPreview": "npx -y @playwright/mcp@latest",
+      "setupPreview": "npx -y @playwright/mcp@0.0.78",
       "prerequisites": ["Node.js >= 18"],
       "secrets": [],
       "tools": [
@@ -99,16 +100,16 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["--from", "browser-use[cli]", "browser-use", "--mcp"]
+        "args": ["--from", "browser-use[cli]==0.13.6", "browser-use", "--mcp"]
       },
-      "setupPreview": "uvx --from browser-use[cli] browser-use --mcp",
+      "setupPreview": "uvx --from browser-use[cli]==0.13.6 browser-use --mcp",
       "prerequisites": ["uv / uvx", "Python >= 3.11"],
       "secrets": [{ "key": "OPENAI_API_KEY", "label": "OpenAI API key" }],
       "tools": [
-        { "name": "open_tab", "title": "Open tab", "requiresConfirmation": false },
-        { "name": "go_to_url", "title": "Go to URL", "requiresConfirmation": false },
-        { "name": "click_element", "title": "Click element", "requiresConfirmation": true },
-        { "name": "input_text", "title": "Input text", "requiresConfirmation": true }
+        { "name": "browser_navigate", "title": "Navigate", "requiresConfirmation": false },
+        { "name": "browser_get_state", "title": "Get browser state", "requiresConfirmation": false },
+        { "name": "browser_click", "title": "Click", "requiresConfirmation": true },
+        { "name": "browser_type", "title": "Type", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
@@ -160,9 +161,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "chrome-devtools-mcp@latest"]
+        "args": ["-y", "chrome-devtools-mcp@1.6.0", "--no-usage-statistics", "--no-performance-crux"]
       },
-      "setupPreview": "npx -y chrome-devtools-mcp@latest",
+      "setupPreview": "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
       "prerequisites": ["Node.js LTS", "npm", "Chrome current stable or newer"],
       "secrets": [],
       "tools": [
@@ -216,6 +217,7 @@
           "provider": "github",
           "providerLabel": "GitHub",
           "clientRegistration": "user_credentials",
+          "releaseStatus": "app_required",
           "mcpUrl": "https://api.githubcopilot.com/mcp/",
           "transport": "streamable_http",
           "authorizationEndpoint": "https://github.com/login/oauth/authorize",
@@ -240,17 +242,17 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 2
       },
-      "readmeMarkdown": "## GitHub (remote)\n\nThe official remote GitHub MCP server. Supports OAuth or a Personal Access Token header. Phase 1 shows the connection details only."
+      "readmeMarkdown": "## GitHub (remote)\n\nConnect to the official GitHub MCP server with a Personal Access Token. OAuth remains unavailable until PuPu has an approved GitHub OAuth app."
     },
     {
       "id": "dev.figma-remote",
       "toolkitId": "mcp.dev.figma-remote",
       "name": "Figma",
-      "description": "Official remote Figma MCP server for design context, screenshots, variables and canvas workflows.",
+      "description": "Official remote Figma MCP server; PuPu connection is pending Figma client approval.",
       "category": "dev",
       "source": "mcp",
       "trustLevel": "verified",
-      "status": "available",
+      "status": "coming_soon",
       "installable": false,
       "license": "hosted",
       "sourceRepo": "https://developers.figma.com/docs/figma-mcp-server/",
@@ -272,6 +274,7 @@
           "provider": "figma",
           "providerLabel": "Figma",
           "clientRegistration": "dynamic",
+          "releaseStatus": "approval_required",
           "mcpUrl": "https://mcp.figma.com/mcp",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.figma.com/.well-known/oauth-protected-resource",
@@ -302,7 +305,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 3
       },
-      "readmeMarkdown": "## Figma Remote\n\nConnects to Figma's official hosted MCP endpoint over Streamable HTTP. Authentication uses Figma OAuth with the `mcp:connect` scope. The remote server is link-based: copy a Figma frame, layer, FigJam, Slides or Make URL and use it in the agent prompt."
+      "readmeMarkdown": "## Figma Remote\n\nFigma currently allows only clients approved in the Figma MCP Catalog to connect to its hosted MCP endpoint. PuPu is not approved yet, so this entry is intentionally unavailable instead of exposing a Connect button that ends in a 403 error. The integration can be enabled after Figma approves PuPu and the OAuth flow passes release testing."
     },
     {
       "id": "devops.sentry-remote",
@@ -356,6 +359,7 @@
           "provider": "sentry",
           "providerLabel": "Sentry",
           "clientRegistration": "dynamic",
+          "releaseStatus": "ready",
           "mcpUrl": "https://mcp.sentry.dev/mcp",
           "transport": "streamable_http",
           "authorizationServerMetadataUrl": "https://mcp.sentry.dev/.well-known/oauth-authorization-server",
@@ -388,11 +392,11 @@
       "id": "devops.vercel-remote",
       "toolkitId": "mcp.devops.vercel-remote",
       "name": "Vercel",
-      "description": "Official Vercel remote MCP server for docs, projects, deployments and logs.",
+      "description": "Official Vercel remote MCP server; PuPu connection is pending Vercel client approval.",
       "category": "devops",
       "source": "mcp",
       "trustLevel": "verified",
-      "status": "available",
+      "status": "coming_soon",
       "installable": false,
       "license": "hosted",
       "sourceRepo": "https://vercel.com/docs/agent-resources/vercel-mcp",
@@ -415,6 +419,7 @@
           "provider": "vercel",
           "providerLabel": "Vercel",
           "clientRegistration": "dynamic",
+          "releaseStatus": "approval_required",
           "mcpUrl": "https://mcp.vercel.com",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.vercel.com/.well-known/oauth-protected-resource",
@@ -428,18 +433,19 @@
       "prerequisites": ["Vercel account", "Vercel-supported OAuth client access"],
       "secrets": [],
       "tools": [
-        { "name": "search_docs", "title": "Search docs", "requiresConfirmation": false },
+        { "name": "search_documentation", "title": "Search docs", "requiresConfirmation": false },
         { "name": "list_projects", "title": "List projects", "requiresConfirmation": false },
         { "name": "list_deployments", "title": "List deployments", "requiresConfirmation": false },
-        { "name": "get_deployment_logs", "title": "Deployment logs", "requiresConfirmation": false },
-        { "name": "create_deployment", "title": "Create deployment", "requiresConfirmation": true }
+        { "name": "get_deployment_build_logs", "title": "Build logs", "requiresConfirmation": false },
+        { "name": "get_runtime_logs", "title": "Runtime logs", "requiresConfirmation": false },
+        { "name": "deploy_to_vercel", "title": "Deploy to Vercel", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 1
       },
-      "readmeMarkdown": "## Vercel Remote\n\nConnects to Vercel's official remote MCP endpoint over Streamable HTTP with OAuth. Vercel documents this endpoint for project, deployment, log and documentation workflows."
+      "readmeMarkdown": "## Vercel Remote\n\nVercel currently allows only reviewed and approved AI clients to connect to its hosted MCP endpoint. PuPu is not on that list yet, so this entry is intentionally unavailable until provider approval and end-to-end OAuth testing are complete."
     },
     {
       "id": "devops.grafana",
@@ -484,9 +490,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-grafana"]
+        "args": ["mcp-grafana==0.17.2"]
       },
-      "setupPreview": "uvx mcp-grafana",
+      "setupPreview": "uvx mcp-grafana==0.17.2",
       "prerequisites": ["uv / uvx", "Grafana instance or Grafana Cloud", "Grafana service account token"],
       "secrets": [
         { "key": "GRAFANA_URL", "label": "Grafana URL" },
@@ -496,13 +502,13 @@
         { "name": "search_dashboards", "title": "Search dashboards", "requiresConfirmation": false },
         { "name": "get_dashboard_by_uid", "title": "Get dashboard", "requiresConfirmation": false },
         { "name": "query_prometheus", "title": "Query Prometheus", "requiresConfirmation": false },
-        { "name": "list_alert_rules", "title": "List alert rules", "requiresConfirmation": false },
+        { "name": "alerting_manage_rules", "title": "Manage alert rules", "requiresConfirmation": true },
         { "name": "update_dashboard", "title": "Update dashboard", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
         "defaultEnabledTools": 0,
-        "confirmationRequiredTools": 1
+        "confirmationRequiredTools": 2
       },
       "readmeMarkdown": "## Grafana\n\nRuns Grafana Labs' official `mcp-grafana` server over stdio. Provide `GRAFANA_URL` and a `GRAFANA_SERVICE_ACCOUNT_TOKEN`; Grafana Cloud instances should use their HTTPS instance URL."
     },
@@ -605,6 +611,7 @@
           "provider": "notion",
           "providerLabel": "Notion",
           "clientRegistration": "dynamic",
+          "releaseStatus": "ready",
           "mcpUrl": "https://mcp.notion.com/mcp",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.notion.com/.well-known/oauth-protected-resource",
@@ -618,16 +625,16 @@
       "prerequisites": ["Notion account"],
       "secrets": [],
       "tools": [
-        { "name": "search", "title": "Search", "requiresConfirmation": false },
-        { "name": "fetch_page", "title": "Fetch page", "requiresConfirmation": false },
-        { "name": "create_page", "title": "Create page", "requiresConfirmation": true }
+        { "name": "notion-search", "title": "Search workspace", "requiresConfirmation": false },
+        { "name": "notion-fetch", "title": "Fetch content", "requiresConfirmation": false },
+        { "name": "notion-create-pages", "title": "Create pages", "requiresConfirmation": true }
       ],
       "policySummary": {
         "reviewed": true,
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 1
       },
-      "readmeMarkdown": "## Notion (hosted)\n\nNotion's hosted MCP endpoint. Connection is via OAuth in the Phase 2 setup flow; Phase 1 only previews the endpoint."
+      "readmeMarkdown": "## Notion (hosted)\n\nConnect to Notion's hosted MCP endpoint with OAuth. PuPu opens the authorization page and enables the toolkit after the connection succeeds."
     },
     {
       "id": "workspace.filesystem",
@@ -642,6 +649,7 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"fs\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#5CA6FF\"/><stop offset=\"1\" stop-color=\"#2E68E6\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#fs)\"/><path d=\"M4.6 7.9a1.7 1.7 0 0 1 1.7-1.7h2.6c.5 0 1 .2 1.3.6l.9 1h6.6a1.7 1.7 0 0 1 1.7 1.7v6.3a1.7 1.7 0 0 1-1.7 1.7H6.3a1.7 1.7 0 0 1-1.7-1.7V7.9Z\" fill=\"#fff\"/><path d=\"M4.6 11.4h14.8v4.4a1.7 1.7 0 0 1-1.7 1.7H6.3a1.7 1.7 0 0 1-1.7-1.7v-4.4Z\" fill=\"#0B3D91\" opacity=\".14\"/></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -671,9 +679,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "${WORKSPACE}"]
+        "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.7.10", "${WORKSPACE}"]
       },
-      "setupPreview": "npx -y @modelcontextprotocol/server-filesystem ${WORKSPACE}",
+      "setupPreview": "npx -y @modelcontextprotocol/server-filesystem@2026.7.10 ${WORKSPACE}",
       "prerequisites": ["Node.js >= 18"],
       "secrets": [],
       "tools": [
@@ -702,6 +710,7 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/microsoft/markitdown",
       "docsUrl": "https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp",
+      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"md\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#565E70\"/><stop offset=\"1\" stop-color=\"#323846\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#md)\"/><g transform=\"translate(2.4 2.4) scale(0.8)\" fill=\"#fff\"><path d=\"M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -726,9 +735,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["markitdown-mcp"]
+        "args": ["markitdown-mcp==0.0.1a4"]
       },
-      "setupPreview": "uvx markitdown-mcp",
+      "setupPreview": "uvx markitdown-mcp==0.0.1a4",
       "prerequisites": ["uv / uvx", "Python >= 3.10"],
       "secrets": [],
       "tools": [
@@ -754,6 +763,7 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"mm\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#A98BFB\"/><stop offset=\"1\" stop-color=\"#7A34E8\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#mm)\"/><g stroke=\"#fff\" stroke-width=\"1.5\" stroke-linecap=\"round\" opacity=\".92\"><path d=\"M12 12 7 7.7M12 12l5.6.6M12 12 8.8 17\"/></g><g fill=\"#fff\"><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><circle cx=\"7\" cy=\"7.7\" r=\"1.9\"/><circle cx=\"17.6\" cy=\"12.6\" r=\"1.9\"/><circle cx=\"8.8\" cy=\"17\" r=\"1.9\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -778,9 +788,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-memory"]
+        "args": ["-y", "@modelcontextprotocol/server-memory@2026.7.4"]
       },
-      "setupPreview": "npx -y @modelcontextprotocol/server-memory",
+      "setupPreview": "npx -y @modelcontextprotocol/server-memory@2026.7.4",
       "prerequisites": ["Node.js >= 18"],
       "secrets": [],
       "tools": [
@@ -802,11 +812,11 @@
       "id": "productivity.slack-remote",
       "toolkitId": "mcp.productivity.slack-remote",
       "name": "Slack Remote",
-      "description": "Official hosted Slack MCP server over Streamable HTTP.",
+      "description": "Official Slack remote MCP server; PuPu requires a registered Slack app before connection can ship.",
       "category": "communication",
       "source": "mcp",
       "trustLevel": "verified",
-      "status": "available",
+      "status": "coming_soon",
       "installable": false,
       "license": "hosted",
       "sourceRepo": "https://docs.slack.dev/ai/slack-mcp-server/",
@@ -829,6 +839,7 @@
           "provider": "slack",
           "providerLabel": "Slack",
           "clientRegistration": "user_credentials",
+          "releaseStatus": "app_required",
           "mcpUrl": "https://mcp.slack.com/mcp",
           "transport": "streamable_http",
           "protectedResourceMetadataUrl": "https://mcp.slack.com/.well-known/oauth-protected-resource",
@@ -879,7 +890,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 1
       },
-      "readmeMarkdown": "## Slack Remote\n\nConnects to Slack's official hosted MCP endpoint. Requires a Slack app configured for OAuth."
+      "readmeMarkdown": "## Slack Remote\n\nSlack does not support dynamic client registration. PuPu must ship or configure a registered Slack app before this hosted MCP can connect reliably, so the entry remains unavailable instead of sending users into a guaranteed OAuth configuration error."
     },
     {
       "id": "workspace.fetch",
@@ -894,6 +905,7 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"ft\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#2AD3E6\"/><stop offset=\"1\" stop-color=\"#0895B8\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#ft)\"/><g stroke=\"#fff\" fill=\"none\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 5.4v8.1\"/><path d=\"M8.3 10 12 13.8 15.7 10\"/><path d=\"M6.3 15.4v1.3c0 .8.6 1.4 1.4 1.4h8.6c.8 0 1.4-.6 1.4-1.4v-1.3\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -918,9 +930,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-fetch"]
+        "args": ["mcp-server-fetch==2026.7.10"]
       },
-      "setupPreview": "uvx mcp-server-fetch",
+      "setupPreview": "uvx mcp-server-fetch==2026.7.10",
       "prerequisites": ["uv / uvx", "Python >= 3.10"],
       "secrets": [],
       "tools": [
@@ -941,8 +953,8 @@
       "category": "communication",
       "source": "mcp",
       "trustLevel": "needs_review",
-      "status": "available",
-      "installable": true,
+      "status": "needs_review",
+      "installable": false,
       "license": "MIT",
       "sourceRepo": "https://github.com/IQAIcom/mcp-discord",
       "docsUrl": "https://github.com/IQAIcom/mcp-discord",
@@ -1022,8 +1034,8 @@
       "category": "communication",
       "source": "mcp",
       "trustLevel": "needs_review",
-      "status": "available",
-      "installable": true,
+      "status": "needs_review",
+      "installable": false,
       "license": "MIT",
       "sourceRepo": "https://github.com/IQAIcom/mcp-telegram",
       "docsUrl": "https://github.com/IQAIcom/mcp-telegram",
@@ -1091,6 +1103,7 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers-archived",
       "docsUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"sq\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#5CBCF0\"/><stop offset=\"1\" stop-color=\"#0A5C8A\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#sq)\"/><g transform=\"translate(3.7 3.7) scale(0.7)\" fill=\"#fff\"><path d=\"M21.678.521c-1.032-.92-2.28-.55-3.513.544a8.71 8.71 0 0 0-.547.535c-2.109 2.237-4.066 6.38-4.674 9.544.237.48.422 1.093.544 1.561a13.044 13.044 0 0 1 .164.703s-.019-.071-.096-.296l-.05-.146a1.689 1.689 0 0 0-.033-.08c-.138-.32-.518-.995-.686-1.289-.143.423-.27.818-.376 1.176.484.884.778 2.4.778 2.4s-.025-.099-.147-.442c-.107-.303-.644-1.244-.772-1.464-.217.804-.304 1.346-.226 1.478.152.256.296.698.422 1.186.286 1.1.485 2.44.485 2.44l.017.224a22.41 22.41 0 0 0 .056 2.748c.095 1.146.273 2.13.5 2.657l.155-.084c-.334-1.038-.47-2.399-.41-3.967.09-2.398.642-5.29 1.661-8.304 1.723-4.55 4.113-8.201 6.3-9.945-1.993 1.8-4.692 7.63-5.5 9.788-.904 2.416-1.545 4.684-1.931 6.857.666-2.037 2.821-2.912 2.821-2.912s1.057-1.304 2.292-3.166c-.74.169-1.955.458-2.362.629-.6.251-.762.337-.762.337s1.945-1.184 3.613-1.72C21.695 7.9 24.195 2.767 21.678.521m-18.573.543A1.842 1.842 0 0 0 1.27 2.9v16.608a1.84 1.84 0 0 0 1.835 1.834h9.418a22.953 22.953 0 0 1-.052-2.707c-.006-.062-.011-.141-.016-.2a27.01 27.01 0 0 0-.473-2.378c-.121-.47-.275-.898-.369-1.057-.116-.197-.098-.31-.097-.432 0-.12.015-.245.037-.386a9.98 9.98 0 0 1 .234-1.045l.217-.028c-.017-.035-.014-.065-.031-.097l-.041-.381a32.8 32.8 0 0 1 .382-1.194l.2-.019c-.008-.016-.01-.038-.018-.053l-.043-.316c.63-3.28 2.587-7.443 4.8-9.791.066-.069.133-.128.198-.194Z\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -1122,9 +1135,9 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}"]
+        "args": ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
       },
-      "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}",
+      "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}/pupu-mcp.sqlite",
       "prerequisites": ["uv / uvx", "Python >= 3.10"],
       "secrets": [],
       "tools": [
@@ -1140,7 +1153,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 3
       },
-      "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository — it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server only opens a **local SQLite database file** whose path is bound to your agent workspace (`--db-path ${WORKSPACE}`).\n\n### Point it at a disposable, non-production database\n\nThe agent can read **every table and row** in the database file you connect — reading the database **is** data exfiltration. Connect a **disposable / non-production** `.db` file you are comfortable exposing in full; never point it at a production or sensitive database.\n\n### Gated vs. ungated tools\n\nThe read tools — `read_query` (SELECT only), `list_tables`, and `describe_table` — run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` — INSERT / UPDATE / DELETE.\n- `create_table` — CREATE TABLE (DDL).\n- `append_insight` — writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
+      "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository — it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server opens **`${WORKSPACE}/pupu-mcp.sqlite`**, a local SQLite database file inside the selected agent workspace.\n\n### Use a disposable, non-production workspace\n\nThe agent can read **every table and row** in this database file — reading the database **is** data exfiltration. Use a **disposable / non-production** workspace whose `pupu-mcp.sqlite` file you are comfortable exposing in full; never copy production or sensitive data into it.\n\n### Gated vs. ungated tools\n\nThe read tools — `read_query` (SELECT only), `list_tables`, and `describe_table` — run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` — INSERT / UPDATE / DELETE.\n- `create_table` — CREATE TABLE (DDL).\n- `append_insight` — writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
     }
   ]
 }

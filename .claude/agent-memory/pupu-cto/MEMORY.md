@@ -1,3 +1,6 @@
+- [ADR：Phase4 门5 secret 注入移主进程 2026-07-25](adr-phase4-gate5-secret-injection.md) — 采(a)非(b);描述符契约+startMisoStream 注入点+三态回退+字节等价;6切片;删legacy=N+1单向门本Phase不做
+- [契约：download-skill-repo 通道 2026-07-18](contract-download-skill-repo.md) — 错误码枚举冻结/facade>main超时/原始字节hash/skip非manifest违规=spec原判/tar提升是硬前提
+- [ADR：S0/S1 签核+合并时序 2026-07-13](adr-s0s1-rich-tool-result-signoff.md) — 双签放行；主树checkout=PuPu运行时；测试须PYTHONPATH=worktree/src
 - [后端量级评估 2026-07-05](backend-sizing-2026-07-05.md) — 排序可吸收不招人；delta-persist 不在擎路径(纯前端+Electron)；复评触发器=0.1.10 结束
 - [路线图 0.1.9→0.2.0 评审 2026-07-05](roadmap-019-020-review.md) — 隐性前置=command registry/delta-persist/agent-runner 抽象；thread 建议后移；agent 装 MCP=CRITICAL 硬门
 - [上线门槛盘点 2026-06-26](prelaunch-gap-analysis-2026-06-26.md) — 四条差异化线全零代码、shipped=扎实通用客户端；记忆是唯一可90天炫耀的锚；MVP-proud定义+首发前4件事；生产冻结二进制无需用户Python
@@ -30,3 +33,5 @@
 - [决策：DB MCP — SQLite收/Postgres延](decision-db-mcp-sqlite-yes-postgres-deferred.md) — SQLite(本地文件,community,钉版,write门控)已收；Postgres延期=网络凭证DB属MTProto外泄类+DSN是SSRF,待CTO定只读角色/host白名单架构问题
 - [License 姿态：MCP 商店指向非捆绑](license-posture-mcp-store.md) — 商店只存元数据+sourceRepo+npx/uvx recipe，第三方server运行时拉取执行于用户机，我们不redistribute；GPL-3.0(netdata)是hosted无command；预捆绑=单向门license变更
 - [ADR：V4 文档化与跨仓契约](adr-v4-doc-and-cross-repo-contract.md) — doc sync 2026-06-19；建 runtime-events-v4.md(electron 主笔+渲染方双签)、v3 文件不重命名、core events_v4 API 双签另立、channel/team/plan_id 标注"暂未启用"
+- [结构风险快照 2026-07-21](structural-risk-snapshot-2026-07-21.md) — god-file 一月涨3-5x/CLAUDE.md失真/main无保护/provider仍2家;冲刺态≠常态速度
+- [ADR: attachStreamV4 liveness gap ruled non-blocker 2026-07-22](adr-streamv4-liveness-gap-not-blocker.md) — silent-dead-stream after active/terminal=false has no heartbeat/watchdog anywhere; P1 fast-follow spec Backend→Electron→ChatCore in file

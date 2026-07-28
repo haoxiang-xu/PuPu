@@ -30,26 +30,58 @@ def replace_memory_session() -> Response:
     try:
         import memory_factory
 
+        replace_kwargs = {
+            "session_id": session_id,
+            "messages": raw_messages,
+            "options": options,
+        }
+        operation_id_present = "operation_id" in payload or "operationId" in payload
+        if operation_id_present:
+            replace_kwargs.update(
+                {
+                    "operation_id": payload.get("operation_id", payload.get("operationId")),
+                    "expected_session_revision": payload.get(
+                        "expected_session_revision",
+                        payload.get("expectedSessionRevision"),
+                    ),
+                    "expected_cancel_attempt_id": payload.get(
+                        "expected_cancel_attempt_id",
+                        payload.get("expectedCancelAttemptId", ""),
+                    ),
+                }
+            )
+
         result = memory_factory.replace_short_term_session_memory(
-            session_id=session_id,
-            messages=raw_messages,
-            options=options,
+            **replace_kwargs,
         )
         return jsonify(result)
     except ValueError as exc:
         return root._json_error("invalid_request", str(exc), 400)
     except Exception as exc:
-        if getattr(exc, "code", "") == "session_revision_conflict":
+        error_code = str(getattr(exc, "code", "") or "").strip()
+        if error_code == "session_revision_conflict":
             return jsonify(
                 {
                     "error": {
                         "code": "session_revision_conflict",
                         "message": str(exc),
+                        "retryable": bool(getattr(exc, "retryable", False)),
                         "expected_revision": getattr(exc, "expected_revision", None),
                         "actual_revision": getattr(exc, "actual_revision", None),
                     }
                 }
             ), 409
+        status_code = int(getattr(exc, "status_code", 0) or 0)
+        if error_code and 400 <= status_code < 600:
+            return jsonify(
+                {
+                    "error": {
+                        "code": error_code,
+                        "message": str(exc),
+                        "retryable": bool(getattr(exc, "retryable", False)),
+                    }
+                }
+            ), status_code
         return jsonify(
             {
                 "error": {
@@ -76,9 +108,14 @@ def export_memory_session() -> Response:
     if not data_dir:
         return jsonify({"messages": []})
 
-    state = memory_factory._load_session_state(data_dir, session_id)
+    store = memory_factory._build_session_store(data_dir)
+    snapshot = memory_factory._load_session_snapshot_compat(store, session_id)
+    state = snapshot.state
     messages = state.get("messages", [])
     if not isinstance(messages, list):
         messages = []
 
-    return jsonify({"session_id": session_id, "messages": messages})
+    response = {"session_id": session_id, "messages": messages}
+    if isinstance(snapshot.revision, int) and not isinstance(snapshot.revision, bool):
+        response["session_revision"] = snapshot.revision
+    return jsonify(response)

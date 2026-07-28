@@ -33,10 +33,8 @@ export const createCatalogHandlers = ({ unchainAPI, chatStorage }) => ({
     chatStorage.setChatSelectedToolkits(id, toolkit_ids);
     return { ok: true };
   },
-  setCharacter: async ({ id, character_id }) => {
-    chatStorage.setChatCharacter(id, character_id);
-    return { ok: true };
-  },
+  setCharacter: async ({ id, character_id }) =>
+    chatStorage.setChatCharacter(id, character_id),
 });
 
 export const registerCatalogHandlers = ({ bridge, unchainAPI, chatStorage }) => {

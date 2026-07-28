@@ -19,6 +19,79 @@ import {
   sortChatsByUpdatedAt,
 } from "./chat_storage_tree";
 
+export const INVALID_LEGACY_CHAT_STORE_CODE = "chat_legacy_source_invalid";
+
+const invalidLegacyChatStore = () => {
+  const error = new Error(
+    "Legacy chat store has an invalid or unsupported structure; source left untouched",
+  );
+  error.code = INVALID_LEGACY_CHAT_STORE_CODE;
+  return error;
+};
+
+const isPlainObject = (value) => {
+  if (!isObject(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+// Persisted PuPu chat stores have had two renderer schemas:
+// - v1: chatsById + chatOrder (before the explorer tree)
+// - v2: chatsById + lruChatIds + tree
+// Reject merely parseable JSON before any whole-store import can DELETE SQL.
+export const assertRecognizableLegacyChatStore = (input) => {
+  if (
+    !isPlainObject(input) ||
+    (input.schemaVersion !== 1 && input.schemaVersion !== 2) ||
+    !Number.isFinite(input.updatedAt) ||
+    !isPlainObject(input.chatsById)
+  ) {
+    throw invalidLegacyChatStore();
+  }
+
+  const chatEntries = Object.entries(input.chatsById);
+  if (chatEntries.length === 0) {
+    throw invalidLegacyChatStore();
+  }
+  for (const [chatId, chat] of chatEntries) {
+    if (
+      !chatId ||
+      !isPlainObject(chat) ||
+      chat.id !== chatId ||
+      !Array.isArray(chat.messages)
+    ) {
+      throw invalidLegacyChatStore();
+    }
+  }
+
+  if (
+    typeof input.activeChatId !== "string" ||
+    !Object.prototype.hasOwnProperty.call(
+      input.chatsById,
+      input.activeChatId,
+    )
+  ) {
+    throw invalidLegacyChatStore();
+  }
+
+  if (input.schemaVersion === 1) {
+    if (!Array.isArray(input.chatOrder)) {
+      throw invalidLegacyChatStore();
+    }
+    return input;
+  }
+
+  if (
+    !Array.isArray(input.lruChatIds) ||
+    !isPlainObject(input.tree) ||
+    !Array.isArray(input.tree.root) ||
+    !isPlainObject(input.tree.nodesById)
+  ) {
+    throw invalidLegacyChatStore();
+  }
+  return input;
+};
+
 const dedupeCharacterChats = (storeLike) => {
   const store = storeLike;
   const sourceChats = isObject(store?.chatsById) ? store.chatsById : {};

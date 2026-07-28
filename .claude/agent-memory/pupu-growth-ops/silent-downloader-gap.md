@@ -17,5 +17,7 @@ metadata:
 
 **2026-07-05 更新：** 缺口依旧——issue 88 总 / 86 由维护者自开（外部仍仅 Max-jzyan、zxp19821005），32 个未关 issue 全部龄化~113 天=维护者自己的路线图 backlog 在发霉,不是用户求助没人理(关闭率 64%、中位关闭 10 天,响应侧健康)。PR 侧亮点确认:**5 位外部人类 PR 贡献者**(zzmjeremy/Max-jzyan/ehz2/skywalker007/huangse199)+ Copilot,0 open/0 stale。反馈闭环仍哑(has_discussions 仍 false)——补反馈入口是持续第一运营缺口。
 
+**2026-07-21 更新：出现久违的新外部 issue 作者。** issue 总数 88→108(+20,几乎全是维护者自开的 0.1.9 收敛期路线图 backlog,open 32→47),但非维护者作者从 2→**3:新增 holistis(1 issue)**——自 06-14 以来首个新外部 issue 作者,沉默下载者缺口出现第一道细缝。PR 侧仍无懈可击:77 总 / 71 merged / **0 open / 0 stale**,5 位外部人类贡献者(zzmjeremy/Max-jzyan/ehz2/skywalker007/huangse199)+Copilot 10。has_discussions 仍未开(open_issues API=47 为纯 issue,非含 PR)。反馈入口仍是持续第一运营缺口,但 holistis 证明只要有人来、他们会开 issue。
+
 **Why:** CEO 想知道社区健不健康。raw issue 数会误导成「社区活跃」，实则全是自己开的。
 **How to apply:** 报社区健康度时务必拆「谁开的 issue」。要缩小该缺口的运营动作：在 app 内/README 放轻量反馈入口、good-first-issue 标签、开 Discussions（当前 has_discussions=false）。把「首个外部 PR」「重复外部贡献者」当作要呵护的早期社区火苗。相关：[[install-signal-2026-06]]。

@@ -92,7 +92,12 @@ def _is_invalid_api_key_error(exc: Exception) -> bool:
 
 def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
     message = str(stream_error)
-    code = "stream_failed"
+    explicit_code = getattr(stream_error, "code", "")
+    code = (
+        explicit_code.strip()
+        if isinstance(explicit_code, str) and explicit_code.strip()
+        else "stream_failed"
+    )
     if isinstance(message, str):
         normalized = message.strip()
         if normalized.startswith("memory_unavailable"):
@@ -105,6 +110,49 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
             code = "invalid_api_key"
             message = "API key is invalid or has been revoked. Please update your API key in Settings."
     return code, message
+
+
+def _execution_attempt_cancelled(session_id: str, attempt_id: str) -> bool:
+    try:
+        import execution_control
+    except ImportError:
+        return False
+    snapshot = getattr(execution_control, "snapshot", None)
+    if not callable(snapshot):
+        return False
+    try:
+        value = snapshot(session_id, attempt_id)
+    except Exception:
+        return False
+    return str(getattr(value, "status", "") or "").strip() == "cancelled"
+
+
+def _is_execution_cancelled_error(error: BaseException) -> bool:
+    return bool(
+        str(getattr(error, "code", "") or "").strip()
+        == "execution_cancelled"
+        or type(error).__name__ in {
+            "ExecutionCancelledError",
+            "ExecutionAttemptCancelled",
+        }
+    )
+
+
+def _durable_host_error_response(exc: Exception):
+    code = str(getattr(exc, "code", "durable_interaction_failed") or "")
+    status_code = int(getattr(exc, "status_code", 409) or 409)
+    return (
+        jsonify(
+            {
+                "error": {
+                    "code": code,
+                    "message": str(exc),
+                    "retryable": bool(getattr(exc, "retryable", False)),
+                }
+            }
+        ),
+        status_code,
+    )
 
 
 def _build_trace_frame(
@@ -270,7 +318,14 @@ def chat_tool_confirmation() -> Response:
     if not confirmation_id:
         return root._json_error("invalid_request", "confirmation_id is required", 400)
 
-    approved = bool(payload.get("approved", False))
+    approved_raw = payload.get("approved")
+    if not isinstance(approved_raw, bool):
+        return root._json_error(
+            "invalid_request",
+            "approved must be a boolean",
+            400,
+        )
+    approved = approved_raw
     reason_raw = payload.get("reason", "")
     reason = reason_raw if isinstance(reason_raw, str) else str(reason_raw or "")
 
@@ -282,20 +337,147 @@ def chat_tool_confirmation() -> Response:
             400,
         )
 
+    session_id_raw = payload.get("session_id") or payload.get("sessionId")
+    session_id = (
+        session_id_raw.strip()
+        if isinstance(session_id_raw, str)
+        else ""
+    )
+    durable_result = None
+    durable_not_found = None
+    if session_id:
+        try:
+            durable_result = root.record_interaction_receipt(
+                session_id=session_id,
+                interaction_id=confirmation_id,
+                approved=approved,
+                reason=reason,
+                modified_arguments=modified_arguments,
+            )
+        except root.DurableInteractionHostError as exc:
+            if exc.code == "interaction_not_found":
+                durable_not_found = exc
+            else:
+                return _durable_host_error_response(exc)
+
     found = root.submit_tool_confirmation(
         confirmation_id=confirmation_id,
         approved=approved,
         reason=reason,
         modified_arguments=modified_arguments,
     )
-    if not found:
+    if durable_result is not None:
+        result = dict(durable_result)
+        result["durable"] = True
+        result["disposition"] = (
+            "live_continues" if found else "receipt_recorded"
+        )
+        return jsonify(result)
+    if found:
+        return jsonify(
+            {
+                "status": "ok",
+                "disposition": "live_only",
+                "durable": False,
+                "interaction_id": confirmation_id,
+            }
+        )
+    if durable_not_found is not None:
+        return _durable_host_error_response(durable_not_found)
+    return root._json_error(
+        "not_found",
+        "No live confirmation found and session_id was not provided",
+        404,
+    )
+
+
+@api_blueprint.get("/chat/interactions/pending")
+def chat_pending_interaction() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    session_id = str(request.args.get("session_id") or "").strip()
+    if not session_id:
         return root._json_error(
-            "not_found",
-            "No pending confirmation found for this ID",
-            404,
+            "invalid_request",
+            "session_id is required",
+            400,
+        )
+    try:
+        return jsonify(root.get_pending_interaction(session_id))
+    except root.DurableInteractionHostError as exc:
+        return _durable_host_error_response(exc)
+    except Exception as exc:
+        return root._json_error(
+            "durable_interaction_lookup_failed",
+            str(exc),
+            500,
         )
 
-    return jsonify({"status": "ok"})
+
+@api_blueprint.post("/chat/executions/cancel")
+def chat_execution_cancel() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    execution_id = str(
+        payload.get("execution_id")
+        or payload.get("session_id")
+        or payload.get("threadId")
+        or ""
+    ).strip()
+    attempt_id = str(payload.get("attempt_id") or "").strip()
+    source_attempt_id = str(payload.get("source_attempt_id") or "").strip()
+    if not execution_id:
+        return root._json_error(
+            "invalid_request",
+            "execution_id is required",
+            400,
+        )
+    if not attempt_id:
+        return root._json_error(
+            "invalid_request",
+            "attempt_id is required",
+            400,
+        )
+
+    reason_raw = payload.get("reason", "user_stop")
+    if not isinstance(reason_raw, str):
+        return root._json_error(
+            "invalid_request",
+            "reason must be a string",
+            400,
+        )
+    reason = reason_raw.strip() or "user_stop"
+
+    idempotency_key = payload.get("idempotency_key")
+    if idempotency_key is not None and not isinstance(idempotency_key, str):
+        return root._json_error(
+            "invalid_request",
+            "idempotency_key must be a string when provided",
+            400,
+        )
+
+    try:
+        return jsonify(
+            root.cancel_chat_execution(
+                session_id=execution_id,
+                attempt_id=attempt_id,
+                source_attempt_id=source_attempt_id,
+                reason=reason,
+            )
+        )
+    except root.DurableInteractionHostError as exc:
+        return _durable_host_error_response(exc)
+    except Exception as exc:
+        return root._json_error(
+            str(getattr(exc, "code", "execution_cancel_failed") or ""),
+            str(exc),
+            int(getattr(exc, "status_code", 500) or 500),
+        )
 
 
 @api_blueprint.post("/chat/stream")
@@ -330,7 +512,7 @@ def chat_stream() -> Response:
                 "meta",
                 {
                     "thread_id": thread_id,
-                    "model": root.get_model_name(options),
+                    "model": root.get_display_model_id(options),
                     "started_at": started_at,
                 },
             )
@@ -422,7 +604,7 @@ def chat_stream_v2() -> Response:
                     seq=seq,
                     event_type="stream_started",
                     payload={
-                        "model": root.get_model_name(options),
+                        "model": root.get_display_model_id(options),
                         "started_at": started_at,
                         "trace_level": trace_level,
                         "thread_id": thread_id,
@@ -560,9 +742,18 @@ def chat_stream_v4() -> Response:
         )
 
     payload = request.get_json(silent=True) or {}
+    attempt_id = str(payload.get("attempt_id") or "").strip()
+    if not attempt_id:
+        return root._json_error(
+            "invalid_request",
+            "attempt_id is required for /chat/stream/v4",
+            400,
+        )
+    mode = str(payload.get("mode") or "").strip().lower()
+    resume_interaction = mode == "resume_interaction"
     message = str(payload.get("message", "")).strip()
     attachments = _sanitize_attachments(payload.get("attachments"))
-    if not message and not attachments:
+    if not resume_interaction and not message and not attachments:
         return root._json_error(
             "invalid_request",
             "message or attachments is required",
@@ -571,8 +762,29 @@ def chat_stream_v4() -> Response:
 
     incoming_thread_id = payload.get("threadId") or payload.get("thread_id")
     thread_id = str(incoming_thread_id).strip() if incoming_thread_id else ""
+    if resume_interaction and not thread_id:
+        return root._json_error(
+            "invalid_request",
+            "threadId is required for resume_interaction mode",
+            400,
+        )
     if not thread_id:
         thread_id = f"thread-{int(time.time() * 1000)}"
+
+    interaction_id = str(payload.get("interaction_id") or "").strip()
+    if resume_interaction and not interaction_id:
+        return root._json_error(
+            "invalid_request",
+            "interaction_id is required for resume_interaction mode",
+            400,
+        )
+    source_attempt_id = str(payload.get("source_attempt_id") or "").strip()
+    if resume_interaction and not source_attempt_id:
+        return root._json_error(
+            "invalid_request",
+            "source_attempt_id is required for resume_interaction mode",
+            400,
+        )
 
     history = _sanitize_history(payload.get("history"))
     options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
@@ -587,6 +799,7 @@ def chat_stream_v4() -> Response:
         confirmation_cancel_event = threading.Event()
         bridge = RuntimeEventBridge(
             session_id=thread_id,
+            root_run_id=attempt_id,
             root_agent_id="developer",
             trace_level=trace_level,
         )
@@ -598,22 +811,38 @@ def chat_stream_v4() -> Response:
         try:
             session_event = bridge.emit_session_started(
                 {
-                    "model": root.get_model_name(options),
+                    "model": root.get_display_model_id(options),
                     "started_at": started_at,
                     "trace_level": trace_level,
                     "thread_id": thread_id,
+                    "execution_id": thread_id,
+                    "attempt_id": attempt_id,
+                    "resume_interaction": resume_interaction,
                 }
             )
             yield _sse_event("runtime_event", session_event.to_dict())
 
-            for raw_event in root.stream_chat_events(
-                message=message,
-                history=history,
-                attachments=attachments,
-                options=options,
-                session_id=thread_id,
-                cancel_event=confirmation_cancel_event,
-            ):
+            event_source = (
+                root.resume_chat_interaction_events(
+                    session_id=thread_id,
+                    interaction_id=interaction_id,
+                    options=options,
+                    cancel_event=confirmation_cancel_event,
+                    attempt_id=attempt_id,
+                    source_attempt_id=source_attempt_id,
+                )
+                if resume_interaction
+                else root.stream_chat_events(
+                    message=message,
+                    history=history,
+                    attachments=attachments,
+                    options=options,
+                    session_id=thread_id,
+                    cancel_event=confirmation_cancel_event,
+                    attempt_id=attempt_id,
+                )
+            )
+            for raw_event in event_source:
                 if not isinstance(raw_event, dict):
                     continue
                 if raw_event.get("type") == "stream_summary":
@@ -621,10 +850,14 @@ def chat_stream_v4() -> Response:
                 for runtime_event in bridge.normalize(raw_event):
                     yield _sse_event("runtime_event", runtime_event.to_dict())
 
+            cancelled = _execution_attempt_cancelled(thread_id, attempt_id)
             yield _sse_event(
                 "done",
                 {
                     "finished_at": int(time.time() * 1000),
+                    "execution_id": thread_id,
+                    "attempt_id": attempt_id,
+                    "cancelled": cancelled,
                     "diagnostics": bridge.diagnostics(),
                 },
             )
@@ -633,6 +866,20 @@ def chat_stream_v4() -> Response:
             return
         except Exception as stream_error:
             cancel_pending_confirmations()
+            if _is_execution_cancelled_error(
+                stream_error
+            ) or _execution_attempt_cancelled(thread_id, attempt_id):
+                yield _sse_event(
+                    "done",
+                    {
+                        "finished_at": int(time.time() * 1000),
+                        "execution_id": thread_id,
+                        "attempt_id": attempt_id,
+                        "cancelled": True,
+                        "diagnostics": bridge.diagnostics(),
+                    },
+                )
+                return
             code, normalized_message = _normalize_stream_error(stream_error)
             failure_event = bridge.emit_transport_failure(
                 normalized_message,
@@ -643,6 +890,9 @@ def chat_stream_v4() -> Response:
                 "done",
                 {
                     "finished_at": int(time.time() * 1000),
+                    "execution_id": thread_id,
+                    "attempt_id": attempt_id,
+                    "cancelled": False,
                     "error": {
                         "code": code,
                         "message": normalized_message,

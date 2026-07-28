@@ -492,6 +492,9 @@ const ExplorerRowBase = ({
   activeNodeId,
   contextMenuNodeId,
   highlightColor,
+  isLockedExpanded,
+  rowHeight = ROW_HEIGHT,
+  rowRadius = 5,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -738,7 +741,7 @@ const ExplorerRowBase = ({
         position: "relative",
         display: "flex",
         alignItems: "center",
-        height: isSource ? 0 : ROW_HEIGHT,
+        height: isSource ? 0 : rowHeight,
         opacity: isSource ? 0 : 1,
         overflow: isSource ? "hidden" : "visible",
         paddingLeft: isSource ? 0 : depth * INDENT,
@@ -751,7 +754,7 @@ const ExplorerRowBase = ({
         cursor: "pointer",
         userSelect: "none",
         WebkitUserSelect: "none",
-        borderRadius: 5,
+        borderRadius: rowRadius,
         transition: "opacity 0.15s ease, height 0.15s ease, padding 0.15s ease",
         ...node.style,
       }}
@@ -765,7 +768,7 @@ const ExplorerRowBase = ({
           bottom: 0,
           left: depth * INDENT + 3,
           right: 3,
-          borderRadius: 5,
+          borderRadius: rowRadius,
           backgroundColor: isDark
             ? "rgba(255,255,255,0.10)"
             : "rgba(0,0,0,0.082)",
@@ -785,7 +788,7 @@ const ExplorerRowBase = ({
           bottom: pressed ? 1 : 0,
           left: pressed ? depth * INDENT + 4 : depth * INDENT + 3,
           right: pressed ? 4 : 3,
-          borderRadius: pressed ? 4 : 5,
+          borderRadius: pressed ? Math.max(rowRadius - 1, 2) : rowRadius,
           backgroundColor: pressed ? activeBg : hoverBg,
           transform: showBg ? "scale(1)" : "scale(0.97, 0)",
           opacity: showBg ? 1 : 0,
@@ -798,6 +801,9 @@ const ExplorerRowBase = ({
       />
 
       {/* ── expand / collapse icon ───────────────────── */}
+      {/* Locked-expanded folders (e.g. a non-collapsible root) never toggle —
+          hide the chevron entirely and drop the pointer affordance on this
+          zone so it doesn't read as an interactive control. */}
       <span
         style={{
           position: "relative",
@@ -808,12 +814,15 @@ const ExplorerRowBase = ({
           width: 18,
           height: 18,
           flexShrink: 0,
-          opacity: showFull ? 0 : isFolder ? 0.7 : 0,
+          opacity: showFull ? 0 : isFolder && !isLockedExpanded ? 0.7 : 0,
+          cursor: isFolder && isLockedExpanded ? "default" : undefined,
           transition:
             "transform 0.2s cubic-bezier(0.32,1,0.32,1), opacity 0.15s ease",
         }}
       >
-        <Icon src={expandIcon} style={{ width: 14, height: 14 }} />
+        {!(isFolder && isLockedExpanded) && (
+          <Icon src={expandIcon} style={{ width: 14, height: 14 }} />
+        )}
       </span>
 
       {/* ── prefix icon / generating spinner ─────────── */}
@@ -948,6 +957,32 @@ const ExplorerRowBase = ({
             src={node.postfix_icon}
             style={{ width: iconSize, height: iconSize }}
           />
+        </span>
+      )}
+
+      {/* ── trailing slot ─────────────────────────────── */}
+      {/* Consumer-supplied element rendered at the row's right end, after all
+          built-in badges. Interactions inside it must never trigger the
+          row's select/expand (stopPropagation) and must never start a row
+          drag (data-explorer-drag-disabled is already in DRAG_BLOCK_SELECTOR,
+          matched by shouldSkipRowDragStart). Not duplicated into the ghost
+          overlay below — that overlay is a plain label tooltip, and cloning
+          interactive trailing content into a second portal would mint
+          duplicate interactive elements. */}
+      {node.trailing && (
+        <span
+          data-explorer-drag-disabled="true"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+          }}
+        >
+          {node.trailing}
         </span>
       )}
 
@@ -1133,6 +1168,9 @@ const ExplorerBranch = ({
   activeNodeId,
   contextMenuNodeId,
   highlightColor,
+  lockedExpandedIds,
+  rowHeight,
+  rowRadius,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1143,6 +1181,9 @@ const ExplorerBranch = ({
     const hasChildren = data.children && data.children.length > 0;
     const isOpen = !!expanded[key];
     const isSource = isDragging && sourceId === key;
+    const isLockedExpanded = Boolean(
+      lockedExpandedIds && lockedExpandedIds.has(key),
+    );
 
     return (
       <React.Fragment key={key}>
@@ -1162,6 +1203,9 @@ const ExplorerBranch = ({
           activeNodeId={activeNodeId}
           contextMenuNodeId={contextMenuNodeId}
           highlightColor={highlightColor}
+          isLockedExpanded={isLockedExpanded}
+          rowHeight={rowHeight}
+          rowRadius={rowRadius}
         />
         {isFolder && (
           <AnimatedChildren
@@ -1209,6 +1253,9 @@ const ExplorerBranch = ({
                   activeNodeId={activeNodeId}
                   contextMenuNodeId={contextMenuNodeId}
                   highlightColor={highlightColor}
+                  rowHeight={rowHeight}
+                  rowRadius={rowRadius}
+                  lockedExpandedIds={lockedExpandedIds}
                 />
               )}
             </div>
@@ -1391,12 +1438,15 @@ const BackgroundIndicator = React.memo(
 const Explorer = ({
   data = {},
   root: rootProp = [],
+  row_height = ROW_HEIGHT,
+  row_radius = 5,
   default_expanded,
   draggable = false,
   on_reorder,
   style,
   active_node_id,
   context_menu_node_id,
+  locked_expanded,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1412,23 +1462,38 @@ const Explorer = ({
   }, [data, rootProp]);
 
   /* ── expanded state ────────────────────────────────── */
+  /* Locked-expanded ids (e.g. a non-collapsible root) always start expanded,
+     regardless of default_expanded — same read-once-at-mount contract as
+     default_expanded itself; there is no live-resync effect. */
   const [expanded, setExpanded] = useState(() => {
+    const base = {};
     if (default_expanded === true) {
-      const all = {};
       for (const [key, node] of Object.entries(data)) {
-        if (getNodeType(node) === "folder") all[key] = true;
+        if (getNodeType(node) === "folder") base[key] = true;
       }
-      return all;
+    } else if (Array.isArray(default_expanded)) {
+      for (const id of default_expanded) base[id] = true;
     }
-    if (Array.isArray(default_expanded)) {
-      return Object.fromEntries(default_expanded.map((id) => [id, true]));
+    if (Array.isArray(locked_expanded)) {
+      for (const id of locked_expanded) base[id] = true;
     }
-    return {};
+    return base;
   });
 
-  const toggleExpand = useCallback((id) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
+  /* Identity-stable when locked_expanded is omitted (existing consumers):
+     [locked_expanded] deps to [undefined] forever, so this computes once. */
+  const lockedExpandedIds = useMemo(
+    () => new Set(Array.isArray(locked_expanded) ? locked_expanded : []),
+    [locked_expanded],
+  );
+
+  const toggleExpand = useCallback(
+    (id) => {
+      if (lockedExpandedIds.has(id)) return;
+      setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    },
+    [lockedExpandedIds],
+  );
 
   /* ── sizing / colors ───────────────────────────────── */
   const fontSize = style?.fontSize ?? 14;
@@ -1603,7 +1668,7 @@ const Explorer = ({
     (clientX, clientY) => {
       /* position ghost via ref (avoids re-render) */
       if (ghostRef.current) {
-        ghostRef.current.style.transform = `translate(${clientX + 16}px, ${clientY - ROW_HEIGHT / 2}px)`;
+        ghostRef.current.style.transform = `translate(${clientX + 16}px, ${clientY - row_height / 2}px)`;
       }
 
       /* compute drop target */
@@ -1655,7 +1720,7 @@ const Explorer = ({
         clearAutoExpand();
       }
     },
-    [clearAutoExpand],
+    [clearAutoExpand, row_height],
   );
 
   /* ── end drag ────────────────────────────────────────── */
@@ -1725,7 +1790,7 @@ const Explorer = ({
           /* position ghost on the very first frame */
           requestAnimationFrame(() => {
             if (ghostRef.current) {
-              ghostRef.current.style.transform = `translate(${e.clientX + 16}px, ${e.clientY - ROW_HEIGHT / 2}px)`;
+              ghostRef.current.style.transform = `translate(${e.clientX + 16}px, ${e.clientY - row_height / 2}px)`;
             }
           });
         }
@@ -1757,7 +1822,7 @@ const Explorer = ({
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [draggable, beginDrag, updateDrag, endDrag]);
+  }, [draggable, beginDrag, updateDrag, endDrag, row_height]);
 
   /* ── drag ghost data ───────────────────────────────── */
   const sourceNode = useMemo(
@@ -1770,14 +1835,17 @@ const Explorer = ({
   const overlayIconSize = Math.round(fontSize * 1.15);
 
   /* callback ref: set initial ghost position on mount */
-  const ghostCallbackRef = useCallback((el) => {
-    ghostRef.current = el;
-    if (el && dragInternals.current.phase === "dragging") {
-      const x = dragInternals.current.startX + 16;
-      const y = dragInternals.current.startY - ROW_HEIGHT / 2;
-      el.style.transform = `translate(${x}px, ${y}px)`;
-    }
-  }, []);
+  const ghostCallbackRef = useCallback(
+    (el) => {
+      ghostRef.current = el;
+      if (el && dragInternals.current.phase === "dragging") {
+        const x = dragInternals.current.startX + 16;
+        const y = dragInternals.current.startY - row_height / 2;
+        el.style.transform = `translate(${x}px, ${y}px)`;
+      }
+    },
+    [row_height],
+  );
 
   /* ── render ────────────────────────────────────────── */
   return (
@@ -1821,10 +1889,13 @@ const Explorer = ({
         sourceId={dragState.sourceId}
         registerRowRef={registerRowRef}
         onDragStart={handleRowDragStart}
+        rowHeight={row_height}
+        rowRadius={row_radius}
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
         highlightColor={highlightColor}
+        lockedExpandedIds={lockedExpandedIds}
       />
 
       {/* ── drop indicator ──────────────────────────── */}
@@ -1850,7 +1921,7 @@ const Explorer = ({
               left: 0,
               display: "flex",
               alignItems: "center",
-              height: ROW_HEIGHT,
+              height: row_height,
               paddingLeft: 8,
               paddingRight: 12,
               gap: 4,

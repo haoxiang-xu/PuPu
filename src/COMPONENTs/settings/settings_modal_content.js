@@ -95,15 +95,13 @@ export const SettingsModalContent = ({ onClose }) => {
           width: 140,
           flexShrink: 0,
           backgroundColor: isDark
-            ? "rgba(255,255,255,0.03)"
-            : "rgba(0,0,0,0.04)",
+            ? "rgba(var(--pupu-text-rgb),0.03)"
+            : "rgba(var(--pupu-text-rgb),0.04)",
           padding: "16px 10px 10px",
           display: "flex",
           flexDirection: "column",
           gap: 2,
-          borderRight: isDark
-            ? "1px solid rgba(255,255,255,0.06)"
-            : "1px solid rgba(0,0,0,0.06)",
+          borderRight: "1px solid rgba(var(--pupu-text-rgb),0.06)",
         }}
       >
         <div
@@ -150,6 +148,7 @@ export const SettingsModalContent = ({ onClose }) => {
       >
         <Button
           prefix_icon="close"
+          ariaLabel="Close settings"
           onClick={onClose}
           style={{
             position: "absolute",

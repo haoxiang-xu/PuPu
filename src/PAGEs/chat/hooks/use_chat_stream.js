@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { toast } from "../../../SERVICEs/toast";
-import { extractCommands } from "../../../SERVICEs/command_registry";
+import { expandCommands, extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
 import { createLogger } from "../../../SERVICEs/console_logger";
@@ -20,7 +20,12 @@ import {
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
 import { isRuntimeEventStreamEnabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
+import { createRuntimeEventStreamReplayProjector } from "../../../SERVICEs/runtime_events/stream_replay_projector";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
+import {
+  isToolConfirmationCacheable,
+  shouldCacheToolConfirmationDecision,
+} from "../../../SERVICEs/tool_confirmation_cache_policy";
 import {
   clearStreamingMessageText,
   finalizeStreamingMessage,
@@ -39,16 +44,374 @@ import {
   createQueuedTurnBuffer,
 } from "./interject_controller";
 import {
+  buildDurableResumePayload,
+  buildRecoveredConfirmationRequest,
+  durableInteractionRetryDelayMs,
+  ensureDurableInteractionMessage,
+  isRetryableDurableInteractionError,
+  normalizePendingInteraction,
+  prepareDurableInteractionResumeMessages,
+  shouldReconcileDurableResumeError,
+} from "./durable_interaction_recovery";
+import {
+  enqueueExecutionCancel,
+  readExecutionCancelOutbox,
+  removeExecutionCancel,
+} from "./execution_cancel_outbox";
+import {
+  createTurnMutationOperationId,
+  enqueueTurnMutation,
+  fingerprintTurnMutationMessages,
+  readTurnMutationOutbox,
+  removeTurnMutation,
+} from "../../../SERVICEs/turn_mutation_outbox";
+import {
+  bindQueuedTurnOwnersToAttempt,
+  convertPendingFyiToClarify,
+  createPendingFyiMessageId,
+  createQueuedTurnClientOperationId,
+  fallbackPendingClarifyToQueue,
+  migratePendingFyiForAttemptToQueue,
+  migratePendingFyiToQueue,
+  readPendingClarifyForChat,
+  readPendingFyiOutbox,
+  readPendingFyisForAttempt,
+  readQueuedTurnsForAttempt,
+  readQueuedTurnsForChat,
+  readQueuedTurnsForClientOperation,
+  resolvePendingFyiIntent,
+  removePendingClarify,
+  removePendingFyisForAttempt,
+  removeQueuedTurnsForAttempt,
+  removeQueuedTurnsForClientOperation,
+  transitionPendingClarifyToPendingFyi,
+  writePendingFyi,
+  writePendingClarify,
+  writeQueuedTurnsForAttempt,
+  writeQueuedTurnsForClientOperation,
+} from "../../../SERVICEs/queued_turn_outbox";
+import {
   start as progressStart,
   stop as progressStop,
 } from "../../../SERVICEs/progress_bus";
+import { getChatsStore } from "../../../SERVICEs/chat_storage";
 
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
+const STREAM_REATTACH_FLUSH_MS = 100;
+const CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS = 40_000;
+
+/* Process-local ownership complements the durable localStorage outbox. It
+   survives Chat page remounts, so an old async finally cannot unlock a newer
+   owner and a remounted page cannot start work while recovery is pending. */
+const activeTurnMutationsByChatId = new Map();
+const turnMutationListeners = new Set();
+
+const notifyTurnMutationChange = (chatId) => {
+  turnMutationListeners.forEach((listener) => listener(chatId));
+};
+
+const claimTurnMutation = ({ chatId, operationId, mountedRef, recovery }) => {
+  if (!chatId || !operationId) {
+    return null;
+  }
+  let existingOwner = activeTurnMutationsByChatId.get(chatId);
+  if (existingOwner?.mountedRef?.current === false) {
+    const hasDurableIntent = readTurnMutationOutbox().some(
+      (entry) =>
+        entry.chatId === chatId &&
+        entry.operationId === existingOwner.operationId,
+    );
+    if (!hasDurableIntent) {
+      activeTurnMutationsByChatId.delete(chatId);
+      notifyTurnMutationChange(chatId);
+      existingOwner = null;
+    }
+  }
+  if (existingOwner) {
+    if (
+      existingOwner.operationId !== operationId ||
+      existingOwner.mountedRef?.current !== false
+    ) {
+      return null;
+    }
+  }
+  const owner = { chatId, operationId, mountedRef, recovery: recovery === true };
+  activeTurnMutationsByChatId.set(chatId, owner);
+  notifyTurnMutationChange(chatId);
+  return owner;
+};
+
+const ownsTurnMutation = (owner) =>
+  Boolean(
+    owner?.chatId && activeTurnMutationsByChatId.get(owner.chatId) === owner,
+  );
+
+const releaseTurnMutation = (owner) => {
+  if (!ownsTurnMutation(owner)) return false;
+  activeTurnMutationsByChatId.delete(owner.chatId);
+  notifyTurnMutationChange(owner.chatId);
+  return true;
+};
+
+const isTurnMutationAlreadyCommitted = (entry, messages) => {
+  const currentMessages = Array.isArray(messages) ? messages : [];
+  const currentFingerprint = fingerprintTurnMutationMessages(currentMessages);
+  if (entry?.kind === "delete") {
+    return Boolean(
+      entry.resultFingerprint && currentFingerprint === entry.resultFingerprint,
+    );
+  }
+  if (
+    entry?.originalFingerprint &&
+    currentFingerprint === entry.originalFingerprint
+  ) {
+    return false;
+  }
+  const baseMessageCount = Math.max(0, Number(entry?.baseMessageCount) || 0);
+  const baseMessages = currentMessages.slice(0, baseMessageCount);
+  const userMessage = currentMessages[baseMessageCount];
+  const assistantMessage = currentMessages[baseMessageCount + 1];
+  const userTerminallyAcknowledged = Boolean(
+    currentMessages.length === baseMessageCount + 1 &&
+      userMessage?.id === entry.targetMessageId &&
+      userMessage?.role === "user" &&
+      userMessage?.content === entry.text &&
+      userMessage?.meta?.turnMutationOperationId === entry.operationId &&
+      userMessage?.meta?.turnMutationServerAcknowledged === true,
+  );
+  return Boolean(
+    entry?.baseFingerprint &&
+      fingerprintTurnMutationMessages(baseMessages) === entry.baseFingerprint &&
+      (userTerminallyAcknowledged ||
+        (currentMessages.length === baseMessageCount + 2 &&
+          userMessage?.id === entry.targetMessageId &&
+          userMessage?.role === "user" &&
+          userMessage?.content === entry.text &&
+          assistantMessage?.role === "assistant" &&
+          assistantMessage?.meta?.turnMutationOperationId ===
+            entry.operationId &&
+          assistantMessage?.meta?.turnMutationServerAcknowledged === true)),
+  );
+};
+
+const TERMINAL_TURN_MUTATION_ERROR_CODES = new Set([
+  "invalid_request",
+  "memory_replace_operation_conflict",
+  "memory_replace_receipt_corruption",
+  "session_revision_conflict",
+]);
+
+const isTerminalTurnMutationError = (error) => {
+  if (error?.retryable === true) return false;
+  const code = typeof error?.code === "string" ? error.code.trim() : "";
+  if (TERMINAL_TURN_MUTATION_ERROR_CODES.has(code)) return true;
+  const status = Number(error?.status);
+  return (
+    error?.retryable === false &&
+    Number.isInteger(status) &&
+    status >= 400 &&
+    status < 500
+  );
+};
+
+const createTurnMutationResponseError = (response) => {
+  const detail =
+    response?.error && typeof response.error === "object"
+      ? response.error
+      : {};
+  const error = new Error(
+    (typeof detail.message === "string" && detail.message.trim()) ||
+      "Failed to sync short-term memory for this chat.",
+  );
+  error.code =
+    (typeof detail.code === "string" && detail.code.trim()) ||
+    "unchain_session_memory_replace_failed";
+  if (typeof detail.retryable === "boolean") {
+    error.retryable = detail.retryable;
+  }
+  const status = Number(detail.status ?? response?.status);
+  if (Number.isInteger(status)) error.status = status;
+  if (Number.isInteger(Number(detail.expected_revision))) {
+    error.expectedRevision = Number(detail.expected_revision);
+  }
+  if (Number.isInteger(Number(detail.actual_revision))) {
+    error.actualRevision = Number(detail.actual_revision);
+  }
+  return error;
+};
+
+const isTurnMutationOptimisticWithoutAck = (entry, messages) => {
+  if (!entry || entry.kind === "delete") return false;
+  const currentMessages = Array.isArray(messages) ? messages : [];
+  const baseMessageCount = Math.max(0, Number(entry.baseMessageCount) || 0);
+  const baseMessages = currentMessages.slice(0, baseMessageCount);
+  const userMessage = currentMessages[baseMessageCount];
+  const assistantMessage = currentMessages[baseMessageCount + 1];
+  const baseAndUserMatch = Boolean(
+    entry.baseFingerprint &&
+      fingerprintTurnMutationMessages(baseMessages) === entry.baseFingerprint &&
+      userMessage?.id === entry.targetMessageId &&
+      userMessage?.role === "user" &&
+      userMessage?.content === entry.text &&
+      userMessage?.meta?.turnMutationServerAcknowledged !== true &&
+      (!userMessage?.meta?.turnMutationOperationId ||
+        userMessage.meta.turnMutationOperationId === entry.operationId),
+  );
+  if (!baseAndUserMatch) return false;
+  if (currentMessages.length === baseMessageCount + 1) {
+    // Bootstrap intentionally removes an empty streaming placeholder. The
+    // tagged optimistic user message remains sufficient to safely recover or
+    // roll back the exact local mutation.
+    return true;
+  }
+  return Boolean(
+    currentMessages.length === baseMessageCount + 2 &&
+      assistantMessage?.role === "assistant" &&
+      assistantMessage?.meta?.turnMutationOperationId === entry.operationId &&
+      assistantMessage?.meta?.turnMutationServerAcknowledged !== true,
+  );
+};
+
+const sameDraftAttachments = (left, right) => {
+  const leftItems = Array.isArray(left) ? left : [];
+  const rightItems = Array.isArray(right) ? right : [];
+  return (
+    leftItems.length === rightItems.length &&
+    leftItems.every((attachment, index) => {
+      const other = rightItems[index];
+      return attachment?.id && other?.id
+        ? attachment.id === other.id
+        : attachment === other;
+    })
+  );
+};
+
+/* ── Composer sidecar (S1↔S2 seam, contract v1 FROZEN) ─────────────────────
+ * The `composer` field is a purely presentational, advisory sidecar attached
+ * to a user message when its turn expanded ≥1 slash-command. It NEVER reaches
+ * the model — content stays the single model-visible truth. runTurnRequest is
+ * the sole writer (see the reconciliation block there); buildComposerSend below
+ * is the sole builder, shared by sendNewTurn (compose) and editTurn (edit
+ * re-expand). See docs/superpowers/specs/2026-07-18-composer-sidecar-contract.md
+ */
+const COMPOSER_SIDECAR_VERSION = 1;
+
+/* Write-side guard: a composer is valid ONLY for the exact content it was
+ * computed against. Mirrors the reader's §4 "整体忽略" rules so we never persist
+ * a sidecar a reader would drop. `contentLength` is the final message content
+ * length; templateLength must index within it (contract §1.4). */
+const isValidComposerForContent = (composer, contentLength) =>
+  Boolean(
+    composer &&
+      typeof composer === "object" &&
+      composer.v === COMPOSER_SIDECAR_VERSION &&
+      typeof composer.rawText === "string" &&
+      composer.rawText !== "" &&
+      Array.isArray(composer.commands) &&
+      composer.commands.length > 0 &&
+      composer.commands.every(
+        (cmd) =>
+          cmd && typeof cmd === "object" && typeof cmd.name === "string",
+      ) &&
+      Number.isInteger(composer.templateLength) &&
+      composer.templateLength >= 0 &&
+      composer.templateLength <= contentLength,
+  );
+
+/* Build the outgoing (expanded) text, the ephemeral per-run toolkit selection,
+ * and the composer sidecar for a composer/edit send. `composer` is null unless
+ * ≥1 command expanded (contract §2 write condition — a zero-template command
+ * still counts, it contributes a chip). rawText is stored verbatim (pre-expand,
+ * contract §1.2); commands are projected to {name, sourceToolkitId} preserving
+ * token order and duplicates (§1.3). */
+const buildComposerSend = (rawText, selectedToolkits) => {
+  const expansion = expandCommands(rawText, {
+    isStreaming: false,
+    selectedToolkits: Array.isArray(selectedToolkits) ? selectedToolkits : [],
+  });
+  const outgoingText = (expansion.body || "").trim();
+  const extraToolkits = [
+    ...new Set(
+      expansion.commands.map((cmd) => cmd.sourceToolkitId).filter(Boolean),
+    ),
+  ];
+  const composer =
+    expansion.commands.length > 0
+      ? {
+          v: COMPOSER_SIDECAR_VERSION,
+          rawText,
+          commands: expansion.commands.map((cmd) => ({
+            name: cmd.name,
+            sourceToolkitId:
+              typeof cmd.sourceToolkitId === "string"
+                ? cmd.sourceToolkitId
+                : "",
+          })),
+          templateLength: expansion.templateLength,
+        }
+      : null;
+  return { outgoingText, extraToolkits, composer };
+};
+
+/**
+ * Send-time custom-provider fail-closed error codes (thrown by
+ * api.unchain.injectCustomProviderIntoPayload before the stream starts) mapped
+ * to their actionable-toast i18n keys (C12 / FM15 / design §6.2c).
+ *
+ *   custom_provider_missing_api_key -> add a key in settings, or reselect
+ *   custom_provider_not_found       -> the config was deleted; reselect a model
+ *   custom_provider_disabled        -> the provider is off; enable or reselect
+ */
+const CUSTOM_PROVIDER_SEND_ERROR_KEYS = Object.freeze({
+  custom_provider_missing_api_key: {
+    title: "chat.custom_provider_error.missing_api_key.title",
+    description: "chat.custom_provider_error.missing_api_key.description",
+  },
+  custom_provider_not_found: {
+    title: "chat.custom_provider_error.not_found.title",
+    description: "chat.custom_provider_error.not_found.description",
+  },
+  custom_provider_disabled: {
+    title: "chat.custom_provider_error.disabled.title",
+    description: "chat.custom_provider_error.disabled.description",
+  },
+});
+
+/**
+ * Fire an actionable toast for a custom-provider send-time error. No-op when
+ * the error is not one of the three fail-closed custom-provider codes, so the
+ * generic error path still owns everything else. `translate` is the live t()
+ * (falls back to returning the key). Returns the matched code or "".
+ */
+const emitCustomProviderSendErrorToast = (error, translate) => {
+  const code = typeof error?.code === "string" ? error.code : "";
+  const keys = CUSTOM_PROVIDER_SEND_ERROR_KEYS[code];
+  if (!keys) {
+    return "";
+  }
+  const t = typeof translate === "function" ? translate : (key) => key;
+  toast.error(t(keys.title), {
+    description: t(keys.description),
+    dedupeKey: `custom_provider_send_error:${code}`,
+  });
+  return code;
+};
 
 const STREAM_TRACE_LEVEL = "minimal";
 const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
+const QUEUE_RELAY_ACCEPTANCE_RECONCILE_MS = 1500;
+const QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES = 2;
+const QUEUE_RELAY_AUTHORITATIVE_ACCEPTANCE_EVENTS = Object.freeze([
+  "run.started",
+  "turn.started",
+  "step.started",
+]);
 const SUBAGENT_STATE_FLUSH_MS = 100;
+const DURABLE_RESUME_MAX_RETRIES = 7;
+const EXECUTION_CANCEL_DISCONNECT_GRACE_MS = 1500;
+const EXECUTION_CANCEL_OUTBOX_RETRY_MS = 5000;
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
+const EMPTY_CONFIRMATION_STATE = Object.freeze({});
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -68,6 +431,35 @@ const LEGACY_PLAN_RESULT_KEYS = [
 
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+
+const isAuthoritativeQueueAcceptanceEvent = (event) => {
+  if (QUEUE_RELAY_AUTHORITATIVE_ACCEPTANCE_EVENTS.includes(event?.type)) {
+    return true;
+  }
+  const stepType = event?.payload?.step_type ?? event?.payload?.stepType;
+  return Boolean(
+    event?.type === "step.delta" &&
+      stepType === "model_response" &&
+      typeof event?.payload?.delta === "string" &&
+      event.payload.delta.length > 0,
+  );
+};
+
+const isProvenNeverRegisteredCancellation = (response) => {
+  if (response?.state !== "cancelled") {
+    return false;
+  }
+  if (response?.disposition === "cancelled_before_register") {
+    return true;
+  }
+  const execution = response?.execution;
+  return Boolean(
+    response?.disposition === "unchanged" &&
+      isObject(execution) &&
+      Object.prototype.hasOwnProperty.call(execution, "registered_at_ms") &&
+      execution.registered_at_ms === null,
+  );
+};
 
 const isPlanDocArtifact = (artifact) =>
   isObject(artifact) && artifact.type === "plan_doc";
@@ -116,10 +508,19 @@ const buildToolConfirmationRequest = ({
   callId,
   toolName,
   requestedAt,
+  ownerMessageId,
+  chatId,
+  sessionId,
 }) => ({
   confirmationId,
   callId,
+  chatId,
+  sessionId,
   toolName,
+  toolkitId:
+    typeof frame.payload?.toolkit_id === "string"
+      ? frame.payload.toolkit_id
+      : "",
   toolDisplayName:
     typeof frame.payload?.tool_display_name === "string"
       ? frame.payload.tool_display_name
@@ -143,6 +544,8 @@ const buildToolConfirmationRequest = ({
       ? frame.payload.interact_config
       : {},
   requestedAt,
+  ownerMessageId:
+    typeof ownerMessageId === "string" ? ownerMessageId.trim() : "",
 });
 
 const normalizeAgentOrchestration = (value) => {
@@ -156,6 +559,50 @@ const normalizeAgentOrchestration = (value) => {
     return { mode: value.mode.trim() };
   }
   return { ...DEFAULT_AGENT_ORCHESTRATION };
+};
+
+const snapshotStoredRunContext = (store, targetChatId) => {
+  const chat = store?.chatsById?.[targetChatId];
+  if (!chat || typeof chat !== "object") {
+    return null;
+  }
+  const modelId =
+    typeof chat.model === "string"
+      ? chat.model.trim()
+      : typeof chat.model?.id === "string"
+        ? chat.model.id.trim()
+        : "";
+  const kind = chat.kind === "character" ? "character" : "default";
+  const characterId =
+    typeof chat.characterId === "string" ? chat.characterId.trim() : "";
+  return {
+    modelId,
+    threadId:
+      typeof chat.threadId === "string" && chat.threadId.trim()
+        ? chat.threadId.trim()
+        : targetChatId,
+    selectedToolkits: Array.isArray(chat.selectedToolkits)
+      ? [...chat.selectedToolkits]
+      : [],
+    selectedWorkspaceIds: Array.isArray(chat.selectedWorkspaceIds)
+      ? [...chat.selectedWorkspaceIds]
+      : [],
+    selectedRecipeName:
+      typeof chat.selectedRecipeName === "string" &&
+      chat.selectedRecipeName.trim()
+        ? chat.selectedRecipeName.trim()
+        : "Default",
+    agentOrchestration: normalizeAgentOrchestration(chat.agentOrchestration),
+    systemPromptOverrides:
+      chat.systemPromptOverrides &&
+      typeof chat.systemPromptOverrides === "object" &&
+      !Array.isArray(chat.systemPromptOverrides)
+        ? { ...chat.systemPromptOverrides }
+        : {},
+    kind,
+    characterId,
+    isCharacterChat: kind === "character" && Boolean(characterId),
+  };
 };
 
 const getTraceFrameIteration = (frame) => {
@@ -178,12 +625,101 @@ const characterLogger = createLogger(
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
 
+const normalizedExecutionIdentity = (identity) => {
+  const sessionId =
+    typeof identity?.sessionId === "string" ? identity.sessionId.trim() : "";
+  const attemptId =
+    typeof identity?.attemptId === "string" ? identity.attemptId.trim() : "";
+  if (!sessionId || !attemptId) {
+    return null;
+  }
+  return { ...identity, sessionId, attemptId };
+};
+
+const disconnectStreamTransport = (handle) => {
+  if (handle && typeof handle.disconnect === "function") {
+    handle.disconnect();
+    return;
+  }
+  if (handle && typeof handle.cancel === "function") {
+    handle.cancel();
+  }
+};
+
+const requestExecutionCancellationAndDisconnect = ({
+  identity,
+  handle,
+  reason = "user_stop",
+  idempotencyKey = "",
+}) => {
+  let disconnected = false;
+  const disconnectOnce = () => {
+    if (disconnected) {
+      return;
+    }
+    disconnected = true;
+    disconnectStreamTransport(handle);
+  };
+  const normalizedIdentity = normalizedExecutionIdentity(identity);
+  if (
+    !normalizedIdentity ||
+    typeof api.unchain.cancelExecution !== "function"
+  ) {
+    disconnectOnce();
+    return Promise.resolve({ ok: false, response: null });
+  }
+
+  const disconnectTimer = setTimeout(
+    disconnectOnce,
+    EXECUTION_CANCEL_DISCONNECT_GRACE_MS,
+  );
+  return Promise.resolve(
+    api.unchain.cancelExecution({
+      session_id: normalizedIdentity.sessionId,
+      attempt_id: normalizedIdentity.attemptId,
+      ...(normalizedIdentity.sourceAttemptId
+        ? { source_attempt_id: normalizedIdentity.sourceAttemptId }
+        : {}),
+      ...(normalizedIdentity.requestId
+        ? { request_id: normalizedIdentity.requestId }
+        : {}),
+      reason,
+      idempotency_key:
+        typeof idempotencyKey === "string" && idempotencyKey.trim()
+          ? idempotencyKey.trim()
+          : `stop:${normalizedIdentity.attemptId}`,
+    }),
+  ).then((response) => ({ ok: true, response }))
+    .catch((error) => {
+      unchainLogger.warn("execution_cancel_failed", {
+        sessionId: normalizedIdentity.sessionId,
+        attemptId: normalizedIdentity.attemptId,
+        code: error?.code || "execution_cancel_failed",
+        message: error?.message || "Failed to cancel execution",
+      });
+      return { ok: false, response: null };
+    })
+    .finally(() => {
+      clearTimeout(disconnectTimer);
+      disconnectOnce();
+    });
+};
+
+const createChatRenderRuntime = () => ({
+  tokenFlushController: null,
+  parentRunId: "",
+  subagentMetaByRunId: new Map(),
+  subagentFramesByRunId: new Map(),
+  lastTokenRunId: "",
+});
+
 export const useChatStream = ({
   chatId,
   messages,
   setMessages,
   inputValue,
   setInputValue,
+  composerRevisionByChatIdRef,
   draftAttachments,
   setDraftAttachments,
   selectedModelId,
@@ -208,6 +744,7 @@ export const useChatStream = ({
   setAgentOrchestration,
   activeStreamsRef,
   streamingMessageStore,
+  t,
 }) => {
   const {
     buildHistoryForModel,
@@ -235,21 +772,26 @@ export const useChatStream = ({
     typeof controlledSetStreamError === "function"
       ? controlledSetStreamError
       : setInternalStreamError;
-  const [pendingToolConfirmationRequests, setPendingToolConfirmationRequests] =
+  const [pendingToolConfirmationRequestsByChatId, setPendingToolConfirmationRequestsByChatId] =
     useState({});
-  const pendingToolConfirmationRequestsRef = useRef({});
-  const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
+  const pendingToolConfirmationRequestsByChatIdRef = useRef({});
+  const [toolConfirmationUiStateByChatId, setToolConfirmationUiStateByChatId] =
     useState({});
-  const toolConfirmationUiStateByIdRef = useRef({});
-  const [pendingContinuationRequest, setPendingContinuationRequest] =
-    useState(null);
+  const toolConfirmationUiStateByChatIdRef = useRef({});
+  const [durableInteractionByChatId, setDurableInteractionByChatId] =
+    useState({});
+  const durableInteractionByChatIdRef = useRef({});
+  const [
+    pendingContinuationRequestsByChatId,
+    setPendingContinuationRequestsByChatId,
+  ] = useState({});
   const [interjectStateByChatId, setInterjectStateByChatId] = useState({});
   const interjectStateByChatIdRef = useRef({});
   const isCharacterChat =
     chatKind === "character" &&
     typeof characterId === "string" &&
     characterId.trim().length > 0;
-  const pendingContinuationRequestRef = useRef(null);
+  const pendingContinuationRequestsByChatIdRef = useRef({});
 
   /* Stable refs for high-churn values — keeps sendNewTurn callback stable */
   const inputValueRef = useRef(inputValue);
@@ -258,63 +800,447 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedToolkitsRef = useRef(selectedToolkits);
+  selectedToolkitsRef.current = selectedToolkits;
+  /* Live translator ref so send-time toasts localize without perturbing the
+     large sendNewTurn useCallback deps. Falls back to the key itself when no
+     t is supplied (parity with useTranslation's last-resort behavior). */
+  const tRef = useRef(null);
+  tRef.current = typeof t === "function" ? t : (key) => key;
+
+  const commitForegroundMessages = useCallback(
+    (targetChatId, nextMessages) => {
+      if (!targetChatId || activeChatIdRef.current !== targetChatId) {
+        return false;
+      }
+      messagesRef.current = nextMessages;
+      setMessages(nextMessages);
+      return true;
+    },
+    [activeChatIdRef, messagesRef, setMessages],
+  );
+
+  const setStreamErrorForChat = useCallback(
+    (targetChatId, nextError) => {
+      if (targetChatId && activeChatIdRef.current === targetChatId) {
+        setStreamError(nextError);
+      }
+    },
+    [activeChatIdRef, setStreamError],
+  );
+
+  const updatePendingContinuationRequestForChat = useCallback(
+    (targetChatId, nextValue) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
+
+      const previous =
+        pendingContinuationRequestsByChatIdRef.current[normalizedChatId] || null;
+      const resolved =
+        typeof nextValue === "function" ? nextValue(previous) : nextValue;
+      const nextRequests = {
+        ...pendingContinuationRequestsByChatIdRef.current,
+      };
+      if (resolved) {
+        nextRequests[normalizedChatId] = resolved;
+      } else {
+        delete nextRequests[normalizedChatId];
+      }
+      pendingContinuationRequestsByChatIdRef.current = nextRequests;
+      setPendingContinuationRequestsByChatId(nextRequests);
+    },
+    [],
+  );
 
   const streamHandlesRef = useRef(new Map());
+  const executionIdentityByChatIdRef = useRef(new Map());
   const fallbackStreamingMessageStoreRef = useRef(null);
   if (!fallbackStreamingMessageStoreRef.current) {
     fallbackStreamingMessageStoreRef.current = createStreamingMessageStore();
   }
   const activeStreamingMessageStore =
     streamingMessageStore || fallbackStreamingMessageStoreRef.current;
+  const hookMountedRef = useRef(true);
+  const initialTurnMutationOutboxRef = useRef(null);
+  if (!initialTurnMutationOutboxRef.current) {
+    initialTurnMutationOutboxRef.current = readTurnMutationOutbox();
+    initialTurnMutationOutboxRef.current.forEach((entry) => {
+      const existingOwner = activeTurnMutationsByChatId.get(entry.chatId);
+      if (
+        !existingOwner ||
+        (existingOwner.operationId === entry.operationId &&
+          existingOwner.mountedRef?.current === false)
+      ) {
+        activeTurnMutationsByChatId.set(entry.chatId, {
+          chatId: entry.chatId,
+          operationId: entry.operationId,
+          mountedRef: hookMountedRef,
+          recovery: true,
+        });
+      }
+    });
+  }
+  const [turnMutationVersion, setTurnMutationVersion] = useState(0);
   const streamingChatIdsRef = useRef(new Set());
-  const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
-  const confirmationIdByCallIdRef = useRef(new Map());
-  const confirmationCallIdByIdRef = useRef(new Map());
-  const confirmationFollowupSignalByIdRef = useRef(new Map());
-  const confirmationResolveTimerByIdRef = useRef(new Map());
-  const activeTokenFlushControllerRef = useRef(null);
-  const parentRunIdRef = useRef("");
-  const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
-  const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
-  const lastTokenRunIdRef = useRef("");
+  const runPreflightGenerationByChatIdRef = useRef(new Map());
+  const turnMutationByChatIdRef = useRef(activeTurnMutationsByChatId);
+  const turnMutationRecoveryAttemptsRef = useRef(new Map());
+  const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
+  const confirmationRuntimeByChatIdRef = useRef(new Map());
+  const durableInteractionLookupByChatIdRef = useRef(new Map());
+  const reattachingChatIdsRef = useRef(new Set());
+  const runContextByChatIdRef = useRef(new Map());
+  const durableResumeStartedKeysRef = useRef(new Set());
+  const durableResumeStartedKeysByChatIdRef = useRef(new Map());
+  const durableResumeRetryTimersRef = useRef(new Map());
+  const runGenerationByChatIdRef = useRef(new Map());
+  const stoppedRunChatIdsRef = useRef(new Set());
+  const queueRelayTimersByChatIdRef = useRef(new Map());
+  const queueRelayAttemptsByChatIdRef = useRef(new Map());
+  const queueAttemptIdByChatIdRef = useRef(new Map());
+  const queueClientOperationIdByChatIdRef = useRef(new Map());
+  const runClientOperationIdByChatIdRef = useRef(new Map());
+  const relayQueuedTurnsAfterRunRef = useRef(null);
+  const confirmationRetryWaitersByChatIdRef = useRef(new Map());
+  const renderRuntimeByChatIdRef = useRef(new Map());
   // Interject (mid-run "fyi"/"btw"/"queue"/"clarify") bookkeeping — all keyed
   // by chatId so multiple chats never cross-talk.
   const activeRunThreadIdByChatIdRef = useRef(new Map()); // chatId -> threadId the active run actually used (character chats use a session_id, not chatId)
   const queuedTurnsByChatIdRef = useRef(new Map()); // chatId -> createQueuedTurnBuffer() instance for that chat's active run
   const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
   const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
+  const clarifyBtwBarrierByChatIdRef = useRef(new Map()); // chatId -> exact clarify-owned BTW awaiting settlement
   const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
 
-  const buildCharacterRunConfig = useCallback(async () => {
-    if (!isCharacterChat) {
-      return null;
-    }
+  const isChatRunPending = useCallback(
+    (targetChatId) =>
+      Boolean(
+        targetChatId &&
+          (streamingChatIdsRef.current.has(targetChatId) ||
+            runPreflightGenerationByChatIdRef.current.has(targetChatId) ||
+            turnMutationByChatIdRef.current.has(targetChatId)),
+      ),
+    [],
+  );
 
-    const resolvedThreadId =
-      typeof threadIdRef?.current === "string" && threadIdRef.current.trim()
-        ? threadIdRef.current.trim()
-        : "main";
+  useEffect(() => {
+    hookMountedRef.current = true;
+    const listener = () => {
+      if (hookMountedRef.current) {
+        setTurnMutationVersion((version) => version + 1);
+      }
+    };
+    turnMutationListeners.add(listener);
+    return () => {
+      hookMountedRef.current = false;
+      turnMutationListeners.delete(listener);
+      const durableOperations = new Set(
+        readTurnMutationOutbox().map((entry) => entry.operationId),
+      );
+      for (const [ownerChatId, owner] of activeTurnMutationsByChatId) {
+        if (
+          owner.mountedRef === hookMountedRef &&
+          !durableOperations.has(owner.operationId)
+        ) {
+          activeTurnMutationsByChatId.delete(ownerChatId);
+          notifyTurnMutationChange(ownerChatId);
+        }
+      }
+    };
+  }, []);
 
-    const config = await api.unchain.buildCharacterAgentConfig({
-      characterId,
-      threadId: resolvedThreadId,
-      humanId: "local_user",
+  const runContextOwnerChatId =
+    typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+  if (runContextOwnerChatId) {
+    runContextByChatIdRef.current.set(runContextOwnerChatId, {
+      modelId:
+        typeof modelIdRef?.current === "string" ? modelIdRef.current : "",
+      threadId:
+        typeof threadIdRef?.current === "string" ? threadIdRef.current : "",
+      selectedToolkits: Array.isArray(selectedToolkits)
+        ? [...selectedToolkits]
+        : [],
+      selectedWorkspaceIds: Array.isArray(selectedWorkspaceIds)
+        ? [...selectedWorkspaceIds]
+        : [],
+      selectedRecipeName:
+        typeof selectedRecipeName === "string" && selectedRecipeName.trim()
+          ? selectedRecipeName.trim()
+          : "Default",
+      agentOrchestration: normalizeAgentOrchestration(agentOrchestration),
+      systemPromptOverrides:
+        systemPromptOverrides &&
+        typeof systemPromptOverrides === "object" &&
+        !Array.isArray(systemPromptOverrides)
+          ? { ...systemPromptOverrides }
+          : {},
+      kind: isCharacterChat ? "character" : "default",
+      characterId:
+        typeof characterId === "string" ? characterId.trim() : "",
+      isCharacterChat,
     });
-    return config && typeof config === "object" ? config : null;
-  }, [characterId, isCharacterChat, threadIdRef]);
+  }
+
+  const beginRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (!normalizedChatId) {
+      return 0;
+    }
+    const nextGeneration =
+      (runGenerationByChatIdRef.current.get(normalizedChatId) || 0) + 1;
+    runGenerationByChatIdRef.current.set(normalizedChatId, nextGeneration);
+    stoppedRunChatIdsRef.current.delete(normalizedChatId);
+    return nextGeneration;
+  }, []);
+
+  const getRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    return normalizedChatId
+      ? runGenerationByChatIdRef.current.get(normalizedChatId) || 0
+      : 0;
+  }, []);
+
+  const ensureRecoveryRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (
+      !normalizedChatId ||
+      stoppedRunChatIdsRef.current.has(normalizedChatId)
+    ) {
+      return 0;
+    }
+    const currentGeneration =
+      runGenerationByChatIdRef.current.get(normalizedChatId) || 0;
+    if (currentGeneration > 0) {
+      return currentGeneration;
+    }
+    runGenerationByChatIdRef.current.set(normalizedChatId, 1);
+    return 1;
+  }, []);
+
+  const isRunGenerationCurrent = useCallback(
+    (targetChatId, runGeneration) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      return Boolean(
+        normalizedChatId &&
+          Number.isInteger(runGeneration) &&
+          runGeneration > 0 &&
+          !stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+          runGenerationByChatIdRef.current.get(normalizedChatId) ===
+            runGeneration,
+      );
+    },
+    [],
+  );
+
+  const invalidateRunGeneration = useCallback((targetChatId) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
+    if (!normalizedChatId) {
+      return 0;
+    }
+    const nextGeneration =
+      (runGenerationByChatIdRef.current.get(normalizedChatId) || 0) + 1;
+    runGenerationByChatIdRef.current.set(normalizedChatId, nextGeneration);
+    stoppedRunChatIdsRef.current.add(normalizedChatId);
+    return nextGeneration;
+  }, []);
+
+  const clearQueueRelayTimersForChat = useCallback((targetChatId) => {
+    const timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+    timers?.forEach((timerId) => clearTimeout(timerId));
+    queueRelayTimersByChatIdRef.current.delete(targetChatId);
+    queueRelayAttemptsByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const scheduleQueueRelayTimer = useCallback(
+    (targetChatId, runGeneration, callback, delayMs) => {
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+        return null;
+      }
+      let timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+      if (!timers) {
+        timers = new Set();
+        queueRelayTimersByChatIdRef.current.set(targetChatId, timers);
+      }
+      let timerId = null;
+      timerId = setTimeout(() => {
+        const currentTimers =
+          queueRelayTimersByChatIdRef.current.get(targetChatId);
+        currentTimers?.delete(timerId);
+        if (currentTimers?.size === 0) {
+          queueRelayTimersByChatIdRef.current.delete(targetChatId);
+        }
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
+        callback();
+      }, delayMs);
+      timers.add(timerId);
+      return timerId;
+    },
+    [isRunGenerationCurrent],
+  );
+
+  const scheduleQueueRelayRetryTimer = useCallback(
+    (targetChatId, callback, delayMs) => {
+      let timers = queueRelayTimersByChatIdRef.current.get(targetChatId);
+      if (!timers) {
+        timers = new Set();
+        queueRelayTimersByChatIdRef.current.set(targetChatId, timers);
+      }
+      let timerId = null;
+      timerId = setTimeout(() => {
+        const currentTimers =
+          queueRelayTimersByChatIdRef.current.get(targetChatId);
+        currentTimers?.delete(timerId);
+        if (currentTimers?.size === 0) {
+          queueRelayTimersByChatIdRef.current.delete(targetChatId);
+        }
+        callback();
+      }, delayMs);
+      timers.add(timerId);
+      return timerId;
+    },
+    [],
+  );
+
+  const clearConfirmationRetryWaitersForChat = useCallback((targetChatId) => {
+    const waiters =
+      confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+    waiters?.forEach((waiter) => {
+      clearTimeout(waiter.timerId);
+      waiter.resolve(false);
+    });
+    confirmationRetryWaitersByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const waitForConfirmationRetry = useCallback(
+    (targetChatId, runGeneration, delayMs) =>
+      new Promise((resolve) => {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          resolve(false);
+          return;
+        }
+        let waiters =
+          confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+        if (!waiters) {
+          waiters = new Set();
+          confirmationRetryWaitersByChatIdRef.current.set(targetChatId, waiters);
+        }
+        const waiter = { timerId: null, resolve };
+        waiter.timerId = setTimeout(() => {
+          const currentWaiters =
+            confirmationRetryWaitersByChatIdRef.current.get(targetChatId);
+          currentWaiters?.delete(waiter);
+          if (currentWaiters?.size === 0) {
+            confirmationRetryWaitersByChatIdRef.current.delete(targetChatId);
+          }
+          resolve(isRunGenerationCurrent(targetChatId, runGeneration));
+        }, delayMs);
+        waiters.add(waiter);
+      }),
+    [isRunGenerationCurrent],
+  );
+
+  const trackDurableResumeStartedKey = useCallback(
+    (targetChatId, resumeKey) => {
+      if (!resumeKey) {
+        return;
+      }
+      durableResumeStartedKeysRef.current.add(resumeKey);
+      let keys =
+        durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
+      if (!keys) {
+        keys = new Set();
+        durableResumeStartedKeysByChatIdRef.current.set(targetChatId, keys);
+      }
+      keys.add(resumeKey);
+    },
+    [],
+  );
+
+  const clearDurableResumeStartedKeysForChat = useCallback((targetChatId) => {
+    const keys =
+      durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
+    keys?.forEach((resumeKey) => {
+      durableResumeStartedKeysRef.current.delete(resumeKey);
+    });
+    durableResumeStartedKeysByChatIdRef.current.delete(targetChatId);
+  }, []);
+
+  const getConfirmationRuntimeForChat = useCallback(
+    (targetChatId, { create = true } = {}) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return null;
+      }
+
+      let runtime = confirmationRuntimeByChatIdRef.current.get(normalizedChatId);
+      if (!runtime && create) {
+        runtime = {
+          confirmationIdByCallId: new Map(),
+          confirmationCallIdById: new Map(),
+          sessionIdByConfirmationId: new Map(),
+          followupSignalById: new Map(),
+          resolveTimerById: new Map(),
+        };
+        confirmationRuntimeByChatIdRef.current.set(normalizedChatId, runtime);
+      }
+      return runtime || null;
+    },
+    [],
+  );
+
+  const buildCharacterRunConfig = useCallback(
+    async (threadIdOverride = "") => {
+      if (!isCharacterChat) {
+        return null;
+      }
+
+      const resolvedThreadId =
+        typeof threadIdOverride === "string" && threadIdOverride.trim()
+          ? threadIdOverride.trim()
+          : typeof threadIdRef?.current === "string" &&
+              threadIdRef.current.trim()
+            ? threadIdRef.current.trim()
+            : "main";
+
+      const config = await api.unchain.buildCharacterAgentConfig({
+        characterId,
+        threadId: resolvedThreadId,
+        humanId: "local_user",
+      });
+      return config && typeof config === "object" ? config : null;
+    },
+    [characterId, isCharacterChat, threadIdRef],
+  );
 
   const findToolCallFrameByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId) => {
       const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
       if (!normalizedCallId) {
         return null;
       }
 
-      const currentChatId = activeChatIdRef.current;
-      const streamState = activeStreamsRef.current.get(currentChatId);
+      const normalizedChatId =
+        typeof targetChatId === "string" && targetChatId.trim()
+          ? targetChatId.trim()
+          : activeChatIdRef.current;
+      const streamState = activeStreamsRef.current.get(normalizedChatId);
       const streamMessages = Array.isArray(streamState?.messages)
         ? streamState.messages
-        : [];
+        : activeChatIdRef.current === normalizedChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : [];
 
       for (const message of streamMessages) {
         const traceFrames = Array.isArray(message?.traceFrames)
@@ -350,39 +1276,70 @@ export const useChatStream = ({
 
       return null;
     },
-    [activeChatIdRef, activeStreamsRef],
+    [activeChatIdRef, activeStreamsRef, messagesRef],
   );
-
-  useEffect(() => {
-    toolConfirmationUiStateByIdRef.current = toolConfirmationUiStateById;
-  }, [toolConfirmationUiStateById]);
-
-  /* Session-scoped "Don't ask again" list is reset whenever the active
-   * chat changes, matching the semantics of "only in this session". */
-  useEffect(() => {
-    sessionAutoApproveRef.current.clear();
-  }, [chatId]);
 
   const isStreaming = streamingChatIds.has(chatId);
   const hasBackgroundStream =
     streamingChatIds.size > 0 && !streamingChatIds.has(chatId);
+  const pendingToolConfirmationRequests =
+    pendingToolConfirmationRequestsByChatId[chatId] || EMPTY_CONFIRMATION_STATE;
+  const toolConfirmationUiStateById =
+    toolConfirmationUiStateByChatId[chatId] || EMPTY_CONFIRMATION_STATE;
+  const durableInteractionState = durableInteractionByChatId[chatId] || null;
+  const pendingContinuationRequest =
+    pendingContinuationRequestsByChatId[chatId] || null;
+  const durableInteractionStatus =
+    typeof durableInteractionState?.status === "string"
+      ? durableInteractionState.status
+      : "";
+  const isDurableInteractionBlocked = Boolean(durableInteractionStatus);
+  const isTurnMutationBlocked = Boolean(
+    chatId &&
+      (turnMutationByChatIdRef.current.has(chatId) ||
+        runPreflightGenerationByChatIdRef.current.has(chatId) ||
+        readTurnMutationOutbox().some((entry) => entry.chatId === chatId)),
+  );
+  const canStop =
+    isStreaming ||
+    [
+      "awaiting",
+      "awaiting_response",
+      "checking",
+      "receipt_recorded",
+      "resuming",
+      "retry_wait",
+      "resume_failed",
+    ].includes(durableInteractionStatus);
 
-  const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
-    const controller = activeTokenFlushControllerRef.current;
-    if (!controller) {
-      return;
-    }
+  const clearActiveTokenFlushController = useCallback(
+    (targetChatId, mode = "dispose") => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
+      const renderRuntime =
+        renderRuntimeByChatIdRef.current.get(normalizedChatId);
+      const controller = renderRuntime?.tokenFlushController;
+      if (!controller) {
+        return;
+      }
 
-    if (mode === "flush" && typeof controller.flushNow === "function") {
-      controller.flushNow();
-    }
+      if (mode === "flush" && typeof controller.flushNow === "function") {
+        controller.flushNow();
+      }
 
-    if (typeof controller.dispose === "function") {
-      controller.dispose();
-    }
+      if (typeof controller.dispose === "function") {
+        controller.dispose();
+      }
 
-    activeTokenFlushControllerRef.current = null;
-  }, []);
+      if (renderRuntime.tokenFlushController === controller) {
+        renderRuntime.tokenFlushController = null;
+      }
+    },
+    [],
+  );
 
   const flushStreamingMessageStore = useCallback(
     (targetChatId, assistantMessageId) => {
@@ -430,27 +1387,100 @@ export const useChatStream = ({
     [activeStreamingMessageStore],
   );
 
-  const updateToolConfirmationUiState = useCallback((updater) => {
-    const previous = toolConfirmationUiStateByIdRef.current;
-    const next = typeof updater === "function" ? updater(previous) : updater;
-    if (next === previous) {
-      return previous;
-    }
-    toolConfirmationUiStateByIdRef.current = next;
-    setToolConfirmationUiStateById(next);
-    return next;
-  }, []);
+  const updateToolConfirmationUiState = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return EMPTY_CONFIRMATION_STATE;
+      }
 
-  const updatePendingToolConfirmationRequests = useCallback((updater) => {
-    const previous = pendingToolConfirmationRequestsRef.current;
-    const next = typeof updater === "function" ? updater(previous) : updater;
-    if (next === previous) {
-      return previous;
-    }
-    pendingToolConfirmationRequestsRef.current = next;
-    setPendingToolConfirmationRequests(next);
-    return next;
-  }, []);
+      const previousByChatId = toolConfirmationUiStateByChatIdRef.current;
+      const previous =
+        previousByChatId[normalizedChatId] || EMPTY_CONFIRMATION_STATE;
+      const updated =
+        typeof updater === "function" ? updater(previous) : updater;
+      const next =
+        updated && typeof updated === "object"
+          ? updated
+          : EMPTY_CONFIRMATION_STATE;
+      if (next === previous) {
+        return previous;
+      }
+
+      const nextByChatId = { ...previousByChatId };
+      if (Object.keys(next).length > 0) {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      toolConfirmationUiStateByChatIdRef.current = nextByChatId;
+      setToolConfirmationUiStateByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
+
+  const updatePendingToolConfirmationRequests = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return EMPTY_CONFIRMATION_STATE;
+      }
+
+      const previousByChatId =
+        pendingToolConfirmationRequestsByChatIdRef.current;
+      const previous =
+        previousByChatId[normalizedChatId] || EMPTY_CONFIRMATION_STATE;
+      const updated =
+        typeof updater === "function" ? updater(previous) : updater;
+      const next =
+        updated && typeof updated === "object"
+          ? updated
+          : EMPTY_CONFIRMATION_STATE;
+      if (next === previous) {
+        return previous;
+      }
+
+      const nextByChatId = { ...previousByChatId };
+      if (Object.keys(next).length > 0) {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      pendingToolConfirmationRequestsByChatIdRef.current = nextByChatId;
+      setPendingToolConfirmationRequestsByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
+
+  const updateDurableInteractionForChat = useCallback(
+    (targetChatId, updater) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return null;
+      }
+      const previousByChatId = durableInteractionByChatIdRef.current;
+      const previous = previousByChatId[normalizedChatId] || null;
+      const next = typeof updater === "function" ? updater(previous) : updater;
+      if (next === previous) {
+        return previous;
+      }
+      const nextByChatId = { ...previousByChatId };
+      if (next && typeof next === "object") {
+        nextByChatId[normalizedChatId] = next;
+      } else {
+        delete nextByChatId[normalizedChatId];
+      }
+      durableInteractionByChatIdRef.current = nextByChatId;
+      setDurableInteractionByChatId(nextByChatId);
+      return next;
+    },
+    [],
+  );
 
   const updateInterjectStateByChatId = useCallback((updater) => {
     const previous = interjectStateByChatIdRef.current;
@@ -482,30 +1512,941 @@ export const useChatStream = ({
     [updateInterjectStateByChatId],
   );
 
-  const clearConfirmationResolutionTimer = useCallback((confirmationId) => {
-    const normalizedId =
-      typeof confirmationId === "string" ? confirmationId.trim() : "";
-    if (!normalizedId) {
-      return;
-    }
+  const syncPendingFyiStateForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const pending = readPendingFyisForAttempt(targetChatId, attemptId);
+      if (pending.length > 0) {
+        pendingFyiCountByChatIdRef.current.set(
+          targetChatId,
+          pending.length,
+        );
+      } else {
+        pendingFyiCountByChatIdRef.current.delete(targetChatId);
+      }
+      syncInterjectStateForChat(targetChatId);
+      return pending;
+    },
+    [syncInterjectStateForChat],
+  );
 
-    const timerId = confirmationResolveTimerByIdRef.current.get(normalizedId);
-    if (timerId != null) {
-      clearTimeout(timerId);
+  const fallbackPendingFyisForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const pending = readPendingFyisForAttempt(targetChatId, attemptId);
+      if (pending.length === 0) {
+        syncPendingFyiStateForAttempt(targetChatId, attemptId);
+        return { queue: null, migrated: [] };
+      }
+      const migrated = migratePendingFyiForAttemptToQueue(
+        targetChatId,
+        attemptId,
+      );
+      if (!migrated) {
+        setStreamErrorForChat(
+          targetChatId,
+          "The pending FYI is still saved and will be recovered after reload.",
+        );
+        syncPendingFyiStateForAttempt(targetChatId, attemptId);
+        return null;
+      }
+      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (!queuedTurns) {
+        queuedTurns = createQueuedTurnBuffer(migrated.queue.items);
+        queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
+      } else {
+        queuedTurns.hydrate(migrated.queue.items);
+      }
+      queueAttemptIdByChatIdRef.current.set(targetChatId, attemptId);
+      queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      syncPendingFyiStateForAttempt(targetChatId, attemptId);
+      return migrated;
+    },
+    [setStreamErrorForChat, syncPendingFyiStateForAttempt],
+  );
+
+  const syncDurableQueueForAttempt = useCallback(
+    (targetChatId, attemptId, queue) => {
+      const exactAttemptId =
+        typeof attemptId === "string" ? attemptId.trim() : "";
+      if (!targetChatId || !exactAttemptId) return false;
+      const items = Array.isArray(queue?.items)
+        ? queue.items.filter((item) => item?.status === "queued")
+        : [];
+      if (items.length > 0) {
+        let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+        if (!queuedTurns) {
+          queuedTurns = createQueuedTurnBuffer(items);
+          queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
+        } else {
+          queuedTurns.hydrate(items);
+        }
+        queueAttemptIdByChatIdRef.current.set(targetChatId, exactAttemptId);
+        queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      } else if (
+        queueAttemptIdByChatIdRef.current.get(targetChatId) === exactAttemptId
+      ) {
+        queuedTurnsByChatIdRef.current.delete(targetChatId);
+        queueAttemptIdByChatIdRef.current.delete(targetChatId);
+      }
+      syncPendingFyiStateForAttempt(targetChatId, exactAttemptId);
+      return true;
+    },
+    [syncPendingFyiStateForAttempt],
+  );
+
+  const acknowledgeInjectedFyisForAttempt = useCallback(
+    (targetChatId, attemptId, messages) => {
+      let queueChanged = false;
+      let latestQueue = null;
+      for (const entry of Array.isArray(messages) ? messages : []) {
+        const messageId =
+          typeof entry?.message_id === "string"
+            ? entry.message_id.trim()
+            : typeof entry?.messageId === "string"
+              ? entry.messageId.trim()
+              : "";
+        if (!messageId) continue;
+        const resolved = resolvePendingFyiIntent({
+          chatId: targetChatId,
+          attemptId,
+          messageId,
+        });
+        if (resolved) {
+          queueChanged = queueChanged || resolved.removedQueuedFallback;
+          latestQueue = resolved.queue || null;
+        }
+      }
+      if (queueChanged) {
+        syncDurableQueueForAttempt(targetChatId, attemptId, latestQueue);
+      } else {
+        syncPendingFyiStateForAttempt(targetChatId, attemptId);
+      }
+    },
+    [syncDurableQueueForAttempt, syncPendingFyiStateForAttempt],
+  );
+
+  const persistQueuedTurnBufferForAttempt = useCallback(
+    (
+      targetChatId,
+      queuedTurns,
+      explicitAttemptId = "",
+      explicitClientOperationId = "",
+      { preserveRelayed = true } = {},
+    ) => {
+      const attemptId =
+        (typeof explicitAttemptId === "string"
+          ? explicitAttemptId.trim()
+          : "") || queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const clientOperationId =
+        (typeof explicitClientOperationId === "string"
+          ? explicitClientOperationId.trim()
+          : "") ||
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+        "";
+      if (!targetChatId || (!attemptId && !clientOperationId) || !queuedTurns) {
+        return false;
+      }
+      const snapshot = queuedTurns.snapshot();
+      const durableOwner = attemptId
+        ? readQueuedTurnsForAttempt(targetChatId, attemptId)
+        : readQueuedTurnsForClientOperation(targetChatId, clientOperationId);
+      const relayedItemsById = new Map();
+
+      if (preserveRelayed) {
+        for (const item of durableOwner?.items || []) {
+          if (item.status === "relayed") {
+            relayedItemsById.set(item.id, { ...item, status: "relayed" });
+          }
+        }
+
+        const relayState = queueRelayAttemptsByChatIdRef.current.get(
+          targetChatId,
+        );
+        const relayOwnerMatches = attemptId
+          ? relayState?.attemptId === attemptId
+          : Boolean(
+              clientOperationId &&
+                relayState?.clientOperationId === clientOperationId,
+            );
+        if (
+          relayState?.buffer === queuedTurns &&
+          relayState.inFlight === true &&
+          relayOwnerMatches
+        ) {
+          const inFlightIds = new Set(relayState.inFlightIds || []);
+          for (const item of snapshot) {
+            if (inFlightIds.has(item.id)) {
+              relayedItemsById.set(item.id, {
+                ...item,
+                status: "relayed",
+              });
+            }
+          }
+        }
+      }
+
+      const mergedItemsById = new Map(relayedItemsById);
+      for (const item of snapshot) {
+        if (item.status === "queued" && !mergedItemsById.has(item.id)) {
+          mergedItemsById.set(item.id, { ...item, status: "queued" });
+        }
+      }
+      const items = Array.from(mergedItemsById.values());
+      if (items.length === 0) {
+        if (attemptId) {
+          removeQueuedTurnsForAttempt(targetChatId, attemptId);
+        } else {
+          removeQueuedTurnsForClientOperation(
+            targetChatId,
+            clientOperationId,
+          );
+        }
+        return true;
+      }
+      const entry = {
+        chatId: targetChatId,
+        items,
+      };
+      return Boolean(
+        attemptId
+          ? writeQueuedTurnsForAttempt({ ...entry, attemptId })
+          : writeQueuedTurnsForClientOperation({
+              ...entry,
+              clientOperationId,
+            }),
+      );
+    },
+    [],
+  );
+
+  const pushQueuedTurn = useCallback(
+    (targetChatId, text) => {
+      const currentAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const attemptId =
+        currentAttemptId ||
+        executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+        "";
+      const currentClientOperationId =
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+      const clientOperationId = attemptId
+        ? ""
+        : currentClientOperationId ||
+          runClientOperationIdByChatIdRef.current.get(targetChatId) ||
+          "";
+      if (!targetChatId || (!attemptId && !clientOperationId)) {
+        const message =
+          "Could not save this queued message yet. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `queue-owner-unavailable-${targetChatId}`,
+        });
+        return false;
+      }
+
+      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      const createdBuffer = !queuedTurns;
+      if (!queuedTurns) {
+        queuedTurns = createQueuedTurnBuffer();
+      }
+      const queuedId = queuedTurns.push(text);
+      if (!queuedId) {
+        const message =
+          "The queued-message limit was reached. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `queue-capacity-${targetChatId}`,
+        });
+        return false;
+      }
+      const persisted = persistQueuedTurnBufferForAttempt(
+        targetChatId,
+        queuedTurns,
+        attemptId,
+        clientOperationId,
+      );
+      if (!persisted) {
+        queuedTurns.remove(queuedId);
+        if (createdBuffer) {
+          queuedTurnsByChatIdRef.current.delete(targetChatId);
+        }
+        const message =
+          "Could not save this queued message. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `queue-persist-failed-${targetChatId}`,
+        });
+        syncInterjectStateForChat(targetChatId);
+        return false;
+      }
+
+      queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
+      if (attemptId) {
+        queueAttemptIdByChatIdRef.current.set(targetChatId, attemptId);
+        queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      } else {
+        queueClientOperationIdByChatIdRef.current.set(
+          targetChatId,
+          clientOperationId,
+        );
+      }
+      syncInterjectStateForChat(targetChatId);
+      return true;
+    },
+    [
+      persistQueuedTurnBufferForAttempt,
+      setStreamErrorForChat,
+      syncInterjectStateForChat,
+    ],
+  );
+
+  const hydrateQueuedTurnsForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const normalizedAttemptId =
+        typeof attemptId === "string" ? attemptId.trim() : "";
+      if (!targetChatId || !normalizedAttemptId) {
+        return null;
+      }
+
+      const currentAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const currentBuffer = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (currentBuffer) {
+        return currentAttemptId === normalizedAttemptId ? currentBuffer : null;
+      }
+
+      const persisted = readQueuedTurnsForAttempt(
+        targetChatId,
+        normalizedAttemptId,
+      );
+      if (persisted) {
+        const retryableItems = persisted.items.filter(
+          (item) => item.status === "queued",
+        );
+        if (retryableItems.length === 0) {
+          /* `relayed` items are the exact request already submitted under this
+             attempt. Keep that durable correlation while reattaching; replayed
+             acceptance will ACK it. Hydrating it as queued would duplicate the
+             same logical turn after the attached run completes. */
+          return null;
+        }
+        const hydrated = createQueuedTurnBuffer(retryableItems);
+        queuedTurnsByChatIdRef.current.set(targetChatId, hydrated);
+        queueAttemptIdByChatIdRef.current.set(
+          targetChatId,
+          normalizedAttemptId,
+        );
+        syncInterjectStateForChat(targetChatId);
+        return hydrated;
+      }
+
+      return null;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const acknowledgeRelayedQueuedTurnsForAttempt = useCallback(
+    (targetChatId, attemptId) => {
+      const normalizedAttemptId =
+        typeof attemptId === "string" ? attemptId.trim() : "";
+      if (!targetChatId || !normalizedAttemptId) return false;
+      const persisted = readQueuedTurnsForAttempt(
+        targetChatId,
+        normalizedAttemptId,
+      );
+      if (!persisted) return false;
+      const relayedItems = persisted.items.filter(
+        (item) => item.status === "relayed",
+      );
+      if (relayedItems.length === 0) return false;
+      const queuedRemainder = persisted.items.filter(
+        (item) => item.status === "queued",
+      );
+      if (queuedRemainder.length > 0) {
+        writeQueuedTurnsForAttempt({
+          chatId: targetChatId,
+          attemptId: normalizedAttemptId,
+          items: queuedRemainder,
+        });
+      } else {
+        removeQueuedTurnsForAttempt(targetChatId, normalizedAttemptId);
+      }
+      syncInterjectStateForChat(targetChatId);
+      return true;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const hydrateQueuedTurnsForClientOperation = useCallback(
+    (targetChatId, clientOperationId) => {
+      const normalizedClientOperationId =
+        typeof clientOperationId === "string" ? clientOperationId.trim() : "";
+      if (!targetChatId || !normalizedClientOperationId) return null;
+
+      const currentBuffer = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (currentBuffer) {
+        return queueClientOperationIdByChatIdRef.current.get(targetChatId) ===
+          normalizedClientOperationId
+          ? currentBuffer
+          : null;
+      }
+      const persisted = readQueuedTurnsForChat(targetChatId).find(
+        (entry) =>
+          entry.clientOperationId === normalizedClientOperationId,
+      );
+      if (!persisted) return null;
+      const retryableItems = persisted.items.filter(
+        (item) => item.status === "queued",
+      );
+      if (retryableItems.length === 0) {
+        removeQueuedTurnsForClientOperation(
+          targetChatId,
+          normalizedClientOperationId,
+        );
+        return null;
+      }
+      const hydrated = createQueuedTurnBuffer(retryableItems);
+      queuedTurnsByChatIdRef.current.set(targetChatId, hydrated);
+      queueClientOperationIdByChatIdRef.current.set(
+        targetChatId,
+        normalizedClientOperationId,
+      );
+      syncInterjectStateForChat(targetChatId);
+      return hydrated;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const fallbackPendingClarifyForChat = useCallback(
+    (targetChatId, explicitPending = null) => {
+      const pending =
+        explicitPending ||
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (!pending?.id) return null;
+      const migrated = fallbackPendingClarifyToQueue({
+        chatId: targetChatId,
+        id: pending.id,
+      });
+      if (!migrated?.queue) return null;
+
+      pendingClarifyByChatIdRef.current.delete(targetChatId);
+      const hydrated = createQueuedTurnBuffer(
+        migrated.queue.items.filter((item) => item.status === "queued"),
+      );
+      queuedTurnsByChatIdRef.current.set(targetChatId, hydrated);
+      if (migrated.queue.attemptId) {
+        queueAttemptIdByChatIdRef.current.set(
+          targetChatId,
+          migrated.queue.attemptId,
+        );
+        queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      } else {
+        queueAttemptIdByChatIdRef.current.delete(targetChatId);
+        queueClientOperationIdByChatIdRef.current.set(
+          targetChatId,
+          migrated.queue.clientOperationId,
+        );
+      }
+      syncInterjectStateForChat(targetChatId);
+      return pending;
+    },
+    [syncInterjectStateForChat],
+  );
+
+  const isClarifyBtwBarrierCurrentOwner = useCallback(
+    (barrier) => {
+      if (
+        !barrier?.chatId ||
+        !barrier.attemptId ||
+        !isRunGenerationCurrent(barrier.chatId, barrier.runGeneration)
+      ) {
+        return false;
+      }
+      const executionOwner =
+        executionIdentityByChatIdRef.current.get(barrier.chatId)?.attemptId ||
+        "";
+      if (executionOwner) {
+        return executionOwner === barrier.attemptId;
+      }
+      return (
+        queueAttemptIdByChatIdRef.current.get(barrier.chatId) ===
+        barrier.attemptId
+      );
+    },
+    [isRunGenerationCurrent],
+  );
+
+  const tombstoneClarifyBtwBarrierForChat = useCallback((targetChatId) => {
+    const barrier =
+      clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+    if (!barrier) return false;
+    barrier.settled = true;
+    barrier.tombstoned = true;
+    if (barrier.timeoutId != null) {
+      clearTimeout(barrier.timeoutId);
+      barrier.timeoutId = null;
     }
-    confirmationResolveTimerByIdRef.current.delete(normalizedId);
+    clarifyBtwBarrierByChatIdRef.current.delete(targetChatId);
+    return true;
   }, []);
 
-  const resolveSubmittedConfirmationFromSignal = useCallback(
-    (confirmationId) => {
+  const settleClarifyBtwBarrier = useCallback(
+    (
+      barrier,
+      { disposition = "migrate", accepted = false } = {},
+    ) => {
+      if (
+        !barrier ||
+        barrier.settled ||
+        clarifyBtwBarrierByChatIdRef.current.get(barrier.chatId) !== barrier
+      ) {
+        return false;
+      }
+      barrier.settled = true;
+      if (barrier.timeoutId != null) clearTimeout(barrier.timeoutId);
+      clarifyBtwBarrierByChatIdRef.current.delete(barrier.chatId);
+      const ownsCurrentRuntime =
+        isClarifyBtwBarrierCurrentOwner(barrier);
+
+      let durableSettled = true;
+      let queue = null;
+      if (disposition === "resolve") {
+        const resolved = resolvePendingFyiIntent({
+          chatId: barrier.chatId,
+          attemptId: barrier.attemptId,
+          messageId: barrier.messageId,
+        });
+        if (resolved) {
+          queue = resolved.queue || null;
+          if (ownsCurrentRuntime) {
+            syncDurableQueueForAttempt(
+              barrier.chatId,
+              barrier.attemptId,
+              queue,
+            );
+          }
+        } else {
+          // A side-answer receipt is only successful once the exact durable
+          // intent can be removed. If that write fails, fall back once to the
+          // exact same-id queue item and report the BTW settlement as failed.
+          accepted = false;
+          const migrated = migratePendingFyiToQueue({
+            chatId: barrier.chatId,
+            attemptId: barrier.attemptId,
+            messageId: barrier.messageId,
+          });
+          durableSettled = Boolean(migrated?.queue);
+          queue = migrated?.queue || null;
+          if (queue && ownsCurrentRuntime) {
+            syncDurableQueueForAttempt(
+              barrier.chatId,
+              barrier.attemptId,
+              queue,
+            );
+          }
+        }
+      } else if (disposition === "migrate") {
+        accepted = false;
+        const migrated = migratePendingFyiToQueue({
+          chatId: barrier.chatId,
+          attemptId: barrier.attemptId,
+          messageId: barrier.messageId,
+        });
+        durableSettled = Boolean(migrated?.queue);
+        queue = migrated?.queue || null;
+        if (queue && ownsCurrentRuntime) {
+          syncDurableQueueForAttempt(
+            barrier.chatId,
+            barrier.attemptId,
+            queue,
+          );
+        }
+      } else if (disposition === "queued") {
+        const exactQueue = readQueuedTurnsForAttempt(
+          barrier.chatId,
+          barrier.attemptId,
+        );
+        durableSettled = Boolean(
+          exactQueue?.items?.some((item) => item.id === barrier.messageId),
+        );
+        queue = exactQueue || null;
+      } else if (disposition === "preserve") {
+        durableSettled = readPendingFyisForAttempt(
+          barrier.chatId,
+          barrier.attemptId,
+        ).some(
+          (entry) =>
+            entry.messageId === barrier.messageId &&
+            entry.chatId === barrier.chatId &&
+            entry.attemptId === barrier.attemptId,
+        );
+      } else if (disposition === "converted") {
+        durableSettled = Boolean(readPendingClarifyForChat(barrier.chatId));
+      }
+
+      if (!durableSettled) {
+        if (ownsCurrentRuntime) {
+          syncPendingFyiStateForAttempt(barrier.chatId, barrier.attemptId);
+          setStreamErrorForChat(
+            barrier.chatId,
+            "The side question is still saved and will be recovered after reload.",
+          );
+        }
+        return false;
+      }
+
+      if (barrier.terminal) {
+        if (ownsCurrentRuntime) {
+          const fallback = fallbackPendingFyisForAttempt(
+            barrier.chatId,
+            barrier.attemptId,
+          );
+          if (!fallback) return false;
+          if (
+            barrier.terminal.status === "done" &&
+            hookMountedRef.current
+          ) {
+            relayQueuedTurnsAfterRunRef.current?.(
+              barrier.terminal.relayContext,
+            );
+          }
+        } else if (
+          readPendingFyisForAttempt(
+            barrier.chatId,
+            barrier.attemptId,
+          ).length > 0 &&
+          !migratePendingFyiForAttemptToQueue(
+            barrier.chatId,
+            barrier.attemptId,
+          )
+        ) {
+          return false;
+        }
+      } else if (queue && ownsCurrentRuntime) {
+        syncDurableQueueForAttempt(barrier.chatId, barrier.attemptId, queue);
+      }
+      return accepted;
+    },
+    [
+      fallbackPendingFyisForAttempt,
+      isClarifyBtwBarrierCurrentOwner,
+      setStreamErrorForChat,
+      syncDurableQueueForAttempt,
+      syncPendingFyiStateForAttempt,
+    ],
+  );
+
+  useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (!targetChatId) return;
+    const storedMessages =
+      activeChatIdRef.current === targetChatId &&
+      Array.isArray(messagesRef.current)
+        ? messagesRef.current
+        : storageApi.getChatMessages?.(targetChatId) || [];
+
+    // A renderer can crash after persisting the stable BTW receipt but before
+    // removing its durable intent/fallback. Reconcile that exact receipt before
+    // queue hydration or terminal relay. Both halves are required so a partial
+    // message write can never acknowledge an unanswered side question.
+    readPendingFyiOutbox()
+      .filter(
+        (entry) =>
+          entry.chatId === targetChatId && entry.requestedChannel === "btw",
+      )
+      .forEach((entry) => {
+        const ownerAssistant = [...storedMessages].reverse().find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.meta?.attemptId === entry.attemptId,
+        );
+        const hasStableFrame = Boolean(
+          ownerAssistant?.traceFrames?.some(
+            (frame) =>
+              frame?.type === "side_answer" &&
+              frame?.payload?.message_id === entry.messageId,
+          ),
+        );
+        const hasStableRecord = Boolean(
+          ownerAssistant?.interjections?.some(
+            (record) => record?.id === `btw-${entry.messageId}`,
+          ),
+        );
+        if (hasStableFrame && hasStableRecord) {
+          resolvePendingFyiIntent({
+            chatId: targetChatId,
+            attemptId: entry.attemptId,
+            messageId: entry.messageId,
+          });
+        }
+      });
+
+    if (!queuedTurnsByChatIdRef.current.has(targetChatId)) {
+      const exactAssistant = [...storedMessages].reverse().find((message) => {
+        const attemptId =
+          typeof message?.meta?.attemptId === "string"
+            ? message.meta.attemptId.trim()
+            : "";
+        return Boolean(
+          message?.role === "assistant" &&
+            attemptId &&
+            readQueuedTurnsForAttempt(targetChatId, attemptId),
+        );
+      });
+      const exactAttempt = exactAssistant?.meta?.attemptId;
+      if (exactAttempt) {
+        const hydrated = hydrateQueuedTurnsForAttempt(
+          targetChatId,
+          exactAttempt,
+        );
+        if (hydrated && exactAssistant.status === "done") {
+          relayQueuedTurnsAfterRunRef.current?.({
+            targetChatId,
+            nextStreamMessages: storedMessages,
+            characterAgentConfig: null,
+            runContext: null,
+          });
+        }
+      } else {
+        const pendingClientEntry = readQueuedTurnsForChat(targetChatId)
+          .filter((entry) => entry.clientOperationId)
+          .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+        if (pendingClientEntry) {
+          hydrateQueuedTurnsForClientOperation(
+            targetChatId,
+            pendingClientEntry.clientOperationId,
+          );
+        }
+      }
+    }
+
+    storedMessages.forEach((sourceAssistant) => {
+      const sourceAttemptId =
+        typeof sourceAssistant?.meta?.attemptId === "string"
+          ? sourceAssistant.meta.attemptId.trim()
+          : "";
+      if (sourceAssistant?.role !== "assistant" || !sourceAttemptId) return;
+      const persistedFyiMessages = [
+        sourceAssistant.traceFrames,
+        ...Object.values(sourceAssistant.subagentFrames || {}),
+      ].flatMap((frames) =>
+        (Array.isArray(frames) ? frames : [])
+          .filter((frame) => frame?.type === "fyi_injected")
+          .flatMap((frame) =>
+            Array.isArray(frame.payload?.messages)
+              ? frame.payload.messages
+              : [],
+          ),
+      );
+      if (persistedFyiMessages.length > 0) {
+        acknowledgeInjectedFyisForAttempt(
+          targetChatId,
+          sourceAttemptId,
+          persistedFyiMessages,
+        );
+      }
+    });
+
+    const pendingFyisByAttempt = new Map();
+    readPendingFyiOutbox()
+      .filter((entry) => entry.chatId === targetChatId)
+      .forEach((entry) => {
+        if (!pendingFyisByAttempt.has(entry.attemptId)) {
+          pendingFyisByAttempt.set(entry.attemptId, []);
+        }
+        pendingFyisByAttempt.get(entry.attemptId).push(entry);
+      });
+    pendingFyisByAttempt.forEach((_entries, sourceAttemptId) => {
+      const sourceAssistant = [...storedMessages].reverse().find(
+        (message) =>
+          message?.role === "assistant" &&
+          message?.meta?.attemptId === sourceAttemptId,
+      );
+      if (
+        readPendingFyisForAttempt(targetChatId, sourceAttemptId).length === 0
+      ) {
+        return;
+      }
+      const sourceCanResume = Boolean(
+        sourceAssistant?.status === "streaming" &&
+          sourceAssistant?.meta?.requestId &&
+          sourceAssistant?.meta?.executionSessionId,
+      );
+      if (sourceCanResume) {
+        syncPendingFyiStateForAttempt(targetChatId, sourceAttemptId);
+        return;
+      }
+      const migrated = fallbackPendingFyisForAttempt(
+        targetChatId,
+        sourceAttemptId,
+      );
+      if (migrated && sourceAssistant?.status === "done") {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: storedMessages,
+          characterAgentConfig: null,
+          runContext: null,
+        });
+      }
+    });
+
+    const durableClarify = readPendingClarifyForChat(targetChatId);
+    if (!durableClarify) return;
+    const sourceAssistant = [...storedMessages].reverse().find((message) => {
+      if (message?.role !== "assistant") return false;
+      if (durableClarify.sourceAttemptId) {
+        return message?.meta?.attemptId === durableClarify.sourceAttemptId;
+      }
+      return (
+        message?.meta?.queueClientOperationId ===
+        durableClarify.clientOperationId
+      );
+    });
+    const sourceCanResume = Boolean(
+      sourceAssistant?.status === "streaming" &&
+        sourceAssistant?.meta?.requestId &&
+        sourceAssistant?.meta?.attemptId &&
+        sourceAssistant?.meta?.executionSessionId,
+    );
+    if (sourceCanResume) {
+      pendingClarifyByChatIdRef.current.set(targetChatId, durableClarify);
+      return;
+    }
+    const fallback = fallbackPendingClarifyForChat(
+      targetChatId,
+      durableClarify,
+    );
+    if (fallback) {
+      const nextMessages = storedMessages.map((message) => ({
+        ...message,
+        ...(Array.isArray(message?.traceFrames)
+          ? {
+              traceFrames: message.traceFrames.map((frame) =>
+                frame?.type === "clarify_request" &&
+                frame?.payload?.id === fallback.id
+                  ? {
+                      ...frame,
+                      payload: {
+                        ...frame.payload,
+                        status: "resolved_default",
+                      },
+                    }
+                  : frame,
+              ),
+            }
+          : {}),
+      }));
+      commitForegroundMessages(targetChatId, nextMessages);
+      storageApi.setChatMessages(targetChatId, nextMessages, {
+        source: "clarify-durable-fallback",
+      });
+      /* Mirror the fyi-fallback recovery above: once a pending clarify for an
+         already-done owner has been migrated into the queue, schedule the exact
+         relay so the recovered question actually launches its successor. Error
+         or cancelled owners stay queued without auto-run — only a done owner
+         relays. */
+      if (sourceAssistant?.status === "done") {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: nextMessages,
+          characterAgentConfig: null,
+          runContext: null,
+        });
+      }
+    }
+  }, [
+    activeChatIdRef,
+    acknowledgeInjectedFyisForAttempt,
+    chatId,
+    commitForegroundMessages,
+    fallbackPendingClarifyForChat,
+    fallbackPendingFyisForAttempt,
+    hydrateQueuedTurnsForClientOperation,
+    hydrateQueuedTurnsForAttempt,
+    messagesRef,
+    storageApi,
+    syncPendingFyiStateForAttempt,
+  ]);
+
+  const clearQueuedTurnsForChat = useCallback(
+    (targetChatId, explicitAttemptId = "") => {
+      // Stop/cancel must tombstone the in-flight clarify-owned BTW before its
+      // durable intent is cleared, so a late promise or timeout cannot revive
+      // the stopped owner or occupy the barrier slot needed by a successor.
+      tombstoneClarifyBtwBarrierForChat(targetChatId);
+      const attemptIds = new Set([
+        typeof explicitAttemptId === "string" ? explicitAttemptId.trim() : "",
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "",
+      ]);
+      attemptIds.forEach((attemptId) => {
+        if (attemptId) {
+          removeQueuedTurnsForAttempt(targetChatId, attemptId);
+          removePendingFyisForAttempt(targetChatId, attemptId);
+        }
+      });
+      const clientOperationIds = new Set([
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) || "",
+        runClientOperationIdByChatIdRef.current.get(targetChatId) || "",
+      ]);
+      clientOperationIds.forEach((clientOperationId) => {
+        if (clientOperationId) {
+          removeQueuedTurnsForClientOperation(
+            targetChatId,
+            clientOperationId,
+          );
+        }
+      });
+      const pendingClarify =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (pendingClarify?.id) {
+        removePendingClarify(targetChatId, pendingClarify.id);
+      }
+      queuedTurnsByChatIdRef.current.delete(targetChatId);
+      queueAttemptIdByChatIdRef.current.delete(targetChatId);
+      queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+      runClientOperationIdByChatIdRef.current.delete(targetChatId);
+      pendingClarifyByChatIdRef.current.delete(targetChatId);
+      pendingFyiCountByChatIdRef.current.delete(targetChatId);
+      syncInterjectStateForChat(targetChatId);
+    },
+    [syncInterjectStateForChat, tombstoneClarifyBtwBarrierForChat],
+  );
+
+  const clearConfirmationResolutionTimer = useCallback(
+    (targetChatId, confirmationId) => {
       const normalizedId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!normalizedId) {
         return;
       }
-      clearConfirmationResolutionTimer(normalizedId);
 
-      updateToolConfirmationUiState((previous) => {
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      if (!runtime) {
+        return;
+      }
+      const timerId = runtime.resolveTimerById.get(normalizedId);
+      if (timerId != null) {
+        clearTimeout(timerId);
+      }
+      runtime.resolveTimerById.delete(normalizedId);
+    },
+    [getConfirmationRuntimeForChat],
+  );
+
+  const resolveSubmittedConfirmationFromSignal = useCallback(
+    (targetChatId, confirmationId) => {
+      const normalizedId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedId) {
+        return;
+      }
+      clearConfirmationResolutionTimer(targetChatId, normalizedId);
+
+      updateToolConfirmationUiState(targetChatId, (previous) => {
         const current = previous[normalizedId];
         if (!current || current.resolved === true) {
           return previous;
@@ -534,124 +2475,196 @@ export const useChatStream = ({
   );
 
   const markConfirmationFollowupSignalByCallId = useCallback(
-    (callId) => {
+    (targetChatId, callId, confirmationId = "") => {
       const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
-      if (!normalizedCallId) {
+      const normalizedConfirmationId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedCallId && !normalizedConfirmationId) {
         return;
       }
 
-      const confirmationId =
-        confirmationIdByCallIdRef.current.get(normalizedCallId);
-      if (!confirmationId) {
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      if (!runtime) {
         return;
       }
-      confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
-      resolveSubmittedConfirmationFromSignal(confirmationId);
+      const resolvedConfirmationId =
+        normalizedConfirmationId ||
+        runtime.confirmationIdByCallId.get(normalizedCallId);
+      if (!resolvedConfirmationId) {
+        return;
+      }
+      runtime.followupSignalById.set(resolvedConfirmationId, true);
+      resolveSubmittedConfirmationFromSignal(
+        targetChatId,
+        resolvedConfirmationId,
+      );
     },
-    [resolveSubmittedConfirmationFromSignal],
+    [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal],
   );
 
-  const markAllPendingConfirmationFollowupSignals = useCallback(() => {
-    confirmationIdByCallIdRef.current.forEach((confirmationId) => {
+  const markAllPendingConfirmationFollowupSignals = useCallback((targetChatId) => {
+    const runtime = getConfirmationRuntimeForChat(targetChatId, {
+      create: false,
+    });
+    runtime?.confirmationCallIdById.forEach((_callId, confirmationId) => {
       if (confirmationId) {
-        confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
-        resolveSubmittedConfirmationFromSignal(confirmationId);
+        runtime.followupSignalById.set(confirmationId, true);
+        resolveSubmittedConfirmationFromSignal(targetChatId, confirmationId);
       }
     });
-  }, [resolveSubmittedConfirmationFromSignal]);
+  }, [getConfirmationRuntimeForChat, resolveSubmittedConfirmationFromSignal]);
 
   const clearResolvedToolConfirmationByCallId = useCallback(
-    (callId) => {
-      if (typeof callId !== "string" || !callId.trim()) {
+    (targetChatId, callId, confirmationId = "") => {
+      const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
+      const normalizedConfirmationId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedCallId && !normalizedConfirmationId) {
         return;
       }
-      const confirmationId = confirmationIdByCallIdRef.current.get(callId);
-      if (!confirmationId) {
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
+      if (!runtime) {
+        return;
+      }
+      const resolvedConfirmationId =
+        normalizedConfirmationId ||
+        runtime.confirmationIdByCallId.get(normalizedCallId);
+      if (!resolvedConfirmationId) {
         return;
       }
 
-      confirmationIdByCallIdRef.current.delete(callId);
-      confirmationCallIdByIdRef.current.delete(confirmationId);
-      confirmationFollowupSignalByIdRef.current.delete(confirmationId);
-      clearConfirmationResolutionTimer(confirmationId);
-      updatePendingToolConfirmationRequests((previous) => {
-        if (!previous || !previous[confirmationId]) {
+      if (
+        normalizedCallId &&
+        runtime.confirmationIdByCallId.get(normalizedCallId) ===
+          resolvedConfirmationId
+      ) {
+        runtime.confirmationIdByCallId.delete(normalizedCallId);
+      }
+      runtime.confirmationCallIdById.delete(resolvedConfirmationId);
+      if (
+        normalizedCallId &&
+        !runtime.confirmationIdByCallId.has(normalizedCallId)
+      ) {
+        for (const [candidateId, candidateCallId] of
+          runtime.confirmationCallIdById.entries()) {
+          if (candidateCallId === normalizedCallId) {
+            runtime.confirmationIdByCallId.set(normalizedCallId, candidateId);
+            break;
+          }
+        }
+      }
+      runtime.sessionIdByConfirmationId.delete(resolvedConfirmationId);
+      runtime.followupSignalById.delete(resolvedConfirmationId);
+      clearConfirmationResolutionTimer(targetChatId, resolvedConfirmationId);
+      updatePendingToolConfirmationRequests(targetChatId, (previous) => {
+        if (!previous || !previous[resolvedConfirmationId]) {
           return previous;
         }
         const next = { ...previous };
-        delete next[confirmationId];
+        delete next[resolvedConfirmationId];
         return next;
       });
-      updateToolConfirmationUiState((previous) => {
-        if (!previous || !previous[confirmationId]) {
+      updateToolConfirmationUiState(targetChatId, (previous) => {
+        if (!previous || !previous[resolvedConfirmationId]) {
           return previous;
         }
         const next = { ...previous };
-        delete next[confirmationId];
+        delete next[resolvedConfirmationId];
         return next;
       });
     },
     [
       clearConfirmationResolutionTimer,
+      getConfirmationRuntimeForChat,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
   );
 
-  const clearAllPendingToolConfirmations = useCallback(() => {
-    const activeConfirmationIds = [
-      ...new Set([
-        ...confirmationIdByCallIdRef.current.values(),
-        ...confirmationCallIdByIdRef.current.keys(),
-        ...Object.keys(pendingToolConfirmationRequestsRef.current),
-      ]),
-    ];
-    confirmationIdByCallIdRef.current.clear();
-    confirmationCallIdByIdRef.current.clear();
-    confirmationFollowupSignalByIdRef.current.clear();
-    activeConfirmationIds.forEach((confirmationId) => {
-      clearConfirmationResolutionTimer(confirmationId);
-    });
-    if (activeConfirmationIds.length === 0) {
-      return;
-    }
+  const clearAllPendingToolConfirmations = useCallback(
+    (targetChatId) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      if (!normalizedChatId) {
+        return;
+      }
 
-    updatePendingToolConfirmationRequests((previous) => {
-      const next = { ...previous };
-      let changed = false;
-      activeConfirmationIds.forEach((confirmationId) => {
-        if (confirmationId && next[confirmationId]) {
-          delete next[confirmationId];
-          changed = true;
-        }
+      const runtime = getConfirmationRuntimeForChat(normalizedChatId, {
+        create: false,
       });
-      return changed ? next : previous;
-    });
-
-    updateToolConfirmationUiState((previous) => {
-      const next = { ...previous };
-      let changed = false;
-      activeConfirmationIds.forEach((confirmationId) => {
-        if (confirmationId && next[confirmationId]) {
-          delete next[confirmationId];
-          changed = true;
-        }
-      });
-      return changed ? next : previous;
-    });
-  }, [
-    clearConfirmationResolutionTimer,
-    updatePendingToolConfirmationRequests,
-    updateToolConfirmationUiState,
-  ]);
+      if (runtime) {
+        runtime.resolveTimerById.forEach((timerId) => {
+          clearTimeout(timerId);
+        });
+        confirmationRuntimeByChatIdRef.current.delete(normalizedChatId);
+      }
+      updatePendingToolConfirmationRequests(
+        normalizedChatId,
+        EMPTY_CONFIRMATION_STATE,
+      );
+      updateToolConfirmationUiState(
+        normalizedChatId,
+        EMPTY_CONFIRMATION_STATE,
+      );
+    },
+    [
+      getConfirmationRuntimeForChat,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
+  );
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
-    clearActiveTokenFlushController("flush");
-    const handle = streamHandlesRef.current.get(currentChatId);
-    if (handle && typeof handle.cancel === "function") {
-      handle.cancel();
+    if (!currentChatId) {
+      return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
+    const executionIdentity =
+      executionIdentityByChatIdRef.current.get(currentChatId) || null;
+
+    // Invalidate first. Any lookup, retry, receipt, or queue callback that was
+    // already in flight must observe the tombstone before transport teardown.
+    invalidateRunGeneration(currentChatId);
+    const durableRetryTimer =
+      durableResumeRetryTimersRef.current.get(currentChatId);
+    if (durableRetryTimer != null) {
+      clearTimeout(durableRetryTimer);
+      durableResumeRetryTimersRef.current.delete(currentChatId);
+    }
+    clearDurableResumeStartedKeysForChat(currentChatId);
+    clearConfirmationRetryWaitersForChat(currentChatId);
+    clearQueueRelayTimersForChat(currentChatId);
+    clearQueuedTurnsForChat(currentChatId, executionIdentity?.attemptId);
+    pendingFyiCountByChatIdRef.current.delete(currentChatId);
+    pendingClarifyByChatIdRef.current.delete(currentChatId);
+    updateDurableInteractionForChat(currentChatId, null);
+    clearAllPendingToolConfirmations(currentChatId);
+    updatePendingContinuationRequestForChat(currentChatId, null);
+
+    clearActiveTokenFlushController(currentChatId, "flush");
+    const handle = streamHandlesRef.current.get(currentChatId);
+    executionIdentityByChatIdRef.current.delete(currentChatId);
+    const queuedCancellation = enqueueExecutionCancel({
+      ...(executionIdentity || {}),
+      reason: "user_stop",
+      createdAt: Date.now(),
+    });
+    void requestExecutionCancellationAndDisconnect({
+      identity: queuedCancellation,
+      handle,
+      reason: "user_stop",
+    }).then((result) => {
+      if (result?.ok && queuedCancellation) {
+        removeExecutionCancel(
+          queuedCancellation.sessionId,
+          queuedCancellation.attemptId,
+        );
+      }
+    });
     cancelBackgroundPersist(currentChatId);
     streamHandlesRef.current.delete(currentChatId);
     streamingChatIdsRef.current.delete(currentChatId);
@@ -661,19 +2674,6 @@ export const useChatStream = ({
       next.delete(currentChatId);
       return next;
     });
-    confirmationIdByCallIdRef.current.clear();
-    confirmationCallIdByIdRef.current.clear();
-    confirmationFollowupSignalByIdRef.current.clear();
-    confirmationResolveTimerByIdRef.current.forEach((timerId) => {
-      clearTimeout(timerId);
-    });
-    confirmationResolveTimerByIdRef.current.clear();
-    pendingToolConfirmationRequestsRef.current = {};
-    setPendingToolConfirmationRequests({});
-    toolConfirmationUiStateByIdRef.current = {};
-    setToolConfirmationUiStateById({});
-    pendingContinuationRequestRef.current = null;
-    setPendingContinuationRequest(null);
     const materializedMessages = materializeStreamingMessages(
       currentChatId,
       messagesRef.current,
@@ -700,39 +2700,114 @@ export const useChatStream = ({
     activeChatIdRef,
     activeStreamsRef,
     activeStreamingMessageStore,
+    clearConfirmationRetryWaitersForChat,
+    clearQueuedTurnsForChat,
     clearActiveTokenFlushController,
+    clearAllPendingToolConfirmations,
+    clearDurableResumeStartedKeysForChat,
+    clearQueueRelayTimersForChat,
+    invalidateRunGeneration,
     materializeStreamingMessages,
     messagesRef,
     setMessages,
     storageApi,
+    updateDurableInteractionForChat,
+    updatePendingContinuationRequestForChat,
   ]);
 
   const stopStream = useCallback(() => {
     cancelCurrentStreamAndSettleMessages();
   }, [cancelCurrentStreamAndSettleMessages]);
 
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer = null;
+
+    const drainCancellationOutbox = async () => {
+      const entries = readExecutionCancelOutbox();
+      for (const entry of entries) {
+        if (disposed) {
+          return;
+        }
+        const result = await requestExecutionCancellationAndDisconnect({
+          identity: entry,
+          handle: null,
+          reason: entry.reason || "user_stop",
+        });
+        if (result?.ok) {
+          removeExecutionCancel(entry.sessionId, entry.attemptId);
+        }
+      }
+      if (!disposed) {
+        retryTimer = setTimeout(
+          drainCancellationOutbox,
+          EXECUTION_CANCEL_OUTBOX_RETRY_MS,
+        );
+      }
+    };
+
+    void drainCancellationOutbox();
+    return () => {
+      disposed = true;
+      if (retryTimer != null) {
+        clearTimeout(retryTimer);
+      }
+    };
+  }, []);
+
   const appendSyntheticToolConfirmationDecision = useCallback(
-    ({ confirmationId, approved, userResponse }) => {
+    ({ targetChatId, confirmationId, approved, userResponse }) => {
+      const normalizedTargetChatId =
+        typeof targetChatId === "string" && targetChatId.trim()
+          ? targetChatId.trim()
+          : activeChatIdRef.current;
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedConfirmationId) {
+      if (!normalizedTargetChatId || !normalizedConfirmationId) {
         return false;
       }
 
+      const runtime = getConfirmationRuntimeForChat(normalizedTargetChatId, {
+        create: false,
+      });
       const callId =
-        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const targetChatId = activeChatIdRef.current;
-      const streamState = activeStreamsRef.current.get(targetChatId);
-      const streamMessages = Array.isArray(streamState?.messages)
+        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
+      const hasAuthoritativeConfirmationRequest = Boolean(
+        pendingToolConfirmationRequestsByChatIdRef.current[
+          normalizedTargetChatId
+        ]?.[normalizedConfirmationId],
+      );
+      const streamState = activeStreamsRef.current.get(normalizedTargetChatId);
+      const hasActiveStreamMessages = Array.isArray(streamState?.messages);
+      const streamMessages = hasActiveStreamMessages
         ? streamState.messages
-        : [];
-      if (!callId || !targetChatId || streamMessages.length === 0) {
+        : activeChatIdRef.current === normalizedTargetChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : typeof storageApi.getChatMessages === "function"
+            ? storageApi.getChatMessages(normalizedTargetChatId)
+            : [];
+      if (!callId || streamMessages.length === 0) {
         return false;
       }
 
       const decisionFrameType = approved ? "tool_confirmed" : "tool_denied";
       const patchTime = Date.now();
       let changed = false;
+      const containsExactRequest = (frames) =>
+        (Array.isArray(frames) ? frames : []).some(
+          (frame) =>
+            frame?.type === "tool_call" &&
+            frame?.payload?.confirmation_id === normalizedConfirmationId,
+        );
+      const hasExactRequestFrame = streamMessages.some((message) => {
+        if (containsExactRequest(message?.traceFrames)) return true;
+        return Object.values(message?.subagentFrames || {}).some((frames) =>
+          containsExactRequest(frames),
+        );
+      });
+      const allowCallIdFallback =
+        !hasAuthoritativeConfirmationRequest && !hasExactRequestFrame;
 
       const appendDecisionFrame = (frames) => {
         const list = Array.isArray(frames) ? frames : [];
@@ -740,7 +2815,7 @@ export const useChatStream = ({
           (frame) =>
             frame?.type === "tool_call" &&
             (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              frame?.payload?.call_id === callId),
+              (allowCallIdFallback && frame?.payload?.call_id === callId)),
         );
         if (!requestFrame) {
           return { frames: list, changed: false };
@@ -749,7 +2824,8 @@ export const useChatStream = ({
         const alreadyRecorded = list.some(
           (frame) =>
             frame?.type === decisionFrameType &&
-            frame?.payload?.call_id === callId,
+            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
+              (allowCallIdFallback && frame?.payload?.call_id === callId)),
         );
         if (alreadyRecorded) {
           return { frames: list, changed: false };
@@ -841,23 +2917,38 @@ export const useChatStream = ({
         return false;
       }
 
-      activeStreamsRef.current.set(targetChatId, {
-        messages: nextStreamMessages,
-      });
+      if (hasActiveStreamMessages) {
+        activeStreamsRef.current.set(normalizedTargetChatId, {
+          messages: nextStreamMessages,
+        });
+      }
 
-      if (activeChatIdRef.current === targetChatId) {
+      if (activeChatIdRef.current === normalizedTargetChatId) {
+        messagesRef.current = nextStreamMessages;
         setMessages(nextStreamMessages);
+        if (!hasActiveStreamMessages) {
+          storageApi.setChatMessages(normalizedTargetChatId, nextStreamMessages, {
+            source: "chat-page",
+          });
+        }
       } else {
         // Tool confirmation is infrequent + user-visible — bypass the throttle.
-        cancelBackgroundPersist(targetChatId);
-        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
+        cancelBackgroundPersist(normalizedTargetChatId);
+        storageApi.setChatMessages(normalizedTargetChatId, nextStreamMessages, {
           source: "chat-page",
         });
       }
 
       return true;
     },
-    [activeChatIdRef, activeStreamsRef, setMessages, storageApi],
+    [
+      activeChatIdRef,
+      activeStreamsRef,
+      getConfirmationRuntimeForChat,
+      messagesRef,
+      setMessages,
+      storageApi,
+    ],
   );
 
   /* Same commit pattern as appendSyntheticToolConfirmationDecision above:
@@ -917,14 +3008,116 @@ export const useChatStream = ({
     [applyToStreamingAssistantMessage],
   );
 
-  const appendLocalInterjectionRecord = useCallback(
-    (targetChatId, record) =>
-      applyToStreamingAssistantMessage(targetChatId, (message) => ({
-        ...message,
-        updatedAt: Date.now(),
-        interjections: [...(message.interjections || []), record],
-      })),
-    [applyToStreamingAssistantMessage],
+  const appendLocalBtwResultForOwner = useCallback(
+    ({
+      targetChatId,
+      attemptId,
+      executionAttemptId,
+      messageId,
+      question,
+      answer,
+      ts,
+    }) => {
+      const streamState = activeStreamsRef.current.get(targetChatId);
+      const hasActiveStreamMessages = Array.isArray(streamState?.messages);
+      const sourceMessages = hasActiveStreamMessages
+        ? streamState.messages
+        : activeChatIdRef.current === targetChatId &&
+            Array.isArray(messagesRef.current)
+          ? messagesRef.current
+          : storageApi.getChatMessages?.(targetChatId) || [];
+      const stableMessageId =
+        typeof messageId === "string" ? messageId.trim() : "";
+      const receiptId = stableMessageId ? `btw-${stableMessageId}` : "";
+      let ownerFound = false;
+      let changed = false;
+      const sideAnswerFrame = {
+        seq: ts,
+        ts,
+        type: "side_answer",
+        stage: "client",
+        payload: {
+          ...(stableMessageId ? { message_id: stableMessageId } : {}),
+          question,
+          answer,
+        },
+      };
+      const record = buildInterjectionRecord({
+        type: "btw",
+        text: question,
+        origin: "user",
+        answer,
+        ts,
+      });
+      if (receiptId) record.id = receiptId;
+      const ownsResult = (message) =>
+        Boolean(
+          message?.role === "assistant" &&
+            (executionAttemptId
+              ? message?.meta?.attemptId === executionAttemptId
+              : message?.meta?.queueClientOperationId === attemptId),
+        );
+      const containsReceipt = (message) => {
+        if (!ownsResult(message)) return false;
+        const hasFrame = (message.traceFrames || []).some((frame) =>
+          stableMessageId
+            ? frame?.type === "side_answer" &&
+              frame?.payload?.message_id === stableMessageId
+            : frame?.type === "side_answer" &&
+              frame?.ts === ts &&
+              frame?.payload?.question === question,
+        );
+        const hasRecord = (message.interjections || []).some(
+          (entry) => entry?.id === record.id,
+        );
+        return hasFrame && hasRecord;
+      };
+      const nextMessages = sourceMessages.map((message) => {
+        if (!ownsResult(message)) return message;
+        ownerFound = true;
+        const hasFrame = (message.traceFrames || []).some((frame) =>
+          stableMessageId
+            ? frame?.type === "side_answer" &&
+              frame?.payload?.message_id === stableMessageId
+            : frame?.type === "side_answer" &&
+              frame?.ts === ts &&
+              frame?.payload?.question === question,
+        );
+        const hasRecord = (message.interjections || []).some(
+          (entry) => entry?.id === record.id,
+        );
+        if (hasFrame && hasRecord) return message;
+        changed = true;
+        return {
+          ...message,
+          updatedAt: Date.now(),
+          traceFrames: [
+            ...(message.traceFrames || []),
+            ...(hasFrame ? [] : [sideAnswerFrame]),
+          ],
+          interjections: [
+            ...(message.interjections || []),
+            ...(hasRecord ? [] : [record]),
+          ],
+        };
+      });
+      if (!ownerFound) return false;
+      if (changed) {
+        if (hasActiveStreamMessages) {
+          activeStreamsRef.current.set(targetChatId, {
+            messages: nextMessages,
+          });
+        }
+        cancelBackgroundPersist(targetChatId);
+        commitForegroundMessages(targetChatId, nextMessages);
+        storageApi.setChatMessages(targetChatId, nextMessages, {
+          source: "interject-btw-result",
+        });
+      }
+      const persistedMessages = storageApi.getChatMessages?.(targetChatId) || [];
+      return persistedMessages.some(containsReceipt);
+    },
+    [activeChatIdRef, activeStreamsRef, commitForegroundMessages, messagesRef, storageApi],
   );
 
   const updateLocalClarifyFrame = useCallback(
@@ -952,46 +3145,133 @@ export const useChatStream = ({
     [applyToStreamingAssistantMessage],
   );
 
+  const submitToolConfirmationWithRetry = useCallback(
+    async (payload, { targetChatId, runGeneration } = {}) => {
+      const stoppedError = () =>
+        Object.assign(new Error("This run was stopped."), {
+          code: "run_stopped",
+        });
+      let attempt = 0;
+      while (true) {
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          throw stoppedError();
+        }
+        try {
+          const response = await api.unchain.respondToolConfirmation(payload);
+          if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+            throw stoppedError();
+          }
+          return response;
+        } catch (error) {
+          if (
+            error?.code === "run_stopped" ||
+            attempt >= DURABLE_RESUME_MAX_RETRIES ||
+            !isRetryableDurableInteractionError(error)
+          ) {
+            throw error;
+          }
+          const delayMs = durableInteractionRetryDelayMs(attempt);
+          attempt += 1;
+          const shouldContinue = await waitForConfirmationRetry(
+            targetChatId,
+            runGeneration,
+            delayMs,
+          );
+          if (!shouldContinue) {
+            throw stoppedError();
+          }
+        }
+      }
+    },
+    [isRunGenerationCurrent, waitForConfirmationRetry],
+  );
+
+  const continueFromRecordedReceipt = useCallback(
+    (targetChatId, sessionId, response, runGeneration) => {
+      if (
+        response?.disposition !== "receipt_recorded" ||
+        !isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        return;
+      }
+      const lookup =
+        durableInteractionLookupByChatIdRef.current.get(targetChatId);
+      if (typeof lookup === "function") {
+        void lookup(targetChatId, sessionId, {
+          autoResume: true,
+          runGeneration,
+        });
+      }
+    },
+    [isRunGenerationCurrent],
+  );
+
   const handleToolConfirmationDecision = useCallback(
     async ({ confirmationId, approved, userResponse, scope }) => {
+      const targetChatId = activeChatIdRef.current;
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedConfirmationId) {
+      if (!targetChatId || !normalizedConfirmationId) {
+        return;
+      }
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
         return;
       }
 
+      const runtime = getConfirmationRuntimeForChat(targetChatId, {
+        create: false,
+      });
       const callId =
-        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const requestFrame = findToolCallFrameByCallId(callId);
+        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
+      const confirmationRequest =
+        pendingToolConfirmationRequestsByChatIdRef.current[targetChatId]?.[
+          normalizedConfirmationId
+        ] || null;
+      const sessionId =
+        runtime?.sessionIdByConfirmationId.get(normalizedConfirmationId) ||
+        (typeof confirmationRequest?.sessionId === "string"
+          ? confirmationRequest.sessionId.trim()
+          : "") ||
+        activeRunThreadIdByChatIdRef.current.get(targetChatId) ||
+        targetChatId;
+      const requestFrame = findToolCallFrameByCallId(targetChatId, callId);
       const toolName =
-        typeof requestFrame?.payload?.tool_name === "string"
-          ? requestFrame.payload.tool_name
-          : "";
+        typeof confirmationRequest?.toolName === "string"
+          ? confirmationRequest.toolName
+          : typeof requestFrame?.payload?.tool_name === "string"
+            ? requestFrame.payload.tool_name
+            : "";
       const toolkitId =
-        typeof requestFrame?.payload?.toolkit_id === "string"
-          ? requestFrame.payload.toolkit_id
-          : "";
+        typeof confirmationRequest?.toolkitId === "string"
+          ? confirmationRequest.toolkitId
+          : typeof requestFrame?.payload?.toolkit_id === "string"
+            ? requestFrame.payload.toolkit_id
+            : "";
 
-      /* Session-scoped "Don't ask again": remember this tool so that
-       * subsequent requests within the same chat are auto-approved. */
-      if (
-        approved &&
-        scope === "session" &&
-        toolName &&
-        toolName !== HUMAN_INPUT_TOOL_NAME
-      ) {
-        sessionAutoApproveRef.current.add(`${toolkitId}:${toolName}`);
-      }
+      const shouldCacheSessionDecision =
+        shouldCacheToolConfirmationDecision({
+          approved,
+          scope,
+          toolkitId,
+          toolName,
+        }) && toolName !== HUMAN_INPUT_TOOL_NAME;
       const interactConfig =
-        requestFrame?.payload?.interact_config &&
-        typeof requestFrame.payload.interact_config === "object"
-          ? requestFrame.payload.interact_config
-          : {};
+        confirmationRequest?.interactConfig &&
+        typeof confirmationRequest.interactConfig === "object"
+          ? confirmationRequest.interactConfig
+          : requestFrame?.payload?.interact_config &&
+              typeof requestFrame.payload.interact_config === "object"
+            ? requestFrame.payload.interact_config
+            : {};
       const requestArguments =
-        requestFrame?.payload?.arguments &&
-        typeof requestFrame.payload.arguments === "object"
-          ? requestFrame.payload.arguments
-          : {};
+        confirmationRequest?.arguments &&
+        typeof confirmationRequest.arguments === "object"
+          ? confirmationRequest.arguments
+          : requestFrame?.payload?.arguments &&
+              typeof requestFrame.payload.arguments === "object"
+            ? requestFrame.payload.arguments
+            : {};
 
       if (toolName === HUMAN_INPUT_TOOL_NAME) {
         unchainLogger.log("ask_user_question_submit", {
@@ -1023,12 +3303,14 @@ export const useChatStream = ({
       }
 
       const current =
-        toolConfirmationUiStateByIdRef.current[normalizedConfirmationId] || {};
+        toolConfirmationUiStateByChatIdRef.current[targetChatId]?.[
+          normalizedConfirmationId
+        ] || {};
       if (current.status === "submitting" || current.status === "submitted") {
         return;
       }
 
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [normalizedConfirmationId]: {
           ...(previous[normalizedConfirmationId] || {}),
@@ -1044,28 +3326,39 @@ export const useChatStream = ({
           confirmation_id: normalizedConfirmationId,
           approved: Boolean(approved),
           reason: "",
+          session_id: sessionId,
         };
         if (userResponse !== undefined && userResponse !== null) {
           payload.modified_arguments = { user_response: userResponse };
         }
-        await api.unchain.respondToolConfirmation(payload);
-        if (
-          confirmationFollowupSignalByIdRef.current.get(
-            normalizedConfirmationId,
-          ) !== true
-        ) {
-          confirmationFollowupSignalByIdRef.current.set(
-            normalizedConfirmationId,
-            false,
-          );
+        const response = await submitToolConfirmationWithRetry(payload, {
+          targetChatId,
+          runGeneration,
+        });
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
         }
-        clearConfirmationResolutionTimer(normalizedConfirmationId);
+        if (shouldCacheSessionDecision) {
+          let allowedTools = sessionAutoApproveRef.current.get(targetChatId);
+          if (!allowedTools) {
+            allowedTools = new Set();
+            sessionAutoApproveRef.current.set(targetChatId, allowedTools);
+          }
+          allowedTools.add(`${toolkitId}:${toolName}`);
+        }
+        if (
+          runtime?.followupSignalById.get(normalizedConfirmationId) !== true
+        ) {
+          runtime?.followupSignalById.set(normalizedConfirmationId, false);
+        }
+        clearConfirmationResolutionTimer(targetChatId, normalizedConfirmationId);
         appendSyntheticToolConfirmationDecision({
+          targetChatId,
           confirmationId: normalizedConfirmationId,
           approved: Boolean(approved),
           userResponse,
         });
-        updateToolConfirmationUiState((previous) => ({
+        updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
@@ -1076,12 +3369,21 @@ export const useChatStream = ({
             userResponse: userResponse ?? null,
           },
         }));
+        continueFromRecordedReceipt(
+          targetChatId,
+          sessionId,
+          response,
+          runGeneration,
+        );
       } catch (error) {
-        clearConfirmationResolutionTimer(normalizedConfirmationId);
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
+        clearConfirmationResolutionTimer(targetChatId, normalizedConfirmationId);
         const errorMessage =
           (typeof error?.message === "string" && error.message) ||
           "Failed to submit confirmation";
-        updateToolConfirmationUiState((previous) => ({
+        updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
@@ -1094,48 +3396,86 @@ export const useChatStream = ({
     },
     [
       appendSyntheticToolConfirmationDecision,
+      activeChatIdRef,
       clearConfirmationResolutionTimer,
+      continueFromRecordedReceipt,
       findToolCallFrameByCallId,
+      getRunGeneration,
+      getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
+      submitToolConfirmationWithRetry,
       updateToolConfirmationUiState,
     ],
   );
 
   const handleContinuationDecision = useCallback(
     async ({ confirmationId, approved }) => {
+      const targetChatId = activeChatIdRef.current;
       const normalizedId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedId) return;
+      if (!targetChatId || !normalizedId) return;
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
 
-      const current = pendingContinuationRequestRef.current;
-      if (!current || current.status === "submitting") return;
+      const current =
+        pendingContinuationRequestsByChatIdRef.current[targetChatId] || null;
+      if (
+        !current ||
+        current.confirmationId !== normalizedId ||
+        current.status === "submitting"
+      ) {
+        return;
+      }
 
-      pendingContinuationRequestRef.current = {
+      updatePendingContinuationRequestForChat(targetChatId, {
         ...current,
         status: "submitting",
-      };
-      setPendingContinuationRequest((prev) =>
-        prev ? { ...prev, status: "submitting" } : prev,
-      );
+      });
 
       try {
-        await api.unchain.respondToolConfirmation({
-          confirmation_id: normalizedId,
-          approved: Boolean(approved),
-          reason: "",
-        });
-        pendingContinuationRequestRef.current = null;
-        setPendingContinuationRequest(null);
+        const sessionId =
+          activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+        const response = await submitToolConfirmationWithRetry(
+          {
+            confirmation_id: normalizedId,
+            approved: Boolean(approved),
+            reason: "",
+            session_id: sessionId,
+          },
+          { targetChatId, runGeneration },
+        );
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
+        updatePendingContinuationRequestForChat(targetChatId, (latest) =>
+          latest?.confirmationId === normalizedId ? null : latest,
+        );
+        continueFromRecordedReceipt(
+          targetChatId,
+          sessionId,
+          response,
+          runGeneration,
+        );
       } catch (_error) {
-        pendingContinuationRequestRef.current = { ...current, status: "idle" };
-        setPendingContinuationRequest((prev) =>
-          prev ? { ...prev, status: "idle" } : prev,
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) return;
+        updatePendingContinuationRequestForChat(targetChatId, (latest) =>
+          latest?.confirmationId === normalizedId
+            ? { ...latest, status: "idle" }
+            : latest,
         );
       }
     },
-    [],
+    [
+      activeChatIdRef,
+      continueFromRecordedReceipt,
+      getRunGeneration,
+      isRunGenerationCurrent,
+      submitToolConfirmationWithRetry,
+      updatePendingContinuationRequestForChat,
+    ],
   );
 
-  const isToolCallAutoApprovable = useCallback((frame) => {
+  const isToolCallAutoApprovable = useCallback((targetChatId, frame) => {
+    const normalizedChatId =
+      typeof targetChatId === "string" ? targetChatId.trim() : "";
     const toolName =
       typeof frame?.payload?.tool_name === "string"
         ? frame.payload.tool_name
@@ -1148,10 +3488,14 @@ export const useChatStream = ({
       typeof frame?.payload?.interact_type === "string"
         ? frame.payload.interact_type
         : "";
-    const isSessionAllowed = sessionAutoApproveRef.current.has(
-      `${toolkitId}:${toolName}`,
+    const isSessionAllowed = Boolean(
+      normalizedChatId &&
+        sessionAutoApproveRef.current
+          .get(normalizedChatId)
+          ?.has(`${toolkitId}:${toolName}`),
     );
     return (
+      isToolConfirmationCacheable(toolkitId, toolName) &&
       toolName !== HUMAN_INPUT_TOOL_NAME &&
       (!itype || itype === "confirmation") &&
       (isToolAutoApproved(toolkitId, toolName) || isSessionAllowed)
@@ -1159,12 +3503,12 @@ export const useChatStream = ({
   }, []);
 
   const restoreManualToolConfirmationRequest = useCallback(
-    ({ confirmationId, request, error }) => {
+    ({ targetChatId, confirmationId, request, error }) => {
       const errorMessage =
         (typeof error?.message === "string" && error.message) ||
         "Failed to submit confirmation";
 
-      updatePendingToolConfirmationRequests((previous) =>
+      updatePendingToolConfirmationRequests(targetChatId, (previous) =>
         previous[confirmationId]
           ? previous
           : {
@@ -1172,7 +3516,7 @@ export const useChatStream = ({
               [confirmationId]: request,
             },
       );
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [confirmationId]: {
           ...(previous[confirmationId] || {}),
@@ -1187,8 +3531,13 @@ export const useChatStream = ({
   );
 
   const submitAutoApprovedToolConfirmation = useCallback(
-    ({ confirmationId, request }) => {
-      updatePendingToolConfirmationRequests((previous) => {
+    ({ targetChatId, confirmationId, request }) => {
+      const runGeneration = getRunGeneration(targetChatId);
+      if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+        return;
+      }
+      const runtime = getConfirmationRuntimeForChat(targetChatId);
+      updatePendingToolConfirmationRequests(targetChatId, (previous) => {
         if (!previous[confirmationId]) {
           return previous;
         }
@@ -1196,7 +3545,7 @@ export const useChatStream = ({
         delete next[confirmationId];
         return next;
       });
-      updateToolConfirmationUiState((previous) => ({
+      updateToolConfirmationUiState(targetChatId, (previous) => ({
         ...previous,
         [confirmationId]: {
           ...(previous[confirmationId] || {}),
@@ -1211,37 +3560,58 @@ export const useChatStream = ({
         confirmation_id: confirmationId,
         approved: true,
         reason: "",
+        session_id:
+          runtime?.sessionIdByConfirmationId.get(confirmationId) || targetChatId,
       };
 
       try {
-        Promise.resolve(api.unchain.respondToolConfirmation(autoPayload))
-          .then(() => {
-            if (
-              confirmationFollowupSignalByIdRef.current.get(confirmationId) !==
-              true
-            ) {
-              confirmationFollowupSignalByIdRef.current.set(
-                confirmationId,
-                false,
-              );
+        Promise.resolve(
+          submitToolConfirmationWithRetry(autoPayload, {
+            targetChatId,
+            runGeneration,
+          }),
+        )
+          .then((response) => {
+            if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+              return;
             }
-            clearConfirmationResolutionTimer(confirmationId);
+            if (
+              runtime?.followupSignalById.get(confirmationId) !== true
+            ) {
+              runtime?.followupSignalById.set(confirmationId, false);
+            }
+            clearConfirmationResolutionTimer(targetChatId, confirmationId);
             appendSyntheticToolConfirmationDecision({
+              targetChatId,
               confirmationId,
               approved: true,
             });
+            continueFromRecordedReceipt(
+              targetChatId,
+              autoPayload.session_id,
+              response,
+              runGeneration,
+            );
           })
           .catch((error) => {
-            clearConfirmationResolutionTimer(confirmationId);
+            if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+              return;
+            }
+            clearConfirmationResolutionTimer(targetChatId, confirmationId);
             restoreManualToolConfirmationRequest({
+              targetChatId,
               confirmationId,
               request,
               error,
             });
-          });
+        });
       } catch (error) {
-        clearConfirmationResolutionTimer(confirmationId);
+        if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
+          return;
+        }
+        clearConfirmationResolutionTimer(targetChatId, confirmationId);
         restoreManualToolConfirmationRequest({
+          targetChatId,
           confirmationId,
           request,
           error,
@@ -1251,7 +3621,12 @@ export const useChatStream = ({
     [
       appendSyntheticToolConfirmationDecision,
       clearConfirmationResolutionTimer,
+      continueFromRecordedReceipt,
+      getRunGeneration,
+      getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
       restoreManualToolConfirmationRequest,
+      submitToolConfirmationWithRetry,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
@@ -1265,19 +3640,41 @@ export const useChatStream = ({
         forceMemoryEnabled = false,
         memoryNamespace = "",
         modelId = modelIdRef.current,
+        targetChatId = chatId,
+        operationId = "",
+        expectedSessionRevision = null,
+        expectedCancelAttemptId = "",
       } = {},
     ) => {
       if (
         !targetSessionId ||
         (forceMemoryEnabled !== true && readMemorySettings().enabled !== true)
       ) {
-        return true;
+        return { applied: true, skipped: true, response: null, error: null };
       }
 
       try {
         const response = await api.unchain.replaceSessionMemory({
           sessionId: targetSessionId,
-          messages: buildHistoryForModel(nextMessages, chatId),
+          messages: buildHistoryForModel(nextMessages, targetChatId),
+          ...(operationId
+            ? {
+                operationId,
+                operation_id: operationId,
+              }
+            : {}),
+          ...(Number.isInteger(expectedSessionRevision)
+            ? {
+                expectedSessionRevision,
+                expected_session_revision: expectedSessionRevision,
+              }
+            : {}),
+          ...(expectedCancelAttemptId
+            ? {
+                expectedCancelAttemptId,
+                expected_cancel_attempt_id: expectedCancelAttemptId,
+              }
+            : {}),
           options: {
             modelId,
             ...(forceMemoryEnabled === true ? { memory_enabled: true } : {}),
@@ -1287,17 +3684,51 @@ export const useChatStream = ({
           },
         });
 
-        return response?.applied !== false;
+        if (response?.applied === false) {
+          const error = createTurnMutationResponseError(response);
+          if (activeChatIdRef.current === targetChatId) {
+            setStreamError(error.message);
+          }
+          return { applied: false, skipped: false, response, error };
+        }
+
+        return { applied: true, skipped: false, response, error: null };
       } catch (error) {
-        if (activeChatIdRef.current === chatId) {
+        if (activeChatIdRef.current === targetChatId) {
           setStreamError(
             error?.message || "Failed to sync short-term memory for this chat.",
           );
         }
-        return false;
+        return { applied: false, skipped: false, response: null, error };
       }
     },
     [activeChatIdRef, buildHistoryForModel, chatId, modelIdRef, setStreamError],
+  );
+
+  const readMemorySessionRevision = useCallback(
+    async (targetSessionId, { forceMemoryEnabled = false } = {}) => {
+      if (
+        !targetSessionId ||
+        (forceMemoryEnabled !== true && readMemorySettings().enabled !== true)
+      ) {
+        return null;
+      }
+      const exported = await api.unchain.getSessionMemoryExport(
+        targetSessionId,
+      );
+      const revision = Number(
+        exported?.session_revision ?? exported?.sessionRevision,
+      );
+      if (!Number.isInteger(revision) || revision < 0) {
+        const error = new Error(
+          "Unable to verify the current session revision before rewriting memory.",
+        );
+        error.code = "session_revision_unavailable";
+        throw error;
+      }
+      return revision;
+    },
+    [],
   );
 
   const runTurnRequest = useCallback(
@@ -1310,11 +3741,95 @@ export const useChatStream = ({
       clearComposer = false,
       reuseUserMessage = null,
       missingAttachmentPayloadMode = "block",
+      /* Plugins pulled in by command usage for THIS run only (ephemeral —
+         never written to the session's selected toolkits). */
+      extraToolkits = [],
+      /* Composer sidecar (contract v1) for THIS content, freshly computed by
+         the caller against `text`. Presentation-only, never model-visible.
+         Null for every path that isn't a composer/edit command send. */
+      composer = null,
       memoryFallbackAttempted = false,
       forceHistoryFallback = false,
       historyOverride = null,
       characterAgentConfig = null,
+      durableInteraction = null,
+      durableResumeAttempt = 0,
+      durableOwnerMessageId = "",
+      runGeneration: requestedRunGeneration = null,
+      runContext: requestedRunContext = null,
+      turnMutationOperationId = "",
+      onConsumed = null,
+      onReject = null,
+      relayItemIds = [],
+      relayItems = [],
+      relaySourceAttemptId = "",
+      relaySourceClientOperationId = "",
     }) => {
+      /* Queue-relay acceptance protocol (see relayQueuedTurnsAfterRun):
+         onConsumed fires exactly once, and only on authoritative server
+         acceptance evidence (V4 run/turn/step.started, V2
+         run_started/response_received/final_message, any token, or a successful
+         done fallback). onReject fires at most once, only when the run reaches a
+         terminal failure BEFORE any acceptance evidence and was NOT cancelled by
+         the user — a Stop/cancel must never resurrect a relayed turn. The two
+         are mutually exclusive. */
+      let requestConsumed = false;
+      let requestRejected = false;
+      let queueRelayAcceptanceTimer = null;
+      let queueRelayAcceptanceReattachCount = 0;
+      let streamHandle = null;
+      const clearQueueRelayAcceptanceTimer = () => {
+        if (queueRelayAcceptanceTimer == null) return;
+        const timerId = queueRelayAcceptanceTimer;
+        clearTimeout(timerId);
+        const trackedTimers =
+          queueRelayTimersByChatIdRef.current.get(targetChatId);
+        trackedTimers?.delete(timerId);
+        if (trackedTimers?.size === 0) {
+          queueRelayTimersByChatIdRef.current.delete(targetChatId);
+        }
+        queueRelayAcceptanceTimer = null;
+      };
+      const isQueueRelayRequest =
+        typeof onConsumed === "function" || typeof onReject === "function";
+      const exactRelayItemIds = new Set(
+        (Array.isArray(relayItemIds) ? relayItemIds : [])
+          .filter((itemId) => typeof itemId === "string")
+          .map((itemId) => itemId.trim())
+          .filter(Boolean),
+      );
+      const exactRelayItems = (Array.isArray(relayItems) ? relayItems : [])
+        .filter(
+          (item) =>
+            exactRelayItemIds.has(item?.id) &&
+            typeof item?.text === "string" &&
+            item.text.trim(),
+        )
+        .map((item) => ({
+          id: item.id,
+          text: item.text,
+          status: "queued",
+        }));
+      const markRequestConsumed = () => {
+        if (requestConsumed || requestRejected) return;
+        requestConsumed = true;
+        clearQueueRelayAcceptanceTimer();
+        if (typeof onConsumed === "function") onConsumed();
+      };
+      const rejectRequestBeforeAcceptance = () => {
+        if (requestConsumed || requestRejected) return;
+        requestRejected = true;
+        clearQueueRelayAcceptanceTimer();
+        if (typeof onReject === "function") onReject();
+      };
+      const isDurableResume = Boolean(
+        mode === "resume_interaction" &&
+        durableInteraction?.status === "receipt_recorded" &&
+        typeof durableInteraction?.sessionId === "string" &&
+        durableInteraction.sessionId.trim() &&
+        typeof durableInteraction?.interactionId === "string" &&
+        durableInteraction.interactionId.trim(),
+      );
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachments)
         ? attachments
@@ -1324,11 +3839,253 @@ export const useChatStream = ({
         trimmedText ||
         (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
 
-      if (!targetChatId || (!promptText && !hasAttachments)) {
+      if (
+        !targetChatId ||
+        (!isDurableResume && !promptText && !hasAttachments)
+      ) {
         return false;
       }
 
-      clearActiveTokenFlushController("dispose");
+      const turnMutationOwner =
+        turnMutationByChatIdRef.current.get(targetChatId) || null;
+      if (
+        turnMutationOwner &&
+        turnMutationOwner.operationId !== turnMutationOperationId
+      ) {
+        return false;
+      }
+      if (!turnMutationOwner && turnMutationOperationId) {
+        return false;
+      }
+
+      /* Capture the originating chat's composer before attachment hydration or
+         character preflight can yield and let another chat become active. */
+      const previousInputValue = clearComposer ? inputValueRef.current : "";
+      const previousDraftAttachments =
+        clearComposer && Array.isArray(draftAttachmentsRef.current)
+          ? [...draftAttachmentsRef.current]
+          : [];
+      const previousComposerRevision =
+        composerRevisionByChatIdRef?.current?.get?.(targetChatId) || 0;
+      let composerDraftClaimId = null;
+      let usesComposerDraftClaim = false;
+
+      const releaseComposerDraftClaim = () => {
+        if (
+          usesComposerDraftClaim &&
+          composerDraftClaimId &&
+          typeof storageApi.releaseChatDraftClaim === "function"
+        ) {
+          storageApi.releaseChatDraftClaim(
+            targetChatId,
+            composerDraftClaimId,
+          );
+        }
+        composerDraftClaimId = null;
+      };
+
+      const replaceComposerDraftClaim = (nextDraft) => {
+        if (
+          !usesComposerDraftClaim ||
+          !composerDraftClaimId ||
+          typeof storageApi.replaceClaimedChatDraft !== "function"
+        ) {
+          return false;
+        }
+        const result = storageApi.replaceClaimedChatDraft(
+          targetChatId,
+          composerDraftClaimId,
+          nextDraft,
+          { source: "chat-page" },
+        );
+        if (!result?.applied || !result.claimId) {
+          composerDraftClaimId = null;
+          return false;
+        }
+        composerDraftClaimId = result.claimId;
+        return true;
+      };
+
+      const isOriginatingComposerUnchanged = () =>
+        (composerRevisionByChatIdRef?.current?.get?.(targetChatId) || 0) ===
+          previousComposerRevision &&
+        inputValueRef.current === previousInputValue &&
+        sameDraftAttachments(
+          draftAttachmentsRef.current,
+          previousDraftAttachments,
+        );
+
+      const activeRunGeneration =
+        Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
+          ? requestedRunGeneration
+          : beginRunGeneration(targetChatId);
+      const runClientOperationId = createQueuedTurnClientOperationId();
+      runClientOperationIdByChatIdRef.current.set(
+        targetChatId,
+        runClientOperationId,
+      );
+      if (
+        !Number.isInteger(requestedRunGeneration) ||
+        requestedRunGeneration <= 0
+      ) {
+        executionIdentityByChatIdRef.current.delete(targetChatId);
+      }
+      const isCurrentRun = () =>
+        isRunGenerationCurrent(targetChatId, activeRunGeneration);
+      if (!isCurrentRun()) {
+        return false;
+      }
+      runPreflightGenerationByChatIdRef.current.set(
+        targetChatId,
+        activeRunGeneration,
+      );
+      /* Owner -> preflight handoff is synchronous and identity-scoped: there
+         is never a moment where neither guard exists, and unrelated internal
+         retries cannot consume another operation's reservation. */
+      if (turnMutationOwner) {
+        releaseTurnMutation(turnMutationOwner);
+      }
+      const finishRunPreflight = () => {
+        if (
+          runPreflightGenerationByChatIdRef.current.get(targetChatId) ===
+          activeRunGeneration
+        ) {
+          runPreflightGenerationByChatIdRef.current.delete(targetChatId);
+          /* The mutation owner was released during the synchronous handoff.
+             Wake recovery again after preflight ends so an attachment or
+             character-preparation failure cannot strand its durable outbox. */
+          if (turnMutationOperationId) {
+            notifyTurnMutationChange(targetChatId);
+          }
+        }
+      };
+
+      if (
+        clearComposer &&
+        typeof storageApi.claimChatDraft === "function" &&
+        typeof storageApi.replaceClaimedChatDraft === "function" &&
+        typeof storageApi.releaseChatDraftClaim === "function"
+      ) {
+        const claim = storageApi.claimChatDraft(
+          targetChatId,
+          {
+            text: previousInputValue,
+            attachments: previousDraftAttachments,
+          },
+          { source: "chat-page" },
+        );
+        if (claim?.claimed && claim.claimId) {
+          usesComposerDraftClaim = true;
+          composerDraftClaimId = claim.claimId;
+        }
+      }
+
+      const storedRunContext =
+        runContextByChatIdRef.current.get(targetChatId) || null;
+      const runModelId =
+        typeof requestedRunContext?.modelId === "string"
+          ? requestedRunContext.modelId
+          : typeof storedRunContext?.modelId === "string"
+            ? storedRunContext.modelId
+            : typeof modelIdRef?.current === "string"
+              ? modelIdRef.current
+              : "";
+      const runThreadId =
+        typeof requestedRunContext?.threadId === "string"
+          ? requestedRunContext.threadId
+          : typeof storedRunContext?.threadId === "string"
+            ? storedRunContext.threadId
+            : typeof threadIdRef?.current === "string"
+              ? threadIdRef.current
+              : "";
+      const runSelectedToolkits = Array.isArray(
+        requestedRunContext?.selectedToolkits,
+      )
+        ? [...requestedRunContext.selectedToolkits]
+        : Array.isArray(storedRunContext?.selectedToolkits)
+          ? [...storedRunContext.selectedToolkits]
+          : Array.isArray(selectedToolkits)
+            ? [...selectedToolkits]
+            : [];
+      const runSelectedWorkspaceIds = Array.isArray(
+        requestedRunContext?.selectedWorkspaceIds,
+      )
+        ? [...requestedRunContext.selectedWorkspaceIds]
+        : Array.isArray(storedRunContext?.selectedWorkspaceIds)
+          ? [...storedRunContext.selectedWorkspaceIds]
+          : Array.isArray(selectedWorkspaceIds)
+            ? [...selectedWorkspaceIds]
+            : [];
+      const runSelectedRecipeName =
+        typeof requestedRunContext?.selectedRecipeName === "string"
+          ? requestedRunContext.selectedRecipeName
+          : typeof storedRunContext?.selectedRecipeName === "string"
+            ? storedRunContext.selectedRecipeName
+            : typeof selectedRecipeName === "string"
+              ? selectedRecipeName
+              : "Default";
+      const runAgentOrchestration = normalizeAgentOrchestration(
+        requestedRunContext?.agentOrchestration ||
+          storedRunContext?.agentOrchestration ||
+          agentOrchestration,
+      );
+      const runSystemPromptOverrides =
+        requestedRunContext?.systemPromptOverrides &&
+        typeof requestedRunContext.systemPromptOverrides === "object" &&
+        !Array.isArray(requestedRunContext.systemPromptOverrides)
+          ? { ...requestedRunContext.systemPromptOverrides }
+          : storedRunContext?.systemPromptOverrides &&
+              typeof storedRunContext.systemPromptOverrides === "object" &&
+              !Array.isArray(storedRunContext.systemPromptOverrides)
+            ? { ...storedRunContext.systemPromptOverrides }
+            : systemPromptOverrides &&
+                typeof systemPromptOverrides === "object" &&
+                !Array.isArray(systemPromptOverrides)
+              ? { ...systemPromptOverrides }
+              : {};
+      const runKind =
+        requestedRunContext?.kind === "character" ||
+        requestedRunContext?.kind === "default"
+          ? requestedRunContext.kind
+          : storedRunContext?.kind === "character" ||
+              storedRunContext?.kind === "default"
+            ? storedRunContext.kind
+            : isCharacterChat
+              ? "character"
+              : "default";
+      const runCharacterId =
+        typeof requestedRunContext?.characterId === "string"
+          ? requestedRunContext.characterId.trim()
+          : typeof storedRunContext?.characterId === "string"
+            ? storedRunContext.characterId.trim()
+            : typeof characterId === "string"
+              ? characterId.trim()
+              : "";
+      const runIsCharacterChat =
+        runKind === "character" && Boolean(runCharacterId);
+      const effectiveRunContext = {
+        modelId: runModelId,
+        threadId: runThreadId,
+        selectedToolkits: runSelectedToolkits,
+        selectedWorkspaceIds: runSelectedWorkspaceIds,
+        selectedRecipeName: runSelectedRecipeName,
+        agentOrchestration: runAgentOrchestration,
+        systemPromptOverrides: runSystemPromptOverrides,
+        kind: runKind,
+        characterId: runCharacterId,
+        isCharacterChat: runIsCharacterChat,
+      };
+      runContextByChatIdRef.current.set(targetChatId, effectiveRunContext);
+      if (
+        !isDurableResume &&
+        typeof storageApi.markChatStarted === "function"
+      ) {
+        storageApi.markChatStarted(targetChatId, { source: "chat-page" });
+      }
+
+      clearActiveTokenFlushController(targetChatId, "dispose");
+      const renderRuntime = createChatRenderRuntime();
+      renderRuntimeByChatIdRef.current.set(targetChatId, renderRuntime);
 
       const normalizedBaseMessages = Array.isArray(baseMessages)
         ? baseMessages
@@ -1342,105 +4099,170 @@ export const useChatStream = ({
           ? reuseUserMessage
           : null;
 
-      confirmationIdByCallIdRef.current.clear();
-      confirmationCallIdByIdRef.current.clear();
-      confirmationFollowupSignalByIdRef.current.clear();
-      confirmationResolveTimerByIdRef.current.forEach((timerId) => {
-        clearTimeout(timerId);
-      });
-      confirmationResolveTimerByIdRef.current.clear();
-      pendingToolConfirmationRequestsRef.current = {};
-      setPendingToolConfirmationRequests({});
-      toolConfirmationUiStateByIdRef.current = {};
-      setToolConfirmationUiStateById({});
-      pendingContinuationRequestRef.current = null;
-      setPendingContinuationRequest(null);
-      parentRunIdRef.current = "";
-      subagentMetaByRunIdRef.current.clear();
-      subagentFramesByRunIdRef.current.clear();
-      lastTokenRunIdRef.current = "";
-
-      const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      clearAllPendingToolConfirmations(targetChatId);
+      updatePendingContinuationRequestForChat(targetChatId, null);
       const timestamp = Date.now();
+      const durableResumeMessages = isDurableResume
+        ? prepareDurableInteractionResumeMessages(
+            normalizedBaseMessages,
+            durableInteraction,
+            durableOwnerMessageId || durableInteraction.ownerMessageId,
+            timestamp,
+          )
+        : null;
+      const assistantMessageId =
+        durableResumeMessages?.ownerMessageId ||
+        `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-      const userMessageSeed = normalizedReuseUserMessage
-        ? {
-            ...normalizedReuseUserMessage,
-            role: "user",
-            content: promptText,
-            updatedAt: timestamp,
-          }
-        : {
-            id: `user-${Date.now()}`,
-            role: "user",
-            content: promptText,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          };
-      if (
-        typeof userMessageSeed.createdAt !== "number" ||
-        !Number.isFinite(userMessageSeed.createdAt)
-      ) {
-        userMessageSeed.createdAt = timestamp;
-      }
+      let persistedAttachments = [];
+      let payloadAttachments = [];
+      let userMessage = null;
+      if (!isDurableResume) {
+        const userMessageSeed = normalizedReuseUserMessage
+          ? {
+              ...normalizedReuseUserMessage,
+              role: "user",
+              content: promptText,
+              updatedAt: timestamp,
+            }
+          : {
+              id: `user-${Date.now()}`,
+              role: "user",
+              content: promptText,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            };
+        if (
+          typeof userMessageSeed.createdAt !== "number" ||
+          !Number.isFinite(userMessageSeed.createdAt)
+        ) {
+          userMessageSeed.createdAt = timestamp;
+        }
 
-      await hydrateAttachmentPayloads(targetChatId, [
-        ...normalizedAttachments,
-        ...normalizedBaseMessages.flatMap((message) =>
-          message.role === "user" && Array.isArray(message.attachments)
-            ? message.attachments
-            : [],
-        ),
-      ]);
-
-      const { payloads: attachmentPayloads, missingAttachmentNames } =
-        resolveAttachmentPayloads(targetChatId, normalizedAttachments);
-      let persistedAttachments = normalizedAttachments;
-      let payloadAttachments = attachmentPayloads;
-
-      if (missingAttachmentNames.length > 0) {
-        if (missingAttachmentPayloadMode === "degrade") {
-          persistedAttachments = [];
-          payloadAttachments = [];
-          setStreamError(
-            "Some attachment payloads are unavailable in this session. Resending text only.",
-          );
-        } else {
-          setStreamError(
-            "Some attachment payloads are unavailable. Please re-attach your files and try again.",
+        try {
+          await hydrateAttachmentPayloads(targetChatId, [
+            ...normalizedAttachments,
+            ...normalizedBaseMessages.flatMap((message) =>
+              message.role === "user" && Array.isArray(message.attachments)
+                ? message.attachments
+                : [],
+            ),
+          ]);
+        } catch (error) {
+          finishRunPreflight();
+          releaseComposerDraftClaim();
+          setStreamErrorForChat(
+            targetChatId,
+            error?.message || "Failed to load attachment payloads.",
           );
           return false;
         }
-      }
+        if (!isCurrentRun()) {
+          finishRunPreflight();
+          releaseComposerDraftClaim();
+          return false;
+        }
 
-      const userMessage = { ...userMessageSeed };
-      if (persistedAttachments.length > 0) {
-        userMessage.attachments = persistedAttachments;
-      } else if ("attachments" in userMessage) {
-        delete userMessage.attachments;
+        const { payloads: attachmentPayloads, missingAttachmentNames } =
+          resolveAttachmentPayloads(targetChatId, normalizedAttachments);
+        persistedAttachments = normalizedAttachments;
+        payloadAttachments = attachmentPayloads;
+
+        if (missingAttachmentNames.length > 0) {
+          if (missingAttachmentPayloadMode === "degrade") {
+            persistedAttachments = [];
+            payloadAttachments = [];
+            setStreamErrorForChat(
+              targetChatId,
+              "Some attachment payloads are unavailable in this session. Resending text only.",
+            );
+          } else {
+            setStreamErrorForChat(
+              targetChatId,
+              "Some attachment payloads are unavailable. Please re-attach your files and try again.",
+            );
+            finishRunPreflight();
+            releaseComposerDraftClaim();
+            return false;
+          }
+        }
+
+        userMessage = { ...userMessageSeed };
+        if (turnMutationOperationId) {
+          userMessage.meta = {
+            ...(userMessage.meta || {}),
+            turnMutationOperationId,
+            turnMutationServerAcknowledged: false,
+          };
+        }
+        if (persistedAttachments.length > 0) {
+          userMessage.attachments = persistedAttachments;
+        } else if ("attachments" in userMessage) {
+          delete userMessage.attachments;
+        }
+
+        // ── Composer sidecar reconciliation (contract §2 铁律 / §6.5) ────────
+        // A composer is valid ONLY for the exact content it was computed
+        // against; a stale one is the contract's single integrity fault source,
+        // so we NEVER carry an inherited one blindly. Precedence:
+        //   1. a fresh `composer` param (compose/edit re-expand) validated
+        //      against THIS content wins;
+        //   2. otherwise carry an inherited composer forward ONLY when the
+        //      content is byte-identical to the message it came from (resend /
+        //      memory-fallback retry re-send the same content → still valid);
+        //   3. otherwise drop it — a content rewrite (edit) with no fresh
+        //      sidecar renders as plain content (fail-open, content intact).
+        // The unconditional delete first guarantees no seed-spread composer
+        // (from reuseUserMessage) ever survives unvalidated.
+        delete userMessage.composer;
+        const contentLength =
+          typeof userMessage.content === "string"
+            ? userMessage.content.length
+            : 0;
+        if (isValidComposerForContent(composer, contentLength)) {
+          userMessage.composer = composer;
+        } else if (
+          normalizedReuseUserMessage &&
+          typeof normalizedReuseUserMessage.content === "string" &&
+          normalizedReuseUserMessage.content === userMessage.content &&
+          isValidComposerForContent(
+            normalizedReuseUserMessage.composer,
+            contentLength,
+          )
+        ) {
+          userMessage.composer = normalizedReuseUserMessage.composer;
+        }
       }
 
       const persistImmediateMessages = (nextImmediateMessages) => {
-        messagesRef.current = nextImmediateMessages;
-        if (activeChatIdRef.current === targetChatId) {
-          setMessages(nextImmediateMessages);
-          return;
-        }
-
+        commitForegroundMessages(targetChatId, nextImmediateMessages);
         storageApi.setChatMessages(targetChatId, nextImmediateMessages, {
           source: "chat-page",
         });
       };
 
-      let effectiveModelId = modelIdRef.current;
+      let effectiveModelId = runModelId;
       let effectiveThreadId = targetChatId;
       let effectiveMemoryNamespace = "";
-      let effectiveToolkits = selectedToolkits;
-      let effectiveWorkspaceIds = selectedWorkspaceIds;
-      let effectiveAgentOrchestration = normalizeAgentOrchestration(
-        agentOrchestration,
-      );
+      let effectiveToolkits = runSelectedToolkits;
+      if (Array.isArray(extraToolkits) && extraToolkits.length > 0) {
+        // Command-driven ephemeral selection: the run carries the plugin(s)
+        // whose commands were used, without persisting them to the session.
+        effectiveToolkits = [
+          ...new Set([...(runSelectedToolkits || []), ...extraToolkits]),
+        ];
+      }
+      let effectiveWorkspaceIds = runSelectedWorkspaceIds;
+      let effectiveAgentOrchestration = runAgentOrchestration;
       let forceMemoryEnabled = false;
+
+      if (isDurableResume) {
+        effectiveThreadId = durableInteraction.sessionId;
+        const resumeModelId = durableInteraction.resumeOptions?.modelId;
+        if (typeof resumeModelId === "string" && resumeModelId.trim()) {
+          effectiveModelId = resumeModelId.trim();
+        }
+      }
 
       /* Optimistic UI: push user message + assistant placeholder BEFORE any await.
          For character chats, buildCharacterRunConfig() below can be a slow IPC round-trip;
@@ -1457,34 +4279,82 @@ export const useChatStream = ({
         subagentMetaByRunId: {},
         meta: {
           model: effectiveModelId,
+          queueClientOperationId: runClientOperationId,
+          ...(turnMutationOperationId
+            ? { turnMutationOperationId }
+            : {}),
         },
       };
-      const optimisticMessages = [
-        ...normalizedBaseMessages,
-        userMessage,
-        optimisticAssistantPlaceholder,
-      ];
-      const previousInputValue = inputValue;
-      const previousDraftAttachments = draftAttachments;
-
-      setMessages(optimisticMessages);
-      if (clearComposer) {
-        setInputValue("");
-        setDraftAttachments([]);
-      }
-      setStreamError("");
-      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
-      streamingChatIdsRef.current.add(targetChatId);
-      activeStreamingMessageStore.begin({
-        chatId: targetChatId,
-        messageId: assistantMessageId,
-      });
+      const optimisticMessages = isDurableResume
+        ? durableResumeMessages.messages
+        : [
+            ...normalizedBaseMessages,
+            userMessage,
+            optimisticAssistantPlaceholder,
+          ];
       activeStreamsRef.current.set(targetChatId, {
         messages: optimisticMessages,
       });
+      commitForegroundMessages(targetChatId, optimisticMessages);
+      /* Persist the optimistic turn immediately, including an active existing
+         chat. Character preflight and attachment work can outlive the page;
+         relying on ChatInterface's delayed effect would lose both the user
+         message and placeholder if the page unmounts in that window. */
+      storageApi.setChatMessages(targetChatId, optimisticMessages, {
+        source: "chat-page",
+      });
+      let composerWasCleared = false;
+      if (clearComposer) {
+        const targetIsActive = activeChatIdRef.current === targetChatId;
+        const composerStillMatches =
+          !targetIsActive || isOriginatingComposerUnchanged();
+        if (composerStillMatches) {
+          if (usesComposerDraftClaim) {
+            composerWasCleared = replaceComposerDraftClaim({
+              text: "",
+              attachments: [],
+            });
+          } else {
+            composerWasCleared = true;
+            if (
+              !targetIsActive &&
+              typeof storageApi.updateChatDraft === "function"
+            ) {
+              storageApi.updateChatDraft(
+                targetChatId,
+                { text: "", attachments: [] },
+                { source: "chat-page" },
+              );
+            }
+          }
 
+          if (composerWasCleared && targetIsActive) {
+            setInputValue("");
+            setDraftAttachments([]);
+          }
+        } else {
+          releaseComposerDraftClaim();
+        }
+      }
+      setStreamErrorForChat(targetChatId, "");
+      streamingChatIdsRef.current.add(targetChatId);
+      finishRunPreflight();
+      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
+      activeStreamingMessageStore.begin({
+        chatId: targetChatId,
+        messageId: assistantMessageId,
+        seedText: isDurableResume
+          ? optimisticMessages.find(
+              (message) => message?.id === assistantMessageId,
+            )?.content || ""
+          : "",
+        updatedAt: timestamp,
+      });
       const rollbackOptimistic = () => {
-        setMessages(normalizedBaseMessages);
+        commitForegroundMessages(targetChatId, normalizedBaseMessages);
+        storageApi.setChatMessages(targetChatId, normalizedBaseMessages, {
+          source: "chat-page",
+        });
         streamingChatIdsRef.current.delete(targetChatId);
         setStreamingChatIds((prev) => {
           const next = new Set(prev);
@@ -1493,20 +4363,69 @@ export const useChatStream = ({
         });
         activeStreamsRef.current.delete(targetChatId);
         clearStreamingMessageStore(targetChatId, assistantMessageId);
-        if (clearComposer) {
-          setInputValue(previousInputValue);
-          setDraftAttachments(previousDraftAttachments);
+        if (clearComposer && composerWasCleared) {
+          const targetIsActive = activeChatIdRef.current === targetChatId;
+          const composerWasNotEdited =
+            (composerRevisionByChatIdRef?.current?.get?.(targetChatId) || 0) ===
+            previousComposerRevision;
+          const activeComposerIsStillEmpty =
+            composerWasNotEdited &&
+            (!targetIsActive ||
+              (inputValueRef.current === "" &&
+                sameDraftAttachments(draftAttachmentsRef.current, [])));
+          if (activeComposerIsStillEmpty) {
+            let restored = true;
+            if (usesComposerDraftClaim) {
+              restored = replaceComposerDraftClaim({
+                text: previousInputValue,
+                attachments: previousDraftAttachments,
+              });
+            } else if (
+              !targetIsActive &&
+              typeof storageApi.updateChatDraft === "function"
+            ) {
+              storageApi.updateChatDraft(
+                targetChatId,
+                {
+                  text: previousInputValue,
+                  attachments: previousDraftAttachments,
+                },
+                { source: "chat-page" },
+              );
+            }
+            if (restored && targetIsActive) {
+              setInputValue(previousInputValue);
+              setDraftAttachments(previousDraftAttachments);
+            }
+          }
+          releaseComposerDraftClaim();
         }
       };
 
       let resolvedCharacterConfig = characterAgentConfig;
-      if (isCharacterChat) {
+      if (runIsCharacterChat && !isDurableResume) {
         if (!resolvedCharacterConfig) {
           try {
-            resolvedCharacterConfig = await buildCharacterRunConfig();
+            resolvedCharacterConfig =
+              isCharacterChat && runCharacterId === characterId
+                ? await buildCharacterRunConfig(runThreadId)
+                : await api.unchain.buildCharacterAgentConfig({
+                    characterId: runCharacterId,
+                    threadId: runThreadId || "main",
+                    humanId: "local_user",
+                  });
+            if (!isCurrentRun()) {
+              releaseComposerDraftClaim();
+              return false;
+            }
           } catch (error) {
+            if (!isCurrentRun()) {
+              releaseComposerDraftClaim();
+              return false;
+            }
             rollbackOptimistic();
-            setStreamError(
+            setStreamErrorForChat(
+              targetChatId,
               error?.message || "Failed to prepare this character chat.",
             );
             return false;
@@ -1515,7 +4434,10 @@ export const useChatStream = ({
 
         if (!resolvedCharacterConfig?.session_id) {
           rollbackOptimistic();
-          setStreamError("Failed to prepare this character chat.");
+          setStreamErrorForChat(
+            targetChatId,
+            "Failed to prepare this character chat.",
+          );
           return false;
         }
 
@@ -1552,16 +4474,26 @@ export const useChatStream = ({
 
         if (decisionAction === "ignore" || decisionAction === "defer") {
           characterLogger.log(decisionAction, {
-            characterId,
+            characterId: runCharacterId,
             reason: characterDecision.reason || "unknown",
             courtesyMessage: courtesyMessage || null,
             evaluation: characterDecision.evaluation || null,
           });
+          const terminalUserMessage = turnMutationOperationId
+            ? {
+                ...userMessage,
+                meta: {
+                  ...(userMessage.meta || {}),
+                  turnMutationOperationId,
+                  turnMutationServerAcknowledged: true,
+                },
+              }
+            : userMessage;
           const immediateMessages =
             decisionAction === "defer" && courtesyMessage
               ? [
                   ...normalizedBaseMessages,
-                  userMessage,
+                  terminalUserMessage,
                   {
                     id: assistantMessageId,
                     role: "assistant",
@@ -1571,17 +4503,24 @@ export const useChatStream = ({
                     status: "done",
                     meta: {
                       model: effectiveModelId,
+                      ...(turnMutationOperationId
+                        ? {
+                            turnMutationOperationId,
+                            turnMutationServerAcknowledged: true,
+                          }
+                        : {}),
                     },
                   },
                 ]
-              : [...normalizedBaseMessages, userMessage];
+              : [...normalizedBaseMessages, terminalUserMessage];
 
+          markRequestConsumed();
           persistImmediateMessages(immediateMessages);
-          if (clearComposer) {
-            setInputValue("");
-            setDraftAttachments([]);
+          if (turnMutationOperationId) {
+            removeTurnMutation(turnMutationOperationId);
           }
-          setStreamError("");
+          releaseComposerDraftClaim();
+          setStreamErrorForChat(targetChatId, "");
           cancelBackgroundPersist(targetChatId);
           streamHandlesRef.current.delete(targetChatId);
           streamingChatIdsRef.current.delete(targetChatId);
@@ -1595,21 +4534,27 @@ export const useChatStream = ({
         }
       }
 
+      releaseComposerDraftClaim();
+
       // Record the threadId this run actually uses (chatId for normal chats,
       // the character session_id for character chats) so a mid-run interject
       // can target the same run instead of guessing.
       activeRunThreadIdByChatIdRef.current.set(targetChatId, effectiveThreadId);
 
       const memoryEnabled =
-        forceHistoryFallback === true
+        isDurableResume
+          ? durableInteraction.resumeOptions?.memory_enabled === true
+          : forceHistoryFallback === true
           ? false
           : forceMemoryEnabled === true ||
             readMemorySettings().enabled === true;
-      const historyForModel = Array.isArray(historyOverride)
-        ? historyOverride
+      const historyForModel = isDurableResume
+        ? []
+        : Array.isArray(historyOverride)
+          ? historyOverride
           : memoryEnabled
-          ? []
-          : buildHistoryForModel(normalizedBaseMessages, targetChatId);
+            ? []
+            : buildHistoryForModel(normalizedBaseMessages, targetChatId);
 
       /* Optimistic push already happened before the character block.
          `nextMessages` is the same value; keep the binding so downstream code
@@ -1618,9 +4563,7 @@ export const useChatStream = ({
 
       const activeFlushScheduler = createStreamFlushScheduler({
         onFlush: (nextStreamMessages) => {
-          if (activeChatIdRef.current === targetChatId) {
-            setMessages(nextStreamMessages);
-          }
+          commitForegroundMessages(targetChatId, nextStreamMessages);
         },
       });
 
@@ -1642,6 +4585,35 @@ export const useChatStream = ({
         );
       };
 
+      let turnMutationServerAcknowledged = false;
+      const acknowledgeTurnMutationRun = () => {
+        if (
+          !turnMutationOperationId ||
+          turnMutationServerAcknowledged ||
+          !isCurrentRun()
+        ) {
+          return;
+        }
+        turnMutationServerAcknowledged = true;
+        const acknowledgedMessages = streamMessages.map((message) =>
+          message.id === assistantMessageId || message.id === userMessage?.id
+            ? {
+                ...message,
+                meta: {
+                  ...(message.meta || {}),
+                  turnMutationOperationId,
+                  turnMutationServerAcknowledged: true,
+                },
+              }
+            : message,
+        );
+        syncStreamMessages(acknowledgedMessages);
+        storageApi.setChatMessages(targetChatId, acknowledgedMessages, {
+          source: "chat-page",
+        });
+        removeTurnMutation(turnMutationOperationId);
+      };
+
       const dirtySubagentFrameRunIds = new Set();
       const dirtySubagentMetaRunIds = new Set();
       let pendingSubagentStateFlushHandle = null;
@@ -1651,7 +4623,7 @@ export const useChatStream = ({
           Array.from(runIds)
             .map((runId) => [
               runId,
-              subagentFramesByRunIdRef.current.get(runId),
+              renderRuntime.subagentFramesByRunId.get(runId),
             ])
             .map(([runId, frames]) => [
               runId,
@@ -1662,7 +4634,10 @@ export const useChatStream = ({
       const serializeSubagentMetaByRunId = (runIds) =>
         Object.fromEntries(
           Array.from(runIds)
-            .map((runId) => [runId, subagentMetaByRunIdRef.current.get(runId)])
+            .map((runId) => [
+              runId,
+              renderRuntime.subagentMetaByRunId.get(runId),
+            ])
             .map(([runId, meta]) => [
               runId,
               {
@@ -1686,9 +4661,9 @@ export const useChatStream = ({
       const isKnownSubagentRunId = (runId) =>
         typeof runId === "string" &&
         runId.length > 0 &&
-        (!parentRunIdRef.current || runId !== parentRunIdRef.current) &&
-        (subagentMetaByRunIdRef.current.has(runId) ||
-          subagentFramesByRunIdRef.current.has(runId));
+        (!renderRuntime.parentRunId || runId !== renderRuntime.parentRunId) &&
+        (renderRuntime.subagentMetaByRunId.has(runId) ||
+          renderRuntime.subagentFramesByRunId.has(runId));
 
       const upsertSubagentMeta = (childRunId, updates) => {
         if (typeof childRunId !== "string" || !childRunId.trim()) {
@@ -1696,7 +4671,7 @@ export const useChatStream = ({
         }
 
         const previousMeta =
-          subagentMetaByRunIdRef.current.get(childRunId) || {};
+          renderRuntime.subagentMetaByRunId.get(childRunId) || {};
         const nextMeta = {
           subagentId:
             typeof updates?.subagentId === "string"
@@ -1743,9 +4718,9 @@ export const useChatStream = ({
                 : "",
         };
 
-        subagentMetaByRunIdRef.current.set(childRunId, nextMeta);
-        if (!subagentFramesByRunIdRef.current.has(childRunId)) {
-          subagentFramesByRunIdRef.current.set(childRunId, []);
+        renderRuntime.subagentMetaByRunId.set(childRunId, nextMeta);
+        if (!renderRuntime.subagentFramesByRunId.has(childRunId)) {
+          renderRuntime.subagentFramesByRunId.set(childRunId, []);
         }
         dirtySubagentMetaRunIds.add(childRunId);
         return nextMeta;
@@ -1828,6 +4803,134 @@ export const useChatStream = ({
           return;
         }
         scheduleSubagentStateFlush();
+      };
+
+      /* Reads back the just-persisted chat snapshot and confirms every fresh
+         interjection record actually landed. storageApi.setChatMessages
+         swallows backend persist failures (see chat_storage writeStore), so a
+         synchronous write is not by itself proof of durability — we verify the
+         durable read reflects the parent-assistant interjection before we allow
+         the exact-ACK to clear the outbox. Records-less frames carry no
+         rendered interjection (the raw frame was persisted by the caller), so
+         they are treated as durable and still exact-ACK. */
+      const fyiInterjectionSnapshotIsDurable = (chatId, messageId, records) => {
+        if (!Array.isArray(records) || records.length === 0) {
+          return true;
+        }
+        const persisted =
+          typeof storageApi.getChatMessages === "function"
+            ? storageApi.getChatMessages(chatId)
+            : null;
+        if (!Array.isArray(persisted)) return false;
+        const assistant = persisted.find((message) => message?.id === messageId);
+        const persistedIds = new Set(
+          (Array.isArray(assistant?.interjections)
+            ? assistant.interjections
+            : []
+          ).map((record) => record?.id),
+        );
+        return records.every((record) => persistedIds.has(record.id));
+      };
+
+      /* Shared fyi_injected handling for both the root assistant stream AND any
+         subagent (child) stream. Persists a parent-assistant interjection with a
+         STABLE id derived from the durable message_id (deduped by id, never by
+         text), then synchronously persists the exact updated chat snapshot
+         (raw fyi frame from the caller — root -> traceFrames, child ->
+         subagentFrames — plus the interjection) through storageApi and only
+         exact-ACKs the durable pending FYI once that snapshot is verified
+         durable. The ACK removes the outbox entry, so it must never run ahead of
+         durability: doing so before the 2s background persister (or on a
+         swallowed backend failure) would drop the injected FYI while the outbox
+         no longer holds it, resurrecting a spurious successor on remount. On a
+         non-durable snapshot we keep the durable FYI intent (queue fallback),
+         surface an error, and do NOT ACK. */
+      const applyFyiParentInterjectionAndAck = (frame, patchTime) => {
+        const entries = Array.isArray(frame?.payload?.messages)
+          ? frame.payload.messages
+          : [];
+        const eventId =
+          typeof frame?.payload?.runtime_event_id === "string" &&
+          frame.payload.runtime_event_id.trim()
+            ? frame.payload.runtime_event_id.trim()
+            : `seq-${frame?.seq || 0}`;
+        const records = [];
+        entries.forEach((entry, index) => {
+          if (entry?.origin !== "user") return;
+          const text = typeof entry?.text === "string" ? entry.text : "";
+          if (!text.trim()) return;
+          const messageId =
+            typeof entry?.message_id === "string"
+              ? entry.message_id.trim()
+              : typeof entry?.messageId === "string"
+                ? entry.messageId.trim()
+                : "";
+          records.push({
+            id: messageId ? `fyi-${messageId}` : `fyi-${eventId}-${index}`,
+            type: "fyi",
+            text,
+            origin: "user",
+            ts: patchTime,
+          });
+        });
+        if (records.length > 0) {
+          const nextStreamMessages = streamMessages.map((message) => {
+            if (message.id !== assistantMessageId) return message;
+            const existingIds = new Set(
+              (Array.isArray(message.interjections)
+                ? message.interjections
+                : []
+              ).map((record) => record?.id),
+            );
+            const fresh = records.filter(
+              (record) => !existingIds.has(record.id),
+            );
+            if (fresh.length === 0) return message;
+            return {
+              ...message,
+              updatedAt: patchTime,
+              interjections: [...(message.interjections || []), ...fresh],
+            };
+          });
+          syncStreamMessages(nextStreamMessages);
+        }
+        const fyiAttemptId =
+          executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+          queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+          "";
+        /* Persist the exact updated snapshot synchronously BEFORE the ACK, then
+           verify it landed durably. Never rely on React microtasks or the 2s
+           background persister here — the outbox entry is about to be removed. */
+        let snapshotDurable = false;
+        try {
+          storageApi.setChatMessages(targetChatId, streamMessages, {
+            source: "chat-page",
+          });
+          snapshotDurable = fyiInterjectionSnapshotIsDurable(
+            targetChatId,
+            assistantMessageId,
+            records,
+          );
+        } catch (persistError) {
+          snapshotDurable = false;
+        }
+        if (!snapshotDurable) {
+          if (fyiAttemptId) {
+            fallbackPendingFyisForAttempt(targetChatId, fyiAttemptId);
+          }
+          setStreamErrorForChat(
+            targetChatId,
+            "The pending FYI is still saved and will be recovered after reload.",
+          );
+          return;
+        }
+        if (fyiAttemptId) {
+          acknowledgeInjectedFyisForAttempt(
+            targetChatId,
+            fyiAttemptId,
+            entries,
+          );
+        }
       };
 
       let bufferedTokenDelta = "";
@@ -1971,10 +5074,10 @@ export const useChatStream = ({
         flushNow: flushBufferedTokenDelta,
         dispose: disposeBufferedTokenFlush,
       };
-      activeTokenFlushControllerRef.current = tokenFlushController;
+      renderRuntime.tokenFlushController = tokenFlushController;
       const releaseTokenFlushController = () => {
-        if (activeTokenFlushControllerRef.current === tokenFlushController) {
-          activeTokenFlushControllerRef.current = null;
+        if (renderRuntime.tokenFlushController === tokenFlushController) {
+          renderRuntime.tokenFlushController = null;
         }
       };
 
@@ -2113,6 +5216,7 @@ export const useChatStream = ({
               return;
             }
             if (effect.type === "token") {
+              markRequestConsumed();
               handlers.onToken?.(effect.delta);
               return;
             }
@@ -2143,8 +5247,20 @@ export const useChatStream = ({
             })
           : null;
 
-        const streamHandle = startStream(payload, {
-          onRuntimeEvent: (runtimeEvent) => {
+        let lastRuntimeStreamSeq = 0;
+        const runtimeEventHandlers = {
+          onRuntimeEvent: (runtimeEvent, streamMeta = {}) => {
+            if (runtimeEventStreamFailed || !isCurrentRun()) {
+              return;
+            }
+            const streamSeq = Number(streamMeta.streamSeq);
+            if (Number.isInteger(streamSeq) && streamSeq > lastRuntimeStreamSeq) {
+              lastRuntimeStreamSeq = streamSeq;
+            }
+            if (isAuthoritativeQueueAcceptanceEvent(runtimeEvent)) {
+              acknowledgeTurnMutationRun();
+              markRequestConsumed();
+            }
             if (runtimeEventBatcher) {
               runtimeEventBatcher.enqueue(runtimeEvent);
               return;
@@ -2154,8 +5270,30 @@ export const useChatStream = ({
             dispatchRuntimeEventEffects(effects);
           },
           onDone: (done) => {
+            if (!isCurrentRun()) {
+              runtimeEventBatcher?.cancel();
+              return;
+            }
             runtimeEventBatcher?.flushNow();
             if (runtimeEventStreamFailed) {
+              return;
+            }
+            const doneError =
+              done?.error && typeof done.error === "object"
+                ? done.error
+                : null;
+            if (doneError) {
+              runtimeEventStreamFailed = true;
+              handlers.onError?.({
+                code:
+                  typeof doneError.code === "string"
+                    ? doneError.code
+                    : "stream_failed",
+                message:
+                  typeof doneError.message === "string"
+                    ? doneError.message
+                    : "The stream failed.",
+              });
               return;
             }
             const traceProps = adaptTree(runtimeEventActivityTree);
@@ -2166,34 +5304,94 @@ export const useChatStream = ({
             handlers.onDone?.(donePayload);
           },
           onError: (error) => {
+            if (!isCurrentRun()) {
+              runtimeEventBatcher?.cancel();
+              return;
+            }
+            clearQueueRelayAcceptanceTimer();
             runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
             handlers.onError?.(error);
           },
-        });
-
-        if (
-          runtimeEventBatcher &&
-          streamHandle &&
-          typeof streamHandle.cancel === "function"
-        ) {
-          const originalCancel = streamHandle.cancel;
-          return {
-            ...streamHandle,
-            cancel: (...args) => {
-              runtimeEventBatcher.cancel();
-              return originalCancel(...args);
-            },
+        };
+        const wrapRuntimeEventStreamHandle = (rawHandle) => {
+          if (!rawHandle) return rawHandle;
+          const wrappedHandle = { ...rawHandle };
+          wrappedHandle.quarantineQueueRelayAcceptance = () => {
+            runtimeEventBatcher?.cancel();
+            runtimeEventStreamFailed = true;
           };
-        }
-
-        return streamHandle;
+          wrappedHandle.failQueueRelayAcceptance = (error) => {
+            if (runtimeEventStreamFailed || !isCurrentRun()) {
+              return false;
+            }
+            runtimeEventHandlers.onError(error);
+            return true;
+          };
+          if (runtimeEventBatcher && typeof rawHandle.disconnect === "function") {
+            wrappedHandle.disconnect = (...args) => {
+              runtimeEventBatcher.cancel();
+              return rawHandle.disconnect(...args);
+            };
+          }
+          if (runtimeEventBatcher && typeof rawHandle.cancel === "function") {
+            wrappedHandle.cancel = (...args) => {
+              runtimeEventBatcher.cancel();
+              return rawHandle.cancel(...args);
+            };
+          }
+          const requestId =
+            typeof rawHandle.requestId === "string"
+              ? rawHandle.requestId.trim()
+              : "";
+          const executionId =
+            typeof rawHandle.executionId === "string"
+              ? rawHandle.executionId.trim()
+              : "";
+          const attemptId =
+            typeof rawHandle.attemptId === "string"
+              ? rawHandle.attemptId.trim()
+              : "";
+          const attachAvailable =
+            typeof api.unchain.isRuntimeEventStreamV4AttachAvailable ===
+              "function" &&
+            api.unchain.isRuntimeEventStreamV4AttachAvailable() &&
+            typeof api.unchain.attachStreamV4 === "function";
+          if (attachAvailable && requestId && executionId && attemptId) {
+            wrappedHandle.reconcileQueueRelayAcceptance = async () => {
+              const attachedHandle = await api.unchain.attachStreamV4(
+                {
+                  requestId,
+                  executionId,
+                  attemptId,
+                  afterSeq: lastRuntimeStreamSeq,
+                },
+                runtimeEventHandlers,
+              );
+              return wrapRuntimeEventStreamHandle(attachedHandle);
+            };
+          }
+          return wrappedHandle;
         };
 
-        const shouldUseRuntimeEvents =
-          isRuntimeEventStreamEnabled() &&
+        return wrapRuntimeEventStreamHandle(
+          startStream(payload, runtimeEventHandlers),
+        );
+        };
+
+        const runtimeEventStreamAvailable =
           typeof api.unchain.isRuntimeEventStreamV4Available === "function" &&
           api.unchain.isRuntimeEventStreamV4Available();
+        if (isDurableResume && !runtimeEventStreamAvailable) {
+          const error = new Error(
+            "Durable interaction recovery requires the V4 runtime event bridge.",
+          );
+          error.code = "durable_resume_bridge_unavailable";
+          throw error;
+        }
+        const shouldUseRuntimeEvents =
+          isDurableResume ||
+          (isRuntimeEventStreamEnabled() && runtimeEventStreamAvailable);
         if (shouldUseRuntimeEvents) {
           return startRuntimeEventStream({
             createStore: createRuntimeEventStore,
@@ -2206,63 +5404,648 @@ export const useChatStream = ({
           });
         }
 
-        return api.unchain.startStreamV2(payload, handlers);
+        return api.unchain.startStreamV2(payload, {
+          ...handlers,
+          onDone: (done = {}) => {
+            const doneError =
+              done.error && typeof done.error === "object"
+                ? done.error
+                : null;
+            if (doneError) {
+              handlers.onError?.({
+                code:
+                  typeof doneError.code === "string"
+                    ? doneError.code
+                    : "stream_failed",
+                message:
+                  typeof doneError.message === "string"
+                    ? doneError.message
+                    : "The stream failed.",
+              });
+              return;
+            }
+            handlers.onDone?.(done);
+          },
+        });
       };
 
-      let streamHandle = null;
-      try {
-        const systemPromptOverridesObject =
-          systemPromptOverrides &&
-          typeof systemPromptOverrides === "object" &&
-          !Array.isArray(systemPromptOverrides)
-            ? systemPromptOverrides
-            : {};
+      const scheduleDurableResumeRetry = (error, sourceMessages) => {
+        if (!isDurableResume || !isCurrentRun()) {
+          return false;
+        }
 
-        streamHandle = startChatStream(
-          {
-            threadId: effectiveThreadId,
-            message: promptText,
-            history: historyForModel,
-            attachments: payloadAttachments,
-            options: {
-              modelId: effectiveModelId,
-              memory_enabled: memoryEnabled,
-              ...(effectiveMemoryNamespace
-                ? { memory_namespace: effectiveMemoryNamespace }
-                : {}),
-              ...(effectiveToolkits.length > 0 && {
-                toolkits: effectiveToolkits,
-              }),
-              ...(effectiveWorkspaceIds.length > 0 && {
-                selectedWorkspaceIds: effectiveWorkspaceIds,
-              }),
-              ...(!isCharacterChat &&
-                selectedRecipeName &&
-                selectedRecipeName !== "Default" && {
-                  recipe_name: selectedRecipeName,
-                }),
-              ...(!isCharacterChat && {
-                agent_orchestration: effectiveAgentOrchestration,
-              }),
-              ...(isCharacterChat
-                ? {
-                    agent_instructions:
-                      typeof resolvedCharacterConfig?.instructions === "string"
-                        ? resolvedCharacterConfig.instructions
-                        : "",
-                    disable_workspace_root: true,
-                  }
-                : {}),
-              ...(Object.keys(systemPromptOverridesObject).length > 0 && {
-                system_prompt_v2: {
-                  overrides: systemPromptOverridesObject,
-                },
-              }),
+        const isCurrentReconciliationTarget = () => {
+          if (!isCurrentRun()) {
+            return false;
+          }
+          const currentInteraction =
+            durableInteractionByChatIdRef.current[targetChatId];
+          return Boolean(
+            currentInteraction &&
+              currentInteraction.sessionId === durableInteraction.sessionId &&
+              currentInteraction.interactionId ===
+                durableInteraction.interactionId,
+          );
+        };
+        if (!isCurrentReconciliationTarget()) {
+          return true;
+        }
+
+        const errorMessage = error?.message || "Failed to resume this run";
+        const retryCurrentInteraction =
+          isRetryableDurableInteractionError(error);
+        const reconcileAuthoritativeInteraction =
+          shouldReconcileDurableResumeError(error);
+        if (
+          (!retryCurrentInteraction && !reconcileAuthoritativeInteraction) ||
+          (retryCurrentInteraction &&
+            !reconcileAuthoritativeInteraction &&
+            durableResumeAttempt >= DURABLE_RESUME_MAX_RETRIES)
+        ) {
+          updateDurableInteractionForChat(targetChatId, {
+            ...durableInteraction,
+            ownerMessageId: assistantMessageId,
+            status: "resume_failed",
+            resumeAttempt: durableResumeAttempt,
+            lastError: errorMessage,
+          });
+          return false;
+        }
+
+        const retrySourceAttemptId =
+          executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+          queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+          "";
+        if (retrySourceAttemptId) {
+          fallbackPendingFyisForAttempt(
+            targetChatId,
+            retrySourceAttemptId,
+          );
+        }
+
+        const retryMessages = (Array.isArray(sourceMessages)
+          ? sourceMessages
+          : normalizedBaseMessages
+        ).map((message) =>
+          message?.id === assistantMessageId
+            ? {
+                ...message,
+                updatedAt: Date.now(),
+                status: "done",
+              }
+            : message,
+        );
+        commitForegroundMessages(targetChatId, retryMessages);
+        storageApi.setChatMessages(targetChatId, retryMessages, {
+          source: "chat-page",
+        });
+
+        const nextAttempt = Math.min(
+          DURABLE_RESUME_MAX_RETRIES,
+          durableResumeAttempt + 1,
+        );
+        updateDurableInteractionForChat(targetChatId, {
+          ...durableInteraction,
+          ownerMessageId: assistantMessageId,
+          status: "retry_wait",
+          resumeAttempt: nextAttempt,
+          lastError: errorMessage,
+        });
+
+        const failReconciliation = (message, resumeAttempt = nextAttempt) => {
+          if (!isCurrentReconciliationTarget()) {
+            return;
+          }
+          updateDurableInteractionForChat(targetChatId, {
+            ...durableInteraction,
+            ownerMessageId: assistantMessageId,
+            status: "resume_failed",
+            resumeAttempt,
+            lastError: message,
+          });
+          if (activeChatIdRef.current === targetChatId) {
+            setStreamError(message);
+          }
+        };
+
+        const scheduleAuthoritativeLookup = (lookupAttempt, delayMs) => {
+          const existingTimer = durableResumeRetryTimersRef.current.get(
+            targetChatId,
+          );
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+          let timerId = null;
+          timerId = setTimeout(async () => {
+            if (
+              durableResumeRetryTimersRef.current.get(targetChatId) === timerId
+            ) {
+              durableResumeRetryTimersRef.current.delete(targetChatId);
+            }
+            if (!isCurrentReconciliationTarget()) {
+              return;
+            }
+
+            let rawPending;
+            try {
+              rawPending = await api.unchain.getPendingInteraction({
+                session_id: durableInteraction.sessionId,
+              });
+            } catch (lookupError) {
+              if (!isCurrentReconciliationTarget()) {
+                return;
+              }
+              const lookupErrorMessage =
+                lookupError?.message ||
+                "Failed to inspect the current durable interaction.";
+              if (lookupAttempt >= DURABLE_RESUME_MAX_RETRIES) {
+                failReconciliation(lookupErrorMessage);
+                return;
+              }
+              updateDurableInteractionForChat(targetChatId, {
+                ...durableInteraction,
+                ownerMessageId: assistantMessageId,
+                status: "retry_wait",
+                resumeAttempt: nextAttempt,
+                lastError: lookupErrorMessage,
+              });
+              scheduleAuthoritativeLookup(
+                lookupAttempt + 1,
+                durableInteractionRetryDelayMs(lookupAttempt),
+              );
+              return;
+            }
+
+            if (!isCurrentReconciliationTarget()) {
+              return;
+            }
+            const refreshedPending = normalizePendingInteraction(
+              rawPending,
+              durableInteraction.sessionId,
+            );
+            if (!refreshedPending) {
+              const invalidRecordMessage =
+                "Unchain returned an invalid durable interaction record.";
+              if (lookupAttempt >= DURABLE_RESUME_MAX_RETRIES) {
+                failReconciliation(invalidRecordMessage);
+                return;
+              }
+              updateDurableInteractionForChat(targetChatId, {
+                ...durableInteraction,
+                ownerMessageId: assistantMessageId,
+                status: "retry_wait",
+                resumeAttempt: nextAttempt,
+                lastError: invalidRecordMessage,
+              });
+              scheduleAuthoritativeLookup(
+                lookupAttempt + 1,
+                durableInteractionRetryDelayMs(lookupAttempt),
+              );
+              return;
+            }
+            if (refreshedPending.status === "none") {
+              clearDurableResumeStartedKeysForChat(targetChatId);
+              clearAllPendingToolConfirmations(targetChatId);
+              executionIdentityByChatIdRef.current.delete(targetChatId);
+              updateDurableInteractionForChat(targetChatId, null);
+              return;
+            }
+
+            const sameRecordedInteraction =
+              refreshedPending.status === "receipt_recorded" &&
+              refreshedPending.interactionId ===
+                durableInteraction.interactionId;
+            if (!sameRecordedInteraction) {
+              const lookup =
+                durableInteractionLookupByChatIdRef.current.get(targetChatId);
+              if (typeof lookup === "function") {
+                await lookup(
+                  targetChatId,
+                  durableInteraction.sessionId,
+                  {
+                    autoResume: true,
+                    runGeneration: activeRunGeneration,
+                    authoritativePending: rawPending,
+                  },
+                );
+                return;
+              }
+              failReconciliation(
+                "Unable to inspect the current durable interaction.",
+              );
+              return;
+            }
+
+            if (durableResumeAttempt >= DURABLE_RESUME_MAX_RETRIES) {
+              failReconciliation(errorMessage, durableResumeAttempt);
+              return;
+            }
+            const refreshedInteraction = {
+              ...refreshedPending,
+              ownerMessageId: assistantMessageId,
+            };
+            updateDurableInteractionForChat(targetChatId, {
+              ...refreshedInteraction,
+              status: "resuming",
+              resumeAttempt: nextAttempt,
+              lastError: "",
+            });
+            void runTurnRequest({
+              mode: "resume_interaction",
+              chatId: targetChatId,
+              text: "",
+              attachments: [],
+              baseMessages: retryMessages,
+              clearComposer: false,
+              durableInteraction: refreshedInteraction,
+              durableResumeAttempt: nextAttempt,
+              durableOwnerMessageId: assistantMessageId,
+              runGeneration: activeRunGeneration,
+              runContext: effectiveRunContext,
+            });
+          }, delayMs);
+          durableResumeRetryTimersRef.current.set(targetChatId, timerId);
+        };
+
+        scheduleAuthoritativeLookup(
+          0,
+          reconcileAuthoritativeInteraction
+            ? 0
+            : durableInteractionRetryDelayMs(durableResumeAttempt),
+        );
+        return true;
+      };
+
+      const rejectQueueRelayBeforeAcceptance = ({ disconnect = false } = {}) => {
+        if (
+          !isQueueRelayRequest ||
+          requestConsumed ||
+          requestRejected ||
+          !isCurrentRun()
+        ) {
+          return false;
+        }
+        clearQueueRelayAcceptanceTimer();
+        if (disconnect) {
+          disconnectStreamTransport(
+            streamHandlesRef.current.get(targetChatId) || streamHandle,
+          );
+        }
+        cancelBackgroundPersist(targetChatId);
+        streamHandlesRef.current.delete(targetChatId);
+        activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+        flushSubagentState(Date.now());
+        activeFlushScheduler.flushSync();
+        disposeBufferedTokenFlush();
+        releaseTokenFlushController();
+        rollbackOptimistic();
+        rejectRequestBeforeAcceptance();
+        return true;
+      };
+
+      const terminalizeUnverifiedQueueRelay = (
+        expectedHandle,
+        { code, message },
+        { allowConsumed = false } = {},
+      ) => {
+        if (
+          (!allowConsumed && requestConsumed) ||
+          requestRejected ||
+          !isCurrentRun() ||
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle
+        ) {
+          return false;
+        }
+        clearQueueRelayAcceptanceTimer();
+        return (
+          expectedHandle?.failQueueRelayAcceptance?.({
+            code: code || "queue_relay_acceptance_unverified",
+            message:
+              message ||
+              "The queued follow-up could not be verified safely. It was not restarted.",
+          }) === true
+        );
+      };
+
+      const cancelAndSettleUnverifiedQueueRelay = async ({
+        expectedHandle,
+        code,
+        message,
+        retryWhenNeverRegistered = false,
+      }) => {
+        if (
+          requestRejected ||
+          !isCurrentRun() ||
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle
+        ) {
+          return;
+        }
+        clearQueueRelayAcceptanceTimer();
+        const currentIdentity =
+          executionIdentityByChatIdRef.current.get(targetChatId) || null;
+        const exactIdentity = normalizedExecutionIdentity({
+          sessionId: expectedHandle?.executionId || effectiveThreadId,
+          attemptId: expectedHandle?.attemptId,
+          requestId: expectedHandle?.requestId,
+          sourceAttemptId:
+            currentIdentity?.attemptId === expectedHandle?.attemptId
+              ? currentIdentity.sourceAttemptId || ""
+              : "",
+        });
+        const queuedCancellation = exactIdentity
+          ? enqueueExecutionCancel({
+              ...exactIdentity,
+              reason: "queue_relay_acceptance_unverified",
+              createdAt: Date.now(),
+            })
+          : null;
+        const cancelResult = await requestExecutionCancellationAndDisconnect({
+          identity: queuedCancellation || exactIdentity,
+          handle: expectedHandle,
+          reason: "queue_relay_acceptance_unverified",
+          idempotencyKey: exactIdentity
+            ? `queue-relay-acceptance:${exactIdentity.attemptId}`
+            : "",
+        });
+        if (cancelResult?.ok && queuedCancellation) {
+          removeExecutionCancel(
+            queuedCancellation.sessionId,
+            queuedCancellation.attemptId,
+          );
+        }
+        if (
+          requestRejected ||
+          !isCurrentRun() ||
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle
+        ) {
+          return;
+        }
+        if (requestConsumed) {
+          terminalizeUnverifiedQueueRelay(
+            expectedHandle,
+            {
+              code: "queue_relay_transport_lost_after_acceptance",
+              message:
+                "The queued follow-up was accepted while its transport was being recovered, then the exact execution was cancelled. It was not restarted.",
             },
-            trace_level: STREAM_TRACE_LEVEL,
+            { allowConsumed: true },
+          );
+          return;
+        }
+        const cancelResponse = cancelResult?.response;
+        const provenNeverRegistered = Boolean(
+          cancelResult?.ok &&
+            isProvenNeverRegisteredCancellation(cancelResponse),
+        );
+        if (retryWhenNeverRegistered && provenNeverRegistered) {
+          expectedHandle?.quarantineQueueRelayAcceptance?.();
+          rejectQueueRelayBeforeAcceptance();
+          return;
+        }
+        terminalizeUnverifiedQueueRelay(expectedHandle, { code, message });
+      };
+
+      const scheduleQueueRelayAcceptanceReconciliation = () => {
+        clearQueueRelayAcceptanceTimer();
+        if (
+          !isQueueRelayRequest ||
+          requestConsumed ||
+          requestRejected ||
+          !isCurrentRun()
+        ) {
+          return;
+        }
+        queueRelayAcceptanceTimer = scheduleQueueRelayTimer(
+          targetChatId,
+          activeRunGeneration,
+          () => {
+          queueRelayAcceptanceTimer = null;
+            void (async () => {
+              if (
+                requestConsumed ||
+                requestRejected ||
+                !isCurrentRun()
+              ) {
+                return;
+              }
+              const expectedHandle = streamHandle;
+              if (
+                !expectedHandle ||
+                streamHandlesRef.current.get(targetChatId) !== expectedHandle
+              ) {
+                return;
+              }
+              if (
+                queueRelayAcceptanceReattachCount >=
+                QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+              ) {
+                await cancelAndSettleUnverifiedQueueRelay({
+                  expectedHandle,
+                  code: "queue_relay_acceptance_timeout",
+                  message:
+                    "The queued follow-up did not provide acceptance evidence in time. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              if (
+                typeof expectedHandle.reconcileQueueRelayAcceptance !==
+                "function"
+              ) {
+                await cancelAndSettleUnverifiedQueueRelay({
+                  expectedHandle,
+                  code: "queue_relay_reattach_unavailable",
+                  message:
+                    "The queued follow-up could not be reattached safely. Its exact execution was cancelled and it was not restarted.",
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              queueRelayAcceptanceReattachCount += 1;
+              try {
+                const attachedHandle =
+                  await expectedHandle.reconcileQueueRelayAcceptance();
+                if (
+                  !isCurrentRun() ||
+                  streamHandlesRef.current.get(targetChatId) !== expectedHandle
+                ) {
+                  attachedHandle?.detach?.();
+                  return;
+                }
+                streamHandle = attachedHandle;
+                streamHandlesRef.current.set(targetChatId, attachedHandle);
+                if (requestRejected) {
+                  return;
+                }
+                if (requestConsumed) {
+                  if (
+                    attachedHandle?.terminal === true ||
+                    attachedHandle?.active === false
+                  ) {
+                    terminalizeUnverifiedQueueRelay(
+                      attachedHandle,
+                      {
+                        code: "queue_relay_transport_lost_after_acceptance",
+                        message:
+                          "The queued follow-up was accepted, but its recovered transport was already closed. It was not restarted.",
+                      },
+                      { allowConsumed: true },
+                    );
+                  }
+                  return;
+                }
+                if (
+                  attachedHandle?.terminal === true ||
+                  attachedHandle?.active === false
+                ) {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle: attachedHandle,
+                    code: "queue_relay_terminal_without_acceptance",
+                    message:
+                      "The queued follow-up ended without verifiable acceptance evidence. It was not restarted.",
+                    retryWhenNeverRegistered: true,
+                  });
+                  return;
+                }
+                scheduleQueueRelayAcceptanceReconciliation();
+              } catch (error) {
+                if (!isCurrentRun() || requestRejected) {
+                  return;
+                }
+                const errorCode =
+                  typeof error?.code === "string" ? error.code : "";
+                if (requestConsumed) {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle,
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The queued follow-up was accepted during replay, but reconnecting its transport failed. Its exact execution was cancelled and it was not restarted.",
+                  });
+                  return;
+                }
+                if (errorCode === "stream_not_found") {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle,
+                    code: "queue_relay_stream_not_found",
+                    message:
+                      "The queued follow-up stream was not found. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                    retryWhenNeverRegistered: true,
+                  });
+                  return;
+                }
+                if (
+                  errorCode === "stream_replay_gap" ||
+                  errorCode === "stream_identity_mismatch"
+                ) {
+                  await cancelAndSettleUnverifiedQueueRelay({
+                    expectedHandle,
+                    code: errorCode || "queue_relay_replay_unavailable",
+                    message:
+                      errorCode === "stream_replay_gap"
+                        ? "The queued follow-up could not be replayed completely. Its exact execution was cancelled and it was not restarted."
+                        : "The queued follow-up identity could not be verified. Its exact execution was cancelled and it was not restarted.",
+                  });
+                  return;
+                }
+                if (
+                  queueRelayAcceptanceReattachCount <
+                  QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+                ) {
+                  scheduleQueueRelayAcceptanceReconciliation();
+                  return;
+                }
+                await cancelAndSettleUnverifiedQueueRelay({
+                  expectedHandle,
+                  code: errorCode || "queue_relay_reattach_failed",
+                  message:
+                    "The queued follow-up could not be verified after reconnecting. Its exact execution was cancelled and it was not restarted.",
+                  retryWhenNeverRegistered: true,
+                });
+              }
+            })();
           },
+          QUEUE_RELAY_ACCEPTANCE_RECONCILE_MS,
+        );
+      };
+
+      try {
+        const systemPromptOverridesObject = runSystemPromptOverrides;
+
+        const durableInteractionsRequired =
+          !isDurableResume &&
+          memoryEnabled &&
+          typeof api.unchain.isDurableInteractionBridgeAvailable ===
+            "function" &&
+          api.unchain.isDurableInteractionBridgeAvailable() &&
+          (runIsCharacterChat ||
+            (!runSelectedRecipeName ||
+              runSelectedRecipeName === "Default")) &&
+          effectiveAgentOrchestration.mode === "default";
+
+        const streamPayload = isDurableResume
+          ? buildDurableResumePayload(durableInteraction)
+          : {
+              threadId: effectiveThreadId,
+              ...(turnMutationOperationId
+                ? { attempt_id: turnMutationOperationId }
+                : {}),
+              message: promptText,
+              history: historyForModel,
+              attachments: payloadAttachments,
+              options: {
+                modelId: effectiveModelId,
+                memory_enabled: memoryEnabled,
+                ...(durableInteractionsRequired
+                  ? { durable_interactions_required: true }
+                  : {}),
+                ...(effectiveMemoryNamespace
+                  ? { memory_namespace: effectiveMemoryNamespace }
+                  : {}),
+                ...(effectiveToolkits.length > 0 && {
+                  toolkits: effectiveToolkits,
+                }),
+                ...(effectiveWorkspaceIds.length > 0 && {
+                  selectedWorkspaceIds: effectiveWorkspaceIds,
+                }),
+                ...(!runIsCharacterChat &&
+                  runSelectedRecipeName &&
+                  runSelectedRecipeName !== "Default" && {
+                    recipe_name: runSelectedRecipeName,
+                  }),
+                ...(!runIsCharacterChat && {
+                  agent_orchestration: effectiveAgentOrchestration,
+                }),
+                ...(runIsCharacterChat
+                  ? {
+                      agent_instructions:
+                        typeof resolvedCharacterConfig?.instructions ===
+                        "string"
+                          ? resolvedCharacterConfig.instructions
+                          : "",
+                      disable_workspace_root: true,
+                    }
+                  : {}),
+                ...(Object.keys(systemPromptOverridesObject).length > 0 && {
+                  system_prompt_v2: {
+                    overrides: systemPromptOverridesObject,
+                  },
+                }),
+              },
+              trace_level: STREAM_TRACE_LEVEL,
+            };
+
+        /* Queue relay consume-on-acceptance (see relayQueuedTurnsAfterRun):
+           do NOT mark consumed merely because startChatStream returned a handle
+           — the server may still reject (e.g. execution_lease_conflict) before
+           accepting. onConsumed fires only on the authoritative acceptance
+           evidence handled inside these callbacks. */
+        streamHandle = startChatStream(
+          streamPayload,
           {
             onFrame: (frame) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
                  writes to activeStreamsRef but cannot update the closure variable). */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
@@ -2271,9 +6054,18 @@ export const useChatStream = ({
               }
 
               if (!frame) return;
+              if (
+                ["run_started", "response_received", "final_message"].includes(
+                  frame.type,
+                )
+              ) {
+                acknowledgeTurnMutationRun();
+                markRequestConsumed();
+              }
               frame = scrubLegacyPlanToolResultFrame(frame);
               if (frame.type === "token_delta") {
-                lastTokenRunIdRef.current =
+                markRequestConsumed();
+                renderRuntime.lastTokenRunId =
                   frame.run_id || frame.payload?.run_id || "";
                 return;
               }
@@ -2335,8 +6127,10 @@ export const useChatStream = ({
                   iteration,
                   status: "idle",
                 };
-                pendingContinuationRequestRef.current = nextRequest;
-                setPendingContinuationRequest(nextRequest);
+                updatePendingContinuationRequestForChat(
+                  targetChatId,
+                  nextRequest,
+                );
                 unchainLogger.log("continuation_request", {
                   confirmationId,
                   iteration,
@@ -2381,8 +6175,9 @@ export const useChatStream = ({
                 frame.type === "response_received" ||
                 frame.type === "run_max_iterations"
               ) {
-                if (frame.type === "run_started" && !parentRunIdRef.current) {
-                  parentRunIdRef.current = frame.run_id || frame.payload?.run_id || "";
+                if (frame.type === "run_started" && !renderRuntime.parentRunId) {
+                  renderRuntime.parentRunId =
+                    frame.run_id || frame.payload?.run_id || "";
                 }
                 const label =
                   frame.type === "run_max_iterations"
@@ -2426,10 +6221,10 @@ export const useChatStream = ({
                           : frame.type ===
                                 "subagent_clarification_requested"
                               ? "needs_clarification"
-                              : typeof subagentMetaByRunIdRef.current.get(
+                              : typeof renderRuntime.subagentMetaByRunId.get(
                                     childRunId,
                                   )?.status === "string"
-                                ? subagentMetaByRunIdRef.current.get(
+                                ? renderRuntime.subagentMetaByRunId.get(
                                     childRunId,
                                   ).status
                                 : "";
@@ -2545,14 +6340,25 @@ export const useChatStream = ({
                   }
 
                   if (callId && confirmationId && requiresConfirmation) {
-                    confirmationIdByCallIdRef.current.set(callId, confirmationId);
-                    confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                    const confirmationRuntime =
+                      getConfirmationRuntimeForChat(targetChatId);
+                    confirmationRuntime.confirmationIdByCallId.set(
+                      callId,
+                      confirmationId,
+                    );
+                    confirmationRuntime.confirmationCallIdById.set(
+                      confirmationId,
+                      callId,
+                    );
+                    confirmationRuntime.sessionIdByConfirmationId.set(
+                      confirmationId,
+                      effectiveThreadId,
+                    );
                     if (
-                      confirmationFollowupSignalByIdRef.current.get(
-                        confirmationId,
-                      ) !== true
+                      confirmationRuntime.followupSignalById.get(confirmationId) !==
+                      true
                     ) {
-                      confirmationFollowupSignalByIdRef.current.set(
+                      confirmationRuntime.followupSignalById.set(
                         confirmationId,
                         false,
                       );
@@ -2563,14 +6369,18 @@ export const useChatStream = ({
                       callId,
                       toolName,
                       requestedAt: patchTime,
+                      ownerMessageId: assistantMessageId,
+                      chatId: targetChatId,
+                      sessionId: effectiveThreadId,
                     });
-                    if (isToolCallAutoApprovable(frame)) {
+                    if (isToolCallAutoApprovable(targetChatId, frame)) {
                       submitAutoApprovedToolConfirmation({
+                        targetChatId,
                         confirmationId,
                         request: confirmationRequest,
                       });
                     } else {
-                      updatePendingToolConfirmationRequests((previous) =>
+                      updatePendingToolConfirmationRequests(targetChatId, (previous) =>
                         previous[confirmationId]
                           ? previous
                           : {
@@ -2578,7 +6388,7 @@ export const useChatStream = ({
                               [confirmationId]: confirmationRequest,
                             },
                       );
-                      updateToolConfirmationUiState((previous) =>
+                      updateToolConfirmationUiState(targetChatId, (previous) =>
                         previous[confirmationId]
                           ? previous
                           : {
@@ -2600,7 +6410,15 @@ export const useChatStream = ({
                     typeof frame.payload?.call_id === "string"
                       ? frame.payload.call_id
                       : "";
-                  clearResolvedToolConfirmationByCallId(callId);
+                  const confirmationId =
+                    typeof frame.payload?.confirmation_id === "string"
+                      ? frame.payload.confirmation_id
+                      : "";
+                  clearResolvedToolConfirmationByCallId(
+                    targetChatId,
+                    callId,
+                    confirmationId,
+                  );
                 } else if (frame.type === "tool_result") {
                   const callId =
                     typeof frame.payload?.call_id === "string"
@@ -2618,7 +6436,15 @@ export const useChatStream = ({
                       result: frame.payload?.result,
                     });
                   }
-                  markConfirmationFollowupSignalByCallId(callId);
+                  const confirmationId =
+                    typeof frame.payload?.confirmation_id === "string"
+                      ? frame.payload.confirmation_id
+                      : "";
+                  markConfirmationFollowupSignalByCallId(
+                    targetChatId,
+                    callId,
+                    confirmationId,
+                  );
                 }
               };
 
@@ -2631,14 +6457,14 @@ export const useChatStream = ({
               const isUnknownChild =
                 !isKnownChild &&
                 frameRunId.length > 0 &&
-                parentRunIdRef.current &&
-                frameRunId !== parentRunIdRef.current;
+                renderRuntime.parentRunId &&
+                frameRunId !== renderRuntime.parentRunId;
 
-              if (frameRunId && frameRunId !== parentRunIdRef.current) {
+              if (frameRunId && frameRunId !== renderRuntime.parentRunId) {
                 unchainLogger.log("subagent_frame_routing", {
                   frameType: frame.type,
                   runId: frameRunId,
-                  parentRunId: parentRunIdRef.current || "",
+                  parentRunId: renderRuntime.parentRunId || "",
                   isKnownSubagentRunId: isKnownChild,
                   isUnknownSubagentRunId: isUnknownChild,
                 });
@@ -2650,22 +6476,35 @@ export const useChatStream = ({
                      frames are also routed here. */
                   upsertSubagentMeta(frameRunId, { status: "running" });
                 }
-                if (!subagentFramesByRunIdRef.current.has(frameRunId)) {
-                  subagentFramesByRunIdRef.current.set(frameRunId, []);
+                if (!renderRuntime.subagentFramesByRunId.has(frameRunId)) {
+                  renderRuntime.subagentFramesByRunId.set(frameRunId, []);
                 }
                 processChildToolInteractionSideEffects();
-                subagentFramesByRunIdRef.current.get(frameRunId).push(frame);
+                renderRuntime.subagentFramesByRunId.get(frameRunId).push(frame);
                 dirtySubagentFrameRunIds.add(frameRunId);
 
                 if (
                   frame.type === "error" &&
-                  typeof subagentMetaByRunIdRef.current.get(frameRunId) ===
+                  typeof renderRuntime.subagentMetaByRunId.get(frameRunId) ===
                     "object" &&
-                  subagentMetaByRunIdRef.current.get(frameRunId) !== null
+                  renderRuntime.subagentMetaByRunId.get(frameRunId) !== null
                 ) {
                   upsertSubagentMeta(frameRunId, {
                     status: "failed",
                   });
+                }
+
+                /* A fyi_injected frame emitted by a subagent (child run) must
+                   still persist the parent-assistant interjection and exact-ACK
+                   the durable pending FYI — otherwise the frame is only routed
+                   into the subagent sub-timeline and the pending FYI survives in
+                   the outbox, resurrecting a spurious successor on remount.
+                   Flush the child frame immediately so it is durable before the
+                   ACK clears the outbox entry. */
+                if (frame.type === "fyi_injected") {
+                  syncAssistantSubagentState(patchTime, { immediate: true });
+                  applyFyiParentInterjectionAndAck(frame, patchTime);
+                  return;
                 }
 
                 syncAssistantSubagentState(patchTime, {
@@ -2820,14 +6659,25 @@ export const useChatStream = ({
                   });
                 }
                 if (callId && confirmationId && requiresConfirmation) {
-                  confirmationIdByCallIdRef.current.set(callId, confirmationId);
-                  confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                  const confirmationRuntime =
+                    getConfirmationRuntimeForChat(targetChatId);
+                  confirmationRuntime.confirmationIdByCallId.set(
+                    callId,
+                    confirmationId,
+                  );
+                  confirmationRuntime.confirmationCallIdById.set(
+                    confirmationId,
+                    callId,
+                  );
+                  confirmationRuntime.sessionIdByConfirmationId.set(
+                    confirmationId,
+                    effectiveThreadId,
+                  );
                   if (
-                    confirmationFollowupSignalByIdRef.current.get(
-                      confirmationId,
-                    ) !== true
+                    confirmationRuntime.followupSignalById.get(confirmationId) !==
+                    true
                   ) {
-                    confirmationFollowupSignalByIdRef.current.set(
+                    confirmationRuntime.followupSignalById.set(
                       confirmationId,
                       false,
                     );
@@ -2838,14 +6688,18 @@ export const useChatStream = ({
                     callId,
                     toolName,
                     requestedAt: patchTime,
+                    ownerMessageId: assistantMessageId,
+                    chatId: targetChatId,
+                    sessionId: effectiveThreadId,
                   });
-                  if (isToolCallAutoApprovable(frame)) {
+                  if (isToolCallAutoApprovable(targetChatId, frame)) {
                     submitAutoApprovedToolConfirmation({
+                      targetChatId,
                       confirmationId,
                       request: confirmationRequest,
                     });
                   } else {
-                    updatePendingToolConfirmationRequests((previous) =>
+                    updatePendingToolConfirmationRequests(targetChatId, (previous) =>
                       previous[confirmationId]
                         ? previous
                         : {
@@ -2853,7 +6707,7 @@ export const useChatStream = ({
                             [confirmationId]: confirmationRequest,
                           },
                     );
-                    updateToolConfirmationUiState((previous) =>
+                    updateToolConfirmationUiState(targetChatId, (previous) =>
                       previous[confirmationId]
                         ? previous
                         : {
@@ -2875,7 +6729,15 @@ export const useChatStream = ({
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
                     : "";
-                clearResolvedToolConfirmationByCallId(callId);
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id
+                    : "";
+                clearResolvedToolConfirmationByCallId(
+                  targetChatId,
+                  callId,
+                  confirmationId,
+                );
               } else if (frame.type === "tool_result") {
                 const callId =
                   typeof frame.payload?.call_id === "string"
@@ -2893,11 +6755,18 @@ export const useChatStream = ({
                     result: frame.payload?.result,
                   });
                 }
-                markConfirmationFollowupSignalByCallId(callId);
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id
+                    : "";
+                markConfirmationFollowupSignalByCallId(
+                  targetChatId,
+                  callId,
+                  confirmationId,
+                );
               } else if (frame.type === "error" || frame.type === "done") {
-                markAllPendingConfirmationFollowupSignals();
-                pendingContinuationRequestRef.current = null;
-                setPendingContinuationRequest(null);
+                markAllPendingConfirmationFollowupSignals(targetChatId);
+                updatePendingContinuationRequestForChat(targetChatId, null);
               }
 
               if (frame.type === "final_message") {
@@ -3046,43 +6915,20 @@ export const useChatStream = ({
               }
 
               if (frame.type === "fyi_injected") {
-                const fyiMessages = Array.isArray(frame.payload?.messages)
-                  ? frame.payload.messages
-                  : [];
-                const fyiRecords = fyiMessages
-                  .filter((entry) => entry?.origin === "user")
-                  .map((entry) =>
-                    buildInterjectionRecord({
-                      type: "fyi",
-                      text: typeof entry?.text === "string" ? entry.text : "",
-                      origin: "user",
-                      ts: patchTime,
-                    }),
-                  )
-                  .filter((record) => record.text);
-
-                const nextStreamMessages = streamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  return {
-                    ...message,
-                    updatedAt: patchTime,
-                    traceFrames: [...(message.traceFrames || []), frame],
-                    ...(fyiRecords.length > 0
-                      ? {
-                          interjections: [
-                            ...(message.interjections || []),
-                            ...fyiRecords,
-                          ],
-                        }
-                      : {}),
-                  };
-                });
+                /* Persist the raw frame onto the root assistant's traceFrames
+                   first, then run the shared interjection + exact-ACK handling
+                   (stable ids derived from message_id, deduped by id). */
+                const nextStreamMessages = streamMessages.map((message) =>
+                  message.id === assistantMessageId
+                    ? {
+                        ...message,
+                        updatedAt: patchTime,
+                        traceFrames: [...(message.traceFrames || []), frame],
+                      }
+                    : message,
+                );
                 syncStreamMessages(nextStreamMessages);
-
-                // The server just injected everything that was pending —
-                // clear the "queued" badge for this chat.
-                pendingFyiCountByChatIdRef.current.delete(targetChatId);
-                syncInterjectStateForChat(targetChatId);
+                applyFyiParentInterjectionAndAck(frame, patchTime);
                 return;
               }
 
@@ -3098,12 +6944,15 @@ export const useChatStream = ({
               syncStreamMessages(nextStreamMessages);
             },
             onMeta: (meta) => {
+              if (!isCurrentRun()) {
+                return;
+              }
               if (
                 meta &&
                 typeof meta.thread_id === "string" &&
                 meta.thread_id.trim()
               ) {
-                if (!isCharacterChat) {
+                if (!runIsCharacterChat) {
                   storageApi.setChatThreadId(targetChatId, meta.thread_id, {
                     source: "chat-page",
                   });
@@ -3111,28 +6960,35 @@ export const useChatStream = ({
               }
 
               if (meta && typeof meta.model === "string" && meta.model.trim()) {
-                if (!isCharacterChat) {
+                if (!runIsCharacterChat) {
                   storageApi.setChatModel(
                     targetChatId,
                     { id: meta.model },
                     { source: "chat-page" },
                   );
                 }
-                if (!isCharacterChat && activeChatIdRef.current === targetChatId) {
+                if (
+                  !runIsCharacterChat &&
+                  activeChatIdRef.current === targetChatId
+                ) {
                   modelIdRef.current = meta.model;
                   setSelectedModelId(meta.model);
                 }
               }
             },
             onToken: (delta) => {
-              if (
-                lastTokenRunIdRef.current &&
-                isKnownSubagentRunId(lastTokenRunIdRef.current)
-              ) {
-                lastTokenRunIdRef.current = "";
+              if (!isCurrentRun()) {
                 return;
               }
-              lastTokenRunIdRef.current = "";
+              acknowledgeTurnMutationRun();
+              if (
+                renderRuntime.lastTokenRunId &&
+                isKnownSubagentRunId(renderRuntime.lastTokenRunId)
+              ) {
+                renderRuntime.lastTokenRunId = "";
+                return;
+              }
+              renderRuntime.lastTokenRunId = "";
               if (typeof delta !== "string" || !delta) {
                 return;
               }
@@ -3140,6 +6996,14 @@ export const useChatStream = ({
               thinkTagParser.feed(delta);
             },
             onDone: (done) => {
+              if (!isCurrentRun()) {
+                return;
+              }
+              /* Successful done is authoritative acceptance evidence too — a
+                 very fast run may finish before any token/lifecycle frame was
+                 observed. Consume the relayed turn here as a done fallback. */
+              markRequestConsumed();
+              updatePendingContinuationRequestForChat(targetChatId, null);
               /* Sync closure with external updates before building final messages. */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
@@ -3186,44 +7050,44 @@ export const useChatStream = ({
               // never lost, and mark the frame so the UI stops showing it as
               // pending.
               const pendingClarifyOnDone =
-                pendingClarifyByChatIdRef.current.get(targetChatId);
+                pendingClarifyByChatIdRef.current.get(targetChatId) ||
+                readPendingClarifyForChat(targetChatId);
               if (pendingClarifyOnDone) {
-                pendingClarifyByChatIdRef.current.delete(targetChatId);
-                let queuedTurnsForClarify =
-                  queuedTurnsByChatIdRef.current.get(targetChatId);
-                if (!queuedTurnsForClarify) {
-                  queuedTurnsForClarify = createQueuedTurnBuffer();
-                  queuedTurnsByChatIdRef.current.set(
+                const clarifiedFallback = fallbackPendingClarifyForChat(
+                  targetChatId,
+                );
+                if (clarifiedFallback) {
+                  nextStreamMessages = nextStreamMessages.map((message) => {
+                    if (message.id !== assistantMessageId) return message;
+                    const frames = Array.isArray(message.traceFrames)
+                      ? message.traceFrames
+                      : [];
+                    return {
+                      ...message,
+                      traceFrames: frames.map((frame) =>
+                        frame?.type === "clarify_request" &&
+                        frame?.payload?.id === pendingClarifyOnDone.id
+                          ? {
+                              ...frame,
+                              payload: {
+                                ...frame.payload,
+                                status: "resolved_default",
+                              },
+                            }
+                          : frame,
+                      ),
+                    };
+                  });
+                } else {
+                  setStreamErrorForChat(
                     targetChatId,
-                    queuedTurnsForClarify,
+                    "The pending clarification is still saved and will be recovered after reload.",
                   );
                 }
-                queuedTurnsForClarify.push(pendingClarifyOnDone.text);
-                nextStreamMessages = nextStreamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  const frames = Array.isArray(message.traceFrames)
-                    ? message.traceFrames
-                    : [];
-                  return {
-                    ...message,
-                    traceFrames: frames.map((frame) =>
-                      frame?.type === "clarify_request" &&
-                      frame?.payload?.id === pendingClarifyOnDone.id
-                        ? {
-                            ...frame,
-                            payload: {
-                              ...frame.payload,
-                              status: "resolved_default",
-                            },
-                          }
-                        : frame,
-                    ),
-                  };
-                });
               }
               syncStreamMessages(nextStreamMessages);
 
-              if (!isCharacterChat && nextAgentOrchestration) {
+              if (!runIsCharacterChat && nextAgentOrchestration) {
                 storageApi.setChatAgentOrchestration(
                   targetChatId,
                   nextAgentOrchestration,
@@ -3241,7 +7105,7 @@ export const useChatStream = ({
                 const modelId =
                   typeof bundle.model === "string" && bundle.model.trim()
                     ? bundle.model.trim()
-                    : modelIdRef.current || "";
+                    : runModelId || "";
                 const colonIndex = modelId.indexOf(":");
                 const provider =
                   colonIndex > 0 ? modelId.slice(0, colonIndex) : "unknown";
@@ -3292,7 +7156,18 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
-              clearAllPendingToolConfirmations();
+              clearAllPendingToolConfirmations(targetChatId);
+              if (isDurableResume) {
+                const retryTimer = durableResumeRetryTimersRef.current.get(
+                  targetChatId,
+                );
+                if (retryTimer) {
+                  clearTimeout(retryTimer);
+                  durableResumeRetryTimersRef.current.delete(targetChatId);
+                }
+                clearDurableResumeStartedKeysForChat(targetChatId);
+                updateDurableInteractionForChat(targetChatId, null);
+              }
               flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
@@ -3303,52 +7178,50 @@ export const useChatStream = ({
                 });
               }
 
-              pendingFyiCountByChatIdRef.current.delete(targetChatId);
+              const terminalAttemptId =
+                executionIdentityByChatIdRef.current.get(targetChatId)
+                  ?.attemptId ||
+                queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+                "";
+              const pendingClarifyBtwBarrier =
+                clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+              const holdsExactClarifyBtw = Boolean(
+                pendingClarifyBtwBarrier &&
+                  !pendingClarifyBtwBarrier.settled &&
+                  pendingClarifyBtwBarrier.attemptId === terminalAttemptId &&
+                  pendingClarifyBtwBarrier.runGeneration === activeRunGeneration,
+              );
+              if (terminalAttemptId && !holdsExactClarifyBtw) {
+                fallbackPendingFyisForAttempt(
+                  targetChatId,
+                  terminalAttemptId,
+                );
+              }
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-              // Queue relay: anything queued locally (explicit /queue, a
-              // resolved_channel:"queue" from the server, or the clarify
-              // fallback above) merges into one follow-up turn now that this
-              // run has fully ended and persisted.
-              const queuedTurnsOnDone = queuedTurnsByChatIdRef.current.get(targetChatId);
-              if (queuedTurnsOnDone && queuedTurnsOnDone.size() > 0) {
-                queuedTurnsOnDone.markRelayed();
-                syncInterjectStateForChat(targetChatId);
-                const mergedQueueText = queuedTurnsOnDone.drainMerged();
-                if (mergedQueueText) {
-                  const relayBaseMessages = nextStreamMessages;
-                  const relayCharacterConfig = resolvedCharacterConfig;
-                  setTimeout(() => {
-                    void runTurnRequest({
-                      mode: "send",
-                      chatId: targetChatId,
-                      text: mergedQueueText,
-                      attachments: [],
-                      baseMessages: relayBaseMessages,
-                      clearComposer: false,
-                      missingAttachmentPayloadMode: "block",
-                      characterAgentConfig: relayCharacterConfig,
-                    });
-                  }, 0);
-                }
-                // Give the queue pile one render with status:"relayed" before
-                // the buffer disappears; guard against clobbering a *new*
-                // run's fresh buffer that may have replaced this one by then.
-                setTimeout(() => {
-                  if (
-                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
-                    queuedTurnsOnDone
-                  ) {
-                    queuedTurnsByChatIdRef.current.delete(targetChatId);
-                    syncInterjectStateForChat(targetChatId);
-                  }
-                }, 1600);
-              } else if (queuedTurnsOnDone) {
-                queuedTurnsByChatIdRef.current.delete(targetChatId);
-                syncInterjectStateForChat(targetChatId);
+              const terminalRelayContext = {
+                targetChatId,
+                nextStreamMessages,
+                characterAgentConfig: resolvedCharacterConfig,
+                runContext: effectiveRunContext,
+              };
+              if (holdsExactClarifyBtw) {
+                // The owner is fully persisted/settled above, but its clarify-
+                // owned BTW is still in flight. Hold only terminal queue relay;
+                // the exact barrier releases it after receipt or fallback.
+                pendingClarifyBtwBarrier.terminal = {
+                  status: "done",
+                  relayContext: terminalRelayContext,
+                };
+              } else {
+                relayQueuedTurnsAfterRunRef.current?.(terminalRelayContext);
               }
             },
             onError: (error) => {
+              if (!isCurrentRun()) {
+                return;
+              }
+              updatePendingContinuationRequestForChat(targetChatId, null);
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               flushStreamingMessageStore(targetChatId, assistantMessageId);
@@ -3364,15 +7237,54 @@ export const useChatStream = ({
               }
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
+              const wasCancelled =
+                errorCode === "cancelled" || error?.cancelled === true;
               const errorTime = Date.now();
 
+              if (isDurableResume) {
+                const retrySourceMessages = materializeStreamingMessages(
+                  targetChatId,
+                  streamMessages,
+                );
+                if (scheduleDurableResumeRetry(error, retrySourceMessages)) {
+                  cancelBackgroundPersist(targetChatId);
+                  streamHandlesRef.current.delete(targetChatId);
+                  streamingChatIdsRef.current.delete(targetChatId);
+                  activeStreamsRef.current.delete(targetChatId);
+                  clearStreamingMessageStore(targetChatId, assistantMessageId);
+                  setStreamingChatIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(targetChatId);
+                    return next;
+                  });
+                  activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+                  flushSubagentState(Date.now());
+                  activeFlushScheduler.flushSync();
+                  disposeBufferedTokenFlush();
+                  releaseTokenFlushController();
+                  return;
+                }
+              }
+
               if (
+                !isDurableResume &&
                 errorCode === "memory_unavailable" &&
                 memoryFallbackAttempted !== true
               ) {
                 if (activeChatIdRef.current === targetChatId) {
                   setStreamError(
                     "Memory is unavailable for this request. Retrying with recent history.",
+                  );
+                }
+                const retrySourceAttemptId =
+                  executionIdentityByChatIdRef.current.get(targetChatId)
+                    ?.attemptId ||
+                  queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+                  "";
+                if (retrySourceAttemptId) {
+                  fallbackPendingFyisForAttempt(
+                    targetChatId,
+                    retrySourceAttemptId,
                   );
                 }
                 cancelBackgroundPersist(targetChatId);
@@ -3384,7 +7296,7 @@ export const useChatStream = ({
                   next.delete(targetChatId);
                   return next;
                 });
-                clearAllPendingToolConfirmations();
+                clearAllPendingToolConfirmations(targetChatId);
                 flushSubagentState(Date.now());
                 activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
@@ -3404,11 +7316,43 @@ export const useChatStream = ({
                   clearComposer: false,
                   reuseUserMessage: normalizedReuseUserMessage,
                   missingAttachmentPayloadMode,
+                  extraToolkits,
                   memoryFallbackAttempted: true,
                   forceHistoryFallback: true,
                   historyOverride: retryHistory,
                   characterAgentConfig: resolvedCharacterConfig,
+                  runGeneration: activeRunGeneration,
+                  runContext: effectiveRunContext,
+                  /* This is an internal transparent retry, not a terminal
+                     failure. Carry the queue-relay acceptance callbacks forward
+                     so the retry's acceptance (or its own terminal reject)
+                     settles the relay exactly once. */
+                  onConsumed,
+                  onReject,
+                  relayItemIds,
+                  relayItems,
+                  relaySourceAttemptId,
+                  relaySourceClientOperationId,
                 });
+                return;
+              }
+
+              /* Pre-acceptance ownership rejection of a relayed queue turn: the
+                 server refused the run because another owns the execution lease
+                 (execution_lease_conflict), before any acceptance evidence. Roll
+                 the optimistic turn back so the relay's retry re-adds it exactly
+                 once — never a double successor — then hand control to the
+                 relay's reject callback. This is scoped to the exact lease
+                 conflict code: any other terminal error surfaces normally, and a
+                 normal user send (no onReject) never reaches here. A user cancel
+                 is excluded (wasCancelled) so Stop never resurrects the turn. */
+              if (
+                !requestConsumed &&
+                !wasCancelled &&
+                errorCode === "execution_lease_conflict" &&
+                typeof onReject === "function"
+              ) {
+                rejectQueueRelayBeforeAcceptance();
                 return;
               }
 
@@ -3421,7 +7365,11 @@ export const useChatStream = ({
               const traceHasContent =
                 Array.isArray(currentAssistantMsg?.traceFrames) &&
                 currentAssistantMsg.traceFrames.length > 0;
-              if (activeChatIdRef.current === targetChatId && !traceHasContent) {
+              if (
+                !wasCancelled &&
+                activeChatIdRef.current === targetChatId &&
+                !traceHasContent
+              ) {
                 setStreamError(errorMessage);
               }
               streamHandlesRef.current.delete(targetChatId);
@@ -3431,7 +7379,7 @@ export const useChatStream = ({
                 next.delete(targetChatId);
                 return next;
               });
-              clearAllPendingToolConfirmations();
+              clearAllPendingToolConfirmations(targetChatId);
               flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
@@ -3449,6 +7397,17 @@ export const useChatStream = ({
                 const hasTrace =
                   Array.isArray(message.traceFrames) &&
                   message.traceFrames.length > 0;
+
+                if (wasCancelled) {
+                  return finalizeStreamingMessage(message, {
+                    status: "cancelled",
+                    updatedAt: errorTime,
+                    content:
+                      typeof message.content === "string"
+                        ? message.content
+                        : "",
+                  });
+                }
 
                 const errorFrame = {
                   seq: (message.traceFrames?.length || 0) + 1,
@@ -3483,40 +7442,40 @@ export const useChatStream = ({
               // error, so resolve any pending clarify into the queued-turns
               // buffer here too; the message must never be silently dropped.
               const pendingClarifyOnError =
-                pendingClarifyByChatIdRef.current.get(targetChatId);
+                pendingClarifyByChatIdRef.current.get(targetChatId) ||
+                readPendingClarifyForChat(targetChatId);
               if (pendingClarifyOnError) {
-                pendingClarifyByChatIdRef.current.delete(targetChatId);
-                let queuedTurnsForClarify =
-                  queuedTurnsByChatIdRef.current.get(targetChatId);
-                if (!queuedTurnsForClarify) {
-                  queuedTurnsForClarify = createQueuedTurnBuffer();
-                  queuedTurnsByChatIdRef.current.set(
+                const clarifiedFallback = fallbackPendingClarifyForChat(
+                  targetChatId,
+                );
+                if (clarifiedFallback) {
+                  nextStreamMessages = nextStreamMessages.map((message) => {
+                    if (message.id !== assistantMessageId) return message;
+                    const frames = Array.isArray(message.traceFrames)
+                      ? message.traceFrames
+                      : [];
+                    return {
+                      ...message,
+                      traceFrames: frames.map((frame) =>
+                        frame?.type === "clarify_request" &&
+                        frame?.payload?.id === pendingClarifyOnError.id
+                          ? {
+                              ...frame,
+                              payload: {
+                                ...frame.payload,
+                                status: "resolved_default",
+                              },
+                            }
+                          : frame,
+                      ),
+                    };
+                  });
+                } else {
+                  setStreamErrorForChat(
                     targetChatId,
-                    queuedTurnsForClarify,
+                    "The pending clarification is still saved and will be recovered after reload.",
                   );
                 }
-                queuedTurnsForClarify.push(pendingClarifyOnError.text);
-                nextStreamMessages = nextStreamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  const frames = Array.isArray(message.traceFrames)
-                    ? message.traceFrames
-                    : [];
-                  return {
-                    ...message,
-                    traceFrames: frames.map((frame) =>
-                      frame?.type === "clarify_request" &&
-                      frame?.payload?.id === pendingClarifyOnError.id
-                        ? {
-                            ...frame,
-                            payload: {
-                              ...frame.payload,
-                              status: "resolved_default",
-                            },
-                          }
-                        : frame,
-                    ),
-                  };
-                });
               }
               syncStreamMessages(nextStreamMessages);
               if (activeChatIdRef.current !== targetChatId) {
@@ -3525,53 +7484,79 @@ export const useChatStream = ({
               clearStreamingMessageStore(targetChatId, assistantMessageId);
               activeStreamsRef.current.delete(targetChatId);
 
-              pendingFyiCountByChatIdRef.current.delete(targetChatId);
+              const failedAttemptId =
+                executionIdentityByChatIdRef.current.get(targetChatId)
+                  ?.attemptId ||
+                queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+                "";
+              const pendingClarifyBtwBarrier =
+                clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+              const ownsFailedClarifyBtw = Boolean(
+                pendingClarifyBtwBarrier &&
+                  !pendingClarifyBtwBarrier.settled &&
+                  pendingClarifyBtwBarrier.attemptId === failedAttemptId &&
+                  pendingClarifyBtwBarrier.runGeneration === activeRunGeneration,
+              );
+              if (ownsFailedClarifyBtw) {
+                pendingClarifyBtwBarrier.terminal = {
+                  status: wasCancelled ? "cancelled" : "error",
+                  relayContext: {
+                    targetChatId,
+                    nextStreamMessages,
+                    characterAgentConfig: resolvedCharacterConfig,
+                    runContext: effectiveRunContext,
+                  },
+                };
+                settleClarifyBtwBarrier(pendingClarifyBtwBarrier, {
+                  disposition: "migrate",
+                });
+              } else if (failedAttemptId) {
+                fallbackPendingFyisForAttempt(
+                  targetChatId,
+                  failedAttemptId,
+                );
+              }
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-              const queuedTurnsOnError = queuedTurnsByChatIdRef.current.get(targetChatId);
-              if (queuedTurnsOnError && queuedTurnsOnError.size() > 0) {
-                queuedTurnsOnError.markRelayed();
-                syncInterjectStateForChat(targetChatId);
-                const mergedQueueText = queuedTurnsOnError.drainMerged();
-                if (mergedQueueText) {
-                  const relayBaseMessages = nextStreamMessages;
-                  const relayCharacterConfig = resolvedCharacterConfig;
-                  setTimeout(() => {
-                    void runTurnRequest({
-                      mode: "send",
-                      chatId: targetChatId,
-                      text: mergedQueueText,
-                      attachments: [],
-                      baseMessages: relayBaseMessages,
-                      clearComposer: false,
-                      missingAttachmentPayloadMode: "block",
-                      characterAgentConfig: relayCharacterConfig,
-                    });
-                  }, 0);
-                }
-                setTimeout(() => {
-                  if (
-                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
-                    queuedTurnsOnError
-                  ) {
-                    queuedTurnsByChatIdRef.current.delete(targetChatId);
-                    syncInterjectStateForChat(targetChatId);
-                  }
-                }, 1600);
-              } else if (queuedTurnsOnError) {
-                queuedTurnsByChatIdRef.current.delete(targetChatId);
+              const queuedTurnsOnError =
+                queuedTurnsByChatIdRef.current.get(targetChatId);
+              if (queuedTurnsOnError) {
+                // Preserve queued input after an error. Only a normal onDone
+                // may automatically relay it into a new generation.
                 syncInterjectStateForChat(targetChatId);
               }
             },
           },
         );
       } catch (error) {
+        if (!isCurrentRun()) {
+          return false;
+        }
         flushSubagentState(Date.now());
         activeFlushScheduler.flushSync();
         disposeBufferedTokenFlush();
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
-        setStreamError(errorMessage);
+        // C12 / FM15: a custom provider's send-time fail-closed throw carries a
+        // structured code (see api.unchain.injectCustomProviderIntoPayload).
+        // Surface an actionable toast instead of letting it fall into the
+        // generic error bubble with no way forward.
+        emitCustomProviderSendErrorToast(error, tRef.current);
+        if (scheduleDurableResumeRetry(error, nextMessages)) {
+          cancelBackgroundPersist(targetChatId);
+          streamHandlesRef.current.delete(targetChatId);
+          streamingChatIdsRef.current.delete(targetChatId);
+          activeStreamsRef.current.delete(targetChatId);
+          clearStreamingMessageStore(targetChatId, assistantMessageId);
+          setStreamingChatIds((prev) => {
+            const next = new Set(prev);
+            next.delete(targetChatId);
+            return next;
+          });
+          activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+          return true;
+        }
+        setStreamErrorForChat(targetChatId, errorMessage);
         cancelBackgroundPersist(targetChatId);
         streamHandlesRef.current.delete(targetChatId);
         streamingChatIdsRef.current.delete(targetChatId);
@@ -3584,22 +7569,171 @@ export const useChatStream = ({
         });
         activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-        setMessages(
-          nextMessages.map((message) =>
-            message.id === assistantMessageId
-              ? {
-                  ...message,
-                  status: "error",
-                  updatedAt: Date.now(),
-                  content: `[error] ${errorMessage}`,
-                }
-              : message,
-          ),
+        const failedMessages = nextMessages.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                status: "error",
+                updatedAt: Date.now(),
+                content: `[error] ${errorMessage}`,
+              }
+            : message,
         );
+        commitForegroundMessages(targetChatId, failedMessages);
+        storageApi.setChatMessages(targetChatId, failedMessages, {
+          source: "chat-page",
+        });
         return false;
       }
 
       streamHandlesRef.current.set(targetChatId, streamHandle);
+
+      const streamAttemptId =
+        typeof streamHandle?.attemptId === "string" &&
+        streamHandle.attemptId.trim()
+          ? streamHandle.attemptId.trim()
+          : typeof streamHandle?.requestId === "string"
+            ? streamHandle.requestId.trim()
+            : "";
+      const previousAttemptId =
+        executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+        "";
+      if (
+        streamAttemptId &&
+        previousAttemptId &&
+        previousAttemptId !== streamAttemptId
+      ) {
+        fallbackPendingFyisForAttempt(targetChatId, previousAttemptId);
+      }
+      if (effectiveThreadId && streamAttemptId) {
+        executionIdentityByChatIdRef.current.set(targetChatId, {
+          sessionId: effectiveThreadId,
+          attemptId: streamAttemptId,
+          requestId:
+            typeof streamHandle?.requestId === "string"
+              ? streamHandle.requestId.trim()
+              : "",
+          sourceAttemptId: isDurableResume
+            ? durableInteraction.sourceRunId || ""
+            : "",
+          runGeneration: activeRunGeneration,
+        });
+        syncPendingFyiStateForAttempt(targetChatId, streamAttemptId);
+      }
+      const queuedTurnsForIdentity =
+        queuedTurnsByChatIdRef.current.get(targetChatId);
+      const relayStateForBinding =
+        queueRelayAttemptsByChatIdRef.current.get(targetChatId);
+      const relayInFlightIds = new Set(
+        exactRelayItemIds.size > 0
+          ? exactRelayItemIds
+          : isQueueRelayRequest &&
+              relayStateForBinding?.buffer === queuedTurnsForIdentity &&
+              Array.isArray(relayStateForBinding.inFlightIds)
+            ? relayStateForBinding.inFlightIds
+            : [],
+      );
+      const sourceQueueAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) ||
+        (typeof relaySourceAttemptId === "string"
+          ? relaySourceAttemptId.trim()
+          : "");
+      const sourceQueueClientOperationId =
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+        (typeof relaySourceClientOperationId === "string"
+          ? relaySourceClientOperationId.trim()
+          : "");
+      const durableClarifyForIdentity =
+        readPendingClarifyForChat(targetChatId);
+      if (
+        streamAttemptId &&
+        (queuedTurnsForIdentity ||
+          exactRelayItems.length > 0 ||
+          durableClarifyForIdentity)
+      ) {
+        const queuedItemsForBinding = queuedTurnsForIdentity
+          ? queuedTurnsForIdentity.snapshot()
+          : exactRelayItems;
+        const bound = bindQueuedTurnOwnersToAttempt({
+          chatId: targetChatId,
+          targetAttemptId: streamAttemptId,
+          sourceAttemptId: sourceQueueAttemptId,
+          clientOperationIds: [
+            sourceQueueClientOperationId,
+            runClientOperationId,
+          ].filter(Boolean),
+          ...(queuedTurnsForIdentity || exactRelayItems.length > 0
+            ? {
+                /* A queue relay is not consumed when the transport merely
+                   returns a handle. Preserve only this relay's exact in-flight
+                   ids plus the true queued remainder under the new attempt.
+                   Older accepted ids can coexist in the shared buffer during
+                   their delayed visual cleanup and must never be resurrected.
+                   A synchronous acceptance may happen before handle return; in
+                   that case bind only the true remainder. Normal non-relay
+                   sends retain the existing queued-only behavior. */
+                items:
+                  isQueueRelayRequest
+                    ? !requestConsumed
+                      ? queuedItemsForBinding
+                        .filter(
+                          (item) =>
+                            item.status === "queued" ||
+                            relayInFlightIds.has(item.id),
+                        )
+                        .map((item) => ({
+                          ...item,
+                          status: relayInFlightIds.has(item.id)
+                            ? "relayed"
+                            : "queued",
+                        }))
+                      : queuedTurnsForIdentity
+                        ? queuedItemsForBinding.filter(
+                            (item) => item.status === "queued",
+                          )
+                        : []
+                    : queuedItemsForBinding.filter(
+                        (item) => item.status === "queued",
+                      ),
+              }
+            : {}),
+        });
+        if (!bound) {
+          setStreamErrorForChat(
+            targetChatId,
+            "The run started, but its queued messages could not be rebound safely.",
+          );
+        } else {
+          if (queuedTurnsForIdentity) {
+            const relayState = queueRelayAttemptsByChatIdRef.current.get(
+              targetChatId,
+            );
+            if (
+              isQueueRelayRequest &&
+              relayState?.buffer === queuedTurnsForIdentity &&
+              relayState.attemptId === sourceQueueAttemptId &&
+              relayState.clientOperationId === sourceQueueClientOperationId
+            ) {
+              relayState.attemptId = streamAttemptId;
+              relayState.clientOperationId = "";
+            }
+            queueAttemptIdByChatIdRef.current.set(
+              targetChatId,
+              streamAttemptId,
+            );
+            queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+          }
+          const reboundClarify = bound.clarifies.find(
+            (item) => item.id === durableClarifyForIdentity?.id,
+          );
+          if (reboundClarify) {
+            pendingClarifyByChatIdRef.current.set(
+              targetChatId,
+              reboundClarify,
+            );
+          }
+        }
+      }
 
       if (streamHandle?.requestId) {
         const nextStreamMessages = streamMessages.map((message) =>
@@ -3609,100 +7743,2515 @@ export const useChatStream = ({
                 meta: {
                   ...(message.meta || {}),
                   requestId: streamHandle.requestId,
+                  ...(streamAttemptId
+                    ? {
+                        attemptId: streamAttemptId,
+                        executionSessionId: effectiveThreadId,
+                      }
+                    : {}),
                 },
               }
             : message,
         );
         syncStreamMessages(nextStreamMessages);
+        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
+          source: "stream-identity",
+        });
       }
+
+      scheduleQueueRelayAcceptanceReconciliation();
 
       return true;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeChatIdRef,
+      composerRevisionByChatIdRef,
       activeStreamsRef,
       appendSyntheticToolConfirmationDecision,
+      beginRunGeneration,
       buildCharacterRunConfig,
       buildHistoryForModel,
       characterId,
+      commitForegroundMessages,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
+      clearDurableResumeStartedKeysForChat,
       clearResolvedToolConfirmationByCallId,
+      fallbackPendingClarifyForChat,
+      fallbackPendingFyisForAttempt,
+      getConfirmationRuntimeForChat,
       hydrateAttachmentPayloads,
       agentOrchestration,
+      isChatRunPending,
       isCharacterChat,
+      isRunGenerationCurrent,
       isToolCallAutoApprovable,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
       messagesRef,
+      persistQueuedTurnBufferForAttempt,
       resolveAttachmentPayloads,
+      scheduleQueueRelayTimer,
+      scheduleQueueRelayRetryTimer,
       selectedToolkits,
       selectedWorkspaceIds,
       selectedRecipeName,
+      settleClarifyBtwBarrier,
       setDraftAttachments,
       setInputValue,
       setMessages,
       setAgentOrchestration,
       setSelectedModelId,
       setStreamError,
+      setStreamErrorForChat,
       storageApi,
       submitAutoApprovedToolConfirmation,
       systemPromptOverrides,
+      threadIdRef,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+      updatePendingContinuationRequestForChat,
+    ],
+  );
+
+  const relayQueuedTurnsAfterRun = useCallback(
+    ({
+      targetChatId,
+      nextStreamMessages,
+      characterAgentConfig = null,
+      runContext = null,
+    }) => {
+      const queuedTurnsOnDone =
+        queuedTurnsByChatIdRef.current.get(targetChatId);
+      const queueAttemptId =
+        queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+      const queueClientOperationId =
+        queueClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+      if (!queuedTurnsOnDone || queuedTurnsOnDone.size() === 0) {
+        if (queuedTurnsOnDone) {
+          queuedTurnsByChatIdRef.current.delete(targetChatId);
+          queueAttemptIdByChatIdRef.current.delete(targetChatId);
+          if (queueAttemptId) {
+            removeQueuedTurnsForAttempt(targetChatId, queueAttemptId);
+          }
+          syncInterjectStateForChat(targetChatId);
+        }
+        return;
+      }
+
+      const queuedSnapshot = queuedTurnsOnDone.peekMerged();
+      if (!queuedSnapshot.text) return;
+
+      let relayState =
+        queueRelayAttemptsByChatIdRef.current.get(targetChatId);
+      if (!relayState || relayState.buffer !== queuedTurnsOnDone) {
+        relayState = {
+          buffer: queuedTurnsOnDone,
+          attemptId: queueAttemptId,
+          clientOperationId: queueClientOperationId,
+          inFlight: false,
+          inFlightIds: [],
+          retryCount: 0,
+          attempt: null,
+        };
+        const relayOwnerIsCurrent = () => {
+          if (
+            queuedTurnsByChatIdRef.current.get(targetChatId) !==
+            queuedTurnsOnDone
+          ) {
+            return false;
+          }
+          if (relayState.attemptId) {
+            return (
+              (queueAttemptIdByChatIdRef.current.get(targetChatId) || "") ===
+              relayState.attemptId
+            );
+          }
+          return Boolean(
+            relayState.clientOperationId &&
+              (queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+                "") === relayState.clientOperationId,
+          );
+        };
+        relayState.attempt = () => {
+          if (
+            !relayOwnerIsCurrent() ||
+            relayState.inFlight
+          ) {
+            return;
+          }
+          const relaySnapshot = queuedTurnsOnDone.peekMerged();
+          if (!relaySnapshot.text) return;
+          const relayIds = new Set(relaySnapshot.ids);
+          const relayDurableItems = queuedTurnsOnDone
+            .snapshot()
+            .filter((item) => relayIds.has(item.id))
+            .map((item) => ({ ...item, status: "queued" }));
+          if (
+            isChatRunPending(targetChatId) ||
+            durableInteractionByChatIdRef.current[targetChatId]?.status
+          ) {
+            relayState.retryCount += 1;
+            scheduleQueueRelayRetryTimer(
+              targetChatId,
+              relayState.attempt,
+              Math.min(
+                4000,
+                250 * 2 ** Math.min(relayState.retryCount - 1, 4),
+              ),
+            );
+            return;
+          }
+
+          relayState.inFlight = true;
+          relayState.inFlightIds = [...relaySnapshot.ids];
+          queuedTurnsOnDone.markRelayed(relaySnapshot.ids);
+          syncInterjectStateForChat(targetChatId);
+          let relayConsumed = false;
+          let relayRejected = false;
+          const removeConsumedRelayFromOutbox = () => {
+            const consumedIds = new Set(relaySnapshot.ids);
+            const durableRemainder = queuedTurnsOnDone
+              .snapshot()
+              .filter(
+                (item) =>
+                  item.status === "queued" && !consumedIds.has(item.id),
+              );
+            if (relayState.attemptId && durableRemainder.length > 0) {
+              writeQueuedTurnsForAttempt({
+                chatId: targetChatId,
+                attemptId: relayState.attemptId,
+                items: durableRemainder,
+              });
+            } else if (relayState.attemptId) {
+              removeQueuedTurnsForAttempt(
+                targetChatId,
+                relayState.attemptId,
+              );
+            } else if (
+              relayState.clientOperationId &&
+              durableRemainder.length > 0
+            ) {
+              writeQueuedTurnsForClientOperation({
+                chatId: targetChatId,
+                clientOperationId: relayState.clientOperationId,
+                items: durableRemainder,
+              });
+            } else if (relayState.clientOperationId) {
+              removeQueuedTurnsForClientOperation(
+                targetChatId,
+                relayState.clientOperationId,
+              );
+            }
+          };
+          const retryUnconsumedRelay = () => {
+            if (!relayOwnerIsCurrent()) {
+              return;
+            }
+            queuedTurnsOnDone.markQueued(relaySnapshot.ids);
+            persistQueuedTurnBufferForAttempt(
+              targetChatId,
+              queuedTurnsOnDone,
+              relayState.attemptId,
+              relayState.clientOperationId,
+              { preserveRelayed: false },
+            );
+            syncInterjectStateForChat(targetChatId);
+            relayState.retryCount += 1;
+            scheduleQueueRelayRetryTimer(
+              targetChatId,
+              relayState.attempt,
+              Math.min(
+                4000,
+                250 * 2 ** Math.min(relayState.retryCount - 1, 4),
+              ),
+            );
+          };
+          const acknowledgeConsumedRelay = () => {
+            queueRelayAttemptsByChatIdRef.current.delete(targetChatId);
+            scheduleQueueRelayRetryTimer(
+              targetChatId,
+              () => {
+                if (
+                  queuedTurnsByChatIdRef.current.get(targetChatId) !==
+                  queuedTurnsOnDone
+                ) {
+                  /* The accepted ids were reconciled synchronously above. A
+                     replacement buffer may now contain fresh clarify/FYI work
+                     under the same owner, so this old visual cleanup must not
+                     mutate durable state it no longer owns. */
+                  return;
+                }
+                queuedTurnsOnDone.removeMany(relaySnapshot.ids);
+                const currentRelayState =
+                  queueRelayAttemptsByChatIdRef.current.get(targetChatId);
+                const newerRelayOwnsBuffer = Boolean(
+                  currentRelayState &&
+                    currentRelayState !== relayState &&
+                    currentRelayState.buffer === queuedTurnsOnDone,
+                );
+                if (!newerRelayOwnsBuffer) {
+                  const currentQueueAttemptId =
+                    queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
+                  const currentQueueClientOperationId =
+                    queueClientOperationIdByChatIdRef.current.get(targetChatId) ||
+                    "";
+                  persistQueuedTurnBufferForAttempt(
+                    targetChatId,
+                    queuedTurnsOnDone,
+                    currentQueueAttemptId,
+                    currentQueueClientOperationId,
+                  );
+                }
+                if (queuedTurnsOnDone.size() === 0) {
+                  queuedTurnsByChatIdRef.current.delete(targetChatId);
+                  queueAttemptIdByChatIdRef.current.delete(targetChatId);
+                  queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+                }
+                syncInterjectStateForChat(targetChatId);
+              },
+              1600,
+            );
+          };
+          const relayBaseMessages =
+            storageApi.getChatMessages?.(targetChatId) ||
+            (activeChatIdRef.current === targetChatId &&
+            Array.isArray(messagesRef.current)
+              ? messagesRef.current
+              : nextStreamMessages);
+          void runTurnRequest({
+            mode: "send",
+            chatId: targetChatId,
+            text: relaySnapshot.text,
+            attachments: [],
+            baseMessages: relayBaseMessages,
+            clearComposer: false,
+            missingAttachmentPayloadMode: "block",
+            characterAgentConfig,
+            runContext,
+            /* onConsumed fires only on authoritative server acceptance. Only
+               then may we remove the durable outbox data and schedule the 1.6s
+               cleanup — never merely because startStream returned a handle. */
+            onConsumed: () => {
+              if (relayConsumed || relayRejected) return;
+              relayConsumed = true;
+              relayState.inFlight = false;
+              removeConsumedRelayFromOutbox();
+              acknowledgeConsumedRelay();
+            },
+            /* onReject fires on a terminal pre-acceptance failure (e.g. an
+               execution_lease_conflict) that was not a user cancel. Reset
+               relayed->queued and retry, but only if the same buffer+owner is
+               still current. */
+            onReject: () => {
+              if (relayConsumed || relayRejected) return;
+              relayRejected = true;
+              relayState.inFlight = false;
+              retryUnconsumedRelay();
+            },
+            relayItemIds: relaySnapshot.ids,
+            relayItems: relayDurableItems,
+            relaySourceAttemptId: relayState.attemptId,
+            relaySourceClientOperationId: relayState.clientOperationId,
+          })
+            .then((started) => {
+              /* The promise resolves when startStream returns a handle — that
+                 is NOT acceptance. Acceptance (onConsumed) and pre-accept
+                 rejection (onReject) are both delivered asynchronously via the
+                 stream callbacks, so wait for them. When the run never started
+                 at all (early return / synchronous startup throw) leave the
+                 durable outbox intact for later recovery and do NOT auto-retry
+                 here — an immediate retry could duplicate the optimistic turn. */
+              if (!started && !relayConsumed && !relayRejected) {
+                relayState.inFlight = false;
+              }
+            })
+            .catch(() => {
+              /* runTurnRequest itself rejected before any acceptance. Treat it
+                 like a pre-accept rejection: reset relayed->queued and retry,
+                 guarded on the same buffer+owner. */
+              if (!relayConsumed && !relayRejected) {
+                relayRejected = true;
+                relayState.inFlight = false;
+                retryUnconsumedRelay();
+              }
+            });
+        };
+        queueRelayAttemptsByChatIdRef.current.set(targetChatId, relayState);
+      }
+      scheduleQueueRelayRetryTimer(targetChatId, relayState.attempt, 0);
+    },
+    [
+      activeChatIdRef,
+      isChatRunPending,
+      messagesRef,
+      persistQueuedTurnBufferForAttempt,
+      runTurnRequest,
+      scheduleQueueRelayRetryTimer,
+      storageApi,
+      syncInterjectStateForChat,
+    ],
+  );
+  relayQueuedTurnsAfterRunRef.current = relayQueuedTurnsAfterRun;
+
+  const lookupDurableInteraction = useCallback(
+    async (
+      targetChatId,
+      targetSessionId,
+      {
+        autoResume = true,
+        lookupAttempt = 0,
+        runGeneration: requestedRunGeneration = null,
+        authoritativePending = null,
+      } = {},
+    ) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      const normalizedSessionId =
+        typeof targetSessionId === "string" ? targetSessionId.trim() : "";
+      if (!normalizedChatId || !normalizedSessionId) {
+        return null;
+      }
+      const activeRunGeneration =
+        Number.isInteger(requestedRunGeneration) && requestedRunGeneration > 0
+          ? requestedRunGeneration
+          : ensureRecoveryRunGeneration(normalizedChatId);
+      const isCurrentLookup = () =>
+        isRunGenerationCurrent(normalizedChatId, activeRunGeneration);
+      if (!isCurrentLookup()) {
+        return null;
+      }
+      if (
+        typeof api.unchain.isDurableInteractionBridgeAvailable !==
+          "function" ||
+        !api.unchain.isDurableInteractionBridgeAvailable()
+      ) {
+        updateDurableInteractionForChat(normalizedChatId, null);
+        return null;
+      }
+
+      try {
+        const rawPending = isObject(authoritativePending)
+          ? authoritativePending
+          : await api.unchain.getPendingInteraction({
+              session_id: normalizedSessionId,
+            });
+        const pending = normalizePendingInteraction(
+          rawPending,
+          normalizedSessionId,
+        );
+        if (!isCurrentLookup()) {
+          if (
+            stoppedRunChatIdsRef.current.has(normalizedChatId) &&
+            pending &&
+            pending.status !== "none"
+          ) {
+            const lateAttemptId =
+              pending.activeAttemptId || pending.sourceRunId || "";
+            if (lateAttemptId) {
+              const queuedCancellation = enqueueExecutionCancel({
+                sessionId: pending.sessionId,
+                attemptId: lateAttemptId,
+                sourceAttemptId: pending.sourceRunId || "",
+                reason: "user_stop",
+                createdAt: Date.now(),
+              });
+              void requestExecutionCancellationAndDisconnect({
+                identity: queuedCancellation,
+                handle: null,
+                reason: "user_stop",
+              }).then((result) => {
+                if (result?.ok && queuedCancellation) {
+                  removeExecutionCancel(
+                    queuedCancellation.sessionId,
+                    queuedCancellation.attemptId,
+                  );
+                }
+              });
+            }
+          }
+          return null;
+        }
+        if (!pending) {
+          const error = new Error(
+            "Unchain returned an invalid durable interaction record.",
+          );
+          error.code = "invalid_durable_interaction_record";
+          throw error;
+        }
+
+        if (pending.status === "none") {
+          const retryTimer = durableResumeRetryTimersRef.current.get(
+            normalizedChatId,
+          );
+          if (retryTimer) {
+            clearTimeout(retryTimer);
+            durableResumeRetryTimersRef.current.delete(normalizedChatId);
+          }
+          clearAllPendingToolConfirmations(normalizedChatId);
+          executionIdentityByChatIdRef.current.delete(normalizedChatId);
+          updateDurableInteractionForChat(normalizedChatId, null);
+          return pending;
+        }
+
+        const pendingAttemptId =
+          pending.activeAttemptId || pending.sourceRunId || "";
+        if (pendingAttemptId) {
+          executionIdentityByChatIdRef.current.set(normalizedChatId, {
+            sessionId: pending.sessionId,
+            attemptId: pendingAttemptId,
+            requestId: "",
+            sourceAttemptId: pending.sourceRunId || "",
+            runGeneration: activeRunGeneration,
+          });
+        }
+
+        clearAllPendingToolConfirmations(normalizedChatId);
+        let sourceMessages =
+          activeChatIdRef.current === normalizedChatId &&
+          Array.isArray(messagesRef.current)
+            ? messagesRef.current
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedChatId)
+              : [];
+        const pendingMutationEntry = readTurnMutationOutbox().find(
+          (entry) => entry.chatId === normalizedChatId,
+        );
+        if (pendingMutationEntry) {
+          const pendingAttemptIds = new Set(
+            [pending.activeAttemptId, pending.sourceRunId]
+              .filter((value) => typeof value === "string")
+              .map((value) => value.trim())
+              .filter(Boolean),
+          );
+          const belongsToMutation = pendingAttemptIds.has(
+            pendingMutationEntry.operationId,
+          );
+          if (belongsToMutation) {
+            let changed = false;
+            sourceMessages = sourceMessages.map((message) => {
+              if (
+                message?.role !== "assistant" ||
+                message?.meta?.turnMutationOperationId !==
+                  pendingMutationEntry.operationId ||
+                message?.meta?.turnMutationServerAcknowledged === true
+              ) {
+                return message;
+              }
+              changed = true;
+              return {
+                ...message,
+                meta: {
+                  ...(message.meta || {}),
+                  turnMutationServerAcknowledged: true,
+                },
+              };
+            });
+            if (changed) {
+              commitForegroundMessages(normalizedChatId, sourceMessages);
+              storageApi.setChatMessages(normalizedChatId, sourceMessages, {
+                source: "turn-mutation-durable-reconciliation",
+              });
+            }
+          } else {
+            if (
+              isTurnMutationOptimisticWithoutAck(
+                pendingMutationEntry,
+                sourceMessages,
+              )
+            ) {
+              sourceMessages = sourceMessages.slice(
+                0,
+                pendingMutationEntry.baseMessageCount,
+              );
+              commitForegroundMessages(normalizedChatId, sourceMessages);
+              storageApi.setChatMessages(normalizedChatId, sourceMessages, {
+                source: "turn-mutation-superseded-rollback",
+              });
+            }
+            setStreamErrorForChat(
+              normalizedChatId,
+              "A newer server-side run superseded an unfinished local message operation.",
+            );
+          }
+          removeTurnMutation(pendingMutationEntry.operationId);
+          turnMutationRecoveryAttemptsRef.current.delete(
+            pendingMutationEntry.operationId,
+          );
+          const mutationOwner =
+            turnMutationByChatIdRef.current.get(normalizedChatId);
+          if (
+            mutationOwner?.operationId === pendingMutationEntry.operationId
+          ) {
+            releaseTurnMutation(mutationOwner);
+          }
+        }
+        const ensured = ensureDurableInteractionMessage(
+          sourceMessages,
+          pending,
+        );
+        if (ensured.created) {
+          commitForegroundMessages(normalizedChatId, ensured.messages);
+          storageApi.setChatMessages(normalizedChatId, ensured.messages, {
+            source: "chat-page",
+          });
+        }
+
+        const runtime = getConfirmationRuntimeForChat(normalizedChatId);
+        runtime.confirmationIdByCallId.set(
+          pending.callId,
+          pending.interactionId,
+        );
+        runtime.confirmationCallIdById.set(
+          pending.interactionId,
+          pending.callId,
+        );
+        runtime.sessionIdByConfirmationId.set(
+          pending.interactionId,
+          pending.sessionId,
+        );
+        runtime.followupSignalById.set(pending.interactionId, false);
+
+        const confirmationRequest = buildRecoveredConfirmationRequest({
+          pending,
+          chatId: normalizedChatId,
+          ownerMessageId: ensured.ownerMessageId,
+        });
+        updatePendingToolConfirmationRequests(normalizedChatId, {
+          [pending.interactionId]: confirmationRequest,
+        });
+        updateToolConfirmationUiState(normalizedChatId, {
+          [pending.interactionId]: {
+            status:
+              pending.status === "receipt_recorded" ? "submitted" : "idle",
+            error: "",
+            resolved: pending.status === "receipt_recorded",
+            decision:
+              pending.resolution?.outcome === "approved"
+                ? "approved"
+                : pending.resolution?.outcome === "denied"
+                  ? "denied"
+                  : "",
+          },
+        });
+
+        const pendingWithOwner = {
+          ...pending,
+          ownerMessageId: ensured.ownerMessageId,
+        };
+        updateDurableInteractionForChat(normalizedChatId, pendingWithOwner);
+
+        if (pending.status !== "receipt_recorded") {
+          return pendingWithOwner;
+        }
+
+        const resolutionResponse = pending.resolution?.response;
+        const approved =
+          pending.resolution?.outcome === "approved" ||
+          resolutionResponse?.approved === true;
+        const recoveredUserResponse =
+          resolutionResponse?.user_response ??
+          resolutionResponse?.modified_arguments?.user_response ??
+          (Array.isArray(resolutionResponse?.selected_values)
+            ? resolutionResponse
+            : undefined);
+        appendSyntheticToolConfirmationDecision({
+          targetChatId: normalizedChatId,
+          confirmationId: pending.interactionId,
+          approved,
+          userResponse: recoveredUserResponse,
+        });
+
+        if (!pending.resumeAvailable) {
+          const unavailableMessage = pending.resumeUnavailableReason
+            ? `This interrupted run cannot be resumed (${pending.resumeUnavailableReason}).`
+            : "This interrupted run cannot be resumed.";
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...pendingWithOwner,
+            status: "resume_failed",
+            lastError: unavailableMessage,
+          });
+          if (activeChatIdRef.current === normalizedChatId) {
+            setStreamError(unavailableMessage);
+          }
+          return pendingWithOwner;
+        }
+
+        if (
+          !autoResume ||
+          streamingChatIdsRef.current.has(normalizedChatId) ||
+          runPreflightGenerationByChatIdRef.current.has(normalizedChatId) ||
+          turnMutationByChatIdRef.current.has(normalizedChatId)
+        ) {
+          return pendingWithOwner;
+        }
+
+        const resumeKey = [
+          pending.sessionId,
+          pending.interactionId,
+          pending.receiptId || "",
+        ].join(":");
+        if (durableResumeStartedKeysRef.current.has(resumeKey)) {
+          return pendingWithOwner;
+        }
+        trackDurableResumeStartedKey(normalizedChatId, resumeKey);
+        updateDurableInteractionForChat(normalizedChatId, {
+          ...pendingWithOwner,
+          status: "resuming",
+          resumeAttempt: 0,
+          lastError: "",
+        });
+
+        const resumeMessages =
+          activeChatIdRef.current === normalizedChatId &&
+          Array.isArray(messagesRef.current)
+            ? messagesRef.current
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedChatId)
+              : ensured.messages;
+        const resumeStarted = await runTurnRequest({
+          mode: "resume_interaction",
+          chatId: normalizedChatId,
+          text: "",
+          attachments: [],
+          baseMessages: resumeMessages,
+          clearComposer: false,
+          durableInteraction: pendingWithOwner,
+          durableResumeAttempt: 0,
+          durableOwnerMessageId: ensured.ownerMessageId,
+          runGeneration: activeRunGeneration,
+        });
+        if (!resumeStarted && isCurrentLookup()) {
+          clearDurableResumeStartedKeysForChat(normalizedChatId);
+          const error = new Error(
+            "Durable recovery was deferred while another chat operation was starting.",
+          );
+          error.code = "durable_resume_deferred";
+          throw error;
+        }
+        return pendingWithOwner;
+      } catch (error) {
+        if (!isCurrentLookup()) {
+          return null;
+        }
+        const errorMessage =
+          error?.message || "Failed to inspect this chat for interrupted work.";
+        if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
+          const nextAttempt = lookupAttempt + 1;
+          updateDurableInteractionForChat(normalizedChatId, {
+            status: "retry_wait",
+            sessionId: normalizedSessionId,
+            resumeAttempt: nextAttempt,
+            lastError: errorMessage,
+          });
+          const existingTimer = durableResumeRetryTimersRef.current.get(
+            normalizedChatId,
+          );
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+          let timerId = null;
+          timerId = setTimeout(() => {
+            if (
+              durableResumeRetryTimersRef.current.get(normalizedChatId) ===
+              timerId
+            ) {
+              durableResumeRetryTimersRef.current.delete(normalizedChatId);
+            }
+            if (!isCurrentLookup()) {
+              return;
+            }
+            void lookupDurableInteraction(normalizedChatId, normalizedSessionId, {
+              autoResume,
+              lookupAttempt: nextAttempt,
+              runGeneration: activeRunGeneration,
+            });
+          }, durableInteractionRetryDelayMs(lookupAttempt));
+          durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);
+          return null;
+        }
+
+        updateDurableInteractionForChat(normalizedChatId, {
+          status: "resume_failed",
+          sessionId: normalizedSessionId,
+          resumeAttempt: lookupAttempt,
+          lastError: errorMessage,
+        });
+        if (activeChatIdRef.current === normalizedChatId) {
+          setStreamError(errorMessage);
+        }
+        return null;
+      }
+    },
+    [
+      activeChatIdRef,
+      appendSyntheticToolConfirmationDecision,
+      clearAllPendingToolConfirmations,
+      clearDurableResumeStartedKeysForChat,
+      commitForegroundMessages,
+      ensureRecoveryRunGeneration,
+      getConfirmationRuntimeForChat,
+      isRunGenerationCurrent,
+      messagesRef,
+      runTurnRequest,
+      setStreamError,
+      setStreamErrorForChat,
+      storageApi,
+      trackDurableResumeStartedKey,
+      updateDurableInteractionForChat,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
   );
+  const lookupOwnerChatId =
+    typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+  if (lookupOwnerChatId) {
+    durableInteractionLookupByChatIdRef.current.set(
+      lookupOwnerChatId,
+      lookupDurableInteraction,
+    );
+  }
 
-  const sendForTest = useCallback(
-    ({ text = "", attachments = [] } = {}) => {
-      const chatId = activeChatIdRef.current;
-      if (!chatId) {
-        return Promise.reject(
-          Object.assign(new Error("no active chat"), {
-            code: "no_active_chat",
-          }),
+  useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (
+      !targetChatId ||
+      streamingChatIdsRef.current.has(targetChatId) ||
+      reattachingChatIdsRef.current.has(targetChatId)
+    ) {
+      return undefined;
+    }
+
+    const storedMessages =
+      activeChatIdRef.current === targetChatId &&
+      Array.isArray(messagesRef.current)
+        ? messagesRef.current
+        : storageApi.getChatMessages?.(targetChatId) || [];
+    const assistantMessage = [...storedMessages]
+      .reverse()
+      .find(
+        (message) =>
+          message?.role === "assistant" &&
+          message?.status === "streaming" &&
+          typeof message?.meta?.requestId === "string" &&
+          message.meta.requestId.trim() &&
+          typeof message?.meta?.attemptId === "string" &&
+          message.meta.attemptId.trim() &&
+          typeof message?.meta?.executionSessionId === "string" &&
+          message.meta.executionSessionId.trim(),
+      );
+    if (!assistantMessage) {
+      return undefined;
+    }
+
+    const requestId = assistantMessage.meta.requestId.trim();
+    const attemptId = assistantMessage.meta.attemptId.trim();
+    const executionSessionId =
+      assistantMessage.meta.executionSessionId.trim();
+    const assistantMessageId = assistantMessage.id;
+    const runGeneration = ensureRecoveryRunGeneration(targetChatId);
+    if (
+      !assistantMessageId ||
+      !runGeneration ||
+      !isRunGenerationCurrent(targetChatId, runGeneration)
+    ) {
+      return undefined;
+    }
+    hydrateQueuedTurnsForAttempt(targetChatId, attemptId);
+
+    const projector = createRuntimeEventStreamReplayProjector();
+    let latestProjection = null;
+    let flushTimer = null;
+    let terminalReceived = false;
+    let replayAcceptanceObserved = false;
+    let replayAcceptanceTimer = null;
+    let replayAcceptanceReattachCount = 0;
+    let lastReplayStreamSeq = 0;
+    let currentAttachedHandle = null;
+    let replayCancellationPending = false;
+    const managedReplayConfirmationIds = new Set();
+
+    const readCurrentMessages = () => {
+      const activeMessages =
+        activeStreamsRef.current.get(targetChatId)?.messages;
+      if (Array.isArray(activeMessages)) return activeMessages;
+      if (
+        activeChatIdRef.current === targetChatId &&
+        Array.isArray(messagesRef.current)
+      ) {
+        return messagesRef.current;
+      }
+      return storageApi.getChatMessages?.(targetChatId) || storedMessages;
+    };
+
+    const clearFlushTimer = () => {
+      if (flushTimer == null) return;
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    };
+
+    const clearReplayAcceptanceTimer = () => {
+      if (replayAcceptanceTimer == null) return;
+      const timerId = replayAcceptanceTimer;
+      clearTimeout(timerId);
+      const trackedTimers =
+        queueRelayTimersByChatIdRef.current.get(targetChatId);
+      trackedTimers?.delete(timerId);
+      if (trackedTimers?.size === 0) {
+        queueRelayTimersByChatIdRef.current.delete(targetChatId);
+      }
+      replayAcceptanceTimer = null;
+    };
+
+    const hasUnverifiedRelayedTurn = () =>
+      Boolean(
+        !replayAcceptanceObserved &&
+          readQueuedTurnsForAttempt(targetChatId, attemptId)?.items?.some(
+            (item) => item.status === "relayed",
+          ),
+      );
+
+    const markReplayAcceptanceObserved = () => {
+      if (replayAcceptanceObserved) return;
+      replayAcceptanceObserved = true;
+      clearReplayAcceptanceTimer();
+      acknowledgeRelayedQueuedTurnsForAttempt(targetChatId, attemptId);
+    };
+
+    const restoreRejectedRelayedTurn = () => {
+      if (replayAcceptanceObserved) return false;
+      const persisted = readQueuedTurnsForAttempt(targetChatId, attemptId);
+      if (!persisted?.items?.some((item) => item.status === "relayed")) {
+        return false;
+      }
+
+      const currentMessages = readCurrentMessages();
+      const turnMessageIds = collectTurnMessageIds(
+        currentMessages,
+        assistantMessageId,
+      );
+      const ownsExactUserTurn = currentMessages.some(
+        (message) =>
+          message?.role === "user" && turnMessageIds.has(message?.id),
+      );
+      if (!turnMessageIds.has(assistantMessageId) || !ownsExactUserTurn) {
+        return false;
+      }
+
+      const retryableItems = persisted.items.map((item) => ({
+        ...item,
+        status: "queued",
+      }));
+      const restored = writeQueuedTurnsForAttempt({
+        chatId: targetChatId,
+        attemptId,
+        items: retryableItems,
+      });
+      if (!restored) return false;
+
+      const restoredBuffer = createQueuedTurnBuffer(retryableItems);
+      queuedTurnsByChatIdRef.current.set(targetChatId, restoredBuffer);
+      queueAttemptIdByChatIdRef.current.set(targetChatId, attemptId);
+      queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+
+      const rollbackMessages = currentMessages.filter(
+        (message) => !turnMessageIds.has(message?.id),
+      );
+      clearStreamingMessageStore(targetChatId, assistantMessageId);
+      activeStreamsRef.current.set(targetChatId, {
+        messages: rollbackMessages,
+      });
+      commitForegroundMessages(targetChatId, rollbackMessages);
+      storageApi.setChatMessages(targetChatId, rollbackMessages, {
+        source: "stream-reattach-lease-retry-rollback",
+      });
+      syncInterjectStateForChat(targetChatId);
+      return true;
+    };
+
+    const reconcileReplayInteractions = (projection = {}) => {
+      const projectedUiState =
+        projection.toolConfirmationUiStateById &&
+        typeof projection.toolConfirmationUiStateById === "object"
+          ? projection.toolConfirmationUiStateById
+          : {};
+      const frameGroups = [
+        projection.traceFrames,
+        ...Object.values(projection.subagentFrames || {}),
+      ];
+      const currentPendingIds = new Set();
+
+      for (const frames of frameGroups) {
+        for (const frame of Array.isArray(frames) ? frames : []) {
+          if (frame?.type !== "tool_call") continue;
+          const callId =
+            typeof frame.payload?.call_id === "string"
+              ? frame.payload.call_id.trim()
+              : "";
+          const confirmationId =
+            typeof frame.payload?.confirmation_id === "string"
+              ? frame.payload.confirmation_id.trim()
+              : "";
+          const requiresConfirmation =
+            frame.payload?.requires_confirmation === true ||
+            Boolean(confirmationId);
+          if (!callId || !confirmationId || !requiresConfirmation) continue;
+
+          const replayedUi = projectedUiState[confirmationId] || null;
+          if (replayedUi?.resolved === true) continue;
+          currentPendingIds.add(confirmationId);
+
+          const runtime = getConfirmationRuntimeForChat(targetChatId);
+          runtime.confirmationIdByCallId.set(callId, confirmationId);
+          runtime.confirmationCallIdById.set(confirmationId, callId);
+          runtime.sessionIdByConfirmationId.set(
+            confirmationId,
+            executionSessionId,
+          );
+          if (runtime.followupSignalById.get(confirmationId) !== true) {
+            runtime.followupSignalById.set(confirmationId, false);
+          }
+
+          const request = buildToolConfirmationRequest({
+            frame,
+            confirmationId,
+            callId,
+            toolName:
+              typeof frame.payload?.tool_name === "string"
+                ? frame.payload.tool_name
+                : "",
+            requestedAt: Number.isFinite(Number(frame.ts))
+              ? Number(frame.ts)
+              : Date.now(),
+            ownerMessageId: assistantMessageId,
+            chatId: targetChatId,
+            sessionId: executionSessionId,
+          });
+          updatePendingToolConfirmationRequests(targetChatId, (previous) =>
+            previous[confirmationId]
+              ? previous
+              : { ...previous, [confirmationId]: request },
+          );
+          updateToolConfirmationUiState(targetChatId, (previous) =>
+            previous[confirmationId]
+              ? previous
+              : {
+                  ...previous,
+                  [confirmationId]: {
+                    status: "idle",
+                    error: "",
+                    resolved: false,
+                  },
+                },
+          );
+        }
+      }
+
+      for (const confirmationId of managedReplayConfirmationIds) {
+        if (currentPendingIds.has(confirmationId)) continue;
+        const replayedUi = projectedUiState[confirmationId] || null;
+        if (replayedUi?.resolved !== true) {
+          // Replay projections can be temporarily incomplete while a stream is
+          // reconnecting. Absence is not proof that the durable interaction was
+          // resolved, so retain ownership until an explicit resolution arrives.
+          currentPendingIds.add(confirmationId);
+          continue;
+        }
+        const runtime = getConfirmationRuntimeForChat(targetChatId, {
+          create: false,
+        });
+        const callId = runtime?.confirmationCallIdById.get(confirmationId);
+        if (
+          callId &&
+          runtime?.confirmationIdByCallId.get(callId) === confirmationId
+        ) {
+          runtime.confirmationIdByCallId.delete(callId);
+        }
+        runtime?.confirmationCallIdById.delete(confirmationId);
+        if (callId && runtime && !runtime.confirmationIdByCallId.has(callId)) {
+          for (const [candidateId, candidateCallId] of
+            runtime.confirmationCallIdById.entries()) {
+            if (candidateCallId === callId) {
+              runtime.confirmationIdByCallId.set(callId, candidateId);
+              break;
+            }
+          }
+        }
+        runtime?.sessionIdByConfirmationId.delete(confirmationId);
+        runtime?.followupSignalById.delete(confirmationId);
+        updatePendingToolConfirmationRequests(targetChatId, (previous) => {
+          if (!previous[confirmationId]) return previous;
+          const next = { ...previous };
+          delete next[confirmationId];
+          return next;
+        });
+        updateToolConfirmationUiState(targetChatId, (previous) => {
+          if (!previous[confirmationId]) return previous;
+          const next = { ...previous };
+          delete next[confirmationId];
+          return next;
+        });
+      }
+
+      managedReplayConfirmationIds.clear();
+      currentPendingIds.forEach((confirmationId) => {
+        managedReplayConfirmationIds.add(confirmationId);
+      });
+    };
+
+    const replayedFyiRecords = (projection = {}) => {
+      const frameGroups = [
+        projection.traceFrames,
+        ...Object.values(projection.subagentFrames || {}),
+      ];
+      const records = [];
+      const recordIds = new Set();
+      const messages = [];
+      let sawFyiFrame = false;
+
+      for (const frames of frameGroups) {
+        for (const frame of Array.isArray(frames) ? frames : []) {
+          if (frame?.type !== "fyi_injected") continue;
+          sawFyiFrame = true;
+          const eventId =
+            typeof frame.payload?.runtime_event_id === "string"
+              ? frame.payload.runtime_event_id
+              : `seq-${frame.seq || 0}`;
+          const entries = Array.isArray(frame.payload?.messages)
+            ? frame.payload.messages
+            : [];
+          messages.push(...entries);
+          entries.forEach((entry, index) => {
+            const text =
+              entry?.origin === "user" && typeof entry.text === "string"
+                ? entry.text
+                : "";
+            if (!text) return;
+            const messageId =
+              typeof entry?.message_id === "string"
+                ? entry.message_id.trim()
+                : typeof entry?.messageId === "string"
+                  ? entry.messageId.trim()
+                  : "";
+            const recordId = messageId
+              ? `fyi-${messageId}`
+              : `fyi-${eventId}-${index}`;
+            if (recordIds.has(recordId)) return;
+            recordIds.add(recordId);
+            records.push({
+              id: recordId,
+              type: "fyi",
+              text,
+              origin: "user",
+              ts: Number.isFinite(Number(frame.ts))
+                ? Number(frame.ts)
+                : Date.now(),
+            });
+          });
+        }
+      }
+
+      return sawFyiFrame ? { records, messages } : null;
+    };
+
+    const applyLatestProjection = ({ status, error, bundle } = {}) => {
+      clearFlushTimer();
+      if (
+        !hookMountedRef.current ||
+        !isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        return [];
+      }
+      const projection = latestProjection || {};
+      const updatedAt = Date.now();
+      const replayedFyi = replayedFyiRecords(projection);
+      const nextMessages = readCurrentMessages().map((message) => {
+        if (message?.id !== assistantMessageId) return message;
+        const materialized = finalizeStreamingMessage(message);
+        const projectedContent =
+          typeof projection.content === "string"
+            ? projection.content
+            : materialized.content || "";
+        const nextError =
+          error && typeof error === "object"
+            ? {
+                code:
+                  typeof error.code === "string" ? error.code : "unknown",
+                message:
+                  typeof error.message === "string"
+                    ? error.message
+                    : "The attached stream failed",
+              }
+            : projection.error && typeof projection.error === "object"
+              ? { ...projection.error }
+              : null;
+        const projectedBundle =
+          bundle && typeof bundle === "object"
+            ? bundle
+            : projection.bundle && typeof projection.bundle === "object"
+              ? projection.bundle
+              : null;
+        return {
+          ...materialized,
+          content:
+            status === "error" && !projectedContent
+              ? `[error] ${nextError?.message || "The attached stream failed"}`
+              : projectedContent,
+          status: status || projection.status || "streaming",
+          updatedAt,
+          traceFrames: Array.isArray(projection.traceFrames)
+            ? projection.traceFrames
+            : message.traceFrames || [],
+          subagentFrames:
+            projection.subagentFrames &&
+            typeof projection.subagentFrames === "object"
+              ? projection.subagentFrames
+              : message.subagentFrames || {},
+          subagentMetaByRunId:
+            projection.subagentMetaByRunId &&
+            typeof projection.subagentMetaByRunId === "object"
+              ? projection.subagentMetaByRunId
+              : message.subagentMetaByRunId || {},
+          runArtifactSummary:
+            projection.runArtifactSummary !== undefined
+              ? projection.runArtifactSummary
+              : message.runArtifactSummary,
+          artifactSummariesByTurnId:
+            projection.artifactSummariesByTurnId &&
+            typeof projection.artifactSummariesByTurnId === "object"
+              ? projection.artifactSummariesByTurnId
+              : message.artifactSummariesByTurnId || {},
+          ...(replayedFyi
+            ? {
+                interjections: [
+                  ...(Array.isArray(message.interjections)
+                    ? message.interjections.filter(
+                        (record) => record?.type !== "fyi",
+                      )
+                    : []),
+                  ...replayedFyi.records,
+                ],
+              }
+            : {}),
+          meta: {
+            ...(message.meta || {}),
+            ...(projectedBundle ? { bundle: { ...projectedBundle } } : {}),
+            ...(nextError ? { error: nextError } : {}),
+          },
+        };
+      });
+      activeStreamsRef.current.set(targetChatId, { messages: nextMessages });
+      commitForegroundMessages(targetChatId, nextMessages);
+      storageApi.setChatMessages(targetChatId, nextMessages, {
+        source: "stream-reattach",
+      });
+      reconcileReplayInteractions(projection);
+      if (replayedFyi) {
+        acknowledgeInjectedFyisForAttempt(
+          targetChatId,
+          attemptId,
+          replayedFyi.messages,
         );
       }
-      const baseLen = (messagesRef.current || []).length;
+      return nextMessages;
+    };
+
+    const scheduleProjectionFlush = () => {
+      if (flushTimer != null) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        applyLatestProjection();
+      }, STREAM_REATTACH_FLUSH_MS);
+    };
+
+    const finishAttachedStream = ({ status, error, bundle } = {}) => {
+      if (terminalReceived) return;
+      terminalReceived = true;
+      clearReplayAcceptanceTimer();
+      let nextMessages = applyLatestProjection({ status, error, bundle });
+      const pendingClarify =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (pendingClarify) {
+        const fallback = fallbackPendingClarifyForChat(
+          targetChatId,
+          pendingClarify,
+        );
+        if (fallback) {
+          nextMessages = nextMessages.map((message) => ({
+            ...message,
+            ...(Array.isArray(message?.traceFrames)
+              ? {
+                  traceFrames: message.traceFrames.map((frame) =>
+                    frame?.type === "clarify_request" &&
+                    frame?.payload?.id === pendingClarify.id
+                      ? {
+                          ...frame,
+                          payload: {
+                            ...frame.payload,
+                            status: "resolved_default",
+                          },
+                        }
+                      : frame,
+                  ),
+                }
+              : {}),
+          }));
+          commitForegroundMessages(targetChatId, nextMessages);
+        } else {
+          setStreamErrorForChat(
+            targetChatId,
+            "The pending clarification is still saved and will be recovered after reload.",
+          );
+        }
+      }
+      fallbackPendingFyisForAttempt(targetChatId, attemptId);
+      reattachingChatIdsRef.current.delete(targetChatId);
+      streamHandlesRef.current.delete(targetChatId);
+      executionIdentityByChatIdRef.current.delete(targetChatId);
+      streamingChatIdsRef.current.delete(targetChatId);
+      activeStreamsRef.current.delete(targetChatId);
+      activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+      clearAllPendingToolConfirmations(targetChatId);
+      updatePendingContinuationRequestForChat(targetChatId, null);
+      syncInterjectStateForChat(targetChatId);
+      setStreamingChatIds((previous) => {
+        const next = new Set(previous);
+        next.delete(targetChatId);
+        return next;
+      });
+      if (nextMessages.length > 0) {
+        finalizeStreamPersist({
+          storageApi,
+          chatId: targetChatId,
+          messages: nextMessages,
+          isForeground: activeChatIdRef.current === targetChatId,
+          flushBackgroundPersist,
+        });
+      }
+      if (status === "done") {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: nextMessages,
+          characterAgentConfig: null,
+          runContext: runContextByChatIdRef.current.get(targetChatId) || null,
+        });
+      }
+      return nextMessages;
+    };
+
+    const finishAttachedError = (
+      error,
+      bundle,
+      { retryRelayedTurn = false } = {},
+    ) => {
+      if (
+        terminalReceived ||
+        !isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        return;
+      }
+      const shouldRetryRelayedTurn = Boolean(
+        (error?.code === "execution_lease_conflict" || retryRelayedTurn) &&
+          restoreRejectedRelayedTurn(),
+      );
+      const nextMessages = finishAttachedStream({
+        status: "error",
+        error,
+        bundle,
+      });
+      if (shouldRetryRelayedTurn) {
+        relayQueuedTurnsAfterRunRef.current?.({
+          targetChatId,
+          nextStreamMessages: nextMessages,
+          characterAgentConfig: null,
+          runContext: runContextByChatIdRef.current.get(targetChatId) || null,
+        });
+        return;
+      }
+      setStreamErrorForChat(
+        targetChatId,
+        error?.message || "The attached stream failed.",
+      );
+    };
+
+    const settleUnavailableStream = (error) => {
+      if (terminalReceived) return;
+      terminalReceived = true;
+      clearReplayAcceptanceTimer();
+      clearFlushTimer();
+      fallbackPendingFyisForAttempt(targetChatId, attemptId);
+      reattachingChatIdsRef.current.delete(targetChatId);
+      streamHandlesRef.current.delete(targetChatId);
+      executionIdentityByChatIdRef.current.delete(targetChatId);
+      streamingChatIdsRef.current.delete(targetChatId);
+      activeStreamsRef.current.delete(targetChatId);
+      activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+      setStreamingChatIds((previous) => {
+        const next = new Set(previous);
+        next.delete(targetChatId);
+        return next;
+      });
+      const { changed, nextMessages } = settleStreamingAssistantMessages(
+        readCurrentMessages(),
+      );
+      if (changed) {
+        commitForegroundMessages(targetChatId, nextMessages);
+        storageApi.setChatMessages(targetChatId, nextMessages, {
+          source: "stream-reattach-unavailable",
+        });
+      }
+      const pendingClarify =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
+      if (pendingClarify) {
+        fallbackPendingClarifyForChat(targetChatId, pendingClarify);
+      }
+      setStreamErrorForChat(
+        targetChatId,
+        error?.code === "stream_replay_gap"
+          ? "This interrupted run is too old to replay safely. It was not restarted."
+          : "This interrupted run is no longer available. It was not restarted.",
+      );
+    };
+
+    const cancelAndSettleUnverifiedReattach = async ({
+      expectedHandle = null,
+      error,
+      retryWhenNeverRegistered = false,
+    }) => {
+      if (
+        terminalReceived ||
+        replayCancellationPending ||
+        !isRunGenerationCurrent(targetChatId, runGeneration) ||
+        (expectedHandle &&
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle)
+      ) {
+        return;
+      }
+      replayCancellationPending = true;
+      clearReplayAcceptanceTimer();
+      const queuedCancellation = enqueueExecutionCancel({
+        sessionId: executionSessionId,
+        attemptId,
+        requestId,
+        reason: "queue_relay_acceptance_unverified",
+        createdAt: Date.now(),
+      });
+      const cancelResult = await requestExecutionCancellationAndDisconnect({
+        identity: queuedCancellation,
+        handle: expectedHandle,
+        reason: "queue_relay_acceptance_unverified",
+        idempotencyKey: `queue-relay-acceptance:${attemptId}`,
+      });
+      if (cancelResult?.ok && queuedCancellation) {
+        removeExecutionCancel(
+          queuedCancellation.sessionId,
+          queuedCancellation.attemptId,
+        );
+      }
+      if (
+        terminalReceived ||
+        !isRunGenerationCurrent(targetChatId, runGeneration) ||
+        (expectedHandle &&
+          streamHandlesRef.current.get(targetChatId) !== expectedHandle)
+      ) {
+        return;
+      }
+      const cancelResponse = cancelResult?.response;
+      const provenNeverRegistered = Boolean(
+        cancelResult?.ok &&
+          isProvenNeverRegisteredCancellation(cancelResponse),
+      );
+      finishAttachedError(
+        error || {
+          code: "queue_relay_acceptance_unverified",
+          message:
+            "The recovered queued follow-up could not be verified safely. It was not restarted.",
+        },
+        undefined,
+        {
+          retryRelayedTurn: Boolean(
+            retryWhenNeverRegistered &&
+              !replayAcceptanceObserved &&
+              provenNeverRegistered,
+          ),
+        },
+      );
+    };
+
+    const reattachHandlers = {
+      onRuntimeEvent: (runtimeEvent, streamMeta = {}) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        const streamSeq = Number(streamMeta.streamSeq);
+        if (Number.isInteger(streamSeq) && streamSeq > lastReplayStreamSeq) {
+          lastReplayStreamSeq = streamSeq;
+        }
+        if (isAuthoritativeQueueAcceptanceEvent(runtimeEvent)) {
+          markReplayAcceptanceObserved();
+        }
+        latestProjection = projector.append(
+          runtimeEvent,
+          streamMeta.streamSeq,
+        );
+        scheduleProjectionFlush();
+      },
+      onDone: (done = {}) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        const projectedError =
+          latestProjection?.error && typeof latestProjection.error === "object"
+            ? latestProjection.error
+            : null;
+        const doneError =
+          done.error && typeof done.error === "object" ? done.error : null;
+        if (latestProjection?.status === "error" || doneError) {
+          const terminalError = projectedError || doneError;
+          finishAttachedError(
+            terminalError,
+            done.bundle && typeof done.bundle === "object"
+              ? done.bundle
+              : undefined,
+          );
+          return;
+        }
+        markReplayAcceptanceObserved();
+        finishAttachedStream({
+          status: "done",
+          bundle:
+            done.bundle && typeof done.bundle === "object"
+              ? done.bundle
+              : undefined,
+        });
+      },
+      onError: (error) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        const wasCancelled = error?.code === "cancelled";
+        if (wasCancelled) {
+          if (hasUnverifiedRelayedTurn()) {
+            void cancelAndSettleUnverifiedReattach({
+              error: {
+                code: "queue_relay_cancelled_without_acceptance",
+                message:
+                  "The recovered queued follow-up was cancelled without verifiable acceptance evidence.",
+              },
+              retryWhenNeverRegistered: true,
+            });
+          } else {
+            finishAttachedStream({ status: "cancelled" });
+          }
+        } else {
+          finishAttachedError(error);
+        }
+      },
+    };
+
+    const scheduleReplayAcceptanceReconciliation = () => {
+      clearReplayAcceptanceTimer();
+      if (
+        terminalReceived ||
+        !isRunGenerationCurrent(targetChatId, runGeneration) ||
+        !hasUnverifiedRelayedTurn()
+      ) {
+        return;
+      }
+      replayAcceptanceTimer = scheduleQueueRelayTimer(
+        targetChatId,
+        runGeneration,
+        () => {
+          replayAcceptanceTimer = null;
+          void (async () => {
+            if (
+              terminalReceived ||
+              !isRunGenerationCurrent(targetChatId, runGeneration) ||
+              !hasUnverifiedRelayedTurn()
+            ) {
+              return;
+            }
+            const expectedHandle = currentAttachedHandle;
+            if (
+              !expectedHandle ||
+              streamHandlesRef.current.get(targetChatId) !== expectedHandle
+            ) {
+              return;
+            }
+            if (
+              replayAcceptanceReattachCount >=
+              QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+            ) {
+              await cancelAndSettleUnverifiedReattach({
+                expectedHandle,
+                error: {
+                  code: "queue_relay_acceptance_timeout",
+                  message:
+                    "The recovered queued follow-up did not provide acceptance evidence in time. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                },
+                retryWhenNeverRegistered: true,
+              });
+              return;
+            }
+            replayAcceptanceReattachCount += 1;
+            try {
+              const attachedHandle = await api.unchain.attachStreamV4(
+                {
+                  requestId,
+                  executionId: executionSessionId,
+                  attemptId,
+                  afterSeq: lastReplayStreamSeq,
+                },
+                reattachHandlers,
+              );
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration) ||
+                streamHandlesRef.current.get(targetChatId) !== expectedHandle
+              ) {
+                attachedHandle?.detach?.();
+                return;
+              }
+              currentAttachedHandle = attachedHandle;
+              streamHandlesRef.current.set(targetChatId, attachedHandle);
+              if (!hasUnverifiedRelayedTurn()) {
+                if (
+                  attachedHandle?.terminal === true ||
+                  attachedHandle?.active === false
+                ) {
+                  finishAttachedError({
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The recovered queued follow-up was accepted, but its transport was already closed. It was not restarted.",
+                  });
+                }
+                return;
+              }
+              if (
+                attachedHandle?.terminal === true ||
+                attachedHandle?.active === false
+              ) {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle: attachedHandle,
+                  error: {
+                    code: "queue_relay_terminal_without_acceptance",
+                    message:
+                      "The recovered queued follow-up ended without verifiable acceptance evidence. It was not restarted.",
+                  },
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              scheduleReplayAcceptanceReconciliation();
+            } catch (attachError) {
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration)
+              ) {
+                return;
+              }
+              const errorCode =
+                typeof attachError?.code === "string" ? attachError.code : "";
+              if (replayAcceptanceObserved) {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle,
+                  error: {
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The recovered queued follow-up was accepted during replay, but reconnecting its transport failed. Its exact execution was cancelled and it was not restarted.",
+                  },
+                });
+                return;
+              }
+              if (errorCode === "stream_not_found") {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle,
+                  error: {
+                    code: "queue_relay_stream_not_found",
+                    message:
+                      "The recovered queued follow-up stream was not found. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                  },
+                  retryWhenNeverRegistered: true,
+                });
+                return;
+              }
+              if (
+                errorCode === "stream_replay_gap" ||
+                errorCode === "stream_identity_mismatch" ||
+                replayAcceptanceReattachCount >=
+                  QUEUE_RELAY_ACCEPTANCE_MAX_REATTACHES
+              ) {
+                await cancelAndSettleUnverifiedReattach({
+                  expectedHandle,
+                  error: {
+                    code: errorCode || "queue_relay_reattach_failed",
+                    message:
+                      errorCode === "stream_replay_gap"
+                        ? "The recovered queued follow-up could not be replayed completely. Its exact execution was cancelled and it was not restarted."
+                        : "The recovered queued follow-up could not be verified after reconnecting. Its exact execution was cancelled and it was not restarted.",
+                  },
+                  retryWhenNeverRegistered: Boolean(
+                    errorCode !== "stream_replay_gap" &&
+                      errorCode !== "stream_identity_mismatch",
+                  ),
+                });
+                return;
+              }
+              scheduleReplayAcceptanceReconciliation();
+            }
+          })();
+        },
+        QUEUE_RELAY_ACCEPTANCE_RECONCILE_MS,
+      );
+    };
+
+    const attachAvailable =
+      typeof api.unchain.isRuntimeEventStreamV4AttachAvailable === "function" &&
+      api.unchain.isRuntimeEventStreamV4AttachAvailable() &&
+      typeof api.unchain.attachStreamV4 === "function";
+    if (!attachAvailable) {
+      settleUnavailableStream({ code: "stream_attach_unavailable" });
+      return undefined;
+    }
+
+    reattachingChatIdsRef.current.add(targetChatId);
+    streamingChatIdsRef.current.add(targetChatId);
+    activeStreamsRef.current.set(targetChatId, { messages: storedMessages });
+    activeRunThreadIdByChatIdRef.current.set(
+      targetChatId,
+      executionSessionId,
+    );
+    executionIdentityByChatIdRef.current.set(targetChatId, {
+      sessionId: executionSessionId,
+      attemptId,
+      requestId,
+      sourceAttemptId: "",
+      runGeneration,
+    });
+    syncPendingFyiStateForAttempt(targetChatId, attemptId);
+    setStreamingChatIds((previous) => new Set(previous).add(targetChatId));
+
+    void api.unchain
+      .attachStreamV4(
+        {
+          requestId,
+          executionId: executionSessionId,
+          attemptId,
+          // Rebuild from the beginning. Replacing the projected text avoids
+          // duplicate tokens even when a partial message was already persisted.
+          afterSeq: 0,
+        },
+        reattachHandlers,
+      )
+      .then((handle) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          handle?.detach?.();
+          return;
+        }
+        currentAttachedHandle = handle;
+        streamHandlesRef.current.set(targetChatId, handle);
+        if (handle?.terminal === true || handle?.active === false) {
+          if (hasUnverifiedRelayedTurn()) {
+            void cancelAndSettleUnverifiedReattach({
+              expectedHandle: handle,
+              error: {
+                code: "queue_relay_terminal_without_acceptance",
+                message:
+                  "The recovered queued follow-up ended without verifiable acceptance evidence. It was not restarted.",
+              },
+              retryWhenNeverRegistered: true,
+            });
+          } else {
+            finishAttachedError({
+              code: "stream_closed_without_terminal_event",
+              message:
+                "The recovered stream closed before a terminal event was received.",
+            });
+          }
+          return;
+        }
+        scheduleReplayAcceptanceReconciliation();
+      })
+      .catch((error) => {
+        if (
+          terminalReceived ||
+          !isRunGenerationCurrent(targetChatId, runGeneration)
+        ) {
+          return;
+        }
+        if (replayAcceptanceObserved || hasUnverifiedRelayedTurn()) {
+          void cancelAndSettleUnverifiedReattach({
+            error:
+              replayAcceptanceObserved
+                ? {
+                    code: "queue_relay_transport_lost_after_acceptance",
+                    message:
+                      "The recovered queued follow-up was accepted during replay, but reconnecting its transport failed. Its exact execution was cancelled and it was not restarted.",
+                  }
+                : {
+                    code:
+                      typeof error?.code === "string"
+                        ? error.code
+                        : "queue_relay_reattach_failed",
+                    message:
+                      error?.code === "stream_replay_gap"
+                        ? "The recovered queued follow-up could not be replayed completely. Its exact execution was cancelled and it was not restarted."
+                        : "The recovered queued follow-up stream could not be verified. Its exact execution was cancelled and it was not restarted unless the server proved it never began.",
+                  },
+            retryWhenNeverRegistered: Boolean(
+              !replayAcceptanceObserved &&
+                error?.code !== "stream_replay_gap" &&
+                error?.code !== "stream_identity_mismatch",
+            ),
+          });
+          return;
+        }
+        settleUnavailableStream(error);
+      });
+
+    // Chat switches do not detach this listener. The hook-level unmount
+    // cleanup owns transport detach for every active chat.
+    return undefined;
+  }, [
+    activeChatIdRef,
+    activeStreamsRef,
+    acknowledgeRelayedQueuedTurnsForAttempt,
+    acknowledgeInjectedFyisForAttempt,
+    chatId,
+    clearAllPendingToolConfirmations,
+    clearStreamingMessageStore,
+    commitForegroundMessages,
+    ensureRecoveryRunGeneration,
+    fallbackPendingClarifyForChat,
+    fallbackPendingFyisForAttempt,
+    getConfirmationRuntimeForChat,
+    hydrateQueuedTurnsForAttempt,
+    isRunGenerationCurrent,
+    messagesRef,
+    scheduleQueueRelayTimer,
+    setStreamErrorForChat,
+    storageApi,
+    syncInterjectStateForChat,
+    syncPendingFyiStateForAttempt,
+    updatePendingContinuationRequestForChat,
+    updatePendingToolConfirmationRequests,
+    updateToolConfirmationUiState,
+  ]);
+
+  useEffect(() => {
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (
+      !targetChatId ||
+      isStreaming ||
+      reattachingChatIdsRef.current.has(targetChatId) ||
+      typeof api.unchain.isDurableInteractionBridgeAvailable !== "function" ||
+      !api.unchain.isDurableInteractionBridgeAvailable()
+    ) {
+      return undefined;
+    }
+    const runGeneration = ensureRecoveryRunGeneration(targetChatId);
+    if (
+      !runGeneration ||
+      !isRunGenerationCurrent(targetChatId, runGeneration)
+    ) {
+      return undefined;
+    }
+    const existingState = durableInteractionByChatIdRef.current[targetChatId];
+    if (
+      ["retry_wait", "resume_failed", "resuming"].includes(
+        existingState?.status,
+      )
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    updateDurableInteractionForChat(targetChatId, {
+      ...(existingState || {}),
+      status: "checking",
+      lastError: "",
+    });
+    void (async () => {
+      let sessionId = targetChatId;
+      if (isCharacterChat) {
+        try {
+          const recoveryThreadId =
+            typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+          const config = await buildCharacterRunConfig(recoveryThreadId);
+          if (
+            cancelled ||
+            !isRunGenerationCurrent(targetChatId, runGeneration)
+          ) {
+            return;
+          }
+          sessionId =
+            typeof config?.session_id === "string" && config.session_id.trim()
+              ? config.session_id.trim()
+              : "";
+        } catch (error) {
+          if (
+            !cancelled &&
+            isRunGenerationCurrent(targetChatId, runGeneration)
+          ) {
+            const errorMessage =
+              error?.message || "Failed to prepare durable recovery.";
+            updateDurableInteractionForChat(targetChatId, {
+              status: "resume_failed",
+              sessionId: "",
+              lastError: errorMessage,
+            });
+            setStreamErrorForChat(targetChatId, errorMessage);
+          }
+          return;
+        }
+      }
+      if (
+        !cancelled &&
+        sessionId &&
+        isRunGenerationCurrent(targetChatId, runGeneration)
+      ) {
+        await lookupDurableInteraction(targetChatId, sessionId, {
+          autoResume: true,
+          runGeneration,
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    buildCharacterRunConfig,
+    chatId,
+    ensureRecoveryRunGeneration,
+    isCharacterChat,
+    isRunGenerationCurrent,
+    isStreaming,
+    lookupDurableInteraction,
+    setStreamError,
+    setStreamErrorForChat,
+    threadIdRef,
+    turnMutationVersion,
+    updateDurableInteractionForChat,
+  ]);
+
+  const readMessagesForTest = useCallback(
+    (targetChatId) => {
+      const streamMessages =
+        activeStreamsRef.current.get(targetChatId)?.messages;
+      if (Array.isArray(streamMessages)) {
+        return streamMessages;
+      }
+      if (
+        activeChatIdRef.current === targetChatId &&
+        Array.isArray(messagesRef.current)
+      ) {
+        return messagesRef.current;
+      }
+      if (typeof storageApi.getChatMessages === "function") {
+        const storedMessages = storageApi.getChatMessages(targetChatId);
+        return Array.isArray(storedMessages) ? storedMessages : [];
+      }
+      return [];
+    },
+    [activeChatIdRef, activeStreamsRef, messagesRef, storageApi],
+  );
+
+  const getRunForTest = useCallback(
+    ({ id, attempt_id: requestedAttemptId, attemptId } = {}) => {
+      const targetChatId = typeof id === "string" ? id.trim() : "";
+      const normalizedAttemptId =
+        typeof (requestedAttemptId ?? attemptId) === "string"
+          ? (requestedAttemptId ?? attemptId).trim()
+          : "";
+      if (!targetChatId) {
+        throw Object.assign(new Error("chat id is required"), {
+          code: "invalid_request",
+        });
+      }
+      if (!normalizedAttemptId) {
+        throw Object.assign(new Error("attempt_id is required"), {
+          code: "invalid_request",
+        });
+      }
+
+      const identity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      const identityMatches = identity?.attemptId === normalizedAttemptId;
+      const messagesForChat = readMessagesForTest(targetChatId);
+      const assistantMessage = [...messagesForChat]
+        .reverse()
+        .find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.meta?.attemptId === normalizedAttemptId,
+        );
+      if (!identityMatches && !assistantMessage) {
+        throw Object.assign(
+          new Error(
+            `run ${normalizedAttemptId} was not found for chat ${targetChatId}`,
+          ),
+          { code: "run_not_found" },
+        );
+      }
+
+      const messageStatus =
+        typeof assistantMessage?.status === "string"
+          ? assistantMessage.status
+          : "";
+      const isRunning =
+        identityMatches && streamingChatIdsRef.current.has(targetChatId);
+      const status = isRunning
+        ? "running"
+        : messageStatus === "done"
+          ? "completed"
+          : messageStatus === "error"
+            ? "failed"
+            : messageStatus === "cancelled"
+              ? "cancelled"
+              : messageStatus === "streaming"
+                ? "interrupted"
+                : "completed";
+      const executionId =
+        (identityMatches && identity?.sessionId) ||
+        assistantMessage?.meta?.executionSessionId ||
+        targetChatId;
+      const content =
+        typeof assistantMessage?.content === "string"
+          ? assistantMessage.content
+          : assistantMessage?.content == null
+            ? ""
+            : JSON.stringify(assistantMessage.content);
+      const pendingRequestsRef =
+        pendingToolConfirmationRequestsByChatIdRef.current[targetChatId] || {};
+      const pendingRequestsRendered =
+        pendingToolConfirmationRequestsByChatId[targetChatId] || {};
+      const confirmationUiRef =
+        toolConfirmationUiStateByChatIdRef.current[targetChatId] || {};
+      const confirmationUiRendered =
+        toolConfirmationUiStateByChatId[targetChatId] || {};
+      const confirmationRuntime =
+        confirmationRuntimeByChatIdRef.current.get(targetChatId) || null;
+      const requestSummary = (requests) =>
+        Object.fromEntries(
+          Object.entries(requests).map(([confirmationId, request]) => [
+            confirmationId,
+            {
+              confirmation_id: request?.confirmationId || confirmationId,
+              call_id: request?.callId || "",
+              owner_message_id: request?.ownerMessageId || "",
+              session_id: request?.sessionId || "",
+            },
+          ]),
+        );
+      const traceGroups = [
+        assistantMessage?.traceFrames,
+        ...Object.values(assistantMessage?.subagentFrames || {}),
+      ];
+      const confirmationTraceFrames = traceGroups.flatMap((frames) =>
+        (Array.isArray(frames) ? frames : [])
+          .filter(
+            (frame) =>
+              frame?.type === "tool_call" &&
+              (frame.payload?.call_id || frame.payload?.confirmation_id),
+          )
+          .map((frame) => ({
+            type: frame.type,
+            seq: frame.seq ?? null,
+            call_id: frame.payload?.call_id || "",
+            confirmation_id: frame.payload?.confirmation_id || "",
+            requires_confirmation:
+              frame.payload?.requires_confirmation === true,
+            tool_name: frame.payload?.tool_name || "",
+          })),
+      );
+
+      return {
+        chat_id: targetChatId,
+        execution_id: executionId,
+        attempt_id: normalizedAttemptId,
+        status,
+        message_id: assistantMessage?.id || null,
+        content,
+        tool_calls: assistantMessage?.tool_calls || null,
+        finish_reason: assistantMessage?.finish_reason || null,
+        started_at: assistantMessage?.createdAt || null,
+        updated_at: assistantMessage?.updatedAt || null,
+        error: assistantMessage?.meta?.error || null,
+        confirmation_debug: {
+          pending_requests_ref: requestSummary(pendingRequestsRef),
+          pending_requests_rendered: requestSummary(pendingRequestsRendered),
+          ui_state_ref: confirmationUiRef,
+          ui_state_rendered: confirmationUiRendered,
+          runtime: confirmationRuntime
+            ? {
+                confirmation_id_by_call_id: Object.fromEntries(
+                  confirmationRuntime.confirmationIdByCallId,
+                ),
+                confirmation_call_id_by_id: Object.fromEntries(
+                  confirmationRuntime.confirmationCallIdById,
+                ),
+                session_id_by_confirmation_id: Object.fromEntries(
+                  confirmationRuntime.sessionIdByConfirmationId,
+                ),
+              }
+            : null,
+          trace_frames: confirmationTraceFrames,
+        },
+      };
+    },
+    [
+      pendingToolConfirmationRequestsByChatId,
+      readMessagesForTest,
+      streamingChatIdsRef,
+      toolConfirmationUiStateByChatId,
+    ],
+  );
+
+  const cancelRunForTest = useCallback(
+    async ({ id, attempt_id: requestedAttemptId, attemptId } = {}) => {
+      const targetChatId = typeof id === "string" ? id.trim() : "";
+      const normalizedAttemptId =
+        typeof (requestedAttemptId ?? attemptId) === "string"
+          ? (requestedAttemptId ?? attemptId).trim()
+          : "";
+      if (!targetChatId) {
+        throw Object.assign(new Error("chat id is required"), {
+          code: "invalid_request",
+        });
+      }
+
+      const identity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      if (
+        !identity?.attemptId ||
+        !streamingChatIdsRef.current.has(targetChatId)
+      ) {
+        throw Object.assign(
+          new Error(`chat ${targetChatId} has no active run`),
+          { code: "run_not_active" },
+        );
+      }
+      if (normalizedAttemptId && identity.attemptId !== normalizedAttemptId) {
+        throw Object.assign(
+          new Error(
+            `attempt ${normalizedAttemptId} does not own chat ${targetChatId}`,
+          ),
+          { code: "attempt_mismatch" },
+        );
+      }
+
+      const handle = streamHandlesRef.current.get(targetChatId) || null;
+      /* Fence the cancel to the exact run (A) we captured. During the await
+         below, A can finish and a queue relay can start a fresh run (B) that
+         reuses this chat id. Capture A's generation + identity now so that,
+         after the await, we can tell whether we are still cancelling A or would
+         otherwise clobber B's live handle / FYI / queue state. */
+      const capturedRunGeneration = getRunGeneration(targetChatId);
+      const capturedSessionId = identity.sessionId;
+      const capturedAttemptId = identity.attemptId;
+      const capturedMessages = materializeStreamingMessages(
+        targetChatId,
+        readMessagesForTest(targetChatId),
+      );
+      const capturedStreamingAssistant = capturedMessages.find(
+        (message) =>
+          message?.role === "assistant" &&
+          message?.status === "streaming" &&
+          message?.meta?.attemptId === capturedAttemptId,
+      );
+      /* Tombstone queue relay intent before awaiting backend cancellation. A
+         pre-acceptance lease conflict can arrive while cancelExecution is
+         pending; clearing the relay owner now makes its onReject callback
+         fail closed instead of scheduling a successor behind the cancel. */
+      clearQueueRelayTimersForChat(targetChatId);
+      clearQueuedTurnsForChat(targetChatId, capturedAttemptId);
+      const result = await requestExecutionCancellationAndDisconnect({
+        identity,
+        handle,
+        reason: "test_api_cancel",
+      });
+      if (!result?.ok) {
+        throw Object.assign(new Error("failed to cancel the exact run"), {
+          code: "execution_cancel_failed",
+        });
+      }
+      const currentIdentity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      const stillExactOwner =
+        isRunGenerationCurrent(targetChatId, capturedRunGeneration) &&
+        currentIdentity?.attemptId === capturedAttemptId &&
+        currentIdentity?.sessionId === capturedSessionId;
+      if (!stillExactOwner) {
+        const messagesAfterAwait = materializeStreamingMessages(
+          targetChatId,
+          readMessagesForTest(targetChatId),
+        );
+        const exactAssistantAfterAwait = messagesAfterAwait.find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.meta?.attemptId === capturedAttemptId,
+        );
+        const newerOwnerExists = Boolean(
+          currentIdentity?.attemptId &&
+            currentIdentity.attemptId !== capturedAttemptId,
+        );
+        const newerStreamingAssistantExists = messagesAfterAwait.some(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.status === "streaming" &&
+            message?.id !== capturedStreamingAssistant?.id,
+        );
+        if (
+          !newerOwnerExists &&
+          !newerStreamingAssistantExists &&
+          capturedStreamingAssistant &&
+          (!exactAssistantAfterAwait ||
+            exactAssistantAfterAwait.status === "streaming")
+        ) {
+          const tombstone = finalizeStreamingMessage(
+            exactAssistantAfterAwait || capturedStreamingAssistant,
+            {
+              content: "",
+              status: "cancelled",
+              updatedAt: Date.now(),
+            },
+          );
+          const nextMessages = exactAssistantAfterAwait
+            ? messagesAfterAwait.map((message) =>
+                message.id === exactAssistantAfterAwait.id ? tombstone : message,
+              )
+            : [...messagesAfterAwait, tombstone];
+          clearStreamingMessageStore(targetChatId, tombstone.id);
+          activeStreamsRef.current.delete(targetChatId);
+          streamingChatIdsRef.current.delete(targetChatId);
+          commitForegroundMessages(targetChatId, nextMessages);
+          storageApi.setChatMessages(targetChatId, nextMessages, {
+            source: "test-api-cancel-terminal-race",
+          });
+        }
+        /* A already terminated and a successor (B) — or nothing — now owns the
+           chat. Report A's cancellation without mutating the current (B) run's
+           handle, streaming set, FYI, or queued-turn state. */
+        return {
+          ok: true,
+          chat_id: targetChatId,
+          execution_id: capturedSessionId,
+          attempt_id: capturedAttemptId,
+          status: "cancel_requested",
+          cancellation: result.response || null,
+        };
+      }
+      invalidateRunGeneration(targetChatId);
+      clearConfirmationRetryWaitersForChat(targetChatId);
+      clearQueueRelayTimersForChat(targetChatId);
+      clearQueuedTurnsForChat(targetChatId, identity.attemptId);
+      pendingFyiCountByChatIdRef.current.delete(targetChatId);
+      pendingClarifyByChatIdRef.current.delete(targetChatId);
+      clearAllPendingToolConfirmations(targetChatId);
+      updatePendingContinuationRequestForChat(targetChatId, null);
+      streamHandlesRef.current.delete(targetChatId);
+      executionIdentityByChatIdRef.current.delete(targetChatId);
+      streamingChatIdsRef.current.delete(targetChatId);
+      activeRunThreadIdByChatIdRef.current.delete(targetChatId);
+      const materializedMessages = materializeStreamingMessages(
+        targetChatId,
+        readMessagesForTest(targetChatId),
+      );
+      const exactStreamingAssistant =
+        materializedMessages.find(
+          (message) =>
+            message?.role === "assistant" &&
+            message?.status === "streaming" &&
+            message?.meta?.attemptId === identity.attemptId,
+        ) || capturedStreamingAssistant;
+      const settled = settleStreamingAssistantMessages(materializedMessages);
+      let nextMessages = settled.nextMessages;
+      if (
+        exactStreamingAssistant &&
+        !nextMessages.some(
+          (message) => message?.id === exactStreamingAssistant.id,
+        )
+      ) {
+        /* Exact Test API runs need a terminal tombstone even when cancellation
+           happens before the first token. Otherwise the empty placeholder is
+           dropped and a follow-up GET incorrectly becomes run_not_found. */
+        nextMessages = [
+          ...nextMessages,
+          finalizeStreamingMessage(exactStreamingAssistant, {
+            content: "",
+            status: "cancelled",
+            updatedAt: Date.now(),
+          }),
+        ];
+      }
+      materializedMessages.forEach((message) => {
+        if (message?.role === "assistant" && message?.status === "streaming") {
+          clearStreamingMessageStore(targetChatId, message.id);
+        }
+      });
+      activeStreamsRef.current.delete(targetChatId);
+      cancelBackgroundPersist(targetChatId);
+      commitForegroundMessages(targetChatId, nextMessages);
+      storageApi.setChatMessages(targetChatId, nextMessages, {
+        source: "test-api-cancel",
+      });
+      setStreamingChatIds((previous) => {
+        const next = new Set(previous);
+        next.delete(targetChatId);
+        return next;
+      });
+      return {
+        ok: true,
+        chat_id: targetChatId,
+        execution_id: identity.sessionId,
+        attempt_id: identity.attemptId,
+        status: "cancel_requested",
+        cancellation: result.response || null,
+      };
+    },
+    [
+      activeStreamsRef,
+      clearAllPendingToolConfirmations,
+      clearConfirmationRetryWaitersForChat,
+      clearQueuedTurnsForChat,
+      clearQueueRelayTimersForChat,
+      clearStreamingMessageStore,
+      commitForegroundMessages,
+      getRunGeneration,
+      invalidateRunGeneration,
+      isRunGenerationCurrent,
+      materializeStreamingMessages,
+      readMessagesForTest,
+      storageApi,
+      streamingChatIdsRef,
+      updatePendingContinuationRequestForChat,
+    ],
+  );
+
+  const sendForTest = useCallback(
+    async ({
+      id,
+      text = "",
+      attachments = [],
+      wait_for_completion: waitForCompletionSnake,
+      waitForCompletion: waitForCompletionCamel,
+    } = {}) => {
+      const targetChatId = typeof id === "string" ? id.trim() : "";
+      const activeChatId = activeChatIdRef.current;
+      if (!targetChatId) {
+        throw Object.assign(new Error("chat id is required"), {
+          code: "invalid_request",
+        });
+      }
+      const exactStore = getChatsStore();
+      const exactRunContext = snapshotStoredRunContext(
+        exactStore,
+        targetChatId,
+      );
+      if (!exactRunContext) {
+        throw Object.assign(new Error(`chat ${targetChatId} not found`), {
+          code: "chat_not_found",
+        });
+      }
+      if (
+        !activeChatId ||
+        activeChatId !== targetChatId ||
+        exactStore?.activeChatId !== targetChatId
+      ) {
+        throw Object.assign(
+          new Error(
+            `chat ${targetChatId} is not active; activate it before starting a run`,
+          ),
+          { code: "chat_not_active" },
+        );
+      }
+      if (
+        exactRunContext.kind === "character" &&
+        !exactRunContext.characterId
+      ) {
+        throw Object.assign(
+          new Error(`chat ${targetChatId} has an invalid character config`),
+          { code: "chat_config_unavailable" },
+        );
+      }
+      if (
+        exactRunContext.kind !== "character" &&
+        (!exactRunContext.modelId ||
+          exactRunContext.modelId === "unchain-unset")
+      ) {
+        throw Object.assign(
+          new Error(`chat ${targetChatId} has no runnable model config`),
+          { code: "chat_config_unavailable" },
+        );
+      }
+      if (durableInteractionByChatIdRef.current[targetChatId]?.status) {
+        throw Object.assign(
+          new Error("This chat is restoring an interrupted run."),
+          { code: "durable_interaction_in_progress" },
+        );
+      }
+      if (
+        streamingChatIdsRef.current.has(targetChatId) ||
+        runPreflightGenerationByChatIdRef.current.has(targetChatId)
+      ) {
+        throw Object.assign(new Error("This chat already has an active run."), {
+          code: "run_already_active",
+        });
+      }
+
+      const waitForCompletion =
+        waitForCompletionSnake !== undefined
+          ? waitForCompletionSnake !== false
+          : waitForCompletionCamel !== undefined
+            ? waitForCompletionCamel !== false
+            : true;
+      const baseMessages = readMessagesForTest(targetChatId);
+      const baseMessageIds = new Set(
+        baseMessages
+          .map((message) => message?.id)
+          .filter((messageId) => typeof messageId === "string" && messageId),
+      );
       const startedAt = Date.now();
-      void runTurnRequest({
+      const started = await runTurnRequest({
         mode: "send",
-        chatId,
+        chatId: targetChatId,
         text,
         attachments,
-        baseMessages: messagesRef.current,
+        baseMessages,
         clearComposer: true,
         missingAttachmentPayloadMode: "block",
+        runContext: exactRunContext,
       });
+      if (!started) {
+        throw Object.assign(new Error("run did not start"), {
+          code: "run_start_failed",
+        });
+      }
+
+      const identity =
+        executionIdentityByChatIdRef.current.get(targetChatId) || null;
+      const attemptIdValue =
+        typeof identity?.attemptId === "string"
+          ? identity.attemptId.trim()
+          : "";
+      if (!waitForCompletion) {
+        if (!attemptIdValue) {
+          throw Object.assign(
+            new Error("runtime did not return an attempt identity"),
+            { code: "run_identity_unavailable" },
+          );
+        }
+        return getRunForTest({ id: targetChatId, attempt_id: attemptIdValue });
+      }
+
       return new Promise((resolve, reject) => {
         let timer;
+        const finish = (callback) => {
+          clearInterval(interval);
+          clearTimeout(timer);
+          callback();
+        };
         const interval = setInterval(() => {
-          const msgs = messagesRef.current || [];
-          const last = msgs[msgs.length - 1];
-          const stillStreaming = streamingChatIdsRef.current.has(chatId);
+          if (attemptIdValue) {
+            let snapshot;
+            try {
+              snapshot = getRunForTest({
+                id: targetChatId,
+                attempt_id: attemptIdValue,
+              });
+            } catch (error) {
+              if (error?.code === "run_not_found") {
+                return;
+              }
+              finish(() => reject(error));
+              return;
+            }
+            if (snapshot.status === "completed") {
+              finish(() =>
+                resolve({
+                  message_id: snapshot.message_id,
+                  role: "assistant",
+                  content: snapshot.content,
+                  tool_calls: snapshot.tool_calls,
+                  finish_reason: snapshot.finish_reason || "stop",
+                  latency_ms: Date.now() - startedAt,
+                  chat_id: targetChatId,
+                  execution_id: snapshot.execution_id,
+                  attempt_id: attemptIdValue,
+                }),
+              );
+            } else if (
+              ["failed", "cancelled", "interrupted"].includes(snapshot.status)
+            ) {
+              finish(() =>
+                reject(
+                  Object.assign(
+                    new Error(
+                      snapshot.error?.message ||
+                        `run ended with status ${snapshot.status}`,
+                    ),
+                    {
+                      code: snapshot.error?.code || `run_${snapshot.status}`,
+                    },
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+
+          // Legacy V2 compatibility: V2 handles do not expose attempt ids, but
+          // the blocking /messages endpoint must still resolve from this exact
+          // chat rather than whichever chat is currently visible.
+          const messagesForChat = readMessagesForTest(targetChatId);
+          const last = [...messagesForChat]
+            .reverse()
+            .find(
+              (message) =>
+                message?.role === "assistant" &&
+                !baseMessageIds.has(message?.id),
+            );
+          const stillStreaming = streamingChatIdsRef.current.has(targetChatId);
           if (
-            msgs.length > baseLen &&
             !stillStreaming &&
             last &&
-            last.role === "assistant" &&
-            last.content
+            last.status !== "error" &&
+            last.status !== "streaming"
           ) {
-            clearInterval(interval);
-            clearTimeout(timer);
-            resolve({
-              message_id: last.id,
-              role: "assistant",
-              content:
-                typeof last.content === "string"
-                  ? last.content
-                  : JSON.stringify(last.content),
-              tool_calls: last.tool_calls || null,
-              finish_reason: last.finish_reason || "stop",
-              latency_ms: Date.now() - startedAt,
-            });
+            finish(() =>
+              resolve({
+                message_id: last.id,
+                role: "assistant",
+                content:
+                  typeof last.content === "string"
+                    ? last.content
+                    : JSON.stringify(last.content),
+                tool_calls: last.tool_calls || null,
+                finish_reason: last.finish_reason || "stop",
+                latency_ms: Date.now() - startedAt,
+                chat_id: targetChatId,
+              }),
+            );
           }
         }, 100);
         timer = setTimeout(
@@ -3716,7 +10265,13 @@ export const useChatStream = ({
         );
       });
     },
-    [activeChatIdRef, messagesRef, runTurnRequest, streamingChatIdsRef],
+    [
+      activeChatIdRef,
+      getRunForTest,
+      readMessagesForTest,
+      runTurnRequest,
+      streamingChatIdsRef,
+    ],
   );
 
   /* sendNewTurn(options) — options is optional and only consulted when it is
@@ -3757,31 +10312,105 @@ export const useChatStream = ({
         isCharacterChat ||
         (normalizedSelectedModelId &&
           normalizedSelectedModelId !== "unchain-unset");
-      const thisChatsStreamActive = Boolean(
-        streamingChatIdsRef.current.has(currentChatId) &&
-          streamHandlesRef.current.has(currentChatId),
-      );
+      const thisChatsRunActive = isChatRunPending(currentChatId);
+      const thisChatHasStreamHandle =
+        streamHandlesRef.current.has(currentChatId);
       if (!currentChatId || (!text && !hasAttachments)) {
         return;
       }
 
-      if (thisChatsStreamActive) {
+      const durableState =
+        durableInteractionByChatIdRef.current[currentChatId] || null;
+      if (durableState?.status) {
+        setStreamError(
+          durableState.lastError ||
+            "This chat is restoring an interrupted run. Please wait.",
+        );
+        return;
+      }
+
+      if (thisChatsRunActive) {
         if (bypassInterject) {
           // Should not normally happen — see the comment above — but never
           // race a concurrent send into an active run.
           return;
         }
+        if (!thisChatHasStreamHandle) {
+          const preflightInterject = extractCommands(text ?? "", {
+            isStreaming: true,
+          });
+          const normalizedPreflightText = text.trim();
+          const isExplicitQueue =
+            preflightInterject.commands.some(
+              (command) => command?.channel === "queue",
+            ) || normalizedPreflightText.startsWith("/queue ");
+          const preflightQueueBody =
+            preflightInterject.body.trim() ||
+            (normalizedPreflightText.startsWith("/queue ")
+              ? normalizedPreflightText.slice("/queue".length).trim()
+              : "");
+          if (
+            isExplicitQueue &&
+            !hasAttachments &&
+            preflightQueueBody
+          ) {
+            if (pushQueuedTurn(currentChatId, preflightQueueBody)) {
+              setInputValue("");
+              setDraftAttachments([]);
+            }
+            return;
+          }
+          /* The run is still in local preflight, so there is no backend
+             execution to interject into yet. Explicit queue input can wait
+             locally for the exact attempt identity; every other channel keeps
+             the draft intact and refuses a second run. */
+          toast.info("This chat is still preparing. Please wait.", {
+            dedupeKey: `chat-preflight-${currentChatId}`,
+          });
+          return;
+        }
+        // Fail closed on attachments: the interject channels are text-only, so
+        // a follow-up carrying attachments cannot be addressed to the running
+        // response without silently dropping the attachments. Keep the composer
+        // (text + attachments) intact and never call interject — the user can
+        // resend once the current response finishes.
+        if (hasAttachments) {
+          toast.info(
+            "Attachments can't be added to a response that's already running. Wait for it to finish, then send them.",
+            { dedupeKey: `chat-active-attachment-${currentChatId}` },
+          );
+          return;
+        }
         // A send arrived while this chat's run is still active: route it
         // through the interject channels (fyi/btw/queue/clarify) instead of
         // silently dropping it.
-        setInputValue("");
-        setDraftAttachments([]);
-        handleInterjectRef.current?.(currentChatId, text);
+        const interjectResult = handleInterjectRef.current?.(
+          currentChatId,
+          text,
+        );
+        void Promise.resolve(interjectResult).then((accepted) => {
+          if (
+            accepted !== true ||
+            activeChatIdRef.current !== currentChatId ||
+            inputValueRef.current.trim() !== text ||
+            !sameDraftAttachments(
+              draftAttachmentsRef.current,
+              currentDraftAttachments,
+            )
+          ) {
+            return;
+          }
+          setInputValue("");
+          setDraftAttachments([]);
+        });
         return;
       }
 
       if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Unchain bridge is unavailable in this runtime.");
+        setStreamErrorForChat(
+          currentChatId,
+          "Unchain bridge is unavailable in this runtime.",
+        );
         return;
       }
 
@@ -3798,14 +10427,38 @@ export const useChatStream = ({
         return;
       }
 
+      // Composer plugin-skill expansion: only for text actually typed into
+      // the composer. Programmatic sends (interject new_run fallback / queue
+      // relay) already carry a resolved body — expanding them again would
+      // re-run command tokens that were already handled upstream, so they
+      // never carry a composer sidecar either.
+      let outgoingText = text;
+      let commandToolkits = [];
+      let composer = null;
+      if (!isProgrammaticSend) {
+        // buildComposerSend: expanded body + ephemeral per-run toolkit
+        // selection (using a plugin's command selects that plugin for THIS run
+        // only — never persisted to the session) + the presentation sidecar.
+        const built = buildComposerSend(text, selectedToolkitsRef.current);
+        outgoingText = built.outgoingText;
+        commandToolkits = built.extraToolkits;
+        composer = built.composer;
+      }
+
+      if (!outgoingText && !hasAttachments) {
+        return;
+      }
+
       void runTurnRequest({
         mode: "send",
         chatId: currentChatId,
-        text,
+        text: outgoingText,
         attachments: currentDraftAttachments,
         baseMessages: messagesRef.current,
         clearComposer: !isProgrammaticSend,
         missingAttachmentPayloadMode: "block",
+        extraToolkits: commandToolkits,
+        composer,
       });
     },
     [
@@ -3813,25 +10466,15 @@ export const useChatStream = ({
       attachmentsDisabledReason,
       attachmentsEnabled,
       isCharacterChat,
+      isChatRunPending,
       messagesRef,
+      pushQueuedTurn,
       runTurnRequest,
       setDraftAttachments,
       setInputValue,
       setStreamError,
+      setStreamErrorForChat,
     ],
-  );
-
-  const pushQueuedTurn = useCallback(
-    (targetChatId, text) => {
-      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
-      if (!queuedTurns) {
-        queuedTurns = createQueuedTurnBuffer();
-        queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
-      }
-      queuedTurns.push(text);
-      syncInterjectStateForChat(targetChatId);
-    },
-    [syncInterjectStateForChat],
   );
 
   /* Sends {threadId, text: body, channel} to the server and dispatches on
@@ -3840,18 +10483,198 @@ export const useChatStream = ({
      absorb a mid-run message. `channel: "queue"` (explicit /queue) is the
      one case that never touches the server: it is purely a local buffer. */
   const dispatchInterjectChannel = useCallback(
-    (targetChatId, body, channel) => {
+    (targetChatId, body, channel, options = {}) => {
       if (channel === "queue") {
-        pushQueuedTurn(targetChatId, body);
-        return;
+        return pushQueuedTurn(targetChatId, body);
       }
 
+      const runGeneration = getRunGeneration(targetChatId);
       const threadId =
         activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+      const isGenerationCurrent = () =>
+        isRunGenerationCurrent(targetChatId, runGeneration);
+      if (!isGenerationCurrent()) {
+        return false;
+      }
 
-      api.unchain
-        .interject({ threadId, text: body, channel })
+      const executionAttemptId =
+        executionIdentityByChatIdRef.current.get(targetChatId)?.attemptId ||
+        "";
+      const sourceClientOperationId =
+        runClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+      const sourceAttemptId =
+        executionAttemptId || sourceClientOperationId;
+      const suppliedPendingFyiIntent =
+        options?.pendingFyiIntent &&
+        typeof options.pendingFyiIntent === "object"
+          ? options.pendingFyiIntent
+          : null;
+      const usesSuppliedPendingFyiIntent = Boolean(suppliedPendingFyiIntent);
+      const isCurrentDispatch = () => {
+        if (!isGenerationCurrent()) return false;
+        if (!sourceAttemptId) return true;
+        if (
+          sourceClientOperationId &&
+          runClientOperationIdByChatIdRef.current.get(targetChatId) !==
+            sourceClientOperationId
+        ) {
+          return false;
+        }
+        if (executionAttemptId) {
+          return (
+            executionIdentityByChatIdRef.current.get(targetChatId)
+              ?.attemptId === executionAttemptId
+          );
+        }
+        return true;
+      };
+      const needsDurableFyiIntent =
+        channel === "fyi" || channel === "auto" || usesSuppliedPendingFyiIntent;
+      const messageId = usesSuppliedPendingFyiIntent
+        ? suppliedPendingFyiIntent.messageId
+        : needsDurableFyiIntent
+          ? createPendingFyiMessageId()
+          : "";
+      if (needsDurableFyiIntent && !sourceAttemptId) {
+        const message =
+          "Could not address this message to the active run. Your input was kept.";
+        setStreamErrorForChat(targetChatId, message);
+        toast.error(message, {
+          dedupeKey: `interject-owner-unavailable-${targetChatId}`,
+        });
+        return usesSuppliedPendingFyiIntent
+          ? Promise.resolve(false)
+          : false;
+      }
+      if (needsDurableFyiIntent) {
+        const saved = usesSuppliedPendingFyiIntent
+          ? readPendingFyisForAttempt(targetChatId, sourceAttemptId).find(
+              (entry) =>
+                entry.chatId === targetChatId &&
+                entry.attemptId === sourceAttemptId &&
+                entry.messageId === suppliedPendingFyiIntent.messageId &&
+                entry.requestedChannel === channel &&
+                entry.threadId === threadId &&
+                entry.text === body &&
+                suppliedPendingFyiIntent.chatId === entry.chatId &&
+                suppliedPendingFyiIntent.attemptId === entry.attemptId &&
+                suppliedPendingFyiIntent.requestedChannel ===
+                  entry.requestedChannel &&
+                suppliedPendingFyiIntent.threadId === entry.threadId &&
+                suppliedPendingFyiIntent.text === entry.text,
+            ) || null
+          : writePendingFyi({
+              chatId: targetChatId,
+              attemptId: sourceAttemptId,
+              messageId,
+              text: body,
+              requestedChannel: channel,
+              threadId,
+            });
+        if (!saved) {
+          const message =
+            "Could not save this in-run message. Your input was kept.";
+          setStreamErrorForChat(targetChatId, message);
+          toast.error(message, {
+            dedupeKey: `interject-persist-failed-${targetChatId}`,
+          });
+          return usesSuppliedPendingFyiIntent
+            ? Promise.resolve(false)
+            : false;
+        }
+        if (!executionAttemptId) {
+          // Legacy V2 transports do not expose a server attempt id. Their
+          // per-run client operation id is still an exact, durable owner and
+          // is cleared/fallen back with this run only.
+          queueAttemptIdByChatIdRef.current.set(
+            targetChatId,
+            sourceAttemptId,
+          );
+          queueClientOperationIdByChatIdRef.current.delete(targetChatId);
+        }
+        syncPendingFyiStateForAttempt(targetChatId, sourceAttemptId);
+      }
+
+      let clarifyBtwBarrier = null;
+      if (usesSuppliedPendingFyiIntent && channel === "btw") {
+        const clarifyId =
+          typeof options?.clarifyId === "string" ? options.clarifyId.trim() : "";
+        const clarifyRunGeneration = Number(options?.runGeneration);
+        const existingBarrier =
+          clarifyBtwBarrierByChatIdRef.current.get(targetChatId) || null;
+        if (
+          !clarifyId ||
+          clarifyRunGeneration !== runGeneration ||
+          existingBarrier
+        ) {
+          setStreamErrorForChat(
+            targetChatId,
+            "The side question could not be bound to its exact run. It remains saved for recovery.",
+          );
+          return Promise.resolve(false);
+        }
+        clarifyBtwBarrier = {
+          key: [
+            targetChatId,
+            clarifyId,
+            messageId,
+            sourceAttemptId,
+            runGeneration,
+          ].join(":"),
+          chatId: targetChatId,
+          clarifyId,
+          messageId,
+          attemptId: sourceAttemptId,
+          runGeneration,
+          settled: false,
+          terminal: null,
+          timeoutId: null,
+        };
+        clarifyBtwBarrierByChatIdRef.current.set(
+          targetChatId,
+          clarifyBtwBarrier,
+        );
+      }
+
+      const timeoutPromise = clarifyBtwBarrier
+        ? new Promise((_, reject) => {
+            clarifyBtwBarrier.timeoutId = setTimeout(() => {
+              settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                disposition: "migrate",
+              });
+              reject(
+                Object.assign(new Error("Side question timed out."), {
+                  code: "interject_btw_timeout",
+                }),
+              );
+            }, CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS);
+          })
+        : null;
+      let interjectRequest;
+      try {
+        interjectRequest = Promise.resolve(
+          api.unchain.interject({
+          threadId,
+          text: body,
+          channel,
+          ...(messageId ? { messageId } : {}),
+          }),
+        );
+      } catch (error) {
+        interjectRequest = Promise.reject(error);
+      }
+      const dispatchPromise = (timeoutPromise
+        ? Promise.race([interjectRequest, timeoutPromise])
+        : interjectRequest)
         .then((result) => {
+          if (!isCurrentDispatch()) {
+            if (clarifyBtwBarrier) {
+              settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                disposition: "migrate",
+              });
+            }
+            return false;
+          }
           const rawResolvedChannel =
             result && typeof result.resolved_channel === "string"
               ? result.resolved_channel
@@ -3864,53 +10687,231 @@ export const useChatStream = ({
           const dispatchTime = Date.now();
 
           if (resolvedChannel === "fyi") {
-            pendingFyiCountByChatIdRef.current.set(
-              targetChatId,
-              (pendingFyiCountByChatIdRef.current.get(targetChatId) || 0) + 1,
-            );
-            syncInterjectStateForChat(targetChatId);
+            const acceptedMessageId =
+              typeof result?.message_id === "string"
+                ? result.message_id.trim()
+                : "";
+            if (
+              needsDurableFyiIntent &&
+              acceptedMessageId !== messageId
+            ) {
+              setStreamErrorForChat(
+                targetChatId,
+                "The runtime did not confirm the addressed FYI. It remains saved for recovery.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : true;
+            }
             toast.success("Queued — will be injected next step", {
               dedupeKey: "interject-fyi-queued",
             });
-            return;
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "preserve",
+                  accepted: true,
+                })
+              : true;
           }
 
           if (resolvedChannel === "btw") {
             const answer =
               typeof result?.answer === "string" ? result.answer : "";
-            appendLocalTraceFrame(targetChatId, {
-              seq: dispatchTime,
-              ts: dispatchTime,
-              type: "side_answer",
-              stage: "client",
-              payload: { question: body, answer },
-            });
-            appendLocalInterjectionRecord(
+            const recorded = appendLocalBtwResultForOwner({
               targetChatId,
-              buildInterjectionRecord({
-                type: "btw",
-                text: body,
-                origin: "user",
-                answer,
-                ts: dispatchTime,
-              }),
-            );
-            return;
+              attemptId: sourceAttemptId,
+              executionAttemptId,
+              messageId,
+              question: body,
+              answer,
+              ts: dispatchTime,
+            });
+            if (!recorded) {
+              setStreamErrorForChat(
+                targetChatId,
+                needsDurableFyiIntent
+                  ? "The side answer arrived after its owner changed. The question remains queued."
+                  : "The side answer arrived after its owner changed. Your input was kept.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : needsDurableFyiIntent;
+            }
+            if (needsDurableFyiIntent) {
+              if (clarifyBtwBarrier) {
+                if (!clarifyBtwBarrier.settled) {
+                  return settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "resolve",
+                    accepted: true,
+                  });
+                }
+                // onError may already have migrated this exact intent to its
+                // same-id fallback while the HTTP request was still in flight.
+                // A later successful receipt wins over that fallback, but it
+                // may update live refs only while the original owner remains
+                // the exact current runtime owner.
+                const lateResolved = resolvePendingFyiIntent({
+                  chatId: targetChatId,
+                  attemptId: sourceAttemptId,
+                  messageId,
+                });
+                if (
+                  lateResolved &&
+                  isClarifyBtwBarrierCurrentOwner(clarifyBtwBarrier)
+                ) {
+                  syncDurableQueueForAttempt(
+                    targetChatId,
+                    sourceAttemptId,
+                    lateResolved.queue || null,
+                  );
+                }
+                return Boolean(lateResolved);
+              }
+              const resolved = resolvePendingFyiIntent({
+                chatId: targetChatId,
+                attemptId: sourceAttemptId,
+                messageId,
+              });
+              if (resolved) {
+                syncDurableQueueForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                  resolved.queue || null,
+                );
+              } else {
+                syncPendingFyiStateForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                );
+              }
+              if (!resolved &&
+                readPendingFyisForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                ).some((entry) => entry.messageId === messageId)
+              ) {
+                setStreamErrorForChat(
+                  targetChatId,
+                  "The side answer arrived, but its saved intent could not be finalized.",
+                );
+              }
+            }
+            return true;
           }
 
           if (resolvedChannel === "queue") {
-            pushQueuedTurn(targetChatId, body);
-            return;
+            if (!needsDurableFyiIntent) {
+              return pushQueuedTurn(targetChatId, body);
+            }
+            const migrated = migratePendingFyiToQueue({
+              chatId: targetChatId,
+              attemptId: sourceAttemptId,
+              messageId,
+            });
+            if (!migrated?.queue) {
+              setStreamErrorForChat(
+                targetChatId,
+                "This message is still saved and will be recovered after the run settles.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : true;
+            }
+            syncDurableQueueForAttempt(
+              targetChatId,
+              sourceAttemptId,
+              migrated.queue,
+            );
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "queued",
+                  accepted: true,
+                })
+              : true;
           }
 
           if (resolvedChannel === "clarify") {
+            const ownerStillActive = Boolean(
+              streamingChatIdsRef.current.has(targetChatId) &&
+                streamHandlesRef.current.has(targetChatId),
+            );
+            if (needsDurableFyiIntent && !ownerStillActive) {
+              const migrated = migratePendingFyiToQueue({
+                chatId: targetChatId,
+                attemptId: sourceAttemptId,
+                messageId,
+              });
+              if (migrated?.queue) {
+                syncDurableQueueForAttempt(
+                  targetChatId,
+                  sourceAttemptId,
+                  migrated.queue,
+                );
+              }
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: migrated?.queue ? "queued" : "migrate",
+                    accepted: Boolean(migrated?.queue),
+                  })
+                : true;
+            }
             const clarifyId = `clarify-${dispatchTime}-${Math.random()
               .toString(16)
               .slice(2)}`;
-            pendingClarifyByChatIdRef.current.set(targetChatId, {
-              id: clarifyId,
-              text: body,
-            });
+            const clientOperationId =
+              runClientOperationIdByChatIdRef.current.get(targetChatId) || "";
+            const durableClarify = needsDurableFyiIntent
+              ? convertPendingFyiToClarify({
+                  chatId: targetChatId,
+                  attemptId: sourceAttemptId,
+                  messageId,
+                  clarifyId,
+                })
+              : writePendingClarify({
+                  chatId: targetChatId,
+                  ...(sourceAttemptId
+                    ? { sourceAttemptId }
+                    : { clientOperationId }),
+                  id: clarifyId,
+                  text: body,
+                });
+            if (!durableClarify) {
+              if (needsDurableFyiIntent) {
+                const migrated = migratePendingFyiToQueue({
+                  chatId: targetChatId,
+                  attemptId: sourceAttemptId,
+                  messageId,
+                });
+                if (migrated?.queue) {
+                  syncDurableQueueForAttempt(
+                    targetChatId,
+                    sourceAttemptId,
+                    migrated.queue,
+                  );
+                  return clarifyBtwBarrier
+                    ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                        disposition: "queued",
+                        accepted: true,
+                      })
+                    : true;
+                }
+              }
+              setStreamErrorForChat(
+                targetChatId,
+                "Could not save this clarification. Your input was kept.",
+              );
+              return false;
+            }
+            pendingClarifyByChatIdRef.current.set(
+              targetChatId,
+              durableClarify,
+            );
             appendLocalTraceFrame(targetChatId, {
               seq: dispatchTime,
               ts: dispatchTime,
@@ -3927,7 +10928,12 @@ export const useChatStream = ({
                 status: "pending",
               },
             });
-            return;
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "converted",
+                  accepted: true,
+                })
+              : true;
           }
 
           // resolved_channel === "new_run": graph-recipe runs never register
@@ -3940,9 +10946,49 @@ export const useChatStream = ({
             streamingChatIdsRef.current.has(targetChatId) &&
               streamHandlesRef.current.has(targetChatId),
           );
+          if (needsDurableFyiIntent) {
+            const migrated = migratePendingFyiToQueue({
+              chatId: targetChatId,
+              attemptId: sourceAttemptId,
+              messageId,
+            });
+            if (!migrated?.queue) {
+              setStreamErrorForChat(
+                targetChatId,
+                "This message is still saved and will be recovered after the run settles.",
+              );
+              return clarifyBtwBarrier
+                ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                    disposition: "migrate",
+                  })
+                : true;
+            }
+            syncDurableQueueForAttempt(
+              targetChatId,
+              sourceAttemptId,
+              migrated.queue,
+            );
+            if (!stillActive && !clarifyBtwBarrier) {
+              relayQueuedTurnsAfterRunRef.current?.({
+                targetChatId,
+                nextStreamMessages:
+                  activeStreamsRef.current.get(targetChatId)?.messages ||
+                  storageApi.getChatMessages?.(targetChatId) ||
+                  [],
+                characterAgentConfig: null,
+                runContext:
+                  runContextByChatIdRef.current.get(targetChatId) || null,
+              });
+            }
+            return clarifyBtwBarrier
+              ? settleClarifyBtwBarrier(clarifyBtwBarrier, {
+                  disposition: "queued",
+                  accepted: true,
+                })
+              : true;
+          }
           if (stillActive) {
-            pushQueuedTurn(targetChatId, body);
-            return;
+            return pushQueuedTurn(targetChatId, body);
           }
 
           if (targetChatId === activeChatIdRef.current) {
@@ -3951,31 +10997,49 @@ export const useChatStream = ({
               chatId: targetChatId,
               bypassInterject: true,
             });
-          } else {
-            // Background chat + no active run to relay into: we have no
-            // reliable snapshot of that chat's persisted messages here (only
-            // the active chat's messagesRef is available), so sending would
-            // risk attaching this turn to the wrong chat. Log and drop
-            // rather than corrupt another chat's history.
-            unchainLogger.warn("interject_new_run_dropped_background", {
-              chatId: targetChatId,
-            });
+            return true;
           }
+          return pushQueuedTurn(targetChatId, body);
         })
         .catch((error) => {
-          setStreamError(error?.message || "Failed to send interjection.");
+          if (clarifyBtwBarrier && !clarifyBtwBarrier.settled) {
+            settleClarifyBtwBarrier(clarifyBtwBarrier, {
+              disposition: "migrate",
+            });
+          }
+          if (!isCurrentDispatch()) {
+            return false;
+          }
+          setStreamErrorForChat(
+            targetChatId,
+            error?.message || "Failed to send interjection.",
+          );
+          return false;
         });
+
+      if (needsDurableFyiIntent && !usesSuppliedPendingFyiIntent) {
+        void dispatchPromise;
+        return true;
+      }
+      return dispatchPromise;
     },
     [
       activeChatIdRef,
-      appendLocalInterjectionRecord,
+      activeStreamsRef,
+      appendLocalBtwResultForOwner,
       appendLocalTraceFrame,
+      getRunGeneration,
+      isClarifyBtwBarrierCurrentOwner,
+      isRunGenerationCurrent,
       pushQueuedTurn,
       sendNewTurn,
-      setStreamError,
+      settleClarifyBtwBarrier,
+      setStreamErrorForChat,
+      storageApi,
       streamHandlesRef,
       streamingChatIdsRef,
-      syncInterjectStateForChat,
+      syncDurableQueueForAttempt,
+      syncPendingFyiStateForAttempt,
     ],
   );
 
@@ -3995,8 +11059,8 @@ export const useChatStream = ({
       );
       const channel = channelCommand ? channelCommand.channel : "auto";
       const trimmedBody = (body || "").trim();
-      if (!trimmedBody) return;
-      dispatchInterjectChannel(targetChatId, trimmedBody, channel);
+      if (!trimmedBody) return false;
+      return dispatchInterjectChannel(targetChatId, trimmedBody, channel);
     },
     [dispatchInterjectChannel],
   );
@@ -4009,10 +11073,24 @@ export const useChatStream = ({
       if (!queuedTurns) {
         return;
       }
+      const previousItems = queuedTurns.snapshot();
       queuedTurns.remove(id);
+      if (!persistQueuedTurnBufferForAttempt(targetChatId, queuedTurns)) {
+        queuedTurns.hydrate(previousItems);
+        setStreamErrorForChat(
+          targetChatId,
+          "Could not update the queued messages. Nothing was removed.",
+        );
+        return;
+      }
       syncInterjectStateForChat(targetChatId);
     },
-    [activeChatIdRef, syncInterjectStateForChat],
+    [
+      activeChatIdRef,
+      persistQueuedTurnBufferForAttempt,
+      setStreamErrorForChat,
+      syncInterjectStateForChat,
+    ],
   );
 
   /* onClarifyResolve(value) resolves the active chat's pending clarify, or
@@ -4025,15 +11103,72 @@ export const useChatStream = ({
         : activeChatIdRef.current;
       const value = hasExplicitChatId ? maybeValue : chatIdOrValue;
 
-      const pending = pendingClarifyByChatIdRef.current.get(targetChatId);
+      const pending =
+        pendingClarifyByChatIdRef.current.get(targetChatId) ||
+        readPendingClarifyForChat(targetChatId);
       if (!pending) {
-        return;
+        return false;
       }
+      if (value === "queue") {
+        const fallback = fallbackPendingClarifyForChat(targetChatId, pending);
+        if (!fallback) return false;
+        updateLocalClarifyFrame(targetChatId, pending.id, {
+          status: "resolved",
+        });
+        return true;
+      }
+      if (value !== "fyi" && value !== "btw") return false;
+
+      const sourceAttemptId =
+        pending.sourceAttemptId || pending.clientOperationId || "";
+      const threadId =
+        activeRunThreadIdByChatIdRef.current.get(targetChatId) || targetChatId;
+      const runGeneration = getRunGeneration(targetChatId);
+      const messageId = createPendingFyiMessageId();
+      const pendingFyiIntent = transitionPendingClarifyToPendingFyi({
+        chatId: targetChatId,
+        clarifyId: pending.id,
+        attemptId: sourceAttemptId,
+        messageId,
+        requestedChannel: value,
+        threadId,
+      });
+      if (!pendingFyiIntent) {
+        setStreamErrorForChat(
+          targetChatId,
+          "Could not save this clarification choice. Please try again.",
+        );
+        return false;
+      }
+
+      // The durable outbox now contains the FYI/BTW intent and no clarify.
+      // Only after that atomic transition may the UI stop presenting the
+      // clarify frame or any network request begin.
       pendingClarifyByChatIdRef.current.delete(targetChatId);
-      updateLocalClarifyFrame(targetChatId, pending.id, { status: "resolved" });
-      dispatchInterjectChannel(targetChatId, pending.text, value);
+      syncPendingFyiStateForAttempt(targetChatId, sourceAttemptId);
+      updateLocalClarifyFrame(targetChatId, pending.id, {
+        status: "resolved",
+      });
+      return dispatchInterjectChannel(
+        targetChatId,
+        pendingFyiIntent.text,
+        value,
+        {
+          pendingFyiIntent,
+          clarifyId: pending.id,
+          runGeneration,
+        },
+      );
     },
-    [activeChatIdRef, dispatchInterjectChannel, updateLocalClarifyFrame],
+    [
+      activeChatIdRef,
+      dispatchInterjectChannel,
+      fallbackPendingClarifyForChat,
+      getRunGeneration,
+      setStreamErrorForChat,
+      syncPendingFyiStateForAttempt,
+      updateLocalClarifyFrame,
+    ],
   );
 
   const interjectState = interjectStateByChatId[chatId] || {
@@ -4044,183 +11179,381 @@ export const useChatStream = ({
   const resendTurn = useCallback(
     async (message) => {
       const currentChatId = activeChatIdRef.current;
-      const messageIndex = Array.isArray(messagesRef.current)
-        ? messagesRef.current.findIndex((item) => item?.id === message?.id)
+      const originalMessages = Array.isArray(messagesRef.current)
+        ? [...messagesRef.current]
+        : [];
+      const messageIndex = originalMessages
+        ? originalMessages.findIndex((item) => item?.id === message?.id)
         : -1;
       const targetMessage =
-        messageIndex >= 0 && messageIndex < messagesRef.current.length
-          ? messagesRef.current[messageIndex]
+        messageIndex >= 0 && messageIndex < originalMessages.length
+          ? originalMessages[messageIndex]
           : null;
       const text =
         typeof targetMessage?.content === "string"
           ? targetMessage.content.trim()
           : "";
-      const thisChatsStreamActive = Boolean(
-        streamingChatIdsRef.current.has(currentChatId) &&
-          streamHandlesRef.current.has(currentChatId),
+      const thisChatsStreamActive = isChatRunPending(currentChatId);
+      const durableMutationBlocked = Boolean(
+        durableInteractionByChatIdRef.current[currentChatId]?.status,
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        thisChatsStreamActive
+        thisChatsStreamActive ||
+        durableMutationBlocked
       ) {
         return;
       }
 
-      if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Unchain bridge is unavailable in this runtime.");
-        return;
-      }
-
-      const baseMessages = messagesRef.current.slice(0, messageIndex);
-      const characterConfig = isCharacterChat
-        ? await buildCharacterRunConfig().catch((error) => {
-            setStreamError(
-              error?.message || "Failed to prepare this character chat.",
-            );
-            return null;
-          })
-        : null;
-      if (isCharacterChat && !characterConfig?.session_id) {
-        return;
-      }
-      const memoryReplaced = await replaceSessionMemoryForMessages(
-        characterConfig?.session_id || currentChatId,
-        baseMessages,
-        {
-          forceMemoryEnabled: isCharacterChat,
-          memoryNamespace: characterConfig?.run_memory_namespace || "",
-        },
-      );
-      if (!memoryReplaced) {
-        return;
-      }
-      const sourceAttachments = Array.isArray(targetMessage.attachments)
-        ? targetMessage.attachments
-        : [];
-      const resendAttachments =
-        sourceAttachments.length > 0 && !attachmentsEnabled
-          ? []
-          : sourceAttachments;
-      if (sourceAttachments.length > 0 && !attachmentsEnabled) {
-        setStreamError(
-          "Current model does not support image/file input. Resending text only.",
-        );
-      }
-
-      void runTurnRequest({
-        mode: "resend",
+      const operationId = createTurnMutationOperationId(currentChatId);
+      const turnMutationOwner = claimTurnMutation({
         chatId: currentChatId,
-        text,
-        attachments: resendAttachments,
-        baseMessages,
-        clearComposer: false,
-        reuseUserMessage: targetMessage,
-        missingAttachmentPayloadMode: "degrade",
-        characterAgentConfig: characterConfig,
+        operationId,
+        mountedRef: hookMountedRef,
       });
+      if (!turnMutationOwner) return;
+      const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
+
+      try {
+        if (!api.unchain.isBridgeAvailable()) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unchain bridge is unavailable in this runtime.",
+          );
+          return;
+        }
+
+        const baseMessages = originalMessages.slice(0, messageIndex);
+        const targetThreadId =
+          typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+        const capturedModelId =
+          typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        const characterConfig = isCharacterChat
+          ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
+              setStreamErrorForChat(
+                currentChatId,
+                error?.message || "Failed to prepare this character chat.",
+              );
+              return null;
+            })
+          : null;
+        if (
+          !isCurrentTurnMutation() ||
+          (isCharacterChat && !characterConfig?.session_id)
+        ) {
+          return;
+        }
+        const targetSessionId = characterConfig?.session_id || currentChatId;
+        const targetModelId =
+          typeof characterConfig?.default_model === "string" &&
+          characterConfig.default_model.trim()
+            ? characterConfig.default_model.trim()
+            : capturedModelId;
+        let expectedSessionRevision = null;
+        try {
+          expectedSessionRevision = await readMemorySessionRevision(
+            targetSessionId,
+            { forceMemoryEnabled: isCharacterChat },
+          );
+        } catch (error) {
+          setStreamErrorForChat(currentChatId, error?.message);
+          return;
+        }
+        if (!isCurrentTurnMutation()) return;
+        const outboxEntry = enqueueTurnMutation({
+          operationId,
+          chatId: currentChatId,
+          sessionId: targetSessionId,
+          kind: "resend",
+          targetMessageId: targetMessage.id,
+          originalFingerprint:
+            fingerprintTurnMutationMessages(originalMessages),
+          baseFingerprint: fingerprintTurnMutationMessages(baseMessages),
+          baseMessageCount: baseMessages.length,
+          text,
+          modelId: targetModelId,
+          threadId: targetThreadId,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+          forceMemoryEnabled: isCharacterChat,
+          expectedSessionRevision,
+        });
+        if (!outboxEntry) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unable to safely persist this resend. Please try again.",
+          );
+          return;
+        }
+        const memoryResult = await replaceSessionMemoryForMessages(
+          targetSessionId,
+          baseMessages,
+          {
+            forceMemoryEnabled: isCharacterChat,
+            memoryNamespace: characterConfig?.run_memory_namespace || "",
+            modelId: targetModelId,
+            targetChatId: currentChatId,
+            operationId,
+            expectedSessionRevision,
+          },
+        );
+        if (!memoryResult.applied) {
+          if (
+            isTerminalTurnMutationError(memoryResult.error) &&
+            fingerprintTurnMutationMessages(
+              storageApi.getChatMessages?.(currentChatId) || [],
+            ) === outboxEntry.originalFingerprint
+          ) {
+            removeTurnMutation(operationId);
+          }
+          return;
+        }
+        if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
+        const sourceAttachments = Array.isArray(targetMessage.attachments)
+          ? targetMessage.attachments
+          : [];
+        const resendAttachments =
+          sourceAttachments.length > 0 && !attachmentsEnabled
+            ? []
+            : sourceAttachments;
+        if (sourceAttachments.length > 0 && !attachmentsEnabled) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Current model does not support image/file input. Resending text only.",
+          );
+        }
+
+        await runTurnRequest({
+          mode: "resend",
+          chatId: currentChatId,
+          text,
+          attachments: resendAttachments,
+          baseMessages,
+          clearComposer: false,
+          reuseUserMessage: targetMessage,
+          missingAttachmentPayloadMode: "degrade",
+          characterAgentConfig: characterConfig,
+          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          turnMutationOperationId: operationId,
+        });
+      } finally {
+        releaseTurnMutation(turnMutationOwner);
+      }
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      isChatRunPending,
       isCharacterChat,
       messagesRef,
+      modelIdRef,
+      readMemorySessionRevision,
       replaceSessionMemoryForMessages,
       runTurnRequest,
-      setStreamError,
+      setStreamErrorForChat,
+      storageApi,
+      threadIdRef,
     ],
   );
 
   const editTurn = useCallback(
     async (message, nextContent) => {
       const currentChatId = activeChatIdRef.current;
-      const messageIndex = Array.isArray(messagesRef.current)
-        ? messagesRef.current.findIndex((item) => item?.id === message?.id)
-        : -1;
+      const originalMessages = Array.isArray(messagesRef.current)
+        ? [...messagesRef.current]
+        : [];
+      const messageIndex = originalMessages.findIndex(
+        (item) => item?.id === message?.id,
+      );
       const targetMessage =
-        messageIndex >= 0 && messageIndex < messagesRef.current.length
-          ? messagesRef.current[messageIndex]
+        messageIndex >= 0 && messageIndex < originalMessages.length
+          ? originalMessages[messageIndex]
           : null;
       const text = typeof nextContent === "string" ? nextContent.trim() : "";
-      const thisChatsStreamActive = Boolean(
-        streamingChatIdsRef.current.has(currentChatId) &&
-          streamHandlesRef.current.has(currentChatId),
+      const thisChatsStreamActive = isChatRunPending(currentChatId);
+      const durableMutationBlocked = Boolean(
+        durableInteractionByChatIdRef.current[currentChatId]?.status,
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        thisChatsStreamActive
+        thisChatsStreamActive ||
+        durableMutationBlocked
       ) {
         return;
       }
 
-      if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Unchain bridge is unavailable in this runtime.");
-        return;
-      }
-
-      const baseMessages = messagesRef.current.slice(0, messageIndex);
-      const characterConfig = isCharacterChat
-        ? await buildCharacterRunConfig().catch((error) => {
-            setStreamError(
-              error?.message || "Failed to prepare this character chat.",
-            );
-            return null;
-          })
-        : null;
-      if (isCharacterChat && !characterConfig?.session_id) {
-        return;
-      }
-      const memoryReplaced = await replaceSessionMemoryForMessages(
-        characterConfig?.session_id || currentChatId,
-        baseMessages,
-        {
-          forceMemoryEnabled: isCharacterChat,
-          memoryNamespace: characterConfig?.run_memory_namespace || "",
-        },
-      );
-      if (!memoryReplaced) {
-        return;
-      }
-      const sourceAttachments = Array.isArray(targetMessage.attachments)
-        ? targetMessage.attachments
-        : [];
-      const originalAttachments =
-        sourceAttachments.length > 0 && !attachmentsEnabled
-          ? []
-          : sourceAttachments;
-      if (sourceAttachments.length > 0 && !attachmentsEnabled) {
-        setStreamError(
-          "Current model does not support image/file input. Sending text only.",
-        );
-      }
-
-      void runTurnRequest({
-        mode: "edit",
+      const operationId = createTurnMutationOperationId(currentChatId);
+      const turnMutationOwner = claimTurnMutation({
         chatId: currentChatId,
-        text,
-        attachments: originalAttachments,
-        baseMessages,
-        clearComposer: false,
-        reuseUserMessage: targetMessage,
-        missingAttachmentPayloadMode: "degrade",
-        characterAgentConfig: characterConfig,
+        operationId,
+        mountedRef: hookMountedRef,
       });
+      if (!turnMutationOwner) return;
+      const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
+
+      try {
+        if (!api.unchain.isBridgeAvailable()) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unchain bridge is unavailable in this runtime.",
+          );
+          return;
+        }
+
+        const baseMessages = originalMessages.slice(0, messageIndex);
+        const targetThreadId =
+          typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+        const capturedModelId =
+          typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        const targetSelectedToolkits = Array.isArray(selectedToolkitsRef.current)
+          ? [...selectedToolkitsRef.current]
+          : [];
+        const characterConfig = isCharacterChat
+          ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
+              setStreamErrorForChat(
+                currentChatId,
+                error?.message || "Failed to prepare this character chat.",
+              );
+              return null;
+            })
+          : null;
+        if (
+          !isCurrentTurnMutation() ||
+          (isCharacterChat && !characterConfig?.session_id)
+        ) {
+          return;
+        }
+        const sourceAttachments = Array.isArray(targetMessage.attachments)
+          ? targetMessage.attachments
+          : [];
+        const originalAttachments =
+          sourceAttachments.length > 0 && !attachmentsEnabled
+            ? []
+            : sourceAttachments;
+        if (sourceAttachments.length > 0 && !attachmentsEnabled) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Current model does not support image/file input. Sending text only.",
+          );
+        }
+
+        // The expanded edit and its sidecar are persisted in the outbox so a
+        // remount resumes the exact same operation, not a newly-resolved one.
+        const built = buildComposerSend(text, targetSelectedToolkits);
+        if (!built.outgoingText && originalAttachments.length === 0) {
+          setStreamErrorForChat(
+            currentChatId,
+            "This edit does not contain any text or usable attachments.",
+          );
+          return;
+        }
+        const targetSessionId = characterConfig?.session_id || currentChatId;
+        const targetModelId =
+          typeof characterConfig?.default_model === "string" &&
+          characterConfig.default_model.trim()
+            ? characterConfig.default_model.trim()
+            : capturedModelId;
+        let expectedSessionRevision = null;
+        try {
+          expectedSessionRevision = await readMemorySessionRevision(
+            targetSessionId,
+            { forceMemoryEnabled: isCharacterChat },
+          );
+        } catch (error) {
+          setStreamErrorForChat(currentChatId, error?.message);
+          return;
+        }
+        if (!isCurrentTurnMutation()) return;
+        const outboxEntry = enqueueTurnMutation({
+          operationId,
+          chatId: currentChatId,
+          sessionId: targetSessionId,
+          kind: "edit",
+          targetMessageId: targetMessage.id,
+          originalFingerprint:
+            fingerprintTurnMutationMessages(originalMessages),
+          baseFingerprint: fingerprintTurnMutationMessages(baseMessages),
+          baseMessageCount: baseMessages.length,
+          text: built.outgoingText,
+          extraToolkits: built.extraToolkits,
+          composer: built.composer,
+          modelId: targetModelId,
+          threadId: targetThreadId,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+          forceMemoryEnabled: isCharacterChat,
+          expectedSessionRevision,
+        });
+        if (!outboxEntry) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unable to safely persist this edit. Please try again.",
+          );
+          return;
+        }
+        const memoryResult = await replaceSessionMemoryForMessages(
+          targetSessionId,
+          baseMessages,
+          {
+            forceMemoryEnabled: isCharacterChat,
+            memoryNamespace: characterConfig?.run_memory_namespace || "",
+            modelId: targetModelId,
+            targetChatId: currentChatId,
+            operationId,
+            expectedSessionRevision,
+          },
+        );
+        if (!memoryResult.applied) {
+          if (
+            isTerminalTurnMutationError(memoryResult.error) &&
+            fingerprintTurnMutationMessages(
+              storageApi.getChatMessages?.(currentChatId) || [],
+            ) === outboxEntry.originalFingerprint
+          ) {
+            removeTurnMutation(operationId);
+          }
+          return;
+        }
+        if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
+
+        await runTurnRequest({
+          mode: "edit",
+          chatId: currentChatId,
+          text: built.outgoingText,
+          attachments: originalAttachments,
+          baseMessages,
+          clearComposer: false,
+          reuseUserMessage: targetMessage,
+          missingAttachmentPayloadMode: "degrade",
+          extraToolkits: built.extraToolkits,
+          characterAgentConfig: characterConfig,
+          composer: built.composer,
+          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          turnMutationOperationId: operationId,
+        });
+      } finally {
+        releaseTurnMutation(turnMutationOwner);
+      }
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      isChatRunPending,
       isCharacterChat,
       messagesRef,
+      modelIdRef,
+      readMemorySessionRevision,
       replaceSessionMemoryForMessages,
       runTurnRequest,
-      setStreamError,
+      setStreamErrorForChat,
+      storageApi,
+      threadIdRef,
     ],
   );
 
@@ -4235,8 +11568,16 @@ export const useChatStream = ({
         return;
       }
 
+      if (durableInteractionByChatIdRef.current[currentChatId]?.status) {
+        return;
+      }
+
+      const originalMessages = Array.isArray(messagesRef.current)
+        ? [...messagesRef.current]
+        : [];
+
       const turnMessageIds = collectTurnMessageIds(
-        messagesRef.current,
+        originalMessages,
         message.id,
       );
       if (turnMessageIds.size === 0) {
@@ -4245,117 +11586,583 @@ export const useChatStream = ({
 
       const deletingStreamingAssistant =
         message.role === "assistant" && message.status === "streaming";
+      const hasTurnMutation =
+        turnMutationByChatIdRef.current.has(currentChatId);
+      const hasRunPreflight =
+        runPreflightGenerationByChatIdRef.current.has(currentChatId);
+      const hasStreamingRun =
+        streamingChatIdsRef.current.has(currentChatId);
+      if (
+        hasTurnMutation ||
+        hasRunPreflight ||
+        (hasStreamingRun && !deletingStreamingAssistant)
+      ) {
+        return;
+      }
       let workingMessages = Array.isArray(messagesRef.current)
-        ? messagesRef.current
+        ? originalMessages
         : [];
 
-      if (
-        deletingStreamingAssistant &&
-        streamHandlesRef.current.has(currentChatId) &&
-        streamingChatIdsRef.current.has(currentChatId)
-      ) {
+      const activeExecutionIdentity =
+        executionIdentityByChatIdRef.current.get(currentChatId) || null;
+      const expectedCancelAttemptId =
+        deletingStreamingAssistant && hasStreamingRun
+          ? activeExecutionIdentity?.attemptId || ""
+          : "";
+
+      if (deletingStreamingAssistant && hasStreamingRun) {
         workingMessages = cancelCurrentStreamAndSettleMessages();
       }
 
       const nextMessages = workingMessages.filter(
         (item) => !turnMessageIds.has(item?.id),
       );
-      const characterConfig = isCharacterChat
-        ? await buildCharacterRunConfig().catch((error) => {
-            setStreamError(
-              error?.message || "Failed to prepare this character chat.",
-            );
-            return null;
-          })
-        : null;
-      if (isCharacterChat && !characterConfig?.session_id) {
-        return;
-      }
-      const memoryReplaced = await replaceSessionMemoryForMessages(
-        characterConfig?.session_id || currentChatId,
-        nextMessages,
-        {
-          forceMemoryEnabled: isCharacterChat,
+      const operationId = createTurnMutationOperationId(currentChatId);
+      const turnMutationOwner = claimTurnMutation({
+        chatId: currentChatId,
+        operationId,
+        mountedRef: hookMountedRef,
+      });
+      if (!turnMutationOwner) return;
+      const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
+      try {
+        const targetThreadId =
+          typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
+        const capturedModelId =
+          typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        const characterConfig = isCharacterChat
+          ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
+              setStreamErrorForChat(
+                currentChatId,
+                error?.message || "Failed to prepare this character chat.",
+              );
+              return null;
+            })
+          : null;
+        if (
+          !isCurrentTurnMutation() ||
+          (isCharacterChat && !characterConfig?.session_id)
+        ) {
+          return;
+        }
+        const targetSessionId = characterConfig?.session_id || currentChatId;
+        const targetModelId =
+          typeof characterConfig?.default_model === "string" &&
+          characterConfig.default_model.trim()
+            ? characterConfig.default_model.trim()
+            : capturedModelId;
+        let expectedSessionRevision = null;
+        try {
+          expectedSessionRevision = await readMemorySessionRevision(
+            targetSessionId,
+            { forceMemoryEnabled: isCharacterChat },
+          );
+        } catch (error) {
+          setStreamErrorForChat(currentChatId, error?.message);
+          return;
+        }
+        if (!isCurrentTurnMutation()) return;
+        const outboxEntry = enqueueTurnMutation({
+          operationId,
+          chatId: currentChatId,
+          sessionId: targetSessionId,
+          kind: "delete",
+          targetMessageId: message.id,
+          originalFingerprint:
+            fingerprintTurnMutationMessages(workingMessages),
+          baseFingerprint: fingerprintTurnMutationMessages([]),
+          resultFingerprint: fingerprintTurnMutationMessages(nextMessages),
+          baseMessageCount: 0,
+          text: "",
+          modelId: targetModelId,
+          threadId: targetThreadId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
-        },
-      );
-      if (!memoryReplaced) {
-        return;
-      }
+          forceMemoryEnabled: isCharacterChat,
+          expectedCancelAttemptId,
+          expectedSessionRevision,
+        });
+        if (!outboxEntry) {
+          setStreamErrorForChat(
+            currentChatId,
+            "Unable to safely persist this delete. Please try again.",
+          );
+          return;
+        }
+        const memoryResult = await replaceSessionMemoryForMessages(
+          targetSessionId,
+          nextMessages,
+          {
+            forceMemoryEnabled: isCharacterChat,
+            memoryNamespace: characterConfig?.run_memory_namespace || "",
+            modelId: targetModelId,
+            targetChatId: currentChatId,
+            operationId,
+            expectedSessionRevision,
+            expectedCancelAttemptId,
+          },
+        );
+        if (!memoryResult.applied) {
+          if (
+            isTerminalTurnMutationError(memoryResult.error) &&
+            fingerprintTurnMutationMessages(
+              storageApi.getChatMessages?.(currentChatId) || [],
+            ) === outboxEntry.originalFingerprint
+          ) {
+            removeTurnMutation(operationId);
+          }
+          return;
+        }
+        if (!isCurrentTurnMutation() || !hookMountedRef.current) return;
 
-      messagesRef.current = nextMessages;
-      setMessages(nextMessages);
+        commitForegroundMessages(currentChatId, nextMessages);
+        storageApi.setChatMessages(currentChatId, nextMessages, {
+          source: "chat-page",
+        });
+        removeTurnMutation(operationId);
+      } finally {
+        releaseTurnMutation(turnMutationOwner);
+      }
     },
     [
       activeChatIdRef,
       buildCharacterRunConfig,
       cancelCurrentStreamAndSettleMessages,
+      commitForegroundMessages,
       isCharacterChat,
       messagesRef,
+      modelIdRef,
+      readMemorySessionRevision,
       replaceSessionMemoryForMessages,
-      setMessages,
-      setStreamError,
+      setStreamErrorForChat,
+      storageApi,
+      threadIdRef,
     ],
   );
 
   useEffect(() => {
-    const confirmationIdByCallId = confirmationIdByCallIdRef.current;
-    const confirmationCallIdById = confirmationCallIdByIdRef.current;
-    const confirmationFollowupSignalById =
-      confirmationFollowupSignalByIdRef.current;
-    const confirmationResolveTimerById =
-      confirmationResolveTimerByIdRef.current;
+    const targetChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    if (!targetChatId || !hookMountedRef.current) return undefined;
+
+    const entry = readTurnMutationOutbox().find(
+      (item) => item.chatId === targetChatId,
+    );
+    if (!entry) return undefined;
+
+    if (
+      runPreflightGenerationByChatIdRef.current.has(targetChatId) ||
+      streamingChatIdsRef.current.has(targetChatId) ||
+      streamHandlesRef.current.has(targetChatId) ||
+      activeStreamsRef.current.has(targetChatId)
+    ) {
+      return undefined;
+    }
+
+    let owner = turnMutationByChatIdRef.current.get(targetChatId) || null;
+    if (
+      owner &&
+      owner.mountedRef?.current !== false &&
+      owner.recovery !== true
+    ) {
+      /* The foreground handler owns this operation and may currently be
+         awaiting the same idempotent memory request. Recovery must never run
+         concurrently merely because that await caused a React render. */
+      return undefined;
+    }
+    if (!owner || owner.mountedRef?.current === false) {
+      owner = claimTurnMutation({
+        chatId: targetChatId,
+        operationId: entry.operationId,
+        mountedRef: hookMountedRef,
+        recovery: true,
+      });
+    }
+    if (
+      !owner ||
+      owner.recovery !== true ||
+      owner.operationId !== entry.operationId ||
+      owner.mountedRef !== hookMountedRef
+    ) {
+      return undefined;
+    }
+    if (owner.recoveryRunToken) {
+      return undefined;
+    }
+    const recoveryRunToken = {};
+    owner.recoveryRunToken = recoveryRunToken;
+
+    let cancelled = false;
+    let retryTimer = null;
+    const scheduleRetry = (error) => {
+      if (cancelled || !hookMountedRef.current) return;
+      const attempt =
+        (turnMutationRecoveryAttemptsRef.current.get(entry.operationId) || 0) +
+        1;
+      turnMutationRecoveryAttemptsRef.current.set(entry.operationId, attempt);
+      if (attempt >= 6) {
+        setStreamErrorForChat(
+          targetChatId,
+          error?.message ||
+            "This message change still needs recovery. Reopen the task to retry safely.",
+        );
+        return;
+      }
+      retryTimer = setTimeout(() => {
+        if (!cancelled && hookMountedRef.current) {
+          setTurnMutationVersion((version) => version + 1);
+        }
+      }, Math.min(4000, 250 * 2 ** (attempt - 1)));
+    };
+
+    void (async () => {
+      let currentMessages = storageApi.getChatMessages?.(targetChatId) || [];
+      if (isTurnMutationAlreadyCommitted(entry, currentMessages)) {
+        removeTurnMutation(entry.operationId);
+        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+        releaseTurnMutation(owner);
+        return;
+      }
+
+      let targetMessage = currentMessages.find(
+        (message) => message?.id === entry.targetMessageId,
+      );
+      let baseMessages = [];
+      let replacementMessages = [];
+      let recoveringOptimisticWithoutAck = false;
+
+      if (isTurnMutationOptimisticWithoutAck(entry, currentMessages)) {
+        recoveringOptimisticWithoutAck = true;
+        baseMessages = currentMessages.slice(0, entry.baseMessageCount);
+        targetMessage = currentMessages[entry.baseMessageCount] || null;
+      } else if (
+        fingerprintTurnMutationMessages(currentMessages) !==
+        entry.originalFingerprint
+      ) {
+        setStreamErrorForChat(
+          targetChatId,
+          "This message change cannot be recovered automatically because the conversation changed.",
+        );
+        return;
+      }
+
+      if (entry.kind === "delete") {
+        const turnMessageIds = collectTurnMessageIds(
+          currentMessages,
+          entry.targetMessageId,
+        );
+        if (turnMessageIds.size === 0) {
+          setStreamErrorForChat(
+            targetChatId,
+            "This delete can no longer be matched to its original turn.",
+          );
+          return;
+        }
+        replacementMessages = currentMessages.filter(
+          (message) => !turnMessageIds.has(message?.id),
+        );
+        if (
+          entry.resultFingerprint &&
+          fingerprintTurnMutationMessages(replacementMessages) !==
+            entry.resultFingerprint
+        ) {
+          setStreamErrorForChat(
+            targetChatId,
+            "This delete no longer matches the stored recovery intent.",
+          );
+          return;
+        }
+      } else {
+        const targetIndex = recoveringOptimisticWithoutAck
+          ? entry.baseMessageCount
+          : currentMessages.findIndex(
+              (message) => message?.id === entry.targetMessageId,
+            );
+        if (targetIndex < 0 || targetMessage?.role !== "user") {
+          setStreamErrorForChat(
+            targetChatId,
+            "This resend or edit can no longer be matched to its original turn.",
+          );
+          return;
+        }
+        if (!recoveringOptimisticWithoutAck) {
+          baseMessages = currentMessages.slice(0, targetIndex);
+        }
+        if (
+          fingerprintTurnMutationMessages(baseMessages) !==
+          entry.baseFingerprint
+        ) {
+          setStreamErrorForChat(
+            targetChatId,
+            "This resend or edit no longer matches the stored conversation.",
+          );
+          return;
+        }
+        replacementMessages = baseMessages;
+      }
+
+      let characterConfig = null;
+      if (entry.forceMemoryEnabled) {
+        try {
+          characterConfig = await buildCharacterRunConfig(entry.threadId);
+        } catch (error) {
+          scheduleRetry(error);
+          return;
+        }
+        if (
+          cancelled ||
+          !characterConfig?.session_id ||
+          characterConfig.session_id !== entry.sessionId
+        ) {
+          if (!cancelled) {
+            setStreamErrorForChat(
+              targetChatId,
+              "The character session changed while recovering this message operation.",
+            );
+          }
+          return;
+        }
+      }
+
+      const memoryResult = await replaceSessionMemoryForMessages(
+        entry.sessionId,
+        replacementMessages,
+        {
+          forceMemoryEnabled: entry.forceMemoryEnabled,
+          memoryNamespace: entry.memoryNamespace,
+          modelId: entry.modelId,
+          targetChatId,
+          operationId: entry.operationId,
+          expectedSessionRevision: entry.expectedSessionRevision,
+          expectedCancelAttemptId: entry.expectedCancelAttemptId,
+        },
+      );
+      if (!memoryResult.applied) {
+        if (isTerminalTurnMutationError(memoryResult.error)) {
+          const latestMessages =
+            storageApi.getChatMessages?.(targetChatId) || [];
+          if (
+            fingerprintTurnMutationMessages(latestMessages) ===
+            entry.originalFingerprint
+          ) {
+            removeTurnMutation(entry.operationId);
+            turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+            releaseTurnMutation(owner);
+            setStreamErrorForChat(
+              targetChatId,
+              "The conversation changed before this message operation could be applied. Please try it again.",
+            );
+          } else {
+            setStreamErrorForChat(
+              targetChatId,
+              "This message operation conflicted with newer conversation state and needs manual review before it can be discarded.",
+            );
+          }
+          return;
+        }
+        scheduleRetry(memoryResult.error);
+        return;
+      }
+      if (cancelled || !hookMountedRef.current || !ownsTurnMutation(owner)) {
+        return;
+      }
+
+      if (entry.kind === "delete") {
+        commitForegroundMessages(targetChatId, replacementMessages);
+        storageApi.setChatMessages(targetChatId, replacementMessages, {
+          source: "turn-mutation-recovery",
+        });
+        removeTurnMutation(entry.operationId);
+        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+        releaseTurnMutation(owner);
+        return;
+      }
+
+      const sourceAttachments = Array.isArray(targetMessage?.attachments)
+        ? targetMessage.attachments
+        : [];
+      const recoveredAttachments =
+        sourceAttachments.length > 0 && !attachmentsEnabled
+          ? []
+          : sourceAttachments;
+      const started = await runTurnRequest({
+        mode: entry.kind,
+        chatId: targetChatId,
+        text: entry.text,
+        attachments: recoveredAttachments,
+        baseMessages,
+        clearComposer: false,
+        reuseUserMessage: targetMessage,
+        missingAttachmentPayloadMode: "degrade",
+        extraToolkits: entry.extraToolkits,
+        composer: entry.composer,
+        characterAgentConfig: characterConfig,
+        runContext: { modelId: entry.modelId, threadId: entry.threadId },
+        turnMutationOperationId: entry.operationId,
+      });
+      const storedMessages = storageApi.getChatMessages?.(targetChatId) || [];
+      if (isTurnMutationAlreadyCommitted(entry, storedMessages)) {
+        removeTurnMutation(entry.operationId);
+        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+      } else if (!started && !cancelled) {
+        scheduleRetry(new Error("The recovered run did not start."));
+      }
+    })().finally(() => {
+      if (owner.recoveryRunToken !== recoveryRunToken) {
+        return;
+      }
+      delete owner.recoveryRunToken;
+      if (
+        cancelled &&
+        hookMountedRef.current &&
+        ownsTurnMutation(owner) &&
+        readTurnMutationOutbox().some(
+          (item) =>
+            item.chatId === targetChatId &&
+            item.operationId === entry.operationId,
+        )
+      ) {
+        setTurnMutationVersion((version) => version + 1);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [
+    attachmentsEnabled,
+    buildCharacterRunConfig,
+    chatId,
+    commitForegroundMessages,
+    activeStreamsRef,
+    isStreaming,
+    replaceSessionMemoryForMessages,
+    runTurnRequest,
+    setStreamErrorForChat,
+    storageApi,
+    turnMutationVersion,
+  ]);
+
+  useEffect(() => {
+    const confirmationRuntimeByChatId =
+      confirmationRuntimeByChatIdRef.current;
     const streamHandles = streamHandlesRef.current;
+    const executionIdentities = executionIdentityByChatIdRef.current;
     const streamingChatIds = streamingChatIdsRef.current;
+    const runPreflights = runPreflightGenerationByChatIdRef.current;
     const activeStreams = activeStreamsRef.current;
     const activeRunThreadIdByChatId = activeRunThreadIdByChatIdRef.current;
     const queuedTurnsByChatId = queuedTurnsByChatIdRef.current;
     const pendingFyiCountByChatId = pendingFyiCountByChatIdRef.current;
     const pendingClarifyByChatId = pendingClarifyByChatIdRef.current;
+    const durableResumeRetryTimers = durableResumeRetryTimersRef.current;
+    const durableInteractionLookups =
+      durableInteractionLookupByChatIdRef.current;
+    const reattachingChatIds = reattachingChatIdsRef.current;
+    const runContextsByChatId = runContextByChatIdRef.current;
+    const durableResumeStartedKeys = durableResumeStartedKeysRef.current;
+    const durableResumeStartedKeysByChatId =
+      durableResumeStartedKeysByChatIdRef.current;
+    const runGenerationsByChatId = runGenerationByChatIdRef.current;
+    const stoppedRunChatIds = stoppedRunChatIdsRef.current;
+    const queueRelayTimersByChatId = queueRelayTimersByChatIdRef.current;
+    const queueRelayAttemptsByChatId = queueRelayAttemptsByChatIdRef.current;
+    const queueAttemptIdsByChatId = queueAttemptIdByChatIdRef.current;
+    const queueClientOperationIdsByChatId =
+      queueClientOperationIdByChatIdRef.current;
+    const runClientOperationIdsByChatId =
+      runClientOperationIdByChatIdRef.current;
+    const confirmationRetryWaitersByChatId =
+      confirmationRetryWaitersByChatIdRef.current;
+    const renderRuntimeByChatId = renderRuntimeByChatIdRef.current;
+    const sessionAutoApprovalsByChatId = sessionAutoApproveRef.current;
 
     return () => {
-      clearActiveTokenFlushController("dispose");
+      runGenerationsByChatId.clear();
+      stoppedRunChatIds.clear();
+      for (const runtimeChatId of renderRuntimeByChatId.keys()) {
+        clearActiveTokenFlushController(runtimeChatId, "dispose");
+      }
+      renderRuntimeByChatId.clear();
+      // Renderer lifecycle is transport lifecycle, not execution intent.
+      // Navigation, reload, and HMR must never silently turn into user Stop.
       for (const handle of streamHandles.values()) {
-        if (handle && typeof handle.cancel === "function") {
-          handle.cancel();
+        if (handle && typeof handle.detach === "function") {
+          handle.detach();
+        } else {
+          disconnectStreamTransport(handle);
         }
       }
       streamHandles.clear();
+      executionIdentities.clear();
       streamingChatIds.clear();
+      runPreflights.clear();
+      storageApi.releaseAllChatDraftClaims?.();
       activeStreams.clear();
       clearAttachmentPayloads();
-      confirmationIdByCallId.clear();
-      confirmationCallIdById.clear();
-      confirmationFollowupSignalById.clear();
-      confirmationResolveTimerById.forEach((timerId) => {
-        clearTimeout(timerId);
+      confirmationRuntimeByChatId.forEach((runtime) => {
+        runtime.resolveTimerById.forEach((timerId) => {
+          clearTimeout(timerId);
+        });
       });
-      confirmationResolveTimerById.clear();
-      pendingToolConfirmationRequestsRef.current = {};
-      pendingContinuationRequestRef.current = null;
+      confirmationRuntimeByChatId.clear();
+      pendingToolConfirmationRequestsByChatIdRef.current = {};
+      toolConfirmationUiStateByChatIdRef.current = {};
+      pendingContinuationRequestsByChatIdRef.current = {};
       activeRunThreadIdByChatId.clear();
       queuedTurnsByChatId.clear();
+      queueAttemptIdsByChatId.clear();
+      queueClientOperationIdsByChatId.clear();
+      runClientOperationIdsByChatId.clear();
       pendingFyiCountByChatId.clear();
       pendingClarifyByChatId.clear();
+      durableResumeRetryTimers.forEach((timerId) => clearTimeout(timerId));
+      durableResumeRetryTimers.clear();
+      durableInteractionLookups.clear();
+      reattachingChatIds.clear();
+      runContextsByChatId.clear();
+      durableResumeStartedKeys.clear();
+      durableResumeStartedKeysByChatId.clear();
+      queueRelayTimersByChatId.forEach((timerIds) => {
+        timerIds.forEach((timerId) => clearTimeout(timerId));
+      });
+      queueRelayTimersByChatId.clear();
+      queueRelayAttemptsByChatId.clear();
+      confirmationRetryWaitersByChatId.forEach((waiters) => {
+        waiters.forEach((waiter) => {
+          clearTimeout(waiter.timerId);
+          waiter.resolve(false);
+        });
+      });
+      confirmationRetryWaitersByChatId.clear();
+      durableInteractionByChatIdRef.current = {};
+      sessionAutoApprovalsByChatId.clear();
     };
   }, [
     activeStreamsRef,
     clearActiveTokenFlushController,
     clearAttachmentPayloads,
+    storageApi,
   ]);
 
   return {
+    canStop,
     deleteTurn,
     editTurn,
     handleContinuationDecision,
     handleToolConfirmationDecision,
     hasBackgroundStream,
     interjectState,
+    durableInteractionStatus,
+    isDurableInteractionBlocked,
+    isTurnMutationBlocked,
     isStreaming,
     onClarifyResolve,
     onQueueUndo,
     pendingContinuationRequest,
     pendingToolConfirmationRequests,
+    cancelRunForTest,
+    getRunForTest,
     resendTurn,
     sendNewTurn,
     sendForTest,

@@ -2,53 +2,52 @@ import { useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import WorkspaceEditor from "../workspace/workspace_editor";
 import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
+import {
+  readNamespace,
+  updateNamespace,
+} from "../../SERVICEs/settings_repository";
 
-const SETTINGS_STORAGE_KEY = "settings";
+const RUNTIME_NAMESPACE = "runtime";
 
 const isObject = (value) =>
   value != null && typeof value === "object" && !Array.isArray(value);
 
-const readSettingsRoot = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
+const readRuntime = () => {
+  const runtime = readNamespace(RUNTIME_NAMESPACE, {});
+  return isObject(runtime) ? runtime : {};
+};
 
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}",
-    );
-    return isObject(parsed) ? parsed : {};
-  } catch (_error) {
-    return {};
-  }
+/* Merge into the runtime namespace so sibling keys survive. Legacy parity:
+   the pre-repository writers called localStorage.setItem bare, so a
+   synchronous write failure (quota) must keep throwing to the caller —
+   throwSyncWriteErrors restores that in fallback mode. Everything else
+   (SQL-mode async persistence, missing localStorage) stays silent via the
+   noop catch, mirroring the legacy early-return/fire-and-forget behavior. */
+const persistRuntime = (patch) => {
+  updateNamespace(
+    RUNTIME_NAMESPACE,
+    (current) => {
+      const runtime = isObject(current) ? current : {};
+      return { ...runtime, ...patch };
+    },
+    { throwSyncWriteErrors: true },
+  ).catch(() => {});
 };
 
 export const readWorkspaceRoot = () => {
-  const root = readSettingsRoot();
-  const runtime = isObject(root.runtime) ? root.runtime : {};
+  const runtime = readRuntime();
   return typeof runtime.workspace_root === "string"
     ? runtime.workspace_root.trim()
     : "";
 };
 
 export const writeWorkspaceRoot = (workspaceRoot) => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return;
-  }
-
   const trimmed = typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
-  const root = readSettingsRoot();
-  const runtime = isObject(root.runtime) ? root.runtime : {};
-  root.runtime = {
-    ...runtime,
-    workspace_root: trimmed,
-  };
-  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+  persistRuntime({ workspace_root: trimmed });
 };
 
 export const readWorkspaces = () => {
-  const root = readSettingsRoot();
-  const runtime = isObject(root.runtime) ? root.runtime : {};
+  const runtime = readRuntime();
   const list = Array.isArray(runtime.workspaces) ? runtime.workspaces : [];
   return list.filter(
     (w) =>
@@ -60,13 +59,7 @@ export const readWorkspaces = () => {
 };
 
 export const writeWorkspaces = (workspaces) => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return;
-  }
-  const root = readSettingsRoot();
-  const runtime = isObject(root.runtime) ? root.runtime : {};
-  root.runtime = { ...runtime, workspaces };
-  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+  persistRuntime({ workspaces });
 };
 
 export const makeWorkspaceId = () =>

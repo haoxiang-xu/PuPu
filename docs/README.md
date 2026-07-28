@@ -44,6 +44,7 @@ Project documentation lives in this folder. Start with the **Developer Guide** f
 
 - [Project Conventions](./conventions/project-conventions.md) — Naming, styling, file org, component patterns, pitfalls
 - [Build & Testing](./conventions/build-and-testing.md) — Build pipeline, test commands, CI setup
+- [Pre-release Full Test](./conventions/release-full-test.md) — Frozen-candidate release gate, 20-minute agent soak, paid six-cell matrix, and GO/NO-GO evidence
 
 ### Contributing
 

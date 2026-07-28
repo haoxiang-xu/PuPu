@@ -30,7 +30,10 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "category": { "type": "string" },
-        "status": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["available", "coming_soon", "needs_review"]
+        },
         "trustLevel": {
           "type": "string",
           "enum": ["official", "verified", "community", "needs_review"]
@@ -106,6 +109,9 @@
             "providerLabel": { "type": "string" },
             "clientRegistration": {
               "enum": ["dynamic", "user_credentials"]
+            },
+            "releaseStatus": {
+              "enum": ["ready", "approval_required", "app_required", "disabled"]
             },
             "mcpUrl": { "type": "string", "format": "uri" },
             "transport": { "type": "string" },

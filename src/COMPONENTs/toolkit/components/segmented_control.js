@@ -13,7 +13,14 @@ const TRACK_PADDING = 3;
 const BUTTON_HEIGHT = 28;
 const CONTROL_HEIGHT = BUTTON_HEIGHT + TRACK_PADDING * 2;
 
-const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) => {
+const SegmentedControl = ({
+  sections,
+  selected,
+  onChange,
+  isDark,
+  trackStyle,
+  buttonFontWeight = 600,
+}) => {
   const { theme } = useContext(ConfigContext);
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
@@ -108,7 +115,7 @@ const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) 
         boxSizing: "border-box",
         padding: TRACK_PADDING,
         borderRadius: 10,
-        background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+        background: "rgba(var(--pupu-text-rgb),0.06)",
         ...trackStyle,
       }}
     >
@@ -156,16 +163,12 @@ const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) 
               cursor: "pointer",
               fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: buttonFontWeight,
               lineHeight: 1,
               letterSpacing: "0.1px",
               color: isActive
-                ? isDark
-                  ? "#fff"
-                  : "#111"
-                : isDark
-                  ? "rgba(255,255,255,0.42)"
-                  : "rgba(0,0,0,0.42)",
+                ? "var(--pupu-text)"
+                : "rgba(var(--pupu-text-rgb),0.42)",
               background: "transparent",
               boxShadow: "none",
               transition: "color 0.15s ease",
@@ -173,19 +176,26 @@ const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) 
               whiteSpace: "nowrap",
             }}
           >
-            <Icon
-              src={s.icon}
-              style={{ width: 13, height: 13, flexShrink: 0 }}
-              color={
-                isActive
-                  ? isDark
-                    ? "#fff"
-                    : "#111"
-                  : isDark
-                    ? "rgba(255,255,255,0.38)"
-                    : "rgba(0,0,0,0.38)"
-              }
-            />
+            {/* leading: caller-supplied node (e.g. a tinted CategoryChip)
+                takes precedence; icon key renders the classic monochrome
+                glyph; neither → text-only segment. */}
+            {s.leading
+              ? s.leading
+              : s.icon && (
+                  <Icon
+                    src={s.icon}
+                    style={{ width: 13, height: 13, flexShrink: 0 }}
+                    color={
+                      isActive
+                        ? isDark
+                          ? "#fff"
+                          : "#111"
+                        : isDark
+                          ? "rgba(255,255,255,0.38)"
+                          : "rgba(0,0,0,0.38)"
+                    }
+                  />
+                )}
             {s.label}
           </button>
         );

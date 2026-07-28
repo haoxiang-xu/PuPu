@@ -18,6 +18,7 @@ import AttachmentChipList from "./attachment_chip_list";
 import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
+import { COMPUTER_TOOLKIT_ID } from "../constants";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
 import {
@@ -167,7 +168,33 @@ const AttachPanel = forwardRef(({
   );
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const lastModelSelectorRefreshAt = useRef(0);
-  const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
+  const {
+    toolkitOptions,
+    refreshToolkits,
+    computerAvailable,
+    computerResolutionKnown,
+  } = useChatInputToolkits({ selectedModelId });
+
+  /* Reconcile a residual selection: once computer use is DEFINITIVELY not
+     selectable for this chat (master switch off, bridge unavailable, or the
+     current model unsupported), strip "builtin.computer" from the selection
+     through the normal setter — otherwise the entry sits disabled with the id
+     stuck in the payload and the user can only clear ALL tools to remove it.
+     Server truth still gates real mounting; this is a selection-consistency
+     fix. Switching to a supported model + on again simply re-checks the box. */
+  useEffect(() => {
+    if (!computerResolutionKnown || computerAvailable) return;
+    if (!Array.isArray(selectedToolkits)) return;
+    if (!selectedToolkits.includes(COMPUTER_TOOLKIT_ID)) return;
+    handleToolkitsValueChange(
+      selectedToolkits.filter((value) => value !== COMPUTER_TOOLKIT_ID),
+    );
+  }, [
+    computerAvailable,
+    computerResolutionKnown,
+    selectedToolkits,
+    handleToolkitsValueChange,
+  ]);
   const { workspaceOptions } = useChatInputWorkspaces();
   const isAgentsFeatureEnabled =
     featureFlags.enable_user_access_to_agents === true;
@@ -410,9 +437,13 @@ const AttachPanel = forwardRef(({
 
   let panelBg = "transparent";
   if (floating)
-    panelBg = isDark ? "rgba(28,28,28,0.85)" : "rgba(252,252,252,0.9)";
+    panelBg = isDark
+      ? "rgba(var(--pupu-surface-rgb),0.6)"
+      : "rgba(var(--pupu-surface-rgb),0.72)";
 
-  const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+  const selectBg = isDark
+    ? "rgba(var(--pupu-text-rgb),0.07)"
+    : "rgba(var(--pupu-text-rgb),0.05)";
 
   /* shared pill style (model selector) */
   const pillStyle = {
@@ -513,6 +544,10 @@ const AttachPanel = forwardRef(({
           padding: 4,
           borderRadius: 22,
           backgroundColor: panelBg,
+          /* constant 1px keeps geometry stable across the floating toggle */
+          border: floating
+            ? "1px solid var(--pupu-border-mid)"
+            : "1px solid transparent",
           ...(floating
             ? {
                 backdropFilter: "blur(20px) saturate(130%)",
@@ -520,7 +555,8 @@ const AttachPanel = forwardRef(({
               }
             : {}),
           boxShadow: floating ? focusShadow : "none",
-          transition: "background-color 0.22s ease, box-shadow 0.22s ease",
+          transition:
+            "background-color 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease",
         }}
       >
         {/* ── Model selector ── */}

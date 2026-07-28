@@ -14,7 +14,13 @@
 | `npm test` | Jest test runner |
 | `npm run test:frontend` | CRA/Jest frontend tests with watch mode disabled |
 | `npm run test:electron` | Electron main/preload/test-api Jest tests under Node |
+| `npm run test:e2e` | Playwright launches a real isolated Electron app and drives UI + Test API |
 | `npm run test:release-qa` | Unit tests for release QA report scripts |
+| `npm run test:agent-long-run:full` | Non-paid fixed-response test: three parallel root attempts, at least 20 minutes each |
+| `npm run test:live-long-run:full -- --confirm-cost` | Explicitly authorized paid six-cell live-model release matrix |
+| `npm run qa:release:deterministic` | Full local deterministic release gate |
+| `npm run qa:release:ai` | Independent local Codex + Claude release review |
+| `npm run qa:release` | Full local release gate followed by strict dual-AI review |
 
 ### Python Backend (Standalone)
 
@@ -132,9 +138,24 @@ npm run test:release-qa
 ```
 
 - Pull requests to `dev` or `main` run lightweight deterministic QA on Ubuntu.
+- Pull requests run the Playwright Electron smoke on Ubuntu; release mode expands it to Ubuntu, macOS, and Windows.
 - `v*` tags and manual `qa_mode=release` runs add unsigned macOS, Windows, and Linux package builds.
-- Deterministic test/build failures fail CI. Optional Unchain analysis is advisory and does not block by itself.
+- Deterministic test/build failures fail CI. Optional Unchain analysis is advisory,
+  runs only from a protected manual release-mode workflow on `main`, and does not
+  block by itself.
 - Manual release QA remains required for Gatekeeper/notarization, Windows installer launch, Linux install behavior, Ollama, API-key provider smoke, and real workspace attach.
+
+Before creating a release tag, follow the
+[Pre-release Full-Test Runbook](./release-full-test.md). Its non-paid base includes
+`npm run qa:release`: the deterministic half is authoritative, and the AI half
+uses locally authenticated Codex and Claude CLIs in read-only/plan mode, so
+ChatGPT Pro and Claude Max can be used without copying personal login state into
+GitHub. GitHub-hosted AI remains optional, requires separately configured
+API/OAuth secrets, and is restricted to a protected manual release-mode run on
+`main`.
+
+Architecture and coverage details:
+[Release Confidence Pipeline](../architecture/release-confidence-pipeline.md).
 
 ### Test File Locations
 
@@ -143,6 +164,7 @@ npm run test:release-qa
 | Frontend | Co-located with source | `*.test.js` |
 | Electron main | `electron/tests/main/` | `*.test.js`, `*.test.cjs` |
 | Electron preload | `electron/tests/preload/` | `*.test.js`, `*.test.cjs` |
+| Electron E2E | `e2e/` | `*.spec.js` |
 | Python backend | `unchain_runtime/server/tests/` | `test_*.py` |
 
 ---
@@ -207,9 +229,16 @@ subscribeFeatureFlags(fn)    // → unsubscribe
 // Current flags
 enable_user_access_to_agents: false      // Agents tab in the agents modal
 enable_user_access_to_characters: false  // Characters tab in the agents modal
+enable_computer_use: false               // Ship the Computer toolkit
 ```
 
-In production builds, flags can be overridden via `REACT_APP_BUILD_FEATURE_FLAGS` env var.
+Production builds read `.local/build_feature_flags.snapshot.json`, and
+`build-web.cjs` injects the resolved values through
+`REACT_APP_BUILD_FEATURE_FLAGS`. It also writes the same resolved snapshot to
+`build/build_feature_flags.json`. Electron reads `enable_computer_use` from
+that packaged artifact and passes it to the sidecar as the hard
+`PUPU_FEATURE_COMPUTER_USE` release ceiling. Changing the development flag
+requires restarting PuPu before the sidecar sees it.
 
 ---
 

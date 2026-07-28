@@ -8,6 +8,7 @@ from unchain_adapter import (
     get_capability_catalog,
     get_default_model_capabilities,
     get_embedding_provider_catalog,
+    get_display_model_id,
     get_model_capability_catalog,
     get_model_name,
     get_runtime_config,
@@ -16,7 +17,14 @@ from unchain_adapter import (
     get_toolkit_metadata,
     stream_chat,
     stream_chat_events,
+    resume_chat_interaction_events,
     submit_tool_confirmation,
+)
+from durable_interaction_host import (
+    DurableInteractionHostError,
+    cancel_chat_execution,
+    get_pending_interaction,
+    record_interaction_receipt,
 )
 from mcp_toolkits import (
     check_mcp_toolkit_health,
@@ -26,8 +34,15 @@ from mcp_toolkits import (
     list_installed_mcp_toolkits,
     reload_mcp_toolkits,
 )
+from skill_packs import (
+    delete_skill_pack,
+    install_skill_pack,
+    list_installed_skill_packs,
+)
 from mcp_oauth import (
+    cancel_mcp_oauth_start,
     disconnect_mcp_oauth,
+    get_mcp_oauth_attempt_status,
     get_mcp_oauth_status,
     handle_mcp_oauth_callback,
     start_mcp_oauth,
@@ -59,7 +74,10 @@ import route_characters  # noqa: F401
 import route_memory  # noqa: F401
 import route_recipes  # noqa: F401
 import route_mcp  # noqa: F401
+import route_skillpacks  # noqa: F401
 import route_interject  # noqa: F401
+import route_computer_use  # noqa: F401
+import route_providers  # noqa: F401
 
 __all__ = [
     "api_blueprint",
@@ -67,11 +85,13 @@ __all__ = [
     "_json_error",
     "_kmeans_2d_numpy",
     "cancel_tool_confirmations",
+    "cancel_chat_execution",
     "character_defaults",
     "character_store",
     "get_capability_catalog",
     "get_default_model_capabilities",
     "get_embedding_provider_catalog",
+    "get_display_model_id",
     "get_model_capability_catalog",
     "get_model_name",
     "get_runtime_config",
@@ -81,9 +101,11 @@ __all__ = [
     "check_mcp_toolkit_health",
     "configure_mcp_toolkit",
     "configure_mcp_oauth_app",
+    "cancel_mcp_oauth_start",
     "delete_mcp_toolkit",
     "delete_mcp_oauth_app",
     "disconnect_mcp_oauth",
+    "get_mcp_oauth_attempt_status",
     "get_mcp_oauth_status",
     "handle_mcp_oauth_callback",
     "install_mcp_toolkit",
@@ -95,10 +117,17 @@ __all__ = [
     "reload_mcp_toolkits",
     "reload_mcp_store_metadata",
     "refresh_mcp_store_registry",
+    "install_skill_pack",
+    "list_installed_skill_packs",
+    "delete_skill_pack",
     "start_mcp_oauth",
     "stream_chat",
     "stream_chat_events",
+    "resume_chat_interaction_events",
     "submit_tool_confirmation",
+    "DurableInteractionHostError",
+    "get_pending_interaction",
+    "record_interaction_receipt",
     "delete_mcp_store_registry",
     "import_mcp_store_registry",
     "approve_mcp_store_entry",

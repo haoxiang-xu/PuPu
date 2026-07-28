@@ -13,10 +13,50 @@ import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 import { sanitizeSystemPromptSections } from "./system_prompt_sections";
 import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
+import {
+  CUSTOM_PROVIDER_PREFIX,
+  buildProviderInjectionPayload,
+  customProviderKey,
+  findCustomProvider,
+  getCustomProviderSecret,
+  mapCustomModelCapabilities,
+  parseCustomProviderKey,
+  readCustomProviders,
+} from "./custom_provider_store";
+import { isFeatureFlagEnabled } from "./feature_flags";
+import { readNamespace } from "./settings_repository";
+import { readProviderSecret } from "./settings_secret_adapter";
+import {
+  providerSecretConfigured,
+  secretInjectionAuthoritative,
+} from "./provider_secret_status";
+import {
+  markSecretStorageUnavailableForSession,
+} from "./bridges/settings_storage_bridge";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
 const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
+
+const withSecretStorageFailureLatch = (handlers = {}) => {
+  const currentHandlers = isObject(handlers) ? handlers : {};
+  const originalOnError = currentHandlers.onError;
+  return {
+    ...currentHandlers,
+    onError: (error) => {
+      if (error?.code === "secret_storage_unavailable") {
+        markSecretStorageUnavailableForSession();
+      }
+      if (typeof originalOnError === "function") {
+        originalOnError(error);
+      }
+    },
+  };
+};
+
+const isLocalSecretStorageFailure = (value) =>
+  value?.code === "secret_storage_unavailable" &&
+  Number(value?.status) === 0;
 
 const sanitizeSystemPromptV2Sections = (
   rawSections,
@@ -27,30 +67,11 @@ const sanitizeSystemPromptV2Sections = (
     keepEmptyStrings,
   });
 
-const readModelProvidersSettings = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-
-  try {
-    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-    return isObject(root?.model_providers) ? root.model_providers : {};
-  } catch (_error) {
-    return {};
-  }
-};
-
+// Runtime settings come from the settings repository (synchronous snapshot
+// getter — the request-assembly path must stay synchronous, plan §2.2/§6-1B).
 const readRuntimeSettings = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return {};
-  }
-
-  try {
-    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-    return isObject(root?.runtime) ? root.runtime : {};
-  } catch (_error) {
-    return {};
-  }
+  const runtime = readNamespace("runtime", {});
+  return isObject(runtime) ? runtime : {};
 };
 
 const parseProviderFromModelValue = (modelValue) => {
@@ -62,10 +83,24 @@ const parseProviderFromModelValue = (modelValue) => {
     return "";
   }
 
-  const providerCandidate = modelValue.split(":", 1)[0].trim().toLowerCase();
-  return SUPPORTED_REMOTE_PROVIDERS.has(providerCandidate)
-    ? providerCandidate
-    : "";
+  // JS split(":", 1) truncates: for "custom.<slug>:model:with:colons" this
+  // still yields the full "custom.<slug>" providerKey (design §4.2).
+  const providerCandidate = modelValue.split(":", 1)[0].trim();
+
+  // Custom provider addressing: only return the prefix when a matching
+  // definition actually exists locally, else "" (design §6.2). We do NOT
+  // lowercase here — slugs are already lowercase and the "custom." prefix
+  // is literal; keeping case-exact avoids a spurious match on odd input.
+  if (providerCandidate.startsWith(CUSTOM_PROVIDER_PREFIX)) {
+    const parsed = parseCustomProviderKey(providerCandidate);
+    if (parsed && parsed.slug && findCustomProvider(parsed.slug)) {
+      return providerCandidate;
+    }
+    return "";
+  }
+
+  const lowered = providerCandidate.toLowerCase();
+  return SUPPORTED_REMOTE_PROVIDERS.has(lowered) ? lowered : "";
 };
 
 const detectProviderFromStreamPayload = (payload) => {
@@ -96,7 +131,15 @@ const detectProviderFromStreamPayload = (payload) => {
     if (typeof candidate !== "string") {
       continue;
     }
-    const normalized = candidate.trim().toLowerCase();
+    const trimmed = candidate.trim();
+    if (trimmed.startsWith(CUSTOM_PROVIDER_PREFIX)) {
+      const parsed = parseCustomProviderKey(trimmed);
+      if (parsed && parsed.slug && findCustomProvider(parsed.slug)) {
+        return trimmed;
+      }
+      continue;
+    }
+    const normalized = trimmed.toLowerCase();
     if (SUPPORTED_REMOTE_PROVIDERS.has(normalized)) {
       return normalized;
     }
@@ -105,25 +148,63 @@ const detectProviderFromStreamPayload = (payload) => {
   return "";
 };
 
+// Official provider API keys are secrets: they stay in localStorage behind
+// settings_secret_adapter until Phase 4 (plan §3.7) and never transit the
+// settings repository. readProviderSecret always returns a string.
 const getStoredProviderApiKey = (provider) => {
-  const settings = readModelProvidersSettings();
-  if (!settings || typeof settings !== "object") {
-    return "";
-  }
-
   if (provider === "openai") {
-    return typeof settings.openai_api_key === "string"
-      ? settings.openai_api_key.trim()
-      : "";
+    return readProviderSecret("openai_api_key").trim();
   }
 
   if (provider === "anthropic") {
-    return typeof settings.anthropic_api_key === "string"
-      ? settings.anthropic_api_key.trim()
-      : "";
+    return readProviderSecret("anthropic_api_key").trim();
   }
 
   return "";
+};
+
+// Phase 4 (S5): non-sensitive provider-secret injection descriptor.
+//
+// The renderer no longer writes secret VALUES into the request payload in
+// steady state. Instead it appends a descriptor list under this options key —
+// each entry is { kind, id, channel } with NO value and NO ciphertext — and
+// the main process decrypts + injects the real field set just before POST,
+// then strips the whole descriptor so Flask never sees it (descriptor contract
+// §1-§4, CTO ADR §3). The list is append-only: model + embedding secret paths
+// can both contribute (the only same-id double-channel case is openai).
+const SECRET_INJECTION_OPTION_KEY = "__pupu_secret_injection";
+
+// Reads the current descriptor list off an options object. Always returns an
+// array and never mutates; a malformed / missing value reads as empty.
+const readSecretInjectionList = (options) => {
+  const list = isObject(options) ? options[SECRET_INJECTION_OPTION_KEY] : null;
+  return Array.isArray(list) ? list : [];
+};
+
+// True when the descriptor list already carries an entry for `id`, IGNORING
+// channel. This is the descriptor-mode re-expression of today's hasAnyApiKey
+// short-circuit (first-writer-wins across the embedding + model paths): once a
+// provider id is in the list, a later injection point for the same id skips
+// entirely rather than merging a field set (descriptor contract §3). The only
+// same-id pair is (openai, embedding) then (openai, model) collapsing to one
+// 2-field write — byte-equivalent to today's short-circuit.
+const secretInjectionListHasId = (options, id) =>
+  readSecretInjectionList(options).some(
+    (entry) => isObject(entry) && entry.id === id,
+  );
+
+// Returns a NEW options object with one descriptor appended to the injection
+// list (immutable, mirroring the surrounding spread style). Carries only
+// { kind, id, channel } — never a secret value.
+const appendSecretInjectionDescriptor = (options, descriptor) => {
+  const currentOptions = isObject(options) ? options : {};
+  return {
+    ...currentOptions,
+    [SECRET_INJECTION_OPTION_KEY]: [
+      ...readSecretInjectionList(currentOptions),
+      descriptor,
+    ],
+  };
 };
 
 const injectProviderApiKeyIntoPayload = (payload) => {
@@ -136,15 +217,16 @@ const injectProviderApiKeyIntoPayload = (payload) => {
     return payload;
   }
 
-  const apiKey = getStoredProviderApiKey(provider);
-  if (!apiKey) {
-    return payload;
-  }
-
   const currentOptions = isObject(payload.options) ? payload.options : {};
   const providerSpecificCamelKey =
     provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
   const providerSpecificSnakeKey = `${provider}_api_key`;
+
+  // Today's value-based short-circuit, preserved verbatim: an explicit key
+  // already sitting in options (caller-supplied, or written by an earlier
+  // LEGACY injection) wins and nothing further happens. In descriptor mode no
+  // values land, so this only ever fires for caller-explicit keys or the
+  // transition/degraded legacy path.
   const hasAnyApiKey = [
     currentOptions[providerSpecificCamelKey],
     currentOptions[providerSpecificSnakeKey],
@@ -153,6 +235,31 @@ const injectProviderApiKeyIntoPayload = (payload) => {
       : []),
   ].some((value) => typeof value === "string" && value.trim().length > 0);
   if (hasAnyApiKey) {
+    return payload;
+  }
+
+  // Steady state (safeStorage available + credential migrated to SQL): emit a
+  // descriptor, never read the secret value. The short-circuit is re-expressed
+  // as a descriptor-list membership check so the embedding-then-model collapse
+  // stays byte-equivalent to today (descriptor contract §3).
+  if (secretInjectionAuthoritative(provider)) {
+    if (secretInjectionListHasId(currentOptions, provider)) {
+      return payload;
+    }
+    return {
+      ...payload,
+      options: appendSecretInjectionDescriptor(currentOptions, {
+        kind: "provider",
+        id: provider,
+        channel: "model",
+      }),
+    };
+  }
+
+  // Legacy fallback (first-boot transition / degraded): read the localStorage
+  // secret and write the byte-identical field set today writes.
+  const apiKey = getStoredProviderApiKey(provider);
+  if (!apiKey) {
     return payload;
   }
 
@@ -258,6 +365,8 @@ const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
     return currentOptions;
   }
 
+  // Today's value-based short-circuit, preserved verbatim: an explicit openai
+  // key already in options (caller-supplied or legacy-injected) wins.
   const hasOpenAIEmbeddingKey = [
     currentOptions.openaiApiKey,
     currentOptions.openai_api_key,
@@ -266,6 +375,23 @@ const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
     return currentOptions;
   }
 
+  // Steady state: emit the embedding descriptor (main injects the 2-field
+  // openai set), never read the value. This path sits EARLY in the assembly
+  // chain (inside injectMemoryIntoPayload), so an openai chat model reached
+  // later short-circuits on this list entry -> a single 2-field collapse that
+  // is byte-equivalent to today's shared-key behavior (descriptor contract §3).
+  if (secretInjectionAuthoritative("openai")) {
+    if (secretInjectionListHasId(currentOptions, "openai")) {
+      return currentOptions;
+    }
+    return appendSecretInjectionDescriptor(currentOptions, {
+      kind: "provider",
+      id: "openai",
+      channel: "embedding",
+    });
+  }
+
+  // Legacy fallback: read the localStorage openai key, write the 2-field set.
   const openaiApiKey = getStoredProviderApiKey("openai");
   if (!openaiApiKey) {
     return currentOptions;
@@ -518,13 +644,206 @@ const injectSystemPromptV2IntoPayload = (payload) => {
   };
 };
 
+/**
+ * Read the custom provider modelId (custom.<slug>:<model...>) from a payload's
+ * options, checking the same field aliases as detectProviderFromStreamPayload.
+ * Returns "" when no custom.* modelId is present.
+ */
+const readCustomModelValue = (payload) => {
+  const options = isObject(payload?.options) ? payload.options : {};
+  const candidates = [
+    options.modelId,
+    options.model_id,
+    options.model,
+    payload?.modelId,
+    payload?.model_id,
+    payload?.model,
+  ];
+  for (const candidate of candidates) {
+    if (
+      typeof candidate === "string" &&
+      candidate.startsWith(CUSTOM_PROVIDER_PREFIX)
+    ) {
+      return candidate;
+    }
+  }
+  return "";
+};
+
+/**
+ * Inject a custom provider's sanitized definition + secret into the payload
+ * options when the selected model is a custom.* model (design §6.2).
+ *
+ * Throws a structured error (send-time block) when:
+ *   - definition missing -> {code:"custom_provider_not_found"}
+ *   - definition disabled -> {code:"custom_provider_disabled"}
+ *   - auth required but no key -> {code:"custom_provider_missing_api_key"}
+ *
+ * On success, sets:
+ *   - options.custom_provider = whitelist-sanitized definition (no enabled /
+ *     timestamps / source / secret)
+ *   - options.custom_provider_api_key / customProviderApiKey = the secret value
+ *     via a DEDICATED field, NOT the generic api_key/apiKey channel (A8/§9.1).
+ */
+const injectCustomProviderIntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+
+  const modelValue = readCustomModelValue(payload);
+  if (!modelValue) {
+    return payload;
+  }
+
+  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+    throw new FrontendApiError(
+      "custom_provider_disabled",
+      "Custom model providers are disabled",
+    );
+  }
+
+  const parsed = parseCustomProviderKey(modelValue);
+  const slug = parsed?.slug || "";
+  const definition = slug ? findCustomProvider(slug) : null;
+
+  if (!definition) {
+    throw new FrontendApiError(
+      "custom_provider_not_found",
+      `Custom provider not found: ${slug || modelValue}`,
+    );
+  }
+  if (definition.enabled === false) {
+    throw new FrontendApiError(
+      "custom_provider_disabled",
+      `Custom provider is disabled: ${slug}`,
+    );
+  }
+
+  const authMode = definition.auth?.mode || "none";
+  const requiresKey = authMode !== "none";
+  const credentialId = customProviderKey(slug);
+
+  // requiresKey is now decided by a boolean EXISTENCE signal (SQL identity list
+  // OR legacy localStorage), never by reading the secret value itself. Missing
+  // key remains a send-time block with the same structured error (UX unchanged).
+  if (requiresKey && !providerSecretConfigured(credentialId)) {
+    throw new FrontendApiError(
+      "custom_provider_missing_api_key",
+      `Custom provider requires an API key: ${slug}`,
+    );
+  }
+
+  const sanitizedDefinition = buildProviderInjectionPayload(definition);
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  let nextOptions = {
+    ...currentOptions,
+    custom_provider: sanitizedDefinition,
+  };
+
+  if (requiresKey) {
+    if (secretInjectionAuthoritative(credentialId)) {
+      // Steady state: emit a descriptor; main decrypts into the DEDICATED named
+      // channel. Never read the secret value here.
+      nextOptions = appendSecretInjectionDescriptor(nextOptions, {
+        kind: "custom_provider",
+        id: credentialId,
+        channel: "model",
+      });
+    } else {
+      // Legacy fallback: read the localStorage secret and write it through the
+      // dedicated named channel ONLY — never the generic api_key/apiKey path.
+      const secret = getCustomProviderSecret(slug);
+      if (secret) {
+        nextOptions.custom_provider_api_key = secret;
+        nextOptions.customProviderApiKey = secret;
+      }
+    }
+  }
+
+  return {
+    ...payload,
+    options: nextOptions,
+  };
+};
+
+/**
+ * Append enabled custom providers to a normalized model catalog (design §6.4).
+ *
+ * Adds catalog.providers["custom.<slug>"] = [model ids] and
+ * catalog.modelCapabilities["custom.<slug>:<id>"] mapped to the same shape as
+ * defaultModelInputCapabilities() via normalizeModelInputCapabilities().
+ *
+ * Only enabled providers with (auth.mode === "none" || a stored secret) are
+ * merged so the selector never lists an unusable model.
+ */
+const mergeCustomProvidersIntoCatalog = (catalog) => {
+  if (!isObject(catalog)) {
+    return catalog;
+  }
+  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+    return catalog;
+  }
+
+  let customDefs;
+  try {
+    customDefs = readCustomProviders();
+  } catch (_error) {
+    return catalog;
+  }
+  if (!Array.isArray(customDefs) || customDefs.length === 0) {
+    return catalog;
+  }
+
+  const providers = isObject(catalog.providers) ? { ...catalog.providers } : {};
+  const modelCapabilities = isObject(catalog.modelCapabilities)
+    ? { ...catalog.modelCapabilities }
+    : {};
+
+  for (const def of customDefs) {
+    if (def.enabled !== true) {
+      continue;
+    }
+    const authMode = def.auth?.mode || "none";
+    // Gate on the boolean existence signal (SQL identity list OR legacy), never
+    // on the secret value — the catalog only needs "is a key configured?".
+    if (
+      authMode !== "none" &&
+      !providerSecretConfigured(customProviderKey(def.id))
+    ) {
+      continue;
+    }
+    const providerKey = customProviderKey(def.id);
+    if (!providerKey) {
+      continue;
+    }
+    const modelIds = def.models.map((m) => m.id);
+    providers[providerKey] = modelIds;
+
+    for (const model of def.models) {
+      const capabilityKey = `${providerKey}:${model.id}`;
+      // Single source of truth for the capability mapping (design §6.4).
+      modelCapabilities[capabilityKey] = mapCustomModelCapabilities(
+        model.capabilities,
+      );
+    }
+  }
+
+  return {
+    ...catalog,
+    providers,
+    modelCapabilities,
+  };
+};
+
 const normalizeUnchainV2Payload = (payload) => {
   const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
   const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
     payloadWithWorkspaceRoot,
   );
   const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
-  return injectProviderApiKeyIntoPayload(payloadWithMemory);
+  const payloadWithProviderKey =
+    injectProviderApiKeyIntoPayload(payloadWithMemory);
+  return injectCustomProviderIntoPayload(payloadWithProviderKey);
 };
 
 export const createUnchainApi = () => {
@@ -535,6 +854,17 @@ export const createUnchainApi = () => {
       hasBridgeMethod("unchainAPI", "startStreamV2"),
 
     isRuntimeEventStreamV4Available: () =>
+      hasBridgeMethod("unchainAPI", "startStreamV4"),
+
+    isRuntimeEventStreamV4AttachAvailable: () =>
+      hasBridgeMethod("unchainAPI", "attachStreamV4"),
+
+    isExecutionCancellationBridgeAvailable: () =>
+      hasBridgeMethod("unchainAPI", "cancelExecution"),
+
+    isDurableInteractionBridgeAvailable: () =>
+      hasBridgeMethod("unchainAPI", "getPendingInteraction") &&
+      hasBridgeMethod("unchainAPI", "respondToolConfirmation") &&
       hasBridgeMethod("unchainAPI", "startStreamV4"),
 
     getStatus: async () => {
@@ -558,7 +888,11 @@ export const createUnchainApi = () => {
 
     getModelCatalog: async () => {
       if (!hasBridgeMethod("unchainAPI", "getModelCatalog")) {
-        return normalizeModelCatalog(EMPTY_MODEL_CATALOG);
+        // Custom providers are a pure front-end local merge (design §A7), so
+        // surface them even when the backend catalog bridge is unavailable.
+        return mergeCustomProvidersIntoCatalog(
+          normalizeModelCatalog(EMPTY_MODEL_CATALOG),
+        );
       }
 
       try {
@@ -569,7 +903,7 @@ export const createUnchainApi = () => {
           "unchain_model_catalog_timeout",
           "Unchain model catalog request timed out",
         );
-        return normalizeModelCatalog(payload);
+        return mergeCustomProvidersIntoCatalog(normalizeModelCatalog(payload));
       } catch (error) {
         throw toFrontendApiError(
           error,
@@ -725,6 +1059,92 @@ export const createUnchainApi = () => {
       }
     },
 
+    /* Skill-pack import (S3 open-skill-ecosystem importer). scanSkillDir reads
+       a user-picked local directory in the main process; installSkillPack /
+       deleteSkillPack relay a PURE-SKILL pack to the backend skill_packs store
+       (which never opens an MCP connection). */
+    scanSkillDir: async (directory) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "scanSkillDir");
+        const response = await withTimeout(
+          () => method(typeof directory === "string" ? directory : ""),
+          30000,
+          "skill_dir_scan_timeout",
+          "Skill directory scan timed out",
+        );
+        return isObject(response) ? response : { ok: false, files: [] };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_dir_scan_failed",
+          "Failed to scan skill directory",
+        );
+      }
+    },
+
+    /* S6a: download + parse-only extract of a pinned store skill-pack repo.
+       Main enforces its own 180s total budget; the facade watchdog sits just
+       above it (190s) as a safety net. Returns the structured
+       { ok, error, [path] } shape from main so the renderer can i18n the code
+       enum (invalid_payload|network|timeout|not_found|too_large|malformed|
+       integrity|fs). */
+    downloadSkillRepo: async (params = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "downloadSkillRepo");
+        const response = await withTimeout(
+          () => method(isObject(params) ? params : {}),
+          190000,
+          "skill_repo_download_timeout",
+          "Skill pack download timed out",
+        );
+        return isObject(response) ? response : { ok: false, error: "network" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_repo_download_failed",
+          "Failed to download skill pack",
+        );
+      }
+    },
+
+    installSkillPack: async (pack = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "installSkillPack");
+        const response = await withTimeout(
+          () => method(isObject(pack) ? pack : {}),
+          30000,
+          "skill_pack_install_timeout",
+          "Skill pack install timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_pack_install_failed",
+          "Failed to install skill pack",
+        );
+      }
+    },
+
+    deleteSkillPack: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteSkillPack");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "skill_pack_delete_timeout",
+          "Skill pack delete timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "skill_pack_delete_failed",
+          "Failed to delete skill pack",
+        );
+      }
+    },
+
     reloadMcpToolkits: async (payload = {}) => {
       if (!hasBridgeMethod("unchainAPI", "reloadMcpToolkits")) {
         return { toolkits: [], count: 0 };
@@ -791,7 +1211,7 @@ export const createUnchainApi = () => {
         const method = assertBridgeMethod("unchainAPI", "startMcpOAuth");
         const response = await withTimeout(
           () => method(entryId),
-          30000,
+          90000,
           "mcp_oauth_start_timeout",
           "MCP OAuth start request timed out",
         );
@@ -805,10 +1225,29 @@ export const createUnchainApi = () => {
       }
     },
 
-    getMcpOAuthStatus: async (entryId) => {
+    cancelMcpOAuth: async (state) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "cancelMcpOAuth");
+        const response = await withTimeout(
+          () => method(state),
+          12000,
+          "mcp_oauth_cancel_timeout",
+          "MCP OAuth cancel request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_cancel_failed",
+          "Failed to cancel MCP OAuth",
+        );
+      }
+    },
+
+    getMcpOAuthStatus: async (state) => {
       if (!hasBridgeMethod("unchainAPI", "getMcpOAuthStatus")) {
         return {
-          entryId: typeof entryId === "string" ? entryId : "",
+          entryId: "",
           toolkitId: "",
           authStatus: "unknown",
         };
@@ -817,7 +1256,7 @@ export const createUnchainApi = () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "getMcpOAuthStatus");
         const response = await withTimeout(
-          () => method(entryId),
+          () => method(state),
           12000,
           "mcp_oauth_status_timeout",
           "MCP OAuth status request timed out",
@@ -825,7 +1264,7 @@ export const createUnchainApi = () => {
         return isObject(response)
           ? response
           : {
-              entryId: typeof entryId === "string" ? entryId : "",
+              entryId: "",
               toolkitId: "",
               authStatus: "unknown",
             };
@@ -1149,6 +1588,108 @@ export const createUnchainApi = () => {
       }
     },
 
+    getPendingInteraction: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod(
+          "unchainAPI",
+          "getPendingInteraction",
+        );
+        const sessionIdRaw = payload?.session_id || payload?.sessionId;
+        const sessionId =
+          typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+        if (!sessionId) {
+          throw new FrontendApiError(
+            "invalid_pending_interaction_request",
+            "session_id is required",
+          );
+        }
+        const response = await withTimeout(
+          () => method({ session_id: sessionId }),
+          8000,
+          "unchain_pending_interaction_timeout",
+          "Pending interaction request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { status: "none", session_id: sessionId };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_pending_interaction_failed",
+          "Failed to query pending interaction",
+        );
+      }
+    },
+
+    cancelExecution: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "cancelExecution");
+        const sessionIdRaw = payload?.session_id || payload?.sessionId;
+        const attemptIdRaw = payload?.attempt_id || payload?.attemptId;
+        const sessionId =
+          typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+        const attemptId =
+          typeof attemptIdRaw === "string" ? attemptIdRaw.trim() : "";
+        if (!sessionId || !attemptId) {
+          throw new FrontendApiError(
+            "invalid_execution_cancel_request",
+            "session_id and attempt_id are required",
+          );
+        }
+        const reasonRaw = payload?.reason;
+        const reason =
+          typeof reasonRaw === "string" && reasonRaw.trim()
+            ? reasonRaw.trim()
+            : "user_stop";
+        const idempotencyKeyRaw =
+          payload?.idempotency_key || payload?.idempotencyKey;
+        const idempotencyKey =
+          typeof idempotencyKeyRaw === "string"
+            ? idempotencyKeyRaw.trim()
+            : "";
+        const sourceAttemptIdRaw =
+          payload?.source_attempt_id || payload?.sourceAttemptId;
+        const sourceAttemptId =
+          typeof sourceAttemptIdRaw === "string"
+            ? sourceAttemptIdRaw.trim()
+            : "";
+        const requestIdRaw = payload?.request_id || payload?.requestId;
+        const requestId =
+          typeof requestIdRaw === "string" ? requestIdRaw.trim() : "";
+        const response = await withTimeout(
+          () =>
+            method({
+              session_id: sessionId,
+              attempt_id: attemptId,
+              reason,
+              ...(sourceAttemptId
+                ? { source_attempt_id: sourceAttemptId }
+                : {}),
+              ...(requestId ? { request_id: requestId } : {}),
+              ...(idempotencyKey
+                ? { idempotency_key: idempotencyKey }
+                : {}),
+            }),
+          4000,
+          "unchain_execution_cancel_timeout",
+          "Execution cancellation request timed out",
+        );
+        return isObject(response)
+          ? response
+          : {
+              status: "cancel_requested",
+              session_id: sessionId,
+              attempt_id: attemptId,
+            };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_execution_cancel_failed",
+          "Failed to cancel execution",
+        );
+      }
+    },
+
     respondToolConfirmation: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");
@@ -1161,14 +1702,27 @@ export const createUnchainApi = () => {
             "confirmation_id is required",
           );
         }
+        if (typeof payload?.approved !== "boolean") {
+          throw new FrontendApiError(
+            "invalid_confirmation_request",
+            "approved must be a boolean",
+          );
+        }
 
         const reasonRaw = payload?.reason;
         const requestPayload = {
           confirmation_id: confirmationId,
-          approved: Boolean(payload?.approved),
+          approved: payload.approved,
           reason:
             typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
         };
+
+        const sessionIdRaw = payload?.session_id || payload?.sessionId;
+        const sessionId =
+          typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+        if (sessionId) {
+          requestPayload.session_id = sessionId;
+        }
 
         const modifiedArguments = payload?.modified_arguments;
         if (modifiedArguments != null) {
@@ -1201,10 +1755,19 @@ export const createUnchainApi = () => {
         if (!threadId || !text) {
           throw new FrontendApiError("invalid_interject_payload", "threadId and text are required");
         }
+        const messageId =
+          typeof payload.messageId === "string" ? payload.messageId.trim() : "";
+        if (payload.messageId != null && !messageId) {
+          throw new FrontendApiError(
+            "invalid_interject_payload",
+            "messageId must be a non-empty string when provided",
+          );
+        }
         const requestPayload = {
           thread_id: threadId,
           text,
           channel: typeof payload.channel === "string" && payload.channel ? payload.channel : "auto",
+          ...(messageId ? { message_id: messageId } : {}),
           ...(isObject(payload.options) ? { options: payload.options } : {}),
         };
         const response = await method(requestPayload);
@@ -1222,7 +1785,10 @@ export const createUnchainApi = () => {
         const normalizedPayload = injectProviderApiKeyIntoPayload(
           payloadWithWorkspaceRoot,
         );
-        const streamHandle = method(normalizedPayload, handlers);
+        const streamHandle = method(
+          normalizedPayload,
+          withSecretStorageFailureLatch(handlers),
+        );
         if (
           !isObject(streamHandle) ||
           typeof streamHandle.cancel !== "function"
@@ -1516,6 +2082,22 @@ export const createUnchainApi = () => {
           );
         }
 
+        const operationIdRaw =
+          normalizedPayload?.operationId ?? normalizedPayload?.operation_id;
+        const operationId =
+          typeof operationIdRaw === "string" ? operationIdRaw.trim() : "";
+        const expectedSessionRevisionRaw =
+          normalizedPayload?.expectedSessionRevision ??
+          normalizedPayload?.expected_session_revision;
+        const expectedSessionRevision = Number(expectedSessionRevisionRaw);
+        const expectedCancelAttemptIdRaw =
+          normalizedPayload?.expectedCancelAttemptId ??
+          normalizedPayload?.expected_cancel_attempt_id;
+        const expectedCancelAttemptId =
+          typeof expectedCancelAttemptIdRaw === "string"
+            ? expectedCancelAttemptIdRaw.trim()
+            : "";
+
         const response = await withTimeout(
           () =>
             method({
@@ -1524,6 +2106,22 @@ export const createUnchainApi = () => {
               messages: Array.isArray(normalizedPayload?.messages)
                 ? normalizedPayload.messages
                 : [],
+              ...(operationId
+                ? { operationId, operation_id: operationId }
+                : {}),
+              ...(Number.isInteger(expectedSessionRevision) &&
+              expectedSessionRevision >= 0
+                ? {
+                    expectedSessionRevision,
+                    expected_session_revision: expectedSessionRevision,
+                  }
+                : {}),
+              ...(expectedCancelAttemptId
+                ? {
+                    expectedCancelAttemptId,
+                    expected_cancel_attempt_id: expectedCancelAttemptId,
+                  }
+                : {}),
               options: isObject(normalizedPayload?.options)
                 ? normalizedPayload.options
                 : {},
@@ -1533,8 +2131,20 @@ export const createUnchainApi = () => {
           "Unchain session memory replace request timed out",
         );
 
+        if (
+          response?.applied === false &&
+          isLocalSecretStorageFailure(response?.error)
+        ) {
+          markSecretStorageUnavailableForSession();
+        }
         return isObject(response) ? response : { applied: false };
       } catch (error) {
+        if (
+          isLocalSecretStorageFailure(error) ||
+          isLocalSecretStorageFailure(error?.details)
+        ) {
+          markSecretStorageUnavailableForSession();
+        }
         throw toFrontendApiError(
           error,
           "unchain_session_memory_replace_failed",
@@ -1547,7 +2157,10 @@ export const createUnchainApi = () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStreamV2");
         const normalizedPayload = normalizeUnchainV2Payload(payload);
-        const streamHandle = method(normalizedPayload, handlers);
+        const streamHandle = method(
+          normalizedPayload,
+          withSecretStorageFailureLatch(handlers),
+        );
         if (
           !isObject(streamHandle) ||
           typeof streamHandle.cancel !== "function"
@@ -1571,10 +2184,14 @@ export const createUnchainApi = () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStreamV4");
         const normalizedPayload = normalizeUnchainV2Payload(payload);
-        const streamHandle = method(normalizedPayload, handlers);
+        const streamHandle = method(
+          normalizedPayload,
+          withSecretStorageFailureLatch(handlers),
+        );
         if (
           !isObject(streamHandle) ||
-          typeof streamHandle.cancel !== "function"
+          (typeof streamHandle.disconnect !== "function" &&
+            typeof streamHandle.cancel !== "function")
         ) {
           throw new FrontendApiError(
             "invalid_stream_handle",
@@ -1587,6 +2204,46 @@ export const createUnchainApi = () => {
           error,
           "unchain_stream_v4_start_failed",
           "Failed to start Unchain v4 stream",
+        );
+      }
+    },
+
+    attachStreamV4: async (payload, handlers = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "attachStreamV4");
+        const streamHandle = await method(
+          payload,
+          withSecretStorageFailureLatch(handlers),
+        );
+        if (
+          !isObject(streamHandle) ||
+          typeof streamHandle.detach !== "function" ||
+          (typeof streamHandle.disconnect !== "function" &&
+            typeof streamHandle.cancel !== "function")
+        ) {
+          throw new FrontendApiError(
+            "invalid_stream_handle",
+            "Unchain bridge returned an invalid attached stream handle",
+          );
+        }
+        return streamHandle;
+      } catch (error) {
+        if (
+          typeof error?.code === "string" &&
+          error.code.trim() &&
+          error.code !== "api_error"
+        ) {
+          throw new FrontendApiError(
+            error.code.trim(),
+            error.message || "Failed to attach to the existing Unchain v4 stream",
+            error,
+            error.details ?? null,
+          );
+        }
+        throw toFrontendApiError(
+          error,
+          "unchain_stream_v4_attach_failed",
+          "Failed to attach to the existing Unchain v4 stream",
         );
       }
     },
@@ -1605,6 +2262,59 @@ export const createUnchainApi = () => {
 
   unchainApi.retrieveModelList = retrieveUnchainModelList;
   unchainApi.listModels = retrieveUnchainModelList;
+
+  // Custom Model Provider — test-connection facade (design §6.5).
+  //
+  // Sanitizes the raw stored definition through buildProviderInjectionPayload
+  // (strips secrets / enabled / timestamps — the same whitelist the chat
+  // injection path uses) and forwards { sanitizedDefinition, apiKey } to the
+  // preload bridge, which assembles the { custom_provider, api_key } wire body.
+  // The Electron main service answers with a structured
+  // { ok, ... } | { ok:false, error:{ code, message } } result (never throws for
+  // provider-side failures), so the caller can render the outcome inline.
+  // Timeout is 20s to sit just past the backend's 15s hard probe timeout.
+  const testCustomProvider = async (definition, apiKey = "") => {
+    if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+      throw new FrontendApiError(
+        "custom_provider_disabled",
+        "Custom model providers are disabled",
+      );
+    }
+
+    if (!hasBridgeMethod("unchainAPI", "testCustomProvider")) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "unchainAPI.testCustomProvider is unavailable",
+      );
+    }
+
+    const sanitized = buildProviderInjectionPayload(definition);
+    if (!sanitized) {
+      throw new FrontendApiError(
+        "custom_provider_invalid",
+        "A valid custom provider definition is required",
+      );
+    }
+
+    try {
+      const method = assertBridgeMethod("unchainAPI", "testCustomProvider");
+      const response = await withTimeout(
+        () => method(sanitized, typeof apiKey === "string" ? apiKey : ""),
+        20000,
+        "custom_provider_test_timeout",
+        "Custom provider test request timed out",
+      );
+      return isObject(response) ? response : {};
+    } catch (error) {
+      throw toFrontendApiError(
+        error,
+        "custom_provider_test_failed",
+        "Failed to test custom provider connection",
+      );
+    }
+  };
+
+  unchainApi.testCustomProvider = testCustomProvider;
 
   return unchainApi;
 };

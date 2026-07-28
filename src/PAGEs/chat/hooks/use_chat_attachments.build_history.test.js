@@ -117,4 +117,30 @@ describe("useChatAttachments.buildHistoryForModel interjections", () => {
 
     expect(history).toEqual([{ role: "system", content: "sys" }]);
   });
+
+  test("禁读: a user message's composer sidecar never reaches model history (§3.2)", () => {
+    const { result } = renderAttachmentsHook();
+
+    const history = result.current.buildHistoryForModel(
+      [
+        {
+          role: "user",
+          content: "Template body.\n\nreal ask",
+          composer: {
+            v: 1,
+            rawText: "/plan real ask",
+            commands: [{ name: "/plan", sourceToolkitId: "demokit" }],
+            templateLength: "Template body.".length,
+          },
+        },
+      ],
+      "c1",
+    );
+
+    // history entry is content-only — no composer / rawText leaks through
+    expect(history).toEqual([
+      { role: "user", content: "Template body.\n\nreal ask" },
+    ]);
+    expect("composer" in history[0]).toBe(false);
+  });
 });

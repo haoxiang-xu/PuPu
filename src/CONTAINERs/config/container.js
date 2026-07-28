@@ -43,39 +43,46 @@ import {
   resolveSemanticPalette,
   applySemanticCssVars,
   applySemanticPaletteToTheme,
+  resolveThemeDetails,
+  persistBootPalette,
 } from "./theme_semantic";
 import { readThemeSettings } from "../../COMPONENTs/settings/appearance/storage";
 import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
+import {
+  readSettingsRoot,
+  readNamespace,
+  updateNamespace,
+} from "../../SERVICEs/settings_repository";
+import * as bootProgress from "../../SERVICEs/boot_progress";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
-const SETTINGS_STORAGE_KEY = "settings";
-
 const loadSettingsStorage = () => {
   try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    return readSettingsRoot();
   } catch {}
   return null;
 };
 
 const saveSettingsStorage = (updatesByPath) => {
   try {
-    const root = loadSettingsStorage() || {};
-    let changed = false;
-    Object.entries(updatesByPath).forEach(([path, data]) => {
-      const section = root[path] || {};
+    /* Per-namespace writes (settings-sqlite-migration-plan §4.4): each changed
+       top-level key is committed through its own updateNamespace — never a
+       whole-root overwrite. Unchanged sections are skipped entirely so idle
+       re-renders don't cause redundant persistence. */
+    Object.entries(updatesByPath).forEach(([namespace, data]) => {
+      const section = readNamespace(namespace, undefined) || {};
       const sectionChanged = Object.entries(data).some(
         ([key, value]) => section[key] !== value,
       );
       if (!sectionChanged) return;
-      root[path] = { ...section, ...data };
-      changed = true;
+      updateNamespace(namespace, (current) => ({
+        ...(current || {}),
+        ...data,
+      })).catch(() => {});
     });
-    if (!changed) return;
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
   } catch {}
 };
 
@@ -155,7 +162,7 @@ const applyContainerThemeConfig = (
     custom: themeSettings.custom,
   });
 
-  const themedBase = applySemanticPaletteToTheme(base, semantic);
+  const themedBase = applySemanticPaletteToTheme(base, semantic, themeMode);
 
   return {
     ...themedBase,
@@ -169,10 +176,16 @@ const applyContainerThemeConfig = (
 };
 
 const ThemeBootScreen = ({ isDark }) => {
-  const backgroundColor = isDark ? "#121212" : "#FFFFFF";
-  const foregroundColor = isDark
-    ? "rgba(255,255,255,0.75)"
-    : "rgba(0,0,0,0.65)";
+  /* This screen sits under the static #boot-overlay (public/index.html) —
+     the overlay owns the visible loading UI for S0-S2. By the time this
+     component can render at all, applyInitialSemanticVars() has already
+     set --pupu-background/--pupu-text synchronously, so preferring the
+     CSS var keeps this in visual lockstep with the overlay above it; the
+     literal fallback only matters if that var somehow never got set. */
+  const backgroundColor = `var(--pupu-background, ${isDark ? "#121212" : "#FFFFFF"})`;
+  const foregroundColor = `var(--pupu-text, ${
+    isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)"
+  })`;
 
   return (
     <div
@@ -254,12 +267,19 @@ const applyInitialSemanticVars = () => {
     const themeSettings = themeColorCustomizationEnabled
       ? persisted?.appearance?.theme || {}
       : defaultThemeColorSettings();
+    const bootPalette = resolveSemanticPalette(mode, {
+      preset: themeSettings.preset,
+      custom: themeSettings.custom,
+    });
     applySemanticCssVars(
-      resolveSemanticPalette(mode, {
+      bootPalette,
+      undefined,
+      resolveThemeDetails(mode, {
         preset: themeSettings.preset,
-        custom: themeSettings.custom,
+        details: themeSettings.details,
       }),
     );
+    persistBootPalette(bootPalette);
   } catch {}
 };
 applyInitialSemanticVars();
@@ -342,7 +362,18 @@ const ConfigContainer = ({ children }) => {
       );
       const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
       setTheme(nextTheme);
-      applySemanticCssVars(nextTheme.semantic);
+      const themeSettings = themeColorCustomizationEnabled
+        ? readThemeSettings()
+        : defaultThemeColorSettings();
+      applySemanticCssVars(
+        nextTheme.semantic,
+        undefined,
+        resolveThemeDetails(onThemeMode, {
+          preset: themeSettings.preset,
+          details: themeSettings.details,
+        }),
+      );
+      persistBootPalette(nextTheme.semantic);
       if (typeof document !== "undefined") {
         document.documentElement.style.setProperty(
           "--pupu-font-family",
@@ -367,7 +398,10 @@ const ConfigContainer = ({ children }) => {
   }, []);
   useEffect(() => {
     if (theme?.backgroundColor) {
-      themeBridge.setBackgroundColor(theme.backgroundColor);
+      themeBridge.setBackgroundColor({
+        backgroundColor: theme.backgroundColor,
+        accent: theme.semantic?.accent,
+      });
     }
   }, [theme]);
   useEffect(() => {
@@ -376,6 +410,7 @@ const ConfigContainer = ({ children }) => {
     }
 
     setIsThemeBooting(false);
+    bootProgress.set(55);
   }, [theme, selectedTheme]);
   useEffect(() => {
     if (!themeBridge.isThemeModeAvailable()) {

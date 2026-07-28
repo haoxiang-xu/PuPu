@@ -184,6 +184,7 @@ const ColorPickerPanel = ({
   on_preview,
   on_commit,
   content_ref,
+  show_alpha = true,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -196,6 +197,7 @@ const ColorPickerPanel = ({
   const [dragging, setDragging] = useState(false);
 
   const svRef = useRef(null);
+  const mountedRef = useRef(false);
 
   const rgb = hsvToRgb(hsv.h, hsv.s, hsv.v);
   const hex = rgbToHex(rgb);
@@ -204,6 +206,10 @@ const ColorPickerPanel = ({
   const selectDropdownTheme = theme?.select?.dropdown || {};
 
   useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
     if (set_value) set_value(hex);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hex]);
@@ -476,29 +482,31 @@ const ColorPickerPanel = ({
             </span>
           </ControlRow>
 
-          <ControlRow label="ALPHA" hairline={C.rowLine} muted={C.muted}>
-            <div data-testid="color-picker-alpha" style={{ flex: 1, minWidth: 0 }}>
-              <GradientSlider
-                value={a}
-                set_value={(next) => setA(Math.round(next))}
-                min={0}
-                max={100}
-                gradient={alphaGradient}
-                show_tooltip={false}
-                style={{
-                  gradientThumbBackground: alphaThumbBackground,
-                  gradientThumbBorderColor: C.thumbBorder,
-                  gradientTrackBorderColor: C.hairline,
-                  gradientTrackBorderWidth: 2,
-                }}
-              />
-            </div>
-            <span
-              style={{ fontFamily: MONO, fontSize: 11, color: C.value, minWidth: 26, textAlign: "right" }}
-            >
-              {a}
-            </span>
-          </ControlRow>
+          {show_alpha && (
+            <ControlRow label="ALPHA" hairline={C.rowLine} muted={C.muted}>
+              <div data-testid="color-picker-alpha" style={{ flex: 1, minWidth: 0 }}>
+                <GradientSlider
+                  value={a}
+                  set_value={(next) => setA(Math.round(next))}
+                  min={0}
+                  max={100}
+                  gradient={alphaGradient}
+                  show_tooltip={false}
+                  style={{
+                    gradientThumbBackground: alphaThumbBackground,
+                    gradientThumbBorderColor: C.thumbBorder,
+                    gradientTrackBorderColor: C.hairline,
+                    gradientTrackBorderWidth: 2,
+                  }}
+                />
+              </div>
+              <span
+                style={{ fontFamily: MONO, fontSize: 11, color: C.value, minWidth: 26, textAlign: "right" }}
+              >
+                {a}
+              </span>
+            </ControlRow>
+          )}
 
           <ControlRow label="FORMAT" hairline={C.rowLine} muted={C.muted}>
             <SegmentedButton
@@ -577,6 +585,8 @@ const ColorPicker = ({
   label,
   onPreview,
   onCommit,
+  panel = "nordic",
+  show_alpha = true,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -607,6 +617,7 @@ const ColorPicker = ({
     (h) => {
       if (!isControlled) setInternal(h);
       if (onCommit) onCommit(h);
+      lastHexRef.current = null;
     },
     [isControlled, onCommit],
   );
@@ -718,12 +729,24 @@ const ColorPicker = ({
                 visibility: popoverPosition ? "visible" : "hidden",
               }}
             >
-              <NordicColorPickerPanel
-                value={hex}
-                set_value={handlePreview}
-                default_value={default_value}
-                content_ref={panelContentRef}
-              />
+              {panel === "rectangular" ? (
+                <ColorPickerPanel
+                  value={hex}
+                  set_value={handlePreview}
+                  default_value={default_value}
+                  default_format="HEX"
+                  on_commit={handleCommit}
+                  show_alpha={show_alpha}
+                  content_ref={panelContentRef}
+                />
+              ) : (
+                <NordicColorPickerPanel
+                  value={hex}
+                  set_value={handlePreview}
+                  default_value={default_value}
+                  content_ref={panelContentRef}
+                />
+              )}
             </div>
           </>,
           document.body,
@@ -739,7 +762,10 @@ const ColorPicker = ({
       >
         <Button
           ariaLabel={label || "Open color picker"}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            if (open) commitLatest();
+            setOpen((o) => !o);
+          }}
           style={{
             root: {
               height: 36,

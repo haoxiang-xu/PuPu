@@ -8,6 +8,7 @@ const DB_FILE_NAME = "chats.db";
 const LEGACY_FILE_NAME = "chats.json";
 const MIGRATED_SUFFIX = ".migrated-bak";
 const SCHEMA_VERSION = 3;
+const INVALID_LEGACY_CHAT_STORE_CODE = "chat_legacy_source_invalid";
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -28,9 +29,174 @@ CREATE TABLE IF NOT EXISTS messages (
   PRIMARY KEY (chat_id, ord)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
+
+CREATE TABLE IF NOT EXISTS renderer_write_guards (
+  epoch        TEXT PRIMARY KEY,
+  max_sequence INTEGER NOT NULL
+);
 `;
 
 const toJson = (value) => JSON.stringify(value === undefined ? null : value);
+const MAX_WRITE_GUARD_EPOCH_CHARS = 128;
+
+const normalizeWriteBatch = (payload) => {
+  if (Array.isArray(payload)) {
+    return { guard: null, ops: payload };
+  }
+  const epoch = payload?.guard?.epoch;
+  const sequence = payload?.guard?.sequence;
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !Array.isArray(payload.ops) ||
+    payload.ops.length === 0 ||
+    typeof epoch !== "string" ||
+    !epoch ||
+    epoch.length > MAX_WRITE_GUARD_EPOCH_CHARS ||
+    epoch.trim() !== epoch ||
+    !Number.isSafeInteger(sequence) ||
+    sequence <= 0
+  ) {
+    throw new Error(
+      "applyOps: payload must be an ops array or a valid guarded batch",
+    );
+  }
+  return {
+    guard: { epoch, sequence },
+    ops: payload.ops,
+  };
+};
+
+const invalidLegacyChatStore = () => {
+  const error = new Error(
+    "Legacy chat store has an invalid or unsupported structure; source left untouched",
+  );
+  error.code = INVALID_LEGACY_CHAT_STORE_CODE;
+  return error;
+};
+
+const isPlainObject = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+const assertRecognizableLegacyChatStore = (store) => {
+  if (
+    !isPlainObject(store) ||
+    (store.schemaVersion !== 1 && store.schemaVersion !== 2) ||
+    !Number.isFinite(store.updatedAt) ||
+    !isPlainObject(store.chatsById)
+  ) {
+    throw invalidLegacyChatStore();
+  }
+
+  const chatEntries = Object.entries(store.chatsById);
+  if (chatEntries.length === 0) {
+    throw invalidLegacyChatStore();
+  }
+  for (const [chatId, chat] of chatEntries) {
+    if (
+      !chatId ||
+      !isPlainObject(chat) ||
+      chat.id !== chatId ||
+      !Array.isArray(chat.messages)
+    ) {
+      throw invalidLegacyChatStore();
+    }
+  }
+
+  if (
+    typeof store.activeChatId !== "string" ||
+    !Object.prototype.hasOwnProperty.call(
+      store.chatsById,
+      store.activeChatId,
+    )
+  ) {
+    throw invalidLegacyChatStore();
+  }
+
+  if (store.schemaVersion === 1) {
+    if (!Array.isArray(store.chatOrder)) {
+      throw invalidLegacyChatStore();
+    }
+    return store;
+  }
+
+  if (
+    !Array.isArray(store.lruChatIds) ||
+    !isPlainObject(store.tree) ||
+    !Array.isArray(store.tree.root) ||
+    !isPlainObject(store.tree.nodesById)
+  ) {
+    throw invalidLegacyChatStore();
+  }
+  return store;
+};
+
+// V1 persisted a flat `chatOrder` instead of the explorer tree. The main
+// process upgrades legacy files before the renderer sees them, so preserve
+// that order here; writing `tree: null` would make renderer normalization
+// rebuild the list by updatedAt and permanently change the user's ordering.
+const buildLegacyV1Tree = (store) => {
+  const chatsById = store.chatsById;
+  const orderedChatIds = [];
+  const seen = new Set();
+  const appendChatId = (chatId) => {
+    if (
+      typeof chatId !== "string" ||
+      seen.has(chatId) ||
+      !Object.prototype.hasOwnProperty.call(chatsById, chatId)
+    ) {
+      return;
+    }
+    seen.add(chatId);
+    orderedChatIds.push(chatId);
+  };
+
+  for (const chatId of store.chatOrder) appendChatId(chatId);
+  for (const chatId of Object.keys(chatsById).sort(
+    (left, right) =>
+      Number(chatsById[right]?.updatedAt || 0) -
+      Number(chatsById[left]?.updatedAt || 0),
+  )) {
+    appendChatId(chatId);
+  }
+
+  const nodesById = {};
+  const root = orderedChatIds.map((chatId) => {
+    const nodeId = `chn-${chatId}`;
+    const chat = chatsById[chatId];
+    const stamp = Number.isFinite(Number(chat.updatedAt))
+      ? Number(chat.updatedAt)
+      : store.updatedAt;
+    nodesById[nodeId] = {
+      id: nodeId,
+      entity: "chat",
+      type: "file",
+      chatId,
+      label: typeof chat.title === "string" ? chat.title : "New Chat",
+      createdAt: stamp,
+      updatedAt: stamp,
+    };
+    return nodeId;
+  });
+  const selectedNodeId =
+    root.find(
+      (nodeId) => nodesById[nodeId].chatId === store.activeChatId,
+    ) ||
+    root[0] ||
+    null;
+
+  return {
+    root,
+    nodesById,
+    selectedNodeId,
+    expandedFolderIds: [],
+  };
+};
 
 const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
   if (!app || !fs || !path || !sqlite) {
@@ -39,6 +205,7 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
 
   let db = null;
   let legacyFilePath = null;
+  let legacyMigrationError = null;
 
   const requireDb = () => {
     if (!db) {
@@ -124,17 +291,19 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
     );
 
   const applyImportStore = (op) => {
-    const store = op.store;
-    if (!store || typeof store !== "object") {
-      throw new Error("import_store: invalid store payload");
-    }
+    // Validate before the first DELETE. Whole-store import is destructive and
+    // normalize-on-read must never turn {} / [] into a replacement seed chat.
+    const store = assertRecognizableLegacyChatStore(op.store);
     // Whole-store semantics (legacy WRITE equivalent): replace everything.
     requireDb().prepare("DELETE FROM messages").run();
     requireDb().prepare("DELETE FROM chats").run();
     upsertMeta("schemaVersion", SCHEMA_VERSION);
     upsertMeta("updatedAt", store.updatedAt);
     upsertMeta("activeChatId", store.activeChatId);
-    upsertMeta("tree", store.tree);
+    upsertMeta(
+      "tree",
+      store.schemaVersion === 1 ? buildLegacyV1Tree(store) : store.tree,
+    );
     const chatsById = store.chatsById || {};
     for (const [chatId, chat] of Object.entries(chatsById)) {
       const { messages, ...metaOnly } = chat || {};
@@ -155,12 +324,25 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
     import_store: applyImportStore,
   };
 
-  const applyOps = (ops) => {
+  const applyOps = (payload) => {
     requireDb();
-    if (!Array.isArray(ops)) {
-      throw new Error("applyOps: ops must be an array");
-    }
+    const { guard, ops } = normalizeWriteBatch(payload);
+    let applied = true;
     db.tx(() => {
+      if (guard) {
+        const existing = requireDb()
+          .prepare(
+            "SELECT max_sequence FROM renderer_write_guards WHERE epoch = ?",
+          )
+          .get(guard.epoch);
+        if (
+          existing &&
+          Number(existing.max_sequence) >= guard.sequence
+        ) {
+          applied = false;
+          return;
+        }
+      }
       for (const op of ops) {
         const apply = op && OP_APPLIERS[op.type];
         if (!apply) {
@@ -170,7 +352,17 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
         }
         apply(op);
       }
+      if (guard) {
+        requireDb()
+          .prepare(
+            "INSERT INTO renderer_write_guards(epoch, max_sequence) " +
+              "VALUES (?, ?) ON CONFLICT(epoch) DO UPDATE SET " +
+              "max_sequence = excluded.max_sequence",
+          )
+          .run(guard.epoch, guard.sequence);
+      }
     });
+    return applied;
   };
 
   // ---- reads ---------------------------------------------------------------
@@ -185,6 +377,12 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
   };
 
   const getBootstrapSnapshot = () => {
+    if (legacyMigrationError) {
+      // A present-but-unreadable legacy source is not an empty database.
+      // Propagate a stable bootstrap failure so the renderer cannot seed a
+      // default chat and permanently block a repaired chats.json from import.
+      throw legacyMigrationError;
+    }
     const metaRows = requireDb().prepare("SELECT key, value FROM meta").all();
     const chatRows = requireDb().prepare("SELECT id, meta FROM chats").all();
     if (metaRows.length === 0 && chatRows.length === 0) {
@@ -228,8 +426,22 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
     try {
       store = JSON.parse(fs.readFileSync(legacyFilePath, "utf8"));
     } catch (error) {
+      legacyMigrationError = new Error(
+        "Legacy chats.json exists but could not be read as JSON; source left untouched",
+      );
+      legacyMigrationError.code = "chat_legacy_source_unreadable";
       console.warn(
         "[chat-storage] failed to parse legacy chats.json, leaving it in place:",
+        error.message,
+      );
+      return;
+    }
+    try {
+      assertRecognizableLegacyChatStore(store);
+    } catch (error) {
+      legacyMigrationError = error;
+      console.warn(
+        "[chat-storage] invalid legacy chats.json, leaving it in place:",
         error.message,
       );
       return;
@@ -240,6 +452,7 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
 
   const init = () => {
     if (db) return;
+    legacyMigrationError = null;
     const userDataDir = app.getPath("userData");
     legacyFilePath = path.join(userDataDir, LEGACY_FILE_NAME);
     db = createChatDb({

@@ -7,23 +7,10 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
-
-const readWorkspaceRoot = () => {
-  try {
-    const root = JSON.parse(localStorage.getItem("settings") || "{}");
-    return root?.runtime?.workspace_root || "";
-  } catch {
-    return "";
-  }
-};
-
-const writeWorkspaceRoot = (path) => {
-  try {
-    const root = JSON.parse(localStorage.getItem("settings") || "{}");
-    root.runtime = { ...(root.runtime || {}), workspace_root: path };
-    localStorage.setItem("settings", JSON.stringify(root));
-  } catch {}
-};
+import {
+  readWorkspaceRoot,
+  writeWorkspaceRoot,
+} from "../../settings/runtime";
 
 const WorkspaceStep = ({ onNext }) => {
   const { onThemeMode, theme } = useContext(ConfigContext);
@@ -34,10 +21,10 @@ const WorkspaceStep = ({ onNext }) => {
   const [validation, setValidation] = useState(null); // null | { valid: bool, message: string }
   const [validating, setValidating] = useState(false);
 
-  const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
-  const subColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)";
+  const headingColor = isDark ? "rgba(var(--pupu-text-rgb),0.92)" : "rgba(var(--pupu-text-rgb),0.88)";
+  const subColor = isDark ? "rgba(var(--pupu-text-rgb),0.40)" : "rgba(var(--pupu-text-rgb),0.38)";
+  const dividerColor = "rgba(var(--pupu-text-rgb),0.07)";
+  const mutedColor = isDark ? "rgba(var(--pupu-text-rgb),0.35)" : "rgba(var(--pupu-text-rgb),0.32)";
 
   /* Validate path after it changes */
   useEffect(() => {

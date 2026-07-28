@@ -114,4 +114,24 @@ describe("useChatSessionState draft persist defer during streaming", () => {
     });
     expect(draftTextOf(chatId)).toBe("v1 v2");
   });
+
+  test("立即退出会同步保存最新 draft 和 session bundle", () => {
+    const { result } = setup();
+    const chatId = result.current.activeChatIdRef.current;
+
+    act(() => {
+      result.current.setInputValue("typed immediately before quit");
+      result.current.setSelectedToolkits(["toolkit.before-quit"]);
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new Event("beforeunload", { bubbles: false, cancelable: true }),
+      );
+    });
+
+    const storedChat = getChatsStore().chatsById[chatId];
+    expect(storedChat.draft.text).toBe("typed immediately before quit");
+    expect(storedChat.selectedToolkits).toEqual(["toolkit.before-quit"]);
+  });
 });

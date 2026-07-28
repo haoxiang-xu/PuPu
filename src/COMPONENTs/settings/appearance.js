@@ -147,8 +147,11 @@ export const AppearanceSettings = () => {
       ? "rgba(255,255,255,0.08)"
       : "rgba(0,0,0,0.05)",
   };
-  const selectOptionStyle = { height: 28, padding: "4px 8px", fontSize: 13 };
-  const selectDropdownStyle = { padding: 4, maxHeight: 220, minWidth: 180 };
+  /* palette variant: maxHeight bounds the listbox only — the panel's frosted
+     look (radius 22, blur, hairline) is owned by the variant itself so these
+     menus stay pixel-identical to the attach panel's dropdowns. */
+  const selectDropdownStyle = { width: 224, maxHeight: 220 };
+  const selectOptionStyle = { height: 24, borderRadius: 14 };
 
   return (
     <div>
@@ -172,10 +175,11 @@ export const AppearanceSettings = () => {
                 setOnThemeMode(val);
               }
             }}
+            variant="palette"
             filterable={false}
             style={selectStyle}
-            option_style={selectOptionStyle}
             dropdown_style={selectDropdownStyle}
+            option_style={selectOptionStyle}
           />
         </SettingsRow>
 
@@ -199,10 +203,13 @@ export const AppearanceSettings = () => {
             ]}
             value={locale}
             set_value={setLocale}
+            variant="palette"
             filterable={true}
+            filter_mode="panel"
+            search_placeholder={t("common.search")}
             style={selectStyle}
-            option_style={selectOptionStyle}
             dropdown_style={selectDropdownStyle}
+            option_style={selectOptionStyle}
           />
         </SettingsRow>
       </SettingsSection>

@@ -8,3 +8,8 @@
 - [Flask sidecar 安全现状](flask-sidecar-posture.md) — SEC-001清单7深审：每会话随机token逐路由强制认证；H=MCP工具确认自声明无server默认拒绝；2条SSRF；C0/H1/M2/L4
 - [SEC-001 最终定级](sec-001-final-verdict.md) — 七区汇总复核：1 Critical(秘密链路接缝B) + 6 High根因合并；3大系统性根因；CTO仲裁清单与处置建议
 - [Custom MCP 发版裁决](custom-mcp-release-assessment.md) — 2026-06-14 任意stdio/http MCP；CONDITIONAL GO：argv-exec无shell注入但确认自声明默认关；最小门=安装风险确认弹窗
+- [Computer Use M2 安审](computer-use-m2-assessment.md) — 两门分离：flag-off合dev放行；F1已修复验收(d664c7a)；F9 subagent无门=新P0(不挂载+unchain fail-closed双签)；F3截图落盘
+- [门B 启用路径合dev安审](computer-use-gate-b-enable-review.md) — 2026-07-18 GO(剔.venv软链)；八不变量全过；release 最终签待注入eval
+- [Skillpack import 安审(S4)](skillpack-import-security.md) — 2026-07-18 放行S5；body人审=S5门槛；symlink不跟随是刻意行为；欠后端phase/tools钉死
+- [S6a 下载通道安审(S6d)](skillpack-s6a-download-review.md) — CONDITIONAL GO；tar CVE-2026-53655 pin抬≥7.5.16；S6c manifest须同parser；欠S6b temp删除验证
+- [Phase4 秘密存储签字门](phase4-secret-storage-decision.md) — GO(有条件)；选safeStorage(B)非OS vault；Linux fail-closed禁basic_text；dual-keep回滚；注入移主进程=CTO ADR；MCP/OAuth defer

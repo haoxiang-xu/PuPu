@@ -1,0 +1,223 @@
+{
+  "featured": {
+    "pluginId": "mcp.dev.github-remote",
+    "kicker": "Editor's pick",
+    "headline": "GitHub, in the chat",
+    "blurb": "Browse repos, read issues and PRs, and act on your code — the official GitHub MCP server, wired straight into the conversation.",
+    "gradient": [
+      "#6478f6",
+      "#4a5bd8"
+    ]
+  },
+  "essentials": [
+    "mcp.browser.chrome-devtools",
+    "mcp.browser.playwright",
+    "mcp.workspace.filesystem",
+    "mcp.memory.memory"
+  ],
+  "collections": [
+    {
+      "id": "web-research-kit",
+      "title": "Web Research Kit",
+      "blurb": "See, browse and extract — the full research loop.",
+      "gradient": [
+        "#4cbe8b",
+        "#2f9a68"
+      ],
+      "pluginIds": [
+        "mcp.browser.playwright",
+        "mcp.browser.chrome-devtools"
+      ]
+    },
+    {
+      "id": "workspace-kit",
+      "title": "Workspace Kit",
+      "blurb": "Read files, convert documents and fetch web content.",
+      "gradient": [
+        "#f6a341",
+        "#ea7547"
+      ],
+      "pluginIds": [
+        "mcp.workspace.filesystem",
+        "mcp.workspace.markitdown",
+        "mcp.workspace.fetch"
+      ]
+    },
+    {
+      "id": "local-knowledge-kit",
+      "title": "Local Knowledge Kit",
+      "blurb": "Keep structured notes and query local data without credentials.",
+      "gradient": [
+        "#6478f6",
+        "#4a5bd8"
+      ],
+      "pluginIds": [
+        "mcp.memory.memory",
+        "mcp.workspace.sqlite"
+      ]
+    }
+  ],
+  "skillPacks": [
+    {
+      "id": "skillpack.superpowers-essentials",
+      "title": "Superpowers Essentials",
+      "titleZh": "超能力精选",
+      "blurb": "Five battle-tested software-development methodology skills from obra/superpowers: brainstorm before building, debug by root cause, write step-by-step plans, take code review with rigor, and prove work is done before claiming it.",
+      "blurbZh": "obra/superpowers 精选的五条软件开发方法论:动手前先构思、按根因调试、写分步计划、以技术严谨对待评审、宣称完成前先拿证据。",
+      "gradient": [
+        "#5B8DEF",
+        "#7C5CFC"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "obra/superpowers",
+        "sha": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "license": "MIT"
+      },
+      "subset": [
+        "skills/brainstorming",
+        "skills/systematic-debugging",
+        "skills/writing-plans",
+        "skills/receiving-code-review",
+        "skills/verification-before-completion"
+      ],
+      "manifest": [
+        {
+          "path": "skills/brainstorming/SKILL.md",
+          "sha256": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d"
+        },
+        {
+          "path": "skills/systematic-debugging/SKILL.md",
+          "sha256": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a"
+        },
+        {
+          "path": "skills/writing-plans/SKILL.md",
+          "sha256": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845"
+        },
+        {
+          "path": "skills/receiving-code-review/SKILL.md",
+          "sha256": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd"
+        },
+        {
+          "path": "skills/verification-before-completion/SKILL.md",
+          "sha256": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c"
+        }
+      ],
+      "review": {
+        "recordId": "S5-2026-07-18-superpowers",
+        "reviewedAt": "2026-07-18",
+        "reviewers": [
+          "mcp-store-curator",
+          "pupu-llm-expert"
+        ]
+      },
+      "commandPreviews": [
+        {
+          "name": "brainstorming",
+          "description": "Explore before building: divergent ideas, cross-domain analogies, assumption checks",
+          "descriptionZh": "动手前先构思:发散探索、跨域类比、假设盘点"
+        },
+        {
+          "name": "systematic-debugging",
+          "description": "Debug by root cause, not by patching symptoms",
+          "descriptionZh": "按根因调试,不按症状打补丁"
+        },
+        {
+          "name": "writing-plans",
+          "description": "Turn a spec into zero-context, bite-sized step-by-step plans",
+          "descriptionZh": "把 spec 拆成零上下文、2-5 分钟粒度的分步计划"
+        },
+        {
+          "name": "receiving-code-review",
+          "description": "Treat review feedback with technical rigor — verify before implementing",
+          "descriptionZh": "以技术严谨对待评审意见,先验证再实现"
+        },
+        {
+          "name": "verification-before-completion",
+          "description": "Evidence before claims: find the proving command, run it, read the output",
+          "descriptionZh": "宣称完成前先拿证据:找到验证命令、跑、读输出"
+        }
+      ]
+    },
+    {
+      "id": "skillpack.prompt-master",
+      "title": "Prompt Master",
+      "titleZh": "提示词大师",
+      "blurb": "Turns rough ideas into production-ready prompts — routed and tuned per target AI tool, with a 37-pattern failure diagnostic.",
+      "blurbZh": "把粗糙想法打磨成可直接粘贴的生产级提示词:按目标 AI 工具逐一路由调优,内置失败模式诊断清单。",
+      "gradient": [
+        "#f59e0b",
+        "#b45309"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "nidhinjs/prompt-master",
+        "sha": "d15eabbe5d2122eedc060bae8a771381e9873d1b",
+        "license": "MIT"
+      },
+      "subset": [
+        "prompt-master"
+      ],
+      "manifest": [
+        {
+          "path": "SKILL.md",
+          "sha256": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b"
+        }
+      ],
+      "review": {
+        "recordId": "S5-2026-07-21-prompt-master",
+        "reviewedAt": "2026-07-21",
+        "reviewers": [
+          "claude-fable-5"
+        ]
+      },
+      "commandPreviews": [
+        {
+          "name": "prompt-master",
+          "description": "Route and tune prompts per target AI tool, with a 37-pattern failure diagnostic",
+          "descriptionZh": "按目标 AI 工具路由调优,内置 37 种失败模式诊断"
+        }
+      ]
+    },
+    {
+      "id": "skillpack.frontend-design",
+      "title": "Frontend Design",
+      "titleZh": "前端设计",
+      "blurb": "Anthropic's anti-generic UI design methodology — deliberate palette, typography and one justified aesthetic risk.",
+      "blurbZh": "Anthropic 官方的反模板 UI 设计方法论:深思熟虑的配色、字体编排,以及一次说得出理由的美学冒险。",
+      "gradient": [
+        "#d97757",
+        "#b05730"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "anthropics/skills",
+        "sha": "fa0fa64bdc967915dc8399e803be67759e1e62b8",
+        "license": "Apache-2.0"
+      },
+      "subset": [
+        "skills/frontend-design"
+      ],
+      "manifest": [
+        {
+          "path": "skills/frontend-design/SKILL.md",
+          "sha256": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd"
+        }
+      ],
+      "review": {
+        "recordId": "S5-2026-07-21-frontend-design",
+        "reviewedAt": "2026-07-21",
+        "reviewers": [
+          "claude-fable-5"
+        ]
+      },
+      "commandPreviews": [
+        {
+          "name": "frontend-design",
+          "description": "Deliberate palette, typography and one justified aesthetic risk — anti-generic UI",
+          "descriptionZh": "深思熟虑的配色与字体编排,一次说得出理由的美学冒险"
+        }
+      ]
+    }
+  ]
+}

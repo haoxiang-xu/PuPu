@@ -30,6 +30,7 @@ const SegmentedButtonCell = forwardRef(
       isDark,
       colors,
       indicatorRadius,
+      indicatorRadiusPressed,
       fontSize,
       btnPadding,
       button_style,
@@ -87,9 +88,7 @@ const SegmentedButtonCell = forwardRef(
           style={{
             position: "absolute",
             inset: pressed ? 2 : 0,
-            borderRadius: pressed
-              ? Math.max(indicatorRadius - 1, 2)
-              : indicatorRadius,
+            borderRadius: pressed ? indicatorRadiusPressed : indicatorRadius,
             backgroundColor: pressed ? activeBg : hoverBg,
             transform: showBg ? "scale(1)" : "scale(0.5, 0)",
             opacity: showBg ? 1 : 0,
@@ -182,7 +181,10 @@ const SegmentedButton = ({
     const cRect = container.getBoundingClientRect();
     const bRect = btn.getBoundingClientRect();
     setIndicator({
-      left: bRect.left - cRect.left,
+      /* cRect.left is the border OUTER edge but absolute `left` is measured
+         from the border INNER edge — subtract the border width or the
+         indicator sits 1px right of true (left gap fat, right gap thin) */
+      left: bRect.left - cRect.left - container.clientLeft,
       width: bRect.width,
     });
     return true;
@@ -260,10 +262,34 @@ const SegmentedButton = ({
   /* ── sizing — derived from style overrides ─────────── */
   const fontSize = style?.fontSize ?? 14;
   const outerPad = style?.padding ?? 3;
+  /* horizontal breathing room reads tighter than vertical inside the
+     bordered track — give the ends a little extra by default */
+  const outerPadX = style?.paddingHorizontal ?? outerPad;
   const gap = style?.gap ?? 3;
   const borderRadius = style?.borderRadius ?? inputTheme?.borderRadius ?? 7;
-  const indicatorRadius = Math.max(borderRadius - 2, 2);
+  /* concentric corners: inner radius = outer radius − inset on that axis
+     (inset = track padding + 1px border); unequal x/y insets need the
+     elliptical radius syntax to stay truly concentric */
+  /* CEO-tuned: strict concentric reads too square at these sizes — sit a
+     touch rounder than the geometric baseline */
+  const INDICATOR_RADIUS_EXTRA = 1;
+  const indicatorRadiusY = Math.max(
+    borderRadius - (outerPad + 1) + INDICATOR_RADIUS_EXTRA,
+    3,
+  );
+  const indicatorRadiusX = Math.max(
+    borderRadius - (outerPadX + 1) + INDICATOR_RADIUS_EXTRA,
+    3,
+  );
+  const indicatorRadius = `${indicatorRadiusX}px / ${indicatorRadiusY}px`;
+  const indicatorRadiusPressed = `${Math.max(indicatorRadiusX - 1, 2)}px / ${Math.max(
+    indicatorRadiusY - 1,
+    2,
+  )}px`;
   const btnPadding = button_style?.padding ?? "6px 14px";
+  /* padding is applied asymmetrically above — keep the raw keys out of the
+     style passthrough so they can't clobber it back to uniform */
+  const { padding: _pad, paddingHorizontal: _padX, ...styleRest } = style || {};
 
   /* ── colours ───────────────────────────────────────── */
   const colors = useMemo(() => {
@@ -272,7 +298,7 @@ const SegmentedButton = ({
     const color = theme?.color ?? (isDark ? "#ddd" : "#222");
     const indicatorBg = isDark
       ? "rgba(255,255,255,0.12)"
-      : "rgba(255,255,255,0.92)";
+      : "rgba(var(--pupu-background-rgb),0.92)";
     const indicatorShadow = isDark
       ? "0 2px 6px rgba(0,0,0,0.35), 0 0.5px 1px rgba(0,0,0,0.2)"
       : "0 2px 6px rgba(0,0,0,0.10), 0 0.5px 1px rgba(0,0,0,0.06)";
@@ -287,13 +313,14 @@ const SegmentedButton = ({
         display: "inline-flex",
         alignItems: "center",
         gap,
-        padding: outerPad,
+        padding: `${outerPad}px ${outerPadX}px`,
         borderRadius,
         backgroundColor: colors.bg,
+        border: "1px solid var(--pupu-border-mid)",
         boxShadow: colors.shadow,
         userSelect: "none",
         WebkitUserSelect: "none",
-        ...style,
+        ...styleRest,
       }}
     >
       {/* ── sliding indicator ────────────────────────── */}
@@ -332,6 +359,7 @@ const SegmentedButton = ({
             isDark={isDark}
             colors={colors}
             indicatorRadius={indicatorRadius}
+            indicatorRadiusPressed={indicatorRadiusPressed}
             fontSize={fontSize}
             btnPadding={btnPadding}
             button_style={button_style}

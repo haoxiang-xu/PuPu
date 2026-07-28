@@ -23,7 +23,9 @@ Workspaces let users attach local folders as context for AI conversations. The s
 
 ## Settings Storage
 
-Stored in `localStorage.settings.runtime`:
+Authoritative in the `runtime` namespace of `settings.db` (read/written through
+the settings repository via the `runtime.js` store helpers;
+`localStorage.settings.runtime` is a browser/degraded fallback):
 
 ```javascript
 {
@@ -37,6 +39,9 @@ Stored in `localStorage.settings.runtime`:
   ],
 }
 ```
+
+At stream time these are read from the repository's synchronous memory snapshot,
+so path resolution stays synchronous.
 
 ---
 

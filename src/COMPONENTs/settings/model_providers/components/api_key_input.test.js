@@ -1,12 +1,13 @@
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, waitFor } from "@testing-library/react";
 import APIKeyInput from "./api_key_input";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import { toast } from "../../../../SERVICEs/toast";
+import { writeModelProviders } from "../storage";
 
 jest.mock("../storage", () => ({
   __esModule: true,
   readModelProviders: () => ({}),
-  writeModelProviders: jest.fn(),
+  writeModelProviders: jest.fn(() => Promise.resolve([{ ok: true }])),
 }));
 
 jest.mock("../../../../SERVICEs/model_catalog_refresh", () => ({
@@ -22,9 +23,10 @@ jest.mock("../../../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
 describe("APIKeyInput save feedback", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    writeModelProviders.mockResolvedValue([{ ok: true }]);
   });
 
-  it("fires toast.success on Save click with non-empty value", () => {
+  it("fires toast.success on Save click with non-empty value", async () => {
     const successSpy = jest
       .spyOn(toast, "success")
       .mockImplementation(() => "id-1");
@@ -50,11 +52,13 @@ describe("APIKeyInput save feedback", () => {
     expect(saveBtn).toBeTruthy();
     fireEvent.click(saveBtn);
 
-    expect(successSpy).toHaveBeenCalledWith(
-      "OpenAI saved",
-      expect.objectContaining({
-        dedupeKey: "api_key_save_openai_api_key",
-      }),
+    await waitFor(() =>
+      expect(successSpy).toHaveBeenCalledWith(
+        "OpenAI saved",
+        expect.objectContaining({
+          dedupeKey: "api_key_save_openai_api_key",
+        }),
+      ),
     );
 
     successSpy.mockRestore();

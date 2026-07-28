@@ -1,4 +1,8 @@
+import copy
+import os
+import tempfile
 import threading
+import time
 import sys
 import unittest
 from pathlib import Path
@@ -10,6 +14,7 @@ if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
 from recipe import parse_recipe_json
+from recipe_seeds import DEFAULT_RECIPE
 
 
 def _recipe_dict():
@@ -55,6 +60,260 @@ class FakeAgent:
 
 
 class RecipeGraphRuntimeTests(unittest.TestCase):
+    def test_legacy_graph_membership_fields_fail_closed_without_type_error(self):
+        import unchain_adapter as ua
+
+        payload = _recipe_dict()
+        payload["edges"][0]["kind"] = ["flow"]
+        compiled = ua._compile_recipe_graph_for_runtime(
+            SimpleNamespace(
+                nodes=tuple(payload["nodes"]),
+                edges=tuple(payload["edges"]),
+            )
+        )
+        self.assertEqual(
+            [node["id"] for node in compiled["agents"]],
+            ["a1", "a2"],
+        )
+
+        prompt = ua._resolve_graph_agent_prompt(
+            {
+                "override": {
+                    "prompt": "legacy prompt",
+                    "prompt_format": ["soul"],
+                }
+            }
+        )
+        self.assertIn("legacy prompt", prompt)
+
+        entries = ua._graph_subagent_entries(
+            {
+                "subagents": [
+                    {
+                        "kind": "inline",
+                        "name": "Reviewer",
+                        "prompt_format": ["soul"],
+                        "template": {},
+                    }
+                ]
+            }
+        )
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].prompt_format, "soul")
+
+    def test_seeded_default_graph_supports_exact_durable_flat_projection(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(copy.deepcopy(DEFAULT_RECIPE))
+
+        self.assertTrue(ua._recipe_supports_durable_flat_projection(recipe))
+
+    def test_durable_flat_projection_rejects_graph_semantic_drift(self):
+        import unchain_adapter as ua
+
+        mutations = {
+            "custom-name": lambda payload: payload.update({"name": "Custom"}),
+            "prompt-mismatch": lambda payload: payload.update(
+                {"agent": {"prompt_format": "soul", "prompt": "different"}}
+            ),
+            "workflow-variable": lambda payload: payload["nodes"][1][
+                "override"
+            ].update(
+                {
+                    "prompt_format": "soul",
+                    "prompt": "{{#start.text#}}",
+                }
+            ),
+            "model-override": lambda payload: payload["nodes"][1][
+                "override"
+            ].update({"model": "ollama:test"}),
+            "optimizer-override": lambda payload: payload["nodes"][1][
+                "override"
+            ].update({"optimizer": {}}),
+            "toolkit-projection": lambda payload: payload.update(
+                {"toolkits": []}
+            ),
+            "subagent-projection": lambda payload: payload.update(
+                {"subagent_pool": []}
+            ),
+            "merge-projection": lambda payload: payload.update(
+                {"merge_with_user_selected": False}
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                payload = copy.deepcopy(DEFAULT_RECIPE)
+                mutate(payload)
+                recipe = parse_recipe_json(payload)
+                self.assertFalse(
+                    ua._recipe_supports_durable_flat_projection(recipe)
+                )
+
+        multi_agent = _recipe_dict()
+        multi_agent["name"] = "Default"
+        self.assertFalse(
+            ua._recipe_supports_durable_flat_projection(
+                parse_recipe_json(multi_agent)
+            )
+        )
+
+    def test_durable_default_graph_routes_through_real_agent_path(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(copy.deepcopy(DEFAULT_RECIPE))
+
+        class DurableAgent:
+            provider = "openai"
+            model = "gpt-5"
+            _display_model = "openai:gpt-5"
+            _toolkits = []
+            _max_iterations = 3
+            _max_context_window_tokens = 8_192
+            _memory_runtime = {
+                "requested": True,
+                "available": True,
+                "reason": "",
+            }
+
+            def run(self, *, callback=None, run_id="", **_kwargs):
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": run_id,
+                            "iteration": 0,
+                            "content": "flat durable",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[
+                        {"role": "assistant", "content": "flat durable"}
+                    ],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        agent = DurableAgent()
+        with mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+        ) as graph_stream, mock.patch.object(
+            ua,
+            "_create_agent",
+            return_value=agent,
+        ) as create_agent, mock.patch.object(
+            ua,
+            "save_resume_context",
+        ) as save_context, mock.patch.object(
+            ua,
+            "get_pending_interaction",
+            return_value={"status": "none", "session_id": "chat-1"},
+        ), mock.patch.object(
+            ua,
+            "clear_resume_context",
+        ):
+            events = list(
+                ua.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "modelId": "openai:gpt-5",
+                        "memory_enabled": True,
+                        "durable_interactions_required": True,
+                    },
+                    session_id="chat-1",
+                )
+            )
+
+        graph_stream.assert_not_called()
+        create_agent.assert_called_once()
+        save_context.assert_called_once()
+        self.assertTrue(
+            any(event.get("type") == "final_message" for event in events)
+        )
+
+    def test_non_durable_default_graph_stays_on_workflow_runtime(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(copy.deepcopy(DEFAULT_RECIPE))
+        expected = {
+            "type": "final_message",
+            "run_id": "workflow-1",
+            "iteration": 0,
+            "content": "workflow",
+        }
+        with mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+            return_value=iter([expected]),
+        ) as graph_stream, mock.patch.object(
+            ua,
+            "_create_agent",
+        ) as create_agent:
+            events = list(
+                ua.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertEqual(events, [expected])
+        graph_stream.assert_called_once()
+        create_agent.assert_not_called()
+
+    def test_custom_durable_graph_remains_fail_closed(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        with mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+        ) as graph_stream, mock.patch.object(
+            ua,
+            "_create_agent",
+        ) as create_agent:
+            with self.assertRaises(ua.DurableInteractionHostError) as raised:
+                list(
+                    ua.stream_chat_events(
+                        message="hello",
+                        history=[],
+                        attachments=[],
+                        options={
+                            "modelId": "openai:gpt-5",
+                            "memory_enabled": True,
+                            "durable_interactions_required": True,
+                        },
+                        session_id="chat-1",
+                    )
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "durable_recipe_graph_unsupported",
+        )
+        graph_stream.assert_not_called()
+        create_agent.assert_not_called()
+
     def test_stream_recipe_graph_rejects_memory_owned_full_history_before_agent_run(self):
         import unchain_adapter as ua
         from unchain.memory import InMemorySessionStore, MemoryManager
@@ -207,6 +466,59 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
             )
         )
         self.assertEqual(broken_memory.commit_calls, 0)
+
+    def test_stream_recipe_graph_mounts_one_application_jobs_module_on_each_step(
+        self,
+    ):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        jobs_module = object()
+        built_kwargs = []
+
+        def fake_build(**kwargs):
+            built_kwargs.append(kwargs)
+            return FakeAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(
+                 ua,
+                 "get_durable_jobs_runtime",
+                 return_value=SimpleNamespace(module=jobs_module),
+             ) as get_jobs_runtime, \
+             mock.patch.object(
+                 ua,
+                 "_build_developer_agent",
+                 side_effect=fake_build,
+             ), \
+             mock.patch.object(
+                 ua,
+                 "_resolve_memory_runtime",
+                 return_value=(
+                     {"requested": False, "available": False, "reason": ""},
+                     None,
+                 ),
+             ), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            events = list(
+                ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test"},
+                    session_id="chat-graph-jobs",
+                )
+            )
+
+        self.assertTrue(
+            any(event.get("type") == "final_message" for event in events)
+        )
+        get_jobs_runtime.assert_called_once_with()
+        self.assertEqual(len(built_kwargs), 2)
+        self.assertTrue(
+            all(kwargs.get("jobs_module") is jobs_module for kwargs in built_kwargs)
+        )
 
     def test_stream_recipe_graph_forwards_prepare_revision_to_commit(self):
         import unchain_adapter as ua
@@ -583,6 +895,233 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                 for event in events
             )
         )
+
+    def test_graph_worker_terminalizes_after_sse_consumer_disconnects(self):
+        import execution_control
+        import unchain_adapter as ua
+
+        data = _recipe_dict()
+        data["nodes"] = [data["nodes"][0], data["nodes"][1], data["nodes"][-1]]
+        data["edges"] = [
+            data["edges"][0],
+            {
+                "id": "e2",
+                "kind": "flow",
+                "source_node_id": "a1",
+                "source_port_id": "out",
+                "target_node_id": "end",
+                "target_port_id": "in",
+            },
+        ]
+        recipe = parse_recipe_json(data)
+        release = threading.Event()
+
+        class DisconnectAgent(FakeAgent):
+            def run(self, *, callback=None, run_id=None, **_kwargs):
+                if callback:
+                    callback(
+                        {
+                            "type": "token_delta",
+                            "run_id": run_id,
+                            "iteration": 0,
+                            "delta": "started",
+                        }
+                    )
+                release.wait(timeout=2)
+                if callback:
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": run_id,
+                            "iteration": 0,
+                            "content": "finished",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "finished"}],
+                    status="completed",
+                )
+
+        def fake_build(**kwargs):
+            return DisconnectAgent(
+                kwargs["recipe"].agent.prompt,
+                kwargs["toolkits"],
+            )
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ), mock.patch.object(
+            ua,
+            "_load_recipe_from_options",
+            return_value=recipe,
+        ), mock.patch.object(
+            ua,
+            "_UnchainAgent",
+            object,
+        ), mock.patch.object(
+            ua,
+            "_build_developer_agent",
+            side_effect=fake_build,
+        ), mock.patch.object(
+            ua,
+            "_build_requested_toolkits",
+            return_value=[],
+        ), mock.patch.object(
+            ua,
+            "_build_bundle_from_result",
+            return_value={},
+        ):
+            stream = ua.stream_chat_events(
+                message="Hello",
+                history=[],
+                attachments=[],
+                options={"modelId": "ollama:test"},
+                session_id="chat-disconnect",
+                attempt_id="attempt-disconnect",
+            )
+            first = next(stream)
+            self.assertEqual(first["type"], "token_delta")
+            stream.close()
+            release.set()
+
+            deadline = time.monotonic() + 2.0
+            snapshot = None
+            while time.monotonic() < deadline:
+                snapshot = execution_control.snapshot(
+                    "chat-disconnect",
+                    "attempt-disconnect",
+                )
+                if snapshot is not None and snapshot.status == "completed":
+                    break
+                time.sleep(0.02)
+
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.status, "completed")
+
+    def test_graph_cancel_wins_at_fenced_commit_barrier_without_writing(self):
+        import execution_control
+        import unchain_adapter as ua
+        from unchain.execution import ExecutionRuntime
+        from unchain.memory import JsonFileSessionStore, MemoryManager
+
+        data = _recipe_dict()
+        data["nodes"] = [data["nodes"][0], data["nodes"][1], data["nodes"][-1]]
+        data["edges"] = [
+            data["edges"][0],
+            {
+                "id": "e2",
+                "kind": "flow",
+                "source_node_id": "a1",
+                "source_port_id": "out",
+                "target_node_id": "end",
+                "target_port_id": "in",
+            },
+        ]
+        recipe = parse_recipe_json(data)
+
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            store = JsonFileSessionStore(Path(data_dir) / "sessions")
+
+            class CancellingMemoryManager(MemoryManager):
+                def commit_messages(
+                    self,
+                    session_id,
+                    full_conversation,
+                    *,
+                    memory_namespace=None,
+                    model=None,
+                    expected_revision=None,
+                    execution_fence=None,
+                    **kwargs,
+                ):
+                    execution_control.request_cancel(
+                        session_id,
+                        "attempt-commit-race",
+                        reason="cancel at commit barrier",
+                    )
+                    ExecutionRuntime(self.store).request_cancel(
+                        session_id,
+                        "attempt-commit-race",
+                        reason="cancel at commit barrier",
+                    )
+                    return super().commit_messages(
+                        session_id,
+                        full_conversation,
+                        memory_namespace=memory_namespace,
+                        model=model,
+                        expected_revision=expected_revision,
+                        execution_fence=execution_fence,
+                        **kwargs,
+                    )
+
+            manager = CancellingMemoryManager(store=store)
+
+            def fake_build(**kwargs):
+                return FakeAgent(
+                    kwargs["recipe"].agent.prompt,
+                    kwargs["toolkits"],
+                )
+
+            with mock.patch.object(
+                ua,
+                "_load_recipe_from_options",
+                return_value=recipe,
+            ), mock.patch.object(
+                ua,
+                "_resolve_memory_runtime",
+                return_value=(
+                    {"requested": True, "available": True, "reason": ""},
+                    manager,
+                ),
+            ), mock.patch.object(
+                ua,
+                "_UnchainAgent",
+                object,
+            ), mock.patch.object(
+                ua,
+                "_build_developer_agent",
+                side_effect=fake_build,
+            ), mock.patch.object(
+                ua,
+                "_build_requested_toolkits",
+                return_value=[],
+            ), mock.patch.object(
+                ua,
+                "_build_bundle_from_result",
+                return_value={},
+            ):
+                events = list(
+                    ua.stream_chat_events(
+                        message="Hello",
+                        history=[],
+                        attachments=[],
+                        options={
+                            "modelId": "ollama:test",
+                            "memory_enabled": True,
+                        },
+                        session_id="chat-commit-race",
+                        attempt_id="attempt-commit-race",
+                    )
+                )
+
+            snapshot = store.load("chat-commit-race")
+            self.assertNotIn("messages", snapshot)
+            self.assertFalse(
+                any(event.get("type") == "memory_commit" for event in events)
+            )
+            self.assertEqual(
+                execution_control.snapshot(
+                    "chat-commit-race",
+                    "attempt-commit-race",
+                ).status,
+                "cancelled",
+            )
 
     def test_workflow_recipe_subagent_forwards_run_id_to_child_graph(self):
         import unchain_adapter as ua

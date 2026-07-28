@@ -57,6 +57,13 @@ const storageBackend = createChatStorageBackend();
 const hasIpcBackend = () =>
   typeof window !== "undefined" && !!window.chatStorageAPI;
 let memoryStore = null;
+let draftClaimSequence = 0;
+const draftClaimsByChatId = new Map();
+
+const createDraftClaimId = () => {
+  draftClaimSequence += 1;
+  return `draft-claim-${Date.now()}-${draftClaimSequence}`;
+};
 
 // —— v3 lazy-messages 内存模型 ——
 // memoryStore 形状不变,但非激活 chat 的 `messages` 是 `[]` 占位(stats 仍是
@@ -66,6 +73,72 @@ let memoryStore = null;
 // pending ops(microtask 合并):按 (type, chatId) 去重,后写胜;
 // delete 覆盖同 id 的 pending puts,put 撤销同 id 的 pending delete(重建语义)。
 let pendingOps = null;
+// Transaction batches stay here until main has acknowledged their commit.
+// Keeping batches (instead of merging a failed batch back into pendingOps)
+// preserves exact write order across failures and later renderer mutations.
+let pendingWriteBatches = [];
+let pendingWriteRetryTimer = null;
+let pendingWriteRetryDelayMs = 250;
+let pendingWriteDrainPromise = null;
+let pendingWriteJournalActive = false;
+// True when localStorage may still contain a journal that no longer matches
+// pendingWriteBatches (for example, SQL committed the head batch but removing
+// or shrinking the journal failed). Async dispatch still requires a matching
+// journal; guarded sendSync is the safe fallback while this remains dirty.
+let pendingWriteJournalDirty = false;
+let lastPendingWriteError = null;
+const PENDING_WRITE_RETRY_MAX_DELAY_MS = 10000;
+const pendingWriteEntries = new WeakMap();
+let pendingWriteSequence = 0;
+
+const createPendingWriteEpoch = () => {
+  const cryptoApi =
+    typeof window !== "undefined" ? window.crypto : null;
+  if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
+    try {
+      return `renderer-${cryptoApi.randomUUID()}`;
+    } catch {
+      // Fall through to getRandomValues for non-secure web adapters.
+    }
+  }
+  if (cryptoApi && typeof cryptoApi.getRandomValues === "function") {
+    try {
+      const words = new Uint32Array(4);
+      cryptoApi.getRandomValues(words);
+      return `renderer-${[...words]
+        .map((word) => word.toString(16).padStart(8, "0"))
+        .join("")}`;
+    } catch {
+      // Last-resort web/test fallback below.
+    }
+  }
+  return `renderer-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2)}-${Math.random().toString(36).slice(2)}`;
+};
+
+const pendingWriteEpoch = createPendingWriteEpoch();
+
+const registerPendingWriteBatch = (ops) => {
+  pendingWriteSequence += 1;
+  const entry = {
+    guard: {
+      epoch: pendingWriteEpoch,
+      sequence: pendingWriteSequence,
+    },
+    ops,
+  };
+  pendingWriteEntries.set(ops, entry);
+  return entry;
+};
+
+const getPendingWriteEntry = (ops) => {
+  const entry = pendingWriteEntries.get(ops);
+  if (!entry) {
+    throw new Error("Chat storage pending batch is missing its write guard");
+  }
+  return entry;
+};
 
 const ensurePendingOps = () => {
   if (!pendingOps) {
@@ -82,9 +155,18 @@ const ensurePendingOps = () => {
 // 该 chat 本 tick 内有未 flush 的消息写/删除 → 内存是唯一真值,
 // 此时绝不能去 main 读(会读到旧行,消息被"复活")。
 const hasPendingMessagesOverride = (chatId) =>
-  !!pendingOps &&
-  (pendingOps.messagesByChatId.has(chatId) ||
-    pendingOps.deletedChatIds.has(chatId));
+  (!!pendingOps &&
+    (pendingOps.messagesByChatId.has(chatId) ||
+      pendingOps.deletedChatIds.has(chatId))) ||
+  pendingWriteBatches.some((batch) =>
+    batch.some(
+      (op) =>
+        (op.type === "put_messages" && op.chatId === chatId) ||
+        (op.type === "delete_chats" &&
+          Array.isArray(op.chatIds) &&
+          op.chatIds.includes(chatId)),
+    ),
+  );
 
 const chatMetaWithoutMessages = (chat) => {
   const { messages, ...meta } = chat;
@@ -154,12 +236,9 @@ const ensureChatMessagesLoadedInStore = (store, chatId) => {
   if (hasPendingMessagesOverride(chatId)) {
     return;
   }
-  let loaded = null;
-  try {
-    loaded = storageBackend.readMessages(chatId);
-  } catch {
-    loaded = null;
-  }
+  // An IPC/JSON failure is not an empty message list. Propagate it so callers
+  // cannot append to a placeholder and overwrite healthy persisted messages.
+  const loaded = storageBackend.readMessages(chatId);
   if (Array.isArray(loaded) && loaded.length > 0) {
     // COW 纪律:这个 chat 对象可能与上一世代共享(dev 下已冻结)。绝不就地
     // 写 chat.messages —— 换成携带消息的新对象。这是内存 hydration,不是
@@ -199,11 +278,9 @@ const ensureMemoryStoreLoaded = () => {
   // 无论落在谁头上,激活 chat 必须满载消息。
   ensureChatMessagesLoadedInStore(memoryStore, memoryStore.activeChatId);
   if (!bootstrap) {
-    try {
-      storageBackend.persist(memoryStore);
-    } catch {
-      // no-op
-    }
+    // Empty DB seeding is a real write.  Do not expose an in-memory default
+    // store unless main has acknowledged the transaction commit.
+    storageBackend.persist(memoryStore);
   }
   return memoryStore;
 };
@@ -331,42 +408,258 @@ const emitStoreChange = (store, event = {}) => {
 let pendingEmit = null;
 let microtaskScheduled = false;
 
-// pending ops → 一条 APPLY_OPS(main 侧单事务应用)。顺序:先删后写,
-// put_tree_meta 收尾(同 id 冲突已在入队时消解,这里只求可读)。
-//
-// ORDERING ASSUMPTION (load-bearing, spec §3): APPLY_OPS is fire-and-forget
-// (ipcRenderer.send) while READ_MESSAGES is sendSync — correctness relies on
-// Electron's renderer→main same-channel FIFO delivery: an APPLY_OPS sent
-// before a later sendSync is processed by main first, so a post-flush sync
-// read can never observe pre-flush rows for a chat whose ops were already
-// sent. The not-yet-flushed window (same tick, before this microtask runs)
-// is covered in-renderer by the pending-ops override
-// (hasPendingMessagesOverride), which keeps such reads in memory.
-const flushPendingOps = () => {
-  if (!pendingOps) return;
-  const { treeMeta, chatMetas, messagesByChatId, deletedChatIds } = pendingOps;
-  pendingOps = null;
+const clearPendingWriteRetry = () => {
+  if (pendingWriteRetryTimer === null) return;
+  clearTimeout(pendingWriteRetryTimer);
+  pendingWriteRetryTimer = null;
+};
 
-  const ops = [];
-  if (deletedChatIds.size > 0) {
-    ops.push({ type: "delete_chats", chatIds: [...deletedChatIds] });
-  }
-  for (const [chatId, meta] of chatMetas) {
-    ops.push({ type: "put_chat_meta", chatId, meta });
-  }
-  for (const [chatId, messages] of messagesByChatId) {
-    ops.push({ type: "put_messages", chatId, messages });
-  }
-  if (treeMeta) {
-    ops.push({ type: "put_tree_meta", ...treeMeta });
-  }
-  if (ops.length === 0) return;
+const schedulePendingWriteRetry = () => {
+  if (pendingWriteRetryTimer !== null) return;
+  const delayMs = pendingWriteRetryDelayMs;
+  pendingWriteRetryDelayMs = Math.min(
+    pendingWriteRetryDelayMs * 2,
+    PENDING_WRITE_RETRY_MAX_DELAY_MS,
+  );
+  pendingWriteRetryTimer = setTimeout(() => {
+    pendingWriteRetryTimer = null;
+    flushPendingOps();
+  }, delayMs);
+};
 
+const syncPendingWriteJournal = () => {
+  if (pendingWriteBatches.length === 0) {
+    if (pendingWriteJournalActive) {
+      const cleared = storageBackend.clearPendingOpsJournal();
+      if (cleared) {
+        pendingWriteJournalActive = false;
+        pendingWriteJournalDirty = false;
+      } else {
+        pendingWriteJournalDirty = true;
+      }
+      return cleared;
+    }
+    pendingWriteJournalDirty = false;
+    return true;
+  }
+  const persisted = storageBackend.writePendingOpsJournal(
+    pendingWriteBatches.map(getPendingWriteEntry),
+  );
+  if (persisted) {
+    pendingWriteJournalActive = true;
+    pendingWriteJournalDirty = false;
+  } else {
+    // Async SQL still requires a complete write-ahead copy. The caller falls
+    // back to guarded sendSync when this bounded/quota-limited write fails.
+    pendingWriteJournalDirty = true;
+  }
+  return persisted;
+};
+
+const markPendingWriteJournalDirty = () => {
+  pendingWriteJournalDirty = true;
+};
+
+const reportPendingWriteFailure = (error) => {
+  const errorMessage =
+    typeof error?.message === "string"
+      ? error.message
+      : "unknown chat storage error";
+  if (lastPendingWriteError !== errorMessage) {
+    console.error("[chat-storage] backend applyOps failed; retrying:", error);
+    lastPendingWriteError = errorMessage;
+  }
+};
+
+const reportPendingWriteJournalFailure = () => {
+  reportPendingWriteFailure(
+    new Error(
+      "Chat storage recovery journal could not be synchronized; using synchronous SQL fallback",
+    ),
+  );
+};
+
+const ensurePendingWriteJournalSynchronized = () => {
+  const hasQueuedBatches = pendingWriteBatches.length > 0;
+  if (
+    (hasQueuedBatches &&
+      pendingWriteJournalActive &&
+      !pendingWriteJournalDirty) ||
+    (!hasQueuedBatches && !pendingWriteJournalActive)
+  ) {
+    if (!hasQueuedBatches) {
+      pendingWriteJournalDirty = false;
+    }
+    return true;
+  }
+  if (syncPendingWriteJournal()) {
+    return true;
+  }
+  reportPendingWriteJournalFailure();
+  schedulePendingWriteRetry();
+  return false;
+};
+
+const syncApplyPendingWriteBatches = () => {
+  const batchesToFlush = [...pendingWriteBatches];
+  const fullJournalWasDurable =
+    pendingWriteJournalActive && !pendingWriteJournalDirty;
   try {
-    storageBackend.applyOps(ops);
+    for (const ops of batchesToFlush) {
+      if (!pendingWriteBatches.includes(ops)) {
+        continue;
+      }
+      if (!storageBackend.applyOpsSync(getPendingWriteEntry(ops))) {
+        throw new Error("Chat storage sync drain is unavailable");
+      }
+      const batchIndex = pendingWriteBatches.indexOf(ops);
+      if (batchIndex >= 0) {
+        pendingWriteBatches.splice(batchIndex, 1);
+        markPendingWriteJournalDirty();
+      }
+    }
+    lastPendingWriteError = null;
+    pendingWriteRetryDelayMs = 250;
+    clearPendingWriteRetry();
+    // A guarded stale physical journal is harmless: main records the guard in
+    // the same transaction as the ops, so later replay skips committed work.
+    // Cleanup remains best effort and can retry without blocking autosave.
+    ensurePendingWriteJournalSynchronized();
+    return true;
   } catch (error) {
-    console.error("[chat-storage] backend applyOps failed:", error);
+    reportPendingWriteFailure(error);
+    // A previously clean guarded journal contains the complete snapshot,
+    // including any prefix just committed synchronously. Replaying that prefix
+    // is a guard no-op, so it remains a valid durability path for the tail.
+    const journalDurable =
+      fullJournalWasDurable || syncPendingWriteJournal();
+    schedulePendingWriteRetry();
+    return journalDurable;
   }
+};
+
+const waitForPendingWriteAck = (result, ops) => {
+  pendingWriteDrainPromise = result.then(
+    () => {
+      if (pendingWriteBatches[0] === ops) {
+        pendingWriteBatches.shift();
+        markPendingWriteJournalDirty();
+      }
+      pendingWriteDrainPromise = null;
+      if (!ensurePendingWriteJournalSynchronized()) {
+        return syncApplyPendingWriteBatches();
+      }
+      return drainPendingWriteBatches();
+    },
+    (error) => {
+      pendingWriteDrainPromise = null;
+      if (!pendingWriteBatches.includes(ops)) {
+        // The unload sync path already committed this idempotent batch.
+        return drainPendingWriteBatches();
+      }
+      reportPendingWriteFailure(error);
+      // drainPendingWriteBatches established a matching write-ahead journal
+      // before dispatch. The queue did not change on rejection, so that copy
+      // remains durable and must not be downgraded by a redundant rewrite.
+      schedulePendingWriteRetry();
+      return false;
+    },
+  );
+  return pendingWriteDrainPromise;
+};
+
+const drainPendingWriteBatches = () => {
+  clearPendingWriteRetry();
+  // Run this even when an older invoke is still in flight: a newly enqueued
+  // generation must extend the full write-ahead journal immediately.
+  if (!ensurePendingWriteJournalSynchronized()) {
+    return syncApplyPendingWriteBatches();
+  }
+  if (pendingWriteDrainPromise) return pendingWriteDrainPromise;
+
+  while (pendingWriteBatches.length > 0) {
+    const ops = pendingWriteBatches[0];
+    const result = storageBackend.applyOps(getPendingWriteEntry(ops));
+    if (result && typeof result.then === "function") {
+      return waitForPendingWriteAck(result, ops);
+    }
+
+    if (result === false) {
+      const error = new Error("Chat storage async write API is unavailable");
+      reportPendingWriteFailure(error);
+      return syncApplyPendingWriteBatches();
+    }
+
+    pendingWriteBatches.shift();
+    markPendingWriteJournalDirty();
+    if (!ensurePendingWriteJournalSynchronized()) {
+      return syncApplyPendingWriteBatches();
+    }
+  }
+  lastPendingWriteError = null;
+  pendingWriteRetryDelayMs = 250;
+  return true;
+};
+
+const enqueuePendingOpsBatch = () => {
+  if (pendingOps) {
+    const { treeMeta, chatMetas, messagesByChatId, deletedChatIds } =
+      pendingOps;
+    pendingOps = null;
+
+    const ops = [];
+    if (deletedChatIds.size > 0) {
+      ops.push({ type: "delete_chats", chatIds: [...deletedChatIds] });
+    }
+    for (const [chatId, meta] of chatMetas) {
+      ops.push({ type: "put_chat_meta", chatId, meta });
+    }
+    for (const [chatId, messages] of messagesByChatId) {
+      ops.push({ type: "put_messages", chatId, messages });
+    }
+    if (treeMeta) {
+      ops.push({ type: "put_tree_meta", ...treeMeta });
+    }
+    if (ops.length > 0) {
+      registerPendingWriteBatch(ops);
+      pendingWriteBatches.push(ops);
+      markPendingWriteJournalDirty();
+      if (pendingWriteJournalActive) {
+        syncPendingWriteJournal();
+      }
+    }
+  }
+};
+
+// Normal writes use invoke + commit ack so transient lock waits never freeze
+// renderer input. Failed batches remain ordered, are journalled, and retry with
+// capped exponential backoff.
+const flushPendingOps = () => {
+  enqueuePendingOpsBatch();
+  return drainPendingWriteBatches();
+};
+
+// beforeunload cannot await an invoke. Replay every unacknowledged batch over a
+// dedicated sendSync channel while main is still open; batches are idempotent.
+const flushPendingOpsSync = () => {
+  enqueuePendingOpsBatch();
+  if (pendingWriteBatches.length === 0) {
+    // An empty queue means SQL already acknowledged every batch. Journal
+    // cleanup can retry in the background; a stale copy only replays those
+    // idempotent committed ops and is not a reason to trap unload.
+    const journalReady = ensurePendingWriteJournalSynchronized();
+    if (journalReady) {
+      lastPendingWriteError = null;
+      pendingWriteRetryDelayMs = 250;
+      clearPendingWriteRetry();
+    }
+    return true;
+  }
+  // sendSync supplies a commit result before control returns. Guarded batches
+  // make this safe even when a bounded/quota-limited journal cannot replace an
+  // older physical copy: main atomically skips any stale replay later.
+  ensurePendingWriteJournalSynchronized();
+  return syncApplyPendingWriteBatches();
 };
 
 // —— emit dirty 提示(switch-chain spec §2,形状冻结:加字段可,改语义不可)——
@@ -466,13 +759,14 @@ const computeWriteDirty = (prevStore, nextStore, declared) => {
 
 const flushPendingEmit = () => {
   microtaskScheduled = false;
-  flushPendingOps();
-  if (!pendingEmit) return;
+  const writeResult = flushPendingOps();
+  if (!pendingEmit) return writeResult;
   const { store, emit, event, dirty } = pendingEmit;
   pendingEmit = null;
   if (emit) {
     emitStoreChange(store, { ...event, dirty: dirtyToEventShape(dirty) });
   }
+  return writeResult;
 };
 
 const schedulePersistAndEmit = (store, options, writeDirty) => {
@@ -501,7 +795,15 @@ const schedulePersistAndEmit = (store, options, writeDirty) => {
 };
 
 export const flushStoreEmitSync = () => {
-  flushPendingEmit();
+  microtaskScheduled = false;
+  const writesDurable = flushPendingOpsSync();
+  if (!pendingEmit) return writesDurable;
+  const { store, emit, event, dirty } = pendingEmit;
+  pendingEmit = null;
+  if (emit) {
+    emitStoreChange(store, { ...event, dirty: dirtyToEventShape(dirty) });
+  }
+  return writesDurable;
 };
 
 // dirty 声明协议:withStore(mutator, { dirty })。
@@ -598,15 +900,21 @@ const writeStore = (store, options = {}, prevGenerationStore = null) => {
 // tree + metas + 激活消息,没有 quota 压力;用户数据不再被静默丢弃。
 // lruChatIds 仍作为 MRU 记录保留(touchLru / normalize 的 active 置顶)。
 
-// 页面关闭前强制 flush pending microtask：保证最后一次 writeStore 的
-// ops (APPLY_OPS) 和 emit 都落地。main 侧 before-quit 负责关库,
-// 这里只负责把 renderer 侧未发出的 IPC 挤出去。
+// 页面关闭前强制同步 drain。main keeps the DB open through renderer unload
+// (connections close at will-quit). If a persistent fault remains, the queue
+// has already been copied to the bounded recovery journal for next launch.
 if (
   typeof window !== "undefined" &&
   typeof window.addEventListener === "function"
 ) {
-  window.addEventListener("beforeunload", flushPendingEmit);
-  window.addEventListener("pagehide", flushPendingEmit);
+  window.addEventListener("beforeunload", (event) => {
+    if (flushStoreEmitSync()) return;
+    // Keep the window alive only when neither SQL nor the complete guarded
+    // recovery journal accepted the remaining tail.
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  window.addEventListener("pagehide", flushStoreEmitSync);
 }
 
 const readStore = () => {
@@ -879,13 +1187,8 @@ export const getChatMessages = (chatId) => {
     return [];
   }
 
-  let loaded = null;
-  try {
-    loaded = storageBackend.readMessages(chatId);
-  } catch {
-    loaded = null;
-  }
-  return Array.isArray(loaded) ? sanitizeMessages(loaded) : [];
+  const loaded = storageBackend.readMessages(chatId);
+  return sanitizeMessages(loaded);
 };
 
 // listener(store, event);event = { type, source, dirty }。
@@ -1751,6 +2054,9 @@ export const updateChatDraft = (chatId, patch = {}, options = {}) => {
       return getChatsStore();
     }
   }
+  if (options.preserveDraftClaim !== true) {
+    draftClaimsByChatId.delete(chatId);
+  }
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -1764,6 +2070,67 @@ export const updateChatDraft = (chatId, patch = {}, options = {}) => {
     }),
     { ...options, type: "chat_update_draft" },
   );
+};
+
+export const claimChatDraft = (chatId, patch = {}, options = {}) => {
+  const store = updateChatDraft(chatId, patch, {
+    ...options,
+    preserveDraftClaim: true,
+  });
+  if (!chatId || !store?.chatsById?.[chatId]) {
+    draftClaimsByChatId.delete(chatId);
+    return { claimed: false, claimId: null, store };
+  }
+
+  const claimId = createDraftClaimId();
+  draftClaimsByChatId.set(chatId, claimId);
+  return { claimed: true, claimId, store };
+};
+
+export const replaceClaimedChatDraft = (
+  chatId,
+  expectedClaimId,
+  patch = {},
+  options = {},
+) => {
+  if (
+    !chatId ||
+    !expectedClaimId ||
+    draftClaimsByChatId.get(chatId) !== expectedClaimId
+  ) {
+    return { applied: false, claimId: null, store: getChatsStore() };
+  }
+
+  const store = updateChatDraft(chatId, patch, {
+    ...options,
+    preserveDraftClaim: true,
+  });
+  if (!store?.chatsById?.[chatId]) {
+    draftClaimsByChatId.delete(chatId);
+    return { applied: false, claimId: null, store };
+  }
+
+  const claimId = createDraftClaimId();
+  draftClaimsByChatId.set(chatId, claimId);
+  return { applied: true, claimId, store };
+};
+
+export const releaseChatDraftClaim = (chatId, expectedClaimId) => {
+  if (
+    !chatId ||
+    !expectedClaimId ||
+    draftClaimsByChatId.get(chatId) !== expectedClaimId
+  ) {
+    return false;
+  }
+  draftClaimsByChatId.delete(chatId);
+  return true;
+};
+
+export const releaseAllChatDraftClaims = () => {
+  const released = draftClaimsByChatId.size;
+  draftClaimsByChatId.clear();
+  return released;
 };
 
 export const setChatMessages = (chatId, messages, options = {}) => {
@@ -1800,6 +2167,27 @@ export const setChatMessages = (chatId, messages, options = {}) => {
       includeMessagesDirty: true,
     },
   );
+};
+
+export const markChatStarted = (chatId, options = {}) => {
+  const existing = readChatSnapshotUnsafe(chatId);
+  if (!existing || existing.isTransientNewChat !== true) {
+    return false;
+  }
+
+  updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      isTransientNewChat: false,
+      updatedAt: now(),
+    }),
+    {
+      ...options,
+      type: "chat_mark_started",
+    },
+  );
+  return true;
 };
 
 export const setChatGeneratedUnread = (

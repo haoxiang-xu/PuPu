@@ -66,6 +66,19 @@ const createServer = ({ registry, isReady }) =>
         if (result.body && result.body.__binary) {
           writeBinary(res, result.body);
         } else {
+          if (typeof result.afterResponse === "function") {
+            res.once("finish", () => {
+              try {
+                result.afterResponse();
+              } catch (error) {
+                process.stderr.write(
+                  `[test-api] after-response action failed: ${
+                    error?.message || String(error)
+                  }\n`,
+                );
+              }
+            });
+          }
           writeJson(res, result.status, result.body);
         }
       } catch (e) {

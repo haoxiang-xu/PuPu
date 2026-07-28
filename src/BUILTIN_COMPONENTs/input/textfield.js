@@ -19,6 +19,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
  *   on_focus / on_blur     – callbacks
  *   on_key_down            – keyDown handler (e.g. Shift+Enter)
  *   textarea_ref           – optional external ref for the <textarea>
+ *   aria_label             – stable accessible name for automation/screen readers
  */
 const FloatingTextField = ({
   value,
@@ -43,6 +44,7 @@ const FloatingTextField = ({
   on_blur = () => {},
   on_key_down = () => {},
   textarea_ref,
+  aria_label,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -59,11 +61,7 @@ const FloatingTextField = ({
     tf.backgroundColor ??
     (isDark ? "rgba(30,30,30,0.95)" : "rgba(255,255,255,0.95)");
   const border =
-    style?.border ||
-    tf.border ||
-    (isDark
-      ? "1px solid rgba(255,255,255,0.08)"
-      : "1px solid rgba(0,0,0,0.06)");
+    style?.border || tf.border || "1px solid var(--pupu-border-mid)";
   const shadow =
     style?.boxShadow ||
     tf.boxShadow ||
@@ -264,6 +262,7 @@ const FloatingTextField = ({
         {/* ── Textarea ── */}
         <textarea
           ref={taRef}
+          aria-label={aria_label}
           disabled={disabled}
           value={currentValue}
           placeholder={
@@ -456,6 +455,7 @@ const TextField = ({
   on_blur = () => {},
   on_key_down = () => {},
   textarea_ref,
+  aria_label,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -644,6 +644,7 @@ const TextField = ({
         {/* ── Textarea ── */}
         <textarea
           ref={taRef}
+          aria-label={aria_label}
           disabled={disabled}
           value={currentValue}
           placeholder={
