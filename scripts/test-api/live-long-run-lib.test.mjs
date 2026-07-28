@@ -49,7 +49,7 @@ test("defines the exact six-cell workload/model matrix", () => {
       {
         id: "coding-openai",
         workload: "coding",
-        modelId: "openai:gpt-5.2-codex",
+        modelId: "openai:gpt-5.3-codex",
       },
       {
         id: "coding-anthropic",
@@ -59,7 +59,7 @@ test("defines the exact six-cell workload/model matrix", () => {
       {
         id: "mcp-openai",
         workload: "mcp",
-        modelId: "openai:gpt-5.2-codex",
+        modelId: "openai:gpt-5.3-codex",
       },
       {
         id: "mcp-anthropic",
@@ -69,7 +69,7 @@ test("defines the exact six-cell workload/model matrix", () => {
       {
         id: "web-openai",
         workload: "web",
-        modelId: "openai:gpt-5.2-codex",
+        modelId: "openai:gpt-5.3-codex",
       },
       {
         id: "web-anthropic",
@@ -89,7 +89,7 @@ test("selects independent cells without accepting model aliases", () => {
     ]).map((cell) => cell.id),
     ["web-anthropic", "coding-openai"],
   );
-  assert.equal(getLiveCell("mcp-openai").modelId, "openai:gpt-5.2-codex");
+  assert.equal(getLiveCell("mcp-openai").modelId, "openai:gpt-5.3-codex");
   assert.throws(
     () => selectLiveCells(["coding-gpt-5"]),
     /unknown live long-run cell/,
@@ -370,7 +370,7 @@ test("extracts bounded root and child identity evidence without flattening", () 
           requestId: "attempt-1",
           executionSessionId: "chat-1",
           bundle: {
-            model: "openai:gpt-5.2-codex",
+            model: "openai:gpt-5.3-codex",
             consumed_tokens: 13,
             input_tokens: 8,
             output_tokens: 5,

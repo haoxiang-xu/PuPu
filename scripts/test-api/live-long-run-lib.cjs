@@ -12,7 +12,11 @@ const LIVE_MIN_MCP_TIME_SCALE = 0.2;
 const LIVE_MODELS = Object.freeze([
   Object.freeze({
     provider: "openai",
-    modelId: "openai:gpt-5.2-codex",
+    // gpt-5.2-codex is deprecated: /v1/models still lists it, but both
+    // /v1/responses and /v1/chat/completions answer 404, so every openai cell
+    // failed its root run within seconds. gpt-5.3-codex is the live successor
+    // (verified against /v1/responses).
+    modelId: "openai:gpt-5.3-codex",
     credentialNames: Object.freeze([
       "PUPU_LIVE_OPENAI_API_KEY",
       "OPENAI_API_KEY",
