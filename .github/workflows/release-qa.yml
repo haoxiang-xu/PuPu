@@ -387,12 +387,29 @@ jobs:
           name: release-qa-job-report-${{ matrix.name }}
           path: pupu/release-qa-job-report.json
 
+      # A packaging job that produces no installer is a failed packaging job.
+      # v0.1.8's windows job went green in 2m40s having built nothing: the
+      # build step exited 0 without running (cmd.exe mangled the nested quotes
+      # in the old cross-env-shell command), continue-on-error hid the rest,
+      # and if-no-files-found: warn let the empty upload pass. Fail loudly
+      # instead of shipping a release that silently lost a platform.
+      - name: Verify package output exists
+        if: always()
+        shell: bash
+        working-directory: pupu
+        run: |
+          if [ -z "$(find dist unchain_runtime/dist -type f 2>/dev/null | head -1)" ]; then
+            echo "::error title=Empty package::${{ matrix.name }} produced no build output"
+            exit 1
+          fi
+          find dist -maxdepth 1 -type f -exec ls -la {} \; 2>/dev/null | head -10
+
       - name: Upload package artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pupu-package-${{ matrix.name }}
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
           path: |
             pupu/dist/**/*
