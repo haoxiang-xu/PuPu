@@ -78,7 +78,18 @@ const consumeCredentialHandoff = () => {
   };
 };
 
-const credentialHandoff = consumeCredentialHandoff();
+// Consumed lazily, NOT at module load. Playwright loads this file more than
+// once per cell — first in the parent process to collect tests, then again in
+// the worker that runs them. Consuming at module scope let the collection pass
+// delete both the handoff file and the env var, so the worker always found a
+// missing credential and every live cell died before its first model call.
+let credentialHandoffCache;
+const credentialHandoffOnce = () => {
+  if (credentialHandoffCache === undefined) {
+    credentialHandoffCache = consumeCredentialHandoff();
+  }
+  return credentialHandoffCache;
+};
 
 const sleep = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -260,6 +271,7 @@ for (const cell of LIVE_MATRIX) {
       );
       test.setTimeout(phaseTimeoutMs + 8 * 60 * 1000);
 
+      const credentialHandoff = credentialHandoffOnce();
       const credential =
         credentialHandoff?.cellId === cell.id
           ? credentialHandoff.credential
