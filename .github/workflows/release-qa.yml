@@ -43,7 +43,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 21f8bf171d372cc94aed49b9955145c48094f54c
+          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
           path: unchain
 
       - name: Set up Node
@@ -325,7 +325,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 21f8bf171d372cc94aed49b9955145c48094f54c
+          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
           path: unchain
 
       - name: Set up Node
@@ -419,7 +419,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 21f8bf171d372cc94aed49b9955145c48094f54c
+          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
           path: unchain
 
       - name: Set up Python
