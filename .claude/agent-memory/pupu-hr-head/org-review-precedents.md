@@ -21,7 +21,16 @@ metadata:
 
 任何"建新部门/新角色"提案，必须依次证明：
 1. **改现有 charter 措辞不能解决** —— unchain 案真实病因是擎 charter 一句 Mode B 条款的作用域被误读，处方却是 2 人团队 + lead + 新汇报线。
-2. **该工作面确实无主** —— 用 `grep -ril "<关键词>" .claude/agent-memory/` 验。i18n 曾是"最强无主候选"，取证发现 `pupu-dev-toolkit` 已有专门的 `i18n_locale_workflow.md`，含按 namespace 分工模型与并行翻译的实战教训。**看起来无主 ≠ 无主。**
+2. **该工作面确实无主** —— 用 `grep -ril "<关键词>" .claude/agent-memory/` 和 `.claude/agents/` 双向验。**注意两者会给出相反答案**：i18n 在 memory 层看似有主（`pupu-dev-toolkit/i18n_locale_workflow.md`），但那份 memory 自我限定只管 `toolkit.*` + `computer_use.*`（17 个 namespace 中的 2 个）；charter 层 grep 则**22 份 charter 无一认领 i18n**。
+   **判读规则：memory 证明"有人做过"，charter 才证明"有人负责"。判无主看 charter，不看 memory。**
+
+## 判例 2.5：能用 CI 守的一致性，永远不要用编制守
+
+i18n 实测（2026-07-28）：en 625 keys，9 个 locale 各缺**同一批 49 个** key，且缺口发生在一次人肉 sweep commit **之后**——证明人肉 sweep 机制本身不可靠。无人报 bug 的原因是 `src/BUILTIN_COMPONENTs/mini_react/use_translation.js:82-85` 有 en 静默兜底，非英语用户看到中英混排而非崩溃。**静默降级 = 永不产生 bug report = 永不进 backlog = 永远不会被发现。**
+
+**Why:** 一致性检查是机械的、无判断的、可失败即报的——这是 CI 的形状，不是 agent 的形状。给它配人，等于用一个需要 CEO 记得调用的角色，替代一个自动触发的门。项目已为 MCP registry 建了 `validate-mcp-registry.yml`，却没为 locale 建。
+
+**How to apply:** 遇到"某类一致性没人看"的缺口，先问能不能写成 CI 检查。能 → 建 CI + 把策略挂给最近的现有 owner；不能 → 才谈编制。
 3. **不为了给 CEO 一个答案而发明需求** —— CEO 问"还需要新部门么"时，"不需要"是完全合法且常常正确的答案。
 
 **How to apply:** 收到建制提案先跑这三道闸门再谈编制大小。

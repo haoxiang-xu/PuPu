@@ -121,6 +121,16 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 
 **Read these before making architectural changes.** They are the source of truth for patterns and conventions.
 
+## The Agent Org
+
+PuPu is maintained by a **22-agent organization across 4 lines** (CTO / COO / AI / HR), defined in `.claude/agents/`. Specialists own specific surfaces — chat streaming, Electron/IPC, the Flask backend and unchain core, security, release, growth, model behavior.
+
+**Route before you work. Invoke the `pupu` skill at the start of any substantive request** — anything touching PuPu's code, release, growth, model behavior, or the org itself — and dispatch to the owner it names rather than doing the work yourself. Invoke it too when the CEO gives no instruction and wants to know what's due.
+
+Skip it only for trivia that no specialist owns: a one-line factual lookup, a direct question about this conversation, or a mechanical edit the CEO has already scoped to a specific file.
+
+`pupu` maps intent → owner → dispatch, answers "what's due now" from measured state, and **keeps its own routing table in sync with `.claude/agents/`** — the main agent maintains that table; nobody else is watching it. `/org-sync` runs a full cross-line sync when the whole org needs to report.
+
 ## High-Risk Pitfalls
 
 - Do NOT introduce TypeScript files
