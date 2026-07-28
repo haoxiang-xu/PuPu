@@ -47,10 +47,22 @@ describe("mcp_toolkit_store", () => {
     }
   });
 
-  test("entries may omit toolkitIcon and resolve to the mcp icon without background", () => {
-    const playwright = getMcpStoreEntry("browser.playwright");
-    expect(playwright.toolkitIcon).toBeUndefined();
-    expect(resolveMcpIcon(playwright)).toEqual(
+  test("every store entry carries its own brand icon — none falls back to the generic mcp glyph", () => {
+    /* Store-front invariant: a shelf of identical default glyphs is what the
+       icon pass removed. Registry entries must each declare an icon, and none
+       may resolve to the generic builtin "mcp" placeholder. The fallback path
+       itself is still exercised below with synthetic toolkits. */
+    for (const entry of listMcpStoreEntries()) {
+      const icon = resolveMcpIcon(entry);
+      expect(icon).toBeTruthy();
+      expect(icon).not.toMatchObject({ type: "builtin", name: "mcp" });
+    }
+  });
+
+  test("a toolkit that omits its icon resolves to the mcp icon without background", () => {
+    expect(
+      resolveMcpIcon({ toolkitId: "mcp.custom.local-noicon", source: "mcp" }),
+    ).toEqual(
       expect.objectContaining({
         type: "builtin",
         name: "mcp",
@@ -276,12 +288,14 @@ describe("mcp_toolkit_store", () => {
       ],
     });
 
+    /* playwright ships an explicit registry icon, so a "fallback" metadata
+       icon must lose to it — the registry svg wins, not the avatar png. */
     expect(resolveMcpIcon(getMcpStoreEntry("browser.playwright"))).toEqual(
-      expect.objectContaining({ type: "builtin", name: "mcp" }),
+      expect.objectContaining({ type: "file", mimeType: "image/svg+xml" }),
     );
-    expect(mcpStoreIconFor("mcp.browser.playwright")).toEqual(
-      expect.objectContaining({ type: "builtin", name: "mcp" }),
-    );
+    expect(mcpStoreIconFor("mcp.browser.playwright")).not.toMatchObject({
+      content: avatarIcon.content,
+    });
     expect(resolveMcpIcon(getMcpStoreEntry("dev.github-remote"))).toEqual(
       expect.objectContaining({ type: "builtin", name: "github" }),
     );

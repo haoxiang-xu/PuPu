@@ -97,10 +97,15 @@ describe("loadStoreCuration", () => {
     expect(c.collections[0].gradient).toHaveLength(2);
   });
 
-  test("recommends only release-gated MCP entries that require no credentials", () => {
+  test("essentials + collections recommend only credential-free one-click MCP entries", () => {
+    /* The one-click contract applies to surfaces that carry an INLINE install
+       pill — the Essentials grid and Collection member rows. Those must be
+       status:available, installable, and require zero credentials so a first
+       install never dead-ends in a setup/OAuth flow. The Featured hero is
+       exempt (see the next test): it has no inline pill — the whole card opens
+       the detail page, where any credential setup lives. */
     const c = loadStoreCuration();
-    const recommendedIds = new Set([
-      c.featured?.pluginId,
+    const inlineInstallIds = new Set([
       ...c.essentials,
       ...c.collections.flatMap((collection) => collection.pluginIds),
     ].filter(Boolean));
@@ -108,7 +113,7 @@ describe("loadStoreCuration", () => {
       registry.entries.map((entry) => [entry.toolkitId, entry]),
     );
 
-    expect([...recommendedIds].sort()).toEqual([
+    expect([...inlineInstallIds].sort()).toEqual([
       "mcp.browser.chrome-devtools",
       "mcp.browser.playwright",
       "mcp.memory.memory",
@@ -117,10 +122,23 @@ describe("loadStoreCuration", () => {
       "mcp.workspace.markitdown",
       "mcp.workspace.sqlite",
     ]);
-    for (const toolkitId of recommendedIds) {
+    for (const toolkitId of inlineInstallIds) {
       const entry = entriesByToolkitId.get(toolkitId);
       expect(entry).toMatchObject({ status: "available", installable: true });
       expect(entry.secrets || []).toHaveLength(0);
     }
+  });
+
+  test("featured hero is a real installable entry (credentials allowed — routes to detail)", () => {
+    /* Featured may require credentials because the card opens the detail page
+       rather than installing inline, but it must still be a genuine,
+       installable, available plugin — never a coming_soon or non-installable
+       stub on the most prominent slot. */
+    const c = loadStoreCuration();
+    const entriesByToolkitId = new Map(
+      registry.entries.map((entry) => [entry.toolkitId, entry]),
+    );
+    const featured = entriesByToolkitId.get(c.featured?.pluginId);
+    expect(featured).toMatchObject({ status: "available", installable: true });
   });
 });

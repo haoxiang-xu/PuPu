@@ -1,17 +1,17 @@
 {
   "featured": {
-    "pluginId": "mcp.browser.playwright",
+    "pluginId": "mcp.dev.github-remote",
     "kicker": "Editor's pick",
-    "headline": "Browse and test, in the chat",
-    "blurb": "Navigate, inspect and automate web flows with the release-tested Playwright MCP server.",
+    "headline": "GitHub, in the chat",
+    "blurb": "Browse repos, read issues and PRs, and act on your code — the official GitHub MCP server, wired straight into the conversation.",
     "gradient": [
       "#6478f6",
       "#4a5bd8"
     ]
   },
   "essentials": [
-    "mcp.browser.playwright",
     "mcp.browser.chrome-devtools",
+    "mcp.browser.playwright",
     "mcp.workspace.filesystem",
     "mcp.memory.memory"
   ],
