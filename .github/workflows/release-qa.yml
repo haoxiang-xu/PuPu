@@ -156,6 +156,12 @@ jobs:
           name: release-qa-job-report-deterministic
           path: pupu/release-qa-job-report.json
 
+      - name: Deterministic release gate
+        if: always()
+        working-directory: pupu
+        run: |
+          node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
+
   unchain-dev-compatibility:
     name: Unchain Dev Compatibility
     runs-on: ubuntu-latest
@@ -485,7 +491,3 @@ jobs:
             pupu/release-qa-analysis.json
           if-no-files-found: ignore
 
-      - name: Deterministic release gate
-        working-directory: pupu
-        run: |
-          node -e "const r=require('./release-qa-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
