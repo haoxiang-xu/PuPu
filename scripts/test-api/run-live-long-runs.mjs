@@ -216,7 +216,12 @@ const resolvePython = (
   for (const candidate of candidates) {
     const probe = spawnSyncImpl(
       candidate,
-      ["-c", "import pathlib,sys,mcp; print(pathlib.Path(sys.executable).resolve())"],
+      // Report sys.executable as-is. Resolving it walks the venv's python
+      // symlink back to the base interpreter, which does NOT carry the venv's
+      // site-packages — so the probe would import mcp successfully through the
+      // venv and then hand out a path that cannot. The deterministic soak and
+      // single-agent runners already probe this way; live must match.
+      ["-c", "import sys,mcp; print(sys.executable)"],
       {
         cwd: REPO_ROOT,
         encoding: "utf8",
