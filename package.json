@@ -42,13 +42,15 @@
     "react-start": "npm run start:web",
     "electron-start": "npm run start:electron",
     "version:prepare-build": "node ./scripts/prepare-build-version.cjs",
+    "mcp-runtime:prepare": "node ./scripts/prepare-mcp-runtime.cjs",
+    "mcp-runtime:verify": "node ./scripts/prepare-mcp-runtime.cjs --verify-only",
     "build": "npm run version:prepare-build && cross-env PUPU_VERSION_PREPARED=1 npm run build:web",
     "build:web": "npm run version:prepare-build && node ./scripts/build-web.cjs",
-    "build:unchain": "npm run version:prepare-build && bash ./unchain_runtime/scripts/build_unchain_server.sh",
-    "build:unchain:mac": "npm run version:prepare-build && bash ./unchain_runtime/scripts/build_unchain_server.sh macos",
-    "build:unchain:mac:intel": "npm run version:prepare-build && MISO_TARGET_ARCH=x86_64 bash ./unchain_runtime/scripts/build_unchain_server.sh macos",
-    "build:unchain:linux": "npm run version:prepare-build && bash ./unchain_runtime/scripts/build_unchain_server.sh linux",
-    "build:unchain:win": "npm run version:prepare-build && powershell -ExecutionPolicy Bypass -File ./unchain_runtime/scripts/build_unchain_server.ps1 windows",
+    "build:unchain": "npm run version:prepare-build && npm run mcp-runtime:prepare && bash ./unchain_runtime/scripts/build_unchain_server.sh",
+    "build:unchain:mac": "npm run version:prepare-build && node ./scripts/prepare-mcp-runtime.cjs --target darwin-arm64 && UNCHAIN_TARGET_ARCH=arm64 bash ./unchain_runtime/scripts/build_unchain_server.sh macos",
+    "build:unchain:mac:intel": "npm run version:prepare-build && node ./scripts/prepare-mcp-runtime.cjs --target darwin-x64 && UNCHAIN_TARGET_ARCH=x86_64 bash ./unchain_runtime/scripts/build_unchain_server.sh macos",
+    "build:unchain:linux": "npm run version:prepare-build && node ./scripts/prepare-mcp-runtime.cjs --target linux-x64 && bash ./unchain_runtime/scripts/build_unchain_server.sh linux",
+    "build:unchain:win": "npm run version:prepare-build && node ./scripts/prepare-mcp-runtime.cjs --target win32-x64 && powershell -ExecutionPolicy Bypass -File ./unchain_runtime/scripts/build_unchain_server.ps1 windows",
     "build:electron": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain && npm run build:web && npm run notices:check && electron-builder\"",
     "build:electron:mac": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64\"",
     "build:electron:mac:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64\"",
@@ -83,6 +85,7 @@
     "qa:release": "npm run qa:release:deterministic && npm run qa:release:ai",
     "validate:mcp": "node scripts/validate-mcp-registry.cjs",
     "test:mcp-registry": "node --test scripts/validate-mcp-registry.test.mjs",
+    "test:mcp-runtime": "node --test scripts/prepare-mcp-runtime.test.mjs",
     "test:notices": "node --test scripts/generate-third-party-notices.test.mjs",
     "eject": "react-scripts eject"
   },
@@ -107,6 +110,7 @@
   "build": {
     "appId": "com.red.pupu",
     "productName": "PuPu",
+    "afterPack": "./scripts/verify-packaged-mcp-runtime.cjs",
     "directories": {
       "output": "dist"
     },
@@ -130,8 +134,15 @@
     ],
     "extraResources": [
       {
-        "from": "unchain_runtime",
-        "to": "unchain_runtime",
+        "from": "unchain_runtime/dist",
+        "to": "unchain_runtime/dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "unchain_runtime/mcp_runtime",
+        "to": "mcp_runtime",
         "filter": [
           "**/*"
         ]
@@ -176,6 +187,7 @@
     "@playwright/test": "^1.61.1",
     "concurrently": "^9.2.1",
     "electron": "^40.6.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "extract-zip": "2.0.1"
   }
 }

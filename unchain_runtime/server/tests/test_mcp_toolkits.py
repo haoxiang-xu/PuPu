@@ -1350,6 +1350,164 @@ class McpToolkitServiceTests(unittest.TestCase):
             str(self.data_dir / "mcp_runtime" / "cache" / "npm"),
         )
 
+    def test_bundled_runtime_persists_logical_recipe_and_rebinds_on_connect(self):
+        self.managed_runtime_patch.stop()
+        self.managed_runtime_patch = mock.patch(
+            "mcp_toolkits.resolve_managed_stdio_runtime",
+            side_effect=[
+                {
+                    "command": "/Applications/PuPu-v1.app/Resources/mcp_runtime/node/bin/node",
+                    "args_prefix": [
+                        "/Applications/PuPu-v1.app/Resources/mcp_runtime/node/npx-cli.js"
+                    ],
+                    "managed_env": {
+                        "PATH": "/Applications/PuPu-v1.app/Resources/mcp_runtime/node/bin",
+                        "NODE_USE_SYSTEM_CA": "1",
+                    },
+                    "ephemeral_env": {
+                        "HTTPS_PROXY": "http://user:secret@proxy.test:8080"
+                    },
+                    "managed_runtime": {
+                        "kind": "node",
+                        "version": "v24.6.0",
+                        "source": "bundled",
+                        "source_command": "npx",
+                        "target": "darwin-arm64",
+                    },
+                },
+                {
+                    "command": "/Applications/PuPu-v2.app/Resources/mcp_runtime/node/bin/node",
+                    "args_prefix": [
+                        "/Applications/PuPu-v2.app/Resources/mcp_runtime/node/npx-cli.js"
+                    ],
+                    "managed_env": {
+                        "PATH": "/Applications/PuPu-v2.app/Resources/mcp_runtime/node/bin",
+                        "NODE_USE_SYSTEM_CA": "1",
+                    },
+                    "ephemeral_env": {
+                        "HTTPS_PROXY": "http://user:secret@proxy.test:8080"
+                    },
+                    "managed_runtime": {
+                        "kind": "node",
+                        "version": "v24.6.0",
+                        "source": "bundled",
+                        "source_command": "npx",
+                        "target": "darwin-arm64",
+                    },
+                },
+            ],
+        )
+        self.managed_runtime_patch.start()
+
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        discovery = FakeMCPToolkit.instances[-1].kwargs
+        self.assertIn("PuPu-v1.app", discovery["command"])
+        self.assertIn("PuPu-v1.app", discovery["args"][0])
+        self.assertEqual(
+            discovery["env"]["HTTPS_PROXY"],
+            "http://user:secret@proxy.test:8080",
+        )
+
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        record = persisted["toolkits"][0]
+        self.assertEqual(record["command"], "npx")
+        self.assertEqual(
+            record["args"],
+            [
+                "-y",
+                "--before=2026-07-28T00:00:00Z",
+                "@modelcontextprotocol/server-memory@2026.7.4",
+            ],
+        )
+        self.assertNotIn("managed_env", record)
+        self.assertNotIn("proxy.test", json.dumps(record))
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertIn("PuPu-v2.app", toolkit.kwargs["command"])
+        self.assertIn("PuPu-v2.app", toolkit.kwargs["args"][0])
+        self.assertEqual(toolkit.kwargs["env"]["NODE_USE_SYSTEM_CA"], "1")
+
+    def test_legacy_logical_record_adopts_bundled_runtime_on_connect(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        record = persisted["toolkits"][0]
+        self.assertEqual(record["command"], "npx")
+        self.assertNotIn("managed_runtime", record)
+
+        self.managed_runtime_patch.stop()
+        self.managed_runtime_patch = mock.patch(
+            "mcp_toolkits.resolve_managed_stdio_runtime",
+            return_value={
+                "command": "/Applications/PuPu.app/Resources/mcp_runtime/node/bin/node",
+                "args_prefix": [
+                    "/Applications/PuPu.app/Resources/mcp_runtime/node/npx-cli.js"
+                ],
+                "managed_env": {"NODE_USE_SYSTEM_CA": "1"},
+                "ephemeral_env": {},
+                "managed_runtime": {
+                    "kind": "node",
+                    "version": "v24.11.1",
+                    "source": "bundled",
+                    "source_command": "npx",
+                    "target": "darwin-arm64",
+                },
+            },
+        )
+        self.managed_runtime_patch.start()
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertIn("mcp_runtime/node/bin/node", toolkit.kwargs["command"])
+        self.assertIn("mcp_runtime/node/npx-cli.js", toolkit.kwargs["args"][0])
+        self.assertEqual(toolkit.kwargs["env"]["NODE_USE_SYSTEM_CA"], "1")
+
+    def test_curated_runtime_adopts_current_dependency_policy_on_connect(self):
+        install_mcp_toolkit(
+            "workspace.fetch",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        store_path = self.data_dir / "mcp_toolkits.json"
+        persisted = json.loads(store_path.read_text(encoding="utf-8"))
+        persisted["toolkits"][0]["args"] = [
+            "mcp-server-fetch==2026.7.10"
+        ]
+        store_path.write_text(json.dumps(persisted), encoding="utf-8")
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.workspace.fetch",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertIn(
+            "--exclude-newer=2026-07-28T00:00:00Z",
+            toolkit.kwargs["args"],
+        )
+        with_index = toolkit.kwargs["args"].index("--with")
+        self.assertEqual(
+            toolkit.kwargs["args"][with_index + 1],
+            "mcp==1.28.0",
+        )
+
     def test_managed_runtime_error_does_not_persist_failed_install(self):
         self.managed_runtime_patch.stop()
         self.managed_runtime_patch = mock.patch(

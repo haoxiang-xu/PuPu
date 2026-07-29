@@ -14,3 +14,4 @@
 - [Phase4 secret 描述符契约审查](phase4-secret-descriptor-contract-review.md) — 2026-07-25 REVISE:renderer secret注入有4条路非3条(漏injectOpenAIEmbeddingKeyIfNeeded L279);单描述符无法载"embedding-openai+model双secret"→须改带channel列表;冻结形状=单向门;B2 replaceMisoSessionMemory须strip+inject;N+1删legacy前configuredCredentials须live-refresh
 - [unchain 专属团队三问裁决](unchain-team-ruling.md) — 2026-07-28 三簇否决CTO两簇(强连通核心不可切);我统管双repo(90天可逆+复评触发);跨仓签核改role-based;Mission 0=正名public API(jobs._worker渗漏)
 - [unchain 替换裁决](harness-replacement-adjudication.md) — 2026-07-28 不换内核;90%深绑定/LangGraph~73%覆盖;先建 runtime contract+provider gateway;pilot 条件触发;单向门=删unchain backend
+- [sidecar TLS+managed runtime 裁决](sidecar-tls-and-managed-runtime-ruling.md) — 2026-07-28 擎net_tls保留随0.1.9;Electron内置Node=否决陷阱;v2立项P1-P5(darwin-only/不钉版/惰性物料化/企业断点);半单向门=trust解析顺序

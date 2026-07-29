@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "dependencyCutoff": "2026-07-28T00:00:00Z",
   "categories": ["all", "browser", "dev", "devops", "productivity", "workspace", "memory", "communication"],
   "entries": [
     {
@@ -40,10 +41,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@playwright/mcp@0.0.78"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@playwright/mcp@0.0.78"]
       },
       "setupPreview": "npx -y @playwright/mcp@0.0.78",
-      "prerequisites": ["Node.js >= 18"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "browser_navigate", "title": "Navigate", "requiresConfirmation": false },
@@ -100,10 +101,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["--from", "browser-use[cli]==0.13.6", "browser-use", "--mcp"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "browser-use[cli]==0.13.6", "browser-use", "--mcp"]
       },
       "setupPreview": "uvx --from browser-use[cli]==0.13.6 browser-use --mcp",
-      "prerequisites": ["uv / uvx", "Python >= 3.11"],
+      "prerequisites": [],
       "secrets": [{ "key": "OPENAI_API_KEY", "label": "OpenAI API key" }],
       "tools": [
         { "name": "browser_navigate", "title": "Navigate", "requiresConfirmation": false },
@@ -116,7 +117,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 2
       },
-      "readmeMarkdown": "## Browser Use\n\nRuns the browser-use CLI as an MCP server for LLM-driven browsing. Requires `uv`/`uvx` and an `OPENAI_API_KEY`."
+      "readmeMarkdown": "## Browser Use\n\nRuns the browser-use CLI as an MCP server for LLM-driven browsing. PuPu supplies the MCP runtime; you only need an `OPENAI_API_KEY`."
     },
     {
       "id": "browser.chrome-devtools",
@@ -161,10 +162,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "chrome-devtools-mcp@1.6.0", "--no-usage-statistics", "--no-performance-crux"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "chrome-devtools-mcp@1.6.0", "--no-usage-statistics", "--no-performance-crux"]
       },
       "setupPreview": "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
-      "prerequisites": ["Node.js LTS", "npm", "Chrome current stable or newer"],
+      "prerequisites": ["Chrome current stable or newer"],
       "secrets": [],
       "tools": [
         { "name": "navigate_page", "title": "Navigate page", "requiresConfirmation": false },
@@ -490,10 +491,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-grafana==0.17.2"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-grafana==0.17.2", "mcp-grafana"]
       },
       "setupPreview": "uvx mcp-grafana==0.17.2",
-      "prerequisites": ["uv / uvx", "Grafana instance or Grafana Cloud", "Grafana service account token"],
+      "prerequisites": ["Grafana instance or Grafana Cloud", "Grafana service account token"],
       "secrets": [
         { "key": "GRAFANA_URL", "label": "Grafana URL" },
         { "key": "GRAFANA_SERVICE_ACCOUNT_TOKEN", "label": "Grafana service account token" }
@@ -679,10 +680,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.7.10", "${WORKSPACE}"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@modelcontextprotocol/server-filesystem@2026.7.10", "${WORKSPACE}"]
       },
       "setupPreview": "npx -y @modelcontextprotocol/server-filesystem@2026.7.10 ${WORKSPACE}",
-      "prerequisites": ["Node.js >= 18"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "read_file", "title": "Read file", "requiresConfirmation": false },
@@ -735,10 +736,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["markitdown-mcp==0.0.1a4"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "markitdown-mcp==0.0.1a4", "markitdown-mcp"]
       },
       "setupPreview": "uvx markitdown-mcp==0.0.1a4",
-      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "convert_to_markdown", "title": "Convert to Markdown", "requiresConfirmation": true }
@@ -788,10 +789,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-memory@2026.7.4"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@modelcontextprotocol/server-memory@2026.7.4"]
       },
       "setupPreview": "npx -y @modelcontextprotocol/server-memory@2026.7.4",
-      "prerequisites": ["Node.js >= 18"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "search_nodes", "title": "Search nodes", "requiresConfirmation": false },
@@ -930,10 +931,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-fetch==2026.7.10"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-server-fetch==2026.7.10", "--with", "mcp==1.28.0", "mcp-server-fetch"]
       },
       "setupPreview": "uvx mcp-server-fetch==2026.7.10",
-      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "fetch", "title": "Fetch URL", "requiresConfirmation": true }
@@ -988,10 +989,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@iqai/mcp-discord@0.0.6"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@iqai/mcp-discord@0.0.6"]
       },
       "setupPreview": "npx -y @iqai/mcp-discord@0.0.6",
-      "prerequisites": ["Node.js >= 18", "Discord bot token from the Developer Portal"],
+      "prerequisites": ["Discord bot token from the Developer Portal"],
       "secrets": [
         { "key": "DISCORD_TOKEN", "label": "Discord bot token" }
       ],
@@ -1069,10 +1070,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@iqai/mcp-telegram@0.1.4"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@iqai/mcp-telegram@0.1.4"]
       },
       "setupPreview": "npx -y @iqai/mcp-telegram@0.1.4",
-      "prerequisites": ["Node.js >= 18", "Telegram bot token from @BotFather"],
+      "prerequisites": ["Telegram bot token from @BotFather"],
       "secrets": [
         { "key": "TELEGRAM_BOT_TOKEN", "label": "Telegram bot token" }
       ],
@@ -1135,10 +1136,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-server-sqlite==2025.4.25", "--with", "mcp==1.28.0", "mcp-server-sqlite", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
       },
       "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}/pupu-mcp.sqlite",
-      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "read_query", "title": "Run SELECT query", "requiresConfirmation": false },

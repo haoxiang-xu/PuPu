@@ -413,13 +413,16 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["markitdown-mcp==0.0.1a4"],
+        args: [
+          "--exclude-newer=2026-07-28T00:00:00Z",
+          "--from",
+          "markitdown-mcp==0.0.1a4",
+          "markitdown-mcp",
+        ],
       }),
     );
     expect(markitdown.secrets).toEqual([]);
-    expect(markitdown.prerequisites).toEqual(
-      expect.arrayContaining(["uv / uvx", "Python >= 3.10"]),
-    );
+    expect(markitdown.prerequisites).toEqual([]);
     expect(markitdown.tools).toEqual([
       expect.objectContaining({
         name: "convert_to_markdown",
@@ -460,13 +463,18 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-server-fetch==2026.7.10"],
+        args: [
+          "--exclude-newer=2026-07-28T00:00:00Z",
+          "--from",
+          "mcp-server-fetch==2026.7.10",
+          "--with",
+          "mcp==1.28.0",
+          "mcp-server-fetch",
+        ],
       }),
     );
     expect(fetch.secrets).toEqual([]);
-    expect(fetch.prerequisites).toEqual(
-      expect.arrayContaining(["uv / uvx", "Python >= 3.10"]),
-    );
+    expect(fetch.prerequisites).toEqual([]);
     expect(fetch.tools).toEqual([
       expect.objectContaining({
         name: "fetch",
@@ -507,7 +515,11 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "npx",
-        args: ["-y", "@iqai/mcp-discord@0.0.6"],
+        args: [
+          "-y",
+          "--before=2026-07-28T00:00:00Z",
+          "@iqai/mcp-discord@0.0.6",
+        ],
       }),
     );
     expect(discord.secrets).toEqual([
@@ -556,7 +568,11 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "npx",
-        args: ["-y", "@iqai/mcp-telegram@0.1.4"],
+        args: [
+          "-y",
+          "--before=2026-07-28T00:00:00Z",
+          "@iqai/mcp-telegram@0.1.4",
+        ],
       }),
     );
     expect(telegram.secrets).toEqual([
@@ -620,7 +636,12 @@ describe("mcp_toolkit_store", () => {
         transport: "stdio",
         command: "uvx",
         args: [
+          "--exclude-newer=2026-07-28T00:00:00Z",
+          "--from",
           "mcp-server-sqlite==2025.4.25",
+          "--with",
+          "mcp==1.28.0",
+          "mcp-server-sqlite",
           "--db-path",
           "${WORKSPACE}/pupu-mcp.sqlite",
         ],
@@ -628,9 +649,7 @@ describe("mcp_toolkit_store", () => {
     );
     // No connection string, password, or secret — it is a local file path only.
     expect(sqlite.secrets).toEqual([]);
-    expect(sqlite.prerequisites).toEqual(
-      expect.arrayContaining(["uv / uvx", "Python >= 3.10"]),
-    );
+    expect(sqlite.prerequisites).toEqual([]);
     expect(sqlite.tools).toHaveLength(6);
     expect(
       sqlite.tools.filter((tool) => tool.requiresConfirmation === true),
@@ -740,7 +759,12 @@ describe("mcp_toolkit_store", () => {
       expect.objectContaining({
         transport: "stdio",
         command: "uvx",
-        args: ["mcp-grafana==0.17.2"],
+        args: [
+          "--exclude-newer=2026-07-28T00:00:00Z",
+          "--from",
+          "mcp-grafana==0.17.2",
+          "mcp-grafana",
+        ],
       }),
     );
     expect(grafana.secrets).toEqual([
@@ -787,6 +811,7 @@ describe("mcp_toolkit_store", () => {
       command: "npx",
       args: [
         "-y",
+        "--before=2026-07-28T00:00:00Z",
         "chrome-devtools-mcp@1.6.0",
         "--no-usage-statistics",
         "--no-performance-crux",

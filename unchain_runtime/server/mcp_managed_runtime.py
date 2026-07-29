@@ -24,9 +24,30 @@ class McpManagedRuntimeError(RuntimeError):
 
 
 RUNTIME_ROOT_NAME = "mcp_runtime"
+BUNDLED_RUNTIME_DIR_ENV = "PUPU_MCP_RUNTIME_DIR"
+BUNDLED_RUNTIME_MANIFEST = "manifest.json"
 NODE_INDEX_URL = "https://nodejs.org/dist/index.json"
 NODE_DIST_BASE_URL = "https://nodejs.org/dist"
 UV_LATEST_BASE_URL = "https://github.com/astral-sh/uv/releases/latest/download"
+
+_NETWORK_ENV_KEYS = (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "all_proxy",
+)
+_CUSTOM_CA_ENV_KEYS = (
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "NODE_EXTRA_CA_CERTS",
+    "REQUESTS_CA_BUNDLE",
+    "CURL_CA_BUNDLE",
+    "PIP_CERT",
+)
 
 _LOCKS = {
     "node": threading.Lock(),
@@ -209,29 +230,327 @@ def _platform_arches() -> tuple[str, str]:
     )
 
 
+def _platform_target() -> str:
+    machine = platform.machine().lower()
+    if machine in {"arm64", "aarch64"}:
+        arch = "arm64"
+    elif machine in {"x86_64", "amd64", "x64"}:
+        arch = "x64"
+    else:
+        raise McpManagedRuntimeError(
+            "mcp_runtime_unsupported_platform",
+            f"PuPu-managed MCP runtime does not support architecture: {machine}",
+            400,
+        )
+
+    platform_name = {
+        "darwin": "darwin",
+        "win32": "win32",
+        "linux": "linux",
+    }.get(sys.platform)
+    if not platform_name:
+        raise McpManagedRuntimeError(
+            "mcp_runtime_unsupported_platform",
+            f"PuPu-managed MCP runtime does not support platform: {sys.platform}",
+            400,
+        )
+    if platform_name in {"win32", "linux"} and arch == "arm64":
+        raise McpManagedRuntimeError(
+            "mcp_runtime_unsupported_platform",
+            f"PuPu-managed MCP runtime does not support target: {platform_name}-{arch}",
+            400,
+        )
+    return f"{platform_name}-{arch}"
+
+
 def _path_env(bin_dir: Path, env: Dict[str, str]) -> str:
     current = env.get("PATH") or os.environ.get("PATH", "")
     return str(bin_dir) if not current else str(bin_dir) + os.pathsep + current
 
 
-def _node_env(root: Path, bin_dir: Path, env: Dict[str, str]) -> Dict[str, str]:
+def _node_env(
+    root: Path,
+    bin_dir: Path,
+    env: Dict[str, str],
+    *,
+    runtime_identity: str = "",
+) -> Dict[str, str]:
     cache_dir = root / "cache" / "npm"
+    clean_identity = str(runtime_identity or "").strip()
+    if clean_identity:
+        cache_scope = hashlib.sha256(
+            clean_identity.encode("utf-8")
+        ).hexdigest()[:12]
+        cache_dir = cache_dir / cache_scope
     return {
         "PATH": _path_env(bin_dir, env),
         "NPM_CONFIG_CACHE": str(cache_dir),
         "npm_config_cache": str(cache_dir),
+        # Pinned PuPu Node releases must support these switches. They preserve
+        # Node's public roots while also accepting administrator-installed
+        # enterprise roots and standard proxy environment variables.
+        "NODE_USE_SYSTEM_CA": "1",
+        "NODE_USE_ENV_PROXY": "1",
     }
 
 
-def _uv_env(root: Path, bin_dir: Path, env: Dict[str, str]) -> Dict[str, str]:
-    return {
+def _uv_env(
+    root: Path,
+    bin_dir: Path,
+    env: Dict[str, str],
+    *,
+    python_command: Path | None = None,
+    python_bootstrap: Path | None = None,
+    python_identity: str = "",
+) -> Dict[str, str]:
+    tool_scope = "default"
+    if python_command is not None:
+        tool_scope = hashlib.sha256(
+            (
+                f"{python_command.resolve()}\0{str(python_identity or '').strip()}"
+            ).encode("utf-8")
+        ).hexdigest()[:12]
+    tool_dir = root / "tools" / tool_scope
+    managed_env = {
         "PATH": _path_env(bin_dir, env),
         "UV_CACHE_DIR": str(root / "cache" / "uv"),
-        "UV_TOOL_DIR": str(root / "tools"),
-        "UV_TOOL_BIN_DIR": str(root / "tools" / "bin"),
+        "UV_TOOL_DIR": str(tool_dir),
+        "UV_TOOL_BIN_DIR": str(tool_dir / "bin"),
         "UV_PYTHON_INSTALL_DIR": str(root / "python"),
         "UV_NO_MODIFY_PATH": "1",
         "UV_NO_PROGRESS": "1",
+        "UV_SYSTEM_CERTS": "true",
+    }
+    if python_command is not None:
+        managed_env.update(
+            {
+                "UV_PYTHON": str(python_command),
+                # A packaged PuPu must never bootstrap a second Python from the
+                # network after installation.
+                "UV_PYTHON_DOWNLOADS": "never",
+            }
+        )
+    if python_bootstrap is not None:
+        managed_env.update(
+            {
+                # sitecustomize installs native trust for the Python MCP server
+                # itself; UV_SYSTEM_CERTS only covers uv's package downloads.
+                "PYTHONPATH": str(python_bootstrap),
+                # The bundled interpreter lives inside the signed application.
+                # Never let imports create or update __pycache__ there.
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONUTF8": "1",
+            }
+        )
+    return managed_env
+
+
+def _ephemeral_network_env(
+    env: Dict[str, str],
+    *,
+    kind: str,
+) -> Dict[str, str]:
+    """Return network overrides without making them persistent MCP metadata.
+
+    Proxy URLs may contain credentials and certificate paths can expose account
+    names. They are therefore rebuilt for every install/connect operation and
+    never included in ``managed_env``, which is stored on disk.
+    """
+    result: Dict[str, str] = {}
+    for key in (*_NETWORK_ENV_KEYS, *_CUSTOM_CA_ENV_KEYS):
+        raw = env.get(key)
+        if raw is None:
+            raw = os.environ.get(key)
+        value = str(raw or "").strip()
+        if value:
+            result[key] = value
+    if kind == "node" and "NODE_EXTRA_CA_CERTS" not in result:
+        cafile = result.get("SSL_CERT_FILE", "")
+        if cafile:
+            result["NODE_EXTRA_CA_CERTS"] = cafile
+    if kind == "uv":
+        cafile = result.get("SSL_CERT_FILE", "")
+        if cafile:
+            result.setdefault("REQUESTS_CA_BUNDLE", cafile)
+            result.setdefault("CURL_CA_BUNDLE", cafile)
+            result.setdefault("PIP_CERT", cafile)
+    return result
+
+
+def _bundled_runtime_root() -> Path | None:
+    raw = str(os.environ.get(BUNDLED_RUNTIME_DIR_ENV, "") or "").strip()
+    return Path(raw) if raw else None
+
+
+def _bundled_path(root: Path, raw: Any, label: str) -> Path:
+    text = str(raw or "").strip()
+    candidate = Path(text)
+    if not text or candidate.is_absolute():
+        raise McpManagedRuntimeError(
+            "mcp_runtime_bundle_invalid",
+            f"Bundled MCP runtime has invalid {label}",
+            500,
+        )
+    resolved_root = root.resolve()
+    resolved = (root / candidate).resolve()
+    if resolved != resolved_root and not resolved.is_relative_to(resolved_root):
+        raise McpManagedRuntimeError(
+            "mcp_runtime_bundle_invalid",
+            f"Bundled MCP runtime {label} escapes its resource directory",
+            500,
+        )
+    if not resolved.exists():
+        raise McpManagedRuntimeError(
+            "mcp_runtime_bundle_missing",
+            f"PuPu installation is missing bundled MCP runtime {label}: {text}",
+            500,
+        )
+    return resolved
+
+
+def _bundled_runtime_record(root: Path, kind: str) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    manifest_path = root / BUNDLED_RUNTIME_MANIFEST
+    manifest = _read_json_file(manifest_path)
+    if not manifest:
+        raise McpManagedRuntimeError(
+            "mcp_runtime_bundle_missing",
+            "PuPu installation is missing the bundled MCP runtime manifest; reinstall or update PuPu",
+            500,
+        )
+    if manifest.get("schema_version") != 1:
+        raise McpManagedRuntimeError(
+            "mcp_runtime_bundle_invalid",
+            "Bundled MCP runtime manifest uses an unsupported schema; reinstall or update PuPu",
+            500,
+        )
+    expected_target = _platform_target()
+    actual_target = str(manifest.get("target") or "").strip()
+    if actual_target != expected_target:
+        raise McpManagedRuntimeError(
+            "mcp_runtime_bundle_invalid",
+            f"Bundled MCP runtime target mismatch: expected {expected_target}, got {actual_target or 'unknown'}",
+            500,
+        )
+    runtimes = manifest.get("runtimes")
+    runtimes = runtimes if isinstance(runtimes, dict) else {}
+    record = runtimes.get(kind)
+    if not isinstance(record, dict):
+        raise McpManagedRuntimeError(
+            "mcp_runtime_bundle_missing",
+            f"PuPu installation does not contain the bundled {kind} MCP runtime",
+            500,
+        )
+    return manifest, record
+
+
+def _resolve_bundled_runtime(
+    root: Path,
+    kind: str,
+    source_command: str,
+    data_root: Path,
+    env: Dict[str, str],
+) -> Dict[str, Any]:
+    manifest, record = _bundled_runtime_record(root, kind)
+    command = _bundled_path(root, record.get("command"), f"{kind} command")
+    bin_dir = _bundled_path(
+        root,
+        record.get("bin_dir") or Path(str(record.get("command") or "")).parent,
+        f"{kind} bin directory",
+    )
+    raw_prefix = record.get("args_prefix")
+    raw_prefix = raw_prefix if isinstance(raw_prefix, list) else []
+    args_prefix = []
+    for index, raw_arg in enumerate(raw_prefix):
+        text = str(raw_arg or "")
+        if text.startswith("-"):
+            args_prefix.append(text)
+            continue
+        args_prefix.append(
+            str(_bundled_path(root, text, f"{kind} args_prefix[{index}]"))
+        )
+
+    python_command = None
+    python_bootstrap = None
+    python_identity = ""
+    if kind == "uv":
+        runtimes = manifest.get("runtimes")
+        python_record = (
+            runtimes.get("python")
+            if isinstance(runtimes, dict)
+            else None
+        )
+        if not isinstance(python_record, dict):
+            raise McpManagedRuntimeError(
+                "mcp_runtime_bundle_missing",
+                "PuPu installation is missing bundled Python required by uv MCP toolkits",
+                500,
+            )
+        python_command = _bundled_path(
+            root,
+            python_record.get("command"),
+            "python command",
+        )
+        python_bootstrap = _bundled_path(
+            root,
+            python_record.get("bootstrap_dir"),
+            "python bootstrap directory",
+        )
+        python_identity = ":".join(
+            value
+            for value in (
+                str(python_record.get("version") or "").strip(),
+                str(
+                    python_record.get("staged_tree_sha256")
+                    or python_record.get("tree_sha256")
+                    or ""
+                ).strip(),
+            )
+            if value
+        )
+
+    runtime_identity = ":".join(
+        value
+        for value in (
+            str(manifest.get("target") or "").strip(),
+            str(record.get("version") or "").strip(),
+            str(
+                record.get("staged_tree_sha256")
+                or record.get("tree_sha256")
+                or ""
+            ).strip(),
+        )
+        if value
+    )
+    managed_env = (
+        _node_env(
+            data_root,
+            bin_dir,
+            env,
+            runtime_identity=runtime_identity,
+        )
+        if kind == "node"
+        else _uv_env(
+            data_root,
+            bin_dir,
+            env,
+            python_command=python_command,
+            python_bootstrap=python_bootstrap,
+            python_identity=python_identity,
+        )
+    )
+    return {
+        "command": str(command),
+        "args_prefix": args_prefix,
+        "managed_env": managed_env,
+        "ephemeral_env": _ephemeral_network_env(env, kind=kind),
+        "managed_runtime": {
+            "kind": kind,
+            "version": str(record.get("version") or ""),
+            "source": "bundled",
+            "source_command": source_command,
+            "target": str(manifest.get("target") or ""),
+        },
     }
 
 
@@ -252,7 +571,9 @@ def _runtime_from_manifest(
     managed_env = _node_env(root, bin_dir, env) if kind == "node" else _uv_env(root, bin_dir, env)
     return {
         "command": str(command),
+        "args_prefix": [],
         "managed_env": managed_env,
+        "ephemeral_env": _ephemeral_network_env(env, kind=kind),
         "managed_runtime": {
             key: value
             for key, value in record.items()
@@ -439,12 +760,35 @@ def resolve_managed_stdio_runtime(
         if str(key).strip() and value is not None
     }
     if clean_command not in {"npx", "uvx"}:
-        return {"command": clean_command, "managed_env": {}, "managed_runtime": {}}
-    if sys.platform != "darwin":
-        return {"command": clean_command, "managed_env": {}, "managed_runtime": {}}
+        return {
+            "command": clean_command,
+            "args_prefix": [],
+            "managed_env": {},
+            "ephemeral_env": {},
+            "managed_runtime": {},
+        }
 
     kind = "node" if clean_command == "npx" else "uv"
     root = _runtime_root(data_dir)
+    bundled_root = _bundled_runtime_root()
+    if bundled_root is not None:
+        return _resolve_bundled_runtime(
+            bundled_root,
+            kind,
+            clean_command,
+            root,
+            base_env,
+        )
+
+    if sys.platform != "darwin":
+        return {
+            "command": clean_command,
+            "args_prefix": [],
+            "managed_env": {},
+            "ephemeral_env": _ephemeral_network_env(base_env, kind=kind),
+            "managed_runtime": {},
+        }
+
     command_name = clean_command
     cached = _runtime_from_manifest(root, kind, command_name, base_env)
     if cached:

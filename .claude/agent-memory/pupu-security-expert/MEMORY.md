@@ -13,3 +13,5 @@
 - [Skillpack import 安审(S4)](skillpack-import-security.md) — 2026-07-18 放行S5；body人审=S5门槛；symlink不跟随是刻意行为；欠后端phase/tools钉死
 - [S6a 下载通道安审(S6d)](skillpack-s6a-download-review.md) — CONDITIONAL GO；tar CVE-2026-53655 pin抬≥7.5.16；S6c manifest须同parser；欠S6b temp删除验证
 - [Phase4 秘密存储签字门](phase4-secret-storage-decision.md) — GO(有条件)；选safeStorage(B)非OS vault；Linux fail-closed禁basic_text；dual-keep回滚；注入移主进程=CTO ADR；MCP/OAuth defer
+- [Sidecar TLS 信任工厂安审](sidecar-tls-trust-review.md) — 2026-07-28 GO；env-first 顺序已裁定勿复议；逃生开关 fail-closed；新出网点必须走 get_outbound_ssl_context
+- [Managed Runtime 钉版裁决](managed-runtime-pinning-verdict.md) — CEO发现同源SHA缺口属实定Medium；方案=pins进发布物+pin时验签+fail-closed；v2下限不进0.1.9

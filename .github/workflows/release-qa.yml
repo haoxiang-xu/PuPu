@@ -120,6 +120,12 @@ jobs:
         working-directory: pupu
         run: npm run validate:mcp
 
+      - name: MCP bundled runtime build tests
+        id: mcp_runtime
+        continue-on-error: true
+        working-directory: pupu
+        run: npm run test:mcp-runtime
+
       - name: Release QA script tests
         id: release_qa_scripts
         continue-on-error: true
@@ -144,6 +150,7 @@ jobs:
               {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
               {"name":"web build and version check","command":"npm run build","outcome":"${{ steps.web_build.outcome }}"},
               {"name":"MCP registry validation","command":"npm run validate:mcp","outcome":"${{ steps.mcp_registry.outcome }}"},
+              {"name":"MCP bundled runtime build tests","command":"npm run test:mcp-runtime","outcome":"${{ steps.mcp_runtime.outcome }}"},
               {"name":"release QA script tests","command":"npm run test:release-qa","outcome":"${{ steps.release_qa_scripts.outcome }}"},
               {"name":"third-party notice script tests","command":"npm run test:notices","outcome":"${{ steps.notice_scripts.outcome }}"}
             ]
@@ -315,6 +322,7 @@ jobs:
     env:
       UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
       QA_MODE: release
+      PUPU_REQUIRE_NATIVE_MCP_SMOKE: "1"
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
@@ -398,8 +406,19 @@ jobs:
         shell: bash
         working-directory: pupu
         run: |
-          if [ -z "$(find dist unchain_runtime/dist -type f 2>/dev/null | head -1)" ]; then
-            echo "::error title=Empty package::${{ matrix.name }} produced no build output"
+          case "${{ matrix.name }}" in
+            mac-*)
+              PACKAGE_OUTPUT="$(find dist -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.zip' \) 2>/dev/null | head -1)"
+              ;;
+            windows)
+              PACKAGE_OUTPUT="$(find dist -maxdepth 1 -type f -name '*.exe' 2>/dev/null | head -1)"
+              ;;
+            linux)
+              PACKAGE_OUTPUT="$(find dist -maxdepth 1 -type f \( -name '*.AppImage' -o -name '*.deb' \) 2>/dev/null | head -1)"
+              ;;
+          esac
+          if [ -z "$PACKAGE_OUTPUT" ]; then
+            echo "::error title=Empty package::${{ matrix.name }} produced no installer"
             exit 1
           fi
           find dist -maxdepth 1 -type f -exec ls -la {} \; 2>/dev/null | head -10
@@ -414,6 +433,15 @@ jobs:
           path: |
             pupu/dist/**/*
             pupu/unchain_runtime/dist/**/*
+
+      - name: Enforce package build result
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.package.outcome }}" != "success" ]; then
+            echo "::error title=Package build failed::${{ matrix.name }} did not pass its full build, including bundled MCP runtime verification"
+            exit 1
+          fi
 
   final-report:
     name: Final Release QA Report
@@ -507,4 +535,3 @@ jobs:
             pupu/release-qa-report.md
             pupu/release-qa-analysis.json
           if-no-files-found: ignore
-

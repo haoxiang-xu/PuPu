@@ -3193,6 +3193,9 @@ const createUnchainService = ({
       const devUnchainSourcePath = app.isPackaged
         ? null
         : resolveDevUnchainSourcePath();
+      const mcpRuntimeDir = app.isPackaged
+        ? path.join(process.resourcesPath, "mcp_runtime")
+        : process.env.PUPU_MCP_RUNTIME_DIR;
       const computerUseReleaseEnabled = resolveComputerUseReleaseFlag({
         app,
         fs,
@@ -3215,6 +3218,9 @@ const createUnchainService = ({
           PYTHONIOENCODING: process.env.PYTHONIOENCODING || "utf-8",
           PYTHONUTF8: process.env.PYTHONUTF8 || "1",
           ...(devUnchainSourcePath ? { UNCHAIN_SOURCE_PATH: devUnchainSourcePath } : {}),
+          // Packaged sidecars must use PuPu's bundled, read-only runtime payload.
+          // Development only forwards an explicitly configured override.
+          ...(mcpRuntimeDir ? { PUPU_MCP_RUNTIME_DIR: mcpRuntimeDir } : {}),
           // Hard release/build ceiling. Unlike PUPU_COMPUTER_USE below, this
           // value never comes from the renderer's user toggle. Packaged apps
           // read the build artifact; development may use the .local build

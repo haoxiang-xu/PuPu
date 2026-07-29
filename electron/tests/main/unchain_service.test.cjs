@@ -551,6 +551,106 @@ describe("unchain service session memory replacement", () => {
     });
   });
 
+  test("startup only injects the bundled MCP runtime for packaged sidecars", async () => {
+    const originalResourcesPath = process.resourcesPath;
+    const originalMcpRuntimeDir = process.env.PUPU_MCP_RUNTIME_DIR;
+    const hadResourcesPath = Object.prototype.hasOwnProperty.call(
+      process,
+      "resourcesPath",
+    );
+    Object.defineProperty(process, "resourcesPath", {
+      configurable: true,
+      value: "/Applications/PuPu.app/Contents/Resources",
+    });
+    process.env.PUPU_MCP_RUNTIME_DIR = "/tmp/untrusted-runtime-override";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse());
+    const spawn = jest.fn(() => createFakeSpawnProcess());
+
+    try {
+      const service = createUnchainService({
+        app: {
+          isPackaged: true,
+          getAppPath: jest.fn(
+            () => "/Applications/PuPu.app/Contents/Resources/app.asar",
+          ),
+          getPath: jest.fn(() => "/tmp/pupu"),
+          getVersion: jest.fn(() => "0.1.1"),
+        },
+        fs: { existsSync: jest.fn(() => true) },
+        path,
+        spawn,
+        spawnSync: jest.fn(() => ({
+          status: 0,
+          stdout: "",
+        })),
+        crypto: {
+          randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+        },
+        net: createAvailableNet(),
+        webContents: {
+          fromId: jest.fn(() => null),
+          getAllWebContents: jest.fn(() => []),
+        },
+        runtimeService: {},
+        getAppIsQuitting: () => false,
+      });
+
+      await service.startMiso();
+
+      expect(spawn.mock.calls[0][2].env.PUPU_MCP_RUNTIME_DIR).toBe(
+        path.join(process.resourcesPath, "mcp_runtime"),
+      );
+      service.stopMiso();
+    } finally {
+      if (originalMcpRuntimeDir == null) {
+        delete process.env.PUPU_MCP_RUNTIME_DIR;
+      } else {
+        process.env.PUPU_MCP_RUNTIME_DIR = originalMcpRuntimeDir;
+      }
+      if (hadResourcesPath) {
+        Object.defineProperty(process, "resourcesPath", {
+          configurable: true,
+          value: originalResourcesPath,
+        });
+      } else {
+        delete process.resourcesPath;
+      }
+    }
+  });
+
+  test("development startup only forwards an explicit MCP runtime path", async () => {
+    const originalMcpRuntimeDir = process.env.PUPU_MCP_RUNTIME_DIR;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse());
+
+    try {
+      delete process.env.PUPU_MCP_RUNTIME_DIR;
+      const withoutOverride = createStartupServiceHarness();
+      await withoutOverride.service.startMiso();
+      expect(withoutOverride.spawn.mock.calls[0][2].env).not.toHaveProperty(
+        "PUPU_MCP_RUNTIME_DIR",
+      );
+      withoutOverride.service.stopMiso();
+
+      process.env.PUPU_MCP_RUNTIME_DIR = "/tmp/pupu-mcp-runtime-dev";
+      const withOverride = createStartupServiceHarness();
+      await withOverride.service.startMiso();
+      expect(
+        withOverride.spawn.mock.calls[0][2].env.PUPU_MCP_RUNTIME_DIR,
+      ).toBe("/tmp/pupu-mcp-runtime-dev");
+      withOverride.service.stopMiso();
+    } finally {
+      if (originalMcpRuntimeDir == null) {
+        delete process.env.PUPU_MCP_RUNTIME_DIR;
+      } else {
+        process.env.PUPU_MCP_RUNTIME_DIR = originalMcpRuntimeDir;
+      }
+    }
+  });
+
   (process.platform === "win32" ? test.skip : test)(
     "startup reaps an orphaned server without killing durable job workers",
     async () => {

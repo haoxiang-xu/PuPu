@@ -573,15 +573,26 @@ def _resolve_mcp_config(
         raise McpToolkitError(exc.code, str(exc), exc.status) from exc
 
     managed_env = dict(managed.get("managed_env") or {})
+    ephemeral_env = dict(managed.get("ephemeral_env") or {})
+    managed_args_prefix = [
+        str(arg)
+        for arg in managed.get("args_prefix") or []
+    ]
     env = {
         **env,
         **managed_env,
+        **ephemeral_env,
     }
 
     return {
         "transport": "stdio",
         "command": str(managed.get("command") or command).strip(),
-        "args": args,
+        "args": [*managed_args_prefix, *args],
+        # Installation/discovery uses the resolved command above, while the
+        # persistent record keeps the logical recipe so an App move or update
+        # cannot strand an absolute Resources path.
+        "persisted_command": command,
+        "persisted_args": args,
         "env": env,
         "cwd": _mcp_runtime_workdir(entry.get("toolkit_id", ""), data_dir),
         "secret_keys": _secret_keys(entry),
@@ -787,12 +798,24 @@ def _record_from_entry(
         "last_checked_at": now,
     }
     if record["transport"] == "stdio":
-        record["command"] = resolved_config["command"]
-        record["args"] = list(resolved_config.get("args") or [])
-        if resolved_config.get("managed_env"):
+        record["command"] = str(
+            resolved_config["persisted_command"]
+            if "persisted_command" in resolved_config
+            else resolved_config["command"]
+        )
+        record["args"] = list(
+            resolved_config["persisted_args"]
+            if "persisted_args" in resolved_config
+            else resolved_config.get("args") or []
+        )
+        managed_runtime = dict(resolved_config.get("managed_runtime") or {})
+        if (
+            resolved_config.get("managed_env")
+            and managed_runtime.get("source") != "bundled"
+        ):
             record["managed_env"] = dict(resolved_config.get("managed_env") or {})
-        if resolved_config.get("managed_runtime"):
-            record["managed_runtime"] = dict(resolved_config.get("managed_runtime") or {})
+        if managed_runtime:
+            record["managed_runtime"] = managed_runtime
     else:
         record["url"] = resolved_config.get("url", "")
         record["header_templates"] = list(resolved_config.get("header_templates") or [])
@@ -1259,13 +1282,85 @@ def build_mcp_runtime_toolkit(
             )
     transport = str(record.get("transport") or "stdio")
     if transport == "stdio":
-        env = {
-            **secret_values,
-            **dict(record.get("managed_env") or {}),
-        }
+        command = str(record.get("command") or "")
+        args = list(record.get("args") or [])
+        env = {**secret_values, **dict(record.get("managed_env") or {})}
+        if (
+            record.get("entry_id") != "custom"
+            and not record.get("external_entry_snapshot")
+        ):
+            # Curated recipes are a release-time security/compatibility
+            # contract. Re-read the recipe shipped with the current app so an
+            # upgraded installation receives dependency cutoffs and emergency
+            # transitive pins without asking the user to uninstall/reinstall.
+            try:
+                current_entry = mcp_registry.registry_entry_from_any_id(
+                    record.get("entry_id") or record.get("toolkit_id") or ""
+                )
+            except KeyError:
+                current_entry = {}
+            current_mcp = current_entry.get("mcp")
+            if (
+                isinstance(current_mcp, dict)
+                and current_mcp.get("transport") == "stdio"
+            ):
+                command = str(current_mcp.get("command") or command).strip()
+                args = [str(arg) for arg in current_mcp.get("args") or []]
+                workspace_meta = _workspace_meta(current_entry)
+                workspace_placeholder = workspace_meta["placeholder"]
+                workspace_root = str(record.get("workspace_root") or "").strip()
+                uses_workspace = workspace_meta["required"] or (
+                    bool(workspace_placeholder)
+                    and any(workspace_placeholder in arg for arg in args)
+                )
+                if uses_workspace and not workspace_root:
+                    raise McpToolkitError(
+                        "mcp_workspace_required",
+                        "This MCP toolkit requires an agent workspace root",
+                        400,
+                    )
+                if workspace_placeholder:
+                    args = [
+                        arg.replace(workspace_placeholder, workspace_root)
+                        for arg in args
+                    ]
+        managed_runtime = dict(record.get("managed_runtime") or {})
+        source_command = str(
+            managed_runtime.get("source_command") or ""
+        ).strip()
+        # Prefer the current logical recipe (including legacy Windows/Linux
+        # records); source metadata remains the fallback for older macOS
+        # records that persisted an absolute downloaded-runtime path.
+        logical_runtime_command = (
+            command if command in {"npx", "uvx"} else source_command
+        )
+        if logical_runtime_command in {"npx", "uvx"}:
+            try:
+                resolved_runtime = resolve_managed_stdio_runtime(
+                    logical_runtime_command,
+                    secret_values,
+                    data_dir=data_dir,
+                )
+            except McpManagedRuntimeError as exc:
+                raise McpToolkitError(exc.code, str(exc), exc.status) from exc
+            command = str(
+                resolved_runtime.get("command") or logical_runtime_command
+            ).strip()
+            args = [
+                *[
+                    str(arg)
+                    for arg in resolved_runtime.get("args_prefix") or []
+                ],
+                *args,
+            ]
+            env = {
+                **secret_values,
+                **dict(resolved_runtime.get("managed_env") or {}),
+                **dict(resolved_runtime.get("ephemeral_env") or {}),
+            }
         toolkit = factory(
-            command=str(record.get("command") or ""),
-            args=list(record.get("args") or []),
+            command=command,
+            args=args,
             env=env,
             cwd=_mcp_runtime_workdir(record.get("toolkit_id", ""), data_dir),
             transport="stdio",
