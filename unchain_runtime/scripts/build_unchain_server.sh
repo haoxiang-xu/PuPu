@@ -283,6 +283,14 @@ PYINSTALLER_ARGS=(
   --hidden-import unchain.memory.qdrant
   --hidden-import openai
   --hidden-import anthropic
+  # Outbound TLS trust (server/net_tls.py). The frozen binary inherits the
+  # build machine's compiled-in OPENSSL cert path, which is absent on user
+  # machines, so both trust sources must be collected explicitly.
+  # truststore's platform backends are loaded dynamically, hence collect-submodules.
+  --collect-submodules truststore
+  --hidden-import truststore
+  --collect-data certifi
+  --hidden-import certifi
   --collect-submodules qdrant_client
   --hidden-import qdrant_client
   --hidden-import qdrant_client.http

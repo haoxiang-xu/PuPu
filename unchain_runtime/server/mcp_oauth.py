@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict
 
 from mcp_oauth_apps import get_mcp_oauth_app
 from mcp_registry import oauth_recipe_for_entry, oauth_registry_entry
+from net_tls import annotate_tls_error, get_outbound_ssl_context, is_tls_trust_error
 
 
 class McpOAuthError(RuntimeError):
@@ -202,13 +203,25 @@ def _default_http_get(url: str) -> Dict[str, Any]:
         method="GET",
     )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(
+            request,
+            timeout=20,
+            context=get_outbound_ssl_context(),
+        ) as response:
             return _http_json_response(response)
     except urllib.error.HTTPError as exc:
         exc.read()
         raise McpOAuthError(
             "mcp_oauth_start_failed",
             "OAuth discovery request failed",
+            502,
+        ) from exc
+    except urllib.error.URLError as exc:
+        if not is_tls_trust_error(exc):
+            raise
+        raise McpOAuthError(
+            "mcp_oauth_start_failed",
+            annotate_tls_error("OAuth discovery request failed", exc),
             502,
         ) from exc
 
@@ -238,13 +251,25 @@ def _default_http_post(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(
+            request,
+            timeout=30,
+            context=get_outbound_ssl_context(),
+        ) as response:
             return _http_json_response(response)
     except urllib.error.HTTPError as exc:
         exc.read()
         raise McpOAuthError(
             "mcp_oauth_start_failed",
             "OAuth provider request failed",
+            502,
+        ) from exc
+    except urllib.error.URLError as exc:
+        if not is_tls_trust_error(exc):
+            raise
+        raise McpOAuthError(
+            "mcp_oauth_start_failed",
+            annotate_tls_error("OAuth provider request failed", exc),
             502,
         ) from exc
 

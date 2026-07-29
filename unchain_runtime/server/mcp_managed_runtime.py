@@ -13,6 +13,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict
 
+from net_tls import annotate_tls_error, get_outbound_ssl_context
+
 
 class McpManagedRuntimeError(RuntimeError):
     def __init__(self, code: str, message: str, status: int = 502):
@@ -80,12 +82,19 @@ def _read_url_text(url: str, timeout: int = 60) -> str:
         headers={"User-Agent": "PuPu-MCP-Runtime"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(
+            request,
+            timeout=timeout,
+            context=get_outbound_ssl_context(),
+        ) as response:
             return response.read().decode("utf-8")
     except Exception as exc:
         raise McpManagedRuntimeError(
             "mcp_runtime_install_failed",
-            f"Unable to fetch managed MCP runtime metadata from {url}: {exc}",
+            annotate_tls_error(
+                f"Unable to fetch managed MCP runtime metadata from {url}: {exc}",
+                exc,
+            ),
         ) from exc
 
 
@@ -96,7 +105,11 @@ def _download_file(url: str, path: Path, timeout: int = 300) -> str:
         headers={"User-Agent": "PuPu-MCP-Runtime"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(
+            request,
+            timeout=timeout,
+            context=get_outbound_ssl_context(),
+        ) as response:
             final_url = str(response.geturl() or url)
             with path.open("wb") as handle:
                 shutil.copyfileobj(response, handle)
@@ -104,7 +117,10 @@ def _download_file(url: str, path: Path, timeout: int = 300) -> str:
     except Exception as exc:
         raise McpManagedRuntimeError(
             "mcp_runtime_install_failed",
-            f"Unable to download managed MCP runtime from {url}: {exc}",
+            annotate_tls_error(
+                f"Unable to download managed MCP runtime from {url}: {exc}",
+                exc,
+            ),
         ) from exc
 
 

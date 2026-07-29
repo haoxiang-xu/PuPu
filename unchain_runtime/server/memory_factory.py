@@ -24,6 +24,8 @@ import uuid
 from types import MethodType, SimpleNamespace
 from typing import Any, Callable
 
+from net_tls import get_outbound_ssl_context
+
 _QDRANT_AVAILABLE = importlib.util.find_spec("qdrant_client") is not None
 
 # Default embedding models and vector size hints
@@ -637,7 +639,11 @@ def _ollama_base_url(options: dict[str, Any]) -> str:
 def _ollama_reachable(base_url: str) -> bool:
     try:
         import httpx
-        resp = httpx.get(f"{base_url}/api/tags", timeout=2.0)
+        resp = httpx.get(
+            f"{base_url}/api/tags",
+            timeout=2.0,
+            verify=get_outbound_ssl_context(),
+        )
         return resp.status_code == 200
     except Exception:
         return False
@@ -870,6 +876,7 @@ def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], 
                     f"{base_url}/api/embeddings",
                     json={"model": model, "prompt": text},
                     timeout=30.0,
+                    verify=get_outbound_ssl_context(),
                 )
                 resp.raise_for_status()
                 vecs.append(resp.json()["embedding"])

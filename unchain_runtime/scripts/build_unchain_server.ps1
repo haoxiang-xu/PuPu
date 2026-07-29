@@ -279,6 +279,13 @@ $pyinstallerArgs = @(
   "--hidden-import", "unchain.memory.qdrant",
   "--hidden-import", "openai",
   "--hidden-import", "anthropic",
+  # Outbound TLS trust (server/net_tls.py). The frozen binary cannot rely on
+  # OpenSSL's compiled-in cert path, so both trust sources are collected
+  # explicitly. truststore loads its platform backend dynamically.
+  "--collect-submodules", "truststore",
+  "--hidden-import", "truststore",
+  "--collect-data", "certifi",
+  "--hidden-import", "certifi",
   "--collect-submodules", "qdrant_client",
   "--hidden-import", "qdrant_client",
   "--hidden-import", "qdrant_client.http",

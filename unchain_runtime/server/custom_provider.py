@@ -39,6 +39,8 @@ from types import SimpleNamespace
 from typing import Any, Dict, Tuple
 from urllib.parse import urlsplit
 
+from net_tls import get_outbound_ssl_context
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -684,7 +686,10 @@ def _probe_model_io(cfg: CustomProviderConfig, model_io: Any, model_id: str) -> 
         else:  # ollama
             import httpx
 
-            with httpx.Client(timeout=_TEST_TIMEOUT_SECONDS) as http_client:
+            with httpx.Client(
+                timeout=_TEST_TIMEOUT_SECONDS,
+                verify=get_outbound_ssl_context(),
+            ) as http_client:
                 resp = http_client.post(
                     f"{cfg.base_url.rstrip('/')}/api/chat",
                     json={

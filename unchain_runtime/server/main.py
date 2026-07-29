@@ -44,6 +44,26 @@ def _read_parent_pid() -> int:
         return 0
 
 
+def _log_outbound_tls_trust() -> None:
+    """Print which TLS trust source actually resolved, once, at startup.
+
+    Resolving eagerly here (rather than lazily on the first outbound request)
+    means a broken trust chain shows up in the boot log instead of surfacing
+    much later as a confusing "MCP install failed" report. Paths are reduced to
+    basenames by net_tls so the line carries no home directory or account name.
+    """
+    try:
+        from net_tls import describe_trust_source_for_log, outbound_tls_warning
+
+        print(f"[unchain] outbound TLS trust: {describe_trust_source_for_log()}", flush=True)
+        warning = outbound_tls_warning()
+        if warning:
+            print(f"[unchain] WARNING outbound TLS trust: {warning}", flush=True)
+    except Exception as exc:
+        # Never let a diagnostic keep the sidecar from booting.
+        print(f"[unchain] outbound TLS trust: unavailable ({exc})", flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     worker_exit_code = _dispatch_durable_job_worker(args)
@@ -56,6 +76,8 @@ def main(argv: list[str] | None = None) -> int:
     host = os.environ.get("UNCHAIN_HOST", "127.0.0.1")
     port = _read_port()
     expected_parent_pid = _read_parent_pid()
+
+    _log_outbound_tls_trust()
 
     try:
         from subagent_seeds import ensure_seeds_written

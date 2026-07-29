@@ -50,6 +50,8 @@ try:
 except ImportError:  # pragma: no cover
     _httpx = None  # type: ignore
 
+from net_tls import get_outbound_ssl_context
+
 # Ensure unchain source is on sys.path (dev mode uses UNCHAIN_SOURCE_PATH env)
 def _ensure_unchain_on_path() -> None:
     _source = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
@@ -1398,7 +1400,11 @@ def _fetch_ollama_models(chat_only: bool = False) -> List[str]:
 
     ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
     try:
-        response = _httpx.get(f"{ollama_host}/api/tags", timeout=3.0)
+        response = _httpx.get(
+            f"{ollama_host}/api/tags",
+            timeout=3.0,
+            verify=get_outbound_ssl_context(),
+        )
         response.raise_for_status()
         data = response.json()
         models = data.get("models") or []
