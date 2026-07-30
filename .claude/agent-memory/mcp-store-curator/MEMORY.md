@@ -5,3 +5,5 @@
 - [Telegram 条目](telegram-entry-2026-06.md) — mcp.productivity.telegram(needs_review,@0.1.4,Bot-API only,5工具3门控含FORWARD_MESSAGE外泄原语,TELEGRAM_BOT_TOKEN后端密钥)
 - [SQLite 条目](sqlite-entry-2026-06.md) — mcp.workspace.sqlite(community,uvx==2025.4.25,db-path是ARG绑${WORKSPACE},无secret,6工具3门控含append_insight写资源)；registry现19条
 - [superpowers-essentials pack](superpowers-essentials-pack.md) — P0 首个官方 skill pack:5/14 精选、pin SHA、MIT、四准则先例(S5,2026-07-18)
+- [图标品牌归属准则](icon_brand_attribution_doctrine.md) — CEO 07-29 拍板:图标必须是发布方自己的官方标;三判据+18条裁决+displayScale语义+内联logo的CC-BY发布门通路
+- [品牌证据方法纪律](methodology_brand_evidence.md) — 品牌事实只认发布方自己服务的资源;我曾拿配色聚合站当一手依据把 Figma 判错

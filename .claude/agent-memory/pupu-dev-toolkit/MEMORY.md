@@ -8,3 +8,6 @@
 - [Custom MCP flow](custom_mcp_flow.md) — add-only (no edit), id from name, errors collapse to "Install failed", HTTP no auth, icon frontend-local; GO 2026-06-14
 - [Computer-use chat entry](computer_use_chat_entry.md) — builtin.computer is synthetic (outside catalog), lives in chat-input, gates on getComputerUseStatus; facade drops unknown status fields
 - [i18n locale workflow](i18n_locale_workflow.md) — my i18n scope=toolkit.*+computer_use.* (skills under toolkit.*); validate subagent output key-sets (counts lie); worktree tests need react-scripts+node_modules symlink
+- [Store icon honesty policy](store_icon_honesty_policy.md) — 2026-07-28 CEO: only genuine official logos; no logo = omit `icon` = grey mcp glyph. Monogram/generated placeholders overruled
+- [Store icon test-sample trap](store_icon_test_sample_trap.md) — never couple a test premise to an entry's icon state; DEFAULT_MCP_ICON can make assertions pass for the wrong reason
+- [Registry entries can't get a user icon](registry_entry_cannot_get_user_icon.md) — custom_mcp_icon_store gates on `mcp.custom.`; a logo-less registry entry stays grey with no user recourse

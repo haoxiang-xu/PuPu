@@ -1,4 +1,5 @@
 import {
+  DEFAULT_MCP_ICON,
   MCP_STORE_CATEGORIES,
   MCP_STORE_ENTRIES,
   clearMcpStoreMetadataCache,
@@ -47,15 +48,43 @@ describe("mcp_toolkit_store", () => {
     }
   });
 
-  test("every store entry carries its own brand icon — none falls back to the generic mcp glyph", () => {
-    /* Store-front invariant: a shelf of identical default glyphs is what the
-       icon pass removed. Registry entries must each declare an icon, and none
-       may resolve to the generic builtin "mcp" placeholder. The fallback path
-       itself is still exercised below with synthetic toolkits. */
+  /* ── store-front icon invariant ─────────────────────────────────────────
+     2026-07-27 asserted "every registry entry declares its own brand icon".
+     2026-07-28 the CEO retired that rule: only entries with a genuine official
+     logo may carry one, and an entry with no official logo must SHOW the
+     generic mcp glyph rather than wear a self-made or borrowed mark. So an
+     entry omitting `icon` is now a legal, intended state.
+
+     What replaces it is a total spec — every entry falls in exactly one bucket
+     and both buckets have a pinned outcome:
+       (A) declares an icon  -> resolveMcpIcon returns THAT icon, verbatim
+       (B) omits it          -> resolveMcpIcon returns DEFAULT_MCP_ICON exactly
+
+     (A) is the property actually worth defending: a real logo must never be
+     shadowed by the default, by a metadata icon, or by a future placeholder
+     scheme. (B) pins the newly-legal path so it cannot silently drift into a
+     derived/generated placeholder without a fresh product decision — the
+     grey glyph is the decision, not an accident. */
+  test("a store entry that declares an icon resolves to exactly that icon", () => {
+    const declared = listMcpStoreEntries().filter((e) => e.toolkitIcon);
+    /* Anti-vacuity: if curation ever cleared every icon, bucket (A) would pass
+       trivially and this gate would stop protecting the real logos. */
+    expect(declared.length).toBeGreaterThan(0);
+    for (const entry of declared) {
+      expect({ id: entry.id, icon: resolveMcpIcon(entry) }).toEqual({
+        id: entry.id,
+        icon: entry.toolkitIcon,
+      });
+    }
+  });
+
+  test("a store entry that omits its icon resolves to the generic mcp glyph", () => {
     for (const entry of listMcpStoreEntries()) {
-      const icon = resolveMcpIcon(entry);
-      expect(icon).toBeTruthy();
-      expect(icon).not.toMatchObject({ type: "builtin", name: "mcp" });
+      if (entry.toolkitIcon) continue;
+      expect({ id: entry.id, icon: resolveMcpIcon(entry) }).toEqual({
+        id: entry.id,
+        icon: DEFAULT_MCP_ICON,
+      });
     }
   });
 
@@ -145,8 +174,21 @@ describe("mcp_toolkit_store", () => {
     );
   });
 
-  test("browser use uses the official brand svg icon", () => {
+  test("browser use uses the official brand mark in an official monochrome treatment", () => {
+    /* The shape is verified browser-use official (matches their favicon, the
+       orbit/lens mark). The COLOR was not: until 2026-07-29 the mark was filled
+       #FE750E, an accent that appears zero times on browser-use.com — it is
+       only the theme color of their Mintlify docs site. So PuPu was shipping an
+       official mark in a combination they never use.
+
+       Every official browser-use rendering is monochrome: logo-grey.svg is
+       solid #18181B, logo-white.svg is solid white, and the README/avatar/
+       favicon are pure black-and-white. The mark is now white on their own
+       near-black #18181B — i.e. logo-white.svg on their own ground, an
+       authentic combination, and consistent with the other dark bricks
+       (github/notion/slack are all #ffffff on a dark brand ground). */
     const browserUse = getMcpStoreEntry("browser.browser-use-local");
+    const content = browserUse.toolkitIcon.content;
 
     expect(browserUse.toolkitIcon).toEqual(
       expect.objectContaining({
@@ -154,12 +196,27 @@ describe("mcp_toolkit_store", () => {
         mimeType: "image/svg+xml",
       }),
     );
-    expect(browserUse.toolkitIcon.content).toContain('viewBox="-24 -24 148 148"');
-    expect(browserUse.toolkitIcon.content).toContain(
-      '<rect x="-24" y="-24" width="148" height="148" rx="28" fill="#18181B"/>',
+    /* shape preserved — the 2026-07-29 change was colour-only */
+    expect(content).toContain('viewBox="-24 -24 148 148"');
+    expect(content).toContain("M97.8916 39.0448");
+
+    const brick = "#18181B";
+    expect(content).toContain(
+      `<rect x="-24" y="-24" width="148" height="148" rx="28" fill="${brick}"/>`,
     );
-    expect(browserUse.toolkitIcon.content).toContain('fill="#FE750E"');
-    expect(browserUse.toolkitIcon.content).toContain("M97.8916 39.0448");
+    /* monochrome: the mark is white on every path, and the docs-only accent is
+       gone entirely */
+    expect(content).toContain('fill="#ffffff"');
+    expect(content).not.toContain("#FE750E");
+    const markFills = [...content.matchAll(/<path [^>]*fill="([^"]+)"/g)].map(
+      (m) => m[1],
+    );
+    expect(markFills).toEqual(["#ffffff", "#ffffff", "#ffffff", "#ffffff"]);
+    /* Contrast guard: the mark must never collapse into the brick. Recolouring
+       a mark to the brick's own hex is a one-character mistake that renders an
+       entirely invisible tile, and no other assertion here would catch it. */
+    expect(markFills).not.toContain(brick);
+
     expect(resolveMcpIcon(browserUse)).toEqual(browserUse.toolkitIcon);
   });
 
@@ -265,12 +322,20 @@ describe("mcp_toolkit_store", () => {
     ).toContain("external.sample");
   });
 
-  test("metadata fallback icon does not override the default mcp icon", () => {
+  test("a fallback metadata icon loses to a registry-declared icon", () => {
     const avatarIcon = {
       type: "file",
       mimeType: "image/png",
       content: "iVBORw0KGgo=",
     };
+    /* Premise: both samples must be entries that DECLARE a registry icon —
+       that is the whole point of the assertions below. Curation may clear an
+       entry's icon at any time (legal since 2026-07-28), so assert the premise
+       here: if this trips, repoint the sample at a still-branded entry, do NOT
+       relax the assertion. */
+    expect(getMcpStoreEntry("browser.playwright").toolkitIcon).toBeTruthy();
+    expect(getMcpStoreEntry("dev.github-remote").toolkitIcon).toBeTruthy();
+
     setMcpStoreMetadataCache({
       entries: [
         {
@@ -299,6 +364,51 @@ describe("mcp_toolkit_store", () => {
     expect(resolveMcpIcon(getMcpStoreEntry("dev.github-remote"))).toEqual(
       expect.objectContaining({ type: "builtin", name: "github" }),
     );
+  });
+
+  test("a fallback metadata icon also loses to the generic glyph when the entry declares no icon", () => {
+    /* The branch the 2026-07-28 decision activates: a registry entry with no
+       official logo. A repo-avatar metadata icon must NOT quietly fill the
+       gap — a borrowed org avatar is exactly the kind of not-really-ours mark
+       the decision removed, so the honest generic glyph wins. Only an explicit
+       iconPolicy "replace" may override it (asserted in the next test).
+
+       Uses an injected entry, so this holds regardless of which real entries
+       curation has cleared — it cannot rot, and it is not a vacuous test even
+       while the shipped registry happens to be fully branded. */
+    setMcpStoreEntriesCache({
+      entries: [
+        {
+          id: "dev.no-logo",
+          toolkitId: "mcp.dev.no-logo",
+          name: "No Logo Server",
+          description: "Ships without an official brand logo",
+          category: "dev",
+          source: "mcp",
+          mcp: { transport: "stdio", command: "npx" },
+        },
+      ],
+    });
+    setMcpStoreMetadataCache({
+      entries: [
+        {
+          entryId: "dev.no-logo",
+          toolkitId: "mcp.dev.no-logo",
+          icon: { type: "file", mimeType: "image/png", content: "iVBORw0=" },
+          iconPolicy: "fallback",
+        },
+      ],
+    });
+
+    expect(getMcpStoreEntry("dev.no-logo").toolkitIcon).toBeUndefined();
+    expect(resolveMcpIcon(getMcpStoreEntry("dev.no-logo"))).toEqual(
+      DEFAULT_MCP_ICON,
+    );
+    expect(mcpStoreIconFor("mcp.dev.no-logo")).toEqual(DEFAULT_MCP_ICON);
+    expect(
+      withMcpStoreIcon({ source: "mcp", toolkitId: "mcp.dev.no-logo" })
+        .toolkitIcon,
+    ).toEqual(DEFAULT_MCP_ICON);
   });
 
   test("metadata replace icon can override an explicit registry icon", () => {

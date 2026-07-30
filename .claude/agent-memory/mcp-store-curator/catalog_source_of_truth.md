@@ -9,7 +9,7 @@ PuPu 的 MCP 商店是 **seed-registry 驱动**（不是空的，也不是后端
 
 **单一真相源（前端 seed）**：`src/SERVICEs/mcp_toolkit_registry.json`
 - `version: 1`，顶层 `categories` 数组 + `entries` 数组。
-- 截至 2026-06-13 工作树有 **18 个条目**（HEAD 仍是 15，Fetch/Discord/Telegram + communication 分类 + Slack 软删都是**未提交的工作树状态**，registry JSON 从未 staged，被 `git checkout` 会丢，无 git 恢复路径——靠 test.js 断言 + tarball 重建）。新加：官方 Fetch `mcp.workspace.fetch`（markitdown 兄弟，uvx mcp-server-fetch，单工具 fetch requiresConfirmation，readme 含 upstream SSRF 警告原文，license "Apache-2.0 / MIT"）、[[discord-entry-and-version-pin-rule]]、[[telegram-entry-2026-06]]。categories：`all, browser, dev, devops, productivity, workspace, memory, communication`。
+- **2026-07-29 复核：18 个条目，已全部提交**（与 HEAD 逐字节相同），早先"未提交、`git checkout` 会丢"的风险已消除。Slack 软删那条已不在 registry 里，只剩 `slack-remote`。图标归属见 [[icon-brand-attribution-doctrine]]。历史新加：官方 Fetch `mcp.workspace.fetch`（markitdown 兄弟，uvx mcp-server-fetch，单工具 fetch requiresConfirmation，readme 含 upstream SSRF 警告原文，license "Apache-2.0 / MIT"）、[[discord-entry-and-version-pin-rule]]、[[telegram-entry-2026-06]]。categories：`all, browser, dev, devops, productivity, workspace, memory, communication`。
 
 **Schema**：`src/SERVICEs/mcp_toolkit_registry.schema.json`（JSON Schema draft-07）
 - entry required: `id, toolkitId, name, description, mcp`。

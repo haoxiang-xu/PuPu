@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import api from "../../../SERVICEs/api";
 import useChatInputToolkits from "./use_chat_input_toolkits";
+import { getMcpStoreEntry } from "../../../SERVICEs/mcp_toolkit_store";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 jest.mock("../../../SERVICEs/api", () => ({
@@ -218,10 +219,16 @@ describe("use_chat_input_toolkits", () => {
   });
 
   test("renders the real mcp glyph in the attach selector when catalog sends a generic tool icon", async () => {
-    /* Uses a toolkitId absent from the store registry on purpose: registry
-       entries all ship a brand icon now and would legitimately win over the
-       catalog icon (asserted in the next test). The generic-tool fallback
-       path is only reachable for custom/unlisted MCP servers. */
+    /* The id MUST stay absent from the store registry, and the reason is
+       sharper than it looks. This test proves the icon layer REJECTS a generic
+       `name: "tool"` catalog icon and substitutes the real mcp glyph. A
+       registry entry that declares no icon resolves to DEFAULT_MCP_ICON, which
+       is *also* the mcp glyph on a transparent background — byte-identical DOM
+       to what is asserted below. So a registry id would still pass here, but
+       for the wrong reason, proving nothing about catalog-icon rejection.
+       Since 2026-07-28 registry entries may legally omit their icon, that trap
+       is live, hence the explicit premise assertion. */
+    expect(getMcpStoreEntry("mcp.custom.doc-converter")).toBeNull();
     api.unchain.listToolModalCatalog.mockResolvedValueOnce({
       toolkits: [
         {
@@ -262,12 +269,22 @@ describe("use_chat_input_toolkits", () => {
   });
 
   test("store registry brand icon beats a generic catalog icon in the attach selector", async () => {
+    /* Premise: the sample must be a registry entry that DECLARES a brand icon.
+       It was markitdown until 2026-07-28, when the CEO ruled that entries
+       without a genuine official logo must fall back to the generic mcp glyph —
+       markitdown is a candidate for clearing, which would have turned the
+       <img> assertion below into a confusing DOM failure. Playwright ships a
+       real Microsoft-official svg. If this premise ever trips, repoint the
+       sample at another branded entry; do NOT relax the assertion. */
+    expect(getMcpStoreEntry("mcp.browser.playwright").toolkitIcon).toEqual(
+      expect.objectContaining({ type: "file", mimeType: "image/svg+xml" }),
+    );
     api.unchain.listToolModalCatalog.mockResolvedValueOnce({
       toolkits: [
         {
-          toolkitId: "mcp.workspace.markitdown",
-          toolkitName: "Mark It Down",
-          toolkitDescription: "Convert documents",
+          toolkitId: "mcp.browser.playwright",
+          toolkitName: "Browser Automation",
+          toolkitDescription: "Drive a browser",
           source: "mcp",
           status: "available",
           hidden: false,
@@ -277,7 +294,7 @@ describe("use_chat_input_toolkits", () => {
             color: "#ffffff",
             backgroundColor: "#111827",
           },
-          tools: [{ title: "Convert", name: "convert_to_markdown" }],
+          tools: [{ title: "Navigate", name: "browser_navigate" }],
         },
       ],
     });
@@ -286,10 +303,10 @@ describe("use_chat_input_toolkits", () => {
     fireEvent.click(screen.getByText("refresh"));
 
     await waitFor(() => {
-      expect(screen.getByText("Mark It Down")).toBeInTheDocument();
+      expect(screen.getByText("Browser Automation")).toBeInTheDocument();
     });
 
-    const option = screen.getByTestId("option-mcp.workspace.markitdown");
+    const option = screen.getByTestId("option-mcp.browser.playwright");
     await waitFor(() => {
       expect(option.querySelector("img")).toBeInTheDocument();
     });
