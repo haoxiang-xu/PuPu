@@ -40,6 +40,8 @@
     "delete_api_key_desc": "La clave {label} guardada se eliminará permanentemente del almacenamiento local.",
     "installed": "Instalado",
     "pull": "Descargar",
+    "cloud_only": "Solo en la nube",
+    "cloud_only_hint": "Este modelo se ejecuta en Ollama Cloud y no se puede descargar en este equipo.",
     "custom": {
       "section_title": "Proveedores personalizados",
       "section_desc": "Añade tu propio endpoint compatible con OpenAI, Anthropic u Ollama. La definición es JSON compartible; tu clave de API permanece en este equipo.",

@@ -2,6 +2,11 @@ import { useContext, useState } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { TAG_PALETTE } from "../constants";
+import {
+  buildModelRef,
+  isCloudOnlyModel,
+  isModelRefInstalled,
+} from "../model_ref";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 
 /* Normalise Ollama pull error for compact UI display.
@@ -26,12 +31,19 @@ const ModelCard = ({
 }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
-  const [selectedSize, setSelectedSize] = useState(model.sizes[0] || "");
+  const sizes = Array.isArray(model.sizes) ? model.sizes : [];
+  const tags = Array.isArray(model.tags) ? model.tags : [];
+  const [selectedSize, setSelectedSize] = useState(sizes[0] || "");
 
-  const pullKey = `${model.name}:${selectedSize}`;
+  /* Same derivation the pull hook uses — see ../model_ref. */
+  const pullKey = buildModelRef(model.name, selectedSize);
   const pullState = pullingMap[pullKey] || null;
-  const isInstalled =
-    installedNames.has(pullKey) || installedNames.has(model.name);
+  const isInstalled = isModelRefInstalled(
+    installedNames,
+    model.name,
+    selectedSize,
+  );
+  const isCloudOnly = isCloudOnlyModel(model);
 
   const borderColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
   const cardBg = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)";
@@ -44,6 +56,23 @@ const ModelCard = ({
     : "rgba(0,0,0,0.35)";
   const barTrack = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
   const barFill = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
+
+  /* BUILTIN Button default form (no transparent bare-text links). The default
+   * hover palette is tuned for light mode, so dark mode gets its own. */
+  const actionButtonStyle = {
+    height: 24,
+    fontSize: 11,
+    padding: "0 12px",
+    borderRadius: 999,
+    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+    color: textColor,
+    hoverBackgroundColor: isDark
+      ? "rgba(255,255,255,0.10)"
+      : "rgba(0,0,0,0.06)",
+    activeBackgroundColor: isDark
+      ? "rgba(255,255,255,0.16)"
+      : "rgba(0,0,0,0.10)",
+  };
 
   return (
     <div
@@ -76,7 +105,7 @@ const ModelCard = ({
         >
           {model.name}
         </span>
-        {model.tags.map((tag) => {
+        {tags.map((tag) => {
           const p = TAG_PALETTE[tag];
           if (!p) return null;
           return (
@@ -132,145 +161,150 @@ const ModelCard = ({
         </div>
       )}
 
-      {(model.sizes.length > 0 || isInstalled || pullState) && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            flexWrap: "wrap",
-            marginTop: 2,
-          }}
-        >
-          {model.sizes.map((sz) => (
-            <button
-              key={sz}
-              onClick={() => setSelectedSize(sz)}
+      {/* The action row always renders. Gating it on `sizes.length > 0` used to
+        * hide the pull button entirely for size-less entries (nomic-embed-text
+        * among them), which made them uninstallable from this UI. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          flexWrap: "wrap",
+          marginTop: 2,
+        }}
+      >
+        {sizes.map((sz) => (
+          <button
+            key={sz}
+            onClick={() => setSelectedSize(sz)}
+            style={{
+              fontSize: 11,
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+              fontWeight: 500,
+              padding: "2px 8px",
+              borderRadius: 999,
+              border: `1px solid ${
+                selectedSize === sz ? sizeActiveBorder : borderColor
+              }`,
+              backgroundColor: selectedSize === sz ? sizeActiveBg : sizeBg,
+              color: selectedSize === sz ? textColor : mutedColor,
+              cursor: "pointer",
+              transition: "all 0.12s",
+              outline: "none",
+              lineHeight: 1.8,
+            }}
+          >
+            {sz}
+          </button>
+        ))}
+
+        <div style={{ marginLeft: "auto", flexShrink: 0 }}>
+          {isInstalled ? (
+            <span
               style={{
                 fontSize: 11,
                 fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                fontWeight: 500,
-                padding: "2px 8px",
-                borderRadius: 999,
-                border: `1px solid ${
-                  selectedSize === sz ? sizeActiveBorder : borderColor
-                }`,
-                backgroundColor: selectedSize === sz ? sizeActiveBg : sizeBg,
-                color: selectedSize === sz ? textColor : mutedColor,
-                cursor: "pointer",
-                transition: "all 0.12s",
-                outline: "none",
-                lineHeight: 1.8,
+                color: "#4ade80",
+                display: "flex",
+                alignItems: "center",
+                gap: 3,
               }}
             >
-              {sz}
-            </button>
-          ))}
-
-          <div style={{ marginLeft: "auto", flexShrink: 0 }}>
-            {isInstalled ? (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                  color: "#4ade80",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 3,
-                }}
-              >
-                ✓ {t("model_providers.installed")}
-              </span>
-            ) : pullState ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 3,
-                  minWidth: 120,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                      color: mutedColor,
-                    }}
-                  >
-                    {pullState.status}
-                    {pullState.percent !== null ? ` ${pullState.percent}%` : ""}
-                  </span>
-                  <button
-                    onClick={() => onCancel(pullKey)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: mutedColor,
-                      fontSize: 13,
-                      padding: 0,
-                      lineHeight: 1,
-                    }}
-                    title="Cancel"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div
+              ✓ {t("model_providers.installed")}
+            </span>
+          ) : pullState ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: 3,
+                minWidth: 120,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
                   style={{
-                    width: 120,
-                    height: 3,
-                    borderRadius: 2,
-                    backgroundColor: barTrack,
-                    overflow: "hidden",
+                    fontSize: 11,
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+                    color: mutedColor,
                   }}
                 >
-                  <div
-                    style={{
-                      height: "100%",
-                      borderRadius: 2,
-                      backgroundColor: barFill,
-                      width: `${pullState.percent ?? 0}%`,
-                      transition: "width 0.2s ease",
-                    }}
-                  />
-                </div>
-                {pullState.error && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                      color: "rgba(255,100,100,0.85)",
-                      maxWidth: 200,
-                      lineHeight: 1.4,
-                      wordBreak: "break-word",
-                      overflowWrap: "anywhere",
-                      whiteSpace: "normal",
-                      textAlign: "right",
-                    }}
-                  >
-                    {formatPullError(pullState.error)}
-                  </div>
-                )}
+                  {pullState.status}
+                  {pullState.percent !== null ? ` ${pullState.percent}%` : ""}
+                </span>
+                <button
+                  onClick={() => onCancel(pullKey)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: mutedColor,
+                    fontSize: 13,
+                    padding: 0,
+                    lineHeight: 1,
+                  }}
+                  title="Cancel"
+                >
+                  ×
+                </button>
               </div>
-            ) : selectedSize || model.sizes.length === 0 ? (
-              <Button
-                label={t("model_providers.pull")}
-                onClick={() => onPull(model.name, selectedSize || model.name)}
+              <div
                 style={{
-                  height: 24,
-                  fontSize: 11,
-                  padding: "0 12px",
-                  borderRadius: 999,
-                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+                  width: 120,
+                  height: 3,
+                  borderRadius: 2,
+                  backgroundColor: barTrack,
+                  overflow: "hidden",
                 }}
-              />
-            ) : null}
-          </div>
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    borderRadius: 2,
+                    backgroundColor: barFill,
+                    width: `${pullState.percent ?? 0}%`,
+                    transition: "width 0.2s ease",
+                  }}
+                />
+              </div>
+              {pullState.error && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+                    color: "rgba(255,100,100,0.85)",
+                    maxWidth: 200,
+                    lineHeight: 1.4,
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                    whiteSpace: "normal",
+                    textAlign: "right",
+                  }}
+                >
+                  {formatPullError(pullState.error)}
+                </div>
+              )}
+            </div>
+          ) : isCloudOnly ? (
+            /* Cloud-only entry: nothing to pull onto this machine. Shown as a
+             * disabled action instead of a blank slot or a button that would
+             * fail. */
+            <Button
+              label={t("model_providers.cloud_only")}
+              title={t("model_providers.cloud_only_hint")}
+              disabled
+              style={actionButtonStyle}
+            />
+          ) : (
+            <Button
+              label={t("model_providers.pull")}
+              onClick={() => onPull(model.name, selectedSize)}
+              style={actionButtonStyle}
+            />
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

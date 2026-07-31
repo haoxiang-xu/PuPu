@@ -40,6 +40,8 @@
     "delete_api_key_desc": "The saved {label} key will be permanently removed from local storage.",
     "installed": "Installed",
     "pull": "Pull",
+    "cloud_only": "Cloud only",
+    "cloud_only_hint": "This model runs on Ollama Cloud and cannot be downloaded to this machine.",
     "custom": {
       "section_title": "Custom Providers",
       "section_desc": "Add your own OpenAI-, Anthropic-, or Ollama-compatible endpoint. The definition is shareable JSON; your API key stays on this machine.",

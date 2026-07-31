@@ -40,6 +40,8 @@
     "delete_api_key_desc": "保存された {label} キーはローカルストレージから完全に削除されます。",
     "installed": "インストール済み",
     "pull": "プル",
+    "cloud_only": "クラウド専用",
+    "cloud_only_hint": "このモデルは Ollama Cloud 上で実行され、このマシンにはダウンロードできません。",
     "custom": {
       "section_title": "カスタムプロバイダー",
       "section_desc": "OpenAI・Anthropic・Ollama 互換のエンドポイントを追加できます。定義は共有可能な JSON で、API キーはこの端末にのみ保存されます。",

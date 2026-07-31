@@ -40,6 +40,8 @@
     "delete_api_key_desc": "Der gespeicherte {label}-Schlüssel wird dauerhaft aus dem lokalen Speicher entfernt.",
     "installed": "Installiert",
     "pull": "Herunterladen",
+    "cloud_only": "Nur Cloud",
+    "cloud_only_hint": "Dieses Modell läuft in der Ollama Cloud und kann nicht auf diesen Rechner heruntergeladen werden.",
     "custom": {
       "section_title": "Eigene Anbieter",
       "section_desc": "Füge deinen eigenen OpenAI-, Anthropic- oder Ollama-kompatiblen Endpunkt hinzu. Die Definition ist teilbares JSON; dein API-Schlüssel bleibt auf diesem Gerät.",

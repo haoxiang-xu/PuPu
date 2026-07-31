@@ -70,6 +70,56 @@ def _state_with_typed_computer_actions():
     }
 
 
+def _state_with_completed_typed_computer_interaction():
+    from unchain.interaction.durable import (
+        build_interaction_receipt,
+        build_interaction_request,
+        mark_interaction_applied,
+        new_interaction_journal,
+        record_interaction_receipt,
+        register_interaction_request,
+    )
+
+    request = build_interaction_request(
+        session_id="sess-durable-computer",
+        kind="tool_approval",
+        source_run_id="run-durable-computer",
+        occurrence="tool:computer-call:1",
+        payload={
+            "type": "tool_confirmation",
+            "call_id": "computer-call",
+            "tool_name": "computer",
+            "description": "Type text",
+            "arguments": {
+                "actions": [{"type": "type", "text": "DURABLE-SECRET"}]
+            },
+            "render_component": None,
+        },
+        response_contract={"type": "object"},
+        created_revision=0,
+        subject={"provider": "test", "model": "test"},
+    )
+    journal = register_interaction_request(
+        new_interaction_journal(),
+        request,
+        checkpoint_id="checkpoint-durable-computer",
+    )
+    receipt = build_interaction_receipt(
+        request,
+        {"approved": True, "modified_arguments": None, "reason": ""},
+        submitted_by="test",
+        submitted_at_ms=1,
+    )
+    journal = record_interaction_receipt(journal, receipt)
+    journal = mark_interaction_applied(
+        journal,
+        interaction_id=request.interaction_id,
+        receipt_id=receipt.receipt_id,
+        applied_checkpoint_id="checkpoint-durable-computer",
+    )
+    return {"messages": [], "interaction_journal": journal}
+
+
 def _image_block(b64=_BIG_B64, w=1512, h=982):
     return {
         "type": "image",
@@ -243,6 +293,21 @@ class DiskRedactionTests(_StoreHarness):
         self.assertIn("text_media_id", text)
         self.assertIn("OTHER-TOOL-TEXT", text)
         self.assertIn("user text stays durable", text)
+
+    def test_completed_typed_computer_approval_is_pruned_before_save(self):
+        from unchain.interaction.durable import validate_interaction_journal
+
+        state = _state_with_completed_typed_computer_interaction()
+        validate_interaction_journal(state["interaction_journal"])
+
+        self.store.save("sess-durable-computer", state)
+        text = self._raw_disk_text("sess-durable-computer")
+        loaded = self.store.load("sess-durable-computer")
+
+        self.assertNotIn("DURABLE-SECRET", text)
+        self.assertEqual(loaded["interaction_journal"]["entries"], {})
+        self.assertEqual(loaded["interaction_journal"]["order"], [])
+        validate_interaction_journal(loaded["interaction_journal"])
 
     def test_save_variants_all_strip(self):
         for method, args in (
@@ -634,6 +699,32 @@ class RoundTripTests(_StoreHarness):
         self.assertNotIn("ANTHROPIC-SECRET", rendered)
         self.assertIn("text_omitted", rendered)
         self.assertIn("'text': ''", rendered)
+
+    def test_load_repairs_legacy_completed_typed_computer_approval(self):
+        from unchain.memory import JsonFileSessionStore
+        from unchain.interaction.durable import validate_interaction_journal
+
+        state = _state_with_completed_typed_computer_interaction()
+        entry = next(iter(state["interaction_journal"]["entries"].values()))
+        action = entry["request"]["payload"]["arguments"]["actions"][0]
+        action.update(
+            {
+                "text": "",
+                "text_omitted": True,
+                "text_char_len": len("DURABLE-SECRET"),
+                "text_media_id": "0" * 32,
+            }
+        )
+        JsonFileSessionStore(base_dir=self.base_dir).save(
+            "sess-legacy-durable-computer",
+            state,
+        )
+
+        loaded = self.store.load("sess-legacy-durable-computer")
+
+        self.assertEqual(loaded["interaction_journal"]["entries"], {})
+        self.assertEqual(loaded["interaction_journal"]["order"], [])
+        validate_interaction_journal(loaded["interaction_journal"])
 
     def test_load_rehydrates_within_ttl(self):
         self.store.save("sess-rt", _state_with_screenshots())

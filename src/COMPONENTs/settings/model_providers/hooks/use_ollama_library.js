@@ -7,6 +7,7 @@ import {
   stop as progressStop,
 } from "../../../../SERVICEs/progress_bus";
 import pull_store from "../pull_store";
+import { buildModelRef } from "../model_ref";
 
 const ollamaUiLogger = createLogger(
   "OLLAMA",
@@ -66,7 +67,9 @@ export const useOllamaLibrary = () => {
   }, [category, debouncedQuery, runSearch]);
 
   const handlePull = useCallback((modelName, size) => {
-    const fullName = size ? `${modelName}:${size}` : modelName;
+    /* Same derivation the card uses for its pull_store key — see ../model_ref.
+     * The two MUST agree or progress/cancel bind to a key nothing writes. */
+    const fullName = buildModelRef(modelName, size);
     const key = fullName;
     if (pull_store.refs[key]) {
       ollamaUiLogger.log("pull_duplicate", { model: fullName });

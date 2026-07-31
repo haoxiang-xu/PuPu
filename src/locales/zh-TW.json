@@ -40,6 +40,8 @@
     "delete_api_key_desc": "已儲存的 {label} 金鑰將從本機儲存中永久刪除。",
     "installed": "已安裝",
     "pull": "拉取",
+    "cloud_only": "僅雲端",
+    "cloud_only_hint": "此模型僅在 Ollama Cloud 上執行，無法下載到本機。",
     "custom": {
       "section_title": "自訂供應商",
       "section_desc": "新增你自己的 OpenAI、Anthropic 或 Ollama 相容端點。設定是可分享的 JSON；你的 API Key 只保存在本機。",

@@ -245,7 +245,15 @@ export const createOllamaApi = () => ({
         "cloud",
         "audio",
       ]);
-      const SIZE_RE = /^[a-z]?\d+(\.\d+)?[kmbx](-[a-z0-9]+)?$/i;
+      // Size chip matcher. Two alternatives:
+      //   1. `[kmbx]` — the legacy set (e.g. "7b", "1.5b", "335m", "e2b",
+      //      plus the historical bare-x suffix like "2x", kept for
+      //      backward compatibility with the original matching set).
+      //   2. `x\d+(\.\d+)?[kmb]` — MoE AxB notation ("8x7b", "8x22b",
+      //      "16x17b", "128x17b"); without it, MoE-only models (mixtral,
+      //      llama4, …) end up with sizes=[] and lose their pull button.
+      const SIZE_RE =
+        /^[a-z]?\d+(\.\d+)?([kmbx]|x\d+(\.\d+)?[kmb])(-[a-z0-9]+)?$/i;
 
       const models = [];
       const anchors = doc.querySelectorAll("a[href^='/library/']");
@@ -280,6 +288,17 @@ export const createOllamaApi = () => ({
 
         models.push({ name: slug, description, tags, sizes, pulls });
       });
+
+      if (models.length === 0) {
+        // The library scrape degrades silently when ollama.com markup
+        // changes; leave a low-cost breadcrumb so it is diagnosable.
+        ollamaLogger.debug("library_parse_empty", {
+          query,
+          category,
+          anchorCount: anchors.length,
+          htmlLength: rawHtml.length,
+        });
+      }
 
       return models;
     } catch (parseErr) {
