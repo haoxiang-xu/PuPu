@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import Explorer from "./explorer";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
@@ -298,5 +298,115 @@ describe("Explorer", () => {
 
     expect(screen.getByText("One")).toBeInTheDocument();
     expect(screen.getByText("Two")).toBeInTheDocument();
+  });
+
+  /* 截断标签的 hover ghost:它是一个 portal 到 body 的 fixed 覆盖层。
+     两条契约由这些用例锁定:
+       1. 它必须留在 context menu 之下 —— ghost 是纯提示,菜单是可交互层;
+       2. 任何 mousedown 必须立刻收起它 —— 点击往往会打开 modal 或右键菜单,
+          而 mouseleave 不会触发(指针仍停在原行上),此前 ghost 会一直悬着。 */
+  describe("label overflow ghost", () => {
+    const LONG = "a very long chat label that overflows its row";
+
+    /* jsdom 里 scrollWidth/clientWidth 恒为 0,溢出判定永远不成立,
+       所以显式伪造一次溢出 */
+    const forceOverflow = () => {
+      Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+        configurable: true,
+        get: () => 500,
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+        configurable: true,
+        get: () => 100,
+      });
+    };
+    const restoreOverflow = () => {
+      delete HTMLElement.prototype.scrollWidth;
+      delete HTMLElement.prototype.clientWidth;
+    };
+
+    /* ghost 的形状特征:fixed + pointer-events:none + 承载完整标签 */
+    const findGhost = () =>
+      Array.from(document.body.querySelectorAll("div")).find(
+        (el) =>
+          el.style.position === "fixed" &&
+          el.style.pointerEvents === "none" &&
+          el.textContent.includes(LONG),
+      );
+
+    const renderLongRow = () =>
+      renderExplorer({ data: { long_chat: { label: LONG } }, root: ["long_chat"] });
+
+    const hoverUntilGhost = (row) => {
+      fireEvent.mouseEnter(row);
+      act(() => {
+        jest.advanceTimersByTime(700); // ghost 延迟 600ms
+      });
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      forceOverflow();
+    });
+
+    afterEach(() => {
+      restoreOverflow();
+      jest.useRealTimers();
+    });
+
+    test("ghost 必须留在 context menu 之下", () => {
+      renderLongRow();
+      hoverUntilGhost(screen.getByText(LONG));
+
+      const ghost = findGhost();
+      expect(ghost).toBeDefined();
+      // context_menu.js 用 99999;ghost 必须低于它才不会盖住菜单
+      expect(Number(ghost.style.zIndex)).toBeLessThan(99999);
+    });
+
+    test("ghost 仍需高于 modal,因为 explorer 会被用在 modal 内(memory-inspect)", () => {
+      renderLongRow();
+      hoverUntilGhost(screen.getByText(LONG));
+
+      const ghost = findGhost();
+      expect(ghost).toBeDefined();
+      // modal.js 用 9999;压到它之下会让 modal 内的 explorer 提示被自己的 modal 遮住
+      expect(Number(ghost.style.zIndex)).toBeGreaterThan(9999);
+    });
+
+    test("mousedown 立刻收起 ghost(点击通常会打开 modal,而 mouseleave 不会触发)", () => {
+      renderLongRow();
+      const row = screen.getByText(LONG);
+      hoverUntilGhost(row);
+      expect(findGhost()).toBeDefined();
+
+      fireEvent.mouseDown(row, { button: 0 });
+
+      expect(findGhost()).toBeUndefined();
+    });
+
+    test("右键 mousedown 同样收起 ghost(context menu 场景)", () => {
+      renderLongRow();
+      const row = screen.getByText(LONG);
+      hoverUntilGhost(row);
+      expect(findGhost()).toBeDefined();
+
+      fireEvent.mouseDown(row, { button: 2 });
+
+      expect(findGhost()).toBeUndefined();
+    });
+
+    test("mousedown 后即使定时器到期也不得再冒出 ghost", () => {
+      renderLongRow();
+      const row = screen.getByText(LONG);
+
+      fireEvent.mouseEnter(row);
+      fireEvent.mouseDown(row, { button: 0 }); // 在 600ms 窗口内就按下
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+
+      expect(findGhost()).toBeUndefined();
+    });
   });
 });
