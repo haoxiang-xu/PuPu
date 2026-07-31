@@ -315,6 +315,38 @@ describe("use_chat_input_toolkits", () => {
     );
   });
 
+  test("a no-icon Store entry beats a stale catalog icon in the attach selector", async () => {
+    expect(getMcpStoreEntry("mcp.workspace.markitdown").toolkitIcon).toBeUndefined();
+    api.unchain.listToolModalCatalog.mockResolvedValueOnce({
+      toolkits: [
+        {
+          toolkitId: "mcp.workspace.markitdown",
+          toolkitName: "MarkItDown",
+          toolkitDescription: "Convert documents",
+          source: "mcp",
+          status: "available",
+          hidden: false,
+          toolkitIcon: {
+            type: "file",
+            mimeType: "image/png",
+            content: "stale-installed-icon",
+          },
+          tools: [{ title: "Convert", name: "convert_to_markdown" }],
+        },
+      ],
+    });
+
+    render(<RenderedOptionsHarness />);
+    fireEvent.click(screen.getByText("refresh"));
+
+    const option = await screen.findByTestId(
+      "option-mcp.workspace.markitdown",
+    );
+    await waitFor(() => expect(option.querySelector("svg")).toBeInTheDocument());
+    expect(option.querySelector("img")).not.toBeInTheDocument();
+    expect(iconPathData(option)).toContain("M9.795 1.694");
+  });
+
   test("shows a failure placeholder after an initial request error and retries on demand", async () => {
     api.unchain.listToolModalCatalog
       .mockRejectedValueOnce(new Error("offline"))

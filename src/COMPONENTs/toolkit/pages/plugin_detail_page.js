@@ -15,6 +15,7 @@ import {
   isEntryOAuthConnectable,
   setupKindForEntry,
 } from "../../../SERVICEs/mcp_install";
+import { withMcpStoreIcon } from "../../../SERVICEs/mcp_toolkit_store";
 import { dispatchComposerPrefill } from "../../../SERVICEs/composer_prefill";
 import api from "../../../SERVICEs/api";
 import {
@@ -637,7 +638,7 @@ const PluginDetailPage = ({
           }}
         >
           <ToolkitIconFrame
-            icon={entry?.toolkitIcon}
+            icon={withMcpStoreIcon(entry)?.toolkitIcon}
             isDark={isDark}
             size={48}
             iconSize={24}

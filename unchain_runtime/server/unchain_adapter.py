@@ -390,7 +390,7 @@ _TOOLKIT_NAME_ALIASES = {
     "agentreachtoolkit": "AgentReachToolkit",
     "AgentReachToolkit": "AgentReachToolkit",
 }
-_DEFAULT_MAX_ITERATIONS = 32
+_DEFAULT_MAX_ITERATIONS = 128
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _AGENT_ORCHESTRATION_DEFAULT = "default"
 _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"

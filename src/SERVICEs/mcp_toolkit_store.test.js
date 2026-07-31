@@ -100,6 +100,24 @@ describe("mcp_toolkit_store", () => {
     );
   });
 
+  test("a no-icon Store entry overrides a stale installed icon on every surface", () => {
+    const staleInstalledMarkitdown = {
+      source: "mcp",
+      toolkitId: "mcp.workspace.markitdown",
+      toolkitIcon: {
+        type: "file",
+        mimeType: "image/png",
+        content: "stale-installed-icon",
+      },
+    };
+
+    expect(getMcpStoreEntry("workspace.markitdown").toolkitIcon).toBeUndefined();
+    expect(resolveMcpIcon(staleInstalledMarkitdown)).toEqual(DEFAULT_MCP_ICON);
+    expect(withMcpStoreIcon(staleInstalledMarkitdown).toolkitIcon).toEqual(
+      DEFAULT_MCP_ICON,
+    );
+  });
+
   test("mcp toolkit fallbacks use the mcp icon when backend sends an empty icon", () => {
     expect(
       resolveMcpIcon({

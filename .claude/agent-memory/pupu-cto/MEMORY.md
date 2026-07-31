@@ -1,4 +1,5 @@
 - [ADR：Phase4 门5 secret 注入移主进程 2026-07-25](adr-phase4-gate5-secret-injection.md) — 采(a)非(b);描述符契约+startMisoStream 注入点+三态回退+字节等价;6切片;删legacy=N+1单向门本Phase不做
+- [ADR：PO 层提案 CTO 表态 2026-07-31](adr-po-layer-stance.md) — 职能真层假；subagent 无 Task 已实证；解法=项目台账(交付物非岗位)；证伪触发在文内
 - [ADR：unchain 编制案收敛 2026-07-28](adr-unchain-team-plan.md) — HR否决建团队/批Mission 0；"擎零吞吐"论据已撤回(authorship≠贡献)；0新建+触发式扩编
 - [契约：download-skill-repo 通道 2026-07-18](contract-download-skill-repo.md) — 错误码枚举冻结/facade>main超时/原始字节hash/skip非manifest违规=spec原判/tar提升是硬前提
 - [ADR：S0/S1 签核+合并时序 2026-07-13](adr-s0s1-rich-tool-result-signoff.md) — 双签放行；主树checkout=PuPu运行时；测试须PYTHONPATH=worktree/src

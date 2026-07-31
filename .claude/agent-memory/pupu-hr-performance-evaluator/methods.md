@@ -52,6 +52,15 @@ metadata:
 - **错位 = 嫌疑加重**: memory 冻结但 owned 路径有 commit → 说明活是别人干的，或该 agent 被调用了却没沉淀。
 - **同步冷却 = 嫌疑减轻**: memory 冻结且 owned 路径也无 commit → 只是该工作面本期没需求，不是死重。
 
+## 信号 5 — 章程条款检测：先查"制度是否允许"，再查"人有没有做"（2026-07-31 首次验证，待复验）
+
+判"某类工作没人做"时，**先去章程里查这件事是不是被明文禁止了**。制度禁令能一次性解释全组织的行为，比逐个 agent 找懒惰证据强得多。
+
+- 命令: `grep -rlc "<禁令原文>" .claude/agents/` → 数覆盖率；再 `grep -B6 -A2` 取上下文原文。
+- 判读: 若禁令覆盖 N/22 且 N 大 → 这是**制度性缺口，不是绩效问题**，结论必须是"改制度"而非"招人/裁人"。
+- 反例防护: 若禁令只覆盖少数几份，才回到个体绩效解释。
+- 2026-07-31 实例: 14/22 份章程的 "What NOT to save in memory" 含 "Ephemeral task details: in-progress work, temporary state" + "These exclusions apply even when the user explicitly asks to save" → CEO 抱怨"没人记得项目走到哪了"的根因是**章程禁止**，不是 dev 失职。
+
 ## 裁撤双证（不可违背）
 
 任何"该裁"结论 = **2+ 独立信号互证 + CEO 口供不反对**。单信号只产"嫌疑"。
