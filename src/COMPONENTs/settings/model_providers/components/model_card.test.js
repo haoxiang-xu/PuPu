@@ -200,15 +200,18 @@ describe("ModelCard — cloud-only models", () => {
     expect(onPull).not.toHaveBeenCalled();
   });
 
-  it("keeps the disabled affordance visible in both themes", () => {
+  it("keeps the BUILTIN disabled affordance and a themed label in both modes", () => {
     const light = renderCard({ model: CLOUD_ONLY_MODEL }, { isDark: false });
     const lightBtn = findButtonByText(
       light.container,
       "model_providers.cloud_only",
     );
+    // BUILTIN Button default form, not a bare transparent text link: it always
+    // renders its hover-background overlay span.
+    expect(lightBtn.querySelector('span[aria-hidden="true"]')).toBeTruthy();
     expect(lightBtn.style.cursor).toBe("not-allowed");
     expect(lightBtn.style.opacity).toBe("0.4");
-    expect(lightBtn.style.background).not.toBe("");
+    expect(lightBtn.style.color).toBe("rgba(0, 0, 0, 0.85)");
     light.unmount();
 
     const dark = renderCard({ model: CLOUD_ONLY_MODEL }, { isDark: true });
@@ -216,9 +219,29 @@ describe("ModelCard — cloud-only models", () => {
       dark.container,
       "model_providers.cloud_only",
     );
+    expect(darkBtn.querySelector('span[aria-hidden="true"]')).toBeTruthy();
     expect(darkBtn.style.cursor).toBe("not-allowed");
     expect(darkBtn.style.opacity).toBe("0.4");
-    expect(darkBtn.style.background).not.toBe("");
+    expect(darkBtn.style.color).toBe("rgba(255, 255, 255, 0.9)");
+  });
+
+  it("gives the enabled pull button a dark-mode-visible hover colour", () => {
+    const light = renderCard({ model: SIZED_MODEL }, { isDark: false });
+    const lightOverlay = findButtonByText(
+      light.container,
+      "model_providers.pull",
+    ).querySelector('span[aria-hidden="true"]');
+    expect(lightOverlay.style.backgroundColor).toBe("rgba(0, 0, 0, 0.06)");
+    light.unmount();
+
+    const dark = renderCard({ model: SIZED_MODEL }, { isDark: true });
+    const darkOverlay = findButtonByText(
+      dark.container,
+      "model_providers.pull",
+    ).querySelector('span[aria-hidden="true"]');
+    // The BUILTIN light-mode default (rgba(0,0,0,0.06)) is invisible on a dark
+    // card, so the card supplies its own.
+    expect(darkOverlay.style.backgroundColor).toBe("rgba(255, 255, 255, 0.1)");
   });
 
   it("leaves cloud-tagged models that DO have local sizes pullable", () => {
