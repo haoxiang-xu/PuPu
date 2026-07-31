@@ -491,6 +491,7 @@ const ExplorerRowBase = ({
   onHoverRow,
   activeNodeId,
   contextMenuNodeId,
+  hoverSuppressed,
   highlightColor,
   isLockedExpanded,
   rowHeight = ROW_HEIGHT,
@@ -551,6 +552,19 @@ const ExplorerRowBase = ({
     setShowFull(false);
     setGhostRect(null);
   }, []);
+
+  /* 上层 overlay(modal)持有指针期间,清掉一切已武装的 hover 痕迹。
+     不能指望 mouseleave 来清:从 context menu 打开 modal 时,菜单卸载会让
+     Chromium 对静止光标下"露出"的行合成 mouseenter,而随后插入的 modal 遮罩
+     并不可靠地送达 mouseleave —— 状态就悬在遮罩底下,600ms 后 ghost 冒到
+     modal 前面。与 contextMenuNodeId 的 suppressHover 同一模式,由 owner 显式声明。 */
+  useEffect(() => {
+    if (hoverSuppressed) {
+      setHovered(false);
+      setPressed(false);
+      clearOverflow();
+    }
+  }, [hoverSuppressed, clearOverflow]);
 
   /* dismiss ghost on any scroll */
   useEffect(() => {
@@ -642,6 +656,7 @@ const ExplorerRowBase = ({
           }
         }}
         onMouseEnter={() => {
+          if (hoverSuppressed) return;
           setHovered(true);
           if (onHoverRow) onHoverRow(node.id);
         }}
@@ -732,6 +747,7 @@ const ExplorerRowBase = ({
       onContextMenu={handleContextMenu}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => {
+        if (hoverSuppressed) return;
         setHovered(true);
         checkOverflow();
         if (onHoverRow) onHoverRow(node.id);
@@ -1175,6 +1191,7 @@ const ExplorerBranch = ({
   onHoverRow,
   activeNodeId,
   contextMenuNodeId,
+  hoverSuppressed,
   highlightColor,
   lockedExpandedIds,
   rowHeight,
@@ -1210,6 +1227,7 @@ const ExplorerBranch = ({
           onHoverRow={onHoverRow}
           activeNodeId={activeNodeId}
           contextMenuNodeId={contextMenuNodeId}
+          hoverSuppressed={hoverSuppressed}
           highlightColor={highlightColor}
           isLockedExpanded={isLockedExpanded}
           rowHeight={rowHeight}
@@ -1260,6 +1278,7 @@ const ExplorerBranch = ({
                   onHoverRow={onHoverRow}
                   activeNodeId={activeNodeId}
                   contextMenuNodeId={contextMenuNodeId}
+                  hoverSuppressed={hoverSuppressed}
                   highlightColor={highlightColor}
                   rowHeight={rowHeight}
                   rowRadius={rowRadius}
@@ -1454,6 +1473,11 @@ const Explorer = ({
   style,
   active_node_id,
   context_menu_node_id,
+  /* 上层 overlay(modal 等)打开期间置 true:整棵树的 hover 机器停摆并清空
+     既有痕迹(行背景/scope 高亮/截断标签 ghost)。与 context_menu_node_id
+     同一"owner 显式声明"模式 —— 光标静止时的浏览器边界事件不可靠,
+     不能指望 mouseleave 来清。 */
+  hover_suppressed = false,
   locked_expanded,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -1573,7 +1597,15 @@ const Explorer = ({
   }, []);
 
   /* When a context menu is open, lock the highlight on that node */
-  const effectiveHoveredId = context_menu_node_id || hoveredId;
+  /* suppressed 期间已经 set 进来的 hoveredId 也要清:菜单卸载瞬间合成的
+     mouseenter 可能赶在 prop 翻转之前落地 */
+  useEffect(() => {
+    if (hover_suppressed) setHoveredId(null);
+  }, [hover_suppressed]);
+
+  const effectiveHoveredId = hover_suppressed
+    ? null
+    : context_menu_node_id || hoveredId;
 
   /* recompute indicator position when hover / structure changes */
   useEffect(() => {
@@ -1902,6 +1934,7 @@ const Explorer = ({
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
+        hoverSuppressed={hover_suppressed}
         highlightColor={highlightColor}
         lockedExpandedIds={lockedExpandedIds}
       />

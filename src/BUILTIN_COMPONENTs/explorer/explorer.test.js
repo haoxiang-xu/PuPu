@@ -408,5 +408,59 @@ describe("Explorer", () => {
 
       expect(findGhost()).toBeUndefined();
     });
+
+    /* hover_suppressed:上层 overlay(modal)持有指针期间,hover 机器必须整体停摆。
+       背景:从 context menu 打开 modal 时,菜单卸载让光标底下"露出"一个行,
+       Chromium 会在光标静止时合成 mouseenter;而 modal 遮罩随后插入时,
+       静止光标的 mouseleave 并不可靠送达 —— 靠边界事件清理是靠不住的,
+       所以由 owner 显式声明"hover 无效"。与 context_menu_node_id 同一模式。 */
+    describe("hover_suppressed(modal 打开期间)", () => {
+      const suppressibleUi = (props) => (
+        <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+          <Explorer
+            draggable
+            style={{ width: 240 }}
+            data={{ long_chat: { label: LONG } }}
+            root={["long_chat"]}
+            {...props}
+          />
+        </ConfigContext.Provider>
+      );
+
+      test("suppressed 时 hover 满 600ms 也不得出现 ghost", () => {
+        render(suppressibleUi({ hover_suppressed: true }));
+        fireEvent.mouseEnter(screen.getByText(LONG));
+        act(() => {
+          jest.advanceTimersByTime(2000);
+        });
+
+        expect(findGhost()).toBeUndefined();
+      });
+
+      test("ghost 已显示后 suppressed 翻 true 必须立刻收起(modal 打开的瞬间)", () => {
+        const view = render(suppressibleUi({ hover_suppressed: false }));
+        hoverUntilGhost(screen.getByText(LONG));
+        expect(findGhost()).toBeDefined();
+
+        view.rerender(suppressibleUi({ hover_suppressed: true }));
+
+        expect(findGhost()).toBeUndefined();
+      });
+
+      test("定时器已武装但未到期时翻 true,到期后也不得冒出 ghost", () => {
+        const view = render(suppressibleUi({ hover_suppressed: false }));
+        fireEvent.mouseEnter(screen.getByText(LONG));
+        act(() => {
+          jest.advanceTimersByTime(300); // 未满 600ms,定时器仍在飞
+        });
+
+        view.rerender(suppressibleUi({ hover_suppressed: true }));
+        act(() => {
+          jest.advanceTimersByTime(2000);
+        });
+
+        expect(findGhost()).toBeUndefined();
+      });
+    });
   });
 });

@@ -721,6 +721,13 @@ const SideMenu = () => {
               context_menu_node_id={
                 contextMenu.visible ? contextMenu.node?.id : undefined
               }
+              /* 侧栏自有 modal 打开期间停摆 hover:从 context menu 打开 modal 时,
+                 菜单卸载会让 Chromium 对光标底下露出的行合成 mouseenter,
+                 而 modal 遮罩插入时静止光标收不到可靠的 mouseleave ——
+                 hover 背景与截断标签 ghost 会悬在 modal 前面 */
+              hover_suppressed={
+                memoryInspect.open || confirmDelete.open || workspaceModalOpen
+              }
             />
           )}
         </div>
