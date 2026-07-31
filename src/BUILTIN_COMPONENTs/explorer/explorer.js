@@ -605,6 +605,11 @@ const ExplorerRowBase = ({
 
   const handleMouseDown = useCallback(
     (e) => {
+      /* 任何按下都立刻收起截断标签的 ghost。按下往往意味着打开 modal 或右键菜单,
+         而指针仍停在原行上,mouseleave 永远不会触发 —— 此前 ghost 会一直悬在
+         新开的界面前面。放在 shouldSkipRowDragStart 之前:即使这次按下不启动拖拽
+         (例如按在 trailing 元素上),交互已经开始,提示就该让位。 */
+      clearOverflow();
       if (shouldSkipRowDragStart(e.target)) {
         return;
       }
@@ -613,7 +618,7 @@ const ExplorerRowBase = ({
         onDragStart(e, node.id);
       }
     },
-    [draggable, node.id, onDragStart],
+    [clearOverflow, draggable, node.id, onDragStart],
   );
 
   /* ── custom component path ─────────────────────────── */
@@ -1009,7 +1014,10 @@ const ExplorerRowBase = ({
               borderRadius: 5,
               whiteSpace: "nowrap",
               pointerEvents: "none",
-              zIndex: 999999,
+              /* 与 tooltip/tooltip.js 同层(10000):高于 modal(9999),因为 explorer
+                 会被放进 modal 内使用(memory_inspect_modal);低于 context_menu(99999),
+                 因为它只是提示,绝不该盖住可交互的菜单。 */
+              zIndex: 10000,
             }}
           >
             <span
