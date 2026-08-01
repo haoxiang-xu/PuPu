@@ -6,6 +6,8 @@ const { promisify } = require("node:util");
 const { Arch } = require("electron-builder");
 const {
   DEFAULT_PINS_PATH,
+  makeTreeDirectoriesWritable,
+  prepareMcpRuntime,
   verifyMcpRuntime,
 } = require("./prepare-mcp-runtime.cjs");
 
@@ -219,6 +221,7 @@ async function verifyPackagedMcpRuntime(
   {
     pinsPath = DEFAULT_PINS_PATH,
     executeFile = execFileAsync,
+    stageMcpRuntime = prepareMcpRuntime,
     requireNativeSmoke =
       process.env.PUPU_REQUIRE_NATIVE_MCP_SMOKE === "1",
   } = {}
@@ -229,7 +232,7 @@ async function verifyPackagedMcpRuntime(
   const target = targetFromAfterPackContext(context);
   const resourcesDir = context.packager.getResourcesDir(context.appOutDir);
   const runtimeDir = path.join(resourcesDir, "mcp_runtime");
-  const manifest = await verifyMcpRuntime({
+  const manifest = await stageMcpRuntime({
     target,
     pinsPath,
     outputDir: runtimeDir,
@@ -254,8 +257,10 @@ async function verifyPackagedMcpRuntime(
         `target ${target}\n`
     );
   }
+    // FPM recreates source directory modes before writing its staged package copy.
+    await makeTreeDirectoriesWritable(runtimeDir);
   process.stdout.write(
-    `Packaged MCP runtime verified: ${target} (${Object.entries(
+    `Packaged MCP runtime staged and verified: ${target} (${Object.entries(
       manifest.runtimes
     )
       .map(([name, runtime]) => `${name} ${runtime.version}`)

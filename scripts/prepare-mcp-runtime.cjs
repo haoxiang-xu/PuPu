@@ -15,18 +15,18 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_PINS_PATH = path.join(
   REPO_ROOT,
   "unchain_runtime",
-  "mcp_runtime_pins.json"
+  "mcp_runtime_pins.json",
 );
 const DEFAULT_OUTPUT_DIR = path.join(
   REPO_ROOT,
   "unchain_runtime",
-  "mcp_runtime"
+  "mcp_runtime",
 );
 const DEFAULT_CACHE_DIR = path.join(
   REPO_ROOT,
   "node_modules",
   ".cache",
-  "pupu-mcp-runtime"
+  "pupu-mcp-runtime",
 );
 const SUPPORTED_TARGETS = [
   "darwin-arm64",
@@ -36,7 +36,8 @@ const SUPPORTED_TARGETS = [
 ];
 const REQUIRED_RUNTIMES = ["node", "uv", "python"];
 const SHA256_RE = /^[a-f0-9]{64}$/;
-const FORBIDDEN_DYNAMIC_URL_RE = /(?:\/latest(?:\/|$)|\/index\.json(?:$|[?#]))/i;
+const FORBIDDEN_DYNAMIC_URL_RE =
+  /(?:\/latest(?:\/|$)|\/index\.json(?:$|[?#]))/i;
 const PYTHON_SITECUSTOMIZE = [
   '"""PuPu-managed TLS trust bootstrap for Python MCP subprocesses."""',
   "",
@@ -117,7 +118,7 @@ function detectHostTarget(platform = process.platform, arch = process.arch) {
   if (!SUPPORTED_TARGETS.includes(target)) {
     throw new Error(
       `Unsupported MCP runtime build host: ${platform}/${arch}. ` +
-        `Supported targets: ${SUPPORTED_TARGETS.join(", ")}`
+        `Supported targets: ${SUPPORTED_TARGETS.join(", ")}`,
     );
   }
   return target;
@@ -143,7 +144,12 @@ function assertRelativeManifestPath(value, label) {
   return value;
 }
 
-function validatePinnedSource(source, label, version, { archive = false } = {}) {
+function validatePinnedSource(
+  source,
+  label,
+  version,
+  { archive = false } = {},
+) {
   if (!isPlainObject(source)) {
     throw new Error(`${label} must be an object`);
   }
@@ -196,18 +202,15 @@ function validatePostStageRules(postStage, label) {
       }
       assertRelativeManifestPath(
         rule.from,
-        `${label}.${ruleName}[${index}].from`
+        `${label}.${ruleName}[${index}].from`,
       );
-      assertRelativeManifestPath(
-        rule.to,
-        `${label}.${ruleName}[${index}].to`
-      );
+      assertRelativeManifestPath(rule.to, `${label}.${ruleName}[${index}].to`);
     });
   }
   if (postStage.provenance_file !== undefined) {
     assertRelativeManifestPath(
       postStage.provenance_file,
-      `${label}.provenance_file`
+      `${label}.provenance_file`,
     );
   }
 }
@@ -222,7 +225,7 @@ function validatePinsManifest(pins) {
       JSON.stringify([...SUPPORTED_TARGETS].sort())
   ) {
     throw new Error(
-      `MCP runtime pins must cover exactly: ${SUPPORTED_TARGETS.join(", ")}`
+      `MCP runtime pins must cover exactly: ${SUPPORTED_TARGETS.join(", ")}`,
     );
   }
   if (!isPlainObject(pins.runtimes)) {
@@ -248,7 +251,7 @@ function validatePinsManifest(pins) {
       runtime.default_env !== undefined &&
       (!isPlainObject(runtime.default_env) ||
         Object.values(runtime.default_env).some(
-          (value) => typeof value !== "string"
+          (value) => typeof value !== "string",
         ))
     ) {
       throw new Error(`${runtimeName}.default_env must contain string values`);
@@ -265,7 +268,7 @@ function validatePinsManifest(pins) {
           reference.field !== "command"
         ) {
           throw new Error(
-            `${runtimeName}.runtime_env.${envName} must reference a runtime command`
+            `${runtimeName}.runtime_env.${envName} must reference a runtime command`,
           );
         }
       }
@@ -292,10 +295,7 @@ function validatePinsManifest(pins) {
         throw new Error(`${label}.required_files must not be empty`);
       }
       targetPin.required_files.forEach((value, index) =>
-        assertRelativeManifestPath(
-          value,
-          `${label}.required_files[${index}]`
-        )
+        assertRelativeManifestPath(value, `${label}.required_files[${index}]`),
       );
       if (!Array.isArray(targetPin.required_directories || [])) {
         throw new Error(`${label}.required_directories must be an array`);
@@ -303,8 +303,8 @@ function validatePinsManifest(pins) {
       (targetPin.required_directories || []).forEach((value, index) =>
         assertRelativeManifestPath(
           value,
-          `${label}.required_directories[${index}]`
-        )
+          `${label}.required_directories[${index}]`,
+        ),
       );
       if (!Array.isArray(targetPin.executable_files)) {
         throw new Error(`${label}.executable_files must be an array`);
@@ -312,8 +312,8 @@ function validatePinsManifest(pins) {
       targetPin.executable_files.forEach((value, index) =>
         assertRelativeManifestPath(
           value,
-          `${label}.executable_files[${index}]`
-        )
+          `${label}.executable_files[${index}]`,
+        ),
       );
       validatePostStageRules(targetPin.post_stage, `${label}.post_stage`);
     }
@@ -325,10 +325,7 @@ function validatePinsManifest(pins) {
       validatePinnedSource(extraFile, label, runtime.version);
       assertRelativeManifestPath(extraFile.output, `${label}.output`);
     }
-    validatePostStageRules(
-      runtime.post_stage,
-      `${runtimeName}.post_stage`
-    );
+    validatePostStageRules(runtime.post_stage, `${runtimeName}.post_stage`);
     if (runtime.bootstrap !== undefined) {
       const bootstrap = runtime.bootstrap;
       if (!isPlainObject(bootstrap)) {
@@ -336,13 +333,16 @@ function validatePinsManifest(pins) {
       }
       assertRelativeManifestPath(
         bootstrap.directory,
-        `${runtimeName}.bootstrap.directory`
+        `${runtimeName}.bootstrap.directory`,
       );
       assertRelativeManifestPath(
         bootstrap.sitecustomize,
-        `${runtimeName}.bootstrap.sitecustomize`
+        `${runtimeName}.bootstrap.sitecustomize`,
       );
-      if (!Array.isArray(bootstrap.packages) || bootstrap.packages.length === 0) {
+      if (
+        !Array.isArray(bootstrap.packages) ||
+        bootstrap.packages.length === 0
+      ) {
         throw new Error(`${runtimeName}.bootstrap.packages must not be empty`);
       }
       for (const [index, packagePin] of bootstrap.packages.entries()) {
@@ -369,14 +369,14 @@ function validatePinsManifest(pins) {
         bootstrap.required_files.length === 0
       ) {
         throw new Error(
-          `${runtimeName}.bootstrap.required_files must not be empty`
+          `${runtimeName}.bootstrap.required_files must not be empty`,
         );
       }
       bootstrap.required_files.forEach((value, index) =>
         assertRelativeManifestPath(
           value,
-          `${runtimeName}.bootstrap.required_files[${index}]`
-        )
+          `${runtimeName}.bootstrap.required_files[${index}]`,
+        ),
       );
     }
   }
@@ -425,7 +425,7 @@ async function downloadFile(url, destination) {
     }
     await pipeline(
       Readable.fromWeb(response.body),
-      fs.createWriteStream(tempPath, { flags: "wx" })
+      fs.createWriteStream(tempPath, { flags: "wx" }),
     );
     await fsp.rename(tempPath, destination);
   } catch (error) {
@@ -440,7 +440,7 @@ async function ensureCachedSource(
   runtimeName,
   source,
   cacheDir,
-  downloader = downloadFile
+  downloader = downloadFile,
 ) {
   const destination = path.join(cacheDir, cacheFilename(runtimeName, source));
   await fsp.mkdir(cacheDir, { recursive: true });
@@ -460,7 +460,7 @@ async function ensureCachedSource(
     await fsp.rm(destination, { force: true });
     throw new Error(
       `Checksum mismatch for ${runtimeName}/${path.basename(destination)}: ` +
-        `expected ${source.sha256}, got ${actual}`
+        `expected ${source.sha256}, got ${actual}`,
     );
   }
   return destination;
@@ -513,7 +513,10 @@ async function walkTree(root, visit, relativeDir = "") {
     ? path.join(root, ...relativeDir.split("/"))
     : root;
   const entries = await fsp.readdir(currentDir, { withFileTypes: true });
-  entries.sort((left, right) => left.name.localeCompare(right.name, "en"));
+  // Use bytewise ordering so hash traversal is stable across locales/processes.
+  entries.sort((left, right) =>
+    Buffer.from(left.name).compare(Buffer.from(right.name)),
+  );
 
   for (const entry of entries) {
     const relativePath = relativeDir
@@ -536,7 +539,7 @@ async function validateTreeLinks(root) {
     const resolvedTarget = path.resolve(path.dirname(absolutePath), linkTarget);
     if (!isPathInside(resolvedRoot, resolvedTarget)) {
       throw new Error(
-        `Staged runtime contains an unsafe symlink: ${relativePath} -> ${linkTarget}`
+        `Staged runtime contains an unsafe symlink: ${relativePath} -> ${linkTarget}`,
       );
     }
   });
@@ -565,6 +568,26 @@ async function sha256Tree(root) {
   return hash.digest("hex");
 }
 
+async function sealStagedTree(root) {
+  const sealEntry = async ({ absolutePath, stat }) => {
+    if (stat.isSymbolicLink()) return;
+    await fsp.chmod(absolutePath, stat.mode & ~0o222);
+  };
+  const rootStat = await fsp.lstat(root);
+  await sealEntry({ absolutePath: root, stat: rootStat });
+  await walkTree(root, sealEntry);
+}
+
+async function makeTreeDirectoriesWritable(root) {
+  const makeWritable = async ({ absolutePath, stat }) => {
+    if (!stat.isDirectory()) return;
+    await fsp.chmod(absolutePath, stat.mode | 0o700);
+  };
+  const rootStat = await fsp.lstat(root);
+  await makeWritable({ absolutePath: root, stat: rootStat });
+  await walkTree(root, makeWritable);
+}
+
 async function applyPostStageRules({
   runtimeRoot,
   runtimeName,
@@ -579,16 +602,16 @@ async function applyPostStageRules({
     const source = resolveStagedPath(
       runtimeRoot,
       rule.from,
-      `${runtimeName}.post_stage.copy_files.from`
+      `${runtimeName}.post_stage.copy_files.from`,
     );
     const destination = resolveStagedPath(
       runtimeRoot,
       rule.to,
-      `${runtimeName}.post_stage.copy_files.to`
+      `${runtimeName}.post_stage.copy_files.to`,
     );
     if (!(await fsp.stat(source).catch(() => null))?.isFile()) {
       throw new Error(
-        `Staged ${runtimeName} metadata source is missing: ${rule.from}`
+        `Staged ${runtimeName} metadata source is missing: ${rule.from}`,
       );
     }
     await fsp.mkdir(path.dirname(destination), { recursive: true });
@@ -599,16 +622,16 @@ async function applyPostStageRules({
     const source = resolveStagedPath(
       runtimeRoot,
       rule.from,
-      `${runtimeName}.post_stage.copy_directories.from`
+      `${runtimeName}.post_stage.copy_directories.from`,
     );
     const destination = resolveStagedPath(
       runtimeRoot,
       rule.to,
-      `${runtimeName}.post_stage.copy_directories.to`
+      `${runtimeName}.post_stage.copy_directories.to`,
     );
     if (!(await fsp.stat(source).catch(() => null))?.isDirectory()) {
       throw new Error(
-        `Staged ${runtimeName} metadata directory is missing: ${rule.from}`
+        `Staged ${runtimeName} metadata directory is missing: ${rule.from}`,
       );
     }
     await fsp.mkdir(path.dirname(destination), { recursive: true });
@@ -623,7 +646,7 @@ async function applyPostStageRules({
     const destination = resolveStagedPath(
       runtimeRoot,
       postStage.provenance_file,
-      `${runtimeName}.post_stage.provenance_file`
+      `${runtimeName}.post_stage.provenance_file`,
     );
     const provenance = {
       schema_version: 1,
@@ -641,7 +664,7 @@ async function applyPostStageRules({
     await fsp.writeFile(
       destination,
       `${JSON.stringify(provenance, null, 2)}\n`,
-      "utf8"
+      "utf8",
     );
   }
 }
@@ -660,7 +683,7 @@ async function stagePythonBootstrap({
   const bootstrapRoot = resolveStagedPath(
     stageRoot,
     bootstrap.directory,
-    `${runtimeName}.bootstrap.directory`
+    `${runtimeName}.bootstrap.directory`,
   );
   await fsp.mkdir(bootstrapRoot, { recursive: true });
   for (const packagePin of bootstrap.packages) {
@@ -668,7 +691,7 @@ async function stagePythonBootstrap({
       `${runtimeName}-bootstrap-${packagePin.name}`,
       packagePin,
       cacheDir,
-      downloader
+      downloader,
     );
     await wheelExtractor(wheelPath, bootstrapRoot, {
       runtimeName,
@@ -679,7 +702,7 @@ async function stagePythonBootstrap({
   const sitecustomizePath = resolveStagedPath(
     bootstrapRoot,
     bootstrap.sitecustomize,
-    `${runtimeName}.bootstrap.sitecustomize`
+    `${runtimeName}.bootstrap.sitecustomize`,
   );
   await fsp.writeFile(sitecustomizePath, PYTHON_SITECUSTOMIZE, "utf8");
 
@@ -687,38 +710,34 @@ async function stagePythonBootstrap({
     const requiredPath = resolveStagedPath(
       bootstrapRoot,
       requiredFile,
-      `${runtimeName}.bootstrap.required_files`
+      `${runtimeName}.bootstrap.required_files`,
     );
     if (!(await fsp.stat(requiredPath).catch(() => null))?.isFile()) {
       throw new Error(
-        `Staged ${runtimeName} bootstrap is missing ${requiredFile}`
+        `Staged ${runtimeName} bootstrap is missing ${requiredFile}`,
       );
     }
   }
   await validateTreeLinks(bootstrapRoot);
+  await sealStagedTree(bootstrapRoot);
   return {
     bootstrap_dir: bootstrap.directory,
     bootstrap_tree_sha256: await sha256Tree(bootstrapRoot),
   };
 }
 
-async function assertRuntimeLayout(
-  stageRoot,
-  runtimeName,
-  target,
-  targetPin
-) {
+async function assertRuntimeLayout(stageRoot, runtimeName, target, targetPin) {
   const runtimeRoot = path.join(stageRoot, runtimeName);
   for (const requiredFile of targetPin.required_files) {
     const requiredPath = resolveStagedPath(
       runtimeRoot,
       requiredFile,
-      `${runtimeName}.required_files`
+      `${runtimeName}.required_files`,
     );
     const stat = await fsp.stat(requiredPath).catch(() => null);
     if (!stat?.isFile()) {
       throw new Error(
-        `Staged ${runtimeName} runtime is missing ${requiredFile}`
+        `Staged ${runtimeName} runtime is missing ${requiredFile}`,
       );
     }
   }
@@ -726,12 +745,12 @@ async function assertRuntimeLayout(
     const requiredPath = resolveStagedPath(
       runtimeRoot,
       requiredDirectory,
-      `${runtimeName}.required_directories`
+      `${runtimeName}.required_directories`,
     );
     const stat = await fsp.stat(requiredPath).catch(() => null);
     if (!stat?.isDirectory()) {
       throw new Error(
-        `Staged ${runtimeName} runtime is missing directory ${requiredDirectory}`
+        `Staged ${runtimeName} runtime is missing directory ${requiredDirectory}`,
       );
     }
   }
@@ -739,7 +758,7 @@ async function assertRuntimeLayout(
   const commandPath = resolveStagedPath(
     stageRoot,
     targetPin.command,
-    `${runtimeName}.command`
+    `${runtimeName}.command`,
   );
   if (!(await fsp.stat(commandPath).catch(() => null))?.isFile()) {
     throw new Error(`Staged ${runtimeName} command is missing`);
@@ -748,7 +767,7 @@ async function assertRuntimeLayout(
   const binDir = resolveStagedPath(
     stageRoot,
     targetPin.bin_dir,
-    `${runtimeName}.bin_dir`
+    `${runtimeName}.bin_dir`,
   );
   if (!(await fsp.stat(binDir).catch(() => null))?.isDirectory()) {
     throw new Error(`Staged ${runtimeName} bin_dir is missing`);
@@ -759,7 +778,7 @@ async function assertRuntimeLayout(
     const argPath = resolveStagedPath(
       stageRoot,
       arg,
-      `${runtimeName}.args_prefix`
+      `${runtimeName}.args_prefix`,
     );
     if (!(await fsp.stat(argPath).catch(() => null))?.isFile()) {
       throw new Error(`Staged ${runtimeName} argument path is missing: ${arg}`);
@@ -771,12 +790,12 @@ async function assertRuntimeLayout(
       const executablePath = resolveStagedPath(
         runtimeRoot,
         executable,
-        `${runtimeName}.executable_files`
+        `${runtimeName}.executable_files`,
       );
       const stat = await fsp.stat(executablePath);
       if ((stat.mode & 0o111) === 0) {
         throw new Error(
-          `Staged ${runtimeName} executable bit is missing: ${executable}`
+          `Staged ${runtimeName} executable bit is missing: ${executable}`,
         );
       }
     }
@@ -798,24 +817,25 @@ async function stageRuntime({
     runtimeName,
     targetPin,
     cacheDir,
-    downloader
+    downloader,
   );
   const extractionRoot = path.join(stageRoot, `.extract-${runtimeName}`);
-  await extractor(
-    archivePath,
-    extractionRoot,
-    targetPin.archive_type,
-    { runtimeName, target, pin: targetPin }
-  );
+  await extractor(archivePath, extractionRoot, targetPin.archive_type, {
+    runtimeName,
+    target,
+    pin: targetPin,
+  });
 
   const extractedRuntimeRoot = resolveStagedPath(
     extractionRoot,
     targetPin.archive_root,
-    `${runtimeName}.archive_root`
+    `${runtimeName}.archive_root`,
   );
-  if (!(await fsp.stat(extractedRuntimeRoot).catch(() => null))?.isDirectory()) {
+  if (
+    !(await fsp.stat(extractedRuntimeRoot).catch(() => null))?.isDirectory()
+  ) {
     throw new Error(
-      `${targetPin.archive} did not contain ${targetPin.archive_root}`
+      `${targetPin.archive} did not contain ${targetPin.archive_root}`,
     );
   }
 
@@ -828,12 +848,12 @@ async function stageRuntime({
       runtimeName,
       extraFile,
       cacheDir,
-      downloader
+      downloader,
     );
     const destination = resolveStagedPath(
       runtimeRoot,
       extraFile.output,
-      `${runtimeName}.additional_files.output`
+      `${runtimeName}.additional_files.output`,
     );
     await fsp.mkdir(path.dirname(destination), { recursive: true });
     await fsp.copyFile(sourcePath, destination);
@@ -852,7 +872,7 @@ async function stageRuntime({
       const executablePath = resolveStagedPath(
         runtimeRoot,
         executable,
-        `${runtimeName}.executable_files`
+        `${runtimeName}.executable_files`,
       );
       const stat = await fsp.stat(executablePath);
       await fsp.chmod(executablePath, stat.mode | 0o111);
@@ -869,6 +889,7 @@ async function stageRuntime({
     downloader,
     wheelExtractor,
   });
+  await sealStagedTree(runtimeRoot);
   return {
     version: runtime.version,
     command: targetPin.command,
@@ -899,7 +920,7 @@ function assertSafeOutputDir(outputDir) {
 async function replaceDirectoryAtomically(tempDir, outputDir) {
   const backupDir = path.join(
     path.dirname(outputDir),
-    `.mcp_runtime.previous-${process.pid}-${crypto.randomUUID()}`
+    `.mcp_runtime.previous-${process.pid}-${crypto.randomUUID()}`,
   );
   let hadPrevious = false;
   try {
@@ -918,6 +939,7 @@ async function replaceDirectoryAtomically(tempDir, outputDir) {
     throw error;
   }
   if (hadPrevious) {
+    await makeTreeDirectoriesWritable(backupDir);
     await fsp.rm(backupDir, { recursive: true, force: true });
   }
 }
@@ -938,7 +960,7 @@ async function prepareMcpRuntime({
   const { pins, sha256: pinsSha256 } = await readPinsManifest(pinsPath);
   const tempDir = path.join(
     path.dirname(safeOutputDir),
-    `.mcp_runtime.tmp-${process.pid}-${crypto.randomUUID()}`
+    `.mcp_runtime.tmp-${process.pid}-${crypto.randomUUID()}`,
   );
   await fsp.mkdir(path.dirname(safeOutputDir), { recursive: true });
   await fsp.mkdir(tempDir);
@@ -957,10 +979,10 @@ async function prepareMcpRuntime({
           extractor,
           wheelExtractor,
         }),
-      ])
+      ]),
     );
     const failedRuntime = runtimeResults.find(
-      (result) => result.status === "rejected"
+      (result) => result.status === "rejected",
     );
     if (failedRuntime) {
       throw failedRuntime.reason;
@@ -975,10 +997,12 @@ async function prepareMcpRuntime({
     await fsp.writeFile(
       path.join(tempDir, "manifest.json"),
       `${JSON.stringify(stagedManifest, null, 2)}\n`,
-      "utf8"
+      "utf8",
     );
+    await sealStagedTree(tempDir);
     await replaceDirectoryAtomically(tempDir, safeOutputDir);
   } catch (error) {
+    await makeTreeDirectoriesWritable(tempDir).catch(() => {});
     await fsp.rm(tempDir, { recursive: true, force: true });
     throw error;
   }
@@ -998,7 +1022,7 @@ async function verifyMcpRuntime({
   const safeOutputDir = assertSafeOutputDir(outputDir);
   const { pins, sha256: pinsSha256 } = await readPinsManifest(pinsPath);
   const stagedManifest = JSON.parse(
-    await fsp.readFile(path.join(safeOutputDir, "manifest.json"), "utf8")
+    await fsp.readFile(path.join(safeOutputDir, "manifest.json"), "utf8"),
   );
   if (
     stagedManifest.schema_version !== 1 ||
@@ -1006,7 +1030,7 @@ async function verifyMcpRuntime({
     stagedManifest.pins_sha256 !== pinsSha256
   ) {
     throw new Error(
-      `Staged MCP runtime manifest does not match pins for ${target}`
+      `Staged MCP runtime manifest does not match pins for ${target}`,
     );
   }
 
@@ -1031,41 +1055,34 @@ async function verifyMcpRuntime({
     for (const [key, value] of Object.entries(expectedRecord)) {
       if (JSON.stringify(staged[key]) !== JSON.stringify(value)) {
         throw new Error(
-          `Staged ${runtimeName}.${key} does not match the pinned runtime`
+          `Staged ${runtimeName}.${key} does not match the pinned runtime`,
         );
       }
     }
     await validateTreeLinks(path.join(safeOutputDir, runtimeName));
-    await assertRuntimeLayout(
-      safeOutputDir,
-      runtimeName,
-      target,
-      targetPin
-    );
-    const treeSha256 = await sha256Tree(
-      path.join(safeOutputDir, runtimeName)
-    );
+    await assertRuntimeLayout(safeOutputDir, runtimeName, target, targetPin);
+    const treeSha256 = await sha256Tree(path.join(safeOutputDir, runtimeName));
     if (treeSha256 !== staged.staged_tree_sha256) {
       throw new Error(
         `Staged ${runtimeName} tree checksum mismatch: ` +
-          `expected ${staged.staged_tree_sha256}, got ${treeSha256}`
+          `expected ${staged.staged_tree_sha256}, got ${treeSha256}`,
       );
     }
     if (runtime.bootstrap) {
       const bootstrapRoot = resolveStagedPath(
         safeOutputDir,
         runtime.bootstrap.directory,
-        `${runtimeName}.bootstrap.directory`
+        `${runtimeName}.bootstrap.directory`,
       );
       for (const requiredFile of runtime.bootstrap.required_files) {
         const requiredPath = resolveStagedPath(
           bootstrapRoot,
           requiredFile,
-          `${runtimeName}.bootstrap.required_files`
+          `${runtimeName}.bootstrap.required_files`,
         );
         if (!(await fsp.stat(requiredPath).catch(() => null))?.isFile()) {
           throw new Error(
-            `Staged ${runtimeName} bootstrap is missing ${requiredFile}`
+            `Staged ${runtimeName} bootstrap is missing ${requiredFile}`,
           );
         }
       }
@@ -1074,7 +1091,7 @@ async function verifyMcpRuntime({
       if (bootstrapTreeSha256 !== staged.bootstrap_tree_sha256) {
         throw new Error(
           `Staged ${runtimeName} bootstrap tree checksum mismatch: ` +
-            `expected ${staged.bootstrap_tree_sha256}, got ${bootstrapTreeSha256}`
+            `expected ${staged.bootstrap_tree_sha256}, got ${bootstrapTreeSha256}`,
         );
       }
     }
@@ -1100,7 +1117,7 @@ async function main() {
     `MCP runtime ${options.verifyOnly ? "verified" : "staged"}: ` +
       `${target} (${Object.entries(manifest.runtimes)
         .map(([name, runtime]) => `${name} ${runtime.version}`)
-        .join(", ")})\n`
+        .join(", ")})\n`,
   );
 }
 
@@ -1123,6 +1140,7 @@ module.exports = {
   ensureCachedSource,
   extractArchive,
   extractWheel,
+  makeTreeDirectoriesWritable,
   parseArgs,
   prepareMcpRuntime,
   readPinsManifest,

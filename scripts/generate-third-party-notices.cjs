@@ -71,6 +71,7 @@ const COPYLEFT_LICENSE_RE = /gpl|mpl|epl|cddl|eupl/i;
 const COPYLEFT_SOURCE_OFFERS = {
   // pynput (LGPL-3.0) — dynamic import only, unmodified; C1 computer-control dep.
   pynput: "https://github.com/moses-palmer/pynput",
+  "python-xlib": "https://github.com/python-xlib/python-xlib",
   "axe-core": "https://github.com/dequelabs/axe-core",
   "harmony-reflect": "https://github.com/tvcutsem/harmony-reflect",
   "node-forge": "https://github.com/digitalbazaar/forge",

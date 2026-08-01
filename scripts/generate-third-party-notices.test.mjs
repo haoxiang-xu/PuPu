@@ -52,6 +52,7 @@ test("every copyleft package in the release environment has a source offer", () 
     "certifi",
     "pyinstaller",
     "pyinstaller-hooks-contrib",
+    "python-xlib",
     "tqdm",
   ]) {
     assert.match(notices.COPYLEFT_SOURCE_OFFERS[name], /^https:\/\/github\.com\//);

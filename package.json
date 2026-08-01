@@ -141,13 +141,6 @@
         ]
       },
       {
-        "from": "unchain_runtime/mcp_runtime",
-        "to": "mcp_runtime",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
         "from": "THIRD_PARTY_NOTICES.txt",
         "to": "THIRD_PARTY_NOTICES.txt"
       }
