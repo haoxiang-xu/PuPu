@@ -38,13 +38,19 @@ const MCP_RUNTIME_DIR =
 const MCP_RUNTIME_PINS = path.join(
   root,
   "unchain_runtime",
-  "mcp_runtime_pins.json"
+  "mcp_runtime_pins.json",
 );
 const CHECK = process.argv.includes("--check");
 
 // Build-time helper packages that get temporarily installed into the build venv
 // to run pip-licenses; they are not part of the shipped artifact.
-const PY_IGNORE = ["pip-licenses", "prettytable", "wcwidth", "pip", "setuptools"];
+const PY_IGNORE = [
+  "pip-licenses",
+  "prettytable",
+  "wcwidth",
+  "pip",
+  "setuptools",
+];
 
 // First-party code (PuPu itself + the unchain core library we author) is covered
 // by our own LICENSE/NOTICE, so it is excluded from third-party attribution and
@@ -101,7 +107,7 @@ function resolveSourceOffer(ecosystem, name, version, license) {
   if (!url) {
     problems.push(
       `[${ecosystem}] ${name}@${version}: copyleft license "${license}" has no registered upstream source offer ` +
-        "(add it to COPYLEFT_SOURCE_OFFERS for LGPL/GPL §4/§6 compliance)"
+        "(add it to COPYLEFT_SOURCE_OFFERS for LGPL/GPL §4/§6 compliance)",
     );
     return "";
   }
@@ -123,7 +129,7 @@ function header() {
     "",
     "Copyleft components (e.g. LGPL/GPL) additionally carry a written offer naming",
     "their upstream source, so you can obtain, modify, and replace them (LGPL/GPL",
-    "§4/§6). Look for \"Written offer\" beneath the relevant package below.",
+    '§4/§6). Look for "Written offer" beneath the relevant package below.',
     "",
     SEP,
     "",
@@ -162,7 +168,13 @@ function collectNode() {
     }
     const version = id.slice(id.lastIndexOf("@") + 1);
     const sourceOffer = resolveSourceOffer("node", name, version, license);
-    pkgs.push({ id, license, publisher: info.publisher || "", text, sourceOffer });
+    pkgs.push({
+      id,
+      license,
+      publisher: info.publisher || "",
+      text,
+      sourceOffer,
+    });
   }
   console.log(`  OK: ${pkgs.length} npm packages`);
   return pkgs;
@@ -190,8 +202,15 @@ function collectPython() {
     // so this does not change what PyInstaller shipped).
     execFileSync(
       py,
-      ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", "pip-licenses"],
-      { cwd: root, stdio: "ignore" }
+      [
+        "-m",
+        "pip",
+        "install",
+        "--quiet",
+        "--disable-pip-version-check",
+        "pip-licenses",
+      ],
+      { cwd: root, stdio: "ignore" },
     );
     const raw = execFileSync(
       py,
@@ -204,7 +223,7 @@ function collectPython() {
         "--ignore-packages",
         ...PY_IGNORE,
       ],
-      { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 }
+      { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 },
     );
     data = JSON.parse(raw);
   } catch (e) {
@@ -219,8 +238,15 @@ function collectPython() {
     if (!p.License || /unknown|unlicensed/i.test(license)) {
       problems.push(`[python] ${id}: unresolved license "${license}"`);
     }
-    const text = (p.LicenseText && p.LicenseText !== "UNKNOWN" ? p.LicenseText : "").trim();
-    const sourceOffer = resolveSourceOffer("python", p.Name, p.Version, license);
+    const text = (
+      p.LicenseText && p.LicenseText !== "UNKNOWN" ? p.LicenseText : ""
+    ).trim();
+    const sourceOffer = resolveSourceOffer(
+      "python",
+      p.Name,
+      p.Version,
+      license,
+    );
     pkgs.push({ id, license, publisher: "", text, sourceOffer });
   }
   console.log(`  OK: ${pkgs.length} python packages`);
@@ -233,7 +259,7 @@ function collectVendored() {
     "unchain_runtime",
     "server",
     "computer_control",
-    "CLICK3_NOTICE.md"
+    "CLICK3_NOTICE.md",
   );
   if (!fs.existsSync(noticePath)) {
     problems.push("[vendored] clickclickclick notice file is missing");
@@ -462,7 +488,9 @@ function main() {
       console.error("\nLicense gate FAILED — not safe to publish.");
       process.exit(1);
     }
-    console.warn("\n(warnings only; run with --check to enforce as a release gate)");
+    console.warn(
+      "\n(warnings only; run with --check to enforce as a release gate)",
+    );
   } else {
     console.log("\nLicense gate PASSED.");
   }

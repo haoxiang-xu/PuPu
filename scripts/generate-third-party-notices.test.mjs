@@ -25,7 +25,14 @@ test("copyleft regex matches (L)GPL/MPL/EPL, not permissive licenses", () => {
   ]) {
     assert.ok(re.test(s), `expected copyleft match: ${s}`);
   }
-  for (const s of ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "HPND", "Python-2.0"]) {
+  for (const s of [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "HPND",
+    "Python-2.0",
+  ]) {
     assert.ok(!re.test(s), `expected NO copyleft match: ${s}`);
   }
 });
@@ -35,7 +42,7 @@ test("pynput gets a written source offer with upstream URL + version", () => {
     "python",
     "pynput",
     "1.8.1",
-    "GNU Lesser General Public License v3 (LGPLv3)"
+    "GNU Lesser General Public License v3 (LGPLv3)",
   );
   assert.ok(offer, "expected a non-empty written offer for pynput");
   assert.match(offer, /github\.com\/moses-palmer\/pynput/);
@@ -55,25 +62,46 @@ test("every copyleft package in the release environment has a source offer", () 
     "python-xlib",
     "tqdm",
   ]) {
-    assert.match(notices.COPYLEFT_SOURCE_OFFERS[name], /^https:\/\/github\.com\//);
+    assert.match(
+      notices.COPYLEFT_SOURCE_OFFERS[name],
+      /^https:\/\/github\.com\//,
+    );
   }
 });
 
 test("permissive package gets no offer and no gate problem", () => {
   const before = notices.problems.length;
-  const offer = notices.resolveSourceOffer("python", "Flask", "3.1.0", "BSD-3-Clause");
+  const offer = notices.resolveSourceOffer(
+    "python",
+    "Flask",
+    "3.1.0",
+    "BSD-3-Clause",
+  );
   assert.equal(offer, "");
-  assert.equal(notices.problems.length, before, "permissive license must not add a problem");
+  assert.equal(
+    notices.problems.length,
+    before,
+    "permissive license must not add a problem",
+  );
 });
 
 test("unregistered copyleft component fails the gate", () => {
   const before = notices.problems.length;
-  const offer = notices.resolveSourceOffer("python", "mystery-lib", "0.1", "GPL-3.0");
+  const offer = notices.resolveSourceOffer(
+    "python",
+    "mystery-lib",
+    "0.1",
+    "GPL-3.0",
+  );
   assert.equal(offer, "", "no offer without a registered source");
-  assert.equal(notices.problems.length, before + 1, "must record a gate problem");
+  assert.equal(
+    notices.problems.length,
+    before + 1,
+    "must record a gate problem",
+  );
   assert.match(
     notices.problems[notices.problems.length - 1],
-    /no registered upstream source offer/
+    /no registered upstream source offer/,
   );
 });
 
@@ -87,7 +115,7 @@ test("renderSection embeds the written offer above the license text", () => {
       sourceOffer: notices.buildSourceOffer(
         "pynput",
         "1.8.1",
-        "https://github.com/moses-palmer/pynput"
+        "https://github.com/moses-palmer/pynput",
       ),
     },
   ]);
@@ -95,8 +123,9 @@ test("renderSection embeds the written offer above the license text", () => {
   assert.match(section, /github\.com\/moses-palmer\/pynput/);
   // offer appears before the license body
   assert.ok(
-    section.indexOf("Written offer") < section.indexOf("GNU LESSER GENERAL PUBLIC LICENSE"),
-    "written offer should precede the license text"
+    section.indexOf("Written offer") <
+      section.indexOf("GNU LESSER GENERAL PUBLIC LICENSE"),
+    "written offer should precede the license text",
   );
 });
 
