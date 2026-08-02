@@ -1,8 +1,13 @@
 // 全 app 唯一的堆叠层级来源。任何 body portal 或 position:fixed 的浮层都必须
 // 从这里取值,不得写裸数字 —— 由 __tests__/z_layers_guard.test.js 强制。
 //
-// 这个文件是 layer/ 子系统的视觉一半:layer_stack.js 管行为栈序(Escape 和
-// 外部点击先关谁),这里管视觉栈序(谁画在谁上面)。两者应当一致。
+// 目录名沿用上游 mini_ui 的 `layer/`(单数)。那边还有一个 layer_stack.js,
+// 管的是行为栈序 —— 谁是 top layer、Escape 和外部点击先关谁。PuPu 尚未移植
+// 它:这里的 modal(modal.js:47)、context_menu(:53)、tooltip(:805)各自挂
+// 自己的 Escape 监听,没有共享的栈。所以视觉顺序(本文件)和行为顺序目前是
+// 两套独立的东西,谁先关不由这里的数值决定。将来若移植 layer_stack.js,它会
+// 落进同一个目录,两者也该开始互相对齐 —— 用单数目录名就是为了给它留位置,
+// 而不是造出 layer/ 与 layers/ 并存。
 //
 // 排序理由,从下往上。每一条都由一个真实场景或回归测试锁定,不是审美选择:
 //

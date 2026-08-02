@@ -32,5 +32,8 @@ style={{ zIndex: Z.POPOVER }}
 - 纯局部的 `0/1/2` 级数值不在此列 —— 只跟自己容器内的兄弟节点竞争的，保持字面量。
 - 新增一层：加到 `z_layers.js` 的对应位置，在头注释里写清它必须高于/低于谁**以及
   为什么**（要指向一个真实场景），并在 `z_layers.test.js` 里补一条不变量断言。
-- `layer/` 目录的另一半 `layer_stack.js` 管的是行为栈序（Escape 和外部点击先关谁）。
-  视觉顺序和行为顺序应当一致 —— 改动其一时检查另一个。
+- **已知欠账**：这里定义的是视觉顺序。**行为**顺序（谁是 top layer、Escape 和外部点击
+  先关谁）PuPu 目前没有统一机制 —— `modal.js:47`、`context_menu.js:53`、`tooltip.js:805`
+  各自挂自己的 Escape 监听。上游 mini_ui 的 `BUILTIN_COMPONENTs/layer/layer_stack.js`
+  有这套栈，尚未移植；目录名用单数 `layer/` 就是给它留位置。移植之后，两套顺序需要
+  互相对齐。

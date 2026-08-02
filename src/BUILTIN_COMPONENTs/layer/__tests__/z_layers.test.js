@@ -8,11 +8,21 @@ describe("z_layers canonical scale", () => {
     });
   });
 
-  test("tiers are strictly ascending in declaration order", () => {
+  test("tier values ascend strictly in enumeration order", () => {
+    // 键全是非数字字符串标识符,所以枚举顺序 = 声明顺序(ECMAScript
+    // OrdinaryOwnPropertyKeys)。若哪天加了个数字样式的键,它会被提到最前,
+    // 这条断言就不再等价于"声明顺序" —— 下面那条禁止数字键的测试守住这点。
     const values = Object.values(Z);
     values.forEach((value, i) => {
       if (i === 0) return;
       expect(value).toBeGreaterThan(values[i - 1]);
+    });
+  });
+
+  test("层名不得是数字样式的键 —— 否则枚举顺序会与声明顺序脱钩", () => {
+    Object.keys(Z).forEach((name) => {
+      expect(String(Number(name))).not.toBe(name);
+      expect(name).toMatch(/^[A-Z][A-Z0-9_]*$/);
     });
   });
 

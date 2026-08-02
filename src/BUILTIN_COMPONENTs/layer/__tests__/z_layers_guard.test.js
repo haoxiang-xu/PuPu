@@ -4,8 +4,12 @@
 // 扫描源码,禁止某个模式,例外走显式白名单。
 //
 // 两种模式都要抓,不是一种 —— 首轮清点漏了三处,因为魔数藏在测试的比较值里
-// (toBeLessThan(99999)),而不是 zIndex: 赋值里。那种断言在层级调整后会静默
-// 失效:数值早已不在那个量级,断言却依然通过。
+// (期望值写死在 toBeLessThan 的括号里),而不是 zIndex 赋值里。那种断言在层级
+// 调整后会静默失效:数值早已不在那个量级,断言却依然通过,看上去还在守着不变量,
+// 实际上已经停了。
+//
+// 扫描按整文件做,不按行 —— 正则里的 \s* 本来就能跨行,按行切割反而会漏掉
+// 值写在下一行的写法。行号由匹配位置反算。
 import fs from "fs";
 import path from "path";
 
@@ -15,16 +19,15 @@ const ALLOWLIST = ["public/index.html:36"];
 
 const SCAN_ROOTS = ["src", "public"];
 const SKIP_DIRS = new Set(["node_modules", "build", "dist", "coverage"]);
-// 定义方(scale 本身)和守卫方(本文件,注释里必须能引用那些旧魔数当反例)
-// 都不受自己的规则约束。
+// 定义方本身不受自己的规则约束 —— 它就是那些数字该在的地方。
+// 本守卫文件不豁免:它的注释被刻意写成不含任何四位数字面量,所以能被自己扫过。
 const SELF_EXEMPT = [
   path.join("src", "BUILTIN_COMPONENTs", "layer", "z_layers.js"),
-  path.join("src", "BUILTIN_COMPONENTs", "layer", "__tests__", "z_layers_guard.test.js"),
 ];
 
-// 裸的 z-index 赋值:zIndex: 9999 / z-index: 9999 / zIndex: "9999"
+// 裸的 z-index 赋值。\s* 跨行,所以值写在下一行也能抓到。
 const ASSIGNMENT = /(?:zIndex\s*:\s*["']?|z-index\s*:\s*)(\d{4,})/g;
-// 断言里的硬编码比较值:toBeLessThan(99999) / toBe("9999") ...
+// 断言里写死的期望值(toBeLessThan/toBe/... 括号里的四位以上数字)。
 const COMPARISON =
   /(?:toBeLessThan|toBeGreaterThan|toBeLessThanOrEqual|toBeGreaterThanOrEqual|toBe|toEqual)\(\s*["']?(\d{4,})["']?\s*\)/g;
 
@@ -46,46 +49,50 @@ const collectFiles = () =>
     .map((abs) => path.relative(process.cwd(), abs))
     .filter((rel) => !SELF_EXEMPT.includes(rel));
 
-const readLines = (rel) =>
-  fs.readFileSync(path.join(process.cwd(), rel), "utf8").split("\n");
+const readSource = (rel) =>
+  fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+
+const lineOf = (source, index) => source.slice(0, index).split("\n").length;
+
+const lineTextAt = (source, index) => {
+  const start = source.lastIndexOf("\n", index) + 1;
+  const end = source.indexOf("\n", index);
+  return source.slice(start, end === -1 ? undefined : end).trim();
+};
+
+/* 整文件扫描,返回 `rel:line  行文本` 形式的违规列表。 */
+const scanSource = (rel, regex, filterMatch) => {
+  const source = readSource(rel);
+  const hits = [];
+  regex.lastIndex = 0;
+  let match;
+  while ((match = regex.exec(source))) {
+    if (Number(match[1]) < 1000) continue;
+    const line = lineOf(source, match.index);
+    const key = `${rel}:${line}`;
+    if (ALLOWLIST.includes(key)) continue;
+    if (filterMatch && !filterMatch(source, match)) continue;
+    hits.push(`${key}  ${lineTextAt(source, match.index)}`);
+  }
+  return hits;
+};
 
 test("没有裸的 z-index 赋值 >= 1000 —— 一律走 z_layers.js", () => {
-  const violations = collectFiles()
-    .flatMap((rel) => {
-      const hits = [];
-      readLines(rel).forEach((line, i) => {
-        ASSIGNMENT.lastIndex = 0;
-        let match;
-        while ((match = ASSIGNMENT.exec(line))) {
-          if (Number(match[1]) < 1000) continue;
-          const key = `${rel}:${i + 1}`;
-          if (ALLOWLIST.includes(key)) continue;
-          hits.push(`${key}  ${line.trim()}`);
-        }
-      });
-      return hits;
-    });
+  const violations = collectFiles().flatMap((rel) =>
+    scanSource(rel, ASSIGNMENT),
+  );
   expect(violations).toEqual([]);
 });
 
-test("测试里的层级断言不得硬编码比较值 —— 必须引用 Z", () => {
+test("测试里的层级断言不得写死期望值 —— 必须引用 Z", () => {
+  // 只看谈论 z-index 的断言,否则会误伤 timeout、字节数之类的比较。
+  const nearZIndex = (source, match) => {
+    const from = source.lastIndexOf("\n", source.lastIndexOf("\n", match.index) - 1) + 1;
+    const to = source.indexOf("\n", match.index);
+    return /zIndex|z-index/i.test(source.slice(from, to === -1 ? undefined : to));
+  };
   const violations = collectFiles()
     .filter((rel) => /\.test\.(js|cjs)$/.test(rel))
-    .flatMap((rel) => {
-      const lines = readLines(rel);
-      const hits = [];
-      lines.forEach((line, i) => {
-        // 只看谈论 z-index 的断言(本行或上一行提到),否则会误伤 timeout 之类
-        const context = `${lines[i - 1] || ""}\n${line}`;
-        if (!/zIndex|z-index/i.test(context)) return;
-        COMPARISON.lastIndex = 0;
-        let match;
-        while ((match = COMPARISON.exec(line))) {
-          if (Number(match[1]) < 1000) continue;
-          hits.push(`${rel}:${i + 1}  ${line.trim()}`);
-        }
-      });
-      return hits;
-    });
+    .flatMap((rel) => scanSource(rel, COMPARISON, nearZIndex));
   expect(violations).toEqual([]);
 });
