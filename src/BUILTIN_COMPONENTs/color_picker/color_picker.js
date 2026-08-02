@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 
 /* { Contexts } -------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { Z } from "../layer/z_layers";
 import Input from "../input/input";
 import Button from "../input/button";
 import { GradientSlider } from "../input/slider";
@@ -712,7 +713,7 @@ const ColorPicker = ({
                 inset: 0,
                 width: "100%",
                 height: "100%",
-                zIndex: 9999,
+                zIndex: Z.POPOVER,
                 background: "transparent",
               }}
             />
@@ -725,7 +726,8 @@ const ColorPicker = ({
                 position: "fixed",
                 top: popoverPosition?.top ?? 0,
                 left: popoverPosition?.left ?? 0,
-                zIndex: 10000,
+                /* 与 blocker 同层;panel 靠自身子树内的 DOM 顺序压过 blocker */
+                zIndex: Z.POPOVER,
                 visibility: popoverPosition ? "visible" : "hidden",
               }}
             >

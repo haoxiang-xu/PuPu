@@ -1,6 +1,7 @@
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import Explorer from "./explorer";
+import { Z } from "../layer/z_layers";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 jest.mock("../icon/icon", () => () => <span data-testid="icon" />);
@@ -360,8 +361,8 @@ describe("Explorer", () => {
 
       const ghost = findGhost();
       expect(ghost).toBeDefined();
-      // context_menu.js 用 99999;ghost 必须低于它才不会盖住菜单
-      expect(Number(ghost.style.zIndex)).toBeLessThan(99999);
+      // ghost 必须低于可交互菜单才不会盖住它
+      expect(Number(ghost.style.zIndex)).toBeLessThan(Z.POPOVER);
     });
 
     test("ghost 仍需高于 modal,因为 explorer 会被用在 modal 内(memory-inspect)", () => {
@@ -370,8 +371,8 @@ describe("Explorer", () => {
 
       const ghost = findGhost();
       expect(ghost).toBeDefined();
-      // modal.js 用 9999;压到它之下会让 modal 内的 explorer 提示被自己的 modal 遮住
-      expect(Number(ghost.style.zIndex)).toBeGreaterThan(9999);
+      // 压到 modal 之下会让 modal 内的 explorer 提示被自己的 modal 遮住
+      expect(Number(ghost.style.zIndex)).toBeGreaterThan(Z.MODAL);
     });
 
     test("mousedown 立刻收起 ghost(点击通常会打开 modal,而 mouseleave 不会触发)", () => {

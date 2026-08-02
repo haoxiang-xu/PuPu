@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import ReactDOM from "react-dom";
 import AnimatedChildren from "../class/animated_children";
+import { Z } from "../layer/z_layers";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -1014,10 +1015,10 @@ const ExplorerRowBase = ({
               borderRadius: 5,
               whiteSpace: "nowrap",
               pointerEvents: "none",
-              /* 与 tooltip/tooltip.js 同层(10000):高于 modal(9999),因为 explorer
-                 会被放进 modal 内使用(memory_inspect_modal);低于 context_menu(99999),
-                 因为它只是提示,绝不该盖住可交互的菜单。 */
-              zIndex: 10000,
+              /* 与 tooltip 同层:高于 modal(explorer 会被放进 modal 内使用,
+                 见 memory_inspect_modal),低于 context menu(被动提示绝不该
+                 盖住可交互的菜单)。见 layer/z_layers.js。 */
+              zIndex: Z.TOOLTIP,
             }}
           >
             <span
