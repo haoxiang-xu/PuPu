@@ -2,6 +2,7 @@ import { useEffect, useState, useContext } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ShaderBlobBackground from "../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
+import { Z } from "../../BUILTIN_COMPONENTs/layer/z_layers";
 import { deriveBlobScene } from "./derive_blob_palette";
 import bootProgress from "../../SERVICEs/boot_progress";
 
@@ -55,7 +56,9 @@ const BootOverlay = () => {
   const rootStyle = {
     position: "fixed",
     inset: 0,
-    zIndex: 2147483647,
+    /* public/index.html 的静态 shell CSS 里有一份同值副本(静态 shell 无法
+       import JS 模块),改这里必须同步改那里。见 layer/z_layers.js。 */
+    zIndex: Z.BOOT,
     background,
     opacity: exiting ? 0 : 1,
     transition: `opacity ${EXIT_MS}ms ease`,

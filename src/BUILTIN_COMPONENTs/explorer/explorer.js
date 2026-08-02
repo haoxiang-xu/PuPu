@@ -1947,7 +1947,7 @@ const Explorer = ({
               whiteSpace: "nowrap",
               cursor: "grabbing",
               pointerEvents: "none",
-              zIndex: 999999,
+              zIndex: Z.DRAG_GHOST,
               willChange: "transform",
             }}
           >

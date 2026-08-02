@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { subscribe } from "../../SERVICEs/progress_bus";
+import { Z } from "../layer/z_layers";
 
 export default function TopProgressBar() {
   const { onThemeMode } = useContext(ConfigContext);
@@ -38,7 +39,7 @@ export default function TopProgressBar() {
       position: "fixed", top: 0, left: 0,
       height: 2, width: `${widthPct}%`,
       background: isDark ? "#4a9fd4" : "#2a7fc4",
-      zIndex: 10000,
+      zIndex: Z.TOP_PROGRESS,
       transition: "width 400ms ease-out, opacity 200ms ease-out",
       opacity: phase === "finishing" ? 0 : 1,
       pointerEvents: "none",
