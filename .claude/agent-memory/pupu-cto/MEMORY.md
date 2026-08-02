@@ -37,3 +37,6 @@
 - [ADR：V4 文档化与跨仓契约](adr-v4-doc-and-cross-repo-contract.md) — doc sync 2026-06-19；建 runtime-events-v4.md(electron 主笔+渲染方双签)、v3 文件不重命名、core events_v4 API 双签另立、channel/team/plan_id 标注"暂未启用"
 - [结构风险快照 2026-07-21](structural-risk-snapshot-2026-07-21.md) — god-file 一月涨3-5x/CLAUDE.md失真/main无保护/provider仍2家;冲刺态≠常态速度
 - [ADR: attachStreamV4 liveness gap ruled non-blocker 2026-07-22](adr-streamv4-liveness-gap-not-blocker.md) — silent-dead-stream after active/terminal=false has no heartbeat/watchdog anywhere; P1 fast-follow spec Backend→Electron→ChatCore in file
+- [ADR：context/memory v2 迁移评审 2026-08-02](adr-context-memory-v2-migration-review.md) — seam 放行(显式字段非名字推断/callback 单字段可构造性证明)；emit_event CRITICAL 前提实测为 LOW=已证伪，改用调用点数论证
+- [拦截：v2 迁移 baseline 不存在](adr-v2-migration-baseline-blocker.md) — P0 实现 0 文件入库全 untracked，stash/checkout 都救不回；lock.json revision=null 无人读；.venv 装不了 unchain
+- [ADR：z_layers 落点 = BUILTIN 非 SERVICEs](adr-z-layers-landing-spot.md) — 理由是 mini_ui 回港路径与 primitives→services 反向边，不是"像不像 service"

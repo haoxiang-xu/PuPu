@@ -16,3 +16,4 @@
 - [unchain 替换裁决](harness-replacement-adjudication.md) — 2026-07-28 不换内核;90%深绑定/LangGraph~73%覆盖;先建 runtime contract+provider gateway;pilot 条件触发;单向门=删unchain backend
 - [sidecar TLS+managed runtime 裁决](sidecar-tls-and-managed-runtime-ruling.md) — 2026-07-28 擎net_tls保留随0.1.9;Electron内置Node=否决陷阱;v2立项P1-P5(darwin-only/不钉版/惰性物料化/企业断点);半单向门=trust解析顺序
 - [PO 角色 vs project ledger 裁定](po-role-vs-project-ledger.md) — 2026-07-31 草案:PO 三诉求=ledger工件+DRI字段+cadence盯梢,不新增agent;实测subagent无Task工具→PO派dev物理不可行;issue已证伪(#42僵尸)
+- [context/memory v2 迁移边界评审](context-memory-v2-boundary-review.md) — 2026-08-02 边界方向对但四处画错:curator prompt 归 PuPu(改plan别改码)/两个workspace是命名债/Task1 fixture 把PuPu写成unchain规格(pupu_p0 已在仓内)/真单向门=canary5% 而非Task10;前置条件两边都无 immutable revision
