@@ -43,6 +43,21 @@ describe("z_layers canonical scale", () => {
     expect(Z.MODAL).toBeLessThan(Z.TOAST);
   });
 
+  test("TOAST < POPOVER —— toast pile 整块 pointerEvents:auto,盖住菜单会吃掉点击并把它当成外部点击关掉菜单", () => {
+    // error 变体的 toast 是 Infinity duration(不会自己消失),流式失败时真的会
+    // 挂在屏幕上。迁移前 context menu 是 99999、toast 是 9999,不可能发生。
+    expect(Z.TOAST).toBeLessThan(Z.POPOVER);
+  });
+
+  test("TOAST < TOOLTIP —— 保持迁移前 tooltip(10000) > toast(9999) 的关系", () => {
+    expect(Z.TOAST).toBeLessThan(Z.TOOLTIP);
+  });
+
+  test("MODAL < POPOVER_BLOCKER < POPOVER —— blocker 要能盖住 modal,又不能盖住别的实例的 panel", () => {
+    expect(Z.MODAL).toBeLessThan(Z.POPOVER_BLOCKER);
+    expect(Z.POPOVER_BLOCKER).toBeLessThan(Z.POPOVER);
+  });
+
   test("POPOVER < DRAG_GHOST —— 保持迁移前 999999 > 99999 的既有关系", () => {
     expect(Z.POPOVER).toBeLessThan(Z.DRAG_GHOST);
   });

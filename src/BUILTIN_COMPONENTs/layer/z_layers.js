@@ -22,16 +22,28 @@
 //                   2049 > 2048 表达,并由 container.js 的 JSX 顺序兜底;
 //                   现在是显式的。
 //   MODAL           阻塞对话框。
+//   TOAST           通知。必须 > MODAL:modal 内触发的保存/安装结果提示若
+//                   落在 modal 之后,就是不可见的 UX 断裂。迁移前 toast 与
+//                   modal 同为 9999,谁在上只取决于 DOM 插入顺序。
+//                   但必须 < TOOLTIP/POPOVER:迁移前 context menu 是 99999、
+//                   tooltip 是 10000,都在 toast 的 9999 之上。通知是自己冒
+//                   出来的,用户主动打开的菜单不该被它盖住;反过来菜单挡住一
+//                   条通知,代价只是少看一眼。保持原有关系。
 //   TOOLTIP         被动提示(tooltip、Explorer 截断标签的完整标题浮层)。
 //                   必须 > MODAL:Explorer 被用在 memory-inspect modal、
 //                   theme editor、recipe list 内部,压到 modal 之下会让
 //                   modal 遮住自己行的提示。(PR #192)
-//   POPOVER         可交互浮层:context menu、dropdown、color picker。
+//   POPOVER_BLOCKER 浮层的全屏点击拦截层(color picker 用它实现点外部关闭)。
+//                   必须 > MODAL:它要能盖住 modal,否则 modal 内打开的
+//                   picker 关不掉(color_picker 测试标题就叫 "above a modal")。
+//                   必须 < POPOVER:同值时,同屏另一个实例的 blocker 会盖住
+//                   本实例的 panel —— theme editor 一列 picker 无 focus trap,
+//                   键盘可以同时打开两个。迁移前 panel 10000 > blocker 9999
+//                   本来就有这个边距。
+//   POPOVER         可交互浮层:context menu、dropdown、color picker 面板。
 //                   必须 > TOOLTIP:被动提示绝不能盖住可交互菜单。(PR #192)
 //                   必须 > MODAL:Agents modal → Recipes → 右键是真实路径。
-//   TOAST           通知。必须 > MODAL:modal 内触发的保存/安装结果提示若
-//                   落在 modal 之后,就是不可见的 UX 断裂。迁移前 toast 与
-//                   modal 同为 9999,谁在上只取决于 DOM 插入顺序。
+//                   必须 > TOAST:见上。
 //   DRAG_GHOST      跟随光标的拖拽影像。迁移前是 999999,高于 context menu
 //                   的 99999;这里保持该关系。
 //   TOP_PROGRESS    全局进度条。环境信号,永远在最上(BOOT 除外)。
@@ -50,11 +62,12 @@ export const Z = {
   APP_CHROME: 1000,
   APP_CHROME_TOP: 2000,
   MODAL: 3000,
-  TOOLTIP: 4000,
-  POPOVER: 5000,
-  TOAST: 6000,
-  DRAG_GHOST: 7000,
-  TOP_PROGRESS: 8000,
+  TOAST: 4000,
+  TOOLTIP: 5000,
+  POPOVER_BLOCKER: 6000,
+  POPOVER: 7000,
+  DRAG_GHOST: 8000,
+  TOP_PROGRESS: 9000,
   BOOT: 2147483647,
 };
 

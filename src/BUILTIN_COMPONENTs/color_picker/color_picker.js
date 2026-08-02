@@ -713,7 +713,9 @@ const ColorPicker = ({
                 inset: 0,
                 width: "100%",
                 height: "100%",
-                zIndex: Z.POPOVER,
+                /* 低于 panel 一层:同值时,同屏另一个 picker 的 blocker 会盖住
+                   本实例的 panel(theme editor 一列 picker,无 focus trap)。 */
+                zIndex: Z.POPOVER_BLOCKER,
                 background: "transparent",
               }}
             />
@@ -726,7 +728,7 @@ const ColorPicker = ({
                 position: "fixed",
                 top: popoverPosition?.top ?? 0,
                 left: popoverPosition?.left ?? 0,
-                /* 与 blocker 同层;panel 靠自身子树内的 DOM 顺序压过 blocker */
+                /* 严格高于 blocker,不依赖 DOM 顺序 */
                 zIndex: Z.POPOVER,
                 visibility: popoverPosition ? "visible" : "hidden",
               }}

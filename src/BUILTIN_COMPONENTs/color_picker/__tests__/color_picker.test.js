@@ -319,7 +319,10 @@ describe("ColorPicker", () => {
       height: "100%",
     });
     expect(blocker.style.inset).toBe("0");
-    expect(blocker.style.zIndex).toBe(String(Z.POPOVER));
+    expect(blocker.style.zIndex).toBe(String(Z.POPOVER_BLOCKER));
+    // blocker 要盖住 modal,但不能盖住任何 picker 的 panel
+    expect(Z.POPOVER_BLOCKER).toBeGreaterThan(Z.MODAL);
+    expect(Z.POPOVER_BLOCKER).toBeLessThan(Z.POPOVER);
 
     fireEvent.mouseDown(blocker);
     fireEvent.mouseUp(blocker);
