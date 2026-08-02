@@ -7,6 +7,11 @@
 // 排序理由,从下往上。每一条都由一个真实场景或回归测试锁定,不是审美选择:
 //
 //   CONTENT_RAISED  局部抬升。只需盖住自己容器内的内容,不参与跨层竞争。
+//   SCROLL_OVERLAY  滚动条 thumb 覆盖层。就地 append 到滚动容器的父节点,
+//                   必须盖过该容器内的一切内容 —— 包括各处局部抬升的装饰层
+//                   (实测最高 200,见 carousel)。它迁移前是 9999,那个强度
+//                   是必要的,CONTENT_RAISED 表达不了。但它仍然是局部的:
+//                   低于 APP_CHROME 保证它永远不会盖住真正的外壳或浮层。
 //   APP_CHROME      常驻外壳:title bar。
 //   APP_CHROME_TOP  常驻外壳上层:side menu 必须盖住 title bar。迁移前靠
 //                   2049 > 2048 表达,并由 container.js 的 JSX 顺序兜底;
@@ -27,13 +32,16 @@
 //   TOP_PROGRESS    全局进度条。环境信号,永远在最上(BOOT 除外)。
 //   BOOT            启动遮罩,盖住一切。
 //
-// 层间留 1000 的间隔,是为了将来插入新层时不必重排既有值。
+// 跨层浮层之间留 1000 的间隔,是为了将来插入新层时不必重排既有值。局部层
+// (CONTENT_RAISED / SCROLL_OVERLAY)不受这条约束 —— 它们的值只需在自己的
+// 容器内够用,并保持在 APP_CHROME 之下。
 //
 // ⚠️ public/index.html 的静态 boot shell CSS 里有一份 BOOT 的同值副本
 //    (静态 shell 无法 import JS 模块)。改 BOOT 必须同步改那里。
 
 export const Z = {
   CONTENT_RAISED: 10,
+  SCROLL_OVERLAY: 500,
   APP_CHROME: 1000,
   APP_CHROME_TOP: 2000,
   MODAL: 3000,

@@ -52,9 +52,25 @@ describe("z_layers canonical scale", () => {
     expect(Z.BOOT).toBeGreaterThan(Math.max(...others));
   });
 
-  test("相邻层之间留有插入空间(BOOT 除外)", () => {
+  // 局部层不参与跨层竞争,只需在自己的容器内够用,并留在 APP_CHROME 之下。
+  const LOCAL_TIERS = ["CONTENT_RAISED", "SCROLL_OVERLAY"];
+
+  test("局部层全部低于 APP_CHROME —— 它们绝不该盖住外壳或浮层", () => {
+    LOCAL_TIERS.forEach((name) => {
+      expect(Z[name]).toBeLessThan(Z.APP_CHROME);
+    });
+  });
+
+  test("SCROLL_OVERLAY 高于代码库里所有局部装饰值(实测最高 200)", () => {
+    // 滚动条覆盖层就地 append 到滚动容器的父节点,必须盖过容器内的一切内容。
+    // 迁移前它是 9999;强度是必要的,只是量级用错了地方。
+    expect(Z.SCROLL_OVERLAY).toBeGreaterThan(200);
+    expect(Z.SCROLL_OVERLAY).toBeGreaterThan(Z.CONTENT_RAISED);
+  });
+
+  test("跨层浮层之间留有插入空间(局部层与 BOOT 除外)", () => {
     const values = Object.entries(Z)
-      .filter(([name]) => name !== "BOOT" && name !== "CONTENT_RAISED")
+      .filter(([name]) => name !== "BOOT" && !LOCAL_TIERS.includes(name))
       .map(([, value]) => value);
     values.forEach((value, i) => {
       if (i === 0) return;
