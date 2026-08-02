@@ -10,6 +10,7 @@ import { toast } from "../../../SERVICEs/toast";
 import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_PRESETS,
+  SEMANTIC_FAMILIES,
 } from "../../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 import {
   resolveSemanticPalette,
@@ -29,12 +30,13 @@ import {
 } from "./storage";
 import { ADVANCED_TIERS, advancedTokenState } from "./advanced_state";
 
-/* Tokens that become Explorer folder nodes with derived-tier children. Only
-   "background" has any today (sidebar/surface are derived from it), but
-   structuring this as a map — rather than hardcoding "background" inline —
-   lets a future token join the same folder treatment without touching the
-   data-building loop below. */
-const DERIVED_CHILDREN = { background: ["sidebar", "surface"] };
+/* Explorer folder nodes with derived-tier children — read from the
+   SEMANTIC_FAMILIES single-source table (spec §3, P0). A future family added
+   to that table gets the folder treatment here for free, without touching
+   the data-building loop below. */
+const DERIVED_CHILDREN = Object.fromEntries(
+  Object.entries(SEMANTIC_FAMILIES).map(([root, fam]) => [root, fam.children]),
+);
 
 const TOKEN_LABELS = {
   accent: "Accent",
@@ -248,8 +250,6 @@ const ThemeEditor = () => {
     ...(isDark ? { hoverBackgroundColor: "rgba(255,255,255,0.10)" } : {}),
   };
 
-  const autoTierCount = ADVANCED_TIERS.filter((k) => advState[k].isAuto).length;
-
   /* icon + short text variant of the toolbar buttons */
   const textToolButtonStyle = (danger = false) => ({
     root: {
@@ -339,17 +339,19 @@ const ThemeEditor = () => {
       continue;
     }
 
-    /* "background" folder row: keeps its "auto ×N" pill next to its own
-       ColorPicker in the trailing slot, alongside the sidebar/surface tiers
-       nested as children. Normal explorer expand/collapse — this is the one
-       token allowed to fold. */
+    /* Family folder row: keeps its "auto ×N" pill next to its own
+       ColorPicker in the trailing slot, alongside the derived tiers nested
+       as children. The count is per-family — a second family must not
+       report this one's auto tiers. */
+    const familyAutoCount = childKeys.filter((k) => advState[k].isAuto).length;
+
     explorerData[key] = {
       label: TOKEN_LABELS[key],
       children: childKeys,
       trailing: (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {autoTierCount > 0 && (
-            <span style={autoBadgeStyle}>auto ×{autoTierCount}</span>
+          {familyAutoCount > 0 && (
+            <span style={autoBadgeStyle}>auto ×{familyAutoCount}</span>
           )}
           <ColorPicker
             label={`${TOKEN_LABELS[key]} color`}
@@ -461,7 +463,7 @@ const ThemeEditor = () => {
         </div>
       </div>
 
-      <Explorer data={explorerData} root={explorerRoot} row_height={48} row_radius={9} style={{ width: "100%" }} />
+      <Explorer data={explorerData} root={explorerRoot} row_height={40} row_radius={9} style={{ width: "100%" }} />
 
       <input
         ref={importInputRef}

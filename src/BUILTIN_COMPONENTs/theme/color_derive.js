@@ -64,14 +64,34 @@ export const hslToHex = (h, s, l) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
+/* Saturation-matching constants (spec §2.1, frozen values). A ref pair whose
+   base saturation is below S_ACHROMATIC cannot express a meaningful S ratio
+   (0/0) — fall back to capping the output at S_NEUTRAL_CAP, the centroid of
+   the chromatic presets' muted saturations. Identity holds on both branches:
+   base === refBase reproduces refTier exactly. */
+const S_ACHROMATIC = 0.06;
+const S_NEUTRAL_CAP = 0.2;
+const S_RATIO_MIN = 0.25;
+const S_RATIO_MAX = 1.15;
+
 export const deriveTier = (baseHex, refBaseHex, refTierHex, opts = {}) => {
   const minStep = opts.minStep == null ? 0.04 : opts.minStep;
   const base = hexToHsl(baseHex);
-  const offset = hexToHsl(refTierHex).l - hexToHsl(refBaseHex).l;
+  const refBase = hexToHsl(refBaseHex);
+  const refTier = hexToHsl(refTierHex);
+  const offset = refTier.l - refBase.l;
   let l = clamp(base.l + offset, 0, 1);
   if (offset !== 0 && Math.abs(l - base.l) < minStep) {
     const dir = offset > 0 ? 1 : -1;
     l = clamp(base.l + dir * minStep, 0, 1);
   }
-  return hslToHex(base.h, base.s, l);
+  let s = base.s;
+  if (opts.matchSaturation) {
+    s =
+      refBase.s >= S_ACHROMATIC
+        ? base.s * clamp(refTier.s / refBase.s, S_RATIO_MIN, S_RATIO_MAX)
+        : Math.min(base.s, S_NEUTRAL_CAP);
+    s = clamp(s, 0, 1);
+  }
+  return hslToHex(base.h, s, l);
 };

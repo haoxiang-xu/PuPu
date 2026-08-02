@@ -1,4 +1,8 @@
-export const ADVANCED_TIERS = ["sidebar", "surface"];
+import { SEMANTIC_FAMILIES } from "../../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+
+export const ADVANCED_TIERS = Object.values(SEMANTIC_FAMILIES).flatMap(
+  (f) => f.children,
+);
 
 export const advancedTokenState = (settings, mode, palette) => {
   const bag = (settings && settings.custom && settings.custom[mode]) || {};

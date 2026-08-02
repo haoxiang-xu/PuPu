@@ -2,6 +2,7 @@ import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_DEFAULTS,
   SEMANTIC_PRESETS,
+  SEMANTIC_FAMILIES,
 } from "./semantic_tokens";
 
 const HEX = /^#[0-9a-f]{6}$/;
@@ -127,5 +128,34 @@ describe("phase-3 preset library", () => {
         expect(contrast(p.accent, p.background)).toBeGreaterThanOrEqual(3);
       }
     }
+  });
+});
+
+describe("SEMANTIC_FAMILIES", () => {
+  test("every family root and child is a semantic token key", () => {
+    for (const [root, fam] of Object.entries(SEMANTIC_FAMILIES)) {
+      expect(SEMANTIC_TOKEN_KEYS).toContain(root);
+      expect(Array.isArray(fam.children)).toBe(true);
+      expect(fam.children.length).toBeGreaterThan(0);
+      for (const child of fam.children) {
+        expect(SEMANTIC_TOKEN_KEYS).toContain(child);
+        expect(child).not.toBe(root);
+      }
+    }
+  });
+
+  test("no child belongs to two families, and no child is itself a family root", () => {
+    const seen = new Set();
+    for (const [, fam] of Object.entries(SEMANTIC_FAMILIES)) {
+      for (const child of fam.children) {
+        expect(seen.has(child)).toBe(false);
+        seen.add(child);
+        expect(SEMANTIC_FAMILIES[child]).toBeUndefined();
+      }
+    }
+  });
+
+  test("background family matches the shipped derived tiers", () => {
+    expect(SEMANTIC_FAMILIES.background.children).toEqual(["sidebar", "surface"]);
   });
 });

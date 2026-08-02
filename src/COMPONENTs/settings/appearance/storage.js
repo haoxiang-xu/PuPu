@@ -1,6 +1,7 @@
 import {
   SEMANTIC_DEFAULTS,
   SEMANTIC_PRESETS,
+  SEMANTIC_FAMILIES,
 } from "../../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 import {
   readNamespace,
@@ -9,7 +10,9 @@ import {
 
 const APPEARANCE_NAMESPACE = "appearance";
 
-const DERIVED_TIERS = ["sidebar", "surface"];
+const DERIVED_TIERS = Object.values(SEMANTIC_FAMILIES).flatMap(
+  (f) => f.children,
+);
 
 const isObject = (v) => v != null && typeof v === "object" && !Array.isArray(v);
 

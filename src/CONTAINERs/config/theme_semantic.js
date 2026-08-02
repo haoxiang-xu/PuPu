@@ -3,9 +3,8 @@ import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_DEFAULTS,
   SEMANTIC_PRESETS,
+  SEMANTIC_FAMILIES,
 } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
-
-const DERIVED_TIERS = ["sidebar", "surface"];
 
 export const hexToRgbTriplet = (color) => {
   const trimmed = String(color || "").trim();
@@ -80,14 +79,15 @@ export const resolveSemanticPalette = (mode, options = {}) => {
   for (const key of SEMANTIC_TOKEN_KEYS) {
     result[key] = customPalette[key] || presetPalette[key] || base[key];
   }
-  const refBase = presetPalette.background || base.background;
-  // Only derive sidebar/surface if the background was explicitly customized
-  const backgroundWasCustomized = customPalette.background != null;
-  if (backgroundWasCustomized) {
-    for (const tier of DERIVED_TIERS) {
+  for (const [root, family] of Object.entries(SEMANTIC_FAMILIES)) {
+    /* Only derive a family's tiers when its own root was explicitly
+       customized (per-family gate — no cross-family bleed). */
+    if (customPalette[root] == null) continue;
+    const refRoot = presetPalette[root] || base[root];
+    for (const tier of family.children) {
       if (!customPalette[tier]) {
         const refTier = presetPalette[tier] || base[tier];
-        result[tier] = deriveTier(result.background, refBase, refTier);
+        result[tier] = deriveTier(result[root], refRoot, refTier);
       }
     }
   }

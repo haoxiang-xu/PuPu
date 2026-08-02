@@ -10,7 +10,10 @@ import {
   persistBootPalette,
   BOOT_PALETTE_STORAGE_KEY,
 } from "./theme_semantic";
-import { SEMANTIC_DEFAULTS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+import {
+  SEMANTIC_DEFAULTS,
+  SEMANTIC_FAMILIES,
+} from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 
 describe("hexToRgbTriplet", () => {
   test("converts 6-digit hex to 'r,g,b'", () => {
@@ -302,6 +305,25 @@ describe("resolveSemanticPalette auto-derivation", () => {
       custom: { dark_mode: { background: "#202028", surface: "#333333" } },
     });
     expect(p.surface).toBe("#333333");
+  });
+
+  test("derives every SEMANTIC_FAMILIES child when its root is customized (table-driven gate)", () => {
+    for (const [root, fam] of Object.entries(SEMANTIC_FAMILIES)) {
+      const palette = resolveSemanticPalette("dark_mode", {
+        custom: { dark_mode: { [root]: "#0b1620" } },
+      });
+      for (const child of fam.children) {
+        expect(palette[child]).not.toBe(SEMANTIC_DEFAULTS.dark_mode[child]);
+      }
+    }
+  });
+
+  test("customizing a non-family token derives nothing", () => {
+    const palette = resolveSemanticPalette("dark_mode", {
+      custom: { dark_mode: { text: "#aabbcc" } },
+    });
+    expect(palette.sidebar).toBe(SEMANTIC_DEFAULTS.dark_mode.sidebar);
+    expect(palette.surface).toBe(SEMANTIC_DEFAULTS.dark_mode.surface);
   });
 });
 

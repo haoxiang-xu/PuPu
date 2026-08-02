@@ -10,6 +10,15 @@ export const SEMANTIC_TOKEN_KEYS = [
   "danger",
 ];
 
+/* Single source of truth for token families (spec §3, P0). A family = a root
+   token whose child tiers auto-derive from it (deriveTier) when the root is
+   customized. The resolver, storage, editor state, and editor UI must all
+   read this table — never re-declare the child list locally. Children order
+   is meaningful (it is the editor's row order). */
+export const SEMANTIC_FAMILIES = {
+  background: { children: ["sidebar", "surface"] },
+};
+
 export const SEMANTIC_DEFAULTS = {
   light_mode: {
     accent: "#65c466",
