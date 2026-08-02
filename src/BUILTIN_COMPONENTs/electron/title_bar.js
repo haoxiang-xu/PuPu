@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../input/button";
+import { Z } from "../layer/z_layers";
 import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 
 const TOP_BAR_HEIGHT = 50;
@@ -132,7 +133,7 @@ const TitleBar = () => {
         left: 0,
         right: 0,
         height: TOP_BAR_HEIGHT,
-        zIndex: 2048,
+        zIndex: Z.APP_CHROME,
         background: gradientBackground,
 
         WebkitBackdropFilter: "blur(20px)",

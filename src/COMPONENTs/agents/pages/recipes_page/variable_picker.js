@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
+import { Z } from "../../../../BUILTIN_COMPONENTs/layer/z_layers";
 
 const SOURCE_DOT_COLOR = {
   start: "#4cbe8b",
@@ -71,7 +72,7 @@ export default function VariablePicker({ scope, onPick, onClose, position }) {
         boxShadow: isDark
           ? "0 12px 36px rgba(0,0,0,0.5)"
           : "0 12px 36px rgba(0,0,0,0.12)",
-        zIndex: 1000,
+        zIndex: Z.POPOVER,
         overflow: "hidden",
       }}
       onMouseDown={(e) => e.stopPropagation()}

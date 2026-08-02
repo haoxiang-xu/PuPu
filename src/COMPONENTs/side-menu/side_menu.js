@@ -14,6 +14,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
+import { Z } from "../../BUILTIN_COMPONENTs/layer/z_layers";
 import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
   ConfirmDeleteModal,
@@ -518,7 +519,9 @@ const SideMenu = () => {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        zIndex: 2049,
+        /* 必须压过 title bar(APP_CHROME)。迁移前靠 2049 > 2048 表达,
+           并由 container.js 的 JSX 顺序兜底;现在是显式的。 */
+        zIndex: Z.APP_CHROME_TOP,
       }}
     >
       <Button
