@@ -116,8 +116,9 @@ def _create_d3_agent(
     *,
     session_id: str = "",
     fyi_channel: Any = None,
+    memory_v2_shadow_run: Any = None,
 ) -> Agent:
-    del session_id, fyi_channel
+    del session_id, fyi_channel, memory_v2_shadow_run
 
     store = JsonFileSessionStore(
         base_dir=_DATA_DIR / "memory" / "sessions"

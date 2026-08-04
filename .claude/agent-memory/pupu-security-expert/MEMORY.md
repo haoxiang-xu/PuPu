@@ -15,3 +15,4 @@
 - [Phase4 秘密存储签字门](phase4-secret-storage-decision.md) — GO(有条件)；选safeStorage(B)非OS vault；Linux fail-closed禁basic_text；dual-keep回滚；注入移主进程=CTO ADR；MCP/OAuth defer
 - [Sidecar TLS 信任工厂安审](sidecar-tls-trust-review.md) — 2026-07-28 GO；env-first 顺序已裁定勿复议；逃生开关 fail-closed；新出网点必须走 get_outbound_ssl_context
 - [Managed Runtime 钉版裁决](managed-runtime-pinning-verdict.md) — CEO发现同源SHA缺口属实定Medium；方案=pins进发布物+pin时验签+fail-closed；v2下限不进0.1.9
+- [Memory V2 Context 引用双闸最终审](memory-v2-context-reference-double-gate.md) — 2026-08-02 APPROVED未接production；10项不变量全过；_decode_ref 递归无深度界(cutover前必修)+仓储层宽松解码非阻塞

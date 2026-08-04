@@ -277,6 +277,7 @@ $pyinstallerArgs = @(
   "--hidden-import", "unchain.memory",
   "--hidden-import", "unchain.memory.manager",
   "--hidden-import", "unchain.memory.qdrant",
+  "--hidden-import", "vault_sink_worker",
   "--hidden-import", "openai",
   "--hidden-import", "anthropic",
   # Outbound TLS trust (server/net_tls.py). The frozen binary cannot rely on

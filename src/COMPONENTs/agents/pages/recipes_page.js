@@ -6,8 +6,14 @@ import { windowStateBridge } from "../../../SERVICEs/bridges/window_state_bridge
 import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
+import MemoryAgentSystemPanel from "./recipes_page/memory_agent_system_panel";
 import { to_save_payload } from "./recipes_page/recipe_save_payload";
 import useRecipeHistory from "./recipes_page/use_recipe_history";
+import {
+  isFeatureFlagEnabled,
+  subscribeFeatureFlags,
+} from "../../../SERVICEs/feature_flags";
+import { MEMORY_AGENT_SYSTEM_NODE_ID } from "../../../SERVICEs/memory_agent_settings";
 
 export default function RecipesPage({
   isDark,
@@ -46,6 +52,24 @@ export default function RecipesPage({
   const [listCollapsed, setListCollapsed] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  /* ── Memory V2 system agent (feature-flag gated) ── */
+  const [memoryV2Enabled, setMemoryV2Enabled] = useState(() =>
+    isFeatureFlagEnabled("enable_memory_v2"),
+  );
+  const [systemSelected, setSystemSelected] = useState(false);
+
+  useEffect(
+    () =>
+      subscribeFeatureFlags((flags) =>
+        setMemoryV2Enabled(flags.enable_memory_v2 === true),
+      ),
+    [],
+  );
+
+  useEffect(() => {
+    if (!memoryV2Enabled) setSystemSelected(false);
+  }, [memoryV2Enabled]);
+
   useEffect(() => {
     (async () => {
       const { recipes: list } = await api.unchain.listRecipes();
@@ -55,7 +79,9 @@ export default function RecipesPage({
   }, []);
 
   useEffect(() => {
-    if (!activeName) return;
+    /* system nodes never resolve to a recipe — defensive: activeName is
+       never set to the system id, but guard against future callers */
+    if (!activeName || activeName === MEMORY_AGENT_SYSTEM_NODE_ID) return;
     (async () => {
       const r = await api.unchain.getRecipe(activeName);
       setActiveRecipeSilent(r);
@@ -78,6 +104,13 @@ export default function RecipesPage({
   };
 
   const handleSelectRecipe = (name) => {
+    if (name === MEMORY_AGENT_SYSTEM_NODE_ID) {
+      /* System agent: no recipe fetch, no graph, no detail panel. */
+      setSystemSelected(true);
+      onSelectNode(null);
+      return;
+    }
+    setSystemSelected(false);
     setActiveName(name);
   };
 
@@ -145,31 +178,60 @@ export default function RecipesPage({
     flexDirection: "column",
   };
 
+  const showSystemPanel = systemSelected && memoryV2Enabled;
+
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      {/* ── Full-bleed node graph canvas ── */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "inherit",
-        }}
-      >
-        <RecipeCanvas
-          recipe={activeRecipe}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={onSelectNode}
-          onRecipeChange={handleRecipeChange}
-          onRecipeChangeSilent={handleRecipeChangeSilent}
-          onSave={handleSave}
-          dirty={dirty}
-          isDark={isDark}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      </div>
+      {showSystemPanel ? (
+        /* ── System agent card (Memory V2) — replaces graph + detail ── */
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: listCollapsed ? "24px" : "24px 24px 24px 226px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              ...overlayPanel,
+              position: "relative",
+              width: 420,
+              maxWidth: "100%",
+              maxHeight: "100%",
+            }}
+          >
+            <MemoryAgentSystemPanel isDark={isDark} />
+          </div>
+        </div>
+      ) : (
+        /* ── Full-bleed node graph canvas ── */
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "inherit",
+          }}
+        >
+          <RecipeCanvas
+            recipe={activeRecipe}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={onSelectNode}
+            onRecipeChange={handleRecipeChange}
+            onRecipeChangeSilent={handleRecipeChangeSilent}
+            onSave={handleSave}
+            dirty={dirty}
+            isDark={isDark}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
+        </div>
+      )}
 
       {/* ── Floating recipe list (left side menu) ── */}
       <div
@@ -188,12 +250,15 @@ export default function RecipesPage({
       >
         <RecipeList
           recipes={recipes}
-          activeName={activeName}
+          activeName={
+            showSystemPanel ? MEMORY_AGENT_SYSTEM_NODE_ID : activeName
+          }
           onSelect={handleSelectRecipe}
           onListChange={setRecipes}
           onCollapse={() => setListCollapsed(true)}
           isDark={isDark}
           headerTopPad={headerTopPad}
+          showMemoryAgent={memoryV2Enabled}
         />
       </div>
 
@@ -250,27 +315,29 @@ export default function RecipesPage({
       )}
 
       {/* ── Floating inspector (right detail panel) ── */}
-      <div
-        style={{
-          ...overlayPanel,
-          top: 6,
-          right: 6,
-          bottom: 6,
-          width: 300,
-          opacity: selectedNodeId ? 1 : 0,
-          transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
-          transition:
-            "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-          pointerEvents: selectedNodeId ? "auto" : "none",
-        }}
-      >
-        <DetailPanel
-          recipe={activeRecipe}
-          selectedNodeId={selectedNodeId}
-          onChange={handleRecipeChange}
-          onChangeSilent={handleRecipeChangeSilent}
-        />
-      </div>
+      {!showSystemPanel && (
+        <div
+          style={{
+            ...overlayPanel,
+            top: 6,
+            right: 6,
+            bottom: 6,
+            width: 300,
+            opacity: selectedNodeId ? 1 : 0,
+            transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
+            transition:
+              "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+            pointerEvents: selectedNodeId ? "auto" : "none",
+          }}
+        >
+          <DetailPanel
+            recipe={activeRecipe}
+            selectedNodeId={selectedNodeId}
+            onChange={handleRecipeChange}
+            onChangeSilent={handleRecipeChangeSilent}
+          />
+        </div>
+      )}
     </div>
   );
 }

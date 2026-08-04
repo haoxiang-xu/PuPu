@@ -2,6 +2,11 @@ import os
 
 from flask import Response, current_app, jsonify, request
 
+from context_memory_v2_capability import (
+    context_memory_v2_capability_status,
+    resolve_context_memory_v2_capability,
+)
+from memory_v2_rollout import resolve_memory_v2_rollout
 from route_blueprint import api_blueprint
 
 
@@ -197,6 +202,11 @@ def health() -> Response:
     if not root._is_authorized():
         return root._json_error("unauthorized", "Invalid auth token", 401)
 
+    rollout = resolve_memory_v2_rollout()
+    memory_v2_capability = resolve_context_memory_v2_capability(
+        requested_mode=rollout.rollout_mode,
+    )
+
     return jsonify(
         {
             "status": "ok",
@@ -204,6 +214,9 @@ def health() -> Response:
             "model": root.get_model_name(),
             "threaded": True,
             "contract": _runtime_contract(),
+            "context_memory_v2": context_memory_v2_capability_status(
+                memory_v2_capability
+            ),
         }
     )
 

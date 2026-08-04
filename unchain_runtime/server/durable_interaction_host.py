@@ -15,8 +15,58 @@ from typing import Any, Iterator
 
 _CONTEXT_SCHEMA_VERSION = 2
 _CONTEXT_DIRECTORY = "durable_interactions"
+_GRAPH_STEP_CONTEXT_SCHEMA_VERSION = 1
+_GRAPH_STEP_CONTEXT_REVISION = 1
+_GRAPH_STEP_CONTEXT_DIRECTORY = "durable_graph_step_resumes"
 _ATTEMPT_BINDING_SCHEMA_VERSION = 1
 _ATTEMPT_BINDING_DIRECTORY = "execution_attempt_bindings"
+
+_GRAPH_STEP_CONTEXT_RECORD_KEYS = frozenset(
+    {
+        "schema_version",
+        "resume_kind",
+        "revision",
+        "operation_id",
+        "payload_sha256",
+        "created_at_ms",
+        "session_id",
+        "owner_chat_id",
+        "graph_execution_id",
+        "coordinator_attempt_id",
+        "graph_plan_id",
+        "graph_scope_id",
+        "topology_sha256",
+        "step_index",
+        "node_id",
+        "step_attempt_id",
+        "predecessor_attempt_id",
+        "provider",
+        "model",
+        "configuration_sha256",
+        "recipe_identity",
+        "canonical_build_fingerprint",
+        "coordinator_binding_snapshot",
+        "options",
+    }
+)
+_GRAPH_COORDINATOR_BINDING_KEYS = frozenset(
+    {
+        "owner_chat_id",
+        "execution_id",
+        "session_id",
+        "generation_id",
+        "head_revision",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+        "role",
+        "source_attempt_id",
+        "current_input_draft",
+    }
+)
+_GRAPH_RECIPE_IDENTITY_KEYS = frozenset(
+    {"name", "source", "revision", "version", "sha256"}
+)
 
 # Resume state is deliberately an allowlist.  The route accepts arbitrary JSON
 # options, so trying to identify secrets by name is not a safe persistence
@@ -170,6 +220,30 @@ def _context_path(
     return directory / f"{_identifier_digest(normalized_run_id)}.json"
 
 
+def _graph_step_context_path(
+    session_id: str,
+    step_attempt_id: str,
+    *,
+    create_directory: bool = False,
+) -> Path:
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    root = _normalized_data_dir() / _GRAPH_STEP_CONTEXT_DIRECTORY
+    directory = root / _identifier_digest(normalized_session_id)[:32]
+    if create_directory:
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if os.name != "nt":
+            os.chmod(root, 0o700)
+            os.chmod(directory, 0o700)
+    return directory / f"{_identifier_digest(normalized_step_attempt_id)}.json"
+
+
 def _attempt_binding_path(
     session_id: str,
     attempt_id: str,
@@ -292,6 +366,306 @@ def _fresh_secret_overlay(value: Any) -> dict[str, Any]:
     return overlay
 
 
+def _required_graph_sha256(value: Any, *, field_name: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if len(normalized) != 64 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        raise DurableInteractionHostError(
+            f"invalid_{field_name}",
+            f"{field_name} must be a lowercase sha256 hex digest",
+            status_code=400,
+        )
+    return normalized
+
+
+def _sanitize_graph_storage_value(value: Any) -> Any:
+    try:
+        from memory_v2_sanitizer import sanitize_value
+    except ImportError as exc:  # pragma: no cover - packaged-runtime guard
+        raise DurableInteractionHostError(
+            "durable_graph_resume_sanitizer_unavailable",
+            "Graph-step resume metadata sanitizer is unavailable",
+            status_code=503,
+        ) from exc
+    try:
+        return sanitize_value(_json_safe(value))
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_sanitization_failed",
+            "Graph-step resume metadata could not be sanitized",
+        ) from exc
+
+
+def _canonical_graph_json_bytes(
+    value: Any,
+    *,
+    error_code: str,
+    message: str,
+) -> bytes:
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (RecursionError, TypeError, ValueError, UnicodeError) as exc:
+        raise DurableInteractionHostError(error_code, message) from exc
+
+
+def _normalize_graph_recipe_identity(value: Any) -> dict[str, Any]:
+    if isinstance(value, str):
+        raw = {"name": value}
+    elif isinstance(value, dict):
+        raw = copy.deepcopy(value)
+    else:
+        raise DurableInteractionHostError(
+            "invalid_recipe_identity",
+            "recipe_identity must be text or an object",
+            status_code=400,
+        )
+    if "name" not in raw or not set(raw).issubset(
+        _GRAPH_RECIPE_IDENTITY_KEYS
+    ):
+        raise DurableInteractionHostError(
+            "invalid_recipe_identity",
+            "recipe_identity has unsupported fields",
+            status_code=400,
+        )
+    normalized: dict[str, Any] = {}
+    for key, item in raw.items():
+        if key == "sha256":
+            normalized[key] = _required_graph_sha256(
+                item,
+                field_name="recipe_identity_sha256",
+            )
+            continue
+        if isinstance(item, bool) or not isinstance(item, (str, int)):
+            raise DurableInteractionHostError(
+                "invalid_recipe_identity",
+                "recipe_identity fields must be text or integers",
+                status_code=400,
+            )
+        normalized[key] = item
+    normalized["name"] = _required_identifier(
+        normalized.get("name"),
+        field_name="recipe_identity_name",
+    )
+    sanitized = _sanitize_graph_storage_value(normalized)
+    if not isinstance(sanitized, dict) or set(sanitized) != set(normalized):
+        raise DurableInteractionHostError(
+            "invalid_recipe_identity",
+            "recipe_identity changed shape during sanitization",
+            status_code=400,
+        )
+    return sanitized
+
+
+def _normalize_graph_current_input_draft(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "root graph coordinator requires a current input draft",
+            status_code=400,
+        )
+    kind = str(value.get("kind") or "").strip()
+    if kind == "text":
+        allowed = {"kind", "content", "message_index", "attachments"}
+        required = {"kind", "content", "message_index"}
+        if not required.issubset(value) or not set(value).issubset(allowed):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input has unsupported fields",
+                status_code=400,
+            )
+        if not isinstance(value.get("content"), str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input content must be text",
+                status_code=400,
+            )
+        message_index = value.get("message_index")
+        if (
+            isinstance(message_index, bool)
+            or not isinstance(message_index, int)
+            or message_index < 0
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input message_index is invalid",
+                status_code=400,
+            )
+        attachments = value.get("attachments", [])
+        if not isinstance(attachments, list) or len(attachments) > 32 or any(
+            not isinstance(item, dict) for item in attachments
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input attachments are invalid",
+                status_code=400,
+            )
+    elif kind == "interaction":
+        if set(value) != {
+            "kind",
+            "interaction_id",
+            "response",
+            "submitted_by",
+        }:
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "interaction coordinator input has unsupported fields",
+                status_code=400,
+            )
+        _required_identifier(
+            value.get("interaction_id"),
+            field_name="coordinator_interaction_id",
+        )
+        _required_identifier(
+            value.get("submitted_by"),
+            field_name="coordinator_submitted_by",
+        )
+    else:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator current input kind is invalid",
+            status_code=400,
+        )
+    sanitized = _sanitize_graph_storage_value(value)
+    if not isinstance(sanitized, dict) or set(sanitized) != set(value):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator current input changed shape during sanitization",
+            status_code=400,
+        )
+    return sanitized
+
+
+def _normalize_graph_coordinator_binding_snapshot(
+    value: Any,
+    *,
+    owner_chat_id: str,
+    graph_execution_id: str,
+    session_id: str,
+    coordinator_attempt_id: str,
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != _GRAPH_COORDINATOR_BINDING_KEYS:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator_binding_snapshot has unsupported fields",
+            status_code=400,
+        )
+    normalized = _sanitize_graph_storage_value(value)
+    if not isinstance(normalized, dict) or set(normalized) != set(value):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator binding changed shape during sanitization",
+            status_code=400,
+        )
+    identity_fields = (
+        "owner_chat_id",
+        "execution_id",
+        "session_id",
+        "generation_id",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+        "role",
+    )
+    for field_name in identity_fields:
+        normalized[field_name] = _required_identifier(
+            normalized.get(field_name),
+            field_name=f"coordinator_{field_name}",
+        )
+    source_attempt_id = str(normalized.get("source_attempt_id") or "").strip()
+    normalized["source_attempt_id"] = source_attempt_id
+    head_revision = normalized.get("head_revision")
+    if (
+        isinstance(head_revision, bool)
+        or not isinstance(head_revision, int)
+        or head_revision < 1
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator head_revision must be a positive integer",
+            status_code=400,
+        )
+    expected_scope = (
+        owner_chat_id,
+        graph_execution_id,
+        session_id,
+        coordinator_attempt_id,
+        coordinator_attempt_id,
+    )
+    actual_scope = (
+        normalized["owner_chat_id"],
+        normalized["execution_id"],
+        normalized["session_id"],
+        normalized["attempt_id"],
+        normalized["run_id"],
+    )
+    if actual_scope != expected_scope:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator binding does not match the graph resume scope",
+            status_code=400,
+        )
+    role = normalized["role"]
+    if role == "root":
+        if (
+            normalized["root_run_id"] != coordinator_attempt_id
+            or source_attempt_id
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "root coordinator binding identity is invalid",
+                status_code=400,
+            )
+        normalized["current_input_draft"] = (
+            _normalize_graph_current_input_draft(
+                normalized.get("current_input_draft")
+            )
+        )
+    elif role == "subagent":
+        if (
+            normalized["root_run_id"] == coordinator_attempt_id
+            or not source_attempt_id
+            or normalized.get("current_input_draft") is not None
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "subagent coordinator binding identity is invalid",
+                status_code=400,
+            )
+    else:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "graph coordinator role must be root or subagent",
+            status_code=400,
+        )
+    return normalized
+
+
+def _normalize_graph_stable_options(value: Any) -> dict[str, Any]:
+    stable = _stable_resume_options(value)
+    sanitized = _sanitize_graph_storage_value(stable)
+    if not isinstance(sanitized, dict) or not set(sanitized).issubset(
+        _STABLE_RESUME_OPTION_KEYS
+    ):
+        raise DurableInteractionHostError(
+            "invalid_graph_resume_options",
+            "graph resume options changed shape during sanitization",
+            status_code=400,
+        )
+    _canonical_graph_json_bytes(
+        sanitized,
+        error_code="invalid_graph_resume_options",
+        message="Graph resume options are not canonical JSON",
+    )
+    return sanitized
+
+
 def save_resume_context(
     *,
     session_id: str,
@@ -399,6 +773,474 @@ def clear_resume_context(session_id: str, run_id: str) -> bool:
         return existed
     except (DurableInteractionHostError, OSError):
         return False
+
+
+def _graph_step_context_semantic_payload(
+    *,
+    session_id: str,
+    step_attempt_id: str,
+    operation_id: str,
+    owner_chat_id: str,
+    graph_execution_id: str,
+    coordinator_attempt_id: str,
+    graph_plan_id: str,
+    graph_scope_id: str,
+    topology_sha256: str,
+    step_index: int,
+    node_id: str,
+    predecessor_attempt_id: str,
+    provider: str,
+    model: str,
+    configuration_sha256: str,
+    recipe_identity: Any,
+    canonical_build_fingerprint: str,
+    coordinator_binding_snapshot: Any,
+    options: Any,
+) -> dict[str, Any]:
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_graph_execution_id = _required_identifier(
+        graph_execution_id,
+        field_name="graph_execution_id",
+    )
+    if normalized_graph_execution_id != normalized_session_id:
+        raise DurableInteractionHostError(
+            "invalid_graph_execution_id",
+            "graph_execution_id must equal the durable interaction session_id",
+            status_code=400,
+        )
+    normalized_owner_chat_id = _required_identifier(
+        owner_chat_id,
+        field_name="owner_chat_id",
+    )
+    normalized_coordinator_attempt_id = _required_identifier(
+        coordinator_attempt_id,
+        field_name="coordinator_attempt_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    if normalized_step_attempt_id == normalized_coordinator_attempt_id:
+        raise DurableInteractionHostError(
+            "invalid_step_attempt_id",
+            "graph step attempt must differ from its coordinator",
+            status_code=400,
+        )
+    if (
+        isinstance(step_index, bool)
+        or not isinstance(step_index, int)
+        or step_index < 0
+    ):
+        raise DurableInteractionHostError(
+            "invalid_step_index",
+            "step_index must be a non-negative integer",
+            status_code=400,
+        )
+    normalized_provider = _required_identifier(
+        provider,
+        field_name="provider",
+    ).casefold()
+    normalized_model = _required_identifier(model, field_name="model")
+    normalized_binding = _normalize_graph_coordinator_binding_snapshot(
+        coordinator_binding_snapshot,
+        owner_chat_id=normalized_owner_chat_id,
+        graph_execution_id=normalized_graph_execution_id,
+        session_id=normalized_session_id,
+        coordinator_attempt_id=normalized_coordinator_attempt_id,
+    )
+    payload = {
+        "schema_version": _GRAPH_STEP_CONTEXT_SCHEMA_VERSION,
+        "resume_kind": "graph_step",
+        "revision": _GRAPH_STEP_CONTEXT_REVISION,
+        "operation_id": _required_identifier(
+            operation_id,
+            field_name="operation_id",
+        ),
+        "session_id": normalized_session_id,
+        "owner_chat_id": normalized_owner_chat_id,
+        "graph_execution_id": normalized_graph_execution_id,
+        "coordinator_attempt_id": normalized_coordinator_attempt_id,
+        "graph_plan_id": _required_identifier(
+            graph_plan_id,
+            field_name="graph_plan_id",
+        ),
+        "graph_scope_id": _required_identifier(
+            graph_scope_id,
+            field_name="graph_scope_id",
+        ),
+        "topology_sha256": _required_graph_sha256(
+            topology_sha256,
+            field_name="topology_sha256",
+        ),
+        "step_index": step_index,
+        "node_id": _required_identifier(node_id, field_name="node_id"),
+        "step_attempt_id": normalized_step_attempt_id,
+        "predecessor_attempt_id": _required_identifier(
+            predecessor_attempt_id,
+            field_name="predecessor_attempt_id",
+        ),
+        "provider": normalized_provider,
+        "model": normalized_model,
+        "configuration_sha256": _required_graph_sha256(
+            configuration_sha256,
+            field_name="configuration_sha256",
+        ),
+        "recipe_identity": _normalize_graph_recipe_identity(recipe_identity),
+        "canonical_build_fingerprint": _required_graph_sha256(
+            canonical_build_fingerprint,
+            field_name="canonical_build_fingerprint",
+        ),
+        "coordinator_binding_snapshot": normalized_binding,
+        "options": _normalize_graph_stable_options(options),
+    }
+    _canonical_graph_json_bytes(
+        payload,
+        error_code="invalid_graph_resume_context",
+        message="Graph-step resume metadata is not canonical JSON",
+    )
+    return payload
+
+
+def _graph_step_context_payload_sha256(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        _canonical_graph_json_bytes(
+            payload,
+            error_code="durable_graph_resume_context_corrupt",
+            message="Graph-step resume metadata is not canonical JSON",
+        )
+    ).hexdigest()
+
+
+def _validate_graph_step_context_record(
+    raw: Any,
+    *,
+    expected_session_id: str,
+    expected_step_attempt_id: str,
+) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata must be an object",
+        )
+    if raw.get("schema_version") != _GRAPH_STEP_CONTEXT_SCHEMA_VERSION:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_incompatible",
+            "Graph-step resume metadata has an unsupported schema",
+        )
+    if set(raw) != _GRAPH_STEP_CONTEXT_RECORD_KEYS:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata has unexpected fields",
+        )
+    created_at_ms = raw.get("created_at_ms")
+    if (
+        isinstance(created_at_ms, bool)
+        or not isinstance(created_at_ms, int)
+        or created_at_ms < 1
+    ):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata has an invalid creation time",
+        )
+    try:
+        semantic = _graph_step_context_semantic_payload(
+            session_id=raw.get("session_id"),
+            step_attempt_id=raw.get("step_attempt_id"),
+            operation_id=raw.get("operation_id"),
+            owner_chat_id=raw.get("owner_chat_id"),
+            graph_execution_id=raw.get("graph_execution_id"),
+            coordinator_attempt_id=raw.get("coordinator_attempt_id"),
+            graph_plan_id=raw.get("graph_plan_id"),
+            graph_scope_id=raw.get("graph_scope_id"),
+            topology_sha256=raw.get("topology_sha256"),
+            step_index=raw.get("step_index"),
+            node_id=raw.get("node_id"),
+            predecessor_attempt_id=raw.get("predecessor_attempt_id"),
+            provider=raw.get("provider"),
+            model=raw.get("model"),
+            configuration_sha256=raw.get("configuration_sha256"),
+            recipe_identity=raw.get("recipe_identity"),
+            canonical_build_fingerprint=raw.get(
+                "canonical_build_fingerprint"
+            ),
+            coordinator_binding_snapshot=raw.get(
+                "coordinator_binding_snapshot"
+            ),
+            options=raw.get("options"),
+        )
+    except DurableInteractionHostError as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata failed structural validation",
+        ) from exc
+    persisted_semantic = {
+        key: copy.deepcopy(value)
+        for key, value in raw.items()
+        if key not in {"payload_sha256", "created_at_ms"}
+    }
+    if semantic != persisted_semantic:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata changed after normalization",
+        )
+    try:
+        payload_sha256 = _required_graph_sha256(
+            raw.get("payload_sha256"),
+            field_name="payload_sha256",
+        )
+    except DurableInteractionHostError as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata has an invalid payload hash",
+        ) from exc
+    if payload_sha256 != _graph_step_context_payload_sha256(semantic):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata payload hash does not match",
+        )
+    if (
+        semantic["session_id"] != expected_session_id
+        or semantic["graph_execution_id"] != expected_session_id
+        or semantic["step_attempt_id"] != expected_step_attempt_id
+    ):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_mismatch",
+            "Graph-step resume metadata belongs to another execution or step",
+        )
+    return copy.deepcopy(raw)
+
+
+def _read_graph_step_context_path(
+    path: Path,
+    *,
+    expected_session_id: str,
+    expected_step_attempt_id: str,
+) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            f"Graph-step resume metadata is corrupt: {exc}",
+        ) from exc
+    return _validate_graph_step_context_record(
+        raw,
+        expected_session_id=expected_session_id,
+        expected_step_attempt_id=expected_step_attempt_id,
+    )
+
+
+def save_graph_step_resume_context(
+    *,
+    session_id: str,
+    step_attempt_id: str,
+    operation_id: str,
+    owner_chat_id: str,
+    graph_execution_id: str,
+    coordinator_attempt_id: str,
+    graph_plan_id: str,
+    graph_scope_id: str,
+    topology_sha256: str,
+    step_index: int,
+    node_id: str,
+    predecessor_attempt_id: str,
+    provider: str,
+    model: str,
+    configuration_sha256: str,
+    recipe_identity: Any,
+    canonical_build_fingerprint: str,
+    coordinator_binding_snapshot: Any,
+    options: dict[str, Any],
+    expected_revision: int = 0,
+) -> dict[str, Any]:
+    """Create one immutable graph-step resume locator with CAS semantics."""
+
+    if expected_revision != 0 or isinstance(expected_revision, bool):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_revision_conflict",
+            "Immutable graph-step resume metadata requires expected_revision=0",
+        )
+    semantic = _graph_step_context_semantic_payload(
+        session_id=session_id,
+        step_attempt_id=step_attempt_id,
+        operation_id=operation_id,
+        owner_chat_id=owner_chat_id,
+        graph_execution_id=graph_execution_id,
+        coordinator_attempt_id=coordinator_attempt_id,
+        graph_plan_id=graph_plan_id,
+        graph_scope_id=graph_scope_id,
+        topology_sha256=topology_sha256,
+        step_index=step_index,
+        node_id=node_id,
+        predecessor_attempt_id=predecessor_attempt_id,
+        provider=provider,
+        model=model,
+        configuration_sha256=configuration_sha256,
+        recipe_identity=recipe_identity,
+        canonical_build_fingerprint=canonical_build_fingerprint,
+        coordinator_binding_snapshot=coordinator_binding_snapshot,
+        options=options,
+    )
+    normalized_session_id = semantic["session_id"]
+    normalized_step_attempt_id = semantic["step_attempt_id"]
+    payload_sha256 = _graph_step_context_payload_sha256(semantic)
+    path = _graph_step_context_path(
+        normalized_session_id,
+        normalized_step_attempt_id,
+        create_directory=True,
+    )
+    lock_path = path.with_name(f".{path.name}.lock")
+    with _exclusive_file_lock(lock_path):
+        existing = _read_graph_step_context_path(
+            path,
+            expected_session_id=normalized_session_id,
+            expected_step_attempt_id=normalized_step_attempt_id,
+        )
+        if existing is not None:
+            existing_semantic = {
+                key: copy.deepcopy(value)
+                for key, value in existing.items()
+                if key not in {"payload_sha256", "created_at_ms"}
+            }
+            if (
+                existing.get("payload_sha256") == payload_sha256
+                and existing_semantic == semantic
+            ):
+                return copy.deepcopy(existing)
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_conflict",
+                "Graph-step resume metadata is already bound to another payload",
+            )
+        record = {
+            **semantic,
+            "payload_sha256": payload_sha256,
+            "created_at_ms": int(time.time() * 1000),
+        }
+        _write_json_atomically(path, record)
+        verified = _read_graph_step_context_path(
+            path,
+            expected_session_id=normalized_session_id,
+            expected_step_attempt_id=normalized_step_attempt_id,
+        )
+        if verified is None or verified.get("payload_sha256") != payload_sha256:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_write_failed",
+                "Graph-step resume metadata write verification failed",
+            )
+        return verified
+
+
+def load_graph_step_resume_context(
+    session_id: str,
+    step_attempt_id: str,
+    *,
+    expected_owner_chat_id: str,
+    expected_provider: str,
+    expected_model: str,
+) -> dict[str, Any] | None:
+    """Load one graph-step locator only for its exact host/model subject."""
+
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    normalized_owner_chat_id = _required_identifier(
+        expected_owner_chat_id,
+        field_name="expected_owner_chat_id",
+    )
+    normalized_provider = _required_identifier(
+        expected_provider,
+        field_name="expected_provider",
+    ).casefold()
+    normalized_model = _required_identifier(
+        expected_model,
+        field_name="expected_model",
+    )
+    record = _read_graph_step_context_path(
+        _graph_step_context_path(
+            normalized_session_id,
+            normalized_step_attempt_id,
+        ),
+        expected_session_id=normalized_session_id,
+        expected_step_attempt_id=normalized_step_attempt_id,
+    )
+    if record is None:
+        return None
+    if (
+        record.get("owner_chat_id") != normalized_owner_chat_id
+        or record.get("provider") != normalized_provider
+        or record.get("model") != normalized_model
+    ):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_subject_mismatch",
+            "Graph-step resume metadata does not match its owner/provider/model",
+        )
+    return record
+
+
+def clear_graph_step_resume_context(
+    session_id: str,
+    step_attempt_id: str,
+    *,
+    expected_payload_sha256: str,
+) -> bool:
+    """CAS-delete one immutable graph-step locator after terminal completion."""
+
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    normalized_payload_sha256 = _required_graph_sha256(
+        expected_payload_sha256,
+        field_name="expected_payload_sha256",
+    )
+    path = _graph_step_context_path(
+        normalized_session_id,
+        normalized_step_attempt_id,
+    )
+    if not path.exists():
+        return False
+    lock_path = path.with_name(f".{path.name}.lock")
+    with _exclusive_file_lock(lock_path):
+        current = _read_graph_step_context_path(
+            path,
+            expected_session_id=normalized_session_id,
+            expected_step_attempt_id=normalized_step_attempt_id,
+        )
+        if current is None:
+            return False
+        if current.get("payload_sha256") != normalized_payload_sha256:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_conflict",
+                "Graph-step resume metadata changed before deletion",
+            )
+        try:
+            path.unlink()
+            if os.name != "nt":
+                directory_descriptor = os.open(path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_descriptor)
+                finally:
+                    os.close(directory_descriptor)
+        except OSError as exc:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_delete_failed",
+                f"Graph-step resume metadata could not be deleted: {exc}",
+            ) from exc
+    return True
 
 
 def _read_attempt_binding_path(path: Path) -> dict[str, Any] | None:
@@ -640,6 +1482,44 @@ def resolve_resume_options(
                 "model": context_model,
             }
         )
+    return resolved
+
+
+def resolve_graph_step_resume_options(
+    *,
+    session_id: str,
+    step_attempt_id: str,
+    owner_chat_id: str,
+    fresh_options: dict[str, Any] | None,
+    expected_provider: str,
+    expected_model: str,
+) -> dict[str, Any]:
+    """Rebuild one graph step from immutable metadata plus fresh credentials."""
+
+    context = load_graph_step_resume_context(
+        session_id,
+        step_attempt_id,
+        expected_owner_chat_id=owner_chat_id,
+        expected_provider=expected_provider,
+        expected_model=expected_model,
+    )
+    if context is None:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_missing",
+            "No graph-step resume metadata was recorded for this interaction",
+        )
+    stable_options = context.get("options")
+    if not isinstance(stable_options, dict):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume options must be an object",
+        )
+    resolved = copy.deepcopy(stable_options)
+    resolved.update(_fresh_secret_overlay(fresh_options or {}))
+    # The locator subject identifies the suspended step, while these options
+    # rebuild the whole recipe graph.  Preserve the graph's original base
+    # model; forcing modelId to the step model would change every node that
+    # inherits the recipe default and make a legitimate cold resume drift.
     return resolved
 
 
@@ -1570,6 +2450,30 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         context = None
         context_unavailable_reason = "durable_resume_context_subject_mismatch"
 
+    graph_context: dict[str, Any] | None = None
+    if context is None and source_run_id:
+        try:
+            candidate = _read_graph_step_context_path(
+                _graph_step_context_path(
+                    normalized_session_id,
+                    source_run_id,
+                ),
+                expected_session_id=normalized_session_id,
+                expected_step_attempt_id=source_run_id,
+            )
+            if candidate is not None:
+                graph_context = load_graph_step_resume_context(
+                    normalized_session_id,
+                    source_run_id,
+                    expected_owner_chat_id=str(
+                        candidate.get("owner_chat_id") or ""
+                    ),
+                    expected_provider=subject_provider,
+                    expected_model=subject_model,
+                )
+        except DurableInteractionHostError as exc:
+            context_unavailable_reason = exc.code
+
     result: dict[str, Any] = {
         "status": (
             "receipt_recorded"
@@ -1584,14 +2488,26 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         "provider": subject_provider,
         "model": subject_model,
         "presentation": _presentation_for_request(request),
-        "resume_available": context is not None,
+        "resume_available": context is not None or graph_context is not None,
         "resume_options": (
-            copy.deepcopy(context.get("options") or {})
-            if isinstance(context, dict)
+            copy.deepcopy(
+                (context or graph_context or {}).get("options") or {}
+            )
+            if isinstance(context or graph_context, dict)
             else {}
         ),
     }
-    if context is None:
+    if graph_context is not None:
+        result.update(
+            {
+                "resume_kind": "graph_step",
+                "graph_step_attempt_id": source_run_id,
+                "graph_coordinator_attempt_id": str(
+                    graph_context.get("coordinator_attempt_id") or ""
+                ),
+            }
+        )
+    if context is None and graph_context is None:
         result["resume_unavailable_reason"] = (
             context_unavailable_reason or "resume_context_missing"
         )
@@ -2094,10 +3010,14 @@ class DurableInteractionIdTracker:
 __all__ = [
     "DurableInteractionHostError",
     "DurableInteractionIdTracker",
+    "clear_graph_step_resume_context",
     "clear_resume_context",
     "get_pending_interaction",
+    "load_graph_step_resume_context",
     "load_resume_context",
     "record_interaction_receipt",
+    "resolve_graph_step_resume_options",
     "resolve_resume_options",
+    "save_graph_step_resume_context",
     "save_resume_context",
 ]

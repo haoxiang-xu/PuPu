@@ -68,6 +68,16 @@ export const mergeQueuedTurnTexts = (texts) => {
  * (queue pile) can render + let the user undo individual entries before the
  * run ends.
  */
+/* The only disposition a queued item may carry. It records that the user
+   explicitly clicked "send as plain text" in the secret gate for THIS item, so
+   a later programmatic relay of it does not have to fail closed. Anything else
+   normalizes away to "" — an unknown or forged value is treated as "no
+   approval", which is the safe direction. */
+export const QUEUED_TURN_PLAIN_DISPOSITION = "plain_user_approved";
+
+const normalizeQueuedTurnDisposition = (value) =>
+  value === QUEUED_TURN_PLAIN_DISPOSITION ? QUEUED_TURN_PLAIN_DISPOSITION : "";
+
 const normalizeQueuedTurnItems = (value) => {
   const deduplicated = new Map();
   for (const item of Array.isArray(value) ? value : []) {
@@ -78,7 +88,13 @@ const normalizeQueuedTurnItems = (value) => {
         ? item.status
         : "";
     if (!id || !text.trim() || !status) continue;
-    deduplicated.set(id, { id, text, status });
+    const disposition = normalizeQueuedTurnDisposition(item?.disposition);
+    deduplicated.set(id, {
+      id,
+      text,
+      status,
+      ...(disposition ? { disposition } : {}),
+    });
   }
   return Array.from(deduplicated.values()).slice(0, 64);
 };
@@ -89,7 +105,7 @@ export const createQueuedTurnBuffer = (initialItems = []) => {
   const snapshot = () => items.map((item) => ({ ...item }));
 
   return {
-    push(text) {
+    push(text, disposition = "") {
       if (
         typeof text !== "string" ||
         !text.trim() ||
@@ -98,7 +114,18 @@ export const createQueuedTurnBuffer = (initialItems = []) => {
         return null;
       }
       const id = generateId("queue");
-      items = [...items, { id, text, status: "queued" }];
+      const normalizedDisposition = normalizeQueuedTurnDisposition(disposition);
+      items = [
+        ...items,
+        {
+          id,
+          text,
+          status: "queued",
+          ...(normalizedDisposition
+            ? { disposition: normalizedDisposition }
+            : {}),
+        },
+      ];
       return id;
     },
     remove(id) {
@@ -135,6 +162,16 @@ export const createQueuedTurnBuffer = (initialItems = []) => {
       return {
         ids: queuedItems.map((item) => item.id),
         text: mergeQueuedTurnTexts(queuedItems.map((item) => item.text)),
+        /* The merged relay inherits the approval when ANY contributing item
+           carries it. Items that never tripped the scanner contribute nothing
+           to a hit, and items that DID trip it can only be in this buffer at
+           all if they were approved (ungated legacy items are purged at
+           load), so this cannot launder an unapproved credential. */
+        disposition: queuedItems.some(
+          (item) => item.disposition === QUEUED_TURN_PLAIN_DISPOSITION,
+        )
+          ? QUEUED_TURN_PLAIN_DISPOSITION
+          : "",
       };
     },
     drainMerged() {

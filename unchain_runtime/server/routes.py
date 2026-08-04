@@ -72,6 +72,7 @@ import route_chat  # noqa: F401
 import route_projection  # noqa: F401
 import route_characters  # noqa: F401
 import route_memory  # noqa: F401
+import route_memory_v2  # noqa: F401
 import route_recipes  # noqa: F401
 import route_mcp  # noqa: F401
 import route_skillpacks  # noqa: F401

@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import sys
@@ -705,11 +706,168 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             unchain_adapter.submit_tool_confirmation(
                 confirmation_id="interaction-root",
                 approved=True,
+                durable_receipt={
+                    "session_id": "chat-root",
+                    "interaction_id": "interaction-root",
+                    "receipt_id": "receipt-root",
+                },
             )
         )
         worker.join(timeout=2)
         self.assertFalse(worker.is_alive())
         self.assertEqual(response_holder["value"]["approved"], True)
+
+    def test_live_resolution_is_journaled_before_waiter_wakes_without_response_data(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        ordering = []
+        emitted_events = []
+        response_holder = {}
+
+        def emit_event(event) -> None:
+            emitted_events.append(event)
+            ordering.append(event.get("type"))
+
+        tracker.observe(
+            {
+                "type": "interaction_requested",
+                "run_id": "root-run",
+                "interaction_request": {
+                    "interaction_id": "interaction-root",
+                    "session_id": "chat-root",
+                    "source_run_id": "root-run",
+                    "kind": "tool_approval",
+                    "payload": {"call_id": "call-root"},
+                },
+            }
+        )
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emit_event,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        def invoke_callback() -> None:
+            response_holder["value"] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-root",
+                    "arguments": {"path": "tmp.txt"},
+                }
+            )
+            ordering.append("waiter_continued")
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertTrue(
+            unchain_adapter.submit_tool_confirmation(
+                confirmation_id="interaction-root",
+                approved=True,
+                reason="must-not-enter-journal",
+                modified_arguments={"secret": "must-not-enter-journal"},
+                durable_receipt={
+                    "session_id": "chat-root",
+                    "interaction_id": "interaction-root",
+                    "receipt_id": "receipt-root",
+                },
+            )
+        )
+        worker.join(timeout=2)
+
+        resolution = next(
+            event
+            for event in emitted_events
+            if event.get("type") == "interaction_resolved"
+        )
+        self.assertLess(
+            ordering.index("interaction_resolved"),
+            ordering.index("waiter_continued"),
+        )
+        self.assertEqual(
+            resolution,
+            unchain_adapter._interaction_resolution_event(
+                interaction_id="interaction-root",
+                kind="tool_approval",
+                outcome="approved",
+                receipt_id="receipt-root",
+                session_id="chat-root",
+                source_run_id="root-run",
+            ),
+        )
+        self.assertNotIn("must-not-enter-journal", str(resolution))
+
+    def test_live_resolution_journal_failure_does_not_wake_waiter(self) -> None:
+        tracker = unchain_adapter.DurableInteractionIdTracker()
+        cancel_event = threading.Event()
+        request_emitted = threading.Event()
+        response_holder = {}
+
+        def emit_event(event) -> None:
+            if event.get("type") == "interaction_resolved":
+                raise RuntimeError("journal unavailable")
+            request_emitted.set()
+
+        tracker.observe(
+            {
+                "type": "interaction_requested",
+                "run_id": "root-run",
+                "interaction_request": {
+                    "interaction_id": "interaction-root",
+                    "session_id": "chat-root",
+                    "source_run_id": "root-run",
+                    "kind": "tool_approval",
+                    "payload": {"call_id": "call-root"},
+                },
+            }
+        )
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emit_event,
+            cancel_event=cancel_event,
+            interaction_id_tracker=tracker,
+            require_durable_interaction_id=True,
+            root_session_id="chat-root",
+            root_run_id="root-run",
+        )
+
+        def invoke_callback() -> None:
+            try:
+                response_holder["value"] = confirm_cb(
+                    {
+                        "tool_name": "delete_file",
+                        "call_id": "call-root",
+                        "arguments": {"path": "tmp.txt"},
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001 - asserted below
+                response_holder["error"] = exc
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+        self.assertTrue(request_emitted.wait(timeout=2))
+
+        with self.assertRaisesRegex(RuntimeError, "journal unavailable"):
+            unchain_adapter.submit_tool_confirmation(
+                confirmation_id="interaction-root",
+                approved=True,
+                durable_receipt={
+                    "session_id": "chat-root",
+                    "interaction_id": "interaction-root",
+                    "receipt_id": "receipt-root",
+                },
+            )
+        self.assertTrue(worker.is_alive())
+
+        cancel_event.set()
+        unchain_adapter.cancel_tool_confirmations(cancel_event)
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+        self.assertNotIn("value", response_holder)
+        self.assertIn("stream cancelled", str(response_holder.get("error")))
 
     def test_child_tool_confirmation_fails_closed_without_live_waiter(self) -> None:
         tracker = unchain_adapter.DurableInteractionIdTracker()
@@ -2639,6 +2797,117 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertFalse(
             any("invalid" in str(event.get("content", "")) for event in events)
         )
+
+    def test_resume_journals_the_receipt_resolution_before_agent_resume(self) -> None:
+        ordering = []
+        persisted_events = []
+
+        class FakeAgent:
+            provider = "openai"
+            model = "gpt-5"
+            _display_model = "openai:gpt-5"
+            _orchestration_role = "developer"
+            _orchestration_next_mode = "default"
+            _memory_runtime = {
+                "requested": True,
+                "available": True,
+                "reason": "",
+            }
+            _memory_v2_admission = SimpleNamespace(mode="off", is_active=False)
+            _toolkits = []
+
+            def resume_interaction(self, **kwargs):
+                ordering.append("agent.resume_interaction")
+                callback = kwargs.get("callback")
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": kwargs.get("run_id"),
+                            "iteration": 1,
+                            "content": "resumed",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "resumed"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=1,
+                    previous_response_id=None,
+                )
+
+        pending = {
+            "status": "receipt_recorded",
+            "session_id": "chat-1",
+            "interaction_id": "interaction-1",
+            "source_run_id": "run-original",
+            "provider": "openai",
+            "model": "gpt-5",
+            "kind": "tool_approval",
+            "receipt_id": "receipt-1",
+            "resolution": {"outcome": "approved", "response": {"secret": "omit"}},
+            "resume_available": True,
+        }
+
+        def persist_event(_admission, event):
+            persisted_events.append(copy.deepcopy(event))
+            ordering.append(event.get("type"))
+            return {"event_id": event.get("event_id"), "replayed": False}
+
+        with mock.patch.object(
+            unchain_adapter,
+            "get_pending_interaction",
+            side_effect=[pending, {"status": "none", "session_id": "chat-1"}],
+        ), mock.patch.object(
+            unchain_adapter,
+            "resolve_resume_options",
+            return_value={"modelId": "openai:gpt-5", "memory_enabled": True},
+        ), mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "save_resume_context",
+        ), mock.patch.object(
+            unchain_adapter,
+            "clear_resume_context",
+        ), mock.patch.object(
+            unchain_adapter,
+            "_persist_memory_v2_run_started",
+        ), mock.patch.object(
+            unchain_adapter,
+            "_persist_memory_v2_semantic_event",
+            side_effect=persist_event,
+        ):
+            events = list(
+                unchain_adapter.resume_chat_interaction_events(
+                    session_id="chat-1",
+                    interaction_id="interaction-1",
+                )
+            )
+
+        resolution = persisted_events[0]
+        self.assertEqual(resolution["type"], "interaction_resolved")
+        self.assertLess(
+            ordering.index("interaction_resolved"),
+            ordering.index("agent.resume_interaction"),
+        )
+        self.assertEqual(
+            resolution,
+            unchain_adapter._interaction_resolution_event(
+                interaction_id="interaction-1",
+                kind="tool_approval",
+                outcome="approved",
+                receipt_id="receipt-1",
+                session_id="chat-1",
+                source_run_id="run-original",
+            ),
+        )
+        self.assertNotIn("secret", str(resolution))
+        self.assertEqual(events[0], resolution)
 
     def test_stream_chat_events_enriches_tool_events_with_toolkit_metadata(self) -> None:
         class FakeToolkit:

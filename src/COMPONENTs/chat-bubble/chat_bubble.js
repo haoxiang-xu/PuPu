@@ -7,6 +7,7 @@ import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
 import { mergePendingConfirmationTraceState } from "./pending_confirmation_trace_frames";
 import ArtifactSummarySections from "./artifact-summary/artifact_summary_sections";
+import { isMemoryV2TraceBundle } from "../../SERVICEs/runtime_events/memory_v2_trace_presenter";
 
 const ChatBubble = ({
   message,
@@ -103,7 +104,10 @@ const ChatBubble = ({
     message.status === "done" &&
     typeof message.meta?.bundle?.consumed_tokens === "number" &&
     message.meta.bundle.consumed_tokens > 0;
-  const shouldRenderTraceChain = hasVisibleTraceActivity || hasTokenSummary;
+  const hasMemoryV2Audit =
+    isAssistant && isMemoryV2TraceBundle(message.meta?.bundle?.memory_v2);
+  const shouldRenderTraceChain =
+    hasVisibleTraceActivity || hasTokenSummary || hasMemoryV2Audit;
   return (
     <div
       onMouseEnter={() => setHovered(true)}

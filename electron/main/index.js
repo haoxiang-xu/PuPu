@@ -28,6 +28,10 @@ const {
 const {
   createSettingsQuitCoordinator,
 } = require("./services/settings_storage/quit_coordinator");
+const { createMemoryVaultService } = require("./services/memory_vault/service");
+const {
+  createVaultSinkExecutors,
+} = require("./services/memory_vault/vault_sink_executor");
 const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 const sqlite = require("node:sqlite");
@@ -92,6 +96,20 @@ if (!gotSingleInstanceLock) {
     safeStorage: require("electron").safeStorage,
   });
 
+  // Memory V2 P0 vault control plane. Shares the settings.db FILE through its
+  // own connection but owns only the vault_* tables; init() runs inside
+  // app.whenReady() so safeStorage's "usable only after ready" precondition
+  // holds here exactly as it does for settingsStorageService.
+  const memoryVaultService = createMemoryVaultService({
+    app,
+    path,
+    sqlite,
+    safeStorage: require("electron").safeStorage,
+    dialog,
+    getMainWindow: windowService.getMainWindow,
+    http,
+  });
+
   const ollamaService = createOllamaService({
     app,
     shell,
@@ -119,7 +137,18 @@ if (!gotSingleInstanceLock) {
     // strip+inject seam. Created above (before unchainService), so it is
     // available to inject here just like runtimeService.
     settingsStorageService,
+    // Main-internal Vault broker provider + native confirmation state machine.
+    // Neither object is exposed over renderer IPC.
+    memoryVaultService,
     getAppIsQuitting: () => appIsQuitting,
+  });
+
+  // Main-internal only: renderer chat deletion commits a durable outbox row;
+  // these targets are invoked later by the background runner. Neither service
+  // object nor the runner controls are exposed through chat-storage IPC.
+  chatStorageService.configureDeletionTargets({
+    unchainService,
+    memoryVaultService,
   });
 
   const updateService = createUpdateService({
@@ -158,8 +187,14 @@ if (!gotSingleInstanceLock) {
       screenshotService,
       chatStorageService,
       settingsStorageService,
+      memoryVaultService,
     },
   });
+
+  // Owned by the startup assembly below so `will-quit` can drain it even if
+  // configureSinkExecutors never ran (created-then-failed is still a registry
+  // that may hold live worker process groups).
+  let vaultSinkExecutorRegistry = null;
 
   const settingsQuitCoordinator = createSettingsQuitCoordinator({
     app,
@@ -171,6 +206,7 @@ if (!gotSingleInstanceLock) {
 
   const stopBackgroundServices = () => {
     appIsQuitting = true;
+    chatStorageService.stopDeletionOutboxRunner();
     ollamaService.stopOllama();
     unchainService.stopMiso();
   };
@@ -184,6 +220,18 @@ if (!gotSingleInstanceLock) {
     void testApiService.stop();
     chatStorageService.close();
     settingsStorageService.close();
+    // Stops the broker, then SYNCHRONOUSLY SIGKILLs every live Vault worker
+    // process group, then closes the DB. will-quit does not await promises, so
+    // an async drain would let a worker holding plaintext outlive the app.
+    memoryVaultService.close();
+    // Belt-and-braces: covers the case where the registry was created but
+    // configureSinkExecutors failed, so the vault never learned about it.
+    // close() is idempotent.
+    try {
+      vaultSinkExecutorRegistry?.close();
+    } catch (_error) {
+      // Never surface kill details; quit must proceed.
+    }
   });
 
   app.on("second-instance", () => {
@@ -201,6 +249,71 @@ if (!gotSingleInstanceLock) {
     // synchronous bootstrap read depends on it. init() never throws — a broken
     // settings.db puts the service in degraded mode (file left in place).
     await settingsStorageService.init();
+    // After settings storage: both open the same file, and vault init() never
+    // throws — a broken settings.db degrades the vault (file left in place).
+    await memoryVaultService.init();
+
+    // ---- Vault sink worker assembly (order is a security requirement) -----
+    //
+    //   settings init  →  vault init
+    //     →  resolve the worker entrypoint ONCE and freeze it
+    //     →  build the reviewed executor registry
+    //     →  configureSinkExecutors (one-shot, main-only)
+    //     →  startSinkBroker (refuses an empty registry)
+    //     →  only THEN start the sidecar
+    //
+    // The sidecar must start last: it is the only broker client, so a sidecar
+    // that comes up before the broker is configured would be able to reach a
+    // listener that cannot serve it. Every failure below is fail-closed —
+    // the broker simply never listens and every vault use dies at
+    // vault_sink_unavailable. Logs are static codes only: never a path, a
+    // broker URL/key, a payload, or an error message.
+    let vaultSinkWorkerEntrypoint = null;
+    try {
+      vaultSinkWorkerEntrypoint =
+        unchainService.resolveVaultSinkWorkerEntrypoint();
+    } catch (error) {
+      console.error(
+        "[memory-vault] sink worker entrypoint unavailable:",
+        error?.code || "vault_worker_unavailable",
+      );
+    }
+
+    if (vaultSinkWorkerEntrypoint) {
+      try {
+        vaultSinkExecutorRegistry = createVaultSinkExecutors({
+          command: vaultSinkWorkerEntrypoint.command,
+          args: vaultSinkWorkerEntrypoint.args,
+          cwd: vaultSinkWorkerEntrypoint.cwd,
+          dataDir: vaultSinkWorkerEntrypoint.dataDir,
+          mcpRuntimeDir: vaultSinkWorkerEntrypoint.mcpRuntimeDir,
+        });
+      } catch (error) {
+        vaultSinkExecutorRegistry = null;
+        console.error(
+          "[memory-vault] sink executors unavailable:",
+          error?.code || "vault_worker_unavailable",
+        );
+      }
+    }
+
+    if (vaultSinkExecutorRegistry) {
+      try {
+        memoryVaultService.configureSinkExecutors(vaultSinkExecutorRegistry);
+        await memoryVaultService.startSinkBroker();
+      } catch (error) {
+        // Static code only: never log URL/key, request data or an error message.
+        console.error(
+          "[memory-vault] sink broker unavailable:",
+          error?.code || "vault_broker_unavailable",
+        );
+      }
+    } else {
+      console.error(
+        "[memory-vault] sink broker unavailable:",
+        "vault_sink_unavailable",
+      );
+    }
 
     // S6a: clear any leftover skill-pack temp dirs from a prior crashed install.
     runtimeService.sweepLeftoverSkillpackDirs();
@@ -209,6 +322,7 @@ if (!gotSingleInstanceLock) {
 
     ollamaService.startOllama();
     unchainService.startMiso();
+    chatStorageService.startDeletionOutboxRunner();
 
     if (process.platform === "darwin" && app.dock) {
       const dockIconPath = windowService.getPublicAssetPath("logo512.png");

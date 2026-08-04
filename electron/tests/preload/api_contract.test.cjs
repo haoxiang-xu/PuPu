@@ -36,6 +36,8 @@ describe("preload API contract", () => {
         "appInfoAPI",
         "appUpdateAPI",
         "chatStorageAPI",
+        "contextV2API",
+        "memoryVaultAPI",
         "unchainAPI",
         "ollamaAPI",
         "ollamaLibraryAPI",
@@ -55,6 +57,390 @@ describe("preload API contract", () => {
     expect(exposed.osInfo).toEqual({
       platform: process.platform,
     });
+  });
+
+  test("memory vault API exposes exactly the six control-plane methods", () => {
+    // Security sign-off condition: deposit/listDescriptors/delete/grant/
+    // revoke/getStatus and NOTHING else — no read/resolve/decrypt method may
+    // ever appear on this surface.
+    expect(Object.keys(exposed.memoryVaultAPI).sort()).toEqual([
+      "delete",
+      "deposit",
+      "getStatus",
+      "grant",
+      "listDescriptors",
+      "revoke",
+    ]);
+  });
+
+  test("context v2 API exposes exactly the eighteen control-plane methods", () => {
+    // Capability freeze. Context V2 lives on its OWN window global rather than
+    // as more methods on the already-high-risk unchain bridge.
+    expect(Object.keys(exposed.contextV2API)).toHaveLength(18);
+    expect(Object.keys(exposed.contextV2API).sort()).toEqual(
+      [
+        "getStatus",
+        "listEvents",
+        "readContent",
+        "getSessionHead",
+        "rebaseSession",
+        "listSpaces",
+        "getTree",
+        "listEntries",
+        "search",
+        "listCandidates",
+        "listJobs",
+        "listPromotions",
+        "decideCandidate",
+        "createPromotion",
+        "decidePromotion",
+        "listCandidateReviews",
+        "getCandidateReview",
+        "decideCandidateReview",
+      ].sort(),
+    );
+
+    // No generic proxy and no privileged plumbing may ever appear here.
+    Object.keys(exposed.contextV2API).forEach((method) => {
+      expect(method).not.toMatch(
+        /^(invoke|request|fetch|call|proxy)$|url|endpoint|token|port|path$/i,
+      );
+    });
+    // Explicitly absent surface (internal / lease / server-bound).
+    [
+      "appendEvent",
+      "bootstrapSession",
+      "claimJob",
+      "heartbeatJob",
+      "completeJob",
+      "failJob",
+      "createJob",
+      "createSpace",
+      "createEntry",
+      "updateEntry",
+      "deleteEntry",
+      "createCandidate",
+      // schema-v4 reviews are read + adjudicate only. Proposing one is a
+      // curator-job product; a renderer that could propose AND decide would be
+      // approving its own writes.
+      "proposeCandidateReview",
+      "createCandidateReview",
+      "readCandidateReviewContent",
+      // Chat deletion is main-internal: the renderer asks the chat store to
+      // delete, and the deletion outbox finishes Context V2 cleanup durably.
+      "deleteChat",
+      "deleteContextV2Chat",
+    ].forEach((method) => {
+      expect(exposed.contextV2API[method]).toBeUndefined();
+    });
+
+    // Nothing delete-shaped survives on this API under any name, and the
+    // channel constant it used to invoke is gone from the shared table.
+    expect(
+      Object.keys(exposed.contextV2API).filter((method) =>
+        /delete|destroy|purge|drop/i.test(method),
+      ),
+    ).toEqual([]);
+    expect(CHANNELS.CONTEXT_V2.DELETE_CHAT).toBeUndefined();
+    expect(
+      Object.values(CHANNELS.CONTEXT_V2).filter((channel) =>
+        /delete|destroy|purge|drop/i.test(channel),
+      ),
+    ).toEqual([]);
+
+    // The Context V2 surface must NOT have been bolted onto window.unchainAPI.
+    [
+      "getContextV2Status",
+      "listContextV2Events",
+      "contextV2",
+      "decideCandidate",
+      "createPromotion",
+    ].forEach((method) => {
+      expect(exposed.unchainAPI[method]).toBeUndefined();
+    });
+  });
+
+  test("context v2 bridge reconstructs allowlisted fields and never forwards the caller object", () => {
+    const api = exposed.contextV2API;
+
+    api.getStatus();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.GET_STATUS,
+    );
+
+    api.listEvents({
+      ownerChatId: "chat-1",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+      after: 12,
+      limit: 50,
+      includePayload: false,
+      // Hostile extras must be dropped by the allowlist rebuild.
+      unchainAuthToken: "auth-token-123",
+      url: "http://127.0.0.1:5879/health",
+      __proto__PollutionAttempt: true,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.LIST_EVENTS,
+      {
+        ownerChatId: "chat-1",
+        sessionId: "session-1",
+        attemptId: "attempt-1",
+        after: 12,
+        limit: 50,
+        includePayload: false,
+      },
+    );
+
+    api.readContent({
+      ownerChatId: "chat-1",
+      ref: "pupu://context/event/evt-1/content",
+      offset: 0,
+      limit: 1024,
+      path: "/etc/passwd",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.READ_CONTENT,
+      {
+        ownerChatId: "chat-1",
+        ref: "pupu://context/event/evt-1/content",
+        offset: 0,
+        limit: 1024,
+      },
+    );
+
+    api.getSessionHead({
+      ownerChatId: "chat-1",
+      sessionId: "session-1",
+      path: "/etc/passwd",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.GET_SESSION_HEAD,
+      {
+        ownerChatId: "chat-1",
+        sessionId: "session-1",
+      },
+    );
+
+    const replacementHistory = [{ role: "user", content: "Replacement" }];
+    api.rebaseSession({
+      ownerChatId: "chat-1",
+      sessionId: "session-1",
+      replacementHistory,
+      sourceGenerationId: "generation-2",
+      expectedSessionRevision: 3,
+      operationId: "op-rebase-0001",
+      reason: "edit",
+      attemptId: "must-be-dropped",
+      expectedRevision: 99,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.REBASE_SESSION,
+      {
+        ownerChatId: "chat-1",
+        sessionId: "session-1",
+        replacementHistory,
+        sourceGenerationId: "generation-2",
+        expectedSessionRevision: 3,
+        operationId: "op-rebase-0001",
+        reason: "edit",
+      },
+    );
+
+    // No deleteChat call to make: the capability does not exist on this API.
+    expect(api.deleteChat).toBeUndefined();
+
+    api.listSpaces({ ownerChatId: "chat-1", scope: "user" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.LIST_SPACES,
+      { ownerChatId: "chat-1" },
+    );
+
+    api.getTree({ ownerChatId: "chat-1", spaceId: "space-1" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.GET_TREE,
+      { ownerChatId: "chat-1", spaceId: "space-1" },
+    );
+
+    api.listEntries({
+      ownerChatId: "chat-1",
+      spaceId: "space-1",
+      parentPath: "/notes",
+      includeDescendants: false,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.LIST_ENTRIES,
+      {
+        ownerChatId: "chat-1",
+        spaceId: "space-1",
+        parentPath: "/notes",
+        includeDescendants: false,
+      },
+    );
+
+    api.search({
+      ownerChatId: "chat-1",
+      query: "deploy notes",
+      spaceId: "space-1",
+      limit: 20,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.SEARCH_ENTRIES,
+      {
+        ownerChatId: "chat-1",
+        query: "deploy notes",
+        spaceId: "space-1",
+        limit: 20,
+      },
+    );
+
+    [
+      [api.listCandidates, CHANNELS.CONTEXT_V2.LIST_CANDIDATES],
+      [api.listJobs, CHANNELS.CONTEXT_V2.LIST_JOBS],
+      [api.listPromotions, CHANNELS.CONTEXT_V2.LIST_PROMOTIONS],
+      [api.listCandidateReviews, CHANNELS.CONTEXT_V2.LIST_CANDIDATE_REVIEWS],
+    ].forEach(([method, channel]) => {
+      method({
+        ownerChatId: "chat-1",
+        status: "pending",
+        limit: 10,
+        workerId: "worker-1",
+        leaseMs: 30000,
+      });
+      expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(channel, {
+        ownerChatId: "chat-1",
+        status: "pending",
+        limit: 10,
+      });
+    });
+
+    api.getCandidateReview({
+      ownerChatId: "chat-1",
+      reviewId: "review-1",
+      // Everything below is a steering attempt and must be stripped.
+      spaceId: "space-attacker",
+      path: "/etc/passwd",
+      includeContent: true,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.GET_CANDIDATE_REVIEW,
+      { ownerChatId: "chat-1", reviewId: "review-1" },
+    );
+
+    api.decideCandidateReview({
+      ownerChatId: "chat-1",
+      reviewId: "review-1",
+      decision: "apply",
+      expectedReviewRevision: 2,
+      expectedCandidateRevision: 3,
+      expectedTargetRevision: 4,
+      expectedSpaceRevision: 5,
+      decisionReason: "looks right",
+      operationId: "op-review-0001",
+      // A review decides WHETHER a proposed write lands, never WHERE: none of
+      // these may cross the line.
+      targetPath: "/profile/attacker.md",
+      targetNamespace: "user:attacker",
+      target_namespace: "user:attacker",
+      targetSpaceId: "space-attacker",
+      jobId: "job-1",
+      leaseToken: "lease-1",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE_REVIEW,
+      {
+        ownerChatId: "chat-1",
+        reviewId: "review-1",
+        decision: "apply",
+        expectedReviewRevision: 2,
+        expectedCandidateRevision: 3,
+        expectedTargetRevision: 4,
+        expectedSpaceRevision: 5,
+        decisionReason: "looks right",
+        operationId: "op-review-0001",
+      },
+    );
+    const [, reviewDecision] = ipcRenderer.invoke.mock.calls.at(-1);
+    expect(Object.keys(reviewDecision)).toHaveLength(9);
+    expect(JSON.stringify(reviewDecision)).not.toContain("attacker");
+
+    api.decideCandidate({
+      ownerChatId: "chat-1",
+      candidateId: "cand-1",
+      decision: "apply",
+      expectedRevision: 1,
+      expectedSpaceRevision: 4,
+      decisionReason: "user approved",
+      operationId: "op-candidate-0001",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE,
+      {
+        ownerChatId: "chat-1",
+        candidateId: "cand-1",
+        decision: "apply",
+        expectedRevision: 1,
+        expectedSpaceRevision: 4,
+        decisionReason: "user approved",
+        operationId: "op-candidate-0001",
+      },
+    );
+
+    // targetNamespace is server-bound: even when a caller supplies it, the
+    // allowlist rebuild must drop it before the channel.
+    api.createPromotion({
+      ownerChatId: "chat-1",
+      sourceSpaceId: "space-1",
+      sourceEntryId: "entry-1",
+      sourceEntryRevision: 2,
+      targetPath: "/profile/preferences.md",
+      targetEntryId: "",
+      expectedTargetRevision: 5,
+      operationId: "op-promote-0001",
+      targetNamespace: "user:attacker",
+      target_namespace: "user:attacker",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.CREATE_PROMOTION,
+      {
+        ownerChatId: "chat-1",
+        sourceSpaceId: "space-1",
+        sourceEntryId: "entry-1",
+        sourceEntryRevision: 2,
+        targetPath: "/profile/preferences.md",
+        targetEntryId: "",
+        expectedTargetRevision: 5,
+        operationId: "op-promote-0001",
+      },
+    );
+
+    api.decidePromotion({
+      ownerChatId: "chat-1",
+      promotionId: "promo-1",
+      decision: "reject",
+      expectedRevision: 2,
+      decisionReason: "not now",
+      operationId: "op-promo-decide-0001",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.DECIDE_PROMOTION,
+      {
+        ownerChatId: "chat-1",
+        promotionId: "promo-1",
+        decision: "reject",
+        expectedRevision: 2,
+        decisionReason: "not now",
+        operationId: "op-promo-decide-0001",
+      },
+    );
+
+    // Called with no argument at all: the shape is still the allowlist, with
+    // every field explicitly undefined, so main rejects rather than defaulting.
+    api.listSpaces();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.CONTEXT_V2.LIST_SPACES,
+      { ownerChatId: undefined },
+    );
   });
 
   test("unchain API keeps required method surface", () => {

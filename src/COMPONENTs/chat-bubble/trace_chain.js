@@ -25,6 +25,12 @@ import {
   FINALITY,
   getFrameFinality,
 } from "../../PAGEs/chat/utils/message_finality";
+import { presentMemoryV2Audit } from "../../SERVICEs/runtime_events/memory_v2_trace_presenter";
+import {
+  MemoryAgentAudit,
+  MemoryV2ContextAudit,
+} from "./memory_v2_trace_audit";
+import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -669,6 +675,11 @@ const TraceChain = ({
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
   const [bodyOpen, setBodyOpen] = useState(true);
+  const [memoryV2JournalProjection, setMemoryV2JournalProjection] =
+    useState(null);
+  const handleMemoryV2JournalProjection = useCallback((projection) => {
+    setMemoryV2JournalProjection(projection);
+  }, []);
 
   /* ── branch expand state for subagent fork/merge ── */
   const [branchState, setBranchState] = useState(() => new Map());
@@ -1913,7 +1924,71 @@ const TraceChain = ({
       });
     }
 
-    /* ── token summary at the end of the timeline ── */
+    /* ── durable Memory V2 audit + token summary at the end ── */
+    const memoryV2Audit = mergeMemoryV2AuditWithJournal(
+      presentMemoryV2Audit(bundle?.memory_v2, {
+        runStatus: status,
+      }),
+      memoryV2JournalProjection?.ownerChatId === chatId
+        ? memoryV2JournalProjection
+        : null,
+    );
+    if (memoryV2Audit) {
+      grouped.push({
+        key: "__memory_v2_audit__",
+        title: (
+          <span data-testid="memory-v2-trace-title">
+            Memory V2 · {memoryV2Audit.status}
+          </span>
+        ),
+        span:
+          memoryV2Audit.pressure.percent !== null
+            ? `${memoryV2Audit.pressure.percent}% context`
+            : memoryV2Audit.modeLabel,
+        status:
+          memoryV2Audit.status === "Unavailable" ? "pending" : "done",
+        unmountDetailsWhenClosed: true,
+        details: (
+          <MemoryV2ContextAudit
+            audit={memoryV2Audit}
+            ownerChatId={chatId}
+            isDark={isDark}
+            onJournalProjection={handleMemoryV2JournalProjection}
+          />
+        ),
+      });
+
+      if (memoryV2Audit.agentRuns.length > 0) {
+        const memoryAgentActive = memoryV2Audit.agentRuns.some((run) =>
+          ["Pending", "Running", "Leased"].includes(run.status),
+        );
+        grouped.push({
+          key: "__memory_agent_audit__",
+          title: (
+            <span data-testid="memory-agent-trace-title">
+              Memory Agent · {memoryV2Audit.agentRuns.length === 1
+                ? memoryV2Audit.agentRuns[0].status
+                : `${memoryV2Audit.agentRuns.length} runs`}
+            </span>
+          ),
+          span:
+            memoryV2Audit.agentRuns.length === 1
+              ? memoryV2Audit.agentRuns[0].model ||
+                memoryV2Audit.agentRuns[0].provider ||
+                ""
+              : "",
+          status: memoryAgentActive ? "active" : "done",
+          details: (
+            <MemoryAgentAudit
+              runs={memoryV2Audit.agentRuns}
+              ownerChatId={chatId}
+              isDark={isDark}
+            />
+          ),
+        });
+      }
+    }
+
     if (
       status === "done" &&
       bundle &&
@@ -1963,6 +2038,8 @@ const TraceChain = ({
     theme,
     status,
     bundle,
+    memoryV2JournalProjection,
+    handleMemoryV2JournalProjection,
     compact,
     hideTrack,
     _depth,

@@ -9,7 +9,7 @@ import secrets
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Mapping
 
 import mcp_registry
 from mcp_managed_runtime import (
@@ -29,6 +29,7 @@ from mcp_oauth import (
     get_valid_mcp_oauth_access_token,
     McpOAuthError,
 )
+from secret_scrub_registry import register_secret_values
 
 
 class McpToolkitError(RuntimeError):
@@ -606,10 +607,145 @@ def _resolve_mcp_config(
     }
 
 
-def _default_toolkit_factory():
-    from unchain.toolkits import MCPToolkit
+_VAULT_AWARE_TOOLKIT_CLASS: Any | None = None
+_VAULT_AWARE_TOOLKIT_CLASS_LOCK = threading.Lock()
+_VAULT_SECRET_PARAMETER_DESCRIPTION = (
+    "Opaque Vault handle only; never provide secret plaintext in this field."
+)
 
-    return MCPToolkit
+
+def _vault_schema_fingerprint(input_schema: Mapping[str, Any]) -> str:
+    try:
+        canonical = json.dumps(
+            dict(input_schema),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise McpToolkitError(
+            "mcp_vault_schema_invalid",
+            "MCP tool input schema is not canonical JSON",
+            502,
+        ) from exc
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _vault_secret_fields(input_schema: Mapping[str, Any]) -> tuple[str, ...]:
+    properties = input_schema.get("properties")
+    if not isinstance(properties, Mapping):
+        return ()
+    fields = []
+    for raw_name, raw_schema in properties.items():
+        if not isinstance(raw_name, str) or not raw_name or len(raw_name) > 512:
+            continue
+        if any(ord(character) < 32 or ord(character) == 127 for character in raw_name):
+            continue
+        if not isinstance(raw_schema, Mapping):
+            continue
+        if (
+            raw_schema.get("type") == "string"
+            and raw_schema.get("x-pupu-secret") is True
+        ):
+            fields.append(raw_name)
+    return tuple(sorted(fields))
+
+
+def _vault_runtime_redaction_values(
+    secret_values: Mapping[str, Any],
+    headers: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    """Return worker-only credentials that must be scrubbed from MCP output."""
+
+    values = {
+        value
+        for value in secret_values.values()
+        if isinstance(value, str) and value
+    }
+    for raw_value in (headers or {}).values():
+        if not isinstance(raw_value, str) or not raw_value:
+            continue
+        values.add(raw_value)
+        # Authorization headers commonly wrap the actual reusable credential
+        # in a scheme. Servers may echo either the complete header or token.
+        parts = raw_value.split(None, 1)
+        if len(parts) == 2 and parts[1]:
+            values.add(parts[1])
+    return tuple(sorted(values, key=lambda value: (len(value), value)))
+
+
+class _VaultAwareMCPToolkitMixin:
+    """PuPu metadata layer for server-declared MCP secret fields."""
+
+    def _convert_mcp_tool(self, mcp_tool):
+        converted = super()._convert_mcp_tool(mcp_tool)
+        raw_schema = getattr(mcp_tool, "inputSchema", None)
+        input_schema = raw_schema if isinstance(raw_schema, Mapping) else {}
+        secret_fields = _vault_secret_fields(input_schema)
+        converted._pupu_vault_secret_fields = secret_fields
+        converted._pupu_vault_schema_fingerprint = _vault_schema_fingerprint(
+            input_schema
+        )
+        converted._pupu_vault_mcp_toolkit_id = str(
+            getattr(self, "_pupu_vault_mcp_toolkit_id", "") or ""
+        ).strip()
+        if secret_fields:
+            secret_field_set = set(secret_fields)
+            for parameter in getattr(converted, "parameters", ()) or ():
+                if str(getattr(parameter, "name", "") or "") not in secret_field_set:
+                    continue
+                existing = str(getattr(parameter, "description", "") or "").strip()
+                parameter.description = (
+                    f"{_VAULT_SECRET_PARAMETER_DESCRIPTION} {existing}".strip()
+                )
+        return converted
+
+    def _create_transport(self):
+        if not (
+            getattr(self, "_pupu_vault_worker_mode", False)
+            and getattr(self, "_transport", "") == "stdio"
+        ):
+            return super()._create_transport()
+
+        # A one-shot Vault worker must not let a third-party MCP server persist
+        # a resolved secret in the base toolkit's temporary stderr capture.
+        # /dev/null (or NUL) also prevents raw server diagnostics from reaching
+        # the worker's framed stdout/stderr protocol.
+        from mcp import StdioServerParameters
+        from mcp.client.stdio import stdio_client
+
+        server_params = StdioServerParameters(
+            command=self._command,
+            args=self._args,
+            env=self._env,
+            cwd=self._cwd,
+        )
+        self._stderr_file = open(
+            os.devnull,
+            mode="w+",
+            encoding="utf-8",
+            errors="replace",
+        )
+        return stdio_client(server_params, errlog=self._stderr_file)
+
+
+def _default_toolkit_factory():
+    global _VAULT_AWARE_TOOLKIT_CLASS
+    with _VAULT_AWARE_TOOLKIT_CLASS_LOCK:
+        if _VAULT_AWARE_TOOLKIT_CLASS is None:
+            # Unchain is inserted on sys.path by the runtime bootstrap, so the
+            # import remains lazy just as it was before this PuPu subclass.
+            from unchain.toolkits import MCPToolkit
+
+            class VaultAwareMCPToolkit(
+                _VaultAwareMCPToolkitMixin,
+                MCPToolkit,
+            ):
+                pass
+
+            _VAULT_AWARE_TOOLKIT_CLASS = VaultAwareMCPToolkit
+        return _VAULT_AWARE_TOOLKIT_CLASS
 
 
 def _tool_to_dict(tool: Any) -> Dict[str, Any]:
@@ -1265,6 +1401,7 @@ def build_mcp_runtime_toolkit(
     *,
     data_dir: str | Path | None = None,
     toolkit_factory: Callable[..., Any] | None = None,
+    vault_worker_mode: bool = False,
 ) -> Any:
     record = _get_installed_record(toolkit_id, data_dir)
     if record is None:
@@ -1281,6 +1418,7 @@ def build_mcp_runtime_toolkit(
                 400,
             )
     transport = str(record.get("transport") or "stdio")
+    vault_redaction_values = _vault_runtime_redaction_values(secret_values)
     if transport == "stdio":
         command = str(record.get("command") or "")
         args = list(record.get("args") or [])
@@ -1378,6 +1516,10 @@ def build_mcp_runtime_toolkit(
                     data_dir=data_dir,
                 )
             )
+        vault_redaction_values = _vault_runtime_redaction_values(
+            secret_values,
+            headers,
+        )
         toolkit = factory(
             url=str(record.get("url") or ""),
             headers=headers,
@@ -1389,4 +1531,31 @@ def build_mcp_runtime_toolkit(
             f"Unsupported MCP runtime transport: {transport}",
             400,
         )
-    return toolkit.connect()
+    register_secret_values(vault_redaction_values, source="mcp")
+    # Bind the server-owned toolkit identity before connect() converts the raw
+    # MCP schemas into Tool objects.  A custom test/factory may deliberately
+    # use a slotted object; preserving that extension point is more important
+    # than attaching metadata to a non-PuPu implementation, which remains
+    # ineligible for Vault routing and therefore fails closed.
+    try:
+        toolkit._pupu_vault_mcp_toolkit_id = str(
+            record.get("toolkit_id") or ""
+        ).strip()
+        toolkit._pupu_vault_worker_mode = bool(vault_worker_mode)
+        toolkit._pupu_vault_routed = bool(vault_redaction_values)
+        if vault_worker_mode:
+            toolkit._pupu_vault_redaction_values = vault_redaction_values
+    except (AttributeError, TypeError):
+        pass
+    connected = toolkit.connect()
+    try:
+        connected._pupu_vault_mcp_toolkit_id = str(
+            record.get("toolkit_id") or ""
+        ).strip()
+        connected._pupu_vault_worker_mode = bool(vault_worker_mode)
+        connected._pupu_vault_routed = bool(vault_redaction_values)
+        if vault_worker_mode:
+            connected._pupu_vault_redaction_values = vault_redaction_values
+    except (AttributeError, TypeError):
+        pass
+    return connected

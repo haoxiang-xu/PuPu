@@ -1,4 +1,5 @@
 import json
+import re
 import threading
 import time
 from typing import Any, Dict, Iterable, List
@@ -15,6 +16,20 @@ except ImportError:  # pragma: no cover - runtime source path should be configur
 _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
+_MEMORY_V2_OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
+_MEMORY_AGENT_PROVIDER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+_MEMORY_AGENT_CONFIG_FIELDS = frozenset(
+    {"displayName", "additionalInstructions", "provider", "modelId"}
+)
+_UNTRUSTED_MEMORY_V2_OPTION_KEYS = frozenset(
+    {
+        "enable_memory_v2",
+        "memory_v2",
+        "memory_v2_mode",
+        "memoryV2Mode",
+        "owner_chat_id",
+    }
+)
 
 
 def _root():
@@ -35,6 +50,33 @@ def _sanitize_trace_level(raw_trace_level: object) -> str:
         return "minimal"
     normalized = raw_trace_level.strip().lower()
     return "full" if normalized == "full" else "minimal"
+
+
+def _sanitize_v4_completion_bundle(raw_bundle: object) -> Dict[str, Any] | None:
+    """Keep only renderer-owned completion metadata; never forward raw model state."""
+
+    if not isinstance(raw_bundle, dict):
+        return None
+    allowed = {
+        "model",
+        "display_model",
+        "active_agent",
+        "agent_orchestration",
+        "consumed_tokens",
+        "input_tokens",
+        "output_tokens",
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "status",
+        "iteration",
+        "previous_response_id",
+        "memory_v2",
+    }
+    return {
+        key: _redact_memory_v2_value(value)
+        for key, value in raw_bundle.items()
+        if key in allowed
+    }
 
 
 
@@ -290,6 +332,132 @@ def _sanitize_history(payload_history: object) -> List[Dict[str, Any]]:
     return history
 
 
+def _redact_memory_v2_value(value: object):
+    try:
+        from custom_provider import redact_secrets, redact_text
+    except ImportError:  # pragma: no cover - server always ships the host redactor
+        return value
+    keyed = redact_secrets(value)
+    if isinstance(keyed, str):
+        return redact_text(keyed)
+    if isinstance(keyed, list):
+        return [_redact_memory_v2_value(item) for item in keyed]
+    if isinstance(keyed, dict):
+        return {
+            str(key): _redact_memory_v2_value(inner)
+            for key, inner in keyed.items()
+        }
+    return keyed
+
+
+def _sanitize_memory_v2_attachment_metadata(
+    payload_attachments: object,
+) -> List[Dict[str, object]]:
+    metadata: List[Dict[str, object]] = []
+    for attachment in _sanitize_attachments(payload_attachments):
+        source = attachment.get("source")
+        if not isinstance(source, dict):
+            continue
+        source_type = str(source.get("type") or "")
+        safe_source: Dict[str, object] = {"type": source_type}
+        for key in ("media_type", "filename", "file_id"):
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                safe_source[key] = _redact_memory_v2_value(value.strip())
+        if source_type == "url":
+            url = str(source.get("url") or "")
+            if url:
+                import hashlib
+
+                safe_source["url_sha256"] = hashlib.sha256(
+                    url.encode("utf-8")
+                ).hexdigest()
+        elif source_type == "base64":
+            data = str(source.get("data") or "")
+            if data:
+                import hashlib
+
+                safe_source["content_sha256"] = hashlib.sha256(
+                    data.encode("utf-8")
+                ).hexdigest()
+                safe_source["encoded_chars"] = len(data)
+        metadata.append(
+            {
+                "type": str(attachment.get("type") or ""),
+                "source": safe_source,
+            }
+        )
+    return metadata
+
+
+def _sanitize_context_v2_history(payload_history: object) -> List[Dict[str, Any]]:
+    if not isinstance(payload_history, list):
+        return []
+    history: List[Dict[str, Any]] = []
+    for item in payload_history:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "").strip()
+        if role not in {"user", "assistant"}:
+            continue
+        content = _sanitize_history_content(item.get("content"))
+        attachments = _sanitize_memory_v2_attachment_metadata(
+            item.get("attachments")
+        )
+        if content is None and not attachments:
+            continue
+        message: Dict[str, Any] = {
+            "role": role,
+            "content": _redact_memory_v2_value(content if content is not None else ""),
+        }
+        if attachments:
+            message["attachments"] = attachments
+        history.append(message)
+    return history
+
+
+def _sanitize_memory_agent_config(raw_config: object) -> Dict[str, str]:
+    """Allowlist the user-tunable Memory Agent surface at the trust boundary."""
+
+    if raw_config is None:
+        return {
+            "displayName": "Memory Agent",
+            "additionalInstructions": "",
+            "provider": "",
+            "modelId": "",
+        }
+    if not isinstance(raw_config, dict) or any(
+        key not in _MEMORY_AGENT_CONFIG_FIELDS for key in raw_config
+    ):
+        raise ValueError("memory_agent_config must contain only supported fields")
+
+    def clean(name: str, maximum: int, *, strip: bool = True) -> str:
+        value = raw_config.get(name, "")
+        if not isinstance(value, str):
+            raise ValueError(f"memory_agent_config.{name} must be a string")
+        normalized = value.strip() if strip else value
+        if len(normalized) > maximum or any(ord(char) < 32 and char not in "\n\t" for char in normalized):
+            raise ValueError(f"memory_agent_config.{name} is invalid")
+        return normalized
+
+    display_name = clean("displayName", 120) or "Memory Agent"
+    additional_instructions = clean("additionalInstructions", 8_192, strip=False)
+    provider = clean("provider", 64).lower()
+    model_id = clean("modelId", 255)
+    if provider and not _MEMORY_AGENT_PROVIDER_RE.fullmatch(provider):
+        raise ValueError("memory_agent_config.provider is invalid")
+    if bool(provider) != bool(model_id):
+        raise ValueError(
+            "memory_agent_config.provider and modelId must be selected together"
+        )
+    return {
+        "displayName": display_name,
+        "additionalInstructions": additional_instructions,
+        "provider": provider,
+        "modelId": model_id,
+    }
+
+
 def _sanitize_attachments(payload_attachments: object) -> List[Dict[str, object]]:
     if not isinstance(payload_attachments, list):
         return []
@@ -360,12 +528,22 @@ def chat_tool_confirmation() -> Response:
             else:
                 return _durable_host_error_response(exc)
 
-    found = root.submit_tool_confirmation(
-        confirmation_id=confirmation_id,
-        approved=approved,
-        reason=reason,
-        modified_arguments=modified_arguments,
-    )
+    try:
+        found = root.submit_tool_confirmation(
+            confirmation_id=confirmation_id,
+            approved=approved,
+            reason=reason,
+            modified_arguments=modified_arguments,
+            durable_receipt=durable_result,
+        )
+    except root.DurableInteractionHostError as exc:
+        return _durable_host_error_response(exc)
+    except Exception:
+        return root._json_error(
+            "interaction_resolution_persistence_failed",
+            "Interaction resolution could not be durably recorded",
+            500,
+        )
     if durable_result is not None:
         result = dict(durable_result)
         result["durable"] = True
@@ -625,9 +803,9 @@ def chat_stream_v2() -> Response:
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
 
                 if event_type == "stream_summary":
-                    bundle = raw_event.get("bundle")
-                    if isinstance(bundle, dict) and bundle:
-                        final_bundle = bundle
+                    final_bundle = _sanitize_v4_completion_bundle(
+                        raw_event.get("bundle")
+                    )
                     continue
 
                 payload_data = {
@@ -787,7 +965,66 @@ def chat_stream_v4() -> Response:
         )
 
     history = _sanitize_history(payload.get("history"))
-    options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
+    options = (
+        dict(payload.get("options", {}))
+        if isinstance(payload.get("options"), dict)
+        else {}
+    )
+    for key in list(options):
+        if key.startswith("_memory_v2_") or key in _UNTRUSTED_MEMORY_V2_OPTION_KEYS:
+            options.pop(key, None)
+
+    memory_v2_requested_raw = payload.get("memory_v2_requested", False)
+    if not isinstance(memory_v2_requested_raw, bool):
+        return root._json_error(
+            "invalid_request",
+            "memory_v2_requested must be a boolean",
+            400,
+        )
+    memory_v2_requested = memory_v2_requested_raw is True
+    options["_memory_v2_requested"] = memory_v2_requested
+    if memory_v2_requested:
+        owner_chat_id_raw = payload.get("owner_chat_id")
+        owner_chat_id = (
+            owner_chat_id_raw.strip()
+            if isinstance(owner_chat_id_raw, str)
+            else ""
+        )
+        if not _MEMORY_V2_OWNER_RE.fullmatch(owner_chat_id):
+            return root._json_error(
+                "context_v2_invalid_owner_chat_id",
+                "owner_chat_id is required and must be a valid chat identifier",
+                400,
+            )
+        try:
+            memory_agent_config = _sanitize_memory_agent_config(
+                payload.get("memory_agent_config")
+            )
+        except ValueError as exc:
+            return root._json_error(
+                "context_v2_invalid_memory_agent_config",
+                str(exc),
+                400,
+            )
+        options["_memory_v2_owner_chat_id"] = owner_chat_id
+        options["_memory_v2_attempt_id"] = attempt_id
+        options["_memory_v2_memory_agent_config"] = memory_agent_config
+        if source_attempt_id:
+            options["_memory_v2_source_attempt_id"] = source_attempt_id
+        context_v2_history = _sanitize_context_v2_history(
+            payload.get("context_v2_history")
+        )
+        if context_v2_history:
+            options["_memory_v2_bootstrap_history"] = context_v2_history
+        current_user_message: Dict[str, Any] = {
+            "role": "user",
+            "content": _redact_memory_v2_value(message),
+        }
+        current_attachments = _sanitize_memory_v2_attachment_metadata(attachments)
+        if current_attachments:
+            current_user_message["attachments"] = current_attachments
+        if message or current_attachments:
+            options["_memory_v2_current_user_message"] = current_user_message
     trace_level = _sanitize_trace_level(
         payload.get("trace_level")
         or options.get("trace_level")
@@ -796,6 +1033,7 @@ def chat_stream_v4() -> Response:
 
     def stream_events() -> Iterable[str]:
         started_at = int(time.time() * 1000)
+        final_bundle: Dict[str, object] | None = None
         confirmation_cancel_event = threading.Event()
         bridge = RuntimeEventBridge(
             session_id=thread_id,
@@ -846,20 +1084,26 @@ def chat_stream_v4() -> Response:
                 if not isinstance(raw_event, dict):
                     continue
                 if raw_event.get("type") == "stream_summary":
+                    final_bundle = _sanitize_v4_completion_bundle(
+                        raw_event.get("bundle")
+                    )
                     continue
                 for runtime_event in bridge.normalize(raw_event):
                     yield _sse_event("runtime_event", runtime_event.to_dict())
 
             cancelled = _execution_attempt_cancelled(thread_id, attempt_id)
+            done_payload: Dict[str, object] = {
+                "finished_at": int(time.time() * 1000),
+                "execution_id": thread_id,
+                "attempt_id": attempt_id,
+                "cancelled": cancelled,
+                "diagnostics": bridge.diagnostics(),
+            }
+            if isinstance(final_bundle, dict) and final_bundle:
+                done_payload["bundle"] = final_bundle
             yield _sse_event(
                 "done",
-                {
-                    "finished_at": int(time.time() * 1000),
-                    "execution_id": thread_id,
-                    "attempt_id": attempt_id,
-                    "cancelled": cancelled,
-                    "diagnostics": bridge.diagnostics(),
-                },
+                done_payload,
             )
         except GeneratorExit:  # pragma: no cover
             cancel_pending_confirmations()

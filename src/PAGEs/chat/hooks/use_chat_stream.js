@@ -59,10 +59,47 @@ import {
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
 import {
+  SECRET_CAPTURE_MESSAGES,
+  detectLikelySecretAssignment,
+  hasSecretCaptureSyntax,
+  scanOutgoingSecretText,
+} from "./secret_capture";
+import {
+  PLAIN_USER_APPROVED_DISPOSITION,
+  SECRET_GATE_DECISIONS,
+  useSecretCaptureGate,
+} from "./use_secret_capture_gate";
+import { buildContextV2History } from "./context_v2_history";
+import {
+  CONTEXT_V2_TURN_MUTATION_MESSAGES,
+  TURN_MUTATION_ADMISSION,
+  buildContextV2RebasePayload,
+  buildRebaseReplacementHistory,
+  CONTEXT_V2_V1_MIRROR_ERROR_CODE,
+  contextV2TurnMutationMessage,
+  contextV2V1MirrorMessage,
+  decideTurnMutationMemoryMode,
+  isTerminalContextV2RebaseError,
+  projectContextV2RebaseAck,
+  verifyContextV2RebaseAck,
+} from "./context_v2_turn_mutation";
+import {
+  contextV2Bridge,
+  parseContextV2ErrorCode,
+} from "../../../SERVICEs/bridges/context_v2_bridge";
+import { readMemoryAgentSettings } from "../../../SERVICEs/memory_agent_settings";
+import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
+import {
+  TURN_MUTATION_ADMISSION_MODES,
+  TURN_MUTATION_MEMORY_MODES,
+  TURN_MUTATION_V1_MIRROR_STATES,
   createTurnMutationOperationId,
   enqueueTurnMutation,
   fingerprintTurnMutationMessages,
   readTurnMutationOutbox,
+  readTurnMutationOutboxState,
+  recordTurnMutationRebaseAck,
+  recordTurnMutationV1MirrorApplied,
   removeTurnMutation,
 } from "../../../SERVICEs/turn_mutation_outbox";
 import {
@@ -74,6 +111,7 @@ import {
   migratePendingFyiForAttemptToQueue,
   migratePendingFyiToQueue,
   readPendingClarifyForChat,
+  purgeUngatedSecretOutboxEntries,
   readPendingFyiOutbox,
   readPendingFyisForAttempt,
   readQueuedTurnsForAttempt,
@@ -114,9 +152,13 @@ const claimTurnMutation = ({ chatId, operationId, mountedRef, recovery }) => {
   if (!chatId || !operationId) {
     return null;
   }
+  const outboxSnapshot = readTurnMutationOutboxState();
+  if (!outboxSnapshot.available) {
+    return null;
+  }
   let existingOwner = activeTurnMutationsByChatId.get(chatId);
   if (existingOwner?.mountedRef?.current === false) {
-    const hasDurableIntent = readTurnMutationOutbox().some(
+    const hasDurableIntent = outboxSnapshot.entries.some(
       (entry) =>
         entry.chatId === chatId &&
         entry.operationId === existingOwner.operationId,
@@ -213,6 +255,13 @@ const isTerminalTurnMutationError = (error) => {
     status < 500
   );
 };
+
+/* The Context V2 rebase path decides terminality from the sidecar's stable
+   error code (see context_v2_turn_mutation), which the V1 heuristic above
+   cannot read. Legacy results carry no `terminal` field, so this collapses to
+   the exact previous behaviour for them. */
+const isTerminalTurnMutationResult = (result) =>
+  result?.terminal === true || isTerminalTurnMutationError(result?.error);
 
 const createTurnMutationResponseError = (response) => {
   const detail =
@@ -866,8 +915,8 @@ export const useChatStream = ({
   const hookMountedRef = useRef(true);
   const initialTurnMutationOutboxRef = useRef(null);
   if (!initialTurnMutationOutboxRef.current) {
-    initialTurnMutationOutboxRef.current = readTurnMutationOutbox();
-    initialTurnMutationOutboxRef.current.forEach((entry) => {
+    initialTurnMutationOutboxRef.current = readTurnMutationOutboxState();
+    initialTurnMutationOutboxRef.current.entries.forEach((entry) => {
       const existingOwner = activeTurnMutationsByChatId.get(entry.chatId);
       if (
         !existingOwner ||
@@ -937,8 +986,10 @@ export const useChatStream = ({
     return () => {
       hookMountedRef.current = false;
       turnMutationListeners.delete(listener);
+      const outboxSnapshot = readTurnMutationOutboxState();
+      if (!outboxSnapshot.available) return;
       const durableOperations = new Set(
-        readTurnMutationOutbox().map((entry) => entry.operationId),
+        outboxSnapshot.entries.map((entry) => entry.operationId),
       );
       for (const [ownerChatId, owner] of activeTurnMutationsByChatId) {
         if (
@@ -983,6 +1034,104 @@ export const useChatStream = ({
       isCharacterChat,
     });
   }
+
+  /* ── Memory V2 P0 renderer secret gate ────────────────────────────────────
+     Every outgoing text passes through this before ANY side effect. The hook
+     owns the plaintext (private ref) and the modal state; this file only ever
+     sees a decision plus a one-time token. See use_secret_capture_gate.js. */
+  const {
+    gate: secretCaptureGate,
+    isSecretCapturePending,
+    evaluateSecretGate,
+    consumeSecretGateToken,
+    mintTokenForDisposition,
+    setScopeChoice: setSecretCaptureScope,
+    confirmStore: confirmSecretCaptureStore,
+    confirmPlain: confirmSecretCapturePlain,
+    cancelGate: cancelSecretCapture,
+  } = useSecretCaptureGate({ activeChatId: chatId });
+
+  /**
+   * Run the gate for one outgoing text and translate the decision into the
+   * shape the send paths need.
+   *
+   * Returns null when the caller must stop (cancelled, refused, or a scan
+   * error — the static message has already been surfaced), otherwise
+   * { text, token } where `text` is what may actually be sent.
+   */
+  const resolveSecretGateForSend = useCallback(
+    async ({ chatId: targetChatId, text, interactive }) => {
+      const decision = await evaluateSecretGate({
+        chatId: targetChatId,
+        text,
+        interactive,
+      });
+      if (decision.status === SECRET_GATE_DECISIONS.CLEAN) {
+        return { text: decision.text, token: "" };
+      }
+      if (
+        decision.status === SECRET_GATE_DECISIONS.STORED ||
+        decision.status === SECRET_GATE_DECISIONS.PLAIN
+      ) {
+        return {
+          text: decision.text,
+          token: decision.token,
+          disposition:
+            decision.status === SECRET_GATE_DECISIONS.PLAIN
+              ? PLAIN_USER_APPROVED_DISPOSITION
+              : "",
+        };
+      }
+      if (decision.status === SECRET_GATE_DECISIONS.ERROR) {
+        /* Static text only. decision.message is drawn from the frozen
+           SECRET_CAPTURE_MESSAGES table and never interpolates user input. */
+        setStreamErrorForChat(targetChatId, decision.message);
+      }
+      /* CANCELLED is silent by design: the user already knows they cancelled,
+         and the composer still holds their text. */
+      return null;
+    },
+    [evaluateSecretGate, setStreamErrorForChat],
+  );
+
+  /* ── Memory V2 P0 migration: drop pre-gate plaintext from the outbox ──────
+     Queue / clarify / FYI entries written before the gate existed can hold a
+     plain-text credential in localStorage. They are DELETED, not quarantined:
+     leaving the plaintext under a "quarantined" flag would preserve exactly
+     the exposure this gate exists to remove. The user is told only through a
+     STATIC message that names nothing about the removed content.
+
+     Declared here — ahead of every outbox-hydration effect below — so no
+     purged entry can be hydrated into a live buffer first. */
+  const legacySecretPurgeDoneRef = useRef(false);
+  useEffect(() => {
+    if (legacySecretPurgeDoneRef.current) return;
+    legacySecretPurgeDoneRef.current = true;
+    let purged = null;
+    try {
+      purged = purgeUngatedSecretOutboxEntries(
+        (text) =>
+          hasSecretCaptureSyntax(text) || detectLikelySecretAssignment(text),
+      );
+    } catch (_error) {
+      /* Storage unavailable / unparsable. Nothing was hydrated either. */
+      return;
+    }
+    const removed =
+      (purged?.removedQueueItems || 0) +
+      (purged?.removedClarifies || 0) +
+      (purged?.removedFyis || 0);
+    if (removed === 0) return;
+    for (const purgedChatId of purged.chatIds || []) {
+      setStreamErrorForChat(
+        purgedChatId,
+        SECRET_CAPTURE_MESSAGES.secret_capture_legacy_queue_dropped,
+      );
+    }
+    toast.info(SECRET_CAPTURE_MESSAGES.secret_capture_legacy_queue_dropped, {
+      dedupeKey: "secret-capture-legacy-outbox-purge",
+    });
+  }, [setStreamErrorForChat]);
 
   const beginRunGeneration = useCallback((targetChatId) => {
     const normalizedChatId =
@@ -1294,11 +1443,15 @@ export const useChatStream = ({
       ? durableInteractionState.status
       : "";
   const isDurableInteractionBlocked = Boolean(durableInteractionStatus);
+  const turnMutationOutboxSnapshot = readTurnMutationOutboxState();
   const isTurnMutationBlocked = Boolean(
     chatId &&
-      (turnMutationByChatIdRef.current.has(chatId) ||
+      (!turnMutationOutboxSnapshot.available ||
+        turnMutationByChatIdRef.current.has(chatId) ||
         runPreflightGenerationByChatIdRef.current.has(chatId) ||
-        readTurnMutationOutbox().some((entry) => entry.chatId === chatId)),
+        turnMutationOutboxSnapshot.entries.some(
+          (entry) => entry.chatId === chatId,
+        )),
   );
   const canStop =
     isStreaming ||
@@ -1718,8 +1871,12 @@ export const useChatStream = ({
     [],
   );
 
+  /* `secretDisposition` is "" for every ordinary queue push. It is only ever
+     PLAIN_USER_APPROVED_DISPOSITION when the user explicitly approved sending
+     THIS text as plain text in the secret gate, and it is persisted with the
+     item so a later relay does not have to fail closed. */
   const pushQueuedTurn = useCallback(
-    (targetChatId, text) => {
+    (targetChatId, text, secretDisposition = "") => {
       const currentAttemptId =
         queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
       const attemptId =
@@ -1748,7 +1905,7 @@ export const useChatStream = ({
       if (!queuedTurns) {
         queuedTurns = createQueuedTurnBuffer();
       }
-      const queuedId = queuedTurns.push(text);
+      const queuedId = queuedTurns.push(text, secretDisposition);
       if (!queuedId) {
         const message =
           "The queued-message limit was reached. Your input was kept.";
@@ -3731,6 +3888,231 @@ export const useChatStream = ({
     [],
   );
 
+  /* ── Memory V2 P0 turn-mutation admission ────────────────────────────────
+     Resolves, from the SESSION HEAD CONTRACT alone, which memory subsystem
+     owns this chat's visible history. Deliberately consults neither
+     readMemorySettings() nor any vector/embedding state: whether the legacy
+     short-term memory is enabled says nothing about whether a Context V2
+     journal exists, and a mutation that rewrites the wrong one cannot be
+     undone (the pre-mutation generation is already sealed).
+
+     Exactly two outcomes run the legacy V1 rewrite: the feature flag is off,
+     or the head unambiguously reports no V2 state for this session. Every
+     other shape blocks. See decideTurnMutationMemoryMode for the rules. */
+  const resolveTurnMutationMemoryPlan = useCallback(
+    async ({ ownerChatId, sessionId }) => {
+      if (!isFeatureFlagEnabled("enable_memory_v2")) {
+        return decideTurnMutationMemoryMode({ flagEnabled: false });
+      }
+      if (!contextV2Bridge.isAvailable()) {
+        return decideTurnMutationMemoryMode({
+          flagEnabled: true,
+          bridgeAvailable: false,
+        });
+      }
+      let head = null;
+      let headErrorCode = "";
+      try {
+        head = await contextV2Bridge.getSessionHead({ ownerChatId, sessionId });
+      } catch (error) {
+        /* Only the stable code crosses; the message is main-built and may
+           carry request detail, so it is never surfaced. */
+        headErrorCode = parseContextV2ErrorCode(error) || "context_v2_failed";
+      }
+      return decideTurnMutationMemoryMode({
+        flagEnabled: true,
+        bridgeAvailable: true,
+        head,
+        headErrorCode,
+        ownerChatId,
+        sessionId,
+      });
+    },
+    [],
+  );
+
+  /* Applies the memory half of a turn mutation from the DURABLE OUTBOX ENTRY
+     — never from live state. For V2 that means replaying the frozen
+     v2RebasePayload byte-for-byte: the session head is read exactly once, at
+     enqueue time, and a recovery must not re-read it (a newer head would
+     describe a different generation and silently rebase away whatever
+     happened in between).
+
+     A SHADOW-admitted chat writes BOTH subsystems, strictly journal-first:
+     rebase → verify ack → record ack → V1 authoritative replace → record
+     v1MirrorState. Under shadow the model still reads V1 short-term memory, so
+     skipping the second leg would leave the edited/deleted turn visible to the
+     model — shadow silently changing model input, which is the one thing
+     shadow is defined not to do. An ACTIVE chat never touches V1: there the
+     journal is the model input. See context_v2_turn_mutation's header.
+
+     If the V1 leg fails after the ack, this returns applied:false so NOTHING
+     is committed and no run starts; the row survives as PARTIAL (v2Ack +
+     v1MirrorState "pending") and keeps the chat locked until it converges.
+
+     Returns the same {applied, skipped, response, error} shape the legacy path
+     already used, plus `terminal` for code-driven V2 classification. */
+  const applyTurnMutationMemory = useCallback(
+    async (entry, { replacementMessages = [], targetChatId = "" } = {}) => {
+      if (entry?.memoryMode !== TURN_MUTATION_MEMORY_MODES.V2) {
+        return replaceSessionMemoryForMessages(
+          entry.sessionId,
+          replacementMessages,
+          {
+            forceMemoryEnabled: entry.forceMemoryEnabled,
+            memoryNamespace: entry.memoryNamespace,
+            modelId: entry.modelId,
+            targetChatId,
+            operationId: entry.operationId,
+            expectedSessionRevision: entry.expectedSessionRevision,
+            expectedCancelAttemptId: entry.expectedCancelAttemptId,
+          },
+        );
+      }
+
+      const payload = entry.v2RebasePayload;
+      /* `staticMessage` lets the V1 mirror leg supply its own mapping — its
+         codes are V1/bridge codes, which contextV2TurnMutationMessage would
+         misread. Either way the surfaced string is a fixed literal: the V1
+         replace helper may have just set a sidecar-authored message on the
+         stream error, and overwriting it here in the same continuation is what
+         keeps server text off the screen. */
+      const fail = (errorCode, terminal, staticMessage = "") => {
+        const message = staticMessage || contextV2TurnMutationMessage(errorCode);
+        if (activeChatIdRef.current === targetChatId) {
+          setStreamError(message);
+        }
+        const error = new Error(message);
+        error.code = errorCode;
+        error.retryable = terminal !== true;
+        return {
+          applied: false,
+          skipped: false,
+          response: null,
+          error,
+          terminal: terminal === true,
+        };
+      };
+
+      if (!payload) return fail("context_v2_invalid_request", true);
+
+      /* ── Leg [1]: the canonical journal rebase ───────────────────────────
+         A durably recorded ack means the server already committed this exact
+         rebase, so the rebase is skipped entirely on a replay — re-sending
+         would only fetch the receipt back. */
+      if (!entry.v2Ack) {
+        if (!contextV2Bridge.isAvailable()) {
+          return fail("context_v2_unavailable", false);
+        }
+
+        let ack = null;
+        try {
+          ack = await contextV2Bridge.rebaseSession(payload);
+        } catch (error) {
+          const errorCode =
+            parseContextV2ErrorCode(error) || "context_v2_failed";
+          return fail(errorCode, isTerminalContextV2RebaseError(errorCode));
+        }
+        /* Server ack or nothing: a local fingerprint match is NOT evidence the
+           journal was rebased. An ack that fails verification is treated as
+           retryable, not terminal — replaying the frozen payload returns the
+           idempotency receipt, so a later attempt can still resolve it. */
+        if (!verifyContextV2RebaseAck(ack, payload)) {
+          return fail("context_v2_ack_invalid", false);
+        }
+        const recordedAck = recordTurnMutationRebaseAck(
+          payload.operationId,
+          projectContextV2RebaseAck(ack),
+        );
+        if (!recordedAck) {
+          return fail(
+            "context_v2_persist_failed",
+            false,
+            CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+          );
+        }
+      }
+
+      /* ── Leg [2]: the authoritative V1 replace, SHADOW ONLY ──────────────
+         Absent admissionMode = a row frozen before this leg existed; it stays
+         rebase-only (see the outbox normalizer). "applied" = a previous
+         attempt already converged this leg. */
+      if (
+        entry.admissionMode !== TURN_MUTATION_ADMISSION_MODES.SHADOW ||
+        entry.v1MirrorState === TURN_MUTATION_V1_MIRROR_STATES.APPLIED
+      ) {
+        return {
+          applied: true,
+          skipped: false,
+          response: null,
+          error: null,
+          terminal: false,
+        };
+      }
+
+      /* Content comes from the ONE frozen artifact — the same
+         replacementHistory the journal was rebased to — never from
+         `replacementMessages`, which is live state. Both legs therefore
+         describe byte-identically the same post-mutation conversation, and a
+         replay is deterministic no matter how long it was interrupted.
+
+         No expectedSessionRevision and no expectedCancelAttemptId are sent:
+         the chat-level mutation claim has already serialised every writer, and
+         the V2 rebase's own open-attempt fence has already refused to run
+         while an attempt was live. Re-fencing a frozen replay on a transient
+         id would strand the PARTIAL row instead of converging it. The replace
+         is a whole-history, content-addressed overwrite, so replaying is
+         naturally idempotent; operationId lets the sidecar dedupe it too. */
+      const mirrorResult = await replaceSessionMemoryForMessages(
+        entry.sessionId,
+        payload.replacementHistory,
+        {
+          forceMemoryEnabled: entry.forceMemoryEnabled,
+          memoryNamespace: entry.memoryNamespace,
+          modelId: entry.modelId,
+          targetChatId,
+          operationId: entry.operationId,
+        },
+      );
+      if (!mirrorResult.applied) {
+        /* NEVER terminal, whatever the V1 code says. A terminal result lets
+           the call sites discard the row — but the journal has already been
+           rebased, so discarding would strip the only record that V1 is behind
+           and silently unlock the chat with dirty short-term memory. Retrying
+           forever (recovery gives up into a manual-review error after its
+           backoff) is the strictly safer failure. */
+        const mirrorErrorCode =
+          typeof mirrorResult.error?.code === "string" &&
+          mirrorResult.error.code.trim()
+            ? mirrorResult.error.code.trim()
+            : CONTEXT_V2_V1_MIRROR_ERROR_CODE;
+        return fail(
+          mirrorErrorCode,
+          false,
+          contextV2V1MirrorMessage(mirrorErrorCode),
+        );
+      }
+      const recordedMirror = recordTurnMutationV1MirrorApplied(
+        payload.operationId,
+      );
+      if (!recordedMirror) {
+        return fail(
+          "context_v2_persist_failed",
+          false,
+          CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+        );
+      }
+      return {
+        applied: true,
+        skipped: false,
+        response: null,
+        error: null,
+        terminal: false,
+      };
+    },
+    [activeChatIdRef, replaceSessionMemoryForMessages, setStreamError],
+  );
+
   const runTurnRequest = useCallback(
     async ({
       mode,
@@ -3748,6 +4130,21 @@ export const useChatStream = ({
          the caller against `text`. Presentation-only, never model-visible.
          Null for every path that isn't a composer/edit command send. */
       composer = null,
+      /* Memory V2 P0 secret gate proof. `secretGateToken` is a one-time token
+         minted by useSecretCaptureGate for the exact (chatId, secretGateText)
+         pair the user reviewed. The final fail-closed guard below consumes it;
+         without it, text that still trips the scanner is never sent.
+         `secretGateText` is the PRE-EXPANSION text — what the user actually
+         saw in the modal — which is what the token is bound to. */
+      secretGateToken = "",
+      secretGateText = "",
+      /* INTERNAL ONLY. Set by the transparent memory-fallback retry below,
+         which re-enters runTurnRequest with text this same call already put
+         through the guard (and whose one-time token is therefore already
+         spent). No caller outside this file may set it: it is the single
+         documented way past the guard, and it exists so an app-initiated
+         retry of an already-approved send cannot be refused. */
+      secretGateSettled = false,
       memoryFallbackAttempted = false,
       forceHistoryFallback = false,
       historyOverride = null,
@@ -3838,7 +4235,6 @@ export const useChatStream = ({
       const promptText =
         trimmedText ||
         (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
-
       if (
         !targetChatId ||
         (!isDurableResume && !promptText && !hasAttachments)
@@ -3856,6 +4252,71 @@ export const useChatStream = ({
       }
       if (!turnMutationOwner && turnMutationOperationId) {
         return false;
+      }
+
+      /* ── Memory V2 P0 secret gate — final fail-closed guard ────────────────
+         THIS IS THE EARLIEST FEASIBLE POSITION and it must stay here.
+         Everything above is a pure read or an early return; everything below
+         mutates something — beginRunGeneration, runClientOperationId,
+         releaseTurnMutation, the composer draft claim, runContext,
+         markChatStarted, the render runtime, pending-confirmation cleanup,
+         then chat_storage / the journal / the outbox / the stream.
+
+         All capture and deposit already happened in useSecretCaptureGate,
+         strictly before this call. Nothing is stored or redacted here; the
+         only job is to prove the user reviewed this send.
+
+         The subject of the check is the PRE-EXPANSION text the user actually
+         saw (`secretGateText`), not `promptText`. Composer plugin-skill
+         expansion runs AFTER the gate and splices in app-authored content, so
+         scanning the expanded body here would fail closed on a skill's own
+         example credentials even though the user's own text was clean and
+         reviewed. Callers that pass no gated text fall back to promptText, so
+         an ungated programmatic path is refused rather than exempted. */
+      if (!isDurableResume && !secretGateSettled) {
+        const gatedText =
+          typeof secretGateText === "string" && secretGateText
+            ? secretGateText
+            : promptText;
+        const gateToken =
+          typeof secretGateToken === "string" ? secretGateToken.trim() : "";
+        const failSecretGateClosed = (staticMessage) => {
+          setStreamErrorForChat(targetChatId, staticMessage);
+          return false;
+        };
+        if (gateToken) {
+          /* Consumed exactly once, and only for THIS chat and THIS exact
+             reviewed text. A replay, a token minted in another chat, and text
+             edited after approval all land here and stop the send. BOTH
+             decisions mint a token — a "stored" approval is spent here just
+             like a "plain" one, so neither can be reused for a second send. */
+          if (
+            !consumeSecretGateToken(gateToken, {
+              chatId: targetChatId,
+              text: gatedText,
+            })
+          ) {
+            return failSecretGateClosed(
+              SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+            );
+          }
+        } else {
+          /* No token, so the text is only allowed through if it is genuinely
+             clean. A surviving credential OR any {{secret:...}} syntax means
+             a caller skipped the gate. Static text only. */
+          const scan = scanOutgoingSecretText(gatedText);
+          if (!scan.ok) {
+            return failSecretGateClosed(
+              SECRET_CAPTURE_MESSAGES[scan.code] ||
+                SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+            );
+          }
+          if (scan.candidates.length > 0) {
+            return failSecretGateClosed(
+              SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+            );
+          }
+        }
       }
 
       /* Capture the originating chat's composer before attachment hydration or
@@ -4118,6 +4579,13 @@ export const useChatStream = ({
       let payloadAttachments = [];
       let userMessage = null;
       if (!isDurableResume) {
+        /* `promptText` is already gate-approved: it either scanned clean or a
+           one-time token proving the user's decision was consumed at the top
+           of this function, before any side effect. There is deliberately NO
+           capture, deposit or redaction here — a late deposit is what let
+           explicit {{secret:...}} syntax run past markChatStarted, the draft
+           claim and the render runtime, and it had no compensation when the
+           second of several deposits failed. See useSecretCaptureGate. */
         const userMessageSeed = normalizedReuseUserMessage
           ? {
               ...normalizedReuseUserMessage,
@@ -5982,10 +6450,63 @@ export const useChatStream = ({
               runSelectedRecipeName === "Default")) &&
           effectiveAgentOrchestration.mode === "default";
 
+        /* Memory V2 P0 payload identity + lazy bootstrap.
+           owner_chat_id is ALWAYS the UI chat id (targetChatId) — never
+           effectiveThreadId, which becomes the character session_id for
+           character chats — and is sent unconditionally on both the normal
+           and the durable-resume payload (merged via spread; the durable
+           helper itself is intentionally untouched).
+           memory_v2_requested + memory_agent_config appear ONLY when the
+           enable_memory_v2 flag is on, and then on BOTH the normal send and
+           the durable-resume payload — a resumed interaction is still a
+           Memory V2 turn and the sidecar must route it the same way.
+           context_v2_history is the one V2 field that stays exclusive to the
+           normal send: it is built from this chat's settled messages (prior
+           turns; the in-flight message travels in `message`) and exists
+           solely for the sidecar's lazy bootstrap. A durable resume by
+           definition already has canonical history server-side, so re-sending
+           it would be redundant at best and a divergent second writer at
+           worst.
+           memory_agent_config carries ONLY the normalized user-tunable
+           Memory Agent surface ({displayName, additionalInstructions,
+           provider, modelId}) — explicitly picked so no other settings
+           namespace can ever leak into the payload.
+           The legacy `history` field keeps its exact existing logic so model
+           input stays byte-equivalent in shadow mode, and with the flag off
+           the payload is unchanged in both branches. */
+        const memoryV2Requested = isFeatureFlagEnabled("enable_memory_v2");
+        const memoryV2CommonFields = memoryV2Requested
+          ? (() => {
+              const memoryAgentSettings = readMemoryAgentSettings();
+              return {
+                memory_v2_requested: true,
+                memory_agent_config: {
+                  displayName: memoryAgentSettings.displayName,
+                  additionalInstructions:
+                    memoryAgentSettings.additionalInstructions,
+                  provider: memoryAgentSettings.provider,
+                  modelId: memoryAgentSettings.modelId,
+                },
+              };
+            })()
+          : {};
         const streamPayload = isDurableResume
-          ? buildDurableResumePayload(durableInteraction)
+          ? {
+              ...buildDurableResumePayload(durableInteraction),
+              owner_chat_id: targetChatId,
+              ...memoryV2CommonFields,
+            }
           : {
               threadId: effectiveThreadId,
+              owner_chat_id: targetChatId,
+              ...memoryV2CommonFields,
+              ...(memoryV2Requested
+                ? {
+                    context_v2_history: buildContextV2History(
+                      normalizedBaseMessages,
+                    ),
+                  }
+                : {}),
               ...(turnMutationOperationId
                 ? { attempt_id: turnMutationOperationId }
                 : {}),
@@ -7310,7 +7831,16 @@ export const useChatStream = ({
                 void runTurnRequest({
                   mode,
                   chatId: targetChatId,
+                  /* Byte-identical to what this run already sent: the gate
+                     settled it (handle markers for a "store" decision, the
+                     user's own plaintext for an explicit "plain" one) and the
+                     guard above already spent the one-time token. This is an
+                     app-initiated transparent retry of an approved send, so it
+                     declares the gate settled rather than re-deriving proof it
+                     structurally cannot have. It never re-deposits and never
+                     re-exposes anything the user did not already approve. */
                   text: promptText,
+                  secretGateSettled: true,
                   attachments: persistedAttachments,
                   baseMessages: normalizedBaseMessages,
                   clearComposer: false,
@@ -7777,6 +8307,7 @@ export const useChatStream = ({
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
+      consumeSecretGateToken,
       clearDurableResumeStartedKeysForChat,
       clearResolvedToolConfirmationByCallId,
       fallbackPendingClarifyForChat,
@@ -8022,6 +8553,19 @@ export const useChatStream = ({
             Array.isArray(messagesRef.current)
               ? messagesRef.current
               : nextStreamMessages);
+          /* The relay is a PROGRAMMATIC send: it must never raise a modal.
+             A queued item that still trips the scanner can only proceed on the
+             plain-text approval the user already gave for it, replayed here as
+             a one-time token bound to this exact merged text. Items without an
+             approval that trip the scanner were purged from the outbox at load,
+             so the only outcome left for them is the fail-closed guard inside
+             runTurnRequest. */
+          const relaySecretToken =
+            mintTokenForDisposition({
+              chatId: targetChatId,
+              text: relaySnapshot.text,
+              disposition: relaySnapshot.disposition,
+            }) || "";
           void runTurnRequest({
             mode: "send",
             chatId: targetChatId,
@@ -8032,6 +8576,8 @@ export const useChatStream = ({
             missingAttachmentPayloadMode: "block",
             characterAgentConfig,
             runContext,
+            secretGateToken: relaySecretToken,
+            secretGateText: relaySnapshot.text,
             /* onConsumed fires only on authoritative server acceptance. Only
                then may we remove the durable outbox data and schedule the 1.6s
                cleanup — never merely because startStream returned a handle. */
@@ -8088,6 +8634,7 @@ export const useChatStream = ({
       activeChatIdRef,
       isChatRunPending,
       messagesRef,
+      mintTokenForDisposition,
       persistQueuedTurnBufferForAttempt,
       runTurnRequest,
       scheduleQueueRelayRetryTimer,
@@ -10318,7 +10865,31 @@ export const useChatStream = ({
       if (!currentChatId || (!text && !hasAttachments)) {
         return;
       }
+      const composerRevisionAtRequest =
+        composerRevisionByChatIdRef?.current?.get?.(currentChatId) || 0;
 
+      /* ── Memory V2 P0 secret gate ───────────────────────────────────────────
+         Everything from here down is `runSend`, and NOTHING in it runs until
+         the gate has resolved. That matters because runSend is where the first
+         durable side effects of a send live: pushQueuedTurn (queue outbox),
+         handleInterject (FYI/clarify outbox), and runTurnRequest (composer
+         draft claim, beginRunGeneration, markChatStarted, chat_storage,
+         journal, stream). The checks ABOVE this point are pure reads plus
+         React-only error state, so gating here still dominates every write.
+
+         `outgoingSource` is the gate's answer (identical to `text` when the
+         message is clean). `text` stays in scope on purpose: the composer
+         staleness comparisons must be made against what the user actually
+         typed, not against the redacted form. */
+      const runSend = (outgoingSource, secretGateToken, secretDisposition) => {
+      /* A gate token is one-time and only runTurnRequest may spend it. Every
+         other way out of runSend (no model selected, bridge unavailable,
+         attachments refused, queued locally, routed to interject) ends the
+         send WITHOUT reaching runTurnRequest, so the token is burned here
+         instead — an approval must never outlive the send it was granted for.
+         The body below is deliberately not re-indented; see the note above. */
+      let secretGateTokenHandedOff = false;
+      try {
       const durableState =
         durableInteractionByChatIdRef.current[currentChatId] || null;
       if (durableState?.status) {
@@ -10336,10 +10907,10 @@ export const useChatStream = ({
           return;
         }
         if (!thisChatHasStreamHandle) {
-          const preflightInterject = extractCommands(text ?? "", {
+          const preflightInterject = extractCommands(outgoingSource ?? "", {
             isStreaming: true,
           });
-          const normalizedPreflightText = text.trim();
+          const normalizedPreflightText = outgoingSource.trim();
           const isExplicitQueue =
             preflightInterject.commands.some(
               (command) => command?.channel === "queue",
@@ -10354,7 +10925,13 @@ export const useChatStream = ({
             !hasAttachments &&
             preflightQueueBody
           ) {
-            if (pushQueuedTurn(currentChatId, preflightQueueBody)) {
+            if (
+              pushQueuedTurn(
+                currentChatId,
+                preflightQueueBody,
+                secretDisposition,
+              )
+            ) {
               setInputValue("");
               setDraftAttachments([]);
             }
@@ -10386,7 +10963,8 @@ export const useChatStream = ({
         // silently dropping it.
         const interjectResult = handleInterjectRef.current?.(
           currentChatId,
-          text,
+          outgoingSource,
+          { secretDisposition },
         );
         void Promise.resolve(interjectResult).then((accepted) => {
           if (
@@ -10432,14 +11010,17 @@ export const useChatStream = ({
       // relay) already carry a resolved body — expanding them again would
       // re-run command tokens that were already handled upstream, so they
       // never carry a composer sidecar either.
-      let outgoingText = text;
+      let outgoingText = outgoingSource;
       let commandToolkits = [];
       let composer = null;
       if (!isProgrammaticSend) {
         // buildComposerSend: expanded body + ephemeral per-run toolkit
         // selection (using a plugin's command selects that plugin for THIS run
         // only — never persisted to the session) + the presentation sidecar.
-        const built = buildComposerSend(text, selectedToolkitsRef.current);
+        const built = buildComposerSend(
+          outgoingSource,
+          selectedToolkitsRef.current,
+        );
         outgoingText = built.outgoingText;
         commandToolkits = built.extraToolkits;
         composer = built.composer;
@@ -10449,6 +11030,8 @@ export const useChatStream = ({
         return;
       }
 
+      /* Ownership of the one-time token passes to runTurnRequest here. */
+      secretGateTokenHandedOff = true;
       void runTurnRequest({
         mode: "send",
         chatId: currentChatId,
@@ -10459,16 +11042,107 @@ export const useChatStream = ({
         missingAttachmentPayloadMode: "block",
         extraToolkits: commandToolkits,
         composer,
+        secretGateToken,
+        /* PRE-expansion text: this is what the modal showed the user and what
+           the token is bound to. `outgoingText` may carry skill expansion. */
+        secretGateText: outgoingSource,
+      });
+      } finally {
+        if (secretGateToken && !secretGateTokenHandedOff) {
+          consumeSecretGateToken(secretGateToken, {
+            chatId: currentChatId,
+            text: outgoingSource,
+          });
+        }
+      }
+      };
+
+      /* A programmatic relay of an item the user already approved as plain
+         text mints its one-time token from the PERSISTED disposition. Any
+         other programmatic send goes through the gate, where a hit fails
+         closed because a background relay must never raise a modal. */
+      const programmaticDispositionToken = isProgrammaticSend
+        ? mintTokenForDisposition({
+            chatId: currentChatId,
+            text,
+            disposition: options?.secretDisposition,
+          })
+        : null;
+      if (programmaticDispositionToken) {
+        runSend(
+          text,
+          programmaticDispositionToken,
+          PLAIN_USER_APPROVED_DISPOSITION,
+        );
+        return;
+      }
+
+      /* Clean text keeps the original, fully SYNCHRONOUS path. The gate only
+         changes control flow when it actually has something to gate, so the
+         send timing of ordinary messages is byte-for-byte unchanged.
+
+         This MUST use scanOutgoingSecretText, which reports explicit
+         {{secret:...}} blocks as candidates. The previous heuristic-only scan
+         treated wrapped spans as excluded regions, so a message using the
+         documented syntax scanned "clean", took this synchronous path, and
+         reached a late deposit inside runTurnRequest that ran after
+         markChatStarted / the draft claim / the render runtime — the very
+         bypass this guard exists to prevent. */
+      const preScan = scanOutgoingSecretText(text);
+      if (preScan.ok && preScan.candidates.length === 0) {
+        runSend(text, "", "");
+        return;
+      }
+
+      void resolveSecretGateForSend({
+        chatId: currentChatId,
+        text,
+        interactive: !isProgrammaticSend,
+      }).then((resolved) => {
+        if (!resolved) return;
+        /* Stale-state revalidation. While the modal was open the user may have
+           switched chats, edited the composer, changed attachments, or started
+           a run. Any drift means this approval no longer describes what is on
+           screen, so nothing is sent — the composer keeps its text and the
+           user can send again deliberately. */
+        if (activeChatIdRef.current !== currentChatId) return;
+        if (isChatRunPending(currentChatId) !== thisChatsRunActive) return;
+        if (!isProgrammaticSend) {
+          if (inputValueRef.current.trim() !== text) return;
+          if (
+            !sameDraftAttachments(
+              draftAttachmentsRef.current,
+              currentDraftAttachments,
+            )
+          ) {
+            return;
+          }
+          if (
+            (composerRevisionByChatIdRef?.current?.get?.(currentChatId) || 0) !==
+            composerRevisionAtRequest
+          ) {
+            return;
+          }
+        }
+        runSend(
+          resolved.text,
+          resolved.token || "",
+          resolved.disposition || "",
+        );
       });
     },
     [
       activeChatIdRef,
       attachmentsDisabledReason,
       attachmentsEnabled,
+      composerRevisionByChatIdRef,
+      consumeSecretGateToken,
       isCharacterChat,
       isChatRunPending,
       messagesRef,
+      mintTokenForDisposition,
       pushQueuedTurn,
+      resolveSecretGateForSend,
       runTurnRequest,
       setDraftAttachments,
       setInputValue,
@@ -10484,8 +11158,15 @@ export const useChatStream = ({
      one case that never touches the server: it is purely a local buffer. */
   const dispatchInterjectChannel = useCallback(
     (targetChatId, body, channel, options = {}) => {
+      /* Carried from the secret gate through every queue fallback below, so a
+         plain-text approval survives the auto-routing detour and the item is
+         still relayable later without re-prompting. */
+      const secretDisposition =
+        options?.secretDisposition === PLAIN_USER_APPROVED_DISPOSITION
+          ? PLAIN_USER_APPROVED_DISPOSITION
+          : "";
       if (channel === "queue") {
-        return pushQueuedTurn(targetChatId, body);
+        return pushQueuedTurn(targetChatId, body, secretDisposition);
       }
 
       const runGeneration = getRunGeneration(targetChatId);
@@ -10570,6 +11251,7 @@ export const useChatStream = ({
               text: body,
               requestedChannel: channel,
               threadId,
+              disposition: secretDisposition,
             });
         if (!saved) {
           const message =
@@ -10805,7 +11487,7 @@ export const useChatStream = ({
 
           if (resolvedChannel === "queue") {
             if (!needsDurableFyiIntent) {
-              return pushQueuedTurn(targetChatId, body);
+              return pushQueuedTurn(targetChatId, body, secretDisposition);
             }
             const migrated = migratePendingFyiToQueue({
               chatId: targetChatId,
@@ -10880,6 +11562,7 @@ export const useChatStream = ({
                     : { clientOperationId }),
                   id: clarifyId,
                   text: body,
+                  disposition: secretDisposition,
                 });
             if (!durableClarify) {
               if (needsDurableFyiIntent) {
@@ -10988,7 +11671,7 @@ export const useChatStream = ({
               : true;
           }
           if (stillActive) {
-            return pushQueuedTurn(targetChatId, body);
+            return pushQueuedTurn(targetChatId, body, secretDisposition);
           }
 
           if (targetChatId === activeChatIdRef.current) {
@@ -10996,10 +11679,11 @@ export const useChatStream = ({
               text: body,
               chatId: targetChatId,
               bypassInterject: true,
+              secretDisposition,
             });
             return true;
           }
-          return pushQueuedTurn(targetChatId, body);
+          return pushQueuedTurn(targetChatId, body, secretDisposition);
         })
         .catch((error) => {
           if (clarifyBtwBarrier && !clarifyBtwBarrier.settled) {
@@ -11044,7 +11728,7 @@ export const useChatStream = ({
   );
 
   const handleInterject = useCallback(
-    (targetChatId, rawText) => {
+    (targetChatId, rawText, options = {}) => {
       // Inline command tokens can sit anywhere in the text now. extractCommands
       // pulls the ACTIVE tokens (exclusive-group rule: first per group wins)
       // out of the text; the interject-channel command decides the channel and
@@ -11060,7 +11744,12 @@ export const useChatStream = ({
       const channel = channelCommand ? channelCommand.channel : "auto";
       const trimmedBody = (body || "").trim();
       if (!trimmedBody) return false;
-      return dispatchInterjectChannel(targetChatId, trimmedBody, channel);
+      return dispatchInterjectChannel(targetChatId, trimmedBody, channel, {
+        secretDisposition:
+          options?.secretDisposition === PLAIN_USER_APPROVED_DISPOSITION
+            ? PLAIN_USER_APPROVED_DISPOSITION
+            : "",
+      });
     },
     [dispatchInterjectChannel],
   );
@@ -11157,6 +11846,10 @@ export const useChatStream = ({
           pendingFyiIntent,
           clarifyId: pending.id,
           runGeneration,
+          /* This text was already gated when the user first sent it; the
+             clarify entry carries the approval forward so a queue fallback
+             here does not lose it and get purged as "ungated" later. */
+          secretDisposition: pending.disposition || "",
         },
       );
     },
@@ -11208,6 +11901,42 @@ export const useChatStream = ({
         return;
       }
 
+      /* ── Memory V2 P0 secret gate ──────────────────────────────────────────
+         A resend replays a stored message, which for anything sent after this
+         gate shipped is already handle-only and scans clean. A message stored
+         BEFORE the gate existed can still hold plaintext, and resending it
+         would re-send that plaintext — so the gate runs here too, ahead of
+         claimTurnMutation / enqueueTurnMutation / runTurnRequest. */
+      const gatedResend = await resolveSecretGateForSend({
+        chatId: currentChatId,
+        text,
+        interactive: true,
+      });
+      if (!gatedResend) return;
+      /* The chat or its run state may have moved while the modal was open. */
+      if (
+        activeChatIdRef.current !== currentChatId ||
+        isChatRunPending(currentChatId) !== thisChatsStreamActive
+      ) {
+        return;
+      }
+      const resendText = gatedResend.text;
+      const resendSecretToken = gatedResend.token || "";
+      const resendSecretGateSettled = Boolean(resendSecretToken);
+      if (
+        resendSecretGateSettled &&
+        !consumeSecretGateToken(resendSecretToken, {
+          chatId: currentChatId,
+          text: resendText,
+        })
+      ) {
+        setStreamErrorForChat(
+          currentChatId,
+          SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+        );
+        return;
+      }
+
       const operationId = createTurnMutationOperationId(currentChatId);
       const turnMutationOwner = claimTurnMutation({
         chatId: currentChatId,
@@ -11252,28 +11981,78 @@ export const useChatStream = ({
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
-        let expectedSessionRevision = null;
-        try {
-          expectedSessionRevision = await readMemorySessionRevision(
-            targetSessionId,
-            { forceMemoryEnabled: isCharacterChat },
+        const memoryPlan = await resolveTurnMutationMemoryPlan({
+          ownerChatId: currentChatId,
+          sessionId: targetSessionId,
+        });
+        if (!isCurrentTurnMutation()) return;
+        if (memoryPlan.mode === TURN_MUTATION_ADMISSION.BLOCKED) {
+          setStreamErrorForChat(
+            currentChatId,
+            contextV2TurnMutationMessage(memoryPlan.reason),
           );
-        } catch (error) {
-          setStreamErrorForChat(currentChatId, error?.message);
           return;
         }
-        if (!isCurrentTurnMutation()) return;
+        const isV2Mutation = memoryPlan.mode === TURN_MUTATION_ADMISSION.V2;
+        let expectedSessionRevision = null;
+        let v2RebasePayload = null;
+        if (isV2Mutation) {
+          /* Frozen HERE, from this one head read, and never rebuilt again. */
+          v2RebasePayload = buildContextV2RebasePayload({
+            ownerChatId: currentChatId,
+            sessionId: targetSessionId,
+            replacementHistory: buildRebaseReplacementHistory(baseMessages),
+            sourceGenerationId: memoryPlan.sourceGenerationId,
+            expectedSessionRevision: memoryPlan.expectedSessionRevision,
+            operationId,
+            reason: "resend",
+          });
+          if (!v2RebasePayload) {
+            setStreamErrorForChat(
+              currentChatId,
+              CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+            );
+            return;
+          }
+        } else {
+          try {
+            expectedSessionRevision = await readMemorySessionRevision(
+              targetSessionId,
+              { forceMemoryEnabled: isCharacterChat },
+            );
+          } catch (error) {
+            setStreamErrorForChat(currentChatId, error?.message);
+            return;
+          }
+          if (!isCurrentTurnMutation()) return;
+        }
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
           sessionId: targetSessionId,
           kind: "resend",
+          memoryMode: isV2Mutation
+            ? TURN_MUTATION_MEMORY_MODES.V2
+            : TURN_MUTATION_MEMORY_MODES.LEGACY,
+          ...(v2RebasePayload
+            ? {
+                v2RebasePayload,
+                /* Frozen from the SAME single head read as the payload. It
+                   decides whether the authoritative V1 leg exists at all, so
+                   recovery must replay it rather than re-decide it. */
+                admissionMode: memoryPlan.admissionMode,
+                ...(memoryPlan.admissionMode ===
+                TURN_MUTATION_ADMISSION_MODES.SHADOW
+                  ? { v1MirrorState: TURN_MUTATION_V1_MIRROR_STATES.PENDING }
+                  : {}),
+              }
+            : {}),
           targetMessageId: targetMessage.id,
           originalFingerprint:
             fingerprintTurnMutationMessages(originalMessages),
           baseFingerprint: fingerprintTurnMutationMessages(baseMessages),
           baseMessageCount: baseMessages.length,
-          text,
+          text: resendText,
           modelId: targetModelId,
           threadId: targetThreadId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
@@ -11287,21 +12066,15 @@ export const useChatStream = ({
           );
           return;
         }
-        const memoryResult = await replaceSessionMemoryForMessages(
-          targetSessionId,
-          baseMessages,
-          {
-            forceMemoryEnabled: isCharacterChat,
-            memoryNamespace: characterConfig?.run_memory_namespace || "",
-            modelId: targetModelId,
-            targetChatId: currentChatId,
-            operationId,
-            expectedSessionRevision,
-          },
-        );
+        /* Server ack strictly before any optimistic message or local persist:
+           runTurnRequest below is what writes the optimistic user message. */
+        const memoryResult = await applyTurnMutationMemory(outboxEntry, {
+          replacementMessages: baseMessages,
+          targetChatId: currentChatId,
+        });
         if (!memoryResult.applied) {
           if (
-            isTerminalTurnMutationError(memoryResult.error) &&
+            isTerminalTurnMutationResult(memoryResult) &&
             fingerprintTurnMutationMessages(
               storageApi.getChatMessages?.(currentChatId) || [],
             ) === outboxEntry.originalFingerprint
@@ -11328,7 +12101,9 @@ export const useChatStream = ({
         await runTurnRequest({
           mode: "resend",
           chatId: currentChatId,
-          text,
+          text: resendText,
+          secretGateText: resendText,
+          secretGateSettled: resendSecretGateSettled,
           attachments: resendAttachments,
           baseMessages,
           clearComposer: false,
@@ -11346,12 +12121,15 @@ export const useChatStream = ({
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      consumeSecretGateToken,
       isChatRunPending,
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      applyTurnMutationMemory,
       readMemorySessionRevision,
-      replaceSessionMemoryForMessages,
+      resolveTurnMutationMemoryPlan,
+      resolveSecretGateForSend,
       runTurnRequest,
       setStreamErrorForChat,
       storageApi,
@@ -11385,6 +12163,42 @@ export const useChatStream = ({
         thisChatsStreamActive ||
         durableMutationBlocked
       ) {
+        return;
+      }
+
+      /* ── Memory V2 P0 secret gate ──────────────────────────────────────────
+         An edit is brand-new user text, so it is gated exactly like a compose
+         send — and gated HERE, ahead of claimTurnMutation, the session-head
+         read, enqueueTurnMutation, applyTurnMutationMemory and runTurnRequest,
+         so no turn-mutation outbox row, no memory rewrite (V1 or V2 rebase)
+         and no optimistic message can exist before the user has decided. */
+      const gatedEdit = await resolveSecretGateForSend({
+        chatId: currentChatId,
+        text,
+        interactive: true,
+      });
+      if (!gatedEdit) return;
+      /* The chat or its run state may have moved while the modal was open. */
+      if (
+        activeChatIdRef.current !== currentChatId ||
+        isChatRunPending(currentChatId) !== thisChatsStreamActive
+      ) {
+        return;
+      }
+      const editText = gatedEdit.text;
+      const editSecretToken = gatedEdit.token || "";
+      const editSecretGateSettled = Boolean(editSecretToken);
+      if (
+        editSecretGateSettled &&
+        !consumeSecretGateToken(editSecretToken, {
+          chatId: currentChatId,
+          text: editText,
+        })
+      ) {
+        setStreamErrorForChat(
+          currentChatId,
+          SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+        );
         return;
       }
 
@@ -11445,7 +12259,7 @@ export const useChatStream = ({
 
         // The expanded edit and its sidecar are persisted in the outbox so a
         // remount resumes the exact same operation, not a newly-resolved one.
-        const built = buildComposerSend(text, targetSelectedToolkits);
+        const built = buildComposerSend(editText, targetSelectedToolkits);
         if (!built.outgoingText && originalAttachments.length === 0) {
           setStreamErrorForChat(
             currentChatId,
@@ -11459,22 +12273,72 @@ export const useChatStream = ({
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
-        let expectedSessionRevision = null;
-        try {
-          expectedSessionRevision = await readMemorySessionRevision(
-            targetSessionId,
-            { forceMemoryEnabled: isCharacterChat },
+        const memoryPlan = await resolveTurnMutationMemoryPlan({
+          ownerChatId: currentChatId,
+          sessionId: targetSessionId,
+        });
+        if (!isCurrentTurnMutation()) return;
+        if (memoryPlan.mode === TURN_MUTATION_ADMISSION.BLOCKED) {
+          setStreamErrorForChat(
+            currentChatId,
+            contextV2TurnMutationMessage(memoryPlan.reason),
           );
-        } catch (error) {
-          setStreamErrorForChat(currentChatId, error?.message);
           return;
         }
-        if (!isCurrentTurnMutation()) return;
+        const isV2Mutation = memoryPlan.mode === TURN_MUTATION_ADMISSION.V2;
+        let expectedSessionRevision = null;
+        let v2RebasePayload = null;
+        if (isV2Mutation) {
+          /* Frozen HERE, from this one head read, and never rebuilt again. */
+          v2RebasePayload = buildContextV2RebasePayload({
+            ownerChatId: currentChatId,
+            sessionId: targetSessionId,
+            replacementHistory: buildRebaseReplacementHistory(baseMessages),
+            sourceGenerationId: memoryPlan.sourceGenerationId,
+            expectedSessionRevision: memoryPlan.expectedSessionRevision,
+            operationId,
+            reason: "edit",
+          });
+          if (!v2RebasePayload) {
+            setStreamErrorForChat(
+              currentChatId,
+              CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+            );
+            return;
+          }
+        } else {
+          try {
+            expectedSessionRevision = await readMemorySessionRevision(
+              targetSessionId,
+              { forceMemoryEnabled: isCharacterChat },
+            );
+          } catch (error) {
+            setStreamErrorForChat(currentChatId, error?.message);
+            return;
+          }
+          if (!isCurrentTurnMutation()) return;
+        }
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
           sessionId: targetSessionId,
           kind: "edit",
+          memoryMode: isV2Mutation
+            ? TURN_MUTATION_MEMORY_MODES.V2
+            : TURN_MUTATION_MEMORY_MODES.LEGACY,
+          ...(v2RebasePayload
+            ? {
+                v2RebasePayload,
+                /* Frozen from the SAME single head read as the payload. It
+                   decides whether the authoritative V1 leg exists at all, so
+                   recovery must replay it rather than re-decide it. */
+                admissionMode: memoryPlan.admissionMode,
+                ...(memoryPlan.admissionMode ===
+                TURN_MUTATION_ADMISSION_MODES.SHADOW
+                  ? { v1MirrorState: TURN_MUTATION_V1_MIRROR_STATES.PENDING }
+                  : {}),
+              }
+            : {}),
           targetMessageId: targetMessage.id,
           originalFingerprint:
             fingerprintTurnMutationMessages(originalMessages),
@@ -11496,21 +12360,15 @@ export const useChatStream = ({
           );
           return;
         }
-        const memoryResult = await replaceSessionMemoryForMessages(
-          targetSessionId,
-          baseMessages,
-          {
-            forceMemoryEnabled: isCharacterChat,
-            memoryNamespace: characterConfig?.run_memory_namespace || "",
-            modelId: targetModelId,
-            targetChatId: currentChatId,
-            operationId,
-            expectedSessionRevision,
-          },
-        );
+        /* Server ack strictly before any optimistic message or local persist:
+           runTurnRequest below is what writes the optimistic user message. */
+        const memoryResult = await applyTurnMutationMemory(outboxEntry, {
+          replacementMessages: baseMessages,
+          targetChatId: currentChatId,
+        });
         if (!memoryResult.applied) {
           if (
-            isTerminalTurnMutationError(memoryResult.error) &&
+            isTerminalTurnMutationResult(memoryResult) &&
             fingerprintTurnMutationMessages(
               storageApi.getChatMessages?.(currentChatId) || [],
             ) === outboxEntry.originalFingerprint
@@ -11525,6 +12383,8 @@ export const useChatStream = ({
           mode: "edit",
           chatId: currentChatId,
           text: built.outgoingText,
+          secretGateText: editText,
+          secretGateSettled: editSecretGateSettled,
           attachments: originalAttachments,
           baseMessages,
           clearComposer: false,
@@ -11544,12 +12404,15 @@ export const useChatStream = ({
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      consumeSecretGateToken,
       isChatRunPending,
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      applyTurnMutationMemory,
       readMemorySessionRevision,
-      replaceSessionMemoryForMessages,
+      resolveTurnMutationMemoryPlan,
+      resolveSecretGateForSend,
       runTurnRequest,
       setStreamErrorForChat,
       storageApi,
@@ -11651,22 +12514,78 @@ export const useChatStream = ({
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
-        let expectedSessionRevision = null;
-        try {
-          expectedSessionRevision = await readMemorySessionRevision(
-            targetSessionId,
-            { forceMemoryEnabled: isCharacterChat },
+        /* The cancel/fence above has already run, so this head read observes
+           the post-cancel state. If the sidecar still reports the generation's
+           attempt as open, rebaseSession answers
+           context_v2_rebase_in_progress — a RETRYABLE code, so the frozen
+           intent stays in the durable outbox and recovery replays it. We never
+           fabricate a cancel ack and never fall back to V1 to get around it. */
+        const memoryPlan = await resolveTurnMutationMemoryPlan({
+          ownerChatId: currentChatId,
+          sessionId: targetSessionId,
+        });
+        if (!isCurrentTurnMutation()) return;
+        if (memoryPlan.mode === TURN_MUTATION_ADMISSION.BLOCKED) {
+          setStreamErrorForChat(
+            currentChatId,
+            contextV2TurnMutationMessage(memoryPlan.reason),
           );
-        } catch (error) {
-          setStreamErrorForChat(currentChatId, error?.message);
           return;
         }
-        if (!isCurrentTurnMutation()) return;
+        const isV2Mutation = memoryPlan.mode === TURN_MUTATION_ADMISSION.V2;
+        let expectedSessionRevision = null;
+        let v2RebasePayload = null;
+        if (isV2Mutation) {
+          /* Frozen HERE, from this one head read, and never rebuilt again. */
+          v2RebasePayload = buildContextV2RebasePayload({
+            ownerChatId: currentChatId,
+            sessionId: targetSessionId,
+            replacementHistory: buildRebaseReplacementHistory(nextMessages),
+            sourceGenerationId: memoryPlan.sourceGenerationId,
+            expectedSessionRevision: memoryPlan.expectedSessionRevision,
+            operationId,
+            reason: "delete",
+          });
+          if (!v2RebasePayload) {
+            setStreamErrorForChat(
+              currentChatId,
+              CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+            );
+            return;
+          }
+        } else {
+          try {
+            expectedSessionRevision = await readMemorySessionRevision(
+              targetSessionId,
+              { forceMemoryEnabled: isCharacterChat },
+            );
+          } catch (error) {
+            setStreamErrorForChat(currentChatId, error?.message);
+            return;
+          }
+          if (!isCurrentTurnMutation()) return;
+        }
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
           sessionId: targetSessionId,
           kind: "delete",
+          memoryMode: isV2Mutation
+            ? TURN_MUTATION_MEMORY_MODES.V2
+            : TURN_MUTATION_MEMORY_MODES.LEGACY,
+          ...(v2RebasePayload
+            ? {
+                v2RebasePayload,
+                /* Frozen from the SAME single head read as the payload. It
+                   decides whether the authoritative V1 leg exists at all, so
+                   recovery must replay it rather than re-decide it. */
+                admissionMode: memoryPlan.admissionMode,
+                ...(memoryPlan.admissionMode ===
+                TURN_MUTATION_ADMISSION_MODES.SHADOW
+                  ? { v1MirrorState: TURN_MUTATION_V1_MIRROR_STATES.PENDING }
+                  : {}),
+              }
+            : {}),
           targetMessageId: message.id,
           originalFingerprint:
             fingerprintTurnMutationMessages(workingMessages),
@@ -11688,22 +12607,14 @@ export const useChatStream = ({
           );
           return;
         }
-        const memoryResult = await replaceSessionMemoryForMessages(
-          targetSessionId,
-          nextMessages,
-          {
-            forceMemoryEnabled: isCharacterChat,
-            memoryNamespace: characterConfig?.run_memory_namespace || "",
-            modelId: targetModelId,
-            targetChatId: currentChatId,
-            operationId,
-            expectedSessionRevision,
-            expectedCancelAttemptId,
-          },
-        );
+        /* Server ack strictly before the local commit below. */
+        const memoryResult = await applyTurnMutationMemory(outboxEntry, {
+          replacementMessages: nextMessages,
+          targetChatId: currentChatId,
+        });
         if (!memoryResult.applied) {
           if (
-            isTerminalTurnMutationError(memoryResult.error) &&
+            isTerminalTurnMutationResult(memoryResult) &&
             fingerprintTurnMutationMessages(
               storageApi.getChatMessages?.(currentChatId) || [],
             ) === outboxEntry.originalFingerprint
@@ -11731,8 +12642,9 @@ export const useChatStream = ({
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      applyTurnMutationMemory,
       readMemorySessionRevision,
-      replaceSessionMemoryForMessages,
+      resolveTurnMutationMemoryPlan,
       setStreamErrorForChat,
       storageApi,
       threadIdRef,
@@ -11744,7 +12656,15 @@ export const useChatStream = ({
       typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
     if (!targetChatId || !hookMountedRef.current) return undefined;
 
-    const entry = readTurnMutationOutbox().find(
+    const recoveryOutboxSnapshot = readTurnMutationOutboxState();
+    if (!recoveryOutboxSnapshot.available) {
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      return undefined;
+    }
+    const entry = recoveryOutboxSnapshot.entries.find(
       (item) => item.chatId === targetChatId,
     );
     if (!entry) return undefined;
@@ -11923,21 +12843,17 @@ export const useChatStream = ({
         }
       }
 
-      const memoryResult = await replaceSessionMemoryForMessages(
-        entry.sessionId,
+      /* Memory V2 recovery replays the FROZEN payload verbatim — no fresh
+         getSessionHead, no history rebuilt from the messages currently on
+         screen. The local checks above only decide whether it is still safe to
+         proceed; they never reshape what is sent. Sending a recomputed request
+         would rebase against a generation the user never saw. */
+      const memoryResult = await applyTurnMutationMemory(entry, {
         replacementMessages,
-        {
-          forceMemoryEnabled: entry.forceMemoryEnabled,
-          memoryNamespace: entry.memoryNamespace,
-          modelId: entry.modelId,
-          targetChatId,
-          operationId: entry.operationId,
-          expectedSessionRevision: entry.expectedSessionRevision,
-          expectedCancelAttemptId: entry.expectedCancelAttemptId,
-        },
-      );
+        targetChatId,
+      });
       if (!memoryResult.applied) {
-        if (isTerminalTurnMutationError(memoryResult.error)) {
+        if (isTerminalTurnMutationResult(memoryResult)) {
           const latestMessages =
             storageApi.getChatMessages?.(targetChatId) || [];
           if (
@@ -12036,7 +12952,7 @@ export const useChatStream = ({
     commitForegroundMessages,
     activeStreamsRef,
     isStreaming,
-    replaceSessionMemoryForMessages,
+    applyTurnMutationMemory,
     runTurnRequest,
     setStreamErrorForChat,
     storageApi,
@@ -12164,6 +13080,16 @@ export const useChatStream = ({
     cancelRunForTest,
     getRunForTest,
     resendTurn,
+    /* Memory V2 P0 secret gate. `secretCaptureGate` is the six-field public
+       object rendered by secret_capture_modal — it never carries message text
+       or any matched value. `isSecretCapturePending` is what the page uses to
+       lock send / model / tool / attachment controls while the user decides. */
+    secretCaptureGate,
+    isSecretCapturePending,
+    confirmSecretCaptureStore,
+    confirmSecretCapturePlain,
+    cancelSecretCapture,
+    setSecretCaptureScope,
     sendNewTurn,
     sendForTest,
     setStreamError,

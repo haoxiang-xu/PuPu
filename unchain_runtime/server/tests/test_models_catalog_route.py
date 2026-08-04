@@ -223,6 +223,7 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             approved=True,
             reason="looks good",
             modified_arguments=None,
+            durable_receipt=None,
         )
 
     def test_chat_tool_confirmation_returns_not_found_when_missing(self) -> None:

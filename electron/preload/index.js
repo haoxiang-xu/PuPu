@@ -17,6 +17,12 @@ const {
 const {
   createSettingsStorageBridge,
 } = require("./bridges/settings_storage_bridge");
+const {
+  createMemoryVaultBridge,
+} = require("./bridges/memory_vault_bridge");
+const {
+  createContextV2Bridge,
+} = require("./bridges/context_v2_bridge");
 
 const runtimeInfo = {
   isElectron: true,
@@ -76,6 +82,14 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld(
   "settingsStorageAPI",
   createSettingsStorageBridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "memoryVaultAPI",
+  createMemoryVaultBridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "contextV2API",
+  createContextV2Bridge(ipcRenderer),
 );
 
 const { install: installTestBridge } = require("./test_bridge_preload");

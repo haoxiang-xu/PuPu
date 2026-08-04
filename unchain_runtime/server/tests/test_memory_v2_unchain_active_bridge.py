@@ -1,0 +1,372 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest import mock
+
+import pytest
+
+import unchain_adapter as adapter
+from memory_v2_unchain_active_bridge import (
+    PupuUnchainActiveBridge,
+    PupuUnchainActiveBridgeError,
+    preflight_pupu_unchain_active_host,
+    prepare_pupu_unchain_active_bridge,
+)
+from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
+from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
+from unchain.agent.modules import ContextModule
+from unchain.agent.modules.task_state_bootstrap import (
+    PinnedTaskStateBootstrapModule,
+)
+from unchain.agent import Agent, MemoryModule, PoliciesModule, ToolsModule
+from unchain.context import SemanticEventProjectionMode
+from unchain.kernel import ModelTurnResult
+from unchain.kernel.harness import HarnessContext
+from unchain.kernel.state import RunState
+from unchain.run_identity import MemoryV2RunRole
+
+
+def _admission(*, active: bool = True):
+    return SimpleNamespace(
+        is_active=active,
+        owner_chat_id="chat-active",
+        session_id="session-active",
+        attempt_id="root-active",
+    )
+
+
+def _run() -> PupuUnchainShadowRunDraft:
+    return PupuUnchainShadowRunDraft(
+        execution_id="session-active",
+        session_id="session-active",
+        attempt_id="root-active",
+        run_id="root-active",
+        root_run_id="root-active",
+        role=MemoryV2RunRole.ROOT,
+        current_input_draft=PupuMemoryV2TextInputDraft(content="current objective"),
+    )
+
+
+def _prepare(tmp_path, monkeypatch):
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+    return prepare_pupu_unchain_active_bridge(
+        admission=_admission(),
+        run=_run(),
+        bootstrap_history=(),
+        no_unfinished_durable_checkpoint=True,
+        no_pending_interaction=True,
+        model_window_fallback=lambda provider, model: 16_384,
+        partial_attempt_sink=lambda value, error: None,
+    )
+
+
+def test_active_bridge_mounts_canonical_context_module_and_bootstraps_input(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    bridge = _prepare(tmp_path, monkeypatch)
+
+    assert type(bridge) is PupuUnchainActiveBridge
+    assert len(bridge.modules) == 2
+    assert type(bridge.modules[0]) is ContextModule
+    assert type(bridge.modules[1]) is PinnedTaskStateBootstrapModule
+    assert (
+        bridge.preparation.host_factory.projection_mode
+        is SemanticEventProjectionMode.CANONICAL
+    )
+
+    state = RunState()
+    state.session_state.session_id = "session-active"
+    bridge.modules[0].runtime.bind_context(
+        HarnessContext(
+            state=state,
+            phase="bootstrap",
+            event={"run_id": "root-active"},
+        )
+    )
+    attempt = bridge.attempt_for_run("root-active")
+    events = attempt.bundle.journal.capture_snapshot().events
+    assert [event.event_type for event in events] == [
+        "generation.rebased",
+        "message.user",
+    ]
+    assert events[1].payload["message"]["content"] == "current objective"
+
+    bridge.persist_host_event(
+        {
+            "type": "final_message",
+            "run_id": "root-active",
+            "iteration": 0,
+            "content": "done",
+        }
+    )
+    events = attempt.bundle.journal.capture_snapshot().events
+    assert [event.event_type for event in events] == [
+        "generation.rebased",
+        "message.user",
+        "final_message",
+    ]
+
+
+def test_active_preflight_atomically_imports_history_before_runtime_binding(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+
+    preflight = preflight_pupu_unchain_active_host(
+        owner_chat_id="chat-active",
+        run=_run(),
+        bootstrap_history=(
+            {"role": "user", "content": "original objective"},
+        ),
+        no_unfinished_durable_checkpoint=True,
+        no_pending_interaction=True,
+        model_window_fallback=lambda provider, model: 16_384,
+        partial_attempt_sink=lambda value, error: None,
+    )
+
+    bootstrap = preflight.atomic_bootstrap
+    binding = preflight.preparation.binding
+    events = preflight.preparation.host_factory.context_store.bind_execution(
+        binding.execution_id
+    ).capture_snapshot().events
+    assert bootstrap.bootstrap_attempt_id != binding.attempt_id
+    assert binding.generation_id == bootstrap.current_head.current_generation_id
+    assert binding.head_revision == bootstrap.current_head.revision
+    assert [event.payload["message"]["content"] for event in events] == [
+        "original objective",
+    ]
+
+
+def test_active_bridge_is_default_closed_for_non_active_or_wrong_owner(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+    assert prepare_pupu_unchain_active_bridge(
+        admission=_admission(active=False),
+        run=_run(),
+        bootstrap_history=(),
+        no_unfinished_durable_checkpoint=True,
+        no_pending_interaction=True,
+        model_window_fallback=lambda provider, model: 16_384,
+        partial_attempt_sink=lambda value, error: None,
+    ) is None
+
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "pupu_legacy")
+    with pytest.raises(PupuUnchainActiveBridgeError, match="store owner"):
+        prepare_pupu_unchain_active_bridge(
+            admission=_admission(),
+            run=_run(),
+            bootstrap_history=(),
+            no_unfinished_durable_checkpoint=True,
+            no_pending_interaction=True,
+            model_window_fallback=lambda provider, model: 16_384,
+            partial_attempt_sink=lambda value, error: None,
+        )
+
+
+def test_active_context_module_compiles_provider_input_from_canonical_journal(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    bridge = _prepare(tmp_path, monkeypatch)
+    requests = []
+
+    class FakeModelIO:
+        provider = "ollama"
+        model = "test"
+
+        def fetch_turn(self, request):
+            requests.append(request)
+            return ModelTurnResult(
+                assistant_messages=[{"role": "assistant", "content": "done"}],
+                tool_calls=[],
+                final_text="done",
+            )
+
+    admission = SimpleNamespace(
+        is_active=True,
+        provider="ollama",
+        model="test",
+        real_context_window_tokens=16_384,
+    )
+    with mock.patch.object(
+        adapter,
+        "_memory_v2_admission_from_options",
+        return_value=admission,
+    ), mock.patch.object(
+        adapter,
+        "_append_memory_v2_normal_toolkit",
+        side_effect=AssertionError("legacy toolkit must remain bypassed"),
+    ), mock.patch.object(
+        adapter,
+        "_build_memory_v2_optimizer_module",
+        side_effect=AssertionError("legacy compiler must remain bypassed"),
+    ):
+        agent = adapter._build_developer_agent(
+            UnchainAgent=Agent,
+            ToolsModule=ToolsModule,
+            MemoryModule=MemoryModule,
+            PoliciesModule=PoliciesModule,
+            provider="ollama",
+            model="test",
+            api_key="",
+            max_iterations=1,
+            toolkits=[],
+            memory_manager=None,
+            options={},
+            enable_subagents=False,
+            model_io_factory=lambda spec, context: FakeModelIO(),
+            context_memory_v2_modules=bridge.modules,
+            official_context_v2_active=True,
+        )
+
+    result = agent.run(
+        messages=[{"role": "user", "content": "stale inline duplicate"}],
+        callback=lambda event: None,
+        max_iterations=1,
+        max_context_window_tokens=16_384,
+        run_id="root-active",
+        session_id="session-active",
+        memory_v2_run_role=MemoryV2RunRole.ROOT,
+        root_run_id="root-active",
+    )
+
+    assert result.status == "completed"
+    assert len(requests) == 1
+    provider_messages = requests[0].messages
+    assert "current objective" in str(provider_messages)
+    assert "stale inline duplicate" not in str(provider_messages)
+    attempt = bridge.attempt_for_run("root-active")
+    event_types = [
+        event.event_type
+        for event in attempt.bundle.journal.capture_snapshot().events
+    ]
+    assert event_types.count("message.user") == 1
+    assert event_types.count("final_message") == 1
+
+
+def test_active_provider_receives_exact_handle_but_never_plaintext(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    handle = "pvh1_" + ("a" * 64)
+    raw_handle = "pvh1_" + ("b" * 64)
+    marker = f'<secret-handle label="API key" handle="{handle}"/>'
+    raw_secret = "sk-proj-abcdefghijklmnopqrstuvwxyz"
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+    bridge = prepare_pupu_unchain_active_bridge(
+        admission=_admission(),
+        run=PupuUnchainShadowRunDraft(
+            execution_id="session-active",
+            session_id="session-active",
+            attempt_id="root-active",
+            run_id="root-active",
+            root_run_id="root-active",
+            role=MemoryV2RunRole.ROOT,
+            current_input_draft=PupuMemoryV2TextInputDraft(
+                content=(
+                    f"Use {marker}; raw handle {raw_handle}; "
+                    f"token={raw_secret}"
+                )
+            ),
+        ),
+        bootstrap_history=(),
+        no_unfinished_durable_checkpoint=True,
+        no_pending_interaction=True,
+        model_window_fallback=lambda provider, model: 16_384,
+        partial_attempt_sink=lambda value, error: None,
+    )
+    requests = []
+
+    class FakeModelIO:
+        provider = "ollama"
+        model = "test"
+
+        def fetch_turn(self, request):
+            requests.append(request)
+            return ModelTurnResult(
+                assistant_messages=[{"role": "assistant", "content": "done"}],
+                tool_calls=[],
+                final_text="done",
+            )
+
+    admission = SimpleNamespace(
+        is_active=True,
+        provider="ollama",
+        model="test",
+        real_context_window_tokens=16_384,
+    )
+    with mock.patch.object(
+        adapter,
+        "_memory_v2_admission_from_options",
+        return_value=admission,
+    ), mock.patch.object(
+        adapter,
+        "_append_memory_v2_normal_toolkit",
+        side_effect=AssertionError("legacy toolkit must remain bypassed"),
+    ), mock.patch.object(
+        adapter,
+        "_build_memory_v2_optimizer_module",
+        side_effect=AssertionError("legacy compiler must remain bypassed"),
+    ):
+        agent = adapter._build_developer_agent(
+            UnchainAgent=Agent,
+            ToolsModule=ToolsModule,
+            MemoryModule=MemoryModule,
+            PoliciesModule=PoliciesModule,
+            provider="ollama",
+            model="test",
+            api_key="",
+            max_iterations=1,
+            toolkits=[],
+            memory_manager=None,
+            options={},
+            enable_subagents=False,
+            model_io_factory=lambda spec, context: FakeModelIO(),
+            context_memory_v2_modules=bridge.modules,
+            official_context_v2_active=True,
+        )
+
+    result = agent.run(
+        messages=[{"role": "user", "content": "stale inline duplicate"}],
+        callback=lambda event: None,
+        max_iterations=1,
+        max_context_window_tokens=16_384,
+        run_id="root-active",
+        session_id="session-active",
+        memory_v2_run_role=MemoryV2RunRole.ROOT,
+        root_run_id="root-active",
+    )
+
+    assert result.status == "completed"
+    assert len(requests) == 1
+    provider_messages = str(requests[0].messages)
+    assert marker in provider_messages
+    assert handle in provider_messages
+    assert raw_handle not in provider_messages
+    assert raw_secret not in provider_messages
+    attempt = bridge.attempt_for_run("root-active")
+    user_event = next(
+        event
+        for event in attempt.bundle.journal.capture_snapshot().events
+        if event.event_type == "message.user"
+    )
+    assert marker in user_event.payload["message"]["content"]
+    assert raw_handle not in str(user_event.to_dict())
+    assert raw_secret not in str(user_event.to_dict())
+
+    stored = b"\n".join(
+        path.read_bytes()
+        for path in bridge.preparation.host_factory.object_directory.iterdir()
+        if path.is_file()
+    )
+    assert handle.encode("utf-8") in stored
+    assert raw_handle.encode("utf-8") not in stored
+    assert raw_secret.encode("utf-8") not in stored

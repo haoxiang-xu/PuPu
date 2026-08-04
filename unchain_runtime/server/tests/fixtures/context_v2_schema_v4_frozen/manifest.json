@@ -1,0 +1,49 @@
+{
+  "database": {
+    "bytes": 479232,
+    "file": "context_v2.sqlite3",
+    "sha256": "0f2e488fe7a2acc6102b472221affa3864e1ed5cec666816cc313ed652e9f27d"
+  },
+  "durable_rows_sha256": "7477c231fd763909a2c2170b0ffae66d97d7fb6042f528d3ed94b631893cf884",
+  "fixture_revision": 1,
+  "objects": [
+    {
+      "bytes": 51,
+      "name": "0277e2235ede13ec7b3ce060adf24cb3b35516f662ea22bf46cfc3ad8acaf121",
+      "sha256": "0277e2235ede13ec7b3ce060adf24cb3b35516f662ea22bf46cfc3ad8acaf121"
+    },
+    {
+      "bytes": 33,
+      "name": "a68e88afd3575cf799c5f50d5301ccf827eb604be40c8831057b9418cc806e57",
+      "sha256": "a68e88afd3575cf799c5f50d5301ccf827eb604be40c8831057b9418cc806e57"
+    },
+    {
+      "bytes": 26,
+      "name": "b05fa3b8cafc80c7dbd01a7ada04fdbdce4cf40faab6c43444ddd2565373bdfa",
+      "sha256": "b05fa3b8cafc80c7dbd01a7ada04fdbdce4cf40faab6c43444ddd2565373bdfa"
+    },
+    {
+      "bytes": 22,
+      "name": "b709c5e659e18f7ceb458e3beb186eec621f0e23c53d292f77d41c2595d282b8",
+      "sha256": "b709c5e659e18f7ceb458e3beb186eec621f0e23c53d292f77d41c2595d282b8"
+    }
+  ],
+  "sanitized_synthetic_data": true,
+  "schema": "pupu.context_v2.frozen_schema_v4_fixture.v1",
+  "schema_sha256": "3359bc509dec3f0eb9c83c292616297e2df54a91073bb7bdace535bc591f5b1b",
+  "scope": {
+    "artifact_ref": "pupu://artifact/ctx_artifact_a0e83b3c8539b31ee0fa44372d13bd6a749e808f@1",
+    "attempt_id": "fixture-attempt",
+    "candidate_ref": "pupu://memory/candidate/mem_candidate_e425a10baa1949bbb99642d6bf3d5f68@1",
+    "entry_ref": "pupu://memory/mem_space_fae9688b24594c509574e53ee3653657/fixture-entry@1",
+    "generation_id": "ctx_generation_a2fd9f2a910e4b0ea6f05d6928b3b1bf",
+    "link_ref": "pupu://memory/mem_space_fae9688b24594c509574e53ee3653657/fixture-link@1",
+    "owner_chat_id": "fixture-chat",
+    "promotion_id": "mem_promotion_28ddf7ed1a2648f89e8e3a0b589045ff",
+    "session_id": "fixture-session",
+    "space_id": "mem_space_fae9688b24594c509574e53ee3653657"
+  },
+  "source_dirty": true,
+  "source_head": "d8dc590b34b21ad97ce6cc118493f7ebfd6104ae",
+  "user_version": 4
+}

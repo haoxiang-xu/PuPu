@@ -11,8 +11,12 @@ if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
 import app as miso_app  # noqa: E402
+from context_memory_v2_capability import (  # noqa: E402
+    ContextMemoryV2CapabilityVerdict,
+)
 import durable_job_runtime  # noqa: E402
 import route_chat  # noqa: E402
+import route_catalog  # noqa: E402
 
 
 class RuntimeContractHealthTests(unittest.TestCase):
@@ -96,6 +100,49 @@ class RuntimeContractHealthTests(unittest.TestCase):
                 ),
             },
         )
+
+    def test_health_reports_the_same_fail_closed_memory_v2_capability_gate(
+        self,
+    ) -> None:
+        verdict = ContextMemoryV2CapabilityVerdict(
+            ready=False,
+            reason="unchain_lock_revision_missing",
+            verification="failed",
+            immutable=False,
+            unchain_revision="a" * 40,
+        )
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    "PUPU_FEATURE_MEMORY_V2": "all",
+                    "PUPU_MEMORY_V2_MODE": "canary",
+                },
+                clear=False,
+            ),
+            mock.patch.object(
+                route_catalog,
+                "resolve_context_memory_v2_capability",
+                return_value=verdict,
+            ) as capability_probe,
+        ):
+            response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()["context_memory_v2"],
+            {
+                "context_memory_capability_ready": False,
+                "context_memory_capability_reason": (
+                    "unchain_lock_revision_missing"
+                ),
+                "context_memory_capability_verification": "failed",
+                "context_memory_capability_immutable": False,
+                "unchain_revision": "a" * 40,
+                "context_memory_contract": 1,
+            },
+        )
+        capability_probe.assert_called_once_with(requested_mode="canary")
 
 
 if __name__ == "__main__":

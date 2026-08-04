@@ -50,6 +50,11 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Ship the Computer toolkit and allow its separate consented user toggle to take effect. Requires an app restart after changing this build flag.",
     defaultValue: false,
   },
+  enable_memory_v2: {
+    description:
+      "Show the Memory V2 system agent card in the Agent Builder (System Agents group in the recipes list).",
+    defaultValue: false,
+  },
 };
 
 const listeners = new Set();

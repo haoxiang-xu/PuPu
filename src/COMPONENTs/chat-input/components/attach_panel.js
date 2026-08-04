@@ -114,6 +114,7 @@ const AttachPanel = forwardRef(({
   onRemoveAttachment,
   isStreaming = false,
   showToolSelector = true,
+  toolSelectDisabled = false,
   selectedToolkits = [],
   onToolkitsChange,
   showWorkspaceSelector = true,
@@ -648,6 +649,7 @@ const AttachPanel = forwardRef(({
                   filterable={true}
                   filter_mode="panel"
                   search_placeholder={t("toolkit.search_placeholder")}
+                  disabled={toolSelectDisabled}
                   open={openSelector === "tools"}
                   on_open_change={handleToolsOpenChange}
                   dropdown_position="top"

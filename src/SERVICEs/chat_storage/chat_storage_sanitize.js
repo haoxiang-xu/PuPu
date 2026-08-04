@@ -18,6 +18,7 @@ import {
   now,
 } from "./chat_storage_constants";
 import { sanitizeSystemPromptSections } from "../system_prompt_sections";
+import { sanitizeMemoryV2TraceBundle } from "../runtime_events/memory_v2_trace_presenter";
 
 export const DEFAULT_CHAT_KIND = "default";
 export const CHARACTER_CHAT_KIND = "character";
@@ -735,6 +736,8 @@ export const sanitizeMessage = (message) => {
       if (typeof b.cache_read_input_tokens === "number") bundle.cache_read_input_tokens = b.cache_read_input_tokens;
       if (typeof b.cache_creation_input_tokens === "number") bundle.cache_creation_input_tokens = b.cache_creation_input_tokens;
       if (typeof b.model === "string" && b.model.trim()) bundle.model = trimText(b.model, 200);
+      const memoryV2 = sanitizeMemoryV2TraceBundle(b.memory_v2);
+      if (memoryV2) bundle.memory_v2 = memoryV2;
       if (Object.keys(bundle).length > 0) meta.bundle = bundle;
     }
 

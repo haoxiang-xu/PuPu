@@ -12,6 +12,7 @@ import {
 } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
+import SecretCaptureModal from "./secret_capture_modal";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
@@ -713,9 +714,14 @@ const ChatInterface = () => {
     };
   }, [unchainStatus.ready, refreshModelCatalog]);
 
+  /* Memory V2 P0 secret gate: while the user is deciding what to do with a
+     detected credential, the whole composer surface is frozen. Changing the
+     model, the toolkits or the attachments mid-decision would change what the
+     approved message is actually sent with. */
   const isModelSelectionDisabled =
     stream.isStreaming ||
     session.isCharacterChat ||
+    stream.isSecretCapturePending ||
     stream.isDurableInteractionBlocked ||
     stream.isTurnMutationBlocked;
 
@@ -792,6 +798,7 @@ const ChatInterface = () => {
   const isSendDisabled =
     stream.isDurableInteractionBlocked ||
     stream.isTurnMutationBlocked ||
+    stream.isSecretCapturePending ||
     (!unchainStatus.ready && !stream.isStreaming) ||
     !hasSelectedModel;
 
@@ -885,12 +892,13 @@ const ChatInterface = () => {
       onDropFiles: attachments.processFiles,
       attachments: draftAttachments,
       onRemoveAttachment: attachments.removeDraftAttachment,
-      attachmentsEnabled,
+      attachmentsEnabled: attachmentsEnabled && !stream.isSecretCapturePending,
       attachmentsDisabledReason,
       modelCatalog,
       selectedModelId: session.selectedModelId,
       onSelectModel,
       modelSelectDisabled: isModelSelectionDisabled,
+      toolSelectDisabled: stream.isSecretCapturePending,
       showModelSelector: !session.isCharacterChat,
       showToolSelector: !session.isCharacterChat && modelSupportsTools,
       showWorkspaceSelector: !session.isCharacterChat && modelSupportsTools,
@@ -917,6 +925,7 @@ const ChatInterface = () => {
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
       modelSupportsTools,
+      stream.isSecretCapturePending,
       t,
     ],
   );
@@ -1180,6 +1189,18 @@ const ChatInterface = () => {
         </>
       )}
       </div>
+
+      {/* Memory V2 P0 secret gate. Portalled by Modal, so it sits outside the
+          chat layout; it receives only the six-field public gate object and
+          never any message text. Close / ESC / backdrop all map to onCancel,
+          which stores nothing, sends nothing and keeps the composer intact. */}
+      <SecretCaptureModal
+        gate={stream.secretCaptureGate}
+        onConfirmStore={stream.confirmSecretCaptureStore}
+        onConfirmPlain={stream.confirmSecretCapturePlain}
+        onCancel={stream.cancelSecretCapture}
+        onScopeChange={stream.setSecretCaptureScope}
+      />
     </div>
   );
 };

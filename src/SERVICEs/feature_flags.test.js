@@ -41,6 +41,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
+      enable_memory_v2: false,
     });
     expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
@@ -70,6 +71,7 @@ describe("feature_flags service", () => {
         enable_theme_color_customization: true,
         enable_custom_model_providers: true,
         enable_computer_use: true,
+        enable_memory_v2: true,
       }),
     });
 
@@ -80,6 +82,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
+      enable_memory_v2: true,
     });
   });
 
@@ -103,6 +106,7 @@ describe("feature_flags service", () => {
         enable_theme_color_customization: true,
         enable_custom_model_providers: true,
         enable_computer_use: true,
+        enable_memory_v2: true,
       }),
     ).toEqual({
       enable_user_access_to_agents: true,
@@ -111,6 +115,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
+      enable_memory_v2: true,
     });
 
     expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
@@ -124,6 +129,7 @@ describe("feature_flags service", () => {
         enable_theme_color_customization: true,
         enable_custom_model_providers: true,
         enable_computer_use: true,
+        enable_memory_v2: true,
       },
     });
   });
@@ -140,6 +146,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
+      enable_memory_v2: false,
     });
 
     writeFeatureFlags({ enable_user_access_to_agents: true });
@@ -152,6 +159,7 @@ describe("feature_flags service", () => {
         enable_theme_color_customization: false,
         enable_custom_model_providers: false,
         enable_computer_use: false,
+        enable_memory_v2: false,
       },
     });
   });
@@ -178,6 +186,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
+      enable_memory_v2: true,
     });
 
     expect(listener).toHaveBeenCalledWith({
@@ -187,6 +196,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
+      enable_memory_v2: true,
     });
 
     unsubscribe();

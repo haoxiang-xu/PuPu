@@ -3,6 +3,10 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const {
+  createBuildFeatureSnapshot,
+  normalizeFeatureFlags,
+} = require("../electron/main/services/unchain/memory_v2_rollout");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const SNAPSHOT_PATH = path.join(
@@ -25,30 +29,32 @@ const REACT_SCRIPTS_BUILD_PATH = path.join(
 
 const readBuildFeatureFlagsSnapshot = () => {
   if (!fs.existsSync(SNAPSHOT_PATH)) {
-    return {};
+    return normalizeFeatureFlags({});
   }
 
   try {
     const raw = fs.readFileSync(SNAPSHOT_PATH, "utf-8");
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
+      return normalizeFeatureFlags({});
     }
 
-    return Object.fromEntries(
-      Object.entries(parsed).map(([key, value]) => [key, value === true]),
-    );
+    return normalizeFeatureFlags(parsed);
   } catch (error) {
     console.warn(
       `[build:web] Failed to read feature flag snapshot at ${SNAPSHOT_PATH}: ${error.message}`,
     );
-    return {};
+    return normalizeFeatureFlags({});
   }
 };
 
 const printFlagsOnly = process.argv.includes("--print-flags");
 const buildFeatureFlags = readBuildFeatureFlagsSnapshot();
 const serializedFlags = JSON.stringify(buildFeatureFlags);
+const runtimeSnapshot = createBuildFeatureSnapshot(
+  buildFeatureFlags,
+  process.env,
+);
 
 if (printFlagsOnly) {
   console.log(serializedFlags);
@@ -76,7 +82,11 @@ if (result.error) {
 }
 
 if (result.status === 0) {
-  fs.writeFileSync(RUNTIME_SNAPSHOT_PATH, `${serializedFlags}\n`, "utf-8");
+  fs.writeFileSync(
+    RUNTIME_SNAPSHOT_PATH,
+    `${JSON.stringify(runtimeSnapshot, null, 2)}\n`,
+    "utf-8",
+  );
 }
 
 process.exit(result.status || 0);

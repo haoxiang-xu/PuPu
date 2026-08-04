@@ -3,6 +3,13 @@ const { request: nodeHttpsRequest } = require("https");
 const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
 const { createPortFinder } = require("../../../shared/port_utils");
+const {
+  MEMORY_V2_ENV_KEYS,
+  constrainMemoryV2ConfigForPlatform,
+  projectMemoryV2Status,
+  resolveMemoryV2ReleaseConfig,
+  validateMemoryV2Status,
+} = require("./memory_v2_rollout");
 
 const UNCHAIN_HOST = "127.0.0.1";
 const UNCHAIN_PORT_RANGE_START = 5879;
@@ -78,6 +85,592 @@ const UNCHAIN_CHARACTERS_ENDPOINT = "/characters";
 const UNCHAIN_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
 const UNCHAIN_CHARACTER_BUILD_ENDPOINT = "/characters/build";
 const UNCHAIN_CHARACTER_IMPORT_ENDPOINT = "/characters/import";
+const CONTEXT_V2_ENDPOINT = "/context/v2";
+const CONTEXT_V2_MEMORY_ENDPOINT = "/context/v2/memory";
+
+// ───────────────────────────────────────────────────────────────────────────
+// Context / Memory V2 (P0) — renderer-facing boundary validation.
+//
+// The renderer reaches Context V2 through window.contextV2API → the CONTEXT_V2
+// channels → the explicit `contextV2*` methods below. Everything the renderer
+// can influence is validated HERE, at the main-process boundary, before any
+// value is allowed to shape a URL, a query string or a JSON body:
+//   * identifiers are matched against the sidecar's own identifier grammar,
+//   * pagination is bounded (no unbounded page/limit/offset),
+//   * content refs must match one of the known ref grammars AND are
+//     percent-encoded per path segment before they touch the URL,
+//   * every mutation body is REBUILT from an allowlist in snake_case — a
+//     renderer object is never spread into a Flask payload,
+//   * the promotion target namespace is server-bound (never accepted here),
+//   * candidate-review responses are REBUILT on the way out too (bounded
+//     previews, echoed ownerChatId) — a review body is largely free-form
+//     curator output, so it is the one read worth projecting outbound.
+// Error messages are static, field-name-only strings: no payload echo and no
+// upstream stack ever crosses back to the renderer.
+// ───────────────────────────────────────────────────────────────────────────
+
+// Mirrors memory_v2_store._OWNER_ID_RE / _ID_RE. Main re-validates rather than
+// trusting the sidecar to reject: a malformed id must never reach the wire.
+const CONTEXT_V2_OWNER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
+const CONTEXT_V2_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/;
+// Idempotency keys are machine-generated; 8..128 chars of the id charset.
+const CONTEXT_V2_OPERATION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+// eslint-disable-next-line no-control-regex
+const CONTEXT_V2_CONTROL_CHARS_PATTERN = /[\u0000-\u001f\u007f]/;
+
+const CONTEXT_V2_PATH_MAX_LENGTH = 1024;
+const CONTEXT_V2_QUERY_MAX_LENGTH = 256;
+const CONTEXT_V2_REASON_MAX_LENGTH = 4096;
+const CONTEXT_V2_REF_MAX_LENGTH = 1024;
+const CONTEXT_V2_PAGE_LIMIT_MAX = 500;
+const CONTEXT_V2_CONTENT_LIMIT_MAX = 128 * 1024;
+const CONTEXT_V2_CONTENT_LIMIT_DEFAULT = 32 * 1024;
+const CONTEXT_V2_REBASE_HISTORY_MESSAGES_MAX = 10_000;
+const CONTEXT_V2_REBASE_HISTORY_BYTES_MAX = 16 * 1024 * 1024;
+const CONTEXT_V2_REBASE_MESSAGE_BYTES_MAX = 4 * 1024 * 1024;
+const CONTEXT_V2_REBASE_JSON_DEPTH_MAX = 64;
+const CONTEXT_V2_REBASE_JSON_NODES_MAX = 250_000;
+const CONTEXT_V2_READINESS_TIMEOUT_MS = 5_000;
+
+// Closed ref grammar, mirroring memory_v2_store's ref regexes. Anything else is
+// rejected before encoding, so no traversal / query / fragment smuggling can
+// reach the `<path:ref>` route.
+const CONTEXT_V2_REF_PATTERNS = Object.freeze([
+  /^pupu:\/\/memory\/[A-Za-z0-9._:-]+\/[A-Za-z0-9._:-]+@[1-9][0-9]*$/,
+  /^pupu:\/\/memory\/review\/[A-Za-z0-9][A-Za-z0-9._:-]*@[1-9][0-9]*\/(?:diff|proposed)$/,
+  /^pupu:\/\/artifact\/[A-Za-z0-9._:-]+@[1-9][0-9]*$/,
+  /^pupu:\/\/context\/event\/[A-Za-z0-9._:-]+$/,
+  /^pupu:\/\/context\/event\/[A-Za-z0-9._:-]+\/content$/,
+  /^pupu:\/\/context\/checkpoint\/[A-Za-z0-9._:-]+$/,
+  /^entry:[A-Za-z0-9._:-]+@[1-9][0-9]*$/,
+  /^event:[A-Za-z0-9._:-]+$/,
+  /^event-content:[A-Za-z0-9._:-]+$/,
+]);
+
+const CONTEXT_V2_DECISIONS = Object.freeze(new Set(["apply", "reject"]));
+const CONTEXT_V2_CANDIDATE_STATUSES = Object.freeze(
+  new Set(["pending", "applied", "rejected", "superseded"]),
+);
+const CONTEXT_V2_JOB_STATUSES = Object.freeze(
+  new Set(["pending", "leased", "completed", "failed", "cancelled"]),
+);
+const CONTEXT_V2_PROMOTION_STATUSES = Object.freeze(
+  new Set(["pending", "applied", "rejected", "stale"]),
+);
+const CONTEXT_V2_REBASE_REASONS = Object.freeze(
+  new Set(["resend", "edit", "delete"]),
+);
+// schema-v4 candidate_reviews.status, mirroring memory_v2_store's own filter.
+const CONTEXT_V2_REVIEW_STATUSES = Object.freeze(
+  new Set(["pending", "applied", "rejected", "stale"]),
+);
+// A review carries a rendered diff, so its response is bounded on the way OUT
+// as well as validated on the way in: preview text is clamped and the review
+// list is capped, so a compromised/buggy sidecar cannot push an unbounded blob
+// across the IPC line into the renderer.
+const CONTEXT_V2_REVIEW_PREVIEW_MAX_LENGTH = 8192;
+const CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH = 4096;
+const CONTEXT_V2_REVIEW_LIST_MAX = CONTEXT_V2_PAGE_LIMIT_MAX;
+const CONTEXT_V2_REVIEW_SOURCE_EVENTS_MAX = 256;
+
+// Same error transport contract as settings_storage / memory_vault: the stable
+// code rides in the message behind a "[<code>] " prefix (Electron strips
+// error.code across ipcMain.handle) AND stays on .code for main-process
+// callers. `field` is always a literal from this file, never renderer input.
+const createContextV2Error = (code, message) => {
+  const error = new Error(`[${code}] ${message}`);
+  error.code = code;
+  return error;
+};
+
+const contextV2InvalidRequest = (field) =>
+  createContextV2Error("context_v2_invalid_request", `${field} is invalid`);
+
+const readContextV2String = (value) =>
+  typeof value === "string" ? value.trim() : "";
+
+const requireContextV2OwnerChatId = (value) => {
+  const owner = readContextV2String(value);
+  if (!CONTEXT_V2_OWNER_ID_PATTERN.test(owner)) {
+    throw contextV2InvalidRequest("ownerChatId");
+  }
+  return owner;
+};
+
+const requireContextV2Identifier = (value, field) => {
+  const id = readContextV2String(value);
+  if (!CONTEXT_V2_ID_PATTERN.test(id)) {
+    throw contextV2InvalidRequest(field);
+  }
+  return id;
+};
+
+const optionalContextV2Identifier = (value, field) => {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+  return requireContextV2Identifier(value, field);
+};
+
+const requireContextV2OperationId = (value) => {
+  const operationId = readContextV2String(value);
+  if (!CONTEXT_V2_OPERATION_ID_PATTERN.test(operationId)) {
+    throw contextV2InvalidRequest("operationId");
+  }
+  return operationId;
+};
+
+// Optimistic-concurrency revisions are 1-based positive integers upstream.
+const requireContextV2Revision = (value, field) => {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw contextV2InvalidRequest(field);
+  }
+  return value;
+};
+
+const optionalContextV2Revision = (value, field) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return requireContextV2Revision(value, field);
+};
+
+const requireContextV2SessionRevision = (value) => {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw contextV2InvalidRequest("expectedSessionRevision");
+  }
+  return value;
+};
+
+const requireContextV2RebaseReason = (value) => {
+  const reason = readContextV2String(value).toLowerCase();
+  if (!CONTEXT_V2_REBASE_REASONS.has(reason)) {
+    throw contextV2InvalidRequest("reason");
+  }
+  return reason;
+};
+
+const cloneContextV2JsonValue = (value, state, depth = 0) => {
+  if (depth > CONTEXT_V2_REBASE_JSON_DEPTH_MAX) {
+    throw contextV2InvalidRequest("replacementHistory");
+  }
+  state.nodes += 1;
+  if (state.nodes > CONTEXT_V2_REBASE_JSON_NODES_MAX) {
+    throw contextV2InvalidRequest("replacementHistory");
+  }
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw contextV2InvalidRequest("replacementHistory");
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneContextV2JsonValue(item, state, depth + 1));
+  }
+  if (value && typeof value === "object") {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw contextV2InvalidRequest("replacementHistory");
+    }
+    const cloned = Object.create(null);
+    Object.keys(value).forEach((key) => {
+      if (
+        key.length > 512 ||
+        CONTEXT_V2_CONTROL_CHARS_PATTERN.test(key) ||
+        ["__proto__", "constructor", "prototype"].includes(key)
+      ) {
+        throw contextV2InvalidRequest("replacementHistory");
+      }
+      cloned[key] = cloneContextV2JsonValue(value[key], state, depth + 1);
+    });
+    return cloned;
+  }
+  throw contextV2InvalidRequest("replacementHistory");
+};
+
+const requireContextV2ReplacementHistory = (value) => {
+  if (
+    !Array.isArray(value) ||
+    value.length > CONTEXT_V2_REBASE_HISTORY_MESSAGES_MAX
+  ) {
+    throw contextV2InvalidRequest("replacementHistory");
+  }
+  const state = { nodes: 0 };
+  const rebuilt = value.map((message) => {
+    if (!message || typeof message !== "object" || Array.isArray(message)) {
+      throw contextV2InvalidRequest("replacementHistory");
+    }
+    const role = readContextV2String(message.role).toLowerCase();
+    if (role !== "user" && role !== "assistant") {
+      throw contextV2InvalidRequest("replacementHistory");
+    }
+    if (!Object.prototype.hasOwnProperty.call(message, "content")) {
+      throw contextV2InvalidRequest("replacementHistory");
+    }
+    const content = cloneContextV2JsonValue(message.content, state);
+    if (content === null) {
+      throw contextV2InvalidRequest("replacementHistory");
+    }
+    const rebuiltMessage = { role, content };
+    if (
+      Buffer.byteLength(JSON.stringify(rebuiltMessage), "utf8") >
+      CONTEXT_V2_REBASE_MESSAGE_BYTES_MAX
+    ) {
+      throw contextV2InvalidRequest("replacementHistory");
+    }
+    return rebuiltMessage;
+  });
+  if (
+    Buffer.byteLength(JSON.stringify(rebuilt), "utf8") >
+    CONTEXT_V2_REBASE_HISTORY_BYTES_MAX
+  ) {
+    throw contextV2InvalidRequest("replacementHistory");
+  }
+  return rebuilt;
+};
+
+const contextV2ResponseString = (value) =>
+  typeof value === "string" ? value : "";
+
+const contextV2ResponseIdentifier = (value) => {
+  const identifier = contextV2ResponseString(value);
+  return CONTEXT_V2_ID_PATTERN.test(identifier) ? identifier : "";
+};
+
+const contextV2ResponseNonNegativeInt = (value) =>
+  Number.isSafeInteger(value) && value >= 0 ? value : 0;
+
+const contextV2ResponseEnum = (value, allowed) => {
+  const normalized = contextV2ResponseString(value).toLowerCase();
+  return allowed.has(normalized) ? normalized : "";
+};
+
+const contextV2SessionHeadResponse = (payload, ownerChatId, sessionId) => {
+  const currentGenerationId = contextV2ResponseIdentifier(
+    payload?.current_generation_id,
+  );
+  const sessionRevision = contextV2ResponseNonNegativeInt(
+    payload?.session_revision,
+  );
+  const sessionExists = payload?.session_exists === true;
+  return {
+    ownerChatId,
+    sessionId,
+    admissionMode: contextV2ResponseEnum(
+      payload?.admission_mode,
+      new Set(["shadow", "active"]),
+    ),
+    targetMode: contextV2ResponseEnum(
+      payload?.target_mode,
+      new Set(["shadow", "active"]),
+    ),
+    bootstrapStatus: contextV2ResponseEnum(
+      payload?.bootstrap_status,
+      new Set(["pending", "complete", "failed"]),
+    ),
+    bootstrapErrorCode: contextV2ResponseIdentifier(
+      payload?.bootstrap_error_code,
+    ),
+    v2Bootstrapped: payload?.v2_bootstrapped === true,
+    sticky: payload?.sticky === true,
+    sessionExists,
+    mutationReady:
+      payload?.mutation_ready === true &&
+      sessionExists &&
+      Boolean(currentGenerationId),
+    currentGenerationId,
+    currentGenerationNo: contextV2ResponseNonNegativeInt(
+      payload?.current_generation_no,
+    ),
+    sessionRevision,
+  };
+};
+
+const contextV2RebaseResponse = (
+  payload,
+  { ownerChatId, sessionId, sourceGenerationId, reason },
+) => ({
+  ownerChatId,
+  sessionId,
+  attemptId: contextV2ResponseIdentifier(payload?.attempt_id),
+  generationId: contextV2ResponseIdentifier(payload?.generation_id),
+  generationNo: contextV2ResponseNonNegativeInt(payload?.generation_no),
+  sourceGenerationId,
+  sourceGenerationRef: contextV2ResponseString(payload?.source_generation_ref),
+  sessionRevision: contextV2ResponseNonNegativeInt(payload?.session_revision),
+  eventCount: contextV2ResponseNonNegativeInt(payload?.event_count),
+  messageEventCount: contextV2ResponseNonNegativeInt(
+    payload?.message_event_count,
+  ),
+  eventRefs: Array.isArray(payload?.event_refs)
+    ? payload.event_refs
+        .filter((ref) => typeof ref === "string")
+        .slice(0, CONTEXT_V2_REBASE_HISTORY_MESSAGES_MAX + 1)
+    : [],
+  turnMutationEventRef: contextV2ResponseString(
+    payload?.turn_mutation_event_ref,
+  ),
+  captureQuality: contextV2ResponseString(payload?.capture_quality),
+  journalDigest: contextV2ResponseString(payload?.journal_digest),
+  pinnedTaskStateRevision: contextV2ResponseNonNegativeInt(
+    payload?.pinned_task_state_revision,
+  ),
+  replacementHistoryHash: contextV2ResponseString(
+    payload?.replacement_history_hash,
+  ),
+  reason,
+  replayed: payload?.replayed === true,
+});
+
+const contextV2ResponseText = (value, maximum) =>
+  contextV2ResponseString(value).slice(0, maximum);
+
+// Candidate-review projection. Same discipline as the status and session-head
+// responses: the sidecar payload is never forwarded, it is REBUILT from a
+// closed field list. That matters more here than elsewhere because a review is
+// the one Context V2 read whose body is largely free-form curator output — an
+// upstream regression that started attaching an object id, a filesystem path,
+// the auth token or an unbounded blob to a review would otherwise ride
+// straight through to the renderer.
+//
+// `ownerChatId` is echoed from the CALLER's validated value, not from the
+// payload, so a response can never re-attribute itself to another chat.
+const contextV2CandidateReviewResponse = (payload, ownerChatId) => {
+  const proposed = payload?.proposed;
+  const target = payload?.target;
+  const content = proposed?.content;
+  const projected = {
+    reviewId: contextV2ResponseIdentifier(payload?.review_id),
+    reviewRef: contextV2ResponseText(
+      payload?.review_ref,
+      CONTEXT_V2_REF_MAX_LENGTH,
+    ),
+    ownerChatId,
+    jobId: contextV2ResponseIdentifier(payload?.job_id),
+    candidateId: contextV2ResponseIdentifier(payload?.candidate_id),
+    candidateRef: contextV2ResponseText(
+      payload?.candidate_ref,
+      CONTEXT_V2_REF_MAX_LENGTH,
+    ),
+    candidateRevision: contextV2ResponseNonNegativeInt(
+      payload?.candidate_revision,
+    ),
+    status: contextV2ResponseEnum(payload?.status, CONTEXT_V2_REVIEW_STATUSES),
+    revision: contextV2ResponseNonNegativeInt(payload?.revision),
+    decisionReason: contextV2ResponseText(
+      payload?.decision_reason,
+      CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH,
+    ),
+    diffRef: contextV2ResponseText(
+      payload?.diff_ref,
+      CONTEXT_V2_REF_MAX_LENGTH,
+    ),
+    diffPreview: contextV2ResponseText(
+      payload?.diff_preview,
+      CONTEXT_V2_REVIEW_PREVIEW_MAX_LENGTH,
+    ),
+    target: {
+      spaceId: contextV2ResponseIdentifier(target?.space_id),
+      path: contextV2ResponseText(target?.path, CONTEXT_V2_PATH_MAX_LENGTH),
+      entryId: contextV2ResponseIdentifier(target?.entry_id),
+      expectedRevision: contextV2ResponseNonNegativeInt(
+        target?.expected_revision,
+      ),
+    },
+    proposed: {
+      mode: contextV2ResponseText(
+        proposed?.mode,
+        CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH,
+      ),
+      kind: contextV2ResponseText(
+        proposed?.kind,
+        CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH,
+      ),
+      description: contextV2ResponseText(
+        proposed?.description,
+        CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH,
+      ),
+      mimeType: contextV2ResponseText(
+        proposed?.mime_type,
+        CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH,
+      ),
+      linkUrl: contextV2ResponseText(
+        proposed?.link_url,
+        CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH,
+      ),
+      candidateRef: contextV2ResponseText(
+        proposed?.candidate_ref,
+        CONTEXT_V2_REF_MAX_LENGTH,
+      ),
+      candidateRevision: contextV2ResponseNonNegativeInt(
+        proposed?.candidate_revision,
+      ),
+      sourceEventIds: Array.isArray(proposed?.source_event_ids)
+        ? proposed.source_event_ids
+            .filter((id) => typeof id === "string")
+            .slice(0, CONTEXT_V2_REVIEW_SOURCE_EVENTS_MAX)
+        : [],
+    },
+    createdAtMs: contextV2ResponseNonNegativeInt(payload?.created_at_ms),
+    updatedAtMs: contextV2ResponseNonNegativeInt(payload?.updated_at_ms),
+    decidedAtMs: contextV2ResponseNonNegativeInt(payload?.decided_at_ms),
+    replayed: payload?.replayed === true,
+  };
+  // Content is optional (metadata-only reviews have none) and is described by
+  // a ref the renderer reads through the existing READ_CONTENT grammar — the
+  // bytes themselves never ride this response.
+  if (content && typeof content === "object") {
+    projected.proposed.content = {
+      ref: contextV2ResponseText(content.ref, CONTEXT_V2_REF_MAX_LENGTH),
+      mediaType: contextV2ResponseText(
+        content.media_type,
+        CONTEXT_V2_REVIEW_TEXT_MAX_LENGTH,
+      ),
+      bytes: contextV2ResponseNonNegativeInt(content.bytes),
+      sha256: contextV2ResponseText(content.sha256, 128),
+    };
+  }
+  return projected;
+};
+
+const contextV2CandidateReviewListResponse = (payload, ownerChatId) => ({
+  ownerChatId,
+  reviews: (Array.isArray(payload?.reviews) ? payload.reviews : [])
+    .slice(0, CONTEXT_V2_REVIEW_LIST_MAX)
+    .map((review) => contextV2CandidateReviewResponse(review, ownerChatId)),
+});
+
+const contextV2NonNegativeInt = (value, field, fallback) => {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw contextV2InvalidRequest(field);
+  }
+  return value;
+};
+
+const contextV2BoundedInt = (value, field, fallback, maximum) => {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
+    throw contextV2InvalidRequest(field);
+  }
+  return value;
+};
+
+const contextV2Boolean = (value, field, fallback) => {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  if (typeof value !== "boolean") {
+    throw contextV2InvalidRequest(field);
+  }
+  return value;
+};
+
+// Virtual (in-store) paths only — never a filesystem path. Mirrors
+// normalize_virtual_path: no backslash, no control chars, no "."/".." segment.
+const requireContextV2Path = (value, field) => {
+  const raw = readContextV2String(value);
+  if (
+    !raw ||
+    raw.length > CONTEXT_V2_PATH_MAX_LENGTH ||
+    raw.includes("\\") ||
+    CONTEXT_V2_CONTROL_CHARS_PATTERN.test(raw)
+  ) {
+    throw contextV2InvalidRequest(field);
+  }
+  const segments = raw.split("/").filter((segment) => segment !== "");
+  if (
+    segments.length === 0 ||
+    segments.some(
+      (segment) =>
+        segment === "." || segment === ".." || segment.length > 255,
+    )
+  ) {
+    throw contextV2InvalidRequest(field);
+  }
+  return `/${segments.join("/")}`;
+};
+
+const optionalContextV2Path = (value, field) => {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+  return requireContextV2Path(value, field);
+};
+
+const optionalContextV2Text = (value, field, maximum) => {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+  const text = readContextV2String(value);
+  if (
+    typeof value !== "string" ||
+    text.length > maximum ||
+    CONTEXT_V2_CONTROL_CHARS_PATTERN.test(text)
+  ) {
+    throw contextV2InvalidRequest(field);
+  }
+  return text;
+};
+
+const optionalContextV2Status = (value, allowed, field) => {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+  const status = readContextV2String(value).toLowerCase();
+  if (!allowed.has(status)) {
+    throw contextV2InvalidRequest(field);
+  }
+  return status;
+};
+
+const requireContextV2Decision = (value) => {
+  const decision = readContextV2String(value).toLowerCase();
+  if (!CONTEXT_V2_DECISIONS.has(decision)) {
+    throw contextV2InvalidRequest("decision");
+  }
+  return decision;
+};
+
+const requireContextV2Ref = (value) => {
+  const ref = readContextV2String(value);
+  if (
+    !ref ||
+    ref.length > CONTEXT_V2_REF_MAX_LENGTH ||
+    !CONTEXT_V2_REF_PATTERNS.some((pattern) => pattern.test(ref))
+  ) {
+    throw contextV2InvalidRequest("ref");
+  }
+  return ref;
+};
+
+// Refs are validated first, so this encoding is belt-and-braces: each path
+// segment is percent-encoded independently and the "/" structure the
+// `<path:ref>` route expects is preserved. No raw ref ever hits the URL.
+const encodeContextV2Ref = (ref) =>
+  ref
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+const buildContextV2Query = (entries) => {
+  const params = new URLSearchParams();
+  entries.forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+    params.set(key, typeof value === "boolean" ? String(value) : String(value));
+  });
+  const query = params.toString();
+  return query ? `?${query}` : "";
+};
 
 const resolvePositiveReplaySetting = (value, fallback) => {
   const candidate = Number(value);
@@ -420,18 +1013,53 @@ const createUnchainService = ({
   // runtimeService is (index.js). Its readDecryptedProviderSecret is a
   // MAIN-INTERNAL method — never on the IPC allowlist, never bridged to renderer.
   settingsStorageService,
+  // Memory V2 Vault remains main-internal. The URL + FD number enter the child
+  // environment; the key is written once through anonymous FD 3 and is never
+  // an environment variable or renderer capability.
+  memoryVaultService,
   getAppIsQuitting,
+  platform = process.platform,
 }) => {
+  const memoryV2ReleaseConfig = resolveMemoryV2ReleaseConfig({
+    app,
+    fs,
+    path,
+    environment: process.env,
+  });
+  const memoryV2RuntimeConfig = constrainMemoryV2ConfigForPlatform(
+    memoryV2ReleaseConfig,
+    platform,
+  );
+  const initialMemoryV2Readiness = () => {
+    if (
+      memoryV2ReleaseConfig.buildFeatureEnabled &&
+      !memoryV2ReleaseConfig.snapshotValid
+    ) {
+      return {
+        status: "degraded",
+        reason:
+          memoryV2ReleaseConfig.snapshotErrorCode ||
+          "memory_v2_release_snapshot_invalid",
+        sidecarFingerprint: "",
+      };
+    }
+    if (memoryV2RuntimeConfig.effectiveMode === "off") {
+      return { status: "off", reason: "rollout_off", sidecarFingerprint: "" };
+    }
+    return { status: "pending", reason: "not_verified", sidecarFingerprint: "" };
+  };
   let unchainProcess = null;
   let unchainPort = null;
   let unchainStatus = "stopped";
   let unchainStatusReason = "";
   let unchainRuntimeContract = null;
   let unchainAuthToken = "";
+  let activeVaultBrokerKey = "";
   let unchainRestartTimer = null;
   let unchainIsStopping = false;
   let unchainPreserveStatusOnStop = false;
   let unchainStartPromise = null;
+  let memoryV2Readiness = initialMemoryV2Readiness();
   // Tri-state desired computer-use flag. `null` = renderer has never expressed a
   // preference (do not touch sidecar env or re-push on restart); `true`/`false`
   // = last desired state, re-pushed after every ready transition so a sidecar
@@ -460,6 +1088,49 @@ const createUnchainService = ({
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const { findAvailablePort } = createPortFinder(net);
+
+  const getVaultBrokerBootstrap = () => {
+    if (
+      !memoryVaultService ||
+      typeof memoryVaultService.getSinkBrokerBootstrap !== "function"
+    ) {
+      return null;
+    }
+    let candidate;
+    try {
+      candidate = memoryVaultService.getSinkBrokerBootstrap();
+    } catch (_error) {
+      return null;
+    }
+    const urlValue = candidate?.url;
+    const keyValue = candidate?.key;
+    if (
+      typeof urlValue !== "string" ||
+      typeof keyValue !== "string" ||
+      !/^[0-9a-f]{64}$/.test(keyValue)
+    ) {
+      return null;
+    }
+    let parsed;
+    try {
+      parsed = new URL(urlValue);
+    } catch (_error) {
+      return null;
+    }
+    if (
+      parsed.protocol !== "http:" ||
+      parsed.hostname !== "127.0.0.1" ||
+      !parsed.port ||
+      parsed.pathname !== "/" ||
+      parsed.search ||
+      parsed.hash ||
+      parsed.username ||
+      parsed.password
+    ) {
+      return null;
+    }
+    return { url: urlValue, key: keyValue };
+  };
 
   const _parsePosixPsLine = (line) => {
     const match = String(line || "").match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
@@ -540,8 +1211,8 @@ const createUnchainService = ({
   };
 
   const looksLikeUnchainSource = (sourcePath) =>
-    fs.existsSync(path.join(sourcePath, "unchain", "__init__.py")) &&
-    fs.existsSync(path.join(sourcePath, "unchain", "__init__.py"));
+    fs.existsSync(path.join(sourcePath, "pyproject.toml")) &&
+    fs.existsSync(path.join(sourcePath, "src", "unchain", "__init__.py"));
 
   const resolveDevUnchainSourcePath = () => {
     const configuredSource = process.env.UNCHAIN_SOURCE_PATH;
@@ -796,6 +1467,101 @@ const createUnchainService = ({
     };
   };
 
+  // ---- Vault sink worker entrypoint --------------------------------------
+  //
+  // The one-shot Vault worker runs the SAME runtime as the sidecar, so its
+  // launch coordinates are owned here rather than duplicated in index.js.
+  //
+  // Hard rules (security sign-off conditions):
+  //  * takes NO parameters — nothing renderer-supplied can steer it,
+  //  * never searches PATH / never uses a shell / never guesses a command,
+  //  * packaged resolves ONLY the absolute onefile unchain-server binary
+  //    (no Python fallback: a packaged app that lost its binary must fail
+  //    closed, not fall back to whatever interpreter happens to exist),
+  //  * dev resolves ONLY an absolute, validated Python 3.12 command plus the
+  //    absolute server/main.py path,
+  //  * every returned path is absolute and every failure is the same static
+  //    code, so a caller cannot probe the filesystem through the error.
+  const VAULT_SINK_WORKER_FLAG = "--vault-sink-worker";
+  let vaultSinkWorkerEntrypoint = null;
+
+  const vaultSinkWorkerUnavailable = () => {
+    const error = new Error(
+      "[vault_worker_unavailable] vault sink worker entrypoint is unavailable",
+    );
+    error.code = "vault_worker_unavailable";
+    return error;
+  };
+
+  const absoluteExistingPath = (candidate) =>
+    typeof candidate === "string" &&
+    candidate.length > 0 &&
+    !candidate.includes("\0") &&
+    path.isAbsolute(candidate) &&
+    fs.existsSync(candidate)
+      ? candidate
+      : null;
+
+  const absoluteDirOrNull = (candidate) =>
+    typeof candidate === "string" &&
+    candidate.length > 0 &&
+    !candidate.includes("\0") &&
+    path.isAbsolute(candidate)
+      ? candidate
+      : null;
+
+  const resolveVaultSinkWorkerEntrypoint = () => {
+    // Resolved once per app run and frozen. Startup calls this a single time;
+    // memoizing also means the dev Python probe (a spawnSync) never repeats.
+    if (vaultSinkWorkerEntrypoint) return vaultSinkWorkerEntrypoint;
+
+    const dataDir = absoluteDirOrNull(app.getPath("userData"));
+    if (!dataDir) throw vaultSinkWorkerUnavailable();
+
+    if (app.isPackaged) {
+      const packagedBinary = absoluteExistingPath(getPackagedMisoBinaryPath());
+      if (!packagedBinary) throw vaultSinkWorkerUnavailable();
+      vaultSinkWorkerEntrypoint = Object.freeze({
+        command: packagedBinary,
+        args: Object.freeze([VAULT_SINK_WORKER_FLAG]),
+        cwd: path.dirname(packagedBinary),
+        dataDir,
+        // Packaged sidecars must use PuPu's bundled, read-only runtime payload.
+        mcpRuntimeDir: absoluteDirOrNull(
+          path.join(process.resourcesPath || "", "mcp_runtime"),
+        ),
+      });
+      return vaultSinkWorkerEntrypoint;
+    }
+
+    const devScript = absoluteExistingPath(
+      path.join(app.getAppPath(), "unchain_runtime", "server", "main.py"),
+    );
+    if (!devScript) throw vaultSinkWorkerUnavailable();
+
+    let pythonCommand = null;
+    try {
+      // Reuses the sidecar's validated candidates (PuPu/.venv, unchain/.venv,
+      // or an explicit UNCHAIN_PYTHON_BIN) — all version- and module-checked.
+      // Never a PATH lookup.
+      pythonCommand = absoluteExistingPath(getMisoPythonCommand());
+    } catch (_error) {
+      // The probe's message names local paths; collapse it to the static code.
+      pythonCommand = null;
+    }
+    if (!pythonCommand) throw vaultSinkWorkerUnavailable();
+
+    vaultSinkWorkerEntrypoint = Object.freeze({
+      command: pythonCommand,
+      args: Object.freeze([devScript, VAULT_SINK_WORKER_FLAG]),
+      cwd: path.dirname(devScript),
+      dataDir,
+      // Development only forwards an explicitly configured absolute override.
+      mcpRuntimeDir: absoluteDirOrNull(process.env.PUPU_MCP_RUNTIME_DIR),
+    });
+    return vaultSinkWorkerEntrypoint;
+  };
+
   const findAvailableMisoPort = async () => {
     return findAvailablePort({
       host: UNCHAIN_HOST,
@@ -870,6 +1636,25 @@ const createUnchainService = ({
     port: unchainPort,
     url: unchainPort ? `http://${UNCHAIN_HOST}:${unchainPort}` : null,
     contract: cloneRuntimeContract(unchainRuntimeContract),
+    memoryV2: {
+      configured: memoryV2ReleaseConfig.effectiveMode !== "off",
+      ready:
+        unchainStatus === "ready" && memoryV2Readiness.status === "ready",
+      status: memoryV2Readiness.status,
+      reason: memoryV2Readiness.reason,
+      featureCeiling: memoryV2RuntimeConfig.featureCeiling,
+      configuredMode: memoryV2RuntimeConfig.configuredMode,
+      releaseRolloutMode: memoryV2RuntimeConfig.releaseEffectiveMode,
+      rolloutMode: memoryV2RuntimeConfig.effectiveMode,
+      canaryPercent: memoryV2RuntimeConfig.canaryPercent,
+      readOnlyDegraded: memoryV2RuntimeConfig.readOnlyDegraded,
+      platformActiveBlocked: memoryV2RuntimeConfig.platformActiveBlocked,
+      releaseRolloutFingerprint:
+        memoryV2RuntimeConfig.releaseRolloutFingerprint,
+      rolloutFingerprint: memoryV2RuntimeConfig.rolloutFingerprint,
+      sidecarFingerprint: memoryV2Readiness.sidecarFingerprint,
+      snapshotFingerprint: memoryV2ReleaseConfig.snapshotFingerprint,
+    },
   });
 
   const ensureMisoReady = () => {
@@ -989,6 +1774,616 @@ const createUnchainService = ({
     } catch {
       throw new Error(invalidJsonMessage);
     }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Context / Memory V2 (P0) — the ONLY main-process surface the renderer has
+  // for the sidecar's /context/v2 routes.
+  //
+  // Each method below is an explicit, individually named capability. There is
+  // deliberately no generic proxy: no method/path/url/fetch parameter, no way
+  // to reach a route that is not spelled out here. What is intentionally
+  // ABSENT (internal / privileged Flask surface) stays absent:
+  //   * event append + session bootstrap (owned by the stream path),
+  //   * job create / claim / heartbeat / complete / fail (worker-lease
+  //     protocol — a renderer must never take a lease),
+  //   * space / entry create / update / delete (writes go through the
+  //     candidate → decision funnel, not direct mutation),
+  //   * candidate create (produced by the agent, not the renderer),
+  //   * any long-term / cross-chat namespace selection.
+  // The auth token, the sidecar port and every filesystem path stay inside
+  // this closure; they are never returned to, nor accepted from, the renderer.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const contextV2Headers = (withBody = false) => {
+    if (!unchainAuthToken) {
+      throw createContextV2Error(
+        "context_v2_missing_auth_token",
+        "context v2 request is not authenticated",
+      );
+    }
+    return withBody
+      ? {
+          "Content-Type": "application/json",
+          "x-unchain-auth": unchainAuthToken,
+        }
+      : { "x-unchain-auth": unchainAuthToken };
+  };
+
+  const fetchContextV2StatusPayload = async () => {
+    if (!unchainPort) {
+      throw createContextV2Error(
+        "context_v2_unreachable",
+        "context v2 runtime is unreachable",
+      );
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      CONTEXT_V2_READINESS_TIMEOUT_MS,
+    );
+    if (typeof timeout.unref === "function") timeout.unref();
+    try {
+      const response = await fetch(
+        `http://${UNCHAIN_HOST}:${unchainPort}${CONTEXT_V2_ENDPOINT}/status`,
+        {
+          method: "GET",
+          headers: contextV2Headers(false),
+          signal: controller.signal,
+        },
+      );
+      return readJsonResponse(
+        response,
+        "Context V2 readiness failed",
+        {},
+        "Invalid Context V2 readiness response",
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const verifyContextV2Readiness = async () => {
+    if (
+      memoryV2ReleaseConfig.buildFeatureEnabled &&
+      !memoryV2ReleaseConfig.snapshotValid
+    ) {
+      memoryV2Readiness = initialMemoryV2Readiness();
+      return memoryV2Readiness;
+    }
+    if (memoryV2RuntimeConfig.effectiveMode === "off") {
+      memoryV2Readiness = initialMemoryV2Readiness();
+      return memoryV2Readiness;
+    }
+    try {
+      const payload = await fetchContextV2StatusPayload();
+      const validation = validateMemoryV2Status(
+        payload,
+        memoryV2RuntimeConfig,
+      );
+      if (validation.ok && memoryV2RuntimeConfig.platformActiveBlocked) {
+        validation.ok = false;
+        validation.reason = "vault_worker_containment_unavailable";
+      }
+      memoryV2Readiness = {
+        status: validation.ok ? "ready" : "degraded",
+        reason: validation.reason,
+        sidecarFingerprint: validation.status.rolloutFingerprint,
+      };
+    } catch (_error) {
+      memoryV2Readiness = {
+        status: "degraded",
+        reason: "context_v2_readiness_unavailable",
+        sidecarFingerprint: "",
+      };
+    }
+    return memoryV2Readiness;
+  };
+
+  // Single choke point for every Context V2 request. Transport failures are
+  // normalized to a stable code — the raw fetch error (which can carry host,
+  // port and a Node stack) never reaches the renderer.
+  const contextV2Request = async (method, endpoint, body = null) => {
+    ensureMisoReady();
+    // `off` only disables new rollout admission. Existing sticky V2 chats must
+    // still be able to recover/continue after a mode change; the sidecar remains
+    // authoritative for session admission and owner binding on these requests.
+    if (
+      endpoint !== `${CONTEXT_V2_ENDPOINT}/status` &&
+      memoryV2RuntimeConfig.effectiveMode !== "off" &&
+      memoryV2Readiness.status !== "ready"
+    ) {
+      throw createContextV2Error(
+        "context_v2_readiness_failed",
+        "context v2 capability is unavailable",
+      );
+    }
+    let response;
+    try {
+      response = await fetch(`http://${UNCHAIN_HOST}:${unchainPort}${endpoint}`, {
+        method,
+        headers: contextV2Headers(body !== null),
+        ...(body !== null ? { body: JSON.stringify(body) } : {}),
+      });
+    } catch (error) {
+      if (error && error.code === "context_v2_missing_auth_token") {
+        throw error;
+      }
+      throw createContextV2Error(
+        "context_v2_unreachable",
+        "context v2 runtime is unreachable",
+      );
+    }
+
+    try {
+      return await readJsonResponse(
+        response,
+        "Context V2 request failed",
+        {},
+        "Invalid Context V2 response",
+      );
+    } catch (error) {
+      // readJsonResponse surfaces the sidecar's stable error code; keep it and
+      // re-wrap so the renderer only ever sees "[code] static message".
+      const code =
+        error && typeof error.code === "string" && error.code
+          ? error.code
+          : "context_v2_failed";
+      throw createContextV2Error(code, "context v2 request failed");
+    }
+  };
+
+  // Status is deliberately COUNT-FREE: it is rebuilt from an explicit
+  // allowlist, so any row counts the sidecar might add later can never leak
+  // out as a free enumeration oracle. It also carries no port, url or path.
+  const getContextV2Status = async () => {
+    if (unchainStatus !== "ready" || !unchainPort) {
+      return {
+        available: false,
+        schemaVersion: 0,
+        journalMode: "",
+        lexicalBackend: "",
+        vectorStatus: "",
+        featureCeiling: "off",
+        rolloutMode: "off",
+        readOnlyDegraded: false,
+      };
+    }
+    const payload = await contextV2Request("GET", `${CONTEXT_V2_ENDPOINT}/status`);
+    const projected = projectMemoryV2Status(payload);
+    if (memoryV2RuntimeConfig.effectiveMode !== "off") {
+      const validation = validateMemoryV2Status(
+        payload,
+        memoryV2RuntimeConfig,
+      );
+      if (validation.ok && memoryV2RuntimeConfig.platformActiveBlocked) {
+        validation.ok = false;
+        validation.reason = "vault_worker_containment_unavailable";
+      }
+      memoryV2Readiness = {
+        status: validation.ok ? "ready" : "degraded",
+        reason: validation.reason,
+        sidecarFingerprint: validation.status.rolloutFingerprint,
+      };
+      projected.available = projected.available && validation.ok;
+    }
+    return {
+      available: projected.available,
+      schemaVersion: projected.schemaVersion,
+      journalMode: projected.journalMode,
+      lexicalBackend: projected.lexicalBackend,
+      vectorStatus: projected.vectorStatus,
+      featureCeiling: projected.featureCeiling,
+      rolloutMode: projected.rolloutMode,
+      readOnlyDegraded: projected.readOnlyDegraded,
+    };
+  };
+
+  const listContextV2Events = async (payload = {}) => {
+    const query = buildContextV2Query([
+      ["owner_chat_id", requireContextV2OwnerChatId(payload?.ownerChatId)],
+      ["after", contextV2NonNegativeInt(payload?.after, "after", 0)],
+      [
+        "limit",
+        contextV2BoundedInt(
+          payload?.limit,
+          "limit",
+          100,
+          CONTEXT_V2_PAGE_LIMIT_MAX,
+        ),
+      ],
+      ["session_id", optionalContextV2Identifier(payload?.sessionId, "sessionId")],
+      ["attempt_id", optionalContextV2Identifier(payload?.attemptId, "attemptId")],
+      [
+        "include_payload",
+        contextV2Boolean(payload?.includePayload, "includePayload", true),
+      ],
+    ]);
+    return contextV2Request("GET", `${CONTEXT_V2_ENDPOINT}/events${query}`);
+  };
+
+  const readContextV2Content = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    const ref = requireContextV2Ref(payload?.ref);
+    const query = buildContextV2Query([
+      ["owner_chat_id", ownerChatId],
+      ["offset", contextV2NonNegativeInt(payload?.offset, "offset", 0)],
+      [
+        "limit",
+        contextV2BoundedInt(
+          payload?.limit,
+          "limit",
+          CONTEXT_V2_CONTENT_LIMIT_DEFAULT,
+          CONTEXT_V2_CONTENT_LIMIT_MAX,
+        ),
+      ],
+    ]);
+    return contextV2Request(
+      "GET",
+      `${CONTEXT_V2_ENDPOINT}/content/${encodeContextV2Ref(ref)}${query}`,
+    );
+  };
+
+  const getContextV2SessionHead = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    const sessionId = requireContextV2Identifier(
+      payload?.sessionId,
+      "sessionId",
+    );
+    const query = buildContextV2Query([
+      ["owner_chat_id", ownerChatId],
+      ["session_id", sessionId],
+    ]);
+    const response = await contextV2Request(
+      "GET",
+      `${CONTEXT_V2_ENDPOINT}/session/head${query}`,
+    );
+    return contextV2SessionHeadResponse(response, ownerChatId, sessionId);
+  };
+
+  const rebaseContextV2Session = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    const sessionId = requireContextV2Identifier(
+      payload?.sessionId,
+      "sessionId",
+    );
+    const replacementHistory = requireContextV2ReplacementHistory(
+      payload?.replacementHistory,
+    );
+    const sourceGenerationId = requireContextV2Identifier(
+      payload?.sourceGenerationId,
+      "sourceGenerationId",
+    );
+    const expectedSessionRevision = requireContextV2SessionRevision(
+      payload?.expectedSessionRevision,
+    );
+    const operationId = requireContextV2OperationId(payload?.operationId);
+    const reason = requireContextV2RebaseReason(payload?.reason);
+    const response = await contextV2Request(
+      "POST",
+      `${CONTEXT_V2_ENDPOINT}/session/rebase`,
+      {
+        owner_chat_id: ownerChatId,
+        session_id: sessionId,
+        replacement_history: replacementHistory,
+        source_generation_id: sourceGenerationId,
+        expected_session_revision: expectedSessionRevision,
+        operation_id: operationId,
+        reason,
+      },
+    );
+    return contextV2RebaseResponse(response, {
+      ownerChatId,
+      sessionId,
+      sourceGenerationId,
+      reason,
+    });
+  };
+
+  const deleteContextV2Chat = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    return contextV2Request(
+      "DELETE",
+      `${CONTEXT_V2_ENDPOINT}/chat/${encodeURIComponent(ownerChatId)}`,
+      { operation_id: requireContextV2OperationId(payload?.operationId) },
+    );
+  };
+
+  const listContextV2Spaces = async (payload = {}) => {
+    const query = buildContextV2Query([
+      ["owner_chat_id", requireContextV2OwnerChatId(payload?.ownerChatId)],
+    ]);
+    return contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/spaces${query}`,
+    );
+  };
+
+  const getContextV2Tree = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    const spaceId = requireContextV2Identifier(payload?.spaceId, "spaceId");
+    const query = buildContextV2Query([["owner_chat_id", ownerChatId]]);
+    return contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/spaces/${encodeURIComponent(spaceId)}/tree${query}`,
+    );
+  };
+
+  const listContextV2Entries = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    const spaceId = requireContextV2Identifier(payload?.spaceId, "spaceId");
+    const query = buildContextV2Query([
+      ["owner_chat_id", ownerChatId],
+      ["parent_path", optionalContextV2Path(payload?.parentPath, "parentPath")],
+      [
+        "include_descendants",
+        contextV2Boolean(
+          payload?.includeDescendants,
+          "includeDescendants",
+          true,
+        ),
+      ],
+    ]);
+    return contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/spaces/${encodeURIComponent(spaceId)}/entries${query}`,
+    );
+  };
+
+  const searchContextV2Entries = async (payload = {}) => {
+    const query = buildContextV2Query([
+      ["owner_chat_id", requireContextV2OwnerChatId(payload?.ownerChatId)],
+      [
+        "q",
+        optionalContextV2Text(payload?.query, "query", CONTEXT_V2_QUERY_MAX_LENGTH),
+      ],
+      ["space_id", optionalContextV2Identifier(payload?.spaceId, "spaceId")],
+      [
+        "limit",
+        contextV2BoundedInt(
+          payload?.limit,
+          "limit",
+          100,
+          CONTEXT_V2_PAGE_LIMIT_MAX,
+        ),
+      ],
+    ]);
+    return contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/search${query}`,
+    );
+  };
+
+  const buildContextV2ListQuery = (payload, statuses, field) =>
+    buildContextV2Query([
+      ["owner_chat_id", requireContextV2OwnerChatId(payload?.ownerChatId)],
+      ["status", optionalContextV2Status(payload?.status, statuses, field)],
+      [
+        "limit",
+        contextV2BoundedInt(
+          payload?.limit,
+          "limit",
+          100,
+          CONTEXT_V2_PAGE_LIMIT_MAX,
+        ),
+      ],
+    ]);
+
+  const listContextV2Candidates = async (payload = {}) =>
+    contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/candidates${buildContextV2ListQuery(
+        payload,
+        CONTEXT_V2_CANDIDATE_STATUSES,
+        "status",
+      )}`,
+    );
+
+  // Read-only job visibility. The lease protocol (claim / heartbeat /
+  // complete / fail) is intentionally NOT exposed on this bridge.
+  const listContextV2Jobs = async (payload = {}) =>
+    contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/jobs${buildContextV2ListQuery(
+        payload,
+        CONTEXT_V2_JOB_STATUSES,
+        "status",
+      )}`,
+    );
+
+  const listContextV2Promotions = async (payload = {}) =>
+    contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/promotions${buildContextV2ListQuery(
+        payload,
+        CONTEXT_V2_PROMOTION_STATUSES,
+        "status",
+      )}`,
+    );
+
+  const decideContextV2Candidate = async (payload = {}) => {
+    const candidateId = requireContextV2Identifier(
+      payload?.candidateId,
+      "candidateId",
+    );
+    const body = {
+      owner_chat_id: requireContextV2OwnerChatId(payload?.ownerChatId),
+      decision: requireContextV2Decision(payload?.decision),
+      expected_revision: requireContextV2Revision(
+        payload?.expectedRevision,
+        "expectedRevision",
+      ),
+      operation_id: requireContextV2OperationId(payload?.operationId),
+      decision_reason: optionalContextV2Text(
+        payload?.decisionReason,
+        "decisionReason",
+        CONTEXT_V2_REASON_MAX_LENGTH,
+      ),
+    };
+    const expectedSpaceRevision = optionalContextV2Revision(
+      payload?.expectedSpaceRevision,
+      "expectedSpaceRevision",
+    );
+    if (expectedSpaceRevision !== null) {
+      body.expected_space_revision = expectedSpaceRevision;
+    }
+    return contextV2Request(
+      "POST",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/candidates/${encodeURIComponent(candidateId)}/decision`,
+      body,
+    );
+  };
+
+  // Promotion proposal. `target_namespace` is server-bound (the Flask route
+  // hardcodes it) and is NEVER accepted from the renderer — it is not on this
+  // allowlist and must never be added here.
+  const createContextV2Promotion = async (payload = {}) => {
+    const body = {
+      owner_chat_id: requireContextV2OwnerChatId(payload?.ownerChatId),
+      source_space_id: requireContextV2Identifier(
+        payload?.sourceSpaceId,
+        "sourceSpaceId",
+      ),
+      source_entry_id: requireContextV2Identifier(
+        payload?.sourceEntryId,
+        "sourceEntryId",
+      ),
+      source_entry_revision: requireContextV2Revision(
+        payload?.sourceEntryRevision,
+        "sourceEntryRevision",
+      ),
+      target_path: requireContextV2Path(payload?.targetPath, "targetPath"),
+      target_entry_id: optionalContextV2Identifier(
+        payload?.targetEntryId,
+        "targetEntryId",
+      ),
+      operation_id: requireContextV2OperationId(payload?.operationId),
+    };
+    const expectedTargetRevision = optionalContextV2Revision(
+      payload?.expectedTargetRevision,
+      "expectedTargetRevision",
+    );
+    if (expectedTargetRevision !== null) {
+      body.expected_target_revision = expectedTargetRevision;
+    }
+    return contextV2Request(
+      "POST",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/promotions`,
+      body,
+    );
+  };
+
+  const decideContextV2Promotion = async (payload = {}) => {
+    const promotionId = requireContextV2Identifier(
+      payload?.promotionId,
+      "promotionId",
+    );
+    return contextV2Request(
+      "POST",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/promotions/${encodeURIComponent(promotionId)}/decision`,
+      {
+        owner_chat_id: requireContextV2OwnerChatId(payload?.ownerChatId),
+        decision: requireContextV2Decision(payload?.decision),
+        expected_revision: requireContextV2Revision(
+          payload?.expectedRevision,
+          "expectedRevision",
+        ),
+        operation_id: requireContextV2OperationId(payload?.operationId),
+        decision_reason: optionalContextV2Text(
+          payload?.decisionReason,
+          "decisionReason",
+          CONTEXT_V2_REASON_MAX_LENGTH,
+        ),
+      },
+    );
+  };
+
+  // ---- schema-v4 candidate reviews ---------------------------------------
+  // Three fixed routes. There is deliberately no propose/create counterpart:
+  // reviews are produced by a curator job holding a lease that never crosses
+  // the IPC line, so the renderer can only read and adjudicate what a job has
+  // already proposed.
+  const listContextV2CandidateReviews = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    const query = buildContextV2Query([
+      ["owner_chat_id", ownerChatId],
+      [
+        "status",
+        optionalContextV2Status(
+          payload?.status,
+          CONTEXT_V2_REVIEW_STATUSES,
+          "status",
+        ),
+      ],
+      [
+        "limit",
+        contextV2BoundedInt(
+          payload?.limit,
+          "limit",
+          100,
+          CONTEXT_V2_PAGE_LIMIT_MAX,
+        ),
+      ],
+    ]);
+    const response = await contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/reviews${query}`,
+    );
+    return contextV2CandidateReviewListResponse(response, ownerChatId);
+  };
+
+  const getContextV2CandidateReview = async (payload = {}) => {
+    const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
+    const reviewId = requireContextV2Identifier(payload?.reviewId, "reviewId");
+    const query = buildContextV2Query([["owner_chat_id", ownerChatId]]);
+    const response = await contextV2Request(
+      "GET",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/reviews/${encodeURIComponent(reviewId)}${query}`,
+    );
+    return contextV2CandidateReviewResponse(response, ownerChatId);
+  };
+
+  // Decision body allowlist. expected_review_revision is REQUIRED — a decision
+  // without a CAS fence on the review itself could apply a diff the user never
+  // saw. The other three fences are optional because not every review targets
+  // an existing entry/space, but when present they are integers only.
+  //
+  // Not on this allowlist, and never to be added: target path / space id / job
+  // id / namespace. Those come from the stored review, so the renderer decides
+  // WHETHER a proposed write lands, never WHERE it lands.
+  const decideContextV2CandidateReview = async (payload = {}) => {
+    const reviewId = requireContextV2Identifier(payload?.reviewId, "reviewId");
+    const body = {
+      owner_chat_id: requireContextV2OwnerChatId(payload?.ownerChatId),
+      decision: requireContextV2Decision(payload?.decision),
+      expected_review_revision: requireContextV2Revision(
+        payload?.expectedReviewRevision,
+        "expectedReviewRevision",
+      ),
+      operation_id: requireContextV2OperationId(payload?.operationId),
+      decision_reason: optionalContextV2Text(
+        payload?.decisionReason,
+        "decisionReason",
+        CONTEXT_V2_REASON_MAX_LENGTH,
+      ),
+    };
+    const optionalFences = [
+      ["expected_candidate_revision", "expectedCandidateRevision"],
+      ["expected_target_revision", "expectedTargetRevision"],
+      ["expected_space_revision", "expectedSpaceRevision"],
+    ];
+    optionalFences.forEach(([bodyKey, field]) => {
+      const revision = optionalContextV2Revision(payload?.[field], field);
+      if (revision !== null) {
+        body[bodyKey] = revision;
+      }
+    });
+    const response = await contextV2Request(
+      "POST",
+      `${CONTEXT_V2_MEMORY_ENDPOINT}/reviews/${encodeURIComponent(reviewId)}/decision`,
+      body,
+    );
+    return contextV2CandidateReviewResponse(response, body.owner_chat_id);
   };
 
   const getMisoModelCatalogPayload = async () => {
@@ -2730,12 +4125,53 @@ const createUnchainService = ({
       throw new Error("approved must be a boolean");
     }
 
+    const modifiedArguments = payload?.modified_arguments;
+    let vaultInteractionBound = false;
+    if (
+      memoryVaultService &&
+      typeof memoryVaultService.isBoundUseInteraction === "function"
+    ) {
+      try {
+        vaultInteractionBound =
+          memoryVaultService.isBoundUseInteraction(confirmationId) === true;
+      } catch (_error) {
+        vaultInteractionBound = false;
+      }
+    }
+    if (vaultInteractionBound && modifiedArguments != null) {
+      const error = new Error(
+        "[vault_modified_arguments_forbidden] modified arguments are forbidden for vault use",
+      );
+      error.code = "vault_modified_arguments_forbidden";
+      throw error;
+    }
+
+    let effectiveApproved = payload.approved;
+    let vaultConfirmationHandled = false;
+    if (
+      memoryVaultService &&
+      typeof memoryVaultService.confirmBoundUseIntent === "function"
+    ) {
+      const vaultDecision = await memoryVaultService.confirmBoundUseIntent({
+        interactionId: confirmationId,
+        rendererApproved: payload.approved,
+      });
+      if (vaultDecision?.handled === true) {
+        vaultConfirmationHandled = true;
+        effectiveApproved = vaultDecision.approved === true;
+      }
+    }
+
     const reasonRaw = payload?.reason;
     const requestBody = {
       confirmation_id: confirmationId,
-      approved: payload.approved,
+      approved: effectiveApproved,
       reason:
-        typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
+        vaultConfirmationHandled && !effectiveApproved
+          ? "vault_native_confirmation_denied"
+          : typeof reasonRaw === "string"
+            ? reasonRaw
+            : String(reasonRaw || ""),
     };
 
     const sessionIdRaw = payload?.session_id || payload?.sessionId;
@@ -2745,8 +4181,7 @@ const createUnchainService = ({
       requestBody.session_id = sessionId;
     }
 
-    const modifiedArguments = payload?.modified_arguments;
-    if (modifiedArguments != null) {
+    if (modifiedArguments != null && !vaultConfirmationHandled) {
       const isObject =
         typeof modifiedArguments === "object" &&
         !Array.isArray(modifiedArguments);
@@ -2796,12 +4231,16 @@ const createUnchainService = ({
       },
     );
 
-    return readJsonResponse(
+    const pending = await readJsonResponse(
       response,
       "Miso pending interaction request failed",
       { status: "none", session_id: sessionId },
       "Invalid Miso pending interaction response",
     );
+    // Recovery is the same security boundary as live SSE: a Vault interaction
+    // must be durably bound before any renderer can approve it.
+    bindVaultUseInteractionFromStreamPayload(pending);
+    return pending;
   };
 
   const clearMisoStreamReplayExpiry = (streamState) => {
@@ -2927,7 +4366,93 @@ const createUnchainService = ({
       data,
     });
 
+  const bindVaultUseInteractionFromStreamPayload = (data) => {
+    if (!data || typeof data !== "object") return false;
+    const candidates = [
+      data.vault_use,
+      data.arguments?.vault_use,
+      data.interact_config?.vault_use,
+      data.tool_call?.vault_use,
+      data.tool_call?.arguments?.vault_use,
+      data.tool_call?.interact_config?.vault_use,
+      data.payload?.vault_use,
+      data.payload?.arguments?.vault_use,
+      data.payload?.interact_config?.vault_use,
+      data.payload?.tool_call?.vault_use,
+      data.payload?.tool_call?.arguments?.vault_use,
+      data.payload?.tool_call?.interact_config?.vault_use,
+      data.data?.vault_use,
+      data.data?.arguments?.vault_use,
+      data.data?.interact_config?.vault_use,
+      data.data?.tool_call?.vault_use,
+      data.data?.tool_call?.arguments?.vault_use,
+      data.data?.tool_call?.interact_config?.vault_use,
+      data.presentation?.vault_use,
+      data.presentation?.arguments?.vault_use,
+      data.presentation?.interact_config?.vault_use,
+      data.presentation?.tool_call?.vault_use,
+      data.presentation?.tool_call?.arguments?.vault_use,
+      data.presentation?.tool_call?.interact_config?.vault_use,
+    ];
+    const binding = candidates.find(
+      (candidate) =>
+        candidate && typeof candidate === "object" && !Array.isArray(candidate),
+    );
+    if (!binding) return false;
+    if (
+      !memoryVaultService ||
+      typeof memoryVaultService.bindPreparedUseIntent !== "function"
+    ) {
+      const error = new Error(
+        "[vault_intent_binding_failed] vault interaction binding failed",
+      );
+      error.code = "vault_intent_binding_failed";
+      throw error;
+    }
+    const interactionId =
+      binding.interaction_id ||
+      data.interaction_id ||
+      data.confirmation_id ||
+      data.tool_call?.confirmation_id ||
+      data.payload?.confirmation_id ||
+      data.payload?.tool_call?.confirmation_id ||
+      data.data?.confirmation_id ||
+      data.data?.tool_call?.confirmation_id ||
+      data.presentation?.confirmation_id ||
+      data.presentation?.tool_call?.confirmation_id;
+    try {
+      memoryVaultService.bindPreparedUseIntent({
+        intent_id: binding.intent_id,
+        interaction_id: interactionId,
+        operation_id: binding.operation_id,
+        owner_chat_id: binding.owner_chat_id,
+        session_id: binding.session_id,
+        attempt_id: binding.attempt_id,
+        run_id: binding.run_id,
+        call_id: binding.call_id,
+      });
+      return true;
+    } catch (_error) {
+      const error = new Error(
+        "[vault_intent_binding_failed] vault interaction binding failed",
+      );
+      error.code = "vault_intent_binding_failed";
+      throw error;
+    }
+  };
+
   const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
+    try {
+      bindVaultUseInteractionFromStreamPayload(data);
+    } catch (_error) {
+      // Do not expose an unbound Vault confirmation to the renderer. This
+      // static terminal error contains no request identity, handle or secret.
+      event = "error";
+      data = {
+        code: "vault_intent_binding_failed",
+        message: "Vault confirmation could not be bound safely.",
+      };
+    }
     const streamState = unchainStreamReplays.get(requestId);
     const envelope =
       recordMisoStreamEvent(requestId, event, data) || {
@@ -2956,9 +4481,17 @@ const createUnchainService = ({
 
   const emitMisoRuntimeLog = (level, text) => {
     const normalizedLevel = level === "stderr" ? "stderr" : "stdout";
-    const normalizedText = typeof text === "string" ? text.trim() : "";
+    let normalizedText = typeof text === "string" ? text.trim() : "";
     if (!normalizedText) {
       return;
+    }
+    if (
+      activeVaultBrokerKey &&
+      normalizedText.includes(activeVaultBrokerKey)
+    ) {
+      normalizedText = normalizedText
+        .split(activeVaultBrokerKey)
+        .join("[REDACTED_VAULT_BROKER_KEY]");
     }
 
     const targets =
@@ -3137,11 +4670,12 @@ const createUnchainService = ({
       unchainIsStopping = true;
       unchainPreserveStatusOnStop = Boolean(preserveStatus);
       unchainProcess.kill("SIGTERM");
-      setTimeout(() => {
+      const forceKillTimer = setTimeout(() => {
         if (unchainProcess && !unchainProcess.killed) {
           unchainProcess.kill("SIGKILL");
         }
       }, 1200);
+      if (typeof forceKillTimer.unref === "function") forceKillTimer.unref();
     } else {
       if (!preserveStatus) {
         unchainStatus = "stopped";
@@ -3163,6 +4697,7 @@ const createUnchainService = ({
     unchainStatus = "starting";
     unchainStatusReason = "";
     unchainRuntimeContract = null;
+    memoryV2Readiness = initialMemoryV2Readiness();
 
     unchainStartPromise = (async () => {
       let entrypoint;
@@ -3201,12 +4736,27 @@ const createUnchainService = ({
         fs,
         path,
       });
+      const sidecarEnvironment = { ...process.env };
+      // Never inherit developer/user ambient broker coordinates or credentials.
+      // The key is NEVER an environment variable: shell tools and durable jobs
+      // inherit os.environ. It is delivered once through anonymous stdio FD 3.
+      delete sidecarEnvironment.PUPU_VAULT_BROKER_URL;
+      delete sidecarEnvironment.PUPU_VAULT_BROKER_KEY;
+      delete sidecarEnvironment.PUPU_VAULT_BROKER_FD;
+      const vaultBrokerBootstrap = getVaultBrokerBootstrap();
+      activeVaultBrokerKey = vaultBrokerBootstrap?.key || "";
       unchainProcess = spawn(entrypoint.command, entrypoint.args, {
         detached: false,
         cwd: entrypoint.cwd,
         windowsHide: true,
         env: {
-          ...process.env,
+          ...sidecarEnvironment,
+          ...(vaultBrokerBootstrap
+            ? {
+                PUPU_VAULT_BROKER_URL: vaultBrokerBootstrap.url,
+                PUPU_VAULT_BROKER_FD: "3",
+              }
+            : {}),
           UNCHAIN_HOST,
           UNCHAIN_PORT: String(unchainPort),
           UNCHAIN_AUTH_TOKEN: unchainAuthToken,
@@ -3226,6 +4776,26 @@ const createUnchainService = ({
           // read the build artifact; development may use the .local build
           // snapshot or an explicit process env override.
           [COMPUTER_USE_RELEASE_ENV_KEY]: computerUseReleaseEnabled ? "1" : "0",
+          [MEMORY_V2_ENV_KEYS.featureCeiling]:
+            memoryV2RuntimeConfig.sidecarEnvironment[
+              MEMORY_V2_ENV_KEYS.featureCeiling
+            ],
+          [MEMORY_V2_ENV_KEYS.rolloutMode]:
+            memoryV2RuntimeConfig.sidecarEnvironment[
+              MEMORY_V2_ENV_KEYS.rolloutMode
+            ],
+          [MEMORY_V2_ENV_KEYS.canaryPercent]:
+            memoryV2RuntimeConfig.sidecarEnvironment[
+              MEMORY_V2_ENV_KEYS.canaryPercent
+            ],
+          [MEMORY_V2_ENV_KEYS.readOnlyDegraded]:
+            memoryV2RuntimeConfig.sidecarEnvironment[
+              MEMORY_V2_ENV_KEYS.readOnlyDegraded
+            ],
+          [MEMORY_V2_ENV_KEYS.storeOwner]:
+            memoryV2RuntimeConfig.sidecarEnvironment[
+              MEMORY_V2_ENV_KEYS.storeOwner
+            ],
           // Belt-and-braces for the desired computer-use flag. Set AFTER the
           // process.env spread so an explicit user choice wins over any dev
           // PUPU_COMPUTER_USE in the ambient env. "0" is not in the sidecar's
@@ -3241,8 +4811,40 @@ const createUnchainService = ({
               }
             : {}),
         },
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "pipe", "pipe", "pipe"],
       });
+
+      let vaultBootstrapFailed = false;
+      if (vaultBrokerBootstrap) {
+        const bootstrapPipe = unchainProcess?.stdio?.[3];
+        const failVaultBootstrap = () => {
+          if (vaultBootstrapFailed) return;
+          vaultBootstrapFailed = true;
+          unchainStatus = "error";
+          unchainStatusReason = "Vault broker bootstrap pipe failed";
+          try {
+            void memoryVaultService?.stopSinkBroker?.();
+          } catch (_error) {
+            // Broker shutdown is best-effort; sidecar shutdown is mandatory.
+          }
+          stopMiso({ preserveStatus: true });
+        };
+        if (
+          !bootstrapPipe ||
+          typeof bootstrapPipe.once !== "function" ||
+          typeof bootstrapPipe.end !== "function"
+        ) {
+          failVaultBootstrap();
+        } else {
+          bootstrapPipe.once("error", failVaultBootstrap);
+          try {
+            // Exactly one write; no logger or environment object ever sees key.
+            bootstrapPipe.end(`${vaultBrokerBootstrap.key}\n`);
+          } catch (_error) {
+            failVaultBootstrap();
+          }
+        }
+      }
 
       const stdoutLineEmitter = createUnchainRuntimeLogLineEmitter("stdout");
       const stderrLineEmitter = createUnchainRuntimeLogLineEmitter("stderr");
@@ -3265,6 +4867,7 @@ const createUnchainService = ({
 
       unchainProcess.on("error", (error) => {
         flushUnchainRuntimeLogs();
+        activeVaultBrokerKey = "";
         unchainStatus = error.code === "ENOENT" ? "not_found" : "error";
         unchainStatusReason = error.message || "Failed to start Miso process";
         unchainProcess = null;
@@ -3281,6 +4884,7 @@ const createUnchainService = ({
 
       unchainProcess.on("exit", (code, signal) => {
         flushUnchainRuntimeLogs();
+        activeVaultBrokerKey = "";
         const stoppedIntentionally = unchainIsStopping || getAppIsQuitting();
         unchainProcess = null;
 
@@ -3302,6 +4906,10 @@ const createUnchainService = ({
         });
         scheduleMisoRestart();
       });
+
+      if (vaultBootstrapFailed) {
+        return;
+      }
 
       const readiness = await waitForMisoReady();
       if (!readiness.ready) {
@@ -3328,6 +4936,8 @@ const createUnchainService = ({
         }
         return;
       }
+
+      await verifyContextV2Readiness();
 
       unchainStatus = "ready";
       unchainStatusReason = "";
@@ -3650,6 +5260,17 @@ const createUnchainService = ({
 
     const requestPayload =
       payload && typeof payload === "object" ? { ...payload } : {};
+    if (
+      requestPayload.memory_v2_requested === true &&
+      memoryV2RuntimeConfig.effectiveMode !== "off" &&
+      memoryV2Readiness.status !== "ready"
+    ) {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
+        code: "context_v2_readiness_failed",
+        message: "Memory V2 capability is unavailable",
+      });
+      return;
+    }
     const requestOptions =
       requestPayload.options && typeof requestPayload.options === "object"
         ? { ...requestPayload.options }
@@ -4155,6 +5776,9 @@ const createUnchainService = ({
   return {
     startMiso,
     stopMiso,
+    // MAIN-PROCESS ONLY. Deliberately not registered on any IPC channel: it
+    // returns absolute local launch coordinates for the Vault sink worker.
+    resolveVaultSinkWorkerEntrypoint,
     getMisoStatusPayload,
     getComputerUseStatusPayload,
     setComputerUseEnabled,
@@ -4191,6 +5815,26 @@ const createUnchainService = ({
     deleteMisoMcpStoreRegistry,
     approveMisoMcpStoreEntry,
     revokeMisoMcpStoreEntryApproval,
+    // Context / Memory V2 (P0) controlled bridge — explicit capabilities only.
+    getContextV2Status,
+    listContextV2Events,
+    readContextV2Content,
+    getContextV2SessionHead,
+    rebaseContextV2Session,
+    deleteContextV2Chat,
+    listContextV2Spaces,
+    getContextV2Tree,
+    listContextV2Entries,
+    searchContextV2Entries,
+    listContextV2Candidates,
+    listContextV2Jobs,
+    listContextV2Promotions,
+    decideContextV2Candidate,
+    createContextV2Promotion,
+    decideContextV2Promotion,
+    listContextV2CandidateReviews,
+    getContextV2CandidateReview,
+    decideContextV2CandidateReview,
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,

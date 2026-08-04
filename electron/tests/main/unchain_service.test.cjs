@@ -651,6 +651,77 @@ describe("unchain service session memory replacement", () => {
     }
   });
 
+  test("development startup resolves an explicit Unchain src-layout checkout", async () => {
+    const originalSourcePath = process.env.UNCHAIN_SOURCE_PATH;
+    const configuredSourcePath = "/tmp/unchain-context-memory-v2";
+    const sourcePackage = path.join(
+      configuredSourcePath,
+      "src",
+      "unchain",
+      "__init__.py",
+    );
+    const sourceProject = path.join(configuredSourcePath, "pyproject.toml");
+    const spawn = jest.fn(() => createFakeSpawnProcess());
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse());
+
+    try {
+      process.env.UNCHAIN_SOURCE_PATH = configuredSourcePath;
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const service = createUnchainService({
+        app: {
+          isPackaged: false,
+          getAppPath: jest.fn(() => "/app"),
+          getPath: jest.fn(() => "/tmp/pupu"),
+          getVersion: jest.fn(() => "0.1.1"),
+        },
+        fs: {
+          existsSync: jest.fn(
+            (candidate) =>
+              candidate === sourcePackage ||
+              candidate === sourceProject ||
+              !candidate.startsWith(configuredSourcePath),
+          ),
+        },
+        path,
+        spawn,
+        spawnSync: jest.fn(() => ({
+          status: 0,
+          stdout: JSON.stringify({
+            version: "3.12.2",
+            major: 3,
+            minor: 12,
+            missing: [],
+          }),
+        })),
+        crypto: {
+          randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+        },
+        net: createAvailableNet(),
+        webContents: {
+          fromId: jest.fn(() => null),
+          getAllWebContents: jest.fn(() => []),
+        },
+        runtimeService: {},
+        getAppIsQuitting: () => false,
+      });
+
+      await service.startMiso();
+
+      expect(spawn.mock.calls[0][2].env.UNCHAIN_SOURCE_PATH).toBe(
+        configuredSourcePath,
+      );
+      service.stopMiso();
+    } finally {
+      if (originalSourcePath == null) {
+        delete process.env.UNCHAIN_SOURCE_PATH;
+      } else {
+        process.env.UNCHAIN_SOURCE_PATH = originalSourcePath;
+      }
+    }
+  });
+
   (process.platform === "win32" ? test.skip : test)(
     "startup reaps an orphaned server without killing durable job workers",
     async () => {

@@ -1669,6 +1669,41 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
 # Public: MemoryManager factory
 # ---------------------------------------------------------------------------
 
+def create_durable_kernel_runtime_with_diagnostics(
+    options: dict[str, Any],
+    *,
+    session_id: str = "",
+):
+    """Build the durability-only kernel runtime without vector dependencies.
+
+    This path deliberately bypasses Qdrant and embedding resolution.  It exists
+    so an admitted memory run can retain checkpoint, resume, and interaction
+    state even when semantic/vector memory is unavailable.  Diagnostic reasons
+    are stable codes; exception text is intentionally not returned to callers.
+    """
+    if not isinstance(options, dict) or not options.get("memory_enabled"):
+        return None, "memory_disabled"
+
+    if not str(session_id or "").strip():
+        return None, "missing_session_id"
+
+    data_dir = _normalize_data_dir(_data_dir())
+    if not data_dir:
+        return None, "missing_data_dir"
+
+    try:
+        from unchain.memory import KernelMemoryRuntime
+    except Exception:
+        return None, "durable_runtime_import_failed"
+
+    try:
+        store = _build_session_store(data_dir)
+        runtime = KernelMemoryRuntime.from_config(store=store)
+    except Exception:
+        return None, "durable_runtime_init_failed"
+    return runtime, ""
+
+
 def create_memory_manager_with_diagnostics(
     options: dict[str, Any],
     *,

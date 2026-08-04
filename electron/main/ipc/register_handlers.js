@@ -11,6 +11,35 @@ const {
   SETTINGS_STORAGE_SYNC_CHANNELS,
   SETTINGS_STORAGE_INVOKE_CHANNELS,
 } = require("../services/settings_storage/register_handlers");
+const {
+  registerMemoryVaultHandlers,
+  MEMORY_VAULT_INVOKE_CHANNELS,
+} = require("../services/memory_vault/register_handlers");
+
+// Context / Memory V2 (P0) — invoke/handle ONLY, in its own namespace. Kept
+// off the unchain bridge on purpose: this is a small, explicitly enumerated
+// capability set, and each entry maps 1:1 to one named unchainService method
+// with a fixed Flask route. No generic proxy channel exists.
+const CONTEXT_V2_INVOKE_CHANNELS = Object.freeze([
+  CHANNELS.CONTEXT_V2.GET_STATUS,
+  CHANNELS.CONTEXT_V2.LIST_EVENTS,
+  CHANNELS.CONTEXT_V2.READ_CONTENT,
+  CHANNELS.CONTEXT_V2.GET_SESSION_HEAD,
+  CHANNELS.CONTEXT_V2.REBASE_SESSION,
+  CHANNELS.CONTEXT_V2.LIST_SPACES,
+  CHANNELS.CONTEXT_V2.GET_TREE,
+  CHANNELS.CONTEXT_V2.LIST_ENTRIES,
+  CHANNELS.CONTEXT_V2.SEARCH_ENTRIES,
+  CHANNELS.CONTEXT_V2.LIST_CANDIDATES,
+  CHANNELS.CONTEXT_V2.LIST_JOBS,
+  CHANNELS.CONTEXT_V2.LIST_PROMOTIONS,
+  CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE,
+  CHANNELS.CONTEXT_V2.CREATE_PROMOTION,
+  CHANNELS.CONTEXT_V2.DECIDE_PROMOTION,
+  CHANNELS.CONTEXT_V2.LIST_CANDIDATE_REVIEWS,
+  CHANNELS.CONTEXT_V2.GET_CANDIDATE_REVIEW,
+  CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE_REVIEW,
+]);
 
 const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.APP.GET_VERSION,
@@ -94,8 +123,10 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.DELETE_SKILL_PACK,
   CHANNELS.SCREENSHOT.CAPTURE,
   CHANNELS.SCREENSHOT.CHECK_AVAILABILITY,
+  ...CONTEXT_V2_INVOKE_CHANNELS,
   ...CHAT_STORAGE_INVOKE_CHANNELS,
   ...SETTINGS_STORAGE_INVOKE_CHANNELS,
+  ...MEMORY_VAULT_INVOKE_CHANNELS,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -136,10 +167,12 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     screenshotService,
     chatStorageService,
     settingsStorageService,
+    memoryVaultService,
   } = services;
 
   registerChatStorageHandlers({ ipcMain, chatStorageService });
   registerSettingsStorageHandlers({ ipcMain, settingsStorageService });
+  registerMemoryVaultHandlers({ ipcMain, memoryVaultService });
 
   ipcMain.on(CHANNELS.THEME.SET_BACKGROUND_COLOR, (_event, color) => {
     windowService.handleThemeSetBackgroundColor(color);
@@ -568,6 +601,65 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
       unchainService.deleteMisoSkillPack(payload.toolkitId),
   );
 
+  // Context / Memory V2 (P0). Every channel is a fixed 1:1 binding to one
+  // explicit unchainService capability — the channel carries no method, path,
+  // url or endpoint selector, so a compromised renderer cannot steer the
+  // request anywhere the table below does not already allow. Validation of the
+  // payload itself (identifiers, pagination, refs, operationId,
+  // expectedRevision, allowlisted snake_case bodies) happens inside the
+  // service, at the same boundary.
+  //
+  // Logging policy matches the vault handlers: operation name + stable error
+  // CODE only. The payload and error.message are never logged (a Context V2
+  // payload can carry user content, and an upstream message can carry a
+  // stack).
+  const CONTEXT_V2_HANDLERS = Object.freeze([
+    [CHANNELS.CONTEXT_V2.GET_STATUS, "getContextV2Status"],
+    [CHANNELS.CONTEXT_V2.LIST_EVENTS, "listContextV2Events"],
+    [CHANNELS.CONTEXT_V2.READ_CONTENT, "readContextV2Content"],
+    [CHANNELS.CONTEXT_V2.GET_SESSION_HEAD, "getContextV2SessionHead"],
+    // NOTE: unchainService.deleteContextV2Chat exists and is still used — but
+    // ONLY by the main-process chat deletion outbox. It is deliberately not
+    // registered as an IPC handler, so no renderer can reach it.
+    [CHANNELS.CONTEXT_V2.REBASE_SESSION, "rebaseContextV2Session"],
+    [CHANNELS.CONTEXT_V2.LIST_SPACES, "listContextV2Spaces"],
+    [CHANNELS.CONTEXT_V2.GET_TREE, "getContextV2Tree"],
+    [CHANNELS.CONTEXT_V2.LIST_ENTRIES, "listContextV2Entries"],
+    [CHANNELS.CONTEXT_V2.SEARCH_ENTRIES, "searchContextV2Entries"],
+    [CHANNELS.CONTEXT_V2.LIST_CANDIDATES, "listContextV2Candidates"],
+    [CHANNELS.CONTEXT_V2.LIST_JOBS, "listContextV2Jobs"],
+    [CHANNELS.CONTEXT_V2.LIST_PROMOTIONS, "listContextV2Promotions"],
+    [CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE, "decideContextV2Candidate"],
+    [CHANNELS.CONTEXT_V2.CREATE_PROMOTION, "createContextV2Promotion"],
+    [CHANNELS.CONTEXT_V2.DECIDE_PROMOTION, "decideContextV2Promotion"],
+    // schema-v4 candidate reviews: read the queue, read one, decide it. There
+    // is deliberately no propose/create binding — reviews are produced by a
+    // curator job under a lease that never reaches the renderer.
+    [
+      CHANNELS.CONTEXT_V2.LIST_CANDIDATE_REVIEWS,
+      "listContextV2CandidateReviews",
+    ],
+    [CHANNELS.CONTEXT_V2.GET_CANDIDATE_REVIEW, "getContextV2CandidateReview"],
+    [
+      CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE_REVIEW,
+      "decideContextV2CandidateReview",
+    ],
+  ]);
+
+  CONTEXT_V2_HANDLERS.forEach(([channel, method]) => {
+    ipcMain.handle(channel, async (_event, payload = {}) => {
+      try {
+        return await unchainService[method](payload);
+      } catch (error) {
+        console.warn(
+          `[context-v2] ${method} failed:`,
+          (error && error.code) || "uncoded_error",
+        );
+        throw error;
+      }
+    });
+  });
+
   ipcMain.handle(CHANNELS.SCREENSHOT.CAPTURE, () =>
     screenshotService.capture(),
   );
@@ -598,6 +690,7 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
 module.exports = {
   registerIpcHandlers,
+  CONTEXT_V2_INVOKE_CHANNELS,
   IPC_HANDLE_CHANNELS,
   IPC_ON_CHANNELS,
   IPC_ON_SYNC_CHANNELS,

@@ -12,6 +12,18 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 import { MemoryInspectModal } from "../../memory-inspect/memory_inspect_modal";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../../SERVICEs/feature_flags";
+
+/* Memory V2 copy is intentionally untranslated for now: these strings only
+   render behind the `enable_memory_v2` flag, and adding keys would churn all
+   12 locale files before the Memory V2 wording is frozen. */
+const LEGACY_CONTEXT_SECTION_TITLE = "Legacy Context Memory";
+const LEGACY_CONTEXT_SECTION_BODY =
+  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory Agent is configured in Agent Builder.";
+const LEGACY_SECTION_SUFFIX = " (Legacy)";
 
 const PROVIDER_OPTIONS = [
   { value: "auto", label: "Auto" },
@@ -48,6 +60,16 @@ export const MemorySettings = ({ onNavigate }) => {
 
   const [settings, setSettings] = useState(() => readMemorySettings());
   const [inspectOpen, setInspectOpen] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
+
+  // The settings view can stay mounted while flags are toggled elsewhere
+  // (e.g. the Dev page), so re-read on mount and subscribe to changes.
+  useEffect(() => {
+    setFeatureFlags(readFeatureFlags());
+    return subscribeFeatureFlags(setFeatureFlags);
+  }, []);
+
+  const memoryV2Enabled = featureFlags.enable_memory_v2 === true;
 
   const update = useCallback((patch) => {
     setSettings((prev) => {
@@ -324,7 +346,22 @@ export const MemorySettings = ({ onNavigate }) => {
         )}
       </SettingsSection>
 
-      {/* ── Context strategy ── */}
+      {/* ── Context strategy (legacy note under Memory V2) ── */}
+      {memoryV2Enabled ? (
+        <SettingsSection title={LEGACY_CONTEXT_SECTION_TITLE}>
+          <div
+            style={{
+              fontSize: 12,
+              fontFamily: theme?.font?.fontFamily || "inherit",
+              color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)",
+              padding: "12px 0",
+              lineHeight: 1.5,
+            }}
+          >
+            {LEGACY_CONTEXT_SECTION_BODY}
+          </div>
+        </SettingsSection>
+      ) : (
       <SettingsSection title={t("memory.context_strategy")}>
         <SettingsRow
           label={t("memory.last_n_turns", { count: settings.last_n_turns })}
@@ -372,8 +409,15 @@ export const MemorySettings = ({ onNavigate }) => {
           />
         </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection title={t("memory.long_term_memory")}>
+      <SettingsSection
+        title={
+          memoryV2Enabled
+            ? `${t("memory.long_term_memory")}${LEGACY_SECTION_SUFFIX}`
+            : t("memory.long_term_memory")
+        }
+      >
         <SettingsRow
           label={t("memory.extract_every_n", { count: settings.long_term_extract_every_n_turns })}
           description={t("memory.extract_every_n_desc")}

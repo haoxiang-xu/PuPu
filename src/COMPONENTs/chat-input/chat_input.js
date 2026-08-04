@@ -54,6 +54,10 @@ const ChatInput = ({
   attachmentsDisabledReason = "",
   onDropFiles = null,
   showToolSelector = true,
+  /* Memory V2 P0 secret gate: the tool selector is locked while the user is
+     deciding about a detected credential, so the run's tool set cannot change
+     out from under an approval. */
+  toolSelectDisabled = false,
   selectedToolkits = [],
   onToolkitsChange,
   showWorkspaceSelector = true,
@@ -485,6 +489,7 @@ const ChatInput = ({
                       onRemoveAttachment={onRemoveAttachment}
                       isStreaming={isStreaming}
                       showToolSelector={showToolSelector}
+                      toolSelectDisabled={toolSelectDisabled}
                       selectedToolkits={selectedToolkits}
                       onToolkitsChange={onToolkitsChange}
                       showWorkspaceSelector={showWorkspaceSelector}

@@ -3,6 +3,11 @@
 // (§2 schema and §3 ops protocol are frozen one-way doors).
 
 const { createChatDb } = require("./db");
+const {
+  createChatDeletionOutbox,
+  isValidChatId,
+} = require("./deletion_outbox");
+const crypto = require("crypto");
 
 const DB_FILE_NAME = "chats.db";
 const LEGACY_FILE_NAME = "chats.json";
@@ -34,6 +39,27 @@ CREATE TABLE IF NOT EXISTS renderer_write_guards (
   epoch        TEXT PRIMARY KEY,
   max_sequence INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS chat_deletion_outbox (
+  deletion_id     TEXT PRIMARY KEY,
+  owner_chat_id   TEXT NOT NULL,
+  operation_id    TEXT NOT NULL UNIQUE,
+  context_done    INTEGER NOT NULL DEFAULT 0,
+  vault_done      INTEGER NOT NULL DEFAULT 0,
+  status          TEXT NOT NULL,
+  retry_count     INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL,
+  last_error_code TEXT,
+  receipt_json    TEXT NOT NULL,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  completed_at    INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_deletion_outbox_active_owner
+  ON chat_deletion_outbox(owner_chat_id)
+  WHERE status != 'complete';
+CREATE INDEX IF NOT EXISTS idx_chat_deletion_outbox_due
+  ON chat_deletion_outbox(status, next_attempt_at, created_at);
 `;
 
 const toJson = (value) => JSON.stringify(value === undefined ? null : value);
@@ -98,8 +124,17 @@ const assertRecognizableLegacyChatStore = (store) => {
     throw invalidLegacyChatStore();
   }
   for (const [chatId, chat] of chatEntries) {
+    // Every incoming id must satisfy the SAME frozen contract the deletion
+    // outbox enforces. An id this rejects would produce a chat that can be
+    // written but never deleted (enqueue() would throw forever), stranding
+    // its Context V2 and Vault state. Rejecting the whole store here — before
+    // any write — keeps the source untouched and fails closed.
+    //
+    // The error is the same static message as every other structural
+    // rejection: it never echoes the offending id, which is attacker-chosen
+    // content that would otherwise reach logs.
     if (
-      !chatId ||
+      !isValidChatId(chatId) ||
       !isPlainObject(chat) ||
       chat.id !== chatId ||
       !Array.isArray(chat.messages)
@@ -214,6 +249,11 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
     return db;
   };
 
+  const deletionOutbox = createChatDeletionOutbox({
+    getDb: requireDb,
+    crypto,
+  });
+
   // ---- primitive writers (always called inside a transaction) -------------
 
   const upsertMeta = (key, value) => {
@@ -249,6 +289,7 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
   };
 
   const deleteChat = (chatId) => {
+    deletionOutbox.enqueue(chatId);
     requireDb().prepare("DELETE FROM chats WHERE id = ?").run(chatId);
     requireDb().prepare("DELETE FROM messages WHERE chat_id = ?").run(chatId);
   };
@@ -293,7 +334,38 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
   const applyImportStore = (op) => {
     // Validate before the first DELETE. Whole-store import is destructive and
     // normalize-on-read must never turn {} / [] into a replacement seed chat.
+    // This also rejects the entire store if ANY incoming chat id violates the
+    // frozen id contract — no durable write happens first.
     const store = assertRecognizableLegacyChatStore(op.store);
+    const chatsById = store.chatsById || {};
+
+    // A whole-store import is a bulk DELETE for every chat the incoming store
+    // does not contain. Those chats still own Context V2 sessions and Vault
+    // secrets, and the raw `DELETE FROM chats` below cannot clean them up.
+    // Enqueue them exactly like a normal delete_chats op would, INSIDE the
+    // caller's transaction (applyOps wraps every op in db.tx), so the outbox
+    // rows and the row removal commit or roll back together — a crash between
+    // them cannot leave orphaned cross-store state.
+    //
+    // Retained and brand-new chats are deliberately NOT enqueued: they exist
+    // after the import, and queuing them would delete live context. Sorted for
+    // a deterministic enqueue order, and enqueue() is itself idempotent (an
+    // already-active deletion is replayed, not duplicated), so re-importing
+    // the same store adds nothing.
+    const incomingChatIds = new Set(Object.keys(chatsById));
+    const staleChatIds = requireDb()
+      .prepare("SELECT id FROM chats")
+      .all()
+      .map((row) => row.id)
+      .filter((chatId) => !incomingChatIds.has(chatId))
+      .sort();
+    for (const chatId of staleChatIds) {
+      // An existing row whose id does not satisfy the contract fails closed
+      // here and rolls the whole import back, rather than being silently
+      // dropped with its cross-store state left behind.
+      deletionOutbox.enqueue(chatId);
+    }
+
     // Whole-store semantics (legacy WRITE equivalent): replace everything.
     requireDb().prepare("DELETE FROM messages").run();
     requireDb().prepare("DELETE FROM chats").run();
@@ -304,7 +376,6 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
       "tree",
       store.schemaVersion === 1 ? buildLegacyV1Tree(store) : store.tree,
     );
-    const chatsById = store.chatsById || {};
     for (const [chatId, chat] of Object.entries(chatsById)) {
       const { messages, ...metaOnly } = chat || {};
       // An existing boolean wins — v3 re-imports must not be clobbered.
@@ -344,6 +415,7 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
         }
       }
       for (const op of ops) {
+        deletionOutbox.assertOpWritable(op);
         const apply = op && OP_APPLIERS[op.type];
         if (!apply) {
           throw new Error(
@@ -472,6 +544,7 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
   // before-quit hook. WAL makes per-transaction durability sufficient — this
   // just releases the connection cleanly.
   const close = () => {
+    deletionOutbox.stopDeletionOutboxRunner();
     if (!db) return;
     db.close();
     db = null;
@@ -483,6 +556,10 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
     readMessages,
     applyOps,
     write,
+    configureDeletionTargets: deletionOutbox.configureDeletionTargets,
+    processDeletionOutboxOnce: deletionOutbox.processDeletionOutboxOnce,
+    startDeletionOutboxRunner: deletionOutbox.startDeletionOutboxRunner,
+    stopDeletionOutboxRunner: deletionOutbox.stopDeletionOutboxRunner,
     close,
   };
 };
