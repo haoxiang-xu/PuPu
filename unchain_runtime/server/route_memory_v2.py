@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import os
+import sqlite3
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
@@ -20,9 +21,12 @@ from memory_v2_runtime import get_memory_v2_runtime
 from memory_v2_store import MemoryV2Error
 from memory_v2_store_boundary import (
     CONTEXT_V2_DATABASE_FILENAME,
+    STORE_OWNER_OFF,
+    STORE_OWNER_PUPU_LEGACY,
     STORE_OWNER_UNCHAIN,
     ContextV2StoreBoundaryError,
     configured_context_v2_store_owner,
+    inspect_context_v2_database,
 )
 from route_blueprint import api_blueprint
 
@@ -104,6 +108,208 @@ def _endpoint(function: Callable[..., Any]):
 
 def _runtime():
     return get_memory_v2_runtime(required=True)
+
+
+def _context_v2_chat_state_exists_read_only(*, owner_chat_id: str) -> bool:
+    """Probe one sticky chat without opening or mutating either V2 store."""
+
+    raw_data_dir = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
+    if not raw_data_dir:
+        return False
+    database_path = (
+        Path(raw_data_dir).expanduser().resolve()
+        / "memory_v2"
+        / CONTEXT_V2_DATABASE_FILENAME
+    )
+    try:
+        inspection = inspect_context_v2_database(database_path)
+    except ContextV2StoreBoundaryError as error:
+        raise MemoryV2Error(
+            error.code,
+            "Context V2 storage state could not be inspected",
+            status_code=503,
+            retryable=True,
+        ) from error
+    if inspection.schema_family in {"absent", "blank"}:
+        return False
+    if inspection.schema_family not in {
+        STORE_OWNER_PUPU_LEGACY,
+        STORE_OWNER_UNCHAIN,
+    }:
+        raise MemoryV2Error(
+            "context_v2_store_schema_incompatible",
+            "Context V2 storage scope cannot be determined safely",
+            status_code=503,
+        )
+
+    tables = frozenset(inspection.tables)
+    queries: list[tuple[str, tuple[str, ...]]] = []
+    if inspection.schema_family == STORE_OWNER_PUPU_LEGACY:
+        queries.append(
+            (
+                "SELECT 1 FROM sessions WHERE owner_chat_id=? "
+                "AND deleted_at_ms IS NULL LIMIT 1",
+                (owner_chat_id,),
+            )
+        )
+        if "chat_admissions" in tables:
+            queries.append(
+                (
+                    "SELECT 1 FROM chat_admissions WHERE owner_chat_id=? "
+                    "AND deleted_at_ms IS NULL LIMIT 1",
+                    (owner_chat_id,),
+                )
+            )
+    else:
+        if "pupu_context_v2_admissions" in tables:
+            queries.append(
+                (
+                    "SELECT 1 FROM pupu_context_v2_admissions "
+                    "WHERE owner_chat_id=? LIMIT 1",
+                    (owner_chat_id,),
+                )
+            )
+        if "host_generation_chat_bindings" in tables:
+            queries.append(
+                (
+                    "SELECT 1 FROM host_generation_chat_bindings "
+                    "WHERE owner_chat_id=? LIMIT 1",
+                    (owner_chat_id,),
+                )
+            )
+        if "chat_deletion_tombstones" in tables:
+            queries.append(
+                (
+                    "SELECT 1 FROM chat_deletion_tombstones "
+                    "WHERE owner_chat_id=? LIMIT 1",
+                    (owner_chat_id,),
+                )
+            )
+
+    uri = f"{database_path.as_uri()}?mode=ro"
+    try:
+        connection = sqlite3.connect(
+            uri,
+            uri=True,
+            timeout=1.0,
+            isolation_level=None,
+        )
+        try:
+            connection.execute("PRAGMA query_only=ON")
+            return any(
+                connection.execute(statement, parameters).fetchone() is not None
+                for statement, parameters in queries
+            )
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error) as error:
+        raise MemoryV2Error(
+            "context_v2_store_state_unavailable",
+            "Context V2 storage scope could not be inspected",
+            status_code=503,
+            retryable=True,
+        ) from error
+
+
+def _generation_operation_for_store_owner(
+    *,
+    owner_chat_id: str,
+    method_name: str,
+    **arguments: Any,
+) -> dict[str, Any]:
+    """Dispatch generation reads/writes to the configured canonical owner."""
+
+    try:
+        store_owner = configured_context_v2_store_owner()
+    except ContextV2StoreBoundaryError as error:
+        raise MemoryV2Error(
+            error.code,
+            str(error),
+            status_code=503,
+            retryable=True,
+        ) from error
+
+    if store_owner == STORE_OWNER_PUPU_LEGACY:
+        method = getattr(_runtime(), method_name)
+        return method(owner_chat_id=owner_chat_id, **arguments)
+
+    if store_owner == STORE_OWNER_OFF:
+        if _context_v2_chat_state_exists_read_only(owner_chat_id=owner_chat_id):
+            raise MemoryV2Error(
+                "context_v2_store_disabled",
+                "Context V2 storage is disabled while durable state still exists",
+                status_code=503,
+            )
+        raise MemoryV2Error(
+            "context_v2_not_found",
+            "Context V2 session head was not found",
+            status_code=404,
+        )
+
+    if store_owner != STORE_OWNER_UNCHAIN:
+        raise MemoryV2Error(
+            "context_v2_store_owner_invalid",
+            "Context V2 storage owner is invalid",
+            status_code=503,
+        )
+
+    raw_data_dir = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
+    if not raw_data_dir:
+        raise MemoryV2Error(
+            "context_v2_unavailable",
+            "Context V2 storage is not configured",
+            status_code=503,
+            retryable=True,
+        )
+    try:
+        from memory_v2_unchain_generation_api import (
+            MemoryV2UnchainGenerationAPIError,
+            open_pupu_unchain_generation_api,
+        )
+    except ImportError as error:
+        raise MemoryV2Error(
+            "context_v2_unchain_generation_unavailable",
+            "Unchain-owned generation mutation is unavailable",
+            status_code=503,
+            retryable=True,
+        ) from error
+
+    try:
+        generation_api = open_pupu_unchain_generation_api(
+            root_dir=(Path(raw_data_dir).expanduser().resolve() / "memory_v2"),
+            owner_chat_id=owner_chat_id,
+        )
+        method = getattr(generation_api, method_name)
+        return method(owner_chat_id=owner_chat_id, **arguments)
+    except MemoryV2UnchainGenerationAPIError as error:
+        source_code = str(
+            getattr(error, "code", "") or "context_v2_generation_api_failed"
+        )
+        if method_name == "get_session_head" and source_code in {
+            "context_v2_admission_missing",
+            "context_v2_not_found",
+        }:
+            if _context_v2_chat_state_exists_read_only(
+                owner_chat_id=owner_chat_id
+            ):
+                source_code = "context_v2_mutation_not_ready"
+                status_code = 503
+                retryable = True
+            else:
+                source_code = "context_v2_not_found"
+                status_code = 404
+                retryable = False
+        else:
+            status_code = int(getattr(error, "status_code", 503))
+            retryable = bool(getattr(error, "retryable", False))
+        raise MemoryV2Error(
+            source_code,
+            "Unchain-owned generation request failed",
+            status_code=status_code,
+            retryable=retryable,
+            expected_revision=getattr(error, "expected_revision", None),
+            actual_revision=getattr(error, "actual_revision", None),
+        ) from error
 
 
 def _read_runtime_for_store_owner(*, owner_chat_id: str):
@@ -789,6 +995,7 @@ def context_v2_status() -> Response:
     return jsonify(
         {
             "available": bool(status["available"]),
+            "store_owner": configured_context_v2_store_owner(),
             "schema_version": int(status["schema_version"]),
             "journal_mode": status["journal_mode"],
             "lexical_backend": status["lexical_backend"],
@@ -834,8 +1041,9 @@ def context_v2_content(ref: str) -> Response:
 def context_v2_session_rebase() -> Response:
     payload = _json_body()
     return jsonify(
-        _runtime().rebase_session(
+        _generation_operation_for_store_owner(
             owner_chat_id=payload.get("owner_chat_id", ""),
+            method_name="rebase_session",
             session_id=payload.get("session_id", ""),
             replacement_history=payload.get("replacement_history"),
             source_generation_id=payload.get("source_generation_id", ""),
@@ -849,9 +1057,11 @@ def context_v2_session_rebase() -> Response:
 @api_blueprint.get("/context/v2/session/head")
 @_endpoint
 def context_v2_session_head() -> Response:
+    owner_chat_id = request.args.get("owner_chat_id", "")
     return jsonify(
-        _runtime().get_session_head(
-            owner_chat_id=request.args.get("owner_chat_id", ""),
+        _generation_operation_for_store_owner(
+            owner_chat_id=owner_chat_id,
+            method_name="get_session_head",
             session_id=request.args.get("session_id", ""),
         )
     )

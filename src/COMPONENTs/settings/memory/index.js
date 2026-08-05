@@ -22,7 +22,7 @@ import {
    12 locale files before the Memory V2 wording is frozen. */
 const LEGACY_CONTEXT_SECTION_TITLE = "Legacy Context Memory";
 const LEGACY_CONTEXT_SECTION_BODY =
-  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory Agent is configured in Agent Builder.";
+  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory V2 runs as an optional Unchain module and is not an Agent Builder node.";
 const LEGACY_SECTION_SUFFIX = " (Legacy)";
 
 const PROVIDER_OPTIONS = [

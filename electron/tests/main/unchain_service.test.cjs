@@ -3849,6 +3849,141 @@ describe("unchain service session memory replacement", () => {
   });
 });
 
+describe("unchain service restartMiso", () => {
+  const originalFetch = global.fetch;
+  const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
+  // Mirrors UNCHAIN_RESTART_DELAY_MS in the service (module-private).
+  const UNCHAIN_RESTART_DELAY_MS = 1500;
+
+  /* Like createStartupServiceHarness, but hands out a FRESH process per spawn.
+     A restart must be able to observe a second, live process — reusing one
+     already-killed EventEmitter would make waitForMisoReady bail on
+     `unchainProcess.killed` and mask the behavior under test. */
+  const createRestartHarness = () => {
+    const processes = [];
+    const spawn = jest.fn(() => {
+      const proc = createFakeSpawnProcess();
+      processes.push(proc);
+      return proc;
+    });
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync: jest.fn(() => ({
+        status: 0,
+        stdout: JSON.stringify({
+          version: "3.12.2",
+          major: 3,
+          minor: 12,
+          missing: [],
+        }),
+      })),
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+    return { service, spawn, processes };
+  };
+
+  beforeEach(() => {
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse());
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalEnvPython == null) delete process.env.UNCHAIN_PYTHON_BIN;
+    else process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
+    jest.clearAllMocks();
+  });
+
+  test("REGRESSION: restarts a LIVE sidecar instead of killing it permanently", async () => {
+    // The bug this guards: stopMiso() returns with SIGTERM in flight and
+    // `unchainProcess` still set, so a naive stopMiso(); startMiso(); hits
+    // startMiso's `if (unchainProcess) return` guard and starts nothing — while
+    // the exit handler, seeing unchainIsStopping, skips scheduleMisoRestart().
+    // A live backend would be killed and never come back.
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    expect(service.getMisoStatusPayload().ready).toBe(true);
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    const restarted = service.restartMiso();
+
+    // The old process was signalled but has not exited yet, so no second spawn
+    // may have happened: restartMiso must be WAITING, not racing ahead.
+    expect(processes[0].kill).toHaveBeenCalledWith("SIGTERM");
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    processes[0].emit("exit", 0, null);
+    await restarted;
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      ready: true,
+    });
+  });
+
+  test("the naive stop-then-start sequence is broken — which is why restartMiso exists", async () => {
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    /* Documents the exact failure mode a caller outside the closure would hit.
+       If any assertion here ever flips, startMiso's guard or the exit handler
+       changed and restartMiso's wait should be revisited. */
+    service.stopMiso();
+    await service.startMiso();
+
+    // startMiso saw the not-yet-cleared `unchainProcess` and returned having
+    // started nothing.
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    // Then the process actually dies. The exit handler sees unchainIsStopping,
+    // so it marks "stopped" and returns BEFORE arming the crash-restart net.
+    processes[0].emit("exit", 0, null);
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "stopped",
+      ready: false,
+    });
+
+    // Nothing ever brings it back: a live backend was killed permanently.
+    await new Promise((resolve) => setTimeout(resolve, UNCHAIN_RESTART_DELAY_MS + 200));
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(service.getMisoStatusPayload().ready).toBe(false);
+  });
+
+  test("restarts cleanly when the sidecar is already stopped", async () => {
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    service.stopMiso();
+    processes[0].emit("exit", 0, null);
+    expect(service.getMisoStatusPayload().status).toBe("stopped");
+
+    await service.restartMiso();
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(service.getMisoStatusPayload().ready).toBe(true);
+  });
+});
+
 describe("unchain service computer use surface", () => {
   const originalFetch = global.fetch;
   const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;

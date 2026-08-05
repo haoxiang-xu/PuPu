@@ -10,9 +10,12 @@ from memory_v2_unchain_worker import (
     build_pupu_unchain_memory_agent_worker,
     build_pupu_unchain_memory_agent_worker_module,
 )
-from unchain.agent.modules.memory_v2 import (
-    MemoryV2AgentAttachment,
-    MemoryV2AgentModule,
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+    MemoryAttachment,
+    MemoryV2Module,
 )
 from unchain.journal import ResourceRef
 from unchain.kernel.types import KernelRunResult
@@ -31,7 +34,7 @@ from unchain.memory.toolkit import (
     MemoryToolkitRunBinding,
     NormalMemoryToolkitCapabilities,
 )
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 from unchain.tools import Tool, Toolkit
 
 
@@ -291,7 +294,7 @@ class _AttachmentFactory:
             chat=capability,
             candidates=capability,
         )
-        return MemoryV2AgentAttachment(
+        return MemoryAttachment(
             binding=MemoryToolkitRunBinding(
                 binding_id=self.binding_id,
                 session_id=request.session_id,
@@ -308,15 +311,13 @@ class _AttachmentFactory:
 
 
 class _Builder:
-    def __init__(self):
+    def __init__(self, *, runtime_context=None):
+        if runtime_context is None:
+            runtime_context = _runtime_context()
         self.spec = SimpleNamespace(name="root-agent")
         self.call_context = SimpleNamespace(
             mode="default",
-            session_id="session-a",
-            execution_owner_id="attempt-a",
-            run_id="root-a",
-            root_run_id="root-a",
-            memory_v2_run_role=MemoryV2RunRole.ROOT,
+            runtime_context=runtime_context,
         )
         self.toolkit = Toolkit()
         self.run_hooks = []
@@ -329,16 +330,47 @@ class _Builder:
         self.run_hooks.append(hook)
 
 
-def _mounted_worker_module(host):
-    completion = RootRunCompletion(
-        session_id="session-a",
-        attempt_id="attempt-a",
-        run_id="root-a",
-        is_root_run=True,
-        run_status=SourceRunStatus.COMPLETED,
-        capture_status=RunCaptureStatus.COMPLETE,
+def _runtime_context(
+    *,
+    session_id="session-a",
+    attempt_id="attempt-a",
+    run_id="root-a",
+    run_lineage=None,
+    capabilities=MEMORY_V2_CAPABILITIES,
+    authority="completion-authority-a",
+):
+    selected = frozenset(capabilities)
+    return AgentRuntimeContext(
+        identity=ExecutionIdentity(
+            execution_id=session_id,
+            attempt_id=attempt_id,
+            run_id=run_id,
+            run_lineage=tuple(run_lineage or (run_id,)),
+        ),
+        module_grants=(
+            ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=selected,
+                delegable_capabilities=selected.difference(
+                    {MEMORY_EXECUTION_COMPLETE}
+                ),
+                authority=authority,
+            ),
+        ),
     )
-    memory_module = MemoryV2AgentModule(
+
+
+def _mounted_worker_module(host, *, completion=None):
+    if completion is None:
+        completion = RootRunCompletion(
+            session_id="session-a",
+            attempt_id="attempt-a",
+            run_id="root-a",
+            is_root_run=True,
+            run_status=SourceRunStatus.COMPLETED,
+            capture_status=RunCaptureStatus.COMPLETE,
+        )
+    memory_module = MemoryV2Module(
         host=host,
         attachment_factory=_AttachmentFactory(completion),
     )
@@ -377,6 +409,91 @@ def test_agent_module_runs_enqueue_then_worker_without_replacing_main_result():
     assert worker_module.last_failure_code == ""
     assert worker_module.last_receipt is not None
     assert worker_module.last_receipt.disposition is MemoryAgentWorkerDisposition.IDLE
+    assert worker_module.last_receipt.trigger.job_trigger_key == completion.trigger_key
+
+
+def test_structural_root_without_completion_grant_cannot_start_worker():
+    host = _OfficialHostDouble([_idle_receipt()])
+    _memory_module, worker_module, _completion = _mounted_worker_module(host)
+    builder = _Builder(
+        runtime_context=_runtime_context(
+            capabilities=MEMORY_V2_CAPABILITIES.difference(
+                {MEMORY_EXECUTION_COMPLETE}
+            ),
+            authority=None,
+        )
+    )
+
+    worker_module.configure(builder)
+
+    assert builder.run_hooks == []
+    assert host.operation_ids == []
+
+
+def test_completion_grant_requires_nonempty_authority():
+    host = _OfficialHostDouble([_idle_receipt()])
+    _memory_module, worker_module, _completion = _mounted_worker_module(host)
+    builder = _Builder(
+        runtime_context=_runtime_context(authority=None)
+    )
+
+    with pytest.raises(PupuMemoryAgentWorkerError) as error:
+        worker_module.configure(builder)
+
+    assert error.value.code == "memory_agent_worker_completion_authority_missing"
+    assert builder.run_hooks == []
+    assert host.operation_ids == []
+
+
+def test_completion_grant_requires_runtime_context_and_module_order():
+    host = _OfficialHostDouble([_idle_receipt()])
+    _memory_module, worker_module, _completion = _mounted_worker_module(host)
+
+    missing_context = _Builder(runtime_context=object())
+    with pytest.raises(PupuMemoryAgentWorkerError) as context_error:
+        worker_module.configure(missing_context)
+    assert context_error.value.code == "memory_agent_worker_runtime_context_invalid"
+    assert missing_context.run_hooks == []
+
+    out_of_order = _Builder()
+    with pytest.raises(PupuMemoryAgentWorkerError) as order_error:
+        worker_module.configure(out_of_order)
+    assert order_error.value.code == "memory_agent_worker_module_order_invalid"
+    assert out_of_order.run_hooks == []
+
+
+def test_resume_identity_uses_granted_run_and_preserves_root_run_id():
+    events = []
+    host = _OfficialHostDouble([_idle_receipt()], events=events)
+    completion = RootRunCompletion(
+        session_id="session-a",
+        attempt_id="resume-attempt",
+        run_id="resume-run",
+        is_root_run=True,
+        run_status=SourceRunStatus.COMPLETED,
+        capture_status=RunCaptureStatus.COMPLETE,
+    )
+    memory_module, worker_module, _ = _mounted_worker_module(
+        host,
+        completion=completion,
+    )
+    builder = _Builder(
+        runtime_context=_runtime_context(
+            attempt_id="resume-attempt",
+            run_id="resume-run",
+            run_lineage=("root-a", "resume-run"),
+        )
+    )
+
+    memory_module.configure(builder)
+    worker_module.configure(builder)
+    result = KernelRunResult(messages=[], status="completed")
+    for hook in builder.run_hooks:
+        hook(result)
+
+    assert events == ["enqueue", "worker"]
+    assert worker_module.last_receipt is not None
+    assert worker_module.last_receipt.trigger.root_run_id == "root-a"
     assert worker_module.last_receipt.trigger.job_trigger_key == completion.trigger_key
 
 

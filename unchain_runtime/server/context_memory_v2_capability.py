@@ -20,6 +20,7 @@ from typing import Any
 
 CONTEXT_MEMORY_CONTRACT_VERSION = 1
 DEV_BYPASS_ENV = "PUPU_MEMORY_V2_UNCHAIN_DEV_BYPASS"
+DIRTY_ACTIVE_DEV_ENV = "PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV"
 _CAPABILITY_SCHEMA = "unchain.context_memory_capability.v1"
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 _V2_MODES = frozenset({"shadow", "canary", "all", "active"})
@@ -119,6 +120,7 @@ def verify_context_memory_v2_capability(
     lock: Mapping[str, Any],
     requested_mode: str,
     dev_bypass: bool = False,
+    dirty_active_dev: bool = False,
     release: bool = False,
 ) -> ContextMemoryV2CapabilityVerdict:
     if requested_mode == "off":
@@ -130,8 +132,14 @@ def verify_context_memory_v2_capability(
         )
     if requested_mode not in _V2_MODES:
         raise ValueError("requested_mode is invalid")
-    if not isinstance(dev_bypass, bool) or not isinstance(release, bool):
-        raise TypeError("dev_bypass and release must be booleans")
+    if (
+        not isinstance(dev_bypass, bool)
+        or not isinstance(dirty_active_dev, bool)
+        or not isinstance(release, bool)
+    ):
+        raise TypeError(
+            "dev_bypass, dirty_active_dev, and release must be booleans"
+        )
     normalized_lock = _validated_lock(lock)
     capability_error = _capability_error(capability)
     if capability_error is not None:
@@ -145,6 +153,22 @@ def verify_context_memory_v2_capability(
     revision = str(capability["revision"])
     locked_revision = normalized_lock["revision"]
     if locked_revision is None:
+        if dirty_active_dev:
+            if release or requested_mode != "all":
+                return ContextMemoryV2CapabilityVerdict(
+                    ready=False,
+                    reason="unchain_dirty_active_dev_forbidden",
+                    verification="failed",
+                    immutable=False,
+                    unchain_revision=revision,
+                )
+            return ContextMemoryV2CapabilityVerdict(
+                ready=True,
+                reason="unchain_context_memory_ready",
+                verification="dirty_dev_checkout",
+                immutable=False,
+                unchain_revision=revision,
+            )
         if dev_bypass and release:
             return ContextMemoryV2CapabilityVerdict(
                 ready=False,
@@ -197,6 +221,13 @@ def _default_lock_path() -> Path:
 def _dev_bypass_requested(environment: Mapping[str, Any]) -> bool:
     raw = environment.get(DEV_BYPASS_ENV)
     return str(raw or "").strip().lower() in _TRUE_VALUES
+
+
+def _dirty_active_dev_requested(environment: Mapping[str, Any]) -> bool:
+    # This is intentionally stricter than the shadow-only development bypass:
+    # active execution against mutable Unchain code requires the literal value
+    # "1" so a broad truthy environment convention cannot enable it by accident.
+    return environment.get(DIRTY_ACTIVE_DEV_ENV) == "1"
 
 
 def _normalized_runtime_capability(value: object) -> dict[str, Any] | None:
@@ -346,6 +377,11 @@ def resolve_context_memory_v2_capability(
         and not is_release
         and _dev_bypass_requested(source)
     )
+    dirty_active_dev = (
+        requested_mode == "all"
+        and not is_release
+        and _dirty_active_dev_requested(source)
+    )
     if capability is not None:
         resolved_capability = capability
         checkout_dirty = False
@@ -360,7 +396,7 @@ def resolve_context_memory_v2_capability(
             if isinstance(resolved_capability, Mapping)
             else ""
         )
-        if not dev_bypass:
+        if not dev_bypass and not dirty_active_dev:
             return ContextMemoryV2CapabilityVerdict(
                 ready=False,
                 reason="unchain_checkout_dirty",
@@ -377,6 +413,7 @@ def resolve_context_memory_v2_capability(
         lock=resolved_lock,
         requested_mode=requested_mode,
         dev_bypass=dev_bypass,
+        dirty_active_dev=dirty_active_dev if checkout_dirty else False,
         release=is_release,
     )
 
@@ -397,6 +434,7 @@ def context_memory_v2_capability_status(
 __all__ = (
     "CONTEXT_MEMORY_CONTRACT_VERSION",
     "DEV_BYPASS_ENV",
+    "DIRTY_ACTIVE_DEV_ENV",
     "ContextMemoryV2CapabilityError",
     "ContextMemoryV2CapabilityVerdict",
     "context_memory_v2_capability_status",

@@ -1,5 +1,5 @@
 ---
-name: pupu-growth-analyst
+name: growth-analyst
 description: "Use when analyzing PuPu's open-source growth or health for the founder — GitHub traffic, downloads/installs, releases, community, or contributor activity — or when producing a growth report or weekly COO report. Repo is haoxiang-xu/PuPu. Triggers: \"how is PuPu growing?\", \"are people installing PuPu?\", \"which release performed best?\", \"PuPu weekly report\", \"is the community healthy?\", \"PuPu growth / COO report\"."
 ---
 

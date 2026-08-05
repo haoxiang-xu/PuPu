@@ -18,13 +18,39 @@ from memory_v2_unchain_shadow_bridge import (
 from recipe import Recipe, RecipeAgent, RecipeSubagentRef
 from unchain.agent import Agent, SubagentModule
 from unchain.kernel import ModelTurnResult, ToolCall
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 from unchain.subagents import SubagentTemplate
 
 
 OWNER_CHAT_ID = "chat-recipe-ref-shadow"
 ROOT_SESSION_ID = "session-recipe-ref-shadow"
 ROOT_RUN_ID = "root-recipe-ref-shadow"
+
+
+def _root_runtime_context() -> AgentRuntimeContext:
+    return AgentRuntimeContext(
+        identity=ExecutionIdentity(
+            execution_id=ROOT_SESSION_ID,
+            attempt_id=ROOT_RUN_ID,
+            run_id=ROOT_RUN_ID,
+            run_lineage=(ROOT_RUN_ID,),
+        ),
+        module_grants=(
+            ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=MEMORY_V2_CAPABILITIES,
+                delegable_capabilities=MEMORY_V2_CAPABILITIES.difference(
+                    {MEMORY_EXECUTION_COMPLETE}
+                ),
+                authority=f"memory-completion:{ROOT_SESSION_ID}",
+            ),
+        ),
+    )
 
 
 class _SequenceModelIO:
@@ -270,16 +296,15 @@ def test_recipe_ref_child_graph_keeps_explicit_lineage_in_one_shadow_journal(
             session_id=ROOT_SESSION_ID,
             attempt_id=ROOT_RUN_ID,
         )
+        root_runtime_context = _root_runtime_context()
+        root_grant = root_runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+        assert root_grant is not None
         root_bridge = prepare_pupu_unchain_shadow_bridge(
             admission=root_admission,
             run=PupuUnchainShadowRunDraft(
-                execution_id=ROOT_SESSION_ID,
                 session_id=ROOT_SESSION_ID,
-                attempt_id=ROOT_RUN_ID,
-                run_id=ROOT_RUN_ID,
-                root_run_id=ROOT_RUN_ID,
-                role=MemoryV2RunRole.ROOT,
-                source_attempt_id="",
+                identity=root_runtime_context.identity,
+                grant=root_grant,
                 current_input_draft=PupuMemoryV2TextInputDraft(
                     content="delegate to Explore"
                 ),
@@ -374,8 +399,7 @@ def test_recipe_ref_child_graph_keeps_explicit_lineage_in_one_shadow_journal(
                 max_iterations=2,
                 max_context_window_tokens=16_384,
                 callback=root_bridge.compose_event_callback(None),
-                memory_v2_run_role=MemoryV2RunRole.ROOT,
-                root_run_id=ROOT_RUN_ID,
+                runtime_context=root_runtime_context,
             )
 
     assert result.status == "completed"
@@ -390,25 +414,33 @@ def test_recipe_ref_child_graph_keeps_explicit_lineage_in_one_shadow_journal(
     child_bindings = [
         binding
         for binding in registrations
-        if binding.role is MemoryV2RunRole.SUBAGENT
+        if len(binding.identity.run_lineage) == 2
     ]
-    graph_bindings = [
-        binding
-        for binding in registrations
-        if binding.role is MemoryV2RunRole.GRAPH_STEP
-    ]
+    graph_bindings = sorted(
+        (
+            binding
+            for binding in registrations
+            if len(binding.identity.run_lineage) in (3, 4)
+        ),
+        key=lambda binding: len(binding.identity.run_lineage),
+    )
     assert len(child_bindings) == 1
     assert len(graph_bindings) == 2
     child_binding = child_bindings[0]
     first_graph_binding, second_graph_binding = graph_bindings
     assert root_binding.root_run_id == ROOT_RUN_ID
-    assert root_binding.source_attempt_id == ""
+    assert root_binding.parent_run_id is None
+    assert root_binding.grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert root_binding.grant.authority
     assert child_binding.root_run_id == ROOT_RUN_ID
-    assert child_binding.source_attempt_id == ROOT_RUN_ID
+    assert child_binding.parent_run_id == ROOT_RUN_ID
+    assert child_binding.grant == root_binding.grant.delegated()
     assert first_graph_binding.root_run_id == ROOT_RUN_ID
-    assert first_graph_binding.source_attempt_id == child_binding.attempt_id
+    assert first_graph_binding.parent_run_id == child_binding.attempt_id
     assert second_graph_binding.root_run_id == ROOT_RUN_ID
-    assert second_graph_binding.source_attempt_id == first_graph_binding.attempt_id
+    assert second_graph_binding.parent_run_id == first_graph_binding.attempt_id
+    assert first_graph_binding.grant == child_binding.grant.delegated()
+    assert second_graph_binding.grant == first_graph_binding.grant.delegated()
 
     for binding in (
         root_binding,

@@ -33,7 +33,7 @@ from memory_v2_unchain_worker import (
     build_pupu_unchain_memory_agent_worker_module,
 )
 from unchain.agent.modules import ContextModule, ContextShadowModule
-from unchain.agent.modules.memory_v2 import MemoryV2AgentModule
+from unchain.memory import MemoryV2Module
 from unchain.agent.modules.task_state_bootstrap import (
     PinnedTaskStateBootstrapModule,
 )
@@ -98,7 +98,7 @@ from unchain.persistence.sqlite_context_compiler_v2 import (
 from unchain.persistence.sqlite_curator_v2 import SQLiteCuratorV2Store
 from unchain.persistence.sqlite_memory_host_v2 import (
     SQLiteConsolidationCapabilityFactory,
-    SQLiteMemoryV2AgentAttachmentFactory,
+    SQLiteMemoryAttachmentFactory,
 )
 from unchain.persistence.sqlite_memory_v2 import SQLiteMemoryV2Store
 from unchain.persistence.sqlite_read_v2 import (
@@ -649,7 +649,7 @@ class PupuUnchainContextMemoryV2HostFactory:
             references=self.reference_codec,
             context=self.context_capability,
         )
-        self.normal_attachment_factory = SQLiteMemoryV2AgentAttachmentFactory(
+        self.normal_attachment_factory = SQLiteMemoryAttachmentFactory(
             binding_id=self.binding_id,
             repository=self.curation_repository,
             workspace=self.workspace,
@@ -667,7 +667,7 @@ class PupuUnchainContextMemoryV2HostFactory:
             model_invoker=memory_agent_model_invoker,
             config=MemoryAgentHostConfig(enabled=memory_agent_enabled),
         )
-        self.memory_module = MemoryV2AgentModule(
+        self.memory_module = MemoryV2Module(
             host=self.memory_host,
             attachment_factory=self.normal_attachment_factory,
         )
@@ -724,7 +724,7 @@ class PupuUnchainContextMemoryV2HostFactory:
     ) -> tuple[
         ContextModule
         | PinnedTaskStateBootstrapModule
-        | MemoryV2AgentModule
+        | MemoryV2Module
         | PupuMemoryAgentWorkerModule,
         ...,
     ]:
@@ -745,7 +745,7 @@ class PupuUnchainContextMemoryV2HostFactory:
         modules: list[
             ContextModule
             | PinnedTaskStateBootstrapModule
-            | MemoryV2AgentModule
+            | MemoryV2Module
             | PupuMemoryAgentWorkerModule
         ] = [
             self.context_module,

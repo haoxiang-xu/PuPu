@@ -37,7 +37,7 @@
   "scripts": {
     "start": "npm run start:electron",
     "start:web": "cross-env BROWSER=none HOST=127.0.0.1 PORT=2907 react-scripts start",
-    "start:electron": "node ./scripts/start-dev.cjs",
+    "start:electron": "cross-env PUPU_FEATURE_MEMORY_V2=all PUPU_MEMORY_V2_MODE=all PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV=1 node ./scripts/start-dev.cjs",
     "electron:start": "electron .",
     "react-start": "npm run start:web",
     "electron-start": "npm run start:electron",

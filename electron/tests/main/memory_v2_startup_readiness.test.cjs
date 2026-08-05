@@ -4,6 +4,7 @@ const {
   createUnchainService,
 } = require("../../main/services/unchain/service");
 const {
+  MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
   MEMORY_V2_ENV_KEYS,
   MEMORY_V2_RELEASE_FIELD,
   createBuildFeatureSnapshot,
@@ -115,7 +116,8 @@ const readinessPayload = (snapshot, overrides = {}) => {
   const release = snapshot[MEMORY_V2_RELEASE_FIELD];
   return {
     available: true,
-    schema_version: 4,
+    store_owner: "unchain",
+    schema_version: 2,
     journal_mode: "wal",
     lexical_backend: "fts5",
     vector_status: "disabled",
@@ -141,13 +143,19 @@ describe("Unchain Memory V2 startup readiness", () => {
   const originalPython = process.env.UNCHAIN_PYTHON_BIN;
   const originalResourcesPath = process.resourcesPath;
   const originalEnvironment = Object.fromEntries(
-    Object.values(MEMORY_V2_ENV_KEYS).map((key) => [key, process.env[key]]),
+    [
+      ...Object.values(MEMORY_V2_ENV_KEYS),
+      MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
+    ].map((key) => [key, process.env[key]]),
   );
 
   beforeEach(() => {
     process.resourcesPath = "/resources";
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
-    Object.values(MEMORY_V2_ENV_KEYS).forEach((key) => {
+    [
+      ...Object.values(MEMORY_V2_ENV_KEYS),
+      MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
+    ].forEach((key) => {
       delete process.env[key];
     });
   });
@@ -206,7 +214,67 @@ describe("Unchain Memory V2 startup readiness", () => {
     });
   });
 
-  test("invalid V2 schema degrades only Context V2 and blocks its methods", async () => {
+  test("development forwards the explicit dirty active gate and accepts its status", async () => {
+    const snapshot = enabledSnapshot("all");
+    process.env[MEMORY_V2_DIRTY_ACTIVE_DEV_ENV] = "1";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify(
+            readinessPayload(snapshot, {
+              context_memory_capability_verification: "dirty_dev_checkout",
+              context_memory_capability_immutable: false,
+            }),
+          ),
+      });
+    const { service, spawn } = buildService(snapshot);
+
+    await service.startMiso();
+
+    expect(spawn.mock.calls[0][2].env).toMatchObject({
+      PUPU_FEATURE_MEMORY_V2: "all",
+      PUPU_MEMORY_V2_MODE: "all",
+      [MEMORY_V2_DIRTY_ACTIVE_DEV_ENV]: "1",
+    });
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      ready: true,
+      memoryV2: {
+        configured: true,
+        ready: true,
+        status: "ready",
+      },
+    });
+  });
+
+  test("packaged startup strips the dirty active development gate", async () => {
+    const snapshot = enabledSnapshot("all");
+    process.env[MEMORY_V2_DIRTY_ACTIVE_DEV_ENV] = "1";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot)),
+      });
+    const { service, spawn } = buildService(snapshot, { isPackaged: true });
+
+    await service.startMiso();
+
+    expect(spawn.mock.calls[0][2].env).not.toHaveProperty(
+      MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
+    );
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      ready: true,
+      memoryV2: { ready: true, status: "ready" },
+    });
+  });
+
+  test("legacy PuPu store ownership degrades only Context V2 and blocks its methods", async () => {
     const snapshot = enabledSnapshot("shadow");
     global.fetch = jest
       .fn()
@@ -214,10 +282,12 @@ describe("Unchain Memory V2 startup readiness", () => {
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
-          // v3 = the immediately-previous schema, i.e. a sidecar that predates
-          // candidate_reviews. It must degrade Context V2 at startup rather
-          // than let the review triad 404 at call time.
-          JSON.stringify(readinessPayload(snapshot, { schema_version: 3 })),
+          JSON.stringify(
+            readinessPayload(snapshot, {
+              store_owner: "pupu_legacy",
+              schema_version: 4,
+            }),
+          ),
       });
     const { service } = buildService(snapshot);
 
@@ -229,7 +299,7 @@ describe("Unchain Memory V2 startup readiness", () => {
       memoryV2: {
         ready: false,
         status: "degraded",
-        reason: "context_v2_schema_incompatible",
+        reason: "context_v2_store_owner_incompatible",
       },
     });
     await expect(

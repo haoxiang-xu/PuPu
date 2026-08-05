@@ -1,6 +1,5 @@
 import {
   DEFAULT_MEMORY_AGENT_DISPLAY_NAME,
-  MEMORY_AGENT_SYSTEM_NODE_ID,
   normalizeMemoryAgentSettings,
   readMemoryAgentSettings,
   updateMemoryAgentSettings,
@@ -10,10 +9,6 @@ import {
 describe("memory_agent_settings service", () => {
   beforeEach(() => {
     window.localStorage.clear();
-  });
-
-  test("exposes the fixed system node id", () => {
-    expect(MEMORY_AGENT_SYSTEM_NODE_ID).toBe("system:memory-agent");
   });
 
   test("reads defaults when nothing is stored", () => {

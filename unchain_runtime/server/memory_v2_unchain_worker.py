@@ -13,7 +13,11 @@ import hashlib
 import threading
 from dataclasses import dataclass, replace
 
-from unchain.agent.modules.memory_v2 import MemoryV2AgentModule
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_MODULE_KEY,
+    MemoryV2Module,
+)
 from unchain.journal.models import ModelValidationError, _required_text
 from unchain.kernel.types import KernelRunResult
 from unchain.memory.curator.host import (
@@ -28,7 +32,7 @@ from unchain.memory.curator.models import (
     RunCaptureStatus,
     SourceRunStatus,
 )
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import AgentRuntimeContext
 
 
 _ROOT_TRIGGER_PREFIX = "completed_root_run:"
@@ -355,12 +359,12 @@ class PupuMemoryAgentWorkerModule:
     def __init__(
         self,
         *,
-        memory_module: MemoryV2AgentModule,
+        memory_module: MemoryV2Module,
         worker: PupuUnchainMemoryAgentWorker,
         owner_chat_id: str,
     ) -> None:
-        if not isinstance(memory_module, MemoryV2AgentModule):
-            raise TypeError("memory_module must be a MemoryV2AgentModule")
+        if not isinstance(memory_module, MemoryV2Module):
+            raise TypeError("memory_module must be a MemoryV2Module")
         if not isinstance(worker, PupuUnchainMemoryAgentWorker):
             raise TypeError("worker must be a PupuUnchainMemoryAgentWorker")
         if memory_module.host is not worker.host:
@@ -433,11 +437,18 @@ class PupuMemoryAgentWorkerModule:
         setattr(builder, _MODULE_MARKER, self._worker.host_binding_id)
 
         call_context = getattr(builder, "call_context", None)
-        if (
-            getattr(call_context, "memory_v2_run_role", None)
-            is not MemoryV2RunRole.ROOT
-        ):
+        runtime_context = getattr(call_context, "runtime_context", None)
+        if not isinstance(runtime_context, AgentRuntimeContext):
+            raise PupuMemoryAgentWorkerError(
+                "memory_agent_worker_runtime_context_invalid"
+            )
+        grant = runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+        if grant is None or not grant.allows(MEMORY_EXECUTION_COMPLETE):
             return
+        if not grant.authority:
+            raise PupuMemoryAgentWorkerError(
+                "memory_agent_worker_completion_authority_missing"
+            )
         configured_tools = getattr(
             getattr(builder, "toolkit", None),
             "tools",
@@ -451,17 +462,14 @@ class PupuMemoryAgentWorkerModule:
                 "memory_agent_worker_module_order_invalid"
             )
 
-        session_id = _identifier(call_context.session_id, "session_id")
+        identity = runtime_context.identity
+        session_id = _identifier(identity.execution_id, "session_id")
         attempt_id = _identifier(
-            call_context.execution_owner_id,
-            "execution_owner_id",
+            identity.attempt_id,
+            "attempt_id",
         )
-        run_id = _identifier(call_context.run_id, "run_id")
-        root_run_id = _identifier(call_context.root_run_id, "root_run_id")
-        if run_id != root_run_id:
-            raise PupuMemoryAgentWorkerError(
-                "memory_agent_worker_root_identity_mismatch"
-            )
+        run_id = _identifier(identity.run_id, "run_id")
+        root_run_id = _identifier(identity.root_run_id, "root_run_id")
         trigger_key = RootRunCompletion(
             session_id=session_id,
             attempt_id=attempt_id,
@@ -511,11 +519,11 @@ def build_pupu_unchain_memory_agent_worker(
 
 def build_pupu_unchain_memory_agent_worker_module(
     *,
-    memory_module: MemoryV2AgentModule,
+    memory_module: MemoryV2Module,
     worker: PupuUnchainMemoryAgentWorker,
     owner_chat_id: str,
 ) -> PupuMemoryAgentWorkerModule:
-    """Build the module placed immediately after ``MemoryV2AgentModule``."""
+    """Build the module placed immediately after ``MemoryV2Module``."""
 
     return PupuMemoryAgentWorkerModule(
         memory_module=memory_module,

@@ -389,6 +389,12 @@ class MemoryV2DurabilityAdapterTests(unittest.TestCase):
                     attachments=[],
                     options=options,
                     session_id="session-durable",
+                    run_id_override="attempt-durable",
+                    runtime_context=ua._memory_v2_root_runtime_context(
+                        options=options,
+                        execution_id="session-durable",
+                        run_id="attempt-durable",
+                    ),
                 )
             )
 

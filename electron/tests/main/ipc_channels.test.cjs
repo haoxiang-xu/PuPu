@@ -41,6 +41,81 @@ describe("ipc channel parity", () => {
     });
   });
 
+  test("boot readiness channels are classified on both sides", () => {
+    // Two invoke channels + one push event. The push alone would race the
+    // renderer's subscription during boot — which is the exact window this
+    // gate exists for — so GET_READINESS must stay an invoke channel.
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(CHANNELS.BOOT.GET_READINESS);
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(CHANNELS.BOOT.RETRY);
+    expect(IPC_HANDLE_CHANNELS).toContain(CHANNELS.BOOT.GET_READINESS);
+    expect(IPC_HANDLE_CHANNELS).toContain(CHANNELS.BOOT.RETRY);
+
+    expect(PRELOAD_EVENT_CHANNELS).toContain(CHANNELS.BOOT.READINESS_CHANGED);
+    expect(MAIN_EVENT_CHANNELS).toContain(CHANNELS.BOOT.READINESS_CHANGED);
+
+    // The event channel is push-only: never an invoke or a send target.
+    expect(IPC_HANDLE_CHANNELS).not.toContain(CHANNELS.BOOT.READINESS_CHANGED);
+    expect(IPC_ON_CHANNELS).not.toContain(CHANNELS.BOOT.READINESS_CHANGED);
+    expect(PRELOAD_SEND_CHANNELS).not.toContain(
+      CHANNELS.BOOT.READINESS_CHANGED,
+    );
+  });
+
+  test("the boot namespace exposes read-only status plus exactly one control verb", () => {
+    const bootChannels = Object.values(CHANNELS.BOOT);
+    expect(bootChannels).toHaveLength(3);
+    bootChannels.forEach((channel) => {
+      expect(channel.startsWith("boot:")).toBe(true);
+    });
+
+    // No configuration/setter surface may appear here: the boot gate must not
+    // become a way for the renderer to point the sidecar somewhere.
+    expect(
+      bootChannels.filter((channel) => /set-|configure|start|port|path|token/.test(channel)),
+    ).toEqual([]);
+  });
+
+  test("boot readiness handlers delegate to the service and take no renderer input", async () => {
+    const handlers = new Map();
+    const readiness = { ready: true, phase: "ready" };
+    const bootReadinessService = {
+      getReadiness: jest.fn(() => readiness),
+      retry: jest.fn(async () => readiness),
+    };
+
+    registerIpcHandlers({
+      ipcMain: {
+        handle: (channel, handler) => handlers.set(channel, handler),
+        on: () => {},
+      },
+      app: { getVersion: () => "0.0.0" },
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService: {},
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+        settingsStorageService: {},
+        memoryVaultService: {},
+        bootReadinessService,
+      },
+    });
+
+    expect(handlers.get(CHANNELS.BOOT.GET_READINESS)({}, { evil: "payload" })).toEqual(
+      readiness,
+    );
+
+    await expect(
+      handlers.get(CHANNELS.BOOT.RETRY)({}, { port: 1234, path: "/etc" }),
+    ).resolves.toEqual(readiness);
+
+    // Whatever the renderer sent, main forwards nothing.
+    expect(bootReadinessService.retry).toHaveBeenCalledWith();
+    expect(bootReadinessService.getReadiness).toHaveBeenCalledWith();
+  });
+
   test("custom provider test-connection channel is registered on both sides", () => {
     expect(PRELOAD_INVOKE_CHANNELS).toContain(
       CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,

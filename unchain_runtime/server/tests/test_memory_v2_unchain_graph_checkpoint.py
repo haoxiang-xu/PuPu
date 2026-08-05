@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from types import SimpleNamespace
 
 import pytest
@@ -31,26 +32,50 @@ from unchain.context.task_state_bootstrap import PinnedTaskStateBootstrapHarness
 from unchain.journal import EventCursor, EventRange
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
+from unchain.runtime import ExecutionIdentity, ModuleGrant
+
+
+def _root_grant() -> ModuleGrant:
+    return ModuleGrant(
+        module_key=MEMORY_V2_MODULE_KEY,
+        capabilities=MEMORY_V2_CAPABILITIES,
+        delegable_capabilities=(
+            MEMORY_V2_CAPABILITIES - {MEMORY_EXECUTION_COMPLETE}
+        ),
+        authority="graph-root-authority",
+    )
 
 
 def _run(
     *,
     execution_id: str,
     attempt_id: str,
-    root_run_id: str,
-    role: MemoryV2RunRole,
-    source_attempt_id: str = "",
+    run_lineage: tuple[str, ...] | None = None,
+    grant: ModuleGrant | None = None,
     content: str | None = None,
 ) -> PupuUnchainShadowRunDraft:
+    lineage = run_lineage or (attempt_id,)
     return PupuUnchainShadowRunDraft(
-        execution_id=execution_id,
         session_id=execution_id,
-        attempt_id=attempt_id,
-        run_id=attempt_id,
-        root_run_id=root_run_id,
-        role=role,
-        source_attempt_id=source_attempt_id,
+        identity=ExecutionIdentity(
+            execution_id=execution_id,
+            attempt_id=attempt_id,
+            run_id=attempt_id,
+            run_lineage=lineage,
+        ),
+        grant=(
+            grant
+            or (
+                _root_grant()
+                if len(lineage) == 1
+                else _root_grant().delegated()
+            )
+        ),
         current_input_draft=(
             None
             if content is None
@@ -186,8 +211,6 @@ def test_top_level_coordinator_bootstraps_and_binds_all_nodes_as_graph_steps(
         run=_run(
             execution_id="execution-graph-root",
             attempt_id="graph-coordinator",
-            root_run_id="graph-coordinator",
-            role=MemoryV2RunRole.ROOT,
             content="build a durable report",
         ),
     )
@@ -212,15 +235,28 @@ def test_top_level_coordinator_bootstraps_and_binds_all_nodes_as_graph_steps(
     task_state = bridge.preparation.host_factory.task_state.get()
     assert task_state.objective == "build a durable report"
 
-    registered = tuple(host.register_step(index) for index in range(2))
-    assert [binding.role for binding in registered] == [
-        MemoryV2RunRole.GRAPH_STEP,
-        MemoryV2RunRole.GRAPH_STEP,
-    ]
-    assert [binding.source_attempt_id for binding in registered] == [
+    last_registered = host.register_step(1)
+    registered = (host.register_step(0), last_registered)
+    assert [binding.parent_run_id for binding in registered] == [
         "graph-coordinator",
         "graph-step-collect",
     ]
+    assert [binding.identity.run_lineage for binding in registered] == [
+        ("graph-coordinator", "graph-step-collect"),
+        (
+            "graph-coordinator",
+            "graph-step-collect",
+            "graph-step-write",
+        ),
+    ]
+    delegated = bridge.preparation.binding.grant.delegated()
+    assert [binding.grant for binding in registered] == [delegated, delegated]
+    assert all(binding.grant.authority is None for binding in registered)
+    assert all(
+        not binding.grant.allows(MEMORY_EXECUTION_COMPLETE)
+        for binding in registered
+    )
+    assert host.register_step(1) is registered[1]
     assert host.plan.steps[1].source_attempt == host.plan.steps[0].attempt
     modules = host.step_modules(0)
     assert type(modules[-1]) is GraphStepBootstrapModule
@@ -236,8 +272,6 @@ def test_changed_prompt_or_topology_conflicts_with_admitted_plan(
         run=_run(
             execution_id="execution-graph-cas",
             attempt_id="graph-cas-coordinator",
-            root_run_id="graph-cas-coordinator",
-            role=MemoryV2RunRole.ROOT,
             content="stable task",
         ),
     )
@@ -253,6 +287,64 @@ def test_changed_prompt_or_topology_conflicts_with_admitted_plan(
         )
 
 
+def test_resume_snapshot_checks_canonical_identity_and_grant(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    bridge = _bridge(
+        tmp_path,
+        monkeypatch,
+        run=_run(
+            execution_id="execution-graph-resume",
+            attempt_id="graph-resume-coordinator",
+            content="resume-safe task",
+        ),
+    )
+    host = prepare_pupu_unchain_graph_checkpoint_host(
+        active_bridge=bridge,
+        steps=_descriptors(),
+    )
+    step = host.plan.steps[0]
+    locator = {
+        "resume_kind": "graph_step",
+        "owner_chat_id": bridge.preparation.binding.owner_chat_id,
+        "graph_execution_id": bridge.preparation.binding.execution_id,
+        "coordinator_attempt_id": host.plan.orchestration_attempt.attempt_id,
+        "graph_plan_id": host.plan.plan_id,
+        "graph_scope_id": host.plan.scope_id,
+        "topology_sha256": host.plan.topology_sha256,
+        "step_index": step.index,
+        "node_id": step.node_id,
+        "step_attempt_id": step.attempt.attempt_id,
+        "predecessor_attempt_id": step.source_attempt.attempt_id,
+        "provider": step.provider,
+        "model": step.model,
+        "configuration_sha256": step.configuration_sha256,
+        "canonical_build_fingerprint": host.canonical_build_fingerprint,
+        "coordinator_binding_snapshot": host.coordinator_binding_snapshot,
+    }
+
+    assert host.validate_resume_context(locator) == 0
+
+    changed_identity = copy.deepcopy(locator)
+    changed_identity["coordinator_binding_snapshot"]["identity"][
+        "run_lineage"
+    ] = ["different-coordinator"]
+    with pytest.raises(
+        PupuUnchainGraphCheckpointHostError,
+        match="changed its coordinator binding",
+    ):
+        host.validate_resume_context(changed_identity)
+
+    changed_grant = copy.deepcopy(locator)
+    changed_grant["coordinator_binding_snapshot"]["grant"]["capabilities"] = []
+    with pytest.raises(
+        PupuUnchainGraphCheckpointHostError,
+        match="changed its coordinator binding",
+    ):
+        host.validate_resume_context(changed_grant)
+
+
 def test_restart_skips_completed_step_and_reads_official_output(
     tmp_path,
     monkeypatch,
@@ -260,8 +352,6 @@ def test_restart_skips_completed_step_and_reads_official_output(
     run = _run(
         execution_id="execution-graph-restart",
         attempt_id="graph-restart-coordinator",
-        root_run_id="graph-restart-coordinator",
-        role=MemoryV2RunRole.ROOT,
         content="restart-safe task",
     )
     first_bridge = _bridge(tmp_path, monkeypatch, run=run)
@@ -322,8 +412,6 @@ def test_recipe_ref_coordinator_binds_existing_derived_subagent_input(
         run=_run(
             execution_id=execution_id,
             attempt_id=root_run_id,
-            root_run_id=root_run_id,
-            role=MemoryV2RunRole.ROOT,
             content="parent objective",
         ),
     )
@@ -345,9 +433,7 @@ def test_recipe_ref_coordinator_binds_existing_derived_subagent_input(
         run=_run(
             execution_id=execution_id,
             attempt_id=coordinator_id,
-            root_run_id=root_run_id,
-            role=MemoryV2RunRole.SUBAGENT,
-            source_attempt_id=root_run_id,
+            run_lineage=(root_run_id, coordinator_id),
         ),
     )
     binding = child_bridge.preparation.binding
@@ -358,14 +444,12 @@ def test_recipe_ref_coordinator_binds_existing_derived_subagent_input(
     ).persist(
         PupuUnchainDerivedHandoffRequest(
             owner_chat_id=binding.owner_chat_id,
-            execution_id=binding.execution_id,
             session_id=binding.session_id,
             generation_id=binding.generation_id,
             head_revision=binding.head_revision,
-            root_run_id=binding.root_run_id,
-            source_attempt_id=binding.source_attempt_id,
-            consumer_attempt_id=binding.attempt_id,
-            run_role=MemoryV2RunRole.SUBAGENT,
+            identity=binding.identity,
+            grant=binding.grant,
+            source_attempt_id=binding.parent_run_id,
             source_event_range=EventRange(source_cursor, source_cursor),
             operation_id="recipe-ref-derived-input",
             status=HandoffStatus.COMPLETE,
@@ -383,7 +467,9 @@ def test_recipe_ref_coordinator_binds_existing_derived_subagent_input(
         if event.attempt == host.plan.orchestration_attempt
     )
 
-    assert binding.role is MemoryV2RunRole.SUBAGENT
+    assert binding.identity.run_lineage == (root_run_id, coordinator_id)
+    assert binding.parent_run_id == root_run_id
+    assert binding.grant == root_bridge.preparation.binding.grant.delegated()
     assert [
         event.event_type
         for event in coordinator_events
@@ -399,7 +485,7 @@ def test_recipe_ref_coordinator_binds_existing_derived_subagent_input(
     )
 
 
-def test_graph_step_cannot_impersonate_the_graph_coordinator(
+def test_nested_coordinator_requires_one_exact_durable_input(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -409,16 +495,18 @@ def test_graph_step_cannot_impersonate_the_graph_coordinator(
         run=_run(
             execution_id="execution-invalid-coordinator",
             attempt_id="invalid-graph-coordinator",
-            root_run_id="different-root-run",
-            role=MemoryV2RunRole.GRAPH_STEP,
-            source_attempt_id="source-before-invalid-coordinator",
+            run_lineage=(
+                "different-root-run",
+                "source-before-invalid-coordinator",
+                "invalid-graph-coordinator",
+            ),
         ),
         owner_chat_id="chat-invalid-graph-coordinator",
     )
 
     with pytest.raises(
         PupuUnchainGraphCheckpointHostError,
-        match="root or recipe-ref subagent",
+        match="requires one exact durable input",
     ):
         prepare_pupu_unchain_graph_checkpoint_host(
             active_bridge=bridge,

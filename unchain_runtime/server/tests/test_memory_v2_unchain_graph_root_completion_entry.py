@@ -26,10 +26,51 @@ from unchain.context.task_state_bootstrap import PinnedTaskStateBootstrapHarness
 from unchain.kernel import ModelTurnResult
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
 from unchain.memory.curator import EnqueueDisposition
 from unchain.memory.curator.host import MemoryAgentWorkerDisposition
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
+
+
+def _memory_grant(*, completion_authority: bool) -> ModuleGrant:
+    delegable = MEMORY_V2_CAPABILITIES.difference({MEMORY_EXECUTION_COMPLETE})
+    return ModuleGrant(
+        module_key=MEMORY_V2_MODULE_KEY,
+        capabilities=(
+            MEMORY_V2_CAPABILITIES if completion_authority else delegable
+        ),
+        delegable_capabilities=delegable,
+        authority="graph-completion-authority" if completion_authority else None,
+    )
+
+
+def _runtime_context(
+    *,
+    execution_id: str,
+    run_id: str,
+    parent_run_id: str | None = None,
+) -> AgentRuntimeContext:
+    identity = ExecutionIdentity(
+        execution_id=execution_id,
+        attempt_id=run_id,
+        run_id=run_id,
+        run_lineage=(
+            (parent_run_id, run_id)
+            if parent_run_id is not None
+            else (run_id,)
+        ),
+    )
+    return AgentRuntimeContext(
+        identity=identity,
+        module_grants=(
+            _memory_grant(completion_authority=parent_run_id is None),
+        ),
+    )
 
 
 def _recipe():
@@ -335,13 +376,14 @@ def _prepare_active_child_input(
 ):
     monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
-    run = PupuUnchainShadowRunDraft(
+    root_context = _runtime_context(
         execution_id=execution_id,
-        session_id=execution_id,
-        attempt_id=root_run_id,
         run_id=root_run_id,
-        root_run_id=root_run_id,
-        role=MemoryV2RunRole.ROOT,
+    )
+    run = PupuUnchainShadowRunDraft(
+        session_id=execution_id,
+        identity=root_context.identity,
+        grant=root_context.grant_for(MEMORY_V2_MODULE_KEY),
         current_input_draft=PupuMemoryV2TextInputDraft(
             content="delegate the child graph"
         ),
@@ -472,6 +514,10 @@ def test_active_root_entry_runs_canonical_root_terminal_and_curator(
                 ),
                 session_id=execution_id,
                 run_id_override=root_run_id,
+                runtime_context=_runtime_context(
+                    execution_id=execution_id,
+                    run_id=root_run_id,
+                ),
             )
         )
 
@@ -523,7 +569,7 @@ def test_active_subagent_entry_finalizes_graph_without_root_completion(
 
     def forbidden(*args, **kwargs):
         calls.append((args, kwargs))
-        raise AssertionError("a SUBAGENT graph cannot trigger ROOT completion")
+        raise AssertionError("a nested graph cannot trigger root completion")
 
     options = _root_options(
         owner_chat_id=owner_chat_id,
@@ -532,9 +578,6 @@ def test_active_subagent_entry_finalizes_graph_without_root_completion(
     )
     options.update(
         {
-            "_memory_v2_run_role": MemoryV2RunRole.SUBAGENT.value,
-            "_memory_v2_root_run_id": root_run_id,
-            "_memory_v2_source_attempt_id": root_run_id,
             "_memory_v2_prepared_subagent_input": prepared,
             "_recipe_subagent_run": True,
         }
@@ -562,6 +605,11 @@ def test_active_subagent_entry_finalizes_graph_without_root_completion(
                 options=options,
                 session_id=execution_id,
                 run_id_override=child_run_id,
+                runtime_context=_runtime_context(
+                    execution_id=execution_id,
+                    run_id=child_run_id,
+                    parent_run_id=root_run_id,
+                ),
             )
         )
 
@@ -593,7 +641,7 @@ def test_shadow_root_entry_finalizes_graph_without_active_root_completion(
 
     def forbidden(*args, **kwargs):
         calls.append((args, kwargs))
-        raise AssertionError("a shadow graph cannot trigger active ROOT completion")
+        raise AssertionError("a shadow graph cannot trigger active root completion")
 
     with ExitStack() as stack:
         _entry_stack(
@@ -622,6 +670,10 @@ def test_shadow_root_entry_finalizes_graph_without_active_root_completion(
                 ),
                 session_id=execution_id,
                 run_id_override=root_run_id,
+                runtime_context=_runtime_context(
+                    execution_id=execution_id,
+                    run_id=root_run_id,
+                ),
             )
         )
 

@@ -2,6 +2,30 @@ const CHANNELS = Object.freeze({
   APP: Object.freeze({
     GET_VERSION: "app:get-version",
   }),
+  BOOT: Object.freeze({
+    // Boot readiness gate. The renderer's full-screen boot overlay must not let
+    // the user into the app until the local backend it depends on is actually
+    // up — the sidecar (unchain/Flask) AND the MCP environment. This namespace
+    // is deliberately SEPARATE from UNCHAIN: the unchain bridge is already an
+    // oversized, high-blast-radius surface, and the boot gate aggregates more
+    // than one subsystem, so it gets its own small, auditable surface.
+    //
+    // Boundary conditions for this namespace:
+    //   * READ-ONLY status plus ONE control verb (RETRY). No configuration,
+    //     no paths, no ports, no auth tokens ever cross it — the payload is a
+    //     fixed-shape readiness projection with a stable failure CODE and a
+    //     short human message that main composes itself.
+    //   * RETRY only re-runs the sidecar start sequence main already owns. It
+    //     takes no arguments, so a compromised renderer cannot use it to point
+    //     the sidecar anywhere.
+    //   * GET_READINESS (invoke) + READINESS_CHANGED (push) is the same
+    //     get-state/state-changed pair the update service uses: the push alone
+    //     would race the renderer's subscription during boot, which is exactly
+    //     the window this gate exists for.
+    GET_READINESS: "boot:get-readiness",
+    READINESS_CHANGED: "boot:readiness-changed",
+    RETRY: "boot:retry",
+  }),
   CHAT_STORAGE: Object.freeze({
     BOOTSTRAP_READ: "chat-storage:bootstrap-read",
     READ_MESSAGES: "chat-storage:read-messages",

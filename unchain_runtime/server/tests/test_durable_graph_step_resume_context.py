@@ -29,16 +29,34 @@ class DurableGraphStepResumeContextTests(unittest.TestCase):
     @staticmethod
     def _coordinator_binding() -> dict:
         return {
+            "schema": "pupu.memory-v2-run-binding.v2",
             "owner_chat_id": "chat-graph",
-            "execution_id": "graph-execution",
             "session_id": "graph-execution",
             "generation_id": "generation-1",
             "head_revision": 1,
-            "attempt_id": "workflow-attempt-1",
-            "run_id": "workflow-attempt-1",
-            "root_run_id": "workflow-attempt-1",
-            "role": "root",
-            "source_attempt_id": "",
+            "identity": {
+                "execution_id": "graph-execution",
+                "attempt_id": "workflow-attempt-1",
+                "run_id": "workflow-attempt-1",
+                "root_run_id": "workflow-attempt-1",
+                "parent_run_id": None,
+                "run_lineage": ["workflow-attempt-1"],
+            },
+            "grant": {
+                "module_key": "memory_v2",
+                "capabilities": [
+                    "memory.candidate.propose",
+                    "memory.context.read",
+                    "memory.execution.complete",
+                    "memory.workspace.read",
+                ],
+                "delegable_capabilities": [
+                    "memory.candidate.propose",
+                    "memory.context.read",
+                    "memory.workspace.read",
+                ],
+                "authority": "graph-root-authority",
+            },
             "current_input_draft": {
                 "kind": "text",
                 "content": "Build report token=raw-secret-value",
@@ -112,6 +130,11 @@ class DurableGraphStepResumeContextTests(unittest.TestCase):
         self.assertEqual(record["predecessor_attempt_id"], "graph-step-0")
         self.assertEqual(record["provider"], "openai")
         self.assertEqual(record["model"], "gpt-5")
+        self.assertNotIn("role", record["coordinator_binding_snapshot"])
+        self.assertEqual(
+            record["coordinator_binding_snapshot"]["identity"]["run_lineage"],
+            ["workflow-attempt-1"],
+        )
         self.assertNotIn("openai_api_key", record["options"])
         self.assertEqual(
             record["options"]["custom_provider"]["api_key"],
@@ -130,6 +153,134 @@ class DurableGraphStepResumeContextTests(unittest.TestCase):
         self.assertNotIn("raw-secret-value", persisted)
         self.assertNotIn("must-not-persist", persisted)
         self.assertNotIn("nested-secret", persisted)
+
+    def test_round_trip_preserves_canonical_vault_marker_for_resume_identity(
+        self,
+    ) -> None:
+        handle = "pvh1_" + ("a" * 64)
+        marker = (
+            '<secret-handle label="Report password" '
+            f'handle="{handle}"/>'
+        )
+        kwargs = self._save_kwargs()
+        kwargs["coordinator_binding_snapshot"]["current_input_draft"][
+            "content"
+        ] = f"Use {marker} token=must-not-persist"
+
+        record = host.save_graph_step_resume_context(**kwargs)
+
+        content = record["coordinator_binding_snapshot"][
+            "current_input_draft"
+        ]["content"]
+        self.assertEqual(content, f"Use {marker} token=[REDACTED]")
+        self.assertEqual(self._load(), record)
+        persisted = host._graph_step_context_path(
+            "graph-execution",
+            "graph-step-1",
+        ).read_text(encoding="utf-8")
+        self.assertIn(handle, persisted)
+        self.assertNotIn("must-not-persist", persisted)
+
+        bare_handle_kwargs = self._save_kwargs()
+        bare_handle_kwargs["step_attempt_id"] = "graph-step-bare-handle"
+        bare_handle_kwargs["operation_id"] = "graph-bare-handle-operation"
+        bare_handle_kwargs["coordinator_binding_snapshot"][
+            "current_input_draft"
+        ]["content"] = f"Do not preserve bare {handle}"
+        bare_record = host.save_graph_step_resume_context(
+            **bare_handle_kwargs
+        )
+        self.assertEqual(
+            bare_record["coordinator_binding_snapshot"][
+                "current_input_draft"
+            ]["content"],
+            "Do not preserve bare [VAULT_HANDLE]",
+        )
+
+    def test_role_based_coordinator_snapshot_is_rejected_as_legacy(self) -> None:
+        kwargs = self._save_kwargs()
+        kwargs["coordinator_binding_snapshot"] = {
+            "owner_chat_id": "chat-graph",
+            "execution_id": "graph-execution",
+            "session_id": "graph-execution",
+            "generation_id": "generation-1",
+            "head_revision": 1,
+            "attempt_id": "workflow-attempt-1",
+            "run_id": "workflow-attempt-1",
+            "root_run_id": "workflow-attempt-1",
+            "role": "root",
+            "source_attempt_id": "",
+            "current_input_draft": None,
+        }
+
+        with self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.save_graph_step_resume_context(**kwargs)
+
+        self.assertEqual(
+            raised.exception.code,
+            "legacy_coordinator_binding_snapshot",
+        )
+
+    def test_coordinator_snapshot_validates_identity_and_grant(self) -> None:
+        mutations = (
+            lambda snapshot: snapshot["identity"].update(
+                {"run_lineage": ["another-run"]}
+            ),
+            lambda snapshot: snapshot["grant"].update(
+                {"delegable_capabilities": ["memory.unknown"]}
+            ),
+            lambda snapshot: snapshot["grant"].update({"authority": None}),
+        )
+        for mutate in mutations:
+            with self.subTest(mutate=mutate):
+                kwargs = self._save_kwargs()
+                mutate(kwargs["coordinator_binding_snapshot"])
+                with self.assertRaises(
+                    host.DurableInteractionHostError
+                ) as raised:
+                    host.save_graph_step_resume_context(**kwargs)
+                self.assertEqual(
+                    raised.exception.code,
+                    "invalid_coordinator_binding_snapshot",
+                )
+
+    def test_nested_coordinator_uses_lineage_and_delegated_grant(self) -> None:
+        kwargs = self._save_kwargs()
+        kwargs["coordinator_attempt_id"] = "workflow-child"
+        binding = kwargs["coordinator_binding_snapshot"]
+        binding["identity"] = {
+            "execution_id": "graph-execution",
+            "attempt_id": "workflow-child",
+            "run_id": "workflow-child",
+            "root_run_id": "workflow-root",
+            "parent_run_id": "workflow-root",
+            "run_lineage": ["workflow-root", "workflow-child"],
+        }
+        binding["grant"] = {
+            "module_key": "memory_v2",
+            "capabilities": [
+                "memory.candidate.propose",
+                "memory.context.read",
+                "memory.workspace.read",
+            ],
+            "delegable_capabilities": [
+                "memory.candidate.propose",
+                "memory.context.read",
+                "memory.workspace.read",
+            ],
+            "authority": None,
+        }
+        binding["current_input_draft"] = None
+
+        record = host.save_graph_step_resume_context(**kwargs)
+
+        snapshot = record["coordinator_binding_snapshot"]
+        self.assertNotIn("role", snapshot)
+        self.assertEqual(
+            snapshot["identity"]["parent_run_id"],
+            "workflow-root",
+        )
+        self.assertIsNone(snapshot["grant"]["authority"])
 
     def test_graph_record_is_isolated_from_ordinary_resume_schema(self) -> None:
         graph_record = host.save_graph_step_resume_context(

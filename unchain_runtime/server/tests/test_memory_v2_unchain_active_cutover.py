@@ -10,11 +10,16 @@ from context_memory_v2_capability import ContextMemoryV2CapabilityVerdict
 from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
 from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
 from unchain.agent.modules import ContextModule
-from unchain.agent.modules.memory_v2 import MemoryV2AgentModule
 from unchain.agent.modules.task_state_bootstrap import (
     PinnedTaskStateBootstrapModule,
 )
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+    MemoryV2Module,
+)
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 def _ready_capability() -> ContextMemoryV2CapabilityVerdict:
@@ -38,12 +43,21 @@ def test_create_agent_constructs_host_before_admission_without_legacy_runtime(
         return SimpleNamespace()
 
     run = PupuUnchainShadowRunDraft(
-        execution_id="session-active",
         session_id="session-active",
-        attempt_id="attempt-active",
-        run_id="attempt-active",
-        root_run_id="attempt-active",
-        role=MemoryV2RunRole.ROOT,
+        identity=ExecutionIdentity(
+            execution_id="session-active",
+            attempt_id="attempt-active",
+            run_id="attempt-active",
+            run_lineage=("attempt-active",),
+        ),
+        grant=ModuleGrant(
+            module_key=MEMORY_V2_MODULE_KEY,
+            capabilities=MEMORY_V2_CAPABILITIES,
+            delegable_capabilities=MEMORY_V2_CAPABILITIES.difference(
+                {MEMORY_EXECUTION_COMPLETE}
+            ),
+            authority="memory-completion:session-active",
+        ),
         current_input_draft=PupuMemoryV2TextInputDraft(content="full task"),
     )
     environment = {
@@ -163,7 +177,7 @@ def test_create_agent_constructs_host_before_admission_without_legacy_runtime(
         type(built["context_memory_v2_modules"][1])
         is PinnedTaskStateBootstrapModule
     )
-    assert type(built["context_memory_v2_modules"][2]) is MemoryV2AgentModule
+    assert type(built["context_memory_v2_modules"][2]) is MemoryV2Module
     assert agent._memory_v2_memory_agent_selection.is_ready is True
     assert agent._memory_v2_unchain_active_bridge.preparation is (
         agent._memory_v2_unchain_active_preparation

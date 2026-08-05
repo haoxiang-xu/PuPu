@@ -6,7 +6,8 @@ from unittest import mock
 import unchain_adapter as adapter
 from memory_v2_unchain_run_binding import PupuMemoryV2InteractionInputDraft
 from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import MEMORY_EXECUTION_COMPLETE, MEMORY_V2_MODULE_KEY
+from unchain.runtime import AgentRuntimeContext
 
 
 def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None:
@@ -131,15 +132,24 @@ def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None
 
     run = create_calls[0][1]["memory_v2_shadow_run"]
     assert isinstance(run, PupuUnchainShadowRunDraft)
-    assert run.run_id == run.root_run_id == "resume-attempt-active"
-    assert run.role is MemoryV2RunRole.ROOT
+    assert run.run_id == "resume-attempt-active"
+    assert run.identity.run_lineage == (
+        "source-attempt-active",
+        "resume-attempt-active",
+    )
+    assert run.root_run_id == "source-attempt-active"
+    assert run.parent_run_id == "source-attempt-active"
+    assert run.grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert run.grant.authority
     assert isinstance(run.current_input_draft, PupuMemoryV2InteractionInputDraft)
     assert run.current_input_draft.interaction_id == "interaction-active"
     assert dict(run.current_input_draft.response) == {
         "selected_values": ("continue",)
     }
-    assert resume_kwargs["memory_v2_run_role"] is MemoryV2RunRole.ROOT
-    assert resume_kwargs["root_run_id"] == "resume-attempt-active"
+    runtime_context = resume_kwargs["runtime_context"]
+    assert isinstance(runtime_context, AgentRuntimeContext)
+    assert runtime_context.identity == run.identity
+    assert runtime_context.grant_for(MEMORY_V2_MODULE_KEY) == run.grant
     assert [event["type"] for event in durable_events] == [
         "interaction_resolved",
         "final_message",

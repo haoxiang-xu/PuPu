@@ -20,7 +20,14 @@ from memory_v2_unchain_run_binding import (
     build_shadow_host_factory,
 )
 from unchain.agent.modules import ContextModule
-from unchain.agent.modules.memory_v2 import MemoryV2AgentModule
+from unchain.memory import (
+    MEMORY_CANDIDATE_PROPOSE,
+    MEMORY_CONTEXT_READ,
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_MODULE_KEY,
+    MEMORY_WORKSPACE_READ,
+    MemoryV2Module,
+)
 from memory_v2_unchain_shadow_input import persist_shadow_input_attachments
 from unchain.context import (
     HostResolvedAttachment,
@@ -47,7 +54,48 @@ from unchain.persistence.sqlite_generation_rebase_v2 import (
     build_generation_rebase_operation,
 )
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import ExecutionIdentity, ModuleGrant
+
+
+_DELEGABLE_MEMORY_CAPABILITIES = frozenset(
+    {
+        MEMORY_CONTEXT_READ,
+        MEMORY_WORKSPACE_READ,
+        MEMORY_CANDIDATE_PROPOSE,
+    }
+)
+
+
+def _identity(
+    *,
+    execution_id: str,
+    run_id: str,
+    ancestors: tuple[str, ...] = (),
+) -> ExecutionIdentity:
+    return ExecutionIdentity(
+        execution_id=execution_id,
+        attempt_id=run_id,
+        run_id=run_id,
+        run_lineage=(*ancestors, run_id),
+    )
+
+
+def _grant(*, completion_authority: bool) -> ModuleGrant:
+    capabilities = _DELEGABLE_MEMORY_CAPABILITIES
+    if completion_authority:
+        capabilities = frozenset(
+            {*capabilities, MEMORY_EXECUTION_COMPLETE}
+        )
+    return ModuleGrant(
+        module_key=MEMORY_V2_MODULE_KEY,
+        capabilities=capabilities,
+        delegable_capabilities=_DELEGABLE_MEMORY_CAPABILITIES,
+        authority=(
+            "memory-completion:execution"
+            if completion_authority
+            else None
+        ),
+    )
 
 
 def _context(*, execution_id: str, run_id: str) -> HarnessContext:
@@ -73,13 +121,12 @@ def _build(
 ):
     return build_shadow_host_factory(
         owner_chat_id="chat-a",
-        execution_id="execution-a",
         session_id="session-a",
-        attempt_id="root-run-a",
-        run_id="root-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.ROOT,
-        source_attempt_id="",
+        identity=_identity(
+            execution_id="execution-a",
+            run_id="root-run-a",
+        ),
+        grant=_grant(completion_authority=True),
         current_input_draft=current_input_draft,
         database_path=root / "context_v2.sqlite3",
         object_directory=root / "objects",
@@ -126,8 +173,17 @@ def test_first_chat_gets_deterministic_generation_and_exact_attempt_binding(
 
     assert prepared.host_factory.owner_chat_id == "chat-a"
     assert prepared.host_factory.root_run_id == "root-run-a"
-    assert prepared.binding.role is MemoryV2RunRole.ROOT
+    assert prepared.binding.parent_run_id is None
     assert prepared.binding.run_id == prepared.binding.attempt_id == "root-run-a"
+    assert "role" not in prepared.binding.canonical_value()
+    assert prepared.binding.canonical_value()["identity"] == {
+        "execution_id": "execution-a",
+        "attempt_id": "root-run-a",
+        "run_id": "root-run-a",
+        "root_run_id": "root-run-a",
+        "parent_run_id": None,
+        "run_lineage": ["root-run-a"],
+    }
     assert prepared.binding.generation_id.startswith("generation-")
     assert _generation_row(prepared.host_factory.database_path) == (
         prepared.binding.generation_id,
@@ -161,13 +217,12 @@ def test_active_host_requires_explicit_builder_and_mounts_canonical_owner(
     prepared = build_active_host_factory(
         atomic_bootstrap=atomic_bootstrap,
         owner_chat_id="chat-active",
-        execution_id="execution-active",
         session_id="session-active",
-        attempt_id="root-active",
-        run_id="root-active",
-        root_run_id="root-active",
-        role=MemoryV2RunRole.ROOT,
-        source_attempt_id="",
+        identity=_identity(
+            execution_id="execution-active",
+            run_id="root-active",
+        ),
+        grant=_grant(completion_authority=True),
         current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
         database_path=tmp_path / "context_v2.sqlite3",
         object_directory=tmp_path / "objects",
@@ -190,13 +245,12 @@ def test_active_builder_rejects_missing_atomic_receipt_before_split_lifecycle(
         build_active_host_factory(
             atomic_bootstrap=None,
             owner_chat_id="chat-active",
-            execution_id="execution-active",
             session_id="session-active",
-            attempt_id="root-active",
-            run_id="root-active",
-            root_run_id="root-active",
-            role=MemoryV2RunRole.ROOT,
-            source_attempt_id="",
+            identity=_identity(
+                execution_id="execution-active",
+                run_id="root-active",
+            ),
+            grant=_grant(completion_authority=True),
             current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
             database_path=tmp_path / "context_v2.sqlite3",
             object_directory=tmp_path / "objects",
@@ -293,13 +347,12 @@ def test_active_binding_uses_latest_head_not_initial_bootstrap_receipt(
     prepared = build_active_host_factory(
         atomic_bootstrap=reopened,
         owner_chat_id="chat-active",
-        execution_id="execution-active",
         session_id="session-active",
-        attempt_id="runtime-after-edit",
-        run_id="runtime-after-edit",
-        root_run_id="runtime-after-edit",
-        role=MemoryV2RunRole.ROOT,
-        source_attempt_id="",
+        identity=_identity(
+            execution_id="execution-active",
+            run_id="runtime-after-edit",
+        ),
+        grant=_grant(completion_authority=True),
         current_input_draft=PupuMemoryV2TextInputDraft(content="continue"),
         database_path=tmp_path / "context_v2.sqlite3",
         object_directory=tmp_path / "objects",
@@ -325,13 +378,12 @@ def test_active_builder_explicitly_propagates_official_memory_agent_gate(
     prepared = build_active_host_factory(
         atomic_bootstrap=atomic_bootstrap,
         owner_chat_id="chat-active-memory",
-        execution_id="execution-active-memory",
         session_id="session-active-memory",
-        attempt_id="root-active-memory",
-        run_id="root-active-memory",
-        root_run_id="root-active-memory",
-        role=MemoryV2RunRole.ROOT,
-        source_attempt_id="",
+        identity=_identity(
+            execution_id="execution-active-memory",
+            run_id="root-active-memory",
+        ),
+        grant=_grant(completion_authority=True),
         current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
         database_path=tmp_path / "context_v2.sqlite3",
         object_directory=tmp_path / "objects",
@@ -348,7 +400,7 @@ def test_active_builder_explicitly_propagates_official_memory_agent_gate(
         prepared.host_factory.memory_module,
         prepared.host_factory.memory_worker_module,
     )
-    assert type(prepared.host_factory.memory_module) is MemoryV2AgentModule
+    assert type(prepared.host_factory.memory_module) is MemoryV2Module
 
 
 def test_active_builder_memory_agent_gate_fails_closed_without_invoker(
@@ -364,13 +416,12 @@ def test_active_builder_memory_agent_gate_fails_closed_without_invoker(
         build_active_host_factory(
             atomic_bootstrap=atomic_bootstrap,
             owner_chat_id="chat-active-memory",
-            execution_id="execution-active-memory",
             session_id="session-active-memory",
-            attempt_id="root-active-memory",
-            run_id="root-active-memory",
-            root_run_id="root-active-memory",
-            role=MemoryV2RunRole.ROOT,
-            source_attempt_id="",
+            identity=_identity(
+                execution_id="execution-active-memory",
+                run_id="root-active-memory",
+            ),
+            grant=_grant(completion_authority=True),
             current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
             database_path=tmp_path / "context_v2.sqlite3",
             object_directory=tmp_path / "objects",
@@ -386,13 +437,12 @@ def test_same_registration_is_idempotent_in_process_and_after_cold_restart(
     first = _build(tmp_path)
     same = first.registry.register_attempt(
         owner_chat_id="chat-a",
-        execution_id="execution-a",
         session_id="session-a",
-        attempt_id="root-run-a",
-        run_id="root-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.ROOT,
-        source_attempt_id="",
+        identity=_identity(
+            execution_id="execution-a",
+            run_id="root-run-a",
+        ),
+        grant=_grant(completion_authority=True),
         current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
     )
     reopened = _build(tmp_path)
@@ -417,6 +467,50 @@ def test_same_registration_is_idempotent_in_process_and_after_cold_restart(
         connection.close()
 
 
+def test_legacy_role_operation_receipt_is_read_without_new_role_write(
+    tmp_path: Path,
+) -> None:
+    first = _build(tmp_path)
+    new_operation_id = first.registry._attempt_operation_id(first.binding)
+    legacy_operation_ids = first.registry._legacy_attempt_operation_ids(
+        first.binding
+    )
+    assert len(legacy_operation_ids) == 1
+    legacy_operation_id = next(iter(legacy_operation_ids))
+    assert legacy_operation_id != new_operation_id
+
+    connection = sqlite3.connect(first.host_factory.database_path)
+    try:
+        connection.execute(
+            "UPDATE host_generation_attempt_bindings SET operation_id = ? "
+            "WHERE owner_chat_id = ? AND operation_id = ?",
+            (legacy_operation_id, "chat-a", new_operation_id),
+        )
+        connection.execute(
+            "UPDATE host_generation_operations SET operation_id = ? "
+            "WHERE owner_chat_id = ? AND operation_id = ?",
+            (legacy_operation_id, "chat-a", new_operation_id),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    reopened = _build(tmp_path)
+
+    assert reopened.binding == first.binding
+    assert "role" not in reopened.binding.canonical_value()
+    connection = sqlite3.connect(first.host_factory.database_path)
+    try:
+        persisted_operation_id = connection.execute(
+            "SELECT operation_id FROM host_generation_attempt_bindings "
+            "WHERE owner_chat_id = ? AND attempt_id = ?",
+            ("chat-a", "root-run-a"),
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert persisted_operation_id == legacy_operation_id
+
+
 def test_same_attempt_rejects_identity_drift_across_restart(
     tmp_path: Path,
 ) -> None:
@@ -425,13 +519,12 @@ def test_same_attempt_rejects_identity_drift_across_restart(
     with pytest.raises(PupuMemoryV2RunBindingError, match="identity drift"):
         build_shadow_host_factory(
             owner_chat_id="chat-a",
-            execution_id="execution-a",
             session_id="session-a",
-            attempt_id="root-run-a",
-            run_id="root-run-a",
-            root_run_id="root-run-a",
-            role=MemoryV2RunRole.ROOT,
-            source_attempt_id="",
+            identity=_identity(
+                execution_id="execution-a",
+                run_id="root-run-a",
+            ),
+            grant=_grant(completion_authority=True),
             current_input_draft=PupuMemoryV2TextInputDraft(content="changed"),
             database_path=tmp_path / "context_v2.sqlite3",
             object_directory=tmp_path / "objects",
@@ -544,24 +637,24 @@ def test_generation_resolver_binds_root_child_and_graph_to_one_current_head(
     prepared = _build(tmp_path)
     child = prepared.registry.register_attempt(
         owner_chat_id="chat-a",
-        execution_id="execution-a",
         session_id="session-a",
-        attempt_id="child-run-a",
-        run_id="child-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.SUBAGENT,
-        source_attempt_id="root-run-a",
+        identity=_identity(
+            execution_id="execution-a",
+            run_id="child-run-a",
+            ancestors=("root-run-a",),
+        ),
+        grant=_grant(completion_authority=False),
         current_input_draft=None,
     )
     step = prepared.registry.register_attempt(
         owner_chat_id="chat-a",
-        execution_id="execution-a",
         session_id="session-a",
-        attempt_id="graph-step-a",
-        run_id="graph-step-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.GRAPH_STEP,
-        source_attempt_id="root-run-a",
+        identity=_identity(
+            execution_id="execution-a",
+            run_id="graph-step-a",
+            ancestors=("root-run-a",),
+        ),
+        grant=_grant(completion_authority=False),
         current_input_draft=None,
     )
 
@@ -576,7 +669,7 @@ def test_generation_resolver_binds_root_child_and_graph_to_one_current_head(
             binding.attempt_id,
         )
         resolved = prepared.registry.current_input_resolver(context, attempt)
-        if binding.role is MemoryV2RunRole.ROOT:
+        if binding.parent_run_id is None:
             assert isinstance(resolved, HostResolvedCurrentInput)
             assert resolved.content == "hello"
         else:
@@ -610,6 +703,46 @@ def test_interaction_input_is_only_resolved_for_the_exact_registered_root(
         "unknown-run",
     )
     assert prepared.registry.current_input_resolver(context, unknown) is None
+
+
+def test_authorized_resume_lineage_can_complete_and_own_interaction_input(
+    tmp_path: Path,
+) -> None:
+    prepared = build_shadow_host_factory(
+        owner_chat_id="chat-a",
+        session_id="session-a",
+        identity=_identity(
+            execution_id="execution-a",
+            run_id="resume-run-a",
+            ancestors=("root-run-a",),
+        ),
+        grant=_grant(completion_authority=True),
+        current_input_draft=PupuMemoryV2InteractionInputDraft(
+            interaction_id="interaction-resume-a",
+            response={"choice": "continue"},
+        ),
+        database_path=tmp_path / "context_v2.sqlite3",
+        object_directory=tmp_path / "objects",
+        model_window_fallback=lambda provider, model: 16_384,
+        partial_attempt_sink=lambda value, error: None,
+    )
+    binding = prepared.binding
+    attempt = AttemptRef(
+        GenerationRef("execution-a", binding.generation_id),
+        "resume-run-a",
+    )
+
+    resolved = prepared.registry.current_input_resolver(
+        _context(execution_id="execution-a", run_id="resume-run-a"),
+        attempt,
+    )
+
+    assert binding.root_run_id == "root-run-a"
+    assert binding.parent_run_id == "root-run-a"
+    assert binding.grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert binding.grant.authority == "memory-completion:execution"
+    assert isinstance(resolved, HostResolvedInteractionInput)
+    assert dict(resolved.response) == {"choice": "continue"}
 
 
 def test_existing_attempt_fails_closed_after_current_head_advances(
@@ -849,13 +982,9 @@ def test_unknown_subagent_bootstrap_gets_generation_only_binding_and_no_input(
     with pytest.raises((TypeError, ValueError)):
         prepared.registry.register_attempt(
             owner_chat_id="chat-a",
-            execution_id="execution-a",
             session_id="session-a",
-            attempt_id="child-run-a",
-            run_id="child-run-a",
-            root_run_id="root-run-a",
-            role="subagent",
-            source_attempt_id="root-run-a",
+            identity="subagent",
+            grant=_grant(completion_authority=False),
             current_input_draft=None,
         )
     unknown_context = _context(

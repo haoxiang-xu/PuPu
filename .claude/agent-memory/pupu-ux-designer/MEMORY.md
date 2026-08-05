@@ -1,6 +1,12 @@
 - [设计准则（CEO 三条）](feedback_design_principles.md) — 复用现成基元 / 风格统一 / 设计语言与逻辑统一，不可妥协
 - [团队花名册与交棒协议](team_roster.md) — qa-tester(验)/product-ops(发)/curator(策) 三位队友的边界 + 向 CEO 的汇报线
-- [主题定制上线就绪度](theme-launch-readiness-verdict.md) — 编辑器机制OK但覆盖率(11/122文件)+无对比度闸=出街翻车两门槛
+- [主题定制上线就绪度](theme-launch-readiness-verdict.md) — 覆盖率门槛已缓解(08-01 实测 66 文件消费变量);对比度闸仍未做=唯一硬门槛
 - [side-menu 已是层级树](side-menu-is-already-a-tree.md) — thread 上线有双层级碰撞风险，别在侧栏顶层再造一棵树
 - [命令绿药丸调色板](command-chip-green-palette.md) — /command 视觉身份=绿药丸,输入 overlay 与气泡 chip 同色;精确 rgba + 活取显示名机制
 - [插件商店图标三register](plugin-store-icon-registers.md) — 品牌实心砖/品牌inset字形/生成占位三档必须分开;无 logo 默认=确定性 monogram+10槽调色板(含实测参数)
+- [plugin 表面裁决 08-04](plugin-surfaces-verdict-2026-08-04.md) — 五类不进用户面/mini app 右侧分栏/第三方永不自动开栏 已生效;含 R1-R4 红线 + attach panel widget 待我出方案
+- [Settings 弃用控件 UX 定式](settings-deprecation-ux-pattern.md) — flag 退役控件=整段替换+说明note+"(Legacy)"后缀免翻译churn;附 settings 次级文字对比度阶梯(.35/.45 不过 AA)
+- [颜色是三套并行体系](color-system-three-parallel-layers.md) — semantic/mini_theme 86叶/组件自建;1748处叠加=73个alpha坍缩成8档"档位缺名";加一级token=18个值,taxonomy 硬锁2层
+- [分类学 v2 冻结口径](theme-taxonomy-v2-frozen-decisions.md) — Linked/Pinned="缺键即跟随"、alpha 走 details 通道;picker 硬限制取代警告闸;allowlist 锚点与 explorer 双份 hover 两个坑
+- [出厂对比度实测下界](theme-contrast-measured-bounds.md) — 每条护栏阈值的依据;状态色只能定 1.9 不能定 3:1(默认主题自己就不合格);漏算 sidebar 会得到偏乐观的数
+- [Button 基元样式契约](button-primitive-styling-contract.md) — ghost 默认在无 surface 表面=裸文字链;主操作 chip 模板;三缺口(无focus态/disabled夺焦/不透传ref);ariaLabel 与 aria-busy 两个反模式

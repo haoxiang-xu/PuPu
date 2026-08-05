@@ -13,9 +13,10 @@ from memory_v2_store_boundary import (
     admit_context_v2_store_owner,
 )
 from unchain.agent.modules import ContextModule
-from unchain.agent.modules.memory_v2 import (
-    MemoryV2AgentAttachmentRequest,
-    MemoryV2RunRole,
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_MODULE_KEY,
+    MemoryAttachmentRequest,
 )
 from unchain.context import (
     ArtifactService,
@@ -32,10 +33,11 @@ from unchain.memory.workspace.ports import BoundWorkspaceReferenceAuthorizer
 from unchain.persistence.sqlite_curator_v2 import SQLiteCuratorV2Store
 from unchain.persistence.sqlite_memory_host_v2 import (
     SQLiteConsolidationCapabilityFactory,
-    SQLiteMemoryV2AgentAttachmentFactory,
+    SQLiteMemoryAttachmentFactory,
 )
 from unchain.persistence.sqlite_memory_v2 import SQLiteMemoryV2Store
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 class _References(BoundWorkspaceReferenceAuthorizer):
@@ -236,7 +238,7 @@ def test_preparation_binds_official_unchain_ownership_with_gate_closed(
     assert attachment.artifact_handoff.recorder is values["handoff_recorder"]
     assert isinstance(
         attachment.normal_attachment_factory,
-        SQLiteMemoryV2AgentAttachmentFactory,
+        SQLiteMemoryAttachmentFactory,
     )
     assert isinstance(
         attachment.consolidation_factory,
@@ -291,36 +293,52 @@ def test_root_completion_resolver_never_promotes_a_subagent_to_root(
     resolver = attachment.normal_attachment_factory.completion_factory_resolver
 
     root = resolver.resolve(
-        MemoryV2AgentAttachmentRequest(
+        MemoryAttachmentRequest(
             agent_name="root-agent",
             mode="resume_interaction",
-            session_id="session-a",
-            attempt_id="attempt-a",
-            run_id="resume-run-a",
-            role=MemoryV2RunRole.ROOT,
-            root_run_id="run-a",
+            identity=ExecutionIdentity(
+                execution_id="session-a",
+                attempt_id="attempt-a",
+                run_id="resume-run-a",
+                run_lineage=("run-a", "resume-run-a"),
+            ),
+            grant=ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=frozenset({MEMORY_EXECUTION_COMPLETE}),
+                authority="completion-authority-a",
+            ),
         )
     )
     child = resolver.resolve(
-        MemoryV2AgentAttachmentRequest(
+        MemoryAttachmentRequest(
             agent_name="child-agent",
             mode="run",
-            session_id="session-a",
-            attempt_id="attempt-a",
-            run_id="child-run-a",
-            role=MemoryV2RunRole.SUBAGENT,
-            root_run_id="run-a",
+            identity=ExecutionIdentity(
+                execution_id="session-a",
+                attempt_id="attempt-a",
+                run_id="child-run-a",
+                run_lineage=("run-a", "child-run-a"),
+            ),
+            grant=ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=frozenset(),
+            ),
         )
     )
     graph_step = resolver.resolve(
-        MemoryV2AgentAttachmentRequest(
+        MemoryAttachmentRequest(
             agent_name="graph-agent",
             mode="run",
-            session_id="session-a",
-            attempt_id="attempt-a",
-            run_id="graph-step-a",
-            role=MemoryV2RunRole.GRAPH_STEP,
-            root_run_id="run-a",
+            identity=ExecutionIdentity(
+                execution_id="session-a",
+                attempt_id="attempt-a",
+                run_id="graph-step-a",
+                run_lineage=("run-a", "graph-step-a"),
+            ),
+            grant=ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=frozenset(),
+            ),
         )
     )
 

@@ -70,7 +70,7 @@ const setMemoryV2Flag = (enabled, memorySettings = {}) => {
 
 const LEGACY_NOTE_TITLE = "Legacy Context Memory";
 const LEGACY_NOTE_BODY =
-  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory Agent is configured in Agent Builder.";
+  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory V2 runs as an optional Unchain module and is not an Agent Builder node.";
 
 describe("MemorySettings OpenAI embedding selector", () => {
   beforeEach(() => {

@@ -17,6 +17,13 @@ from memory_v2_unchain_run_binding import (
 )
 from unchain.context import ArtifactService, ContextConflictError, HandoffStatus
 from unchain.context.projector import CanonicalSemanticEventProjector
+from unchain.memory import (
+    MEMORY_CANDIDATE_PROPOSE,
+    MEMORY_CONTEXT_READ,
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_MODULE_KEY,
+    MEMORY_WORKSPACE_READ,
+)
 from unchain.journal import (
     AttemptRef,
     DurableEventSink,
@@ -26,7 +33,7 @@ from unchain.journal import (
 )
 from unchain.journal.models import _thaw_json
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 OWNER_CHAT_ID = "chat-derived"
@@ -36,20 +43,31 @@ ROOT_RUN_ID = "root-derived"
 CONSUMER_RUN_ID = "consumer-derived"
 
 
-def _prepare(
-    root: Path,
-    *,
-    role: MemoryV2RunRole = MemoryV2RunRole.GRAPH_STEP,
-):
-    prepared = build_shadow_host_factory(
-        owner_chat_id=OWNER_CHAT_ID,
+def _prepare(root: Path):
+    delegable = frozenset(
+        {
+            MEMORY_CONTEXT_READ,
+            MEMORY_WORKSPACE_READ,
+            MEMORY_CANDIDATE_PROPOSE,
+        }
+    )
+    root_identity = ExecutionIdentity(
         execution_id=EXECUTION_ID,
-        session_id=SESSION_ID,
         attempt_id=ROOT_RUN_ID,
         run_id=ROOT_RUN_ID,
-        root_run_id=ROOT_RUN_ID,
-        role=MemoryV2RunRole.ROOT,
-        source_attempt_id="",
+        run_lineage=(ROOT_RUN_ID,),
+    )
+    root_grant = ModuleGrant(
+        module_key=MEMORY_V2_MODULE_KEY,
+        capabilities=delegable | {MEMORY_EXECUTION_COMPLETE},
+        delegable_capabilities=delegable,
+        authority="completion-authority-derived",
+    )
+    prepared = build_shadow_host_factory(
+        owner_chat_id=OWNER_CHAT_ID,
+        session_id=SESSION_ID,
+        identity=root_identity,
+        grant=root_grant,
         current_input_draft=PupuMemoryV2TextInputDraft(content="root task"),
         database_path=root / "context_v2.sqlite3",
         object_directory=root / "objects",
@@ -58,13 +76,14 @@ def _prepare(
     )
     consumer = prepared.registry.register_attempt(
         owner_chat_id=OWNER_CHAT_ID,
-        execution_id=EXECUTION_ID,
         session_id=SESSION_ID,
-        attempt_id=CONSUMER_RUN_ID,
-        run_id=CONSUMER_RUN_ID,
-        root_run_id=ROOT_RUN_ID,
-        role=role,
-        source_attempt_id=ROOT_RUN_ID,
+        identity=ExecutionIdentity(
+            execution_id=EXECUTION_ID,
+            attempt_id=CONSUMER_RUN_ID,
+            run_id=CONSUMER_RUN_ID,
+            run_lineage=(*root_identity.run_lineage, CONSUMER_RUN_ID),
+        ),
+        grant=root_grant.delegated(),
         current_input_draft=None,
     )
     store = SQLiteContextV2Store(
@@ -108,18 +127,17 @@ def _request(
     source,
     source_artifact,
     *,
-    role: MemoryV2RunRole = MemoryV2RunRole.GRAPH_STEP,
+    identity: ExecutionIdentity | None = None,
+    grant: ModuleGrant | None = None,
 ):
     return PupuUnchainDerivedHandoffRequest(
         owner_chat_id=OWNER_CHAT_ID,
-        execution_id=EXECUTION_ID,
         session_id=SESSION_ID,
         generation_id=consumer.generation_id,
         head_revision=consumer.head_revision,
-        root_run_id=ROOT_RUN_ID,
+        identity=identity or consumer.identity,
+        grant=grant or consumer.grant,
         source_attempt_id=ROOT_RUN_ID,
-        consumer_attempt_id=CONSUMER_RUN_ID,
-        run_role=role,
         source_event_range=EventRange(source.cursor, source.cursor),
         operation_id="derived-handoff-root-to-consumer",
         status=HandoffStatus.COMPLETE,
@@ -214,23 +232,37 @@ def test_root_and_durable_role_drift_fail_before_any_handoff_write(
 ) -> None:
     _prepared, consumer, source, source_artifact, journal = _prepare(tmp_path)
 
-    with pytest.raises(ValueError, match="root run"):
+    with pytest.raises(ValueError, match="parent run"):
         _request(
             consumer,
             source,
             source_artifact,
-            role=MemoryV2RunRole.ROOT,
+            identity=ExecutionIdentity(
+                execution_id=EXECUTION_ID,
+                attempt_id=CONSUMER_RUN_ID,
+                run_id=CONSUMER_RUN_ID,
+                run_lineage=(CONSUMER_RUN_ID,),
+            ),
         )
 
+    reduced_capabilities = frozenset(
+        capability
+        for capability in consumer.grant.capabilities
+        if capability != MEMORY_CANDIDATE_PROPOSE
+    )
     mismatched = _request(
         consumer,
         source,
         source_artifact,
-        role=MemoryV2RunRole.SUBAGENT,
+        grant=ModuleGrant(
+            module_key=MEMORY_V2_MODULE_KEY,
+            capabilities=reduced_capabilities,
+            delegable_capabilities=reduced_capabilities,
+        ),
     )
     with pytest.raises(
         PupuUnchainDerivedHandoffHostError,
-        match="role or source binding changed",
+        match="identity or grant binding changed",
     ):
         _adapter(tmp_path).persist(mismatched)
     assert [event.event_type for event in journal.capture_snapshot().events] == [
@@ -245,16 +277,11 @@ def test_non_root_contract_has_no_generic_current_input_escape_hatch(
     assert "content" not in names
     assert "current_input" not in names
     assert "current_input_draft" not in names
-    _prepared, consumer, source, source_artifact, _journal = _prepare(
-        tmp_path,
-        role=MemoryV2RunRole.SUBAGENT,
-    )
-    request = _request(
-        consumer,
-        source,
-        source_artifact,
-        role=MemoryV2RunRole.SUBAGENT,
-    )
+    assert "run_role" not in names
+    assert "identity" in names
+    assert "grant" in names
+    _prepared, consumer, source, source_artifact, _journal = _prepare(tmp_path)
+    request = _request(consumer, source, source_artifact)
 
     receipt = _adapter(tmp_path).persist(request)
 
@@ -273,10 +300,7 @@ def test_generation_or_source_binding_drift_fails_closed(tmp_path: Path) -> None
         _adapter(tmp_path).persist(
             replace(request, head_revision=request.head_revision + 1)
         )
-    with pytest.raises(
-        PupuUnchainDerivedHandoffHostError,
-        match="not durably bound",
-    ):
+    with pytest.raises(ValueError, match="consumer parent run"):
         _adapter(tmp_path).persist(
             replace(request, source_attempt_id="source-does-not-exist")
         )

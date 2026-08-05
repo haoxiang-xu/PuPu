@@ -1,9 +1,9 @@
 ---
-name: pupu-i18n-coverage
+name: i18n-coverage
 description: Use when checking PuPu's translation coverage after adding or changing UI strings, or when asked "are translations complete / 漏翻了吗 / 检查 i18n". Audits all 11 locales in src/locales against en.json (source of truth), auto-fills missing keys by translating them, and reports orphan keys, placeholder mismatches, dead keys, and t() references missing from en.json. Additions auto-apply; deletions/edits are report-only and need confirmation. Never commits.
 ---
 
-# pupu-i18n-coverage
+# i18n-coverage
 
 Detects and fixes i18n drift in PuPu. `en.json` is the source of truth; the runtime silently
 falls back to English, so missing translations are invisible without this check.
@@ -15,7 +15,7 @@ After a feature or change that touched UI strings, or on request. Full-scan ever
 
 ### Step 1 — Audit
 ```bash
-node .claude/skills/upkeep/pupu-i18n-coverage/audit.mjs --root <repo-root> > /tmp/i18n-report.json
+node .claude/skills/cto/i18n-coverage/audit.mjs --root <repo-root> > /tmp/i18n-report.json
 ```
 Add `--strict` to also flag suspected-untranslated values (off by default — noisy).
 Read the JSON. It contains, per locale: `missing`, `orphan`, `placeholderMismatch`; and a
@@ -29,7 +29,7 @@ For each locale with a non-empty `missing` list:
 3. Write a flat JSON map `{ "key.path": "translated value", ... }` to a temp file.
 4. Apply it:
    ```bash
-   node .claude/skills/upkeep/pupu-i18n-coverage/apply.mjs --root <repo-root> --locale <name> --translations /tmp/<name>.json
+   node .claude/skills/cto/i18n-coverage/apply.mjs --root <repo-root> --locale <name> --translations /tmp/<name>.json
    ```
 `apply.mjs` inserts each key in en order and never overwrites existing values.
 

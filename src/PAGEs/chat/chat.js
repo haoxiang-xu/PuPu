@@ -301,9 +301,9 @@ const ChatInterface = () => {
   /* Boot gate S3: chat page's first effect firing is "chat first-screen
      rendered" — the readiness threshold the hero-boot-overlay design pins
      the Enter gate to. One-time and idempotent (bootProgress.signalReady()
-     no-ops on repeat calls). Unlike the old release(), this does not
-     dismiss anything by itself — it only reveals the BootOverlay's Enter
-     button; the user drives the actual transition into chat. */
+     no-ops on repeat calls). It satisfies ONE of the boot gates and dismisses
+     nothing: the overlay stays up until the local backend is ready too, and
+     then the user drives the actual transition into chat. */
   useEffect(() => {
     bootProgress.signalReady();
   }, []);

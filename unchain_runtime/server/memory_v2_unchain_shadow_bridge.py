@@ -3,7 +3,7 @@
 The bridge is intentionally small: ContextShadowModule performs bootstrap and
 dry-run compilation, while this host adapter routes each non-provider-mutating
 runtime callback to the exact attempt bundle selected by Unchain.  It does not
-translate run identities, infer child roles, or fall back to the legacy Memory
+translate run identities, infer child relationships, or fall back to legacy Memory
 V2 repository.
 """
 
@@ -30,7 +30,8 @@ from memory_v2_unchain_run_binding import (
 )
 from memory_v2_unchain_runtime_factory import PupuUnchainAttemptRuntime
 from unchain.journal.models import _required_text
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import MEMORY_EXECUTION_COMPLETE, MEMORY_V2_MODULE_KEY
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 class PupuUnchainShadowBridgeError(RuntimeError):
@@ -41,43 +42,38 @@ class PupuUnchainShadowBridgeError(RuntimeError):
 class PupuUnchainShadowRunDraft:
     """Explicit host identity supplied before an agent is constructed."""
 
-    execution_id: str
     session_id: str
-    attempt_id: str
-    run_id: str
-    root_run_id: str
-    role: MemoryV2RunRole
-    source_attempt_id: str = ""
+    identity: ExecutionIdentity
+    grant: ModuleGrant
     current_input_draft: PupuMemoryV2CurrentInputDraft | None = None
     attachment_blocks: tuple[Mapping[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
-        for field_name in (
-            "execution_id",
+        object.__setattr__(
+            self,
             "session_id",
-            "attempt_id",
-            "run_id",
-            "root_run_id",
+            _required_text(self.session_id, "session_id", identifier=True),
+        )
+        if not isinstance(self.identity, ExecutionIdentity):
+            raise TypeError("identity must be an ExecutionIdentity")
+        if not isinstance(self.grant, ModuleGrant):
+            raise TypeError("grant must be a ModuleGrant")
+        if self.grant.module_key != MEMORY_V2_MODULE_KEY:
+            raise ValueError("grant belongs to another module")
+        completion_authorized = self.grant.allows(
+            MEMORY_EXECUTION_COMPLETE
+        ) and bool(self.grant.authority)
+        if (
+            self.grant.allows(MEMORY_EXECUTION_COMPLETE)
+            and not completion_authorized
         ):
-            object.__setattr__(
-                self,
-                field_name,
-                _required_text(
-                    getattr(self, field_name),
-                    field_name,
-                    identifier=True,
-                ),
+            raise ValueError(
+                "execution completion capability requires an authority"
             )
-        source = str(self.source_attempt_id or "").strip()
-        if source:
-            source = _required_text(
-                source,
-                "source_attempt_id",
-                identifier=True,
+        if self.identity.attempt_id != self.identity.run_id:
+            raise ValueError(
+                "Context V2 attempt_id and kernel run_id must be identical"
             )
-        object.__setattr__(self, "source_attempt_id", source)
-        if not isinstance(self.role, MemoryV2RunRole):
-            raise TypeError("role must be a MemoryV2RunRole")
         if not isinstance(self.attachment_blocks, tuple) or any(
             not isinstance(block, Mapping) for block in self.attachment_blocks
         ):
@@ -87,8 +83,40 @@ class PupuUnchainShadowRunDraft:
             "attachment_blocks",
             tuple(copy.deepcopy(dict(block)) for block in self.attachment_blocks),
         )
-        if self.attachment_blocks and self.role is not MemoryV2RunRole.ROOT:
-            raise ValueError("only a root run can own current input attachments")
+        if (
+            self.parent_run_id is not None
+            and (self.attachment_blocks or self.current_input_draft is not None)
+            and not completion_authorized
+        ):
+            raise ValueError(
+                "a nested run requires explicit authority to own current input"
+            )
+
+    @property
+    def execution_id(self) -> str:
+        return self.identity.execution_id
+
+    @property
+    def attempt_id(self) -> str:
+        return self.identity.attempt_id
+
+    @property
+    def run_id(self) -> str:
+        return self.identity.run_id
+
+    @property
+    def root_run_id(self) -> str:
+        return self.identity.root_run_id
+
+    @property
+    def parent_run_id(self) -> str | None:
+        return self.identity.parent_run_id
+
+    @property
+    def source_attempt_id(self) -> str:
+        """Compatibility alias for callers migrating to ``parent_run_id``."""
+
+        return self.parent_run_id or ""
 
 
 def prepare_pupu_unchain_shadow_bridge(
@@ -156,13 +184,9 @@ def prepare_pupu_unchain_shadow_bridge(
         )
     preparation = build_shadow_host_factory(
         owner_chat_id=owner_chat_id,
-        execution_id=run.execution_id,
         session_id=run.session_id,
-        attempt_id=run.attempt_id,
-        run_id=run.run_id,
-        root_run_id=run.root_run_id,
-        role=run.role,
-        source_attempt_id=run.source_attempt_id,
+        identity=run.identity,
+        grant=run.grant,
         current_input_draft=current_input_draft,
         database_path=root_dir / "context_v2.sqlite3",
         object_directory=root_dir / "objects",

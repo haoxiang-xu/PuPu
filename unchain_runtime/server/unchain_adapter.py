@@ -5913,6 +5913,7 @@ class _WorkflowRecipeSubagentAgent:
         max_iterations: int | None = None,
         callback=None,
         run_id: str = "",
+        runtime_context=None,
         **_kwargs,
     ):
         message = _workflow_subagent_input_text(
@@ -5951,41 +5952,42 @@ class _WorkflowRecipeSubagentAgent:
                 # in the parent's durable execution/generation while keeping
                 # their own independent attempt identity.
                 graph_session_id = inherited_session_id
-        memory_v2_execution_id = str(
-            _kwargs.get("memory_v2_execution_id") or ""
-        ).strip()
-        if memory_v2_execution_id:
+        memory_v2_runtime_context = None
+        if runtime_context is not None:
+            from unchain.memory import MEMORY_V2_MODULE_KEY
+            from unchain.runtime import AgentRuntimeContext
+
+            if not isinstance(runtime_context, AgentRuntimeContext):
+                raise TypeError(
+                    "recipe-ref runtime_context must be an AgentRuntimeContext"
+                )
+            if runtime_context.grant_for(MEMORY_V2_MODULE_KEY) is not None:
+                memory_v2_runtime_context = runtime_context
+        if memory_v2_runtime_context is not None:
+            identity = memory_v2_runtime_context.identity
             if (
                 graph_session_id != session_id
-                and graph_session_id != memory_v2_execution_id
+                and graph_session_id != identity.execution_id
             ):
                 raise RuntimeError(
                     "recipe-ref Context V2 execution identity changed"
                 )
-            graph_session_id = memory_v2_execution_id
-        parent_attempt_id = str(
-            options.get("_memory_v2_attempt_id") or ""
-        ).strip()
-        memory_v2_run_role = _kwargs.get("memory_v2_run_role")
-        root_run_id = str(_kwargs.get("root_run_id") or "").strip()
-        if memory_v2_run_role is not None:
-            role_value = str(
-                getattr(memory_v2_run_role, "value", memory_v2_run_role) or ""
-            ).strip()
-            if role_value:
-                options["_memory_v2_run_role"] = role_value
-        if root_run_id:
-            options["_memory_v2_root_run_id"] = root_run_id
-        if memory_v2_run_role is not None or root_run_id:
-            if run_id:
-                options["_memory_v2_attempt_id"] = run_id
-            if parent_attempt_id and parent_attempt_id != run_id:
-                options["_memory_v2_source_attempt_id"] = parent_attempt_id
+            if run_id and run_id != identity.run_id:
+                raise RuntimeError(
+                    "recipe-ref Context V2 run identity changed"
+                )
+            run_id = identity.run_id
+            graph_session_id = identity.execution_id
+            options["_memory_v2_attempt_id"] = identity.attempt_id
+            if identity.parent_run_id is not None:
+                options["_memory_v2_source_attempt_id"] = (
+                    identity.parent_run_id
+                )
         if memory_namespace:
             options["memory_namespace"] = memory_namespace
         if max_iterations:
             options["max_iterations"] = max_iterations
-        if memory_v2_execution_id:
+        if memory_v2_runtime_context is not None:
             prepared_inputs = []
             seen_runtimes = set()
             for module in tuple(self.spec.modules or ()):
@@ -6030,6 +6032,7 @@ class _WorkflowRecipeSubagentAgent:
                 session_id=graph_session_id,
                 cancel_event=None,
                 run_id_override=run_id,
+                runtime_context=runtime_context,
             ):
                 if callable(callback):
                     callback(event)
@@ -8116,6 +8119,40 @@ def _memory_v2_active_graph_candidate(options: Dict[str, object]) -> bool:
     )
 
 
+def _memory_v2_root_runtime_context(
+    *,
+    options: Dict[str, object],
+    execution_id: str,
+    run_id: str,
+    source_run_id: str = "",
+):
+    """Issue PuPu's root Memory grant at the product-host boundary."""
+
+    if options.get("_memory_v2_requested") is not True:
+        return None
+    owner_chat_id = str(
+        options.get("_memory_v2_owner_chat_id") or ""
+    ).strip()
+    normalized_run_id = str(run_id or "").strip()
+    normalized_source = str(source_run_id or "").strip()
+    lineage = (
+        (normalized_source, normalized_run_id)
+        if normalized_source and normalized_source != normalized_run_id
+        else (normalized_run_id,)
+    )
+    from memory_v2_unchain_runtime_context import (
+        build_pupu_memory_v2_root_runtime_context,
+    )
+
+    return build_pupu_memory_v2_root_runtime_context(
+        owner_chat_id=owner_chat_id,
+        execution_id=execution_id,
+        attempt_id=normalized_run_id,
+        run_id=normalized_run_id,
+        run_lineage=lineage,
+    )
+
+
 def _stream_recipe_graph_events(
     *,
     recipe: Any,
@@ -8127,6 +8164,7 @@ def _stream_recipe_graph_events(
     cancel_event: threading.Event | None = None,
     run_id_override: str = "",
     execution_token: Any = None,
+    runtime_context=None,
 ) -> Iterable[Dict[str, Any]]:
     if _UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
@@ -8200,6 +8238,7 @@ def _stream_recipe_graph_events(
     graph_active_preflight = None
     graph_active_bridge = None
     graph_shadow_bridge = None
+    graph_completion_authorized = False
     graph_admission_holder: Dict[str, Any] = {"value": None}
 
     base_raw_max_ctx = get_max_context_window_tokens(
@@ -8211,11 +8250,29 @@ def _stream_recipe_graph_events(
         from memory_v2_unchain_graph_identity import (
             build_pupu_unchain_graph_run_draft,
         )
-        from unchain.run_identity import MemoryV2RunRole
+        from unchain.memory import (
+            MEMORY_EXECUTION_COMPLETE,
+            MEMORY_V2_MODULE_KEY,
+        )
+        from unchain.runtime import AgentRuntimeContext
+
+        if not isinstance(runtime_context, AgentRuntimeContext):
+            raise RuntimeError(
+                "Context V2 graph requires an explicit AgentRuntimeContext"
+            )
+        graph_grant = runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+        if graph_grant is None:
+            raise RuntimeError(
+                "Context V2 graph runtime has no Memory V2 grant"
+            )
+        graph_completion_authorized = graph_grant.allows(
+            MEMORY_EXECUTION_COMPLETE
+        ) and bool(graph_grant.authority)
 
         if graph_resume_context is None:
             graph_context_run = build_pupu_unchain_graph_run_draft(
                 options=options,
+                runtime_context=runtime_context,
                 execution_id=graph_execution_id,
                 workflow_run_id=workflow_run_id,
                 message=message,
@@ -8229,6 +8286,9 @@ def _stream_recipe_graph_events(
             from memory_v2_unchain_shadow_bridge import (
                 PupuUnchainShadowRunDraft,
             )
+            from memory_v2_unchain_runtime_context import (
+                runtime_context_from_memory_binding_snapshot,
+            )
 
             coordinator = graph_resume_context.get(
                 "coordinator_binding_snapshot"
@@ -8237,32 +8297,42 @@ def _stream_recipe_graph_events(
                 raise RuntimeError(
                     "graph resume coordinator binding is unavailable"
                 )
-            graph_role = MemoryV2RunRole(
-                str(coordinator.get("role") or "")
+            snapshot_context = runtime_context_from_memory_binding_snapshot(
+                coordinator
             )
+            snapshot_grant = snapshot_context.grant_for(
+                MEMORY_V2_MODULE_KEY
+            )
+            if (
+                runtime_context.identity != snapshot_context.identity
+                or graph_grant != snapshot_grant
+            ):
+                raise RuntimeError(
+                    "graph resume runtime context changed its coordinator binding"
+                )
+            if (
+                runtime_context.identity.execution_id != graph_execution_id
+                or runtime_context.identity.attempt_id != workflow_run_id
+                or runtime_context.identity.run_id != workflow_run_id
+            ):
+                raise RuntimeError(
+                    "graph resume runtime context changed its execution identity"
+                )
             graph_context_run = PupuUnchainShadowRunDraft(
-                execution_id=graph_execution_id,
                 session_id=str(coordinator.get("session_id") or ""),
-                attempt_id=workflow_run_id,
-                run_id=workflow_run_id,
-                root_run_id=str(coordinator.get("root_run_id") or ""),
-                role=graph_role,
-                source_attempt_id=str(
-                    coordinator.get("source_attempt_id") or ""
-                ),
+                identity=runtime_context.identity,
+                grant=graph_grant,
                 current_input_draft=(
                     _memory_v2_graph_coordinator_input_draft(
                         coordinator.get("current_input_draft")
                     )
                 ),
             )
-            options["_memory_v2_attempt_id"] = workflow_run_id
-            options["_memory_v2_root_run_id"] = graph_context_run.root_run_id
-            options["_memory_v2_run_role"] = graph_role.value
-            if graph_context_run.source_attempt_id:
-                options["_memory_v2_source_attempt_id"] = (
-                    graph_context_run.source_attempt_id
-                )
+        options["_memory_v2_attempt_id"] = graph_context_run.attempt_id
+        if graph_context_run.parent_run_id is not None:
+            options["_memory_v2_source_attempt_id"] = (
+                graph_context_run.parent_run_id
+            )
         graph_owner_chat_id = str(
             options.get("_memory_v2_owner_chat_id") or ""
         ).strip()
@@ -8514,7 +8584,7 @@ def _stream_recipe_graph_events(
                 raise RuntimeError(
                     "active Context V2 graph admission did not bind an Unchain host"
                 )
-            if graph_context_run.role is MemoryV2RunRole.ROOT:
+            if graph_completion_authorized:
                 graph_bootstrap_receipt = bootstrap_pupu_unchain_active_chat(
                     preflight=graph_active_preflight,
                     admission=graph_memory_v2_admission,
@@ -8531,13 +8601,10 @@ def _stream_recipe_graph_events(
                     graph_memory_v2_admission,
                     graph_bootstrap_admission,
                 )
-            elif (
-                graph_context_run.role is MemoryV2RunRole.SUBAGENT
-                and graph_memory_v2_admission.v2_bootstrapped is not True
-            ):
+            elif graph_memory_v2_admission.v2_bootstrapped is not True:
                 raise RuntimeError(
-                    "active Context V2 subagent graph requires a completed "
-                    "root chat bootstrap"
+                    "active Context V2 delegated graph requires a completed "
+                    "chat bootstrap"
                 )
         elif graph_memory_v2_admission.is_shadow:
             from memory_v2_unchain_shadow_bridge import (
@@ -8550,7 +8617,7 @@ def _stream_recipe_graph_events(
                 model_window_fallback=graph_shadow_window_fallback,
                 partial_attempt_sink=mark_graph_shadow_partial,
             )
-            if graph_context_run.role is MemoryV2RunRole.SUBAGENT:
+            if graph_context_run.parent_run_id is not None:
                 from memory_v2_unchain_graph_checkpoint import (
                     bootstrap_pupu_unchain_recipe_graph_input,
                 )
@@ -8645,8 +8712,6 @@ def _stream_recipe_graph_events(
             event_queue.put(event)
 
     def run_workflow() -> None:
-        from unchain.run_identity import MemoryV2RunRole
-
         execution_guard = None
         try:
             if (
@@ -8801,8 +8866,7 @@ def _stream_recipe_graph_events(
                         steps=tuple(graph_step_descriptors),
                         prepared_subagent_input=(
                             graph_prepared_subagent_input
-                            if graph_context_run.role
-                            is MemoryV2RunRole.SUBAGENT
+                            if graph_context_run.parent_run_id is not None
                             else None
                         ),
                     )
@@ -8820,39 +8884,17 @@ def _stream_recipe_graph_events(
                 is_last = index == len(agents) - 1
                 agent_id = str(agent_node.get("id") or f"agent_{index + 1}")
                 step_run_id = workflow_run_id
-                step_memory_v2_role = None
+                step_runtime_context = None
                 if graph_checkpoint_host is not None:
-                    from unchain.run_identity import MemoryV2RunRole
+                    from memory_v2_unchain_runtime_context import (
+                        runtime_context_for_memory_binding,
+                    )
 
-                    graph_step = graph_checkpoint_host.plan.steps[index]
-                    step_run_id = graph_step.attempt.attempt_id
-                    step_memory_v2_role = MemoryV2RunRole.GRAPH_STEP
-                elif graph_shadow_bridge is not None:
-                    from unchain.run_identity import MemoryV2RunRole
-
-                    if (
-                        index == 0
-                        and graph_context_run.role is not MemoryV2RunRole.SUBAGENT
-                    ):
-                        step_memory_v2_role = graph_context_run.role
-                    else:
-                        step_run_id = _memory_v2_graph_step_run_id(
-                            workflow_run_id,
-                            index,
-                            agent_id,
-                        )
-                        step_memory_v2_role = MemoryV2RunRole.GRAPH_STEP
-                        graph_shadow_bridge.preparation.registry.register_attempt(
-                            owner_chat_id=graph_memory_v2_admission.owner_chat_id,
-                            execution_id=graph_execution_id,
-                            session_id=graph_execution_id,
-                            attempt_id=step_run_id,
-                            run_id=step_run_id,
-                            root_run_id=graph_context_run.root_run_id,
-                            role=step_memory_v2_role,
-                            source_attempt_id=workflow_run_id,
-                            current_input_draft=None,
-                        )
+                    step_binding = graph_checkpoint_host.register_step(index)
+                    step_run_id = step_binding.run_id
+                    step_runtime_context = runtime_context_for_memory_binding(
+                        step_binding
+                    )
                 output_holder["last_step_run_id"] = step_run_id
                 if (
                     graph_checkpoint_host is not None
@@ -9331,8 +9373,7 @@ def _stream_recipe_graph_events(
                         on_max_iterations=max_iterations_cb,
                         run_id=step_run_id,
                         execution_owner_id=step_run_id,
-                        memory_v2_run_role=step_memory_v2_role,
-                        root_run_id=graph_context_run.root_run_id,
+                        runtime_context=step_runtime_context,
                     )
                 else:
                     result = step_agent.run(
@@ -9359,14 +9400,8 @@ def _stream_recipe_graph_events(
                         ),
                         _execution_guard=execution_guard,
                         **(
-                            {
-                                "memory_v2_run_role": step_memory_v2_role,
-                                "root_run_id": graph_context_run.root_run_id,
-                            }
-                            if (
-                                graph_checkpoint_host is not None
-                                or graph_shadow_bridge is not None
-                            )
+                            {"runtime_context": step_runtime_context}
+                            if step_runtime_context is not None
                             else {}
                         ),
                         **(
@@ -9427,7 +9462,7 @@ def _stream_recipe_graph_events(
             ):
                 if (
                     graph_active_bridge is not None
-                    and graph_context_run.role is MemoryV2RunRole.ROOT
+                    and graph_completion_authorized
                 ):
                     from memory_v2_unchain_graph_root_completion import (
                         complete_pupu_unchain_graph_root,
@@ -9638,6 +9673,20 @@ def stream_chat(
     if _recipe_has_graph(recipe):
         final_text = ""
         streamed = False
+        graph_run_id = (
+            str(_uuid.uuid4())
+            if options.get("_memory_v2_requested") is True
+            else ""
+        )
+        graph_runtime_context = (
+            _memory_v2_root_runtime_context(
+                options=options,
+                execution_id=(session_id or graph_run_id),
+                run_id=graph_run_id,
+            )
+            if graph_run_id
+            else None
+        )
         for event in _stream_recipe_graph_events(
             recipe=recipe,
             message=message,
@@ -9646,6 +9695,8 @@ def stream_chat(
             options=options,
             session_id=session_id,
             cancel_event=None,
+            run_id_override=graph_run_id,
+            runtime_context=graph_runtime_context,
         ):
             event_type = event.get("type")
             if event_type == "token_delta":
@@ -9852,6 +9903,23 @@ def stream_chat_events(
         if takeover_error is not None:
             yield takeover_error
             return
+        graph_run_id = (
+            normalized_attempt_id
+            or (
+                str(_uuid.uuid4())
+                if options.get("_memory_v2_requested") is True
+                else ""
+            )
+        )
+        graph_runtime_context = (
+            _memory_v2_root_runtime_context(
+                options=options,
+                execution_id=(normalized_session_id or graph_run_id),
+                run_id=graph_run_id,
+            )
+            if options.get("_memory_v2_requested") is True
+            else None
+        )
         try:
             yield from _stream_recipe_graph_events(
                 recipe=recipe,
@@ -9861,8 +9929,9 @@ def stream_chat_events(
                 options=options,
                 session_id=session_id,
                 cancel_event=cancel_event,
-                run_id_override=normalized_attempt_id,
+                run_id_override=graph_run_id,
                 execution_token=execution_token,
+                runtime_context=graph_runtime_context,
             )
         except BaseException as graph_error:
             if not (
@@ -9916,10 +9985,22 @@ def stream_chat_events(
     durable_context_saved = False
     execution_run_id = normalized_attempt_id or str(_uuid.uuid4())
     memory_v2_shadow_run = None
+    memory_v2_runtime_context = None
     if options.get("_memory_v2_requested") is True:
         from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
         from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-        from unchain.run_identity import MemoryV2RunRole
+        from unchain.memory import MEMORY_V2_MODULE_KEY
+
+        memory_v2_runtime_context = _memory_v2_root_runtime_context(
+            options=options,
+            execution_id=(normalized_session_id or execution_run_id),
+            run_id=execution_run_id,
+        )
+        memory_v2_grant = memory_v2_runtime_context.grant_for(
+            MEMORY_V2_MODULE_KEY
+        )
+        if memory_v2_grant is None:
+            raise RuntimeError("root Context V2 run has no Memory V2 grant")
 
         current_input_draft = (
             PupuMemoryV2TextInputDraft(content=message)
@@ -9927,12 +10008,9 @@ def stream_chat_events(
             else None
         )
         memory_v2_shadow_run = PupuUnchainShadowRunDraft(
-            execution_id=(normalized_session_id or execution_run_id),
             session_id=(normalized_session_id or execution_run_id),
-            attempt_id=execution_run_id,
-            run_id=execution_run_id,
-            root_run_id=execution_run_id,
-            role=MemoryV2RunRole.ROOT,
+            identity=memory_v2_runtime_context.identity,
+            grant=memory_v2_grant,
             current_input_draft=current_input_draft,
             attachment_blocks=tuple(
                 copy.deepcopy(item)
@@ -10208,15 +10286,12 @@ def stream_chat_events(
                     run_id=execution_run_id,
                     execution_owner_id=(normalized_attempt_id or None),
                     **(
-                        {
-                            "memory_v2_run_role": memory_v2_shadow_run.role,
-                            "root_run_id": memory_v2_shadow_run.root_run_id,
-                        }
+                        {"runtime_context": memory_v2_runtime_context}
                         if (
                             shadow_bridge is not None
                             or active_context_bridge is not None
                         )
-                        and memory_v2_shadow_run is not None
+                        and memory_v2_runtime_context is not None
                         else {}
                     ),
                     **(
@@ -10610,6 +10685,24 @@ def resume_chat_interaction_events(
         return
 
     if graph_step_resume:
+        coordinator_snapshot = graph_resume_context.get(
+            "coordinator_binding_snapshot"
+        )
+        if not isinstance(coordinator_snapshot, dict):
+            raise DurableInteractionHostError(
+                "durable_graph_resume_binding_missing",
+                "Graph-step resume has no canonical coordinator binding",
+                status_code=409,
+            )
+        from memory_v2_unchain_runtime_context import (
+            runtime_context_from_memory_binding_snapshot,
+        )
+
+        graph_runtime_context = (
+            runtime_context_from_memory_binding_snapshot(
+                coordinator_snapshot
+            )
+        )
         try:
             yield from _stream_recipe_graph_events(
                 recipe=recipe,
@@ -10621,6 +10714,7 @@ def resume_chat_interaction_events(
                 cancel_event=cancel_event,
                 run_id_override="",
                 execution_token=execution_token,
+                runtime_context=graph_runtime_context,
             )
         except BaseException as graph_resume_error:
             if not (
@@ -10665,12 +10759,25 @@ def resume_chat_interaction_events(
     agent = None
     resume_run_id = normalized_attempt_id or str(_uuid.uuid4())
     memory_v2_shadow_run = None
+    memory_v2_runtime_context = None
     if resolved_options.get("_memory_v2_requested") is True:
         from memory_v2_unchain_run_binding import (
             PupuMemoryV2InteractionInputDraft,
         )
         from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-        from unchain.run_identity import MemoryV2RunRole
+        from unchain.memory import MEMORY_V2_MODULE_KEY
+
+        memory_v2_runtime_context = _memory_v2_root_runtime_context(
+            options=resolved_options,
+            execution_id=normalized_session_id,
+            run_id=resume_run_id,
+            source_run_id=source_run_id,
+        )
+        memory_v2_grant = memory_v2_runtime_context.grant_for(
+            MEMORY_V2_MODULE_KEY
+        )
+        if memory_v2_grant is None:
+            raise RuntimeError("resumed Context V2 run has no Memory V2 grant")
 
         pending_resolution = (
             pending_state.get("resolution")
@@ -10678,13 +10785,9 @@ def resume_chat_interaction_events(
             else {}
         )
         memory_v2_shadow_run = PupuUnchainShadowRunDraft(
-            execution_id=normalized_session_id,
             session_id=normalized_session_id,
-            attempt_id=resume_run_id,
-            run_id=resume_run_id,
-            root_run_id=resume_run_id,
-            role=MemoryV2RunRole.ROOT,
-            source_attempt_id="",
+            identity=memory_v2_runtime_context.identity,
+            grant=memory_v2_grant,
             current_input_draft=PupuMemoryV2InteractionInputDraft(
                 interaction_id=normalized_interaction_id,
                 response=pending_resolution.get("response"),
@@ -10903,15 +11006,12 @@ def resume_chat_interaction_events(
                     run_id=resume_run_id,
                     execution_owner_id=(normalized_attempt_id or None),
                     **(
-                        {
-                            "memory_v2_run_role": memory_v2_shadow_run.role,
-                            "root_run_id": memory_v2_shadow_run.root_run_id,
-                        }
+                        {"runtime_context": memory_v2_runtime_context}
                         if (
                             shadow_bridge is not None
                             or active_context_bridge is not None
                         )
-                        and memory_v2_shadow_run is not None
+                        and memory_v2_runtime_context is not None
                         else {}
                     ),
                     **(

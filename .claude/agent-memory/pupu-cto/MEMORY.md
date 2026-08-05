@@ -1,3 +1,4 @@
+- [决议：五类 plugin/unchain 重定位 2026-08-04](adr-plugin-five-class-resolution.md) — CEO 拍板;我的排期(now=纯spec/next=0.1.11 UI先于builder/later=artifact运行时+mini app)与IPC红线(单一plugins catalog通道)生效;artifact ID契约单向门+live revision用例;P0 baseline仍待CEO commit
 - [ADR：Phase4 门5 secret 注入移主进程 2026-07-25](adr-phase4-gate5-secret-injection.md) — 采(a)非(b);描述符契约+startMisoStream 注入点+三态回退+字节等价;6切片;删legacy=N+1单向门本Phase不做
 - [ADR：PO 层提案 CTO 表态 2026-07-31](adr-po-layer-stance.md) — 职能真层假；subagent 无 Task 已实证；解法=项目台账(交付物非岗位)；证伪触发在文内
 - [ADR：unchain 编制案收敛 2026-07-28](adr-unchain-team-plan.md) — HR否决建团队/批Mission 0；"擎零吞吐"论据已撤回(authorship≠贡献)；0新建+触发式扩编
@@ -37,3 +38,4 @@
 - [ADR：V4 文档化与跨仓契约](adr-v4-doc-and-cross-repo-contract.md) — doc sync 2026-06-19；建 runtime-events-v4.md(electron 主笔+渲染方双签)、v3 文件不重命名、core events_v4 API 双签另立、channel/team/plan_id 标注"暂未启用"
 - [结构风险快照 2026-07-21](structural-risk-snapshot-2026-07-21.md) — god-file 一月涨3-5x/CLAUDE.md失真/main无保护/provider仍2家;冲刺态≠常态速度
 - [ADR: attachStreamV4 liveness gap ruled non-blocker 2026-07-22](adr-streamv4-liveness-gap-not-blocker.md) — silent-dead-stream after active/terminal=false has no heartbeat/watchdog anywhere; P1 fast-follow spec Backend→Electron→ChatCore in file
+- [契约：BOOT readiness IPC 终审](contract-boot-readiness-ipc.md) — 2026-08-04 SIGN-OFF;failure只送code走11 locale;restartMiso教训=谁拥有进程谁拥有restart;failsafe锚reactHasRendered;4遗留触发器在文内

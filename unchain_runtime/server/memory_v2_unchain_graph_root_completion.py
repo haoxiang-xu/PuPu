@@ -19,10 +19,6 @@ from memory_v2_unchain_worker import (
     PupuMemoryAgentWorkerReceipt,
     PupuUnchainMemoryAgentWorker,
 )
-from unchain.agent.modules.memory_v2 import (
-    MemoryV2AgentAttachment,
-    MemoryV2AgentAttachmentRequest,
-)
 from unchain.context.projector import SemanticEventProjectionMode
 from unchain.journal import EventCursor, JournalAppendResult, ResourceRef
 from unchain.journal.models import _required_text, _sha256
@@ -40,7 +36,11 @@ from unchain.memory.curator.host import (
     MemoryAgentHostError,
     MemoryAgentWorkerDisposition,
 )
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MemoryAttachment,
+    MemoryAttachmentRequest,
+)
 
 
 class PupuUnchainGraphRootCompletionError(RuntimeError):
@@ -236,7 +236,10 @@ def _validate_host(
     plan = graph_host.plan
     coordinator = graph_host.coordinator
     attempt = coordinator.bundle.attempt
-    if binding.role is not MemoryV2RunRole.ROOT:
+    if (
+        not binding.grant.allows(MEMORY_EXECUTION_COMPLETE)
+        or not binding.grant.authority
+    ):
         _fail("graph_root_completion_requires_root_coordinator")
     if not factory.production_enabled or (
         factory.projection_mode is not SemanticEventProjectionMode.CANONICAL
@@ -247,7 +250,6 @@ def _validate_host(
             binding.execution_id != bridge.execution_id,
             binding.session_id != binding.execution_id,
             binding.attempt_id != binding.run_id,
-            binding.run_id != binding.root_run_id,
             factory.owner_chat_id != binding.owner_chat_id,
             factory.root_run_id != binding.root_run_id,
             plan.execution_id != binding.execution_id,
@@ -323,11 +325,11 @@ def _append_root_terminal(
 def _completion_from_attachment(
     *,
     factory: object,
-    request: MemoryV2AgentAttachmentRequest,
+    request: MemoryAttachmentRequest,
     final_text: str,
 ) -> RootRunCompletion:
     attachment = factory.normal_attachment_factory.attach(request)
-    if type(attachment) is not MemoryV2AgentAttachment:
+    if type(attachment) is not MemoryAttachment:
         _fail("graph_root_completion_attachment_invalid")
     binding = attachment.binding
     if any(
@@ -501,14 +503,11 @@ def complete_pupu_unchain_graph_root(
     except Exception as error:
         _fail("graph_root_completion_journal_failed", error)
 
-    request = MemoryV2AgentAttachmentRequest(
+    request = MemoryAttachmentRequest(
         agent_name=agent_name,
         mode=mode,
-        session_id=binding.session_id,
-        attempt_id=binding.attempt_id,
-        run_id=binding.run_id,
-        role=MemoryV2RunRole.ROOT,
-        root_run_id=binding.root_run_id,
+        identity=binding.identity,
+        grant=binding.grant,
     )
     try:
         completion = _completion_from_attachment(

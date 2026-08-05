@@ -18,3 +18,21 @@ or duplicate external effect.
   invalid-reference cases to HTTP 500 instead of a more precise 404/400. A
   later route-contract pass can preserve typed read error semantics without
   changing authorization or storage behavior.
+
+## Rollout-off sticky chat continuity
+
+- Turn mutation now distinguishes an exact chat with no durable V2 evidence
+  from one with existing admission, session, generation, or deletion state.
+  With the store owner set to `off`, a never-V2 chat may safely use the Legacy
+  mutation path, while an existing V2 chat remains fail-closed. Before rollout
+  modes can be lowered after admitting production chats, add a read-only,
+  manifest-aware binding resolver that preserves the chat's durable
+  `pupu_legacy` or `unchain` owner while `off` prevents only new admissions.
+  This must cover head reads, rebase, normal runs, resume, graph, and subagent
+  paths as one cutover; implementing it only for resend/edit/delete would give
+  a false impression of sticky continuity.
+- The current Unchain session-head route cold-opens the verified Generation
+  API, whose initialization path may verify or initialize owner-scoped schema.
+  A later route-contract pass should provide a strictly read-only head
+  projection for GET requests. This does not change the current fail-closed
+  ownership or rebase semantics.

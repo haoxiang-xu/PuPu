@@ -16,3 +16,5 @@
 - [unchain 替换裁决](harness-replacement-adjudication.md) — 2026-07-28 不换内核;90%深绑定/LangGraph~73%覆盖;先建 runtime contract+provider gateway;pilot 条件触发;单向门=删unchain backend
 - [sidecar TLS+managed runtime 裁决](sidecar-tls-and-managed-runtime-ruling.md) — 2026-07-28 擎net_tls保留随0.1.9;Electron内置Node=否决陷阱;v2立项P1-P5(darwin-only/不钉版/惰性物料化/企业断点);半单向门=trust解析顺序
 - [PO 角色 vs project ledger 裁定](po-role-vs-project-ledger.md) — 2026-07-31 草案:PO 三诉求=ledger工件+DRI字段+cadence盯梢,不新增agent;实测subagent无Task工具→PO派dev物理不可行;issue已证伪(#42僵尸)
+- [plugin五类+hosts.*契约拍板](plugin-five-types-hosts-contract-ratified.md) — 2026-08-04 生效:artifact二分/payloads-capabilities拆分/信封三+一铁律/mount维度/JSON默认存储;单向门清单+被否点(勿复推SQLite);spec在docs/superpowers/specs
+- [主题v2 P1终审](semantic-theme-v2-p1-signoff.md) — 2026-08-04 pin存储法则定案(缺键=跟随/在键=固定,值对比归一化被证伪勿复议);textMuted留根押P2;P2派生饱和度契约;GitNexus const幽灵节点盲区→grep为ground truth

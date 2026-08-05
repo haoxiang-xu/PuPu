@@ -1,8 +1,8 @@
-// memory_agent_settings — Memory V2 P0 system-agent configuration.
+// memory_agent_settings — persisted Memory V2 curator preferences.
 //
-// The Memory Agent is a SYSTEM agent surfaced in the Agent Builder (System
-// Agents group). Its core prompt / toolkits / permissions are managed by PuPu
-// and are NOT stored here — only the small user-tunable surface is:
+// The curator is an internal worker of the optional Unchain Memory module. It
+// is not an Agent Builder node. Core prompt, toolkits, and permissions are not
+// stored here; this namespace only retains the existing preference payload:
 //   { displayName, additionalInstructions, provider, modelId }
 //
 // Empty provider  → provider default (runtime decides).
@@ -11,7 +11,7 @@
 // All persistence goes through settings_repository (namespace
 // "memory_agent_v2") — never through bare localStorage. Write failures are
 // NEVER swallowed here: updateMemoryAgentSettings returns the repository's
-// persistence promise so callers can surface the error.
+// persistence promise so a future settings surface can expose the error.
 
 import {
   readNamespace,
@@ -20,9 +20,6 @@ import {
 } from "./settings_repository";
 
 const MEMORY_AGENT_NAMESPACE = "memory_agent_v2";
-
-// Fixed, non-deletable node id in the Agent Builder recipe list.
-export const MEMORY_AGENT_SYSTEM_NODE_ID = "system:memory-agent";
 
 export const DEFAULT_MEMORY_AGENT_DISPLAY_NAME = "Memory Agent";
 
@@ -34,7 +31,7 @@ const asString = (value) => (typeof value === "string" ? value : "");
 /**
  * Normalize any raw record into the canonical shape. Missing / corrupted
  * fields fall back to safe defaults; a blank display name falls back to the
- * default so the system row never renders nameless.
+ * default so the internal trace label never renders nameless.
  */
 export const normalizeMemoryAgentSettings = (raw) => {
   const source = isPlainObject(raw) ? raw : {};
@@ -53,7 +50,7 @@ export const readMemoryAgentSettings = () =>
 /**
  * Merge a partial patch into the stored record and persist it.
  * Returns the repository persistence promise — callers MUST handle rejection
- * to keep write failures visible (the panel surfaces them inline).
+ * to keep write failures visible.
  */
 export const updateMemoryAgentSettings = (patch = {}) =>
   updateNamespace(MEMORY_AGENT_NAMESPACE, (current) =>

@@ -19,8 +19,38 @@ from unchain.context.graph_checkpoint import (
 )
 from unchain.journal import AttemptRef, EventCursor
 from unchain.kernel import ModelTurnResult
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
+
+
+def _root_runtime_context(
+    *,
+    execution_id: str,
+    run_id: str,
+) -> AgentRuntimeContext:
+    return AgentRuntimeContext(
+        identity=ExecutionIdentity(
+            execution_id=execution_id,
+            attempt_id=run_id,
+            run_id=run_id,
+            run_lineage=(run_id,),
+        ),
+        module_grants=(
+            ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=MEMORY_V2_CAPABILITIES,
+                delegable_capabilities=MEMORY_V2_CAPABILITIES.difference(
+                    {MEMORY_EXECUTION_COMPLETE}
+                ),
+                authority=f"memory-completion:{execution_id}",
+            ),
+        ),
+    )
 
 
 def _two_provider_recipe():
@@ -179,8 +209,7 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
                 {
                     "run_id": kwargs.get("run_id"),
                     "session_id": kwargs.get("session_id"),
-                    "memory_v2_run_role": kwargs.get("memory_v2_run_role"),
-                    "root_run_id": kwargs.get("root_run_id"),
+                    "runtime_context": kwargs.get("runtime_context"),
                 }
             )
             return self._inner.run(**kwargs)
@@ -222,6 +251,10 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
         "_memory_v2_session_id": execution_id,
         "_memory_v2_attempt_id": workflow_run_id,
     }
+    root_runtime_context = _root_runtime_context(
+        execution_id=execution_id,
+        run_id=workflow_run_id,
+    )
     monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
 
@@ -336,6 +369,7 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
                 options=options,
                 session_id=execution_id,
                 run_id_override=workflow_run_id,
+                runtime_context=root_runtime_context,
             )
         )
         calls_after_first = provider_calls.copy()
@@ -350,6 +384,7 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
                 options=options,
                 session_id=execution_id,
                 run_id_override=workflow_run_id,
+                runtime_context=root_runtime_context,
             )
         )
 
@@ -367,13 +402,31 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
     )
     assert tuple(build_calls) == builds_after_first
     assert len(run_calls) == 2
-    assert all(
-        call["memory_v2_run_role"] is MemoryV2RunRole.GRAPH_STEP
-        for call in run_calls
-    )
     assert len({call["run_id"] for call in run_calls}) == 2
     assert all(call["session_id"] == execution_id for call in run_calls)
-    assert all(call["root_run_id"] == workflow_run_id for call in run_calls)
+    first_run_id = str(run_calls[0]["run_id"])
+    second_run_id = str(run_calls[1]["run_id"])
+    first_context = run_calls[0]["runtime_context"]
+    second_context = run_calls[1]["runtime_context"]
+    assert isinstance(first_context, AgentRuntimeContext)
+    assert isinstance(second_context, AgentRuntimeContext)
+    assert first_context.identity.run_lineage == (
+        workflow_run_id,
+        first_run_id,
+    )
+    assert second_context.identity.run_lineage == (
+        workflow_run_id,
+        first_run_id,
+        second_run_id,
+    )
+    root_grant = root_runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+    first_grant = first_context.grant_for(MEMORY_V2_MODULE_KEY)
+    second_grant = second_context.grant_for(MEMORY_V2_MODULE_KEY)
+    assert root_grant is not None
+    assert first_grant == root_grant.delegated()
+    assert second_grant == first_grant.delegated()
+    assert not first_grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert not second_grant.allows(MEMORY_EXECUTION_COMPLETE)
     assert any(
         event.get("type") == "final_message"
         and event.get("content") == "canonical final report"

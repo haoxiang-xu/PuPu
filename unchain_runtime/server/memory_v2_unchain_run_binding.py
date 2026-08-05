@@ -50,6 +50,7 @@ from unchain.journal.models import (
 )
 from unchain.kernel.harness import HarnessContext
 from unchain.memory.curator.host import MemoryAgentModelInvoker
+from unchain.memory import MEMORY_EXECUTION_COMPLETE, MEMORY_V2_MODULE_KEY
 from unchain.memory.workspace import WorkspaceWriteDraft
 from unchain.persistence.sqlite_chat_deletion_v2 import (
     ChatDeletionError,
@@ -67,7 +68,7 @@ from unchain.persistence.sqlite_generation_lifecycle_v2 import (
     build_host_generation_transition_operation,
 )
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 class PupuMemoryV2RunBindingError(RuntimeError):
@@ -237,26 +238,18 @@ class PupuMemoryV2RunBinding:
     """Immutable host identity for one generation-bound agent attempt."""
 
     owner_chat_id: str
-    execution_id: str
     session_id: str
     generation_id: str
     head_revision: int
-    attempt_id: str
-    run_id: str
-    root_run_id: str
-    role: MemoryV2RunRole
-    source_attempt_id: str
+    identity: ExecutionIdentity
+    grant: ModuleGrant
     current_input_draft: PupuMemoryV2CurrentInputDraft | None
 
     def __post_init__(self) -> None:
         for field_name in (
             "owner_chat_id",
-            "execution_id",
             "session_id",
             "generation_id",
-            "attempt_id",
-            "run_id",
-            "root_run_id",
         ):
             object.__setattr__(
                 self,
@@ -265,55 +258,126 @@ class PupuMemoryV2RunBinding:
             )
         object.__setattr__(
             self,
-            "source_attempt_id",
-            _optional_identifier(self.source_attempt_id, "source_attempt_id"),
-        )
-        object.__setattr__(
-            self,
             "head_revision",
             _positive_revision(self.head_revision),
         )
-        if not isinstance(self.role, MemoryV2RunRole):
-            raise TypeError("role must be a MemoryV2RunRole")
+        if not isinstance(self.identity, ExecutionIdentity):
+            raise TypeError("identity must be an ExecutionIdentity")
+        if not isinstance(self.grant, ModuleGrant):
+            raise TypeError("grant must be a ModuleGrant")
+        if self.grant.module_key != MEMORY_V2_MODULE_KEY:
+            raise ValueError("grant belongs to another module")
+        completion_authorized = self.grant.allows(
+            MEMORY_EXECUTION_COMPLETE
+        ) and bool(self.grant.authority)
+        if (
+            self.grant.allows(MEMORY_EXECUTION_COMPLETE)
+            and not completion_authorized
+        ):
+            raise ValueError(
+                "execution completion capability requires an authority"
+            )
         if self.attempt_id != self.run_id:
             raise ValueError(
                 "Context V2 attempt_id and kernel run_id must be identical"
             )
-        if self.role is MemoryV2RunRole.ROOT:
-            if self.run_id != self.root_run_id:
-                raise ValueError("root run_id must equal root_run_id")
-            if self.source_attempt_id:
-                raise ValueError("root run cannot name a source attempt")
-        else:
-            if self.run_id == self.root_run_id:
-                raise ValueError("child or graph run_id must differ from root_run_id")
-            if not self.source_attempt_id:
-                raise ValueError("child or graph run requires source_attempt_id")
-            if self.current_input_draft is not None:
-                raise ValueError(
-                    "child or graph attempt cannot own the current user input"
-                )
+        if (
+            self.parent_run_id is not None
+            and self.current_input_draft is not None
+            and not completion_authorized
+        ):
+            raise ValueError(
+                "a nested run requires explicit authority to own current input"
+            )
         if self.current_input_draft is not None and not isinstance(
             self.current_input_draft,
             (PupuMemoryV2TextInputDraft, PupuMemoryV2InteractionInputDraft),
         ):
             raise TypeError("current_input_draft has an unsupported type")
 
+    @property
+    def execution_id(self) -> str:
+        return self.identity.execution_id
+
+    @property
+    def attempt_id(self) -> str:
+        return self.identity.attempt_id
+
+    @property
+    def run_id(self) -> str:
+        return self.identity.run_id
+
+    @property
+    def root_run_id(self) -> str:
+        return self.identity.root_run_id
+
+    @property
+    def parent_run_id(self) -> str | None:
+        return self.identity.parent_run_id
+
+    @property
+    def source_attempt_id(self) -> str:
+        """Compatibility alias for callers migrating to ``parent_run_id``."""
+
+        return self.parent_run_id or ""
+
     def canonical_value(self) -> dict[str, Any]:
         draft = self.current_input_draft
         return {
+            "schema": "pupu.memory-v2-run-binding.v2",
             "owner_chat_id": self.owner_chat_id,
-            "execution_id": self.execution_id,
             "session_id": self.session_id,
             "generation_id": self.generation_id,
             "head_revision": self.head_revision,
-            "attempt_id": self.attempt_id,
-            "run_id": self.run_id,
-            "root_run_id": self.root_run_id,
-            "role": self.role.value,
-            "source_attempt_id": self.source_attempt_id,
+            "identity": {
+                "execution_id": self.execution_id,
+                "attempt_id": self.attempt_id,
+                "run_id": self.run_id,
+                "root_run_id": self.root_run_id,
+                "parent_run_id": self.parent_run_id,
+                "run_lineage": list(self.identity.run_lineage),
+            },
+            "grant": {
+                "module_key": self.grant.module_key,
+                "capabilities": sorted(self.grant.capabilities),
+                "delegable_capabilities": sorted(
+                    self.grant.delegable_capabilities
+                ),
+                "authority": self.grant.authority,
+            },
             "current_input_draft": (None if draft is None else draft.canonical_value()),
         }
+
+
+def _legacy_canonical_values(
+    binding: PupuMemoryV2RunBinding,
+) -> tuple[dict[str, Any], ...]:
+    """Reconstruct pre-V2 canonical values only to read durable old receipts."""
+
+    draft = binding.current_input_draft
+    common = {
+        "owner_chat_id": binding.owner_chat_id,
+        "execution_id": binding.execution_id,
+        "session_id": binding.session_id,
+        "generation_id": binding.generation_id,
+        "head_revision": binding.head_revision,
+        "attempt_id": binding.attempt_id,
+        "run_id": binding.run_id,
+        "root_run_id": binding.root_run_id,
+        "source_attempt_id": binding.source_attempt_id,
+        "current_input_draft": (
+            None if draft is None else draft.canonical_value()
+        ),
+    }
+    legacy_relationships = (
+        ("root",)
+        if binding.parent_run_id is None
+        else ("subagent", "graph_step")
+    )
+    return tuple(
+        {**common, "role": relationship}
+        for relationship in legacy_relationships
+    )
 
 
 class PupuMemoryV2RunBindingRegistry:
@@ -459,12 +523,25 @@ class PupuMemoryV2RunBindingRegistry:
     def _attempt_operation_id(binding: PupuMemoryV2RunBinding) -> str:
         return _stable_id("bind-current-attempt", binding.canonical_value())
 
+    @staticmethod
+    def _legacy_attempt_operation_ids(
+        binding: PupuMemoryV2RunBinding,
+    ) -> frozenset[str]:
+        return frozenset(
+            _stable_id("bind-current-attempt", value)
+            for value in _legacy_canonical_values(binding)
+        )
+
     def _ensure_durable_binding(
         self,
         binding: PupuMemoryV2RunBinding,
     ) -> None:
         self._verify_current_head()
         operation_id = self._attempt_operation_id(binding)
+        readable_operation_ids = {
+            operation_id,
+            *self._legacy_attempt_operation_ids(binding),
+        }
         try:
             existing = self._lifecycle.attempt_binding(
                 owner_chat_id=binding.owner_chat_id,
@@ -476,7 +553,8 @@ class PupuMemoryV2RunBindingRegistry:
                 if (
                     existing.generation_id != binding.generation_id
                     or existing.head_revision != binding.head_revision
-                    or existing.operation.operation_id != operation_id
+                    or existing.operation.operation_id
+                    not in readable_operation_ids
                 ):
                     raise PupuMemoryV2RunBindingError(
                         "attempt registration identity drifted from durable state"
@@ -578,34 +656,28 @@ class PupuMemoryV2RunBindingRegistry:
         self,
         *,
         owner_chat_id: str,
-        execution_id: str,
         session_id: str,
-        attempt_id: str,
-        run_id: str,
-        root_run_id: str,
-        role: MemoryV2RunRole,
-        source_attempt_id: str,
+        identity: ExecutionIdentity,
+        grant: ModuleGrant,
         current_input_draft: PupuMemoryV2CurrentInputDraft | None,
     ) -> PupuMemoryV2RunBinding:
         """Register and durably bind one explicitly identified attempt."""
 
+        if not isinstance(identity, ExecutionIdentity):
+            raise TypeError("identity must be an ExecutionIdentity")
         self._require_registry_scope(
             owner_chat_id=owner_chat_id,
-            execution_id=execution_id,
+            execution_id=identity.execution_id,
             session_id=session_id,
-            root_run_id=root_run_id,
+            root_run_id=identity.root_run_id,
         )
         candidate = PupuMemoryV2RunBinding(
             owner_chat_id=self.owner_chat_id,
-            execution_id=self.execution_id,
             session_id=self.session_id,
             generation_id=self._generation_id,
             head_revision=self._head_revision,
-            attempt_id=attempt_id,
-            run_id=run_id,
-            root_run_id=self.root_run_id,
-            role=role,
-            source_attempt_id=source_attempt_id,
+            identity=identity,
+            grant=grant,
             current_input_draft=_sanitize_current_input_draft(current_input_draft),
         )
         with self._lock:
@@ -677,7 +749,13 @@ class PupuMemoryV2RunBindingRegistry:
                     "current input attempt changed the registered generation"
                 )
             self._ensure_durable_binding(binding)
-            if binding.role is not MemoryV2RunRole.ROOT:
+            if (
+                binding.parent_run_id is not None
+                and not (
+                    binding.grant.allows(MEMORY_EXECUTION_COMPLETE)
+                    and binding.grant.authority
+                )
+            ):
                 return None
             draft = binding.current_input_draft
             if draft is None:
@@ -793,13 +871,9 @@ def _sanitize_workspace_draft(draft: WorkspaceWriteDraft) -> WorkspaceWriteDraft
 def build_shadow_host_factory(
     *,
     owner_chat_id: str,
-    execution_id: str,
     session_id: str,
-    attempt_id: str,
-    run_id: str,
-    root_run_id: str,
-    role: MemoryV2RunRole,
-    source_attempt_id: str,
+    identity: ExecutionIdentity,
+    grant: ModuleGrant,
     current_input_draft: PupuMemoryV2CurrentInputDraft | None,
     database_path: str | Path,
     object_directory: str | Path,
@@ -816,6 +890,10 @@ def build_shadow_host_factory(
     """Prepare the official shadow host without consulting Legacy memory."""
 
     owner = _identifier(owner_chat_id, "owner_chat_id")
+    if not isinstance(identity, ExecutionIdentity):
+        raise TypeError("identity must be an ExecutionIdentity")
+    if not isinstance(grant, ModuleGrant):
+        raise TypeError("grant must be a ModuleGrant")
     database = Path(database_path).expanduser().resolve()
     objects = Path(object_directory).expanduser().resolve()
     if database.name != "context_v2.sqlite3":
@@ -896,24 +974,20 @@ def build_shadow_host_factory(
     registry = PupuMemoryV2RunBindingRegistry(
         store=store,
         owner_chat_id=owner,
-        execution_id=execution_id,
+        execution_id=identity.execution_id,
         session_id=session_id,
-        root_run_id=root_run_id,
+        root_run_id=identity.root_run_id,
     )
     binding = registry.register_attempt(
         owner_chat_id=owner,
-        execution_id=execution_id,
         session_id=session_id,
-        attempt_id=attempt_id,
-        run_id=run_id,
-        root_run_id=root_run_id,
-        role=role,
-        source_attempt_id=source_attempt_id,
+        identity=identity,
+        grant=grant,
         current_input_draft=current_input_draft,
     )
     host_factory = PupuUnchainContextMemoryV2HostFactory(
         owner_chat_id=owner,
-        root_run_id=root_run_id,
+        root_run_id=identity.root_run_id,
         database_path=database,
         object_directory=objects,
         generation_resolver=registry.generation_resolver,
@@ -943,13 +1017,9 @@ def build_active_host_factory(
     *,
     atomic_bootstrap: PupuUnchainAtomicBootstrap,
     owner_chat_id: str,
-    execution_id: str,
     session_id: str,
-    attempt_id: str,
-    run_id: str,
-    root_run_id: str,
-    role: MemoryV2RunRole,
-    source_attempt_id: str,
+    identity: ExecutionIdentity,
+    grant: ModuleGrant,
     current_input_draft: PupuMemoryV2CurrentInputDraft | None,
     database_path: str | Path,
     object_directory: str | Path,
@@ -967,17 +1037,13 @@ def build_active_host_factory(
         object_directory=object_directory,
         owner_chat_id=owner_chat_id,
         session_id=session_id,
-        execution_id=execution_id,
+        execution_id=identity.execution_id,
     )
     preparation = build_shadow_host_factory(
         owner_chat_id=owner_chat_id,
-        execution_id=execution_id,
         session_id=session_id,
-        attempt_id=attempt_id,
-        run_id=run_id,
-        root_run_id=root_run_id,
-        role=role,
-        source_attempt_id=source_attempt_id,
+        identity=identity,
+        grant=grant,
         current_input_draft=current_input_draft,
         database_path=database_path,
         object_directory=object_directory,

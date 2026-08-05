@@ -4,6 +4,7 @@ const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
 const { createPortFinder } = require("../../../shared/port_utils");
 const {
+  MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
   MEMORY_V2_ENV_KEYS,
   constrainMemoryV2ConfigForPlatform,
   projectMemoryV2Status,
@@ -17,6 +18,11 @@ const UNCHAIN_PORT_RANGE_END = 5895;
 const UNCHAIN_BOOT_TIMEOUT_MS = 60000;
 const UNCHAIN_HEALTH_RETRY_MS = 250;
 const UNCHAIN_RESTART_DELAY_MS = 1500;
+/* restartMiso() only: how long to wait for a stop to actually land before
+   starting again. Comfortably past stopMiso()'s 1200ms SIGTERM->SIGKILL
+   escalation plus exit-handler latency. */
+const UNCHAIN_RESTART_STOP_TIMEOUT_MS = 5000;
+const UNCHAIN_RESTART_STOP_POLL_MS = 50;
 const UNCHAIN_RUNTIME_CONTRACT_SCHEMA = "pupu.runtime-capabilities";
 const UNCHAIN_RUNTIME_CONTRACT_VERSION = 1;
 const UNCHAIN_DURABLE_JOBS_VERSION = "D4.1";
@@ -4743,6 +4749,10 @@ const createUnchainService = ({
       delete sidecarEnvironment.PUPU_VAULT_BROKER_URL;
       delete sidecarEnvironment.PUPU_VAULT_BROKER_KEY;
       delete sidecarEnvironment.PUPU_VAULT_BROKER_FD;
+      // This active-development exception is never inherited ambiently. It is
+      // re-added below only when the non-packaged release resolver observed
+      // the literal value "1" and both rollout gates resolved to `all`.
+      delete sidecarEnvironment[MEMORY_V2_DIRTY_ACTIVE_DEV_ENV];
       const vaultBrokerBootstrap = getVaultBrokerBootstrap();
       activeVaultBrokerKey = vaultBrokerBootstrap?.key || "";
       unchainProcess = spawn(entrypoint.command, entrypoint.args, {
@@ -4796,6 +4806,9 @@ const createUnchainService = ({
             memoryV2RuntimeConfig.sidecarEnvironment[
               MEMORY_V2_ENV_KEYS.storeOwner
             ],
+          ...(memoryV2RuntimeConfig.allowDirtyUnchainActiveDev
+            ? { [MEMORY_V2_DIRTY_ACTIVE_DEV_ENV]: "1" }
+            : {}),
           // Belt-and-braces for the desired computer-use flag. Set AFTER the
           // process.env spread so an explicit user choice wins over any dev
           // PUPU_COMPUTER_USE in the ambient env. "0" is not in the sidecar's
@@ -4953,6 +4966,42 @@ const createUnchainService = ({
     } finally {
       unchainStartPromise = null;
     }
+  };
+
+  /*
+   * The ONLY correct way to bounce the sidecar. Callers outside this closure
+   * must never hand-roll `stopMiso(); startMiso();` — that sequence is
+   * deterministically broken, and the breakage is silent:
+   *
+   *   1. stopMiso() returns synchronously with SIGTERM still in flight. It sets
+   *      `unchainIsStopping = true` but does NOT clear `unchainProcess` —
+   *      only the process's own 'exit' handler does that, and 'exit' is a
+   *      macrotask that cannot run before the caller's next `await`.
+   *   2. startMiso() therefore hits `if (unchainProcess || ...) return` and
+   *      returns immediately, having started nothing.
+   *   3. The 'exit' handler then sees `unchainIsStopping`, marks the status
+   *      "stopped", and returns BEFORE scheduleMisoRestart() — so the usual
+   *      crash-restart safety net never arms either.
+   *
+   * Net effect of the naive sequence: a LIVE backend is killed and never comes
+   * back. Hence the wait below — completion of a stop is only observable from
+   * inside this closure, which is why the primitive has to live here.
+   *
+   * The wait is bounded well past stopMiso()'s own 1200ms SIGTERM->SIGKILL
+   * escalation. If it still has not exited by then something is wrong at the OS
+   * level; startMiso() will no-op and the caller's own status polling is the
+   * right place for that to surface, rather than hanging here forever.
+   */
+  const restartMiso = async () => {
+    stopMiso();
+
+    const deadline = Date.now() + UNCHAIN_RESTART_STOP_TIMEOUT_MS;
+    while (unchainProcess && Date.now() < deadline) {
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(UNCHAIN_RESTART_STOP_POLL_MS);
+    }
+
+    return startMiso();
   };
 
   const parseSseBlock = (block) => {
@@ -5776,6 +5825,9 @@ const createUnchainService = ({
   return {
     startMiso,
     stopMiso,
+    // Stop-then-start done correctly. See the comment on restartMiso: callers
+    // outside this closure cannot sequence stop/start safely themselves.
+    restartMiso,
     // MAIN-PROCESS ONLY. Deliberately not registered on any IPC channel: it
     // returns absolute local launch coordinates for the Vault sink worker.
     resolveVaultSinkWorkerEntrypoint,

@@ -32,6 +32,9 @@ const { createMemoryVaultService } = require("./services/memory_vault/service");
 const {
   createVaultSinkExecutors,
 } = require("./services/memory_vault/vault_sink_executor");
+const {
+  createBootReadinessService,
+} = require("./services/boot_readiness/service");
 const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 const sqlite = require("node:sqlite");
@@ -167,6 +170,15 @@ if (!gotSingleInstanceLock) {
     getMainWindow: windowService.getMainWindow,
   });
 
+  // Boot readiness gate. Observes the sidecar + MCP environment and publishes
+  // the projection the renderer's boot overlay holds its gate on. Created here
+  // (before registerIpcHandlers) so GET_READINESS always has an authority to
+  // answer from, even if start() has not been called yet.
+  const bootReadinessService = createBootReadinessService({
+    unchainService,
+    webContents,
+  });
+
   const testApiService = createTestApiService({
     env: process.env,
     ipcMain,
@@ -188,6 +200,7 @@ if (!gotSingleInstanceLock) {
       chatStorageService,
       settingsStorageService,
       memoryVaultService,
+      bootReadinessService,
     },
   });
 
@@ -206,6 +219,10 @@ if (!gotSingleInstanceLock) {
 
   const stopBackgroundServices = () => {
     appIsQuitting = true;
+    // Before stopMiso(), so the readiness poll cannot observe the deliberate
+    // shutdown and broadcast a spurious "backend died" to a renderer that is
+    // itself on the way out.
+    bootReadinessService.stop();
     chatStorageService.stopDeletionOutboxRunner();
     ollamaService.stopOllama();
     unchainService.stopMiso();
@@ -322,6 +339,10 @@ if (!gotSingleInstanceLock) {
 
     ollamaService.startOllama();
     unchainService.startMiso();
+    // Start observing immediately after the sidecar is kicked off and BEFORE
+    // the window exists: the boot overlay's whole job is to cover the window
+    // that has not been created yet, so the clock must already be running.
+    bootReadinessService.start();
     chatStorageService.startDeletionOutboxRunner();
 
     if (process.platform === "darwin" && app.dock) {

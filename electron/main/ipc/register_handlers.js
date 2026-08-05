@@ -43,6 +43,9 @@ const CONTEXT_V2_INVOKE_CHANNELS = Object.freeze([
 
 const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.APP.GET_VERSION,
+  // Boot readiness gate — read-only status + one argument-less control verb.
+  CHANNELS.BOOT.GET_READINESS,
+  CHANNELS.BOOT.RETRY,
   CHANNELS.UPDATE.GET_STATE,
   CHANNELS.UPDATE.CHECK_AND_DOWNLOAD,
   CHANNELS.UPDATE.INSTALL_NOW,
@@ -148,6 +151,7 @@ const IPC_ON_SYNC_CHANNELS = Object.freeze([
 ]);
 
 const MAIN_EVENT_CHANNELS = Object.freeze([
+  CHANNELS.BOOT.READINESS_CHANGED,
   CHANNELS.UNCHAIN.STREAM_EVENT,
   CHANNELS.UNCHAIN.RUNTIME_LOG,
   CHANNELS.OLLAMA.INSTALL_PROGRESS,
@@ -168,6 +172,7 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     chatStorageService,
     settingsStorageService,
     memoryVaultService,
+    bootReadinessService,
   } = services;
 
   registerChatStorageHandlers({ ipcMain, chatStorageService });
@@ -187,6 +192,17 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   });
 
   ipcMain.handle(CHANNELS.APP.GET_VERSION, () => app.getVersion());
+
+  /* Boot readiness gate. GET_READINESS is the initial sync the renderer needs
+     because READINESS_CHANGED can (and during boot usually does) fire before
+     the renderer has subscribed. RETRY takes no arguments by design — it can
+     only re-run main's own sidecar start sequence. Both return the same
+     fixed-shape projection; neither ever carries a path, port or token. */
+  ipcMain.handle(CHANNELS.BOOT.GET_READINESS, () =>
+    bootReadinessService.getReadiness(),
+  );
+  ipcMain.handle(CHANNELS.BOOT.RETRY, async () => bootReadinessService.retry());
+
   ipcMain.handle(CHANNELS.UPDATE.GET_STATE, () =>
     updateService.getAppUpdateStatePayload(),
   );

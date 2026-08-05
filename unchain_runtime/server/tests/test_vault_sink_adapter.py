@@ -7,10 +7,13 @@ from unittest import mock
 
 from unchain.tools.tool import Tool
 from unchain.tools.toolkit import Toolkit
-from unchain.run_identity import MemoryV2RunRole
 
 import unchain_adapter as ua
+from memory_v2_unchain_runtime_context import (
+    build_pupu_memory_v2_root_runtime_context,
+)
 from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
+from unchain.memory import MEMORY_V2_MODULE_KEY
 from vault_sink_runtime import (
     VaultGuardedSubagentModule,
     VaultSinkAgentModule,
@@ -245,14 +248,21 @@ def test_inactive_or_client_unavailable_is_structurally_identical():
 def _create_agent_with_captured_build(*, admission, client):
     captured = {}
     is_active = bool(admission.is_active)
-    run = (
-        PupuUnchainShadowRunDraft(
+    runtime_context = (
+        build_pupu_memory_v2_root_runtime_context(
+            owner_chat_id=admission.owner_chat_id,
             execution_id="session-a",
-            session_id="session-a",
             attempt_id="attempt-a",
             run_id="attempt-a",
-            root_run_id="attempt-a",
-            role=MemoryV2RunRole.ROOT,
+        )
+        if is_active
+        else None
+    )
+    run = (
+        PupuUnchainShadowRunDraft(
+            session_id="session-a",
+            identity=runtime_context.identity,
+            grant=runtime_context.grant_for(MEMORY_V2_MODULE_KEY),
         )
         if is_active
         else None

@@ -20,7 +20,12 @@ from memory_v2_unchain_shadow_bridge import (
 )
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 
 
 OWNER_CHAT_ID = "chat-resume-integration"
@@ -28,6 +33,31 @@ SESSION_ID = "session-resume-integration"
 SOURCE_ATTEMPT_ID = "source-attempt"
 RESUME_ATTEMPT_ID = "resume-attempt"
 INTERACTION_ID = "interaction-resume-integration"
+
+
+def _runtime_context(
+    *,
+    attempt_id: str,
+    run_lineage: tuple[str, ...] | None = None,
+) -> AgentRuntimeContext:
+    return AgentRuntimeContext(
+        identity=ExecutionIdentity(
+            execution_id=SESSION_ID,
+            attempt_id=attempt_id,
+            run_id=attempt_id,
+            run_lineage=run_lineage or (attempt_id,),
+        ),
+        module_grants=(
+            ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=MEMORY_V2_CAPABILITIES,
+                delegable_capabilities=MEMORY_V2_CAPABILITIES.difference(
+                    {MEMORY_EXECUTION_COMPLETE}
+                ),
+                authority=f"memory-completion:{SESSION_ID}",
+            ),
+        ),
+    )
 
 
 def _shadow_admission(*, attempt_id: str):
@@ -63,16 +93,15 @@ def _prepare_real_shadow_bridge(
     attempt_id: str,
     current_input_draft=None,
 ) -> PupuUnchainShadowEventBridge:
+    runtime_context = _runtime_context(attempt_id=attempt_id)
+    grant = runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+    assert grant is not None
     bridge = prepare_pupu_unchain_shadow_bridge(
         admission=_shadow_admission(attempt_id=attempt_id),
         run=PupuUnchainShadowRunDraft(
-            execution_id=SESSION_ID,
             session_id=SESSION_ID,
-            attempt_id=attempt_id,
-            run_id=attempt_id,
-            root_run_id=attempt_id,
-            role=MemoryV2RunRole.ROOT,
-            source_attempt_id="",
+            identity=runtime_context.identity,
+            grant=grant,
             current_input_draft=current_input_draft,
         ),
         model_window_fallback=lambda provider, model: 16_384,
@@ -166,6 +195,16 @@ def test_resume_shadow_persists_receipt_before_provider_and_survives_cold_read(
 
         def resume_interaction(self, **kwargs):
             bridge = resume_bridge_holder["bridge"]
+            runtime_context = kwargs["runtime_context"]
+            assert isinstance(runtime_context, AgentRuntimeContext)
+            assert runtime_context.identity.run_lineage == (
+                SOURCE_ATTEMPT_ID,
+                RESUME_ATTEMPT_ID,
+            )
+            grant = runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+            assert grant is not None
+            assert grant.allows(MEMORY_EXECUTION_COMPLETE)
+            assert grant.authority
             _bootstrap_real_shadow_attempt(
                 bridge,
                 attempt_id=RESUME_ATTEMPT_ID,
@@ -280,9 +319,14 @@ def test_resume_shadow_persists_receipt_before_provider_and_survives_cold_read(
     assert source_binding.attempt_id == SOURCE_ATTEMPT_ID
     assert resume_binding.attempt_id == RESUME_ATTEMPT_ID
     assert source_binding.attempt_id != resume_binding.attempt_id
-    assert resume_binding.role is MemoryV2RunRole.ROOT
-    assert resume_binding.run_id == resume_binding.root_run_id == RESUME_ATTEMPT_ID
-    assert resume_binding.source_attempt_id == ""
+    assert resume_binding.identity.run_lineage == (
+        SOURCE_ATTEMPT_ID,
+        RESUME_ATTEMPT_ID,
+    )
+    assert resume_binding.root_run_id == SOURCE_ATTEMPT_ID
+    assert resume_binding.parent_run_id == SOURCE_ATTEMPT_ID
+    assert resume_binding.grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert resume_binding.grant.authority
 
     assert [event["type"] for event in provider_snapshot] == [
         "interaction.requested",

@@ -14,6 +14,7 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from threading import RLock
 from typing import Any
 
 from memory_v2_unchain_active_bridge import PupuUnchainActiveBridge
@@ -45,7 +46,7 @@ from unchain.journal.models import (
 )
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import ExecutionIdentity
 
 
 class PupuUnchainGraphCheckpointHostError(RuntimeError):
@@ -70,9 +71,9 @@ def bootstrap_pupu_unchain_recipe_graph_input(
     ):
         raise TypeError("bridge must be an official active or shadow bridge")
     binding = bridge.preparation.binding
-    if binding.role is not MemoryV2RunRole.SUBAGENT:
+    if binding.parent_run_id is None:
         raise PupuUnchainGraphCheckpointHostError(
-            "prepared recipe graph input requires a subagent coordinator"
+            "prepared recipe graph input requires a nested coordinator"
         )
     state = RunState()
     state.session_state.session_id = binding.execution_id
@@ -123,7 +124,7 @@ def bootstrap_pupu_unchain_recipe_graph_input(
             ) from error
         expected_source = AttemptRef(
             coordinator.bundle.attempt.generation,
-            binding.source_attempt_id,
+            binding.parent_run_id,
         )
         if (
             descriptor.get("schema") != "unchain.derived_handoff_input.v1"
@@ -138,7 +139,7 @@ def bootstrap_pupu_unchain_recipe_graph_input(
     if (
         prepared_subagent_input.child_attempt != coordinator.bundle.attempt
         or prepared_subagent_input.parent_attempt.attempt_id
-        != binding.source_attempt_id
+        != binding.parent_run_id
         or prepared_subagent_input.parent_attempt.generation
         != coordinator.bundle.attempt.generation
     ):
@@ -271,14 +272,6 @@ class PupuUnchainGraphCheckpointHost:
             range(len(normalized_steps))
         ):
             raise ValueError("graph step descriptors must be ordered and contiguous")
-        coordinator_binding = active_bridge.preparation.binding
-        if coordinator_binding.role not in {
-            MemoryV2RunRole.ROOT,
-            MemoryV2RunRole.SUBAGENT,
-        }:
-            raise PupuUnchainGraphCheckpointHostError(
-                "graph coordinator must be a root or recipe-ref subagent"
-            )
 
         self.bridge = active_bridge
         # Compatibility for existing host-focused tests and callers.  The
@@ -286,6 +279,8 @@ class PupuUnchainGraphCheckpointHost:
         # the same canonical graph checkpoint data plane.
         self.active_bridge = active_bridge
         self.descriptors = normalized_steps
+        self._registered_step_bindings: list[PupuMemoryV2RunBinding] = []
+        self._step_registration_lock = RLock()
         self._bootstrap_coordinator(prepared_subagent_input)
         coordinator = self._attempt_for_run(
             active_bridge.preparation.binding.attempt_id
@@ -359,7 +354,7 @@ class PupuUnchainGraphCheckpointHost:
         context = self._bootstrap_context()
         runtime = factory.context_module.runtime
         binding = self.active_bridge.preparation.binding
-        if binding.role is MemoryV2RunRole.SUBAGENT:
+        if binding.parent_run_id is not None:
             bootstrap_pupu_unchain_recipe_graph_input(
                 bridge=self.active_bridge,
                 prepared_subagent_input=prepared_subagent_input,
@@ -499,20 +494,17 @@ class PupuUnchainGraphCheckpointHost:
             )
         snapshot = value.get("coordinator_binding_snapshot")
         current = self.coordinator_binding_snapshot
-        identity_fields = (
+        canonical_fields = (
+            "schema",
             "owner_chat_id",
-            "execution_id",
             "session_id",
             "generation_id",
             "head_revision",
-            "attempt_id",
-            "run_id",
-            "root_run_id",
-            "role",
-            "source_attempt_id",
+            "identity",
+            "grant",
         )
         if not isinstance(snapshot, Mapping) or any(
-            snapshot.get(key) != current.get(key) for key in identity_fields
+            snapshot.get(key) != current.get(key) for key in canonical_fields
         ):
             raise PupuUnchainGraphCheckpointHostError(
                 "graph resume metadata changed its coordinator binding"
@@ -520,21 +512,36 @@ class PupuUnchainGraphCheckpointHost:
         return step.index
 
     def register_step(self, index: int) -> PupuMemoryV2RunBinding:
-        """Durably bind one actual provider-backed node as GRAPH_STEP."""
+        """Durably bind one provider-backed node as a delegated child run."""
 
-        step = self._step(index)
+        self._step(index)
         root = self.bridge.preparation.binding
-        return self.bridge.preparation.registry.register_attempt(
-            owner_chat_id=root.owner_chat_id,
-            execution_id=root.execution_id,
-            session_id=root.session_id,
-            attempt_id=step.attempt.attempt_id,
-            run_id=step.attempt.attempt_id,
-            root_run_id=root.root_run_id,
-            role=MemoryV2RunRole.GRAPH_STEP,
-            source_attempt_id=step.source_attempt.attempt_id,
-            current_input_draft=None,
-        )
+        with self._step_registration_lock:
+            while len(self._registered_step_bindings) <= index:
+                step = self.plan.steps[len(self._registered_step_bindings)]
+                source = (
+                    root
+                    if not self._registered_step_bindings
+                    else self._registered_step_bindings[-1]
+                )
+                child_identity = ExecutionIdentity(
+                    execution_id=root.execution_id,
+                    attempt_id=step.attempt.attempt_id,
+                    run_id=step.attempt.attempt_id,
+                    run_lineage=(
+                        *source.identity.run_lineage,
+                        step.attempt.attempt_id,
+                    ),
+                )
+                binding = self.bridge.preparation.registry.register_attempt(
+                    owner_chat_id=root.owner_chat_id,
+                    session_id=root.session_id,
+                    identity=child_identity,
+                    grant=source.grant.delegated(),
+                    current_input_draft=None,
+                )
+                self._registered_step_bindings.append(binding)
+            return self._registered_step_bindings[index]
 
     def step_modules(self, index: int) -> tuple[Any, ...]:
         """Mount official active modules plus exact graph step admission."""

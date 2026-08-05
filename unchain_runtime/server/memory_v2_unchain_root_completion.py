@@ -2,7 +2,7 @@
 
 The official Unchain Memory V2 module deliberately leaves product-specific
 terminal capture policy to its host.  This adapter binds that policy to one
-``MemoryV2AgentAttachmentRequest`` and proves capture completeness from an
+``MemoryAttachmentRequest`` and proves capture completeness from an
 integrity-checked canonical journal snapshot before it ever reports
 ``RunCaptureStatus.COMPLETE``.
 """
@@ -13,10 +13,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from unchain.agent.modules.memory_v2 import (
-    MemoryV2AgentAttachmentRequest,
-    MemoryV2RootCompletionFactory,
-    MemoryV2RunRole,
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MemoryAttachmentRequest,
+    MemoryCompletionFactory,
 )
 from unchain.journal import JournalSnapshot
 from unchain.kernel.types import KernelRunResult
@@ -83,7 +83,7 @@ PupuMemoryV2JournalCaptureResult = (
     JournalSnapshot | PupuMemoryV2JournalCapture | None
 )
 PupuMemoryV2JournalCaptureCallback = Callable[
-    [MemoryV2AgentAttachmentRequest],
+    [MemoryAttachmentRequest],
     PupuMemoryV2JournalCaptureResult,
 ]
 
@@ -171,7 +171,7 @@ def _last_assistant_text(result: KernelRunResult) -> str:
 
 def _events_for_request(
     snapshot: JournalSnapshot,
-    request: MemoryV2AgentAttachmentRequest,
+    request: MemoryAttachmentRequest,
 ):
     return tuple(
         event
@@ -184,7 +184,7 @@ def _events_for_request(
 def _capture_has_terminal_proof(
     *,
     snapshot: JournalSnapshot,
-    request: MemoryV2AgentAttachmentRequest,
+    request: MemoryAttachmentRequest,
     result: KernelRunResult,
     run_status: SourceRunStatus,
 ) -> bool:
@@ -229,7 +229,7 @@ def _capture_has_terminal_proof(
 def _capture_status(
     *,
     capture: PupuMemoryV2JournalCaptureResult,
-    request: MemoryV2AgentAttachmentRequest,
+    request: MemoryAttachmentRequest,
     result: KernelRunResult,
     run_status: SourceRunStatus,
 ) -> RunCaptureStatus:
@@ -254,17 +254,22 @@ def _capture_status(
 
 
 @dataclass(frozen=True, slots=True)
-class PupuMemoryV2RootCompletionFactory(MemoryV2RootCompletionFactory):
+class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
     """Build terminal curation evidence for one immutable root attachment."""
 
-    request: MemoryV2AgentAttachmentRequest
+    request: MemoryAttachmentRequest
     capture_journal: PupuMemoryV2JournalCaptureCallback = field(repr=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.request, MemoryV2AgentAttachmentRequest):
-            raise TypeError("request must be a MemoryV2AgentAttachmentRequest")
-        if self.request.role is not MemoryV2RunRole.ROOT:
-            raise ValueError("root completion factory requires a root request")
+        if not isinstance(self.request, MemoryAttachmentRequest):
+            raise TypeError("request must be a MemoryAttachmentRequest")
+        if (
+            not self.request.grant.allows(MEMORY_EXECUTION_COMPLETE)
+            or not self.request.grant.authority
+        ):
+            raise ValueError(
+                "root completion factory requires explicit completion authority"
+            )
         if not callable(self.capture_journal):
             raise TypeError("capture_journal must be callable")
 
@@ -305,11 +310,14 @@ class PupuMemoryV2RootCompletionFactoryResolver:
 
     def resolve(
         self,
-        request: MemoryV2AgentAttachmentRequest,
-    ) -> MemoryV2RootCompletionFactory | None:
-        if not isinstance(request, MemoryV2AgentAttachmentRequest):
-            raise TypeError("request must be a MemoryV2AgentAttachmentRequest")
-        if request.role is not MemoryV2RunRole.ROOT:
+        request: MemoryAttachmentRequest,
+    ) -> MemoryCompletionFactory | None:
+        if not isinstance(request, MemoryAttachmentRequest):
+            raise TypeError("request must be a MemoryAttachmentRequest")
+        if (
+            not request.grant.allows(MEMORY_EXECUTION_COMPLETE)
+            or not request.grant.authority
+        ):
             return None
         return PupuMemoryV2RootCompletionFactory(
             request=request,

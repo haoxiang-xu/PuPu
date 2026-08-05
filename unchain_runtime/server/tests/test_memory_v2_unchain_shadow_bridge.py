@@ -15,10 +15,67 @@ from memory_v2_unchain_shadow_bridge import (
     PupuUnchainShadowRunDraft,
     prepare_pupu_unchain_shadow_bridge,
 )
+from unchain.memory import (
+    MEMORY_CANDIDATE_PROPOSE,
+    MEMORY_CONTEXT_READ,
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_MODULE_KEY,
+    MEMORY_WORKSPACE_READ,
+)
 from unchain.context import SemanticEventProjectionMode
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import ExecutionIdentity, ModuleGrant
+
+
+_DELEGABLE_MEMORY_CAPABILITIES = frozenset(
+    {
+        MEMORY_CONTEXT_READ,
+        MEMORY_WORKSPACE_READ,
+        MEMORY_CANDIDATE_PROPOSE,
+    }
+)
+
+
+def _identity(
+    *,
+    run_id: str,
+    ancestors: tuple[str, ...] = (),
+) -> ExecutionIdentity:
+    return ExecutionIdentity(
+        execution_id="execution-a",
+        attempt_id=run_id,
+        run_id=run_id,
+        run_lineage=(*ancestors, run_id),
+    )
+
+
+def _grant(*, completion_authority: bool) -> ModuleGrant:
+    capabilities = _DELEGABLE_MEMORY_CAPABILITIES
+    if completion_authority:
+        capabilities = frozenset(
+            {*capabilities, MEMORY_EXECUTION_COMPLETE}
+        )
+    return ModuleGrant(
+        module_key=MEMORY_V2_MODULE_KEY,
+        capabilities=capabilities,
+        delegable_capabilities=_DELEGABLE_MEMORY_CAPABILITIES,
+        authority=("memory-completion:execution" if completion_authority else None),
+    )
+
+
+def _run(*, run_id: str = "root-run-a") -> PupuUnchainShadowRunDraft:
+    ancestors = () if run_id == "root-run-a" else ("root-run-a",)
+    return PupuUnchainShadowRunDraft(
+        session_id="session-a",
+        identity=_identity(run_id=run_id, ancestors=ancestors),
+        grant=_grant(completion_authority=not ancestors),
+        current_input_draft=(
+            PupuMemoryV2TextInputDraft(content="hello")
+            if not ancestors
+            else None
+        ),
+    )
 
 
 def _context(*, execution_id: str, run_id: str) -> HarnessContext:
@@ -34,13 +91,9 @@ def _context(*, execution_id: str, run_id: str) -> HarnessContext:
 def _bridge(root: Path) -> PupuUnchainShadowEventBridge:
     preparation = build_shadow_host_factory(
         owner_chat_id="chat-a",
-        execution_id="execution-a",
         session_id="session-a",
-        attempt_id="root-run-a",
-        run_id="root-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.ROOT,
-        source_attempt_id="",
+        identity=_identity(run_id="root-run-a"),
+        grant=_grant(completion_authority=True),
         current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
         database_path=root / "context_v2.sqlite3",
         object_directory=root / "objects",
@@ -173,13 +226,12 @@ def test_parent_shadow_forwards_official_sibling_attempt_without_duplicate_write
     parent = _bridge(tmp_path)
     child_preparation = build_shadow_host_factory(
         owner_chat_id="chat-a",
-        execution_id="execution-a",
         session_id="session-a",
-        attempt_id="child-run-a",
-        run_id="child-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.SUBAGENT,
-        source_attempt_id="root-run-a",
+        identity=_identity(
+            run_id="child-run-a",
+            ancestors=("root-run-a",),
+        ),
+        grant=_grant(completion_authority=False),
         current_input_draft=None,
         database_path=tmp_path / "context_v2.sqlite3",
         object_directory=tmp_path / "objects",
@@ -255,15 +307,7 @@ def test_admitted_unchain_shadow_builds_from_data_directory(
 
     bridge = prepare_pupu_unchain_shadow_bridge(
         admission=SimpleNamespace(is_shadow=True, owner_chat_id="chat-a"),
-        run=PupuUnchainShadowRunDraft(
-            execution_id="execution-a",
-            session_id="session-a",
-            attempt_id="root-run-a",
-            run_id="root-run-a",
-            root_run_id="root-run-a",
-            role=MemoryV2RunRole.ROOT,
-            current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
-        ),
+        run=_run(),
         model_window_fallback=lambda provider, model: 16_384,
         partial_attempt_sink=lambda value, error: None,
     )
@@ -278,15 +322,7 @@ def test_off_or_non_unchain_owner_keeps_off_path_unmounted(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    run = PupuUnchainShadowRunDraft(
-        execution_id="execution-a",
-        session_id="session-a",
-        attempt_id="root-run-a",
-        run_id="root-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.ROOT,
-        current_input_draft=PupuMemoryV2TextInputDraft(content="hello"),
-    )
+    run = _run()
     monkeypatch.delenv("UNCHAIN_DATA_DIR", raising=False)
     monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
     assert (
@@ -321,12 +357,9 @@ def test_admitted_attachment_only_input_is_resolved_before_run_binding(
     bridge = prepare_pupu_unchain_shadow_bridge(
         admission=SimpleNamespace(is_shadow=True, owner_chat_id="chat-a"),
         run=PupuUnchainShadowRunDraft(
-            execution_id="execution-a",
             session_id="session-a",
-            attempt_id="root-run-a",
-            run_id="root-run-a",
-            root_run_id="root-run-a",
-            role=MemoryV2RunRole.ROOT,
+            identity=_identity(run_id="root-run-a"),
+            grant=_grant(completion_authority=True),
             attachment_blocks=(
                 {
                     "type": "image",

@@ -8,7 +8,12 @@ import pytest
 
 import unchain_adapter as adapter
 from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 class _Module:
@@ -21,6 +26,26 @@ class _Agent:
         self.kwargs = kwargs
         self.provider = kwargs["provider"]
         self.model = kwargs["model"]
+
+
+def _root_run(*, session_id: str, run_id: str) -> PupuUnchainShadowRunDraft:
+    return PupuUnchainShadowRunDraft(
+        session_id=session_id,
+        identity=ExecutionIdentity(
+            execution_id=session_id,
+            attempt_id=run_id,
+            run_id=run_id,
+            run_lineage=(run_id,),
+        ),
+        grant=ModuleGrant(
+            module_key=MEMORY_V2_MODULE_KEY,
+            capabilities=MEMORY_V2_CAPABILITIES,
+            delegable_capabilities=MEMORY_V2_CAPABILITIES.difference(
+                {MEMORY_EXECUTION_COMPLETE}
+            ),
+            authority=f"memory-completion:{session_id}",
+        ),
+    )
 
 
 def _build(*, context_memory_v2_modules=()):
@@ -147,13 +172,9 @@ def test_create_agent_mounts_prepared_official_shadow_modules() -> None:
         real_context_window_tokens=16_384,
         runtime=None,
     )
-    run = PupuUnchainShadowRunDraft(
-        execution_id="session-a",
+    run = _root_run(
         session_id="session-a",
-        attempt_id="root-run-a",
         run_id="root-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.ROOT,
     )
     shadow_module = SimpleNamespace(name="context_shadow")
     bridge = SimpleNamespace(
@@ -233,13 +254,9 @@ def test_create_agent_mounts_active_context_and_bypasses_legacy_data_plane(
         real_context_window_tokens=16_384,
         runtime=None,
     )
-    run = PupuUnchainShadowRunDraft(
-        execution_id="session-a",
+    run = _root_run(
         session_id="session-a",
-        attempt_id="root-run-a",
         run_id="root-run-a",
-        root_run_id="root-run-a",
-        role=MemoryV2RunRole.ROOT,
     )
     context_module = SimpleNamespace(name="context_v2")
     bridge = SimpleNamespace(

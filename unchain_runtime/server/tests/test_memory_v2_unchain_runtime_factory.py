@@ -15,10 +15,12 @@ from memory_v2_unchain_runtime_factory import (
 from unchain.agent import AgentBuilder, AgentCallContext, AgentSpec, AgentState
 from unchain.agent.model_io import ModelIOFactoryRegistry
 from unchain.agent.modules import ContextModule, ContextShadowModule
-from unchain.agent.modules.memory_v2 import (
-    MemoryV2AgentAttachmentRequest,
-    MemoryV2AgentModule,
-    MemoryV2RunRole,
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+    MemoryAttachmentRequest,
+    MemoryV2Module,
 )
 from unchain.agent.modules.task_state_bootstrap import (
     PinnedTaskStateBootstrapModule,
@@ -46,6 +48,7 @@ from unchain.kernel.state import RunState
 from unchain.kernel.types import KernelRunResult
 from unchain.memory.curator import RunCaptureStatus, SourceRunStatus
 from unchain.memory.curator.host import MemoryAgentWorkerDisposition
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 from unchain.subagents.types import SubagentResult
 from unchain.tools.runtime import ToolRuntimeOutcome
 
@@ -70,6 +73,76 @@ def _identity_artifact(content: bytes, media_type: str) -> bytes:
 def _identity_payload(event_type: str, payload: dict) -> dict:
     del event_type
     return payload
+
+
+def _memory_grant(*, completion_authority: bool) -> ModuleGrant:
+    delegable = MEMORY_V2_CAPABILITIES.difference({MEMORY_EXECUTION_COMPLETE})
+    return ModuleGrant(
+        module_key=MEMORY_V2_MODULE_KEY,
+        capabilities=(
+            MEMORY_V2_CAPABILITIES if completion_authority else delegable
+        ),
+        delegable_capabilities=delegable,
+        authority="completion-authority-a" if completion_authority else None,
+    )
+
+
+def _memory_identity(
+    *,
+    execution_id: str,
+    attempt_id: str,
+    run_id: str,
+    run_lineage: tuple[str, ...] | None = None,
+) -> ExecutionIdentity:
+    return ExecutionIdentity(
+        execution_id=execution_id,
+        attempt_id=attempt_id,
+        run_id=run_id,
+        run_lineage=run_lineage or (run_id,),
+    )
+
+
+def _runtime_context(
+    *,
+    execution_id: str,
+    attempt_id: str,
+    run_id: str,
+    run_lineage: tuple[str, ...] | None = None,
+    completion_authority: bool = True,
+) -> AgentRuntimeContext:
+    return AgentRuntimeContext(
+        identity=_memory_identity(
+            execution_id=execution_id,
+            attempt_id=attempt_id,
+            run_id=run_id,
+            run_lineage=run_lineage,
+        ),
+        module_grants=(
+            _memory_grant(completion_authority=completion_authority),
+        ),
+    )
+
+
+def _attachment_request(
+    *,
+    agent_name: str,
+    execution_id: str,
+    attempt_id: str,
+    run_id: str,
+    run_lineage: tuple[str, ...] | None = None,
+    completion_authority: bool,
+) -> MemoryAttachmentRequest:
+    return MemoryAttachmentRequest(
+        agent_name=agent_name,
+        mode="run",
+        identity=_memory_identity(
+            execution_id=execution_id,
+            attempt_id=attempt_id,
+            run_id=run_id,
+            run_lineage=run_lineage,
+        ),
+        grant=_memory_grant(completion_authority=completion_authority),
+    )
 
 
 class _NeverRunOfficialMemoryAgent:
@@ -159,7 +232,7 @@ def test_factory_builds_official_factory_context_and_closed_memory_modules(
         is DurableContextRuntimeFactory
     )
     assert host.context_module.runtime.durable_event_sink is None
-    assert type(host.memory_module) is MemoryV2AgentModule
+    assert type(host.memory_module) is MemoryV2Module
     assert host.memory_module.host is host.memory_host
     assert host.memory_host.enabled is False
     assert host.task_state_bootstrap_module is None
@@ -256,11 +329,11 @@ def test_active_host_builds_agent_with_only_official_normal_memory_tools(
         state=AgentState(),
         call_context=AgentCallContext(
             mode="run",
-            session_id="session-a",
-            execution_owner_id="root-run-a",
-            run_id="root-run-a",
-            memory_v2_run_role=MemoryV2RunRole.ROOT,
-            root_run_id="root-run-a",
+            runtime_context=_runtime_context(
+                execution_id="session-a",
+                attempt_id="root-run-a",
+                run_id="root-run-a",
+            ),
         ),
         model_io_registry=ModelIOFactoryRegistry(),
     )
@@ -358,17 +431,27 @@ def test_active_root_attachment_captures_canonical_terminal_journal(
         }
     )
     attachment = host.normal_attachment_factory.attach(
-        MemoryV2AgentAttachmentRequest(
+        _attachment_request(
             agent_name="normal-agent",
-            mode="run",
-            session_id="execution-a",
+            execution_id="execution-a",
             attempt_id="attempt-a",
             run_id="attempt-a",
-            role=MemoryV2RunRole.ROOT,
-            root_run_id="attempt-a",
+            completion_authority=True,
+        )
+    )
+    child_attachment = host.normal_attachment_factory.attach(
+        _attachment_request(
+            agent_name="child-agent",
+            execution_id="execution-a",
+            attempt_id="child-attempt",
+            run_id="child-run",
+            run_lineage=("attempt-a", "child-run"),
+            completion_authority=False,
         )
     )
 
+    assert attachment.completion_factory is not None
+    assert child_attachment.completion_factory is None
     completion = attachment.completion_factory.build(
         result=KernelRunResult(
             messages=[{"role": "assistant", "content": "done"}],
@@ -436,11 +519,11 @@ def test_official_memory_toolkit_reads_scope_bound_context_content(
         state=AgentState(),
         call_context=AgentCallContext(
             mode="run",
-            session_id="execution-a",
-            execution_owner_id="attempt-a",
-            run_id="root-run-a",
-            memory_v2_run_role=MemoryV2RunRole.ROOT,
-            root_run_id="root-run-a",
+            runtime_context=_runtime_context(
+                execution_id="execution-a",
+                attempt_id="attempt-a",
+                run_id="root-run-a",
+            ),
         ),
         model_io_registry=ModelIOFactoryRegistry(),
     )

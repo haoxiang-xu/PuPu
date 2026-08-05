@@ -52,7 +52,7 @@ export const FEATURE_FLAG_DEFINITIONS = {
   },
   enable_memory_v2: {
     description:
-      "Show the Memory V2 system agent card in the Agent Builder (System Agents group in the recipes list).",
+      "Enable Memory V2 admission and its optional Unchain module. This does not add an Agent Builder node.",
     defaultValue: false,
   },
 };

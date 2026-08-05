@@ -476,17 +476,20 @@ class PupuRootCompletionFactoryResolver:
 
     def resolve(self, request):
         try:
-            from unchain.agent.modules.memory_v2 import (
-                MemoryV2AgentAttachmentRequest,
-                MemoryV2RunRole,
+            from unchain.memory import (
+                MEMORY_EXECUTION_COMPLETE,
+                MemoryAttachmentRequest,
             )
         except ImportError as error:  # pragma: no cover - guarded by readiness
             raise PupuUnchainMemoryV2OwnershipError(
                 "Unchain Memory V2 attachment API is unavailable"
             ) from error
-        if not isinstance(request, MemoryV2AgentAttachmentRequest):
-            raise TypeError("request must be a MemoryV2AgentAttachmentRequest")
-        if request.role is not MemoryV2RunRole.ROOT:
+        if not isinstance(request, MemoryAttachmentRequest):
+            raise TypeError("request must be a MemoryAttachmentRequest")
+        if (
+            not request.grant.allows(MEMORY_EXECUTION_COMPLETE)
+            or not request.grant.authority
+        ):
             return None
         if (
             request.session_id != self.lifecycle.session_id
@@ -530,7 +533,7 @@ class PupuUnchainMemoryV2OwnershipAttachment:
                 "ContextModule",
                 "CanonicalSemanticEventProjector",
                 "ContextArtifactHandoffHostAdapter",
-                "SQLiteMemoryV2AgentAttachmentFactory",
+                "SQLiteMemoryAttachmentFactory",
                 "SQLiteConsolidationCapabilityFactory",
             ),
             "lifecycle": self.lifecycle.to_dict(),
@@ -667,15 +670,15 @@ def prepare_pupu_unchain_ownership_attachment(
 ) -> PupuUnchainMemoryV2OwnershipAttachment:
     """Prepare the official ownership graph without mounting it in an Agent."""
 
-    from unchain.agent.modules.memory_v2 import MemoryV2AgentModule
     from unchain.context.host_adapter import ContextArtifactHandoffHostAdapter
+    from unchain.memory import MemoryV2Module
     from unchain.memory.curator.host import (
         MemoryAgentHostAdapter,
         MemoryAgentHostConfig,
     )
     from unchain.persistence.sqlite_memory_host_v2 import (
         SQLiteConsolidationCapabilityFactory,
-        SQLiteMemoryV2AgentAttachmentFactory,
+        SQLiteMemoryAttachmentFactory,
     )
 
     lifecycle = PupuUnchainMemoryV2Lifecycle(
@@ -714,7 +717,7 @@ def prepare_pupu_unchain_ownership_attachment(
         lifecycle=lifecycle,
         completion_factory=root_completion_factory,
     )
-    normal_factory = SQLiteMemoryV2AgentAttachmentFactory(
+    normal_factory = SQLiteMemoryAttachmentFactory(
         binding_id=lifecycle.binding_id,
         repository=curation_repository,
         workspace=workspace,
@@ -738,7 +741,7 @@ def prepare_pupu_unchain_ownership_attachment(
         capability_factory=consolidation_factory,
         config=MemoryAgentHostConfig(enabled=False),
     )
-    memory_module = MemoryV2AgentModule(
+    memory_module = MemoryV2Module(
         host=memory_host,
         attachment_factory=normal_factory,
     )

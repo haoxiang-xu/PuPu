@@ -670,13 +670,30 @@ def read_pupu_unchain_memory_v2_store_status(
     *,
     root_dir: str | Path,
 ) -> dict[str, Any]:
-    """Read database health without fabricating an owner/chat capability."""
+    """Initialize and read health without fabricating an owner/chat capability."""
 
     try:
         admission = admit_context_v2_store_owner(
             root_dir=root_dir,
             requested_owner=STORE_OWNER_UNCHAIN,
         )
+        if (
+            admission.owner == STORE_OWNER_UNCHAIN
+            and admission.database_state in {"absent", "blank"}
+        ):
+            object_directory = admission.root_dir / "objects"
+            SQLiteContextV2Store(
+                database_path=admission.database_path,
+                object_directory=object_directory,
+            )
+            SQLiteMemoryV2Store(
+                database_path=admission.database_path,
+                object_directory=object_directory,
+            )
+            admission = admit_context_v2_store_owner(
+                root_dir=root_dir,
+                requested_owner=STORE_OWNER_UNCHAIN,
+            )
         if (
             admission.owner != STORE_OWNER_UNCHAIN
             or admission.database_state != STORE_OWNER_UNCHAIN

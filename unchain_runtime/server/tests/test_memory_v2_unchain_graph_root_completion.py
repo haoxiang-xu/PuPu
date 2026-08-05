@@ -22,7 +22,6 @@ from memory_v2_unchain_shadow_bridge import (
     prepare_pupu_unchain_shadow_bridge,
 )
 from memory_v2_unchain_worker import PupuUnchainMemoryAgentWorker
-from unchain.agent.modules.memory_v2 import MemoryV2AgentAttachmentRequest
 from unchain.context.graph_harness import (
     GraphStepBootstrapBinding,
     GraphStepBootstrapHarness,
@@ -38,8 +37,14 @@ from unchain.memory.curator import (
     ProcessDisposition,
 )
 from unchain.memory.curator.host import MemoryAgentWorkerDisposition
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+    MemoryAttachmentRequest,
+)
 from unchain.memory.toolkit import CandidateProposalRequest, ReferencePurpose
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 class _NeverRunMemoryAgent:
@@ -87,6 +92,18 @@ class _FailMemoryAgent:
         raise RuntimeError("model unavailable")
 
 
+def _memory_grant(*, completion_authority: bool) -> ModuleGrant:
+    delegable = MEMORY_V2_CAPABILITIES.difference({MEMORY_EXECUTION_COMPLETE})
+    return ModuleGrant(
+        module_key=MEMORY_V2_MODULE_KEY,
+        capabilities=(
+            MEMORY_V2_CAPABILITIES if completion_authority else delegable
+        ),
+        delegable_capabilities=delegable,
+        authority="graph-completion-authority" if completion_authority else None,
+    )
+
+
 def _run(
     *,
     execution_id: str,
@@ -94,12 +111,14 @@ def _run(
     content: str,
 ) -> PupuUnchainShadowRunDraft:
     return PupuUnchainShadowRunDraft(
-        execution_id=execution_id,
         session_id=execution_id,
-        attempt_id=attempt_id,
-        run_id=attempt_id,
-        root_run_id=attempt_id,
-        role=MemoryV2RunRole.ROOT,
+        identity=ExecutionIdentity(
+            execution_id=execution_id,
+            attempt_id=attempt_id,
+            run_id=attempt_id,
+            run_lineage=(attempt_id,),
+        ),
+        grant=_memory_grant(completion_authority=True),
         current_input_draft=PupuMemoryV2TextInputDraft(content=content),
     )
 
@@ -211,14 +230,19 @@ def _propose_from_step(host, index: int = 0):
     step = host.plan.steps[index]
     factory = host.bridge.preparation.host_factory
     attachment = factory.normal_attachment_factory.attach(
-        MemoryV2AgentAttachmentRequest(
+        MemoryAttachmentRequest(
             agent_name="graph-step",
             mode="graph",
-            session_id=host.plan.execution_id,
-            attempt_id=step.attempt.attempt_id,
-            run_id=step.attempt.attempt_id,
-            role=MemoryV2RunRole.GRAPH_STEP,
-            root_run_id=host.plan.orchestration_attempt.attempt_id,
+            identity=ExecutionIdentity(
+                execution_id=host.plan.execution_id,
+                attempt_id=step.attempt.attempt_id,
+                run_id=step.attempt.attempt_id,
+                run_lineage=(
+                    host.plan.orchestration_attempt.attempt_id,
+                    step.attempt.attempt_id,
+                ),
+            ),
+            grant=_memory_grant(completion_authority=False),
         )
     )
     final = next(

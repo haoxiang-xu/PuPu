@@ -18,19 +18,46 @@ from memory_v2_unchain_lazy_bootstrap import (
     bootstrap_pupu_unchain_active_chat,
 )
 from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_CANDIDATE_PROPOSE,
+    MEMORY_CONTEXT_READ,
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_MODULE_KEY,
+    MEMORY_WORKSPACE_READ,
+)
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 def _setup(tmp_path, monkeypatch, *, history=()):
     monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
     run = PupuUnchainShadowRunDraft(
-        execution_id="execution-a",
         session_id="session-a",
-        attempt_id="attempt-a",
-        run_id="attempt-a",
-        root_run_id="attempt-a",
-        role=MemoryV2RunRole.ROOT,
+        identity=ExecutionIdentity(
+            execution_id="execution-a",
+            attempt_id="attempt-a",
+            run_id="attempt-a",
+            run_lineage=("attempt-a",),
+        ),
+        grant=ModuleGrant(
+            module_key=MEMORY_V2_MODULE_KEY,
+            capabilities=frozenset(
+                {
+                    MEMORY_CONTEXT_READ,
+                    MEMORY_WORKSPACE_READ,
+                    MEMORY_CANDIDATE_PROPOSE,
+                    MEMORY_EXECUTION_COMPLETE,
+                }
+            ),
+            delegable_capabilities=frozenset(
+                {
+                    MEMORY_CONTEXT_READ,
+                    MEMORY_WORKSPACE_READ,
+                    MEMORY_CANDIDATE_PROPOSE,
+                }
+            ),
+            authority="completion-authority-a",
+        ),
     )
     preflight = preflight_pupu_unchain_active_host(
         owner_chat_id="chat-a",

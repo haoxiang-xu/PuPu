@@ -409,6 +409,47 @@ def test_host_store_status_is_database_scoped_without_fabricated_chat_scope(
     assert "execution_ids" not in status
 
 
+@pytest.mark.parametrize("initial_state", ("absent", "blank"))
+def test_host_store_status_initializes_fresh_unchain_store_idempotently(
+    tmp_path: Path,
+    initial_state: str,
+) -> None:
+    if initial_state == "blank":
+        database_path = tmp_path / "context_v2.sqlite3"
+        with sqlite3.connect(database_path) as connection:
+            connection.execute("VACUUM")
+
+    first = read_pupu_unchain_memory_v2_store_status(root_dir=tmp_path)
+    second = read_pupu_unchain_memory_v2_store_status(root_dir=tmp_path)
+    admission = admit_context_v2_store_owner(
+        root_dir=tmp_path,
+        requested_owner=STORE_OWNER_UNCHAIN,
+    )
+
+    assert first == second
+    assert first == {
+        "available": True,
+        "schema_version": 2,
+        "journal_mode": "wal",
+        "lexical_backend": "fts5",
+        "vector_status": "disabled",
+        "storeOwner": "unchain",
+    }
+    assert admission.database_state == STORE_OWNER_UNCHAIN
+
+
+def test_host_store_status_fails_closed_for_existing_legacy_owner(
+    tmp_path: Path,
+) -> None:
+    admit_context_v2_store_owner(
+        root_dir=tmp_path,
+        requested_owner=STORE_OWNER_PUPU_LEGACY,
+    )
+
+    with pytest.raises(PupuUnchainMemoryV2ReadError, match="owner|Unchain"):
+        read_pupu_unchain_memory_v2_store_status(root_dir=tmp_path)
+
+
 def test_route_compatible_content_resolves_artifact_memory_and_checkpoint_refs(
     tmp_path: Path,
 ) -> None:

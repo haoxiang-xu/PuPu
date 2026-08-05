@@ -16,11 +16,6 @@ import {
   forgetRecipe,
 } from "../../../../SERVICEs/agent_folder_storage";
 import { buildRecipeListContextMenuItems } from "./recipe_list_context_menu_items";
-import {
-  MEMORY_AGENT_SYSTEM_NODE_ID,
-  readMemoryAgentSettings,
-  subscribeMemoryAgentSettings,
-} from "../../../../SERVICEs/memory_agent_settings";
 
 const PENDING_AGENT_ID = "__new_agent__";
 const ROOT_ORDER_KEY = "__root__";
@@ -162,7 +157,6 @@ export default function RecipeList({
   onCollapse,
   isDark,
   headerTopPad = 0,
-  showMemoryAgent = false,
 }) {
   const [folderVersion, setFolderVersion] = useState(0);
   const [contextMenu, setContextMenu] = useState({
@@ -184,72 +178,6 @@ export default function RecipeList({
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const folderState = useMemo(() => getFolderState(), [folderVersion]);
-
-  /* ── System Agents (Memory V2 P0) ────────────────────────────
-     The system node lives in its OWN non-draggable Explorer instance,
-     completely outside the user tree: it cannot be dragged, reordered,
-     nested, renamed inline, context-menu'd, or deleted. */
-  const [memoryAgentSettings, setMemoryAgentSettings] = useState(() =>
-    readMemoryAgentSettings(),
-  );
-  useEffect(() => subscribeMemoryAgentSettings(setMemoryAgentSettings), []);
-
-  const systemExplorerData = useMemo(
-    () => ({
-      [MEMORY_AGENT_SYSTEM_NODE_ID]: {
-        id: MEMORY_AGENT_SYSTEM_NODE_ID,
-        kind: "system",
-        type: "file",
-        prefix_icon: "bot",
-        label: memoryAgentSettings.displayName,
-        custom_label: (
-          <div
-            data-explorer-drag-disabled="true"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
-            <span
-              style={{
-                flex: 1,
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {memoryAgentSettings.displayName}
-            </span>
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: 8.5,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                padding: "1.5px 5px",
-                borderRadius: 4,
-                background: isDark
-                  ? "rgba(100,120,246,0.22)"
-                  : "rgba(100,120,246,0.12)",
-                color: isDark ? "#aab6ff" : "#4a5bd8",
-                userSelect: "none",
-                WebkitUserSelect: "none",
-              }}
-            >
-              SYS
-            </span>
-          </div>
-        ),
-        on_click: () => onSelect(MEMORY_AGENT_SYSTEM_NODE_ID),
-        /* deliberately no on_context_menu — system nodes have no menu */
-      },
-    }),
-    [memoryAgentSettings.displayName, isDark, onSelect],
-  );
 
   const refreshRecipes = useCallback(async () => {
     const { recipes: updated } = await api.unchain.listRecipes();
@@ -750,51 +678,6 @@ export default function RecipeList({
           }}
         />
       </div>
-
-      {showMemoryAgent && (
-        <div
-          data-testid="system-agents-group"
-          onContextMenu={(e) => {
-            /* system rows expose no context menu — swallow it here so it
-               never reaches any ancestor handler */
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          style={{ marginBottom: 4 }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: mutedColor,
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              margin: "0 2px 4px 2px",
-            }}
-          >
-            System Agents
-          </div>
-          <Explorer
-            data={systemExplorerData}
-            root={[MEMORY_AGENT_SYSTEM_NODE_ID]}
-            active_node_id={
-              activeName === MEMORY_AGENT_SYSTEM_NODE_ID ? activeName : null
-            }
-            style={{ width: "100%", fontSize: 13 }}
-          />
-          <div
-            aria-hidden="true"
-            style={{
-              height: 1,
-              margin: "8px 2px 2px",
-              background: isDark
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.07)",
-            }}
-          />
-        </div>
-      )}
 
       <div
         className="scrollable"

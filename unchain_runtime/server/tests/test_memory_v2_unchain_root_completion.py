@@ -7,9 +7,10 @@ from memory_v2_unchain_root_completion import (
     PupuMemoryV2RootCompletionFactory,
     build_pupu_memory_v2_root_completion_resolver,
 )
-from unchain.agent.modules.memory_v2 import (
-    MemoryV2AgentAttachmentRequest,
-    MemoryV2RunRole,
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_MODULE_KEY,
+    MemoryAttachmentRequest,
 )
 from unchain.journal import (
     AttemptRef,
@@ -20,23 +21,37 @@ from unchain.journal import (
 )
 from unchain.kernel.types import KernelRunResult
 from unchain.memory.curator import RunCaptureStatus, SourceRunStatus
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 SHA = "a" * 64
 
 
 def _request(
-    role: MemoryV2RunRole = MemoryV2RunRole.ROOT,
-) -> MemoryV2AgentAttachmentRequest:
-    run_id = "root-run" if role is MemoryV2RunRole.ROOT else f"{role.value}-run"
-    return MemoryV2AgentAttachmentRequest(
+    *,
+    run_id: str = "root-run",
+    run_lineage: tuple[str, ...] | None = None,
+    completion_granted: bool = True,
+) -> MemoryAttachmentRequest:
+    capabilities = (
+        frozenset({MEMORY_EXECUTION_COMPLETE})
+        if completion_granted
+        else frozenset()
+    )
+    return MemoryAttachmentRequest(
         agent_name="test-agent",
         mode="run",
-        session_id="session-a",
-        attempt_id=run_id,
-        run_id=run_id,
-        role=role,
-        root_run_id="root-run",
+        identity=ExecutionIdentity(
+            execution_id="session-a",
+            attempt_id=run_id,
+            run_id=run_id,
+            run_lineage=run_lineage or (run_id,),
+        ),
+        grant=ModuleGrant(
+            module_key=MEMORY_V2_MODULE_KEY,
+            capabilities=capabilities,
+            authority=("completion-authority-a" if completion_granted else None),
+        ),
     )
 
 
@@ -44,7 +59,7 @@ def _event(
     event_type: str,
     store_seq: int,
     *,
-    request: MemoryV2AgentAttachmentRequest | None = None,
+    request: MemoryAttachmentRequest | None = None,
     **payload,
 ) -> JournalEvent:
     bound = request or _request()
@@ -86,10 +101,26 @@ def test_resolver_grants_only_root_and_defers_capture_until_build() -> None:
         capture_journal=capture,
     )
     root = resolver.resolve(_request())
+    resumed_root = resolver.resolve(
+        _request(
+            run_id="resumed-root-run",
+            run_lineage=("root-run", "resumed-root-run"),
+        )
+    )
 
     assert isinstance(root, PupuMemoryV2RootCompletionFactory)
-    assert resolver.resolve(_request(MemoryV2RunRole.SUBAGENT)) is None
-    assert resolver.resolve(_request(MemoryV2RunRole.GRAPH_STEP)) is None
+    assert isinstance(resumed_root, PupuMemoryV2RootCompletionFactory)
+    assert resolver.resolve(_request(completion_granted=False)) is None
+    assert (
+        resolver.resolve(
+            _request(
+                run_id="child-run",
+                run_lineage=("root-run", "child-run"),
+                completion_granted=False,
+            )
+        )
+        is None
+    )
     assert captures == []
 
 

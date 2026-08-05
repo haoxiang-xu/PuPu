@@ -17,6 +17,10 @@ from durable_interaction_host import (
     DurableInteractionHostError,
     record_interaction_receipt,
 )
+from memory_v2_unchain_runtime_context import (
+    runtime_context_from_memory_binding_snapshot,
+)
+from memory_v2_unchain_run_binding import PupuMemoryV2RunBindingError
 from recipe import parse_recipe_json
 from unchain.context.graph_checkpoint import GraphExecutionPlan, GraphStepBinding
 from unchain.input import ASK_USER_QUESTION_TOOL_NAME
@@ -31,6 +35,12 @@ OWNER_CHAT_ID = "chat-active-graph-interaction-resume"
 EXECUTION_ID = "execution-active-graph-interaction-resume"
 COORDINATOR_ATTEMPT_ID = "workflow-active-graph-interaction-resume"
 RECIPE_NAME = "Active Graph Interaction Resume"
+VAULT_HANDLE = "pvh1_" + ("a" * 64)
+VAULT_MARKER = (
+    '<secret-handle label="framework credential" '
+    f'handle="{VAULT_HANDLE}"/>'
+)
+VAULT_PLAINTEXT_SENTINEL = "framework-secret-plaintext-must-never-reach-python"
 
 
 def _recipe_payload() -> dict:
@@ -352,9 +362,29 @@ def _production_patches(
     return stack
 
 
+@pytest.mark.parametrize(
+    ("initial_message", "expected_vault_handle"),
+    (
+        pytest.param(
+            "Produce a framework report",
+            None,
+            id="plain-input",
+        ),
+        pytest.param(
+            (
+                "Produce a framework report using this opaque credential "
+                f"reference only: {VAULT_MARKER}"
+            ),
+            VAULT_HANDLE,
+            id="opaque-vault-handle",
+        ),
+    ),
+)
 def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
     tmp_path: Path,
     monkeypatch,
+    initial_message: str,
+    expected_vault_handle: str | None,
 ) -> None:
     monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
@@ -384,7 +414,7 @@ def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
         save_recipe(_recipe_payload())
         initial_events = list(
             adapter.stream_chat_events(
-                message="Produce a framework report",
+                message=initial_message,
                 history=[],
                 attachments=[],
                 options=options,
@@ -434,6 +464,12 @@ def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
             expected_model="graph-collect",
         )
         assert graph_record is not None
+        durable_binding = graph_record["coordinator_binding_snapshot"]
+        durable_input = durable_binding["current_input_draft"]["content"]
+        assert VAULT_PLAINTEXT_SENTINEL not in json.dumps(
+            graph_record,
+            ensure_ascii=False,
+        )
 
         # Drift checks use the exact cold-resume entry point and must reject
         # before constructing a provider-backed step.
@@ -480,6 +516,11 @@ def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
                         attachments=[],
                         options=drift_options,
                         session_id=EXECUTION_ID,
+                        runtime_context=(
+                            runtime_context_from_memory_binding_snapshot(
+                                drifted["coordinator_binding_snapshot"]
+                            )
+                        ),
                     )
                 )
             assert provider_calls == calls_before_drift, label
@@ -488,21 +529,30 @@ def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
         # All runtime objects above are now abandoned.  The public resume path
         # has to rebuild from SQLite/CAS, the recipe file, and the durable
         # interaction receipt only.
-        resumed_events = list(
-            adapter.resume_chat_interaction_events(
-                session_id=EXECUTION_ID,
-                interaction_id=interaction_id,
-                options={
-                    "modelId": "openai:graph-base",
-                    "recipe_name": RECIPE_NAME,
-                    "_memory_v2_requested": True,
-                    "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
-                },
-                attempt_id="transport-resume-attempt",
-                source_attempt_id=step_attempt_id,
+        try:
+            resumed_events = list(
+                adapter.resume_chat_interaction_events(
+                    session_id=EXECUTION_ID,
+                    interaction_id=interaction_id,
+                    options={
+                        "modelId": "openai:graph-base",
+                        "recipe_name": RECIPE_NAME,
+                        "_memory_v2_requested": True,
+                        "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
+                    },
+                    attempt_id="transport-resume-attempt",
+                    source_attempt_id=step_attempt_id,
+                )
             )
-        )
+        except PupuMemoryV2RunBindingError as exc:
+            pytest.fail(f"cold graph resume drifted its durable binding: {exc}")
 
+        if expected_vault_handle is not None:
+            assert VAULT_MARKER in durable_input
+            assert expected_vault_handle in json.dumps(
+                durable_binding,
+                ensure_ascii=False,
+            )
         assert provider_calls == Counter(
             {
                 ("openai", "graph-collect"): 2,
@@ -519,6 +569,19 @@ def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
             and event.get("content") == "Restart-safe React report"
             for event in resumed_events
         )
+        provider_messages = json.dumps(
+            {
+                f"{provider}:{model}": [
+                    request.messages for request in requests
+                ]
+                for (provider, model), requests in provider_requests.items()
+            },
+            ensure_ascii=False,
+            default=str,
+        )
+        if expected_vault_handle is not None:
+            assert expected_vault_handle in provider_messages
+        assert VAULT_PLAINTEXT_SENTINEL not in provider_messages
 
         store, plan = _plan_from_store(tmp_path)
         snapshot = store.bind_execution(EXECUTION_ID).capture_snapshot()

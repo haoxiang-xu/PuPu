@@ -132,6 +132,50 @@ def test_dev_bypass_never_bypasses_the_contract_probe() -> None:
     assert verdict.reason == "unchain_context_memory_contract_mismatch"
 
 
+def test_dirty_active_dev_gate_never_bypasses_the_contract_probe() -> None:
+    verdict = verify_context_memory_v2_capability(
+        capability={**EXACT_CAPABILITY, "components": ["context_compiler"]},
+        lock=_lock(None),
+        requested_mode="all",
+        dirty_active_dev=True,
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_context_memory_capability_invalid"
+
+
+def test_dirty_active_dev_gate_is_non_release_all_only() -> None:
+    allowed = verify_context_memory_v2_capability(
+        capability=EXACT_CAPABILITY,
+        lock=_lock(None),
+        requested_mode="all",
+        dirty_active_dev=True,
+        release=False,
+    )
+    shadow = verify_context_memory_v2_capability(
+        capability=EXACT_CAPABILITY,
+        lock=_lock(None),
+        requested_mode="shadow",
+        dirty_active_dev=True,
+        release=False,
+    )
+    release = verify_context_memory_v2_capability(
+        capability=EXACT_CAPABILITY,
+        lock=_lock(None),
+        requested_mode="all",
+        dirty_active_dev=True,
+        release=True,
+    )
+
+    assert allowed.ready is True
+    assert allowed.verification == "dirty_dev_checkout"
+    assert allowed.immutable is False
+    assert shadow.ready is False
+    assert shadow.reason == "unchain_dirty_active_dev_forbidden"
+    assert release.ready is False
+    assert release.reason == "unchain_dirty_active_dev_forbidden"
+
+
 @pytest.mark.parametrize(
     "capability",
     (
@@ -251,7 +295,7 @@ def test_host_gate_probes_the_live_unchain_contract_when_not_injected(
     assert production.reason == "unchain_context_memory_capability_missing"
 
 
-def test_dirty_development_checkout_can_only_use_explicit_shadow_bypass(
+def test_dirty_development_checkout_requires_the_mode_specific_explicit_gate(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -273,12 +317,51 @@ def test_dirty_development_checkout_can_only_use_explicit_shadow_bypass(
         release=False,
         lock=_lock(),
     )
+    active_without_gate = capability_gate.resolve_context_memory_v2_capability(
+        requested_mode="all",
+        environment=environment,
+        release=False,
+        lock=_lock(),
+    )
+    active_with_truthy_alias = capability_gate.resolve_context_memory_v2_capability(
+        requested_mode="all",
+        environment={
+            "PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV": "true",
+        },
+        release=False,
+        lock=_lock(),
+    )
+    active = capability_gate.resolve_context_memory_v2_capability(
+        requested_mode="all",
+        environment={
+            "PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV": "1",
+        },
+        release=False,
+        lock=_lock(),
+    )
+    packaged = capability_gate.resolve_context_memory_v2_capability(
+        requested_mode="all",
+        environment={
+            "PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV": "1",
+        },
+        release=True,
+        lock=_lock(),
+    )
 
     assert shadow.ready is True
     assert shadow.verification == "dev_bypass"
     assert shadow.immutable is False
     assert canary.ready is False
     assert canary.reason == "unchain_checkout_dirty"
+    assert active_without_gate.ready is False
+    assert active_without_gate.reason == "unchain_checkout_dirty"
+    assert active_with_truthy_alias.ready is False
+    assert active_with_truthy_alias.reason == "unchain_checkout_dirty"
+    assert active.ready is True
+    assert active.verification == "dirty_dev_checkout"
+    assert active.immutable is False
+    assert packaged.ready is False
+    assert packaged.reason == "unchain_checkout_dirty"
 
 
 def test_packaged_probe_treats_an_uninspectable_runtime_package_as_missing(

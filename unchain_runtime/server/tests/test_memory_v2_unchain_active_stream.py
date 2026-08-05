@@ -6,7 +6,12 @@ from unittest import mock
 import unchain_adapter as adapter
 from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
 from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
+from unchain.runtime import AgentRuntimeContext
 
 
 def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() -> None:
@@ -95,7 +100,10 @@ def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() 
                 message="keep the complete task",
                 history=[{"role": "user", "content": "legacy duplicate"}],
                 attachments=[],
-                options={"_memory_v2_requested": True},
+                options={
+                    "_memory_v2_requested": True,
+                    "_memory_v2_owner_chat_id": "chat-a",
+                },
                 session_id="",
                 attempt_id="root-run-a",
             )
@@ -105,11 +113,17 @@ def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() 
     assert isinstance(run, PupuUnchainShadowRunDraft)
     assert run.execution_id == run.session_id == "root-run-a"
     assert run.run_id == run.root_run_id == "root-run-a"
-    assert run.role is MemoryV2RunRole.ROOT
+    assert run.parent_run_id is None
+    assert run.identity.run_lineage == ("root-run-a",)
+    assert run.grant.capabilities == MEMORY_V2_CAPABILITIES
+    assert run.grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert run.grant.authority
     assert isinstance(run.current_input_draft, PupuMemoryV2TextInputDraft)
     assert run.current_input_draft.content == "keep the complete task"
-    assert run_kwargs["memory_v2_run_role"] is MemoryV2RunRole.ROOT
-    assert run_kwargs["root_run_id"] == "root-run-a"
+    runtime_context = run_kwargs["runtime_context"]
+    assert isinstance(runtime_context, AgentRuntimeContext)
+    assert runtime_context.identity == run.identity
+    assert runtime_context.grant_for(MEMORY_V2_MODULE_KEY) == run.grant
     assert run_kwargs["messages"] == [
         {"role": "user", "content": "keep the complete task"}
     ]

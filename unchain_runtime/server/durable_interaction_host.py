@@ -5,6 +5,7 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -51,21 +52,43 @@ _GRAPH_STEP_CONTEXT_RECORD_KEYS = frozenset(
 )
 _GRAPH_COORDINATOR_BINDING_KEYS = frozenset(
     {
+        "schema",
         "owner_chat_id",
-        "execution_id",
         "session_id",
         "generation_id",
         "head_revision",
-        "attempt_id",
-        "run_id",
-        "root_run_id",
-        "role",
-        "source_attempt_id",
+        "identity",
+        "grant",
         "current_input_draft",
     }
 )
+_GRAPH_COORDINATOR_IDENTITY_KEYS = frozenset(
+    {
+        "execution_id",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+        "parent_run_id",
+        "run_lineage",
+    }
+)
+_GRAPH_COORDINATOR_GRANT_KEYS = frozenset(
+    {
+        "module_key",
+        "capabilities",
+        "delegable_capabilities",
+        "authority",
+    }
+)
+_GRAPH_COORDINATOR_BINDING_SCHEMA = "pupu.memory-v2-run-binding.v2"
+_MEMORY_V2_MODULE_KEY = "memory_v2"
+_MEMORY_EXECUTION_COMPLETE = "memory.execution.complete"
 _GRAPH_RECIPE_IDENTITY_KEYS = frozenset(
     {"name", "source", "revision", "version", "sha256"}
+)
+_GRAPH_SECRET_HANDLE_MARKER_RE = re.compile(
+    r'<secret-handle label="(?P<label>[^"\r\n]{1,512})" '
+    r'handle="(?P<handle>pvh1_[0-9a-f]{64})"/>'
 )
 
 # Resume state is deliberately an allowlist.  The route accepts arbitrary JSON
@@ -379,9 +402,13 @@ def _required_graph_sha256(value: Any, *, field_name: str) -> str:
     return normalized
 
 
-def _sanitize_graph_storage_value(value: Any) -> Any:
+def _sanitize_graph_storage_value(
+    value: Any,
+    *,
+    preserve_vault_handles: bool = False,
+) -> Any:
     try:
-        from memory_v2_sanitizer import sanitize_value
+        from memory_v2_sanitizer import sanitize_text, sanitize_value
     except ImportError as exc:  # pragma: no cover - packaged-runtime guard
         raise DurableInteractionHostError(
             "durable_graph_resume_sanitizer_unavailable",
@@ -389,7 +416,53 @@ def _sanitize_graph_storage_value(value: Any) -> Any:
             status_code=503,
         ) from exc
     try:
-        return sanitize_value(_json_safe(value))
+        storage_value = _json_safe(value)
+        if not preserve_vault_handles:
+            return sanitize_value(storage_value)
+
+        replacements: dict[str, str] = {}
+        placeholder_prefix = f"__PUPU_GRAPH_OPAQUE_REF_{uuid.uuid4().hex}_"
+
+        def protect(inner: Any) -> Any:
+            if isinstance(inner, dict):
+                return {
+                    key: protect(child)
+                    for key, child in inner.items()
+                }
+            if isinstance(inner, list):
+                return [protect(child) for child in inner]
+            if not isinstance(inner, str):
+                return inner
+
+            def replace(match: re.Match[str]) -> str:
+                placeholder = f"{placeholder_prefix}{len(replacements)}__"
+                replacements[placeholder] = (
+                    '<secret-handle label="'
+                    + sanitize_text(match.group("label"))
+                    + '" handle="'
+                    + match.group("handle")
+                    + '"/>'
+                )
+                return placeholder
+
+            return _GRAPH_SECRET_HANDLE_MARKER_RE.sub(replace, inner)
+
+        def restore(inner: Any) -> Any:
+            if isinstance(inner, dict):
+                return {
+                    key: restore(child)
+                    for key, child in inner.items()
+                }
+            if isinstance(inner, list):
+                return [restore(child) for child in inner]
+            if not isinstance(inner, str):
+                return inner
+            restored = inner
+            for placeholder, marker in replacements.items():
+                restored = restored.replace(placeholder, marker)
+            return restored
+
+        return restore(sanitize_value(protect(storage_value)))
     except Exception as exc:
         raise DurableInteractionHostError(
             "durable_graph_resume_sanitization_failed",
@@ -486,6 +559,7 @@ def _normalize_graph_current_input_draft(value: Any) -> dict[str, Any]:
                 "text coordinator input content must be text",
                 status_code=400,
             )
+        raw_content = value["content"]
         message_index = value.get("message_index")
         if (
             isinstance(message_index, bool)
@@ -532,7 +606,19 @@ def _normalize_graph_current_input_draft(value: Any) -> dict[str, Any]:
             "coordinator current input kind is invalid",
             status_code=400,
         )
-    sanitized = _sanitize_graph_storage_value(value)
+    storage_value = copy.deepcopy(value)
+    if kind == "text":
+        # A canonical Vault marker is the durable, non-secret identity of the
+        # input. Preserve it so a cold resume rebuilds the same attempt
+        # operation ID; bare handles and all surrounding text are still
+        # processed by the normal storage sanitizer.
+        storage_value["content"] = ""
+    sanitized = _sanitize_graph_storage_value(storage_value)
+    if kind == "text":
+        sanitized["content"] = _sanitize_graph_storage_value(
+            raw_content,
+            preserve_vault_handles=True,
+        )
     if not isinstance(sanitized, dict) or set(sanitized) != set(value):
         raise DurableInteractionHostError(
             "invalid_coordinator_binding_snapshot",
@@ -550,36 +636,64 @@ def _normalize_graph_coordinator_binding_snapshot(
     session_id: str,
     coordinator_attempt_id: str,
 ) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != _GRAPH_COORDINATOR_BINDING_KEYS:
+    if not isinstance(value, dict):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator_binding_snapshot must be an object",
+            status_code=400,
+        )
+    legacy_fields = {
+        "execution_id",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+        "role",
+        "source_attempt_id",
+    }
+    if set(value).intersection(legacy_fields):
+        raise DurableInteractionHostError(
+            "legacy_coordinator_binding_snapshot",
+            "role-based coordinator binding snapshots cannot be resumed",
+            status_code=409,
+        )
+    if set(value) != _GRAPH_COORDINATOR_BINDING_KEYS:
         raise DurableInteractionHostError(
             "invalid_coordinator_binding_snapshot",
             "coordinator_binding_snapshot has unsupported fields",
             status_code=400,
         )
-    normalized = _sanitize_graph_storage_value(value)
+    current_input_draft = copy.deepcopy(value["current_input_draft"])
+    storage_value = copy.deepcopy(value)
+    storage_value["current_input_draft"] = None
+    normalized = _sanitize_graph_storage_value(storage_value)
     if not isinstance(normalized, dict) or set(normalized) != set(value):
         raise DurableInteractionHostError(
             "invalid_coordinator_binding_snapshot",
             "coordinator binding changed shape during sanitization",
             status_code=400,
         )
-    identity_fields = (
+    if normalized.get("schema") != _GRAPH_COORDINATOR_BINDING_SCHEMA:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator binding schema is unsupported",
+            status_code=400,
+        )
+    binding_fields = (
         "owner_chat_id",
-        "execution_id",
         "session_id",
         "generation_id",
-        "attempt_id",
-        "run_id",
-        "root_run_id",
-        "role",
     )
-    for field_name in identity_fields:
+    for field_name in binding_fields:
+        if not isinstance(normalized.get(field_name), str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator {field_name} must be text",
+                status_code=400,
+            )
         normalized[field_name] = _required_identifier(
             normalized.get(field_name),
             field_name=f"coordinator_{field_name}",
         )
-    source_attempt_id = str(normalized.get("source_attempt_id") or "").strip()
-    normalized["source_attempt_id"] = source_attempt_id
     head_revision = normalized.get("head_revision")
     if (
         isinstance(head_revision, bool)
@@ -591,6 +705,157 @@ def _normalize_graph_coordinator_binding_snapshot(
             "coordinator head_revision must be a positive integer",
             status_code=400,
         )
+
+    identity = normalized.get("identity")
+    if not isinstance(identity, dict) or set(identity) != (
+        _GRAPH_COORDINATOR_IDENTITY_KEYS
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity has unsupported fields",
+            status_code=400,
+        )
+    for field_name in (
+        "execution_id",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+    ):
+        if not isinstance(identity.get(field_name), str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator identity {field_name} must be text",
+                status_code=400,
+            )
+        identity[field_name] = _required_identifier(
+            identity.get(field_name),
+            field_name=f"coordinator_identity_{field_name}",
+        )
+    parent_run_id = identity.get("parent_run_id")
+    if parent_run_id is not None:
+        if not isinstance(parent_run_id, str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "coordinator identity parent_run_id must be text or null",
+                status_code=400,
+            )
+        identity["parent_run_id"] = _required_identifier(
+            parent_run_id,
+            field_name="coordinator_identity_parent_run_id",
+        )
+    lineage = identity.get("run_lineage")
+    if (
+        not isinstance(lineage, list)
+        or not lineage
+        or any(not isinstance(item, str) or not item.strip() for item in lineage)
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity run_lineage must contain run IDs",
+            status_code=400,
+        )
+    normalized_lineage = [item.strip() for item in lineage]
+    if len(normalized_lineage) != len(set(normalized_lineage)):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity run_lineage contains duplicate run IDs",
+            status_code=400,
+        )
+    expected_parent_run_id = (
+        normalized_lineage[-2] if len(normalized_lineage) > 1 else None
+    )
+    if (
+        identity["attempt_id"] != identity["run_id"]
+        or normalized_lineage[0] != identity["root_run_id"]
+        or normalized_lineage[-1] != identity["run_id"]
+        or identity["parent_run_id"] != expected_parent_run_id
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity lineage is inconsistent",
+            status_code=400,
+        )
+    identity["run_lineage"] = normalized_lineage
+
+    grant = normalized.get("grant")
+    if not isinstance(grant, dict) or set(grant) != _GRAPH_COORDINATOR_GRANT_KEYS:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator grant has unsupported fields",
+            status_code=400,
+        )
+    if not isinstance(grant.get("module_key"), str):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator grant module_key must be text",
+            status_code=400,
+        )
+    grant["module_key"] = _required_identifier(
+        grant.get("module_key"),
+        field_name="coordinator_grant_module_key",
+    )
+    if grant["module_key"] != _MEMORY_V2_MODULE_KEY:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator grant belongs to another module",
+            status_code=400,
+        )
+    for field_name in ("capabilities", "delegable_capabilities"):
+        values = grant.get(field_name)
+        if (
+            not isinstance(values, list)
+            or any(
+                not isinstance(item, str) or not item.strip()
+                for item in values
+            )
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator grant {field_name} must contain capabilities",
+                status_code=400,
+            )
+        normalized_values = [item.strip() for item in values]
+        if len(normalized_values) != len(set(normalized_values)):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator grant {field_name} contains duplicates",
+                status_code=400,
+            )
+        grant[field_name] = sorted(normalized_values)
+    if not set(grant["delegable_capabilities"]).issubset(
+        grant["capabilities"]
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator delegable capabilities exceed its grant",
+            status_code=400,
+        )
+    authority = grant.get("authority")
+    if authority is not None:
+        if not isinstance(authority, str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "coordinator grant authority must be text or null",
+                status_code=400,
+            )
+        grant["authority"] = _required_identifier(
+            authority,
+            field_name="coordinator_grant_authority",
+        )
+    completion_authorized = (
+        _MEMORY_EXECUTION_COMPLETE in grant["capabilities"]
+        and grant["authority"] is not None
+    )
+    if (
+        _MEMORY_EXECUTION_COMPLETE in grant["capabilities"]
+        and not completion_authorized
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator completion capability requires an authority",
+            status_code=400,
+        )
+
     expected_scope = (
         owner_chat_id,
         graph_execution_id,
@@ -600,10 +865,10 @@ def _normalize_graph_coordinator_binding_snapshot(
     )
     actual_scope = (
         normalized["owner_chat_id"],
-        normalized["execution_id"],
+        identity["execution_id"],
         normalized["session_id"],
-        normalized["attempt_id"],
-        normalized["run_id"],
+        identity["attempt_id"],
+        identity["run_id"],
     )
     if actual_scope != expected_scope:
         raise DurableInteractionHostError(
@@ -611,37 +876,20 @@ def _normalize_graph_coordinator_binding_snapshot(
             "coordinator binding does not match the graph resume scope",
             status_code=400,
         )
-    role = normalized["role"]
-    if role == "root":
-        if (
-            normalized["root_run_id"] != coordinator_attempt_id
-            or source_attempt_id
-        ):
-            raise DurableInteractionHostError(
-                "invalid_coordinator_binding_snapshot",
-                "root coordinator binding identity is invalid",
-                status_code=400,
-            )
+    if current_input_draft is not None:
         normalized["current_input_draft"] = (
             _normalize_graph_current_input_draft(
-                normalized.get("current_input_draft")
+                current_input_draft
             )
         )
-    elif role == "subagent":
-        if (
-            normalized["root_run_id"] == coordinator_attempt_id
-            or not source_attempt_id
-            or normalized.get("current_input_draft") is not None
-        ):
-            raise DurableInteractionHostError(
-                "invalid_coordinator_binding_snapshot",
-                "subagent coordinator binding identity is invalid",
-                status_code=400,
-            )
-    else:
+    if (
+        identity["parent_run_id"] is not None
+        and current_input_draft is not None
+        and not completion_authorized
+    ):
         raise DurableInteractionHostError(
             "invalid_coordinator_binding_snapshot",
-            "graph coordinator role must be root or subagent",
+            "a nested coordinator requires authority to own current input",
             status_code=400,
         )
     return normalized

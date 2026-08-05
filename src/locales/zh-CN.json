@@ -662,5 +662,20 @@
     "btw": "立即回答，不打断当前任务",
     "fyi": "补充给当前任务",
     "queue": "排队，当前任务完成后执行"
+  },
+  "boot": {
+    "starting_runtime": "正在启动本地服务",
+    "starting_mcp": "正在准备插件",
+    "taking_longer": "启动时间比平常长",
+    "click_to_start": "点击任意位置开始",
+    "progress_label": "启动进度",
+    "retry": "重试",
+    "retrying": "正在重试…",
+    "failure": {
+      "unchain_runtime_not_found": "PuPu 缺少部分安装文件，无法启动。重新安装通常可以解决。",
+      "unchain_runtime_failed": "PuPu 的本地服务仍未启动。仍在持续尝试——你可以再等等，或点击重试。",
+      "mcp_environment_unavailable": "PuPu 已启动，但插件尚未就绪。仍在持续尝试——你可以再等等，或点击重试。",
+      "unknown": "PuPu 的本地服务尚未就绪，仍在重试。"
+    }
   }
 }

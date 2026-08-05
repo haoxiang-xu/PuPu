@@ -35,6 +35,7 @@ describe("preload API contract", () => {
         "__pupuTestBridge",
         "appInfoAPI",
         "appUpdateAPI",
+        "bootReadinessAPI",
         "chatStorageAPI",
         "contextV2API",
         "memoryVaultAPI",

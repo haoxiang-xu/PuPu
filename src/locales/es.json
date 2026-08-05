@@ -616,5 +616,20 @@
     "btw": "Responde ahora, sin interrumpir la tarea",
     "fyi": "Añade información a la tarea actual",
     "queue": "Pone en cola, se ejecuta al terminar este turno"
+  },
+  "boot": {
+    "starting_runtime": "Iniciando servicios locales",
+    "starting_mcp": "Preparando tus plugins",
+    "taking_longer": "Esto está tardando más de lo habitual",
+    "click_to_start": "Haz clic en cualquier lugar para empezar",
+    "progress_label": "Progreso de inicio",
+    "retry": "Reintentar",
+    "retrying": "Reintentando…",
+    "failure": {
+      "unchain_runtime_not_found": "A PuPu le falta parte de su instalación y no puede iniciarse. Reinstalarlo suele solucionarlo.",
+      "unchain_runtime_failed": "Los servicios locales de PuPu siguen sin iniciarse. Continúa intentándolo: puedes esperar un poco más o reintentar.",
+      "mcp_environment_unavailable": "PuPu se inició, pero tus plugins aún no están listos. Sigue intentándolo: puedes esperar o reintentar.",
+      "unknown": "Los servicios locales de PuPu aún no están listos. Sigue intentándolo."
+    }
   }
 }

@@ -60,7 +60,7 @@ from unchain.persistence.sqlite_generation_lifecycle_v2 import (
     build_host_generation_attempt_binding_operation,
 )
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
-from unchain.run_identity import MemoryV2RunRole
+from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
 class PupuUnchainDerivedHandoffHostError(RuntimeError):
@@ -122,14 +122,12 @@ class PupuUnchainDerivedHandoffRequest:
     """Complete PuPu authority for one graph-step or subagent input."""
 
     owner_chat_id: str
-    execution_id: str
     session_id: str
     generation_id: str
     head_revision: int
-    root_run_id: str
+    identity: ExecutionIdentity
+    grant: ModuleGrant
     source_attempt_id: str
-    consumer_attempt_id: str
-    run_role: MemoryV2RunRole
     source_event_range: EventRange
     operation_id: str
     status: HandoffStatus
@@ -140,12 +138,9 @@ class PupuUnchainDerivedHandoffRequest:
     def __post_init__(self) -> None:
         for field_name in (
             "owner_chat_id",
-            "execution_id",
             "session_id",
             "generation_id",
-            "root_run_id",
             "source_attempt_id",
-            "consumer_attempt_id",
             "operation_id",
         ):
             object.__setattr__(
@@ -158,17 +153,16 @@ class PupuUnchainDerivedHandoffRequest:
             "head_revision",
             _positive_revision(self.head_revision),
         )
-        if not isinstance(self.run_role, MemoryV2RunRole):
-            raise TypeError("run_role must be a MemoryV2RunRole")
-        if self.run_role is MemoryV2RunRole.ROOT:
-            raise ValueError("root run cannot use derived handoff input")
-        if self.run_role not in {
-            MemoryV2RunRole.GRAPH_STEP,
-            MemoryV2RunRole.SUBAGENT,
-        }:
-            raise ValueError("derived handoff run role is unsupported")
-        if self.consumer_attempt_id == self.root_run_id:
-            raise ValueError("derived handoff consumer cannot be the root run")
+        if not isinstance(self.identity, ExecutionIdentity):
+            raise TypeError("identity must be an ExecutionIdentity")
+        if not isinstance(self.grant, ModuleGrant):
+            raise TypeError("grant must be a ModuleGrant")
+        if self.identity.parent_run_id is None:
+            raise ValueError("derived handoff consumer requires a parent run")
+        if self.identity.parent_run_id != self.source_attempt_id:
+            raise ValueError(
+                "derived handoff source must match the consumer parent run"
+            )
         if self.consumer_attempt_id == self.source_attempt_id:
             raise ValueError("derived handoff source and consumer must be distinct")
         if not isinstance(self.source_event_range, EventRange):
@@ -202,6 +196,18 @@ class PupuUnchainDerivedHandoffRequest:
                 "summary",
                 _freeze_json(self.summary, path="summary"),
             )
+
+    @property
+    def execution_id(self) -> str:
+        return self.identity.execution_id
+
+    @property
+    def root_run_id(self) -> str:
+        return self.identity.root_run_id
+
+    @property
+    def consumer_attempt_id(self) -> str:
+        return self.identity.attempt_id
 
 
 class PupuUnchainDerivedHandoffHostAdapter:
@@ -345,15 +351,11 @@ class PupuUnchainDerivedHandoffHostAdapter:
 
         expected_binding = PupuMemoryV2RunBinding(
             owner_chat_id=request.owner_chat_id,
-            execution_id=request.execution_id,
             session_id=request.session_id,
             generation_id=request.generation_id,
             head_revision=request.head_revision,
-            attempt_id=request.consumer_attempt_id,
-            run_id=request.consumer_attempt_id,
-            root_run_id=request.root_run_id,
-            role=request.run_role,
-            source_attempt_id=request.source_attempt_id,
+            identity=request.identity,
+            grant=request.grant,
             current_input_draft=None,
         )
         expected_consumer_operation = build_host_generation_attempt_binding_operation(
@@ -368,7 +370,7 @@ class PupuUnchainDerivedHandoffHostAdapter:
         )
         if consumer.operation != expected_consumer_operation:
             raise PupuUnchainDerivedHandoffHostError(
-                "derived handoff consumer role or source binding changed"
+                "derived handoff consumer identity or grant binding changed"
             )
 
     def persist(

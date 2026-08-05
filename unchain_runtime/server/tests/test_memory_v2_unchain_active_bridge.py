@@ -23,7 +23,12 @@ from unchain.context import SemanticEventProjectionMode
 from unchain.kernel import ModelTurnResult
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 
 
 def _admission(*, active: bool = True):
@@ -37,12 +42,21 @@ def _admission(*, active: bool = True):
 
 def _run() -> PupuUnchainShadowRunDraft:
     return PupuUnchainShadowRunDraft(
-        execution_id="session-active",
         session_id="session-active",
-        attempt_id="root-active",
-        run_id="root-active",
-        root_run_id="root-active",
-        role=MemoryV2RunRole.ROOT,
+        identity=ExecutionIdentity(
+            execution_id="session-active",
+            attempt_id="root-active",
+            run_id="root-active",
+            run_lineage=("root-active",),
+        ),
+        grant=ModuleGrant(
+            module_key=MEMORY_V2_MODULE_KEY,
+            capabilities=MEMORY_V2_CAPABILITIES,
+            delegable_capabilities=MEMORY_V2_CAPABILITIES.difference(
+                {MEMORY_EXECUTION_COMPLETE}
+            ),
+            authority="memory-completion:session-active",
+        ),
         current_input_draft=PupuMemoryV2TextInputDraft(content="current objective"),
     )
 
@@ -233,8 +247,10 @@ def test_active_context_module_compiles_provider_input_from_canonical_journal(
         max_context_window_tokens=16_384,
         run_id="root-active",
         session_id="session-active",
-        memory_v2_run_role=MemoryV2RunRole.ROOT,
-        root_run_id="root-active",
+        runtime_context=AgentRuntimeContext(
+            identity=bridge.preparation.binding.identity,
+            module_grants=(bridge.preparation.binding.grant,),
+        ),
     )
 
     assert result.status == "completed"
@@ -264,12 +280,9 @@ def test_active_provider_receives_exact_handle_but_never_plaintext(
     bridge = prepare_pupu_unchain_active_bridge(
         admission=_admission(),
         run=PupuUnchainShadowRunDraft(
-            execution_id="session-active",
             session_id="session-active",
-            attempt_id="root-active",
-            run_id="root-active",
-            root_run_id="root-active",
-            role=MemoryV2RunRole.ROOT,
+            identity=_run().identity,
+            grant=_run().grant,
             current_input_draft=PupuMemoryV2TextInputDraft(
                 content=(
                     f"Use {marker}; raw handle {raw_handle}; "
@@ -341,8 +354,10 @@ def test_active_provider_receives_exact_handle_but_never_plaintext(
         max_context_window_tokens=16_384,
         run_id="root-active",
         session_id="session-active",
-        memory_v2_run_role=MemoryV2RunRole.ROOT,
-        root_run_id="root-active",
+        runtime_context=AgentRuntimeContext(
+            identity=bridge.preparation.binding.identity,
+            module_grants=(bridge.preparation.binding.grant,),
+        ),
     )
 
     assert result.status == "completed"

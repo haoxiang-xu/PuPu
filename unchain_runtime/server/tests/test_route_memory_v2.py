@@ -118,6 +118,33 @@ class MemoryV2RouteTests(unittest.TestCase):
             self.assertNotIn("model", payload)
             self.assertNotIn("last_error_code", payload)
 
+    def test_status_exposes_the_configured_unchain_store_owner(self):
+        status = {
+            "available": True,
+            "schema_version": 2,
+            "journal_mode": "wal",
+            "lexical_backend": "fts5",
+            "vector_status": "disabled",
+        }
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_status_for_store_owner",
+                return_value=status,
+            ),
+        ):
+            response = self.client.get(
+                "/context/v2/status",
+                headers=self.headers,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["store_owner"], "unchain")
+
     def test_status_exposes_the_same_normalized_rollout_used_by_admission(self):
         environment = {
             "PUPU_FEATURE_MEMORY_V2": "all",
@@ -410,6 +437,442 @@ class MemoryV2RouteTests(unittest.TestCase):
         self.assertEqual(
             invalid.get_json()["error"]["code"],
             "context_v2_invalid_history",
+        )
+
+    def test_generation_routes_dispatch_to_unchain_owner_without_legacy_runtime(self):
+        calls = []
+        head = {
+            "owner_chat_id": "chat_unchain",
+            "session_id": "session_unchain",
+            "admission_mode": "active",
+            "target_mode": "active",
+            "bootstrap_status": "complete",
+            "bootstrap_error_code": "",
+            "v2_bootstrapped": True,
+            "sticky": True,
+            "session_exists": True,
+            "mutation_ready": True,
+            "current_generation_id": "generation_unchain",
+            "current_generation_no": 2,
+            "session_revision": 2,
+        }
+        rebase = {
+            "owner_chat_id": "chat_unchain",
+            "session_id": "session_unchain",
+            "source_generation_id": "generation_unchain",
+            "generation_id": "generation_rebased",
+            "session_revision": 3,
+        }
+
+        class GenerationAPI:
+            def get_session_head(self, **kwargs):
+                calls.append(("head", kwargs))
+                return head
+
+            def rebase_session(self, **kwargs):
+                calls.append(("rebase", kwargs))
+                return rebase
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+            mock.patch(
+                "memory_v2_unchain_generation_api."
+                "open_pupu_unchain_generation_api",
+                return_value=GenerationAPI(),
+            ) as open_generation,
+        ):
+            head_response = self.client.get(
+                "/context/v2/session/head",
+                headers=self.headers,
+                query_string={
+                    "owner_chat_id": "chat_unchain",
+                    "session_id": "session_unchain",
+                },
+            )
+            rebase_response = self.client.post(
+                "/context/v2/session/rebase",
+                headers=self.headers,
+                json={
+                    "owner_chat_id": "chat_unchain",
+                    "session_id": "session_unchain",
+                    "replacement_history": [
+                        {"role": "user", "content": "Replacement"}
+                    ],
+                    "source_generation_id": "generation_unchain",
+                    "expected_session_revision": 2,
+                    "operation_id": "operation_unchain",
+                    "reason": "edit",
+                },
+            )
+
+        self.assertEqual(head_response.status_code, 200)
+        self.assertEqual(head_response.get_json(), head)
+        self.assertEqual(rebase_response.status_code, 200)
+        self.assertEqual(rebase_response.get_json(), rebase)
+        self.assertEqual(
+            calls,
+            [
+                (
+                    "head",
+                    {
+                        "owner_chat_id": "chat_unchain",
+                        "session_id": "session_unchain",
+                    },
+                ),
+                (
+                    "rebase",
+                    {
+                        "owner_chat_id": "chat_unchain",
+                        "session_id": "session_unchain",
+                        "replacement_history": [
+                            {"role": "user", "content": "Replacement"}
+                        ],
+                        "source_generation_id": "generation_unchain",
+                        "expected_session_revision": 2,
+                        "operation_id": "operation_unchain",
+                        "reason": "edit",
+                    },
+                ),
+            ],
+        )
+        self.assertEqual(open_generation.call_count, 2)
+        for call in open_generation.call_args_list:
+            self.assertEqual(
+                call.kwargs,
+                {
+                    "root_dir": (
+                        Path(self.temp_dir.name) / "memory_v2"
+                    ).resolve(),
+                    "owner_chat_id": "chat_unchain",
+                },
+            )
+
+    def test_unchain_generation_route_preserves_stable_error_contract(self):
+        from memory_v2_unchain_generation_api import (
+            MemoryV2UnchainGenerationAPIError,
+        )
+
+        generation_api = types.SimpleNamespace(
+            get_session_head=mock.Mock(
+                side_effect=MemoryV2UnchainGenerationAPIError(
+                    "context_v2_revision_conflict",
+                    "private durable detail",
+                    status_code=409,
+                    retryable=True,
+                    expected_revision=2,
+                    actual_revision=3,
+                )
+            )
+        )
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+            mock.patch(
+                "memory_v2_unchain_generation_api."
+                "open_pupu_unchain_generation_api",
+                return_value=generation_api,
+            ),
+        ):
+            response = self.client.get(
+                "/context/v2/session/head",
+                headers=self.headers,
+                query_string={
+                    "owner_chat_id": "chat_unchain",
+                    "session_id": "session_unchain",
+                },
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.get_json(),
+            {
+                "error": {
+                    "code": "context_v2_revision_conflict",
+                    "message": "Unchain-owned generation request failed",
+                    "retryable": True,
+                    "expected_revision": 2,
+                    "actual_revision": 3,
+                }
+            },
+        )
+
+    def test_unchain_unadmitted_head_normalizes_to_definitive_not_found(self):
+        from memory_v2_unchain_generation_api import (
+            MemoryV2UnchainGenerationAPIError,
+        )
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+            mock.patch(
+                "memory_v2_unchain_generation_api."
+                "open_pupu_unchain_generation_api",
+                side_effect=MemoryV2UnchainGenerationAPIError(
+                    "context_v2_admission_missing",
+                    "private admission detail",
+                    status_code=404,
+                ),
+            ),
+        ):
+            response = self.client.get(
+                "/context/v2/session/head",
+                headers=self.headers,
+                query_string={
+                    "owner_chat_id": "chat_unadmitted",
+                    "session_id": "session_unadmitted",
+                },
+            )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.get_json()["error"],
+            {
+                "code": "context_v2_not_found",
+                "message": "Unchain-owned generation request failed",
+                "retryable": False,
+            },
+        )
+
+    def test_unchain_partial_binding_without_admission_fails_closed(self):
+        import sqlite3
+
+        from memory_v2_store_boundary import (
+            STORE_OWNER_UNCHAIN,
+            admit_context_v2_store_owner,
+        )
+        from memory_v2_unchain_generation_api import (
+            MemoryV2UnchainGenerationAPIError,
+        )
+        from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
+
+        root_dir = Path(self.temp_dir.name) / "memory_v2"
+        admission = admit_context_v2_store_owner(
+            root_dir=root_dir,
+            requested_owner=STORE_OWNER_UNCHAIN,
+        )
+        SQLiteContextV2Store(
+            database_path=admission.database_path,
+            object_directory=root_dir / "objects",
+        )
+        with sqlite3.connect(admission.database_path) as connection:
+            connection.execute(
+                "CREATE TABLE host_generation_chat_bindings ("
+                "owner_chat_id TEXT PRIMARY KEY, execution_id TEXT NOT NULL, "
+                "session_id TEXT NOT NULL)"
+            )
+            connection.execute(
+                "INSERT INTO host_generation_chat_bindings("
+                "owner_chat_id, execution_id, session_id) VALUES(?, ?, ?)",
+                ("chat_partial", "execution_partial", "session_partial"),
+            )
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+            mock.patch(
+                "memory_v2_unchain_generation_api."
+                "open_pupu_unchain_generation_api",
+                side_effect=MemoryV2UnchainGenerationAPIError(
+                    "context_v2_admission_missing",
+                    "admission write did not complete",
+                    status_code=404,
+                ),
+            ),
+        ):
+            response = self.client.get(
+                "/context/v2/session/head",
+                headers=self.headers,
+                query_string={
+                    "owner_chat_id": "chat_partial",
+                    "session_id": "different_session",
+                },
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.get_json()["error"],
+            {
+                "code": "context_v2_mutation_not_ready",
+                "message": "Unchain-owned generation request failed",
+                "retryable": True,
+            },
+        )
+
+    def test_disabled_generation_routes_distinguish_absent_from_durable_state(self):
+        rebase_payload = {
+            "owner_chat_id": "chat_disabled",
+            "session_id": "session_disabled",
+            "replacement_history": [],
+            "source_generation_id": "generation_disabled",
+            "expected_session_revision": 1,
+            "operation_id": "operation_disabled",
+            "reason": "delete",
+        }
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "off"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+        ):
+            absent_head = self.client.get(
+                "/context/v2/session/head",
+                headers=self.headers,
+                query_string={
+                    "owner_chat_id": "chat_disabled",
+                    "session_id": "session_disabled",
+                },
+            )
+            absent_rebase = self.client.post(
+                "/context/v2/session/rebase",
+                headers=self.headers,
+                json=rebase_payload,
+            )
+
+        self.assertEqual(absent_head.status_code, 404)
+        self.assertEqual(absent_rebase.status_code, 404)
+        self.assertEqual(
+            absent_head.get_json()["error"]["code"],
+            "context_v2_not_found",
+        )
+        self.assertEqual(
+            absent_rebase.get_json()["error"]["code"],
+            "context_v2_not_found",
+        )
+
+        with mock.patch.dict(
+            os.environ,
+            {CONTEXT_V2_STORE_OWNER_ENV: "pupu_legacy"},
+        ):
+            get_memory_v2_runtime(required=True)
+        _reset_memory_v2_runtime_for_tests()
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "off"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+        ):
+            empty_legacy_head = self.client.get(
+                "/context/v2/session/head",
+                headers=self.headers,
+                query_string={
+                    "owner_chat_id": "chat_disabled",
+                    "session_id": "session_disabled",
+                },
+            )
+            empty_legacy_rebase = self.client.post(
+                "/context/v2/session/rebase",
+                headers=self.headers,
+                json=rebase_payload,
+            )
+
+        self.assertEqual(empty_legacy_head.status_code, 404)
+        self.assertEqual(empty_legacy_rebase.status_code, 404)
+        self.assertEqual(
+            empty_legacy_head.get_json()["error"]["code"],
+            "context_v2_not_found",
+        )
+        self.assertEqual(
+            empty_legacy_rebase.get_json()["error"]["code"],
+            "context_v2_not_found",
+        )
+
+        with mock.patch.dict(
+            os.environ,
+            {CONTEXT_V2_STORE_OWNER_ENV: "pupu_legacy"},
+        ):
+            runtime = get_memory_v2_runtime(required=True)
+            runtime.resolve_chat_admission(
+                owner_chat_id="chat_disabled",
+                session_id="session_disabled",
+                requested_rollout_mode="all",
+                effective_rollout_mode="all",
+                cohort="all_active",
+                target_mode="active",
+                decision_reason="",
+                canary_selected=True,
+                canary_percent=100,
+                canary_bucket=1,
+                hash_strategy="sha256_owner_v1",
+                provenance={"source": "route_test"},
+                operation_id="disabled_scope_admission",
+            )
+        _reset_memory_v2_runtime_for_tests()
+
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "off"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+        ):
+            durable_head = self.client.get(
+                "/context/v2/session/head",
+                headers=self.headers,
+                query_string={
+                    "owner_chat_id": "chat_disabled",
+                    "session_id": "different_session",
+                },
+            )
+            durable_rebase = self.client.post(
+                "/context/v2/session/rebase",
+                headers=self.headers,
+                json=rebase_payload,
+            )
+
+        self.assertEqual(durable_head.status_code, 503)
+        self.assertEqual(durable_rebase.status_code, 503)
+        self.assertEqual(
+            durable_head.get_json()["error"]["code"],
+            "context_v2_store_disabled",
+        )
+        self.assertEqual(
+            durable_rebase.get_json()["error"]["code"],
+            "context_v2_store_disabled",
         )
 
     def test_read_only_degraded_allows_reads_and_privacy_delete_only(self):

@@ -3,4 +3,5 @@
 - [Security Attack Surface](security-attack-surface.md) — SEC-001 自查: IPC 任意文件读写、token 漏进 avatar URL、SSE relay 不设防、dev-gate 用 NODE_ENV 而非 app.isPackaged
 - [Electron Test Twin Mechanics](electron-test-twin-mechanics.md) — .cjs 存全部测试体, .js 是 require 壳; test:electron 只跑 .cjs, test:frontend 跑 .js; 频道 parity 守卫在 ipc_channels.test.cjs
 - [Memory Vault P0 契约](memory-vault-p0-contract.md) — vault 无读通道/handle 格式/receipt 无明文/fail-closed + sink worker 启动顺序/one-shot configure/同步 drain, 动 memory_vault 前必读
+- [Boot 就绪门契约](boot-readiness-gate-contract.md) — 时钟永不开 backend gate/MCP就绪=GET /mcp/toolkits/必用 restartMiso/overlay 是模态屏障(焦点+Escape)/main 只送 code
 - [Context V2 契约](context-v2-p0-contract.md) — CONTEXT_V2 18 条冻结能力(含 schema-v4 review 三件套)/无 generic proxy/schema 等值门/review 出站投影

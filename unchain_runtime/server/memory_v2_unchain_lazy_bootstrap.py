@@ -28,7 +28,7 @@ from memory_v2_unchain_atomic_bootstrap import (
 )
 from unchain.context import SemanticEventProjectionMode
 from unchain.journal.models import _required_text
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import MEMORY_EXECUTION_COMPLETE
 
 
 class PupuUnchainActiveLazyBootstrapError(RuntimeError):
@@ -114,8 +114,8 @@ def _active_scope(
     binding = preflight.preparation.binding
     factory = preflight.preparation.host_factory
     if (
-        binding.role is not MemoryV2RunRole.ROOT
-        or binding.run_id != binding.root_run_id
+        not binding.grant.allows(MEMORY_EXECUTION_COMPLETE)
+        or not binding.grant.authority
         or preflight.execution_id != binding.execution_id
         or factory.owner_chat_id != binding.owner_chat_id
         or factory.root_run_id != binding.root_run_id

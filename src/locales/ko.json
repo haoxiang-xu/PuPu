@@ -616,5 +616,20 @@
     "btw": "지금 바로 답변(작업 중단 없음)",
     "fyi": "현재 작업에 정보 추가",
     "queue": "대기열에 추가, 이번 턴 종료 후 실행"
+  },
+  "boot": {
+    "starting_runtime": "로컬 서비스를 시작하는 중",
+    "starting_mcp": "플러그인을 준비하는 중",
+    "taking_longer": "평소보다 오래 걸리고 있습니다",
+    "click_to_start": "아무 곳이나 클릭하여 시작",
+    "progress_label": "시작 진행률",
+    "retry": "다시 시도",
+    "retrying": "다시 시도하는 중…",
+    "failure": {
+      "unchain_runtime_not_found": "PuPu의 설치 파일 일부가 없어 시작할 수 없습니다. 다시 설치하면 대부분 해결됩니다.",
+      "unchain_runtime_failed": "PuPu의 로컬 서비스가 아직 시작되지 않았습니다. 계속 시도 중입니다. 조금 더 기다리거나 다시 시도해 보세요.",
+      "mcp_environment_unavailable": "PuPu가 시작되었지만 플러그인이 아직 준비되지 않았습니다. 계속 시도 중입니다. 기다리거나 다시 시도해 보세요.",
+      "unknown": "PuPu의 로컬 서비스가 아직 준비되지 않았습니다. 계속 시도 중입니다."
+    }
   }
 }

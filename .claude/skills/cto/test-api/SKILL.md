@@ -1,5 +1,5 @@
 ---
-name: pupu-test-api
+name: test-api
 description: "Use when running QA / regression tests against PuPu, when verifying a code change actually works in the running app, or when reading PuPu UI/state without screenshotting manually. Triggers on tasks like \"test that PuPu still creates chats correctly\", \"verify the new model selector works end-to-end\", \"send a message and check the response\", \"what's PuPu's current state?\". Phase 1 covers chat lifecycle, message send (blocking), model/toolkit/character switching, logs, state snapshot, screenshot, eval."
 ---
 

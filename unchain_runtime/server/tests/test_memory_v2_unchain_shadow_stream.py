@@ -15,7 +15,37 @@ from memory_v2_unchain_shadow_bridge import (
 )
 from unchain.agent import Agent
 from unchain.kernel import ModelTurnResult
-from unchain.run_identity import MemoryV2RunRole
+from unchain.memory import (
+    MEMORY_EXECUTION_COMPLETE,
+    MEMORY_V2_CAPABILITIES,
+    MEMORY_V2_MODULE_KEY,
+)
+from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
+
+
+def _root_runtime_context(
+    *,
+    execution_id: str,
+    run_id: str,
+) -> AgentRuntimeContext:
+    return AgentRuntimeContext(
+        identity=ExecutionIdentity(
+            execution_id=execution_id,
+            attempt_id=run_id,
+            run_id=run_id,
+            run_lineage=(run_id,),
+        ),
+        module_grants=(
+            ModuleGrant(
+                module_key=MEMORY_V2_MODULE_KEY,
+                capabilities=MEMORY_V2_CAPABILITIES,
+                delegable_capabilities=MEMORY_V2_CAPABILITIES.difference(
+                    {MEMORY_EXECUTION_COMPLETE}
+                ),
+                authority=f"memory-completion:{execution_id}",
+            ),
+        ),
+    )
 
 
 def _two_step_recipe():
@@ -158,7 +188,10 @@ def test_normal_shadow_binds_root_and_persists_raw_event_before_pupu_trace() -> 
                 message="remember the full task",
                 history=[],
                 attachments=[],
-                options={"_memory_v2_requested": True},
+                options={
+                    "_memory_v2_requested": True,
+                    "_memory_v2_owner_chat_id": "chat-a",
+                },
                 session_id="",
                 attempt_id="root-run-a",
             )
@@ -168,11 +201,19 @@ def test_normal_shadow_binds_root_and_persists_raw_event_before_pupu_trace() -> 
     assert isinstance(shadow_run, PupuUnchainShadowRunDraft)
     assert shadow_run.execution_id == "root-run-a"
     assert shadow_run.run_id == shadow_run.root_run_id == "root-run-a"
-    assert shadow_run.role is MemoryV2RunRole.ROOT
+    assert shadow_run.parent_run_id is None
+    assert shadow_run.identity.run_lineage == ("root-run-a",)
+    assert shadow_run.grant.capabilities == MEMORY_V2_CAPABILITIES
+    assert shadow_run.grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert shadow_run.grant.authority
     assert isinstance(shadow_run.current_input_draft, PupuMemoryV2TextInputDraft)
     assert shadow_run.current_input_draft.content == "remember the full task"
-    assert run_kwargs["memory_v2_run_role"] is MemoryV2RunRole.ROOT
-    assert run_kwargs["root_run_id"] == "root-run-a"
+    runtime_context = run_kwargs["runtime_context"]
+    assert isinstance(runtime_context, AgentRuntimeContext)
+    assert runtime_context.identity == shadow_run.identity
+    assert runtime_context.grant_for(MEMORY_V2_MODULE_KEY) == shadow_run.grant
+    assert "memory_v2_run_role" not in run_kwargs
+    assert "root_run_id" not in run_kwargs
     assert order[:2] == ["official", "legacy"]
     assert any(event.get("type") == "final_message" for event in events)
 
@@ -292,24 +333,33 @@ def test_graph_shadow_uses_root_then_unique_step_ids_before_ui_rewrite(
         "memory_v2_unchain_shadow_bridge.prepare_pupu_unchain_shadow_bridge",
         side_effect=prepare_bridge,
     ):
+        root_runtime_context = _root_runtime_context(
+            execution_id="session-a",
+            run_id="workflow-a",
+        )
         events = list(
             adapter._stream_recipe_graph_events(
                 recipe=_two_step_recipe(),
                 message="full graph task",
                 history=[],
                 attachments=[],
-                    options={
-                        "modelId": "ollama:test",
-                        "_memory_v2_requested": True,
-                        "_memory_v2_owner_chat_id": "chat-a",
-                    },
+                options={
+                    "modelId": "ollama:test",
+                    "_memory_v2_requested": True,
+                    "_memory_v2_owner_chat_id": "chat-a",
+                },
                 session_id="session-a",
                 run_id_override="workflow-a",
+                runtime_context=root_runtime_context,
             )
         )
 
     assert prepared_runs[0].run_id == "workflow-a"
-    assert prepared_runs[0].role is MemoryV2RunRole.ROOT
+    assert prepared_runs[0].identity == root_runtime_context.identity
+    assert prepared_runs[0].grant == root_runtime_context.grant_for(
+        MEMORY_V2_MODULE_KEY
+    )
+    assert prepared_runs[0].parent_run_id is None
     assert isinstance(prepared_runs[0].current_input_draft, PupuMemoryV2TextInputDraft)
     first_run_id = adapter._memory_v2_graph_step_run_id(
         "workflow-a",
@@ -325,14 +375,31 @@ def test_graph_shadow_uses_root_then_unique_step_ids_before_ui_rewrite(
         first_run_id,
         second_run_id,
     ]
-    assert run_calls[0]["memory_v2_run_role"] is MemoryV2RunRole.GRAPH_STEP
-    assert run_calls[1]["memory_v2_run_role"] is MemoryV2RunRole.GRAPH_STEP
-    assert run_calls[0]["root_run_id"] == "workflow-a"
-    assert run_calls[1]["root_run_id"] == "workflow-a"
+    first_context = run_calls[0]["runtime_context"]
+    second_context = run_calls[1]["runtime_context"]
+    assert isinstance(first_context, AgentRuntimeContext)
+    assert isinstance(second_context, AgentRuntimeContext)
+    assert first_context.identity.run_lineage == (
+        "workflow-a",
+        first_run_id,
+    )
+    assert second_context.identity.run_lineage == (
+        "workflow-a",
+        first_run_id,
+        second_run_id,
+    )
+    root_grant = root_runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+    first_grant = first_context.grant_for(MEMORY_V2_MODULE_KEY)
+    second_grant = second_context.grant_for(MEMORY_V2_MODULE_KEY)
+    assert root_grant is not None
+    assert first_grant == root_grant.delegated()
+    assert second_grant == first_grant.delegated()
+    assert all("memory_v2_run_role" not in call for call in run_calls)
+    assert all("root_run_id" not in call for call in run_calls)
     assert {
         binding.attempt_id
         for binding in registrations
-        if binding.role is MemoryV2RunRole.GRAPH_STEP
+        if len(binding.identity.run_lineage) > 1
     }.issuperset({first_run_id, second_run_id})
     assert all(
         kwargs["context_memory_v2_modules"][:-1] == prepared_bridges[0].modules
@@ -494,9 +561,12 @@ def test_resume_shadow_bootstraps_exact_response_before_resumed_provider() -> No
     assert isinstance(shadow_run, PupuUnchainShadowRunDraft)
     assert shadow_run.execution_id == shadow_run.session_id == "session-a"
     assert shadow_run.attempt_id == shadow_run.run_id == "resume-a"
-    assert shadow_run.root_run_id == "resume-a"
-    assert shadow_run.role is MemoryV2RunRole.ROOT
-    assert shadow_run.source_attempt_id == ""
+    assert shadow_run.identity.run_lineage == ("source-a", "resume-a")
+    assert shadow_run.root_run_id == "source-a"
+    assert shadow_run.parent_run_id == "source-a"
+    assert shadow_run.source_attempt_id == "source-a"
+    assert shadow_run.grant.allows(MEMORY_EXECUTION_COMPLETE)
+    assert shadow_run.grant.authority
     assert shadow_run.current_input_draft.canonical_value() == {
         "kind": "interaction",
         "interaction_id": "interaction-a",
@@ -505,6 +575,10 @@ def test_resume_shadow_bootstraps_exact_response_before_resumed_provider() -> No
     }
     assert order.index("bootstrap") < order.index("provider") < order.index("official")
     assert len(composed_callbacks) == 1
-    assert resume_kwargs["memory_v2_run_role"] is MemoryV2RunRole.ROOT
-    assert resume_kwargs["root_run_id"] == "resume-a"
+    runtime_context = resume_kwargs["runtime_context"]
+    assert isinstance(runtime_context, AgentRuntimeContext)
+    assert runtime_context.identity == shadow_run.identity
+    assert runtime_context.grant_for(MEMORY_V2_MODULE_KEY) == shadow_run.grant
+    assert "memory_v2_run_role" not in resume_kwargs
+    assert "root_run_id" not in resume_kwargs
     assert any(event.get("type") == "final_message" for event in events)

@@ -2,14 +2,15 @@ const { createHash } = require("crypto");
 
 const MEMORY_V2_RELEASE_SCHEMA = "pupu.memory-v2-release.v1";
 const MEMORY_V2_ROLLOUT_SCHEMA = "memory_v2.rollout.v1";
-// Must track memory_v2_store.SCHEMA_VERSION exactly. This is an EQUALITY gate,
-// not a floor: a sidecar one version behind (v3, no candidate_reviews) and one
-// version ahead are both refused with context_v2_schema_incompatible, so a
-// mismatched pair degrades Context V2 instead of half-working.
-// v4 adds the candidate_reviews table behind the review triad.
-const MEMORY_V2_REQUIRED_SCHEMA_VERSION = 4;
+// Must track Unchain's SQLiteContextV2Store schema exactly. This is an
+// EQUALITY gate, not a floor. PuPu's retired prototype also used the public
+// Context V2 status shape but ended at schema v4, so readiness must verify the
+// canonical store owner as well as Unchain schema v2 before enabling traffic.
+const MEMORY_V2_REQUIRED_SCHEMA_VERSION = 2;
 const MEMORY_V2_BUILD_FEATURE_KEY = "enable_memory_v2";
 const MEMORY_V2_RELEASE_FIELD = "_pupu_memory_v2_release";
+const MEMORY_V2_DIRTY_ACTIVE_DEV_ENV =
+  "PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV";
 const MEMORY_V2_ENV_KEYS = Object.freeze({
   featureCeiling: "PUPU_FEATURE_MEMORY_V2",
   rolloutMode: "PUPU_MEMORY_V2_MODE",
@@ -263,6 +264,10 @@ const resolveMemoryV2ReleaseConfig = ({
     processEnvironment: environment,
     allowProcessOverrides: !app.isPackaged,
   });
+  const allowDirtyUnchainActiveDev =
+    !app.isPackaged &&
+    rollout.effectiveMode === "all" &&
+    environment?.[MEMORY_V2_DIRTY_ACTIVE_DEV_ENV] === "1";
   if (
     app.isPackaged &&
     featureEnabled &&
@@ -285,6 +290,7 @@ const resolveMemoryV2ReleaseConfig = ({
         typeof release?.snapshot_fingerprint === "string"
           ? release.snapshot_fingerprint
           : "",
+      allowDirtyUnchainActiveDev: false,
     });
   }
 
@@ -298,6 +304,7 @@ const resolveMemoryV2ReleaseConfig = ({
       typeof release?.snapshot_fingerprint === "string"
         ? release.snapshot_fingerprint
         : "",
+    allowDirtyUnchainActiveDev,
   });
 };
 
@@ -311,6 +318,9 @@ const constrainMemoryV2ConfigForPlatform = (releaseConfig, platform) => {
       releaseEffectiveMode: releaseConfig.effectiveMode,
       releaseRolloutFingerprint: releaseConfig.rolloutFingerprint,
       platformActiveBlocked: false,
+      allowDirtyUnchainActiveDev:
+        releaseConfig.allowDirtyUnchainActiveDev === true &&
+        releaseConfig.effectiveMode === "all",
     });
   }
   const constrained = buildRolloutConfig({
@@ -327,11 +337,16 @@ const constrainMemoryV2ConfigForPlatform = (releaseConfig, platform) => {
     releaseEffectiveMode: releaseConfig.effectiveMode,
     releaseRolloutFingerprint: releaseConfig.rolloutFingerprint,
     platformActiveBlocked: true,
+    allowDirtyUnchainActiveDev: false,
   });
 };
 
 const projectMemoryV2Status = (payload = {}) => ({
   available: payload?.available === true,
+  storeOwner:
+    typeof payload?.store_owner === "string"
+      ? payload.store_owner.trim().toLowerCase()
+      : "",
   schemaVersion: Number.isSafeInteger(payload?.schema_version)
     ? payload.schema_version
     : 0,
@@ -391,7 +406,9 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
   const status = projectMemoryV2Status(payload);
   let reason = "";
   if (!status.available) reason = "context_v2_unavailable";
-  else if (status.schemaVersion !== MEMORY_V2_REQUIRED_SCHEMA_VERSION) {
+  else if (status.storeOwner !== "unchain") {
+    reason = "context_v2_store_owner_incompatible";
+  } else if (status.schemaVersion !== MEMORY_V2_REQUIRED_SCHEMA_VERSION) {
     reason = "context_v2_schema_incompatible";
   } else if (status.journalMode !== "wal") {
     reason = "context_v2_wal_required";
@@ -403,14 +420,18 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
     status.contextMemoryCapabilityReason !== "unchain_context_memory_ready" ||
     status.contextMemoryContract !== 1 ||
     !/^[0-9a-f]{40}$/.test(status.unchainRevision) ||
-    !["exact_sha", "dev_bypass"].includes(
+    !["exact_sha", "dev_bypass", "dirty_dev_checkout"].includes(
       status.contextMemoryCapabilityVerification,
     ) ||
     (status.contextMemoryCapabilityVerification === "exact_sha" &&
       !status.contextMemoryCapabilityImmutable) ||
     (status.contextMemoryCapabilityVerification === "dev_bypass" &&
       (status.contextMemoryCapabilityImmutable ||
-        releaseConfig.effectiveMode !== "shadow"))
+        releaseConfig.effectiveMode !== "shadow")) ||
+    (status.contextMemoryCapabilityVerification === "dirty_dev_checkout" &&
+      (status.contextMemoryCapabilityImmutable ||
+        releaseConfig.effectiveMode !== "all" ||
+        releaseConfig.allowDirtyUnchainActiveDev !== true))
   ) {
     reason = "context_v2_unchain_capability_invalid";
   } else if (!status.rolloutConfigValid) {
@@ -430,6 +451,7 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
 
 module.exports = {
   MEMORY_V2_BUILD_FEATURE_KEY,
+  MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
   MEMORY_V2_ENV_KEYS,
   MEMORY_V2_RELEASE_FIELD,
   MEMORY_V2_RELEASE_SCHEMA,

@@ -616,5 +616,20 @@
     "btw": "立即回答，不打斷當前任務",
     "fyi": "補充給當前任務",
     "queue": "排隊，當前任務完成後執行"
+  },
+  "boot": {
+    "starting_runtime": "正在啟動本機服務",
+    "starting_mcp": "正在準備外掛",
+    "taking_longer": "啟動時間比平常長",
+    "click_to_start": "點擊任意位置開始",
+    "progress_label": "啟動進度",
+    "retry": "重試",
+    "retrying": "正在重試…",
+    "failure": {
+      "unchain_runtime_not_found": "PuPu 缺少部分安裝檔案，無法啟動。重新安裝通常可以解決。",
+      "unchain_runtime_failed": "PuPu 的本機服務仍未啟動。仍在持續嘗試——你可以再等等，或點擊重試。",
+      "mcp_environment_unavailable": "PuPu 已啟動，但外掛尚未就緒。仍在持續嘗試——你可以再等等，或點擊重試。",
+      "unknown": "PuPu 的本機服務尚未就緒，仍在重試。"
+    }
   }
 }
