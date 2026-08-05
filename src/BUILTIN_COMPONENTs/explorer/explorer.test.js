@@ -410,3 +410,57 @@ describe("Explorer", () => {
     });
   });
 });
+
+describe("row_hover prop", () => {
+  /* The hover/press wash is rendered as an aria-hidden span whose opacity
+     is driven by state, so assert on that layer directly. */
+  const hoverLayer = (container) =>
+    Array.from(container.querySelectorAll("span[aria-hidden='true']")).filter(
+      (el) => el.style.transition && el.style.transition.includes("transform"),
+    );
+
+  const DATA = { a: { label: "Alpha" }, b: { label: "Beta" } };
+
+  test("defaults to showing hover feedback (existing consumers unchanged)", () => {
+    const { container } = renderExplorer({ data: DATA, root: ["a", "b"] });
+    const row = screen.getByText("Alpha").closest("div");
+    fireEvent.mouseEnter(row);
+    const layers = hoverLayer(container);
+    expect(layers.some((el) => el.style.opacity === "1")).toBe(true);
+  });
+
+  test("row_hover=false suppresses hover feedback", () => {
+    const { container } = renderExplorer({
+      data: DATA,
+      root: ["a", "b"],
+      row_hover: false,
+    });
+    const row = screen.getByText("Alpha").closest("div");
+    fireEvent.mouseEnter(row);
+    const layers = hoverLayer(container);
+    expect(layers.every((el) => el.style.opacity !== "1")).toBe(true);
+  });
+
+  test("row_hover=false still gives press feedback (rows remain clickable)", () => {
+    const { container } = renderExplorer({
+      data: DATA,
+      root: ["a", "b"],
+      row_hover: false,
+    });
+    const row = screen.getByText("Alpha").closest("div");
+    fireEvent.mouseDown(row);
+    const layers = hoverLayer(container);
+    expect(layers.some((el) => el.style.opacity === "1")).toBe(true);
+  });
+
+  test("custom-component rows honour row_hover too (the duplicated path)", () => {
+    const data = {
+      c: { component: () => <div>Custom</div> },
+    };
+    const { container } = renderExplorer({ data, root: ["c"], row_hover: false });
+    const row = screen.getByText("Custom").closest("div").parentElement;
+    fireEvent.mouseEnter(row);
+    const layers = hoverLayer(container);
+    expect(layers.every((el) => el.style.opacity !== "1")).toBe(true);
+  });
+});

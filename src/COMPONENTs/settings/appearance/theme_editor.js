@@ -5,15 +5,22 @@ import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
 import Explorer from "../../../BUILTIN_COMPONENTs/explorer/explorer";
+import { GradientSlider } from "../../../BUILTIN_COMPONENTs/input/slider";
 import ThemePreviewCard from "./theme_preview_card";
 import { toast } from "../../../SERVICEs/toast";
 import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_PRESETS,
   SEMANTIC_FAMILIES,
+  ALPHA_STEPS,
 } from "../../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 import {
+  roleWindow,
+  SHELL_ROLES,
+} from "../../../BUILTIN_COMPONENTs/theme/contrast_window";
+import {
   resolveSemanticPalette,
+  clampImportedCustom,
   applySemanticCssVars,
   applySemanticPaletteToTheme,
   resolveThemeDetails,
@@ -27,6 +34,10 @@ import {
   writeThemeDetails,
   resetThemeSettings,
   clearThemeCustomColor,
+  writeThemeDetailValue,
+  clearThemeDetailValue,
+  readShowAllTiers,
+  writeShowAllTiers,
 } from "./storage";
 import { ADVANCED_TIERS, advancedTokenState } from "./advanced_state";
 
@@ -38,6 +49,48 @@ const DERIVED_CHILDREN = Object.fromEntries(
   Object.entries(SEMANTIC_FAMILIES).map(([root, fam]) => [root, fam.children]),
 );
 
+/* One short sentence per role, in the picker's own mono voice. The rule is
+   stated up front rather than after a rejection — the point of a hard
+   limit is that you never hit it by surprise. */
+const LIMIT_HINTS = {
+  shellDark: "Dark shell — light colors blocked",
+  shellLight: "Light shell — dark colors blocked",
+  text: "Body text — needs 4.5:1 on every surface",
+  textMuted: "Muted text — needs 3:1 on every surface",
+  hue: "Needs 1.9:1 against Background",
+};
+
+/* The editor owns the semantics and hands the picker plain luminance
+   bands, so the primitive never learns what a token is. */
+const constraintFor = (key, mode, palette) => {
+  const bands = roleWindow(key, mode, palette);
+  if (!bands.length) return undefined;
+  let hint;
+  if (SHELL_ROLES.includes(key)) {
+    hint = mode === "dark_mode" ? LIMIT_HINTS.shellDark : LIMIT_HINTS.shellLight;
+  } else if (key === "text" || key === "textMuted") {
+    hint = LIMIT_HINTS[key];
+  } else {
+    hint = LIMIT_HINTS.hue;
+  }
+  return { bands, hint };
+};
+
+const MONO = "Menlo, Monaco, Consolas, monospace";
+
+/* Compact metrics: 30px rows (Explorer's own default, same rhythm as the
+   side menu) instead of 40. Two new roots land for free and the collapsed
+   tree still gets SHORTER than before. */
+const ROW_HEIGHT = 30;
+const ROW_RADIUS = 7;
+const ROW_FONT_SIZE = 13;
+
+const OVERLAY_GROUP = "__overlay";
+
+const alphaStepsFor = (key) =>
+  ALPHA_STEPS.filter((step) => step.parent === key && !step.group);
+const OVERLAY_STEPS = ALPHA_STEPS.filter((step) => step.group === "overlay");
+
 const TOKEN_LABELS = {
   accent: "Accent",
   background: "Background",
@@ -47,7 +100,9 @@ const TOKEN_LABELS = {
   textMuted: "Muted text",
   border: "Border",
   success: "Success",
+  warning: "Warning",
   danger: "Danger",
+  info: "Info",
 };
 
 const PresetDots = ({ palette }) => (
@@ -161,6 +216,77 @@ const ThemeEditor = () => {
 
   const advState = advancedTokenState(settings, editMode, palette);
 
+  const [showAllTiers, setShowAllTiers] = useState(() => readShowAllTiers());
+  const onToggleShowAllTiers = () => {
+    setShowAllTiers((prev) => {
+      writeShowAllTiers(!prev);
+      return !prev;
+    });
+  };
+
+  /* Resolved alphas for the edited mode; a key present in
+     settings.details[mode] means that step is PINNED. */
+  const editDetails = resolveThemeDetails(editMode, {
+    preset: settings.preset,
+    details: settings.details,
+  });
+  const pinnedDetailKeys = new Set(
+    Object.keys((settings.details && settings.details[editMode]) || {}),
+  );
+  const [alphaDraft, setAlphaDraft] = useState(null);
+
+  const stepAlpha = (step) =>
+    alphaDraft && alphaDraft.key === step.detailsKey
+      ? alphaDraft.value
+      : editDetails[step.detailsKey];
+
+  const previewAlpha = (step, value) => {
+    setAlphaDraft({ key: step.detailsKey, value });
+    if (editMode !== activeMode) return;
+    const liveDetails = resolveThemeDetails(activeMode, {
+      preset: settings.preset,
+      details: {
+        ...settings.details,
+        [editMode]: {
+          ...((settings.details && settings.details[editMode]) || {}),
+          [step.detailsKey]: value,
+        },
+      },
+    });
+    applySemanticCssVars(palette, undefined, liveDetails);
+  };
+
+  const commitAlpha = (step) => {
+    if (!alphaDraft || alphaDraft.key !== step.detailsKey) return;
+    const value = alphaDraft.value;
+    setAlphaDraft(null);
+    const next = writeThemeDetailValue(editMode, step.detailsKey, value);
+    setSettings(next);
+    if (editMode === activeMode) syncCommittedSettings(next);
+  };
+
+  /* Linked -> Pinned freezes the value you can currently see, so the flip
+     itself is pixel-neutral; Pinned -> Linked drops the key and lets the
+     value jump back to derived, which is a visible change the user just
+     asked for. */
+  const onToggleTierFollow = (childKey) => {
+    setDraftColor(null);
+    const next = advState[childKey].isLinked
+      ? writeThemeCustomColor(editMode, childKey, advState[childKey].value)
+      : clearThemeCustomColor(editMode, childKey);
+    setSettings(next);
+    if (editMode === activeMode) syncCommittedSettings(next);
+  };
+
+  const onToggleStepFollow = (step) => {
+    setAlphaDraft(null);
+    const next = pinnedDetailKeys.has(step.detailsKey)
+      ? clearThemeDetailValue(editMode, step.detailsKey)
+      : writeThemeDetailValue(editMode, step.detailsKey, editDetails[step.detailsKey]);
+    setSettings(next);
+    if (editMode === activeMode) syncCommittedSettings(next);
+  };
+
   const onResetTier = (key) => {
     setDraftColor(null);
     const next = clearThemeCustomColor(editMode, key);
@@ -228,12 +354,27 @@ const ThemeEditor = () => {
           return;
         }
         if (hasPreset) writeThemePreset(parsed.preset);
-        if (hasCustom) writeThemeCustom(parsed.custom);
+        let adjusted = 0;
+        if (hasCustom) {
+          /* A hand-edited file is the only way an illegal palette can get
+             in. Rejecting the whole theme over one bad swatch is worse
+             than fixing the swatch — but the fix has to be announced. */
+          const clamped = clampImportedCustom(
+            hasPreset ? parsed.preset : settings.preset,
+            parsed.custom,
+          );
+          adjusted = clamped.adjusted;
+          writeThemeCustom(clamped.custom);
+        }
         if (hasDetails) writeThemeDetails(parsed.details);
         const next = readThemeSettings();
         setSettings(next);
         syncCommittedSettings(next);
-        toast.success("Theme imported");
+        toast.success(
+          adjusted
+            ? `Theme imported · ${adjusted} color${adjusted === 1 ? "" : "s"} adjusted for readability`
+            : "Theme imported",
+        );
       } catch (_err) {
         toast.error("Theme file not recognized");
       }
@@ -298,7 +439,7 @@ const ThemeEditor = () => {
   const selectDropdownStyle = { width: 224, maxHeight: 220 };
   const selectOptionStyle = { height: 24, borderRadius: 14 };
 
-  const autoBadgeStyle = {
+  const linkedBadgeStyle = {
     fontSize: 10,
     borderRadius: 99,
     padding: "2px 6px",
@@ -313,91 +454,215 @@ const ThemeEditor = () => {
      construction, not by locking a folder). "background" is the one real
      folder, left freely collapsible; only its sidebar/surface children are
      nested under it. */
+  /* ── row builders ──────────────────────────────────────────────────── */
+
+  /* The accessible name carries the CHILD as well as the parent: two
+     children of the same parent would otherwise be indistinguishable to a
+     screen reader (and to a test). */
+  const followToggle = (linked, selfLabel, parentLabel, onClick) => (
+    <Button
+      ariaLabel={
+        linked
+          ? `${selfLabel}: following ${parentLabel}, click to pin`
+          : `${selfLabel}: pinned, click to follow ${parentLabel}`
+      }
+      title={
+        linked
+          ? `Following ${parentLabel} — click to pin`
+          : `Pinned — click to follow ${parentLabel}`
+      }
+      prefix_icon={linked ? "link" : "pin"}
+      onClick={onClick}
+      style={{
+        root: {
+          width: 24,
+          height: 24,
+          borderRadius: 6,
+          paddingVertical: 0,
+          paddingHorizontal: 0,
+          iconOnlyPaddingVertical: 0,
+          iconOnlyPaddingHorizontal: 0,
+          color: linked
+            ? "rgba(var(--pupu-accent-rgb),0.70)"
+            : "rgba(var(--pupu-text-rgb),0.45)",
+        },
+        background: {
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
+          activeBackgroundColor: "var(--pupu-overlay-active)",
+        },
+        content: { icon: { width: 14, height: 14 } },
+      }}
+    />
+  );
+
+  /* Family roots keep the " color" suffix so a screen reader can tell the
+     picker apart from the expander row that carries the same name. Whether
+     the row has children must NOT depend on the Show-all-tiers toggle, or
+     the accessible name would change under the user. */
+  const colorPickerFor = (key, value) => (
+    <ColorPicker
+      label={
+        DERIVED_CHILDREN[key]
+          ? `${TOKEN_LABELS[key]} color`
+          : TOKEN_LABELS[key] || key
+      }
+      value={value}
+      panel="rectangular"
+      show_alpha={false}
+      size="compact"
+      constraint={constraintFor(key, editMode, palette)}
+      onPreview={(v) => previewThemeColor(editMode, key, v)}
+      onCommit={(v) => commitThemeColor(key, v)}
+    />
+  );
+
+  const alphaRow = (step) => {
+    const parentColor = palette[step.parent];
+    const alpha = stepAlpha(step);
+    const pinned = pinnedDetailKeys.has(step.detailsKey);
+    return {
+      label: step.label,
+      custom_label: (
+        <span>
+          {step.label}
+          {step.shared && (
+            <span
+              style={{
+                fontSize: 10,
+                opacity: 0.45,
+                marginLeft: 6,
+                color: "var(--pupu-text-faint)",
+              }}
+            >
+              shared
+            </span>
+          )}
+        </span>
+      ),
+      trailing: (
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 8 }}
+          onPointerUp={() => commitAlpha(step)}
+        >
+          {followToggle(
+            !pinned,
+            step.label,
+            TOKEN_LABELS[step.parent] || step.parent,
+            () => onToggleStepFollow(step),
+          )}
+          <div style={{ width: 96 }}>
+            <GradientSlider
+              value={Math.round(alpha * 100)}
+              set_value={(v) => previewAlpha(step, Math.round(v) / 100)}
+              min={0}
+              max={100}
+              show_tooltip={false}
+              gradient={`linear-gradient(to right, transparent, ${parentColor})`}
+              style={{
+                gradientThumbBackground: parentColor,
+                gradientTrackBorderColor: "var(--pupu-border-subtle)",
+                gradientTrackBorderWidth: 2,
+              }}
+            />
+          </div>
+          <span
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              minWidth: 28,
+              textAlign: "right",
+              color: "var(--pupu-text-secondary)",
+            }}
+          >
+            {alpha.toFixed(2)}
+          </span>
+        </div>
+      ),
+    };
+  };
+
+  /* ── tree ──────────────────────────────────────────────────────────── */
+
   const topLevelKeys = SEMANTIC_TOKEN_KEYS.filter(
     (k) => !ADVANCED_TIERS.includes(k),
   );
   const explorerRoot = [];
   const explorerData = {};
+
   for (const key of topLevelKeys) {
     explorerRoot.push(key);
-    const childKeys = DERIVED_CHILDREN[key];
+    const tierChildren = DERIVED_CHILDREN[key] || [];
+    const stepChildren = showAllTiers ? alphaStepsFor(key) : [];
+    const childKeys = [...tierChildren, ...stepChildren.map((s) => s.key)];
 
-    if (!childKeys) {
-      explorerData[key] = {
-        label: TOKEN_LABELS[key],
-        trailing: (
-          <ColorPicker
-            label={TOKEN_LABELS[key]}
-            value={palette[key]}
-            panel="rectangular"
-            show_alpha={false}
-            onPreview={(v) => previewThemeColor(editMode, key, v)}
-            onCommit={(v) => commitThemeColor(key, v)}
-          />
-        ),
-      };
-      continue;
-    }
-
-    /* Family folder row: keeps its "auto ×N" pill next to its own
-       ColorPicker in the trailing slot, alongside the derived tiers nested
-       as children. The count is per-family — a second family must not
-       report this one's auto tiers. */
-    const familyAutoCount = childKeys.filter((k) => advState[k].isAuto).length;
+    const linkedCount = tierChildren.filter((k) => advState[k].isLinked).length;
 
     explorerData[key] = {
       label: TOKEN_LABELS[key],
-      children: childKeys,
+      ...(childKeys.length ? { children: childKeys } : {}),
       trailing: (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {familyAutoCount > 0 && (
-            <span style={autoBadgeStyle}>auto ×{familyAutoCount}</span>
+          {linkedCount > 0 && (
+            <span style={linkedBadgeStyle}>linked ×{linkedCount}</span>
           )}
-          <ColorPicker
-            label={`${TOKEN_LABELS[key]} color`}
-            value={palette[key]}
-            panel="rectangular"
-            show_alpha={false}
-            onPreview={(v) => previewThemeColor(editMode, key, v)}
-            onCommit={(v) => commitThemeColor(key, v)}
-          />
+          {colorPickerFor(key, palette[key])}
         </div>
       ),
     };
 
-    for (const childKey of childKeys) {
+    for (const childKey of tierChildren) {
+      const linked = advState[childKey].isLinked;
       explorerData[childKey] = {
         label: TOKEN_LABELS[childKey],
-        custom_label: (
-          <span>
-            {TOKEN_LABELS[childKey]}
-            {advState[childKey].isAuto && (
-              <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>
-                auto
-              </span>
-            )}
-          </span>
-        ),
         trailing: (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {!advState[childKey].isAuto && (
-              <Button
-                label="Auto"
-                onClick={() => onResetTier(childKey)}
-                style={smallBtnStyle}
-              />
+            {followToggle(linked, TOKEN_LABELS[childKey], TOKEN_LABELS[key], () =>
+              onToggleTierFollow(childKey),
             )}
             <ColorPicker
               label={TOKEN_LABELS[childKey]}
               value={advState[childKey].value}
               panel="rectangular"
               show_alpha={false}
+              size="compact"
+              constraint={constraintFor(childKey, editMode, palette)}
               onPreview={(v) => previewThemeColor(editMode, childKey, v)}
               onCommit={(v) => commitThemeColor(childKey, v)}
             />
           </div>
         ),
       };
+    }
+
+    for (const step of stepChildren) {
+      explorerData[step.key] = alphaRow(step);
+    }
+  }
+
+  /* Overlay has no root colour of its own — it is neutral ink over the
+     shell, so it derives from Text. Showing it as its own reference row
+     rather than burying four "fill" steps inside Text keeps the fill-vs-
+     stroke distinction legible, which is the entire reason overlay and
+     border are separate families. */
+  if (showAllTiers) {
+    explorerRoot.push(OVERLAY_GROUP);
+    explorerData[OVERLAY_GROUP] = {
+      label: "Overlay",
+      children: OVERLAY_STEPS.map((s) => s.key),
+      trailing: (
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--pupu-text-faint)",
+            paddingRight: 4,
+          }}
+        >
+          follows Text
+        </span>
+      ),
+    };
+    for (const step of OVERLAY_STEPS) {
+      explorerData[step.key] = alphaRow(step);
     }
   }
 
@@ -443,6 +708,12 @@ const ThemeEditor = () => {
         />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <Button
+            label={showAllTiers ? "Hide tiers" : "Show all tiers"}
+            ariaLabel={showAllTiers ? "Hide tiers" : "Show all tiers"}
+            onClick={onToggleShowAllTiers}
+            style={textToolButtonStyle()}
+          />
+          <Button
             label="Import"
             ariaLabel="Import theme"
             onClick={() => importInputRef.current && importInputRef.current.click()}
@@ -463,7 +734,14 @@ const ThemeEditor = () => {
         </div>
       </div>
 
-      <Explorer data={explorerData} root={explorerRoot} row_height={40} row_radius={9} style={{ width: "100%" }} />
+      <Explorer
+        data={explorerData}
+        root={explorerRoot}
+        row_height={ROW_HEIGHT}
+        row_radius={ROW_RADIUS}
+        row_hover={false}
+        style={{ width: "100%", fontSize: ROW_FONT_SIZE }}
+      />
 
       <input
         ref={importInputRef}

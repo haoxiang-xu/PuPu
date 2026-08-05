@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import ConfigContainer from "./container";
 import { ConfigContext, EnvironmentContext } from "./context";
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
+import { SEMANTIC_TOKEN_KEYS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 
 let mockSetWindowSize;
 jest.mock("../../BUILTIN_COMPONENTs/mini_react/mini_use", () => {
@@ -232,17 +233,11 @@ describe("ConfigContainer side menu persistence", () => {
   });
 });
 
-const SEMANTIC_KEYS = [
-  "accent",
-  "background",
-  "sidebar",
-  "surface",
-  "text",
-  "textMuted",
-  "border",
-  "success",
-  "danger",
-];
+/* Was a hand-copied duplicate of the token list, which then had to be
+   edited in lockstep every time the taxonomy grew. Read the real one —
+   this assertion is about the container injecting the whole palette, not
+   about any particular arity. */
+const SEMANTIC_KEYS = SEMANTIC_TOKEN_KEYS;
 
 const SemanticProbe = () => {
   const { theme } = useContext(ConfigContext);
@@ -276,7 +271,7 @@ describe("ConfigContainer semantic palette", () => {
     themeBridge.setBackgroundColor.mockClear();
   });
 
-  test("injects theme.semantic with 8 default keys", async () => {
+  test("injects theme.semantic with the full default palette", async () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({

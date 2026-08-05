@@ -6,6 +6,8 @@ import {
   writeThemeDetails,
   resetThemeSettings,
   clearThemeCustomColor,
+  writeThemeDetailValue,
+  clearThemeDetailValue,
 } from "./storage";
 import { getSettingsPersistenceStatus } from "../../../SERVICEs/settings_repository";
 
@@ -83,11 +85,47 @@ describe("appearance theme storage", () => {
     expect(after.custom.dark_mode.surface).toBeUndefined();
   });
 
-  test("readThemeSettings strips a tier equal to its preset default (auto normalize)", () => {
+  /* Inverted deliberately. This used to assert that a key equal to the
+     preset default was discarded as redundant. Under absence-means-linked
+     it is not redundant: it is the difference between following the parent
+     and staying put, which is precisely what pinning means. Discarding it
+     made the Pin control a no-op exactly when the user had not yet touched
+     the parent — the most common moment to reach for it. */
+  test("readThemeSettings keeps a tier pinned to its preset default (pin is intent, not noise)", () => {
     resetThemeSettings(); // preset default
     writeThemeCustomColor("dark_mode", "surface", "#1e1e1e"); // == default dark surface
     const read = readThemeSettings();
-    expect(read.custom.dark_mode.surface).toBeUndefined();
+    expect(read.custom.dark_mode.surface).toBe("#1e1e1e");
+  });
+
+  test("only an explicit clear returns a pinned tier to linked", () => {
+    resetThemeSettings();
+    writeThemeCustomColor("dark_mode", "surface", "#1e1e1e");
+    expect(readThemeSettings().custom.dark_mode.surface).toBe("#1e1e1e");
+    clearThemeCustomColor("dark_mode", "surface");
+    expect(readThemeSettings().custom.dark_mode.surface).toBeUndefined();
+  });
+
+  test("a pinned alpha step survives even when it equals the ladder default", () => {
+    resetThemeSettings();
+    writeThemeDetailValue("light_mode", "textFaintAlpha", 0.35); // == ladder default
+    expect(readThemeSettings().details.light_mode.textFaintAlpha).toBe(0.35);
+    clearThemeDetailValue("light_mode", "textFaintAlpha");
+    expect(
+      readThemeSettings().details.light_mode.textFaintAlpha,
+    ).toBeUndefined();
+  });
+
+  test("the three published literal border keys are never touched", () => {
+    resetThemeSettings();
+    writeThemeDetails({
+      light_mode: { chipBorder: "transparent", menuBorder: "transparent" },
+      dark_mode: { cardBorder: "transparent" },
+    });
+    const read = readThemeSettings();
+    expect(read.details.light_mode.chipBorder).toBe("transparent");
+    expect(read.details.light_mode.menuBorder).toBe("transparent");
+    expect(read.details.dark_mode.cardBorder).toBe("transparent");
   });
 
   test("readThemeSettings keeps a genuinely overridden tier", () => {

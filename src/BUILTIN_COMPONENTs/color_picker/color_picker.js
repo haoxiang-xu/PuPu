@@ -26,6 +26,13 @@ import {
   hexToRgb,
   rgbaString,
 } from "./color_utils";
+import {
+  snapSV,
+  blockedRegionPath,
+  clampHexToBands,
+  legalPolygons,
+  polygonsToPath,
+} from "./constraint_geometry";
 
 /* ── shared motion (one curve, 0.18s, whole component) ──────────────────── */
 const EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
@@ -42,6 +49,12 @@ const CHECKER_TRACK =
   "repeating-conic-gradient(#3a3a3a 0% 25%, #242424 0% 50%) 0 / 6px 6px";
 
 const MONO = "Menlo, Monaco, Consolas, monospace";
+
+/* Theme-independent on purpose — see the comment at the blocked-region
+   overlay. Two encodings (scrim + hatch) so the blocked area reads over
+   both bright and dark parts of the SV plane. */
+const BLOCKED_SCRIM = "rgba(0,0,0,0.58)";
+const BLOCKED_HATCH = "rgba(255,255,255,0.16)";
 
 const getClientPoint = (event) => ({
   x:
@@ -185,9 +198,20 @@ const ColorPickerPanel = ({
   on_commit,
   content_ref,
   show_alpha = true,
+  constraint,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  /* `bands` are allowed WCAG-luminance intervals, computed by whoever owns
+     the semantics (the theme editor). This primitive stays semantics-free:
+     it draws the wall and snaps to it, and has no idea what a token is. */
+  const bands = constraint?.bands;
+  const [adjustNote, setAdjustNote] = useState("");
+  /* read inside stable pointer-move callbacks without re-subscribing */
+  const bandsRef = useRef(bands);
+  bandsRef.current = bands;
+  const constraintHintRef = useRef(constraint?.hint);
+  constraintHintRef.current = constraint?.hint || "kept readable";
 
   const initRgb = hexToRgb(value || default_value) || { r: 61, g: 118, b: 201 };
   const [hsv, setHsv] = useState(() => rgbToHsv(initRgb.r, initRgb.g, initRgb.b));
@@ -221,9 +245,14 @@ const ColorPickerPanel = ({
     const el = svRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const s = clamp((clientX - r.left) / (r.width || SV_WIDTH), 0, 1) * 100;
-    const v = (1 - clamp((clientY - r.top) / (r.height || SV_HEIGHT), 0, 1)) * 100;
-    setHsv((prev) => ({ ...prev, s: Math.round(s), v: Math.round(v) }));
+    const rawS = clamp((clientX - r.left) / (r.width || SV_WIDTH), 0, 1) * 100;
+    const rawV = (1 - clamp((clientY - r.top) / (r.height || SV_HEIGHT), 0, 1)) * 100;
+    setHsv((prev) => {
+      const snapped = bandsRef.current?.length
+        ? snapSV(prev.h, rawS, rawV, bandsRef.current)
+        : { s: rawS, v: rawV };
+      return { ...prev, s: Math.round(snapped.s), v: Math.round(snapped.v) };
+    });
   }, []);
 
   const onSVDown = useCallback(
@@ -278,11 +307,15 @@ const ColorPickerPanel = ({
     [format, hsl, rgb],
   );
 
+  /* Typing is never blocked mid-keystroke — you cannot type "#1a2b3c" if
+     the field rejects "#1". Legality is enforced on commit instead, and
+     the correction is written back visibly rather than applied silently. */
   const previewValueField = useCallback(
     (field, text) => {
       const nextRgb = resolveFieldRgb(field, text);
       if (nextRgb && emitPreview) {
-        emitPreview(format === "HEX" ? normalizeHexText(text) : rgbToHex(nextRgb));
+        const raw = format === "HEX" ? normalizeHexText(text) : rgbToHex(nextRgb);
+        emitPreview(clampHexToBands(raw, bandsRef.current));
       }
     },
     [emitPreview, format, resolveFieldRgb],
@@ -292,10 +325,16 @@ const ColorPickerPanel = ({
     (field, text) => {
       const nextRgb = resolveFieldRgb(field, text);
       if (nextRgb) {
-        applyRgb(nextRgb.r, nextRgb.g, nextRgb.b);
-        if (on_commit) {
-          on_commit(format === "HEX" ? normalizeHexText(text) : rgbToHex(nextRgb));
-        }
+        const raw = format === "HEX" ? normalizeHexText(text) : rgbToHex(nextRgb);
+        const legal = clampHexToBands(raw, bandsRef.current);
+        setAdjustNote(
+          legal.toLowerCase() === raw.toLowerCase()
+            ? ""
+            : `Adjusted to ${legal.toUpperCase()} — ${constraintHintRef.current}`,
+        );
+        const legalRgb = hexToRgb(legal) || nextRgb;
+        applyRgb(legalRgb.r, legalRgb.g, legalRgb.b);
+        if (on_commit) on_commit(legal);
       }
       setFieldDrafts((prev) => withoutKey(prev, field.key));
     },
@@ -307,7 +346,11 @@ const ColorPickerPanel = ({
     try {
       const ed = new window.EyeDropper();
       const { sRGBHex } = await ed.open();
-      const r = hexToRgb(sRGBHex);
+      const legal = clampHexToBands(sRGBHex, bands);
+      if (legal !== sRGBHex) {
+        setAdjustNote(constraint?.hint || "Adjusted to stay readable");
+      }
+      const r = hexToRgb(legal);
       if (r) applyRgb(r.r, r.g, r.b);
     } catch (_) {
       /* cancelled */
@@ -336,6 +379,11 @@ const ColorPickerPanel = ({
     eyeHoverBg: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
     thumbBorder: "#FFFFFF",
   };
+
+  const blockedPath = bands?.length ? blockedRegionPath(hsv.h, bands) : "";
+  const legalOutline = bands?.length
+    ? polygonsToPath(legalPolygons(hsv.h, bands))
+    : "";
 
   const alphaGradient = `linear-gradient(to right, ${rgbaString(rgb, 0)}, ${rgbaString(rgb, 1)}), ${CHECKER_TRACK}`;
   const alphaThumbBackground = `linear-gradient(${rgbaString(rgb, a / 100)}, ${rgbaString(rgb, a / 100)}), ${CHECKER_TRACK}`;
@@ -436,6 +484,61 @@ const ColorPickerPanel = ({
             background: `linear-gradient(to bottom, rgba(0,0,0,0) 0%, #000000 100%), linear-gradient(to right, #ffffff 0%, hsl(${hsv.h}, 100%, 50%) 100%)`,
           }}
         >
+          {bands?.length ? (
+            <svg
+              data-testid="color-picker-blocked-region"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
+              }}
+            >
+              <defs>
+                <pattern
+                  id="pupu-blocked-hatch"
+                  width="6"
+                  height="6"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <rect width="6" height="6" fill={BLOCKED_SCRIM} />
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="6"
+                    stroke={BLOCKED_HATCH}
+                    strokeWidth="1"
+                  />
+                </pattern>
+              </defs>
+              {/* The scrim + hatch are deliberately NOT isDark-dependent:
+                  the SV plane is raw colour space and looks identical in
+                  both themes, so a theme-dependent veil would report the
+                  same colour as differently blocked in light and dark. The
+                  dark scrim carries bright regions, the light hatch carries
+                  dark ones — two channels, so it also survives colour
+                  vision deficiency. */}
+              <path
+                d={blockedPath}
+                fill="url(#pupu-blocked-hatch)"
+                fillRule="evenodd"
+              />
+              <path
+                d={legalOutline}
+                fill="none"
+                stroke="rgba(255,255,255,0.55)"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          ) : null}
+
           <span
             data-testid="color-picker-sv-thumb"
             data-x={((hsv.s / 100) * SV_WIDTH).toFixed(4)}
@@ -462,7 +565,22 @@ const ColorPickerPanel = ({
             <div data-testid="color-picker-hue" style={{ flex: 1, minWidth: 0 }}>
               <GradientSlider
                 value={hsv.h}
-                set_value={(h) => setHsv((prev) => ({ ...prev, h: Math.round(h) }))}
+                set_value={(h) =>
+                  setHsv((prev) => {
+                    const hue = Math.round(h);
+                    if (!bandsRef.current?.length) return { ...prev, h: hue };
+                    /* the wall moves with the hue, so the thumb has to be
+                       re-seated or a hue drag can strand it in the blocked
+                       region */
+                    const snapped = snapSV(hue, prev.s, prev.v, bandsRef.current);
+                    return {
+                      ...prev,
+                      h: hue,
+                      s: Math.round(snapped.s),
+                      v: Math.round(snapped.v),
+                    };
+                  })
+                }
                 min={0}
                 max={360}
                 gradient={HUE_GRADIENT}
@@ -507,6 +625,23 @@ const ColorPickerPanel = ({
               </span>
             </ControlRow>
           )}
+
+          {constraint?.hint ? (
+            <ControlRow label="LIMIT" hairline={C.rowLine} muted={C.muted}>
+              <span
+                data-testid="color-picker-limit-hint"
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  letterSpacing: "0.3px",
+                  color: adjustNote ? C.text : C.muted,
+                  textAlign: "right",
+                }}
+              >
+                {adjustNote || constraint.hint}
+              </span>
+            </ControlRow>
+          ) : null}
 
           <ControlRow label="FORMAT" hairline={C.rowLine} muted={C.muted}>
             <SegmentedButton
@@ -587,6 +722,8 @@ const ColorPicker = ({
   onCommit,
   panel = "nordic",
   show_alpha = true,
+  constraint,
+  size,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -688,6 +825,13 @@ const ColorPicker = ({
   const pickerTheme = theme?.colorPicker || {};
   const text = theme?.color || (isDark ? "#D6D6D6" : "#222222");
 
+  /* `compact` exists so the trigger fits a 30px tree row; the default
+     shape is untouched for every other caller. */
+  const isCompact = size === "compact";
+  const M = isCompact
+    ? { height: 24, padH: 6, radius: 6, swatch: 14, swatchRadius: 5, font: 11, gap: 6 }
+    : { height: 36, padH: 10, radius: 8, swatch: 18, swatchRadius: 6, font: 13, gap: 8 };
+
   const popover =
     open && typeof document !== "undefined"
       ? createPortal(
@@ -737,6 +881,7 @@ const ColorPicker = ({
                   default_format="HEX"
                   on_commit={handleCommit}
                   show_alpha={show_alpha}
+                  constraint={constraint}
                   content_ref={panelContentRef}
                 />
               ) : (
@@ -768,13 +913,13 @@ const ColorPicker = ({
           }}
           style={{
             root: {
-              height: 36,
+              height: M.height,
               paddingVertical: 0,
-              paddingHorizontal: 10,
-              borderRadius: pickerTheme.swatchBorderRadius ?? 8,
+              paddingHorizontal: M.padH,
+              borderRadius: pickerTheme.swatchBorderRadius ?? M.radius,
               fontFamily: "Jost, sans-serif",
               color: text,
-              gap: 8,
+              gap: M.gap,
             },
             background: {
               hoverBackgroundColor: isDark
@@ -788,21 +933,21 @@ const ColorPicker = ({
               children: {
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
+                gap: M.gap,
               },
             },
           }}
         >
           <span
             style={{
-              width: 18,
-              height: 18,
-              borderRadius: 6,
+              width: M.swatch,
+              height: M.swatch,
+              borderRadius: M.swatchRadius,
               background: `linear-gradient(${hex}, ${hex}), ${CHECKER_TRIGGER}`,
               boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.3)",
             }}
           />
-          <span style={{ fontSize: 13, color: text, letterSpacing: "0.4px" }}>
+          <span style={{ fontSize: M.font, color: text, letterSpacing: "0.4px" }}>
             {hex}
           </span>
         </Button>

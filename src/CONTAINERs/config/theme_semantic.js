@@ -1,9 +1,15 @@
 import { deriveTier } from "../../BUILTIN_COMPONENTs/theme/color_derive";
 import {
+  roleWindow,
+  clampToWindow,
+} from "../../BUILTIN_COMPONENTs/theme/contrast_window";
+import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_DEFAULTS,
   SEMANTIC_PRESETS,
   SEMANTIC_FAMILIES,
+  SEMANTIC_TOKEN_TREE,
+  ALPHA_STEPS,
 } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 
 export const hexToRgbTriplet = (color) => {
@@ -33,16 +39,34 @@ export const hexToRgbTriplet = (color) => {
    layered on top for different sink families. */
 export const BORDER_TIER_ALPHA = { strong: 0.9, mid: 0.55, subtle: 0.3 };
 
+/* Literal (non-numeric) detail keys. Published, frozen: kept only, never
+   extended — a per-sink literal key for every new sink is the growth path
+   v2 exists to close. They are NOT alpha steps and must be excluded
+   wherever alpha-step logic iterates. */
+export const DETAIL_LITERAL_KEYS = ["chipBorder", "menuBorder", "cardBorder"];
+
 /* JSON details channel (CEO-approved): fine-grained knobs the theme editor UI
    does not render, carried only through JSON import/export + presets.
-   Precedence per mode-key: user details > preset details > this default. */
+   Precedence per mode-key: user details > preset details > this default.
+
+   v2: bucketed per mode. semanticCssVars does not know which mode it is
+   emitting for, so a per-mode alpha would be unresolvable there — but
+   resolveThemeDetails ALREADY resolves per mode, so bucketing the default
+   table makes every strength step's light/dark difference flow down the
+   channel that already exists. One pipe, no new plumbing.
+
+   Border's three keep identical light/dark values, so this bucketing is
+   behaviour-neutral for everything shipped before v2. */
+const buildDetailDefaults = (modeBucket) => {
+  const out = {};
+  for (const key of DETAIL_LITERAL_KEYS) out[key] = "transparent";
+  for (const step of ALPHA_STEPS) out[step.detailsKey] = step.alpha[modeBucket];
+  return out;
+};
+
 export const DETAIL_DEFAULTS = {
-  chipBorder: "transparent",
-  menuBorder: "transparent",
-  cardBorder: "transparent",
-  borderAlphaStrong: BORDER_TIER_ALPHA.strong,
-  borderAlphaMid: BORDER_TIER_ALPHA.mid,
-  borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
+  light_mode: buildDetailDefaults("light"),
+  dark_mode: buildDetailDefaults("dark"),
 };
 
 export const resolveThemeDetails = (mode, options = {}) => {
@@ -54,19 +78,8 @@ export const resolveThemeDetails = (mode, options = {}) => {
       SEMANTIC_PRESETS[preset].details[mode]) ||
     {};
   const userDetails = (details && details[mode]) || {};
-  return { ...DETAIL_DEFAULTS, ...presetDetails, ...userDetails };
-};
-
-const VAR_NAME = {
-  accent: "accent",
-  background: "background",
-  sidebar: "sidebar",
-  surface: "surface",
-  text: "text",
-  textMuted: "text-muted",
-  border: "border",
-  success: "success",
-  danger: "danger",
+  const base = DETAIL_DEFAULTS[mode] || DETAIL_DEFAULTS.light_mode;
+  return { ...base, ...presetDetails, ...userDetails };
 };
 
 export const resolveSemanticPalette = (mode, options = {}) => {
@@ -87,43 +100,100 @@ export const resolveSemanticPalette = (mode, options = {}) => {
     for (const tier of family.children) {
       if (!customPalette[tier]) {
         const refTier = presetPalette[tier] || base[tier];
-        result[tier] = deriveTier(result[root], refRoot, refTier);
+        /* Derivation options come from the node's own declaration. The
+           minStep floor used to be one global 0.04, which is LARGER than
+           the shipped sidebar offset (0.0118 on the default dark preset) —
+           so the floor fired on every customisation and dragged sidebar
+           permanently off the preset relationship. Per-node minStep fixes
+           that at the source, without touching the derive gate (moving the
+           gate would introduce a discontinuity instead). */
+        const opts = SEMANTIC_TOKEN_TREE[tier]?.derive;
+        result[tier] = deriveTier(result[root], refRoot, refTier, opts);
       }
     }
   }
-  return result;
+  return clampDerivedTiers(mode, result, customPalette);
+};
+
+/* Derived tiers are OUR decision, so we are responsible for them: a tier
+   the resolver computed must be dragged back inside its readability window
+   rather than shipped unreadable. Colours the user picked by hand are
+   already constrained at the picker, so this is a no-op for them. */
+const clampDerivedTiers = (mode, palette, customPalette) => {
+  for (const [root, family] of Object.entries(SEMANTIC_FAMILIES)) {
+    if (customPalette[root] == null) continue;
+    for (const tier of family.children) {
+      if (customPalette[tier]) continue;
+      palette[tier] = clampToWindow(
+        palette[tier],
+        roleWindow(tier, mode, palette),
+      );
+    }
+  }
+  return palette;
+};
+
+/* Imported JSON is the one entry point that can carry an illegal palette
+   (hand-edited files). Clamping beats rejecting: throwing away someone's
+   whole theme because one swatch is off is worse than fixing the swatch
+   and saying so. Returns the count so the caller can disclose it. */
+export const clampImportedCustom = (preset, custom) => {
+  let adjusted = 0;
+  const out = {};
+  for (const mode of ["light_mode", "dark_mode"]) {
+    const bag = { ...((custom && custom[mode]) || {}) };
+    const palette = resolveSemanticPalette(mode, { preset, custom });
+    for (const key of Object.keys(bag)) {
+      if (!SEMANTIC_TOKEN_KEYS.includes(key)) continue;
+      const legal = clampToWindow(bag[key], roleWindow(key, mode, palette));
+      if (legal !== bag[key]) {
+        bag[key] = legal;
+        adjusted += 1;
+      }
+    }
+    out[mode] = bag;
+  }
+  return { custom: out, adjusted };
 };
 
 export const semanticCssVars = (palette, detailsResolved) => {
   const vars = {};
+  const rgbByKey = {};
+
+  /* roots + hex tiers */
   for (const key of Object.keys(palette || {})) {
-    const name = VAR_NAME[key];
-    if (!name) continue;
+    const node = SEMANTIC_TOKEN_TREE[key];
+    if (!node || node.kind === "alpha") continue;
     const value = palette[key];
-    vars[`--pupu-${name}`] = value;
+    vars[`--pupu-${node.varName}`] = value;
     const rgb = hexToRgbTriplet(value);
     if (rgb) {
-      vars[`--pupu-${name}-rgb`] = rgb;
-      if (key === "border") {
-        const strongAlpha = detailsResolved
-          ? (detailsResolved.borderAlphaStrong ?? BORDER_TIER_ALPHA.strong)
-          : BORDER_TIER_ALPHA.strong;
-        const midAlpha = detailsResolved
-          ? (detailsResolved.borderAlphaMid ?? BORDER_TIER_ALPHA.mid)
-          : BORDER_TIER_ALPHA.mid;
-        const subtleAlpha = detailsResolved
-          ? (detailsResolved.borderAlphaSubtle ?? BORDER_TIER_ALPHA.subtle)
-          : BORDER_TIER_ALPHA.subtle;
-        vars["--pupu-border-strong"] = `rgba(${rgb}, ${strongAlpha})`;
-        vars["--pupu-border-mid"] = `rgba(${rgb}, ${midAlpha})`;
-        vars["--pupu-border-subtle"] = `rgba(${rgb}, ${subtleAlpha})`;
-      }
+      vars[`--pupu-${node.varName}-rgb`] = rgb;
+      rgbByKey[key] = rgb;
     }
   }
+
+  /* strength steps: rgba(parent-rgb, alpha). A step is emitted only when
+     its parent colour is present, so a partial palette stays partial.
+     detailsResolved is already mode-resolved by resolveThemeDetails; the
+     light bucket is a defensive fallback for callers that pass no details
+     at all (tests only — every production caller resolves first, and the
+     three published border alphas are mode-invariant, so this fallback is
+     byte-identical to pre-v2 behaviour). */
+  const fallback = DETAIL_DEFAULTS.light_mode;
+  for (const step of ALPHA_STEPS) {
+    const rgb = rgbByKey[step.parent];
+    if (!rgb) continue;
+    const alpha = detailsResolved
+      ? (detailsResolved[step.detailsKey] ?? fallback[step.detailsKey])
+      : fallback[step.detailsKey];
+    vars[`--pupu-${step.varName}`] = `rgba(${rgb}, ${alpha})`;
+  }
+
   if (detailsResolved) {
-    vars["--pupu-chip-border"] = detailsResolved.chipBorder ?? DETAIL_DEFAULTS.chipBorder;
-    vars["--pupu-menu-border"] = detailsResolved.menuBorder ?? DETAIL_DEFAULTS.menuBorder;
-    vars["--pupu-card-border"] = detailsResolved.cardBorder ?? DETAIL_DEFAULTS.cardBorder;
+    vars["--pupu-chip-border"] = detailsResolved.chipBorder ?? fallback.chipBorder;
+    vars["--pupu-menu-border"] = detailsResolved.menuBorder ?? fallback.menuBorder;
+    vars["--pupu-card-border"] = detailsResolved.cardBorder ?? fallback.cardBorder;
   }
   return vars;
 };
@@ -150,6 +220,7 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
     textMuted,
     border,
     success,
+    warning,
     danger,
   } = semantic;
 
@@ -184,12 +255,22 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
     }),
     modal: merge(base.modal, {
       backgroundColor: background,
-      border: `1px solid ${withAlpha(border, BORDER_TIER_ALPHA.strong)}`,
+      /* was withAlpha(border, BORDER_TIER_ALPHA.strong) — a second,
+         independent computation of the same number the css var already
+         holds, which silently ignored a user's borderAlphaStrong override.
+         Referencing the var removes the duplicate AND fixes that. */
+      border: "1px solid var(--pupu-border-strong)",
       bodyColor: textMuted,
       closeButtonColor: withAlpha(textMuted, 0.9),
       closeButtonHoverColor: text,
       errorAccent: danger,
       successAccent: success,
+      /* warningAccent existed in the JSON theme and was read by
+         confirm_interact, but nothing ever filled it — so the tool
+         confirmation buttons in the chat stream never followed the theme.
+         This is the wiring that makes the new warning root actually land
+         on its highest-traffic consumer. */
+      warningAccent: warning,
     }),
     switch: merge(base.switch, {
       backgroundColor_on: accent,

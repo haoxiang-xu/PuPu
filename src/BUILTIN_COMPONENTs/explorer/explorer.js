@@ -495,6 +495,7 @@ const ExplorerRowBase = ({
   isLockedExpanded,
   rowHeight = ROW_HEIGHT,
   rowRadius = 5,
+  rowHover = true,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -517,13 +518,20 @@ const ExplorerRowBase = ({
     [node.id, registerRowRef],
   );
 
-  /* ── visual tokens ─────────────────────────────────── */
+  /* ── visual tokens ───────────────────────────────────
+     ONE definition, used by both the default row and the custom-component
+     row below. These two used to be duplicated verbatim, which is exactly
+     how one of them silently drifts. */
   const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
   const activeBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
   /* When a context menu is open, only the targeted row shows hover bg */
   const isContextMenuTarget = contextMenuNodeId != null && node.id === contextMenuNodeId;
   const suppressHover = contextMenuNodeId != null && !isContextMenuTarget;
-  const showBg = ((hovered && !suppressHover) || isContextMenuTarget || pressed) && !isSource;
+  /* rowHover=false drops the HOVER affordance but keeps PRESS: these rows
+     are still clickable (folders toggle), and a clickable row with no
+     feedback at all is a lost affordance, not a cleaner one. */
+  const hoverVisible = rowHover && hovered && !suppressHover;
+  const showBg = (hoverVisible || (rowHover && isContextMenuTarget) || pressed) && !isSource;
 
   const expandIcon = node.expand_icon
     ? node.expand_icon
@@ -623,12 +631,6 @@ const ExplorerRowBase = ({
 
   /* ── custom component path ─────────────────────────── */
   if (node.component) {
-    const isContextMenuTarget = contextMenuNodeId != null && node.id === contextMenuNodeId;
-    const suppressHover = contextMenuNodeId != null && !isContextMenuTarget;
-    const showBg = ((hovered && !suppressHover) || isContextMenuTarget || pressed) && !isSource;
-    const hoverBgC = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
-    const activeBgC = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
-
     return (
       <div
         ref={combinedRef}
@@ -688,7 +690,7 @@ const ExplorerRowBase = ({
             left: pressed ? depth * INDENT + 4 : depth * INDENT + 3,
             right: pressed ? 4 : 3,
             borderRadius: pressed ? 4 : 5,
-            backgroundColor: pressed ? activeBgC : hoverBgC,
+            backgroundColor: pressed ? activeBg : hoverBg,
             transform: showBg ? "scale(1)" : "scale(0.97, 0)",
             opacity: showBg ? 1 : 0,
             transition: showBg
@@ -1179,6 +1181,7 @@ const ExplorerBranch = ({
   lockedExpandedIds,
   rowHeight,
   rowRadius,
+  rowHover,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1214,6 +1217,7 @@ const ExplorerBranch = ({
           isLockedExpanded={isLockedExpanded}
           rowHeight={rowHeight}
           rowRadius={rowRadius}
+          rowHover={rowHover}
         />
         {isFolder && (
           <AnimatedChildren
@@ -1263,6 +1267,7 @@ const ExplorerBranch = ({
                   highlightColor={highlightColor}
                   rowHeight={rowHeight}
                   rowRadius={rowRadius}
+                  rowHover={rowHover}
                   lockedExpandedIds={lockedExpandedIds}
                 />
               )}
@@ -1455,6 +1460,7 @@ const Explorer = ({
   active_node_id,
   context_menu_node_id,
   locked_expanded,
+  row_hover = true,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1874,12 +1880,16 @@ const Explorer = ({
         ...style,
       }}
     >
-      {/* ── scope highlight indicator ────────────────── */}
+      {/* ── scope highlight indicator ──────────────────
+          Goes away with row_hover: it is the same affordance family (a
+          hover-driven wash), and keeping it while killing the per-row
+          hover leaves the odd state of "the row doesn't light up but a
+          box around it does". */}
       <BackgroundIndicator
         top={indicator.top}
         height={indicator.height}
         left={indicator.left}
-        visible={indicator.visible}
+        visible={row_hover && indicator.visible}
         isDark={isDark}
       />
 
@@ -1899,6 +1909,7 @@ const Explorer = ({
         onDragStart={handleRowDragStart}
         rowHeight={row_height}
         rowRadius={row_radius}
+        rowHover={row_hover}
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
