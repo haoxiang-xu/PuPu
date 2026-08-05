@@ -621,13 +621,29 @@ describe("ThemeEditor — import clamping (composed machine gate)", () => {
     jest.clearAllMocks();
   });
 
+  /* Import is asynchronous end to end: FileReader.onload fires on a later
+     task, and settings persistence is fire-and-forget. So the helper has to
+     wait for an observable COMPLETION signal — the component reporting its
+     outcome — before any assertion reads storage.
+
+     What it must NOT do is await the preview card: that element is rendered
+     from the first paint, so awaiting it resolves immediately and only
+     looks like a flush. That mistake made these assertions race the reader,
+     and the race was winnable often enough to pass locally and then lose on
+     a base whose module-load timing differed. */
   const importFile = async (payload) => {
+    const { toast } = require("../../../SERVICEs/toast");
+    const settled = () =>
+      toast.success.mock.calls.length + toast.error.mock.calls.length;
+    const before = settled();
+
     const input = document.querySelector('input[type="file"]');
     const file = new File([JSON.stringify(payload)], "theme.json", {
       type: "application/json",
     });
     fireEvent.change(input, { target: { files: [file] } });
-    await screen.findByTestId("theme-preview-card");
+
+    await waitFor(() => expect(settled()).toBe(before + 1));
   };
 
   /* A hand-edited file is the only entry point that can carry an illegal
@@ -649,6 +665,7 @@ describe("ThemeEditor — import clamping (composed machine gate)", () => {
     });
 
     const stored = readThemeSettings();
+    let checked = 0;
     for (const mode of ["light_mode", "dark_mode"]) {
       const palette = resolveSemanticPalette(mode, {
         preset: stored.preset,
@@ -660,8 +677,13 @@ describe("ThemeEditor — import clamping (composed machine gate)", () => {
         expect(
           bandsContain(bands, relativeLuminance(stored.custom[mode][key])),
         ).toBe(true);
+        checked += 1;
       }
     }
+    /* Non-vacuity: an empty custom bag would satisfy every assertion above
+       without checking anything. If the import silently stops persisting,
+       this is the line that notices. */
+    expect(checked).toBe(3);
 
     /* nothing survived unchanged */
     expect(stored.custom.dark_mode.background).not.toBe("#ffffff");
