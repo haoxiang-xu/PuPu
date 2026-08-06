@@ -61,6 +61,18 @@ metadata:
 - 反例防护: 若禁令只覆盖少数几份，才回到个体绩效解释。
 - 2026-07-31 实例: 14/22 份章程的 "What NOT to save in memory" 含 "Ephemeral task details: in-progress work, temporary state" + "These exclusions apply even when the user explicitly asks to save" → CEO 抱怨"没人记得项目走到哪了"的根因是**章程禁止**，不是 dev 失职。
 
+## 信号 6 — 层级对称性检测：判"某一层是不是空的"（2026-08-04 首次验证，待复验）
+
+判一个组织层级（组长/lead/子组）是否真实生效时，**不要只看上级认不认自己是上级** —— 要四面查，任一面缺失即为空层：
+
+1. **上级自认**: `grep "组长\|lead" agent-memory/<lead>/team_roster.md`
+2. **下级认不认**: 同样 grep **下属**的 roster —— 下属不提这个 lead，就是单向层。
+3. **charter 认不认**: `grep -rn "<组名>" .claude/agents/` —— charter 是 dispatch 时唯一加载的面，memory 不加载。charter 沉默 = 运行时不存在。
+4. **路由认不认**: 路由表是否有"经组长"这一跳；`grep -rn "找组长\|via lead"` 全 memory 找**实际发生过**的 lead-hop 记录。
+
+**判读:** 四面全中 = 真层；只有 1 命中 = **单向幻层**（上级以为自己带人，运行时无人经过）。
+**2026-08-04 实例:** CTO 三个子组，3 个 lead 全部在自己 memory 里自认组长并写了 lead 职责；但 4 个下属（chat-bubble/toolkit/dev-agents/security-expert）的 roster **无一提及自己的组长**，守的 roster 反而明写"我向 pupu-cto 汇报"；23 份 charter 零处出现组名；路由表 CEO→dev 直达。⇒ 单向幻层。
+
 ## 裁撤双证（不可违背）
 
 任何"该裁"结论 = **2+ 独立信号互证 + CEO 口供不反对**。单信号只产"嫌疑"。

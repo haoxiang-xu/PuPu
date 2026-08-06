@@ -1,16 +1,12 @@
 ---
 name: org-chart
-description: ARCHIVED 2026-08-04 — 已被 pupu-hr-judge/org-chart.md 取代; 本文件描述的是 HR court reorg 之前的组织, 仅作历史档案
+description: PuPu 跨部门 agent 花名册（source of truth）— 24 agent / 4 线; HR 已重组为法庭模式
 metadata:
   type: project
 ---
 
-> **⚠️ ARCHIVED / 已归档 (2026-08-04)。本文件不再是组织真相源。**
-> 现行 source of truth: `/Users/red/Desktop/GITRepo/PuPu/.claude/agent-memory/pupu-hr-judge/org-chart.md`
-> 本文件描述的 23 人/双镜头 HR 结构已被 court reorg 取代, 内容仅作历史档案, 引用前先读现行版。(org-court 001 案批次 0.3, 法官勘误动议)
-
 **PuPu 组织真相源。研判前必读。CEO 批准结构变更后由主 Claude 更新本表（HR 只提议、不自改）。**
-最后同步: 2026-08-04（CFO 线同日建而复撤——token 成本评估并入 HR 为 pupu-hr-cost-evaluator；HR 现持组织颗粒度双镜头（成本拆/效率剪）+ 招募审批门）。
+最后同步: 2026-08-04（HR court reorg — 旧 HR 四人全员退役, 新建法庭模式五人: 法官 + 四维评估官; `org-rebalance` skill 退役, 由 `org-court` 取代）。
 
 ## 顶层（CEO = Haoxiang Xu, haoxiangxu1998@gmail.com 直接面对 3 条 line + 1 个 advisory 部门）
 
@@ -19,14 +15,14 @@ CEO
 ├─ CTO「帅」      pupu-cto            技术交付总线（含 chief architect）
 ├─ COO「发」      pupu-coo            业务操盘（盈利/方向提案/GTM）+ 发布 go/no-go
 ├─ AI「智」       pupu-llm-expert     AI 战略（独立；辖 research arm）
-└─ HR（advisory） pupu-hr-head        组织治理（颗粒度双镜头：成本拆/效率剪 + 招募审批门）
+└─ HR（advisory） pupu-hr-judge       组织法庭（四维评估 + 判例法；CEO 终审, 主 Claude 执行）
 ```
 
 ## 全员表
 
 | subagent_type | 花名 | 归属 | scope | 文件路径 | model |
 |---|---|---|---|---|---|
-| pupu-cto | 帅 | 顶层·CTO | 技术交付、派活/排序、load-bearing conventions、CEO/跨团队联络；技术方向 defer 给 architect | agents/cto/pupu-cto.md | opus |
+| pupu-cto | 帅 | 顶层·CTO | 技术交付、派活/排序、load-bearing conventions、CEO/跨团队联络；技术方向 defer 给 architect | agents/cto/pupu-cto.md | fable |
 | pupu-architect | — | CTO·chief architect | 最终架构技术权威、feature placement、设计切片与交付后 design sign-off；CTO 负责派活 | agents/cto/pupu-architect.md | fable |
 | pupu-dev-chat-core | — | CTO·Chat体验组 **lead** | 主聊天页、流式编排、输入面板、side-menu；流契约定义方 | agents/cto/chat-experience/ | opus |
 | pupu-dev-chat-bubble | — | CTO·Chat体验组 | 消息气泡渲染（markdown/trace_chain/artifact） | agents/cto/chat-experience/ | opus |
@@ -35,7 +31,7 @@ CEO
 | pupu-dev-agents | — | CTO·配置扩展组 | characters、recipes、flow_editor | agents/cto/config-extension/ | opus |
 | pupu-dev-electron | — | CTO·平台安全组 **lead** | 主进程服务、preload bridges、IPC relay、channel 常量 | agents/cto/platform-security/ | opus |
 | pupu-security-expert | 守 | CTO·平台安全组 | 防御性安全；安全裁量权（定级/sign-off/HIGH-CRITICAL）越级直达 CTO/COO | agents/cto/platform-security/ | fable |
-| pupu-qa-tester | 验 | CTO·横向直挂 | QA、回归、plumbing 验证 | agents/cto/direct/ | opus |
+| pupu-qa-tester | 验 | CTO·横向直挂 | QA、回归、plumbing 验证 | agents/cto/direct/ | fable |
 | pupu-ux-designer | 造 | CTO·横向直挂 | UX/UI 设计、明暗主题 | agents/cto/direct/ | opus |
 | mcp-store-curator | 策 | CTO·横向直挂 | MCP 商店条目数据、schema、连通性 | agents/cto/direct/ | opus |
 | pupu-dev-backend | 擎 | CTO·横向直挂 | PuPu backend (unchain_runtime/server, 唯一真实副本) + unchain core 库; 跨 repo | agents/cto/direct/ | opus |
@@ -45,23 +41,24 @@ CEO
 | pupu-release-full-test | 检 | COO 线 | 冻结 release candidate、执行零付费完整门禁与付费 6-cell live long-run、保全证据、向 COO 提 GO/NO-GO/INCOMPLETE 建议；无最终裁决权 | agents/coo/ | opus |
 | pupu-llm-expert | 智 | 顶层·AI | 模型/provider 策略、prompt、unchain 编排、RAG、tool-use 语义 | agents/ai/ | fable |
 | pupu-ai-researcher | — | AI·research arm | Codex 驱动、零先验/证伪式 AI 与代码调查；无持久记忆、只交报告；由智派发与合成 | agents/ai/ | sonnet |
-| pupu-hr-head | — | HR | 组织治理负责人, advisory, 统筹+合成 | agents/hr/ | opus |
-| pupu-hr-org-architect | — | HR | 组织架构（怎么长）；建部门/角色 warrant、层级、合并拆分 | agents/hr/ | opus |
-| pupu-hr-performance-evaluator | — | HR | 绩效（谁在贡献, 效率镜头/剪）；多信号取证、裁撤双证 | agents/hr/ | opus |
-| pupu-hr-cost-evaluator | — | HR | 成本（贵不贵, 成本镜头/拆）；多信号量化 token 成本、找又贵又宽的拆分候选；不编数字 | agents/hr/ | opus |
+| pupu-hr-judge | — | HR·法官 | 主持 org-court：受理建制提案、验证证据、合成判决建议；持 org-chart 与判例库；advisory | agents/hr/ | opus |
+| pupu-hr-comm-assessor | — | HR·评估官 | 维度1 沟通效率：hop、信息损失、边界双侧承认、scope 重叠歧义 | agents/hr/ | opus |
+| pupu-hr-context-assessor | — | HR·评估官 | 维度2 context 纯净度：per-call 载荷账、isolation 收益、co-change 内聚、模型档相关性 | agents/hr/ | opus |
+| pupu-hr-signal-assessor | — | HR·评估官 | 维度3 有效信息比例：charter 信噪比、样板占比、唤醒相关性、memory 索引聚焦 | agents/hr/ | opus |
+| pupu-hr-route-assessor | — | HR·评估官 | 维度4 路由成本：description 判别性、路由面常驻账、路由模式适配、路由命中审计 | agents/hr/ | opus |
 
-合计 **23 个 agent**。
+合计 **24 个 agent**。
 
 ## 关键边界与红线（援引时不要凭空判断）
 
-- **守的安全越级权:** 虽挂平台安全组（lead=electron）, 但 severity 定级 / 发版 sign-off（对 COO）/ HIGH-CRITICAL 上报（达 CTO）不下放给 electron lead。避免"被审查方管审查方"。
+- **守的安全越级权:** 虽挂平台安全组（lead=electron）, 但 severity 定级 / 发版 sign-off（对 COO）/ HIGH-CRITICAL 上报（达 CTO）不下放给 electron lead。避免"被审查方管审查方"。（2026-08-04 org-rebalance 判决建议书建议守转横向直挂, CEO 未批, 维持现状待裁——见判例库 pending docket）
 - **公共区守门权:** 共享原语（如 markdown.js）改动权留 CTO, 不下放任何 sub-team lead。
-- **HR advisory-only:** HR 不碰任何 agent/memory 文件, 只出"执行(待 CEO 批准)：…"建议。
-- **颗粒度双镜头在 HR 内:** 成本镜头(cost-evaluator, 又贵又宽→拆)与效率镜头(perf-evaluator, 死重/过深→剪)同属 HR, 拉同一根轴=组织颗粒度; head 合成 cut/add/hold 时保留镜头分歧, 入口是 `org-rebalance` skill (skills/hr/)。agent 无恐惧, 评估是测量非威慑。招募请求一律过 HR 审批门; 全程 advisory, CEO 拍板。
+- **HR advisory-only:** HR 不碰任何 agent/memory 文件（自己拥有的 memory 除外）, 判决建议书以"执行(待 CEO 批准)：…"结尾。
+- **HR 法庭模式（2026-08-04 court reorg）:** 一切建制变更（加/减/重组/组织规则）一律过 `org-court`, 无旁路（招募门并入）。四维评估（沟通效率/context 纯净度/有效信息比例/路由成本）+ 法官验证证据合成 + CEO 终审 + 主 Claude 执行。**贡献度不是维度**（agent 无工资, 闲置只作路由缺陷诊断信号）; 裁撤双证/two-signal rule 随旧维度一并废除。HR 全员程序化传唤, 不走常规路由。执行是 skill 程序段, 不设执行 agent。
 - **横向不设组长:** 验/造/策/擎(backend) 直挂 CTO（拍平先例）。backend 起步 1 人不设 lead, 第二人触发后再评估升格 sub-team。COO 线同理拍平：巡/analyst/检直挂 COO, 不成团不设 lead。
 - **COO 提案权 ≠ 技术裁决权:** COO 可向 dev/CTO 提产品方向, 架构/技术可行性裁决仍在 architect/CTO; COO 保留 release go/no-go，检只执行全测与交证据；对外发布动作一律 CEO 过手。
 - **巡/analyst 接缝:** 自家 repo 指标 + Weekly COO Report + PuPu P0/P1/P2 行动清单独家归巡; analyst 只碰外部数据、只产情报/选项。一份 brief 不出现两个人的 PuPu 行动计划。
-- **analyst 利用率复评点:** 建编 4 周后/首 3 份简报后由考评官核利用率, 低则走裁撤双证退回 bounded skill（2026-08-18 前后触发）。同时监控发布逃逸率, 为"release 决策是否升格给验"留触发条件。
+- **analyst 利用率复评点（经 court reorg 修订）:** 原定 2026-08-18 前后由绩效考评官核利用率+裁撤双证——该机制已废。修订为: 到期走 `org-court`（route-assessor 出路由命中审计）, 判据按宪法第 3 条（它让市场情报这件事更准还是更便宜）, 可选处置含"退回 bounded skill"（符合宪法第 4 条）。COO 的在途下探题（LangGraph/CrewAI/n8n 变现）应在复评前完成, 否则复评无真实数据。
 
 ## 文件结构（agents/ 镜像组织树）
 
@@ -70,7 +67,7 @@ agents/
 ├── cto/{pupu-cto.md, pupu-architect.md, chat-experience/, config-extension/, platform-security/, direct/}
 ├── coo/{pupu-coo.md, pupu-growth-ops.md, pupu-market-analyst.md, pupu-release-full-test.md}
 ├── ai/{pupu-llm-expert.md, pupu-ai-researcher.md}
-└── hr/{pupu-hr-head.md, pupu-hr-org-architect.md, pupu-hr-performance-evaluator.md, pupu-hr-cost-evaluator.md}
+└── hr/{pupu-hr-judge.md, pupu-hr-comm-assessor.md, pupu-hr-context-assessor.md, pupu-hr-signal-assessor.md, pupu-hr-route-assessor.md}
 ```
 
 ## 近期组织变更史
@@ -79,8 +76,9 @@ agents/
 - 2026-06-10: 引入 security-expert「守」; 首次全面安全调查（findings 被 CEO 接受现状）。
 - 2026-06-10: **reorg** — 顶层收敛为 3 线（CTO/COO/智）; product-ops 升 COO 改名 pupu-coo 收编 growth-ops; CTO 下分 3 sub-team 各设 lead + 3 横向直挂; agents/ 重组为镜像组织树。
 - 2026-06-10: **HR 部门成立**（advisory, 3 角色）。
-- 2026-06-10: **建 backend dev「擎」(pupu-dev-backend)**, 横向直挂 CTO, 拥有 unchain_runtime/server + unchain core, 填补后端 0-owner 真空（HR 首次实战建议 + 三方会, CEO 批准）。第二人触发条件见 agent charter。
-- 2026-07-21: **COO 业务操盘手重定义 + 建 market-analyst**（CEO 授权扩编, HR 双报告设计, 最小增量裁决）— COO 升格业务操盘手（盈利/方向提案权/GTM）, release 拆函数不拆角色（决策留 COO、执行下沉验/擎/守, 不新建 release-manager）; 新建 pupu-market-analyst 直挂 COO 管向外情报（不成团/不设 lead/暂不建 marketing 角色, YAGNI）。
-- 2026-07-23: **建 release-full-test「检」**（CEO 明确批准）— 新增固定响应 3-parallel/20m agent long-run 与 6-cell 真实模型付费矩阵后，完整发版测试已成为高重复、强证据链的独立执行负担；因此直挂 COO 新建操作型专员。它不是 release-manager，不拿裁决权、不改产品代码、不替代验/擎/守；COO 继续作最终 go/no-go。同期花名册审计补回此前漏记但早已存在的 `pupu-architect` 与 `pupu-ai-researcher`；实际 active charters 21→22（只有检是本次新增）。
-- 2026-08-04: **建 CFO/finance 线「财」**（CEO 直接指令）— 新增第 5 条线, 直报 CEO, 与 HR 对向。`pupu-cfo`(head, 财务/token 经济账, 加力=拆分/隔离提案) + `pupu-cfo-cost-analyst`(多信号量化每 agent token 成本、找又贵又宽的拆分候选)。同期重定位 HR 为剪力 + 给 hr-head 加"招募审批门"; 把"加力(CFO) vs 剪力(HR)、裁组织颗粒度"的混合评估写成 CEO 直属 skill `ceo-org-rebalance`。active charters 22→24。
-- 2026-08-04 (同日晚些): **CFO 线建而复撤, 并入 HR** — CEO 判定: agent 无恐惧无立场, 对向两线的制衡形式是给人设计的, 两个测量镜头就够。撤 pupu-cfo / pupu-cfo-cost-analyst(从未被派发过), 新建 `pupu-hr-cost-evaluator` 挂 HR 与绩效考评官平行; `ceo-org-rebalance` 降级改名为 HR 部门 skill `org-rebalance`(skills/hr/), 三镜头(成本/效率/结构)全在 HR 内、head 合成。active charters 24→23, 回到 4 线。
+- 2026-06-10: **建 backend dev「擎」(pupu-dev-backend)**, 横向直挂 CTO, 填补后端 0-owner 真空。
+- 2026-07-21: **COO 业务操盘手重定义 + 建 market-analyst**（不成团/不设 lead, YAGNI）。
+- 2026-07-23: **建 release-full-test「检」**（直挂 COO 的操作型专员, 非 release-manager）; 同期花名册审计补回 architect 与 ai-researcher, active 21→22。
+- 2026-08-04: **建 CFO 线而复撤, 并入 HR** — agent 无恐惧, 对向制衡是给人设计的; 成本镜头并入 HR 为 pupu-hr-cost-evaluator, `org-rebalance` 定为 HR skill。22→23（当日先 24 后 23）。
+- 2026-08-04: **首轮 org-rebalance 全量运行** — 三镜头 + 交叉 + 合成; 结论: 零编制变化、23 人无一达旧裁撤门槛、无一达拆分门槛; 主要发现全在文档真相与路由面。判决建议书 CEO 未批（转向 court reorg）, 未决事项入法官判例库 pending docket。
+- 2026-08-04: **HR court reorg（本次）** — CEO 立四维评估哲学（沟通效率/context 纯净度/有效信息比例/路由成本）, **显式废除贡献度维度**; 推翻 F7"HR 封顶 4 人"判例（其豁免条款被满足: 路由成本被证明是第四个正交镜头）。旧 HR 四人（pupu-hr-head / pupu-hr-org-architect / pupu-hr-performance-evaluator / pupu-hr-cost-evaluator）全员退役, 旧 memory 目录保留为档案; 昨日 A5 复评点（cost-evaluator 09-01 / org-architect 09-04）随角色退役失效。新建法庭五人: `pupu-hr-judge` + comm/context/signal/route 四评估官。`org-rebalance` skill 退役, `org-court` 接任（执行定为 skill 程序段, 不设执行 agent）。本部门若运行良好, 将作为样本推广到其他 agent teams。23→24。

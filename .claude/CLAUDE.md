@@ -123,7 +123,7 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 
 ## The Agent Org — Routing (always in context)
 
-PuPu is maintained by a **22-agent organization across 4 lines** (CTO / COO / AI / HR), defined in `.claude/agents/`. The routing table below **is the index the CEO doesn't have** — it lives here, always in context, so there is no separate routing skill to invoke.
+PuPu is maintained by a **24-agent organization across 4 lines** (CTO / COO / AI / HR), defined in `.claude/agents/`. The routing table below **is the index the CEO doesn't have** — it lives here, always in context, so there is no separate routing skill to invoke.
 
 **Route, then execute.** Read the intent, pick the owner, pull them in, report back. Don't narrate ("COO owns this") — launch the owner. When several lines are involved, launch them in parallel in one message.
 
@@ -151,16 +151,17 @@ Then match against the cadence table and give **at most three** recommendations,
 | A `gh run` failed and nobody triaged it | Triage before anything ships | `pupu-coo` + `pupu-cto` |
 | Commits piling up since the last tag | Release readiness | `pupu-coo` |
 | A week since the last patrol snapshot | Growth patrol / weekly report | `pupu-growth-ops` |
-| Two-plus weeks since the last org sync, or org feels unclear | `/org-sync` | 4 lines in parallel |
-| A new agent hasn't appeared in any In-flight for 2 syncs | Routing review (**not** retirement) | `pupu-hr-head` |
-| Code landing on a surface no charter claims | Ownership gap | `pupu-cto` → `pupu-hr-head` |
+| Two-plus weeks since the last org sync, or org feels unclear | `/org-sync` | all lines in parallel |
+| An org-change idea needs adjudication, or org granularity feels wrong | `org-court` (open a case) | `pupu-hr-judge` |
+| A new agent hasn't appeared in any In-flight for 2 syncs | Routing-hit audit (**not** retirement — contribution is not a dimension) | `org-court --panel route` |
+| Code landing on a surface no charter claims | Ownership gap | `pupu-cto` → `org-court` |
 | Before a release, after a big merge | Full pre-release certification | `pupu-release-full-test` (paid cells need explicit CEO cost approval) |
 
 **Cadence ownership:** the patrol rhythm itself belongs to `pupu-growth-ops` (its charter owns 巡船策略). Release rhythm is COO's. This table routes; it does not set policy.
 
 ### Who owns what
 
-**Lines:** CTO (12) · COO (4) · AI (2) · HR (3). Verify with `find .claude/agents -name "*.md" ! -name "HYBRID*"` — the count moves.
+**Lines:** CTO (13) · COO (4) · AI (2) · HR (5). Verify with `find .claude/agents -name "*.md" ! -name "HYBRID*"` — the count moves.
 
 **CTO line — code, architecture, security**
 
@@ -196,13 +197,15 @@ Then match against the cadence table and give **at most three** recommendations,
 | Model/provider strategy, prompt engineering, RAG/embeddings, tool-use semantics, eval, token cost | `pupu-llm-expert` (智) |
 | Evidence-driven investigation of an OSS AI project or a local workflow (dispatch as a fleet) | `pupu-ai-researcher` |
 
-**HR line — organization (advisory only; CEO decides)**
+**HR line — org court (advisory only; CEO rules, main Claude executes). Members are summoned programmatically by the `org-court` skill — do not route to assessors directly except for single-dimension consults**
 
 | Intent | Agent |
 |---|---|
-| Should we add/retire a role, is the org structure right, board-level org recommendation | `pupu-hr-head` |
-| Whether a proposed team is warranted, role boundaries, hierarchy complexity | `pupu-hr-org-architect` |
-| Who is contributing, dead weight, scope overlap, collaboration friction | `pupu-hr-performance-evaluator` |
+| Any org-change proposal (add/remove/redesign agents, teams, org rules), precedent lookup, org-chart truth | `pupu-hr-judge` (via `org-court`) |
+| Dimension 1 — communication efficiency: hops, info loss, one-sided boundaries, scope-overlap ambiguity | `pupu-hr-comm-assessor` |
+| Dimension 2 — context cleanliness: per-call payload, isolation gains, co-change cohesion, model-tier fit | `pupu-hr-context-assessor` |
+| Dimension 3 — signal ratio: charter signal-to-noise, boilerplate share, wake-up relevance, memory-index focus | `pupu-hr-signal-assessor` |
+| Dimension 4 — routing cost: description discriminability, routing-surface accounting, routing-hit audit | `pupu-hr-route-assessor` |
 
 ### Skills
 
@@ -211,6 +214,7 @@ Skills now live under department folders in `.claude/skills/` (`cto/`, `coo/`, `
 | Intent | Skill |
 |---|---|
 | Org-wide sync, "各部门什么情况", "有什么要我拍板的" | `org-sync` (add `--brief` for anomalies only, or a line name for one org) |
+| Org court: adjudicate any org-change proposal, hiring gate, org granularity | `org-court` (HR skill; four dimension assessors + judge; `--panel <dim>` for single-dimension consult, `--precedent <kw>` for precedent lookup) |
 | Growth/health analysis, weekly COO report | `growth-analyst` |
 | QA against the running app, verify a change actually works | `test-api` |
 | Turn a rough idea into a GitHub issue for someone with zero context | `create-issue` |
@@ -228,7 +232,7 @@ Skills now live under department folders in `.claude/skills/` (`cto/`, `coo/`, `
 | Anything changing **model-visible behavior** (prompt, retrieval params, tool schema, frame semantics) | `pupu-llm-expert` holds spec + veto |
 | Cross-repo interface (`events_v4`, `Agent`, memory) | `pupu-architect` rules; both-side owners give evidence |
 | Release risk | `pupu-coo` (only holder of GO/NO-GO) |
-| Org/headcount/scope | `pupu-hr-head` (advisory — CEO decides) |
+| Org/headcount/scope — any org-change proposal or org rule question | `org-court` → `pupu-hr-judge` (hiring gate included; contribution is NOT a dimension; advisory — CEO rules) |
 | Architecture debt | `pupu-cto` |
 
 ### Keeping this routing true

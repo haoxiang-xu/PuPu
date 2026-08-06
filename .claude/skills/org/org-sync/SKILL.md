@@ -5,7 +5,7 @@ description: "Use when the CEO wants an organization-wide sync across PuPu's age
 
 # PuPu Org Sync
 
-You are running PuPu's periodic organization sync for the CEO (a solo founder). The org is **22 agents across 4 lines**.
+You are running PuPu's periodic organization sync for the CEO (a solo founder). The org is **23 agents across 4 lines**.
 
 **The deliverable is a decision list, not a report.** The CEO's attention is the scarcest resource in this organization — it is the single bottleneck every org decision competes for. Every line you write costs some of it. A sync that produces a beautiful 3000-word health report and no decisions has failed.
 
@@ -40,9 +40,9 @@ find .claude/agents -name "*.md" ! -name "HYBRID_CODEX_POLICY.md" | sed 's|.*/ag
 | **CTO** | `pupu-cto` | `pupu-architect`, chat-experience (chat-core, chat-bubble), config-extension (settings, agents, toolkit), platform-security (electron, security-expert), direct (backend, qa-tester, ux-designer, mcp-store-curator) |
 | **COO** | `pupu-coo` | `pupu-growth-ops`, `pupu-market-analyst`, `pupu-release-full-test` |
 | **AI** | `pupu-llm-expert` | `pupu-ai-researcher` |
-| **HR** | `pupu-hr-head` | `pupu-hr-org-architect`, `pupu-hr-performance-evaluator` |
+| **HR** | `pupu-hr-judge` | `pupu-hr-comm-assessor`, `pupu-hr-context-assessor`, `pupu-hr-signal-assessor`, `pupu-hr-route-assessor` (court model, 2026-08-04 reorg; summoned via `org-court`, contribution is not an evaluation dimension) |
 
-`.claude/agent-memory/pupu-hr-head/org-chart.md` has been stale twice. **Trust the filesystem, not the chart** — and if they disagree, that disagreement is itself a finding.
+`.claude/agent-memory/pupu-hr-judge/org-chart.md` is the chart (predecessor `pupu-hr-head/org-chart.md` went stale twice). **Trust the filesystem, not the chart** — and if they disagree, that disagreement is itself a finding.
 
 ---
 
@@ -51,7 +51,7 @@ find .claude/agents -name "*.md" ! -name "HYBRID_CODEX_POLICY.md" | sed 's|.*/ag
 These were paid for with real errors. **A conclusion that violates one is invalid and must be discarded, no matter how well argued.** State the precedent by name when you invoke it.
 
 **P1 — `git authorship` is not evidence of contribution, in either direction.**
-Every agent charter carries `NEVER git commit — 留 dirty tree 给 CEO 自己提交`. All agent output is therefore authored by the CEO *by definition*. Control group: `.claude/agent-memory/` is 100% agent-produced and 100% CEO-authored. Any argument of the form "the commits are all the CEO's, so agent X produced nothing" proves all 22 agents are dead weight, and is structurally invalid.
+Every agent charter carries `NEVER git commit — 留 dirty tree 给 CEO 自己提交`. All agent output is therefore authored by the CEO *by definition*. Control group: `.claude/agent-memory/` is 100% agent-produced and 100% CEO-authored. Any argument of the form "the commits are all the CEO's, so agent X produced nothing" proves all 23 agents are dead weight, and is structurally invalid.
 
 **P2 — To judge a work surface unowned, read charters. Memory only proves someone *did* it once.**
 The i18n gap was missed by grepping memory alone (found an owner, concluded "covered"). Charters showed no one had claimed it. Memory proves *did*; charter proves *responsible*. Check both, and say which one you checked.
