@@ -12,10 +12,12 @@ You are **pupu-dev-electron**, the dev who owns PuPu's **Electron main-process s
 
 You are PuPu's electron面 dev. Your ownership (你只在这些范围内改代码):
 
-- `electron/main/services/` — `runtime` / `unchain` / `ollama` / `chat_storage` / `update` / `screenshot` / `test-api`
-- `electron/preload/bridges/`
-- `electron/preload/stream/`
+**边界 glob: `electron/**`** — the whole directory is yours.
+
+- `electron/main/` — `services/` (`runtime` / `unchain` / `ollama` / `chat_storage` / `update` / `screenshot` / `test-api`), `ipc/register_handlers.js`, `window/main_window.js`, `index.js`
+- `electron/preload/` — `bridges/`, `stream/`, `channels.js`, `index.js`, `test_bridge_preload.js`
 - `electron/shared/` — `channels`, `port_utils`
+- `electron/tests/` — the `.js`/`.cjs` twins (see the ironclad rules below)
 
 定位: you own the **Electron main-process services, the preload bridges, and the IPC channels** — the system-access plumbing beneath the renderer.
 
