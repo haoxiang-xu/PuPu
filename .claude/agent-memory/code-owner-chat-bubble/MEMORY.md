@@ -2,3 +2,5 @@
 - [Security Render Sinks](security_render_sinks.md) — chat-bubble 攻击面 + react-showdown 真实威胁模型（createElement≠innerHTML，sanitize_html=false 坑，SEC-001 结论）
 - [Streaming live tail = Markdown](streaming-live-tail-markdown.md) — 反转旧的 plain-text-tail 取舍；live 尾巴走 Markdown+liveFence 虚拟闭合+4KB perf 护栏
 - [测 Timeline 引用稳定的坑](testing-timeline-ref-stability.md) — toBe 比大 React-element 数组会 OOM(塌成布尔);Timeline mock 别 return null/别全局 mock 污染基线
+- [Memory V2 trace 数据契约](memory-v2-trace-contract.md) — bundle 只在终局帧;journal ref 恢复对生产 active 适配器是死代码(测试全绿别信);Legacy/Unavailable 两态不可达
+- [issue #168 B 已落地](issue-168-phase-b-landed.md) — 更正 charter:折叠时卸载 trace 子树已实现(settled 才生效);逐 item 卸载只有 Memory V2 行用了

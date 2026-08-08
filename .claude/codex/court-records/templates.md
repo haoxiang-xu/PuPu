@@ -123,7 +123,7 @@ updated_at: 2026-08-06T20:00:00-07:00
 - **验收标准引用**: 0000-0003-2026-0806#AC-001
 ```
 
-`记录类型` 只允许 `MOTION_RULING`，`PLAN_RULING`，`EXPRESS_RULING`，`RECONSIDERATION_RULING`，`PROCEDURAL_RULING`，`FAST_TRACK_DIRECTIVE`。`EXPRESS_RULING` 在公共裁定字段后按顺序追加 **议案结果** (`APPROVED / REJECTED`) 与 **获准方案** (完整方案编号或 `NOT_APPLICABLE`)，以一个记录同时完成两项取舍。组合约束如下:
+`记录类型` 只允许 `MOTION_RULING`，`PLAN_RULING`，`EXPRESS_RULING`，`RECONSIDERATION_RULING`，`PROCEDURAL_RULING`，`FAST_TRACK_DIRECTIVE`，`TERMINATION`。`TERMINATION` 记录 `Chief Judge` 依其中止权终结一个 case，**只允许 `Chief Judge` 使用**；它没有获准方案，因此 **获准方案** 为 `NOT_APPLICABLE`、**验收标准引用** 与 **获准 action** 为 `无`，并在公共裁定字段后追加 **中止时的阶段**、**已归档产出的处置** 与 **后继 case**（无则填 `无`）。见 [`adaptations.md` A-011](../adaptations.md)。`EXPRESS_RULING` 在公共裁定字段后按顺序追加 **议案结果** (`APPROVED / REJECTED`) 与 **获准方案** (完整方案编号或 `NOT_APPLICABLE`)，以一个记录同时完成两项取舍。组合约束如下:
 
 - `APPROVED` 必须同时给出完整 **获准方案**，至少一项 **验收标准引用** 与非空 **获准 action**，随后进入 `implementing`
 - `REJECTED` 的 **获准方案** 必须为 `NOT_APPLICABLE`，**验收标准引用** 与 **获准 action** 必须为 `无`，随后进入 `closed`
