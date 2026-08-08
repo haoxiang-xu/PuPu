@@ -4,3 +4,4 @@
 - [测 Timeline 引用稳定的坑](testing-timeline-ref-stability.md) — toBe 比大 React-element 数组会 OOM(塌成布尔);Timeline mock 别 return null/别全局 mock 污染基线
 - [Memory V2 trace 数据契约](memory-v2-trace-contract.md) — bundle 只在终局帧;journal ref 恢复对生产 active 适配器是死代码(测试全绿别信);Legacy/Unavailable 两态不可达
 - [issue #168 B 已落地](issue-168-phase-b-landed.md) — 更正 charter:折叠时卸载 trace 子树已实现(settled 才生效);逐 item 卸载只有 Memory V2 行用了
+- [trace status 词汇碰撞](trace-status-vocabulary-collision.md) — 四个 status 面三套共用词;Timeline 无失败态所以 Isolated=Completed 同一个点;runStatusRank 加词不同步=永远卡 Pending

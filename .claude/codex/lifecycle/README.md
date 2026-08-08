@@ -16,7 +16,7 @@
 8. **验收庭审**: `Speaker of the House` 组织庭审，`Acceptance Inspector` 作为 **原告** 提出验收不通过的理由，agent team 作为 **被告** 进行辩护；`Speaker of the House` 收集庭审中的意见和建议，并将其传达给 `Chief Judge`
 9. **复议裁定**: 验收不通过的理由 基于客观检查结果，且被告未能提出有效辩护的 **例行复议**，由 `Procedural Judge` 裁定；存在实质争议的复议，由 `Chief Judge` 做出最终裁定；裁定不通过，则回到 **方案庭审** (第 4 步) 重新循环
 
-所有由 `Speaker of the House` 主持的庭审流程，都由 `Evidence Examiner` 对庭上提出的证据进行验证。
+`Evidence Examiner` 的出庭由 **证据类型与质疑** 决定，**不由 `Speaker of the House` 裁量**：被质疑的证据 **必查**，须查类与证言类证据 **无需质疑即查**，自证类证据免检。详见[证据规则](evidence-rules.md)。
 
 **议案裁定** 与 **方案裁定** 中，凡有 `Expert` 出具 **不成立** 鉴定意见，或有 `Dimension Owner` 出具 **反对** 评估意见的，`Chief Judge` 必须在裁定中对该意见做出 **显式回应**，方可作出裁定；回应内容由 `Speaker of the House` 连同裁定一并归档。
 
@@ -25,6 +25,7 @@
 ## 子文档
 
 - [庭审发言协议](speech-protocol.md)
+- [证据规则](evidence-rules.md)
 - [Track 分档](tracks.md)
 - [传唤机制](summons.md)
 - [法定人数 quorum](quorum.md) (本仓自有条文)

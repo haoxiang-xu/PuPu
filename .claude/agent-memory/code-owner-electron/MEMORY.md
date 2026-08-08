@@ -5,3 +5,6 @@
 - [Memory Vault P0 契约](memory-vault-p0-contract.md) — vault 无读通道/handle 格式/receipt 无明文/fail-closed + sink worker 启动顺序/one-shot configure/同步 drain, 动 memory_vault 前必读
 - [Boot 就绪门契约](boot-readiness-gate-contract.md) — 时钟永不开 backend gate/MCP就绪=GET /mcp/toolkits/必用 restartMiso/overlay 是模态屏障(焦点+Escape)/main 只送 code
 - [Context V2 契约](context-v2-p0-contract.md) — CONTEXT_V2 18 条冻结能力(含 schema-v4 review 三件套)/无 generic proxy/schema 等值门/review 出站投影
+- [流中继的过滤粒度](stream-relay-filtering-granularity.md) — 频道=白名单/data.type=完全透传/未知 envelope.event 名=静默丢弃零计数; main 中继零过滤; 本层不知道 done.bundle 存在
+- [IPC 错误码传输](ipc-error-code-transport.md) — Electron 剥 error.code, 唯一载体是 message 的 `[code] ` 前缀; 只有 context_v2/vault/settings 三个 bridge 装了解析器, projection 两条裸字符串直穿
+- [Memory V2 就绪门栈](memory-v2-readiness-gate-stack.md) — 产第一条载荷前十道 fail-closed 门(三道等值/win32 结构不可达); degraded 之后是硬失败不是降级; 存量 pupu_legacy 无任何处置代码

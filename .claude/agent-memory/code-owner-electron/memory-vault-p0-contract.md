@@ -29,4 +29,15 @@ Memory V2 P0 Vault 控制面已落地（electron/main/services/memory_vault/ + M
 - **registry 追踪所有活 child/process group**，`close()` 是**同步** SIGKILL 进程组并清空（will-quit 不 await promise）。`memoryVaultService.close()` 顺序固定：stop broker → 同步 drain executors → 关 DB；index.js 的 will-quit 再兜底 `vaultSinkExecutorRegistry?.close()`（configure 失败时 vault 不知道它存在）。
 - Windows 仍在 build/frame plaintext **之前**拒（`vault_worker_containment_unavailable`）；broker key 仍走 FD3，不进 argv/env/log。
 
+**这个面撑不起一个管理界面（2026-08-07 于案 `0000-0003-2026-0807` 逐条核实，E-0050…E-0055）：**
+
+有人问「vault 的 UI 是不是只差个界面」时，答案是 **不是**，缺的是能力面，且三条性质不同：
+
+- **`grantId` 是写后即不可见的。** `grant()` 返回那一刻是它在系统里唯一一次露面；`listDescriptors` 只给 `grantCount`（一个 `COUNT(*)` 子查询），不给 grantId 也不给 sinkKind；整个 service 没有任何按 handle/scope 枚举 grant 行的读方法。**净效果：`revoke` 在今天的 IPC 面上事实上不可调用**，能做的只有整条 `delete`（FK 级联全撤）。
+- **chat 删除不回收 chat 域凭据。** deletion outbox 对 vault 只调 `deleteUseStateForOwnerChat`，其注释逐字禁止级联进 `vault_secrets`/`vault_grants`；而 `DELETE FROM vault_secrets` 全服务只有一处且必须给 `handle`，`handle` 只能从 `listDescriptors(该 chat 的 scopeId)` 取回。**chat 一删，scopeId 从此不可构造 → 那行密文永久驻留 settings.db，任何 UI 都到不了。**这是死区不是 UI 缺失。
+- **`vault_secrets` 没有 TTL/status/revoked_at 列** —— 凭据永不过期，删是真删。文件里所有 `expires_at` 都属 `vault_use_intents` 的 10 分钟 intent TTL，别混。
+- 落盘位置对用户文案有约束：**本体在 `userData/settings.db` 的 `ciphertext BLOB`，keychain 只托管 safeStorage 的密钥**。界面可诚实展示的字段全集 = label / scope / createdAt / updatedAt / grantCount，**没有查看/复制/验证有效性**（三层正则锁死）。
+
+补法分三档，代价差一个数量级：`list-grants`（+1 channel，仍 scope-bound+handle-bound，不开新枚举维度）< scope 枚举（+1 channel，**直接对撞已签核的「无全库枚举」不变量**，须重过安全评审）< **main-only 的 `deleteSecretsForOwnerChat` 挂进 deletion outbox（零新增 IPC 面，只解孤儿，不解 revoke）**。只想解「存进去的东西会不会永远留在盘上」，第三档就够。
+
 **How to apply:** 动 memory_vault 任何文件前先读 service.js 头部注释；给 vault 加通道必须同时过 CTO（共有动脉）+ 安全 owner；`.js`/`.cjs` twin 是 `require("./x.test.cjs")` 一行包装。相关：[[concurrent-worktree-hazard]]（主树常有并发进程的脏文件，dispatch 前查 status）。

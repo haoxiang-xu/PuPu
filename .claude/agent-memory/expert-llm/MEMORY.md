@@ -22,3 +22,5 @@
 - [canonical journal projection 审批](canonical-journal-projection-approval.md) — 2026-08-02 APPROVED(message.user/assistant 曾被静默忽略的缺陷已修复;亲测幂等性+两条零覆盖类型化失败分支;PuPu cutover 仍单独 VETO 中)
 - [Memory V2 会诊立场](memory-v2-adapter-consult-position.md) — 2026-08-04 两段式保留但须双供给;propose 触发指导=flag-on 硬条件(条件性 veto);curator 无能力下限;主 agent 默认 Enabled
 - [五类 plugin 模型可见面契约](plugin-5class-model-visibility-contract.md) — 2026-08-04 CEO 拍板;artifact/mini-app 模型不可见、message array 无 host hint(fixture 强制)、按需暴露 v1 必备;veto 扩展至泛型 open_surface
+- [Memory V2 trace 终态四条硬事实](memory-v2-trace-terminal-state-facts.md) — 上游 typed 词汇已存在/active 遥测产出者已存在但零消费者/终态由自由文本子串定/run 轴无词表
+- [Memory Agent prompt 装配两平面](memory-v2-prompt-assembly-two-planes.md) — legacy 可拼 renderer 自由文本 vs active byte-equality 硬门；display name 实测不进模型可见材料

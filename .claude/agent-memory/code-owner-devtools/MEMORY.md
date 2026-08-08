@@ -1,0 +1,2 @@
+- [发布 flag 快照不入库](build-feature-flag-snapshot-untracked.md) — 正式包的 feature flag 来自 gitignore 的 .local 快照，由「打开 dev Settings-Dev 页」副作用写入；发布前用 --print-flags 核对
+- [Electron 测试双胞胎是三层 shim](electron-test-twins-are-three-layer-shims.md) — 本体只有 .cjs；src/electron/tests 的 .js shim 才被 CRA 收集；electron/tests 下的 .test.js 零信号

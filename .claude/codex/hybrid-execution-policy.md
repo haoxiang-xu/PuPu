@@ -31,7 +31,7 @@
 
 | 角色 | 模式 | 谁写码 | 谁对结果负责 |
 |---|---|---|---|
-| `expert-architecture` | **none** | 不写码 | 自己。**2026-07-13 CEO 显式覆盖**：跑 Fable 5，架构推理留在本模型内，**不走 `codex exec -p architect` 转手**；证据采集照常 |
+| `expert-architecture` | **none** | 不写码 | 自己。**2026-08-07 CEO 撤销 2026-07-13 的 Fable 5 强制**：不再写死模型，派遣方在派遣时选当时可用最强模型；**仍不走 `codex exec -p architect` 转手**，架构推理留在被派遣的模型本体内；证据采集照常 |
 | `expert-security` | A | 不写码（出鉴定与整改契约） | 自己持有 severity 定级 |
 | `expert-llm` | A | 不写码 | 自己；模型事实一律查当前文档，不用 Codex 的记忆 |
 | `expert-qa` | C | Codex 写测试 | `expert-qa` 定策略，Claude 审 |

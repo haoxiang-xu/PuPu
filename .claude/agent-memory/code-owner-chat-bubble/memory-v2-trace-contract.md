@@ -15,8 +15,10 @@ Memory V2 的 trace 呈现有三条与直觉相反的事实，全部于 2026-08-
 第二重失配：真实 payload 里 ref 是 `unchain.resource_ref.v1` 对象 `{kind,id,revision}`，渲染层只认 `pupu://artifact/<id>@<rev>` 字符串。两个原因各自独立，修一个不够。
 `trace_chain.memory_v2.test.js` / `memory_v2_journal_reload*.test.js` 的 fixture 全用嵌套 + 已规范化的 `pupu://` 串，21 test 全绿。**别拿这套测试当"能工作"的证据。**
 
-**3. Trace 四态里只有两态可达。** `memory_v2_trace_presenter.js:167-196` 支持 Complete/Partial/Legacy/Unavailable；两仓 grep 无任何 `legacy` / `legacy_v1` / `trace_status:"legacy"` / `mode:"legacy"` 发射点，rollout mode 词汇只有 `off|shadow|active`，而 `off` 的 bundle 根本不发。**Legacy 与 Unavailable 是不可达分支。**
-且 `Complete` 的语义是"trace bundle 完整"，不是"记忆成功"——active 且无报错就恒为 Complete，哪怕一条 entry 都没写。
+**3. Trace 四态里 `Legacy` 不可达（`Unavailable` 的原判撤回）。** `memory_v2_trace_presenter.js:162-196` 支持 Complete/Partial/Legacy/Unavailable。
+- **`Legacy` 不可达，2026-08-07 二次复核成立**：`grep trace_status unchain_runtime/server --include=*.py`（去 tests）**零赋值**；`journal_status` 只被赋过 `"partial"`（`memory_v2_context.py:4298`、`memory_v2_context_adapter.py:671`）；顶层 `legacy_v1` 从未被设过（`memory_v2_legacy_adapter.py:252/365/438` 的 `legacy_v1: True` 在 **provenance 子对象** 里，`:655-656` 就是这么读的，过不了 presenter 的顶层 `raw.legacy_v1`）。
+- **`Unavailable` 的"不可达"判断撤回，改为未核实**：`memory_v2_bundle_payload`（`memory_v2_context.py:4774`）在 admission 为 None 时返回 `{schema_version, requested_mode:"off", mode:"off"}`，该形状能过 `isMemoryV2TraceBundle` 的门，`resolveMode→"off"` 会直接判 `Unavailable`。这个 payload 到底挂不挂进 message bundle 未实测。
+- 且 `Complete` 的语义是"trace bundle 完整"，不是"记忆成功"——active 且无报错就恒为 Complete，哪怕一条 entry 都没写。
 
 **Why:** 这三条决定了任何"Memory V2 在 trace 里够不够"的判断。不知道 1 就会以为流式期间有信号；不知道 2 就会相信绿测试；不知道 3 就会去设计两个永远看不到的状态。
 

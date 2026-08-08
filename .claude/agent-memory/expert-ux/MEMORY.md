@@ -10,3 +10,4 @@
 - [分类学 v2 冻结口径](theme-taxonomy-v2-frozen-decisions.md) — Linked/Pinned="缺键即跟随"、alpha 走 details 通道;picker 硬限制取代警告闸;allowlist 锚点与 explorer 双份 hover 两个坑
 - [出厂对比度实测下界](theme-contrast-measured-bounds.md) — 每条护栏阈值的依据;状态色只能定 1.9 不能定 3:1(默认主题自己就不合格);漏算 sidebar 会得到偏乐观的数
 - [Button 基元样式契约](button-primitive-styling-contract.md) — ghost 默认在无 surface 表面=裸文字链;主操作 chip 模板;三缺口(无focus态/disabled夺焦/不透传ref);ariaLabel 与 aria-busy 两个反模式
+- [四态呈现定式](four-state-presentation-doctrine.md) — 状态是注记不是画面/结构差异不能只靠文案/渲染"没有"要fail-closed;Inspector与disclaimer实测1.99–3.67:1全不过AA;opacity差与title都不是disabled信号
