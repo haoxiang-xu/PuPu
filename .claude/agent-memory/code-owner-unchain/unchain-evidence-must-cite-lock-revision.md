@@ -11,6 +11,6 @@ metadata:
 
 **How to apply:** 出证前跑 `git -C <unchain> rev-parse HEAD`、`git -C <unchain> status --porcelain`，与 lock 的 `revision` 三方对照。不一致就用 **只读** 手法取 lock 那一版：`git show <rev>:<path>`、`git diff <rev> -- <path>`。**绝不 checkout、绝不切分支** —— 两个主树都常被并发进程占用（见 PuPu 侧 `concurrent-worktree-hazard` 记忆）。取不到就按「未核实」交，不推测。
 
-还有一层至今没人核过、值得在下次顺手做掉：**checkout 与 lock 一致 ≠ sidecar 运行时 `import unchain` 就解析到这个 checkout**（可能是别处的 site-packages）。要坐实得起 sidecar 打印 `unchain.__file__`。凡是只做了静态比对的结论，适用范围只到「本 checkout 与该 revision」，写进 **完整性限制** 里别含糊过去。
+**上面那层「至今没人核过」的已于 2026-08-08 核实并闭合** —— 结论见 [[unchain-import-bootstrap-trap]]：运行时确实解析到本机 checkout，且那条记忆同时给出了 **在庭审 harness 里实跑 unchain 分支的唯一正确方法**。凡要对 `store_owner=unchain` 出证，先读它。
 
-相关：[[unchain-crossrepo-impact-duty]]
+相关：[[unchain-crossrepo-impact-duty]] · [[unchain-import-bootstrap-trap]]

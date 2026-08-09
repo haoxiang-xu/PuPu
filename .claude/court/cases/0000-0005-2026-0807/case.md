@@ -2,7 +2,7 @@
 case_id: 0000-0005-2026-0807
 title: 降级信号被 trace 白名单丢弃
 track: full
-status: filed
+status: hearing
 phase: motion
 parent_case_id: null
 relation: null
@@ -60,4 +60,4 @@ unchain_shadow_status       unchain_shadow_error_code
 
 ## 文件索引
 
-- 尚未开庭
+- [发言记录](record.md)

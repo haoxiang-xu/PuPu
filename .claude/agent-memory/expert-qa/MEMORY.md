@@ -1,3 +1,8 @@
 - [Team Roster & Handoff Protocol](team_roster_handoff.md) — feature QA → release-full-test evidence → COO decision, plus MCP/security/dev handoffs
 - [Worktree e2e testbed recipe](worktree-e2e-testbed-recipe.md) — symlinks needed to run app from a worktree; single-instance lock traps; test-api eval/webpack-module tricks
 - [Gate-B computer-use e2e findings](computer-use-gate-b-e2e-findings.md) — 2026-07-18 full enable-path PASS; dead ok field, test-api toolkit staleness, funnel conditions
+- [Sidecar pytest 跑法](sidecar-pytest-invocation.md) — 只有 unchain 仓的 venv collect 得动；PuPu 仓零声明；pytest 不受 sidecar 重启陷阱约束
+- [本仓准入断言系统性失明](repo-admission-assertions-are-blind.md) — toMatchObject / 永不被接纳的 fixture；改白名单类改动「全绿」携带零信息
+- [Sidecar 降级测试 idiom 在哪](sidecar-degradation-test-idioms.md) — 故障注入 · sink 捕获 · 进程内驱动发 bundle 的生成器，全部已在仓内且绿
+- [test-api 无故障注入](test-api-has-no-fault-injection.md) — 应用层只能验成功路径；「真实降级回合人眼看一次」不可满足，改验健康回合无回归
+- [先例：纯函数上的证据位阶](precedent-evidence-tier-for-pure-functions.md) — 探针对条件命题是最高位阶、对存在命题为零；「已实现」的判据；n 小不是问题抽样框错才是

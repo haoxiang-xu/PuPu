@@ -1,0 +1,3 @@
+- [Memory V2 trace 白名单拓扑](memory-v2-trace-whitelist-topology.md) — 一个导出函数管渲染+持久化两条路；只扩表不改终态解析=零效果改动
+- [发布 flag 取值不在仓库里](release-flag-state-is-not-in-the-repo.md) — 问「用户今天遇不遇得到」要扫 tag 上的 feature_flags.js，别查不入库的快照
+- [Context V2 错误码线契约](context-v2-error-code-wire-contract.md) — 判态看调用成败+拒绝码，不看载荷字段也别只信 getStatus；解析开放、失配静默变默认码

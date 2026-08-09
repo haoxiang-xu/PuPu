@@ -33,8 +33,9 @@ metadata:
 
 - 取值集合**二元**：`memory_v2_rollout.js:150` 就一行 `resolvedRolloutMode === "off" ? "off" : "unchain"`。**Electron 永远不产 `pupu_legacy`。**
 - **无条件写入，且写在 `{...process.env}` 展开之后**（`unchain/service.js:4745` vs `:4763` vs `:4805-4808`）→ 开发者 shell 里的同名变量会被覆写 → Python 侧「env 缺失回退 `pupu_legacy`」**只要由 Electron spawn 就结构性不可达**。任何用 pytest / `test_client()` 打出来的 `pupu_legacy` 行为都是**独立启动环境**，不是现网。
-- **打包默认与 dev 默认都是 `"off"`**（`enable_memory_v2:false` → featureCeiling/configuredMode 双 `off` → storeOwner `off`；dev 的 `.local` 快照虽写 true 但无 `_pupu_memory_v2_release` 块，且两个 `PUPU_MEMORY_V2_*` 未设置，同样落 `off`）。
-- **后果，做四态 UI 必读**：sidecar 的 `STORE_OWNER_OFF` 分支**在校验入参之前**短路，**默认构建下每一次 Context V2 读都返同一个 404 `context_v2_not_found`，与参数无关**。即「这个会话没有 head」与「Memory V2 整个没开」在 HTTP 层已经是同一个码。**唯一可行判别路径是 `contextV2API.getStatus()` 的 available/schemaVersion，绝不能靠任何一次读的错误码。**
+- **打包默认是 `"off"`**（`enable_memory_v2:false` → featureCeiling/configuredMode 双 `off` → storeOwner `off`）。**dev 不一定** —— 2026-08-08 于案 `0000-0008-2026-0808` 更正：`package.json` 的 `start:electron` **确实设了** `PUPU_FEATURE_MEMORY_V2=all PUPU_MEMORY_V2_MODE=all`，而 `buildRolloutConfig:135-140` 只在 `featureEnabled` 为真时才读它们，`featureEnabled` 来自 **不入库的** `.local/build_feature_flags.snapshot.json`。本机该文件是 `enable_memory_v2:true` → `npm start` 落 **`unchain`**；**新克隆 / CI 上没有该文件 → 落 `off`**。**「dev 是什么」是本机属性不是仓库属性，写验收步骤必须声明这个文件的内容。**
+- **win32 上 storeOwner 仍是 `unchain`**（ceiling 压回 shadow 只改 mode 不改 owner），但 readiness 恒 `degraded`（`vault_worker_containment_unavailable`）→ `contextV2Request` 的 readiness 门拦下每一次调用。**Windows 与 macOS 在同一配置下走两条不同的失败路径。**
+- **`off` 态的错误码是 503 `context_v2_store_disabled`，不是 404**（2026-08-08 更正，原记 404 `context_v2_not_found` 在 `b2385d5d` 上不成立）。链路：`route_memory_v2.py` 的 `_read_runtime_for_store_owner` / `_status_for_store_owner` 在 owner≠unchain 时直调 `_runtime()` → `memory_v2_runtime.py:718-734` 对 `off` 必抛 503。**`/context/v2/status` 自己也走这条 —— 即 off 态下 `contextV2API.getStatus()` 是 reject 不是 resolve，8 字段 allowlist 根本构造不出来。** 判态别指望它，见 [[memory-v2-four-state-already-on-the-wire]]。
 - 顺带纠一个常见误推：默认构建下 `effectiveMode === "off"`，**readiness 门根本不生效**（`contextV2Request:1897-1901` 只在 `!== "off"` 时拦），请求照发到 sidecar 再 404 回来 —— 不是本地立即抛错，观感完全不同。
 
 **存量 `pupu_legacy` store 的真相**（2026-08-07 于 `0000-0002-2026-0807` 实测，两侧闭合）：

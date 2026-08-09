@@ -2,12 +2,12 @@
 case_id: 0000-0003-2026-0807
 title: Memory 的用户可见面
 track: full
-status: hearing
+status: awaiting-ruling
 phase: motion
 parent_case_id: null
 relation: null
 created_at: 2026-08-07T17:10:00-07:00
-updated_at: 2026-08-07T19:56:00-07:00
+updated_at: 2026-08-08T00:05:00-07:00
 ---
 
 # Memory 的用户可见面
@@ -62,4 +62,5 @@ updated_at: 2026-08-07T19:56:00-07:00
 
 - [发言记录](record.md)
 - [证据台账](evidence.md)
-- [裁定与授权](ruling.md) — R-0001 程序裁定（2026-08-07）：授权 `expert-architecture` 在非 Fable 模型出庭，并撤销 2026-07-13「必须 Fable 5」常设指令；**quorum 名单不减员**
+- [裁定与授权](ruling.md)
+- **闭庭**：`record.md#S-0024`（`SUMMARY`）。闭庭门禁八项已逐项确认；**法定必到 12 人全部交付**；**强制回应事项 16 项**（+1 预防性）待 `chief-judge` 逐条显式回应 — R-0001 程序裁定（2026-08-07）：授权 `expert-architecture` 在非 Fable 模型出庭，并撤销 2026-07-13「必须 Fable 5」常设指令；**quorum 名单不减员**

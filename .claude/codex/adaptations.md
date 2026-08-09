@@ -96,6 +96,8 @@
 2. Mode R 由 `pupu-ai-researcher` 这个 agent 承载，改为由 [`ai-investigation` skill](../skills/ai-investigation/SKILL.md) 承载，**任何角色可调**。理由：Mode R 不写码、不落任何 repo of record、也不进庭审，它是一种方法而不是一个可被机械传唤的角色 —— 没有可声明的所有权边界的东西不该是 agent
 3. `expert-llm` 的 **veto** 改述为 **强制回应效力**，与[宪法](constitution.md)及 [`Expert` 角色定义](roles/expert.md)对齐：可被 `chief-judge` 推翻，但不可被静默跳过
 
+**2026-08-08 追加**：`chief-judge` 将 1 中对 `expert-architecture` 的 Fable 5 撤销**明确扩展到 `expert-llm`**——起因是 `0000-0008-2026-0808` 议案庭审中 `expert-llm` 派遣同样因 Fable 5 硬配额耗尽零产出，quorum 卡在 8/9 无法闭庭；`speaker-of-the-house` 与 `procedural-judge` 均无权自行把该撤销的射程从 `expert-architecture` 扩至其他角色，故升报 `chief-judge` 逐个裁定。**这仍是逐角色扩展，不是部门级豁免**——`expert-security`、`expert-qa` 是否解绑未经裁定，遇到时须再次升报，不得援引本条自行推断。
+
 ---
 
 ## A-008 · co-located 测试随源文件归属

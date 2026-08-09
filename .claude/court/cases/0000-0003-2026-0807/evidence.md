@@ -3094,3 +3094,149 @@ E-0072 附带指出的另一条在本条复核后成立：`fileTypeSVGs` 与动�
 - **完整性限制**: 只证明第三次派遣的失败原因。**不证明前两次 `rate_limit` 与本次为同一机制**；亦不证明该配额的重置周期或作用域
 - **验证历史**:
   - S-0021 | 已验证 | 通知逐字记录；该次派遣并发度为 1，且距上次失败约 40 分钟，故「扇出过宽」与「瞬时限速」两解释均被排除
+### E-0090 | repository
+- **来源定位**: `/Users/red/Desktop/GITRepo/PuPu/src/SERVICEs/boot_readiness.js:1-206`；`/Users/red/Desktop/GITRepo/PuPu/electron/main/services/boot_readiness/service.js:110-118, 339`；`/Users/red/Desktop/GITRepo/PuPu/electron/tests/main/boot_readiness_service.test.cjs:256-277`；`/Users/red/Desktop/GITRepo/PuPu/src/SERVICEs/boot_locale_parity.test.js:38-47`
+- **取得方式**: 当前 checkout 只读阅读（dev @ `8d7fbd1d`）+ `grep -rn "FAILURE_CODES" src/ electron/`
+- **提交发言**: S-0014
+- **支持/反驳**: 支持 S-0014 Q1（单一状态源该建、落在哪一层、归谁）与 Q6（倒序不返工的充分条件）、Q7（约束扩写的 (b)(c) 两条）
+- **完整性限制**: 未运行该模块、未起应用、未跑测试（只读 + 不派生子 instance，A-012）。本条只主张「该形状在本仓存在且成文」，**不主张它今天运行无缺陷**。与 **E-0038 不重叠**：E-0038 取的是 `boot.*` 的 **文案与 locale 守卫**，本条取的是 **模块结构、权威枚举与漂移守卫**，两者是同一先例的不同半边。
+- **验证历史**: 首次提交，未经 `evidence-examiner` 审查。
+
+**本仓已经建过一次「单一状态源」，它至今工作，且它的形状正是本案八层各自缺的那个构件。**
+
+### 一 · renderer 侧：唯一订阅收在 `src/SERVICEs/`
+
+`src/SERVICEs/boot_readiness.js` 的文件头注释逐字写明其职责：
+
+> Owns the one subscription to window.bootReadinessAPI and translates what main reports into two things: 1. the `backend` gate — the hard "may the user in?" answer, 2. a small presentational state (status text key, failure, retry) the BootOverlay renders while the gate is closed.
+>
+> It is split from boot_progress.js on purpose: boot_progress stays a dumb progress/gate primitive with a `{ pct, ready }` contract that many callers depend on, while everything that knows about sidecars, MCP and retry lives here.
+
+四条可直接对照本案的结构属性：
+
+1. **唯一订阅点**，消费方不各自探测。对照：本案 `contextV2Bridge.isAvailable()` 有 6 个非测试调用点各自当就绪探针（见 E-0091）。
+2. **判定与呈现分离**：模块产出 `{ready, phase, failure, showStatus, slow, retrying}`，`BootOverlay` 只渲染。对照：`memory_inspect_modal.js` 自己发请求、自己判 `points.length === 0`、自己渲染（E-0002）。
+3. **不是 context provider**，是模块级 store + `subscribe()` + `getState()`（`:183-192`）。与工程铁律「不新建 context provider」相容 —— **本案若建同形模块，无需新 provider**。
+4. **退化态有自己的名字，不塌进「还没好」**：`satisfyWithoutBackend({available})` 置 `phase:"no_backend"`，注释逐字 `available` false means "no bridge exists at all"（`:101-114`）。**这正是本案「为空 vs 不可用」的同一个区分，本仓已经解过一次。**
+
+### 二 · 方向性：push + 会重新关闸，不是静默轮询
+
+`applyReadiness`（`:84-99`）：
+
+```js
+if (next.ready) {
+  bootProgress.satisfyGate(bootProgress.BOOT_GATES.BACKEND);
+} else {
+  // Re-close on a backend that died after coming up. `ready` drops, the
+  // overlay is authoritative again.
+  bootProgress.resetGate(bootProgress.BOOT_GATES.BACKEND);
+}
+```
+
+订阅经 `onBootReadinessChange`（`:165`），且**先订阅后初读**，注释写明「so an update landing between the two cannot be dropped」。
+
+**与本案 E-0003 方向相反**：Inspector 的 5s 静默轮询会在用户零操作下把 `ready` 翻成 `empty` 并吞掉失败；boot 这条链路上后端死掉时是**显式重新关闸并交还权威**。同一个「状态会变坏」的场景，两处结论相反。
+
+### 三 · main 侧：权威枚举 + 漂移守卫
+
+`electron/main/services/boot_readiness/service.js:110-118`：
+
+```js
+/* The complete set of failure codes this service can emit. The renderer maps
+   each to a `boot.failure.<code>` i18n key, so adding one here without adding
+   the key in every locale leaves users staring at a raw identifier. */
+const FAILURE_CODES = Object.freeze([
+  "unchain_runtime_not_found",
+  "unchain_runtime_failed",
+  "mcp_environment_unavailable",
+]);
+```
+
+**两道守卫，方向不同，缺一不可：**
+
+| 守卫 | 位置 | 断言的事 |
+|---|---|---|
+| 枚举完整性 | `electron/tests/main/boot_readiness_service.test.cjs:256-277`，用例名逐字 `"every emittable failure code is declared in FAILURE_CODES"`，`expect([...seen].sort()).toEqual([...FAILURE_CODES].sort())` | **main 实际发得出的码 ⊆ 枚举**（防止「后端发了个前端没听说过的码」） |
+| 文案对等性 | `src/SERVICEs/boot_locale_parity.test.js:42-47`，`require` main 模块取 `FAILURE_CODES`，`FAILURE_KEYS = [...FAILURE_CODES, "unknown"]` | **枚举里的码 ⊆ 11 个 locale 的键**（防止漏翻） |
+
+`boot_locale_parity.test.js:38-42` 的注释逐字说明了为什么是 import 而非手抄：
+
+> Read the emittable codes STRAIGHT FROM MAIN rather than transcribing them: a hand-copied list silently stops covering a code the day someone adds one.
+
+且 `unknown` 是**渲染侧显式追加**的第四类（注释：`it is the renderer's own fallback for an unrecognized code, not something main can emit`）。
+
+### 四 · 这三件事恰好对上本案的三条塌缩
+
+| 本案的塌缩 | boot 侧对应的机制 | 本案证据 |
+|---|---|---|
+| `context_v2_readiness_failed` 在 `src/**` 检索 0 行，落进兜底「请重试」，而重试按机制永不成功 | 枚举完整性测试（main 侧）+ 显式 `unknown` 第四类（renderer 侧） | E-0032 / E-0031 |
+| 11 个未就绪原因在 main 被丢弃 | `FAILURE_CODES` 是 **frozen 枚举**，reason 是一等公民不是日志 | E-0031 |
+| 6 个 code→键映射引用的键在 11 个 locale 里存在数为 0，活到今天 | 文案对等性测试从权威模块 import | E-0039 |
+
+**本条的论点不是「照抄 boot」，而是：本案 Q1 问的「单一状态源该不该有、落哪一层、谁拥有」，在本仓已有一个成文、可指、仍在运行的答案 —— renderer 单一读落 `src/SERVICEs/`（`code-owner-shared-arteries`），权威枚举落 `electron/main/services/<面>/service.js`（`code-owner-electron`），两侧各配一道方向相反的守卫。** 这不是新契约面，是既有两 owner 协作形状的第二个实例。
+
+### E-0091 | repository
+- **来源定位**: `/Users/red/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.js:3907, 3916, 4004`；`/Users/red/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/memory_v2_journal_reload.js:516`；`memory_v2_pending_reviews.js:299, 736`；`memory_v2_trace_audit.js:79`；`/Users/red/Desktop/GITRepo/PuPu/src/SERVICEs/bridges/context_v2_bridge.js:36, 61, 105`；`/Users/red/Desktop/GITRepo/PuPu/electron/main/ipc/register_handlers.js:633`；`/Users/red/Desktop/GITRepo/PuPu/electron/main/services/unchain/service.js:1945, 5871`
+- **取得方式**: 当前 checkout（dev @ `8d7fbd1d`）三次 `grep -rn` 全仓普查，逐条剔除 `*.test.*`：`grep -rn "getSessionHead" src/ electron/`、`grep -rn "isAvailable()" src/`、`grep -rn "getContextV2Status" src/ electron/`
+- **提交发言**: S-0014
+- **支持/反驳**: 支持 S-0014 Q1；**独立复核并确认** E-0030（`getContextV2Status` 零消费者、`isAvailable()` 不是就绪探针）与 S-0006 正文四（head 读长在 turn-mutation 路径里）
+- **完整性限制**: 静态检索，未运行。检索按标识符字面量做，**若存在动态构造的属性访问（如 `bridge[name]()`）则会漏**；已就 `contextV2Bridge` 的 18 个方法名做过一次反向确认，未见动态派发，但不排除其他形态。`isAvailable()` 一栏含 2 个非 Context V2 的同名调用（`mini_storage.js`、`settings_repository.js`），已在下表标出并排除。
+- **验证历史**: 首次提交，未经 `evidence-examiner` 审查。
+
+**全仓「四态信号」调用点普查 —— 富信号只有 1 个读点且在写路径上，贫信号有 6 个读点且散在 4 个 owner 边界。**
+
+### 一 · `getSessionHead`（最富的判别信号）
+
+`src/**` 非测试**实调用点共 1 个**：
+
+| 位置 | owner | 性质 |
+|---|---|---|
+| `use_chat_stream.js:3916` | `code-owner-chat-core` | `resolveTurnMutationMemoryPlan` 内，**turn mutation 的写前置**，非读路径 |
+
+其余命中全部为定义或文档：`context_v2_bridge.js:36`（方法名白名单）、`:105`（转发定义）、`context_v2_turn_mutation.js:9,158,159`（注释）、`use_chat_stream.js:12847`（注释）、preload 侧 `:11,62,216`（桥定义）。
+
+`decideTurnMutationMemoryMode` 消费的 head 字段十余个（`bootstrapStatus` / `v2Bootstrapped` / `sessionExists` / `admissionMode` / `targetMode` / `mutationReady` / `currentGenerationId` / `sessionRevision` / `bootstrapErrorCode` / `readOnlyDegraded`，见 S-0006 正文四 / E-0012）。
+
+**推论（INFERENCE）**：这条读是全应用唯一一处能机械区分四态的信号，但它**不是一个读**，是一个写操作的前置检查。任何想要四态的 surface（Inspector、气泡、vault 面、devtools fixture）都**够不到它** —— 够到它的唯一方式是发起一次 turn mutation。S-0006 自陈「它不是一个公共的记忆就绪度读」，本条把该陈述收紧为：**它在调用图上连读路径都不是。**
+
+### 二 · `contextV2Bridge.isAvailable()`（最贫的信号，却是事实上的就绪探针）
+
+`src/**` 非测试命中 9 处，其中 Context V2 的 **6 处**，散在 **2 个 owner**：
+
+| 位置 | owner | 用途 |
+|---|---|---|
+| `memory_v2_journal_reload.js:516` | `code-owner-chat-bubble` | 早退门 |
+| `memory_v2_pending_reviews.js:299` | `code-owner-chat-bubble` | 可用性判定 |
+| `memory_v2_pending_reviews.js:736` | `code-owner-chat-bubble` | `Boolean(owner) && …` |
+| `memory_v2_trace_audit.js:79` | `code-owner-chat-bubble` | 可用性判定 |
+| `use_chat_stream.js:3907` | `code-owner-chat-core` | turn-mutation 早退 |
+| `use_chat_stream.js:4004` | `code-owner-chat-core` | 同上 |
+
+**排除（同名但非 Context V2）**：`mini_storage.js:36`、`settings_repository.js:502`。另 `context_v2_turn_mutation.js:157` 为形参文档注释。
+
+按 E-0030，`isAvailable()` 只检查 `window.contextV2API` 上 18 个方法是否为 function，preload 挂上即恒 true。**故上述 6 处全部在用一个恒真值当就绪探针**，横跨 `code-owner-chat-bubble` 与 `code-owner-chat-core` 两个边界。
+
+### 三 · `getContextV2Status`（唯一的多字段状态读）—— renderer 零消费者
+
+全仓命中 3 处，**全部在 Electron 侧**：
+
+| 位置 | 性质 |
+|---|---|
+| `electron/main/ipc/register_handlers.js:633` | channel ↔ 方法名注册 |
+| `electron/main/services/unchain/service.js:1945` | 实现 |
+| `electron/main/services/unchain/service.js:5871` | 导出 |
+
+`src/**` 命中数 **0**。renderer 侧对应入口 `contextV2Bridge.getStatus` 在 `src/**` 除桥定义外亦无调用点（`context_v2_bridge.js:1,3,61` 三处均为注释与 `window.contextV2API` 取用）。
+
+**这独立复核了 E-0030 与 S-0008 约束 3。**
+
+### 四 · 本条要坐实的结构判断
+
+把三张表合起来读：
+
+- **富信号（head，十余字段）**：1 个读点，在写路径，chat-core 独有。
+- **多字段状态读（`getStatus`）**：0 个读点。**能力已建成、跨了 IPC、在 main 里实现并导出，renderer 一次都没用过。**
+- **贫信号（`isAvailable()`，恒真）**：6 个读点，2 个 owner，全部当就绪探针用。
+
+**即：本仓不是缺信号，是信号与消费者错配 —— 最好的信号无人可及，最差的信号人人在用，而中间那个正好合适的读没有任何消费者。** 这与 E-0090 描述的 boot 侧形状（唯一订阅、判定与呈现分离、消费方不各自探测）构成直接对照。
+

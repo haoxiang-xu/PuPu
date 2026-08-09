@@ -18,3 +18,6 @@
 - [PO 角色 vs project ledger 裁定](po-role-vs-project-ledger.md) — 2026-07-31 草案:PO 三诉求=ledger工件+DRI字段+cadence盯梢,不新增agent;实测subagent无Task工具→PO派dev物理不可行;issue已证伪(#42僵尸)
 - [plugin五类+hosts.*契约拍板](plugin-five-types-hosts-contract-ratified.md) — 2026-08-04 生效:artifact二分/payloads-capabilities拆分/信封三+一铁律/mount维度/JSON默认存储;单向门清单+被否点(勿复推SQLite);spec在docs/superpowers/specs
 - [主题v2 P1终审](semantic-theme-v2-p1-signoff.md) — 2026-08-04 pin存储法则定案(缺键=跟随/在键=固定,值对比归一化被证伪勿复议);textMuted留根押P2;P2派生饱和度契约;GitNexus const幽灵节点盲区→grep为ground truth
+- [Memory V2 四态判定的三层划分](memory-v2-four-state-layering.md) — 2026-08-08 0008案:L1提取/L2分类/L3呈现,只收前两层;"N份拷贝"计数本身是错的;归一落sidecar;对我前案"只有指派能解"的经验校准
+- [接缝盲区(取证准则)](seam-evidence-blindspot.md) — 取证单元是边界、缺陷常在接缝;跨侧主张须有被主张一侧的证据;先做减法再读内部;我自己犯过
+- [0005案 降级信号被丢弃 鉴定先例](memory-v2-drop-case-0005-precedent.md) — 根因收窄:缺的是两侧对账非产端声明;sanitize不在持久化边界上;单向门三条轴;形状D=规避判不成立

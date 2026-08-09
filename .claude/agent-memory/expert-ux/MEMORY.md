@@ -11,3 +11,8 @@
 - [出厂对比度实测下界](theme-contrast-measured-bounds.md) — 每条护栏阈值的依据;状态色只能定 1.9 不能定 3:1(默认主题自己就不合格);漏算 sidebar 会得到偏乐观的数
 - [Button 基元样式契约](button-primitive-styling-contract.md) — ghost 默认在无 surface 表面=裸文字链;主操作 chip 模板;三缺口(无focus态/disabled夺焦/不透传ref);ariaLabel 与 aria-busy 两个反模式
 - [四态呈现定式](four-state-presentation-doctrine.md) — 状态是注记不是画面/结构差异不能只靠文案/渲染"没有"要fail-closed;Inspector与disclaimer实测1.99–3.67:1全不过AA;opacity差与title都不是disabled信号
+- [trace chain / timeline 这块面](trace-chain-timeline-surface.md) — 有效状态编码=0(四态全等,dot 1.53–1.99:1);调色不跟随主题;detail按钮四项不达标且hover反向;ErrorPoint形态已存在只是没被用
+- [状态信号:形状优先于颜色](status-color-shape-over-color.md) — 出厂 danger 对 background 下界仅 3.05:1(nord暗),对 surface 只有 2.11:1;只量 default 会偏乐观;必须写明核算面
+- [推断出的肯定状态比沉默更坏](false-affirmative-status-doctrine.md) — 状态指示器的功能是调节检查行为,错误的 Complete 主动抑制检查;fail-open 已繁殖进本仓测试;时点≠性质
+- [鉴定先例流水账](assessment-precedents.md) — S-0027(四判:三不成立+一有条件);两种 fail-loud 的分类;与 chat-bubble 的分歧;一次被 memory 挡下的偏乐观证据
+- [出庭发言形式纪律](hearing-speech-form-discipline.md) — OBJECTION 必须独立成篇别夹在 ASSESSMENT 里;三项形式要件;补强责任在提出方;该质疑与不该质疑的要明说分开

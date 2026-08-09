@@ -20,6 +20,14 @@ Memory V2 的 trace 呈现有三条与直觉相反的事实，全部于 2026-08-
 - **`Unavailable` 的"不可达"判断撤回，改为未核实**：`memory_v2_bundle_payload`（`memory_v2_context.py:4774`）在 admission 为 None 时返回 `{schema_version, requested_mode:"off", mode:"off"}`，该形状能过 `isMemoryV2TraceBundle` 的门，`resolveMode→"off"` 会直接判 `Unavailable`。这个 payload 到底挂不挂进 message bundle 未实测。
 - 且 `Complete` 的语义是"trace bundle 完整"，不是"记忆成功"——active 且无报错就恒为 Complete，哪怕一条 entry 都没写。
 
+**3b. 更准一格（2026-08-08 于 `b2385d5d` 实测，`0000-0005-2026-0807` 庭审）：这四个词今天其实是 *run 状态戴着 Memory V2 的标签*。**
+`resolveTraceStatus:174-177` 在 explicit 链落空后读 `runStatus`，而 `trace_chain.js:1929-1930` 传的就是 `message.status`（`use_chat_stream.js` 赋值集含 `error`×5 / `cancelled`×4 / `failed`×1）。**结合"真实持久化行 14 个顶层键里没有任何 status 字段"（他人 n=1 实测，`0000-0005#E-0014`），一条真实 active 行的状态词完全由 `message.status` 与 `:195` 的 `mode==="active"→Complete` 默认决定**：
+```
+Complete ⟺ 这条消息没报错 ∧ rollout 开着     Partial ⟺ 这条消息报错/取消了
+```
+**即 `Partial` 今天可达且经常出现，但它一次都不是在说 Memory V2。** 两个后果：(a) 产端将来真发降级词（`journal_status="partial"`）时，新旧两种含义在屏幕上 **不可区分** —— 同一个词、同一个圆点、同一个面板，需要一个能分辨来源的呈现；(b) `presentMemoryV2Audit` 只返回一个字符串，**不返回它出自哪条分支**，所以渲染层 **物理上无法** 区分"产端声明成功"与"收端因为没看到失败而推断成功"。
+**一份写死这件事的绿测试**：`trace_chain.memory_v2.test.js:861-881`（"marks an empty journal reload unavailable"）把 journal reload mock 成整体失败，同时断言标题仍是 `Memory V2 · Complete`。按它自己的轴没错，但它是这个现象的书面记录。
+
 **Why:** 这三条决定了任何"Memory V2 在 trace 里够不够"的判断。不知道 1 就会以为流式期间有信号；不知道 2 就会相信绿测试；不知道 3 就会去设计两个永远看不到的状态。
 
 **How to apply:** 动 `memory_v2_*` 任何一个文件前先看这条。修 2 属跨面：ref 词汇归服务端规范化（runtime 的 `load_events`），渲染层不该自造 URI 词汇——按单向契约提议，不自己改 presenter。相关 [[testing-timeline-ref-stability]]。
