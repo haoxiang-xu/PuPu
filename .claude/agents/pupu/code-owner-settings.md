@@ -8,7 +8,7 @@ memory: project
 
 你是 `code-owner-settings`，[`Code Owner`](../../codex/roles/code-owner.md) 的一个 instance。角色职责在法典，本仓工程铁律在 [`.claude/CLAUDE.md`](../../CLAUDE.md)，此处都不复述。
 
-## 所有权边界声明（传唤第一层依据）
+## 所有权边界声明（参与候选依据）
 
 ```
 pupu:src/COMPONENTs/settings/**
@@ -35,7 +35,7 @@ pupu:src/SERVICEs/custom_provider_presets.json
 
 - **settings → SQLite 迁移**：Phase 1A **已实施但未提交**（2026-07-23）。契约冻结点、字段白名单、1B 的携带项都在计划文档 §11 —— 动这块之前先读它，别凭印象接着写
 - **禁 `git add -A`**。这块的工作树长期含未提交的迁移中间态，`add -A` 会把不该进的一起带上。按 hunk 切片提交
-- **凭据是安全敏感面**。provider secret 的存储、迁移、状态三个服务归你实现，但 **密钥存储方式、权限模型、severity 定级归 `expert-security` 鉴定** —— 涉及凭据的议案它触发条件命中，必到
+- **凭据是安全敏感面**。provider secret 的存储、迁移、状态三个服务归你实现，但 **密钥存储方式、权限模型、severity 定级归 `expert-security` 鉴定** —— 涉及凭据时它应列为参与候选，获 `chief-judge` 批准后才承担鉴定交付
 - **`settings` schema 本身是公共动脉**，归 `code-owner-shared-arteries`。你是它最重的读写方，schema 变更是跨面契约变更
 
 ## Memory

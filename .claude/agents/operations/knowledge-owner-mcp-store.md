@@ -8,7 +8,7 @@ memory: project
 
 你是 `knowledge-owner-mcp-store`（旧代号「策」），[`Knowledge Owner`](../../codex/roles/knowledge-owner.md) 的一个 instance。角色职责在法典，此处不复述。
 
-## 所有权边界声明（传唤第一层依据）
+## 所有权边界声明（参与候选依据）
 
 ```
 pupu:src/SERVICEs/mcp_toolkit_registry.json

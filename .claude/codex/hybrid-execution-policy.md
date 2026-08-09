@@ -25,7 +25,7 @@
   1. 本仓约定经 repo 根 `AGENTS.md` 喂入（JS-only、内联样式、IPC 边界、渲染进程不碰 `ipcRenderer`、localStorage 只走 SERVICEs helper、`.js`/`.cjs` 测试对等）
   2. 代码情报证据（impact / context）喂进 Codex 的 prompt
   3. **落地前由 Claude 审 Codex 的 diff** —— 少了这条，你只是换了个执行者，交叉检验没了
-  4. 改到模型可见行为 → `expert-llm` 出鉴定意见（**强制回应效力**，不是否决权）
+  4. 改到模型可见行为 → 该任务立即失去 Mode B 资格，退回 Claude 主写；同时只生成 `expert-llm` 参与候选/RP，获 `Chief Judge` 批准后才出鉴定。未获批准不产生强制回应或闭庭义务
 
 ## 角色分配（2026-08-07 改制后）
 
@@ -36,7 +36,7 @@
 | `expert-llm` | A | 不写码 | 自己；模型事实一律查当前文档，不用 Codex 的记忆。**2026-08-08 CEO 撤销 Fable 5 强制**（扩自 `expert-architecture` 先例，起因 `0000-0008-2026-0808` quorum 卡点）：不再写死模型，派遣方选当时可用最强模型 |
 | `expert-qa` | C | Codex 写测试 | `expert-qa` 定策略，Claude 审 |
 | `expert-ux` · `expert-business` | none | 不写码 | 自己 |
-| `code-owner-runtime` | **B（唯一试点）** | Codex 主写 | 该 owner 审 diff；模型可见行为触发 `expert-llm` 鉴定 |
+| `code-owner-runtime` | **B（唯一试点）** | Codex 主写 | 该 owner 审 diff；模型可见行为使任务退出 Mode B，并产生 `expert-llm` 候选，获批后鉴定 |
 | `code-owner-chat-core` | A（仅设计与追踪） | Claude | **永不 Mode B** —— `use_chat_stream.js` 是承重件 |
 | `code-owner-electron` | A（仅追踪） | Claude | **永不 Mode B** —— IPC / preload channel 对等 |
 | `code-owner-unchain` | none | Claude | 跨仓核心库，Mode B 初期明确排除 |
@@ -80,8 +80,8 @@ Mode B 保持 **单点试点（`code-owner-runtime`）**，过下面三项指标
 ### Mode B 合格任务（opt-in，全满足才用）
 
 - 范围在 `unchain_runtime/server` 内，有明确 spec + 可验证测试
-- **不改模型可见行为**（改了 → `expert-llm` 出鉴定，回 Claude 主写）
-- **不碰安全敏感面**（MCP OAuth / secret → `expert-security` 定级）
+- **不改模型可见行为**（改了 → 回 Claude 主写，并提交 `expert-llm` 候选/RP；获批后鉴定）
+- **不碰安全敏感面**（MCP OAuth / secret → 退出 Mode B，并提交 `expert-security` 候选/RP；获批后定级）
 - **不跨仓动 unchain core**（初期排除）
 
 ### 试点指标（报 `chief-judge` 决定扩或停）

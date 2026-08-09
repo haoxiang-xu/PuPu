@@ -1,98 +1,161 @@
 # 证据规则
 
-[Quorum 索引](../README.md) · [Case Lifecycle](README.md)
+[Quorum 索引](../README.md) · [Case Lifecycle](README.md) · [共通收敛规则](decision-controls.md)
 
-本页规定 **`Evidence Examiner` 何时出庭**、**质疑如何提出**，以及 **不同来源的证据各自的效力**。它落实[宪法第五条](../constitution.md)，并与[第七条](../constitution.md)划清两种举证责任的界线。
+本页规定证据如何进入当前抉择、`Evidence Examiner` 如何进行 16% 随机抽查，以及 `Chief Judge` 如何决定是否续查。规则适用于所有 Track 与议案、方案、合并、辩论、验收及复议阶段。
 
-`Evidence Examiner` 的出庭 **完全由规则决定，没有任何角色对它持有裁量权** —— `Speaker of the House` 也没有。
-
-裁量会产生一种可预见的失效：主持人不生疑，则通篇证据无人查验，而"是否该生疑"恰恰是最需要外部检验的判断。写成"主持人 **有权** 要求审查"尤其危险 —— 它读起来像一项保障，实际效果却是把审查的有无系于一个无人复核的主观状态；一旦主持人未行使，程序上无任何痕迹表明它本该被行使。
-
-因此本章不使用"有权"表述。触发条件在下文 **穷举**：命中即查，未命中即不查，主持人的职责是 **分类与路由**，不是判断哪些证据值得查。
-
-## 一、两种举证责任，不可混用
+## 一、两种举证责任
 
 | | 对象 | 责任归属 | 依据 |
 |---|---|---|---|
-| **证据认证** | 这份证据是不是它自称的那个东西 | **提出该证据的一方** | 第五条 |
-| **实体反驳** | 这个观点/主张是不是错的 | **提出反驳的一方** | 第七条 |
+| **证据认证** | 这份证据是不是它自称的那个东西 | 提出该证据的一方 | 宪法第五条 |
+| **实体反驳** | 这个观点或主张是不是错的 | 提出反驳的一方 | 宪法第七条 |
 
-混用的后果是质疑权名存实亡：若要求质疑方同时证明"该证据为假"，则任何人质疑一份自己无从访问的证据都不可能 —— 而无从访问正是最需要质疑的情形。
+质疑方无需先证明证据为假，但必须点名证据、指明理由及决策影响。证据补强责任仍由提出者承担。
 
-## 二、质疑的形式要件
+## 二、证据质疑
 
-一条质疑要触发 **强制审查**，须同时满足三条：
+有效的证据质疑须同时满足：
 
-1. **点名对象** —— 指明具体的 `E-####`，不得针对"对方的整体论证"或一批证据笼统提出
-2. **指明理由类型** —— `SOURCE`（来源不可信或无从追溯）或 `UNSUPPORTED`（证据不支持其所声称的主张）
-3. **说明影响** —— 若质疑成立，哪一项待裁问题、方案选择或验收标准会因此改变
+1. **点名对象**：指明单一 `E-####` 或 `DES-###/DU-###`；
+2. **指明理由**：`SOURCE`、`UNSUPPORTED`、`RELEVANCE` 或 `CONTRADICTION`；
+3. **说明决策影响**：点名会改变的待裁问题、track、方案块、owner 分工、验收标准、回滚条件或裁定结论。
 
-三条缺一，`Speaker of the House` **退回原 speaker 重排**，不触发强制审查；退回不得以理由不成立为由作出 —— 形式审查只看形式。
+三条缺一，`Speaker of the House` 以 `RETURN_NO_LINK` 退回重排。三条齐备时，Speaker 只判断其决策链接是否成立，不得判断质疑理由是否正确。
 
-**时点**：质疑须在闭庭前提出。闭庭后对已归档证据的质疑，须以新事实开立 side case，不追溯已作出的裁定。
+BOS 冻结前，有效质疑以 `THREAD` 模式进入 `OPEN_MATERIAL` 异议线程，并使 Speaker 在冻结 DES 前重新评估相应事实单元；它不自动触发逐条核验。
 
-## 三、四类证据与默认处置
+BOS 冻结后，只有针对此后新进入的 `E-####` 或 successor `DES-###/DU-###` 的质疑可以 `EVIDENCE_FLAG` 模式进入。它必须映射既有开放 BO，不创建讨论线程、RC 或新 BO；每个 `(证据 target, 理由, 决策链接)` 只创建一个 flag，重复项以 `MERGE_DUPLICATE` 指向原 flag。Speaker 在 `evidence.md` 对相应 E/DU 追加 `OPEN` 事件，并随 SUMMARY 呈给 `Chief Judge`；该标记可修订 DES 的质疑元数据，但不得自行更换 manifest 成员、重置抽样或触发核验。只有明确引用该 flag 的 `Chief Judge` 证据方向/实体裁定，或原提交者的 `WITHDRAWAL`，可授权 Speaker 追加 `CLOSED` 事件；CR 本身和无关裁定不能关闭。
 
-| 类型 | 判据 | 例 | 默认 |
+## 三、四类来源与证明力
+
+| 类型 | 判据 | 例 | 默认处置 |
 |---|---|---|---|
-| **自证类** | 任何角色可独立复现，且复现结果不依赖复现者 | 代码库在指定 revision 的文件内容；带退出码的可复跑命令 | **免检。** 被质疑时仍强制审查 |
-| **须查类** | 一次性观察，或观察对象在观察后可变、可消失 | 运行时状态、外部系统响应、无法复跑的现场数据 | **无需质疑，强制审查** |
-| **传闻类** | 庭外陈述，用于证明其所述内容为真 | 设计文档、README、注释、他人记忆中的主张 | **不得用于证明其所述事实**。只能证明「该陈述曾被作出」。要证事实须出原件 |
-| **证言类** | `Witness` 依传票作出的回答 | 本人经历、意图、未记录的口头约定 | **强制审查**，使用 `已佐证 / 未佐证 / 相矛盾` 枚举 |
+| **自证类** | 任何角色可独立复现，且结果不依赖复现者 | 固定 revision 的文件内容；可复跑命令 | 提出者先行核实；成为决策单元后参与抽样 |
+| **易失类** | 一次性观察，或对象随后可变、可消失 | 运行时状态、外部系统响应、现场数据 | 记录观察时点与限制；成为决策单元后参与抽样 |
+| **传闻类** | 庭外陈述，用于证明其所述内容为真 | 设计文档、README、注释、他人转述 | 只能证明“该陈述曾被作出”，不能单独证明所述事实 |
+| **证言类** | `Witness` 依传票作出的回答 | 本人经历、意图、未记录约定 | 记录来源与可佐证线索；成为决策单元后参与抽样 |
 
-**自证类免检不是免责。** 提出者仍须给出可复现的定位（revision + 路径 + 行号，或完整命令）；给不出定位的，不属自证类。
+自证类须给出 revision、路径、行号或完整命令。易失类的时点限制降低置信度，但不自动扩大核验。证言由本人作出不等于事实已经佐证。
 
-**传闻类的唯一正确用法**：证明"某文档如此声称"，而非"事实如此"。一条据传闻类证据作出的事实主张，其证明力等同于无证据。
+## 四、决策事实单元与最小集合
 
-## 四、保管链
+抽样单位不是消息或整份 `E-####`，而是一个只承载一个可判定事实的 `DU-###`。每个单元必须记录：
 
-**须查类** 证据没有保管链 —— 观察与呈堂之间，被观察的系统可能已经改变。这 **影响证明力，不影响可采性**：证据照常采纳，但须在 `evidence.md` 的完整性限制中载明观察时点与不可复现性，且 **不得据其单次观察推断稳定状态**。
+- 单一事实主张及其具体决策链接；
+- 支撑它的一个或多个稳定 `E-####/ES-###` 精确切片；
+- 规范化内容哈希；
+- 来源类型、已知限制与观察时点；
+- 完整 `verification_key`。
 
-## 五、审查的范围限制
+每个 ES 的 `source_type` 与 `limitations` 从其所属 `E-####` 的 **来源类型** 与 **完整性限制** 继承；同一 E 的全部切片必须共享这两项。若某个切片需要不同来源类型或限制，必须拆成新的 E，不得在 DU 展示行临时覆盖。`verification_key` 是下列字节级 canonical JSON 的 SHA-256。序列化固定为 UTF-8、无 BOM、无尾随换行、字符串先做 Unicode NFC、换行统一为 LF、按 JSON 标准转义、对象键严格使用下示顺序且键间无空白；`revision` 或 `observed_at` 的 `NOT_APPLICABLE` 编码为 JSON `null`，未知值编码为字符串 `"UNKNOWN"`。`evidence_slices` 按完全限定 `ref` 的 UTF-8 字节序排列，`limitations` 去重后按相同规则排序。不得省略空数组或以展示文本参与哈希。
 
-`Evidence Examiner` 的审查 **只回答三问**：真实性、来源可靠性、相关性。
+```json
+{"claim":"...","decision_link":"...","evidence_slices":[{"ref":"E-0001/ES-001","locator":"...","revision":"...","observed_at":null,"boundary":"...","content_sha256":"...","source_type":"自证类","limitations":["..."]}]}
+```
 
-它 **不得** 就该证据所支持的实体结论发表意见，**不得** 重开该结论的辩论，**不得** 因为认同或反对某个立场而调整验证结论。审查是对可采性的先行判断，不是对争点的第二次审理。
+任一 canonical 字段或数组成员变化，当前核验状态回到 `UNCHECKED`；旧 CR 只作为历史引用，不得继承为当前已验证。实现必须能从 DES 的 claim/decision link 与每个 E/ES 的 canonical 字段逐字节重建该 JSON 与 key，不能信任提交者手填的哈希。DU 行的扁平“来源类型/限制”只是派生展示；多 E 类型不同时须按 ES ref 逐项展示，不参与 key 计算。
 
-审查结论与提出者的主张不一致时，依 [`Speaker of the House` 的证据处理规则](../roles/speaker-of-the-house.md) 处置；来源于内部可信来源且存在争议的，由 `Procedural Judge` 依授权裁定。
+一个 `E-####` 打包多个事实时必须拆成多个 `DU-###`；同一事实分散在多条消息时仍只能形成一个单元。拆消息不得放大总体，把不同事实塞进一个证据也不得缩小总体。
 
-## 六、承重证据复核
+`Speaker of the House` 仅从 `ADMIT_MATERIAL` 材料建立最小决策证据集。一项单元在满足下列任一条件时可纳入：
 
-前五节管的是 **证据进入案卷时** 的门槛。本节管的是 **裁定压在它上面时** 的门槛 —— 二者不是同一件事：一条证据可以合法入卷，却不足以承重。
+1. 它属于至少一个能够区分仍可行裁定结果的 **最小充分理由**；
+2. 它会改变 track、风险、方案内容、owner 分工、回滚方式或某个 `AC-###` 的独立结果；
+3. 即使最终通过/失败不变，它会改变失败原因或补救范围。
 
-**承重证据的界定（机械导出，不由任何角色挑选）**
+验收时每个失败的 `AC-###` 至少形成一个独立单元，不得因为另一个标准也失败而排除。
 
-> `SUMMARY` 在 **分歧**、**强制回应事项**、**候选方案**、**风险** 四项中点名的每一条发言，其 **依据** 字段列出的全部 `E-####`，即为本案的 **承重证据**。
+冻结 `DES-###` 时必须满足：
 
-只取一跳，不做传递闭包。这四项正是 `Chief Judge` 必须据以取舍的部分 —— 压在裁定上的是它们，不是全部案卷。
+- `候选单元 = 最终抽样总体 ⊎ 合并来源 ⊎ 排除单元`，三者互斥且每个候选恰好出现一次；
+- `N = 最终抽样总体中的 DU 数量`；
+- 合并项指向保留的 DU，排除项写明反事实或范围理由；
+- manifest 记录当前 `SI-###`、`sampling_scope_id`、规范排序、每个 DU 的内容哈希、关联决定及自身摘要哈希。
 
-**由谁挑选是本节的要害。** 若交由 `Speaker of the House` 判断"哪些算关键"，等于在流程末端把本章第一节刚消除的裁量原样请回。跟着编号走不需要判断。
+Speaker 只作 materiality 与去重判断，不判断真伪或方案优劣。任何已获准出庭角色可在冻结前对成员关系提出 `RELEVANCE` 异议。
 
-**复核的时点与效力**
+## 五、16% 可复现随机抽查
 
-1. `Speaker of the House` 拟出 `SUMMARY` 草案，据以导出承重证据集合
-2. 集合内每一条 **一律送 `Evidence Examiner` 复核** —— **自证类的免检在本关失效**
-3. 复核结论全部返回后，`SUMMARY` 方可定稿；在此之前 **不得闭庭**
+首批抽查数为：
 
-**自证类为何在本关不再免检**：免检是对大批量证据的分流手段，其前提是"任何角色可独立复现"。而复现结果依赖 **复现时点** —— 一次庭审可能持续数小时，其间代码库、运行时状态与外部系统都可能改变，第 0 小时取得的定位在闭庭时未必仍然成立。承重证据的复核因此同时是一次 **时效性复核**：不只问"当时是不是这样"，也问"现在还是不是这样"。**验证成本低是复核它的理由，不是跳过它的理由。**
+```text
+N = 0  → k = 0
+N > 0  → k = ceil(N × 0.16)
+```
 
-**复核未通过的处置**
+`N = 0` 时只冻结空 `DES-###`，`CR = NOT_APPLICABLE`，不创建 Examiner，也不进入等待证据方向状态。`SUMMARY` 后直接进入 `awaiting-ruling`；`Chief Judge` 可引用空集合作实体裁定，也可对仍开放 BO 签发 `RETURN_FOR_REVISION`，或作 `RECLASSIFY`。但若这是一个 rank 尚未下降的 `PENDING_VERIFICATION` 返修周期，则不得再次 RETURN，只能实体裁定、回滚、终止、拆案，或作继承 active cycle 的重分类/合规重框。空集合不允许随机/定向核验。
 
-承重证据经复核为 **未验证** 或 **相矛盾** 的：
+`N > 0` 时，runtime 在 manifest 冻结后生成一条 256-bit hex seed 记录；每个 `DES-###` 只接受第一条 seed，之后的 seed 无效。具体抽样算法固定为：
 
-- 依赖它的发言 **丧失该项的证明力**。`Speaker of the House` **不得删除或改写** 该发言，只在 `SUMMARY` 中标注其依据已失效
-- 受影响的 **分歧项、强制回应事项或候选方案** 须重排；重排后仍需要该证据的，由其 **提出方** 补强，责任分配依[第五条](../constitution.md)
-- **不得闭庭**，直至受影响项重排完毕
-- 复核结果 **必须显式呈给 `Chief Judge`**，不得以"其他证据仍能支持同一结论"为由略去 —— 是否仍能支持，是裁决者的判断，不是主持人的
+```text
+score(DU) = SHA-256(UTF8(seed) || 0x00 || UTF8(manifest_hash) || 0x00 || UTF8(DU_ID))
+```
 
-**验收阶段同样适用**：`Acceptance Inspector` 的 **观察结果** 所依据的证据适用同一套复核；验收结论在其复核完成前不得作出。
+先把最终总体过滤为 `RANDOM_ELIGIBLE` 且尚未核验的 DU，再按 `score` 字节序升序排列，分数相同时按 `DU_ID` 升序，取前 `min(k, 合格数量)` 个。`CHECKED_INHERITED` 与 `REPLACEMENT_REQUIRES_TARGETED_CHECK` 不参加随机排序。候选清单按 `DU_ID` 规范排序，seed、manifest hash、资格状态、算法和结果全部归档，因此不同 runtime 必须得到相同样本。不得把合格数量为零的结果伪装成一次抽样批次。
 
-## 七、闭庭前置
+自动首批资格绑定 `sampling_scope_id`：action 获准前的 motion/proposal/combined/debate 阶段取当前不可变 `SI-###`；实体裁定批准 action 并分配 `AS-###` 后，从 implementation 起的 implementation、全部 `AT-###`、acceptance SI 与复议均取该 AS。每个 sampling scope 只有一次自动 `FIRST_RANDOM_16`；资格只在实际生成该批次的 `CR-###` 时消耗。`N = 0` 的空 DES 不消耗资格；`N > 0` 且最终总体的每个 DU 均以自身未变化的 `verification_key` 标记为 `CHECKED_INHERITED` 时，写 `INHERITED_ONLY` 与 `CR = NOT_APPLICABLE`，引用原逐项 CR 历史，不重查也不消耗尚未使用的资格。同一 scope 的 successor 首次出现 `RANDOM_ELIGIBLE` 未查 DU 时仍可标记 `ELIGIBLE` 并执行首批；一旦消耗，全部 successor DES 与 successor AT 均为 `INELIGIBLE_INHERITED`。被质疑、易失、证言或自证等来源标签均不产生额外自动名额。
 
-依[庭审发言协议 · 闭庭门禁](speech-protocol.md#闭庭门禁)，下列三项未满足不得闭庭：
+`stage_instance_id` 由 `SI-###` 标识，只能随获准生命周期阶段转换创建。同一 lifecycle phase 内的 `EVIDENCE_DIRECTION: RETURN_FOR_REVISION`、同一争点重分类或 successor DES 沿用当前 SI；`RECONSIDERATION_RULING`、`ACCEPTANCE_REVISION` 或其他获准 phase transition 则创建裁定点名的新 SI。任何 agent 都不得自行新建 SI。每个新的 `AT-###` 使用新的 acceptance SI，但同一 action 始终沿用 implementation 裁定创建的 `AS-###`；每个新 AT 的 DES 是该 AS 下前一 effective DES 的 successor，不新增或重置自动首批额度。若该 AS 从未产生 `FIRST_RANDOM_16`，后继 DES 首次出现 `RANDOM_ELIGIBLE` 未查 DU 时仍可消费原有唯一额度。跨 SI/AT 只有 `verification_key` 完全相同时才能继承当前核验状态；否则只保留旧历史引用，当前状态为 `UNCHECKED`，是否核验新单元仍由 `Chief Judge` 续批或定向授权。
 
-- 每一条 **被质疑** 的证据，均有 `Evidence Examiner` 的审查结论
-- 每一条 **须查类** 与 **证言类** 证据，均有 `Evidence Examiner` 的审查结论
-- 每一条 **承重证据**，均有 `Evidence Examiner` 的 **复核** 结论（自证类不豁免）
+`Evidence Examiner` 对抽中 DU 只回答：真实性、来源可靠性、是否支持其点名主张。它不得评价方案取舍，不得核验未抽中单元，不得创建 side case、增加 agent、补充候选证据或展开邻接调查。
 
-未获审查结论的证据，不得进入闭庭产出的证明力评估；`Speaker of the House` 须在 `SUMMARY` 中单列。
+## 六、置信度报告
+
+实际执行核验的每个批次产生一份 `CR-###`，至少包含：
+
+- `DES-###`、manifest hash、当前 SI、`sampling_scope_id`、批次类型及授权来源；
+- `N`、本批数量、累计已查数量、实际比例、seed 与抽中 `DU-###`；
+- 每个 DU 及其 E 切片的 `已验证 / 未验证 / 相矛盾`，证言对应 `已佐证 / 未佐证 / 相矛盾`；
+- 已覆盖与未覆盖的待裁问题、方案块与 `AC-###`；
+- 未抽中的单一来源关键主张；
+- `HIGH / MEDIUM / LOW` 置信等级、依据与限制。
+
+置信等级不得冒充统计概率，也不得仅凭本批无错误声称整个集合正确。
+
+## 七、证据方向状态机
+
+首份 `CR-###` 归档后，自动核验停止，case 进入 `awaiting-evidence-direction`。任何非空 DES 的初始抽样处置为 `AWAITING_CHIEF_DIRECTION` 时也进入该状态：返修 successor 的依据通常为 `successor DES + RETURN R + predecessor CR`；没有 predecessor CR 时写 `CR = NOT_APPLICABLE`，不得制造空报告。`INHERITED_ONLY` 引用全部继承核验历史后直接进入 `awaiting-ruling`；`N = 0` successor 同样进入 `awaiting-ruling`。`Speaker of the House` 可完成当前庭审的 `SUMMARY`，但任何后续核验只可由 `Chief Judge` 选择：
+
+- `RULE_NOW`：不再核验；可以独立写入 `EVIDENCE_DIRECTION`，也可由引用最新 `CR-###` 的实体裁定隐式表达。Full 的 `RULE_NOW` 必须显式列出并接受未覆盖的 Full 触发风险。
+- `NEXT_RANDOM_16`：仅在当前 effective DES 仍有合格未核验 DU 时，从其冻结 manifest 无放回抽取不超过该 DES 所记 `k` 的下一批；可包含 successor 新增 DU，但不得包含标记为 `REPLACEMENT_REQUIRES_TARGETED_CHECK` 的替代单元。空集合或已全查时不得签发。
+- `TARGETED_CHECK`：点名有限 `DU-###`、理由与决策影响。已核验 DU 只有在证据切片、内容哈希或观察时点发生变化时才可再次点名。
+- `RETURN_FOR_REVISION`：点名要返修的方案块或主张、所属开放 `BOS-###/BO-###`、该 BO 自身冻结退出条件或所链接异议的冻结 RC，以及允许补充的材料范围；本指令不授权核验，也不得新增阻塞义务。revision 与 successor DES 可作为一次 `PENDING_VERIFICATION` 等-rank 中间态，但在当前 atom lineage 再次授权 RETURN 前，本周期必须经核验或裁定使全案 OPEN condition/RC rank 严格减少；否则只能裁定、回滚、终止、拆案或合规重框。重框或重分类必须继承 active cycle，不能用 successor BOS 清除本门禁。
+- `RECLASSIFY`：写明目标 track、触发条件、继承的证据状态及 `NOT_APPLICABLE / KEEP_BOS / ATOMIC_REFRAME`。`NOT_APPLICABLE` 只在尚无 effective BOS 时合法；已有 BOS 必须保留或在同一 R 内嵌完整 BO 与 condition/RC lineage 原子重框。同一争点沿用 SI，重框 BOS 也不得重置 effective DES、sampling scope、核验历史或首批资格。本指令不产生核验批次。
+
+只有 `NEXT_RANDOM_16` 与 `TARGETED_CHECK` 完成后产生新 `CR-###` 并再次等待 Chief。`RULE_NOW` 转入裁定或结案；`RETURN_FOR_REVISION` 转入返修，并在 successor DES 冻结后按上一段重新等待方向；`RECLASSIFY` 转入新 Track 对应阶段。任何指令都须写明停止条件，不得以空批次、同一未变化 DU 的重复定向核验或开放式“查完相关内容”维持循环。同一返修周期处于 `PENDING_VERIFICATION` 时不得再次签发 RETURN。
+
+## 八、冻结后的返修与 successor DES
+
+manifest 冻结后，不得自行补证、换证或重开首批抽样。只有 `Chief Judge` 的 `RETURN_FOR_REVISION` 可以允许新增 material 证据或实质方案变化。
+
+`current effective DES` 是 `case.md` 当前证据控制指向的、已冻结 successor 链末端；旧 DES 保留历史，不再接收新随机批。
+
+返修后建立 successor `DES-###`，必须：
+
+- 写明 `supersedes`；
+- 继承所有未变化 DU 的编号、内容哈希、既有抽中状态与 `CR-###` 结果；
+- 保留被排除或替换 DU 的历史及理由，不得删除未验证或相矛盾结果；
+- 为每个单元记录 lineage：`UNCHANGED`、`NEW_INDEPENDENT` 或 `REPLACEMENT_OF <DES/DU>`；
+- `UNCHANGED` 只有 `verification_key` 完全相同才成立；
+- `NEW_INDEPENDENT` 必须写明反事实：即使被比较的失败 DU 为假，该单元仍独立成立、仍然 material，且不承担恢复旧主张证明力的作用；
+- 凡支持同一决定/依赖主张，或用于恢复未验证、未佐证、相矛盾 DU 已失去的证明力，默认属于 `REPLACEMENT_OF`，即使改写措辞、来源或 decision link；
+- `REPLACEMENT_OF` 单元的随机资格必须标记为 `REPLACEMENT_REQUIRES_TARGETED_CHECK`；其他尚未核验的独立新单元才可标记 `RANDOM_ELIGIBLE`。
+
+若当前 `sampling_scope_id` 已经生成首份 `FIRST_RANDOM_16` CR，successor DES 不获得新的自动首批；验收中即使进入新的 AT/SI，同一 AS 也视为同一 scope。若此前只有 `EMPTY / INHERITED_ONLY`，或其他未实际产生首批 CR 的 DES，则后继 DES 首次出现 `RANDOM_ELIGIBLE` 未查 DU 时仍可使用原 scope 尚未消耗的唯一资格。额度已经消费后的新增单元是否继续核验，由 `Chief Judge` 选择 `NEXT_RANDOM_16` 或 `TARGETED_CHECK`；替换未验证/相矛盾 DU 的单元只能经 `TARGETED_CHECK` 核验，不得进入随机续批。
+
+`REPLACEMENT_REQUIRES_TARGETED_CHECK` 表示“若要把替代单元作为已核验依据，必须定向核验”，不强迫 `Chief Judge` 继续查。闭庭前它必须三选一：定向核验完成；依赖该单元的主张被撤回；或在 `SUMMARY` 中明确列为未核验风险。后一种情况下，后续 `RULE_NOW`/实体裁定必须显式接受该风险，且不得把替代单元表述为已验证事实。
+
+## 九、抽查失败与验收
+
+抽中 DU 为未验证、未佐证或相矛盾时：
+
+- 依赖它的主张标记置信受损，历史不得静默删除或改写；
+- Speaker 指明可能受影响的 track、方案块、owner 分工、验收标准、回滚条件或裁定；
+- 提出者只有在 `RETURN_FOR_REVISION` 授权范围内才能补强；
+- Examiner 不自动扩大样本或要求补强；
+- Chief 决定 `RULE_NOW`、下一随机批、定向核验、返修或重分类。
+
+依赖该 DU 的 BO 在核验完成前保持 `OPEN / AWAITING_EVIDENCE`。结果支持其冻结退出条件时才可转为 `SATISFIED`；未验证、相矛盾或仍未覆盖时继续 OPEN，使 Chief 可以针对同一 BO 返修或在最终裁定中明示接受风险并 `WAIVED_BY_RULING`。
+
+验收阶段适用完全相同的规则：每个会改变验收结论或补救范围的 `AC-###` 结果形成 DU。`FIRST_RANDOM_REQUIRED` 时按 16% 抽查；`EMPTY / INHERITED_ONLY` 时 `CR = NOT_APPLICABLE` 并直接等待裁定；实际 CR 或 `AWAITING_CHIEF_DIRECTION` 等待 Chief 证据方向后再推进验收状态。

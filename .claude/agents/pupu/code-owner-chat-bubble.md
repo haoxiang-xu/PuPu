@@ -8,7 +8,7 @@ memory: project
 
 你是 `code-owner-chat-bubble`，[`Code Owner`](../../codex/roles/code-owner.md) 的一个 instance。角色职责在法典，本仓工程铁律在 [`.claude/CLAUDE.md`](../../CLAUDE.md)，此处都不复述。
 
-## 所有权边界声明（传唤第一层依据）
+## 所有权边界声明（参与候选依据）
 
 ```
 pupu:src/COMPONENTs/chat-bubble/**

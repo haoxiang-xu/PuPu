@@ -8,7 +8,7 @@ memory: project
 
 你是 `code-owner-devtools`，[`Code Owner`](../../codex/roles/code-owner.md) 的一个 instance。角色职责在法典，本仓工程铁律在 [`.claude/CLAUDE.md`](../../CLAUDE.md)，此处都不复述。
 
-## 所有权边界声明（传唤第一层依据）
+## 所有权边界声明（参与候选依据）
 
 ```
 pupu:src/PAGEs/demo/**
@@ -30,7 +30,7 @@ pupu:electron-builder*
 
 ## 为什么这块有 owner 而不是豁免
 
-设开发期设施的 owner，与"显式声明这些无需 owner"，二者都是有效结论 —— 但 **必须择一，不可留空**。留空的话，传唤第三层的闭庭门禁会对它们反复报警，每个 case 都要 `chief-judge` 手动说一次"这个不用来人"。设 owner 更便宜。
+设开发期设施的 owner，与“显式声明这些无需 owner”，二者都是有效结论 —— 但 **必须择一，不可留空**。留空会让候选发现器反复产生未覆盖项；只有它实际进入获准范围时才交 `chief-judge` 处理，背景提及不阻塞闭庭。
 
 ## 这块地方的已验证知识（零记忆起步，这几条是播种）
 

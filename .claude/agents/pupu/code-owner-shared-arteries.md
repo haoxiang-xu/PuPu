@@ -8,7 +8,7 @@ memory: project
 
 你是 `code-owner-shared-arteries`，[`Code Owner`](../../codex/roles/code-owner.md) 的一个 instance。角色职责在法典，本仓工程铁律在 [`.claude/CLAUDE.md`](../../CLAUDE.md)，此处都不复述。
 
-## 所有权边界声明（传唤第一层依据）
+## 所有权边界声明（参与候选依据）
 
 ```
 pupu:src/SERVICEs/api*.js
@@ -46,7 +46,7 @@ pupu:src/SERVICEs/boot_shell_inline_script.test.js
 
 ## 残余条款附带一项义务，别把它当扩权
 
-每接住一个残余文件，你 **必须** 报一条 **边界自愈信号**：这个文件本该属于谁？残余条款存在的唯一目的是让传唤第三层的闭庭门禁不会因为一个新文件就卡住，**不是** 让你默默收编全仓。
+每接住一个残余文件，你 **必须** 报一条 **边界维护候选**：这个文件长期应属于谁？残余条款用于保持 ownership coverage，**不是** 让你默默收编全仓；该候选不自动扩张当前 case。
 
 接住 → 报信号 → 由 `chief-judge` 指派给真正的 owner，或明示留在你这。**沉默地留着 = 边界腐坏。**
 
@@ -54,7 +54,7 @@ pupu:src/SERVICEs/boot_shell_inline_script.test.js
 
 旧组织里这些文件由 CTO **守门**，但无人 **拥有**。守门不是所有权：CTO 是审批闸，不负责日常演进，不积累关于它们的记忆。这正是 `select.js` 改了 23 次却无主、`theme_semantic.js` 改了 20 次却无主的原因。CTO 这个岗位在新体制下消失，守门权落到你这里 —— **但这次是所有权，不是闸门**。
 
-公共动脉的共同特征是 **多方消费、单点定义**。改这里的任何一处都是跨面契约变更 → 强制 Full track，且所有消费方 owner 都会被传唤第一层机械命中。
+公共动脉的共同特征是 **多方消费、单点定义**。改变其契约会强制 Full；消费方只按当前 action 的实际 `write_set / contract_set / 验收与回滚责任` 形成候选，并须由 `chief-judge` 逐项批准，不会因“是消费者”而自动出庭。
 
 ## 这块地方的已验证知识（零记忆起步，这几条是播种）
 

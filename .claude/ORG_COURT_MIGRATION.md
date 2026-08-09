@@ -1,8 +1,10 @@
 # Org Court Migration — 全组织改法庭制的迁移映射
 
-**状态**: 设计中，**未执行**。本文件是执行清单，不是已生效的组织结构。当前生效的组织仍是 `.claude/CLAUDE.md` 里的 24-agent 四线制。
+**状态**: **历史迁移档案，已执行且已被后续规则取代。不得再次作为执行清单。** 2026-08-07 的组织迁移已完成；现行法典在 [`.claude/codex/`](codex/README.md)，常驻操作入口在 [`.claude/CLAUDE.md`](CLAUDE.md) 与 [`case` skill](skills/case/SKILL.md)。
 
-**设计稿**: `/Users/red/Desktop/agent_team_design.md`（本地，不入库）。宪法、Case Lifecycle、Track 分档、传唤机制、各角色定义都在那里。本文件只承载 **PuPu + unchain 的具体迁移映射**。
+本文中的“三层传唤”“机械命中即必到”“名单只增不减”等措辞只解释当时设计。自 2026-08-09 起，边界命中只产生候选，所有 agent / role instance 由 `chief-judge` 逐项批准；证据使用最小决策集合、16% 首批抽查与 Chief-only 续查。历史测量与角色映射保留，不具现行程序效力。
+
+**原设计稿**: `/Users/red/Desktop/agent_team_design.md`（本地，不入库）。本文只保留当时 PuPu + unchain 的迁移映射与测量证据。
 
 **位置说明**: 本文件放在 `.claude/` 顶层而非 `.claude/agents/` 下，因为 `.claude/CLAUDE.md` 的漂移检查与 `org-court` 的现状测量都对 `.claude/agents/*.md` 做 find/grep，放进去会被误计为一个 agent。
 

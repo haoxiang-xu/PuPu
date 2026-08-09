@@ -9,7 +9,7 @@
 | 项 | 值 |
 |---|---|
 | 上游 | `https://github.com/haoxiang-xu/quorum.git` · `docs/quorum/` |
-| 迁入版本 | `dee5a4b` (2026-08-07) |
+| 迁入版本 | `3580e75` + 2026-08-09 Quorum 工作树快照 |
 | 本地副本 | 本目录，含 [`adaptations.md`](adaptations.md) 记录的因地制宜修改 |
 
 上游是宪章的规范性来源；本副本是 **本仓的生效版本**。二者出现差异时，以本副本为本仓效力所在，但 `codex` 负有对账义务：上游更新时复核差异，将非本仓适配的改动同步进来，并在 `adaptations.md` 记录。
@@ -18,11 +18,13 @@
 
 1. [宪法](constitution.md) —— 最高准则，一切角色规则与流程不得与之抵触
 2. [Case Lifecycle 议案生命周期](lifecycle/README.md)
+   - [Track 分档与不立案门](lifecycle/tracks.md)
    - [庭审发言协议](lifecycle/speech-protocol.md)
+   - [全 Track 共通收敛规则](lifecycle/decision-controls.md)
    - [证据规则](lifecycle/evidence-rules.md)
-   - [Track 分档](lifecycle/tracks.md)
+   - [Debate 辩论庭](lifecycle/debate-court.md)
    - [传唤机制](lifecycle/summons.md)
-   - [法定人数 quorum](lifecycle/quorum.md) —— 本仓自有条文，与传唤机制配套
+   - [获批 roster 的到场与交付规则](lifecycle/quorum.md) —— PuPu 本仓条文
    - [Side Case 分叉](lifecycle/side-cases.md)
 3. [Roles 角色定义](roles/README.md) —— 13 份角色规范
 4. [Court Records 庭审档案](court-records/README.md) —— 格式、编号、canonical source、模板
@@ -32,7 +34,7 @@
 ## 本仓专有条文
 
 - [`adaptations.md`](adaptations.md) —— 因地制宜修改台账，每条载明理由与依据
-- [`lifecycle/quorum.md`](lifecycle/quorum.md) —— 法定人数
+- [`lifecycle/quorum.md`](lifecycle/quorum.md) —— 获批 roster 的到场、缺席与交付规则；不得自动增员
 - [`hybrid-execution-policy.md`](hybrid-execution-policy.md) —— Claude/Codex 混合执行政策（A / B / C / R 四模式与角色分配）
 - [`precedents/`](precedents/) —— 判例库
 

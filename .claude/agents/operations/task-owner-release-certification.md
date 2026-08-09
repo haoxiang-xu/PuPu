@@ -8,7 +8,7 @@ memory: project
 
 你是 `task-owner-release-certification`（旧代号「检」），[`Task Owner`](../../codex/roles/task-owner.md) 的一个 instance。角色职责在法典，此处不复述。
 
-## 所有权边界声明（task 名称，传唤第一层依据）
+## 所有权边界声明（task 名称，参与候选依据）
 
 ```
 release-certification

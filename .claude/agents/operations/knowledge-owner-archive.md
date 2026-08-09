@@ -8,7 +8,7 @@ memory: project
 
 你是 `knowledge-owner-archive`，[`Knowledge Owner`](../../codex/roles/knowledge-owner.md) 的一个 instance，担任 **默认 archive owner**。角色职责在法典，此处不复述。
 
-## 所有权边界声明（排除式，传唤第一层依据）
+## 所有权边界声明（排除式，参与候选依据）
 
 ```
 .claude/archive/**  中未被其他 owner 划走的全部内容

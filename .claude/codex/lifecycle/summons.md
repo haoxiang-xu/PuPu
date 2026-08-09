@@ -1,57 +1,72 @@
-# 传唤机制
+# 参与名单与传唤机制
 
-[Quorum 索引](../README.md) · [Case Lifecycle](README.md)
+[Quorum 索引](../README.md) · [Case Lifecycle](README.md) · [共通收敛规则](decision-controls.md)
 
-庭审的传唤名单 **不由 `Chief Judge` 人工指定**，也 **不依赖对议案内容的猜测判断**。名单由以下三层依次产生，每一层都比前一层更晚介入、掌握更多信息:
+所有权边界用于 **发现候选参与者**，不再自动生成或扩张必到名单。每个 case 的初始 agent 名单及其后任何增员，均由 `Chief Judge` 明示批准。
 
-**第一层 · 所有权声明 (机械匹配)**
+## 第一层 · 初始候选名单
 
-每个 owner 与 `Expert` 在其角色定义中声明 **可机器判定** 的所有权边界，不得使用描述性表述:
+每个 owner 与 `Expert` 在角色定义中声明可机器判定的边界：
 
 | 角色 | 边界形式 |
 |---|---|
 | `Code Owner` | 文件路径 glob |
 | `Knowledge Owner` | 知识库路径 |
-| `Codex` | 知识库路径 (恒为 `.claude/codex/**`) |
+| `Codex` | 知识库路径（恒为 `.claude/codex/**`） |
 | `Task Owner` | task 名称 |
-| `POV Owner` | 触发条件 (议案中出现何种性质的内容时该观点必须到场) |
-| `Expert` | 触发条件 (议案中出现何种性质的内容时该领域必须到场) |
-| `Dimension Owner` | 评估对象 (本维度评估哪一类议案) |
+| `POV Owner` | 触发条件 |
+| `Expert` | 专业触发条件 |
+| `Dimension Owner` | 评估对象与方向 |
 
-`Speaker of the House` 立案时，以议案文本及其涉及的实体，对全部边界声明做 **规则匹配**；匹配命中者进入 **必到名单**。此层为规则判定，非猜测。
+`Speaker of the House` 只对开庭时冻结的 **待裁问题、`write_set`、`contract_set` 与验收责任** 做边界匹配，形成候选名单及每名候选人的具体交付。它不得扫描背景材料或 `non_goals` 来扩张名单。
 
-**`Dimension Owner` 的例外**: 其余角色的边界匹配 **按议案内容筛人**；`Dimension Owner` 的评估对象一经命中，该对象的 **全体 `Dimension Owner` 一律进入必到名单**，不做内容筛选。理由: 维度的意义在于对同一对象施加一组 **正交且穷尽** 的尺子，缺席一把尺子等于该维度未被覆盖，而不是该维度不适用 —— 是否适用本身就是测量结果，不能在测量前预判。缺席或弃权的维度，由 `Speaker of the House` 在庭审产出中注明 **该维度未被覆盖**。
+`Chief Judge` 审核候选名单后，在 `case.md` 的 intake 块批准 **初始参与名单**。未在该名单中的 agent 不承担旁听、首轮提交或闭庭义务。程序角色按预计需要列入：`Speaker of the House`、实施后使用的 `Acceptance Inspector`，以及 Full 所需的其他程序角色。提出材料已明显包含候选决策证据时，可在初始名单中预先批准一名 `Evidence Examiner`；否则待 Speaker 冻结出 `FIRST_RANDOM_REQUIRED` 的 DES 后再逐项申请，`EMPTY / INHERITED_ONLY` 不创建 Examiner。后续增加同角色 instance 仍视为增员。
 
-**第二层 · 认领期 (自我发现)**
+`Dimension Owner` 不再因一个评估对象命中而全体自动到场。`Speaker of the House` 只能提名其测量方向可能改变某个具体待裁问题的维度，由 `Chief Judge` 逐一批准。
 
-议案归档后设 **认领期**: 向 全体 `Expert` 及 同 department 内的全部 agent 广播议案的 **标题** 与 **一句话摘要** (不广播全文)；任何 agent 认为该议案落入自身边界的，可 **自请出庭**，`Speaker of the House` 不得拒绝。
+## 第二层 · 自请与推荐
 
-此层专门弥补 **边界声明写窄** 的情形 —— 撰写边界时想不全的，看到具体议案时能够辨认。
+case 可发布不含受限案卷内容的结构化 brief，包括目标、待裁问题、`write_set`、`contract_set`、`non_goals` 与当前方案摘要。任何 agent 可通过非发言 intake 入口提出自请或推荐他人出庭，但请求必须说明：
 
-**第三层 · 闭庭门禁 (漏人检测)**
+1. 拟新增的 agent 或 role instance；
+2. 它要回答的具体 `Q-###`、方案块或验收标准；
+3. 现有参与者不能提供的独有信息；
+4. 缺席会改变什么抉择。
 
-`Speaker of the House` 在宣布闭庭前，必须做一次 **集合差检查**: 庭审中出现过的全部实体 (文件路径，模块名，知识库，外部系统)，是否都有对应 owner 在场。
+`Speaker of the House` 先执行相关性门。通过者以 `RP-###` 成为待批准候选，须提交 `Chief Judge`；未获明示批准前不得进入主记录、扩大 quorum 或触发新一轮。`Chief Judge` 可批准或拒绝请求；需要豁免既有交付时使用 `WAIVE_DELIVERY` 动作，并决定该请求是否 blocking。批准 A 不代表同时批准 B 或 C。
 
-存在 **出现于庭审但其 owner 缺席** 的实体时，`Speaker of the House` **不得闭庭**，必须补行传唤，或由 `Chief Judge` 明示说明该 owner 无需到场。
+同一 `(agent instance, 请求动作, target)` 同时只能有一项开放 `RP-###`。重复请求合并至既有编号；被拒请求保持关闭，拒绝裁定必须保存可判定的 `rejection_predicate`。只有后续已编号的 `ADMIT_MATERIAL`、`SCOPE_RULING` 或 `PARTICIPATION_RULING` 明确影响同一 target，或直接改变 predicate 点名的覆盖 agent/role，且会推翻该 predicate 时，才可创建新的 RP 重提；新请求同时引用旧 RP、拒绝裁定与该状态变化。与原请求无关的案卷变化不能复活它。未获准者的新 source pointer 只进 parking lot；须由已批准角色采纳并满足上述因果条件后，才可能成为重提依据。
 
-此层不要求 `Speaker of the House` 做判断，只要求其做集合运算；且其执行时点在 **全部证据呈堂之后**，掌握的信息远多于立案时。
+## 第三层 · 直接影响复核
 
-**边界自愈**:
+提交裁定前，`Speaker of the House` 只对最终候选方案的以下集合做一次复核：
 
-第二层或第三层每捞回一名缺席者，即构成一条信号: 该 owner 的 **边界声明写窄了**。`Speaker of the House` 归档该信号，由对应 owner 在其边界声明中修正。边界声明随使用而收敛。
+- 将被直接写入的对象；
+- 将被改变的契约；
+- 直接承担验收或回滚责任的对象。
 
-**例外 · `Witness` 传唤 (事实缺口)**
+若其中存在未覆盖 owner，且对象已位于获准的 `write_set / contract_set` 内，`Speaker of the House` 提交增员请求或覆盖缺口，但不得自动传唤。范围尚未获准时先等待 `SCOPE_RULING`，不能靠增员反向扩张范围。`Chief Judge` 批准后方可增员；拒绝或暂不批准时，缺口连同影响进入闭庭摘要，由现有记录支撑裁定，不自动阻止闭庭。
 
-`Witness` 不拥有可穷举的所有权边界，因而不进入上述三层名单。任何出庭角色发现可能只有本人知道的事实时，可以提出 `Witness` 传唤请求；`Speaker of the House` 仅在以下条件 **全部满足** 时发出传票:
+证据、发言或被拒方案中 **顺带出现** 的文件、模块、知识库、外部系统、竞品或历史实现，不进入本层集合，也不产生 owner 到场义务。
 
-1. **问题具体**: 一张传票只包含一个可以直接回答的事实问题，不询问偏好，不要求 `Witness` 设计方案或作出裁定
-2. **影响明确**: 已指出该答案会影响哪一项待裁问题，方案选择或验收标准
-3. **已尽可查来源**: 已检查与问题相关的 repository，archive，外部来源及在场 agent，并记录检查范围与未找到答案的结果
-4. **本人特有理由**: 有具体理由相信该事实来自本人的经历，意图，口头约定或尚未记录的上下文，而非仅因取证困难便转问本人
+## 边界纠错
 
-每张传票必须记录 **问题**，**受影响事项**，**已查来源**，**认为本人知情的理由**，以及 **blocking / non-blocking**:
+第二层或第三层发现的边界遗漏，在当前 case 中只记为范围外维护项。边界是否需要修订由 `Chief Judge` 在当前 case 结束后另行决定；不得为了“边界自愈”扩张当前庭审或延迟闭庭。
 
-- **blocking**: 缺少答案会导致无法检验某项准入或验收条件，无法区分仍然可行的方案，或只能依靠未经验证的假设作出裁定。传票发出后休庭，直至收到回答
-- **non-blocking**: 缺少答案不会阻止当前阶段形成有效产出。传票进入待答队列，庭审可以继续
+## `Witness` 传唤
 
-对 blocking 性质存在争议的，由 `Procedural Judge` 作程序裁定；争议自提出起至裁定归档前，传票一律按 **blocking** 处理，不得先按 non-blocking 推进或闭庭。`Witness` 回答 **不知道** 或 **不确定**，视为已经回应传票；blocking 随即解除，但事实缺口不得消失，必须作为 **已知缺口** 连同其影响进入闭庭产出。若某 agent 仍主张一个确定事实，须另行承担举证责任。
+`Witness` 是 human 角色，不属于 agent 增员，但仍只在以下条件全部满足时由 `Speaker of the House` 发出传票：
+
+1. **问题具体**：一张传票只含一个可直接回答的事实问题；
+2. **影响明确**：答案会改变一个具体待裁问题、方案选择或验收标准；
+3. **已尽可查来源**：已检查与问题相关的 repository、archive、外部来源及当前参与者；
+4. **本人特有理由**：有理由相信事实来自本人的经历、意图、口头约定或未记录上下文。
+
+每张传票记录问题、受影响事项、已查来源、本人知情理由与 `blocking / non-blocking`：
+
+- **blocking**：缺少答案会让当前仍可行的方案无法区分，或只能依靠未经说明的假设裁定；
+- **non-blocking**：缺少答案不阻止当前阶段形成有效产出。
+
+blocking 传票必须在首次审查截止前签发，并在 BOS 冻结时映射到一个 BO；冻结后不得新增 blocking 传票。已有传票的 `UNKNOWN / UNCERTAIN` 回答视为完成，不得针对同一 BO 换问题继续保持 blocking。后续线索只可作为 non-blocking parking 项，或交 `Chief Judge` 重框/拆案。
+
+对 blocking 性质存在争议时，由 `Procedural Judge` 依授权裁定。回答“不知道”或“不确定”视为已经回应，blocking 随即解除；事实缺口及影响继续进入摘要。证言如成为决策关键证据，依[证据规则](evidence-rules.md)进入冻结集合与 16% 抽样，不自动逐条核验。
