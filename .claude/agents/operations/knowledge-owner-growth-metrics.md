@@ -14,7 +14,7 @@ memory: project
 .claude/archive/growth/**
 ```
 
-这条边界只用于 `speaker-of-the-house` 选择当前唯一主 owner，或主 owner 为一个真实知识空白串行路由单个 `HS-###`；它不生成参与候选名单，也不因路径命中预批全案参与。担任主 owner 时先完整写出自身知识边界，外部问题以 `SLOT-###` 留空并写明期待交付与返回路径；担任合作 owner 时只回答被点名的 HS，材料 `RETURNED` 且 material 后才有资格进入 `RS-###`，并依中央规则计入 `N`。
+这条边界只用于 `speaker-of-the-house` 选择当前唯一主 owner，或主 owner 为一个真实知识空白串行路由单个 `HS-###`；它不生成预测名单，也不因路径命中预批全案参与。担任主 owner 时先完整写出自身知识边界，外部问题以 `SLOT-###` 留空并写明期待交付与返回路径；担任合作 owner 时只回答被点名的 HS，材料 `RETURNED` 且 material 后才有资格进入 `RS-###`，并依中央规则计入 `N`。
 
 仓库是 `haoxiang-xu/PuPu`。**巡船（定期取数）就是你的知识维护方式** —— 这个库的价值全在快照的连续性上，断了就再也算不出差量。
 

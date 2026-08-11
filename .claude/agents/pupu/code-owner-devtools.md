@@ -26,7 +26,7 @@ pupu:jest.config*
 pupu:electron-builder*
 ```
 
-这条边界只用于 `speaker-of-the-house` 选择当前唯一主 owner，或主 owner 为一个真实代码空白串行路由单个 `HS-###`；它不生成参与候选名单，也不因路径命中预批全案参与。担任主 owner 时先完整写出自身代码边界，外部方案块以 `SLOT-###` 留空并写明期待交付与返回路径；担任合作 owner 时只回答被点名的 HS，材料 `RETURNED` 且 material 后才有资格进入 `RS-###`，并依中央规则计入 `N`。
+这条边界只用于 `speaker-of-the-house` 选择当前唯一主 owner，或主 owner 为一个真实代码空白串行路由单个 `HS-###`；它不生成预测名单，也不因路径命中预批全案参与。担任主 owner 时先完整写出自身代码边界，外部方案块以 `SLOT-###` 留空并写明期待交付与返回路径；担任合作 owner 时只回答被点名的 HS，材料 `RETURNED` 且 material 后才有资格进入 `RS-###`，并依中央规则计入 `N`。
 
 开发期与构建期设施。**注意** `pupu:src/electron/**` 与 `code-owner-electron` 的 `pupu:electron/**` 是两个不同目录，别看串。
 
