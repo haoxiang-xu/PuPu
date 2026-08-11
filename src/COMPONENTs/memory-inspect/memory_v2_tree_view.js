@@ -952,14 +952,32 @@ const MemoryV2TreeView = ({
              top-left corner, the label takes the slack, action buttons stack
              at the right. It is a layout convention, not a preference — the
              expand handle returns to top-left, so collapse must leave from
-             there or the panel appears to hinge off two different corners. */}
+             there or the panel appears to hinge off two different corners.
+
+             The 8px is a corner inset, so it has to read the same going down
+             as going across (REVISION 5). It was 8/6/6/12 back when a text
+             label sat at the left — text needs more optical lead-in than an
+             icon does, and 12 was that lead-in. REVISION 4 put a button
+             there instead and the 12 stopped being a lead-in and started
+             being a lopsided corner: the icon sat 16px from the left edge
+             but only 12px from the top. Equal padding on all three open
+             sides puts every glyph at 8 + 4 = 12px from its own edge.
+
+             Two things fall out of picking 8 rather than lifting the top to
+             12. The collapse glyph lands 19px from the modal's edge and the
+             expand handle's lands at 20 (top:14/left:14 + its own 6px
+             padding), so the panel now leaves and returns from within a
+             pixel of the same spot. And 12px from the panel edge is exactly
+             where the row chevrons sit (6px list padding + 6px row padding),
+             so the collapse icon shares their column instead of floating
+             right of it. */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: 4,
             flexShrink: 0,
-            padding: "8px 6px 6px 12px",
+            padding: "8px 8px 6px 8px",
           }}
         >
           <Button
@@ -992,7 +1010,10 @@ const MemoryV2TreeView = ({
           />
         </div>
 
-        {/* ── Space chips ── */}
+        {/* ── Space chips ──
+             Same 8px gutter as the header above it. The chips are the header
+             block's second row, so their boxes line up under the collapse and
+             refresh buttons rather than starting on their own margin. */}
         {showSpaceBar && (
           <div
             className="scrollable"
@@ -1001,7 +1022,7 @@ const MemoryV2TreeView = ({
               alignItems: "center",
               gap: 4,
               flexShrink: 0,
-              padding: "0 8px 6px 10px",
+              padding: "0 8px 6px 8px",
               overflowX: "auto",
             }}
           >

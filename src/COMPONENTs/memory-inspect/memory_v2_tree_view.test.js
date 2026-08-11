@@ -462,6 +462,26 @@ describe("MemoryV2TreeView — the side menu floats and collapses", () => {
     /* The label takes the slack so both buttons are pinned to their edges. */
     expect(label.style.flex).toBe("1");
   });
+
+  test("the header corner inset reads the same down as across", async () => {
+    /* REVISION 5. Once a button owns the top-left corner instead of a text
+       label, the header's padding stops being typographic lead-in and starts
+       being a corner inset — and a corner inset that differs by axis is just
+       visibly crooked. It shipped as 8/6/6/12: the collapse icon sat 16px in
+       from the left edge and 12px down from the top.
+
+       Left and right are pinned together too, because collapse and refresh
+       are the same button at opposite ends and any difference reads as one of
+       them being nudged. Bottom is deliberately NOT in this set — it is
+       breathing room before the next row, not a corner. */
+    renderView(READY);
+    const label = await screen.findByText("workspace");
+
+    const header = label.parentElement.style;
+    expect(header.paddingTop).toBe("8px");
+    expect(header.paddingLeft).toBe(header.paddingTop);
+    expect(header.paddingRight).toBe(header.paddingTop);
+  });
 });
 
 /*
