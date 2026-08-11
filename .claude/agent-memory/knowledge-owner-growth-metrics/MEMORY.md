@@ -1,8 +1,10 @@
 - [团队花名册与交棒协议](team_roster.md) — qa(验)/ops(发)/designer(造)/curator(策) 四位队友的边界 + 向 CEO/founder 的汇报线
-- [增长分析工具链](growth-toolchain.md) — pupu-growth-analyst skill 是引擎，~/.pupu-growth/ 存快照历史，gh 取数
+- [增长分析工具链](growth-toolchain.md) — growth-analyst skill 是引擎，.claude/archive/growth/ 存快照，gh 取数（token scope 已够）
+- [同龄队列才能比下载](cohort-at-matched-age.md) — 我踩过的坑：不同版龄的 dl/天并排排名会造出假趋势，2026-08-07 因此给过 CEO 反向结论
 - [Clone 暴涨 2026-06](clone-spike-2026-06.md) — CEO 关注的 clone 飙升；判定为 bot/CI 噪声 + 下次如何证实
 - [创始人画像](founder_profile.md) — Haoxiang Xu 单人维护者，什么算赢、什么算忧
 - [汇报风格偏好](feedback_report_style.md) — CEO 要数据优先：诚实/直接/全面展示原始数字，解读单独成层、不挤掉数据
-- [安装信号 2026-06](install-signal-2026-06.md) — v0.1.7 起步冷、07-05 速率翻倍回升、Mac 反超领涨；仍低于 v0.1.6 同龄，回归观察中
-- [沉默下载者缺口](silent-downloader-gap.md) — issue 86/88 维护者自开，用户沉默；亮点在 PR 侧 5 位外部贡献者；反馈入口仍缺
-- [曝光见顶/放大渠道](exposure-ceiling-channels.md) — star 卡33-34、独立访客持平~26/周、零社交零社区放大；P0 永远是开一条放大渠道
+- [安装信号](install-signal-2026-06.md) — 逐版同龄对比；台阶在 v0.1.6→v0.1.7 且三版横盘未恢复，"v0.1.9 回升"已作废
+- [发布管道是坏的](distribution-pipeline-broken.md) — 没有 --publish、没有 release workflow、产物手传 → 自动更新全瘫 + AppImage/intel 缺失
+- [沉默下载者缺口](silent-downloader-gap.md) — issue 106/109 维护者自开，用户沉默；亮点在 PR 侧外部贡献者；反馈入口仍缺
+- [曝光见顶/放大渠道](exposure-ceiling-channels.md) — star 卡 36、零社交零社区放大、Google 在缩、18% 曝光是自查灌水；P0 永远是开一条放大渠道

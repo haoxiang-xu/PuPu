@@ -260,7 +260,10 @@ const Button = ({
       rootStyle?.fontFamily || theme?.font?.fontFamily || "Jost, sans-serif",
     fontSize,
     color: rootStyle?.color || theme?.color || (isDark ? "#CCCCCC" : "#222222"),
-    background: "transparent",
+    // Keep this as a longhand property. Callers can override backgroundColor
+    // for transient states without making React reconcile a conflicting
+    // `background` shorthand when that override is removed.
+    backgroundColor: "transparent",
     border: "none",
     outline: "none",
     borderRadius,

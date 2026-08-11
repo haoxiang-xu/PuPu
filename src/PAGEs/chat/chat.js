@@ -36,8 +36,8 @@ import {
   start as progressStart,
   stop as progressStop,
 } from "../../SERVICEs/progress_bus";
-import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
 import { resolveCustomModelCapabilities } from "../../SERVICEs/custom_provider_store";
+import { providerSecretConfigured } from "../../SERVICEs/provider_secret_status";
 import { LogoSVGs, UISVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
@@ -91,6 +91,11 @@ const isSameUnchainStatus = (current, next) =>
   current?.ready === next?.ready &&
   current?.url === next?.url &&
   current?.reason === next?.reason;
+
+const readConfiguredBuiltInProviders = () => ({
+  hasOpenAI: providerSecretConfigured("openai"),
+  hasAnthropic: providerSecretConfigured("anthropic"),
+});
 
 /* Rise-in wrapper that DROPS its animation once finished. The lingering
    transform of `fill: both` turns a static wrapper into a stacking context,
@@ -247,10 +252,9 @@ const ChatInterface = () => {
   });
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
   const [recipeOptions, setRecipeOptions] = useState([]);
-  const [configuredProviders, setConfiguredProviders] = useState(() => {
-    const stored = readModelProviders();
-    return { hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key };
-  });
+  const [configuredProviders, setConfiguredProviders] = useState(
+    readConfiguredBuiltInProviders,
+  );
 
   const activeStreamsRef = useRef(new Map());
   const messagePersistTimerRef = useRef(null);
@@ -704,8 +708,7 @@ const ChatInterface = () => {
 
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
-      const stored = readModelProviders();
-      setConfiguredProviders({ hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key });
+      setConfiguredProviders(readConfiguredBuiltInProviders());
     });
 
     return () => {

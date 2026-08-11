@@ -2,7 +2,7 @@
 
 > 法典条文（程序性）。[法典索引](README.md) · 收录理由与本仓适配见 [`adaptations.md` A-007](adaptations.md#a-007--混合执行政策收入法典)。
 >
-> **状态**：试点期。2026-06-19 立，2026-08-07 随组织改制重写角色分配表。
+> **状态**：试点期。2026-06-19 立，2026-08-07 随组织改制重写角色分配表，2026-08-10 与最小主 owner / 串行 handoff 程序对齐。
 
 "用 Codex" 不是一件事，是 **四种风险截然不同的模式**。按角色刻意选模式，不要揉成一团。
 
@@ -25,7 +25,7 @@
   1. 本仓约定经 repo 根 `AGENTS.md` 喂入（JS-only、内联样式、IPC 边界、渲染进程不碰 `ipcRenderer`、localStorage 只走 SERVICEs helper、`.js`/`.cjs` 测试对等）
   2. 代码情报证据（impact / context）喂进 Codex 的 prompt
   3. **落地前由 Claude 审 Codex 的 diff** —— 少了这条，你只是换了个执行者，交叉检验没了
-  4. 改到模型可见行为 → 该任务立即失去 Mode B 资格，退回 Claude 主写；同时只生成 `expert-llm` 参与候选/RP，获 `Chief Judge` 批准后才出鉴定。未获批准不产生强制回应或闭庭义务
+  4. 改到模型可见行为 → 该任务立即失去 Mode B 资格，退回 Claude 主写；只有当前主 owner 已记录一个会改变方案的真实模型专业缺口时，才可为 `expert-llm` 提交一次最小范围、有限期限与单一交付的 `RP-###`。获 `Chief Judge` 批准后才出鉴定；不得据此预建候选名单或扩大合作 owner 集合
 
 ## 角色分配（2026-08-07 改制后）
 
@@ -36,7 +36,7 @@
 | `expert-llm` | A | 不写码 | 自己；模型事实一律查当前文档，不用 Codex 的记忆。**2026-08-08 CEO 撤销 Fable 5 强制**（扩自 `expert-architecture` 先例，起因 `0000-0008-2026-0808` quorum 卡点）：不再写死模型，派遣方选当时可用最强模型 |
 | `expert-qa` | C | Codex 写测试 | `expert-qa` 定策略，Claude 审 |
 | `expert-ux` · `expert-business` | none | 不写码 | 自己 |
-| `code-owner-runtime` | **B（唯一试点）** | Codex 主写 | 该 owner 审 diff；模型可见行为使任务退出 Mode B，并产生 `expert-llm` 候选，获批后鉴定 |
+| `code-owner-runtime` | **B（唯一试点）** | Codex 主写 | 该 owner 审 diff；模型可见行为使任务退出 Mode B。仅当它作为主 owner 记录真实专业缺口后，才可请求 `expert-llm` 的有限 RP |
 | `code-owner-chat-core` | A（仅设计与追踪） | Claude | **永不 Mode B** —— `use_chat_stream.js` 是承重件 |
 | `code-owner-electron` | A（仅追踪） | Claude | **永不 Mode B** —— IPC / preload channel 对等 |
 | `code-owner-unchain` | none | Claude | 跨仓核心库，Mode B 初期明确排除 |
@@ -46,6 +46,19 @@
 | `court/` 五角色 | none | 不写码 | 程序与合法性判断不可委派 |
 
 **任何角色都可以调 `ai-investigation`（Mode R）** —— 它不写码，不落任何真实仓库，与上表的模式分配正交。
+
+## 专业缺口与有限 RP
+
+混合执行模式本身不构成传唤理由。新方案仍只从一个主 owner 开始；不能因为某项工作“可能涉及”LLM、安全、QA 或架构，就预先列 Expert 候选、建立 roster 或批量申请 RP。
+
+只有主 owner 在完成自己边界内的方案后发现一个 **真实且会改变当前方案或验收结论的专业缺口**，才可请求持续专业参与。请求必须一次只覆盖解决该缺口所需的最小角色，并写明：
+
+1. 具体缺口及其指向的当前 `PS-###` 块；
+2. 现有 owner 为什么不能在自身边界内回答；
+3. 不回答会改变的方案选择、风险处置或 `AC-###`；
+4. 请求 Expert 的最小读取范围、单一交付、截止点与退出条件。
+
+该请求使用 `RP-###`，只在 `Chief Judge` 逐项批准后生效。获批 Expert 只取得该缺口的有限专业权限，不成为合作 owner、不进入 `RS-###` 的 `N` 或 Full（众议庭）程序投票，也不得自行再召集其他角色。若一个 owner handoff 足以补全边界外方案块，应使用串行 `HS-###`，不得用 RP 绕过 handoff。
 
 ## 透明度要求（强制）
 
@@ -63,7 +76,7 @@ Claude / Fable 角色调用 Codex 或任何其他 CLI 时，最终报告 **必�
 
 对适合混合执行的实施任务：
 
-1. **Claude / Fable 规划。** 该 owner 读相关文档与代码情报，定范围、风险与完成定义 —— 在 Quorum 下这来自 **已裁定的方案**，不由执行者自定
+1. **Claude / Fable 规划。** 主 owner 读相关文档与代码情报，按 **已裁定的方案** 确认范围、风险与完成定义；边界外必要空白必须先通过现行串行 handoff 补全，不由执行者猜测或代写
 2. **Codex 实施。** 收到方案、约束、取证与所需测试，只在获准范围内写码
 3. **Claude / Fable 审。** owner 对照获准方案的验收标准与本仓约定审 diff
 4. **Codex 修。** 审出具体问题就发一份 **有界的** 修复 prompt，不允许大范围重写
@@ -80,8 +93,8 @@ Mode B 保持 **单点试点（`code-owner-runtime`）**，过下面三项指标
 ### Mode B 合格任务（opt-in，全满足才用）
 
 - 范围在 `unchain_runtime/server` 内，有明确 spec + 可验证测试
-- **不改模型可见行为**（改了 → 回 Claude 主写，并提交 `expert-llm` 候选/RP；获批后鉴定）
-- **不碰安全敏感面**（MCP OAuth / secret → 退出 Mode B，并提交 `expert-security` 候选/RP；获批后定级）
+- **不改模型可见行为**（改了 → 回 Claude 主写；仅在主 owner 记录真实专业缺口后提交 `expert-llm` 的有限 RP，获批后鉴定）
+- **不碰安全敏感面**（MCP OAuth / secret → 退出 Mode B；仅在主 owner 记录真实专业缺口后提交 `expert-security` 的有限 RP，获批后定级）
 - **不跨仓动 unchain core**（初期排除）
 
 ### 试点指标（报 `chief-judge` 决定扩或停）

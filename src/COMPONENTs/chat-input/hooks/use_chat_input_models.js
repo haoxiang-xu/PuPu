@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../../SERVICEs/api";
 import { build_model_options } from "../utils/build_model_options";
 import { MODEL_GROUPS, resolveModelGroupKey } from "../constants";
-import { readModelProviders } from "../../settings/model_providers/storage";
 import {
   customProviderKey,
-  getCustomProviderSecret,
   readCustomProviders,
 } from "../../../SERVICEs/custom_provider_store";
+import { providerSecretConfigured } from "../../../SERVICEs/provider_secret_status";
 import { subscribeModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
 import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
 
@@ -39,7 +38,7 @@ const read_custom_provider_groups = () => {
       if (authMode === "none") {
         return true;
       }
-      return getCustomProviderSecret(def.id).length > 0;
+      return providerSecretConfigured(customProviderKey(def.id));
     })
     .map((def) => ({
       slug: def.id,
@@ -70,10 +69,9 @@ const make_initial_collapsed = (selectedModelId, customGroups) => {
 };
 
 const read_configured_providers = () => {
-  const stored = readModelProviders() || {};
   return {
-    hasOpenAI: !!stored.openai_api_key,
-    hasAnthropic: !!stored.anthropic_api_key,
+    hasOpenAI: providerSecretConfigured("openai"),
+    hasAnthropic: providerSecretConfigured("anthropic"),
     customGroups: read_custom_provider_groups(),
   };
 };

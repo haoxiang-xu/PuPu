@@ -2,7 +2,9 @@
 
 **状态**: **历史迁移档案，已执行且已被后续规则取代。不得再次作为执行清单。** 2026-08-07 的组织迁移已完成；现行法典在 [`.claude/codex/`](codex/README.md)，常驻操作入口在 [`.claude/CLAUDE.md`](CLAUDE.md) 与 [`case` skill](skills/case/SKILL.md)。
 
-本文中的“三层传唤”“机械命中即必到”“名单只增不减”等措辞只解释当时设计。自 2026-08-09 起，边界命中只产生候选，所有 agent / role instance 由 `chief-judge` 逐项批准；证据使用最小决策集合、16% 首批抽查与 Chief-only 续查。历史测量与角色映射保留，不具现行程序效力。
+**2026-08-10 现行规则提示**：本文后文出现的 Track、分档、候选 roster、机械全员传唤、ACK 与“重要事项自动 Full”等内容全部退役。新案只区分独立的 `motion / proposal` 讨论类别，`procedure_mode` 一律从 `collaboration` 开始；Speaker 只选择一个主 owner，必要空白经一次一个的 `HS-###` 串行交棒，集成后由合作 owner 在 `RS-###` 登记 `AGREE / OBJECT / ABSTAIN`。主 owner 拒绝 material 异议时进入 Debate；只有 `D ≥ 3`、`D > N / 2`、异议组不可合理合并且 `ENTER_FULL > N / 2` 的程序投票通过，才进入 Full（众议庭）。本文件只保留迁移测量、角色来源与历史决策依据，不定义当前 case 流程。
+
+**2026-08-09 中间态（历史）**：本文中的“三层传唤”“机械命中即必到”“名单只增不减”等措辞只解释当时设计；当时边界命中只产生候选，所有 agent / role instance 由 `chief-judge` 逐项批准，证据使用最小决策集合、16% 首批抽查与 Chief-only 续查。该中间态也已被上段 2026-08-10 规则取代。历史测量与角色映射保留，不具现行程序效力。
 
 **原设计稿**: `/Users/red/Desktop/agent_team_design.md`（本地，不入库）。本文只保留当时 PuPu + unchain 的迁移映射与测量证据。
 

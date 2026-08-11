@@ -1,72 +1,80 @@
-# 参与名单与传唤机制
+# 交棒、参与与传唤
 
-[Quorum 索引](../README.md) · [Case Lifecycle](README.md) · [共通收敛规则](decision-controls.md)
+[Quorum 索引](../README.md) · [Case Lifecycle](README.md)
 
-所有权边界用于 **发现候选参与者**，不再自动生成或扩张必到名单。每个 case 的初始 agent 名单及其后任何增员，均由 `Chief Judge` 明示批准。
+Quorum 不建立预测性完整 roster。参与者由一个主 owner 开始，随后通过真实空白、实质异议或有限事实缺口按需进入。owner 交棒、争点参与和 Witness 传唤是三种不同权限。
 
-## 第一层 · 初始候选名单
+## 主 owner 选择
 
-每个 owner 与 `Expert` 在角色定义中声明可机器判定的边界：
+Speaker 只根据核心问题或目标选择一个最接近的 owner：
 
-| 角色 | 边界形式 |
-|---|---|
-| `Code Owner` | 文件路径 glob |
-| `Knowledge Owner` | 知识库路径 |
-| `Codex` | 知识库路径（恒为 `.claude/codex/**`） |
-| `Task Owner` | task 名称 |
-| `POV Owner` | 触发条件 |
-| `Expert` | 专业触发条件 |
-| `Dimension Owner` | 评估对象与方向 |
+- 议案选择能对判断承担主要回答责任的 owner；
+- 方案选择对主要实施结果承担集成责任的 owner；
+- 边界不清时选择最接近者并记录不确定性，不做全库匹配或候选名单；
+- 主 owner 的选择不意味着其拥有其他 owner 边界的写入或解释权。
 
-`Speaker of the House` 只对开庭时冻结的 **待裁问题、`write_set`、`contract_set` 与验收责任** 做边界匹配，形成候选名单及每名候选人的具体交付。它不得扫描背景材料或 `non_goals` 来扩张名单。
+## owner 串行交棒
 
-`Chief Judge` 审核候选名单后，在 `case.md` 的 intake 块批准 **初始参与名单**。未在该名单中的 agent 不承担旁听、首轮提交或闭庭义务。程序角色按预计需要列入：`Speaker of the House`、实施后使用的 `Acceptance Inspector`，以及 Full 所需的其他程序角色。提出材料已明显包含候选决策证据时，可在初始名单中预先批准一名 `Evidence Examiner`；否则待 Speaker 冻结出 `FIRST_RANDOM_REQUIRED` 的 DES 后再逐项申请，`EMPTY / INHERITED_ONLY` 不创建 Examiner。后续增加同角色 instance 仍视为增员。
+主 owner 或当前接棒 owner 只有在当前回答/方案存在必要且明确的边界外空白时才能请求交棒。请求须包含：
 
-`Dimension Owner` 不再因一个评估对象命中而全体自动到场。`Speaker of the House` 只能提名其测量方向可能改变某个具体待裁问题的维度，由 `Chief Judge` 逐一批准。
+1. 当前快照和空白 target；
+2. 所需 ownership boundary；
+3. 期待的单一回答或方案块；
+4. 缺席将改变什么；
+5. 可访问的最小材料；
+6. 完成后返回的 owner。
 
-## 第二层 · 自请与推荐
+Speaker 校验后创建 `HS-###` 并直接路由，不需要 `PARTICIPATION_RULING`。每个 HS 必须写 `expires at` 与逾期影响；同一 case 同时只允许一个开放 HS。接收 owner 只能读取点名材料、提交一次约定交付和必要异议；它不能借交棒召集其他 agent、改写其他 owner 块或取得全案权限。交棒中的异议先作为待审异议保存，只有在完整集成快照和 RS 冻结后才可由主 owner 作触发开庭的拒绝处置。
 
-case 可发布不含受限案卷内容的结构化 brief，包括目标、待裁问题、`write_set`、`contract_set`、`non_goals` 与当前方案摘要。任何 agent 可通过非发言 intake 入口提出自请或推荐他人出庭，但请求必须说明：
+HS 状态只允许 `OPEN / RETURNED / DECLINED / EXPIRED / CANCELLED`，后四项为终态。到 `expires at` 仍无合格 return 时，Speaker 追加一次 `NOTICE: HANDOFF_EXPIRED`，不得无限等待。RETURNED 的 material 交付可以补全回答/方案块，也可以明确确认当前快照中的一项具体直接回答、实施、回滚或验收责任；完成后该 owner 进入合作 owner 集合。DECLINED、EXPIRED、无 HS 的责任声明、只提供文件指针或未完成交付者不计；若该内容仍必要，当前 owner 必须请求下一位边界匹配 owner，或由 Speaker 记录主 owner 转移/送 Chief 终止，不能把空白伪装成已补全。
 
-1. 拟新增的 agent 或 role instance；
-2. 它要回答的具体 `Q-###`、方案块或验收标准；
-3. 现有参与者不能提供的独有信息；
-4. 缺席会改变什么抉择。
+## objection intake 与原告
 
-`Speaker of the House` 先执行相关性门。通过者以 `RP-###` 成为待批准候选，须提交 `Chief Judge`；未获明示批准前不得进入主记录、扩大 quorum 或触发新一轮。`Chief Judge` 可批准或拒绝请求；需要豁免既有交付时使用 `WAIVE_DELIVERY` 动作，并决定该请求是否 blocking。批准 A 不代表同时批准 B 或 C。
+“具有实体提交资格”是指：当前 active role charter 允许对议案、方案或其异议作实体主张，且未因宪法同案身份不兼容而失格的 team agent。owner、POV Owner、Dimension Owner、Expert 与 Codex 可依各自边界使用；纯 Witness 只能作证。担任 Speaker、Procedural Judge、Evidence Examiner 或 Acceptance Inspector 的底层 agent 不得靠切换上述角色取得资格；Inspector 只有职责内验收原告例外。一次有限 intake 无需预先成为当前参与者或取得 RP。
 
-同一 `(agent instance, 请求动作, target)` 同时只能有一项开放 `RP-###`。重复请求合并至既有编号；被拒请求保持关闭，拒绝裁定必须保存可判定的 `rejection_predicate`。只有后续已编号的 `ADMIT_MATERIAL`、`SCOPE_RULING` 或 `PARTICIPATION_RULING` 明确影响同一 target，或直接改变 predicate 点名的覆盖 agent/role，且会推翻该 predicate 时，才可创建新的 RP 重提；新请求同时引用旧 RP、拒绝裁定与该状态变化。与原请求无关的案卷变化不能复活它。未获准者的新 source pointer 只进 parking lot；须由已批准角色采纳并满足上述因果条件后，才可能成为重提依据。
+任何具有实体提交资格的 agent 即使不在合作 owner 集合，也可在当前 RS review 截止前提交一个有限 objection envelope：具体快照/块、异议理由、决策影响、请求修改与最小依据。Speaker 通过相关性门后，该 agent 获得此争点的原告资格；否则退回或移入 parking lot。中立底层 agent 不得换用其他身份提交或起诉；Acceptance Inspector 仅在职责内验收争议中例外。
 
-## 第三层 · 直接影响复核
+原告资格只覆盖该异议及直接回应，不授予全案访问权，也不计入 Full 多数。原告的异议只有被主 owner 明示拒绝后才开启辩论庭。
 
-提交裁定前，`Speaker of the House` 只对最终候选方案的以下集合做一次复核：
+## 需要参与裁定的新增权限
 
-- 将被直接写入的对象；
-- 将被改变的契约；
-- 直接承担验收或回滚责任的对象。
+以下情况仍使用 `RP-###` 并仅由 `Chief Judge` 逐项批准：
 
-若其中存在未覆盖 owner，且对象已位于获准的 `write_set / contract_set` 内，`Speaker of the House` 提交增员请求或覆盖缺口，但不得自动传唤。范围尚未获准时先等待 `SCOPE_RULING`，不能靠增员反向扩张范围。`Chief Judge` 批准后方可增员；拒绝或暂不批准时，缺口连同影响进入闭庭摘要，由现有记录支撑裁定，不自动阻止闭庭。
+- 需要超出 owner handoff 或原告争点范围的全案访问；
+- 增加 Expert 的持续专业参与、额外 Examiner instance 或其他非 owner 专业角色；Expert 或其他实体 agent 仅提交一次有限 objection intake 不使用 RP；
+- 扩大既有参与者的访问范围、交付或持续期限；
+- 涉及敏感材料而角色的 standing scope 不足。
 
-证据、发言或被拒方案中 **顺带出现** 的文件、模块、知识库、外部系统、竞品或历史实现，不进入本层集合，也不产生 owner 到场义务。
+仅在证据、背景或方案文字中提到文件、模块、知识库、系统或 agent，不构成交棒、原告资格或参与批准。
 
-## 边界纠错
+## 合作 owner 与投票资格
 
-第二层或第三层发现的边界遗漏，在当前 case 中只记为范围外维护项。边界是否需要修订由 `Chief Judge` 在当前 case 结束后另行决定；不得为了“边界自愈”扩张当前庭审或延迟闭庭。
+在集成快照审查前，Speaker 冻结 `RS-###`：主 owner，加上已 RETURNED material HS 的 owner；责任确认也必须通过该 HS 返回。仅被点名、无 HS 声明或未完成者不计；同一底层 agent 即使持多个 owner 身份也只出现一次。默认 review 权限仍限于每人的 owned block 与直接依赖。
 
-## `Witness` 传唤
+Full 投票通过后，宪法直接授予 electorate 阅读冻结产出及直接依赖所需的全案只读范围，以便全面审查；Speaker 用引用原 RS 的 `FS-###` overlay 逐人冻结该范围、deadline 与 hash，且不改变 N。它不授予写入、相邻调查或敏感材料访问。敏感材料仍须由 Chief 逐项批准。无法合法读取或超出专业责任时，owner 应登记 `ABSTAIN` 并把覆盖缺口列入 SUMMARY。
 
-`Witness` 是 human 角色，不属于 agent 增员，但仍只在以下条件全部满足时由 `Speaker of the House` 发出传票：
+下列角色不计入合作 owner 分母，除非它同时以独立 owner instance 完成了上述交付：
 
-1. **问题具体**：一张传票只含一个可直接回答的事实问题；
-2. **影响明确**：答案会改变一个具体待裁问题、方案选择或验收标准；
-3. **已尽可查来源**：已检查与问题相关的 repository、archive、外部来源及当前参与者；
-4. **本人特有理由**：有理由相信事实来自本人的经历、意图、口头约定或未记录上下文。
+- Witness、Expert；
+- 仅提交证据、观点或 objection intake 的 agent。
 
-每张传票记录问题、受影响事项、已查来源、本人知情理由与 `blocking / non-blocking`：
+Speaker、Procedural Judge、Evidence Examiner 与 Acceptance Inspector 适用宪法同案身份不兼容规则，不能靠另建 owner instance 进入同一 RS；Acceptance Inspector 只在验收争议中取得有限原告资格。
 
-- **blocking**：缺少答案会让当前仍可行的方案无法区分，或只能依靠未经说明的假设裁定；
-- **non-blocking**：缺少答案不阻止当前阶段形成有效产出。
+`RS-###` 冻结后不能为改变 Full 门槛或票数而临时增减。确有必要的新 owner 空白须先关闭当前 review，完成正常 HS，再生成新的 successor RS，并保留旧快照与原因。
 
-blocking 传票必须在首次审查截止前签发，并在 BOS 冻结时映射到一个 BO；冻结后不得新增 blocking 传票。已有传票的 `UNKNOWN / UNCERTAIN` 回答视为完成，不得针对同一 BO 换问题继续保持 blocking。后续线索只可作为 non-blocking parking 项，或交 `Chief Judge` 重框/拆案。
+## Witness 传唤
 
-对 blocking 性质存在争议时，由 `Procedural Judge` 依授权裁定。回答“不知道”或“不确定”视为已经回应，blocking 随即解除；事实缺口及影响继续进入摘要。证言如成为决策关键证据，依[证据规则](evidence-rules.md)进入冻结集合与 16% 抽样，不自动逐条核验。
+Witness 只回答事实，不补全 owner 方案块，也不参与 owner 投票。传唤请求必须同时满足：
+
+1. 存在单一、具体、可回答的事实问题；
+2. 答案会改变当前议案结论、方案选择或验收结果；
+3. 现有记录无法回答；
+4. 点名最小可访问材料和停止条件。
+
+Speaker 审核形式与相关性后签发单问题传票。`不知道 / 不确定` 是合法回答：关闭等待义务并把影响记为已知缺口，不得推定不利事实或继续追问相邻问题。
+
+正式庭审中，只有缺少答案会使所有当前可裁候选都无法区分时，传票才能作为 blocking BO；默认协作中的 Witness 等待不创建 BOS。blocking 性质有争议时交获授权 `Procedural Judge`，不能由 Speaker判断事实答案。
+
+## 覆盖复核
+
+方案送裁定前，Speaker 只复核最终方案实际命中的写入、契约、实施、回滚与验收责任是否已有 owner 交付。发现必要空白时恢复串行 handoff；不能用“潜在相关”扩大到邻接 owner。议案只复核形成当前判断所依赖的直接知识责任。

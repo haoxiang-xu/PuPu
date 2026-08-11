@@ -47,7 +47,7 @@
 **本仓扩充**: 见 [`roles/codex.md` · 本仓扩充条文](roles/codex.md#本仓扩充条文)。三项：
 
 1. **合法性监督** —— 审查程序合法性，监督对象含 `Procedural Judge` 与 `Speaker of the House`；异议具中止效力，但受引条义务制约
-2. **法典唯一维护执行职责** —— 可提出 repo 适配并实施已获准的修改，但没有“先改后报”的独立权力；程序条文按四档分流，宪法固定走 Full
+2. **法典唯一维护执行职责** —— 可提出 repo 适配并实施已获准的修改，但没有“先改后报”的独立权力；法典修改本身须由独立的 `proposal` 获得裁定，`procedure_mode` 只能因真实异议按 `collaboration → debate → full` 升级，宪法或法典议题都不自动进入 Full（众议庭）
 3. **memory 硬预算** —— `MEMORY.md` 前 200 行或 25KB，超出部分自身亦读不到
 
 **理由**: 上游宪章没有任何角色负责"程序本身是否被遵守"。`Procedural Judge` 是流程内的参与者，不能自审；`Speaker of the House` 不拥有记忆，无法积累先例。缺这一环，`Chief Judge` 需自行发现每一次程序瑕疵。
@@ -68,13 +68,15 @@
 
 ---
 
-## A-005 · 获批 roster 的到场与交付条文并入 `lifecycle/`
+## A-005 · 获批 roster 的到场与交付条文并入 `lifecycle/`（已退役兼容页）
 
 `lifecycle/quorum.md` 是 **本仓自有条文**，上游 `docs/quorum/` 中无对应文件（上游根目录的 `quorum.md` 只是兼容入口，不具规范性）。
 
-**2026-08-09 修订**：上游改为所有权边界只生成候选、任何 agent 增员均须 `Chief Judge` 明示批准。故本条不再定义“机械命中即法定必到”或“名单只增不减”，只补充 **已获批 current roster** 的到场、交付、缺席和运行时故障记录。它不得自动增加参与者、扩大 quorum 或阻止闭庭。
+**2026-08-09 修订（历史）**：上游当时改为所有权边界只生成候选、任何 agent 增员均须 `Chief Judge` 明示批准，故本条一度只补充获批 roster 的到场、交付、缺席和运行时故障记录。
 
-**位置理由**: 本条与 [`lifecycle/summons.md`](lifecycle/summons.md) 的批准名单配套，故仍放在同章；放在法典根目录会与上游兼容入口重名。
+**2026-08-10 状态：已退役。** [`lifecycle/quorum.md`](lifecycle/quorum.md) 只保留为旧案解释页；现行程序不建立 current roster。每案从一个主 owner 开始，必要边界外内容通过一次只开放一个的 `HS-###` 串行交棒，集成后以 `RS-###` 冻结合格合作 owner 及其 `AGREE / OBJECT / ABSTAIN` 立场。交棒、有限异议 intake 与需 `RP-###` 的持续专业参与各有独立权限，旧 roster 规则不得再用于新案。
+
+**保留位置理由**: 旧案曾把本条与 [`lifecycle/summons.md`](lifecycle/summons.md) 配套引用，故兼容页仍留在 `lifecycle/`；它只维持历史链接稳定，不表示现行 summons 仍使用批准名单。
 
 **依据**: 由本仓 `Chief Judge` 于 2026-08-07 (commit `cd56dc0f`) 撰写并入库。
 
@@ -106,7 +108,7 @@
 
 ## A-008 · co-located 测试随源文件归属
 
-[`summons.md` 第一层](lifecycle/summons.md) 要求边界声明可机器判定。本仓的测试与源码同目录（`foo.js` 旁边是 `foo.test.js`、`foo.subject.test.js`），若逐条枚举，每个 owner 的 glob 清单要翻一倍。
+[`summons.md` 的主 owner 选择与串行交棒](lifecycle/summons.md) 要求 ownership boundary 可机器判定。本仓的测试与源码同目录（`foo.js` 旁边是 `foo.test.js`、`foo.subject.test.js`），若逐条枚举，每个 owner 的 glob 清单要翻一倍。
 
 **本仓通则**：一个文件被某 owner 的边界命中时，其 **同名 co-located 测试** 一并归该 owner，无需单独声明。
 
@@ -114,15 +116,15 @@
 <owned>.js        命中 X   =>   <owned>.test.js  与  <owned>.<suffix>.test.js  也归 X
 ```
 
-**依据**: 这是纯机械推导，不引入判断，传唤第一层照样是规则匹配。**实测**: 2026-08-07 改制后首次覆盖检验，`src/SERVICEs/` 下 45 个文件报为无主，全部是 co-located 测试；补上本通则后归零。
+**依据**: 这是纯机械推导，不引入判断，现行只用于帮助 Speaker 选择当前一个主 owner，或校验当前一个 HS 的目标 owner；它不得生成潜在参与名单。**实测**: 2026-08-07 改制后首次覆盖检验，`src/SERVICEs/` 下 45 个文件报为无主，全部是 co-located 测试；补上本通则后归零。
 
 **边界情形**: 与源文件不同名的测试（`e2e/**`、`electron/tests/**`、`src/setupTests.js`）**不适用本通则**，各自另有明确 owner。
 
 ---
 
-## A-009 · 候选发现的显式豁免清单
+## A-009 · owner 路由的显式豁免清单
 
-下列路径 **显式声明无 owner**。候选发现器遇到它们时，不产生“未覆盖 owner”候选；这只是发现阶段的降噪规则，不会自动批准参与者，也不会因顺带出现的实体阻止闭庭：
+下列路径 **显式声明无 owner**。主 owner / handoff 路由器遇到它们时，不报告“未覆盖 owner”；这只是当前单次路由的降噪规则，不会生成预测 roster、自动引入参与者，也不会因顺带出现的实体阻止收敛：
 
 | 路径 | 理由 |
 |---|---|
@@ -138,7 +140,7 @@
 
 ## A-010 · 边界声明的可解析格式
 
-[`summons.md` 第一层](lifecycle/summons.md) 要求候选边界 **可机器判定**，但没有规定它长什么样。"可判定的内容"配上"不可解析的排版"，机械匹配照样漏候选。
+[`summons.md`](lifecycle/summons.md) 要求主 owner 与 handoff 目标依据 ownership boundary 路由，但没有规定边界声明长什么样。"可判定的内容"配上"不可解析的排版"，机械匹配照样会把当前 owner 路由错。
 
 **本仓格式**：每份 charter 的边界写在标题为 `## 所有权边界声明` 的段落内，**该段内第一个 fenced code block 即是边界正文**，一行一条。围栏之前可以有说明性散文，解析器 **必须取第一个围栏，不得要求它紧邻标题**。
 
@@ -153,7 +155,7 @@
 ```
 ```
 
-以下 2026-08-07 案例保留的是旧制下“必到名单”的历史故障语境；2026-08-09 起，同一解析结果只形成候选并交 `Chief Judge` 审批，不能据此自动增员。
+以下 2026-08-07 案例保留的是旧制下“必到名单”的历史故障语境。2026-08-10 起，同一解析能力只可辅助选择 **当前一个** 主 owner 或 **当前一个** HS 目标；无法形成预测 roster，也不授予参与、表决或全案访问权。
 
 **依据 (实测)**: 2026-08-07 第一次真实传唤中，一个要求围栏紧邻标题的解析器 **静默丢掉了 6 个 `Expert` 中的 5 个** —— 只有 `expert-business` 恰好没写那行散文。丢失是无声的：名单照常产出，只是少了五个人。
 
@@ -167,9 +169,9 @@ case `0000-0002-2026-0807` 立案时 **同一裸文件名缺陷第三次发作**
 
 `speaker-of-the-house` 就此提出的指控成立：**A-010 只记录了缺陷，没有修它。** 记录一个每次立案都会重犯的缺陷，而不修它，等于把成本从"一次性修工具"改成"每案重复漏人"。
 
-抽取器已实现并落盘为 [`.claude/skills/case/summon.py`](../skills/case/summon.py)，修复三类漏候选（围栏紧邻假设、裸文件名、概念名），并做了回归检验：**独立复现出主持人手工补正的全部 4 名 owner 候选**。工具只输出候选与覆盖缺口，不授予参与权；工具头部注释载明三类缺陷各自的真实发案记录，改动前须先读。
+抽取器已实现并落盘为 [`.claude/skills/case/summon.py`](../skills/case/summon.py)，修复三类解析故障（围栏紧邻假设、裸文件名、概念名），并做过旧案回归检验。**2026-08-10 起工具职责已收窄**：`lead` 模式只辅助 Speaker 选择一个主 owner，`handoff` 模式只辅助校验一个边界外空白的下一位 owner；不再输出全员候选、预测 roster 或参与权。无法机械唯一确定时应记录不确定性并由 Speaker 选择最接近核心问题的一位，不得退回全量召集。
 
-**遗留（本工具结构上看不见，非缺陷而是边界）**：概念名只能产出候选供人工确认；**仓外实体一律不可见** —— 运行时数据目录、外部系统在现行边界体系中没有 owner（全部 `Code Owner` 边界均为仓内路径 glob，A-009 豁免清单亦未覆盖）。只有当它们进入获准的最终 `write_set / contract_set` 或直接验收、回滚责任时，才形成覆盖缺口并交 `Chief Judge`；背景提及不阻塞闭庭。
+**遗留（本工具结构上看不见，非缺陷而是边界）**：概念名只能供 Speaker 人工确认当前一个 owner；**仓外实体一律不可见** —— 运行时数据目录、外部系统在现行边界体系中没有 owner（全部 `Code Owner` 边界均为仓内路径 glob，A-009 豁免清单亦未覆盖）。只有当它们成为当前判断的必要知识责任，或进入最终 `write_set / contract_set`、直接验收与回滚责任时，才形成真实空白并触发有限 handoff / 独立 case；背景提及不扩大参与。
 
 ---
 
@@ -187,13 +189,13 @@ case `0000-0002-2026-0807` 立案时 **同一裸文件名缺陷第三次发作**
 
 ---
 
-## A-012 · 获批参与者的运行时故障须与交付缺席分开记录
+## A-012 · 运行时故障须与交付缺席分开记录（旧 roster 语境已退役）
 
-[`quorum.md`](lifecycle/quorum.md) 规定：current roster 中承担本阶段交付的获批参与者未完成交付时，必须记录原因；是否等待、豁免、移出或改变交付，由 `Chief Judge` 决定。
+以下故障分类源于 2026-08-07 至 2026-08-09 的大 roster 实测，只保留诊断价值。现行程序依 [`summons.md`](lifecycle/summons.md) 一次只开放一个 `HS-###`：接棒结果须记录为 `RETURNED / DECLINED / EXPIRED / CANCELLED` 之一，运行时死亡只能解释为何未交付，不能虚构 RETURNED、增加参与者或扩大 `N`。若必要空白仍存在，应关闭当前 HS 后再路由下一位 owner，或送 `Chief Judge` 终止/重框。
 
 交付未完成可能是 **角色调度冲突**，也可能是 **instance 运行时直接死亡**。两者必须分开，否则会把容量问题误读成组织问题。
 
-**本仓补充**: 获批参与者因运行时故障未完成交付时，归档为 **运行时故障记录**；因角色正在承担不可中断写入而未完成时，归档为 **调度冲突记录**。两者都只描述事实，不自动增员，也不自动决定能否闭庭：
+**本仓补充（故障分类继续有效）**: 当前被有限路由的角色因运行时故障未完成交付时，归档为 **运行时故障记录**；因角色正在承担不可中断写入而未完成时，归档为 **调度冲突记录**。两者都只描述事实，不自动增员，也不自动决定能否收敛：
 
 | | 调度冲突记录 | 运行时故障记录 |
 |---|---|---|
@@ -205,7 +207,7 @@ case `0000-0002-2026-0807` 立案时 **同一裸文件名缺陷第三次发作**
 
 **依据 (实测)**: 2026-08-07 case `0000-0001-2026-0807` 的议案庭审中，14 名法定必到者并行出庭，**9 个 instance 以完全相同的签名死亡**（"600 秒无进展，watchdog 未恢复"），含 `expert-qa`、`expert-llm`、`code-owner-electron`、`code-owner-shared-arteries`、`code-owner-unchain`、`code-owner-agents`、`code-owner-devtools` 七名必到者及两个勘察子 instance。失败与各自任务内容无关，只与并发度相关；`code-owner-runtime`（首个出庭）与 `code-owner-chat-core` 完整交付。
 
-**由此得出的两条操作约束**（未写入上游宪章，作为本仓调度实践）：获批角色较多时 **分小批调度**；参与角色不得自行派生会进入案卷或扩大取证范围的子 instance。任何额外 agent 都须逐项取得 `Chief Judge` 批准；取证不足的部分按「未核实」交，强于再挂一次。
+**由此得出的现行操作约束**：默认按 HS 串行调度；被路由角色不得自行派生会进入案卷、扩大取证范围或再转交的子 instance。owner handoff 范围外的持续专业参与、额外 Examiner instance 或敏感范围扩大，仍须逐项 `RP-###` 并由 `Chief Judge` 批准；取证不足的部分按「未核实」交，强于无界扇出。
 
 ---
 
@@ -252,6 +254,8 @@ case `0000-0002-2026-0807` 立案时 **同一裸文件名缺陷第三次发作**
 
 ## 2026-08-09 · Debate、批准制 roster 与 16% 决策证据抽查
 
+> **历史中间态，已被 2026-08-10 同步取代。** 下列 Track、roster、候选发现与 RP 语义只解释 2026-08-09 当时创建的记录，不得用于新案；现行规则见下一节。
+
 **上游**: `github.com/haoxiang-xu/quorum` · 基线 `3580e75` 加 2026-08-09 工作树快照。
 
 **同步内容**：
@@ -269,3 +273,23 @@ case `0000-0002-2026-0807` 立案时 **同一裸文件名缺陷第三次发作**
 - A-005 改为获批 roster 的到场与交付规则；A-008 继续作为候选边界推导；A-009/A-010 改为候选发现语义；A-012 改为获批参与者的故障分类。
 - A-011 已被上游 `TERMINATION_RULING` 吸收，现行模板删除本地 `TERMINATION` 别名；旧记录不追溯改写。
 - `.claude/court/**` 全部历史案卷保持 append-only。同步时仍为 `filed`、尚无实体发言的案，直接按现行 intake 建立第一条 SI，不使用 legacy bridge。同步前已经开始且尚未结束的 `hearing / awaiting-ruling` **当前 legacy stage**，其剩余发言、证据、SUMMARY 与 **恰好下一条关闭/转换该 stage 的 R**，可继续使用该 stage 开启时有效的 legacy 字段集合，因此不强求倒填 SI/BOS/DES/AS；但这条新 R 的记录类型名必须使用现行枚举，并在归档说明中标记 `legacy bridge · pre-2026-08-09`。历史类型 `TERMINATION` 在 bridge R 中映射为现行 `TERMINATION_RULING`，不得新建 `TERMINATION` 记录。bridge R 必须终结 case，或原子进入一个按现行规则创建的新 stage/SI；不得开启第二个 legacy stage、自动回到旧循环或启动新的 legacy 自动传唤/全量核验批次。新 stage 的第一条记录先建立现行 SI、BOS/DES/sampling 状态，之后所有记录使用现行 schema。同步后新增参与者即使服务 legacy stage，也必须走现行 `RP-### / PARTICIPATION_RULING`；无法在当前 stage 合法表达的新增流程，应由 bridge R 转入新 stage，或终止后重立。
+
+## 2026-08-10 · 最小主 owner、独立讨论类别与 Full（众议庭）
+
+**上游**: `github.com/haoxiang-xu/quorum` · commit `ab40f4d`。
+
+**同步内容**：
+
+1. `motion`（议案）与 `proposal`（方案）成为彼此独立的 `discussion_type`，不再是“先讨论要不要做、再讨论怎么做”的两个阶段。议案裁定判断问题；方案裁定具体如何实施。议案可以延伸议案，方案可以延伸方案；跨类别需求另建 `derived` case。
+2. 每个新 case 的 `procedure_mode` 一律从 `collaboration` 开始，Speaker 只选择一个主 owner。所有权匹配只用于当前 lead 或当前一个 handoff，不预测复杂度、不预建 roster，也不以重要性、不可逆性、契约变化或 owner 数量自动升级程序。
+3. 主 owner 先完成自己边界内的回答或方案，边界外必要内容保留明确空白；一次只开放一个 `HS-###`，接棒 owner 只在点名范围交付并返回主 owner。全部必要空白关闭后，主 owner 集成 `MS-### / PS-###`，Speaker 冻结 `RS-###`；合作 owner 对当前快照登记 `AGREE / OBJECT / ABSTAIN`。
+4. 主 owner 接受异议时直接修订并形成 successor artifact / RS；拒绝一个合格 material 异议即进入 Debate 的庭前分组。同一目标、依据或可由同一组有限解决条件处置的异议必须合并为聚焦 Debate，反对人数多本身不触发众议庭。
+5. Speaker 只有在冻结的合作 owner 集合为 `N`、按 owner 去重的有效反对者 `D ≥ 3` 且 `D > N / 2`、多个异议组无法合理合并时，才可发起 `ENTER_FULL` 程序投票。只有 `ENTER_FULL > N / 2` 才进入 Full（正式中文名：**众议庭**）；投票只决定程序模式，议案或方案的实体结果仍由 `Chief Judge` 裁定。
+6. 默认 collaboration 不创建空 `SI / BOS / DES / Examiner`。证据控制、庭审与验收只在各自真实触发条件成立时建立记录；owner handoff、有限 objection intake 与需 `RP-###` 的额外持续专业权限互不替代。
+
+**本仓合并**：
+
+- 继续保留 A-001 的 `.claude/**` 路径、A-002 的平铺 skills、A-003 的 `Codex` 合法性监督与 memory 硬预算，以及 A-008 至 A-010 的本地边界解析格式；但这些解析规则只辅助单 lead / 单 HS 路由。
+- [`lifecycle/tracks.md`](lifecycle/tracks.md) 与 [`lifecycle/quorum.md`](lifecycle/quorum.md) 保留为历史兼容页，因为旧案卷仍引用它们；两页不构成新案入口。不得新建旧 Track、current roster、全员候选或 ACK 流程。
+- `.claude/court/**` 继续 append-only，既有案号、发言、裁定与历史字段不追溯改写。2026-08-10 前已经取得 action 授权并已进入实施的旧案，只可按当时已冻结的 directive / plan、owner 责任、回滚安排与 `AC-###` 完成和验收；任何实施范围、验收标准、owner、授权边界或实体目标变化都必须停止扩张，并另立现行 `discussion_type: proposal` 的新案。
+- 未获上述既有 action 授权的旧案不得再用旧 Track 产生新授权。若必须收口，只允许追加一次标记为 `legacy bridge · pre-2026-08-10` 的现行裁定来终止旧案，或链接一个从 `collaboration` 开始的新 `motion / proposal` case；不得启动新的 legacy stage、旧式自动传唤或全量 roster。

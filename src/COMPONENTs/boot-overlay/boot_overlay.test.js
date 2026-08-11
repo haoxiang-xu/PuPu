@@ -116,6 +116,11 @@ describe("BootOverlay", () => {
 
   test("is not clickable while not ready (presentation, no start prompt)", () => {
     renderOverlay();
+    expect(screen.getByRole("presentation")).toHaveStyle({
+      border: "none",
+      outline: "none",
+      boxShadow: "none",
+    });
     expect(
       screen.queryByRole("button", { name: /start/i }),
     ).toBeNull();

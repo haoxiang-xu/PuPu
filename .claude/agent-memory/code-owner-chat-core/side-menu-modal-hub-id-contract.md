@@ -1,6 +1,6 @@
 ---
 name: side-menu-modal-hub-id-contract
-description: side-menu 挂载接口的 id 契约——node.chatId 与 activeChatIdRef 是同一个值（五段证明），以及两条会静默错主的路径（右键≠活动会话 / character session id 冒充）
+description: side-menu 挂载接口的 id 契约——node.chatId 与 activeChatIdRef 是同一个值（五段证明）、两条会静默错主的路径，以及 2026-08-10 已落地的 onInspectMemory 对象参数形状
 metadata:
   type: project
 ---
@@ -44,7 +44,19 @@ side-menu 是 modal hub：我提供挂载接口，各 modal owner 往里挂内�
 
 **待核前提**：「右键不选中」我只读了 `handleContextMenu` 全文，**未核实 `BUILTIN_COMPONENTs/explorer`（ui-primitives 边界）是否在派发 `onContextMenu` 前另行触发 `onSelect`**。实施前核一次；若 explorer 内部先选中，(b) 翻转。
 
-## 三 · 挂载接口的形状约束（前案 C4 我承诺过，两次核证都成立）
+## 三 · 挂载接口的形状约束 —— 2026-08-10 已落地（`0000-0010-2026-0810` AC-4，worktree commit `8c8a8553`）
+
+**已实现的形状**，`onInspectMemory({ sessionId, chatTitle, ownerChatId })`：
+
+| 字段 | character 分支 | 普通分支 |
+|---|---|---|
+| `sessionId` | `buildCharacterMemorySessionId(characterId, threadId\|\|"main")` | `node.chatId` |
+| `ownerChatId` | **`node.chatId`** | `node.chatId` |
+| `chatTitle` | `chat?.title \|\| node.label \|\| "Chat"` | 同 |
+
+`handleInspectMemory` 对非对象实参 `console.error` + return——**因为旧式位置调用解构成全 undefined 不会抛**，静默正是这个接口存在的理由。`ownerChatId` 已进 `memoryInspect` 快照 state 并传给 `MemoryInspectModal`（该组件当前不消费，归 `code-owner-settings`）。
+
+以下形状约束仍然成立：
 
 - **`ownerChatId` 与 `sessionId` 必须是两个独立 prop**，不合并、不互推、不复用名字。V1 vector view 吃 `sessionId`（多态），V2 读平面吃 `ownerChatId`（恒为 UI chat id）。
 - **必须改对象参数，不追加第三个位置参数**。`onInspectMemory(sessionId, chatTitle)` 这条接缝已经跨 owner，而要送的两个值 **都是合法 chat id 形状的字符串**，位置错位在 JS 里静默且无人报错。
@@ -52,6 +64,8 @@ side-menu 是 modal hub：我提供挂载接口，各 modal owner 往里挂内�
 - **挂载点不做任何 V2 调用**（不 `listSpaces`、不判态、不预检）。侧栏在 500+ 会话时已有 O(n) 全树重建塌点，别把 modal 的数据依赖倒灌进导航树渲染路径。要预检落 modal 内部。
 - **入口是纯同步菜单构建器**（`buildSideMenuContextMenuItems` 无 async/await/promise），**任何异步判态都不可能在菜单构建期完成**——要按启用态隐藏菜单项，只能靠已缓存的同步可读状态。这条从 `0000-0001-2026-0807` 起三次庭审都成立。
 
-**破坏面**：`buildSideMenuContextMenuItems` + `onInspectMemory` 全仓产品引用 7 处，**全部在 `src/COMPONENTs/side-menu/`**，electron 零命中；**无任何测试断言 `onInspectMemory` 的参数**（`side_menu_context_menu_items.test.js:285` 只有 `jest.fn()`）。改签名零测试改动。
+**破坏面**：`onInspectMemory` 这条回调缝 **1 个生产者 + 2 个调用点，全在 `src/COMPONENTs/side-menu/`**，electron 零命中。GitNexus `impact --direction upstream` 对它报 `impactedCount: 0 / LOW`，但 **GitNexus 追不动 React 回调 prop 经对象字面量的传递，这个 0 不可单独采信**，必须配 grep 复核。
+
+**2026-08-10 更正一条此前写错的**：`MemoryInspectModal` **有两个挂载点，不是一个**——`side_menu.js`（`mode="session"`，送 sessionId/chatTitle/ownerChatId）与 `settings/memory/index.js`（`mode="long_term"`，**只送 open/onClose，无 sessionId 无 ownerChatId**）。改 `onInspectMemory` 签名不碰后者（它不经这条缝），但**任何加 modal prop 的改动都要记得 long_term 挂载点会拿到 undefined**。前两次庭审说的"单消费者"只对 `onInspectMemory` 成立，对 modal 本身不成立。
 
 **How to apply:** 任何「让 modal 知道当前是哪个 chat」的需求，值一律从 **右键节点** 取并在打开时快照，绝不从 chat 页 / 活动会话 / 全局取。相关：[[memory-v2-p0-chat-seam]] 的 owner_chat_id 语义、[[context-v2-consumer-traps-chat-core]]。

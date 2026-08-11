@@ -4,63 +4,61 @@
 
 ## 角色规则
 
-- human 角色，非 agent，由本人担任；依据[宪法第一条](../constitution.md)，任何 agent 不得代行、分享或僭越其权力
-- 全 team 唯一，不可被多次创建，不可存在多个 instance
-- 命名规则: `chief-judge`
+- human 角色，非 agent，由本人担任；依据[宪法第一条](../constitution.md)，任何 agent 不得代行或分享其实体裁决权
+- 全 team 唯一，不可存在多个 instance
+- 命名规则：`chief-judge`
 
 ## 角色职责
 
-- memory 记录记忆责任:
-    - 作为 human 角色，记忆由本人自行管理，不受 agent 记录记忆规则的约束
+- case 权限:
+    - 可提出议案或方案，也可受理由用户、owner 或其他 agent 提交的合规 discussion object
+    - 有权在任何阶段中止、终止、拆分或合规重框一个 case
+    - 对 side case 是否正式立案、blocking child 结束后 parent 如何恢复作最终决定
+    - 不在 intake 选择程序强度，也不指定预测性 roster；程序模式依真实异议和有效 Full 投票升级
 
-- case 立案权:
-    - 负责 提出 **议案**，正式立案，启动 case lifecycle
-    - 负责 对所有 side case 动议作出 **立案裁定**；non-blocking 事项在 parent 结案后统一选择，避免庭中自动繁殖
-    - 有权 在任何阶段 中止或终止 一个 case
+- 最小协作边界:
+    - `Speaker of the House` 依宪法直接选择一个主 owner并执行边界内串行 handoff，无须逐次请求本人批准
+    - 普通 handoff 不得扩大核心问题、目标或 non-goals；涉及这些冻结对象的变化由本人裁定另立、拆案或重框
+    - 负责逐项批准需要全案访问、非 owner 专业角色、额外 role instance、敏感权限或超出 standing scope 的 `RP-###`；有效 Full 投票后宪法直接授予 electorate 的冻结产出/直接依赖只读范围是唯一无需 RP 的例外，敏感材料仍须本人批准
+    - owner 边界匹配、objection intake 或证据中出现实体，不自动产生上述扩大权限
 
-- 参与名单审批权:
-    - 负责 在不可改写的 intake 块中一次批准每个 case 的 **初始 agent 名单、role instance、具体交付与可访问范围**；Fast Track 指派不得事后补写初始名单
-    - 负责 逐一批准或拒绝立案后的每项参与变更请求，包括增加、移除、豁免交付及修改 scope/delivery；所有权匹配、自请出庭、证据中新出现的实体或其他 agent 的推荐，都不产生自动参与资格
-    - 批准一个 agent 不推定批准同一请求中的其他 agent；新增 `Evidence Examiner` 并行 instance 也须逐一批准
-
-- Fast Track 指派权:
-    - 对满足 [Fast Track 全部准入条件](../lifecycle/tracks.md#准入边界) 的事项，有权 **直接指派** owner 执行，免去议案庭审与方案庭审
-    - 指派时 必须给出 **可验收的完成标准**；该指派说明 即为[宪法第二条](../constitution.md)所要求的方案依据
-    - 在不可改写的 intake 块中一次批准 Speaker、执行 owner 与其他已知初始参与者；Speaker 只对提出者已经提交的材料完成相关性路由并冻结最小 intake BOS 与 DES，不得为 preflight 主动调查或制造证据
-    - `EMPTY / INHERITED_ONLY` 时可直接指派并引用 `CR = NOT_APPLICABLE`；`FIRST_RANDOM_REQUIRED` 且 Examiner 未在初始名单时，须以 `RP-###` 与 `PARTICIPATION_RULING` 批准增员。首批 16% 抽样后，由指派本身引用 CR 并隐式选择 `RULE_NOW`，或先签发其他证据方向
-    - 初始批准块创建后不得借 Fast 指派补写；任何尚未获批的 role instance 均按立案后增员处理
-    - Fast Track 事项仍须经 `Acceptance Inspector` **验收**；此项不可免除
-
-- Debate 裁定权:
-    - 负责 在目标已固定、方案仍需共同设计时指定主 owner，并批准 Debate 初始参与名单
-    - 负责 对辩论庭形成的集成方案作一次 `DEBATE_RULING`；批准时分配该 action 唯一的 acceptance `AS-###` 并进入实施，驳回后结案
+- 程序升级边界:
+    - 完整 RS 上一项 material 异议被主 owner 拒绝时，case 依规范自动进入 debate 庭前分组，不需要本人把 case “分档”；是否实际开启 debate hearing 要先完成 OG 与可能的 Full 投票
+    - Full（众议庭）只可由冻结合作 owner 集合达到异议门槛后，经有效 `FV-###` 严格过半选择；本人不得以风险、重要性或个人偏好绕过该门槛
+    - Full 投票只约束程序模式，不约束本人对议案或方案的实体裁定
+    - 可提审有关 voter eligibility、异议分组或计票的程序争议，但不能把提审变成自行选择 Full 的替代路径
 
 - 证据续查专属权:
-    - 首批 16% 随机抽查与置信度报告完成后，或 DES 写为 `AWAITING_CHIEF_DIRECTION` 时，负责选择 `RULE_NOW`、`NEXT_RANDOM_16`、`TARGETED_CHECK`、`RETURN_FOR_REVISION` 或 `RECLASSIFY`
-    - `EMPTY / INHERITED_ONLY` 时无需创建 Examiner 或新置信度报告；可引用当前 DES 与既有逐项核验历史推进
-    - 定向核验必须点名有限 `DU-###`、理由与决策影响；每次续查必须写明停止条件。Full 选择 `RULE_NOW` 时须显式接受未覆盖的 Full 风险
-    - 返修后的 successor DES 不重置自动首批，旧核验结果与失败历史必须继承；任何 agent 或获授权程序角色不得代行本项权力
+    - 正式证据控制激活后，首批 CR 完成或 DES 写为 `AWAITING_CHIEF_DIRECTION` 时，只能选择 `RULE_NOW / NEXT_RANDOM_16 / TARGETED_CHECK / RETURN_FOR_REVISION`
+    - `EMPTY / INHERITED_ONLY` 时不创建 Examiner 或空 CR，可引用现有记录推进
+    - 定向核验必须点名有限 DU、理由、决策影响和停止条件；任何 procedure mode 下选择 RULE_NOW 都须显式接受所列未覆盖风险
+    - successor DES 不重置核验历史、sampling scope 或首批资格；证据方向不得改变 discussion type 或绕过 Full 投票升级程序
 
-- 范围与阶段授权权:
-    - 负责 对新增 `write_set`、`contract_set` 或 owner slot 作 `SCOPE_RULING`；批准时同步重判 Track 与 roster，未批准的范围不得进入方案或触发增员
-    - 负责 授权 lifecycle phase 转换及新的 `SI-###`；同一 phase 内的证据返修沿用当前 SI，复议或 acceptance revision 的 phase 转换可创建裁定点名的新 SI。批准 action 时创建唯一 `AS-###`，同一 action 的全部验收 AT/SI/复议沿用；任何返修、重分类、successor DES、新 SI 或 AT 都不得重置首批资格
-    - 阶段 `BOS-###` 冻结后，无法映射既有 BO 的新 blocker 不得由 agent 加入当前流程；本人只能按现有记录裁定、终止/拆案、另立 case，或以 standalone `REFRAME_RULING` / 同一 scope/Track ruling 内嵌 `ATOMIC_REFRAME` 原子重框。重框须逐项保存 BO 与 condition/RC lineage，继承 SI、effective DES、sampling scope 与首批状态；终态不得重开，OPEN BO 与 OPEN atom 数均不得增加
-    - blocking side case 结束或终止后，负责以 `SIDE_CASE_RULING` 明示恢复或终止 parent；不得自动恢复
+- 范围与收敛权:
+    - 核心问题、目标结果、non-goals 或 discussion type 的变化不能通过普通 handoff 完成；负责裁定另立 case、终止、拆案或合规重框
+    - BOS 冻结后，重框必须逐项保存 BO 与 condition/RC lineage，继承 SI、effective DES、sampling scope、首批状态及 active revision cycle；终态不得重开，开放 atom 不得增加
+    - blocking child 关闭后，负责明示恢复、终止或重框 parent，不得自动恢复
 
 - 最终裁定权:
-    - 负责 对 **议案** 做出最终裁定 (议案裁定)
-    - 负责 对 **方案** 做出最终裁定 (方案裁定)
-    - 负责 对每个 `AT-###` 作 `ACCEPTANCE_RULING`：通过时结束证据方向、接受所列未覆盖风险并逐项处置验收 BOS；不通过时保留失败相关 OPEN BO 并进入验收庭审
-    - 负责 对验收庭审结果做出最终复议裁定，并明示选择接受辩护并通过验收、终止、拆案或再授权返修；`Procedural Judge` 只可裁定客观失败与辩护状态，不得代行后续选择
-    - 所有裁定 以 `Speaker of the House` 提交的 **庭审产出**（意见和建议、方案、发言记录、决策证据集、抽样置信度报告等）为依据
+    - 对 `discussion_type: motion` 作 `MOTION_RULING`，写出实际判断、依据和适用边界；议案不能授权 action
+    - 对 `discussion_type: proposal` 作 `PLAN_RULING`；`ruling_scope: ACTION` 才能授权 action并创建唯一 `AS-###`，`ruling_scope: COMPONENT` 只批准同类 extension 的组件并返回 parent
+    - 只能裁定 SUMMARY 点名的单一 ruling-ready MS/PS，不得直接批准“当前快照 + 未集成 AM”；若希望采纳未集成内容，先返回主 owner 集成，必要时转移 lead，再经 successor RS 送裁定
+    - 对通过的 `AT-###` 作 `ACCEPTANCE_RULING: PASSED` 并结案；方案主 owner 对失败结论有争议时，以 `ACCEPTANCE_RULING: FAILED_TO_HEARING` 保留失败义务并开启验收庭审
+    - 方案主 owner 接受失败时不要求形式性开庭，直接作复议裁定；对无争议失败或验收争议最终选择接受当前实现、终止、拆案、回滚或授权受限返修。任何 owner 的“接受失败”本身不授权 action
+    - 受限返修只能留在原获准 PS/AS；若必须改变方案、AC、owner 责任或授权边界，使用 `RECONSIDERATION_RULING: SPLIT` 建立 blocking side-case proposal，同时冻结原失败 AS 中已获准的回滚/containment 与 parent 等待状态，不借 SPLIT 新增 action。child 结束后仍明示释放并以后继复议裁定处置原 AS
+    - 裁定依据可以是无争议的默认协作产出，也可以是辩论庭、众议庭或验收庭审产出；不得要求案件为取得裁定而形式性开庭
+    - 每项 material 被拒异议都须在最终裁定中得到明确处置；多数票只决定是否全面审理，不决定实体胜负
+    - 关闭 hearing/case 或授权实体 action 的最终裁定，在所需 THREAD_STATUS 与最终 `NOTICE: CLOSURE_COMMIT` 完成前保持 `PENDING_CLOSURE`；commit marker 同时使裁定和新 logical state 生效，在此之前不得开始 action
+    - 每份此类裁定冻结 closure deadline 与 bundle payload；Speaker 逾期时由 runtime 自动提交，runtime 不可用时可指定无同案身份冲突的临时 recorder 完成 ministerial 记账，任何归档角色不得阻止终局裁定
 
 - 授权与复核权:
-    - 负责 以 `PROCEDURAL_AUTHORITY_RULING` 在规范已定义的三类程序问题 catalog 内启用、停用、收窄或撤销 `Procedural Judge` 授权；不得借个案裁定创造新的程序问题类型或结果枚举。授权清单的变更，属于 **终局裁定**
-    - 有权 随时以同一记录类型收回 对 `Procedural Judge` 的任何授权
-    - 有权 **提审** 任何已交由 `Procedural Judge` 处理的事项，收归本人裁定
-    - 有权 **推翻** `Procedural Judge` 已做出的任何裁定
+    - 以 `PROCEDURAL_AUTHORITY_RULING` 在规范已定义的程序问题 catalog 内启用、停用、收窄或撤销 `Procedural Judge` 授权
+    - 可随时提审或推翻 `Procedural Judge` 裁定；不得借个案授权创造新实体裁决主体
 
 - 身份分离义务:
-    - 本人掌握的未记录事实需要进入庭审时，先由 `Speaker of the House` 依 `Witness` 传唤门禁发出传票，再显式切换为 `Witness` 身份回答
-    - 作证结束后，须显式返回 `Chief Judge` 身份，方可作出裁定
-    - 不得以裁定权替代证言的举证与质证程序，也不得把个人偏好包装成事实证言
+    - 本人掌握的未记录事实需要进入 case 时，先经 Witness 传唤门禁并显式切换身份
+    - 作证结束后须显式返回 `Chief Judge` 身份方可裁定
+    - 不得以裁决权替代证言或把个人偏好包装成事实
+
+- memory:
+    - 作为 human 角色，记忆由本人自行管理，不受 agent 记忆规则约束

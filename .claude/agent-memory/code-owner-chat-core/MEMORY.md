@@ -11,5 +11,5 @@
 - [Boot gate 双闸契约](boot-gate-chat-core-contract.md) — signalReady 只满足 chatFirstScreen 不等于 ready；chat 会在 overlay 下无限期空跑；overlay 吞 Escape+锁焦点,我加全局热键要当心
 - [runtime event 词汇表是闭集](runtime-event-vocabulary-closed-set.md) — 14 项 Set + 两道静默丢弃门 + 零消费者的诊断缓冲;后端加帧类型今天得到零反馈
 - [Memory V2 wire 路径](memory-v2-wire-path.md) — 走 done 信封不走 runtime event 总线;四道门(第四道改写值不是丢键)、active 面有 typed 回执但没出口、两个时序坑;含加帧成本速查表
-- [side-menu modal hub 的 id 契约](side-menu-modal-hub-id-contract.md) — node.chatId≡activeChatIdRef 五段证明;两条静默错主(右键≠活动会话 更危险)、挂载接口四条形状约束
+- [side-menu modal hub 的 id 契约](side-menu-modal-hub-id-contract.md) — node.chatId≡activeChatIdRef 五段证明;两条静默错主;onInspectMemory 对象参数已落地(字段表);MemoryInspectModal 有两个挂载点
 - [context_v2 消费面的两个坑](context-v2-consumer-traps-chat-core.md) — 18方法mock加一个就静默走降级分支;两张蓄意不合并的码表(判据是码×语境);store_disabled 在 src 下零出现

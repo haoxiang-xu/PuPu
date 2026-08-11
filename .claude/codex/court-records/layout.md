@@ -5,25 +5,27 @@
 ```text
 .claude/court/
 ├── .numbers/
+│   ├── motions/
+│   │   └── M-<sequence>-<date>/
 │   └── proposals/
-│       └── <proposal-id>/          # 原子编号占位，只保存所属 case 指针
+│       └── P-<sequence>-<date>/
 └── cases/
     └── <case-id>/
-        ├── case.md                 # 当前状态、待裁问题与文件索引
-        ├── record.md               # 追加式完整发言记录
-        ├── evidence.md             # 证据、DU/DES、随机批次与置信度报告
-        ├── proposal.md             # 方案、快照 manifest 与 ACK ledger
-        ├── parking-lot.md          # 有未进入主流程的相关性处置时创建
-        ├── ruling.md               # 有裁定或 Fast Track 指派时创建
-        └── acceptance.md           # 进入验收时创建
+        ├── case.md
+        ├── record.md
+        ├── motion.md              # discussion_type: motion 时存在
+        ├── proposal.md            # discussion_type: proposal 时存在
+        ├── evidence.md            # 首个稳定 E/ES 或正式证据控制出现时按需创建
+        ├── parking-lot.md         # 首次产生相关性移出处置时创建
+        ├── ruling.md              # 首次裁定/授权时创建
+        └── acceptance.md          # 获准方案进入验收时创建
 ```
 
-- `case.md` 在立案时创建，所有 track 必须存在
-- `record.md` 在第一次庭审发言或冻结首个 `BOS-###` 时创建；`evidence.md` 在本阶段证据 preflight 冻结首份 `DES-###` 时创建，即使 `N = 0` 也保存空 manifest 与 `CR = NOT_APPLICABLE`
-- `proposal.md`，`ruling.md` 与 `acceptance.md` 按阶段创建，不提前生成空文件
-- `case.md` 的文件索引只列已经创建的文件；阶段推进时随文件创建而更新
-- Fast Track 没有庭审实体发言，但仍以一条最小 `OBLIGATION_SET` 在 `record.md` 冻结 intake BOS，并以最小 `evidence.md` 保存 preflight DES；这两条程序记录不构成开庭。`EMPTY / INHERITED_ONLY` 时直接指派，`FIRST_RANDOM_REQUIRED` 时执行首批 16% 抽样；其他非空集合等待 `Chief Judge` 方向。其指派记录写入 `ruling.md`，类型为 `FAST_TRACK_DIRECTIVE`，引用最新 CR 或 `CR = NOT_APPLICABLE` 即作证据处置
-- Fast preflight 使用 `phase: intake`；提出者随 filing 提交的证据在 `evidence.md` 以 `INTAKE@<submission-hash>` 作为提交来源，无需伪造 `S-####` 或创建 `record.md`
-- Debate 默认创建 `record.md`、`evidence.md`、`proposal.md` 与 `ruling.md`；空决策证据集仍以 `N = 0` manifest 留痕，不创建 Examiner
-- `parking-lot.md` 只在首次产生 `ADMIT_CONTEXT`、`MERGE_DUPLICATE`、`PARK_OUT_OF_SCOPE`、`PARK_PREMATURE` 或 `RETURN_NO_LINK` 项时创建，不得为满足格式制造空清单
-- side case 使用独立的 `<case-id>` 目录，通过 `case.md` 的 `parent_case_id` 与 `relation` 关联，不嵌套在 parent case 目录内
+- 编号通过先原子创建 `.numbers/<type>/<id>/` 取得；占位只保存 case 指针，不是正文
+- `case.md`、`record.md` 及与 discussion type 对应的 `motion.md` 或 `proposal.md` 在 case 创建时存在
+- 默认协作事件从主 owner 选择起写入 `record.md`，无需等到开庭
+- `motion.md` 与 `proposal.md` 互斥；议案需要 action 时创建新的 proposal case，不在原目录添加 `proposal.md`
+- 默认协作不创建空 `evidence.md`；但一旦分配 `E-####` 或稳定 `ES-###`，即可按需创建只保存 E/ES 的文件，不因此启动 DES、抽样或 Examiner。空 DES 只在正式证据控制已经合法启动后用于记录 `N = 0`
+- `acceptance.md` 只属于经 `PLAN_RULING` 获准的方案；议案 case 不得创建
+- 文件索引只列实际存在的文件，不提前生成空文件
+- extension、derived 与 side case 使用独立 case 目录，不嵌套在 parent 目录

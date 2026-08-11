@@ -1,47 +1,47 @@
 # 法典 · Codex
 
-本目录是 PuPu 组织的 **法典库**，归 [`codex`](roles/codex.md) 所有，是其唯一维护入口。
+本目录是 PuPu 当前生效的 Quorum 法典副本，归 [`codex`](roles/codex.md) 维护。具体角色 instance 位于 `.claude/agents/`；历史案卷位于 `.claude/court/`。
 
 ## 来源与版本
-
-宪章正文迁自上游 Quorum 规范：
 
 | 项 | 值 |
 |---|---|
 | 上游 | `https://github.com/haoxiang-xu/quorum.git` · `docs/quorum/` |
-| 迁入版本 | `3580e75` + 2026-08-09 Quorum 工作树快照 |
-| 本地副本 | 本目录，含 [`adaptations.md`](adaptations.md) 记录的因地制宜修改 |
+| 迁入版本 | `ab40f4d` · 2026-08-10 |
+| 本地生效副本 | `.claude/codex/` |
+| PuPu 专有差异 | [`adaptations.md`](adaptations.md) |
 
-上游是宪章的规范性来源；本副本是 **本仓的生效版本**。二者出现差异时，以本副本为本仓效力所在，但 `codex` 负有对账义务：上游更新时复核差异，将非本仓适配的改动同步进来，并在 `adaptations.md` 记录。
+上游是通用规范来源，本目录是 PuPu 的生效版本。同步不得覆盖 `.claude` 路径适配、混合执行政策、判例或历史兼容页；所有本仓偏离都必须在 `adaptations.md` 说明。
 
-## 阅读顺序
+## 推荐阅读顺序
 
-1. [宪法](constitution.md) —— 最高准则，一切角色规则与流程不得与之抵触
-2. [Case Lifecycle 议案生命周期](lifecycle/README.md)
-   - [Track 分档与不立案门](lifecycle/tracks.md)
-   - [庭审发言协议](lifecycle/speech-protocol.md)
-   - [全 Track 共通收敛规则](lifecycle/decision-controls.md)
-   - [证据规则](lifecycle/evidence-rules.md)
+1. [Constitution 宪法](constitution.md)
+2. [Case Lifecycle 讨论生命周期](lifecycle/README.md)
+   - [讨论模型与最小主 owner 原则](lifecycle/discussion-model.md)
+   - [交棒、参与与传唤](lifecycle/summons.md)
    - [Debate 辩论庭](lifecycle/debate-court.md)
-   - [传唤机制](lifecycle/summons.md)
-   - [获批 roster 的到场与交付规则](lifecycle/quorum.md) —— PuPu 本仓条文
-   - [Side Case 分叉](lifecycle/side-cases.md)
-3. [Roles 角色定义](roles/README.md) —— 13 份角色规范
-4. [Court Records 庭审档案](court-records/README.md) —— 格式、编号、canonical source、模板
+   - [Full 众议庭](lifecycle/full-court.md)
+   - [庭审发言协议](lifecycle/speech-protocol.md)
+   - [收敛与裁定控制](lifecycle/decision-controls.md)
+   - [证据规则](lifecycle/evidence-rules.md)
+   - [延伸与 Side Case](lifecycle/side-cases.md)
+3. [Roles 角色](roles/README.md)
+4. [Court Records 协作与庭审档案](court-records/README.md)
 5. [Department 部门](department.md)
 6. [Archive 数据总库](archive.md)
 
-## 本仓专有条文
+议案 (`motion`) 与方案 (`proposal`) 是独立讨论类别；协作、Debate 与 Full（众议庭）是分歧程序强度。新 case 一律从一个主 owner 和 `collaboration` 开始，不预选 Track 或 roster。
 
-- [`adaptations.md`](adaptations.md) —— 因地制宜修改台账，每条载明理由与依据
-- [`lifecycle/quorum.md`](lifecycle/quorum.md) —— 获批 roster 的到场、缺席与交付规则；不得自动增员
-- [`hybrid-execution-policy.md`](hybrid-execution-policy.md) —— Claude/Codex 混合执行政策（A / B / C / R 四模式与角色分配）
+## PuPu 专有条文
+
+- [`adaptations.md`](adaptations.md) —— 因地制宜台账与上游同步记录
+- [`hybrid-execution-policy.md`](hybrid-execution-policy.md) —— Claude/Codex 混合执行政策
 - [`precedents/`](precedents/) —— 判例库
+- [`lifecycle/tracks.md`](lifecycle/tracks.md) —— 旧 Track 案卷的只读兼容说明，不具现行效力
+- [`lifecycle/quorum.md`](lifecycle/quorum.md) —— 旧 roster 案卷与调度故障的只读兼容说明，不具现行增员效力
 
-## 角色定义与角色 instance 的区别
+## 角色定义与角色 instance
 
-本目录存放 **角色定义**（`Code Owner` 这类角色是什么、有什么职责、边界取何种形式）。
+本目录的 `roles/` 说明角色模板；`.claude/agents/<department>/<instance>.md` 说明 PuPu 中的具体 instance、所有权边界和本地职责。
 
-具体的 **角色 instance**（`code-owner-chat-core` 拥有哪些路径、它验证过什么方法）存放在 `.claude/agents/<department>/<instance>.md`。
-
-改角色定义 = 改法典，走 `codex` 的法典维护条款。改某个 instance 的边界 = 改该 instance 的 charter，走 case lifecycle 或边界自愈。
+修改法典、角色 instance、skill、所有权或组织结构都属于真实 action：可先用 motion 判断是否应改，但实际修改必须由获准 proposal 授权。历史 `.claude/court/**` 始终 append-only，不因法典同步回写。

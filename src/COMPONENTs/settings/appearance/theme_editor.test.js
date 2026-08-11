@@ -344,7 +344,12 @@ describe("ThemeEditor", () => {
     try {
       renderWithCtx();
 
-      fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
+      const resetButton = screen.getByRole("button", {
+        name: "Reset to default",
+      });
+      expect(resetButton).toHaveStyle({ backgroundColor: "transparent" });
+
+      fireEvent.click(resetButton);
       expect(
         screen.getByRole("button", { name: "Confirm reset" }),
       ).toBeInTheDocument();
@@ -353,9 +358,12 @@ describe("ThemeEditor", () => {
         jest.advanceTimersByTime(3100);
       });
 
-      expect(
-        screen.getByRole("button", { name: "Reset to default" }),
-      ).toBeInTheDocument();
+      const restoredResetButton = screen.getByRole("button", {
+        name: "Reset to default",
+      });
+      expect(restoredResetButton).toHaveStyle({
+        backgroundColor: "transparent",
+      });
       expect(readThemeSettings().custom?.light_mode?.accent).toBeUndefined();
     } finally {
       jest.useRealTimers();

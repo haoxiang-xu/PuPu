@@ -6,7 +6,13 @@ import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_tr
 import ConfirmDeleteApiKeyModal from "./confirm_delete_api_key_modal";
 import { readModelProviders, writeModelProviders } from "../storage";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
+import { providerSecretConfigured } from "../../../../SERVICEs/provider_secret_status";
 import { toast } from "../../../../SERVICEs/toast";
+
+const CREDENTIAL_ID_BY_STORAGE_KEY = Object.freeze({
+  openai_api_key: "openai",
+  anthropic_api_key: "anthropic",
+});
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const { t } = useTranslation();
@@ -17,7 +23,15 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     () => readModelProviders()[storage_key] || "",
   );
   const [visible, setVisible] = useState(false);
-  const [saved, setSaved] = useState(() => !!readModelProviders()[storage_key]);
+  const credentialId = CREDENTIAL_ID_BY_STORAGE_KEY[storage_key] || "";
+  const credentialIsConfigured = useCallback(
+    () =>
+      credentialId
+        ? providerSecretConfigured(credentialId)
+        : !!readModelProviders()[storage_key],
+    [credentialId, storage_key],
+  );
+  const [saved, setSaved] = useState(credentialIsConfigured);
   const [justSaved, setJustSaved] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,7 +49,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     if (!durable) {
       const restored = readModelProviders()[storage_key] || "";
       setValue(restored);
-      setSaved(!!restored);
+      setSaved(credentialIsConfigured());
       setJustSaved(false);
       toast.error(`${label} could not be saved securely. Please try again.`, {
         dedupeKey: `api_key_save_failed_${storage_key}`,
@@ -54,7 +68,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     }
     setSaving(false);
     return true;
-  }, [value, storage_key, label, saving]);
+  }, [value, storage_key, label, saving, credentialIsConfigured]);
 
   const handleChange = useCallback((v) => {
     setValue(v);
@@ -69,7 +83,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     if (!durable) {
       const restored = readModelProviders()[storage_key] || "";
       setValue(restored);
-      setSaved(!!restored);
+      setSaved(credentialIsConfigured());
       toast.error(`${label} could not be cleared securely. Please try again.`, {
         dedupeKey: `api_key_clear_failed_${storage_key}`,
       });
@@ -81,7 +95,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     setSaved(false);
     setSaving(false);
     return true;
-  }, [storage_key, label, saving]);
+  }, [storage_key, label, saving, credentialIsConfigured]);
 
   const isDirty = value.trim() !== (readModelProviders()[storage_key] || "");
 
@@ -117,7 +131,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
       <Button
         label={justSaved ? t("model_providers.saved") : t("model_providers.save")}
         onClick={handleSave}
-        disabled={saving}
+        disabled={saving || !isDirty}
         style={{
           paddingVertical: 2,
           paddingHorizontal: 8,
@@ -192,7 +206,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
 
       <Input
         label={label}
-        placeholder={placeholder}
+        placeholder={saved && !value ? "••••••••" : placeholder}
         value={value}
         set_value={handleChange}
         type={visible ? "text" : "password"}

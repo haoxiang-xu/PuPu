@@ -190,6 +190,9 @@ const BootOverlay = () => {
     inset: 0,
     zIndex: 2147483647,
     background,
+    border: "none",
+    outline: "none",
+    boxShadow: "none",
     opacity: exiting ? 0 : 1,
     transition: `opacity ${EXIT_MS}ms ease`,
     /* Stays "auto" through the exit fade. Dropping to "none" here let the
