@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "Pontuação mínima de similaridade para fatos, episódios e playbooks recuperados. Defina como Off para desativar o filtro."
   },
   "memory_inspect": {
-    "title": "Memória",
-    "title_long_term": "Memória de longo prazo",
     "loading": "Carregando…",
     "no_vectors_chat": "Nenhum vetor de memória encontrado para este chat.",
     "no_vectors": "Nenhum vetor de memória encontrado.",

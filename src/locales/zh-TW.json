@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "召回事實、事件和劇本的最低相似度分數。設為 Off 可停用分數過濾。"
   },
   "memory_inspect": {
-    "title": "記憶",
-    "title_long_term": "長期記憶",
     "loading": "載入中…",
     "no_vectors_chat": "此聊天沒有記憶向量。",
     "no_vectors": "未找到記憶向量。",

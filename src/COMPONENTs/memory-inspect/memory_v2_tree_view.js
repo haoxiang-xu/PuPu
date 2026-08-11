@@ -49,28 +49,40 @@ import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translat
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /* ── Overlay geometry ────────────────────────────────────────────────
-   6px inset and 10px radius come straight from recipes_page's overlayPanel.
-   The two verticals do NOT, and the reasons are specific to this modal:
+   The left panel is now the reference rect verbatim: recipes_page's
+   overlayPanel is top:6 / left:6 / bottom:6, and so is this.
 
-   TOP 72 on the left panel — the inspector paints its own title at (24,20)
-   with the chat title under it, ending around y=62. That header belongs to
-   the vector view, which REVISION 1 makes the permanent background, so the
-   side menu starts below it instead of covering it. The right panel has no
-   such obstruction and keeps the reference's top:6 — which is also exactly
-   the vector detail card's top, see PANEL_BOTTOM.
+   REVISION 2 removed the two deviations REVISION 1 had argued for:
 
-   BOTTOM 96 on both — the scatter's PC/jitter controls sit at bottom:16,
-   centred. The vector detail card already clears them with this same inset;
-   a panel running to bottom:6 would make the background view unusable, which
-   is the opposite of what REVISION 1 asks for. */
+   The old top:72 existed to duck under the inspector's own "Memory" + chat
+   title header. REVISION 2 deletes that header outright, so there is nothing
+   left to duck under and the panel starts at the inset like the reference.
+
+   The old bottom:96 existed to clear the scatter's PC/jitter control bar
+   (bottom:16, centred). Running to bottom:6 does reintroduce a possible
+   overlap, and that is a deliberate, CEO-sanctioned trade: the bar is
+   centred in a 920px modal while this panel ends at x=242, so anything the
+   panel covers is the bar's LEFT END and nothing else, and the collapse
+   button one row up is the escape hatch — exactly how the agent builder's
+   recipe list relates to the canvas it floats over. Painting order carries
+   it: this component is the modal's last child at the same z-index 3, so it
+   wins over the bar without either side reaching into the other's state.
+
+   The RIGHT panel keeps bottom:96 on purpose and is NOT a leftover. It has
+   to stay rect-identical to the vector detail card it sits on top of
+   (top:6 / right:6 / bottom:96 / width:320) — unequal rects would let the
+   card's edge peek out from behind it. See DETAIL_BOTTOM. */
 const PANEL_INSET = 6;
-const SIDE_MENU_TOP = 72;
-const PANEL_BOTTOM = 96;
+const DETAIL_BOTTOM = 96;
 const SIDE_MENU_WIDTH = 236;
 /* Matches the vector detail card's width exactly. Both right-hand panels can
    be open at once (a scatter point AND a tree entry selected); equal rects
    mean this one covers that one with no edge peeking out. */
 const DETAIL_WIDTH = 320;
+/* recipes_page.js parks its expand handle at top:14 / left:14 (its `expandTop`
+   is 14 whenever there is no macOS traffic-light padding — and inside a modal
+   there never is). */
+const EXPAND_HANDLE_INSET = 14;
 
 const PANEL_TRANSITION =
   "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)";
@@ -167,9 +179,23 @@ const iconButtonStyle = (isDark, extra = {}) => ({
 /*  select and drive the detail panel. That split is the whole interaction  */
 /*  model, so it is expressed once, here, on `kind` — not on hasChildren,   */
 /*  which would make a childless folder behave like a file.                 */
+/*                                                                         */
+/*  `hoverArmed` is the REVISION 2 phantom-hover fix. It is a gate, not a   */
+/*  second hover state: `hovered` still tracks the pointer exactly, it just */
+/*  is not allowed to paint until the pointer has provably moved. See       */
+/*  usePointerHasMoved for the measurement this rests on.                   */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-function TreeRow({ row, isDark, fontFamily, color, isSelected, onToggle, onSelect }) {
+function TreeRow({
+  row,
+  isDark,
+  fontFamily,
+  color,
+  isSelected,
+  hoverArmed,
+  onToggle,
+  onSelect,
+}) {
   const [hovered, setHovered] = useState(false);
   const { node, depth, hasChildren, expanded } = row;
   const isFolder = node.kind === "folder";
@@ -199,7 +225,11 @@ function TreeRow({ row, isDark, fontFamily, color, isSelected, onToggle, onSelec
         paddingRight: 8,
         borderRadius: ROW_RADIUS,
         cursor: "pointer",
-        backgroundColor: isSelected ? activeBg : hovered ? hoverBg : "transparent",
+        backgroundColor: isSelected
+          ? activeBg
+          : hovered && hoverArmed
+            ? hoverBg
+            : "transparent",
         transition: "background-color 0.12s ease",
         userSelect: "none",
         WebkitUserSelect: "none",
@@ -445,6 +475,51 @@ function DetailField({ label, value, mono, isDark }) {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  usePointerHasMoved — the phantom-hover gate (REVISION 2)               */
+/*                                                                         */
+/*  THE BUG: open the inspector and one row is already lit as hovered,      */
+/*  untouched. THE CAUSE, measured rather than assumed: when a layout       */
+/*  change puts a new element under a cursor that has not moved, Chromium   */
+/*  recomputes the hover chain and dispatches real boundary events to it.   */
+/*  The tree arrives asynchronously, so its first row lands under whatever  */
+/*  the pointer was resting on after the click that opened the modal.       */
+/*                                                                         */
+/*  This is worth writing down because the obvious diagnosis is wrong.      */
+/*  Playwright, headed Chromium, cursor parked and never moved after the    */
+/*  click, rows injected 400ms later underneath it:                         */
+/*                                                                         */
+/*      --- rows rendered ---                                              */
+/*      mouseover row5                                                     */
+/*      mouseenter row5      <- JS handler, no user movement                */
+/*                                                                         */
+/*  So this is NOT a CSS `:hover` artifact that JS-tracked hover is immune  */
+/*  to. Both light up; these rows were already JS-tracked (as is            */
+/*  BUILTIN_COMPONENTs/explorer/explorer.js, which has the same exposure    */
+/*  and is simply never mounted under a resting cursor in practice).        */
+/*  Rewriting the hover tracking would have changed nothing.                */
+/*                                                                         */
+/*  What the same run DID hand us is a clean discriminator: the panel's     */
+/*  mousemove and pointermove listeners never fired. Chromium's hover       */
+/*  recompute emits boundary events ONLY. A human emits mousemove. So the   */
+/*  fix is to keep hover tracking exactly as it was and refuse to PAINT it  */
+/*  until a mousemove has been seen — one bit, armed by the user, re-armed  */
+/*  every time a fresh payload is about to drop new rows under the cursor.  */
+/*                                                                         */
+/*  Deliberately not a ref: arming has to re-render, or the already-hovered */
+/*  row keeps its old background until something else happens to repaint.   */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const usePointerHasMoved = () => {
+  const [moved, setMoved] = useState(false);
+  /* Safe to call on every mousemove: useState bails out of the re-render when
+     the next value is Object.is-equal to the current one, so only the first
+     move of each armed cycle costs anything. */
+  const arm = useCallback(() => setMoved(true), []);
+  const disarm = useCallback(() => setMoved(false), []);
+  return { moved, arm, disarm };
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  useMemoryV2Tree                                                        */
 /*                                                                         */
 /*  One load per (open, ownerChatId, spaceId) plus an explicit refresh.     */
@@ -458,6 +533,12 @@ const useMemoryV2Tree = ({ open, ownerChatId, load }) => {
   const [spaceId, setSpaceId] = useState("");
   const [nonce, setNonce] = useState(0);
   const requestRef = useRef(0);
+  /* Published so callers can react to "a load STARTED", which is a different
+     event from "the payload changed". They come apart whenever a loader hands
+     back a value it has handed back before — same rows, same object, no
+     identity change to notice — and the phantom-hover gate has to close on
+     the start, not on a difference that may never arrive. */
+  const [loadToken, setLoadToken] = useState(0);
 
   /* A different chat is a different tree — drop the space pin so we do not
      ask chat B for a space that only exists in chat A. */
@@ -471,6 +552,7 @@ const useMemoryV2Tree = ({ open, ownerChatId, load }) => {
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     setResult(emptyMemoryV2TreeResult());
+    setLoadToken(requestId);
 
     load({ ownerChatId, spaceId }).then((next) => {
       if (cancelled || requestRef.current !== requestId) return;
@@ -483,7 +565,7 @@ const useMemoryV2Tree = ({ open, ownerChatId, load }) => {
   }, [open, ownerChatId, spaceId, nonce, load]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
-  return { result, refresh, selectSpace: setSpaceId };
+  return { result, refresh, selectSpace: setSpaceId, loadToken };
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -567,7 +649,7 @@ const MemoryV2TreeView = ({
 
   const [collapsed, setCollapsed] = useState(false);
 
-  const { result, refresh, selectSpace } = useMemoryV2Tree({
+  const { result, refresh, selectSpace, loadToken } = useMemoryV2Tree({
     open,
     ownerChatId,
     load,
@@ -587,10 +669,31 @@ const MemoryV2TreeView = ({
   const [expanded, setExpanded] = useState(() => new Set());
   const [selected, setSelected] = useState(null);
   const [seenRoots, setSeenRoots] = useState(null);
+  const [seenLoad, setSeenLoad] = useState(null);
+  const { moved: hoverArmed, arm: armHover, disarm: disarmHover } =
+    usePointerHasMoved();
+
   if (seenRoots !== result.roots) {
     setSeenRoots(result.roots);
     setExpanded(defaultExpandedPaths(result.roots));
     setSelected(null);
+  }
+
+  /* Close the hover gate on every load START, which is a different trigger
+     from the payload swap above and deliberately so. A load is about to tear
+     the rows down and drop a new set under wherever the pointer is resting —
+     the exact moment Chromium hands out an unearned mouseenter — and it does
+     that whether or not the rows come back different. Keying this off
+     `result.roots` instead would miss the case where a loader returns a value
+     it has returned before: no identity change to notice, gate silently left
+     open. (That is not hypothetical; it is what the re-arm test does.)
+
+     Covers open, refresh and space switch. Pointedly does NOT cover folder
+     expand/collapse: there the user just clicked, so the row that slides
+     under the cursor lighting up is what every file tree does. */
+  if (seenLoad !== loadToken) {
+    setSeenLoad(loadToken);
+    disarmHover();
   }
 
   const onToggle = useCallback((path) => {
@@ -718,6 +821,7 @@ const MemoryV2TreeView = ({
                 fontFamily={fontFamily}
                 color={color}
                 isSelected={Boolean(selected) && selected.path === row.path}
+                hoverArmed={hoverArmed}
                 onToggle={onToggle}
                 onSelect={onSelect}
               />
@@ -830,11 +934,15 @@ const MemoryV2TreeView = ({
       {/* ━━ Floating tree side menu (left) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div
         data-testid="memory-v2-tree-view"
+        /* The only listener that can tell a human apart from Chromium's
+           hover recompute. It lives on the panel rather than per row so a
+           move anywhere in the side menu arms every row at once. */
+        onMouseMove={armHover}
         style={{
           ...overlayPanelStyle(isDark),
           left: PANEL_INSET,
-          top: SIDE_MENU_TOP,
-          bottom: PANEL_BOTTOM,
+          top: PANEL_INSET,
+          bottom: PANEL_INSET,
           width: SIDE_MENU_WIDTH,
           ...revealStyle(!collapsed, -12),
         }}
@@ -953,7 +1061,12 @@ const MemoryV2TreeView = ({
       {collapsed && (
         <div
           data-testid="memory-v2-tree-expand"
-          style={{ position: "absolute", top: SIDE_MENU_TOP + 8, left: 14, zIndex: 3 }}
+          style={{
+            position: "absolute",
+            top: EXPAND_HANDLE_INSET,
+            left: EXPAND_HANDLE_INSET,
+            zIndex: 4,
+          }}
         >
           <Button
             prefix_icon="side_menu_left"
@@ -988,7 +1101,7 @@ const MemoryV2TreeView = ({
           ...overlayPanelStyle(isDark),
           right: PANEL_INSET,
           top: PANEL_INSET,
-          bottom: PANEL_BOTTOM,
+          bottom: DETAIL_BOTTOM,
           width: DETAIL_WIDTH,
           ...revealStyle(Boolean(selectedNode), 12),
         }}

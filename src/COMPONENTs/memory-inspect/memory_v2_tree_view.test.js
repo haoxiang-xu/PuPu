@@ -380,17 +380,32 @@ describe("MemoryV2TreeView — the tree itself", () => {
 });
 
 describe("MemoryV2TreeView — the side menu floats and collapses", () => {
-  test("it is a 236px panel inset 6px from the left, not a full-bleed overlay", async () => {
+  test("it is a 236px panel inset 6px on all three sides, not a full-bleed overlay", async () => {
     renderView(READY);
     await screen.findByText("notes");
 
     const style = sideMenu().style;
     expect(style.left).toBe("6px");
     expect(style.width).toBe("236px");
-    /* Clear of the inspector's own title, and clear of the scatter's bottom
-       control bar — the background view has to stay usable. */
-    expect(style.top).toBe("72px");
+    /* REVISION 2: full height, the recipes_page overlayPanel rect verbatim.
+       The old 72/96 pair ducked a header that no longer exists and a control
+       bar the panel is now allowed to overlap at its left end. */
+    expect(style.top).toBe("6px");
+    expect(style.bottom).toBe("6px");
+  });
+
+  test("the entry detail panel deliberately does NOT follow it to full height", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    /* It has to stay rect-identical to the vector detail card underneath it
+       (top:6 / right:6 / bottom:96 / width:320) or that card's edge shows
+       from behind. Only the LEFT panel went full height. */
+    const style = detailPanel().style;
+    expect(style.top).toBe("6px");
+    expect(style.right).toBe("6px");
     expect(style.bottom).toBe("96px");
+    expect(style.width).toBe("320px");
   });
 
   test("collapsing fades and slides it, and never unmounts it", async () => {
@@ -417,11 +432,99 @@ describe("MemoryV2TreeView — the side menu floats and collapses", () => {
 
     fireEvent.click(screen.getByText("side_menu_close"));
     const handle = await screen.findByTestId("memory-v2-tree-expand");
+    /* recipes_page.js parks its expand button at top:14 / left:14 with no
+       traffic-light padding, and a modal never has any. REVISION 2 dropped
+       the old top:80, which only existed to clear a header that is gone. */
     expect(handle.style.left).toBe("14px");
+    expect(handle.style.top).toBe("14px");
 
     fireEvent.click(screen.getByText("side_menu_left"));
     await waitFor(() => expect(sideMenu().style.opacity).toBe("1"));
     expect(screen.queryByTestId("memory-v2-tree-expand")).not.toBeInTheDocument();
+  });
+});
+
+/*
+ * REVISION 2 phantom hover. Chromium hands a real mouseover/mouseenter to an
+ * element that appears under a cursor which has NOT moved — measured in headed
+ * Chromium via Playwright, and it hits JS-tracked hover exactly as hard as it
+ * hits CSS `:hover`, so "use onMouseEnter instead" is not a fix. What that run
+ * also showed is that the recompute emits boundary events ONLY, never a
+ * mousemove. These tests pin that discriminator, because it is the entire
+ * reason the fix works and it is invisible from reading the component.
+ *
+ * jsdom cannot reproduce the recompute itself, so the phantom is modelled the
+ * way the browser delivers it: a mouseEnter with no preceding mouseMove.
+ */
+describe("MemoryV2TreeView — hover does not paint until the pointer moves", () => {
+  test("a mouseenter with no pointer movement behind it does not light the row", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    fireEvent.mouseEnter(row("a.md"));
+
+    expect(row("a.md").style.backgroundColor).toBe("transparent");
+  });
+
+  test("a real pointer move arms it, and the already-entered row lights up", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    /* The true browser ordering: the unearned enter arrives FIRST, the human
+       moves afterwards. The row must light without a second enter, which is
+       why the gate is state and not a ref — a ref would not repaint. */
+    fireEvent.mouseEnter(row("a.md"));
+    expect(row("a.md").style.backgroundColor).toBe("transparent");
+
+    fireEvent.mouseMove(sideMenu());
+
+    expect(row("a.md").style.backgroundColor).not.toBe("transparent");
+  });
+
+  test("leaving still clears it once armed", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    fireEvent.mouseMove(sideMenu());
+    fireEvent.mouseEnter(row("a.md"));
+    expect(row("a.md").style.backgroundColor).not.toBe("transparent");
+
+    fireEvent.mouseLeave(row("a.md"));
+    expect(row("a.md").style.backgroundColor).toBe("transparent");
+  });
+
+  test("a fresh payload re-arms the gate, because it drops new rows under the cursor", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    fireEvent.mouseMove(sideMenu());
+    fireEvent.mouseEnter(row("a.md"));
+    expect(row("a.md").style.backgroundColor).not.toBe("transparent");
+
+    /* Refresh replays exactly the open sequence — rows disappear and land
+       again — so the gate has to close again with them. */
+    await act(async () => {
+      fireEvent.click(screen.getByText("refresh"));
+    });
+    await screen.findByText("notes");
+
+    fireEvent.mouseEnter(row("a.md"));
+    expect(row("a.md").style.backgroundColor).toBe("transparent");
+  });
+
+  test("selection is not gated — an open entry stays marked whatever the pointer did", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    /* Clicking is unambiguous intent, so the active background must not wait
+       on a mousemove the way the hover wash does. Wrapped because selecting
+       also kicks off the content read. */
+    await act(async () => {
+      fireEvent.click(row("a.md"));
+    });
+
+    expect(row("a.md").dataset.selected).toBe("true");
+    expect(row("a.md").style.backgroundColor).not.toBe("transparent");
   });
 });
 

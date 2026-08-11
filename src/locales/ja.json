@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "呼び出される事実、エピソード、プレイブックの最小類似度スコア。スコアフィルタを無効化するには Off に設定します。"
   },
   "memory_inspect": {
-    "title": "メモリ",
-    "title_long_term": "長期記憶",
     "loading": "読み込み中…",
     "no_vectors_chat": "このチャットにはメモリベクトルがありません。",
     "no_vectors": "メモリベクトルが見つかりません。",

@@ -185,6 +185,46 @@ describe("MemoryInspectModal V2 tree overlay", () => {
     expect(screen.queryByTestId("memory-v2-entry-detail")).not.toBeInTheDocument();
   });
 
+  test("the modal paints no Memory title and no chat-title subtitle", async () => {
+    /* REVISION 2 removed both. This is the one AC-2 exception the CEO granted,
+       so it is asserted rather than left to the eye — and `chatTitle` is still
+       passed in on purpose, to prove the caller's prop is now inert instead of
+       quietly reappearing somewhere. */
+    renderModal({
+      sessionId: "chat-1",
+      ownerChatId: "chat-1",
+      chatTitle: "Tuesday planning",
+    });
+    await screen.findByTestId("memory-v2-tree-view");
+
+    expect(screen.queryByText("Memory")).not.toBeInTheDocument();
+    expect(screen.queryByText("Long-Term Memory")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tuesday planning")).not.toBeInTheDocument();
+  });
+
+  test("removing the header leaves the long-term Profiles toggle intact", async () => {
+    /* The title block also held the Profiles button, which is functional.
+       Deleting the block and the button together would have been a silent
+       feature removal in a case that never asked for one. */
+    mockApi.getLongTermMemoryProjection.mockResolvedValue({
+      points: [],
+      variance: [0, 0],
+      profiles: [
+        {
+          id: "pupu_default.json",
+          storage_key: "pupu_default",
+          size_bytes: 64,
+          preview: "{}",
+          document: { preferences: { tone: "concise" } },
+        },
+      ],
+    });
+
+    renderModal({ mode: "long_term" });
+
+    expect(await screen.findByText("Profiles")).toBeInTheDocument();
+  });
+
   test("with no bridge in the renderer the tree degrades to `not enabled`", async () => {
     /* jsdom has no window.contextV2API, which is exactly the web-dev case.
        The tree now loads on mount rather than on a click, so this is also the

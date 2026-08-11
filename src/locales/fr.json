@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "Score de similarité minimum pour les faits, épisodes et playbooks rappelés. Définir sur Off pour désactiver le filtrage."
   },
   "memory_inspect": {
-    "title": "Mémoire",
-    "title_long_term": "Mémoire à long terme",
     "loading": "Chargement…",
     "no_vectors_chat": "Aucun vecteur de mémoire trouvé pour cette conversation.",
     "no_vectors": "Aucun vecteur de mémoire trouvé.",

@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "Mindestähnlichkeitswert für abgerufene Fakten, Episoden und Playbooks. Auf Off setzen, um Filterung zu deaktivieren."
   },
   "memory_inspect": {
-    "title": "Speicher",
-    "title_long_term": "Langzeitgedächtnis",
     "loading": "Wird geladen…",
     "no_vectors_chat": "Keine Gedächtnisvektoren für diesen Chat gefunden.",
     "no_vectors": "Keine Gedächtnisvektoren gefunden.",

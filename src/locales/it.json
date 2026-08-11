@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "Punteggio di somiglianza minimo per fatti, episodi e playbook richiamati. Imposta su Off per disabilitare il filtraggio."
   },
   "memory_inspect": {
-    "title": "Memoria",
-    "title_long_term": "Memoria a lungo termine",
     "loading": "Caricamento…",
     "no_vectors_chat": "Nessun vettore di memoria trovato per questa chat.",
     "no_vectors": "Nessun vettore di memoria trovato.",

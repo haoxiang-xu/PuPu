@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "호출되는 사실, 에피소드, 플레이북의 최소 유사도 점수입니다. 점수 필터를 비활성화하려면 Off로 설정하세요."
   },
   "memory_inspect": {
-    "title": "메모리",
-    "title_long_term": "장기 기억",
     "loading": "불러오는 중…",
     "no_vectors_chat": "이 채팅에 메모리 벡터가 없습니다.",
     "no_vectors": "메모리 벡터를 찾을 수 없습니다.",

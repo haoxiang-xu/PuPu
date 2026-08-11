@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "Minimum similarity score for recalled facts, episodes, and playbooks. Set to Off to disable score filtering."
   },
   "memory_inspect": {
-    "title": "Memory",
-    "title_long_term": "Long-Term Memory",
     "loading": "Loading…",
     "no_vectors_chat": "No memory vectors found for this chat.",
     "no_vectors": "No memory vectors found.",

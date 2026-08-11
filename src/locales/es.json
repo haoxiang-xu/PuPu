@@ -185,8 +185,6 @@
     "long_term_threshold_desc": "Puntuación mínima de similitud para hechos, episodios y playbooks recuperados. Establecer en Off para desactivar el filtrado."
   },
   "memory_inspect": {
-    "title": "Memoria",
-    "title_long_term": "Memoria a largo plazo",
     "loading": "Cargando…",
     "no_vectors_chat": "No se encontraron vectores de memoria para este chat.",
     "no_vectors": "No se encontraron vectores de memoria.",
