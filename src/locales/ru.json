@@ -198,7 +198,6 @@
     "empty_profile": "Документ профиля пуст.",
     "no_conversation_text": "Для этого фрагмента памяти не сохранён текст беседы.",
     "load_failed": "Не удалось загрузить проекцию памяти",
-    "view_vectors": "Векторы",
     "view_tree": "Дерево",
     "tree_disabled": "Память V2 не включена",
     "tree_disabled_no_owner": "Откройте инспектор из чата, чтобы просмотреть его дерево памяти.",
@@ -214,7 +213,17 @@
     "tree_refresh": "Обновить",
     "tree_retry": "Повторить",
     "tree_entry_count": "записей: {count}",
-    "tree_truncated": "Показано {shown} из {total} строк"
+    "tree_truncated": "Показано {shown} из {total} строк",
+    "entry_detail": "Сведения о записи",
+    "tree_field_path": "Путь",
+    "tree_field_size": "Размер",
+    "tree_field_url": "URL",
+    "tree_field_updated": "Обновлено",
+    "tree_preview": "Предпросмотр",
+    "tree_preview_loading": "Загрузка содержимого…",
+    "tree_preview_unsupported": "У этой записи нет текстового содержимого для предпросмотра.",
+    "tree_preview_failed": "Не удалось прочитать содержимое.",
+    "tree_preview_truncated": "Предпросмотр обрезан на {shown} из {total} байт"
   },
   "token_usage": {
     "7_days": "7 дней",

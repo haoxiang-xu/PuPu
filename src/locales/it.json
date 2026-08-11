@@ -198,7 +198,6 @@
     "empty_profile": "Documento profilo vuoto.",
     "no_conversation_text": "Nessun testo di conversazione archiviato per questo blocco di memoria.",
     "load_failed": "Impossibile caricare la proiezione della memoria",
-    "view_vectors": "Vettori",
     "view_tree": "Albero",
     "tree_disabled": "La memoria V2 non è abilitata",
     "tree_disabled_no_owner": "Apri l'ispettore da una chat per esplorare il suo albero di memoria.",
@@ -214,7 +213,17 @@
     "tree_refresh": "Aggiorna",
     "tree_retry": "Riprova",
     "tree_entry_count": "{count} voci",
-    "tree_truncated": "Visualizzazione di {shown} righe su {total}"
+    "tree_truncated": "Visualizzazione di {shown} righe su {total}",
+    "entry_detail": "Dettaglio voce",
+    "tree_field_path": "Percorso",
+    "tree_field_size": "Dimensione",
+    "tree_field_url": "URL",
+    "tree_field_updated": "Aggiornato",
+    "tree_preview": "Anteprima",
+    "tree_preview_loading": "Caricamento del contenuto…",
+    "tree_preview_unsupported": "Questa voce non ha contenuto testuale da visualizzare in anteprima.",
+    "tree_preview_failed": "Impossibile leggere il contenuto.",
+    "tree_preview_truncated": "Anteprima troncata a {shown} di {total} byte"
   },
   "token_usage": {
     "7_days": "7 giorni",

@@ -9,9 +9,6 @@ import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { Scatter } from "../../BUILTIN_COMPONENTs/scatter";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import MemoryV2TreeView from "./memory_v2_tree_view";
-import MemoryInspectViewSwitch, {
-  MEMORY_INSPECT_VIEWS,
-} from "./memory_inspect_view_switch";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
@@ -331,12 +328,13 @@ function SelectedCard({ point, isDark, fontFamily, color }) {
 /*                view is not offered — see MEMORY_V2_TREE_STATES.DISABLED */
 /*                (reason `no_owner`) for the degradation contract.         */
 /*                                                                         */
-/*  The V2 tree renders as a full-bleed overlay on top of the scatter       */
-/*  rather than by wrapping it in a conditional: the vector view's code     */
-/*  path and rendered output are frozen (0000-0010 AC-2), and an overlay is */
-/*  the one way to add a second view without touching a line of it. The     */
-/*  cost is that the vector poll keeps running behind the tree tab, which   */
-/*  is existing behaviour left deliberately untouched.                      */
+/*  The V2 tree renders as two floating panels ON TOP of the scatter rather */
+/*  than by wrapping it in a conditional. The vector view's code path and    */
+/*  rendered output are frozen (0000-0010 AC-2), and a sibling overlay is    */
+/*  the one way to add a surface without touching a line of it — the diff on */
+/*  this file against dev contains zero removed lines, which is the check.   */
+/*  It is also what REVISION 1 asks for on its own merits: the scatter is    */
+/*  permanently the background, never switched away from.                    */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const MemoryInspectModal = ({
@@ -365,14 +363,12 @@ const MemoryInspectModal = ({
   /* ── Profile side-panel toggle (long-term only) ── */
   const [showProfile, setShowProfile] = useState(false);
 
-  /* ── Vector / tree view switch ──
-     `treeOffered` is derived, never stored: without an ownerChatId there is
-     no V2 owner to scope a tree to, and a remembered "tree" selection would
-     otherwise survive into a mount that cannot serve it. Deriving the active
-     view means that state is unreachable instead of merely unlikely. */
-  const [view, setView] = useState(MEMORY_INSPECT_VIEWS.VECTOR);
+  /* ── V2 tree overlay ──
+     Derived, never stored: without an ownerChatId there is no V2 owner to
+     scope a tree to, so the overlay is not mounted at all rather than mounted
+     into a state it cannot serve. There is no vector/tree selection to keep —
+     the scatter is permanently the background and the tree floats over it. */
   const treeOffered = Boolean(ownerChatId);
-  const activeView = treeOffered ? view : MEMORY_INSPECT_VIEWS.VECTOR;
 
   /* ── Scatter controls ── */
   const [x_pc, set_x_pc] = useState(0); // 0 = PC1, 1 = PC2 …
@@ -979,22 +975,15 @@ const MemoryInspectModal = ({
         </div>
       </div>
 
-      {/* ━━ Overlay: V2 tree view ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          LAST child on purpose. It carries z-index 3, the same layer as the
-          header, the scatter controls and the detail card, so painting after
-          them is what lets it cover them — and it stays below the close
-          button (z-index 4), which serves both views. */}
-      {activeView === MEMORY_INSPECT_VIEWS.TREE && (
-        <MemoryV2TreeView
-          open={open}
-          ownerChatId={ownerChatId}
-          chatTitle={chatTitle}
-        />
-      )}
-
-      {/* ━━ Overlay: view switch (z-index 4, above the tree) ━━━━━━━━━━━ */}
+      {/* ━━ Overlay: V2 tree + entry detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          LAST child on purpose. Both of its panels carry z-index 3, the same
+          layer as the header, the scatter controls and the vector detail card,
+          so painting after them is what lets them float over — and they stay
+          below the close button (z-index 4), which serves the whole modal.
+          Nothing above is conditioned on this being here: the scatter renders
+          exactly as it did before, permanently, underneath. */}
       {treeOffered && (
-        <MemoryInspectViewSwitch view={activeView} onChange={setView} />
+        <MemoryV2TreeView open={open} ownerChatId={ownerChatId} />
       )}
     </Modal>
   );

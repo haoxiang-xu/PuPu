@@ -302,6 +302,188 @@ export const flattenMemoryV2Tree = (
   };
 };
 
+/* ══════════════════════════════════════════════════════════════════════
+   ENTRY CONTENT PREVIEW
+
+   `get_tree` carries metadata only — no bytes. The detail panel therefore
+   reads content separately, through the pre-existing `readContent` bridge
+   method (no new endpoint: AC-3). The judgment half lives here for the same
+   reason the tree's does: "this entry has nothing showable" and "reading it
+   failed" are different facts and must not be decided inline in a render.
+
+   "Not showable" is deliberately NOT an error. A folder, a link, a PNG and a
+   1 GB blob all legitimately have no text preview; presenting any of them as
+   a failure would teach the user to distrust a working store.
+   ══════════════════════════════════════════════════════════════════════ */
+
+export const MEMORY_V2_PREVIEW_STATES = Object.freeze({
+  IDLE: "idle",
+  LOADING: "loading",
+  READY: "ready",
+  /* The entry exists and was read fine, but there is no text to show. */
+  UNSUPPORTED: "unsupported",
+  ERROR: "error",
+});
+
+/* One page, never more. The panel is a preview, not a reader — and this is the
+   same unbounded-payload hazard the row cap exists for. */
+export const MEMORY_V2_PREVIEW_MAX_BYTES = 4096;
+
+const BINARY_MIME_PREFIXES = Object.freeze(["image/", "audio/", "video/", "font/"]);
+const BINARY_MIME_EXACT = Object.freeze([
+  "application/octet-stream",
+  "application/pdf",
+  "application/zip",
+  "application/gzip",
+  "application/x-tar",
+]);
+
+const EMPTY_PREVIEW = Object.freeze({
+  state: MEMORY_V2_PREVIEW_STATES.IDLE,
+  text: "",
+  totalBytes: 0,
+  shownBytes: 0,
+  truncated: false,
+  errorCode: "",
+  errorMessage: "",
+});
+
+export const emptyMemoryV2Preview = () => EMPTY_PREVIEW;
+
+const previewResult = (patch) => Object.freeze({ ...EMPTY_PREVIEW, ...patch });
+
+const base64ToBytes = (base64) => {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+};
+
+/* Strict UTF-8: invalid bytes THROW rather than becoming U+FFFD, because the
+   throw is how we tell text from binary. A lenient decode would render a PNG
+   as a screenful of replacement characters and call it content. */
+const decodeStrictUtf8 = (bytes) => {
+  if (typeof TextDecoder === "function") {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  }
+  /* Environments without TextDecoder (some jsdom setups). Percent-decoding is
+     equally strict — decodeURIComponent throws URIError on invalid UTF-8. */
+  let percent = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    percent += `%${bytes[i].toString(16).padStart(2, "0")}`;
+  }
+  return decodeURIComponent(percent);
+};
+
+/* A truncated page can end mid-codepoint through no fault of the file, so a
+   truncated read gets up to three bytes trimmed off the tail before we are
+   willing to call it binary. A complete page gets no such benefit of doubt. */
+const decodeTextPage = (bytes, truncated) => {
+  try {
+    return decodeStrictUtf8(bytes);
+  } catch (error) {
+    if (!truncated) throw error;
+    for (let drop = 1; drop <= 3 && drop < bytes.length; drop += 1) {
+      try {
+        return decodeStrictUtf8(bytes.subarray(0, bytes.length - drop));
+      } catch (ignored) {
+        /* keep trimming */
+      }
+    }
+    throw error;
+  }
+};
+
+const isBinaryMime = (mime) =>
+  BINARY_MIME_EXACT.includes(mime) ||
+  BINARY_MIME_PREFIXES.some((prefix) => mime.startsWith(prefix));
+
+/**
+ * Read one bounded page of an entry's content for the detail panel.
+ *
+ * `bridge` is injectable for the same reason the tree loader's is. Never
+ * throws; every outcome is a returned state.
+ */
+export const loadMemoryV2EntryPreview = async ({
+  ownerChatId,
+  ref,
+  mimeType = "",
+  bridge = contextV2Bridge,
+} = {}) => {
+  const owner = text(ownerChatId).trim();
+  const contentRef = text(ref).trim();
+  /* Folders and links carry no content_ref at all — nothing to read, and
+     nothing wrong. */
+  if (!owner || !contentRef) {
+    return previewResult({ state: MEMORY_V2_PREVIEW_STATES.UNSUPPORTED });
+  }
+  if (
+    !bridge ||
+    typeof bridge.isAvailable !== "function" ||
+    !bridge.isAvailable() ||
+    typeof bridge.readContent !== "function"
+  ) {
+    return previewResult({ state: MEMORY_V2_PREVIEW_STATES.UNSUPPORTED });
+  }
+  /* Cheapest possible answer for the formats that can never be text: do not
+     move the bytes at all. */
+  if (isBinaryMime(text(mimeType).trim().toLowerCase())) {
+    return previewResult({ state: MEMORY_V2_PREVIEW_STATES.UNSUPPORTED });
+  }
+
+  let page;
+  try {
+    page = await bridge.readContent({
+      ownerChatId: owner,
+      ref: contentRef,
+      offset: 0,
+      limit: MEMORY_V2_PREVIEW_MAX_BYTES,
+    });
+  } catch (error) {
+    return previewResult({
+      state: MEMORY_V2_PREVIEW_STATES.ERROR,
+      errorCode: parseContextV2ErrorCode(error) || "",
+      errorMessage:
+        error && typeof error.message === "string" ? error.message : "",
+    });
+  }
+  if (!isPlainObject(page)) {
+    return previewResult({ state: MEMORY_V2_PREVIEW_STATES.UNSUPPORTED });
+  }
+
+  const encoding = text(page.encoding);
+  if (encoding && encoding !== "base64") {
+    return previewResult({ state: MEMORY_V2_PREVIEW_STATES.UNSUPPORTED });
+  }
+
+  const totalBytes = Number.isFinite(page.total_bytes)
+    ? Number(page.total_bytes)
+    : 0;
+  const truncated = page.truncated === true;
+
+  let bytes;
+  let body;
+  try {
+    bytes = base64ToBytes(text(page.data));
+    body = decodeTextPage(bytes, truncated);
+  } catch (ignored) {
+    /* Malformed base64 or not UTF-8. Both mean "no text to show", which is a
+       fact about the payload rather than a failure of the read. */
+    return previewResult({
+      state: MEMORY_V2_PREVIEW_STATES.UNSUPPORTED,
+      totalBytes,
+    });
+  }
+
+  return previewResult({
+    state: MEMORY_V2_PREVIEW_STATES.READY,
+    text: body,
+    totalBytes: totalBytes || bytes.length,
+    shownBytes: bytes.length,
+    truncated,
+  });
+};
+
 /**
  * Paths of every root-level node that has children — the default expansion.
  * One level open reads as a tree; zero levels reads as a flat list, and "open
@@ -323,10 +505,14 @@ const memoryV2TreeState = {
   MEMORY_V2_TREE_STATES,
   MEMORY_V2_TREE_DISABLED_REASONS,
   MEMORY_V2_TREE_MAX_VISIBLE_ROWS,
+  MEMORY_V2_PREVIEW_STATES,
+  MEMORY_V2_PREVIEW_MAX_BYTES,
   loadMemoryV2TreeState,
+  loadMemoryV2EntryPreview,
   flattenMemoryV2Tree,
   defaultExpandedPaths,
   emptyMemoryV2TreeResult,
+  emptyMemoryV2Preview,
 };
 
 export default memoryV2TreeState;

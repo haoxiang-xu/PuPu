@@ -13,9 +13,12 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import {
   MEMORY_V2_TREE_STATES,
   MEMORY_V2_TREE_DISABLED_REASONS,
+  MEMORY_V2_PREVIEW_STATES,
   defaultExpandedPaths,
+  emptyMemoryV2Preview,
   emptyMemoryV2TreeResult,
   flattenMemoryV2Tree,
+  loadMemoryV2EntryPreview,
   loadMemoryV2TreeState,
 } from "../../SERVICEs/memory_v2_tree_state";
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
@@ -25,21 +28,61 @@ import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translat
 /* { Hooks } ----------------------------------------------------------------------------------------------------------------- */
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  Memory V2 tree view                                                    */
+/*  Memory V2 tree view — two floating panels over the vector scatter      */
 /*                                                                         */
-/*  The V2 counterpart to the vector scatter. It is deliberately NOT a      */
-/*  scatter: V2 retrieval is purely lexical (FTS5), so any 2-D projection   */
-/*  would be an embedding computed for the picture alone, with no causal    */
-/*  link to what actually gets recalled. The author-written path hierarchy  */
-/*  is the ground truth this store already has — so we render that.         */
+/*  It is deliberately NOT a scatter: V2 retrieval is purely lexical        */
+/*  (FTS5), so any 2-D projection would be an embedding computed for the    */
+/*  picture alone, with no causal link to what actually gets recalled. The  */
+/*  author-written path hierarchy is ground truth the store already has.    */
+/*                                                                         */
+/*  REVISION 1 (case 0000-0010-2026-0810) replaced the vector/tree tab      */
+/*  switch with this: the scatter is now permanently the background and     */
+/*  never gets switched away from. The tree is a floating left side menu    */
+/*  and a selected entry opens a floating right detail panel — the same     */
+/*  overlay grammar as the agent builder's recipe list + inspector          */
+/*  (COMPONENTs/agents/pages/recipes_page.js), with rows built to the       */
+/*  BUILTIN explorer's metrics so the two read as one family.              */
 /*                                                                         */
 /*  This component holds NO judgment about whether V2 is on, empty or       */
-/*  broken. It switches over a frozen enum produced by                      */
-/*  SERVICEs/memory_v2_tree_state.js and renders whichever case came back.  */
+/*  broken, nor about whether an entry has showable content. It switches    */
+/*  over frozen enums produced by SERVICEs/memory_v2_tree_state.js.         */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const INDENT = 16; /* matches BUILTIN explorer, so the tree feels native */
-const ROW_HEIGHT = 28;
+/* ── Overlay geometry ────────────────────────────────────────────────
+   6px inset and 10px radius come straight from recipes_page's overlayPanel.
+   The two verticals do NOT, and the reasons are specific to this modal:
+
+   TOP 72 on the left panel — the inspector paints its own title at (24,20)
+   with the chat title under it, ending around y=62. That header belongs to
+   the vector view, which REVISION 1 makes the permanent background, so the
+   side menu starts below it instead of covering it. The right panel has no
+   such obstruction and keeps the reference's top:6 — which is also exactly
+   the vector detail card's top, see PANEL_BOTTOM.
+
+   BOTTOM 96 on both — the scatter's PC/jitter controls sit at bottom:16,
+   centred. The vector detail card already clears them with this same inset;
+   a panel running to bottom:6 would make the background view unusable, which
+   is the opposite of what REVISION 1 asks for. */
+const PANEL_INSET = 6;
+const SIDE_MENU_TOP = 72;
+const PANEL_BOTTOM = 96;
+const SIDE_MENU_WIDTH = 236;
+/* Matches the vector detail card's width exactly. Both right-hand panels can
+   be open at once (a scatter point AND a tree entry selected); equal rects
+   mean this one covers that one with no edge peeking out. */
+const DETAIL_WIDTH = 320;
+
+const PANEL_TRANSITION =
+  "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)";
+
+/* ── Row metrics — BUILTIN_COMPONENTs/explorer/explorer.js ────────────
+   Copied rather than imported: Explorer is built for drag-to-reorder trees
+   and brings a DnD machine this read-only view has no use for. What has to
+   match is the look, and these three numbers plus the two backgrounds below
+   are the look. */
+const ROW_HEIGHT = 30;
+const INDENT = 16;
+const ROW_RADIUS = 5;
 
 const KIND_ICONS = Object.freeze({
   folder: "folder",
@@ -57,49 +100,106 @@ const formatBytes = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-/* Which secondary line a row shows on the right. Description is the author's
-   own words and outranks a byte count. */
-const rowMeta = (node) => {
-  if (node.kind === "link") return typeof node.link_url === "string" ? node.link_url : "";
-  if (node.kind === "file") return formatBytes(node.content_bytes);
-  return "";
+const formatTimestamp = (ms) => {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) return "";
+  const date = new Date(ms);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString();
 };
+
+const MONO = "Menlo, Monaco, Consolas, monospace";
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  Shared overlay chrome                                                  */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const overlayPanelStyle = (isDark) => ({
+  position: "absolute",
+  zIndex: 3,
+  borderRadius: 10,
+  backgroundColor: isDark ? "rgba(20, 20, 20, 0.72)" : "rgba(255, 255, 255, 0.78)",
+  border: isDark
+    ? "1px solid rgba(255,255,255,0.08)"
+    : "1px solid rgba(0,0,0,0.08)",
+  backdropFilter: "blur(16px) saturate(1.4)",
+  WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+  boxShadow: isDark
+    ? "0 8px 32px rgba(0,0,0,0.5)"
+    : "0 8px 32px rgba(0,0,0,0.1)",
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
+});
+
+/* Show/hide is opacity + a 12px slide, never display:none and never a slide
+   off-canvas. Both panels stay mounted the whole time so their scroll
+   position, their in-flight request and their expansion state survive a
+   round trip, and so the transition has something to animate. */
+const revealStyle = (visible, offsetPx) => ({
+  opacity: visible ? 1 : 0,
+  transform: visible ? "translateX(0)" : `translateX(${offsetPx}px)`,
+  transition: PANEL_TRANSITION,
+  pointerEvents: visible ? "auto" : "none",
+});
+
+const iconButtonStyle = (isDark, extra = {}) => ({
+  paddingVertical: 4,
+  paddingHorizontal: 4,
+  borderRadius: 5,
+  opacity: 0.5,
+  hoverBackgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+  content: {
+    prefixIconWrap: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      lineHeight: 0,
+    },
+    icon: { width: 13, height: 13 },
+  },
+  ...extra,
+});
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  TreeRow                                                                */
+/*                                                                         */
+/*  Folders toggle in place and are never "selected"; files and links       */
+/*  select and drive the detail panel. That split is the whole interaction  */
+/*  model, so it is expressed once, here, on `kind` — not on hasChildren,   */
+/*  which would make a childless folder behave like a file.                 */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-function TreeRow({ row, isDark, fontFamily, color, onToggle }) {
+function TreeRow({ row, isDark, fontFamily, color, isSelected, onToggle, onSelect }) {
   const [hovered, setHovered] = useState(false);
   const { node, depth, hasChildren, expanded } = row;
+  const isFolder = node.kind === "folder";
 
-  const meta_color = isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.32)";
-  const hover_bg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
-  const meta = rowMeta(node);
-  const description = typeof node.description === "string" ? node.description : "";
+  const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
+  const activeBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
 
-  const iconName =
-    node.kind === "folder"
-      ? expanded
-        ? KIND_ICONS.folder_open
-        : KIND_ICONS.folder
-      : KIND_ICONS[node.kind] || KIND_ICONS.file;
+  const iconName = isFolder
+    ? expanded
+      ? KIND_ICONS.folder_open
+      : KIND_ICONS.folder
+    : KIND_ICONS[node.kind] || KIND_ICONS.file;
 
   return (
     <div
+      data-testid="memory-v2-tree-row"
+      data-selected={isSelected ? "true" : "false"}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={hasChildren ? () => onToggle(row.path) : undefined}
+      onClick={() => (isFolder ? onToggle(row.path) : onSelect(row))}
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 6,
+        gap: 5,
         height: ROW_HEIGHT,
-        paddingLeft: 12 + depth * INDENT,
-        paddingRight: 12,
-        borderRadius: 6,
-        cursor: hasChildren ? "pointer" : "default",
-        backgroundColor: hovered ? hover_bg : "transparent",
+        paddingLeft: 6 + depth * INDENT,
+        paddingRight: 8,
+        borderRadius: ROW_RADIUS,
+        cursor: "pointer",
+        backgroundColor: isSelected ? activeBg : hovered ? hoverBg : "transparent",
         transition: "background-color 0.12s ease",
         userSelect: "none",
         WebkitUserSelect: "none",
@@ -142,64 +242,28 @@ function TreeRow({ row, isDark, fontFamily, color, onToggle }) {
       <span
         title={row.path}
         style={{
-          fontSize: 12.5,
+          fontSize: 13,
           fontFamily,
           color,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
-          flexShrink: 1,
+          minWidth: 0,
         }}
       >
         {typeof node.name === "string" && node.name ? node.name : row.path}
       </span>
-
-      {description && (
-        <span
-          style={{
-            fontSize: 11,
-            fontFamily,
-            color: meta_color,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            flexShrink: 1,
-            minWidth: 0,
-          }}
-        >
-          {description}
-        </span>
-      )}
-
-      <span style={{ flex: 1, minWidth: 8 }} />
-
-      {meta && (
-        <span
-          style={{
-            fontSize: 10,
-            fontFamily: "Menlo, Monaco, Consolas, monospace",
-            color: meta_color,
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-            maxWidth: 180,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {meta}
-        </span>
-      )}
     </div>
   );
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  TreeStateCard — the non-tree states                                    */
+/*  TreeStateCard — the non-tree states, sized for a 236px column          */
 /*                                                                         */
-/*  The three states AC-5 requires to be distinguishable never share a      */
-/*  visual grammar: they differ in border (dashed vs solid), icon, tint and */
+/*  The states AC-5 requires to be distinguishable never share a visual     */
+/*  grammar: they differ in border (dashed vs solid), icon, tint and        */
 /*  whether a retry is offered. "Not enabled" and "enabled but empty" must  */
-/*  never both degrade into the same blank panel.                           */
+/*  never both degrade into the same blank column.                          */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 function TreeStateCard({
@@ -224,8 +288,8 @@ function TreeStateCard({
           ? "rgba(235,190,110,0.8)"
           : "rgba(160,110,20,0.8)"
         : isDark
-          ? "rgba(255,255,255,0.4)"
-          : "rgba(0,0,0,0.4)";
+          ? "rgba(255,255,255,0.42)"
+          : "rgba(0,0,0,0.42)";
   const border_color =
     tone === "danger"
       ? isDark
@@ -245,18 +309,18 @@ function TreeStateCard({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "0 32px",
+        padding: "0 10px",
       }}
     >
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          gap: 10,
-          maxWidth: 420,
-          padding: "26px 30px",
-          borderRadius: 12,
+          alignItems: "flex-start",
+          gap: 7,
+          width: "100%",
+          padding: "14px 12px",
+          borderRadius: 8,
           border: `1px ${dashed ? "dashed" : "solid"} ${border_color}`,
           backgroundColor:
             tone === "danger"
@@ -264,42 +328,43 @@ function TreeStateCard({
                 ? "rgba(255,80,80,0.05)"
                 : "rgba(180,40,40,0.03)"
               : "transparent",
-          textAlign: "center",
         }}
       >
-        <span
-          style={{
-            width: 22,
-            height: 22,
-            color: tint,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: 0.85,
-          }}
-        >
-          <Icon src={icon} style={{ width: 22, height: 22 }} />
-        </span>
-
-        <div
-          style={{
-            fontSize: 13.5,
-            fontFamily,
-            color: tint,
-            userSelect: "none",
-            WebkitUserSelect: "none",
-          }}
-        >
-          {title}
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span
+            style={{
+              width: 15,
+              height: 15,
+              flexShrink: 0,
+              color: tint,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: 0.85,
+            }}
+          >
+            <Icon src={icon} style={{ width: 15, height: 15 }} />
+          </span>
+          <div
+            style={{
+              fontSize: 12.5,
+              fontFamily,
+              color: tint,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            {title}
+          </div>
         </div>
 
         {detail && (
           <div
             style={{
-              fontSize: 12,
+              fontSize: 11.5,
               fontFamily,
               color: meta_color,
-              lineHeight: 1.55,
+              lineHeight: 1.5,
             }}
           >
             {detail}
@@ -310,7 +375,7 @@ function TreeStateCard({
           <div
             style={{
               fontSize: 10,
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              fontFamily: MONO,
               color: meta_color,
               wordBreak: "break-all",
             }}
@@ -325,11 +390,10 @@ function TreeStateCard({
             prefix_icon="refresh"
             onClick={onRetry}
             style={{
-              marginTop: 2,
               fontSize: 11,
               paddingVertical: 4,
-              paddingHorizontal: 10,
-              borderRadius: 7,
+              paddingHorizontal: 9,
+              borderRadius: 6,
               hoverBackgroundColor: isDark
                 ? "rgba(255,255,255,0.1)"
                 : "rgba(0,0,0,0.06)",
@@ -337,6 +401,44 @@ function TreeStateCard({
             }}
           />
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  DetailField                                                            */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+function DetailField({ label, value, mono, isDark }) {
+  if (!value) return null;
+  const meta_color = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)";
+  const body_color = isDark ? "rgba(255,255,255,0.68)" : "rgba(0,0,0,0.68)";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div
+        style={{
+          fontSize: 9.5,
+          fontFamily: MONO,
+          color: meta_color,
+          textTransform: "uppercase",
+          letterSpacing: "0.8px",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: mono ? 11 : 11.5,
+          fontFamily: mono ? MONO : "inherit",
+          color: body_color,
+          wordBreak: "break-all",
+          lineHeight: 1.45,
+        }}
+      >
+        {value}
       </div>
     </div>
   );
@@ -385,28 +487,85 @@ const useMemoryV2Tree = ({ open, ownerChatId, load }) => {
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  useMemoryV2EntryPreview                                                */
+/*                                                                         */
+/*  Content is a separate read: get_tree carries metadata only. Selecting   */
+/*  fast down a long list must not let an earlier answer land in a later    */
+/*  selection's panel, hence the request-id fence — the same one the tree   */
+/*  loader uses against a superseded chat.                                  */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const useMemoryV2EntryPreview = ({ ownerChatId, selected, loadPreview }) => {
+  const [preview, setPreview] = useState(emptyMemoryV2Preview);
+  const requestRef = useRef(0);
+
+  const node = selected ? selected.node : null;
+  const contentRef =
+    node && typeof node.content_ref === "string" ? node.content_ref : "";
+  const mimeType =
+    node && typeof node.mime_type === "string" ? node.mime_type : "";
+
+  useEffect(() => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+
+    if (!selected) {
+      setPreview(emptyMemoryV2Preview());
+      return undefined;
+    }
+    /* A link has no stored object. Answering locally means the panel never
+       flashes a spinner for something already known to have no content. */
+    if (!contentRef) {
+      setPreview({
+        ...emptyMemoryV2Preview(),
+        state: MEMORY_V2_PREVIEW_STATES.UNSUPPORTED,
+      });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPreview({
+      ...emptyMemoryV2Preview(),
+      state: MEMORY_V2_PREVIEW_STATES.LOADING,
+    });
+    loadPreview({ ownerChatId, ref: contentRef, mimeType }).then((next) => {
+      if (cancelled || requestRef.current !== requestId) return;
+      setPreview(next);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, ownerChatId, contentRef, mimeType, loadPreview]);
+
+  return preview;
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  MemoryV2TreeView                                                       */
 /*                                                                         */
 /*  Props:                                                                 */
 /*    open        — boolean (gates the fetch)                              */
 /*    ownerChatId — string (V2 owner key; undefined at the settings mount)  */
-/*    chatTitle   — string, header subtitle                                */
-/*    load        — injectable loader, tests only                          */
+/*    load        — injectable tree loader, tests only                     */
+/*    loadPreview — injectable content loader, tests only                  */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const MemoryV2TreeView = ({
   open = true,
   ownerChatId,
-  chatTitle,
   load = loadMemoryV2TreeState,
+  loadPreview = loadMemoryV2EntryPreview,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || (isDark ? "#fff" : "#111");
-  const fontFamily = theme?.font?.fontFamily || "Jost";
-  const meta_color = isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)";
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
+  const meta_color = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)";
   const divider = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+
+  const [collapsed, setCollapsed] = useState(false);
 
   const { result, refresh, selectSpace } = useMemoryV2Tree({
     open,
@@ -414,20 +573,24 @@ const MemoryV2TreeView = ({
     load,
   });
 
-  /* Expansion is presentation, so it lives here — but the flattening that
-     turns it into rows is the service's job, because that is where the render
-     cap is enforced.
+  /* Expansion and selection are presentation, so they live here — but the
+     flattening that turns expansion into rows is the service's job, because
+     that is where the render cap is enforced.
 
      Reset during render rather than in an effect: an effect would commit one
      frame of fully-collapsed tree before opening the first level, which reads
      as a flicker on every load and every space switch. React re-runs this
      component before painting, so the collapsed frame never reaches the
-     screen. */
+     screen. A reload also drops the selection — the node object behind it is
+     from the payload that just got replaced, and keeping it would leave the
+     detail panel describing an entry that may no longer exist. */
   const [expanded, setExpanded] = useState(() => new Set());
+  const [selected, setSelected] = useState(null);
   const [seenRoots, setSeenRoots] = useState(null);
   if (seenRoots !== result.roots) {
     setSeenRoots(result.roots);
     setExpanded(defaultExpandedPaths(result.roots));
+    setSelected(null);
   }
 
   const onToggle = useCallback((path) => {
@@ -438,6 +601,23 @@ const MemoryV2TreeView = ({
       return next;
     });
   }, []);
+
+  /* Re-clicking the open entry closes the panel. The modal's own close button
+     belongs to the vector view's cascade and this panel deliberately does not
+     reach into it, so the row is the dismissal. */
+  const onSelect = useCallback((row) => {
+    setSelected((current) =>
+      current && current.path === row.path
+        ? null
+        : { path: row.path, node: row.node },
+    );
+  }, []);
+
+  const preview = useMemoryV2EntryPreview({
+    ownerChatId,
+    selected,
+    loadPreview,
+  });
 
   const flattened = useMemo(
     () => flattenMemoryV2Tree(result.roots, { expanded }),
@@ -465,7 +645,7 @@ const MemoryV2TreeView = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 13,
+              fontSize: 12,
               fontFamily,
               color: meta_color,
               userSelect: "none",
@@ -527,7 +707,7 @@ const MemoryV2TreeView = ({
               position: "absolute",
               inset: 0,
               overflowY: "auto",
-              padding: "6px 8px 8px",
+              padding: "4px 6px 8px",
             }}
           >
             {flattened.rows.map((row) => (
@@ -537,7 +717,9 @@ const MemoryV2TreeView = ({
                 isDark={isDark}
                 fontFamily={fontFamily}
                 color={color}
+                isSelected={Boolean(selected) && selected.path === row.path}
                 onToggle={onToggle}
+                onSelect={onSelect}
               />
             ))}
           </div>
@@ -560,81 +742,153 @@ const MemoryV2TreeView = ({
     }
   };
 
-  const showSpaceBar = result.spaces.length > 0;
+  const isReady = result.state === MEMORY_V2_TREE_STATES.READY;
+  /* One space is not a choice — its name is already the panel's title. */
+  const showSpaceBar = result.spaces.length > 1;
+  const selectedNode = selected ? selected.node : null;
+
+  const renderPreview = () => {
+    switch (preview.state) {
+      case MEMORY_V2_PREVIEW_STATES.LOADING:
+        return (
+          <div style={{ fontSize: 11.5, fontFamily, color: meta_color }}>
+            {t("memory_inspect.tree_preview_loading")}
+          </div>
+        );
+
+      case MEMORY_V2_PREVIEW_STATES.UNSUPPORTED:
+        return (
+          <div style={{ fontSize: 11.5, fontFamily, color: meta_color, lineHeight: 1.5 }}>
+            {t("memory_inspect.tree_preview_unsupported")}
+          </div>
+        );
+
+      case MEMORY_V2_PREVIEW_STATES.ERROR:
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div
+              style={{
+                fontSize: 11.5,
+                fontFamily,
+                color: isDark ? "rgba(255,120,120,0.75)" : "rgba(180,40,40,0.75)",
+                lineHeight: 1.5,
+              }}
+            >
+              {t("memory_inspect.tree_preview_failed")}
+            </div>
+            {preview.errorCode && (
+              <div
+                style={{ fontSize: 10, fontFamily: MONO, color: meta_color, wordBreak: "break-all" }}
+              >
+                {preview.errorCode}
+              </div>
+            )}
+          </div>
+        );
+
+      case MEMORY_V2_PREVIEW_STATES.READY:
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div
+              data-testid="memory-v2-entry-preview"
+              style={{
+                fontSize: 11,
+                fontFamily: MONO,
+                lineHeight: 1.55,
+                color: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.72)",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                padding: "8px 10px",
+                borderRadius: 6,
+                backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                border: `1px solid ${divider}`,
+                maxHeight: 260,
+                overflowY: "auto",
+              }}
+              className="scrollable"
+            >
+              {preview.text}
+            </div>
+            {preview.truncated && (
+              <div style={{ fontSize: 10, fontFamily: MONO, color: meta_color }}>
+                {t("memory_inspect.tree_preview_truncated", {
+                  shown: preview.shownBytes,
+                  total: preview.totalBytes,
+                })}
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div
-      data-testid="memory-v2-tree-view"
-      style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 3,
-        display: "flex",
-        flexDirection: "column",
-        borderRadius: "inherit",
-        backgroundColor: "rgb(var(--pupu-surface-rgb))",
-        overflow: "hidden",
-      }}
-    >
-      {/* ━━ Header — mirrors the vector view's, so switching does not jump ━
-          Fixed height, not content height: the view switcher is absolutely
-          positioned at a constant y, so the band beneath it has to be
-          constant too, whether or not this chat has a title. */}
+    <>
+      {/* ━━ Floating tree side menu (left) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div
+        data-testid="memory-v2-tree-view"
         style={{
-          padding: "20px 24px 0",
-          height: 108,
-          boxSizing: "border-box",
-          flexShrink: 0,
+          ...overlayPanelStyle(isDark),
+          left: PANEL_INSET,
+          top: SIDE_MENU_TOP,
+          bottom: PANEL_BOTTOM,
+          width: SIDE_MENU_WIDTH,
+          ...revealStyle(!collapsed, -12),
         }}
       >
-        <div
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
-            color,
-            userSelect: "none",
-            WebkitUserSelect: "none",
-          }}
-        >
-          {t("memory_inspect.title")}
-        </div>
-        {chatTitle && (
-          <div
-            style={{
-              fontSize: 12,
-              fontFamily,
-              color: meta_color,
-              marginTop: 2,
-              userSelect: "none",
-              WebkitUserSelect: "none",
-            }}
-          >
-            {chatTitle}
-          </div>
-        )}
-      </div>
-
-      {/* ━━ Space bar ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      {showSpaceBar && (
+        {/* ── Header: identity, refresh, collapse ── */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 4,
             flexShrink: 0,
-            padding: "0 12px 8px 24px",
-            borderBottom: `1px solid ${divider}`,
+            padding: "8px 6px 6px 12px",
           }}
         >
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
               flex: 1,
               minWidth: 0,
+              fontSize: 10,
+              fontFamily: MONO,
+              color: meta_color,
+              textTransform: "uppercase",
+              letterSpacing: "0.8px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            {result.spaceName || t("memory_inspect.view_tree")}
+          </div>
+          <Button
+            prefix_icon="refresh"
+            onClick={refresh}
+            style={iconButtonStyle(isDark)}
+          />
+          <Button
+            prefix_icon="side_menu_close"
+            onClick={() => setCollapsed(true)}
+            style={iconButtonStyle(isDark)}
+          />
+        </div>
+
+        {/* ── Space chips ── */}
+        {showSpaceBar && (
+          <div
+            className="scrollable"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              flexShrink: 0,
+              padding: "0 8px 6px 10px",
               overflowX: "auto",
             }}
           >
@@ -646,11 +900,11 @@ const MemoryV2TreeView = ({
                   label={space.name || space.spaceId}
                   onClick={() => selectSpace(space.spaceId)}
                   style={{
-                    fontSize: 11,
-                    paddingVertical: 3,
-                    paddingHorizontal: 9,
-                    borderRadius: 6,
-                    opacity: active ? 1 : 0.45,
+                    fontSize: 10.5,
+                    paddingVertical: 2,
+                    paddingHorizontal: 8,
+                    borderRadius: 5,
+                    opacity: active ? 1 : 0.4,
                     hoverBackgroundColor: isDark
                       ? "rgba(255,255,255,0.1)"
                       : "rgba(0,0,0,0.06)",
@@ -659,62 +913,236 @@ const MemoryV2TreeView = ({
               );
             })}
           </div>
-          <span
+        )}
+
+        <div style={{ height: 1, flexShrink: 0, backgroundColor: divider }} />
+
+        {/* ── Body ── */}
+        <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+          {renderBody()}
+        </div>
+
+        {/* ── Status line: the entry count, and the render cap said out loud ── */}
+        {isReady && (
+          <div
             style={{
-              fontSize: 10,
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-              color: meta_color,
               flexShrink: 0,
+              padding: "5px 10px 6px 12px",
+              borderTop: `1px solid ${divider}`,
+              fontSize: 10,
+              fontFamily: MONO,
+              color: meta_color,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
               userSelect: "none",
               WebkitUserSelect: "none",
             }}
           >
-            {t("memory_inspect.tree_entry_count", { count: result.entryCount })}
-          </span>
+            {flattened.truncated
+              ? t("memory_inspect.tree_truncated", {
+                  shown: flattened.rows.length,
+                  total: flattened.visibleCount,
+                })
+              : t("memory_inspect.tree_entry_count", { count: result.entryCount })}
+          </div>
+        )}
+      </div>
+
+      {/* ━━ Expand handle — only while the side menu is tucked away ━━━━ */}
+      {collapsed && (
+        <div
+          data-testid="memory-v2-tree-expand"
+          style={{ position: "absolute", top: SIDE_MENU_TOP + 8, left: 14, zIndex: 3 }}
+        >
           <Button
-            prefix_icon="refresh"
-            onClick={refresh}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 4,
+            prefix_icon="side_menu_left"
+            onClick={() => setCollapsed(false)}
+            style={iconButtonStyle(isDark, {
+              paddingVertical: 6,
+              paddingHorizontal: 6,
               borderRadius: 6,
-              opacity: 0.45,
-              flexShrink: 0,
-              hoverBackgroundColor: isDark
-                ? "rgba(255,255,255,0.1)"
-                : "rgba(0,0,0,0.06)",
-              content: { icon: { width: 13, height: 13 } },
-            }}
+              opacity: 0.55,
+              content: {
+                prefixIconWrap: {
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 0,
+                },
+                icon: { width: 14, height: 14 },
+              },
+            })}
           />
         </div>
       )}
 
-      {/* ━━ Body ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-        {renderBody()}
-      </div>
-
-      {/* ━━ Truncation footer — the render cap, said out loud ━━━━━━━━━━ */}
-      {result.state === MEMORY_V2_TREE_STATES.READY && flattened.truncated && (
+      {/* ━━ Floating entry detail (right) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          Always mounted. With nothing selected it is a fully transparent,
+          click-through pane sitting exactly on top of the vector view's own
+          detail card — which stays visible and usable underneath. */}
+      <div
+        data-testid="memory-v2-entry-detail"
+        data-open={selectedNode ? "true" : "false"}
+        style={{
+          ...overlayPanelStyle(isDark),
+          right: PANEL_INSET,
+          top: PANEL_INSET,
+          bottom: PANEL_BOTTOM,
+          width: DETAIL_WIDTH,
+          ...revealStyle(Boolean(selectedNode), 12),
+        }}
+      >
         <div
           style={{
+            padding: "14px 16px 8px",
             flexShrink: 0,
-            padding: "6px 24px 8px",
-            borderTop: `1px solid ${divider}`,
-            fontSize: 10,
-            fontFamily: "Menlo, Monaco, Consolas, monospace",
+            fontSize: 11,
+            fontFamily: MONO,
             color: meta_color,
+            textTransform: "uppercase",
+            letterSpacing: "0.8px",
             userSelect: "none",
             WebkitUserSelect: "none",
           }}
         >
-          {t("memory_inspect.tree_truncated", {
-            shown: flattened.rows.length,
-            total: flattened.visibleCount,
-          })}
+          {t("memory_inspect.entry_detail")}
         </div>
-      )}
-    </div>
+
+        <div
+          className="scrollable"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "0 16px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            fontFamily,
+          }}
+        >
+          {selectedNode && (
+            <>
+              {/* ── Identity ── */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    minWidth: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 14,
+                      height: 14,
+                      flexShrink: 0,
+                      opacity: 0.55,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Icon
+                      src={KIND_ICONS[selectedNode.kind] || KIND_ICONS.file}
+                      style={{ width: 14, height: 14 }}
+                    />
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 14.5,
+                      fontWeight: 600,
+                      color,
+                      wordBreak: "break-word",
+                      minWidth: 0,
+                    }}
+                  >
+                    {selectedNode.name || selected.path}
+                  </span>
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 9.5,
+                      fontFamily: MONO,
+                      color: meta_color,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.6px",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      border: `1px solid ${divider}`,
+                    }}
+                  >
+                    {selectedNode.kind}
+                  </span>
+                </div>
+
+                {selectedNode.description && (
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {selectedNode.description}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ height: 1, backgroundColor: divider }} />
+
+              {/* ── Facts ── */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <DetailField
+                  label={t("memory_inspect.tree_field_path")}
+                  value={selected.path}
+                  mono
+                  isDark={isDark}
+                />
+                <DetailField
+                  label={t("memory_inspect.tree_field_url")}
+                  value={selectedNode.link_url}
+                  mono
+                  isDark={isDark}
+                />
+                <DetailField
+                  label={t("memory_inspect.tree_field_size")}
+                  value={formatBytes(selectedNode.content_bytes)}
+                  mono
+                  isDark={isDark}
+                />
+                <DetailField
+                  label={t("memory_inspect.tree_field_updated")}
+                  value={formatTimestamp(selectedNode.updated_at_ms)}
+                  isDark={isDark}
+                />
+              </div>
+
+              {/* ── Content ── */}
+              <div style={{ height: 1, backgroundColor: divider }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div
+                  style={{
+                    fontSize: 9.5,
+                    fontFamily: MONO,
+                    color: meta_color,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                  }}
+                >
+                  {t("memory_inspect.tree_preview")}
+                </div>
+                {renderPreview()}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   );
 };
 

@@ -198,7 +198,6 @@
     "empty_profile": "檔案文件為空。",
     "no_conversation_text": "此記憶片段未儲存對話文字。",
     "load_failed": "載入記憶投影失敗",
-    "view_vectors": "向量",
     "view_tree": "結構",
     "tree_disabled": "記憶 V2 未啟用",
     "tree_disabled_no_owner": "從對話中開啟檢視器才能瀏覽它的記憶結構。",
@@ -214,7 +213,17 @@
     "tree_refresh": "重新整理",
     "tree_retry": "重試",
     "tree_entry_count": "{count} 項",
-    "tree_truncated": "顯示 {shown} / {total} 列"
+    "tree_truncated": "顯示 {shown} / {total} 列",
+    "entry_detail": "項目詳情",
+    "tree_field_path": "路徑",
+    "tree_field_size": "大小",
+    "tree_field_url": "URL",
+    "tree_field_updated": "更新時間",
+    "tree_preview": "內容預覽",
+    "tree_preview_loading": "正在載入內容…",
+    "tree_preview_unsupported": "此項目沒有可預覽的文字內容。",
+    "tree_preview_failed": "無法讀取內容。",
+    "tree_preview_truncated": "預覽已截斷，顯示 {total} 位元組中的 {shown} 位元組"
   },
   "token_usage": {
     "7_days": "7 天",

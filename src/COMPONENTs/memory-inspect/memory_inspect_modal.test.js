@@ -94,11 +94,11 @@ describe("MemoryInspectModal long-term profiles", () => {
 });
 
 /*
- * Fast Track 0000-0010-2026-0810 — the V2 tree view lives beside the vector
- * view, never inside it. These cases pin the two properties the change is
- * allowed to have: the switch works, and the vector view keeps working
- * unchanged (AC-1 / AC-2), including at the settings mount point which
- * supplies no ownerChatId at all.
+ * Fast Track 0000-0010-2026-0810 REVISION 1 — the V2 tree floats OVER the
+ * vector view and never replaces it. These cases pin the properties the
+ * change is allowed to have: the scatter is permanently mounted with nothing
+ * conditioned on the tree (AC-1 / AC-2), and the settings mount point, which
+ * supplies no ownerChatId at all, gets no overlay whatsoever.
  */
 
 const renderModal = (props) =>
@@ -110,7 +110,7 @@ const renderModal = (props) =>
     </ConfigContext.Provider>,
   );
 
-describe("MemoryInspectModal vector / tree switch", () => {
+describe("MemoryInspectModal V2 tree overlay", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockApi.getMemoryProjection.mockResolvedValue({
@@ -125,55 +125,71 @@ describe("MemoryInspectModal vector / tree switch", () => {
     });
   });
 
-  test("the session mount offers both views and starts on vectors", async () => {
+  test("the session mount shows the scatter and the tree side menu together", async () => {
     renderModal({ sessionId: "chat-1", ownerChatId: "chat-1" });
 
     await waitFor(() => {
       expect(mockApi.getMemoryProjection).toHaveBeenCalledWith("chat-1");
     });
-    expect(screen.getByTestId("memory-inspect-view-switch")).toBeInTheDocument();
-    /* Vector view is the default and is untouched by the addition. */
+    /* REVISION 1: not "one or the other". The scatter is the background and
+       the tree floats on it, so both are in the tree at the same time. */
     expect(screen.getByTestId("scatter")).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-v2-tree-view")).not.toBeInTheDocument();
-  });
-
-  test("switching to tree mounts the tree view, and back returns to the scatter", async () => {
-    renderModal({ sessionId: "chat-1", ownerChatId: "chat-1" });
-    await waitFor(() => expect(screen.getByTestId("scatter")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByText("Tree"));
     expect(await screen.findByTestId("memory-v2-tree-view")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Vectors"));
-    await waitFor(() => {
-      expect(screen.queryByTestId("memory-v2-tree-view")).not.toBeInTheDocument();
-    });
-    /* AC-2: the vector view is the same component it always was — leaving and
-       returning must not have replaced or unmounted it into a new shape. */
-    expect(screen.getByTestId("scatter")).toBeInTheDocument();
+    expect(screen.getByTestId("memory-v2-entry-detail")).toBeInTheDocument();
   });
 
-  test("without an ownerChatId the tree is not offered at all", async () => {
+  test("nothing the overlay does can unmount the scatter", async () => {
+    /* AC-2 in behavioural form: there is no longer any control that takes the
+       vector view off screen, so collapsing the side menu — the one thing that
+       hides part of the overlay — must leave the scatter exactly where it was. */
+    renderModal({ sessionId: "chat-1", ownerChatId: "chat-1" });
+    await screen.findByTestId("memory-v2-tree-view");
+    const before = screen.getByTestId("scatter");
+
+    fireEvent.click(screen.getByTestId("memory-v2-tree-view").querySelectorAll("button")[1]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("memory-v2-tree-view").style.opacity).toBe("0"),
+    );
+    expect(screen.getByTestId("scatter")).toBe(before);
+  });
+
+  test("the tree overlay paints after the vector detail card, never before", async () => {
+    /* Both right-hand panels sit at z-index 3 at the same coordinates, so the
+       ONLY thing that decides which one the user sees is DOM order. Assert it,
+       because a well-meaning tidy-up that hoists the overlay would silently
+       put the tree's detail behind the scatter's. */
+    renderModal({ sessionId: "chat-1", ownerChatId: "chat-1" });
+    const treePanel = await screen.findByTestId("memory-v2-tree-view");
+    const detail = screen.getByTestId("memory-v2-entry-detail");
+    const scatter = screen.getByTestId("scatter");
+
+    const position = treePanel.compareDocumentPosition(scatter);
+    // eslint-disable-next-line no-bitwise
+    expect(position & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    // eslint-disable-next-line no-bitwise
+    expect(
+      treePanel.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test("without an ownerChatId the overlay is not mounted at all", async () => {
     /* This is the settings/long_term mount (0000-0008 G9, out of scope here).
-       It must degrade quietly: no switch, no tree, no error. */
+       It must degrade quietly: no side menu, no detail panel, no error. */
     renderModal({ mode: "long_term" });
 
     await waitFor(() => {
       expect(mockApi.getLongTermMemoryProjection).toHaveBeenCalled();
     });
-    expect(
-      screen.queryByTestId("memory-inspect-view-switch"),
-    ).not.toBeInTheDocument();
     expect(screen.queryByTestId("memory-v2-tree-view")).not.toBeInTheDocument();
-    expect(screen.queryByText("Tree")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("memory-v2-entry-detail")).not.toBeInTheDocument();
   });
 
   test("with no bridge in the renderer the tree degrades to `not enabled`", async () => {
-    /* jsdom has no window.contextV2API, which is exactly the web-dev case. */
+    /* jsdom has no window.contextV2API, which is exactly the web-dev case.
+       The tree now loads on mount rather than on a click, so this is also the
+       assertion that mounting it cannot throw in a browser-only environment. */
     renderModal({ sessionId: "chat-1", ownerChatId: "chat-1" });
-    await waitFor(() => expect(screen.getByTestId("scatter")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByText("Tree"));
 
     expect(
       await screen.findByText("Memory V2 is not enabled"),
@@ -181,5 +197,6 @@ describe("MemoryInspectModal vector / tree switch", () => {
     expect(
       screen.getByText("The desktop bridge is unavailable in this environment."),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("scatter")).toBeInTheDocument();
   });
 });

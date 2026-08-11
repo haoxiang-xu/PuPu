@@ -17,8 +17,11 @@ import {
   MEMORY_V2_TREE_STATES,
   MEMORY_V2_TREE_DISABLED_REASONS,
   MEMORY_V2_TREE_MAX_VISIBLE_ROWS,
+  MEMORY_V2_PREVIEW_STATES,
+  MEMORY_V2_PREVIEW_MAX_BYTES,
   defaultExpandedPaths,
   flattenMemoryV2Tree,
+  loadMemoryV2EntryPreview,
   loadMemoryV2TreeState,
 } from "./memory_v2_tree_state";
 
@@ -326,5 +329,186 @@ describe("defaultExpandedPaths", () => {
 
   test("is empty for a malformed input", () => {
     expect(defaultExpandedPaths(null).size).toBe(0);
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   ENTRY CONTENT PREVIEW
+
+   The property under test is the same one the tree loader has: an absence
+   must not be reported as a failure. A folder, a link, a PNG and a corrupt
+   page all end up with no text on screen, but only ONE of them is an error,
+   and the panel renders those two outcomes differently — so the module has
+   to keep them apart rather than collapsing them into "no preview".
+   ══════════════════════════════════════════════════════════════════════ */
+
+const base64 = (text) => Buffer.from(text, "utf-8").toString("base64");
+
+const makePreviewBridge = (overrides = {}) => ({
+  isAvailable: () => true,
+  readContent: jest.fn().mockResolvedValue({
+    encoding: "base64",
+    data: base64("hello memory"),
+    mime_type: "text/markdown",
+    total_bytes: 12,
+    truncated: false,
+  }),
+  ...overrides,
+});
+
+describe("loadMemoryV2EntryPreview", () => {
+  test("reads one bounded page and decodes it", async () => {
+    const bridge = makePreviewBridge();
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      mimeType: "text/markdown",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.READY);
+    expect(result.text).toBe("hello memory");
+    expect(result.truncated).toBe(false);
+    /* The cap is the module's, not the caller's — a panel cannot opt into
+       pulling a whole file. */
+    expect(bridge.readContent).toHaveBeenCalledWith({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      offset: 0,
+      limit: MEMORY_V2_PREVIEW_MAX_BYTES,
+    });
+  });
+
+  test("an entry with no content ref is unsupported, not an error, and is free", async () => {
+    const bridge = makePreviewBridge();
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.UNSUPPORTED);
+    /* Links and folders are the common case here. Asking the sidecar to
+       confirm what the payload already says would be a round trip per click. */
+    expect(bridge.readContent).not.toHaveBeenCalled();
+  });
+
+  test("a binary mime type is refused before any bytes move", async () => {
+    const bridge = makePreviewBridge();
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      mimeType: "image/png",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.UNSUPPORTED);
+    expect(bridge.readContent).not.toHaveBeenCalled();
+  });
+
+  test("bytes that are not UTF-8 are unsupported rather than mojibake", async () => {
+    const bridge = makePreviewBridge({
+      readContent: jest.fn().mockResolvedValue({
+        encoding: "base64",
+        /* 0xFF 0xFE 0xFD is not valid UTF-8 in any position. */
+        data: Buffer.from([0xff, 0xfe, 0xfd]).toString("base64"),
+        mime_type: "application/x-thing",
+        total_bytes: 3,
+        truncated: false,
+      }),
+    });
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.UNSUPPORTED);
+    expect(result.text).toBe("");
+  });
+
+  test("a page cut mid-codepoint still decodes, because the cut is ours", async () => {
+    /* The multi-byte character at the tail is only broken because the 4 KB
+       limit landed inside it. Calling that file "binary" would be blaming the
+       content for our own boundary. */
+    const full = Buffer.from("記憶", "utf-8");
+    const bridge = makePreviewBridge({
+      readContent: jest.fn().mockResolvedValue({
+        encoding: "base64",
+        data: full.subarray(0, full.length - 1).toString("base64"),
+        mime_type: "text/plain",
+        total_bytes: 4096,
+        truncated: true,
+      }),
+    });
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.READY);
+    expect(result.text).toBe("記");
+    expect(result.truncated).toBe(true);
+  });
+
+  test("the same broken tail on a COMPLETE page is binary", async () => {
+    const full = Buffer.from("記憶", "utf-8");
+    const bridge = makePreviewBridge({
+      readContent: jest.fn().mockResolvedValue({
+        encoding: "base64",
+        data: full.subarray(0, full.length - 1).toString("base64"),
+        mime_type: "text/plain",
+        total_bytes: 5,
+        truncated: false,
+      }),
+    });
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.UNSUPPORTED);
+  });
+
+  test("a rejected read is an ERROR carrying the stable code", async () => {
+    const bridge = makePreviewBridge({
+      readContent: jest.fn().mockRejectedValue(codedError("context_v2_unavailable")),
+    });
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.ERROR);
+    expect(result.errorCode).toBe("context_v2_unavailable");
+  });
+
+  test("an encoding this version cannot read is unsupported, not an error", async () => {
+    const bridge = makePreviewBridge({
+      readContent: jest.fn().mockResolvedValue({
+        encoding: "hex",
+        data: "6869",
+        total_bytes: 2,
+      }),
+    });
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      bridge,
+    });
+
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.UNSUPPORTED);
+  });
+
+  test("a bridge without readContent degrades instead of throwing", async () => {
+    const result = await loadMemoryV2EntryPreview({
+      ownerChatId: "chat-1",
+      ref: "pupu://memory/space-1/entry-1@1",
+      bridge: { isAvailable: () => true },
+    });
+    expect(result.state).toBe(MEMORY_V2_PREVIEW_STATES.UNSUPPORTED);
   });
 });

@@ -1,21 +1,28 @@
 /* eslint-env jest */
 
 /*
- * The view is a dumb switch over the frozen state enum, so what is worth
- * testing is that the switch is TOTAL and that its arms are actually telling
- * the states apart. AC-5 asks for three states that a user can tell apart, so
- * the assertions look at what distinguishes them on screen — different copy,
- * different icon, different border treatment, different affordances — not just
- * that each one rendered something.
+ * The view is a dumb switch over two frozen state enums, so what is worth
+ * testing is that each switch is TOTAL and that its arms actually tell the
+ * states apart. AC-5 asks for three tree states a user can distinguish, so the
+ * assertions look at what distinguishes them on screen — different copy,
+ * different icon, different border treatment, different affordances.
+ *
+ * REVISION 1 adds a second thing worth pinning: the two floating panels show
+ * and hide by OPACITY, staying mounted and click-through when hidden. That is
+ * not a stylistic detail — the right-hand panel sits exactly on top of the
+ * vector view's own detail card, and `display:none` or a slide off-canvas
+ * would take that card's usability with it. So the hidden state is asserted
+ * on the real style properties, not on absence from the DOM.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import {
   MEMORY_V2_TREE_STATES,
   MEMORY_V2_TREE_DISABLED_REASONS,
   MEMORY_V2_TREE_MAX_VISIBLE_ROWS,
+  MEMORY_V2_PREVIEW_STATES,
 } from "../../SERVICEs/memory_v2_tree_state";
 import { MemoryV2TreeView } from "./memory_v2_tree_view";
 
@@ -47,6 +54,16 @@ const BASE = {
   entryCount: 0,
 };
 
+const BASE_PREVIEW = {
+  state: MEMORY_V2_PREVIEW_STATES.IDLE,
+  text: "",
+  totalBytes: 0,
+  shownBytes: 0,
+  truncated: false,
+  errorCode: "",
+  errorMessage: "",
+};
+
 const node = (path, kind, children = [], extra = {}) => ({
   entry_id: `id-${path}`,
   path,
@@ -58,19 +75,69 @@ const node = (path, kind, children = [], extra = {}) => ({
   ...extra,
 });
 
-const renderView = (result, props = {}) => {
+const renderView = (result, props = {}, previewResult = null) => {
   const load = jest.fn().mockResolvedValue({ ...BASE, ...result });
+  const loadPreview = jest
+    .fn()
+    .mockResolvedValue({ ...BASE_PREVIEW, ...(previewResult || {}) });
   const utils = render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
       <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
-        <MemoryV2TreeView open ownerChatId="chat-1" load={load} {...props} />
+        <MemoryV2TreeView
+          open
+          ownerChatId="chat-1"
+          load={load}
+          loadPreview={loadPreview}
+          {...props}
+        />
       </LocaleContext.Provider>
     </ConfigContext.Provider>,
   );
-  return { ...utils, load };
+  return { ...utils, load, loadPreview };
 };
 
 const stateCard = () => screen.getByTestId("memory-v2-tree-state-card").firstChild;
+const sideMenu = () => screen.getByTestId("memory-v2-tree-view");
+const detailPanel = () => screen.getByTestId("memory-v2-entry-detail");
+
+/* Rows must be addressed as rows: the detail panel repeats the selected
+   entry's name, so a bare getByText would become ambiguous the moment the
+   panel opens — and would then match whichever one happened to be first. */
+const row = (name) =>
+  screen
+    .getAllByTestId("memory-v2-tree-row")
+    .find((element) => element.textContent === name);
+const selectedRows = () =>
+  screen
+    .getAllByTestId("memory-v2-tree-row")
+    .filter((element) => element.dataset.selected === "true");
+
+const FILE_A = node("notes/a.md", "file", [], {
+  content_bytes: 2048,
+  content_ref: "pupu://memory/space-1/id-a@3",
+  mime_type: "text/markdown",
+  updated_at_ms: 1754000000000,
+  description: "the running notes",
+});
+
+const READY = {
+  state: MEMORY_V2_TREE_STATES.READY,
+  spaces: [{ spaceId: "space-1", name: "workspace", description: "" }],
+  spaceId: "space-1",
+  spaceName: "workspace",
+  entryCount: 3,
+  roots: [
+    node("notes", "folder", [
+      FILE_A,
+      node("notes/b.md", "file", [], {
+        content_bytes: 512,
+        content_ref: "pupu://memory/space-1/id-b@1",
+        mime_type: "text/markdown",
+      }),
+    ]),
+    node("spec", "link", [], { link_url: "https://example.com/spec" }),
+  ],
+};
 
 describe("MemoryV2TreeView — the three states are told apart", () => {
   test("DISABLED says not-enabled, names the reason, and offers no retry", async () => {
@@ -87,7 +154,8 @@ describe("MemoryV2TreeView — the three states are told apart", () => {
     ).toBeInTheDocument();
     /* Retrying a switched-off feature cannot help, so the affordance is
        absent — that absence is itself one of the signals separating this
-       state from "empty". */
+       state from "empty". (The header's icon-only refresh renders as the
+       lowercase icon name, so it cannot be confused with this label.) */
     expect(screen.queryByText("Refresh")).not.toBeInTheDocument();
     expect(screen.getByTestId("icon-information")).toBeInTheDocument();
   });
@@ -128,7 +196,7 @@ describe("MemoryV2TreeView — the three states are told apart", () => {
     expect(screen.getByText("Refresh")).toBeInTheDocument();
     expect(screen.getByTestId("icon-folder")).toBeInTheDocument();
     /* Not the disabled copy — the two zero-row states must never collapse
-       into one blank panel. */
+       into one blank column. */
     expect(
       screen.queryByText("Memory V2 is not enabled"),
     ).not.toBeInTheDocument();
@@ -176,27 +244,24 @@ describe("MemoryV2TreeView — the three states are told apart", () => {
   test("a state string the producer has not defined still renders something", async () => {
     renderView({ state: "a_state_from_the_future" });
     /* The switch default is the safety net: an unhandled state must never be
-       an empty modal. */
+       an empty panel. */
     expect(await screen.findByText("Unrecognized response")).toBeInTheDocument();
+  });
+
+  test("every non-tree state stays inside the 236px side menu", async () => {
+    /* The states are cramped by design now. If one of them ever grows back
+       into a full-bleed card it would cover the scatter, which REVISION 1
+       makes the permanent background. */
+    renderView({ state: MEMORY_V2_TREE_STATES.EMPTY });
+    await screen.findByText("No memory entries yet");
+    expect(sideMenu().contains(screen.getByTestId("memory-v2-tree-state-card"))).toBe(
+      true,
+    );
+    expect(sideMenu().style.width).toBe("236px");
   });
 });
 
 describe("MemoryV2TreeView — the tree itself", () => {
-  const READY = {
-    state: MEMORY_V2_TREE_STATES.READY,
-    spaces: [{ spaceId: "space-1", name: "workspace", description: "" }],
-    spaceId: "space-1",
-    spaceName: "workspace",
-    entryCount: 3,
-    roots: [
-      node("notes", "folder", [
-        node("notes/a.md", "file", [], { content_bytes: 2048 }),
-        node("notes/b.md", "file", [], { content_bytes: 512 }),
-      ]),
-      node("spec", "link", [], { link_url: "https://example.com/spec" }),
-    ],
-  };
-
   test("renders one level open by default and toggles the rest", async () => {
     renderView(READY);
 
@@ -204,30 +269,28 @@ describe("MemoryV2TreeView — the tree itself", () => {
     expect(await screen.findByText("notes")).toBeInTheDocument();
     expect(screen.getByText("a.md")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("notes"));
+    fireEvent.click(row("notes"));
     await waitFor(() => {
       expect(screen.queryByText("a.md")).not.toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("notes"));
+    fireEvent.click(row("notes"));
     expect(await screen.findByText("a.md")).toBeInTheDocument();
   });
 
-  test("kind drives the icon and the trailing metadata", async () => {
+  test("kind drives the icon", async () => {
     renderView(READY);
 
     await screen.findByText("notes");
     expect(screen.getByTestId("icon-folder_open")).toBeInTheDocument();
     expect(screen.getAllByTestId("icon-draft")).toHaveLength(2);
     expect(screen.getByTestId("icon-link")).toBeInTheDocument();
-    expect(screen.getByText("2.0 KB")).toBeInTheDocument();
-    expect(screen.getByText("512 B")).toBeInTheDocument();
-    expect(screen.getByText("https://example.com/spec")).toBeInTheDocument();
   });
 
-  test("the space bar shows the entry count and a refresh that re-loads", async () => {
+  test("the header carries the space name and a refresh that re-loads", async () => {
     const { load } = renderView(READY);
 
+    expect(await screen.findByText("workspace")).toBeInTheDocument();
     expect(await screen.findByText("3 entries")).toBeInTheDocument();
     expect(load).toHaveBeenCalledTimes(1);
 
@@ -297,15 +360,253 @@ describe("MemoryV2TreeView — the tree itself", () => {
     rerender(view("chat-2"));
     await screen.findByText("notes");
 
-    resolveFirst({
-      ...BASE,
-      state: MEMORY_V2_TREE_STATES.ERROR,
-      errorMessage: "stale",
+    /* act() so the stale promise's continuation actually runs before the
+       assertion. Resolving and then polling with waitFor would let the very
+       first poll succeed before the microtask fires, which would pass whether
+       or not anything guards the write. */
+    await act(async () => {
+      resolveFirst({
+        ...BASE,
+        state: MEMORY_V2_TREE_STATES.ERROR,
+        errorMessage: "stale",
+      });
     });
 
-    await waitFor(() => expect(screen.getByText("notes")).toBeInTheDocument());
+    expect(screen.getByText("notes")).toBeInTheDocument();
     expect(
       screen.queryByText("Memory tree could not be loaded"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("MemoryV2TreeView — the side menu floats and collapses", () => {
+  test("it is a 236px panel inset 6px from the left, not a full-bleed overlay", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    const style = sideMenu().style;
+    expect(style.left).toBe("6px");
+    expect(style.width).toBe("236px");
+    /* Clear of the inspector's own title, and clear of the scatter's bottom
+       control bar — the background view has to stay usable. */
+    expect(style.top).toBe("72px");
+    expect(style.bottom).toBe("96px");
+  });
+
+  test("collapsing fades and slides it, and never unmounts it", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+    expect(sideMenu().style.opacity).toBe("1");
+    expect(screen.queryByTestId("memory-v2-tree-expand")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("side_menu_close"));
+
+    await waitFor(() => expect(sideMenu().style.opacity).toBe("0"));
+    const style = sideMenu().style;
+    expect(style.transform).toBe("translateX(-12px)");
+    expect(style.pointerEvents).toBe("none");
+    /* Still mounted, still laid out — display:none would drop the scroll
+       position and kill the transition. */
+    expect(style.display).toBe("flex");
+    expect(screen.getByText("notes")).toBeInTheDocument();
+  });
+
+  test("the expand handle appears only while collapsed and brings it back", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    fireEvent.click(screen.getByText("side_menu_close"));
+    const handle = await screen.findByTestId("memory-v2-tree-expand");
+    expect(handle.style.left).toBe("14px");
+
+    fireEvent.click(screen.getByText("side_menu_left"));
+    await waitFor(() => expect(sideMenu().style.opacity).toBe("1"));
+    expect(screen.queryByTestId("memory-v2-tree-expand")).not.toBeInTheDocument();
+  });
+});
+
+describe("MemoryV2TreeView — the entry detail panel", () => {
+  test("it is mounted and transparent before anything is selected", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    const style = detailPanel().style;
+    expect(style.opacity).toBe("0");
+    expect(style.transform).toBe("translateX(12px)");
+    /* THE property that matters: the vector view's own detail card lives at
+       the same coordinates underneath. A pane that swallowed clicks, or one
+       that used display:none and so could not animate, would each break a
+       different half of that. */
+    expect(style.pointerEvents).toBe("none");
+    expect(style.display).toBe("flex");
+    expect(style.width).toBe("320px");
+    expect(style.right).toBe("6px");
+  });
+
+  test("clicking a file opens it and shows the entry's facts", async () => {
+    renderView(READY, {}, { state: MEMORY_V2_PREVIEW_STATES.READY, text: "# notes" });
+    await screen.findByText("a.md");
+
+    fireEvent.click(row("a.md"));
+
+    await waitFor(() => expect(detailPanel().style.opacity).toBe("1"));
+    expect(detailPanel().style.pointerEvents).toBe("auto");
+    expect(screen.getByText("Entry Detail")).toBeInTheDocument();
+    expect(screen.getByText("notes/a.md")).toBeInTheDocument();
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument();
+    expect(screen.getByText("the running notes")).toBeInTheDocument();
+    expect(await screen.findByTestId("memory-v2-entry-preview")).toHaveTextContent(
+      "# notes",
+    );
+  });
+
+  test("clicking a link shows its URL and skips the content round trip", async () => {
+    const { loadPreview } = renderView(READY);
+    await screen.findByText("spec");
+
+    fireEvent.click(row("spec"));
+
+    await waitFor(() => expect(detailPanel().style.opacity).toBe("1"));
+    expect(screen.getByText("https://example.com/spec")).toBeInTheDocument();
+    expect(
+      screen.getByText("This entry has no text content to preview."),
+    ).toBeInTheDocument();
+    /* A link has no content_ref. Asking anyway would be a round trip per
+       click for an answer the payload already gave us. */
+    expect(loadPreview).not.toHaveBeenCalled();
+  });
+
+  test("clicking a folder toggles it and never opens the panel", async () => {
+    renderView(READY);
+    await screen.findByText("notes");
+
+    fireEvent.click(row("notes"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("a.md")).not.toBeInTheDocument();
+    });
+    expect(detailPanel().style.opacity).toBe("0");
+    expect(detailPanel().style.pointerEvents).toBe("none");
+  });
+
+  test("the open row is marked selected, and re-clicking it closes the panel", async () => {
+    renderView(READY, {}, { state: MEMORY_V2_PREVIEW_STATES.READY, text: "x" });
+    await screen.findByText("a.md");
+
+    fireEvent.click(row("a.md"));
+    await waitFor(() => expect(detailPanel().style.opacity).toBe("1"));
+    expect(selectedRows()).toHaveLength(1);
+
+    fireEvent.click(row("a.md"));
+    await waitFor(() => expect(detailPanel().style.opacity).toBe("0"));
+    expect(selectedRows()).toHaveLength(0);
+  });
+
+  test("a failed content read is told apart from an entry with no content", async () => {
+    renderView(
+      READY,
+      {},
+      { state: MEMORY_V2_PREVIEW_STATES.ERROR, errorCode: "context_v2_unavailable" },
+    );
+    await screen.findByText("a.md");
+
+    fireEvent.click(row("a.md"));
+
+    expect(
+      await screen.findByText("Content could not be read."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("context_v2_unavailable")).toBeInTheDocument();
+    expect(
+      screen.queryByText("This entry has no text content to preview."),
+    ).not.toBeInTheDocument();
+  });
+
+  test("a truncated preview says how much it is withholding", async () => {
+    renderView(
+      READY,
+      {},
+      {
+        state: MEMORY_V2_PREVIEW_STATES.READY,
+        text: "partial",
+        shownBytes: 4096,
+        totalBytes: 99000,
+        truncated: true,
+      },
+    );
+    await screen.findByText("a.md");
+
+    fireEvent.click(row("a.md"));
+
+    expect(
+      await screen.findByText("Preview truncated at 4096 of 99000 bytes"),
+    ).toBeInTheDocument();
+  });
+
+  test("a superseded content read cannot land in a newer selection's panel", async () => {
+    /* Click down a list fast enough and the first answer arrives after the
+       second selection. What must hold is the observable property — the panel
+       keeps describing what is selected NOW — regardless of which of the
+       hook's two guards happens to catch it. */
+    let resolveFirst;
+    const load = jest.fn().mockResolvedValue({ ...BASE, ...READY });
+    const loadPreview = jest
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFirst = resolve; }),
+      )
+      .mockResolvedValue({
+        ...BASE_PREVIEW,
+        state: MEMORY_V2_PREVIEW_STATES.READY,
+        text: "second entry",
+      });
+
+    render(
+      <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+        <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+          <MemoryV2TreeView
+            open
+            ownerChatId="chat-1"
+            load={load}
+            loadPreview={loadPreview}
+          />
+        </LocaleContext.Provider>
+      </ConfigContext.Provider>,
+    );
+
+    await screen.findByText("a.md");
+    fireEvent.click(row("a.md"));
+    fireEvent.click(row("b.md"));
+    expect(await screen.findByTestId("memory-v2-entry-preview")).toHaveTextContent(
+      "second entry",
+    );
+
+    await act(async () => {
+      resolveFirst({
+        ...BASE_PREVIEW,
+        state: MEMORY_V2_PREVIEW_STATES.READY,
+        text: "first entry",
+      });
+    });
+
+    expect(screen.getByTestId("memory-v2-entry-preview")).toHaveTextContent(
+      "second entry",
+    );
+    expect(screen.queryByText("first entry")).not.toBeInTheDocument();
+  });
+
+  test("a reload clears the selection rather than describing a stale entry", async () => {
+    const { load } = renderView(
+      READY,
+      {},
+      { state: MEMORY_V2_PREVIEW_STATES.READY, text: "x" },
+    );
+    await screen.findByText("a.md");
+    fireEvent.click(row("a.md"));
+    await waitFor(() => expect(detailPanel().style.opacity).toBe("1"));
+
+    fireEvent.click(screen.getByText("refresh"));
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(detailPanel().style.opacity).toBe("0"));
   });
 });

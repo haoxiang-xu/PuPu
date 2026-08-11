@@ -198,7 +198,6 @@
     "empty_profile": "Profildokument ist leer.",
     "no_conversation_text": "Für dieses Gedächtnisfragment ist kein Gesprächstext gespeichert.",
     "load_failed": "Laden der Speicherprojektion fehlgeschlagen",
-    "view_vectors": "Vektoren",
     "view_tree": "Baum",
     "tree_disabled": "Speicher V2 ist nicht aktiviert",
     "tree_disabled_no_owner": "Öffne den Inspektor aus einem Chat heraus, um dessen Speicherbaum zu sehen.",
@@ -214,7 +213,17 @@
     "tree_refresh": "Aktualisieren",
     "tree_retry": "Erneut versuchen",
     "tree_entry_count": "{count} Einträge",
-    "tree_truncated": "{shown} von {total} Zeilen werden angezeigt"
+    "tree_truncated": "{shown} von {total} Zeilen werden angezeigt",
+    "entry_detail": "Eintragsdetails",
+    "tree_field_path": "Pfad",
+    "tree_field_size": "Größe",
+    "tree_field_url": "URL",
+    "tree_field_updated": "Aktualisiert",
+    "tree_preview": "Vorschau",
+    "tree_preview_loading": "Inhalt wird geladen…",
+    "tree_preview_unsupported": "Dieser Eintrag hat keinen Textinhalt für eine Vorschau.",
+    "tree_preview_failed": "Inhalt konnte nicht gelesen werden.",
+    "tree_preview_truncated": "Vorschau gekürzt: {shown} von {total} Bytes"
   },
   "token_usage": {
     "7_days": "7 Tage",

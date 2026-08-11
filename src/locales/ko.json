@@ -198,7 +198,6 @@
     "empty_profile": "프로필 문서가 비어 있습니다.",
     "no_conversation_text": "이 메모리 청크에 저장된 대화 텍스트가 없습니다.",
     "load_failed": "메모리 투영 불러오기에 실패했습니다",
-    "view_vectors": "벡터",
     "view_tree": "트리",
     "tree_disabled": "메모리 V2가 활성화되지 않았습니다",
     "tree_disabled_no_owner": "채팅에서 인스펙터를 열면 메모리 트리를 볼 수 있습니다.",
@@ -214,7 +213,17 @@
     "tree_refresh": "새로 고침",
     "tree_retry": "다시 시도",
     "tree_entry_count": "{count}개 항목",
-    "tree_truncated": "{total}행 중 {shown}행 표시"
+    "tree_truncated": "{total}행 중 {shown}행 표시",
+    "entry_detail": "항목 세부 정보",
+    "tree_field_path": "경로",
+    "tree_field_size": "크기",
+    "tree_field_url": "URL",
+    "tree_field_updated": "업데이트됨",
+    "tree_preview": "미리보기",
+    "tree_preview_loading": "콘텐츠 불러오는 중…",
+    "tree_preview_unsupported": "이 항목에는 미리 볼 텍스트 콘텐츠가 없습니다.",
+    "tree_preview_failed": "콘텐츠를 읽을 수 없습니다.",
+    "tree_preview_truncated": "미리보기가 {total}바이트 중 {shown}바이트에서 잘렸습니다"
   },
   "token_usage": {
     "7_days": "7일",

@@ -198,7 +198,6 @@
     "empty_profile": "Empty profile document.",
     "no_conversation_text": "No conversation text stored for this memory chunk.",
     "load_failed": "Failed to load memory projection",
-    "view_vectors": "Vectors",
     "view_tree": "Tree",
     "tree_disabled": "Memory V2 is not enabled",
     "tree_disabled_no_owner": "Open the inspector from a chat to browse its memory tree.",
@@ -214,7 +213,17 @@
     "tree_refresh": "Refresh",
     "tree_retry": "Retry",
     "tree_entry_count": "{count} entries",
-    "tree_truncated": "Showing {shown} of {total} rows"
+    "tree_truncated": "Showing {shown} of {total} rows",
+    "entry_detail": "Entry Detail",
+    "tree_field_path": "Path",
+    "tree_field_size": "Size",
+    "tree_field_url": "URL",
+    "tree_field_updated": "Updated",
+    "tree_preview": "Preview",
+    "tree_preview_loading": "Loading content…",
+    "tree_preview_unsupported": "This entry has no text content to preview.",
+    "tree_preview_failed": "Content could not be read.",
+    "tree_preview_truncated": "Preview truncated at {shown} of {total} bytes"
   },
   "token_usage": {
     "7_days": "7 days",

@@ -198,7 +198,6 @@
     "empty_profile": "プロファイル文書が空です。",
     "no_conversation_text": "このメモリチャンクには会話テキストが保存されていません。",
     "load_failed": "メモリ投影の読み込みに失敗しました",
-    "view_vectors": "ベクトル",
     "view_tree": "ツリー",
     "tree_disabled": "メモリ V2 は有効ではありません",
     "tree_disabled_no_owner": "チャットからインスペクタを開くとメモリツリーを表示できます。",
@@ -214,7 +213,17 @@
     "tree_refresh": "更新",
     "tree_retry": "再試行",
     "tree_entry_count": "{count} 件",
-    "tree_truncated": "{total} 行中 {shown} 行を表示"
+    "tree_truncated": "{total} 行中 {shown} 行を表示",
+    "entry_detail": "エントリの詳細",
+    "tree_field_path": "パス",
+    "tree_field_size": "サイズ",
+    "tree_field_url": "URL",
+    "tree_field_updated": "更新日時",
+    "tree_preview": "プレビュー",
+    "tree_preview_loading": "コンテンツを読み込み中…",
+    "tree_preview_unsupported": "このエントリにはプレビューできるテキストがありません。",
+    "tree_preview_failed": "コンテンツを読み込めませんでした。",
+    "tree_preview_truncated": "プレビューは {total} バイト中 {shown} バイトで切り詰められています"
   },
   "token_usage": {
     "7_days": "7日間",

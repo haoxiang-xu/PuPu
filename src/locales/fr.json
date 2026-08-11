@@ -198,7 +198,6 @@
     "empty_profile": "Document de profil vide.",
     "no_conversation_text": "Aucun texte de conversation stocké pour ce fragment de mémoire.",
     "load_failed": "Échec du chargement de la projection mémoire",
-    "view_vectors": "Vecteurs",
     "view_tree": "Arborescence",
     "tree_disabled": "La mémoire V2 n'est pas activée",
     "tree_disabled_no_owner": "Ouvrez l'inspecteur depuis une conversation pour parcourir son arborescence mémoire.",
@@ -214,7 +213,17 @@
     "tree_refresh": "Actualiser",
     "tree_retry": "Réessayer",
     "tree_entry_count": "{count} entrées",
-    "tree_truncated": "Affichage de {shown} sur {total} lignes"
+    "tree_truncated": "Affichage de {shown} sur {total} lignes",
+    "entry_detail": "Détail de l'entrée",
+    "tree_field_path": "Chemin",
+    "tree_field_size": "Taille",
+    "tree_field_url": "URL",
+    "tree_field_updated": "Mis à jour",
+    "tree_preview": "Aperçu",
+    "tree_preview_loading": "Chargement du contenu…",
+    "tree_preview_unsupported": "Cette entrée n'a aucun contenu texte à prévisualiser.",
+    "tree_preview_failed": "Le contenu n'a pas pu être lu.",
+    "tree_preview_truncated": "Aperçu tronqué à {shown} sur {total} octets"
   },
   "token_usage": {
     "7_days": "7 jours",
