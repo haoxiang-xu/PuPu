@@ -947,7 +947,12 @@ const MemoryV2TreeView = ({
           ...revealStyle(!collapsed, -12),
         }}
       >
-        {/* ── Header: identity, refresh, collapse ── */}
+        {/* ── Header: collapse, identity, actions ──
+             Order is recipe_list.js's verbatim: the collapse control owns the
+             top-left corner, the label takes the slack, action buttons stack
+             at the right. It is a layout convention, not a preference — the
+             expand handle returns to top-left, so collapse must leave from
+             there or the panel appears to hinge off two different corners. */}
         <div
           style={{
             display: "flex",
@@ -957,6 +962,11 @@ const MemoryV2TreeView = ({
             padding: "8px 6px 6px 12px",
           }}
         >
+          <Button
+            prefix_icon="side_menu_close"
+            onClick={() => setCollapsed(true)}
+            style={iconButtonStyle(isDark)}
+          />
           <div
             style={{
               flex: 1,
@@ -978,11 +988,6 @@ const MemoryV2TreeView = ({
           <Button
             prefix_icon="refresh"
             onClick={refresh}
-            style={iconButtonStyle(isDark)}
-          />
-          <Button
-            prefix_icon="side_menu_close"
-            onClick={() => setCollapsed(true)}
             style={iconButtonStyle(isDark)}
           />
         </div>

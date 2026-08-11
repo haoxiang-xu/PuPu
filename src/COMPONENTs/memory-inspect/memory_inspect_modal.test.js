@@ -34,8 +34,15 @@ jest.mock("../../BUILTIN_COMPONENTs/input/slider", () => ({
 }));
 
 jest.mock("../../BUILTIN_COMPONENTs/input/button", () => {
-  return function MockButton({ label, onClick }) {
-    return <button onClick={onClick}>{label || "button"}</button>;
+  return function MockButton({ label, prefix_icon, onClick }) {
+    /* `data-icon` is what lets a test name the button it means. Without it the
+       only handle is child index, which silently re-points at a different
+       control the moment a header is reordered (REVISION 4 did exactly that). */
+    return (
+      <button onClick={onClick} data-icon={prefix_icon || ""}>
+        {label || "button"}
+      </button>
+    );
   };
 });
 
@@ -146,7 +153,11 @@ describe("MemoryInspectModal V2 tree overlay", () => {
     await screen.findByTestId("memory-v2-tree-view");
     const before = screen.getByTestId("scatter");
 
-    fireEvent.click(screen.getByTestId("memory-v2-tree-view").querySelectorAll("button")[1]);
+    fireEvent.click(
+      screen
+        .getByTestId("memory-v2-tree-view")
+        .querySelector('button[data-icon="side_menu_close"]'),
+    );
 
     await waitFor(() =>
       expect(screen.getByTestId("memory-v2-tree-view").style.opacity).toBe("0"),

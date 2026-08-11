@@ -442,6 +442,26 @@ describe("MemoryV2TreeView — the side menu floats and collapses", () => {
     await waitFor(() => expect(sideMenu().style.opacity).toBe("1"));
     expect(screen.queryByTestId("memory-v2-tree-expand")).not.toBeInTheDocument();
   });
+
+  test("the header puts collapse at the far left and refresh at the far right", async () => {
+    /* REVISION 4. Order, not styling — and it is load-bearing, not taste: the
+       expand handle comes back at top-LEFT (asserted above), so collapse has
+       to leave from the top-left too, or the panel hinges off one corner and
+       returns from another. recipe_list.js is the convention this copies:
+       [collapse][label flex:1][action buttons]. */
+    renderView(READY);
+    const label = await screen.findByText("workspace");
+
+    const header = label.parentElement;
+    expect(
+      Array.from(header.children).map((el) =>
+        el.tagName === "BUTTON" ? el.dataset.icon : "label",
+      ),
+    ).toEqual(["side_menu_close", "label", "refresh"]);
+
+    /* The label takes the slack so both buttons are pinned to their edges. */
+    expect(label.style.flex).toBe("1");
+  });
 });
 
 /*
