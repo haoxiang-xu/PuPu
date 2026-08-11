@@ -48,8 +48,12 @@ const MemoryInspectViewSwitch = ({ view, onChange }) => {
     <div
       data-testid="memory-inspect-view-switch"
       style={{
+        /* Below the title AND the chat-title subtitle (title bottom ~46,
+           subtitle bottom ~62). Fixed rather than flowed, so it does not
+           shift between a chat that has a title and one that does not — the
+           tree view reserves a matching 108px header band. */
         position: "absolute",
-        top: 58,
+        top: 72,
         left: 24,
         zIndex: 4,
         display: "flex",

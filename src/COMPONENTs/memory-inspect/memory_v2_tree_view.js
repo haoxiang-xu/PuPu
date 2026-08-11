@@ -576,8 +576,18 @@ const MemoryV2TreeView = ({
         overflow: "hidden",
       }}
     >
-      {/* ━━ Header — mirrors the vector view's, so switching does not jump ━ */}
-      <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
+      {/* ━━ Header — mirrors the vector view's, so switching does not jump ━
+          Fixed height, not content height: the view switcher is absolutely
+          positioned at a constant y, so the band beneath it has to be
+          constant too, whether or not this chat has a title. */}
+      <div
+        style={{
+          padding: "20px 24px 0",
+          height: 108,
+          boxSizing: "border-box",
+          flexShrink: 0,
+        }}
+      >
         <div
           style={{
             fontSize: 22,
@@ -604,8 +614,6 @@ const MemoryV2TreeView = ({
             {chatTitle}
           </div>
         )}
-        {/* reserves the band the view switcher is absolutely positioned into */}
-        <div style={{ height: 40 }} />
       </div>
 
       {/* ━━ Space bar ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
