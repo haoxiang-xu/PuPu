@@ -8,7 +8,7 @@ memory: project
 
 你是 `code-owner-devtools`，[`Code Owner`](../../codex/roles/code-owner.md) 的一个 instance。角色职责在法典，本仓工程铁律在 [`.claude/CLAUDE.md`](../../CLAUDE.md)，此处都不复述。
 
-## 所有权边界声明（参与候选依据）
+## 所有权边界声明（当前主 owner / HS 路由）
 
 ```
 pupu:src/PAGEs/demo/**
@@ -26,11 +26,13 @@ pupu:jest.config*
 pupu:electron-builder*
 ```
 
+这条边界只用于 `speaker-of-the-house` 选择当前唯一主 owner，或主 owner 为一个真实代码空白串行路由单个 `HS-###`；它不生成参与候选名单，也不因路径命中预批全案参与。担任主 owner 时先完整写出自身代码边界，外部方案块以 `SLOT-###` 留空并写明期待交付与返回路径；担任合作 owner 时只回答被点名的 HS，材料 `RETURNED` 且 material 后才有资格进入 `RS-###`，并依中央规则计入 `N`。
+
 开发期与构建期设施。**注意** `pupu:src/electron/**` 与 `code-owner-electron` 的 `pupu:electron/**` 是两个不同目录，别看串。
 
 ## 为什么这块有 owner 而不是豁免
 
-设开发期设施的 owner，与“显式声明这些无需 owner”，二者都是有效结论 —— 但 **必须择一，不可留空**。留空会让候选发现器反复产生未覆盖项；只有它实际进入获准范围时才交 `chief-judge` 处理，背景提及不阻塞闭庭。
+设开发期设施的 owner，与“显式声明这些无需 owner”，二者都是有效结论 —— 但 **必须择一，不可留空**。只有当前待裁问题真的涉及未覆盖路径时，才记录为路由不确定性或由主 owner 留下真实空白；背景提及不生成参与者，也不阻塞闭庭。
 
 ## 这块地方的已验证知识（零记忆起步，这几条是播种）
 

@@ -23,8 +23,9 @@ SIBLING = {"unchain": pathlib.Path("/Users/red/Desktop/GITRepo/unchain")}
 
 # A-009 明确没有路径 owner 的范围；未命中这些路径不构成 owner 覆盖缺口。
 EXEMPT = re.compile(
-    r"^(docs/|\.claude/agents/|\.claude/skills/|README|CONTRIBUTING|LICENSE"
-    r"|NOTICE|AGENTS\.md|CLAUDE\.md|\.gitignore|\.gitattributes|\.python-version)"
+    r"^(docs/|\.claude/agents/|\.claude/skills/|\.claude/worktrees/|build/|dist/"
+    r"|coverage/|\.gitnexus/|README|CONTRIBUTING|LICENSE|NOTICE|AGENTS\.md"
+    r"|CLAUDE\.md|\.gitignore|\.gitattributes|\.python-version)"
 )
 
 

@@ -287,15 +287,6 @@ const ThemeEditor = () => {
     if (editMode === activeMode) syncCommittedSettings(next);
   };
 
-  const onResetTier = (key) => {
-    setDraftColor(null);
-    const next = clearThemeCustomColor(editMode, key);
-    setSettings(next);
-    if (editMode === activeMode) {
-      syncCommittedSettings(next);
-    }
-  };
-
   const onReset = () => {
     setDraftColor(null);
     const next = resetThemeSettings();
@@ -381,14 +372,6 @@ const ThemeEditor = () => {
     };
     reader.readAsText(file);
     e.target.value = "";
-  };
-
-  const smallBtnStyle = {
-    fontSize: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 7,
-    ...(isDark ? { hoverBackgroundColor: "rgba(255,255,255,0.10)" } : {}),
   };
 
   /* icon + short text variant of the toolbar buttons */

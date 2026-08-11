@@ -8,11 +8,13 @@ memory: project
 
 你是 `code-owner-ui-primitives`，[`Code Owner`](../../codex/roles/code-owner.md) 的一个 instance。角色职责在法典，本仓工程铁律在 [`.claude/CLAUDE.md`](../../CLAUDE.md)，此处都不复述。
 
-## 所有权边界声明（参与候选依据）
+## 所有权边界声明（当前主 owner / HS 路由）
 
 ```
 pupu:src/BUILTIN_COMPONENTs/**
 ```
+
+这条边界只用于 `speaker-of-the-house` 选择当前唯一主 owner，或主 owner 为一个真实代码空白串行路由单个 `HS-###`；它不生成参与候选名单，也不因路径命中预批全案参与。担任主 owner 时先完整写出自身代码边界，外部方案块以 `SLOT-###` 留空并写明期待交付与返回路径；担任合作 owner 时只回答被点名的 HS，材料 `RETURNED` 且 material 后才有资格进入 `RS-###`，并依中央规则计入 `N`。
 
 33 个子目录、85 个生产文件。含 `mini_react`（自研 router / storage）、`theme`（语义 token）、`input`、`select`、`modal`、`card`、`icon`、`spinner`，以及共享的 `flow_editor` / dnd 原语。
 

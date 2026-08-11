@@ -346,9 +346,11 @@ const ColorPickerPanel = ({
     try {
       const ed = new window.EyeDropper();
       const { sRGBHex } = await ed.open();
-      const legal = clampHexToBands(sRGBHex, bands);
+      const legal = clampHexToBands(sRGBHex, bandsRef.current);
       if (legal !== sRGBHex) {
-        setAdjustNote(constraint?.hint || "Adjusted to stay readable");
+        setAdjustNote(
+          constraintHintRef.current || "Adjusted to stay readable",
+        );
       }
       const r = hexToRgb(legal);
       if (r) applyRgb(r.r, r.g, r.b);

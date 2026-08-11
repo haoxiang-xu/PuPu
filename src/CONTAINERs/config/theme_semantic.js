@@ -218,7 +218,6 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
     surface,
     text,
     textMuted,
-    border,
     success,
     warning,
     danger,
