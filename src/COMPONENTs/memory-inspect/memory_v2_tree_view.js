@@ -270,7 +270,10 @@ function TreeRow({
       </span>
 
       <span
-        title={row.path}
+        /* Native title tooltips must follow the same phantom-hover gate as
+           the row wash. Otherwise Chromium can still reveal the full path
+           when async rows appear under a pointer that never moved. */
+        title={hoverArmed ? row.path : undefined}
         style={{
           fontSize: 13,
           fontFamily,
@@ -937,7 +940,11 @@ const MemoryV2TreeView = ({
         /* The only listener that can tell a human apart from Chromium's
            hover recompute. It lives on the panel rather than per row so a
            move anywhere in the side menu arms every row at once. */
-        onMouseMove={armHover}
+        /* Movement while the tree is still loading does not express intent
+           to hover a row that does not exist yet. Arm only after rows are
+           present; otherwise the async payload can land under a now-still
+           pointer and immediately expose a full label. */
+        onMouseMove={isReady ? armHover : undefined}
         style={{
           ...overlayPanelStyle(isDark),
           left: PANEL_INSET,

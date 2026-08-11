@@ -53,6 +53,7 @@ const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => 
 
   return ReactDOM.createPortal(
     <div
+      data-pupu-modal-overlay-host="true"
       aria-modal="true"
       role="dialog"
       style={{

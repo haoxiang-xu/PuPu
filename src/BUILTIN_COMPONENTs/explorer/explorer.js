@@ -31,6 +31,12 @@ const INDENT = 16;
 const LINE_LEFT = 9;
 const DRAG_THRESHOLD = 5;
 const AUTO_EXPAND_DELAY = 500;
+/* Modal overlays live at 9999 (modal.js). A label preview that originates
+   outside a modal must stay below that barrier; a preview that originates
+   inside one is portalled into that modal's own stacking context. */
+const MODAL_OVERLAY_SELECTOR = "[data-pupu-modal-overlay-host='true']";
+const PAGE_LABEL_PREVIEW_Z_INDEX = 9998;
+const MODAL_LABEL_PREVIEW_Z_INDEX = 10000;
 const DRAG_BLOCK_SELECTOR = [
   "input",
   "textarea",
@@ -39,6 +45,36 @@ const DRAG_BLOCK_SELECTOR = [
   "[contenteditable='true']",
   "[data-explorer-drag-disabled='true']",
 ].join(",");
+
+const resolveLabelPreviewLayer = (row) => {
+  if (
+    !row ||
+    !row.isConnected ||
+    typeof document === "undefined" ||
+    !document.body
+  ) {
+    return null;
+  }
+
+  const owningModal = row.closest?.(MODAL_OVERLAY_SELECTOR) || null;
+  const openModals = Array.from(
+    document.querySelectorAll(MODAL_OVERLAY_SELECTOR),
+  );
+  const topModal = openModals[openModals.length - 1] || null;
+
+  /* Same-z-index modal portals stack in DOM order. Only the top modal may
+     surface its own preview; page rows and covered modals are blocked. */
+  if (owningModal ? owningModal !== topModal : topModal !== null) {
+    return null;
+  }
+
+  return {
+    portalHost: owningModal || document.body,
+    zIndex: owningModal
+      ? MODAL_LABEL_PREVIEW_Z_INDEX
+      : PAGE_LABEL_PREVIEW_Z_INDEX,
+  };
+};
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Helpers                                                                                                                      */
@@ -544,10 +580,29 @@ const ExplorerRowBase = ({
     if (labelRef.current) {
       const el = labelRef.current;
       if (el.scrollWidth > el.clientWidth) {
+        if (hoverTimer.current) clearTimeout(hoverTimer.current);
         hoverTimer.current = setTimeout(() => {
-          if (rowRef.current) {
-            setGhostRect(rowRef.current.getBoundingClientRect());
+          hoverTimer.current = null;
+          const row = rowRef.current;
+          const label = labelRef.current;
+          const layer = resolveLabelPreviewLayer(row);
+          if (
+            !layer ||
+            !label ||
+            label.scrollWidth <= label.clientWidth
+          ) {
+            setShowFull(false);
+            setGhostRect(null);
+            return;
           }
+          const rect = row.getBoundingClientRect();
+          setGhostRect({
+            top: rect.top,
+            left: rect.left,
+            right: rect.right,
+            height: rect.height,
+            ...layer,
+          });
           setShowFull(true);
         }, 600);
       }
@@ -555,10 +610,46 @@ const ExplorerRowBase = ({
   }, []);
 
   const clearOverflow = useCallback(() => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
     setShowFull(false);
     setGhostRect(null);
   }, []);
+
+  /* A row can disappear with a delayed preview still queued (folder close,
+     filter, modal transition). Never let that timer write into an unmounted
+     row or resurrect a stale body portal. */
+  useEffect(
+    () => () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    },
+    [],
+  );
+
+  /* If a modal mounts after a page-level preview is already visible, remove
+     the preview rather than merely leaving a hidden portal behind that could
+     flash back when the modal exits. The observer exists only for the single
+     row currently showing a preview. */
+  useEffect(() => {
+    if (
+      !showFull ||
+      typeof document === "undefined" ||
+      typeof MutationObserver === "undefined"
+    ) {
+      return undefined;
+    }
+    const dismissIfBlocked = () => {
+      if (!resolveLabelPreviewLayer(rowRef.current)) clearOverflow();
+    };
+    dismissIfBlocked();
+    const observer = new MutationObserver(dismissIfBlocked);
+    /* Modal portals are direct body children. Watching only that boundary
+       avoids re-checking on unrelated chat streaming / markdown updates. */
+    observer.observe(document.body, { childList: true });
+    return () => observer.disconnect();
+  }, [showFull, clearOverflow]);
 
   /* dismiss ghost on any scroll */
   useEffect(() => {
@@ -1016,10 +1107,10 @@ const ExplorerRowBase = ({
               borderRadius: 5,
               whiteSpace: "nowrap",
               pointerEvents: "none",
-              /* 与 tooltip/tooltip.js 同层(10000):高于 modal(9999),因为 explorer
-                 会被放进 modal 内使用(memory_inspect_modal);低于 context_menu(99999),
-                 因为它只是提示,绝不该盖住可交互的菜单。 */
-              zIndex: 10000,
+              /* Page previews are below modal.js (9999). Modal-owned previews
+                 are portalled into that overlay and stay local to its stacking
+                 context. Both remain below context_menu.js (99999). */
+              zIndex: ghostRect.zIndex,
             }}
           >
             <span
@@ -1122,7 +1213,7 @@ const ExplorerRowBase = ({
               </span>
             )}
           </div>,
-          document.body,
+          ghostRect.portalHost,
         )}
     </div>
   );

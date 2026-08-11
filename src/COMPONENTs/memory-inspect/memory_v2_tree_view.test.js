@@ -504,6 +504,7 @@ describe("MemoryV2TreeView — hover does not paint until the pointer moves", ()
     fireEvent.mouseEnter(row("a.md"));
 
     expect(row("a.md").style.backgroundColor).toBe("transparent");
+    expect(screen.getByText("a.md")).not.toHaveAttribute("title");
   });
 
   test("a real pointer move arms it, and the already-entered row lights up", async () => {
@@ -519,6 +520,29 @@ describe("MemoryV2TreeView — hover does not paint until the pointer moves", ()
     fireEvent.mouseMove(sideMenu());
 
     expect(row("a.md").style.backgroundColor).not.toBe("transparent");
+    expect(screen.getByText("a.md")).toHaveAttribute("title", "notes/a.md");
+  });
+
+  test("pointer movement during loading cannot pre-arm labels that have not rendered", async () => {
+    let resolveLoad;
+    const load = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+    renderView(BASE, { load });
+    await waitFor(() => expect(load).toHaveBeenCalled());
+
+    fireEvent.mouseMove(sideMenu());
+    await act(async () => {
+      resolveLoad({ ...BASE, ...READY });
+    });
+    await screen.findByText("notes");
+
+    fireEvent.mouseEnter(row("a.md"));
+    expect(row("a.md").style.backgroundColor).toBe("transparent");
+    expect(screen.getByText("a.md")).not.toHaveAttribute("title");
   });
 
   test("leaving still clears it once armed", async () => {
