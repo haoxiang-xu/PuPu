@@ -8,6 +8,10 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { Scatter } from "../../BUILTIN_COMPONENTs/scatter";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
+import MemoryV2TreeView from "./memory_v2_tree_view";
+import MemoryInspectViewSwitch, {
+  MEMORY_INSPECT_VIEWS,
+} from "./memory_inspect_view_switch";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
@@ -321,6 +325,18 @@ function SelectedCard({ point, isDark, fontFamily, color }) {
 /*    sessionId — string  (chat session ID, e.g. "chat-1772850432671-...")*/
 /*    chatTitle — string  (optional, for the header)                      */
 /*    mode      — "session" | "long_term" (default: "session")        */
+/*    ownerChatId — string (V2 context_v2 owner key). Supplied ONLY by     */
+/*                the side-menu mount. The settings/long_term mount passes  */
+/*                no owner at all, so this is undefined there and the tree  */
+/*                view is not offered — see MEMORY_V2_TREE_STATES.DISABLED */
+/*                (reason `no_owner`) for the degradation contract.         */
+/*                                                                         */
+/*  The V2 tree renders as a full-bleed overlay on top of the scatter       */
+/*  rather than by wrapping it in a conditional: the vector view's code     */
+/*  path and rendered output are frozen (0000-0010 AC-2), and an overlay is */
+/*  the one way to add a second view without touching a line of it. The     */
+/*  cost is that the vector poll keeps running behind the tree tab, which   */
+/*  is existing behaviour left deliberately untouched.                      */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const MemoryInspectModal = ({
@@ -329,6 +345,7 @@ const MemoryInspectModal = ({
   sessionId,
   chatTitle,
   mode = "session",
+  ownerChatId,
 }) => {
   useModalLifecycle("memory-inspect-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -347,6 +364,15 @@ const MemoryInspectModal = ({
 
   /* ── Profile side-panel toggle (long-term only) ── */
   const [showProfile, setShowProfile] = useState(false);
+
+  /* ── Vector / tree view switch ──
+     `treeOffered` is derived, never stored: without an ownerChatId there is
+     no V2 owner to scope a tree to, and a remembered "tree" selection would
+     otherwise survive into a mount that cannot serve it. Deriving the active
+     view means that state is unreachable instead of merely unlikely. */
+  const [view, setView] = useState(MEMORY_INSPECT_VIEWS.VECTOR);
+  const treeOffered = Boolean(ownerChatId);
+  const activeView = treeOffered ? view : MEMORY_INSPECT_VIEWS.VECTOR;
 
   /* ── Scatter controls ── */
   const [x_pc, set_x_pc] = useState(0); // 0 = PC1, 1 = PC2 …
@@ -952,6 +978,24 @@ const MemoryInspectModal = ({
           ) : null}
         </div>
       </div>
+
+      {/* ━━ Overlay: V2 tree view ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          LAST child on purpose. It carries z-index 3, the same layer as the
+          header, the scatter controls and the detail card, so painting after
+          them is what lets it cover them — and it stays below the close
+          button (z-index 4), which serves both views. */}
+      {activeView === MEMORY_INSPECT_VIEWS.TREE && (
+        <MemoryV2TreeView
+          open={open}
+          ownerChatId={ownerChatId}
+          chatTitle={chatTitle}
+        />
+      )}
+
+      {/* ━━ Overlay: view switch (z-index 4, above the tree) ━━━━━━━━━━━ */}
+      {treeOffered && (
+        <MemoryInspectViewSwitch view={activeView} onChange={setView} />
+      )}
     </Modal>
   );
 };
