@@ -195,6 +195,11 @@ export const buildSideMenuContextMenuItems = ({
     const chat = chatStore?.chatsById?.[node.chatId];
     const chatTitle = chat?.title || node.label || "Chat";
     if (isCharacterChatNode(node.chatId)) {
+      // V1 vector view keys off the derived character memory session id.
+      // `buildCharacterMemorySessionId` is a lossy many-to-one mapping
+      // (lowercasing + illegal-char substitution + empty fallback), so it can
+      // never be inverted back to a chat id — `ownerChatId` must be carried
+      // separately and is always the UI chat id.
       const memorySessionId = buildCharacterMemorySessionId(
         chat?.characterId,
         chat?.threadId || "main",
@@ -204,7 +209,12 @@ export const buildSideMenuContextMenuItems = ({
           icon: "brain",
           label: t("context_menu.inspect_memory"),
           onClick: () =>
-            onInspectMemory && onInspectMemory(memorySessionId, chatTitle),
+            onInspectMemory &&
+            onInspectMemory({
+              sessionId: memorySessionId,
+              chatTitle,
+              ownerChatId: node.chatId,
+            }),
         },
         { type: "separator" },
         {
@@ -220,7 +230,15 @@ export const buildSideMenuContextMenuItems = ({
         icon: "brain",
         label: t("context_menu.inspect_memory"),
         onClick: () =>
-          onInspectMemory && onInspectMemory(node.chatId, chatTitle),
+          onInspectMemory &&
+          onInspectMemory({
+            // Plain chats: the V1 session key and the V2 owner key coincide in
+            // value, but they are two distinct contracts — keep them separate
+            // so the character branch above stays the only special case.
+            sessionId: node.chatId,
+            chatTitle,
+            ownerChatId: node.chatId,
+          }),
       },
       { type: "separator" },
       {
