@@ -60,6 +60,81 @@ class FakeAgent:
 
 
 class RecipeGraphRuntimeTests(unittest.TestCase):
+    def test_plain_stream_preserves_typed_context_v2_error(self):
+        import unchain_adapter as ua
+
+        class ProjectionError(RuntimeError):
+            code = "context_v2_model_projection_invalid"
+            reason = "attachment_envelope_invalid"
+
+        failure = ProjectionError(ProjectionError.code)
+        agent = SimpleNamespace(
+            provider="openai",
+            _toolkits=[],
+            _max_iterations=1,
+            _max_context_window_tokens=0,
+            run=mock.Mock(side_effect=failure),
+        )
+        memory_runtime = {
+            "required": False,
+            "durability_available": False,
+            "kind": "",
+            "requested": False,
+            "legacy_context_available": False,
+            "reason": "",
+        }
+
+        with mock.patch.object(
+            ua, "_load_recipe_from_options", return_value=None
+        ), mock.patch.object(
+            ua, "_create_agent", return_value=agent
+        ), mock.patch.object(
+            ua, "_memory_runtime_from_agent", return_value=memory_runtime
+        ), mock.patch.object(
+            ua, "_build_payload", return_value={}
+        ):
+            with self.assertRaises(ProjectionError) as caught:
+                list(
+                    ua.stream_chat(
+                        message="hello",
+                        history=[],
+                        attachments=[],
+                        options={"modelId": "openai:gpt-test"},
+                        session_id="plain-context-error",
+                    )
+                )
+
+        self.assertIs(caught.exception, failure)
+
+    def test_memory_v2_failure_reason_preserves_only_safe_context_reason(self):
+        import unchain_adapter as ua
+
+        class ProjectionError(RuntimeError):
+            code = "context_v2_journal_message_projection_invalid"
+
+            def __init__(self, reason):
+                self.reason = reason
+                super().__init__(self.code)
+
+        self.assertEqual(
+            ua._memory_v2_failure_reason(
+                ProjectionError("terminal_scope_conflict")
+            ),
+            "context_v2_journal_message_projection_invalid: terminal_scope_conflict",
+        )
+        self.assertEqual(
+            ua._memory_v2_failure_reason(
+                ProjectionError("private/path/or/provider-body")
+            ),
+            "context_v2_journal_message_projection_invalid",
+        )
+        unknown = ProjectionError("terminal_scope_conflict")
+        unknown.code = "context_v2_private/path"
+        self.assertEqual(
+            ua._memory_v2_failure_reason(unknown),
+            "context_v2_failed",
+        )
+
     def test_legacy_graph_membership_fields_fail_closed_without_type_error(self):
         import unchain_adapter as ua
 
@@ -317,6 +392,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
     def test_stream_recipe_graph_rejects_memory_owned_full_history_before_agent_run(self):
         import unchain_adapter as ua
         from unchain.memory import InMemorySessionStore, MemoryManager
+        from unchain.memory.ownership import SessionHistoryOwnershipError
 
         recipe = parse_recipe_json(_recipe_dict())
         store = InMemorySessionStore()
@@ -342,7 +418,10 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                  ),
              ), \
              mock.patch.object(ua, "_build_requested_toolkits", return_value=[]):
-            with self.assertRaisesRegex(RuntimeError, "session history ownership conflict"):
+            with self.assertRaisesRegex(
+                SessionHistoryOwnershipError,
+                "session history ownership conflict",
+            ):
                 list(
                     ua._stream_recipe_graph_events(
                         recipe=recipe,
@@ -393,7 +472,10 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                  ),
              ), \
              mock.patch.object(ua, "_build_requested_toolkits", return_value=[]):
-            with self.assertRaisesRegex(RuntimeError, "checkpoint must be resumed"):
+            with self.assertRaisesRegex(
+                CheckpointResumeRequired,
+                "checkpoint must be resumed",
+            ) as raised:
                 for event in ua._stream_recipe_graph_events(
                     recipe=recipe,
                     message="new user",
@@ -404,6 +486,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                 ):
                     events.append(event)
 
+        self.assertEqual(raised.exception.code, "execution_checkpoint_resume_required")
         self.assertEqual(events, [])
         self.assertEqual(memory_manager.prepare_calls, 1)
         self.assertEqual(memory_manager.commit_calls, 0)

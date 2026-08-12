@@ -87,10 +87,13 @@ from memory_v2_context import (  # noqa: E402
     persist_memory_v2_semantic_event as _persist_memory_v2_semantic_event,
     resolve_memory_v2_admission as _resolve_memory_v2_admission,
 )
+from memory_v2_error_contract import safe_context_v2_message  # noqa: E402
 
 
 def _memory_v2_failure_reason(error: Any) -> str:
-    return "journal_partial" if isinstance(error, _MemoryV2PersistenceError) else str(error or "")
+    if isinstance(error, _MemoryV2PersistenceError):
+        return "journal_partial"
+    return safe_context_v2_message(error) or str(error or "")
 
 
 _MEMORY_V2_LONG_TERM_NAMESPACE = "user:local"
@@ -9611,6 +9614,8 @@ def _stream_recipe_graph_events(
         tb = output_holder.get("error_traceback", "")
         if tb:
             print(f"[unchain workflow error]\n{tb}", file=sys.stderr, flush=True)
+        if isinstance(error, BaseException):
+            raise error
         raise RuntimeError(str(error))
 
     if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
@@ -9788,6 +9793,8 @@ def stream_chat(
 
     error = output_holder.get("error")
     if error is not None:
+        if isinstance(error, BaseException):
+            raise error
         raise RuntimeError(str(error))
 
     if not output_holder.get("has_streamed_delta"):

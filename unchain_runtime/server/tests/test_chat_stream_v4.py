@@ -10,6 +10,7 @@ if str(SERVER_ROOT) not in sys.path:
 
 import app as miso_app  # noqa: E402
 import routes as miso_routes  # noqa: E402
+import route_chat  # noqa: E402
 
 
 def _parse_sse_blocks(payload_text: str) -> list[tuple[str, dict]]:
@@ -653,6 +654,35 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(failed["schema_version"], "v4")
         self.assertEqual(failed["payload"]["error"]["message"], "boom")
         self.assertEqual(failed["payload"]["error"]["code"], "stream_failed")
+
+    def test_context_v2_stream_error_exposes_only_allowlisted_reason(self) -> None:
+        class ProjectionError(RuntimeError):
+            code = "context_v2_journal_message_projection_invalid"
+
+            def __init__(self, reason: str) -> None:
+                self.reason = reason
+                super().__init__(self.code)
+
+        code, message = route_chat._normalize_stream_error(
+            ProjectionError("terminal_scope_conflict")
+        )
+        self.assertEqual(code, "context_v2_journal_message_projection_invalid")
+        self.assertEqual(
+            message,
+            "context_v2_journal_message_projection_invalid: terminal_scope_conflict",
+        )
+
+        code, message = route_chat._normalize_stream_error(
+            ProjectionError("private/path/or/provider-body")
+        )
+        self.assertEqual(code, "context_v2_journal_message_projection_invalid")
+        self.assertEqual(message, "context_v2_journal_message_projection_invalid")
+
+        unknown = ProjectionError("terminal_scope_conflict")
+        unknown.code = "context_v2_private/path"
+        code, message = route_chat._normalize_stream_error(unknown)
+        self.assertEqual(code, "context_v2_failed")
+        self.assertEqual(message, "context_v2_failed")
 
 
 if __name__ == "__main__":

@@ -24,13 +24,18 @@ from memory_v2_context_reference_policy import (
     normalize_semantic_refs_for_context,
 )
 from memory_v2_workspace_adapter import PupuWorkspaceReferenceAuthorizer
+from memory_v2_unchain_attachment_projection import (
+    decode_pupu_attachment_source,
+)
 from unchain.agent.modules import ContextModule
 from unchain.context import (
+    ArtifactService,
     BoundContextTaskStateReader,
     ContextBuildEnvelope,
     ContextCompileCoordinator,
     ContextCompileRequest,
     ContextRuntime,
+    ModelContextProjection,
     ContextTaskStateReadOutcome,
     SourceMessageCursor,
     resolve_context_budget,
@@ -693,6 +698,10 @@ def bind_pupu_context_module(
         attempt=attempt,
         projector=event_projector,
     )
+    artifacts = ArtifactService(
+        execution.artifacts,
+        sanitizer=lambda content, media_type: content,
+    )
     coordinator = ContextCompileCoordinator(
         journal=execution.journal,
         checkpoint_repository=execution.checkpoints,
@@ -701,6 +710,10 @@ def bind_pupu_context_module(
             "context_build",
             request,
             error,
+        ),
+        model_projection=ModelContextProjection(
+            artifacts,
+            remote_source_decoder=decode_pupu_attachment_source,
         ),
     )
     request_factory = _PupuContextRequestFactory(

@@ -24,6 +24,9 @@ from memory_v2_unchain_ownership_adapter import (
     PupuUnchainMemoryV2OwnershipAttachment,
     prepare_pupu_unchain_ownership_attachment,
 )
+from memory_v2_unchain_attachment_projection import (
+    decode_pupu_attachment_source,
+)
 from memory_v2_unchain_root_completion import (
     build_pupu_memory_v2_root_completion_resolver,
 )
@@ -52,6 +55,7 @@ from unchain.context import (
     HostResolvedCurrentInput,
     HostResolvedInteractionInput,
     JournalContextRequestFactory,
+    ModelContextProjection,
 )
 from unchain.context.task_state_bootstrap import (
     PinnedTaskStateBootstrapBinding,
@@ -933,6 +937,10 @@ class PupuUnchainContextMemoryV2HostFactory:
             checkpoint_repository=compiler_capabilities.checkpoints,
             build_repository=compiler_capabilities.context_builds,
             partial_attempt_sink=self._partial_attempt_sink,
+            model_projection=ModelContextProjection(
+                artifacts,
+                remote_source_decoder=decode_pupu_attachment_source,
+            ),
         )
         handoffs = HandoffService(artifacts)
         request_factory = JournalContextRequestFactory(

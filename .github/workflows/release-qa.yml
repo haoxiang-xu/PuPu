@@ -39,11 +39,17 @@ jobs:
         with:
           path: pupu
 
+      - name: Resolve pinned Unchain revision
+        id: unchain_revision
+        working-directory: pupu
+        shell: bash
+        run: node scripts/release-qa/resolve-unchain-revision.mjs >> "$GITHUB_OUTPUT"
+
       - name: Checkout unchain
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
+          ref: ${{ steps.unchain_revision.outputs.revision }}
           path: unchain
 
       - name: Set up Node
@@ -329,11 +335,17 @@ jobs:
         with:
           path: pupu
 
+      - name: Resolve pinned Unchain revision
+        id: unchain_revision
+        working-directory: pupu
+        shell: bash
+        run: node scripts/release-qa/resolve-unchain-revision.mjs >> "$GITHUB_OUTPUT"
+
       - name: Checkout unchain
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
+          ref: ${{ steps.unchain_revision.outputs.revision }}
           path: unchain
 
       - name: Set up Node
@@ -460,11 +472,17 @@ jobs:
         with:
           path: pupu
 
+      - name: Resolve pinned Unchain revision
+        id: unchain_revision
+        working-directory: pupu
+        shell: bash
+        run: node scripts/release-qa/resolve-unchain-revision.mjs >> "$GITHUB_OUTPUT"
+
       - name: Checkout unchain
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
+          ref: ${{ steps.unchain_revision.outputs.revision }}
           path: unchain
 
       - name: Set up Python

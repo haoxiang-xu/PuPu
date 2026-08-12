@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List
 from flask import Response, jsonify, request, stream_with_context
 
 from route_blueprint import api_blueprint
+from memory_v2_error_contract import safe_context_v2_error
 
 try:
     from unchain.events import RuntimeEventBridge
@@ -142,7 +143,15 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
     )
     if isinstance(message, str):
         normalized = message.strip()
-        if normalized.startswith("memory_unavailable"):
+        context_v2_code, context_v2_reason = safe_context_v2_error(stream_error)
+        if context_v2_code:
+            code = context_v2_code
+            message = (
+                f"{context_v2_code}: {context_v2_reason}"
+                if context_v2_reason is not None
+                else context_v2_code
+            )
+        elif normalized.startswith("memory_unavailable"):
             code = "memory_unavailable"
             if ":" in normalized:
                 tail = normalized.split(":", 1)[1].strip()
