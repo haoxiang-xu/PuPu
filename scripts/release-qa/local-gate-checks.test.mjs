@@ -11,6 +11,7 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   const checks = buildLocalGateChecks({
     root: ROOT,
     python: "python3",
+    unchainRoot: "/tmp/unchain-fixture",
     version: "0.0.0-test",
   });
   const harnessChecks = checks.filter(
@@ -26,6 +27,26 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   assert.equal(
     checks.find((check) => check.name === "release QA script tests")?.command,
     "npm run test:release-qa:unit",
+  );
+  assert.deepEqual(
+    checks.find((check) => check.name === "Quorum boundary protocol"),
+    {
+      name: "Quorum boundary protocol",
+      command: "npm run test:quorum-boundary",
+      cwd: ROOT,
+    },
+  );
+  assert.deepEqual(
+    checks.find((check) => check.name === "Context V2 boundary contracts"),
+    {
+      name: "Context V2 boundary contracts",
+      command: "npm run test:context-v2-contract",
+      cwd: ROOT,
+      env: {
+        PYTHON: "python3",
+        UNCHAIN_SOURCE_PATH: "/tmp/unchain-fixture",
+      },
+    },
   );
   assert.deepEqual(
     checks.find((check) => check.name === "Playwright Electron release smoke")
@@ -47,6 +68,14 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   assert.equal(
     packageJson.scripts["test:release-qa"],
     "npm run test:release-qa:unit && npm run test:long-run-harness",
+  );
+  assert.equal(
+    packageJson.scripts["test:quorum-boundary"],
+    "python3 -B .claude/skills/case/boundary_vendor_verify.py && python3 -B .claude/skills/case/boundary_lint_selftest.py && python3 -B .claude/skills/case/boundary_gate_selftest.py && python3 -B .claude/skills/case/boundary_gate.py --cases-root .claude/court/cases",
+  );
+  assert.equal(
+    packageJson.scripts["test:context-v2-contract"],
+    "node scripts/release-qa/run-context-v2-contract.mjs",
   );
 
   const harnessCommand = packageJson.scripts["test:long-run-harness"];

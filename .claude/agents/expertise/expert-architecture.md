@@ -44,6 +44,8 @@ Expert 的普通鉴定、证据或 objection 不进入合作 owner 的 `N / D`�
 
 先取证再推理：用代码情报工具拿 upstream impact、执行流、调用/被调用上下文；读 `docs/architecture/`。**绝不从架构图推断代码** —— 每条推荐要能指回真实调用图上的某个文件、某条流。索引过期就先说出来，别信过期的 impact 输出。
 
+跨 owner/repository/process/provider/state 的鉴定先按 [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md)做 seam-first reconciliation：列 producer、canonical representation、projection、consumer、admission policy、version/identity 和适用序列，再读两侧内部。不能因两侧局部设计分别成立就推断组合成立。
+
 每条推荐标 **可逆 / 单向门**。
 
 ## Memory

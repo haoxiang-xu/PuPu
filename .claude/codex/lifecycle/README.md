@@ -9,8 +9,9 @@ Quorum 的 case 不是预先分档的流程包。每个 case 先确定讨论对�
 1. **提交讨论对象**：提出者声明这是一个待判断的议案，或一个待形成的方案，并固定目标与 `non_goals`。
 2. **最小路由**：`Speaker of the House` 只选择一个主 owner，不建立预测性 roster。
 3. **主 owner 首稿**：议案主 owner 提交回答；方案主 owner 提交自己边界内完整、边界外留空的方案骨架。
-4. **串行交棒**：必要空白由 Speaker 一次交给一位 owner 补全，再返回主 owner 集成。
-5. **合作审查**：实际承担交付的 owner 对当前快照 `AGREE / OBJECT / ABSTAIN`。
+4. **契约与序列声明**：方案主 owner 依[边界契约与状态序列](boundary-contracts.md)声明适用的 `BC-###/SEQ-###` 或给出 N/A 理由。
+5. **串行交棒**：必要空白由 Speaker 一次交给一位 owner 补全，再返回主 owner 集成；跨 owner 的 BC/SEQ 确认也通过 material HS 完成。
+6. **合作审查**：实际承担交付的 owner 对当前快照 `AGREE / OBJECT / ABSTAIN`。
 
 无实质异议，或异议均被主 owner 接受并完成修订后，当前材料可直接送 `Chief Judge` 裁定。默认协作不建立庭审 BOS、DES 或随机抽查；提交者仍须履行证据真实性与来源义务。Chief 可在裁定前点名补强或启动有限证据控制，但不能在没有被拒异议或有效 Full 投票时直接选择辩论庭或众议庭。
 
@@ -48,12 +49,9 @@ Quorum 的 case 不是预先分档的流程包。每个 case 先确定讨论对�
 - [讨论模型与最小主 owner 原则](discussion-model.md)
 - [庭审发言协议](speech-protocol.md)
 - [收敛与裁定控制](decision-controls.md)
+- [边界契约与状态序列](boundary-contracts.md)
 - [证据规则](evidence-rules.md)
 - [Debate 辩论庭](debate-court.md)
 - [Full 众议庭](full-court.md)
 - [交棒、参与与传唤](summons.md)
 - [延伸与 Side Case](side-cases.md)
-
-## PuPu 历史兼容
-
-[`tracks.md`](tracks.md) 与 [`quorum.md`](quorum.md) 只为旧 `.claude/court/**` 永久引用保留，不属于新案流程。新案不得读取它们来选择程序、名单或字段；旧案的非追溯过渡以两页醒目标记为限，不得扩张历史授权。

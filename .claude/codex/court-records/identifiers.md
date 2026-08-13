@@ -32,7 +32,10 @@
 - owner 方案块使用 `SLOT-001`，适用于所有方案，不限于某个 procedure mode
 - 议案回答或方案修正都可使用 `AM-001`；其所属 MS/PS lineage 与 target 必须明确
 - 验收标准使用 `AC-001`
+- boundary contract 使用 `BC-001`；state sequence 使用 `SEQ-001`。二者都是 proposal 内部对象，必须属于一个具体 `PS-###` lineage；同一 proposal 内 BC 编号和 SEQ 编号分别唯一，重复标题无效
+- PS、AC、BC、SEQ、S、R、AT 等同类 identifier 不得重复；YAML frontmatter key 与同一 section/event/snapshot 的结构字段也不得重复。任何重复都使记录无效，parser 不得用 first-wins/last-wins 消歧
 - 方案引用写为 `<proposal-id>#SLOT-###`、`<proposal-id>#AM-###`、`<proposal-id>#AC-###` 或 `<proposal-id>#PS-###`；议案修正写为 `<motion-id>#AM-###`
+- BC/SEQ 的跨 case 引用写为 `<proposal-id>#BC-###`、`<proposal-id>#SEQ-###`；同 case 可裸写
 
 ## 引用规则
 
@@ -46,3 +49,5 @@
 - 最终实体 R 的 closure manifest 在 R 归档时原子保留其 S ID；这些 ID 不参加其他事件分配，同一 R 只有首条 payload/hash 完全匹配的 `NOTICE: CLOSURE_COMMIT` 生效
 - `ANSWER`、`OBJECTION`、`AMENDMENT`、`TESTIMONY` 与 `WITHDRAWAL` 必须指向稳定 target
 - 摘要与裁定只能引用 canonical source，不得复制原文形成第二事实源
+- BC/SEQ 引用的 AC 必须存在于同一获准 proposal；非主 owner confirmation 引用的 HS 必须在同一 case 中终态为 `RETURNED`，其 HANDOFF scope 覆盖责任对象与全部责任 AC，RETURN contribution 覆盖责任对象
+- 机器字段中的同案结构化列表（包括 proposal obligations、BC/SEQ acceptance/matrix、ruling/AT criteria）只允许字段规定类别的裸 local ID，以逗号分隔；跨案 qualifier、未知 token、自由文字、垃圾后缀或重复项均使该字段无效。HANDOFF scope 与 RETURN contribution 可含说明文字，但其中出现的 BC/SEQ/AC/HS 仍须是同案裸 ID 且不得重复

@@ -34,6 +34,7 @@ release-certification
 4. **付费实模型门** —— **仅在显式授权之后**，跑全部六个 coding/MCP/web 单元，用协议指定的确切模型 ID
 5. **证据完整性** —— 命令、时间戳、报告、逐单元产物、失败、跳过的检查、候选身份、任何操作中断，全部留痕
 6. **结论** —— `GO-RECOMMENDED` / `NO-GO` / `INCOMPLETE` 三选一，交 `chief-judge`
+7. **边界/序列覆盖** —— 读取获准 proposal 的全部 `BC-### / SEQ-### → AC-###` 映射及 [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md)。每个适用单元格必须在冻结候选上有结果；`NOT_RUN/PENDING` 是 `INCOMPLETE`，已执行失败是 `NO-GO`，均不得 GO-RECOMMENDED
 
 ## 三条不可越的线
 

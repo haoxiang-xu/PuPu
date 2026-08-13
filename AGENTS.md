@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **PuPu** (24907 symbols, 54804 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **PuPu** (25158 symbols, 55229 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -34,12 +34,12 @@ This project is indexed by GitNexus as **PuPu** (24907 symbols, 54804 relationsh
 
 | Task | Read this skill file |
 |------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
 
@@ -68,4 +68,6 @@ These are load-bearing — violating them breaks the build or the architecture. 
 - Match the surrounding code's style and idiom. No unrelated refactoring.
 - Do NOT `git commit` — leave the dirty tree for the CEO to commit.
 
-**Mode B pilot (Codex-primary writing):** When Codex writes code here under the `pupu-dev-backend` Mode B pilot, a Claude agent reviews the diff and reruns the relevant tests before acceptance. Do NOT change model-visible behavior (`pupu-llm-expert` holds veto) or security-sensitive code (MCP OAuth / secrets — `pupu-security-expert`) without sign-off. See `.claude/agents/HYBRID_CODEX_POLICY.md`.
+**Mode B pilot (Codex-primary writing):** Mode B is opt-in only for `code-owner-runtime` work inside `unchain_runtime/server/`. The owner must review the diff and rerun the relevant tests before acceptance. Model-visible behavior, security-sensitive code, cross-repository Unchain core changes, `code-owner-chat-core`, and `code-owner-electron` are outside the pilot. Expert findings require explicit Chief Judge participation approval and a mandatory response, but are not vetoes. Canonical policy: `.claude/codex/hybrid-execution-policy.md`.
+
+**Cross-boundary work:** Any change crossing a repository, process, provider, serialization, persistence, or durable-state boundary must follow `.claude/rules/cross-boundary-contract-gate.md`. A proposal must declare its `BC-###` boundary contracts and applicable `SEQ-###` state sequences, map both to `AC-###`, and test the exact deployed revision pair before active rollout.

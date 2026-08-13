@@ -22,7 +22,9 @@
     - 可提出、回答、补充、反对或修改代码库相关的议案，以及提出、补全、反对或修改代码设计、重构、优化和修复方案
     - 作为议案主 owner 时，先独立提交判断、依据、边界与未知；不能负责的判断留空并写明 handoff
     - 作为方案主 owner 时，只完整填写自身代码边界，其他 owner 内容保留 `SLOT-###` 空白、目标边界、期待交付和返回路径；全部交棒完成后负责集成
+    - 作为方案主 owner 时识别跨 owner/代码库/进程/provider/API/持久化/序列化/版本边界及状态依赖，依 boundary protocol 声明 `BC-###/SEQ-###` 或具体 N/A 理由；不得以通用 dict/map、宽松 mock 或“内部实现”代替真实 consumer contract
     - 作为合作 owner 时，只回答 `HS-###` 点名的问题、补全自己的方案块或确认 HS 点名的具体直接责任，返回主 owner，并对审查快照登记 `AGREE / OBJECT / ABSTAIN`；只有 RETURNED material HS 后才依中央规则计入 RS
+    - 作为 BC producer/consumer 或 SEQ owner 时，只能对自身边界作 `LEAD` 或 material HS 确认；确认内容须包括 projection/admission、失败语义、identity/version binding、适用序列单元格及相应 AC
     - 对 material 异议必须以主 owner 身份记录 `ACCEPT / REJECT / PARTIAL_ACCEPT`；拒绝异议后接受辩论庭或众议庭程序，不得以所有权身份压制原告
 
 - rule 讨论原则:
@@ -33,3 +35,4 @@
 
 - code 代码实现责任:
     - 负责 根据最终定案的 **设计方案** 或 **重构优化方案** 等，进行 属于本代码库职责范围内的 **代码实现**
+    - BC 适用时，以真实 producer 输出、实际 projection、严格 consumer 与冻结 revision 证明正负契约；SEQ 适用时执行每个 `REQUIRED` 单元格，不能只证明首次成功

@@ -293,3 +293,28 @@ case `0000-0002-2026-0807` 立案时 **同一裸文件名缺陷第三次发作**
 - [`lifecycle/tracks.md`](lifecycle/tracks.md) 与 [`lifecycle/quorum.md`](lifecycle/quorum.md) 保留为历史兼容页，因为旧案卷仍引用它们；两页不构成新案入口。不得新建旧 Track、current roster、全员候选或 ACK 流程。
 - `.claude/court/**` 继续 append-only，既有案号、发言、裁定与历史字段不追溯改写。2026-08-10 前已经取得 action 授权并已进入实施的旧案，只可按当时已冻结的 directive / plan、owner 责任、回滚安排与 `AC-###` 完成和验收；任何实施范围、验收标准、owner、授权边界或实体目标变化都必须停止扩张，并另立现行 `discussion_type: proposal` 的新案。
 - 未获上述既有 action 授权的旧案不得再用旧 Track 产生新授权。若必须收口，只允许追加一次标记为 `legacy bridge · pre-2026-08-10` 的现行裁定来终止旧案，或链接一个从 `collaboration` 开始的新 `motion / proposal` case；不得启动新的 legacy stage、旧式自动传唤或全量 roster。
+
+## 2026-08-12 · Boundary Contract / State Sequence Protocol v1（working-tree sync）
+
+**上游**: `github.com/haoxiang-xu/quorum` · `docs/quorum/` 的 2026-08-12 冻结、未提交 working tree。**当前没有可诚实引用的新 commit SHA**；`ab40f4d` 仍只是已提交迁入基线，不代表本批 Boundary Protocol。冻结 source manifest SHA-256 为 `72e37a93c5e7f91fb090e1e33a914d144aa240cfe9dd3a17c23d005d7b7e41cc`，35-file upstream normative manifest SHA-256 为 `ba173463f7f15fb8840bc02455180847ba7619b74812c1670dd14bb4eb2d5322`。上游提交后必须回填本节与 `README.md` 的精确 commit pin，但不得用 commit pin 取代内容校验。
+
+**动因（PuPu 实测）**: Context V2 P0 在真实连续使用中暴露三条同源缺陷：durable `attachments` 穿过通用 dict 泄入 OpenAI wire、plain-root iteration 被误判为 graph scope、第二次 fresh approval 被当成旧 interaction resume。Architecture/QA private memory 此前已经分别记录 seam evidence 与 exact admission 断言，但 proposal、Speaker、Acceptance 和 release gate 没有强制消费这些经验。
+
+**选择性同步的通用规范**:
+
+1. 新增 [`lifecycle/boundary-contracts.md`](lifecycle/boundary-contracts.md)，把 producer→consumer 接缝实例化为 `BC-###`，把历史依赖实例化为 `SEQ-###`；不新增常驻 seam owner。
+2. 每个新 proposal 使用 `boundary_protocol: v1`，分别声明 boundary/state applicability 或具体 N/A reason；BC/SEQ 正文唯一保存在 `proposal.md`，`case.md` 只存派生引用。
+3. BC 固定 admission policy `CLOSED / OPEN / VERSIONED`、identity/version binding、两侧 owner confirmation 与正负 AC；非主 owner 必须通过已返回 material HS 确认。
+4. SEQ 固定 `first use / repeat / retry / resume / restart / reset / rollback` 矩阵；每格只允许 `REQUIRED + AC refs` 或 `NOT_APPLICABLE + reason`。
+5. Speaker 送裁前机械检查结构、owner、AC、matrix 与 exact revision；结构空白不能作为 accepted risk。Acceptance 逐 AC 记录 `PASS / FAIL / NOT_RUN / PENDING`，任一非 PASS 不得通过；16% 只抽证据真实性，不削减必跑义务。
+6. 同步更新 lifecycle README/decision/speech、court canonical/case/identifier/template 与 Speaker/Code Owner/Task Owner/Inspector 模板。
+7. `.claude/skills/case/` vendor 冻结的 stdlib reference linter、68 项 self-test 与精确 fixture；ruling/acceptance intake 分别运行对应 phase。`boundary_vendor_verify.py` 对 exact 16-file manifest、逐文件 hash、upstream sibling 与 normative hash fail closed。
+8. package、本地 deterministic QA 与 Release QA CI 均把 `Quorum boundary protocol` 作为 canonical required check；合并报告会重新验证该检查，遗漏、skip、neutral 或失败均不能产生 PASS。实际案卷扫描明确区分 `v1_gated / v1_pre_gate / legacy`；零 v1 gated case 写 `NOT_EVALUATED`，协议工具保障来自 vendored self-tests，不能伪称实际 case 已通过。
+
+**PuPu 本地 profile（不是上游规范差异）**:
+
+- [`.claude/CLAUDE.md`](../CLAUDE.md) 的常驻铁律强制读取 [`.claude/rules/cross-boundary-contract-gate.md`](../rules/cross-boundary-contract-gate.md)，补充 PuPu 的 repository/process/provider/persistence 触发器、exact lock pair 与 active rollout 解释。
+- Context V2 的具体 `CTX-B* / CTX-S*` 保存在 [`docs/architecture/context-v2-boundary-contracts.md`](../../docs/architecture/context-v2-boundary-contracts.md)，事故事实保存在对应 postmortem；它们不复制进通用 Quorum 法典。
+- 采用生效边界为 **2026-08-12T00:00:00-07:00 起（含该时刻）新建的 PuPu proposal**。此前 case 依上游 legacy 规则解释；任何 successor PS 改变实施范围、AC、边界/状态语义或授权边界时，送裁前迁移为 v1。scanner 对 legacy proposal 要求可解析、带 UTC offset 的 `created_at`；缺失或无法证明早于边界时 fail closed。
+
+**保留的 PuPu 适配**: A-001 `.claude` 路径、A-002 skill 平铺、A-003 Codex 扩充、A-004 agent 文件形态、A-006 human 不落 agent、A-007 hybrid policy、A-008 co-located tests、A-009/A-010 路由格式，以及 `tracks.md` / `quorum.md` 历史兼容页均未被目录覆盖。

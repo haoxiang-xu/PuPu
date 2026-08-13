@@ -50,7 +50,13 @@ const expectedVersion = args["expected-version"] || process.env.QA_EXPECTED_VERS
 const checks = readJsonEnv("QA_CHECKS_JSON", []);
 const explicitArtifacts = readJsonEnv("QA_ARTIFACTS_JSON", []);
 const artifactGlobs = readJsonEnv("QA_ARTIFACT_GLOBS_JSON", []);
+const requiredChecks = readJsonEnv("QA_REQUIRED_CHECKS_JSON", []);
 const collectedArtifacts = collectArtifacts(artifactGlobs);
+const unchainDirty = process.env.QA_UNCHAIN_DIRTY === "true"
+  ? true
+  : process.env.QA_UNCHAIN_DIRTY === "false"
+    ? false
+    : undefined;
 
 const report = buildJobReport({
   mode,
@@ -64,6 +70,13 @@ const report = buildJobReport({
     base_ref: process.env.GITHUB_BASE_REF || "",
     run_id: process.env.GITHUB_RUN_ID || "",
   },
+  unchain: {
+    source_path: process.env.QA_UNCHAIN_SOURCE_PATH || "",
+    locked_sha: process.env.QA_UNCHAIN_LOCKED_SHA || "",
+    tested_sha: process.env.QA_UNCHAIN_TESTED_SHA || "",
+    dirty: unchainDirty,
+  },
+  requiredChecks,
   platform: {
     name: args.platform || process.env.QA_PLATFORM_NAME || process.env.RUNNER_OS || "",
     os: process.env.RUNNER_OS || args.platform || process.env.QA_PLATFORM_NAME || "",

@@ -16,6 +16,8 @@ case 创建时冻结：
 
 最小协作不要求 Speaker 预先穷举 `write_set`、`contract_set`、知识来源或 owner slots。主 owner 与后继 owner 可在不改变核心问题、目标结果及 `non_goals` 的前提下，通过有限交棒逐步补全这些集合。每次新增必须由当前材料中的真实空白驱动，并记录它影响的具体结论或方案块；仅仅“可能相关”不能扩张范围。
 
+方案发现跨边界传递或状态依赖时，须依[边界契约与状态序列](boundary-contracts.md)把 `BC-###/SEQ-###` 加入当前 `contract_set` 与 PS lineage；这属于对既有目标的契约补全，不会自动改变冻结对象或创建新 owner。若补全会改变目标结果、`non_goals` 或授权边界，仍须另立、拆案或重框。
+
 改变讨论类别、核心问题、目标结果或 `non_goals` 必须另立 case。议案与方案之间只能建立 `derived` 引用，不能原地转换。普通交棒不能借补全之名改变上述冻结对象。
 
 ## 二、统一相关性门
@@ -43,15 +45,16 @@ Speaker 只判断决策链接、时机与重复，不判断真伪、专业成立
 
 默认 `procedure_mode: collaboration` 不开庭、不冻结 BOS、不建立形式性 DES，也不创建 Examiner。主 owner 提交首稿后，必要的边界外内容按 [最小主 owner 原则](discussion-model.md#串行交棒)一次只开放一个 `HS-###`：
 
-- 交棒必须点名当前快照、空白、目标 ownership boundary、期待交付、缺席影响与返回对象；
+- 交棒必须点名当前快照、空白、目标 ownership boundary、期待交付、缺席影响与返回对象；用于 BC/SEQ 确认时，HANDOFF scope 必须覆盖责任对象与全部责任 AC，RETURN contribution 必须覆盖同一对象，空 return 或泛化“完成”无效；
 - 接收 owner 只获得该范围的读取权和一次交付权；
 - 完成 material HS 的 owner 成为合作 owner；交付可以是回答/方案块，也可以是对当前快照中具体、真实的直接回答、实施、回滚或验收责任作明确确认。仅被方案点名、无 HS 的责任声明、只查资料、提供证言或程序服务者不是合作 owner；
 - Speaker 在前一交棒关闭前不得并行开启另一 owner 交棒；
 - 结果最终返回主 owner 集成，主 owner 不得把未经目标 owner确认的内容标作已补全。
+- BC/SEQ 的非主 owner 确认同样必须通过上述 material HS 返回；同一个返回只能确认 HANDOFF 明确点名的 boundary/state 责任，不能扩张为对未读方案或相邻契约的同意。
 
 主 owner 形成完整集成快照后，Speaker 冻结一次 `RS-###` 审查人快照。审查人是主 owner，以及已经完成上述 material HS 的 owner。同一底层 agent 不得因多个 owner 身份在同一 RS 重复出现。主 owner 发布快照即以 `AGREE` 确认基线，不得对自己的快照 `OBJECT`；其他人必须在各自获准块及直接依赖范围登记 `AGREE / OBJECT / ABSTAIN`。沉默不是同意，截止时规范化记录为 `ABSTAIN` 且 `reason: TIMEOUT`，但仍保留在人数分母。
 
-每个 RS 必须记录 predecessor、artifact、逐人 review scope、继承立场、失效 scope、`review kind`、review/objection 截止点与稍后的 lead disposition 截止点。`review kind` 只允许 `ORDINARY / BOS_CHANGE_REVIEW`。在首个 hearing BOS 冻结前，修改快照后建立 `ORDINARY` successor RS，只重新请求受影响块及直接依赖块的立场；未受影响的 AGREE/ABSTAIN 按 lineage 显式继承，有限 objection intake 与该 RS 使用同一截止点。
+每个 RS opening NOTICE 必须记录 predecessor、artifact 及其 content hash、逐人 review scope、继承立场、失效 scope、`review kind`、eligible owners、N、boundary object hash（适用时）、review/objection 截止点、稍后的 lead disposition 截止点、final reminder 截止点与可重算的 RS content hash。`review kind` 只允许 `ORDINARY / BOS_CHANGE_REVIEW`。NOTICE 不复制最终 stance；lead baseline AGREE 及每名其他 owner 的 AGREE/OBJECTION/ABSTAIN 以引用当前 RS 的独立 canonical S 事件为准，超时 ABSTAIN 写明 TIMEOUT。在首个 hearing BOS 冻结前，修改快照后建立 `ORDINARY` successor RS，只重新请求受影响块及直接依赖块的立场；未受影响的 AGREE/ABSTAIN 按 lineage 显式继承，有限 objection intake 与该 RS 使用同一截止点。
 
 OBJECT 不得靠一句“carried stance”自动继承。每项旧 objection 在 successor RS 都须有新的 `NOTICE: OBJECTION_RETARGET`，同时引用原 objection S、此前 retarget、此前 `LEAD_DISPOSITION`、旧/新 target hash 与当前 RS。result 仍只允许 `CONFIRMED / WITHDRAWN / RETURN_NO_LINK`：只有 CONFIRMED 才是当前 OBJECT。若 target 内容及直接依赖 hash 均未变化，notice 可把原 disposition 标为 `CARRIED_UNCHANGED`；任一 hash 变化或发生 lead transfer 时必须标为 `REQUIRES_NEW_DISPOSITION`，由当前主 owner重新处置。在 successor RS 计算 D 时，只有 CONFIRMED 且具有当前有效 carried/new REJECT disposition 的 objection 可计；其他旧异议只保留历史。
 
@@ -150,6 +153,8 @@ owner 的边界内有限交棒无需 Chief 逐项批准。新增全案访问权�
 - 复议：`RECONSIDERATION_RULING`。
 
 裁定必须标记其 `procedure_mode`，并回应全部 material 被拒异议。Full 程序票不约束 Chief 的实体结论。议案需要实施时只能另立 `proposal` case；action 获准前的方案内容返修仍留在同一 proposal 且 procedure mode 不降级，action 获准后若必须改变方案或授权边界则另立 proposal。
+
+方案 SUMMARY 还必须通过 boundary v1 的 ruling-ready 门：适用性/N/A 声明、BC/SEQ、owner HS 确认、正负 AC、序列矩阵与精确 revision binding 全部完整。结构性空白不能作为 `accepted uncovered risks` 交由 Chief 豁免；它只能返回 drafting、handoff、integration 或 review。legacy case 的 effective-from 处置依 boundary protocol 的兼容规则。
 
 任何关闭 hearing/case 或授权实体 action 的最终实体 R，必须先以 `PENDING_CLOSURE` 归档，并以 closure bundle manifest 逐项冻结、原子保留所需 S ID、完整 THREAD_STATUS payload/hash、旧/新 logical state、最终 `NOTICE: CLOSURE_COMMIT` payload、bundle hash、expected commit payload hash 与 deadline。保留 ID 不得被其他事件占用。哈希分两层且禁止自引用：每个预提交事件以 `quorum.closure.event.v1\0` 域（`\0` 为一个 NUL byte）及 canonical JSON 计算 payload hash；bundle body 只含 case/ruling、旧新 logical state、ordered `{event_id,event_payload_hash}`、commit ID 与 deadline，以 `quorum.closure.bundle.v1\0` 域计算，明确排除 commit payload/hash；commit payload 再引用 bundle hash 与全部预提交实际 event hash，但不含自身 hash，并按 event 域计算 expected hash。canonical JSON 使用 UTF-8、NFC、LF、无 BOM/尾随换行/键间空白，对象键按 UTF-8 字节序，数组保持 manifest 顺序。Speaker 先按 manifest 追加状态处置，最后追加 commit marker；首条 ID、bundle、ordered event hashes 与 expected commit hash 全部匹配的 marker 写入时裁定与新 logical state 同时生效，重复、部分、乱序或 hash 不符的 marker无效，`case.md` 随后同步派生索引。marker 前不得创建后继 action 状态或开始实施。无 BOS 的默认协作也必须有 commit marker，只是 ordered precommit events 为空。
 

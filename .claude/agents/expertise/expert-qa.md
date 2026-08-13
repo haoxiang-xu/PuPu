@@ -34,6 +34,8 @@ memory: project
 3. **断言在契约上，不在实现内部**。流式测试断 `onFrame` / `onToken` / `onDone` / `onError` 的处理契约与帧形状，不断内部实现
 4. **端到端优先用 `test-api` skill** —— 那是本仓专为此建的本地 HTTP 端点
 5. **易 flaky 的地方（异步流、worker 线程、时序）用正确的 await 与 mock 稳住，不要用任意 timeout 糊过去**
+6. **跨边界证据用 real producer → independent strict consumer**。`CLOSED` schema 断 exact key set 并写 unknown-field 负例；不能让 producer/consumer 共用一个 permissive fixture 或只断 `toMatchObject`
+7. **状态测试按 [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md)评估 repeat/retry/resume/restart**。至少证明第一次、第二次和 cold boundary；schema/allowlist 修复保存 red-before-green 证据
 
 ## 本仓的测试事实
 

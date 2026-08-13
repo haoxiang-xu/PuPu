@@ -64,6 +64,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Quorum boundary protocol gate
+        id: quorum_boundary
+        working-directory: pupu
+        run: npm run test:quorum-boundary
+
       - name: Install Node dependencies
         working-directory: pupu
         run: npm ci
@@ -112,6 +117,21 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/unchain/src
         run: python -m pytest tests/ -q --tb=short
 
+      - name: Verify pinned Unchain checkout
+        id: pinned_unchain
+        working-directory: pupu
+        env:
+          UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
+        run: node scripts/release-qa/verify-pinned-unchain.mjs
+
+      - name: Context V2 boundary contract gate
+        id: context_v2_contract
+        working-directory: pupu
+        env:
+          PYTHON: python
+          UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
+        run: npm run test:context-v2-contract
+
       - name: Web build and version check
         id: web_build
         continue-on-error: true
@@ -149,11 +169,19 @@ jobs:
         working-directory: pupu
         env:
           QA_PLATFORM_NAME: deterministic
+          QA_UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
+          QA_UNCHAIN_LOCKED_SHA: ${{ steps.pinned_unchain.outputs.locked_sha }}
+          QA_UNCHAIN_TESTED_SHA: ${{ steps.pinned_unchain.outputs.tested_sha }}
+          QA_UNCHAIN_DIRTY: ${{ steps.pinned_unchain.outputs.dirty }}
+          QA_REQUIRED_CHECKS_JSON: '["Quorum boundary protocol","pinned Unchain checkout","Context V2 boundary contracts"]'
           QA_CHECKS_JSON: |
             [
               {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},
               {"name":"electron tests","command":"npm run test:electron","outcome":"${{ steps.electron.outcome }}"},
               {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
+              {"name":"Quorum boundary protocol","command":"npm run test:quorum-boundary","outcome":"${{ steps.quorum_boundary.outcome }}"},
+              {"name":"pinned Unchain checkout","command":"node scripts/release-qa/verify-pinned-unchain.mjs","outcome":"${{ steps.pinned_unchain.outcome }}"},
+              {"name":"Context V2 boundary contracts","command":"npm run test:context-v2-contract","outcome":"${{ steps.context_v2_contract.outcome }}"},
               {"name":"web build and version check","command":"npm run build","outcome":"${{ steps.web_build.outcome }}"},
               {"name":"MCP registry validation","command":"npm run validate:mcp","outcome":"${{ steps.mcp_registry.outcome }}"},
               {"name":"MCP bundled runtime build tests","command":"npm run test:mcp-runtime","outcome":"${{ steps.mcp_runtime.outcome }}"},
@@ -173,7 +201,7 @@ jobs:
         if: always()
         working-directory: pupu
         run: |
-          node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
+          node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status !== 'passed') { console.error('Deterministic Release QA incomplete or failed'); process.exit(1); }"
 
   unchain-dev-compatibility:
     name: Unchain Dev Compatibility
@@ -540,8 +568,21 @@ jobs:
             --input-dir ../qa-job-reports \
             --out-json release-qa-report.json \
             --out-md release-qa-report.md \
+            --fail-on-deterministic-failure true \
             "${ANALYSIS_ARGS[@]}"
           cat release-qa-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce final deterministic result
+        if: always()
+        working-directory: pupu
+        env:
+          DETERMINISTIC_JOB_RESULT: ${{ needs.deterministic-checks.result }}
+        run: |
+          if [ "$DETERMINISTIC_JOB_RESULT" != "success" ]; then
+            echo "::error title=Deterministic job failed::deterministic-checks result was $DETERMINISTIC_JOB_RESULT"
+            exit 1
+          fi
+          node -e "const r=require('./release-qa-report.json'); if (r.deterministic_result.status !== 'passed') { console.error('Final Release QA incomplete or failed'); process.exit(1); }"
 
       - name: Upload final QA report
         if: always()

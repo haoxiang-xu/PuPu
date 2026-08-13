@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   buildJobReport,
+  CONTEXT_V2_REQUIRED_CHECKS,
   mergeReports,
   renderMarkdown,
 } from "./reporting.mjs";
@@ -22,6 +23,12 @@ test("buildJobReport records deterministic failures and version mismatch", () =>
       ref: "refs/tags/v0.1.7",
       worktree_fingerprint: "fingerprint-123",
     },
+    unchain: {
+      source_path: "/checkout/unchain",
+      locked_sha: "a".repeat(40),
+      tested_sha: "a".repeat(40),
+      dirty: false,
+    },
     checks: [
       { name: "frontend", command: "npm run test:frontend", outcome: "success" },
       { name: "package", command: "npm run build:electron:linux", outcome: "failure" },
@@ -35,6 +42,12 @@ test("buildJobReport records deterministic failures and version mismatch", () =>
   assert.equal(report.checks[2].name, "version matches expected release");
   assert.equal(report.checks[2].status, "failed");
   assert.equal(report.git.worktree_fingerprint, "fingerprint-123");
+  assert.deepEqual(report.unchain, {
+    source_path: "/checkout/unchain",
+    locked_sha: "a".repeat(40),
+    tested_sha: "a".repeat(40),
+    dirty: false,
+  });
 });
 
 test("mergeReports merges platforms and marks advisory Unchain analysis as non-blocking", () => {
@@ -45,7 +58,17 @@ test("mergeReports merges platforms and marks advisory Unchain analysis as non-b
         platform: { os: "ubuntu-latest", name: "deterministic" },
         version: "0.1.6",
         git: { sha: "abc123" },
-        checks: [{ name: "frontend", outcome: "success" }],
+        checks: [
+          { name: "frontend", outcome: "success" },
+          { name: "Quorum boundary protocol", outcome: "success" },
+          { name: "pinned Unchain checkout", outcome: "success" },
+          { name: "Context V2 boundary contracts", outcome: "success" },
+        ],
+        unchain: {
+          locked_sha: "c".repeat(40),
+          tested_sha: "c".repeat(40),
+          dirty: false,
+        },
       }),
       buildJobReport({
         mode: "lite",
@@ -67,7 +90,164 @@ test("mergeReports merges platforms and marks advisory Unchain analysis as non-b
   assert.equal(merged.schema_version, 1);
   assert.equal(merged.deterministic_result.status, "passed");
   assert.equal(merged.platforms.length, 2);
+  assert.deepEqual(merged.unchain, {
+    source_path: "",
+    locked_sha: "c".repeat(40),
+    tested_sha: "c".repeat(40),
+    dirty: false,
+  });
   assert.equal(merged.unchain_analysis.status, "analysis_unavailable");
+});
+
+test("required Context V2 checks treat skipped and neutral as INCOMPLETE failures", () => {
+  for (const requiredName of CONTEXT_V2_REQUIRED_CHECKS) {
+    for (const outcome of ["skipped", "neutral"]) {
+      const report = buildJobReport({
+        platform: { name: "local-contract" },
+        requiredChecks: CONTEXT_V2_REQUIRED_CHECKS,
+        unchain: {
+          locked_sha: "d".repeat(40),
+          tested_sha: "d".repeat(40),
+          dirty: false,
+        },
+        checks: CONTEXT_V2_REQUIRED_CHECKS.map((name) => ({
+          name,
+          outcome: name === requiredName ? outcome : "success",
+        })),
+      });
+
+      assert.equal(report.deterministic_result.status, "failed");
+      const required = report.checks.find(
+        (check) => check.name === requiredName,
+      );
+      assert.equal(required.status, "failed");
+      assert.match(required.details, /INCOMPLETE/);
+    }
+  }
+});
+
+test("a missing required Context V2 check cannot produce PASS", () => {
+  const report = buildJobReport({
+    platform: { name: "local-contract" },
+    requiredChecks: CONTEXT_V2_REQUIRED_CHECKS,
+    unchain: {
+      locked_sha: "e".repeat(40),
+      tested_sha: "e".repeat(40),
+      dirty: false,
+    },
+    checks: [{ name: "pinned Unchain checkout", outcome: "success" }],
+  });
+
+  assert.equal(report.deterministic_result.status, "failed");
+  assert.match(
+    report.checks.find(
+      (check) => check.name === "Context V2 boundary contracts",
+    ).details,
+    /missing \(INCOMPLETE\)/,
+  );
+});
+
+test("missing, mismatched, unknown, or dirty pinned evidence cannot produce PASS", () => {
+  const validSha = "f".repeat(40);
+  const invalidEvidence = [
+    { tested_sha: validSha, dirty: false },
+    { locked_sha: validSha, dirty: false },
+    { locked_sha: validSha, tested_sha: "a".repeat(40), dirty: false },
+    { locked_sha: validSha, tested_sha: validSha },
+    { locked_sha: validSha, tested_sha: validSha, dirty: true },
+  ];
+
+  for (const unchain of invalidEvidence) {
+    const report = buildJobReport({
+      platform: { name: "deterministic" },
+      unchain,
+      checks: [
+        { name: "Quorum boundary protocol", outcome: "success" },
+        { name: "pinned Unchain checkout", outcome: "success" },
+        { name: "Context V2 boundary contracts", outcome: "success" },
+      ],
+    });
+    assert.equal(report.deterministic_result.status, "failed");
+    assert.equal(
+      report.checks.find(
+        (check) => check.name === "pinned Unchain checkout",
+      ).status,
+      "failed",
+    );
+  }
+
+  const valid = buildJobReport({
+    platform: { name: "deterministic" },
+    unchain: {
+      locked_sha: validSha,
+      tested_sha: validSha,
+      dirty: false,
+    },
+    checks: [
+      { name: "Quorum boundary protocol", outcome: "success" },
+      { name: "pinned Unchain checkout", outcome: "success" },
+      { name: "Context V2 boundary contracts", outcome: "success" },
+    ],
+  });
+  assert.equal(valid.deterministic_result.status, "passed");
+});
+
+test("merged deterministic reports revalidate pinned evidence", () => {
+  const merged = mergeReports([
+    {
+      mode: "lite",
+      version: "0.1.9",
+      platform: { name: "deterministic", os: "linux" },
+      unchain: {
+        locked_sha: "1".repeat(40),
+        tested_sha: "2".repeat(40),
+        dirty: false,
+      },
+      checks: [
+        { name: "pinned Unchain checkout", status: "passed" },
+        { name: "Context V2 boundary contracts", status: "passed" },
+      ],
+      artifacts: [],
+    },
+  ]);
+
+  assert.equal(merged.deterministic_result.status, "failed");
+  assert.match(
+    merged.checks.find(
+      (check) => check.name === "pinned Unchain checkout",
+    ).details,
+    /SHAs differ/,
+  );
+});
+
+test("a merge with only non-deterministic reports is INCOMPLETE", () => {
+  for (const reports of [
+    [
+      buildJobReport({
+        platform: { name: "playwright-linux", os: "linux" },
+        checks: [{ name: "Playwright", outcome: "success" }],
+      }),
+    ],
+    [
+      buildJobReport({
+        platform: { name: "playwright-linux", os: "linux" },
+        checks: [{ name: "Playwright", outcome: "success" }],
+      }),
+      buildJobReport({
+        platform: { name: "package-linux", os: "linux" },
+        checks: [{ name: "package", outcome: "success" }],
+      }),
+    ],
+  ]) {
+    const merged = mergeReports(reports);
+    assert.equal(merged.deterministic_result.status, "failed");
+    assert.match(
+      merged.checks.find(
+        (check) => check.name === "deterministic QA report present",
+      ).details,
+      /missing \(INCOMPLETE\)/,
+    );
+  }
 });
 
 test("renderMarkdown includes result, checks, artifacts, and manual release QA", () => {
@@ -76,7 +256,17 @@ test("renderMarkdown includes result, checks, artifacts, and manual release QA",
       mode: "release",
       platform: { os: "macos-latest", name: "mac-arm64" },
       version: "0.1.6",
-      checks: [{ name: "package", outcome: "success" }],
+      unchain: {
+        locked_sha: "b".repeat(40),
+        tested_sha: "b".repeat(40),
+        dirty: false,
+      },
+      checks: [
+        { name: "Quorum boundary protocol", outcome: "success" },
+        { name: "pinned Unchain checkout", outcome: "success" },
+        { name: "Context V2 boundary contracts", outcome: "success" },
+        { name: "package", outcome: "success" },
+      ],
       artifacts: [{ name: "PuPu-0.1.6-arm64.dmg", path: "dist/PuPu-0.1.6-arm64.dmg" }],
     }),
   ]);
@@ -84,6 +274,8 @@ test("renderMarkdown includes result, checks, artifacts, and manual release QA",
   const markdown = renderMarkdown(report);
   assert.match(markdown, /PuPu Release QA Report/);
   assert.match(markdown, /Deterministic result: PASS/);
+  assert.match(markdown, new RegExp(`Unchain locked SHA: ${"b".repeat(40)}`));
+  assert.match(markdown, /Unchain dirty: false/);
   assert.match(markdown, /PuPu-0\.1\.6-arm64\.dmg/);
   assert.match(markdown, /macOS Gatekeeper\/notarization/);
 });

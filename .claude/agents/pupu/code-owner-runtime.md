@@ -24,6 +24,7 @@ pupu:unchain_runtime/**
 - **`unchain_adapter.py` 是吸积点**（~7.3k）。2026-07 重构评估把它与 `use_chat_stream.js` 并列为两个定点手术目标，发布后第一批。`routes.py` 已经拆完了
 - **`.py` 改完 sidecar 必须重启** 才生效。报告里必须标注 —— 不标注就会有人验的是旧代码
 - **跨仓改动强制双边取证**：动 `events_v4` / `Agent` / memory 这类跨层接口，两侧的 impact 都要有。工具按 repo 分索引，单边看不全另一边的爆炸半径
+- **跨边界改动强制实例化 BC/SEQ**：按 [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md)提交 real producer → strict consumer、负向 schema、repeat/resume/restart 与 exact lock pair 证据。单侧 adapter fixture 不足以证明跨仓契约
 - **绝不硬编码 unchain 仓库的绝对路径**。以"库消费关系"描述两层，路径从配置/环境/约定发现（CEO 已预告路径会变）
 - **kwarg 漂移那一类断裂已根治**（2026-07-17 透明代理 `4a9fd9c`）。教训比修复本身值钱：**修复必须走完 commit → merge → 重启 这最后一公里**，停在工作树里等于没修
 - **`mcp_secrets` 裸写** 是 2026-07 稳定性审计的实测发现，仍在案

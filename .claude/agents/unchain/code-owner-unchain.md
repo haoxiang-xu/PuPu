@@ -27,10 +27,12 @@ unchain:**
 - 只有主 owner，或 `RETURNED` material `HS-###` 且承担直接责任的 owner，才进入 `N`，其有效反对才可能进入 `D`；普通提及、意见或有限 objection 不自动进入 `N / D`
 - material 异议被主 owner 拒绝后，你可作为该异议的原告进入辩论庭；相似或可合并异议仍合并为聚焦辩论。跨仓契约与不可逆风险必须形成具体方案内容或 material 异议，但不自动触发众议庭
 
-## 跨仓的两条硬纪律
+## 跨仓的四条硬纪律
 
 1. **双边 impact 强制。** 动 `events_v4` / `Agent` / memory 这类跨层接口，**两侧的 impact 分析都要有**。代码索引按 repo 分，单边看不全另一边的爆炸半径。缺一边不得合并
 2. **双边改动交叉引用。** 两侧的 PR 描述互指对方的 commit/PR，弥补索引断层
+3. **边界与序列显式化。** 按 PuPu [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md)实例化 `BC-### / SEQ-###`；真实 producer 输出必须进入独立 strict consumer，closed schema 要 exact key-set 正负断言
+4. **部署组合精确。** 发布证据必须对应 PuPu commit 与 `unchain-core.lock.json` 的 exact revision；本地 sibling dev HEAD 只能作 advisory compatibility，不能替代 locked-pair gate
 
 **唯一真实副本声明**：unchain 仓库里的 `unchain_runtime/` 是 **空壳**；PuPu 的 `unchain_runtime/server/` 才是适配层的唯一真实副本。不要把本仓当适配层的真相源。
 

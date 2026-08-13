@@ -12,6 +12,8 @@ description: Run PuPu's Quorum case procedure when a request needs a binding jud
 - [讨论类别、单主 owner 与升级门槛](../../codex/lifecycle/discussion-model.md)
 - [交棒、参与和合作 owner](../../codex/lifecycle/summons.md)
 - [审查、异议、投票、证据和结案控制](../../codex/lifecycle/decision-controls.md)
+- [Boundary Contract 与 State Sequence](../../codex/lifecycle/boundary-contracts.md)
+- [PuPu 跨边界实施门](../../rules/cross-boundary-contract-gate.md)
 - [证据控制](../../codex/lifecycle/evidence-rules.md)
 - [辩论庭](../../codex/lifecycle/debate-court.md)
 - [Full（众议庭）](../../codex/lifecycle/full-court.md)
@@ -46,6 +48,7 @@ description: Run PuPu's Quorum case procedure when a request needs a binding jud
 - 目标结果、`non_goals`、初始已知范围；
 - `discussion_type` 与 `procedure_mode: collaboration`；
 - proposal 的初始 `write_set / contract_set`、回滚和验收责任；
+- proposal 的 `boundary obligations / boundary N/A reason` 与 `state sequence obligations / state sequence N/A reason`：明确列 `BC-### / SEQ-###`，或按法典写 `NOT_APPLICABLE` / `STATELESS` 及具体理由；初始未知可以写 `PENDING_DISCOVERY`，但不得带着它形成 ruling-ready PS；
 - 唯一 `lead_owner`、选择依据和不确定性；
 - 当前 `MS-###` 或 `PS-###` 引用；
 - 默认 `stage_instance_id: null`，BOS/DES/CR 为 `NOT_APPLICABLE`。
@@ -86,6 +89,16 @@ python3 .claude/skills/case/summon.py handoff <current-owner> <handoff-request-f
 
 - 主 owner；
 - 在冻结前 RETURNED material HS，并对具体回答、实施、回滚或验收承担直接责任的 owner。
+
+proposal 可在 drafting 阶段保留明确 BC/SEQ 空白并通过 RS 暴露 material objection；但 Speaker 形成 ruling-ready SUMMARY 前必须执行 contract completeness gate：
+
+- 每个真实跨仓/process/provider/serialization/persistence 边界都有完整 `BC-###`；
+- 每个 durable/mutable/history-dependent 行为都有完整 `SEQ-###`；
+- 每个 BC/SEQ 都有 owner、适用性、正负 `AC-###` 映射；
+- 跨 owner BC 已通过串行 HS 获得两侧责任确认；
+- `PENDING_DISCOVERY` 已清零，所有 `NOT_APPLICABLE / STATELESS` 声明均有可核验理由。
+
+任一不满足就返回 drafting/handoff，不得靠 RS、SUMMARY 或 Acceptance 事后补齐。
 
 同一底层 agent 只计一次。Expert、Witness、程序角色、只提交观点/证据/异议者和未完成 HS 的 owner 不进入 `N`。
 
@@ -144,6 +157,14 @@ Speaker 只有在以下条件全部成立时才可决定发起 `FV-###`：
 
 SUMMARY 必须列出仍有效异议、OPEN BO/RC、证据覆盖、未核验风险、候选内容和强制回应项，不伪造共识。
 
+对 proposal，SUMMARY 还必须列出 BC/SEQ completeness manifest：全部 profile、对应 AC、两侧 owner、适用矩阵结果计划和 rollout disposition。任何适用单元格在计划中被静默省略、或 active rollout 允许 `NOT_RUN/PENDING`，不得送 `PLAN_RULING: APPROVED`；只能退回修订，或把 rollout 明确限制为 shadow/off。
+
+`boundary_protocol: v1` proposal 在送 Chief 作 plan ruling 前必须运行冻结的参考门禁；非零退出时退回 drafting/handoff/integration，不得形成授权：
+
+```bash
+python3 -B .claude/skills/case/boundary_lint.py .claude/court/cases/<case-id> --phase ruling
+```
+
 由 Chief 作实体裁定：
 
 - `MOTION_RULING` 只关闭判断；若要实施，另建 proposal；
@@ -155,6 +176,20 @@ SUMMARY 必须列出仍有效异议、OPEN BO/RC、证据覆盖、未核验风�
 ## 10. 验收、失败回应与返修
 
 每个实施快照建立 `AT-###`，同一获准 action 共享一个 `AS-###` 及 sampling history。Inspector 只依据获准 PS 与 AC 验收，不从议案、旧指令或自行推断产生标准。
+
+BC/SEQ 映射是 PS 的结构化组成。Acceptance intake 先确认每个已声明 BC/SEQ 都映射到 AC；缺映射时拒绝 intake，不由 Inspector 发明标准。对已映射 AC，结果只允许 `PASS / FAIL / NOT_RUN / PENDING`，任一非 PASS 不得通过；结构上不适用的矩阵单元格已经在 PS 中以 `NOT_APPLICABLE + reason` 固定，不进入验收结果。证据 16% 抽样只核验已执行结果的真实性，不减少必须执行的 AC/SEQ。
+
+`boundary_protocol: v1` proposal 在 acceptance ruling intake 前必须对当前 case 运行 acceptance 门禁；它校验最新获准 PS、实际 revision pair、稳定证据引用和最新 AT 的完整 PASS 结果：
+
+```bash
+python3 -B .claude/skills/case/boundary_lint.py .claude/court/cases/<case-id> --phase acceptance
+```
+
+全仓确定性检查使用下列命令；它先验证冻结来源与 vendored self-tests，再扫描实际案卷。若当前没有进入 ruling/acceptance gate 的 v1 case，扫描结果必须写 `NOT_EVALUATED`，不能写成协议 PASS：
+
+```bash
+npm run test:quorum-boundary
+```
 
 先完成 acceptance evidence gate，再为 FAILED AT 开启 `ACCEPTANCE_RESPONSE` 窗口：
 

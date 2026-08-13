@@ -1,5 +1,8 @@
 # 法典 · Codex
 
+> **quorum** — 议事有效所需的最少出席者；在分布式系统中，则是达成决议所需的最小节点集。
+> 两个含义在此合一：[本文的传唤机制](lifecycle/summons.md)，管的正是"该到的人到齐了没有"。
+
 本目录是 PuPu 当前生效的 Quorum 法典副本，归 [`codex`](roles/codex.md) 维护。具体角色 instance 位于 `.claude/agents/`；历史案卷位于 `.claude/court/`。
 
 ## 来源与版本
@@ -7,26 +10,48 @@
 | 项 | 值 |
 |---|---|
 | 上游 | `https://github.com/haoxiang-xu/quorum.git` · `docs/quorum/` |
-| 迁入版本 | `ab40f4d` · 2026-08-10 |
+| 已提交迁入基线 | `ab40f4d` · 2026-08-10 |
+| 当前同步状态 | 2026-08-12 冻结的上游未提交 working tree；source manifest `72e37a93…`，normative manifest `ba173463…`；commit pin 待上游提交后回填 |
 | 本地生效副本 | `.claude/codex/` |
 | PuPu 专有差异 | [`adaptations.md`](adaptations.md) |
 
-上游是通用规范来源，本目录是 PuPu 的生效版本。同步不得覆盖 `.claude` 路径适配、混合执行政策、判例或历史兼容页；所有本仓偏离都必须在 `adaptations.md` 说明。
+上游是通用规范来源，本目录是 PuPu 的生效版本。当前 Boundary Protocol v1 是经 CEO 授权从同机 Quorum working tree 选择性同步的已批准内容；在上游产生 commit 前，不得为它捏造 commit SHA。冻结内容由 `.claude/skills/case/boundary_vendor_verify.py` 的精确 manifest、逐文件 hash 与 sibling byte parity 验证。同步不得覆盖 `.claude` 路径适配、混合执行政策、判例或历史兼容页；所有本仓偏离都必须在 `adaptations.md` 说明。
 
 ## 推荐阅读顺序
 
 1. [Constitution 宪法](constitution.md)
 2. [Case Lifecycle 讨论生命周期](lifecycle/README.md)
    - [讨论模型与最小主 owner 原则](lifecycle/discussion-model.md)
-   - [交棒、参与与传唤](lifecycle/summons.md)
-   - [Debate 辩论庭](lifecycle/debate-court.md)
-   - [Full 众议庭](lifecycle/full-court.md)
    - [庭审发言协议](lifecycle/speech-protocol.md)
    - [收敛与裁定控制](lifecycle/decision-controls.md)
+   - [边界契约与状态序列](lifecycle/boundary-contracts.md)
    - [证据规则](lifecycle/evidence-rules.md)
+   - [Debate 辩论庭](lifecycle/debate-court.md)
+   - [Full 众议庭](lifecycle/full-court.md)
+   - [交棒、参与与传唤](lifecycle/summons.md)
    - [延伸与 Side Case](lifecycle/side-cases.md)
 3. [Roles 角色](roles/README.md)
+   - [`Chief Judge`](roles/chief-judge.md)
+   - [`Procedural Judge`](roles/procedural-judge.md)
+   - [`Witness`](roles/witness.md)
+
+   - [`Code Owner`](roles/code-owner.md)
+   - [`Task Owner`](roles/task-owner.md)
+   - [`POV Owner`](roles/pov-owner.md)
+   - [`Knowledge Owner`](roles/knowledge-owner.md)
+   - [`Dimension Owner`](roles/dimension-owner.md)
+   - [`Expert`](roles/expert.md)
+
+   - [`Codex`](roles/codex.md)
+   - [`Speaker of the House`](roles/speaker-of-the-house.md)
+   - [`Evidence Examiner`](roles/evidence-examiner.md)
+   - [`Acceptance Inspector`](roles/acceptance-inspector.md)
 4. [Court Records 协作与庭审档案](court-records/README.md)
+   - [目录布局](court-records/layout.md)
+   - [Canonical source](court-records/canonical-sources.md)
+   - [`case.md` 格式](court-records/case-format.md)
+   - [编号与交叉引用](court-records/identifiers.md)
+   - [固定模板](court-records/templates.md)
 5. [Department 部门](department.md)
 6. [Archive 数据总库](archive.md)
 

@@ -1,0 +1,30 @@
+export const UNCHAIN_CORE_CONTRACT_TESTS = Object.freeze([
+  "tests/test_provider_message_contract.py::test_openai_native_and_exact_wire_reject_unknown_message_fields",
+  "tests/context_v2/test_model_context_projection.py::test_coordinator_materializes_image_and_removes_top_level_provenance",
+  "tests/context_v2/test_journal_message_projection.py::test_plain_root_final_and_terminal_accept_matching_iteration_identity",
+  "tests/context_v2/test_journal_message_projection.py::test_plain_root_final_and_terminal_require_matching_iteration_identity",
+  "tests/context_v2/test_context_provider_turn_approval_resume.py::test_official_context_boundary_starts_a_new_approval_after_resume",
+  "tests/context_v2/test_context_runtime_tool_approval_authority.py::test_answered_approval_does_not_bind_the_next_confirmable_call",
+  "tests/context_v2/test_context_p0_cold_composition_matrix.py::test_sqlite_reopen_second_chat_projects_real_kernel_terminal_history",
+  "tests/context_v2/test_context_p0_cold_composition_matrix.py::test_file_backed_cold_rebuild_keeps_sequential_approvals_distinct_and_once",
+]);
+
+export const PUPU_ADAPTER_CONTRACT_TESTS = Object.freeze([
+  "tests/test_memory_v2_unchain_attachment_projection.py",
+  "tests/test_memory_v2_unchain_graph_root_completion.py::test_candidate_free_root_completion_is_model_free_and_restart_idempotent",
+  "tests/test_memory_v2_unchain_graph_root_completion.py::test_memory_model_failure_is_isolated_after_graph_and_root_journal_complete",
+  "tests/test_memory_v2_unchain_active_graph_restart.py::test_active_two_node_graph_restarts_without_provider_reexecution",
+  "tests/test_memory_v2_unchain_active_graph_interaction_resume.py::test_active_graph_cold_resume_continues_exact_step_without_replaying_start",
+  "tests/test_memory_v2_unchain_active_resume.py::test_active_resume_uses_canonical_host_without_legacy_double_write",
+  "tests/test_unchain_adapter_recipe_graph_runtime.py::RecipeGraphRuntimeTests::test_plain_stream_preserves_typed_context_v2_error",
+  "tests/test_unchain_adapter_recipe_graph_runtime.py::RecipeGraphRuntimeTests::test_memory_v2_failure_reason_preserves_only_safe_context_reason",
+  "tests/test_chat_stream_v4.py::ChatStreamV4RouteTests::test_context_v2_stream_error_exposes_only_allowlisted_reason",
+]);
+
+export const STRICT_FAKE_CONTRACT_FILE =
+  "scripts/test-api/fake_openai_responses_server.test.mjs";
+
+export const STRICT_FAKE_CONTRACT_TEST_NAMES = Object.freeze([
+  "accepts legal message content blocks and rejects leaked attachment metadata",
+  "fails closed over HTTP when message metadata leaks into Responses input",
+]);

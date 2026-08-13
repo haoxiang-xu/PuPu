@@ -72,6 +72,8 @@
 - 关键步骤和依赖顺序；
 - 风险、可逆性与回滚或补救方式；
 - 带编号的 `AC-###` 验收标准；
+- `boundary obligations / boundary N/A reason` 与适用的 `BC-###`；
+- `state sequence obligations / state sequence N/A reason` 与适用的 `SEQ-###`；
 - 当前方案快照 `PS-###`。
 
 主 owner 不得为制造“完整方案”而代写其他 owner 的块。空白是合法中间状态，但存在必要空白的快照不能送最终裁定。
@@ -133,6 +135,7 @@ review 与 lead disposition 窗口关闭后，Speaker 先追加 `NOTICE: FULL_VO
 5. 若开庭，BOS、异议组、证据状态和停止原因完整；
 6. 若为众议庭，`FV-###` 有效且通过；
 7. 方案带风险、回滚/补救与验收标准；
-8. SUMMARY 分列共识、分歧、未知、风险和未覆盖责任，并只引用 canonical source。
+8. boundary protocol v1 适用时，BC/SEQ 声明、owner 确认、正负 AC、全部 REQUIRED 序列单元格与精确 revision binding 完整；
+9. SUMMARY 分列共识、分歧、未知、风险和未覆盖责任，并只引用 canonical source。
 
 Chief 只能裁定 SUMMARY 指向的单一 ruling-ready MS/PS，不能直接批准“当前快照 + 未集成 AM”。若 Chief 倾向采纳未集成内容，必须先返回主 owner 集成；主 owner拒绝或无法集成时可转移 lead，随后形成 successor artifact/RS 再送裁定。

@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const REPORT_SCHEMA_VERSION = 1;
+export const CONTEXT_V2_REQUIRED_CHECKS = Object.freeze([
+  "Quorum boundary protocol",
+  "pinned Unchain checkout",
+  "Context V2 boundary contracts",
+]);
 
 const PASS_STATUSES = new Set(["pass", "passed", "success", "successful", "ok"]);
 const FAIL_STATUSES = new Set(["fail", "failed", "failure", "error", "timed_out", "timed-out"]);
@@ -18,6 +23,7 @@ const MANUAL_RELEASE_QA = [
 ];
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
+const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 
 export function normalizeStatus(value) {
   const normalized = cleanString(value).toLowerCase();
@@ -81,18 +87,103 @@ function buildDeterministicResult(checks) {
   };
 }
 
+function enforceRequiredChecks(checks, requiredChecks, unchain) {
+  const normalizedRequired = [...new Set(
+    (requiredChecks || []).map(cleanString).filter(Boolean),
+  )];
+  const declaresContextV2Gate = checks.some((check) =>
+    CONTEXT_V2_REQUIRED_CHECKS.includes(check.name)
+  ) || normalizedRequired.some((name) =>
+    CONTEXT_V2_REQUIRED_CHECKS.includes(name)
+  );
+  const effectiveRequired = declaresContextV2Gate
+    ? [...new Set([...normalizedRequired, ...CONTEXT_V2_REQUIRED_CHECKS])]
+    : normalizedRequired;
+  const enforced = checks.map((check) => ({ ...check }));
+
+  for (const requiredName of effectiveRequired) {
+    const index = enforced.findIndex((check) => check.name === requiredName);
+    if (index === -1) {
+      enforced.push(normalizeCheck({
+        name: requiredName,
+        outcome: "failure",
+        details: "required check is missing (INCOMPLETE)",
+      }));
+      continue;
+    }
+    if (enforced[index].status !== "passed") {
+      const reportedStatus = enforced[index].status || "missing";
+      enforced[index] = {
+        ...enforced[index],
+        status: "failed",
+        outcome: "failure",
+        details: [
+          enforced[index].details,
+          `required check reported ${reportedStatus} (INCOMPLETE)`,
+        ].filter(Boolean).join("; "),
+      };
+    }
+  }
+
+  if (effectiveRequired.includes("pinned Unchain checkout")) {
+    const lockedSha = cleanString(unchain.locked_sha);
+    const testedSha = cleanString(unchain.tested_sha);
+    const evidenceFailures = [];
+    if (!GIT_SHA_PATTERN.test(lockedSha)) {
+      evidenceFailures.push("locked SHA is missing or invalid");
+    }
+    if (!GIT_SHA_PATTERN.test(testedSha)) {
+      evidenceFailures.push("tested SHA is missing or invalid");
+    }
+    if (lockedSha && testedSha && lockedSha !== testedSha) {
+      evidenceFailures.push("locked and tested SHAs differ");
+    }
+    if (unchain.dirty !== false) {
+      evidenceFailures.push(
+        unchain.dirty === true
+          ? "tested checkout is dirty"
+          : "tested checkout cleanliness is unknown",
+      );
+    }
+    if (evidenceFailures.length > 0) {
+      const index = enforced.findIndex(
+        (check) => check.name === "pinned Unchain checkout",
+      );
+      enforced[index] = {
+        ...enforced[index],
+        status: "failed",
+        outcome: "failure",
+        details: [
+          enforced[index].details,
+          `required evidence invalid: ${evidenceFailures.join(", ")}`,
+        ].filter(Boolean).join("; "),
+      };
+    }
+  }
+
+  return enforced;
+}
+
 export function buildJobReport({
   mode = "lite",
   platform = {},
   version = "",
   expectedVersion = "",
   git = {},
+  unchain = {},
+  requiredChecks = [],
   checks = [],
   artifacts = [],
 } = {}) {
-  const normalizedChecks = checks.map(normalizeCheck);
+  let normalizedChecks = checks.map(normalizeCheck);
   const cleanVersion = cleanString(version);
   const cleanExpected = cleanString(expectedVersion);
+  const normalizedUnchain = {
+    source_path: cleanString(unchain.source_path),
+    locked_sha: cleanString(unchain.locked_sha),
+    tested_sha: cleanString(unchain.tested_sha),
+    dirty: typeof unchain.dirty === "boolean" ? unchain.dirty : undefined,
+  };
 
   if (cleanExpected) {
     normalizedChecks.push(
@@ -107,6 +198,15 @@ export function buildJobReport({
       }),
     );
   }
+
+  const platformName = cleanString(platform.name) || cleanString(platform.os);
+  normalizedChecks = enforceRequiredChecks(
+    normalizedChecks,
+    platformName === "deterministic"
+      ? [...requiredChecks, ...CONTEXT_V2_REQUIRED_CHECKS]
+      : requiredChecks,
+    normalizedUnchain,
+  );
 
   const normalizedArtifacts = artifacts
     .map(normalizeArtifact)
@@ -127,6 +227,7 @@ export function buildJobReport({
       run_id: cleanString(git.run_id),
       worktree_fingerprint: cleanString(git.worktree_fingerprint),
     },
+    unchain: normalizedUnchain,
     platform: {
       name: cleanString(platform.name) || cleanString(platform.os) || "unknown",
       os: cleanString(platform.os) || cleanString(platform.name) || "unknown",
@@ -160,9 +261,40 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
     deterministic_result: report.deterministic_result,
   }));
   const firstReport = normalizedReports[0] || {};
+  const unchain = normalizedReports.find((report) =>
+    report.unchain?.locked_sha ||
+    report.unchain?.tested_sha ||
+    typeof report.unchain?.dirty === "boolean"
+  )?.unchain || {};
   const mode = normalizedReports.some((report) => report.mode === "release")
     ? "release"
     : cleanString(firstReport.mode) || "lite";
+  const deterministicReports = normalizedReports.filter((report) => {
+    const checkNames = new Set(
+      (report.checks || []).map((check) => cleanString(check.name)),
+    );
+    return report.platform?.name === "deterministic" ||
+      CONTEXT_V2_REQUIRED_CHECKS.every((name) => checkNames.has(name));
+  });
+
+  const requiresContextV2Gate = deterministicReports.length > 0 ||
+    normalizedReports.some((report) =>
+    (report.checks || []).some((check) =>
+      CONTEXT_V2_REQUIRED_CHECKS.includes(check.name)
+    )
+  );
+  if (deterministicReports.length === 0) {
+    checks.push(normalizeCheck({
+      name: "deterministic QA report present",
+      outcome: "failure",
+      details: "deterministic job report is missing (INCOMPLETE)",
+    }));
+  }
+  const enforcedChecks = enforceRequiredChecks(
+    checks,
+    requiresContextV2Gate ? CONTEXT_V2_REQUIRED_CHECKS : [],
+    unchain,
+  );
 
   return removeUndefined({
     schema_version: REPORT_SCHEMA_VERSION,
@@ -170,10 +302,11 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
     mode,
     version: cleanString(firstReport.version),
     git: firstReport.git || {},
+    unchain,
     platforms,
-    checks,
+    checks: enforcedChecks,
     artifacts,
-    deterministic_result: buildDeterministicResult(checks),
+    deterministic_result: buildDeterministicResult(enforcedChecks),
     unchain_analysis: unchainAnalysis || {
       status: "not_run",
       recommendation: "NEEDS-HUMAN-TEST",
@@ -197,6 +330,9 @@ export function renderMarkdown(report) {
     `- Mode: ${report.mode || "lite"}`,
     `- Version: ${report.version || "(unknown)"}`,
     `- Deterministic result: ${statusLabel(deterministicStatus)}`,
+    `- Unchain locked SHA: ${report.unchain?.locked_sha || "(unknown)"}`,
+    `- Unchain tested SHA: ${report.unchain?.tested_sha || "(unknown)"}`,
+    `- Unchain dirty: ${String(report.unchain?.dirty ?? "unknown")}`,
     `- Unchain analysis: ${report.unchain_analysis?.status || "not_run"}`,
     "",
     "## Checks",

@@ -75,6 +75,8 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:long-run-harness": "node --test scripts/test-api/deterministic-soak-lib.test.mjs scripts/test-api/deterministic-soak-runner-lib.test.mjs scripts/test-api/fake_openai_responses_server.test.mjs scripts/test-api/single-agent-long-run-lib.test.mjs scripts/test-api/run-single-agent-long-run.test.mjs scripts/test-api/live-long-run-lib.test.mjs scripts/test-api/run-live-long-runs.test.mjs",
+    "test:context-v2-contract": "node scripts/release-qa/run-context-v2-contract.mjs",
+    "test:quorum-boundary": "python3 -B .claude/skills/case/boundary_vendor_verify.py && python3 -B .claude/skills/case/boundary_lint_selftest.py && python3 -B .claude/skills/case/boundary_gate_selftest.py && python3 -B .claude/skills/case/boundary_gate.py --cases-root .claude/court/cases",
     "test:agent-long-run:quick": "node scripts/test-api/run-single-agent-long-run.mjs --profile quick",
     "test:agent-long-run:full": "node scripts/test-api/run-single-agent-long-run.mjs --profile full",
     "test:live-long-run:full": "node scripts/test-api/run-live-long-runs.mjs",

@@ -59,4 +59,46 @@ test("release QA has no second hard-coded blocking Unchain revision", () => {
     workflow.match(/steps\.unchain_revision\.outputs\.revision/g)?.length,
     3,
   );
+  const contractStep = workflow.match(
+    /- name: Context V2 boundary contract gate[\s\S]*?(?=\n      - name:)/,
+  )?.[0] || "";
+  assert.match(contractStep, /run: npm run test:context-v2-contract/);
+  assert.doesNotMatch(contractStep, /continue-on-error|advisory/i);
+  const pinnedStep = workflow.match(
+    /- name: Verify pinned Unchain checkout[\s\S]*?(?=\n      - name:)/,
+  )?.[0] || "";
+  assert.match(
+    pinnedStep,
+    /run: node scripts\/release-qa\/verify-pinned-unchain\.mjs/,
+  );
+  assert.doesNotMatch(pinnedStep, /continue-on-error|advisory/i);
+  assert.match(
+    workflow,
+    /"name":"Context V2 boundary contracts"[^\n]+steps\.context_v2_contract\.outcome/,
+  );
+  assert.match(
+    workflow,
+    /"name":"pinned Unchain checkout"[^\n]+steps\.pinned_unchain\.outcome/,
+  );
+  assert.match(
+    workflow,
+    /QA_REQUIRED_CHECKS_JSON: '\["Quorum boundary protocol","pinned Unchain checkout","Context V2 boundary contracts"\]'/,
+  );
+  assert.match(
+    workflow,
+    /if \(r\.deterministic_result\.status !== 'passed'\)/,
+  );
+  assert.match(
+    workflow,
+    /DETERMINISTIC_JOB_RESULT: \$\{\{ needs\.deterministic-checks\.result \}\}/,
+  );
+  assert.match(workflow, /--fail-on-deterministic-failure true/);
+  const finalGate = workflow.match(
+    /- name: Enforce final deterministic result[\s\S]*?(?=\n      - name:|\n\S|$)/,
+  )?.[0] || "";
+  assert.match(finalGate, /DETERMINISTIC_JOB_RESULT.*!= "success"/s);
+  assert.match(
+    finalGate,
+    /r\.deterministic_result\.status !== 'passed'/,
+  );
 });

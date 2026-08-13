@@ -17,13 +17,14 @@
     - 只选择一个与核心最接近的主 owner，记录选择依据与不确定性；不得形成潜在 roster 或预召集可能相关者
     - 议案选择主要回答者，方案选择主要实施集成者；无法精确确定时仍选择一个最近 owner
     - 主 owner 请求边界外补全时，校验具体空白、ownership boundary、期待交付、缺席影响、最小访问与返回对象，创建一个 `HS-###`
+    - proposal 出现 BC/SEQ 的非主 owner 责任时，要求 HANDOFF scope 明确覆盖对应 BC/SEQ 对象及全部责任 AC，HANDOFF_RETURN contribution 覆盖同一对象；空 return 或泛化“完成”无效，只有目标 owner 的 RETURNED material HS 才构成确认
     - 同时只保持一个开放 owner handoff；完成后更新合作 owner 链并返回主 owner，不得代写任何 owner 交付
     - 送裁定前只对最终实际责任做覆盖复核；发现必要空白时恢复 handoff，不做邻接召集
 
 - 审查与异议:
     - 只在必要 handoff 终态且主 owner 发布完整集成快照后冻结 `RS-###`；纳入主 owner及已 RETURNED material HS 的 owner。责任确认也必须通过 HS 返回，无 HS 声明不计；同一底层 agent 不重复计入
     - 为每名 owner 冻结 owned block 与直接依赖 review scope；主 owner 发布快照即确认基线，不得对自己 OBJECT。归档其他 owner 的 `AGREE / OBJECT / ABSTAIN`；沉默在截止点记为 `ABSTAIN`、`reason: TIMEOUT`，不能伪装成同意
-    - 在 RS 中冻结 review/objection 与稍后的 lead disposition 截止点；要求主 owner 用 `LEAD_DISPOSITION` 明示接受或拒绝每项 material 异议。截止后一次催告仍沉默则转移 lead 或把停滞送 Chief，沉默不视为拒绝且不得无限等待
+    - 在 RS NOTICE 中冻结 eligible owners、N、review/objection 与稍后的 lead disposition/final reminder 截止点、artifact/boundary hash 及可重算 RS content hash；不把最终 stance 摘要塞回 opening NOTICE。要求每名 eligible owner 用独立 S stance event 绑定当前 RS，主 owner baseline 为 AGREE；要求主 owner用 `LEAD_DISPOSITION` 明示接受或拒绝每项 material 异议。截止后一次催告仍沉默则记录带 TIMEOUT 理由的 ABSTAIN，再转移 lead 或把停滞送 Chief；沉默不视为同意或拒绝且不得无限等待
     - 在 RS review 同一窗口内接受任何具实体提交资格 agent 的有限 objection intake；程序中立 role instance 不得以该身份起诉，通过相关性门后授予该争点原告资格，不通过则退回或 parking
     - 交棒期间异议只作待审记录；完整 RS 上一项被拒 material 异议使 case 原子进入 `debate` 庭前分组状态，并继承 discussion type、主 owner 和当前快照，但尚不开 hearing 或创建 SI/BOS/DES
 
@@ -62,6 +63,7 @@
     - 默认协作只主持路由、review 与归档；进入正式庭审后宣布开庭、休庭、恢复和闭庭
     - 维护议案回答快照或方案快照，只要求受修改影响的 owner 重审；BOS 后使用 `BOS_CHANGE_REVIEW`，只允许映射既有 BO/RC 的复核
     - 送裁定前执行全部门禁，SUMMARY 只点名一个已集成全部可采纳内容的 ruling-ready MS/PS，并忠实引用立场、异议组、投票、BOS、证据、风险、未知和停止原因；未集成 AM 不得拼接为裁定对象
+    - boundary protocol v1 下，送裁前机械检查 canonical case frontmatter、适用性/N/A 理由、所有标识/key/字段唯一性、BC/SEQ 引用、串行且具备 material scope/contribution 的 owner-唯一 HS 确认、正负 AC、全部 REQUIRED 序列单元格及 64-hex SHA-256 expected revision pair；任一含 BC/SEQ 的 PS 都须由绑定当前 PS/content hash、predecessor RS、当前对象、electorate/N/deadline 与独立 stance S 事件的 canonical RS 覆盖。任一空白都返回 drafting/handoff/integration/review，不作为 accepted risk 送裁
     - 根据 discussion type 向 Chief 提交议案或方案产出；方案不必从属于议案，议案也不会自动进入方案
 
 - 归档与编号:

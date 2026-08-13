@@ -37,11 +37,11 @@ Speaker 在 framing 时只能选择一个主 owner，不列候选 roster。若�
 - **type**: HANDOFF_REQUEST
 - **target**: P-0000-0001-2026-0810#SLOT-002
 - **basis**: P-0000-0001-2026-0810#PS-001
-- **decision effect**: 补全发布说明后方案才可验收
+- **decision effect**: 补全发布说明并确认 consumer boundary 后方案才可送裁
 - **目标 ownership boundary**: knowledge-owner-docs
-- **期待交付**: SLOT-002 的说明步骤和 AC-002 检查方法
-- **缺席影响**: AC-002 无法形成
-- **最小访问范围**: PS-001, SLOT-002, AC-002
+- **期待交付**: SLOT-002 的说明步骤、BC-001 consumer 义务与 AC-002 检查方法
+- **缺席影响**: BC-001 与 AC-002 无法形成
+- **最小访问范围**: PS-001, SLOT-002, BC-001, AC-002
 - **完成后返回**: code-owner-example
 
 ## S-0005 | 2026-08-10T18:21:00-07:00
@@ -55,8 +55,8 @@ Speaker 在 framing 时只能选择一个主 owner，不列候选 roster。若�
 - **decision effect**: 授予一次有限 owner 交付
 - **from**: code-owner-example
 - **to**: knowledge-owner-docs
-- **scope**: PS-001, SLOT-002, AC-002
-- **delivery**: 补全 SLOT-002 并说明 AC-002 检查方法
+- **scope**: PS-001, SLOT-002, BC-001, AC-002
+- **delivery**: 补全 SLOT-002，确认 BC-001 consumer 义务并说明 AC-002 检查方法
 - **return_to**: code-owner-example
 - **expires at**: 2026-08-10T18:45:00-07:00
 - **expiry effect**: 记录 EXPIRED 后重新路由、转移 lead 或送 Chief；不把空白视为完成
@@ -70,8 +70,8 @@ Speaker 在 framing 时只能选择一个主 owner，不列候选 roster。若�
 - **type**: HANDOFF_RETURN
 - **target**: HS-001
 - **basis**: S-0005, E-0002
-- **decision effect**: 完成 SLOT-002 并返回主 owner
-- **contribution**: P-0000-0001-2026-0810#SLOT-002
+- **decision effect**: 完成 SLOT-002 与 BC-001 consumer 确认并返回主 owner
+- **contribution**: P-0000-0001-2026-0810#SLOT-002, P-0000-0001-2026-0810#BC-001
 - **remaining unknowns**: 无
 - **recommended next handoff**: 无
 - **status**: RETURNED
@@ -127,6 +127,7 @@ updated_at: 2026-08-10T18:50:00-07:00
 ```markdown
 ---
 case_id: P-0000-0001-2026-0810
+boundary_revision_set: sha256:1111111111111111111111111111111111111111111111111111111111111111+sha256:2222222222222222222222222222222222222222222222222222222222222222
 updated_at: 2026-08-10T19:05:00-07:00
 ---
 
@@ -147,6 +148,46 @@ updated_at: 2026-08-10T19:05:00-07:00
 - **验收标准**:
   - AC-001 | ...
   - AC-002 | ...
+- **boundary obligations**: BC-001
+- **boundary N/A reason**: NOT_APPLICABLE
+- **state sequence obligations**: SEQ-001
+- **state sequence N/A reason**: NOT_APPLICABLE
+
+### BC-001 | 生成结果到发布说明
+- **producer**: code-owner-example 生成的版本化结果
+- **producer owner**: code-owner-example
+- **consumer**: knowledge-owner-docs 的发布说明流程
+- **consumer owner**: knowledge-owner-docs
+- **canonical representation**: 固定 revision 下的规范化结果对象
+- **consumer projection**: 发布说明只读取明确列出的稳定字段
+- **admission policy**: CLOSED
+- **admission details**: 精确字段集合与允许值；未知字段拒绝
+- **unknown input behavior**: fail closed，并产生稳定错误
+- **failure semantics**: 不生成部分发布说明，不推进发布状态
+- **identity/version binding**: producer sha256:1111111111111111111111111111111111111111111111111111111111111111 + consumer sha256:2222222222222222222222222222222222222222222222222222222222222222
+- **producer owner confirmation**: LEAD
+- **consumer owner confirmation**: HS-001
+- **positive acceptance**: AC-001
+- **negative acceptance**: AC-002
+
+### SEQ-001 | 同一发布对象的重试与恢复
+- **owner**: code-owner-example
+- **owner confirmation**: LEAD
+- **identity key**: release-id + attempt-id
+- **initial state**: 尚未生成发布说明
+- **ordered events**: 首次生成 → 可恢复失败 → 同 identity 重试
+- **expected observations**: 首次只生成一次；恢复保留 release identity；重试不重复提交
+- **persistence boundary**: 发布任务的 durable state
+- **boundary contracts**: BC-001
+- **positive acceptance**: AC-001
+- **negative acceptance**: AC-002
+- **first use**: REQUIRED | AC-001
+- **repeat**: REQUIRED | AC-001
+- **retry**: REQUIRED | AC-002
+- **resume**: REQUIRED | AC-002
+- **restart**: NOT_APPLICABLE | 本方案不改变或验证进程重启语义
+- **reset**: NOT_APPLICABLE | 该发布任务没有 reset 操作
+- **rollback**: NOT_APPLICABLE | rollback 由独立的已获准发布方案承担
 
 ### AM-001
 - **提出发言**: S-0008
@@ -160,23 +201,25 @@ updated_at: 2026-08-10T19:05:00-07:00
 - **included amendments**: 无
 - **changed blocks**: 全案
 - **dependent review blocks**: 全案
-- **content hash**: sha256:ps1...
+- **boundary object hash**: sha256:bdf14a4aec0de0d159176bf8c225f85b440dccba75f42af0366af598e5b9331f
+- **content hash**: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 - **formed_by**: code-owner-example
 
 ### PS-002 | 2026-08-10T19:05:00-07:00
 - **supersedes**: PS-001
 - **included contributions/amendments**: S-0007, AM-001
-- **changed blocks**: SLOT-002, AC-002
-- **dependent review blocks**: SLOT-002, AC-002
-- **content hash**: sha256:ps2...
+- **changed blocks**: SLOT-002, BC-001, SEQ-001, AC-002
+- **dependent review blocks**: SLOT-002, BC-001, SEQ-001, AC-002
+- **boundary object hash**: sha256:bdf14a4aec0de0d159176bf8c225f85b440dccba75f42af0366af598e5b9331f
+- **content hash**: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 - **formed_by**: code-owner-example
 
-### Review ledger | RS-001 | PS-002
+### Review ledger | RS-002 | PS-002
 - code-owner-example | S-0010 | AGREE | 全案
 - knowledge-owner-docs | S-0011 | OBJECT | SLOT-002, AC-002
 ```
 
-必要 slot 仍为 `UNFILLED / PENDING_HANDOFF` 时不得送最终裁定。目标结果变化创建新的 proposal case；同一目标内的局部变化追加 AM 和 successor PS。
+必要 slot 仍为 `UNFILLED / PENDING_HANDOFF` 时不得送最终裁定。boundary protocol v1 下，适用性/N/A 声明、唯一的 BC/SEQ 编号、非主 owner 的已返回 material HS 确认、正负 AC 和每个序列矩阵单元格也是 PS 正文；缺失时同样不得送裁。HANDOFF scope 必须覆盖确认对象与全部责任 AC，RETURN contribution 必须覆盖对象。PS/AC/BC/SEQ 等标识、frontmatter key 及同一结构对象字段不得重复；不采用 first/last-wins。每个含 BC/SEQ 的 PS 以 `boundary object hash` 固定当前对象并保存 64-hex SHA-256 content hash，算法以[边界契约规范](../lifecycle/boundary-contracts.md)为准。`case.md.review_snapshot_ref` 指向 canonical RS NOTICE；该 NOTICE 须绑定当前 PS 与 content hash、predecessor RS、review kind、全部当前对象、相同 boundary object hash、eligible owners、N、四个 deadline 与可重算的 RS content hash。任一 successor PS 都适用，无论 `changed blocks` 写了什么；review marker 不回写已 hash 的 PS。只要存在 BC，proposal frontmatter 只声明 expected `boundary_revision_set`，使用两个 64-hex SHA-256 的精确 pair；proposal 不得自填 verified 值。获准 ruling 冻结 expected pair，当前最新 AT 写实际 verified pair 与外部证据。目标结果变化创建新的 proposal case；同一目标内的局部变化追加 AM 和 successor PS。
 
 ## 5. Review、异议与主 owner 处置
 
@@ -185,24 +228,46 @@ updated_at: 2026-08-10T19:05:00-07:00
 ```markdown
 ## S-0009 | ...
 - **type**: NOTICE
-- **target**: RS-001
+- **target**: RS-002
 - **basis**: P-0000-0001-2026-0810#PS-002, HS-001
 - **decision effect**: 冻结合作 owner 审查人与 electorate
 - **artifact**: P-0000-0001-2026-0810#PS-002
-- **supersedes**: null
+- **supersedes**: RS-001
 - **review kind**: ORDINARY
-- **inherited stances**: 无
-- **invalidated review scopes**: 无
-- **eligible cooperating owners**:
-  - code-owner-example | lead/integration | 全案 | baseline AGREE
-  - knowledge-owner-docs | material HS-001 contribution | SLOT-002, AC-002 | pending
+- **boundary reviewed objects**: BC-001, SEQ-001
+- **boundary object hash**: sha256:bdf14a4aec0de0d159176bf8c225f85b440dccba75f42af0366af598e5b9331f
+- **artifact content hash**: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- **inherited stances**: NOT_APPLICABLE
+- **re-review owners**: code-owner-example, knowledge-owner-docs
+- **invalidated scopes**: changed SLOT-002/BC-001/SEQ-001 and lead baseline
+- **eligible owners**: code-owner-example, knowledge-owner-docs
 - **N**: 2
 - **review deadline**: 2026-08-10T20:00:00-07:00
 - **objection intake deadline**: 2026-08-10T20:00:00-07:00
 - **lead disposition deadline**: 2026-08-10T20:30:00-07:00
 - **lead reminder final deadline**: 2026-08-10T20:45:00-07:00
-- **content hash**: sha256:rs1...
+- **content hash**: sha256:3333333333333333333333333333333333333333333333333333333333333333
+
+## S-0010 | ...
+- **type**: AGREE
+- **owner**: code-owner-example
+- **target**: P-0000-0001-2026-0810#PS-002
+- **review snapshot**: RS-002
+- **scope**: 全案
+
+## S-0011 | ...
+- **type**: OBJECTION
+- **owner**: knowledge-owner-docs
+- **target**: P-0000-0001-2026-0810#SLOT-002
+- **review snapshot**: RS-002
+- **basis**: E-0003
+- **decision effect**: 当前步骤会使 AC-002 无法复现
+- **requested change**: 固定生成命令和 revision
 ```
+
+RS NOTICE 只冻结 electorate、N、scope/deadline、继承 lineage 与哈希，不保存最终 `owner stances`；每名 owner 的立场正文仍是独立 S 事件。初始 RS 写 `inherited stances: NOT_APPLICABLE`，所有 owner 列入 `re-review owners`。successor 可把未受影响的 AGREE/ABSTAIN 写成 `owner=S-####@RS-###`，但 source 必须真实存在且 owner/RS 一致；lead 与 re-review owners 发布当前 S，二者和 inherited owners 的并集精确等于 electorate。OBJECT 不得在此继承。lead 必须有绑定当前 RS 与 artifact 的 baseline AGREE；超时 ABSTAIN 写 `reason: TIMEOUT`。NOTICE 中的摘要不能替代这些事件。
+
+所有 HS/RS/stance/lead disposition S heading 使用时区明确的时间并按 append 顺序严格递增。HANDOFF 必须写 `expires at`；RETURN 在 expiry 前发生且 `speaker` 精确等于目标 owner。RS deadline 晚于 opening；stance 在 opening 后、review deadline 前；OBJECTION 还必须写 scope，并在 lead disposition deadline 前取得唯一 `LEAD_DISPOSITION`。
 
 successor RS 必须另列 predecessor、旧/新 artifact 映射、`review kind: ORDINARY / BOS_CHANGE_REVIEW`、逐项 carried AGREE/ABSTAIN、失效 scope、需重审 scope 与新截止点；不能只声称“未受影响立场继续有效”。每项旧 OBJECT 必须另列原 S、此前 retarget/disposition、新 `OBJECTION_RETARGET`、旧/新 target+dependency hash，以及 `CARRIED_UNCHANGED / REQUIRES_NEW_DISPOSITION`。只有当前 CONFIRMED 且具有有效 REJECT disposition 的项能计 D；lead transfer 一律要求新 disposition。`BOS_CHANGE_REVIEW` 的每项 OBJECT 还必须引用既有 BO/RC，且明确写 `D/OG effect: NOT_APPLICABLE`。
 
@@ -214,7 +279,7 @@ successor RS 必须另列 predecessor、旧/新 artifact 映射、`review kind: 
 - **target**: P-0000-0001-2026-0810#SLOT-002
 - **basis**: E-0003
 - **decision effect**: 当前步骤会使 AC-002 无法复现
-- **review snapshot**: RS-001
+- **review snapshot**: RS-002
 - **requested change**: 固定生成命令和 revision
 - **resolution conditions**:
   - RC-001 | 指定命令在固定 revision 可复跑
@@ -238,11 +303,11 @@ RS 前提出的异议仍使用 `type: OBJECTION`，但原事件必须写 `review
 ## S-0012 | ...
 - **type**: NOTICE
 - **target**: S-0006
-- **basis**: RS-001, P-0000-0001-2026-0810#PS-002
+- **basis**: RS-002, P-0000-0001-2026-0810#PS-002
 - **decision effect**: 把交棒期异议确认到最终 review 快照
 - **notice kind**: OBJECTION_RETARGET
 - **old target / status**: P-...#SLOT-002 | PENDING_REVIEW_TARGET
-- **new target / review snapshot**: P-...#SLOT-002 | RS-001
+- **new target / review snapshot**: P-...#SLOT-002 | RS-002
 - **result**: CONFIRMED / WITHDRAWN / RETURN_NO_LINK
 ```
 
@@ -412,8 +477,7 @@ BOS 只在辩论庭、众议庭或验收庭审首次陈述窗口后创建：
 - **supports/refutes**: S-0011
 - **decision link**: P-0000-0001-2026-0810#SLOT-002
 - **limitations**: 未检查部署环境
-- **stable slices**:
-  - ES-001 | locator | revision | observed_at | sha256:... | boundary
+- **stable slices**: ES-001 | locator | revision | observed_at | sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | boundary
 - **challenge history**: 无
 - **verification history**: 无
 ```
@@ -437,6 +501,9 @@ BOS 只在辩论庭、众议庭或验收庭审首次陈述窗口后创建：
 - **discussion type / procedure mode**: proposal | debate
 - **current artifact**: P-0000-0003-2026-0810#PS-003
 - **ruling-ready artifact**: P-0000-0003-2026-0810#PS-003
+- **boundary protocol**: v1
+- **boundary contracts / state sequences**: BC-001 / SEQ-001
+- **boundary ruling-ready check**: PASS | applicability, HS confirmations, AC mappings, matrix and revision binding complete
 - **unintegrated amendments**: S-0038 | REQUEST_ONLY | 不得由裁定直接拼接采纳
 - **review positions**: RS-003
 - **consensus**: ...
@@ -463,6 +530,8 @@ Closure 哈希使用封闭的两层结构，不能自引用：
 1. 每个预提交 `THREAD_STATUS` 的完整 payload（含其保留 S ID）按 UTF-8、Unicode NFC、LF、无 BOM/尾随换行/键间空白、对象键按 UTF-8 字节序、数组保留 manifest 顺序的 canonical JSON 编码；`event payload hash = SHA-256("quorum.closure.event.v1\0" || bytes)`，其中 `\0` 表示一个 NUL byte。payload 不包含自身 hash 或 Markdown 标题。
 2. `bundle body` 只含 `case_id`、`ruling_id`、旧/新 logical state、按顺序排列的 `{event_id,event_payload_hash}`、保留的 commit S ID 与 deadline；`closure bundle hash = SHA-256("quorum.closure.bundle.v1\0" || canonical_json(bundle body))`，其中 `\0` 表示一个 NUL byte。bundle body 明确不含 commit payload/hash。
 3. commit payload 固定为 `event_id`、`type: NOTICE`、`notice_kind: CLOSURE_COMMIT`、`case_id`、`ruling_id`、`closure_bundle_hash`、按 manifest 顺序排列的全部**预提交**实际 event hash、旧/新 logical state。其 expected hash 使用第一步的 event 域算法；payload 不含自身 hash，故没有直接或间接自引用。无 THREAD_STATUS 时 event hash 数组为空。
+
+机器可校验记录中的 `closure bundle manifest` 值使用单行 canonical JSON object，且顶层键精确为 `bundle_body / precommit_event_payloads / commit_payload`。`bundle_body` 精确包含 `case_id / ruling_id / old_logical_state / new_logical_state / precommit_events / commit_event_id / deadline`；每个 `precommit_event_payloads` 项冻结完整 event payload，`precommit_events` 只保存按序 `{event_id,event_payload_hash}`；`commit_payload` 使用上项固定键。JSON 不接受额外键、重复键、占位值或非 canonical 编码。下列缩进式 manifest 只是这些对象的可读展开；实际记录必须物化成上述单一 canonical JSON 值并写入真实 64-hex SHA-256。
 
 所需 `THREAD_STATUS` 按 manifest 先追加；最后一条保留 S ID 的 `NOTICE:CLOSURE_COMMIT` 只能引用预提交 event hash，不能引用自身 hash。该 marker 是唯一 canonical commit point：写入前裁定未生效且 logical state 保持旧值；首条 event ID、bundle hash、ordered event hashes 与 expected commit payload hash 全部匹配的 marker 写入时，裁定与新 logical state 同时生效。重复、部分、顺序不同或 hash 不符的 marker 无效。`case.md` 只是随后同步的当前索引，短暂滞后时以 marker 为准并立即修复。
 
@@ -528,9 +597,12 @@ MOTION_RULING 不包含“是否需要实施”字段，也不能跳转 proposal
 - **mandatory responses**: ...
 - **ruling scope**: ACTION / COMPONENT
 - **proposal result**: APPROVED / REJECTED
-- **approved proposal/snapshot**: P-... / P-...#PS-003
+- **approved proposal/snapshot**: P-...#PS-003
 - **authorized action**: ...
-- **acceptance criteria**: P-...#AC-001, P-...#AC-002
+- **acceptance criteria**: AC-001, AC-002
+- **boundary revision set**: sha256:1111111111111111111111111111111111111111111111111111111111111111+sha256:2222222222222222222222222222222222222222222222222222222222222222 / NOT_APPLICABLE
+- **boundary protocol**: v1 / legacy
+- **boundary contracts / state sequences**: BC-001 / SEQ-001 / NOT_APPLICABLE
 - **evidence disposition**: NOT_APPLICABLE / RULE_NOW
 - **accepted uncovered risks**: ... / 无
 - **BOS disposition**: NOT_APPLICABLE / BOS-001 ...
@@ -598,7 +670,9 @@ MOTION_RULING 不包含“是否需要实施”字段，也不能跳转 proposal
 - **inherited BOS**: NOT_APPLICABLE / BOS-001
 - **artifact / revision / hash**: ...
 - **inspector**: acceptance-inspector
-- **criteria**: P-...#AC-001, P-...#AC-002
+- **criteria**: AC-001, AC-002
+- **verified boundary revision set**: sha256:1111111111111111111111111111111111111111111111111111111111111111+sha256:2222222222222222222222222222222222222222222222222222222222222222 / NOT_APPLICABLE
+- **verified boundary revision evidence**: E-0012 / NOT_APPLICABLE
 - **response window duration**: NOT_APPLICABLE / PT4H  # 仅 initial result: FAILED
 - **response reminder grace duration**: NOT_APPLICABLE / PT15M
 - **response window notice**: NOT_APPLICABLE / record.md#S-0050
@@ -610,6 +684,10 @@ MOTION_RULING 不包含“是否需要实施”字段，也不能跳转 proposal
 - **evidence**: E-0010, E-0011
 - **initial result**: PASSED / FAILED
 
+### Criteria results
+- AC-001 | PASS | method: 真实 producer 到最终 consumer | evidence: E-0010
+- AC-002 | PASS | method: 未知输入负向检查及状态恢复序列 | evidence: E-0011
+
 ### Evidence and obligation history
 - ...
 
@@ -618,7 +696,7 @@ MOTION_RULING 不包含“是否需要实施”字段，也不能跳转 proposal
 - **final ruling**: NOT_APPLICABLE / ruling.md#R-0005
 ```
 
-初始快照必须使用 `AT-001` 且 `supersedes AT: null`；successor 从 `AT-002` 起逐项引用直接 predecessor，不能自引用。PASSED 的 AT 之 response window 字段全部写 `NOT_APPLICABLE`；FAILED 在 AT 冻结 window/grace duration，但绝对 deadline 在 evidence gate 恢复 `awaiting-acceptance-response` 时才由 `NOTICE: ACCEPTANCE_RESPONSE_WINDOW_OPEN` 机械生成。该 NOTICE 固定记录 effective AT、effective DES/continuation、opened_at、window/grace durations、deadline 与 final deadline。window 开启前不能提交 response/timeout；已开启且尚无 response/timeout 时不能插入新的 evidence direction。
+初始快照必须使用 `AT-001` 且 `supersedes AT: null`；successor 从 `AT-002` 起逐项引用直接 predecessor，不能自引用。AT 只能绑定已经完成精确 `NOTICE:CLOSURE_COMMIT` 的 effective PLAN_RULING，其时间晚于 commit，并绑定同一 AS/PS。当前最新 AT 的 `Criteria results` 必须在该 AT 自己的正文中逐项覆盖获准方案的全部 AC，状态只允许 `PASS / FAIL / NOT_RUN / PENDING`；method 必须具体，evidence 必须为同案裸 `E-####` 精确列表，每个 E 的 supports/refutes 与 decision link 分别绑定该 AC。`NOT_APPLICABLE`、自由文字、跨案 qualifier、未知或重复 ref 均无效。predecessor AT 的旧 PASS 不得填补当前缺项，当前缺项或任一非 PASS 都禁止 `initial result: PASSED`。存在 BC 时，当前 AT 的 verified revision pair 必须与 ruling 冻结的 expected pair 逐字一致并引用稳定外部证据；proposal 作者的自填值无效。`FIRST_RANDOM_16` 只能抽查这些证据的真实性，不能把未执行 AC 或 BC/SEQ 矩阵单元格变为 PASS。PASSED 的 AT 之 response window 字段全部写 `NOT_APPLICABLE`；FAILED 在 AT 冻结 window/grace duration，但绝对 deadline 在 evidence gate 恢复 `awaiting-acceptance-response` 时才由 `NOTICE: ACCEPTANCE_RESPONSE_WINDOW_OPEN` 机械生成。该 NOTICE 固定记录 effective AT、effective DES/continuation、opened_at、window/grace durations、deadline 与 final deadline。window 开启前不能提交 response/timeout；已开启且尚无 response/timeout 时不能插入新的 evidence direction。
 
 失败 AT 在 response window 开启后才能记录 `ACCEPTANCE_RESPONSE`，固定字段为：当前 effective `AT`、`ACCEPTANCE_RESPONSE_WINDOW_OPEN` notice、方案主 owner、`ACCEPT_FAILURE / DISPUTE_FAILURE`、依据、是否请求返修及其范围。最终截止仍沉默时 Speaker 追加 `NOTICE: ACCEPTANCE_RESPONSE_TIMEOUT` 并送无庭审 reconsideration，不能伪造 response 或授权 action。window 开启前或 evidence direction 暂存期间的 response/timeout 无效；successor AT 不继承旧 window。`ACCEPT_FAILURE` 只把 case 送入无庭审 reconsideration，不授权修改；`DISPUTE_FAILURE` 才请求验收庭审。
 

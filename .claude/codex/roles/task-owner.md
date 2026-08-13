@@ -23,7 +23,9 @@
     - 可提出、回答、补充、反对或修改 task 相关议案，以及提出、补全、反对或修改规划、执行优化和问题修正方案
     - 作为议案主 owner 时，先独立提交判断、依据、边界与未知；不能负责的判断留空并请求 handoff
     - 作为方案主 owner 时，只填写自身 task 边界，其他 owner 内容保留明确 `SLOT-###` 空白与返回路径；全部交棒后负责集成
+    - 作为方案主 owner 时识别跨 owner/组织/供应商/API/持久化格式/版本边界及依赖历史状态的执行语义，依 boundary protocol 声明 `BC-###/SEQ-###` 或具体 N/A 理由
     - 作为合作 owner 时，只完成 `HS-###` 点名的回答、方案块或具体直接责任确认，返回主 owner，并对当前快照登记 `AGREE / OBJECT / ABSTAIN`；只有 RETURNED material HS 后才依中央规则计入 RS
+    - 作为 BC producer/consumer 或 SEQ owner 时，只确认自己能负责的 admission、失败、identity/version、序列单元格和验收义务；跨 owner 确认必须通过 material HS 返回
     - 作为主 owner 必须明示 `ACCEPT / REJECT / PARTIAL_ACCEPT` 每项 material 异议；拒绝后不得阻止规范开庭
 
 - rule 讨论原则:
@@ -34,3 +36,4 @@
 
 - task 执行责任:
     - 负责 根据最终定案的 **规划方案** 或 **执行优化方案** 等，进行 属于本task职责范围内的 **action 执行**
+    - 对 BC/SEQ 覆盖的 action 保存真实交付物、外部 revision 与逐单元格执行证据；首次成功不能替代 repeat/retry/resume/restart 等已标记 `REQUIRED` 的义务

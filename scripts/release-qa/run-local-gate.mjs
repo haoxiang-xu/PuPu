@@ -9,31 +9,32 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildJobReport,
+  CONTEXT_V2_REQUIRED_CHECKS,
   mergeReports,
   renderMarkdown,
   writeJson,
   writeText,
 } from "./reporting.mjs";
 import { buildLocalGateChecks } from "./local-gate-checks.mjs";
+import {
+  describeUnchainCheckout,
+  inspectPinnedUnchainCheckout,
+  resolveUnchainRoot,
+} from "./unchain-checkout.mjs";
 import { computeWorktreeFingerprint } from "./worktree-fingerprint.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUTPUT_DIR = path.join(ROOT, ".release-qa", "local");
-const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const venvPython = process.platform === "win32"
+  ? path.join(ROOT, ".venv", "Scripts", "python.exe")
+  : path.join(ROOT, ".venv", "bin", "python");
+const PYTHON = process.env.PYTHON ||
+  (fs.existsSync(venvPython)
+    ? venvPython
+    : process.platform === "win32" ? "python" : "python3");
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
 );
-
-const siblingUnchain = path.resolve(ROOT, "..", "unchain", "src");
-const pythonPath = process.env.PYTHONPATH ||
-  (fs.existsSync(siblingUnchain) ? siblingUnchain : "");
-
-const checks = buildLocalGateChecks({
-  root: ROOT,
-  python: PYTHON,
-  pythonPath,
-  version: packageJson.version,
-});
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 const initialHead = spawnSync("git", ["rev-parse", "HEAD"], {
@@ -41,8 +42,35 @@ const initialHead = spawnSync("git", ["rev-parse", "HEAD"], {
   encoding: "utf8",
 }).stdout?.trim();
 const initialWorktreeFingerprint = computeWorktreeFingerprint(ROOT);
+const unchainRoot = resolveUnchainRoot({ pupuRoot: ROOT });
+const unchainCheckout = inspectPinnedUnchainCheckout({
+  pupuRoot: ROOT,
+  unchainRoot,
+});
+const unchainDetails = describeUnchainCheckout(unchainCheckout);
+console.log(`[release-qa] Unchain preflight: ${unchainDetails}`);
+const pythonPath = [
+  path.join(unchainRoot, "src"),
+  process.env.PYTHONPATH,
+].filter(Boolean).join(path.delimiter);
+const checks = unchainCheckout.valid
+  ? buildLocalGateChecks({
+      root: ROOT,
+      python: PYTHON,
+      pythonPath,
+      unchainRoot,
+      version: packageJson.version,
+    })
+  : [];
 
-const results = [];
+const results = [
+  {
+    name: "pinned Unchain checkout",
+    command: "compare selected Unchain HEAD and worktree to unchain-core.lock.json",
+    outcome: unchainCheckout.valid ? "success" : "failure",
+    details: unchainDetails,
+  },
+];
 for (const check of checks) {
   console.log(`\n[release-qa] ${check.name}`);
   console.log(`[release-qa] $ ${check.command}`);
@@ -95,6 +123,13 @@ const jobReport = buildJobReport({
     ref: "local",
     worktree_fingerprint: initialWorktreeFingerprint,
   },
+  unchain: {
+    source_path: unchainCheckout.sourcePath,
+    locked_sha: unchainCheckout.lockedRevision,
+    tested_sha: unchainCheckout.testedRevision,
+    dirty: unchainCheckout.dirty,
+  },
+  requiredChecks: CONTEXT_V2_REQUIRED_CHECKS,
   checks: results,
   artifacts: [
     { name: "Playwright HTML report", path: "playwright-report/index.html" },

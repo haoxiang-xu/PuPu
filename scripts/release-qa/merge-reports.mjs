@@ -63,7 +63,10 @@ writeJson(outJson, merged);
 writeText(outMd, renderMarkdown(merged));
 console.log(`[release-qa] merged ${reports.length} job report(s) into ${outJson}`);
 
-if (failOnDeterministicFailure && merged.deterministic_result?.status === "failed") {
+if (
+  failOnDeterministicFailure &&
+  merged.deterministic_result?.status !== "passed"
+) {
   console.error("[release-qa] deterministic gate failed");
   process.exit(1);
 }

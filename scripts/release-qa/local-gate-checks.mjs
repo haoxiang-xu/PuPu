@@ -4,6 +4,7 @@ export const buildLocalGateChecks = ({
   root,
   python,
   pythonPath = "",
+  unchainRoot,
   version,
 }) => [
   {
@@ -27,6 +28,21 @@ export const buildLocalGateChecks = ({
     command: `${python} -m pytest tests/ -q --tb=short`,
     cwd: path.join(root, "unchain_runtime", "server"),
     env: pythonPath ? { PYTHONPATH: pythonPath } : {},
+  },
+  {
+    name: "Quorum boundary protocol",
+    command: "npm run test:quorum-boundary",
+    cwd: root,
+  },
+  {
+    name: "Context V2 boundary contracts",
+    command: "npm run test:context-v2-contract",
+    cwd: root,
+    env: {
+      PYTHON: python,
+      UNCHAIN_SOURCE_PATH: unchainRoot,
+      ...(pythonPath ? { PYTHONPATH: pythonPath } : {}),
+    },
   },
   {
     name: "MCP registry validation",

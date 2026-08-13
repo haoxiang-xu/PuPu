@@ -122,6 +122,7 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 - **Electron 测试有 `.js` / `.cjs` 双胞胎，必须同步** — 本仓唯一会静默失效的测试形态
 - **外壳/背景颜色禁裸 hex** — 用 `var(--pupu-background | --pupu-sidebar | --pupu-surface)`，受 `shell_background_guard` 测试约束
 - **改任何 symbol 前先跑 upstream impact**，报爆炸半径；HIGH/CRITICAL 大声警告后再动。重命名用重构工具，**绝不 find-and-replace**
+- **跨 repository/process/provider/serialization/persistence/state 边界必须走 [`cross-boundary-contract-gate`](rules/cross-boundary-contract-gate.md)**：proposal 声明 `BC-###` 与适用 `SEQ-###`，逐项映射 `AC-###`；真实 producer → 严格 consumer、第二次使用与冷重启证据不完整时不得 active rollout
 - **测试**：PuPu 用 `react-scripts test`（**不要直接 `npx jest`**，本仓会报 import 错）；unchain 用其自带 pytest
 - **`react-scripts build` 之前必须先跑 `version:prepare-build`**
 - **unchain 的 `.py` 改动后 sidecar 必须重启** 才生效 —— 报告里标注

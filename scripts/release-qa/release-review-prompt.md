@@ -15,3 +15,9 @@ Rules:
    behavior was tested unless direct evidence exists.
 4. Prefer a short list of evidence-backed risks over speculative warnings.
 5. Return only JSON matching the supplied schema.
+6. For every changed cross-repository, provider, serialization, persistence, or
+   resume boundary, require direct evidence from the real producer through the
+   strict final consumer. Verify the tested Unchain SHA exactly matches the
+   runtime lock and that the tested checkout was clean. Missing applicable
+   first-use, repeat, retry/resume, sequential-interaction, or cold-restart
+   evidence is release-blocking, not advisory.
