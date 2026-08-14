@@ -25,6 +25,7 @@ from unchain.memory import (
     MEMORY_V2_MODULE_KEY,
 )
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
+from unchain.providers.durable_turn_runtime import ExactProviderRouteTransport
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 
 
@@ -155,6 +156,7 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
     provider_requests: dict[tuple[str, str], list[object]] = {}
     run_calls: list[dict[str, object]] = []
     build_calls: list[tuple[str, str]] = []
+    terminal_order: list[str] = []
     admissions = []
     outputs = {
         ("openai", "graph-collect"): "canonical collected output",
@@ -185,6 +187,33 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
                 final_text=output,
                 response_id=f"offline-{self.provider}-{self.model}",
             )
+
+        def _merged_payload(self, payload):
+            return dict(payload or {})
+
+        def _model_capability(self, _name, default=None):
+            return default
+
+        def _provider_request_model(self):
+            return self.model
+
+    class OfflineExactTransport(ExactProviderRouteTransport):
+        def __init__(self, model_io, request) -> None:
+            self.model_io = model_io
+            self.request = request
+
+        def send(self, *, envelope, route, retry_ordinal):
+            del envelope, route, retry_ordinal
+            return self.model_io.fetch_turn(self.request)
+
+        def release_buffered_events(self):
+            return None
+
+        def discard_buffered_events(self):
+            return None
+
+    def offline_exact_transport(*, model_io, request, **_kwargs):
+        return OfflineExactTransport(model_io, request)
 
     real_build_agent = adapter._build_developer_agent
     real_resolve_admission = adapter._resolve_memory_v2_admission
@@ -257,6 +286,27 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
     )
     monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+
+    probe_store = SQLiteContextV2Store(
+        database_path=tmp_path / "memory_v2" / "context_v2.sqlite3",
+        object_directory=tmp_path / "memory_v2" / "objects",
+    )
+    repository_type = type(probe_store.bind_execution(execution_id))
+    original_persist_bundle = repository_type.persist_bundle
+
+    def record_persisted_bundle(repository, bundle):
+        persisted = original_persist_bundle(repository, bundle)
+        if bundle.identity.relation == "root":
+            terminal_order.append(f"bundle:{bundle.lifecycle.status}")
+        return persisted
+
+    import memory_v2_unchain_graph_root_completion as root_completion
+
+    original_complete_root = root_completion.complete_pupu_unchain_graph_root
+
+    def record_complete_root(*args, **kwargs):
+        terminal_order.append("graph_finalize")
+        return original_complete_root(*args, **kwargs)
 
     with mock.patch.dict(
         os.environ,
@@ -339,6 +389,27 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
         )
         stack.enter_context(
             mock.patch(
+                "unchain.context.provider_execution._exact_transport",
+                side_effect=offline_exact_transport,
+            )
+        )
+        stack.enter_context(
+            mock.patch.object(
+                repository_type,
+                "persist_bundle",
+                autospec=True,
+                side_effect=record_persisted_bundle,
+            )
+        )
+        stack.enter_context(
+            mock.patch.object(
+                root_completion,
+                "complete_pupu_unchain_graph_root",
+                side_effect=record_complete_root,
+            )
+        )
+        stack.enter_context(
+            mock.patch(
                 "memory_v2_context.resolve_context_memory_v2_capability",
                 return_value=_ready_capability(),
             )
@@ -401,6 +472,9 @@ def test_active_two_node_graph_restarts_without_provider_reexecution(
         ("anthropic", "graph-write"),
     )
     assert tuple(build_calls) == builds_after_first
+    assert terminal_order.index("bundle:completed") < terminal_order.index(
+        "graph_finalize"
+    )
     assert len(run_calls) == 2
     assert len({call["run_id"] for call in run_calls}) == 2
     assert all(call["session_id"] == execution_id for call in run_calls)

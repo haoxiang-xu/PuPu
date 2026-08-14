@@ -66,7 +66,10 @@ const renderMemoryTrace = (memoryV2, { chatId = "owner-chat" } = {}) =>
           frames={[]}
           status="done"
           messageId="assistant-memory-v2"
-          bundle={{ memory_v2: memoryV2 }}
+          completionDiagnostics={{
+            schema: "pupu.completion_diagnostics.v1",
+            memory_v2: memoryV2,
+          }}
         />
       </StreamingMessageStoreContext.Provider>
     </ConfigContext.Provider>,

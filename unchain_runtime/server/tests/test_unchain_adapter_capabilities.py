@@ -2373,6 +2373,50 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "default",
         )
 
+    def test_stream_chat_events_forwards_fresh_run_continuation_to_agent(self) -> None:
+        captured = {}
+
+        class FakeAgent:
+            provider = "openai"
+            max_iterations = 3
+            _memory_runtime = {
+                "requested": False,
+                "available": False,
+                "reason": "",
+            }
+
+            def run(self, **kwargs):
+                captured.update(kwargs)
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "continued"}],
+                    status="completed",
+                )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_bundle_from_result",
+            return_value=None,
+        ):
+            list(
+                unchain_adapter.stream_chat_events(
+                    message="continue as a fresh run",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "_run_bundle_continued_from_run_id": "run-paused"
+                    },
+                )
+            )
+
+        self.assertEqual(
+            captured.get("_continued_from_run_id"),
+            "run-paused",
+        )
+
     def test_stream_chat_events_emits_memory_prepare_failure_but_runs_with_history(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -2813,7 +2857,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 "available": True,
                 "reason": "",
             }
-            _memory_v2_admission = SimpleNamespace(mode="off", is_active=False)
+            _memory_v2_admission = SimpleNamespace(
+                mode="off",
+                is_active=False,
+                diagnostics=lambda: {
+                    "schema_version": "memory_v2.context.v1",
+                    "requested_mode": "off",
+                    "mode": "off",
+                },
+            )
             _toolkits = []
 
             def resume_interaction(self, **kwargs):

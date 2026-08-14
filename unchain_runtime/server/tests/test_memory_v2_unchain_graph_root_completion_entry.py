@@ -23,7 +23,6 @@ from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
 from recipe import parse_recipe_json
 from unchain.context.subagent_input import prepare_subagent_input
 from unchain.context.task_state_bootstrap import PinnedTaskStateBootstrapHarness
-from unchain.kernel import ModelTurnResult
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
 from unchain.memory import (
@@ -34,6 +33,7 @@ from unchain.memory import (
 from unchain.memory.curator import EnqueueDisposition
 from unchain.memory.curator.host import MemoryAgentWorkerDisposition
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
+from unchain.providers import AnthropicModelIO, OpenAIModelIO
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 
 
@@ -190,29 +190,120 @@ def _entry_stack(
     }
     real_build_agent = adapter._build_developer_agent
 
-    class OfflineModelIO:
-        def __init__(self, provider: str, model: str) -> None:
-            self.provider = provider
-            self.model = model
+    class _Stream:
+        def __init__(self, events):
+            self.events = list(events)
 
-        def fetch_turn(self, request):
-            del request
-            output = outputs[(self.provider, self.model)]
-            return ModelTurnResult(
-                assistant_messages=[
-                    {"role": "assistant", "content": output},
-                ],
-                tool_calls=[],
-                final_text=output,
-                response_id=f"offline-{self.provider}-{self.model}",
-            )
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def __iter__(self):
+            return iter(self.events)
+
+    def openai_model_io(model: str):
+        output = outputs[("openai", model)]
+
+        class Responses:
+            def create(self, **_kwargs):
+                return _Stream(
+                    [
+                        SimpleNamespace(
+                            type="response.completed",
+                            response=SimpleNamespace(
+                                id=f"offline-openai-{model}",
+                                output=[
+                                    {
+                                        "type": "message",
+                                        "role": "assistant",
+                                        "content": [
+                                            {
+                                                "type": "output_text",
+                                                "text": output,
+                                            }
+                                        ],
+                                    }
+                                ],
+                                usage={
+                                    "input_tokens": 2,
+                                    "output_tokens": 1,
+                                    "total_tokens": 3,
+                                },
+                            ),
+                        )
+                    ]
+                )
+
+        class Client:
+            responses = Responses()
+
+        return OpenAIModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: Client(),
+            default_payloads={},
+            model_capabilities={},
+        )
+
+    def anthropic_model_io(model: str):
+        output = outputs[("anthropic", model)]
+
+        class Messages:
+            def stream(self, **_kwargs):
+                return _Stream(
+                    [
+                        SimpleNamespace(
+                            type="message_start",
+                            message=SimpleNamespace(
+                                usage={
+                                    "input_tokens": 2,
+                                    "output_tokens": 0,
+                                }
+                            ),
+                        ),
+                        SimpleNamespace(
+                            type="content_block_delta",
+                            delta=SimpleNamespace(
+                                type="text_delta",
+                                text=output,
+                            ),
+                        ),
+                        SimpleNamespace(
+                            type="message_delta",
+                            usage={
+                                "input_tokens": 2,
+                                "output_tokens": 1,
+                            },
+                        ),
+                    ]
+                )
+
+        class Client:
+            messages = Messages()
+
+        return AnthropicModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: Client(),
+            default_payloads={},
+            model_capabilities={},
+        )
+
+    def exact_model_io(provider: str, model: str):
+        if provider == "openai":
+            return openai_model_io(model)
+        if provider == "anthropic":
+            return anthropic_model_io(model)
+        raise AssertionError(f"unexpected provider/model: {(provider, model)!r}")
 
     def build_offline_agent(**kwargs):
         provider = str(kwargs["provider"])
         model = str(kwargs["model"])
         kwargs["model_io_factory"] = (
             lambda spec, context, _provider=provider, _model=model: (
-                OfflineModelIO(_provider, _model)
+                exact_model_io(_provider, _model)
             )
         )
         return real_build_agent(**kwargs)

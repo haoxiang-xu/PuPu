@@ -45,6 +45,16 @@ export const buildLocalGateChecks = ({
     },
   },
   {
+    name: "RunBundle v1 boundary contracts",
+    command: "npm run test:run-bundle-contract",
+    cwd: root,
+    env: {
+      PYTHON: python,
+      UNCHAIN_SOURCE_PATH: unchainRoot,
+      ...(pythonPath ? { PYTHONPATH: pythonPath } : {}),
+    },
+  },
+  {
     name: "MCP registry validation",
     command: "npm run validate:mcp",
     cwd: root,

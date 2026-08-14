@@ -132,6 +132,14 @@ jobs:
           UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
         run: npm run test:context-v2-contract
 
+      - name: RunBundle v1 boundary contract gate
+        id: run_bundle_contract
+        working-directory: pupu
+        env:
+          PYTHON: python
+          UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
+        run: npm run test:run-bundle-contract
+
       - name: Web build and version check
         id: web_build
         continue-on-error: true
@@ -173,7 +181,7 @@ jobs:
           QA_UNCHAIN_LOCKED_SHA: ${{ steps.pinned_unchain.outputs.locked_sha }}
           QA_UNCHAIN_TESTED_SHA: ${{ steps.pinned_unchain.outputs.tested_sha }}
           QA_UNCHAIN_DIRTY: ${{ steps.pinned_unchain.outputs.dirty }}
-          QA_REQUIRED_CHECKS_JSON: '["Quorum boundary protocol","pinned Unchain checkout","Context V2 boundary contracts"]'
+          QA_REQUIRED_CHECKS_JSON: '["Quorum boundary protocol","pinned Unchain checkout","Context V2 boundary contracts","RunBundle v1 boundary contracts"]'
           QA_CHECKS_JSON: |
             [
               {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},
@@ -182,6 +190,7 @@ jobs:
               {"name":"Quorum boundary protocol","command":"npm run test:quorum-boundary","outcome":"${{ steps.quorum_boundary.outcome }}"},
               {"name":"pinned Unchain checkout","command":"node scripts/release-qa/verify-pinned-unchain.mjs","outcome":"${{ steps.pinned_unchain.outcome }}"},
               {"name":"Context V2 boundary contracts","command":"npm run test:context-v2-contract","outcome":"${{ steps.context_v2_contract.outcome }}"},
+              {"name":"RunBundle v1 boundary contracts","command":"npm run test:run-bundle-contract","outcome":"${{ steps.run_bundle_contract.outcome }}"},
               {"name":"web build and version check","command":"npm run build","outcome":"${{ steps.web_build.outcome }}"},
               {"name":"MCP registry validation","command":"npm run validate:mcp","outcome":"${{ steps.mcp_registry.outcome }}"},
               {"name":"MCP bundled runtime build tests","command":"npm run test:mcp-runtime","outcome":"${{ steps.mcp_runtime.outcome }}"},

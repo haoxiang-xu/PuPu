@@ -7,6 +7,13 @@ export const CONTEXT_V2_REQUIRED_CHECKS = Object.freeze([
   "pinned Unchain checkout",
   "Context V2 boundary contracts",
 ]);
+export const RUN_BUNDLE_REQUIRED_CHECKS = Object.freeze([
+  "RunBundle v1 boundary contracts",
+]);
+export const DETERMINISTIC_REQUIRED_CHECKS = Object.freeze([
+  ...CONTEXT_V2_REQUIRED_CHECKS,
+  ...RUN_BUNDLE_REQUIRED_CHECKS,
+]);
 
 const PASS_STATUSES = new Set(["pass", "passed", "success", "successful", "ok"]);
 const FAIL_STATUSES = new Set(["fail", "failed", "failure", "error", "timed_out", "timed-out"]);
@@ -91,13 +98,13 @@ function enforceRequiredChecks(checks, requiredChecks, unchain) {
   const normalizedRequired = [...new Set(
     (requiredChecks || []).map(cleanString).filter(Boolean),
   )];
-  const declaresContextV2Gate = checks.some((check) =>
-    CONTEXT_V2_REQUIRED_CHECKS.includes(check.name)
+  const declaresDeterministicContractGate = checks.some((check) =>
+    DETERMINISTIC_REQUIRED_CHECKS.includes(check.name)
   ) || normalizedRequired.some((name) =>
-    CONTEXT_V2_REQUIRED_CHECKS.includes(name)
+    DETERMINISTIC_REQUIRED_CHECKS.includes(name)
   );
-  const effectiveRequired = declaresContextV2Gate
-    ? [...new Set([...normalizedRequired, ...CONTEXT_V2_REQUIRED_CHECKS])]
+  const effectiveRequired = declaresDeterministicContractGate
+    ? [...new Set([...normalizedRequired, ...DETERMINISTIC_REQUIRED_CHECKS])]
     : normalizedRequired;
   const enforced = checks.map((check) => ({ ...check }));
 
@@ -203,7 +210,7 @@ export function buildJobReport({
   normalizedChecks = enforceRequiredChecks(
     normalizedChecks,
     platformName === "deterministic"
-      ? [...requiredChecks, ...CONTEXT_V2_REQUIRED_CHECKS]
+      ? [...requiredChecks, ...DETERMINISTIC_REQUIRED_CHECKS]
       : requiredChecks,
     normalizedUnchain,
   );
@@ -274,13 +281,13 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
       (report.checks || []).map((check) => cleanString(check.name)),
     );
     return report.platform?.name === "deterministic" ||
-      CONTEXT_V2_REQUIRED_CHECKS.every((name) => checkNames.has(name));
+      DETERMINISTIC_REQUIRED_CHECKS.every((name) => checkNames.has(name));
   });
 
-  const requiresContextV2Gate = deterministicReports.length > 0 ||
+  const requiresDeterministicContractGate = deterministicReports.length > 0 ||
     normalizedReports.some((report) =>
     (report.checks || []).some((check) =>
-      CONTEXT_V2_REQUIRED_CHECKS.includes(check.name)
+      DETERMINISTIC_REQUIRED_CHECKS.includes(check.name)
     )
   );
   if (deterministicReports.length === 0) {
@@ -292,7 +299,7 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
   }
   const enforcedChecks = enforceRequiredChecks(
     checks,
-    requiresContextV2Gate ? CONTEXT_V2_REQUIRED_CHECKS : [],
+    requiresDeterministicContractGate ? DETERMINISTIC_REQUIRED_CHECKS : [],
     unchain,
   );
 

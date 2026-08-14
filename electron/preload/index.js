@@ -26,6 +26,9 @@ const {
 const {
   createContextV2Bridge,
 } = require("./bridges/context_v2_bridge");
+const {
+  createRunBundleStorageBridge,
+} = require("./bridges/run_bundle_storage_bridge");
 
 const runtimeInfo = {
   isElectron: true,
@@ -97,6 +100,10 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld(
   "contextV2API",
   createContextV2Bridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "runBundleStorageAPI",
+  createRunBundleStorageBridge(ipcRenderer),
 );
 
 const { install: installTestBridge } = require("./test_bridge_preload");

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest import mock
 
@@ -14,12 +15,12 @@ from memory_v2_unchain_shadow_bridge import (
     prepare_pupu_unchain_shadow_bridge,
 )
 from unchain.agent import Agent
-from unchain.kernel import ModelTurnResult
 from unchain.memory import (
     MEMORY_EXECUTION_COMPLETE,
     MEMORY_V2_CAPABILITIES,
     MEMORY_V2_MODULE_KEY,
 )
+from unchain.providers import OllamaModelIO
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 
 
@@ -253,31 +254,48 @@ def test_graph_shadow_uses_root_then_unique_step_ids_before_ui_rewrite(
         model="test",
         real_context_window_tokens=16_384,
         runtime=None,
+        diagnostics=lambda: {
+            "schema_version": "memory_v2.context.v1",
+            "requested_mode": "shadow",
+            "mode": "shadow",
+        },
     )
 
-    class ModelIO:
-        provider = "ollama"
-        model = "test"
+    class OllamaResponse:
+        status_code = 200
 
         def __init__(self, text):
             self.text = text
-            self.called = False
 
-        def fetch_turn(self, _request):
-            assert self.called is False
-            self.called = True
-            return ModelTurnResult(
-                assistant_messages=[
-                    {"role": "assistant", "content": self.text}
-                ],
-                tool_calls=[],
-                final_text=self.text,
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def raise_for_status(self):
+            return None
+
+        def iter_lines(self):
+            yield json.dumps(
+                {
+                    "message": {"content": self.text},
+                    "done": True,
+                }
             )
+
+        def read(self):
+            return b""
 
     def build_agent(**kwargs):
         built.append(kwargs)
         instructions = kwargs["recipe"].agent.prompt
-        model_io = ModelIO(instructions)
+        model_io = OllamaModelIO(
+            model="test",
+            stream_factory=lambda *_args, **_kwargs: OllamaResponse(
+                instructions
+            ),
+        )
         agent = Agent(
             name="graph-shadow-step",
             instructions=instructions,

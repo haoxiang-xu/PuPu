@@ -4,6 +4,10 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatBubble from "./chat_bubble";
 import CharacterChatBubble from "./character_chat_bubble";
 
+const {
+  buildRunBundleV1,
+} = require("../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
 const renderWithConfig = (ui) =>
@@ -68,5 +72,173 @@ describe("assistant token summary", () => {
     expect(
       screen.getByText(/4 in\s+·\s+6 out\s+·\s+10 total/),
     ).toBeInTheDocument();
+  });
+
+  test("does not add OpenAI cached input to input_tokens a second time", async () => {
+    const originalIdle = window.requestIdleCallback;
+    const originalCancelIdle = window.cancelIdleCallback;
+    window.requestIdleCallback = (callback) => {
+      callback();
+      return 1;
+    };
+    window.cancelIdleCallback = jest.fn();
+
+    try {
+      renderWithConfig(
+        <ChatBubble
+          message={{
+            ...messageWithTokenSummary,
+            id: "assistant-openai-cached-input",
+            meta: {
+              bundle: {
+                input_tokens: 1000,
+                output_tokens: 200,
+                consumed_tokens: 1200,
+                cache_read_input_tokens: 600,
+              },
+            },
+          }}
+          traceFrames={[]}
+        />,
+      );
+
+      const summary = await screen.findByTestId("token-summary");
+      expect(summary).toHaveTextContent("1,000 in (600 cached)");
+      expect(summary).not.toHaveTextContent("1,600 in");
+    } finally {
+      window.requestIdleCallback = originalIdle;
+      window.cancelIdleCallback = originalCancelIdle;
+    }
+  });
+
+  test("renders canonical RunBundle all_usage with cache and reasoning subsets", async () => {
+    const originalIdle = window.requestIdleCallback;
+    const originalCancelIdle = window.cancelIdleCallback;
+    window.requestIdleCallback = (callback) => {
+      callback();
+      return 1;
+    };
+    window.cancelIdleCallback = jest.fn();
+
+    try {
+      renderWithConfig(
+        <ChatBubble
+          message={{
+            ...messageWithTokenSummary,
+            id: "assistant-canonical-token-summary",
+            meta: { bundle: buildRunBundleV1() },
+          }}
+          traceFrames={[]}
+        />,
+      );
+
+      const summary = await screen.findByTestId("token-summary");
+      expect(summary).toHaveTextContent("1,000 in (600 cached)");
+      expect(summary).toHaveTextContent("200 out (50 reasoning)");
+      expect(summary).toHaveTextContent("1,200 total");
+      expect(summary).not.toHaveTextContent("1,600 in");
+    } finally {
+      window.requestIdleCallback = originalIdle;
+      window.cancelIdleCallback = originalCancelIdle;
+    }
+  });
+
+  test("CharacterChatBubble mounts the canonical token summary without legacy totals", () => {
+    renderWithConfig(
+      <CharacterChatBubble
+        message={{
+          ...messageWithTokenSummary,
+          id: "character-canonical-token-summary",
+          meta: { bundle: buildRunBundleV1() },
+        }}
+        traceFrames={[]}
+        characterName="Lena"
+      />,
+    );
+
+    expect(screen.getByTestId("token-summary")).toHaveTextContent(
+      "1,000 in (600 cached) · 200 out (50 reasoning) · 1,200 total",
+    );
+  });
+
+  test("renders canonical cache-write tokens without adding them to input again", async () => {
+    const originalIdle = window.requestIdleCallback;
+    const originalCancelIdle = window.cancelIdleCallback;
+    window.requestIdleCallback = (callback) => {
+      callback();
+      return 1;
+    };
+    window.cancelIdleCallback = jest.fn();
+    const bundle = buildRunBundleV1();
+    const completeUsage = {
+      ...bundle.aggregation.all_usage,
+      input: {
+        ...bundle.aggregation.all_usage.input,
+        uncached_tokens: 300,
+        cache_write_tokens: 100,
+        cache_write_5m_tokens: 60,
+        cache_write_1h_tokens: 40,
+      },
+      source: "provider_observed",
+    };
+    bundle.provider_calls[0].usage = completeUsage;
+    bundle.aggregation.direct_usage = completeUsage;
+    bundle.aggregation.all_usage = completeUsage;
+    bundle.usage_slices[0].usage = completeUsage;
+
+    try {
+      renderWithConfig(
+        <ChatBubble
+          message={{
+            ...messageWithTokenSummary,
+            id: "assistant-canonical-cache-write",
+            meta: { bundle },
+          }}
+          traceFrames={[]}
+        />,
+      );
+
+      const summary = await screen.findByTestId("token-summary");
+      expect(summary).toHaveTextContent(
+        "1,000 in (600 cached + 100 cache write)",
+      );
+      expect(summary).not.toHaveTextContent("1,700 in");
+    } finally {
+      window.requestIdleCallback = originalIdle;
+      window.cancelIdleCallback = originalCancelIdle;
+    }
+  });
+
+  test("renders unavailable canonical usage as dashes instead of zero", async () => {
+    const originalIdle = window.requestIdleCallback;
+    const originalCancelIdle = window.cancelIdleCallback;
+    window.requestIdleCallback = (callback) => {
+      callback();
+      return 1;
+    };
+    window.cancelIdleCallback = jest.fn();
+
+    try {
+      renderWithConfig(
+        <ChatBubble
+          message={{
+            ...messageWithTokenSummary,
+            id: "assistant-canonical-unavailable",
+            meta: { bundle: buildRunBundleV1({ unavailable: true }) },
+          }}
+          traceFrames={[]}
+        />,
+      );
+
+      expect(await screen.findByTestId("token-summary")).toHaveTextContent(
+        "– in · – out · – total",
+      );
+      expect(screen.getByTestId("token-summary")).not.toHaveTextContent(
+        "0 total",
+      );
+    } finally {
+      window.requestIdleCallback = originalIdle;
+      window.cancelIdleCallback = originalCancelIdle;
+    }
   });
 });

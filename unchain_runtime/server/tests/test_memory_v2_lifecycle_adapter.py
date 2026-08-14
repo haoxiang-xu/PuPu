@@ -112,6 +112,52 @@ class MemoryV2LifecycleAdapterTests(unittest.TestCase):
             {"role": "user", "content": content},
         )
 
+    def test_failed_run_summary_projects_only_the_typed_canonical_carrier(self):
+        from unchain.kernel.failure import attach_kernel_run_failure
+        from unchain.run_bundle import (
+            RunBundleReducer,
+            RunIdentity,
+            RunLifecycle,
+        )
+
+        failed_bundle = RunBundleReducer.reduce(
+            identity=RunIdentity(
+                execution_id="chat-failed",
+                attempt_id="attempt-failed",
+                root_run_id="run-failed",
+                run_id="run-failed",
+                parent_run_id=None,
+                relation="root",
+            ),
+            lifecycle=RunLifecycle(
+                status="failed",
+                started_at="2026-08-14T00:00:00.000000000Z",
+                completed_at="2026-08-14T00:00:01.000000000Z",
+            ),
+            receipts=(),
+        )
+        error = RuntimeError("secret provider payload")
+        attach_kernel_run_failure(
+            error,
+            error_category="provider_runtime",
+            error_code="provider_send_failed",
+            run_bundle=failed_bundle,
+        )
+
+        summary = ua._failed_run_summary_event(
+            error,
+            admission=None,
+            active_context_bridge=None,
+            run_id="run-failed",
+            iteration=1,
+        )
+
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["type"], "stream_summary")
+        self.assertEqual(summary["bundle"], failed_bundle.to_dict())
+        self.assertEqual(summary["bundle"]["lifecycle"]["status"], "failed")
+        self.assertNotIn("secret provider payload", json.dumps(summary["bundle"]))
+
     def write_legacy_profile(self, profile):
         from unchain.memory import JsonFileLongTermProfileStore
 
@@ -614,6 +660,19 @@ class MemoryV2LifecycleAdapterTests(unittest.TestCase):
             1,
         )
 
+    def test_refresh_memory_v2_bundle_keeps_canonical_run_bundle_immutable(self):
+        admission = self.admission("attempt_canonical_bundle")
+        bundle = {
+            "schema": "unchain.run_bundle.v1",
+            "bundle_id": "bundle-canonical",
+            "bundle_digest": "a" * 64,
+        }
+        expected = copy.deepcopy(bundle)
+
+        ua._refresh_memory_v2_bundle(bundle, admission)
+
+        self.assertEqual(bundle, expected)
+
     def test_curator_finalizer_exposes_content_free_memory_agent_trace_run(self):
         admission = self.admission("attempt_trace")
         receipt = self.bootstrap(admission, "remember the trace constraint")
@@ -1050,7 +1109,15 @@ class MemoryV2LifecycleAdapterTests(unittest.TestCase):
                 self.assertEqual(bundle, {"legacy": True})
 
     def test_normal_and_resume_streams_reach_the_shared_root_finalizer(self):
-        admission = SimpleNamespace(is_active=True, mode="active")
+        admission = SimpleNamespace(
+            is_active=True,
+            mode="active",
+            diagnostics=lambda: {
+                "schema_version": "memory_v2.context.v1",
+                "requested_mode": "active",
+                "mode": "active",
+            },
+        )
 
         class FakeAgent:
             provider = "openai"

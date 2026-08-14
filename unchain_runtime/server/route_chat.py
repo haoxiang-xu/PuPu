@@ -18,6 +18,7 @@ _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
 _MEMORY_V2_OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
+_RUN_BUNDLE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 _MEMORY_AGENT_PROVIDER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 _MEMORY_AGENT_CONFIG_FIELDS = frozenset(
     {"displayName", "additionalInstructions", "provider", "modelId"}
@@ -58,6 +59,10 @@ def _sanitize_v4_completion_bundle(raw_bundle: object) -> Dict[str, Any] | None:
 
     if not isinstance(raw_bundle, dict):
         return None
+    if "schema" in raw_bundle:
+        from run_bundle_adapter import project_run_bundle
+
+        return project_run_bundle(raw_bundle)
     allowed = {
         "model",
         "display_model",
@@ -682,64 +687,10 @@ def chat_stream() -> Response:
             "message or attachments is required",
             400,
         )
-
-    incoming_thread_id = payload.get("threadId") or payload.get("thread_id")
-    thread_id = str(incoming_thread_id).strip() if incoming_thread_id else ""
-    if not thread_id:
-        thread_id = f"thread-{int(time.time() * 1000)}"
-
-    history = _sanitize_history(payload.get("history"))
-    options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
-
-    def stream_events() -> Iterable[str]:
-        started_at = int(time.time() * 1000)
-
-        try:
-            yield _sse_event(
-                "meta",
-                {
-                    "thread_id": thread_id,
-                    "model": root.get_display_model_id(options),
-                    "started_at": started_at,
-                },
-            )
-
-            for delta in root.stream_chat(
-                message=message,
-                history=history,
-                attachments=attachments,
-                options=options,
-                session_id=thread_id,
-            ):
-                yield _sse_event("token", {"delta": str(delta)})
-
-            yield _sse_event(
-                "done",
-                {
-                    "thread_id": thread_id,
-                    "finished_at": int(time.time() * 1000),
-                },
-            )
-        except GeneratorExit:  # pragma: no cover
-            return
-        except Exception as stream_error:
-            code, normalized_message = _normalize_stream_error(stream_error)
-            yield _sse_event(
-                "error",
-                {
-                    "code": code,
-                    "message": normalized_message,
-                },
-            )
-
-    return Response(
-        stream_with_context(stream_events()),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+    return root._json_error(
+        "run_bundle_protocol_required",
+        "Legacy chat writes are disabled; use /chat/stream/v2 or /chat/stream/v4",
+        426,
     )
 
 
@@ -777,6 +728,7 @@ def chat_stream_v2() -> Response:
         started_at = int(time.time() * 1000)
         last_iteration = 0
         final_bundle: Dict[str, object] | None = None
+        final_completion_diagnostics: Dict[str, object] | None = None
         confirmation_cancel_event = threading.Event()
 
         def cancel_pending_confirmations() -> None:
@@ -814,6 +766,15 @@ def chat_stream_v2() -> Response:
                 if event_type == "stream_summary":
                     final_bundle = _sanitize_v4_completion_bundle(
                         raw_event.get("bundle")
+                    )
+                    from completion_diagnostics import (
+                        project_completion_diagnostics,
+                    )
+
+                    final_completion_diagnostics = (
+                        project_completion_diagnostics(
+                            raw_event.get("completion_diagnostics")
+                        )
                     )
                     continue
 
@@ -871,6 +832,10 @@ def chat_stream_v2() -> Response:
             done_payload: Dict[str, object] = {"finished_at": finished_at}
             if isinstance(final_bundle, dict) and final_bundle:
                 done_payload["bundle"] = final_bundle
+            if final_completion_diagnostics is not None:
+                done_payload["completion_diagnostics"] = (
+                    final_completion_diagnostics
+                )
             yield _sse_event(
                 "frame",
                 _build_trace_frame(
@@ -980,8 +945,37 @@ def chat_stream_v4() -> Response:
         else {}
     )
     for key in list(options):
-        if key.startswith("_memory_v2_") or key in _UNTRUSTED_MEMORY_V2_OPTION_KEYS:
+        if (
+            key.startswith("_memory_v2_")
+            or key.startswith("_run_bundle_")
+            or key in _UNTRUSTED_MEMORY_V2_OPTION_KEYS
+        ):
             options.pop(key, None)
+
+    continued_from_raw = payload.get("continued_from_run_id")
+    continued_from_run_id = ""
+    if continued_from_raw is not None:
+        if not isinstance(continued_from_raw, str):
+            return root._json_error(
+                "invalid_request",
+                "continued_from_run_id must be a valid run identifier",
+                400,
+            )
+        continued_from_run_id = continued_from_raw.strip()
+        if not _RUN_BUNDLE_RUN_ID_RE.fullmatch(continued_from_run_id):
+            return root._json_error(
+                "invalid_request",
+                "continued_from_run_id must be a valid run identifier",
+                400,
+            )
+    if resume_interaction and continued_from_run_id:
+        return root._json_error(
+            "invalid_request",
+            "continued_from_run_id is only valid for a fresh run",
+            400,
+        )
+    if continued_from_run_id:
+        options["_run_bundle_continued_from_run_id"] = continued_from_run_id
 
     memory_v2_requested_raw = payload.get("memory_v2_requested", False)
     if not isinstance(memory_v2_requested_raw, bool):
@@ -1043,6 +1037,7 @@ def chat_stream_v4() -> Response:
     def stream_events() -> Iterable[str]:
         started_at = int(time.time() * 1000)
         final_bundle: Dict[str, object] | None = None
+        final_completion_diagnostics: Dict[str, object] | None = None
         confirmation_cancel_event = threading.Event()
         bridge = RuntimeEventBridge(
             session_id=thread_id,
@@ -1096,6 +1091,15 @@ def chat_stream_v4() -> Response:
                     final_bundle = _sanitize_v4_completion_bundle(
                         raw_event.get("bundle")
                     )
+                    from completion_diagnostics import (
+                        project_completion_diagnostics,
+                    )
+
+                    final_completion_diagnostics = (
+                        project_completion_diagnostics(
+                            raw_event.get("completion_diagnostics")
+                        )
+                    )
                     continue
                 for runtime_event in bridge.normalize(raw_event):
                     yield _sse_event("runtime_event", runtime_event.to_dict())
@@ -1110,6 +1114,10 @@ def chat_stream_v4() -> Response:
             }
             if isinstance(final_bundle, dict) and final_bundle:
                 done_payload["bundle"] = final_bundle
+            if final_completion_diagnostics is not None:
+                done_payload["completion_diagnostics"] = (
+                    final_completion_diagnostics
+                )
             yield _sse_event(
                 "done",
                 done_payload,
@@ -1151,6 +1159,20 @@ def chat_stream_v4() -> Response:
                         "message": normalized_message,
                     },
                     "diagnostics": bridge.diagnostics(),
+                    **(
+                        {"bundle": final_bundle}
+                        if isinstance(final_bundle, dict) and final_bundle
+                        else {}
+                    ),
+                    **(
+                        {
+                            "completion_diagnostics": (
+                                final_completion_diagnostics
+                            )
+                        }
+                        if final_completion_diagnostics is not None
+                        else {}
+                    ),
                 },
             )
         finally:

@@ -102,6 +102,14 @@ const CHANNELS = Object.freeze({
     QUIT_DRAIN_RESULT: "settings-storage:quit-drain-result",
     QUIT_DRAIN_ABORT: "settings-storage:quit-drain-abort",
   }),
+  RUN_BUNDLE_STORAGE: Object.freeze({
+    // RunBundle v1 is a separate, versioned accounting boundary. These
+    // channels never append to token_usage_records: one keyed UPSERT replaces
+    // the bundle and all of its usage slices in a single SQLite transaction.
+    UPSERT: "run-bundle-storage:upsert",
+    QUERY: "run-bundle-storage:query",
+    CLEAR: "run-bundle-storage:clear",
+  }),
   MEMORY_VAULT: Object.freeze({
     // Memory V2 P0 vault control plane. Storage / opaque handle / descriptor /
     // grant ONLY. DEPOSIT is the single channel that may carry plaintext and

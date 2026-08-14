@@ -49,6 +49,18 @@ test("release QA paths both include the fixed long-run harness suite", () => {
     },
   );
   assert.deepEqual(
+    checks.find((check) => check.name === "RunBundle v1 boundary contracts"),
+    {
+      name: "RunBundle v1 boundary contracts",
+      command: "npm run test:run-bundle-contract",
+      cwd: ROOT,
+      env: {
+        PYTHON: "python3",
+        UNCHAIN_SOURCE_PATH: "/tmp/unchain-fixture",
+      },
+    },
+  );
+  assert.deepEqual(
     checks.find((check) => check.name === "Playwright Electron release smoke")
       ?.env,
     {
@@ -76,6 +88,10 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   assert.equal(
     packageJson.scripts["test:context-v2-contract"],
     "node scripts/release-qa/run-context-v2-contract.mjs",
+  );
+  assert.equal(
+    packageJson.scripts["test:run-bundle-contract"],
+    "node scripts/release-qa/run-run-bundle-contract.mjs",
   );
 
   const harnessCommand = packageJson.scripts["test:long-run-harness"];

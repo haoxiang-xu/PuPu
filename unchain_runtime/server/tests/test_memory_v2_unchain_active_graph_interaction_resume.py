@@ -6,6 +6,7 @@ import os
 from collections import Counter
 from contextlib import ExitStack
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -28,6 +29,7 @@ from unchain.journal import AttemptRef, EventCursor
 from unchain.kernel import ModelTurnResult
 from unchain.kernel.types import ToolCall
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
+from unchain.providers import AnthropicModelIO, OpenAIModelIO
 from unchain.tools import Toolkit
 
 
@@ -201,33 +203,143 @@ def _production_patches(
     stack = ExitStack()
     real_build_agent = adapter._build_developer_agent
 
-    class OfflineModelIO:
-        def __init__(self, provider: str, model: str) -> None:
-            self.provider = provider
-            self.model = model
+    class _Stream:
+        def __init__(self, events):
+            self.events = list(events)
 
-        def fetch_turn(self, request):
-            key = (self.provider, self.model)
-            provider_calls[key] += 1
-            provider_requests.setdefault(key, []).append(request)
-            if key == ("openai", "graph-collect"):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def __iter__(self):
+            return iter(self.events)
+
+    def record_request(key, messages):
+        provider_requests.setdefault(key, []).append(
+            SimpleNamespace(messages=copy.deepcopy(messages))
+        )
+
+    def openai_model_io(model: str):
+        key = ("openai", model)
+
+        class Responses:
+            def create(self, **kwargs):
+                record_request(key, kwargs.get("input") or [])
+                provider_calls[key] += 1
+                if key != ("openai", "graph-collect"):
+                    raise AssertionError(f"unexpected provider/model: {key!r}")
                 if provider_calls[key] == 1:
-                    return _ask_turn()
-                return _final_turn(
-                    "React evidence collected",
-                    "response-collect-complete",
+                    turn = _ask_turn()
+                    output = copy.deepcopy(turn.assistant_messages)
+                    response_id = turn.response_id
+                else:
+                    turn = _final_turn(
+                        "React evidence collected",
+                        "response-collect-complete",
+                    )
+                    output = [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": turn.final_text,
+                                }
+                            ],
+                        }
+                    ]
+                    response_id = turn.response_id
+                return _Stream(
+                    [
+                        SimpleNamespace(
+                            type="response.completed",
+                            response=SimpleNamespace(
+                                id=response_id,
+                                output=output,
+                                usage={
+                                    "input_tokens": 2,
+                                    "output_tokens": 1,
+                                    "total_tokens": 3,
+                                },
+                            ),
+                        )
+                    ]
                 )
-            if key == ("anthropic", "graph-write"):
+
+        class Client:
+            responses = Responses()
+
+        return OpenAIModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: Client(),
+            default_payloads={},
+            model_capabilities={},
+        )
+
+    def anthropic_model_io(model: str):
+        key = ("anthropic", model)
+
+        class Messages:
+            def stream(self, **kwargs):
+                messages = kwargs.get("messages") or []
+                record_request(key, messages)
+                provider_calls[key] += 1
+                if key != ("anthropic", "graph-write"):
+                    raise AssertionError(f"unexpected provider/model: {key!r}")
                 assert "React evidence collected" in json.dumps(
-                    request.messages,
+                    messages,
                     ensure_ascii=False,
                     default=str,
                 )
-                return _final_turn(
-                    "Restart-safe React report",
-                    "response-write-complete",
+                return _Stream(
+                    [
+                        SimpleNamespace(
+                            type="message_start",
+                            message=SimpleNamespace(
+                                usage={
+                                    "input_tokens": 2,
+                                    "output_tokens": 0,
+                                }
+                            ),
+                        ),
+                        SimpleNamespace(
+                            type="content_block_delta",
+                            delta=SimpleNamespace(
+                                type="text_delta",
+                                text="Restart-safe React report",
+                            ),
+                        ),
+                        SimpleNamespace(
+                            type="message_delta",
+                            usage={
+                                "input_tokens": 2,
+                                "output_tokens": 2,
+                            },
+                        ),
+                    ]
                 )
-            raise AssertionError(f"unexpected provider/model: {key!r}")
+
+        class Client:
+            messages = Messages()
+
+        return AnthropicModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: Client(),
+            default_payloads={},
+            model_capabilities={},
+        )
+
+    def exact_model_io(provider: str, model: str):
+        if provider == "openai":
+            return openai_model_io(model)
+        if provider == "anthropic":
+            return anthropic_model_io(model)
+        raise AssertionError(f"unexpected provider/model: {(provider, model)!r}")
 
     class RecordingAgent:
         def __init__(self, inner) -> None:
@@ -260,9 +372,8 @@ def _production_patches(
         provider = str(kwargs["provider"])
         model = str(kwargs["model"])
         kwargs["model_io_factory"] = (
-            lambda spec, context, _provider=provider, _model=model: OfflineModelIO(
-                _provider,
-                _model,
+            lambda spec, context, _provider=provider, _model=model: (
+                exact_model_io(_provider, _model)
             )
         )
         return RecordingAgent(real_build_agent(**kwargs))

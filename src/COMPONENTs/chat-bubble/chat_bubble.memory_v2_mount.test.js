@@ -3,18 +3,23 @@ import { render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatBubble from "./chat_bubble";
 import CharacterChatBubble from "./character_chat_bubble";
+import { computeCompletionDiagnosticsDigestV1 } from "../../SERVICEs/completion_diagnostics_v1";
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
 jest.mock("./lazy_trace_chain", () => (props) => (
   <div data-testid="default-memory-trace">
-    {props.bundle?.memory_v2?.mode || "missing"}
+    {props.completionDiagnostics?.memory_v2?.mode ||
+      props.bundle?.memory_v2?.mode ||
+      "missing"}
   </div>
 ));
 
 jest.mock("./trace_chain", () => (props) => (
   <div data-testid="character-memory-trace">
-    {props.bundle?.memory_v2?.mode || "missing"}
+    {props.completionDiagnostics?.memory_v2?.mode ||
+      props.bundle?.memory_v2?.mode ||
+      "missing"}
   </div>
 ));
 
@@ -35,7 +40,16 @@ const message = {
   role: "assistant",
   content: "done",
   status: "done",
-  meta: { bundle: { memory_v2: { mode: "active" } } },
+  meta: {
+    completion_diagnostics: {
+      schema: "pupu.completion_diagnostics.v1",
+      diagnostics_digest: computeCompletionDiagnosticsDigestV1({
+        mode: "active",
+        trace_status: "complete",
+      }),
+      memory_v2: { mode: "active", trace_status: "complete" },
+    },
+  },
 };
 
 describe("chat bubbles mount a Memory V2-only trace", () => {

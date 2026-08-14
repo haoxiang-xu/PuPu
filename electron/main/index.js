@@ -28,6 +28,12 @@ const {
 const {
   createSettingsQuitCoordinator,
 } = require("./services/settings_storage/quit_coordinator");
+const {
+  createRunBundleStorageService,
+} = require("./services/run_bundle_storage/service");
+const {
+  registerRunBundleStorageHandlers,
+} = require("./services/run_bundle_storage/register_handlers");
 const { createMemoryVaultService } = require("./services/memory_vault/service");
 const {
   createVaultSinkExecutors,
@@ -97,6 +103,19 @@ if (!gotSingleInstanceLock) {
     // app.whenReady(), so safeStorage's "usable only after ready" precondition
     // is already satisfied by the existing service ordering.
     safeStorage: require("electron").safeStorage,
+  });
+
+  // RunBundle v1 accounting owns its tables through a separate connection to
+  // settings.db, mirroring Memory Vault's table ownership. It never mutates or
+  // migrates the legacy token_usage_records store.
+  const runBundleStorageService = createRunBundleStorageService({
+    app,
+    path,
+    sqlite,
+  });
+  registerRunBundleStorageHandlers({
+    ipcMain,
+    runBundleStorageService,
   });
 
   // Memory V2 P0 vault control plane. Shares the settings.db FILE through its
@@ -236,6 +255,7 @@ if (!gotSingleInstanceLock) {
     stopBackgroundServices();
     void testApiService.stop();
     chatStorageService.close();
+    runBundleStorageService.close();
     settingsStorageService.close();
     // Stops the broker, then SYNCHRONOUSLY SIGKILLs every live Vault worker
     // process group, then closes the DB. will-quit does not await promises, so
@@ -266,6 +286,9 @@ if (!gotSingleInstanceLock) {
     // synchronous bootstrap read depends on it. init() never throws — a broken
     // settings.db puts the service in degraded mode (file left in place).
     await settingsStorageService.init();
+    // Independent and degradation-safe: a failed accounting store does not
+    // prevent the chat UI from opening, but its writes will fail explicitly.
+    await runBundleStorageService.init();
     // After settings storage: both open the same file, and vault init() never
     // throws — a broken settings.db degrades the vault (file left in place).
     await memoryVaultService.init();

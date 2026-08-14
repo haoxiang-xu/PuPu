@@ -12,6 +12,7 @@ built-in step gets ``cfg=None`` and ``model_io_factory=None`` so it goes through
 normal built-in assembly with its own / env key.
 """
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,7 @@ if str(SERVER_ROOT) not in sys.path:
 
 from recipe import parse_recipe_json  # noqa: E402
 import custom_provider as cp  # noqa: E402
+from unchain.run_bundle import RunBundleReducer, RunLifecycle  # noqa: E402
 
 
 CUSTOM_KEY = "hs-super-secret-key"
@@ -92,7 +94,21 @@ class _StepAgent:
     def run(self, *, callback=None, run_id=None, **_kwargs):
         if callback:
             callback({"type": "final_message", "run_id": run_id, "iteration": 0, "content": self.instructions})
-        return SimpleNamespace(messages=[{"role": "assistant", "content": self.instructions}])
+        identity = _kwargs["_run_bundle_identity"]
+        bundle = RunBundleReducer.reduce(
+            identity=identity,
+            lifecycle=RunLifecycle(
+                status="completed",
+                started_at="2026-08-14T00:00:00.000000000Z",
+                completed_at="2026-08-14T00:00:01.000000000Z",
+            ),
+            receipts=(),
+        )
+        return SimpleNamespace(
+            messages=[{"role": "assistant", "content": self.instructions}],
+            run_bundle=bundle.to_dict(),
+            status="completed",
+        )
 
 
 class GraphStepKeyLeakTests(unittest.TestCase):
@@ -121,12 +137,20 @@ class GraphStepKeyLeakTests(unittest.TestCase):
             built.append(agent)
             return agent
 
-        with mock.patch.object(ua, "_UnchainAgent", object), \
+        with tempfile.TemporaryDirectory() as data_dir, \
+             mock.patch.object(ua, "_UnchainAgent", object), \
              mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
              mock.patch.object(ua, "_resolve_agent_api_key", side_effect=spy_resolve), \
              mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
              mock.patch.object(ua, "_build_bundle_from_result", return_value={}), \
-             mock.patch.dict("os.environ", {"OPENAI_API_KEY": "sk-builtin-openai-env"}, clear=False):
+             mock.patch.dict(
+                 "os.environ",
+                 {
+                     "OPENAI_API_KEY": "sk-builtin-openai-env",
+                     "UNCHAIN_DATA_DIR": data_dir,
+                 },
+                 clear=False,
+             ):
             events = list(
                 ua._stream_recipe_graph_events(
                     recipe=recipe,
@@ -193,10 +217,16 @@ class GraphStepKeyLeakTests(unittest.TestCase):
             built.append(agent)
             return agent
 
-        with mock.patch.object(ua, "_UnchainAgent", object), \
+        with tempfile.TemporaryDirectory() as data_dir, \
+             mock.patch.object(ua, "_UnchainAgent", object), \
              mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
              mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
-             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}), \
+             mock.patch.dict(
+                 "os.environ",
+                 {"UNCHAIN_DATA_DIR": data_dir},
+                 clear=False,
+             ):
             list(
                 ua._stream_recipe_graph_events(
                     recipe=recipe,

@@ -46,6 +46,13 @@ _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
 _computer_use_logger = logging.getLogger(__name__ + ".computer_use")
 
+
+def _run_bundle_timestamp() -> str:
+    """Return one RFC3339 UTC instant with nanosecond-width precision."""
+
+    seconds, nanos = divmod(time.time_ns(), 1_000_000_000)
+    return f"{time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(seconds))}.{nanos:09d}Z"
+
 try:
     import httpx as _httpx
 except ImportError:  # pragma: no cover
@@ -1155,6 +1162,11 @@ def _finalize_memory_v2_curator(
 
 
 def _refresh_memory_v2_bundle(bundle: Any, admission: Any) -> None:
+    if isinstance(bundle, dict) and bundle.get("schema") == "unchain.run_bundle.v1":
+        # Canonical run bundles are content-addressed, closed records.  Memory
+        # admission diagnostics remain available through their own stream and
+        # must not be appended after the bundle digest has been computed.
+        return
     if (
         not isinstance(bundle, dict)
         or admission is None
@@ -6025,6 +6037,7 @@ class _WorkflowRecipeSubagentAgent:
 
         final_text = ""
         error_message = ""
+        run_bundle = None
         try:
             for event in _stream_recipe_graph_events(
                 recipe=self.recipe,
@@ -6046,6 +6059,12 @@ class _WorkflowRecipeSubagentAgent:
                 elif event.get("type") == "error":
                     error_message = str(event.get("message") or "workflow subagent failed")
                     break
+                elif event.get("type") == "stream_summary":
+                    raw_bundle = event.get("bundle")
+                    if raw_bundle is not None:
+                        from run_bundle_adapter import project_run_bundle
+
+                        run_bundle = project_run_bundle(raw_bundle)
         except Exception as exc:
             error_message = str(exc)
 
@@ -6066,6 +6085,7 @@ class _WorkflowRecipeSubagentAgent:
                 {"role": "assistant", "content": final_text},
             ],
             human_input_request=None,
+            run_bundle=run_bundle,
         )
 
 
@@ -7863,6 +7883,14 @@ def _build_bundle_from_result(
     orchestration_mode: str | None = None,
 ) -> Dict[str, Any]:
     """Build a PuPu-compatible bundle dict from a KernelRunResult."""
+    from run_bundle_adapter import project_kernel_result_bundle
+
+    canonical_bundle = project_kernel_result_bundle(result)
+    if canonical_bundle is not None:
+        return canonical_bundle
+
+    # Compatibility is absence-only.  A present malformed v1 bundle raises at
+    # the strict adapter above and must never be disguised as legacy totals.
     bundle = {
         "model": str(model or getattr(agent, "model", "") or ""),
         "display_model": str(getattr(agent, "_display_model", "") or ""),
@@ -7886,6 +7914,110 @@ def _build_bundle_from_result(
     ):
         bundle["memory_v2"] = _memory_v2_bundle_payload(memory_v2_admission)
     return bundle
+
+
+def _bind_completion_diagnostics_to_run_bundle(
+    bundle: Dict[str, Any],
+    completion_diagnostics: Dict[str, Any] | None,
+    *,
+    active_context_bridge: Any = None,
+    run_bundle_ledger: Any = None,
+    run_id: str,
+) -> Dict[str, Any]:
+    """Reproject and persist the one safe host diagnostics reference."""
+
+    if (
+        not isinstance(bundle, dict)
+        or bundle.get("schema") != "unchain.run_bundle.v1"
+        or completion_diagnostics is None
+    ):
+        return bundle
+    from completion_diagnostics import (
+        reproject_run_bundle_with_completion_diagnostics,
+    )
+
+    projected = reproject_run_bundle_with_completion_diagnostics(
+        bundle,
+        completion_diagnostics,
+    )
+    if (
+        projected.get("revision") == bundle.get("revision")
+        and projected.get("bundle_digest") == bundle.get("bundle_digest")
+    ):
+        return projected
+
+    normalized_run_id = str(run_id or "").strip()
+    if not normalized_run_id:
+        raise RuntimeError("RunBundle diagnostics has no owning run_id")
+    if active_context_bridge is not None:
+        from unchain.run_bundle import RunBundle
+
+        attempt_runtime = active_context_bridge.attempt_for_run(
+            normalized_run_id
+        )
+        ledger = attempt_runtime.bundle.run_bundle_ledger
+        if ledger is None:
+            raise RuntimeError(
+                "RunBundle diagnostics has no authoritative ledger"
+            )
+        ledger.persist_bundle(RunBundle.from_dict(projected))
+    elif run_bundle_ledger is not None:
+        from unchain.run_bundle import RunBundle
+
+        run_bundle_ledger.persist_bundle(RunBundle.from_dict(projected))
+    else:
+        from run_bundle_ledger import ledger_from_environment
+
+        ledger = ledger_from_environment()
+        if ledger is None:
+            raise RuntimeError(
+                "RunBundle diagnostics has no durable sidecar ledger"
+            )
+        ledger.upsert(projected)
+    return projected
+
+
+def _failed_run_summary_event(
+    error: BaseException,
+    *,
+    admission: Any,
+    active_context_bridge: Any,
+    run_bundle_ledger: Any = None,
+    run_id: str,
+    iteration: int,
+) -> Dict[str, Any] | None:
+    """Project only a typed, content-free failed RunBundle carrier."""
+
+    from unchain.kernel import kernel_run_failure_from_exception
+
+    failure = kernel_run_failure_from_exception(error)
+    if failure is None:
+        return None
+    bundle = failure.run_bundle.to_dict()
+    completion_diagnostics = None
+    if admission is not None:
+        from completion_diagnostics import build_completion_diagnostics
+
+        completion_diagnostics = build_completion_diagnostics(
+            _memory_v2_bundle_payload(admission)
+        )
+        bundle = _bind_completion_diagnostics_to_run_bundle(
+            bundle,
+            completion_diagnostics,
+            active_context_bridge=active_context_bridge,
+            run_bundle_ledger=run_bundle_ledger,
+            run_id=run_id,
+        )
+    summary: Dict[str, Any] = {
+        "type": "stream_summary",
+        "run_id": run_id,
+        "iteration": max(0, int(iteration)),
+        "timestamp": time.time(),
+        "bundle": bundle,
+    }
+    if completion_diagnostics is not None:
+        summary["completion_diagnostics"] = completion_diagnostics
+    return summary
 
 
 def _make_human_input_callback(
@@ -8237,6 +8369,39 @@ def _stream_recipe_graph_events(
         or session_id
         or workflow_run_id
     ).strip()
+    from unchain.run_bundle import RunIdentity
+    from unchain.runtime import AgentRuntimeContext
+
+    if isinstance(runtime_context, AgentRuntimeContext):
+        runtime_identity = runtime_context.identity
+        if (
+            runtime_identity.execution_id != graph_execution_id
+            or runtime_identity.run_id != workflow_run_id
+        ):
+            raise RuntimeError(
+                "recipe graph RunBundle identity disagrees with its runtime context"
+            )
+        graph_bundle_identity = RunIdentity(
+            execution_id=runtime_identity.execution_id,
+            attempt_id=runtime_identity.attempt_id,
+            root_run_id=runtime_identity.root_run_id,
+            run_id=runtime_identity.run_id,
+            parent_run_id=runtime_identity.parent_run_id,
+            relation=(
+                "root"
+                if runtime_identity.parent_run_id is None
+                else "recipe_node"
+            ),
+        )
+    else:
+        graph_bundle_identity = RunIdentity(
+            execution_id=graph_execution_id,
+            attempt_id=workflow_run_id,
+            root_run_id=workflow_run_id,
+            run_id=workflow_run_id,
+            parent_run_id=None,
+            relation="root",
+        )
     graph_context_run = None
     graph_active_preflight = None
     graph_active_bridge = None
@@ -8716,6 +8881,8 @@ def _stream_recipe_graph_events(
 
     def run_workflow() -> None:
         execution_guard = None
+        graph_bundle_started_at = _run_bundle_timestamp()
+        materialize_graph_bundle = None
         try:
             if (
                 memory_manager is not None
@@ -8880,13 +9047,224 @@ def _stream_recipe_graph_events(
                             graph_resume_context
                         )
                     )
+            graph_bundle_values: Dict[str, Dict[str, Any]] = {}
+            graph_bundle_missing = False
+            official_run_bundle_ledger = None
+            provider_turn_ownership_factory = None
+            if graph_active_bridge is not None:
+                root_attempt_runtime = graph_active_bridge.attempt_for_run(
+                    workflow_run_id
+                )
+                official_run_bundle_ledger = (
+                    root_attempt_runtime.bundle.run_bundle_ledger
+                )
+                if official_run_bundle_ledger is None:
+                    raise RuntimeError(
+                        "active graph has no durable RunBundle ledger"
+                    )
+            else:
+                from production_run_ownership import (
+                    production_ownership_factory_for_agent,
+                )
+
+                provider_turn_ownership_factory = (
+                    production_ownership_factory_for_agent()
+                )
+
+            def ensure_official_run_bundle_ledger():
+                nonlocal official_run_bundle_ledger
+                if official_run_bundle_ledger is not None:
+                    return official_run_bundle_ledger
+                if provider_turn_ownership_factory is None:
+                    raise RuntimeError(
+                        "graph has no provider-turn ownership factory"
+                    )
+                graph_root_owner = provider_turn_ownership_factory.bind(
+                    identity=graph_bundle_identity
+                )
+                official_run_bundle_ledger = graph_root_owner.ledger
+                output_holder["run_bundle_ledger"] = (
+                    official_run_bundle_ledger
+                )
+                return official_run_bundle_ledger
+
+            graph_continued_from_run_id = None
+            requested_continuation = str(
+                options.get("_run_bundle_continued_from_run_id") or ""
+            ).strip()
+            if (
+                requested_continuation
+                and graph_bundle_identity.parent_run_id is None
+            ):
+                ensure_official_run_bundle_ledger()
+                from unchain.run_bundle_ledger import (
+                    RunBundleContinuationError,
+                    RunBundleContinuationLedger,
+                )
+
+                if not isinstance(
+                    official_run_bundle_ledger,
+                    RunBundleContinuationLedger,
+                ):
+                    raise RunBundleContinuationError(
+                        "continuation_ledger_unavailable"
+                    )
+                predecessor = official_run_bundle_ledger.claim_continuation(
+                    successor=graph_bundle_identity,
+                    requested_run_id=requested_continuation,
+                )
+                if (
+                    predecessor is None
+                    or predecessor.identity.run_id
+                    != requested_continuation
+                ):
+                    raise RunBundleContinuationError(
+                        "continued_from_not_claimable"
+                    )
+                graph_continued_from_run_id = predecessor.identity.run_id
+
+            def remember_graph_bundle(raw_bundle: Dict[str, Any]) -> None:
+                from run_bundle_adapter import project_run_bundle
+
+                projected = project_run_bundle(raw_bundle)
+                bundle_id = projected["bundle_id"]
+                current = graph_bundle_values.get(bundle_id)
+                if current is not None:
+                    current_revision = int(current["revision"])
+                    next_revision = int(projected["revision"])
+                    if next_revision < current_revision:
+                        return
+                    if (
+                        next_revision == current_revision
+                        and projected["bundle_digest"]
+                        != current["bundle_digest"]
+                    ):
+                        raise RuntimeError(
+                            "graph RunBundle revision changed its digest"
+                        )
+                graph_bundle_values[bundle_id] = projected
+
+            def materialize_graph_bundle(status: str) -> Dict[str, Any] | None:
+                from run_bundle_adapter import RunBundleProjectionError
+
+                if graph_bundle_values:
+                    ensure_official_run_bundle_ledger()
+                canonical_required = (
+                    official_run_bundle_ledger is not None
+                    or provider_turn_ownership_factory is not None
+                )
+                if graph_bundle_missing and (
+                    canonical_required or graph_bundle_values
+                ):
+                    raise RunBundleProjectionError(
+                        "graph_bundle_coverage_incomplete"
+                    )
+                if not graph_bundle_values:
+                    return None
+
+                from run_bundle_adapter import merge_run_bundles
+                from unchain.run_bundle import RunDescriptor
+
+                prior_root_bundle = None
+                if official_run_bundle_ledger is not None:
+                    prior_roots = official_run_bundle_ledger.list_bundles(
+                        root_run_id=graph_bundle_identity.root_run_id,
+                        run_id=graph_bundle_identity.run_id,
+                        attempt_id=graph_bundle_identity.attempt_id,
+                    )
+                    if len(prior_roots) > 1:
+                        raise RuntimeError(
+                            "graph root resolved multiple RunBundles"
+                        )
+                    if prior_roots:
+                        prior_root_bundle = prior_roots[0].to_dict()
+
+                prior_lifecycle = (
+                    prior_root_bundle.get("lifecycle", {})
+                    if isinstance(prior_root_bundle, dict)
+                    else {}
+                )
+                started_at = str(
+                    prior_lifecycle.get("started_at")
+                    or graph_bundle_started_at
+                )
+                completed_at = None
+                if status != "running":
+                    completed_at = (
+                        str(prior_lifecycle.get("completed_at") or "")
+                        if prior_lifecycle.get("status") == status
+                        else ""
+                    ) or _run_bundle_timestamp()
+                continued_from_run_id = str(
+                    prior_lifecycle.get("continued_from_run_id")
+                    or graph_continued_from_run_id
+                    or ""
+                ).strip() or None
+                candidate_revision = int(
+                    (prior_root_bundle or {}).get("revision") or 1
+                )
+                descriptor = RunDescriptor(
+                    model=str(selected_config["model"]),
+                    display_model=display_model,
+                    active_agent="developer",
+                    agent_orchestration=_AGENT_ORCHESTRATION_DEFAULT,
+                    iteration=int(output_holder.get("last_iteration") or 0),
+                )
+                merge_kwargs = {
+                    "execution_id": graph_bundle_identity.execution_id,
+                    "attempt_id": graph_bundle_identity.attempt_id,
+                    "root_run_id": graph_bundle_identity.root_run_id,
+                    "run_id": graph_bundle_identity.run_id,
+                    "parent_run_id": graph_bundle_identity.parent_run_id,
+                    "relation": graph_bundle_identity.relation,
+                    "status": status,
+                    "started_at": started_at,
+                    "completed_at": completed_at,
+                    "continued_from_run_id": continued_from_run_id,
+                    "descriptor": descriptor,
+                    "revision": candidate_revision,
+                    "extensions": (
+                        prior_root_bundle.get("extensions")
+                        if isinstance(prior_root_bundle, dict)
+                        else None
+                    ),
+                }
+                bundle = merge_run_bundles(
+                    list(graph_bundle_values.values()),
+                    **merge_kwargs,
+                )
+                if (
+                    prior_root_bundle is not None
+                    and prior_root_bundle["bundle_digest"]
+                    != bundle["bundle_digest"]
+                ):
+                    bundle = merge_run_bundles(
+                        list(graph_bundle_values.values()),
+                        **{
+                            **merge_kwargs,
+                            "revision": candidate_revision + 1,
+                        },
+                    )
+                if official_run_bundle_ledger is not None:
+                    from unchain.run_bundle import RunBundle
+
+                    official_run_bundle_ledger.persist_bundle(
+                        RunBundle.from_dict(bundle)
+                    )
+                output_holder["bundle"] = bundle
+                return bundle
+
             last_result = None
             last_agent = None
             for index, agent_node in enumerate(agents):
                 _execution_raise_if_cancelled(execution_token)
                 is_last = index == len(agents) - 1
                 agent_id = str(agent_node.get("id") or f"agent_{index + 1}")
-                step_run_id = workflow_run_id
+                step_run_id = _memory_v2_graph_step_run_id(
+                    workflow_run_id,
+                    index,
+                    agent_id,
+                )
                 step_runtime_context = None
                 if graph_checkpoint_host is not None:
                     from memory_v2_unchain_runtime_context import (
@@ -8898,11 +9276,31 @@ def _stream_recipe_graph_events(
                     step_runtime_context = runtime_context_for_memory_binding(
                         step_binding
                     )
+                if step_runtime_context is not None:
+                    step_identity = step_runtime_context.identity
+                    step_bundle_identity = RunIdentity(
+                        execution_id=step_identity.execution_id,
+                        attempt_id=step_identity.attempt_id,
+                        root_run_id=step_identity.root_run_id,
+                        run_id=step_identity.run_id,
+                        parent_run_id=step_identity.parent_run_id,
+                        relation="graph_node",
+                    )
+                else:
+                    step_bundle_identity = RunIdentity(
+                        execution_id=graph_bundle_identity.execution_id,
+                        attempt_id=step_run_id,
+                        root_run_id=graph_bundle_identity.root_run_id,
+                        run_id=step_run_id,
+                        parent_run_id=graph_bundle_identity.run_id,
+                        relation="graph_node",
+                    )
                 output_holder["last_step_run_id"] = step_run_id
                 if (
                     graph_checkpoint_host is not None
                     and graph_checkpoint_host.should_skip(index)
                 ):
+                    ensure_official_run_bundle_ledger()
                     recovered_envelope = (
                         graph_checkpoint_host.read_completed_output(index)
                     )
@@ -8916,6 +9314,23 @@ def _stream_recipe_graph_events(
                         raise RuntimeError(
                             "completed graph step output is not canonical"
                         )
+                    recovered_bundle = None
+                    if official_run_bundle_ledger is not None:
+                        durable_bundles = official_run_bundle_ledger.list_bundles(
+                            root_run_id=step_bundle_identity.root_run_id,
+                            run_id=step_bundle_identity.run_id,
+                            attempt_id=step_bundle_identity.attempt_id,
+                        )
+                        if len(durable_bundles) > 1:
+                            raise RuntimeError(
+                                "completed graph step resolved multiple RunBundles"
+                            )
+                        if durable_bundles:
+                            recovered_bundle = durable_bundles[0].to_dict()
+                    if recovered_bundle is None:
+                        graph_bundle_missing = True
+                    else:
+                        remember_graph_bundle(recovered_bundle)
                     recovered_output = recovered_envelope["output"]
                     variables[agent_id] = {"output": recovered_output}
                     output_holder["final_text"] = recovered_output
@@ -9377,6 +9792,16 @@ def _stream_recipe_graph_events(
                         run_id=step_run_id,
                         execution_owner_id=step_run_id,
                         runtime_context=step_runtime_context,
+                        _run_bundle_identity=step_bundle_identity,
+                        **(
+                            {
+                                "_provider_turn_ownership_factory": (
+                                    provider_turn_ownership_factory
+                                )
+                            }
+                            if provider_turn_ownership_factory is not None
+                            else {}
+                        ),
                     )
                 else:
                     result = step_agent.run(
@@ -9402,6 +9827,16 @@ def _stream_recipe_graph_events(
                             )
                         ),
                         _execution_guard=execution_guard,
+                        _run_bundle_identity=step_bundle_identity,
+                        **(
+                            {
+                                "_provider_turn_ownership_factory": (
+                                    provider_turn_ownership_factory
+                                )
+                            }
+                            if provider_turn_ownership_factory is not None
+                            else {}
+                        ),
                         **(
                             {"runtime_context": step_runtime_context}
                             if step_runtime_context is not None
@@ -9432,6 +9867,24 @@ def _stream_recipe_graph_events(
                     execution_guard.assert_active()
                 last_result = result
                 last_agent = step_agent
+                from run_bundle_adapter import (
+                    ExpectedRunBundleIdentity,
+                    project_kernel_result_bundle,
+                )
+
+                step_bundle = project_kernel_result_bundle(
+                    result,
+                    expected=ExpectedRunBundleIdentity(
+                        execution_id=step_bundle_identity.execution_id,
+                        attempt_id=step_bundle_identity.attempt_id,
+                        root_run_id=step_bundle_identity.root_run_id,
+                        run_id=step_bundle_identity.run_id,
+                    ),
+                )
+                if step_bundle is None:
+                    graph_bundle_missing = True
+                else:
+                    remember_graph_bundle(step_bundle)
                 result_status = str(
                     getattr(result, "status", "") or ""
                 ).strip()
@@ -9459,29 +9912,12 @@ def _stream_recipe_graph_events(
                 variables[agent_id] = {"output": final_text}
                 output_holder["final_text"] = final_text
 
-            if (
-                graph_checkpoint_host is not None
-                and not output_holder.get("suspended")
-            ):
-                if (
-                    graph_active_bridge is not None
-                    and graph_completion_authorized
-                ):
-                    from memory_v2_unchain_graph_root_completion import (
-                        complete_pupu_unchain_graph_root,
-                    )
-
-                    output_holder["graph_root_completion"] = (
-                        complete_pupu_unchain_graph_root(
-                            graph_checkpoint_host,
-                            agent_name=str(
-                                getattr(recipe, "name", "")
-                                or "Recipe graph"
-                            ),
-                        )
-                    )
-                else:
-                    graph_checkpoint_host.finalize()
+            if graph_bundle_values or graph_bundle_missing:
+                materialize_graph_bundle(
+                    "suspended"
+                    if output_holder.get("suspended")
+                    else "running"
+                )
 
             final_text = str(output_holder.get("final_text") or "")
             _execution_raise_if_cancelled(execution_token)
@@ -9538,18 +9974,83 @@ def _stream_recipe_graph_events(
                         "fallback_reason": f"memory_commit_failed: {exc}",
                     })
 
-            if last_result is not None and last_agent is not None:
+            if graph_bundle_values and not output_holder.get("suspended"):
+                materialize_graph_bundle("completed")
+            elif (
+                not graph_bundle_values
+                and last_result is not None
+                and last_agent is not None
+            ):
+                # Absence-only compatibility for old/fake Agent runtimes.  A
+                # mixed canonical/legacy graph is rejected above rather than
+                # presenting the final node as the whole graph.
                 bundle = _build_bundle_from_result(
                     last_result,
                     last_agent,
-                    model=str(getattr(last_agent, "_display_model", "") or display_model),
+                    model=str(
+                        getattr(last_agent, "_display_model", "")
+                        or display_model
+                    ),
                     active_agent="developer",
                     orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
                 )
                 if bundle:
                     output_holder["bundle"] = bundle
+
+            # The externally visible graph terminal is last.  A complete
+            # unique-call union must already be durable before checkpoint
+            # finalization can make the graph appear finished after restart.
+            if (
+                graph_checkpoint_host is not None
+                and not output_holder.get("suspended")
+            ):
+                if (
+                    graph_active_bridge is not None
+                    and graph_completion_authorized
+                ):
+                    from memory_v2_unchain_graph_root_completion import (
+                        complete_pupu_unchain_graph_root,
+                    )
+
+                    output_holder["graph_root_completion"] = (
+                        complete_pupu_unchain_graph_root(
+                            graph_checkpoint_host,
+                            agent_name=str(
+                                getattr(recipe, "name", "")
+                                or "Recipe graph"
+                            ),
+                        )
+                    )
+                else:
+                    graph_checkpoint_host.finalize()
         except Exception as run_error:
             import traceback as _tb
+
+            current_bundle = output_holder.get("bundle")
+            if (
+                callable(materialize_graph_bundle)
+                and isinstance(current_bundle, dict)
+                and current_bundle.get("lifecycle", {}).get("status")
+                in {"running", "completed"}
+            ):
+                try:
+                    failed_bundle = materialize_graph_bundle("failed")
+                    if isinstance(failed_bundle, dict):
+                        from unchain.kernel.failure import (
+                            attach_kernel_run_failure,
+                        )
+                        from unchain.run_bundle import RunBundle
+
+                        attach_kernel_run_failure(
+                            run_error,
+                            error_category="graph_runtime",
+                            error_code="graph_run_failed",
+                            run_bundle=RunBundle.from_dict(failed_bundle),
+                        )
+                except Exception as accounting_error:
+                    output_holder["bundle_accounting_error"] = (
+                        accounting_error
+                    )
 
             if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
                 execution_token
@@ -9615,6 +10116,16 @@ def _stream_recipe_graph_events(
         if tb:
             print(f"[unchain workflow error]\n{tb}", file=sys.stderr, flush=True)
         if isinstance(error, BaseException):
+            failure_summary = _failed_run_summary_event(
+                error,
+                admission=graph_memory_v2_admission,
+                active_context_bridge=graph_active_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=workflow_run_id,
+                iteration=int(output_holder.get("last_iteration") or 0),
+            )
+            if failure_summary is not None:
+                yield failure_summary
             raise error
         raise RuntimeError(str(error))
 
@@ -9657,13 +10168,30 @@ def _stream_recipe_graph_events(
     bundle = output_holder.get("bundle")
     if isinstance(bundle, dict) and bundle:
         _refresh_memory_v2_bundle(bundle, graph_memory_v2_admission)
-        yield {
+        completion_diagnostics = None
+        if graph_memory_v2_admission is not None:
+            from completion_diagnostics import build_completion_diagnostics
+
+            completion_diagnostics = build_completion_diagnostics(
+                _memory_v2_bundle_payload(graph_memory_v2_admission)
+            )
+            bundle = _bind_completion_diagnostics_to_run_bundle(
+                bundle,
+                completion_diagnostics,
+                active_context_bridge=graph_active_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=workflow_run_id,
+            )
+        summary_event = {
             "type": "stream_summary",
             "run_id": workflow_run_id,
             "iteration": int(output_holder.get("last_iteration") or 0),
             "timestamp": time.time(),
             "bundle": bundle,
         }
+        if completion_diagnostics is not None:
+            summary_event["completion_diagnostics"] = completion_diagnostics
+        yield summary_event
 
 
 def stream_chat(
@@ -10136,6 +10664,15 @@ def stream_chat_events(
             "_memory_v2_unchain_active_bridge",
             None,
         )
+        provider_turn_ownership_factory = None
+        if active_context_bridge is None:
+            from production_run_ownership import (
+                production_ownership_factory_for_agent,
+            )
+
+            provider_turn_ownership_factory = (
+                production_ownership_factory_for_agent()
+            )
 
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
@@ -10275,6 +10812,9 @@ def stream_chat_events(
                         agent_id="developer",
                     )
                 )
+                continued_from_run_id = str(
+                    options.get("_run_bundle_continued_from_run_id") or ""
+                ).strip()
                 if active_context_bridge is None:
                     _persist_memory_v2_run_started(
                         memory_v2_admission,
@@ -10308,6 +10848,20 @@ def stream_chat_events(
                     ),
                     **({"session_id": session_id} if session_id else {}),
                     **({"memory_namespace": memory_namespace} if memory_namespace else {}),
+                    **(
+                        {"_continued_from_run_id": continued_from_run_id}
+                        if continued_from_run_id
+                        else {}
+                    ),
+                    **(
+                        {
+                            "_provider_turn_ownership_factory": (
+                                provider_turn_ownership_factory
+                            )
+                        }
+                        if provider_turn_ownership_factory is not None
+                        else {}
+                    ),
                 )
                 result_status = str(getattr(result, "status", "") or "").strip()
                 output_holder["messages"] = result.messages
@@ -10324,8 +10878,34 @@ def stream_chat_events(
                 )
                 if bundle:
                     output_holder["bundle"] = bundle
+                    if (
+                        provider_turn_ownership_factory is not None
+                        and bundle.get("schema") == "unchain.run_bundle.v1"
+                    ):
+                        from unchain.run_bundle import RunIdentity
+
+                        owner = provider_turn_ownership_factory.bind(
+                            identity=RunIdentity.from_dict(bundle["identity"])
+                        )
+                        output_holder["run_bundle_ledger"] = owner.ledger
             except Exception as run_error:
                 import traceback as _tb
+
+                if provider_turn_ownership_factory is not None:
+                    from unchain.kernel import (
+                        kernel_run_failure_from_exception,
+                    )
+
+                    failure = kernel_run_failure_from_exception(run_error)
+                    if failure is not None:
+                        failed_owner = (
+                            provider_turn_ownership_factory.bind(
+                                identity=failure.run_bundle.identity
+                            )
+                        )
+                        output_holder["run_bundle_ledger"] = (
+                            failed_owner.ledger
+                        )
 
                 if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
                     execution_token
@@ -10408,6 +10988,16 @@ def stream_chat_events(
             import sys as _sys
             print(f"[unchain run_agent error]\n{tb}", file=_sys.stderr, flush=True)
         if isinstance(error, BaseException):
+            failure_summary = _failed_run_summary_event(
+                error,
+                admission=getattr(agent, "_memory_v2_admission", None),
+                active_context_bridge=active_context_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=execution_run_id,
+                iteration=int(output_holder.get("last_iteration") or 0),
+            )
+            if failure_summary is not None:
+                yield failure_summary
             raise error
         raise RuntimeError(str(error))
 
@@ -10446,17 +11036,35 @@ def stream_chat_events(
         )
     bundle = output_holder.get("bundle")
     if isinstance(bundle, dict) and bundle:
+        memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
         _refresh_memory_v2_bundle(
             bundle,
-            getattr(agent, "_memory_v2_admission", None),
+            memory_v2_admission,
         )
-        yield {
+        completion_diagnostics = None
+        if memory_v2_admission is not None:
+            from completion_diagnostics import build_completion_diagnostics
+
+            completion_diagnostics = build_completion_diagnostics(
+                _memory_v2_bundle_payload(memory_v2_admission)
+            )
+            bundle = _bind_completion_diagnostics_to_run_bundle(
+                bundle,
+                completion_diagnostics,
+                active_context_bridge=active_context_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=execution_run_id,
+            )
+        summary_event = {
             "type": "stream_summary",
             "run_id": str(output_holder.get("last_run_id") or ""),
             "iteration": int(output_holder.get("last_iteration") or 0),
             "timestamp": time.time(),
             "bundle": bundle,
         }
+        if completion_diagnostics is not None:
+            summary_event["completion_diagnostics"] = completion_diagnostics
+        yield summary_event
 
 
 def resume_chat_interaction_events(
@@ -11153,6 +11761,15 @@ def resume_chat_interaction_events(
                 file=sys.stderr,
                 flush=True,
             )
+        failure_summary = _failed_run_summary_event(
+            error,
+            admission=getattr(agent, "_memory_v2_admission", None),
+            active_context_bridge=active_context_bridge,
+            run_id=resume_run_id,
+            iteration=int(output_holder.get("last_iteration") or 0),
+        )
+        if failure_summary is not None:
+            yield failure_summary
         raise error
 
     if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
@@ -11190,14 +11807,31 @@ def resume_chat_interaction_events(
         )
     bundle = output_holder.get("bundle")
     if isinstance(bundle, dict) and bundle:
+        memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
         _refresh_memory_v2_bundle(
             bundle,
-            getattr(agent, "_memory_v2_admission", None),
+            memory_v2_admission,
         )
-        yield {
+        completion_diagnostics = None
+        if memory_v2_admission is not None:
+            from completion_diagnostics import build_completion_diagnostics
+
+            completion_diagnostics = build_completion_diagnostics(
+                _memory_v2_bundle_payload(memory_v2_admission)
+            )
+            bundle = _bind_completion_diagnostics_to_run_bundle(
+                bundle,
+                completion_diagnostics,
+                active_context_bridge=active_context_bridge,
+                run_id=resume_run_id,
+            )
+        summary_event = {
             "type": "stream_summary",
             "run_id": str(output_holder.get("last_run_id") or ""),
             "iteration": int(output_holder.get("last_iteration") or 0),
             "timestamp": time.time(),
             "bundle": bundle,
         }
+        if completion_diagnostics is not None:
+            summary_event["completion_diagnostics"] = completion_diagnostics
+        yield summary_event

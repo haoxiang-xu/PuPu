@@ -72,6 +72,11 @@ test("release QA has no second hard-coded blocking Unchain revision", () => {
     /run: node scripts\/release-qa\/verify-pinned-unchain\.mjs/,
   );
   assert.doesNotMatch(pinnedStep, /continue-on-error|advisory/i);
+  const runBundleStep = workflow.match(
+    /- name: RunBundle v1 boundary contract gate[\s\S]*?(?=\n      - name:)/,
+  )?.[0] || "";
+  assert.match(runBundleStep, /run: npm run test:run-bundle-contract/);
+  assert.doesNotMatch(runBundleStep, /continue-on-error|advisory/i);
   assert.match(
     workflow,
     /"name":"Context V2 boundary contracts"[^\n]+steps\.context_v2_contract\.outcome/,
@@ -82,7 +87,11 @@ test("release QA has no second hard-coded blocking Unchain revision", () => {
   );
   assert.match(
     workflow,
-    /QA_REQUIRED_CHECKS_JSON: '\["Quorum boundary protocol","pinned Unchain checkout","Context V2 boundary contracts"\]'/,
+    /"name":"RunBundle v1 boundary contracts"[^\n]+steps\.run_bundle_contract\.outcome/,
+  );
+  assert.match(
+    workflow,
+    /QA_REQUIRED_CHECKS_JSON: '\["Quorum boundary protocol","pinned Unchain checkout","Context V2 boundary contracts","RunBundle v1 boundary contracts"\]'/,
   );
   assert.match(
     workflow,

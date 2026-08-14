@@ -58,6 +58,68 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "invalid_request")
         self.assertIn("attempt_id", payload["error"]["message"])
 
+    def test_fresh_run_continuation_is_allowlisted_from_top_level_only(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=iter(
+                [
+                    {
+                        "type": "final_message",
+                        "run_id": "run-fresh",
+                        "iteration": 0,
+                        "content": "done",
+                    }
+                ]
+            ),
+        ) as stream_events:
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "start fresh",
+                    "threadId": "chat-fresh",
+                    "attempt_id": "attempt-fresh",
+                    "continued_from_run_id": "run-paused",
+                    "options": {
+                        "_run_bundle_continued_from_run_id": "attacker-run"
+                    },
+                },
+            )
+            response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            stream_events.call_args.kwargs["options"][
+                "_run_bundle_continued_from_run_id"
+            ],
+            "run-paused",
+        )
+
+    def test_continuation_rejects_invalid_or_resume_inputs(self) -> None:
+        invalid_payloads = (
+            {
+                "message": "fresh",
+                "attempt_id": "attempt-fresh",
+                "continued_from_run_id": {"run": "old"},
+            },
+            {
+                "mode": "resume_interaction",
+                "threadId": "chat-resume",
+                "attempt_id": "attempt-resume",
+                "interaction_id": "interaction-resume",
+                "source_attempt_id": "attempt-paused",
+                "continued_from_run_id": "attempt-paused",
+            },
+        )
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.client.post("/chat/stream/v4", json=payload)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.get_json()["error"]["code"],
+                    "invalid_request",
+                )
+
     def test_memory_v2_agent_config_is_allowlisted_into_private_options(self) -> None:
         with mock.patch.object(
             miso_routes,
@@ -578,6 +640,10 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             miso_routes,
             "stream_chat_events",
             return_value=mocked_events,
+        ), mock.patch.object(
+            route_chat,
+            "_execution_attempt_cancelled",
+            return_value=False,
         ):
             response = self.client.post(
                 "/chat/stream/v4",
@@ -599,6 +665,82 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(done_payload["bundle"]["memory_v2"]["mode"], "active")
         self.assertNotIn("provider_request", done_payload["bundle"])
         self.assertNotIn("must-not-leak", payload_text)
+
+    def test_completion_bundle_with_schema_never_falls_back_to_legacy(self) -> None:
+        from run_bundle_adapter import RunBundleProjectionError
+
+        for bundle in (
+            {"schema": "unchain.run_bundle.v999", "consumed_tokens": 12},
+            {"schema": "unchain.run_bundle.v1", "consumed_tokens": 12},
+        ):
+            with self.subTest(schema=bundle["schema"]):
+                with self.assertRaises(RunBundleProjectionError):
+                    route_chat._sanitize_v4_completion_bundle(bundle)
+
+    def test_chat_stream_v4_forwards_completion_diagnostics_beside_bundle(self) -> None:
+        from completion_diagnostics import build_completion_diagnostics
+
+        diagnostics = build_completion_diagnostics(
+            {
+                "schema_version": "memory_v2.context.v1",
+                "mode": "shadow",
+                "trace_status": "partial",
+                "available_input_tokens": 42_000,
+                "unknown": "drop-me",
+            }
+        )
+        mocked_events = iter(
+            [
+                {
+                    "type": "stream_summary",
+                    "bundle": {"model": "gpt-5", "status": "completed"},
+                    "completion_diagnostics": diagnostics,
+                },
+                {
+                    "type": "run_completed",
+                    "run_id": "run-diagnostics",
+                    "iteration": 0,
+                    "status": "completed",
+                },
+            ]
+        )
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=mocked_events,
+        ), mock.patch.object(
+            route_chat,
+            "_execution_attempt_cancelled",
+            return_value=False,
+        ):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "hello",
+                    "attempt_id": "attempt-v4-diagnostics",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+        diagnostics_done = [
+            payload
+            for event_name, payload in _parse_sse_blocks(payload_text)
+            if event_name == "done" and "completion_diagnostics" in payload
+        ]
+        self.assertEqual(len(diagnostics_done), 1, payload_text)
+        done_payload = diagnostics_done[0]
+        self.assertEqual(done_payload["bundle"]["model"], "gpt-5")
+        self.assertEqual(
+            done_payload["completion_diagnostics"]["memory_v2"],
+            {
+                "available_input_tokens": 42_000,
+                "mode": "shadow",
+                "schema_version": "memory_v2.context.v1",
+                "trace_status": "partial",
+            },
+        )
 
     def test_chat_stream_v4_resume_mode_requires_existing_thread_id(self) -> None:
         with mock.patch.object(
@@ -654,6 +796,66 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(failed["schema_version"], "v4")
         self.assertEqual(failed["payload"]["error"]["message"], "boom")
         self.assertEqual(failed["payload"]["error"]["code"], "stream_failed")
+
+    def test_chat_stream_v4_seals_failed_bundle_before_error_done(self) -> None:
+        from unchain.run_bundle import (
+            RunBundleReducer,
+            RunIdentity,
+            RunLifecycle,
+        )
+
+        failed_bundle = RunBundleReducer.reduce(
+            identity=RunIdentity(
+                execution_id="thread-failed-bundle",
+                attempt_id="attempt-v4-failed-bundle",
+                root_run_id="attempt-v4-failed-bundle",
+                run_id="attempt-v4-failed-bundle",
+                parent_run_id=None,
+                relation="root",
+            ),
+            lifecycle=RunLifecycle(
+                status="failed",
+                started_at="2026-08-14T00:00:00.000000000Z",
+                completed_at="2026-08-14T00:00:01.000000000Z",
+            ),
+            receipts=(),
+        ).to_dict()
+
+        def failing_stream_chat_events(**_kwargs):
+            yield {
+                "type": "stream_summary",
+                "run_id": "attempt-v4-failed-bundle",
+                "iteration": 0,
+                "bundle": failed_bundle,
+            }
+            raise RuntimeError("provider failed")
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            side_effect=failing_stream_chat_events,
+        ):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "hello",
+                    "threadId": "thread-failed-bundle",
+                    "attempt_id": "attempt-v4-failed-bundle",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        done_payload = next(
+            payload
+            for event_name, payload in _parse_sse_blocks(payload_text)
+            if event_name == "done"
+        )
+        self.assertEqual(done_payload["error"]["code"], "stream_failed")
+        self.assertEqual(done_payload["bundle"], failed_bundle)
+        self.assertEqual(done_payload["bundle"]["lifecycle"]["status"], "failed")
+        self.assertNotIn("provider failed", json.dumps(done_payload["bundle"]))
 
     def test_context_v2_stream_error_exposes_only_allowlisted_reason(self) -> None:
         class ProjectionError(RuntimeError):

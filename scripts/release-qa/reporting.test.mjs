@@ -7,7 +7,7 @@ import test from "node:test";
 
 import {
   buildJobReport,
-  CONTEXT_V2_REQUIRED_CHECKS,
+  DETERMINISTIC_REQUIRED_CHECKS,
   mergeReports,
   renderMarkdown,
 } from "./reporting.mjs";
@@ -63,6 +63,7 @@ test("mergeReports merges platforms and marks advisory Unchain analysis as non-b
           { name: "Quorum boundary protocol", outcome: "success" },
           { name: "pinned Unchain checkout", outcome: "success" },
           { name: "Context V2 boundary contracts", outcome: "success" },
+          { name: "RunBundle v1 boundary contracts", outcome: "success" },
         ],
         unchain: {
           locked_sha: "c".repeat(40),
@@ -99,18 +100,18 @@ test("mergeReports merges platforms and marks advisory Unchain analysis as non-b
   assert.equal(merged.unchain_analysis.status, "analysis_unavailable");
 });
 
-test("required Context V2 checks treat skipped and neutral as INCOMPLETE failures", () => {
-  for (const requiredName of CONTEXT_V2_REQUIRED_CHECKS) {
+test("required boundary checks treat skipped and neutral as INCOMPLETE failures", () => {
+  for (const requiredName of DETERMINISTIC_REQUIRED_CHECKS) {
     for (const outcome of ["skipped", "neutral"]) {
       const report = buildJobReport({
         platform: { name: "local-contract" },
-        requiredChecks: CONTEXT_V2_REQUIRED_CHECKS,
+        requiredChecks: DETERMINISTIC_REQUIRED_CHECKS,
         unchain: {
           locked_sha: "d".repeat(40),
           tested_sha: "d".repeat(40),
           dirty: false,
         },
-        checks: CONTEXT_V2_REQUIRED_CHECKS.map((name) => ({
+        checks: DETERMINISTIC_REQUIRED_CHECKS.map((name) => ({
           name,
           outcome: name === requiredName ? outcome : "success",
         })),
@@ -126,10 +127,10 @@ test("required Context V2 checks treat skipped and neutral as INCOMPLETE failure
   }
 });
 
-test("a missing required Context V2 check cannot produce PASS", () => {
+test("a missing required boundary check cannot produce PASS", () => {
   const report = buildJobReport({
     platform: { name: "local-contract" },
-    requiredChecks: CONTEXT_V2_REQUIRED_CHECKS,
+    requiredChecks: DETERMINISTIC_REQUIRED_CHECKS,
     unchain: {
       locked_sha: "e".repeat(40),
       tested_sha: "e".repeat(40),
@@ -165,6 +166,7 @@ test("missing, mismatched, unknown, or dirty pinned evidence cannot produce PASS
         { name: "Quorum boundary protocol", outcome: "success" },
         { name: "pinned Unchain checkout", outcome: "success" },
         { name: "Context V2 boundary contracts", outcome: "success" },
+        { name: "RunBundle v1 boundary contracts", outcome: "success" },
       ],
     });
     assert.equal(report.deterministic_result.status, "failed");
@@ -187,6 +189,7 @@ test("missing, mismatched, unknown, or dirty pinned evidence cannot produce PASS
       { name: "Quorum boundary protocol", outcome: "success" },
       { name: "pinned Unchain checkout", outcome: "success" },
       { name: "Context V2 boundary contracts", outcome: "success" },
+      { name: "RunBundle v1 boundary contracts", outcome: "success" },
     ],
   });
   assert.equal(valid.deterministic_result.status, "passed");
@@ -206,6 +209,7 @@ test("merged deterministic reports revalidate pinned evidence", () => {
       checks: [
         { name: "pinned Unchain checkout", status: "passed" },
         { name: "Context V2 boundary contracts", status: "passed" },
+        { name: "RunBundle v1 boundary contracts", status: "passed" },
       ],
       artifacts: [],
     },
@@ -265,6 +269,7 @@ test("renderMarkdown includes result, checks, artifacts, and manual release QA",
         { name: "Quorum boundary protocol", outcome: "success" },
         { name: "pinned Unchain checkout", outcome: "success" },
         { name: "Context V2 boundary contracts", outcome: "success" },
+        { name: "RunBundle v1 boundary contracts", outcome: "success" },
         { name: "package", outcome: "success" },
       ],
       artifacts: [{ name: "PuPu-0.1.6-arm64.dmg", path: "dist/PuPu-0.1.6-arm64.dmg" }],

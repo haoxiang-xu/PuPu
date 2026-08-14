@@ -11,6 +11,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 
@@ -21,9 +22,8 @@ if str(SERVER_ROOT) not in sys.path:
 
 import unchain_adapter  # noqa: E402  - configures the sibling Unchain source path
 from unchain.agent import Agent, MemoryModule, ToolsModule  # noqa: E402
-from unchain.kernel import ModelTurnResult  # noqa: E402
-from unchain.kernel.types import ToolCall  # noqa: E402
 from unchain.memory import JsonFileSessionStore, KernelMemoryRuntime  # noqa: E402
+from unchain.providers import OpenAIModelIO  # noqa: E402
 from unchain.tools import Toolkit  # noqa: E402
 
 
@@ -42,72 +42,107 @@ def _append_json_line(path: Path, payload: dict[str, Any]) -> None:
         os.fsync(handle.fileno())
 
 
-class _DeterministicModelIO:
-    provider = "openai"
-    model = "gpt-5"
+class _OpenAIStream:
+    def __init__(self, events: list[Any]) -> None:
+        self._events = list(events)
+
+    def __enter__(self) -> "_OpenAIStream":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        return False
+
+    def __iter__(self):
+        return iter(self._events)
+
+
+class _DeterministicOpenAITransport:
+    """Offline Responses transport behind the exact built-in OpenAIModelIO."""
 
     def __init__(self, phase: str) -> None:
         self.phase = phase
         self.call_count = 0
 
-    def fetch_turn(self, request: Any) -> ModelTurnResult:
+    def client_factory(self, **_kwargs: Any) -> Any:
+        transport = self
+
+        class _Responses:
+            def create(self, **request_kwargs: Any) -> _OpenAIStream:
+                return transport.create_stream(request_kwargs)
+
+        return SimpleNamespace(responses=_Responses())
+
+    def create_stream(self, request_kwargs: dict[str, Any]) -> _OpenAIStream:
         self.call_count += 1
+        tools = request_kwargs.get("tools")
+        tool_names = [
+            tool["name"]
+            for tool in tools
+            if isinstance(tool, dict) and isinstance(tool.get("name"), str)
+        ] if isinstance(tools, list) else []
         _append_json_line(
             _MODEL_LOG,
             {
                 "phase": self.phase,
                 "call_count": self.call_count,
-                "messages": request.copied_messages(),
-                "tool_names": list(request.toolkit.tools),
+                "messages": request_kwargs.get("input", []),
+                "tool_names": tool_names,
             },
         )
 
         if self.phase == "initial" and self.call_count == 1:
             safe_arguments = {"value": "safe-before-crash"}
             durable_arguments = {"value": "d3-effect"}
-            return ModelTurnResult(
-                assistant_messages=[
-                    {
-                        "type": "function_call",
-                        "call_id": "d3-safe-tool-call",
-                        "name": "record_safe_effect",
-                        "arguments": json.dumps(safe_arguments),
-                    },
-                    {
-                        "type": "function_call",
-                        "call_id": "d3-tool-call",
-                        "name": "durable_write_once",
-                        "arguments": json.dumps(durable_arguments),
-                    }
-                ],
-                tool_calls=[
-                    ToolCall(
-                        call_id="d3-safe-tool-call",
-                        name="record_safe_effect",
-                        arguments=safe_arguments,
-                    ),
-                    ToolCall(
-                        call_id="d3-tool-call",
-                        name="durable_write_once",
-                        arguments=durable_arguments,
-                    )
-                ],
-                response_id="d3-initial-response",
+            output = [
+                {
+                    "type": "function_call",
+                    "call_id": "d3-safe-tool-call",
+                    "name": "record_safe_effect",
+                    "arguments": json.dumps(safe_arguments),
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "d3-tool-call",
+                    "name": "durable_write_once",
+                    "arguments": json.dumps(durable_arguments),
+                },
+            ]
+            response_id = "d3-initial-response"
+
+        elif self.phase == "resume" and self.call_count == 1:
+            output = [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": "d3-resumed"}
+                    ],
+                }
+            ]
+            response_id = "d3-resume-response"
+
+        else:
+            raise AssertionError(
+                f"unexpected D3 model request: phase={self.phase!r}, "
+                f"call_count={self.call_count}"
             )
 
-        if self.phase == "resume" and self.call_count == 1:
-            return ModelTurnResult(
-                assistant_messages=[
-                    {"role": "assistant", "content": "d3-resumed"}
-                ],
-                tool_calls=[],
-                final_text="d3-resumed",
-                response_id="d3-resume-response",
-            )
-
-        raise AssertionError(
-            f"unexpected D3 model request: phase={self.phase!r}, "
-            f"call_count={self.call_count}"
+        completed = SimpleNamespace(
+            id=response_id,
+            output=output,
+            usage={
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "total_tokens": 2,
+            },
+        )
+        return _OpenAIStream(
+            [
+                SimpleNamespace(
+                    type="response.completed",
+                    response=completed,
+                )
+            ]
         )
 
 
@@ -145,7 +180,14 @@ def _create_d3_agent(
         description="Append one durable D3 side effect after approval.",
         requires_confirmation=True,
     )
-    model_io = _DeterministicModelIO(_PHASE)
+    model_transport = _DeterministicOpenAITransport(_PHASE)
+    model_io = OpenAIModelIO(
+        model="gpt-5",
+        api_key="d3-offline-test-key",
+        client_factory=model_transport.client_factory,
+        default_payloads={},
+        model_capabilities={},
+    )
     agent = Agent(
         name="d3-process-recovery",
         provider=model_io.provider,

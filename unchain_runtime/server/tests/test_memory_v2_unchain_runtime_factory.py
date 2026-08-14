@@ -257,6 +257,20 @@ def test_explicit_production_gate_mounts_only_canonical_context_owner(
         host.task_state_bootstrap_module,
     )
     assert type(host.task_state_bootstrap_module) is PinnedTaskStateBootstrapModule
+    assert host.context_module.runtime.provider_turns_enabled is True
+    host.context_module.runtime.bind_context(
+        _context(
+            execution_id="execution-provider-turn",
+            generation_id="generation-provider-turn",
+            attempt_id="attempt-provider-turn",
+        )
+    )
+    attempt = host.attempt(
+        execution_id="execution-provider-turn",
+        attempt_id="attempt-provider-turn",
+    )
+    assert attempt.bundle.provider_turn_service is not None
+    assert attempt.bundle.provider_turn_service.mode.value == "enforce"
 
     observed = _factory(
         tmp_path / "observed",
@@ -265,6 +279,7 @@ def test_explicit_production_gate_mounts_only_canonical_context_owner(
     )
     with pytest.raises(PupuUnchainHostFactoryError, match="canonical"):
         observed.modules_for_active()
+    assert observed.context_module.runtime.provider_turns_enabled is False
 
 
 def test_memory_agent_mount_gate_requires_exact_bool_and_active_production(

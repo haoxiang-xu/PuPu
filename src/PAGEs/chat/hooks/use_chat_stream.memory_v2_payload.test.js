@@ -4,20 +4,17 @@
  *
  * Locks:
  *  - owner_chat_id is ALWAYS the UI chat id (targetChatId) on the normal
- *    payload, on a character-chat payload (where threadId becomes the
- *    character session_id), and on the durable-resume payload (merged via
- *    spread around the untouched buildDurableResumePayload helper).
+ *    payload and on a character-chat payload (where threadId becomes the
+ *    character session_id).
  *  - flag OFF → memory_v2_requested / memory_agent_config /
- *    context_v2_history appear NOWHERE, on either the normal or the durable
- *    resume payload.
+ *    context_v2_history appear NOWHERE on the normal payload.
  *  - flag ON (normal send) → memory_v2_requested: true + memory_agent_config
  *    + context_v2_history built from the chat's settled prior user/assistant
  *    messages (attachments preserved, no streaming placeholder, no trace
  *    residue), while the legacy `history` field stays byte-equivalent to the
  *    flag-off payload.
- *  - flag ON (durable resume) → memory_v2_requested: true +
- *    memory_agent_config, but NEVER context_v2_history: canonical history for
- *    a resumed interaction already lives server-side.
+ *  - a recorded durable receipt is sealed and never emits a model payload,
+ *    regardless of the Memory V2 flag.
  *  - memory_agent_config carries exactly the normalized Memory Agent surface
  *    ({displayName, additionalInstructions, provider, modelId}) and never
  *    leaks any other settings namespace or extra stored field.
@@ -349,10 +346,10 @@ describe("Memory V2 P0 payload seams", () => {
     expect(payload.owner_chat_id).not.toBe(payload.threadId);
   });
 
-  // Drives one durable-resume run (recorded receipt → automatic resume) and
-  // returns the chat id plus the resume payload handed to startStreamV4.
+  // Rehydrates one recorded receipt and verifies the old attempt is sealed
+  // without handing any automatic-resume payload to a model stream.
   // Flag / settings seeding must happen BEFORE calling this.
-  const captureDurableResumePayload = async () => {
+  const captureDurableReceiptSeal = async () => {
     const chatId = getChatsStore().activeChatId;
     setChatMessages(
       chatId,
@@ -382,7 +379,7 @@ describe("Memory V2 P0 payload seams", () => {
       interact_type: "confirmation",
       interact_config: {},
     };
-    const pending = {
+    let authoritativePending = {
       status: "receipt_recorded",
       session_id: chatId,
       interaction_id: interactionId,
@@ -416,9 +413,17 @@ describe("Memory V2 P0 payload seams", () => {
     window.unchainAPI.getPendingInteraction = jest.fn(
       async ({ session_id: sessionId } = {}) =>
         sessionId === chatId
-          ? pending
+          ? authoritativePending
           : { status: "none", session_id: sessionId || "" },
     );
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => {
+      authoritativePending = { status: "none", session_id: chatId };
+      return {
+        status: "ok",
+        attempt_id: payload.attempt_id,
+        source_attempt_id: payload.source_attempt_id,
+      };
+    });
     window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
       const attemptId = `attempt-v4-${v4Runs.length + 1}`;
       v4Runs.push({ payload, handlers, attemptId });
@@ -432,30 +437,38 @@ describe("Memory V2 P0 payload seams", () => {
 
     renderChat();
     await waitFor(() => {
-      expect(
-        v4Runs.filter((run) => run.payload?.mode === "resume_interaction"),
-      ).toHaveLength(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
     });
 
-    const resumePayload = v4Runs.find(
-      (run) => run.payload?.mode === "resume_interaction",
-    ).payload;
-    return { chatId, interactionId, resumePayload };
+    return {
+      chatId,
+      interactionId,
+      cancellationPayload:
+        window.unchainAPI.cancelExecution.mock.calls[0][0],
+      v4Runs,
+    };
   };
 
-  test("flag off: durable resume carries owner_chat_id and no memory-v2 fields", async () => {
-    const { chatId, interactionId, resumePayload } =
-      await captureDurableResumePayload();
+  test("flag off: a durable receipt is sealed without a model payload", async () => {
+    const { chatId, interactionId, cancellationPayload, v4Runs } =
+      await captureDurableReceiptSeal();
 
-    expect(resumePayload.owner_chat_id).toBe(chatId);
-    expect(resumePayload.threadId).toBe(chatId);
-    expect(resumePayload.interaction_id).toBe(interactionId);
-    expect(deepHasKey(resumePayload, "memory_v2_requested")).toBe(false);
-    expect(deepHasKey(resumePayload, "context_v2_history")).toBe(false);
-    expect(deepHasKey(resumePayload, "memory_agent_config")).toBe(false);
+    expect(cancellationPayload).toEqual({
+      session_id: chatId,
+      attempt_id: `attempt-${interactionId}`,
+      source_attempt_id: `attempt-${interactionId}`,
+      reason: "interaction_suspended",
+      idempotency_key: `interaction-pause:attempt-${interactionId}:${interactionId}`,
+    });
+    expect(v4Runs).toHaveLength(0);
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    expect(deepHasKey(cancellationPayload, "memory_v2_requested")).toBe(false);
+    expect(deepHasKey(cancellationPayload, "context_v2_history")).toBe(false);
+    expect(deepHasKey(cancellationPayload, "memory_agent_config")).toBe(false);
   });
 
-  test("flag on: durable resume requests memory v2 with agent config but omits context_v2_history", async () => {
+  test("flag on: a durable receipt is still sealed without a model payload", async () => {
     setMemoryV2Flag(true);
     setMemoryAgentSettings({
       displayName: "Archivist",
@@ -466,27 +479,14 @@ describe("Memory V2 P0 payload seams", () => {
       apiKey: "sk-must-not-leak",
     });
 
-    const { chatId, interactionId, resumePayload } =
-      await captureDurableResumePayload();
+    const { cancellationPayload, v4Runs } =
+      await captureDurableReceiptSeal();
 
-    expect(resumePayload.owner_chat_id).toBe(chatId);
-    expect(resumePayload.interaction_id).toBe(interactionId);
-    expect(resumePayload.memory_v2_requested).toBe(true);
-    // exactly the normalized user-tunable surface — nothing else
-    expect(resumePayload.memory_agent_config).toEqual({
-      displayName: "Archivist",
-      additionalInstructions: "Keep entries terse.",
-      provider: "anthropic",
-      modelId: "claude-haiku-4-5",
-    });
-    expect(Object.keys(resumePayload.memory_agent_config).sort()).toEqual([
-      "additionalInstructions",
-      "displayName",
-      "modelId",
-      "provider",
-    ]);
-    expect(deepHasValue(resumePayload, "sk-must-not-leak")).toBe(false);
-    // canonical history for a resumed interaction already lives server-side
-    expect(deepHasKey(resumePayload, "context_v2_history")).toBe(false);
+    expect(v4Runs).toHaveLength(0);
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    expect(deepHasKey(cancellationPayload, "memory_v2_requested")).toBe(false);
+    expect(deepHasKey(cancellationPayload, "memory_agent_config")).toBe(false);
+    expect(deepHasKey(cancellationPayload, "context_v2_history")).toBe(false);
+    expect(deepHasValue(cancellationPayload, "sk-must-not-leak")).toBe(false);
   });
 });

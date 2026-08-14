@@ -44,6 +44,7 @@ describe("preload API contract", () => {
         "ollamaLibraryAPI",
         "osInfo",
         "runtime",
+        "runBundleStorageAPI",
         "screenshotAPI",
         "settingsStorageAPI",
         "themeAPI",
@@ -58,6 +59,14 @@ describe("preload API contract", () => {
     expect(exposed.osInfo).toEqual({
       platform: process.platform,
     });
+  });
+
+  test("run bundle storage API exposes only the keyed storage contract", () => {
+    expect(Object.keys(exposed.runBundleStorageAPI).sort()).toEqual([
+      "clear",
+      "query",
+      "upsert",
+    ]);
   });
 
   test("memory vault API exposes exactly the six control-plane methods", () => {

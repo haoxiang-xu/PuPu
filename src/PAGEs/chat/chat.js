@@ -799,7 +799,10 @@ const ChatInterface = () => {
   ]);
 
   const isSendDisabled =
-    stream.isDurableInteractionBlocked ||
+    (stream.isDurableInteractionBlocked &&
+      !["awaiting_response", "receipt_recorded"].includes(
+        stream.durableInteractionStatus,
+      )) ||
     stream.isTurnMutationBlocked ||
     stream.isSecretCapturePending ||
     (!unchainStatus.ready && !stream.isStreaming) ||

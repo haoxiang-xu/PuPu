@@ -31,6 +31,7 @@ import {
   MemoryV2ContextAudit,
 } from "./memory_v2_trace_audit";
 import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
+import { selectRunBundleUsage } from "../../SERVICEs/run_bundle_v1";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -585,20 +586,20 @@ const AccentPoint = ({ color }) => (
 
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
-const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }) => {
+const TokenSummary = ({ usage, isDark }) => {
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "\u2013";
   const color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)";
   const cacheColor = isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.2)";
-  const hasCacheRead = typeof cacheRead === "number" && cacheRead > 0;
-  const hasCacheCreation = typeof cacheCreation === "number" && cacheCreation > 0;
+  const hasCacheRead = typeof usage.cacheRead === "number" && usage.cacheRead > 0;
+  const hasCacheCreation =
+    typeof usage.cacheWrite === "number" && usage.cacheWrite > 0;
+  const hasReasoning =
+    typeof usage.reasoning === "number" && usage.reasoning > 0;
   const hasCache = hasCacheRead || hasCacheCreation;
-  const totalInput = (typeof input === "number" ? input : 0)
-    + (hasCacheRead ? cacheRead : 0)
-    + (hasCacheCreation ? cacheCreation : 0);
-  const displayInput = hasCache ? totalInput : input;
   return (
     <span
+      data-testid="token-summary"
       style={{
         fontSize: 10,
         fontFamily: "Menlo, Monaco, Consolas, monospace",
@@ -607,17 +608,23 @@ const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }
         letterSpacing: "0.01em",
       }}
     >
-      {fmt(displayInput)} in
+      {fmt(usage.input)} in
       {hasCache && (
         <span style={{ color: cacheColor }}>
           {" ("}
-          {hasCacheRead && <>{fmt(cacheRead)} cached</>}
+          {hasCacheRead && <>{fmt(usage.cacheRead)} cached</>}
           {hasCacheRead && hasCacheCreation && " + "}
-          {hasCacheCreation && <>{fmt(cacheCreation)} new</>}
+          {hasCacheCreation && <>{fmt(usage.cacheWrite)} cache write</>}
           {")"}
         </span>
       )}
-      {" "}&middot; {fmt(output)} out &middot; {fmt(total)} total
+      {" "}&middot; {fmt(usage.output)} out
+      {hasReasoning && (
+        <span style={{ color: cacheColor }}>
+          {" ("}{fmt(usage.reasoning)} reasoning{")"}
+        </span>
+      )}
+      {" "}&middot; {fmt(usage.total)} total
     </span>
   );
 };
@@ -635,6 +642,7 @@ const TraceChain = ({
   toolConfirmationUiStateById = {},
   onClarifyResolve,
   bundle,
+  completionDiagnostics,
   subagentFrames,
   subagentMetaByRunId,
   showContainerHeader = true,
@@ -1926,9 +1934,12 @@ const TraceChain = ({
 
     /* ── durable Memory V2 audit + token summary at the end ── */
     const memoryV2Audit = mergeMemoryV2AuditWithJournal(
-      presentMemoryV2Audit(bundle?.memory_v2, {
+      presentMemoryV2Audit(
+        completionDiagnostics?.memory_v2 || bundle?.memory_v2,
+        {
         runStatus: status,
-      }),
+        },
+      ),
       memoryV2JournalProjection?.ownerChatId === chatId
         ? memoryV2JournalProjection
         : null,
@@ -1989,22 +2000,17 @@ const TraceChain = ({
       }
     }
 
+    const tokenUsage = selectRunBundleUsage(bundle);
     if (
       status === "done" &&
-      bundle &&
-      typeof bundle === "object" &&
-      typeof bundle.consumed_tokens === "number" &&
-      bundle.consumed_tokens > 0
+      (tokenUsage.canonical === true ||
+        (typeof tokenUsage.total === "number" && tokenUsage.total > 0))
     ) {
       grouped.push({
         key: "__token_summary__",
         title: (
           <TokenSummary
-            input={bundle.input_tokens}
-            output={bundle.output_tokens}
-            total={bundle.consumed_tokens}
-            cacheRead={bundle.cache_read_input_tokens}
-            cacheCreation={bundle.cache_creation_input_tokens}
+            usage={tokenUsage}
             isDark={isDark}
           />
         ),
@@ -2038,6 +2044,7 @@ const TraceChain = ({
     theme,
     status,
     bundle,
+    completionDiagnostics,
     memoryV2JournalProjection,
     handleMemoryV2JournalProjection,
     compact,

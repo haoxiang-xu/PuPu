@@ -18,6 +18,11 @@ import {
 } from "./storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import {
+  clearRunBundles,
+  isRunBundleStorageAvailable,
+  queryRunBundleTokenUsage,
+} from "../../../SERVICEs/run_bundle_storage";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Constants                                                                                                                  */
@@ -163,6 +168,7 @@ const formatBucketLabel = (key, granularity) => {
 };
 
 const formatTokenCount = (n) => {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
@@ -218,6 +224,9 @@ const useTokenUsageData = ({
     let totalConsumedTokens = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let hasUnknownConsumedTokens = false;
+    let hasUnknownInputTokens = false;
+    let hasUnknownOutputTokens = false;
 
     for (const r of filtered) {
       const k = keyFn(r.timestamp);
@@ -226,31 +235,52 @@ const useTokenUsageData = ({
         input: 0,
         output: 0,
       };
-      bucket.consumed += r.consumed_tokens;
-      bucket.input += r.input_tokens || 0;
-      bucket.output += r.output_tokens || 0;
+      if (typeof r.consumed_tokens === "number") {
+        bucket.consumed += r.consumed_tokens;
+        totalConsumedTokens += r.consumed_tokens;
+      } else {
+        hasUnknownConsumedTokens = true;
+      }
+      if (typeof r.input_tokens === "number") {
+        bucket.input += r.input_tokens;
+        totalInputTokens += r.input_tokens;
+      } else {
+        hasUnknownInputTokens = true;
+      }
+      if (typeof r.output_tokens === "number") {
+        bucket.output += r.output_tokens;
+        totalOutputTokens += r.output_tokens;
+      } else {
+        hasUnknownOutputTokens = true;
+      }
       bucketMap.set(k, bucket);
-      totalConsumedTokens += r.consumed_tokens;
-      totalInputTokens += r.input_tokens || 0;
-      totalOutputTokens += r.output_tokens || 0;
     }
 
     // Sort buckets chronologically
     const sortedKeys = [...bucketMap.keys()].sort();
-    const chartData = sortedKeys.map((k) => ({
-      label: formatBucketLabel(k, granularity),
-      value: bucketMap.get(k)?.consumed || 0,
-    }));
-    const breakdownChartData = sortedKeys.map((k) => ({
-      label: formatBucketLabel(k, granularity),
-      input: bucketMap.get(k)?.input || 0,
-      output: bucketMap.get(k)?.output || 0,
-    }));
+    const chartData = hasUnknownConsumedTokens
+      ? []
+      : sortedKeys.map((k) => ({
+          label: formatBucketLabel(k, granularity),
+          value: bucketMap.get(k)?.consumed || 0,
+        }));
+    const breakdownChartData =
+      hasUnknownInputTokens || hasUnknownOutputTokens
+        ? []
+        : sortedKeys.map((k) => ({
+            label: formatBucketLabel(k, granularity),
+            input: bucketMap.get(k)?.input || 0,
+            output: bucketMap.get(k)?.output || 0,
+          }));
 
     // Stats
     const requestCount = filtered.length;
     const avgConsumedTokens =
-      requestCount > 0 ? Math.round(totalConsumedTokens / requestCount) : 0;
+      hasUnknownConsumedTokens
+        ? null
+        : requestCount > 0
+          ? Math.round(totalConsumedTokens / requestCount)
+          : 0;
 
     // Most used model
     const modelCounts = new Map();
@@ -269,9 +299,9 @@ const useTokenUsageData = ({
     return {
       chartData,
       breakdownChartData,
-      totalConsumedTokens,
-      totalInputTokens,
-      totalOutputTokens,
+      totalConsumedTokens: hasUnknownConsumedTokens ? null : totalConsumedTokens,
+      totalInputTokens: hasUnknownInputTokens ? null : totalInputTokens,
+      totalOutputTokens: hasUnknownOutputTokens ? null : totalOutputTokens,
       requestCount,
       avgConsumedTokens,
       topModel,
@@ -729,32 +759,38 @@ export const TokenUsageSettings = () => {
 
   // State. The initial sync read is the instant paint (full fidelity in
   // fallback mode; legacy snapshot + session appends in SQL mode).
-  const [records, setRecords] = useState(() => readTokenUsageRecords());
+  const runBundleBacked = isRunBundleStorageAvailable();
+  const [records, setRecords] = useState(() =>
+    runBundleBacked ? [] : readTokenUsageRecords(),
+  );
   const [provider, setProvider] = useState(ALL);
   const [model, setModel] = useState(ALL);
   const [range, setRange] = useState("30d");
   const [granularity, setGranularity] = useState("day");
 
-  // SQL mode (Electron, Phase 2+): the selected date range runs as a SQL
-  // query instead of pulling the ever-growing full record set into the
-  // renderer (plan §3.2). Fallback mode keeps the legacy sync path — the
-  // effect is a no-op there. Rows arrive oldest-first; past the 50k query
-  // cap the NEWEST rows are kept (see queryTokenUsage in ./storage.js), so
-  // a truncated "All" range under-counts ancient usage, never recent usage.
+  // Active RunBundle storage is authoritative. Legacy token_usage stays a
+  // read-only fallback only when the canonical bridge is unavailable.
   useEffect(() => {
-    if (!isTokenUsageSqlBacked()) return undefined;
+    const sqlBacked = runBundleBacked ? false : isTokenUsageSqlBacked();
+    if (!runBundleBacked && !sqlBacked) return undefined;
     let cancelled = false;
-    queryTokenUsage({ startMs: rangeToCutoff(range), endMs: Date.now() })
+    const query = { startMs: rangeToCutoff(range), endMs: Date.now() };
+    const pending = runBundleBacked
+      ? queryRunBundleTokenUsage(query)
+      : queryTokenUsage(query);
+    pending
       .then((rows) => {
         if (!cancelled) setRecords(Array.isArray(rows) ? rows : []);
       })
       .catch(() => {
-        if (!cancelled) setRecords(readTokenUsageRecords());
+        if (!cancelled) {
+          setRecords(runBundleBacked ? [] : readTokenUsageRecords());
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [range]);
+  }, [range, runBundleBacked]);
 
   // Translated versions of module-level constants
   const rangeOptions = useMemo(() => RANGE_OPTIONS.map(opt => ({
@@ -839,9 +875,13 @@ export const TokenUsageSettings = () => {
 
   // Clear data
   const handleClear = useCallback(() => {
-    clearTokenUsageRecords();
+    if (runBundleBacked) {
+      void clearRunBundles().catch(() => {});
+    } else {
+      clearTokenUsageRecords();
+    }
     setRecords([]);
-  }, []);
+  }, [runBundleBacked]);
 
   return (
     <div

@@ -16,6 +16,7 @@ if str(SERVER_ROOT) not in sys.path:
 
 import memory_factory  # noqa: E402
 import unchain_adapter as ua  # noqa: E402
+from unchain.run_bundle import RunBundleReducer, RunLifecycle  # noqa: E402
 
 
 def _admission(*, mode: str = "active") -> SimpleNamespace:
@@ -31,6 +32,11 @@ def _admission(*, mode: str = "active") -> SimpleNamespace:
         real_context_window_tokens=100_000,
         runtime=object(),
         handoff_messages=[],
+        diagnostics=lambda: {
+            "schema_version": "memory_v2.context.v1",
+            "requested_mode": mode,
+            "mode": mode,
+        },
     )
 
 
@@ -549,9 +555,19 @@ class MemoryV2DurabilityAdapterTests(unittest.TestCase):
                             "content": "done",
                         }
                     )
+                bundle = RunBundleReducer.reduce(
+                    identity=kwargs["_run_bundle_identity"],
+                    lifecycle=RunLifecycle(
+                        status="completed",
+                        started_at="2026-08-14T00:00:00.000000000Z",
+                        completed_at="2026-08-14T00:00:01.000000000Z",
+                    ),
+                    receipts=(),
+                )
                 return SimpleNamespace(
                     status="completed",
                     messages=[{"role": "assistant", "content": "done"}],
+                    run_bundle=bundle.to_dict(),
                 )
 
         history = [
@@ -571,6 +587,12 @@ class MemoryV2DurabilityAdapterTests(unittest.TestCase):
                 "memory_enabled": True,
             }
             with self.subTest(mode=mode), \
+                tempfile.TemporaryDirectory() as data_dir, \
+                mock.patch.dict(
+                    os.environ,
+                    {"UNCHAIN_DATA_DIR": data_dir},
+                    clear=False,
+                ), \
                 mock.patch.object(ua, "_UnchainAgent", object), \
                 mock.patch.object(
                     ua,

@@ -46,6 +46,7 @@ from unchain.context import (
     ContextCompileCoordinator,
     ContextExecutionBundle,
     ContextInputIngress,
+    ContextProviderTurnExecutionService,
     ContextRuntime,
     ContextTaskStateReadOutcome,
     DurableContextRuntimeFactory,
@@ -56,6 +57,9 @@ from unchain.context import (
     HostResolvedInteractionInput,
     JournalContextRequestFactory,
     ModelContextProjection,
+)
+from unchain.context.provider_execution import (
+    official_provider_transport_target_sha256,
 )
 from unchain.context.task_state_bootstrap import (
     PinnedTaskStateBootstrapBinding,
@@ -113,6 +117,7 @@ from unchain.persistence.sqlite_read_v2 import (
     SQLiteContextV2ReadService,
 )
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
+from unchain.providers.durable_turn_runtime import DurableProviderTurnMode
 from unchain.subagents.types import SubagentResult
 from unchain.tools.runtime import ToolRuntimeOutcome
 
@@ -690,17 +695,23 @@ class PupuUnchainContextMemoryV2HostFactory:
             current_input_resolver=current_input_resolver,
             projection_mode=self.projection_mode,
         )
+        provider_turns_enabled = (
+            self.production_enabled
+            and self.projection_mode is SemanticEventProjectionMode.CANONICAL
+        )
         context_runtime = (
             TaskStateContextRuntime.from_factory(
                 owner_id=_stable_id("pupu-context-v2", self.owner_chat_id),
                 execution_factory=execution_factory,
                 task_state_reader_resolver=self._resolve_task_state_reader,
+                provider_turns_enabled=provider_turns_enabled,
             )
             if self.production_enabled
             and self.projection_mode is SemanticEventProjectionMode.CANONICAL
             else ContextRuntime.from_factory(
                 owner_id=_stable_id("pupu-context-v2", self.owner_chat_id),
                 execution_factory=execution_factory,
+                provider_turns_enabled=provider_turns_enabled,
             )
         )
         self.context_module = ContextModule(
@@ -948,6 +959,19 @@ class PupuUnchainContextMemoryV2HostFactory:
             journal=journal,
             model_window_fallback=self._model_window_fallback,
         )
+        provider_turn_service = (
+            ContextProviderTurnExecutionService(
+                attempt=attempt,
+                store=journal,
+                mode=DurableProviderTurnMode.ENFORCE,
+                transport_target_sha256=(
+                    official_provider_transport_target_sha256()
+                ),
+            )
+            if self.production_enabled
+            and self.projection_mode is SemanticEventProjectionMode.CANONICAL
+            else None
+        )
         bundle = ContextExecutionBundle(
             attempt=attempt,
             journal=journal,
@@ -962,6 +986,7 @@ class PupuUnchainContextMemoryV2HostFactory:
                 sink=sink,
             ),
             request_factory=request_factory,
+            provider_turn_service=provider_turn_service,
             tool_boundary=DurableToolBoundary(
                 attempt=attempt,
                 projector=projector,

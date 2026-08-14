@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import json
 from types import SimpleNamespace
 from unittest import mock
 
@@ -20,7 +22,6 @@ from unchain.agent.modules.task_state_bootstrap import (
 )
 from unchain.agent import Agent, MemoryModule, PoliciesModule, ToolsModule
 from unchain.context import SemanticEventProjectionMode
-from unchain.kernel import ModelTurnResult
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
 from unchain.memory import (
@@ -29,6 +30,41 @@ from unchain.memory import (
     MEMORY_V2_MODULE_KEY,
 )
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
+from unchain.providers import OllamaModelIO
+
+
+class _OllamaResponse:
+    status_code = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def raise_for_status(self):
+        return None
+
+    def iter_lines(self):
+        yield json.dumps(
+            {
+                "message": {"content": "done"},
+                "done": True,
+                "prompt_eval_count": 2,
+                "eval_count": 1,
+            }
+        )
+
+    def read(self):
+        return b""
+
+
+def _exact_ollama_model_io(requests):
+    def stream_factory(method, url, **request_kwargs):
+        requests.append(copy.deepcopy(request_kwargs["json"]))
+        return _OllamaResponse()
+
+    return OllamaModelIO(model="test", stream_factory=stream_factory)
 
 
 def _admission(*, active: bool = True):
@@ -190,18 +226,7 @@ def test_active_context_module_compiles_provider_input_from_canonical_journal(
 ) -> None:
     bridge = _prepare(tmp_path, monkeypatch)
     requests = []
-
-    class FakeModelIO:
-        provider = "ollama"
-        model = "test"
-
-        def fetch_turn(self, request):
-            requests.append(request)
-            return ModelTurnResult(
-                assistant_messages=[{"role": "assistant", "content": "done"}],
-                tool_calls=[],
-                final_text="done",
-            )
+    model_io = _exact_ollama_model_io(requests)
 
     admission = SimpleNamespace(
         is_active=True,
@@ -235,7 +260,7 @@ def test_active_context_module_compiles_provider_input_from_canonical_journal(
             memory_manager=None,
             options={},
             enable_subagents=False,
-            model_io_factory=lambda spec, context: FakeModelIO(),
+            model_io_factory=lambda spec, context: model_io,
             context_memory_v2_modules=bridge.modules,
             official_context_v2_active=True,
         )
@@ -255,7 +280,7 @@ def test_active_context_module_compiles_provider_input_from_canonical_journal(
 
     assert result.status == "completed"
     assert len(requests) == 1
-    provider_messages = requests[0].messages
+    provider_messages = requests[0]["messages"]
     assert "current objective" in str(provider_messages)
     assert "stale inline duplicate" not in str(provider_messages)
     attempt = bridge.attempt_for_run("root-active")
@@ -297,18 +322,7 @@ def test_active_provider_receives_exact_handle_but_never_plaintext(
         partial_attempt_sink=lambda value, error: None,
     )
     requests = []
-
-    class FakeModelIO:
-        provider = "ollama"
-        model = "test"
-
-        def fetch_turn(self, request):
-            requests.append(request)
-            return ModelTurnResult(
-                assistant_messages=[{"role": "assistant", "content": "done"}],
-                tool_calls=[],
-                final_text="done",
-            )
+    model_io = _exact_ollama_model_io(requests)
 
     admission = SimpleNamespace(
         is_active=True,
@@ -342,7 +356,7 @@ def test_active_provider_receives_exact_handle_but_never_plaintext(
             memory_manager=None,
             options={},
             enable_subagents=False,
-            model_io_factory=lambda spec, context: FakeModelIO(),
+            model_io_factory=lambda spec, context: model_io,
             context_memory_v2_modules=bridge.modules,
             official_context_v2_active=True,
         )
@@ -362,7 +376,7 @@ def test_active_provider_receives_exact_handle_but_never_plaintext(
 
     assert result.status == "completed"
     assert len(requests) == 1
-    provider_messages = str(requests[0].messages)
+    provider_messages = str(requests[0]["messages"])
     assert marker in provider_messages
     assert handle in provider_messages
     assert raw_handle not in provider_messages

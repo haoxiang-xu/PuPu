@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,7 @@ from unchain.memory import (
     MEMORY_V2_CAPABILITIES,
     MEMORY_V2_MODULE_KEY,
 )
+from unchain.providers import OpenAIModelIO
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 from unchain.subagents import SubagentTemplate
 
@@ -53,18 +55,87 @@ def _root_runtime_context() -> AgentRuntimeContext:
     )
 
 
-class _SequenceModelIO:
-    provider = "openai"
-    model = "gpt-test"
+class _OpenAIStream:
+    def __init__(self, response):
+        self._response = response
 
-    def __init__(self, steps):
-        self._steps = list(steps)
+    def __enter__(self):
+        return self
 
-    def fetch_turn(self, request):
-        if not self._steps:
-            raise AssertionError("unexpected model turn")
-        step = self._steps.pop(0)
-        return step(request) if callable(step) else step
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def __iter__(self):
+        yield SimpleNamespace(
+            type="response.completed",
+            response=self._response,
+        )
+
+
+def _sequence_model_io(steps) -> OpenAIModelIO:
+    remaining_steps = list(steps)
+    response_index = 0
+
+    class Responses:
+        def create(self, **kwargs):
+            nonlocal response_index
+            if not remaining_steps:
+                raise AssertionError("unexpected model turn")
+            step = remaining_steps.pop(0)
+            request = SimpleNamespace(
+                messages=copy.deepcopy(kwargs.get("input") or [])
+            )
+            turn = step(request) if callable(step) else step
+            response_index += 1
+
+            output = []
+            for tool_call in turn.tool_calls:
+                arguments = tool_call.arguments
+                if not isinstance(arguments, str):
+                    arguments = json.dumps(arguments)
+                output.append(
+                    {
+                        "type": "function_call",
+                        "call_id": tool_call.call_id,
+                        "name": tool_call.name,
+                        "arguments": arguments,
+                    }
+                )
+            if not output:
+                output.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": turn.final_text,
+                            }
+                        ],
+                    }
+                )
+            return _OpenAIStream(
+                SimpleNamespace(
+                    id=turn.response_id or f"offline-response-{response_index}",
+                    output=output,
+                    usage={
+                        "input_tokens": 1,
+                        "output_tokens": 1,
+                        "total_tokens": 2,
+                    },
+                )
+            )
+
+    class Client:
+        responses = Responses()
+
+    return OpenAIModelIO(
+        model="gpt-test",
+        api_key="test-key",
+        client_factory=lambda **_kwargs: Client(),
+        default_payloads={},
+        model_capabilities={},
+    )
 
 
 def _tool_turn(*, call_id: str, name: str, arguments: dict) -> ModelTurnResult:
@@ -235,7 +306,7 @@ def test_recipe_ref_child_graph_keeps_explicit_lineage_in_one_shadow_journal(
             provider=kwargs["provider"],
             model=kwargs["model"],
             modules=tuple(kwargs.get("context_memory_v2_modules") or ()),
-            model_io_factory=lambda spec, context: _SequenceModelIO(
+            model_io_factory=lambda spec, context: _sequence_model_io(
                 [_text_turn(instructions)]
             ),
         )
@@ -322,7 +393,7 @@ def test_recipe_ref_child_graph_keeps_explicit_lineage_in_one_shadow_journal(
                 *root_bridge.modules,
                 SubagentModule(templates=templates),
             ),
-            model_io_factory=lambda spec, context: _SequenceModelIO(
+            model_io_factory=lambda spec, context: _sequence_model_io(
                 [
                     _tool_turn(
                         call_id="delegate-explore",

@@ -3,7 +3,8 @@ import { api } from "../../../SERVICEs/api";
 import { toast } from "../../../SERVICEs/toast";
 import { expandCommands, extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
-import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
+import { admitDoneRunAccountingV1 } from "../../../SERVICEs/run_bundle_storage";
+import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
 import { createLogger } from "../../../SERVICEs/console_logger";
 import { createThinkTagParser } from "../think_tag_parser";
 import {
@@ -137,6 +138,7 @@ import { getChatsStore } from "../../../SERVICEs/chat_storage";
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 const STREAM_REATTACH_FLUSH_MS = 100;
 const CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS = 40_000;
+const ADMITTED_RUN_ACCOUNTING_ERROR = Symbol("admitted_run_accounting_error");
 
 /* Process-local ownership complements the durable localStorage outbox. It
    survives Chat page remounts, so an old async finally cannot unlock a newer
@@ -459,6 +461,10 @@ const SUBAGENT_STATE_FLUSH_MS = 100;
 const DURABLE_RESUME_MAX_RETRIES = 7;
 const EXECUTION_CANCEL_DISCONNECT_GRACE_MS = 1500;
 const EXECUTION_CANCEL_OUTBOX_RETRY_MS = 5000;
+const DURABLE_FRESH_SEND_SEAL_STATUSES = Object.freeze([
+  "awaiting_response",
+  "receipt_recorded",
+]);
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
 const EMPTY_CONFIRMATION_STATE = Object.freeze({});
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
@@ -480,6 +486,9 @@ const LEGACY_PLAN_RESULT_KEYS = [
 
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+
+const canSealDurableInteractionForFreshSend = (status) =>
+  DURABLE_FRESH_SEND_SEAL_STATUSES.includes(status);
 
 const isAuthoritativeQueueAcceptanceEvent = (event) => {
   if (QUEUE_RELAY_AUTHORITATIVE_ACCEPTANCE_EVENTS.includes(event?.type)) {
@@ -4161,6 +4170,7 @@ export const useChatStream = ({
       relayItems = [],
       relaySourceAttemptId = "",
       relaySourceClientOperationId = "",
+      continuedFromRunId = "",
     }) => {
       /* Queue-relay acceptance protocol (see relayQueuedTurnsAfterRun):
          onConsumed fires exactly once, and only on authoritative server
@@ -4175,6 +4185,7 @@ export const useChatStream = ({
       let queueRelayAcceptanceTimer = null;
       let queueRelayAcceptanceReattachCount = 0;
       let streamHandle = null;
+      let terminalAccountingPending = false;
       const clearQueueRelayAcceptanceTimer = () => {
         if (queueRelayAcceptanceTimer == null) return;
         const timerId = queueRelayAcceptanceTimer;
@@ -5550,6 +5561,68 @@ export const useChatStream = ({
       };
 
       const startChatStream = (payload, handlers = {}) => {
+        const forwardTerminalDoneError = (
+          done,
+          doneError,
+          { onAccountingSettled } = {},
+        ) => {
+          const terminalError = {
+            code:
+              typeof doneError?.code === "string"
+                ? doneError.code
+                : "stream_failed",
+            message:
+              typeof doneError?.message === "string"
+                ? doneError.message
+                : "The stream failed.",
+          };
+          const hasCanonicalBundle =
+            done?.bundle?.schema === RUN_BUNDLE_V1_SCHEMA;
+          if (!hasCanonicalBundle) {
+            handlers.onError?.(terminalError);
+            return false;
+          }
+
+          const forwardAdmittedError = ({
+            bundle,
+            completionDiagnostics,
+          }) => {
+            onAccountingSettled?.();
+            if (!isCurrentRun()) return;
+            handlers.onError?.({
+              ...terminalError,
+              [ADMITTED_RUN_ACCOUNTING_ERROR]: true,
+              bundle,
+              ...(completionDiagnostics
+                ? { completion_diagnostics: completionDiagnostics }
+                : {}),
+            });
+          };
+          const failAccounting = () => {
+            onAccountingSettled?.();
+            if (!isCurrentRun()) return;
+            handlers.onError?.({
+              code: "run_bundle_accounting_failed",
+              message:
+                "The failed run could not be admitted to the Run Bundle ledger.",
+            });
+          };
+
+          try {
+            const admission = admitDoneRunAccountingV1(done);
+            if (admission && typeof admission.then === "function") {
+              void admission
+                .then(forwardAdmittedError)
+                .catch(failAccounting);
+              return true;
+            }
+            forwardAdmittedError(admission);
+          } catch (_error) {
+            failAccounting();
+          }
+          return false;
+        };
+
         const startRuntimeEventStream = ({
           createStore,
           reduceTree,
@@ -5570,6 +5643,9 @@ export const useChatStream = ({
         );
         const processedRuntimeEventEffectKeys = new Set();
         let runtimeEventStreamFailed = false;
+        let pendingRuntimeEventError = null;
+        let terminalDoneReceived = false;
+        let terminalDoneAccountingPending = false;
         const runtimeEventEffectKey = (effect) => {
           const eventId =
             typeof effect?.eventId === "string" && effect.eventId.trim()
@@ -5690,7 +5766,7 @@ export const useChatStream = ({
             }
             if (effect.type === "error") {
               runtimeEventStreamFailed = true;
-              handlers.onError?.(effect.error);
+              pendingRuntimeEventError = effect.error;
             }
             if (
               effect.type === "artifact_summary" ||
@@ -5738,30 +5814,36 @@ export const useChatStream = ({
             dispatchRuntimeEventEffects(effects);
           },
           onDone: (done) => {
-            if (!isCurrentRun()) {
+            if (!isCurrentRun() || terminalDoneReceived) {
               runtimeEventBatcher?.cancel();
               return;
             }
+            terminalDoneReceived = true;
             runtimeEventBatcher?.flushNow();
-            if (runtimeEventStreamFailed) {
-              return;
-            }
             const doneError =
               done?.error && typeof done.error === "object"
                 ? done.error
                 : null;
             if (doneError) {
               runtimeEventStreamFailed = true;
-              handlers.onError?.({
-                code:
-                  typeof doneError.code === "string"
-                    ? doneError.code
-                    : "stream_failed",
-                message:
-                  typeof doneError.message === "string"
-                    ? doneError.message
-                    : "The stream failed.",
-              });
+              terminalDoneAccountingPending = forwardTerminalDoneError(
+                done,
+                doneError,
+                {
+                  onAccountingSettled: () => {
+                    terminalDoneAccountingPending = false;
+                  },
+                },
+              );
+              return;
+            }
+            if (runtimeEventStreamFailed) {
+              handlers.onError?.(
+                pendingRuntimeEventError || {
+                  code: "stream_failed",
+                  message: "The stream failed.",
+                },
+              );
               return;
             }
             const traceProps = adaptTree(runtimeEventActivityTree);
@@ -5772,14 +5854,18 @@ export const useChatStream = ({
             handlers.onDone?.(donePayload);
           },
           onError: (error) => {
-            if (!isCurrentRun()) {
+            if (
+              !isCurrentRun() ||
+              terminalDoneReceived ||
+              terminalDoneAccountingPending
+            ) {
               runtimeEventBatcher?.cancel();
               return;
             }
             clearQueueRelayAcceptanceTimer();
             runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
-            handlers.onError?.(error);
+            handlers.onError?.(error || pendingRuntimeEventError);
           },
         };
         const wrapRuntimeEventStreamHandle = (rawHandle) => {
@@ -5880,16 +5966,7 @@ export const useChatStream = ({
                 ? done.error
                 : null;
             if (doneError) {
-              handlers.onError?.({
-                code:
-                  typeof doneError.code === "string"
-                    ? doneError.code
-                    : "stream_failed",
-                message:
-                  typeof doneError.message === "string"
-                    ? doneError.message
-                    : "The stream failed.",
-              });
+              forwardTerminalDoneError(done, doneError);
               return;
             }
             handlers.onDone?.(done);
@@ -6499,6 +6576,9 @@ export const useChatStream = ({
           : {
               threadId: effectiveThreadId,
               owner_chat_id: targetChatId,
+              ...(continuedFromRunId
+                ? { continued_from_run_id: continuedFromRunId }
+                : {}),
               ...memoryV2CommonFields,
               ...(memoryV2Requested
                 ? {
@@ -6560,9 +6640,7 @@ export const useChatStream = ({
            — the server may still reject (e.g. execution_lease_conflict) before
            accepting. onConsumed fires only on the authoritative acceptance
            evidence handled inside these callbacks. */
-        streamHandle = startChatStream(
-          streamPayload,
-          {
+        const streamCallbacks = {
             onFrame: (frame) => {
               if (!isCurrentRun()) {
                 return;
@@ -7517,13 +7595,22 @@ export const useChatStream = ({
               thinkTagParser.feed(delta);
             },
             onDone: (done) => {
-              if (!isCurrentRun()) {
+              if (!isCurrentRun() || terminalAccountingPending) {
                 return;
               }
+              terminalAccountingPending = true;
               /* Successful done is authoritative acceptance evidence too — a
                  very fast run may finish before any token/lifecycle frame was
                  observed. Consume the relayed turn here as a done fallback. */
               markRequestConsumed();
+              const finishAdmittedDone = ({
+                bundle,
+                completionDiagnostics,
+              }) => {
+              terminalAccountingPending = false;
+              if (!isCurrentRun()) {
+                return;
+              }
               updatePendingContinuationRequestForChat(targetChatId, null);
               /* Sync closure with external updates before building final messages. */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
@@ -7535,13 +7622,17 @@ export const useChatStream = ({
               flushBufferedTokenDelta();
               flushStreamingMessageStore(targetChatId, assistantMessageId);
               const doneTime = Date.now();
-              const bundle =
-                done?.bundle && typeof done.bundle === "object"
-                  ? { ...done.bundle }
-                  : undefined;
+              const rawAgentOrchestration =
+                bundle?.descriptor?.agent_orchestration ||
+                bundle?.agent_orchestration ||
+                null;
               const nextAgentOrchestration =
-                bundle && bundle.agent_orchestration
-                  ? normalizeAgentOrchestration(bundle.agent_orchestration)
+                rawAgentOrchestration
+                  ? normalizeAgentOrchestration(
+                      typeof rawAgentOrchestration === "string"
+                        ? { mode: rawAgentOrchestration }
+                        : rawAgentOrchestration,
+                    )
                   : null;
 
               const materializedStreamMessages = materializeStreamingMessages(
@@ -7562,6 +7653,9 @@ export const useChatStream = ({
                   meta: {
                     ...(message.meta || {}),
                     ...(bundle ? { bundle } : {}),
+                    ...(completionDiagnostics
+                      ? { completion_diagnostics: completionDiagnostics }
+                      : {}),
                   },
                 });
               });
@@ -7620,41 +7714,6 @@ export const useChatStream = ({
                 ) {
                   setAgentOrchestration(nextAgentOrchestration);
                 }
-              }
-
-              if (bundle && typeof bundle.consumed_tokens === "number") {
-                const modelId =
-                  typeof bundle.model === "string" && bundle.model.trim()
-                    ? bundle.model.trim()
-                    : runModelId || "";
-                const colonIndex = modelId.indexOf(":");
-                const provider =
-                  colonIndex > 0 ? modelId.slice(0, colonIndex) : "unknown";
-                const model =
-                  colonIndex > 0
-                    ? modelId.slice(colonIndex + 1)
-                    : modelId || "unknown";
-                appendTokenUsageRecord({
-                  timestamp: doneTime,
-                  provider,
-                  model,
-                  model_id: modelId || "unknown",
-                  consumed_tokens: bundle.consumed_tokens,
-                  ...(typeof bundle.input_tokens === "number"
-                    ? { input_tokens: bundle.input_tokens }
-                    : {}),
-                  ...(typeof bundle.output_tokens === "number"
-                    ? { output_tokens: bundle.output_tokens }
-                    : {}),
-                  ...(typeof bundle.cache_read_input_tokens === "number"
-                    ? { cache_read_input_tokens: bundle.cache_read_input_tokens }
-                    : {}),
-                  ...(typeof bundle.cache_creation_input_tokens === "number"
-                    ? { cache_creation_input_tokens: bundle.cache_creation_input_tokens }
-                    : {}),
-                  max_context_window_tokens: bundle.max_context_window_tokens,
-                  chatId: targetChatId,
-                });
               }
 
               // Persist the final messages now. Foreground writes synchronously
@@ -7737,6 +7796,27 @@ export const useChatStream = ({
               } else {
                 relayQueuedTurnsAfterRunRef.current?.(terminalRelayContext);
               }
+              };
+              const failDoneAccounting = (error) => {
+                terminalAccountingPending = false;
+                if (!isCurrentRun()) return;
+                streamCallbacks.onError({
+                  code: error?.code || "run_bundle_accounting_failed",
+                  message:
+                    error?.message ||
+                    "The completed run could not be admitted to the Run Bundle ledger.",
+                });
+              };
+              try {
+                const admission = admitDoneRunAccountingV1(done);
+                if (admission && typeof admission.then === "function") {
+                  void admission.then(finishAdmittedDone).catch(failDoneAccounting);
+                } else {
+                  finishAdmittedDone(admission);
+                }
+              } catch (error) {
+                failDoneAccounting(error);
+              }
             },
             onError: (error) => {
               if (!isCurrentRun()) {
@@ -7758,11 +7838,34 @@ export const useChatStream = ({
               }
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
+              const hasAdmittedRunAccounting =
+                error?.[ADMITTED_RUN_ACCOUNTING_ERROR] === true;
+              const admittedBundle =
+                hasAdmittedRunAccounting &&
+                error.bundle &&
+                typeof error.bundle === "object"
+                  ? error.bundle
+                  : null;
+              const admittedCompletionDiagnostics =
+                hasAdmittedRunAccounting &&
+                error.completion_diagnostics &&
+                typeof error.completion_diagnostics === "object"
+                  ? error.completion_diagnostics
+                  : null;
+              const admittedAccountingMeta = {
+                ...(admittedBundle ? { bundle: admittedBundle } : {}),
+                ...(admittedCompletionDiagnostics
+                  ? {
+                      completion_diagnostics:
+                        admittedCompletionDiagnostics,
+                    }
+                  : {}),
+              };
               const wasCancelled =
                 errorCode === "cancelled" || error?.cancelled === true;
               const errorTime = Date.now();
 
-              if (isDurableResume) {
+              if (isDurableResume && !hasAdmittedRunAccounting) {
                 const retrySourceMessages = materializeStreamingMessages(
                   targetChatId,
                   streamMessages,
@@ -7788,6 +7891,7 @@ export const useChatStream = ({
               }
 
               if (
+                !hasAdmittedRunAccounting &&
                 !isDurableResume &&
                 errorCode === "memory_unavailable" &&
                 memoryFallbackAttempted !== true
@@ -7863,6 +7967,7 @@ export const useChatStream = ({
                   relayItems,
                   relaySourceAttemptId,
                   relaySourceClientOperationId,
+                  continuedFromRunId,
                 });
                 return;
               }
@@ -7877,6 +7982,7 @@ export const useChatStream = ({
                  normal user send (no onReject) never reaches here. A user cancel
                  is excluded (wasCancelled) so Stop never resurrects the turn. */
               if (
+                !hasAdmittedRunAccounting &&
                 !requestConsumed &&
                 !wasCancelled &&
                 errorCode === "execution_lease_conflict" &&
@@ -7936,6 +8042,10 @@ export const useChatStream = ({
                       typeof message.content === "string"
                         ? message.content
                         : "",
+                    meta: {
+                      ...(message.meta || {}),
+                      ...admittedAccountingMeta,
+                    },
                   });
                 }
 
@@ -7960,6 +8070,7 @@ export const useChatStream = ({
                     : message.traceFrames,
                   meta: {
                     ...(message.meta || {}),
+                    ...admittedAccountingMeta,
                     error: {
                       code: errorCode,
                       message: errorMessage,
@@ -8056,8 +8167,8 @@ export const useChatStream = ({
                 syncInterjectStateForChat(targetChatId);
               }
             },
-          },
-        );
+          };
+        streamHandle = startChatStream(streamPayload, streamCallbacks);
       } catch (error) {
         if (!isCurrentRun()) {
           return false;
@@ -8891,6 +9002,22 @@ export const useChatStream = ({
         };
         updateDurableInteractionForChat(normalizedChatId, pendingWithOwner);
 
+        /* A live stream may still consume the receipt in-process.  Do not
+           disturb that path: live_continues, provider retries, and transport
+           recovery keep their existing ownership.  Once the run is no longer
+           live, however, a durable interaction is a suspension boundary, not
+           an invitation to replay mode=resume_interaction. */
+        if (
+          streamingChatIdsRef.current.has(normalizedChatId) ||
+          runPreflightGenerationByChatIdRef.current.has(normalizedChatId) ||
+          turnMutationByChatIdRef.current.has(normalizedChatId)
+        ) {
+          return pendingWithOwner;
+        }
+
+        /* An unanswered interaction remains actionable after reload. Keep the
+           exact paused tool UI and durable ownership intact; lookup is
+           observational here and must neither resume nor cancel it. */
         if (pending.status !== "receipt_recorded") {
           return pendingWithOwner;
         }
@@ -8912,80 +9039,123 @@ export const useChatStream = ({
           userResponse: recoveredUserResponse,
         });
 
-        if (!pending.resumeAvailable) {
-          const unavailableMessage = pending.resumeUnavailableReason
-            ? `This interrupted run cannot be resumed (${pending.resumeUnavailableReason}).`
-            : "This interrupted run cannot be resumed.";
-          updateDurableInteractionForChat(normalizedChatId, {
-            ...pendingWithOwner,
-            status: "resume_failed",
-            lastError: unavailableMessage,
-          });
-          if (activeChatIdRef.current === normalizedChatId) {
-            setStreamError(unavailableMessage);
-          }
-          return pendingWithOwner;
+        if (!pendingAttemptId) {
+          const error = new Error(
+            "The suspended interaction has no exact source attempt identity.",
+          );
+          error.code = "durable_interaction_cancel_identity_missing";
+          throw error;
         }
 
-        if (
-          !autoResume ||
-          streamingChatIdsRef.current.has(normalizedChatId) ||
-          runPreflightGenerationByChatIdRef.current.has(normalizedChatId) ||
-          turnMutationByChatIdRef.current.has(normalizedChatId)
-        ) {
-          return pendingWithOwner;
-        }
-
-        const resumeKey = [
-          pending.sessionId,
-          pending.interactionId,
-          pending.receiptId || "",
-        ].join(":");
-        if (durableResumeStartedKeysRef.current.has(resumeKey)) {
-          return pendingWithOwner;
-        }
-        trackDurableResumeStartedKey(normalizedChatId, resumeKey);
+        const cancellationReason = "interaction_suspended";
+        const queuedCancellation = enqueueExecutionCancel({
+          sessionId: pending.sessionId,
+          attemptId: pendingAttemptId,
+          sourceAttemptId: pending.sourceRunId || "",
+          reason: cancellationReason,
+          createdAt: Date.now(),
+        });
         updateDurableInteractionForChat(normalizedChatId, {
           ...pendingWithOwner,
-          status: "resuming",
-          resumeAttempt: 0,
+          status: "checking",
           lastError: "",
         });
 
-        const resumeMessages =
-          activeChatIdRef.current === normalizedChatId &&
-          Array.isArray(messagesRef.current)
-            ? messagesRef.current
-            : typeof storageApi.getChatMessages === "function"
-              ? storageApi.getChatMessages(normalizedChatId)
-              : ensured.messages;
-        const resumeStarted = await runTurnRequest({
-          mode: "resume_interaction",
-          chatId: normalizedChatId,
-          text: "",
-          attachments: [],
-          baseMessages: resumeMessages,
-          clearComposer: false,
-          durableInteraction: pendingWithOwner,
-          durableResumeAttempt: 0,
-          durableOwnerMessageId: ensured.ownerMessageId,
-          runGeneration: activeRunGeneration,
-        });
-        if (!resumeStarted && isCurrentLookup()) {
-          clearDurableResumeStartedKeysForChat(normalizedChatId);
+        const cancellationResult =
+          await requestExecutionCancellationAndDisconnect({
+            identity: queuedCancellation,
+            handle: null,
+            reason: cancellationReason,
+            idempotencyKey: `interaction-pause:${
+              pending.sourceRunId || pendingAttemptId
+            }:${pending.interactionId}`,
+          });
+        if (!isCurrentLookup()) {
+          return null;
+        }
+        if (!cancellationResult?.ok) {
           const error = new Error(
-            "Durable recovery was deferred while another chat operation was starting.",
+            "Failed to seal the suspended interaction on the server.",
           );
-          error.code = "durable_resume_deferred";
+          error.code = "durable_interaction_cancel_failed";
           throw error;
         }
-        return pendingWithOwner;
+
+        const cancellationResponse = cancellationResult.response;
+        const responseAttemptId =
+          typeof cancellationResponse?.attempt_id === "string"
+            ? cancellationResponse.attempt_id.trim()
+            : "";
+        const responseSourceAttemptId =
+          typeof cancellationResponse?.source_attempt_id === "string"
+            ? cancellationResponse.source_attempt_id.trim()
+            : "";
+        if (
+          (responseAttemptId && responseAttemptId !== pendingAttemptId) ||
+          (responseSourceAttemptId &&
+            responseSourceAttemptId !==
+              (pending.sourceRunId || pendingAttemptId))
+        ) {
+          const error = new Error(
+            "Unchain acknowledged cancellation for a different interaction attempt.",
+          );
+          error.code = "durable_interaction_cancel_identity_mismatch";
+          throw error;
+        }
+
+        /* The cancel response is not enough to unlock the composer.  Read the
+           durable journal again and require the strict `none` projection, so
+           a timeout, stale response, or split write cannot become a frontend-
+           only clear that later resurrects on reload. */
+        const rawAfterCancellation = await api.unchain.getPendingInteraction({
+          session_id: normalizedSessionId,
+        });
+        const pendingAfterCancellation = normalizePendingInteraction(
+          rawAfterCancellation,
+          normalizedSessionId,
+        );
+        if (!isCurrentLookup()) {
+          return null;
+        }
+        if (!pendingAfterCancellation) {
+          const error = new Error(
+            "Unchain returned an invalid durable interaction record after cancellation.",
+          );
+          error.code = "invalid_durable_interaction_record";
+          throw error;
+        }
+        if (pendingAfterCancellation.status !== "none") {
+          const error = new Error(
+            "The suspended interaction is still pending after cancellation.",
+          );
+          error.code = "durable_interaction_cancel_not_observed";
+          throw error;
+        }
+
+        if (queuedCancellation) {
+          removeExecutionCancel(
+            queuedCancellation.sessionId,
+            queuedCancellation.attemptId,
+          );
+        }
+        const retryTimer = durableResumeRetryTimersRef.current.get(
+          normalizedChatId,
+        );
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+          durableResumeRetryTimersRef.current.delete(normalizedChatId);
+        }
+        clearDurableResumeStartedKeysForChat(normalizedChatId);
+        clearAllPendingToolConfirmations(normalizedChatId);
+        executionIdentityByChatIdRef.current.delete(normalizedChatId);
+        updateDurableInteractionForChat(normalizedChatId, null);
+        return pendingAfterCancellation;
       } catch (error) {
         if (!isCurrentLookup()) {
           return null;
         }
         const errorMessage =
-          error?.message || "Failed to inspect this chat for interrupted work.";
+          error?.message || "Failed to seal this chat's suspended run.";
         if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
           const nextAttempt = lookupAttempt + 1;
           updateDurableInteractionForChat(normalizedChatId, {
@@ -9062,6 +9232,177 @@ export const useChatStream = ({
     );
   }
 
+  const sealDurableInteractionForFreshSend = useCallback(
+    async (targetChatId, expectedPending) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      const expectedStatus =
+        typeof expectedPending?.status === "string"
+          ? expectedPending.status.trim()
+          : "";
+      const sessionId =
+        typeof expectedPending?.sessionId === "string"
+          ? expectedPending.sessionId.trim()
+          : "";
+      const interactionId =
+        typeof expectedPending?.interactionId === "string"
+          ? expectedPending.interactionId.trim()
+          : "";
+      const sourceAttemptId =
+        typeof expectedPending?.sourceRunId === "string"
+          ? expectedPending.sourceRunId.trim()
+          : "";
+      const activeAttemptId =
+        typeof expectedPending?.activeAttemptId === "string"
+          ? expectedPending.activeAttemptId.trim()
+          : "";
+      const attemptId = activeAttemptId || sourceAttemptId;
+      const isExpectedOwner = (candidate) =>
+        Boolean(
+          candidate &&
+            candidate.interactionId === interactionId &&
+            candidate.sessionId === sessionId &&
+            (candidate.activeAttemptId || candidate.sourceRunId || "") ===
+              attemptId,
+        );
+      const failClosed = (message) => {
+        const current =
+          durableInteractionByChatIdRef.current[normalizedChatId] || null;
+        if (isExpectedOwner(current)) {
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...expectedPending,
+            status: expectedStatus,
+            lastError: message,
+          });
+        }
+        setStreamErrorForChat(normalizedChatId, message);
+        return null;
+      };
+
+      if (
+        !normalizedChatId ||
+        !sessionId ||
+        !interactionId ||
+        !attemptId ||
+        !canSealDurableInteractionForFreshSend(expectedStatus) ||
+        !isExpectedOwner(
+          durableInteractionByChatIdRef.current[normalizedChatId],
+        )
+      ) {
+        return failClosed(
+          "The paused interaction no longer has an exact server owner. Your message was not sent.",
+        );
+      }
+
+      const cancellationReason = "interaction_abandoned_for_new_message";
+      const queuedCancellation = enqueueExecutionCancel({
+        sessionId,
+        attemptId,
+        sourceAttemptId,
+        reason: cancellationReason,
+        createdAt: Date.now(),
+      });
+      updateDurableInteractionForChat(normalizedChatId, {
+        ...expectedPending,
+        status: "checking",
+        lastError: "",
+      });
+
+      try {
+        const cancellationResult =
+          await requestExecutionCancellationAndDisconnect({
+            identity: queuedCancellation,
+            handle: null,
+            reason: cancellationReason,
+            idempotencyKey: `fresh-send-abandon:${
+              sourceAttemptId || attemptId
+            }:${interactionId}`,
+          });
+        if (!cancellationResult?.ok) {
+          return failClosed(
+            "Could not cancel the paused run on the server. Your message was not sent.",
+          );
+        }
+
+        const cancellationResponse = cancellationResult.response;
+        const responseAttemptId =
+          typeof cancellationResponse?.attempt_id === "string"
+            ? cancellationResponse.attempt_id.trim()
+            : "";
+        const responseSourceAttemptId =
+          typeof cancellationResponse?.source_attempt_id === "string"
+            ? cancellationResponse.source_attempt_id.trim()
+            : "";
+        if (
+          (responseAttemptId && responseAttemptId !== attemptId) ||
+          (responseSourceAttemptId &&
+            responseSourceAttemptId !== (sourceAttemptId || attemptId))
+        ) {
+          return failClosed(
+            "The server cancelled a different run. Your message was not sent.",
+          );
+        }
+
+        const rawPending = await api.unchain.getPendingInteraction({
+          session_id: sessionId,
+        });
+        const authoritativePending = normalizePendingInteraction(
+          rawPending,
+          sessionId,
+        );
+        if (!authoritativePending) {
+          return failClosed(
+            "Could not verify the paused run was cancelled. Your message was not sent.",
+          );
+        }
+        if (authoritativePending.status !== "none") {
+          return failClosed(
+            "The paused run is still pending on the server. Your message was not sent.",
+          );
+        }
+
+        const current =
+          durableInteractionByChatIdRef.current[normalizedChatId] || null;
+        if (current && !isExpectedOwner(current)) {
+          return failClosed(
+            "A newer paused interaction appeared. Your message was not sent.",
+          );
+        }
+        if (queuedCancellation) {
+          removeExecutionCancel(
+            queuedCancellation.sessionId,
+            queuedCancellation.attemptId,
+          );
+        }
+        const retryTimer = durableResumeRetryTimersRef.current.get(
+          normalizedChatId,
+        );
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+          durableResumeRetryTimersRef.current.delete(normalizedChatId);
+        }
+        clearDurableResumeStartedKeysForChat(normalizedChatId);
+        clearAllPendingToolConfirmations(normalizedChatId);
+        executionIdentityByChatIdRef.current.delete(normalizedChatId);
+        updateDurableInteractionForChat(normalizedChatId, null);
+        return {
+          continuedFromRunId: sourceAttemptId || attemptId,
+        };
+      } catch (error) {
+        return failClosed(
+          error?.message ||
+            "Could not verify the paused run was cancelled. Your message was not sent.",
+        );
+      }
+    },
+    [
+      clearAllPendingToolConfirmations,
+      clearDurableResumeStartedKeysForChat,
+      setStreamErrorForChat,
+      updateDurableInteractionForChat,
+    ],
+  );
+
   useEffect(() => {
     const targetChatId =
       typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
@@ -9114,6 +9455,7 @@ export const useChatStream = ({
     let latestProjection = null;
     let flushTimer = null;
     let terminalReceived = false;
+    let terminalAccountingPending = false;
     let replayAcceptanceObserved = false;
     let replayAcceptanceTimer = null;
     let replayAcceptanceReattachCount = 0;
@@ -9405,7 +9747,12 @@ export const useChatStream = ({
       return sawFyiFrame ? { records, messages } : null;
     };
 
-    const applyLatestProjection = ({ status, error, bundle } = {}) => {
+    const applyLatestProjection = ({
+      status,
+      error,
+      bundle,
+      completionDiagnostics,
+    } = {}) => {
       clearFlushTimer();
       if (
         !hookMountedRef.current ||
@@ -9437,18 +9784,17 @@ export const useChatStream = ({
               ? { ...projection.error }
               : null;
         const projectedBundle =
-          bundle && typeof bundle === "object"
-            ? bundle
-            : projection.bundle && typeof projection.bundle === "object"
-              ? projection.bundle
-              : null;
+          bundle && typeof bundle === "object" ? bundle : null;
         return {
           ...materialized,
           content:
             status === "error" && !projectedContent
               ? `[error] ${nextError?.message || "The attached stream failed"}`
               : projectedContent,
-          status: status || projection.status || "streaming",
+          // Runtime replay may project `done` before terminal accounting has
+          // crossed Electron. Only finishAttachedStream may publish terminal
+          // status after that barrier succeeds.
+          status: status || "streaming",
           updatedAt,
           traceFrames: Array.isArray(projection.traceFrames)
             ? projection.traceFrames
@@ -9487,6 +9833,9 @@ export const useChatStream = ({
           meta: {
             ...(message.meta || {}),
             ...(projectedBundle ? { bundle: { ...projectedBundle } } : {}),
+            ...(completionDiagnostics
+              ? { completion_diagnostics: completionDiagnostics }
+              : {}),
             ...(nextError ? { error: nextError } : {}),
           },
         };
@@ -9515,11 +9864,21 @@ export const useChatStream = ({
       }, STREAM_REATTACH_FLUSH_MS);
     };
 
-    const finishAttachedStream = ({ status, error, bundle } = {}) => {
+    const finishAttachedStream = ({
+      status,
+      error,
+      bundle,
+      completionDiagnostics,
+    } = {}) => {
       if (terminalReceived) return;
       terminalReceived = true;
       clearReplayAcceptanceTimer();
-      let nextMessages = applyLatestProjection({ status, error, bundle });
+      let nextMessages = applyLatestProjection({
+        status,
+        error,
+        bundle,
+        completionDiagnostics,
+      });
       const pendingClarify =
         pendingClarifyByChatIdRef.current.get(targetChatId) ||
         readPendingClarifyForChat(targetChatId);
@@ -9594,10 +9953,11 @@ export const useChatStream = ({
     const finishAttachedError = (
       error,
       bundle,
-      { retryRelayedTurn = false } = {},
+      { completionDiagnostics = null, retryRelayedTurn = false } = {},
     ) => {
       if (
         terminalReceived ||
+        terminalAccountingPending ||
         !isRunGenerationCurrent(targetChatId, runGeneration)
       ) {
         return;
@@ -9610,6 +9970,7 @@ export const useChatStream = ({
         status: "error",
         error,
         bundle,
+        completionDiagnostics,
       });
       if (shouldRetryRelayedTurn) {
         relayQueuedTurnsAfterRunRef.current?.({
@@ -9735,6 +10096,7 @@ export const useChatStream = ({
       onRuntimeEvent: (runtimeEvent, streamMeta = {}) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -9755,6 +10117,7 @@ export const useChatStream = ({
       onDone: (done = {}) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -9767,26 +10130,102 @@ export const useChatStream = ({
           done.error && typeof done.error === "object" ? done.error : null;
         if (latestProjection?.status === "error" || doneError) {
           const terminalError = projectedError || doneError;
-          finishAttachedError(
-            terminalError,
-            done.bundle && typeof done.bundle === "object"
-              ? done.bundle
-              : undefined,
-          );
+          const hasCanonicalBundle =
+            done?.bundle?.schema === RUN_BUNDLE_V1_SCHEMA;
+          if (doneError && hasCanonicalBundle) {
+            terminalAccountingPending = true;
+            const finishAdmittedError = ({
+              bundle,
+              completionDiagnostics,
+            }) => {
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration)
+              ) {
+                return;
+              }
+              terminalAccountingPending = false;
+              finishAttachedError(terminalError, bundle, {
+                completionDiagnostics,
+              });
+            };
+            const failErrorAccounting = () => {
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration)
+              ) {
+                return;
+              }
+              terminalAccountingPending = false;
+              finishAttachedError({
+                code: "run_bundle_accounting_failed",
+                message:
+                  "The failed recovered run could not be admitted to the Run Bundle ledger.",
+              });
+            };
+            try {
+              const admission = admitDoneRunAccountingV1(done);
+              if (admission && typeof admission.then === "function") {
+                void admission
+                  .then(finishAdmittedError)
+                  .catch(failErrorAccounting);
+              } else {
+                finishAdmittedError(admission);
+              }
+            } catch (_error) {
+              failErrorAccounting();
+            }
+            return;
+          }
+          finishAttachedError(terminalError);
           return;
         }
         markReplayAcceptanceObserved();
-        finishAttachedStream({
-          status: "done",
-          bundle:
-            done.bundle && typeof done.bundle === "object"
-              ? done.bundle
-              : undefined,
-        });
+        terminalAccountingPending = true;
+        const finishAdmittedDone = ({ bundle, completionDiagnostics }) => {
+            if (
+              terminalReceived ||
+              !isRunGenerationCurrent(targetChatId, runGeneration)
+            ) {
+              return;
+            }
+            terminalAccountingPending = false;
+            finishAttachedStream({
+              status: "done",
+              bundle,
+              completionDiagnostics,
+            });
+        };
+        const failDoneAccounting = (error) => {
+            if (
+              terminalReceived ||
+              !isRunGenerationCurrent(targetChatId, runGeneration)
+            ) {
+              return;
+            }
+            terminalAccountingPending = false;
+            finishAttachedError({
+              code: error?.code || "run_bundle_accounting_failed",
+              message:
+                error?.message ||
+                "The recovered run could not be admitted to the Run Bundle ledger.",
+            });
+        };
+        try {
+          const admission = admitDoneRunAccountingV1(done);
+          if (admission && typeof admission.then === "function") {
+            void admission.then(finishAdmittedDone).catch(failDoneAccounting);
+          } else {
+            finishAdmittedDone(admission);
+          }
+        } catch (error) {
+          failDoneAccounting(error);
+        }
       },
       onError: (error) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -9815,6 +10254,7 @@ export const useChatStream = ({
       clearReplayAcceptanceTimer();
       if (
         terminalReceived ||
+        terminalAccountingPending ||
         !isRunGenerationCurrent(targetChatId, runGeneration) ||
         !hasUnverifiedRelayedTurn()
       ) {
@@ -9868,6 +10308,7 @@ export const useChatStream = ({
               );
               if (
                 terminalReceived ||
+                terminalAccountingPending ||
                 !isRunGenerationCurrent(targetChatId, runGeneration) ||
                 streamHandlesRef.current.get(targetChatId) !== expectedHandle
               ) {
@@ -10008,6 +10449,7 @@ export const useChatStream = ({
       .then((handle) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           handle?.detach?.();
@@ -10040,6 +10482,7 @@ export const useChatStream = ({
       .catch((error) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -10881,7 +11324,70 @@ export const useChatStream = ({
          message is clean). `text` stays in scope on purpose: the composer
          staleness comparisons must be made against what the user actually
          typed, not against the redacted form. */
-      const runSend = (outgoingSource, secretGateToken, secretDisposition) => {
+      const runSend = (
+        outgoingSource,
+        secretGateToken,
+        secretDisposition,
+        continuedFromRunId = "",
+      ) => {
+      const discardSecretGateToken = () => {
+        if (!secretGateToken) return;
+        consumeSecretGateToken(secretGateToken, {
+          chatId: currentChatId,
+          text: outgoingSource,
+        });
+      };
+      const durableState =
+        durableInteractionByChatIdRef.current[currentChatId] || null;
+      if (durableState?.status && !thisChatsRunActive) {
+        if (
+          !isProgrammaticSend &&
+          canSealDurableInteractionForFreshSend(durableState.status)
+        ) {
+          /* A new composer message abandons, rather than resumes, the exact
+             paused attempt. No optimistic user message or new run exists
+             until the backend cancellation is authoritative and a fresh
+             lookup projects `none`. */
+          void sealDurableInteractionForFreshSend(
+            currentChatId,
+            durableState,
+          ).then((sealed) => {
+            if (!sealed) {
+              discardSecretGateToken();
+              return;
+            }
+            if (
+              activeChatIdRef.current !== currentChatId ||
+              isChatRunPending(currentChatId) !== thisChatsRunActive ||
+              durableInteractionByChatIdRef.current[currentChatId]?.status ||
+              inputValueRef.current.trim() !== text ||
+              !sameDraftAttachments(
+                draftAttachmentsRef.current,
+                currentDraftAttachments,
+              ) ||
+              (composerRevisionByChatIdRef?.current?.get?.(currentChatId) ||
+                0) !== composerRevisionAtRequest
+            ) {
+              discardSecretGateToken();
+              return;
+            }
+            runSend(
+              outgoingSource,
+              secretGateToken,
+              secretDisposition,
+              sealed.continuedFromRunId,
+            );
+          });
+          return;
+        }
+        setStreamError(
+          durableState.lastError ||
+            "This chat is finishing a paused run. Please wait.",
+        );
+        discardSecretGateToken();
+        return;
+      }
+
       /* A gate token is one-time and only runTurnRequest may spend it. Every
          other way out of runSend (no model selected, bridge unavailable,
          attachments refused, queued locally, routed to interject) ends the
@@ -10890,16 +11396,6 @@ export const useChatStream = ({
          The body below is deliberately not re-indented; see the note above. */
       let secretGateTokenHandedOff = false;
       try {
-      const durableState =
-        durableInteractionByChatIdRef.current[currentChatId] || null;
-      if (durableState?.status) {
-        setStreamError(
-          durableState.lastError ||
-            "This chat is restoring an interrupted run. Please wait.",
-        );
-        return;
-      }
-
       if (thisChatsRunActive) {
         if (bypassInterject) {
           // Should not normally happen — see the comment above — but never
@@ -11046,6 +11542,7 @@ export const useChatStream = ({
         /* PRE-expansion text: this is what the modal showed the user and what
            the token is bound to. `outgoingText` may carry skill expansion. */
         secretGateText: outgoingSource,
+        continuedFromRunId,
       });
       } finally {
         if (secretGateToken && !secretGateTokenHandedOff) {
@@ -11144,6 +11641,7 @@ export const useChatStream = ({
       pushQueuedTurn,
       resolveSecretGateForSend,
       runTurnRequest,
+      sealDurableInteractionForFreshSend,
       setDraftAttachments,
       setInputValue,
       setStreamError,
