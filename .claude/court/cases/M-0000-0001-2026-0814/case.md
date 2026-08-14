@@ -3,17 +3,17 @@ case_id: M-0000-0001-2026-0814
 discussion_type: motion
 boundary_protocol: null
 procedure_mode: collaboration
-status: drafting
+status: awaiting-ruling
 stage_instance_id: null
 acceptance_series_id: null
 evidence_continuation_ref: null
 proposal_ruling_scope: null
 lead_owner: code-owner-unchain
 current_owner: code-owner-unchain
-current_artifact_ref: null
+current_artifact_ref: M-0000-0001-2026-0814#MS-001
 boundary_contract_refs: []
 state_sequence_refs: []
-review_snapshot_ref: null
+review_snapshot_ref: RS-001
 objection_group_refs: []
 full_vote_ref: null
 full_scope_overlay_ref: null
@@ -23,7 +23,7 @@ derived_from: null
 blocking: false
 blocking_case_id: null
 created_at: 2026-08-14T09:01:00-07:00
-updated_at: 2026-08-14T09:01:00-07:00
+updated_at: 2026-08-14T09:46:00-07:00
 ---
 
 # Context V2 与 Memory V2 现状验收合规审查
@@ -46,26 +46,26 @@ updated_at: 2026-08-14T09:01:00-07:00
 - **选择事件**: S-0001
 
 ## owner chain
-- lead | code-owner-unchain | S-0001 | active
+- lead | code-owner-unchain | S-0001 | active（未使用 HS：两份边界空白清单经 Speaker 判断不影响 Q-001/Q-002 结论，留待裁定后续或另立 proposal，见 S-0008）
 
 ## 当前 handoff
 - **open**: null
 - **return_to**: code-owner-unchain
 
 ## 合作 owner
-- （待首次集成快照后登记）
+- code-owner-unchain | lead/integration | M-0000-0001-2026-0814#MS-001 | voting=true
 
 ## 当前产出与审查
-- **artifact**: null（drafting 中，尚无 MS）
-- **review electorate**: null
+- **artifact**: M-0000-0001-2026-0814#MS-001
+- **review electorate**: RS-001 | frozen | N=1
 - **Full scope overlay**: null
-- **stance events canonical**: null
-- **stance summary**: NOT_APPLICABLE
+- **stance events canonical**: record.md#S-0007
+- **stance summary**: AGREE 1 | OBJECT 0 | ABSTAIN 0
 
 ## 异议与程序升级
-- **lead dispositions pending**: null
+- **lead dispositions pending**: 无
 - **objection groups**: null
-- **Full eligibility**: NOT_EVALUATED
+- **Full eligibility**: NOT_EVALUATED（N=1，D=0，未达门槛判断条件）
 - **Full vote**: null
 
 ## 其他参与权限
@@ -88,3 +88,8 @@ updated_at: 2026-08-14T09:01:00-07:00
 ## 文件索引
 - [协作与庭审记录](record.md)
 - [议案](motion.md)
+- [证据台账](evidence.md)
+
+## 结案候补
+- **SUMMARY**: record.md#S-0008
+- **状态**: awaiting-ruling，等待 `chief-judge` 的 `MOTION_RULING`（Q-001、Q-002 分别裁定）
