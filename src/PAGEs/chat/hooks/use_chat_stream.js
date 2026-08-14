@@ -1307,23 +1307,6 @@ export const useChatStream = ({
     [isRunGenerationCurrent],
   );
 
-  const trackDurableResumeStartedKey = useCallback(
-    (targetChatId, resumeKey) => {
-      if (!resumeKey) {
-        return;
-      }
-      durableResumeStartedKeysRef.current.add(resumeKey);
-      let keys =
-        durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
-      if (!keys) {
-        keys = new Set();
-        durableResumeStartedKeysByChatIdRef.current.set(targetChatId, keys);
-      }
-      keys.add(resumeKey);
-    },
-    [],
-  );
-
   const clearDurableResumeStartedKeysForChat = useCallback((targetChatId) => {
     const keys =
       durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
@@ -9213,11 +9196,9 @@ export const useChatStream = ({
       getConfirmationRuntimeForChat,
       isRunGenerationCurrent,
       messagesRef,
-      runTurnRequest,
       setStreamError,
       setStreamErrorForChat,
       storageApi,
-      trackDurableResumeStartedKey,
       updateDurableInteractionForChat,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,

@@ -1,3 +1,5 @@
+/* global BigInt */
+
 export const RUN_BUNDLE_V1_SCHEMA = "unchain.run_bundle.v1";
 export const PROVIDER_CALL_USAGE_V1_SCHEMA = "unchain.provider_call_usage.v1";
 export const RUN_BUNDLE_V1_MAX_BYTES = 2 * 1024 * 1024;
@@ -169,7 +171,9 @@ const timestampInstant = (value, path) => {
   ) {
     fail(path, "must be a valid RFC3339 timestamp");
   }
-  const fractionNanoseconds = BigInt((match[7] || "").padEnd(9, "0") || "0");
+  const fractionNanoseconds = BigInt(
+    (match[7] || "").padEnd(9, "0") || "0",
+  );
   let instant = BigInt(date.getTime()) * 1_000_000n + fractionNanoseconds;
   if (match[8] !== "Z") {
     const offsetHours = Number(match[8].slice(1, 3));
@@ -177,7 +181,9 @@ const timestampInstant = (value, path) => {
     if (offsetHours > 23 || offsetMinutes > 59) {
       fail(path, "must be a valid RFC3339 timestamp");
     }
-    const offset = BigInt((offsetHours * 60 + offsetMinutes) * 60) * 1_000_000_000n;
+    const offset = BigInt(
+      (offsetHours * 60 + offsetMinutes) * 60,
+    ) * 1_000_000_000n;
     instant += match[8][0] === "+" ? -offset : offset;
   }
   return instant;
