@@ -24,6 +24,7 @@ from durable_interaction_host import (
     DurableInteractionHostError,
     cancel_chat_execution,
     get_pending_interaction,
+    interaction_receipt_handoff,
     record_interaction_receipt,
 )
 from mcp_toolkits import (
@@ -128,6 +129,7 @@ __all__ = [
     "submit_tool_confirmation",
     "DurableInteractionHostError",
     "get_pending_interaction",
+    "interaction_receipt_handoff",
     "record_interaction_receipt",
     "delete_mcp_store_registry",
     "import_mcp_store_registry",

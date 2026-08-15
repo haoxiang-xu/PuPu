@@ -4,7 +4,7 @@
 - [Registry is a shared FE/BE file](registry-frontend-backend-shared-file.md) — src/SERVICEs/mcp_toolkit_registry.json 被 Python 后端读取；改它必须两侧都跑测试，删条目易炸 backend pytest
 - [Release license/bundling boundary](release-license-bundling-boundary.md) — 安装包真正捆绑啥 vs 运行时 npx/uvx 拉取啥；第三方 NOTICE 聚合缺口；auto-update 走 GitHub releases
 - [react-router-dom jest main 字段坏](react-router-dom-jest-main-field.md) — 5 前端套件同挂 "Cannot find module react-router-dom"，根因 rr-dom 7.x main 指向不存在的 dist/main.js，npm ci 修不了，需 jest moduleNameMapper/换版本
-- [发版 unchain editable 源码耦合](release-unchain-editable-source-coupling.md) — build:unchain 从本地 ../unchain 工作树 editable 打包核心库；构建前必须 pin 干净已提交 commit，否则 bundle 未提交代码
+- [发版 unchain editable 源码耦合（已废止）](release-unchain-editable-source-coupling.md) — 旧 editable-source 打包事故记录；现行规则是 actual-import protocol manifest + 单一 immutable wheel artifact continuity
 - [版本 bump 机制](release-version-bump-mechanics.md) — version:prepare-build 只改 package.json 不 commit；需 --version/PUPU_BUILD_VERSION 入参；发版正确命令序列
 - [electron 测试 glob + build lint 门](electron-test-glob-and-build-lint-gates.md) — test:electron 扫进嵌套 worktree 虚增计数(真值16套/165)；绿 Jest≠绿 build，CI=true build 会因 no-unused-vars 硬挂
 - [冻结产物专属缺陷类](frozen-artifact-only-defect-class.md) — 有一类 bug 只在「PyInstaller 产物+干净机」现形,所有现有门都在 dev/构建机上跑故结构性瞎;重跑免费门=零信息量

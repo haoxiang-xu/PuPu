@@ -887,22 +887,6 @@ const TraceChain = ({
     return map;
   }, [effectiveSubagentMetaByRunId]);
 
-  const confirmationUserResponseByCallId = useMemo(() => {
-    const map = new Map();
-    for (const frame of frames) {
-      if (
-        (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
-        !frame?.payload?.call_id ||
-        frame?.payload?.user_response === undefined
-      ) {
-        continue;
-      }
-
-      map.set(frame.payload.call_id, frame.payload.user_response);
-    }
-    return map;
-  }, [frames]);
-
   const interactTypeByCallId = useMemo(() => {
     const map = new Map();
     for (const frame of frames) {
@@ -919,6 +903,29 @@ const TraceChain = ({
     }
     return map;
   }, [frames]);
+
+  const confirmationUserResponseByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (
+        (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
+        !frame?.payload?.call_id ||
+        frame?.payload?.user_response === undefined
+      ) {
+        continue;
+      }
+
+      const normalized = normalizePersistedInteractionResponse(
+        interactTypeByCallId.get(frame.payload.call_id) || "",
+        frame.payload.user_response,
+      );
+      map.set(
+        frame.payload.call_id,
+        normalized === undefined ? frame.payload.user_response : normalized,
+      );
+    }
+    return map;
+  }, [frames, interactTypeByCallId]);
 
   const toolResultUserResponseByCallId = useMemo(() => {
     const map = new Map();

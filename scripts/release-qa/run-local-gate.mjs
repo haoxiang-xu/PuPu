@@ -17,10 +17,8 @@ import {
 } from "./reporting.mjs";
 import { buildLocalGateChecks } from "./local-gate-checks.mjs";
 import {
-  describeUnchainCheckout,
-  inspectPinnedUnchainCheckout,
-  resolveUnchainRoot,
-} from "./unchain-checkout.mjs";
+  verifyWheelRuntimeManifest,
+} from "./unchain-artifact.mjs";
 import { computeWorktreeFingerprint } from "./worktree-fingerprint.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -42,33 +40,53 @@ const initialHead = spawnSync("git", ["rev-parse", "HEAD"], {
   encoding: "utf8",
 }).stdout?.trim();
 const initialWorktreeFingerprint = computeWorktreeFingerprint(ROOT);
-const unchainRoot = resolveUnchainRoot({ pupuRoot: ROOT });
-const unchainCheckout = inspectPinnedUnchainCheckout({
-  pupuRoot: ROOT,
-  unchainRoot,
-});
-const unchainDetails = describeUnchainCheckout(unchainCheckout);
-console.log(`[release-qa] Unchain preflight: ${unchainDetails}`);
-const pythonPath = [
-  path.join(unchainRoot, "src"),
-  process.env.PYTHONPATH,
-].filter(Boolean).join(path.delimiter);
-const checks = unchainCheckout.valid
+const unchainArtifactPath = path.resolve(process.env.UNCHAIN_ARTIFACT_PATH || "");
+const unchainArtifactEvidencePath = path.resolve(
+  process.env.UNCHAIN_ARTIFACT_EVIDENCE_PATH || "",
+);
+const unchainTestSourcePath = path.resolve(
+  process.env.UNCHAIN_TEST_SOURCE_PATH || "",
+);
+let artifactEvidence = null;
+let artifactFailure = "";
+try {
+  artifactEvidence = verifyWheelRuntimeManifest({
+    artifactPath: unchainArtifactPath,
+    evidencePath: unchainArtifactEvidencePath,
+    python: PYTHON,
+  });
+  if (!fs.existsSync(path.join(unchainTestSourcePath, "tests"))) {
+    throw new Error("UNCHAIN_TEST_SOURCE_PATH must contain Unchain tests");
+  }
+} catch (error) {
+  artifactFailure = error.message;
+}
+const checks = artifactEvidence
   ? buildLocalGateChecks({
       root: ROOT,
       python: PYTHON,
-      pythonPath,
-      unchainRoot,
+      pythonPath: unchainArtifactPath,
+      unchainArtifactPath,
+      unchainArtifactEvidencePath,
+      unchainTestSourcePath,
       version: packageJson.version,
     })
   : [];
 
 const results = [
   {
-    name: "pinned Unchain checkout",
-    command: "compare selected Unchain HEAD and worktree to unchain-core.lock.json",
-    outcome: unchainCheckout.valid ? "success" : "failure",
-    details: unchainDetails,
+    name: "Unchain artifact continuity",
+    command: "verify immutable wheel bytes and runtime manifest evidence",
+    outcome: artifactEvidence ? "success" : "failure",
+    details: artifactFailure || artifactEvidence?.artifact.sha256 || "",
+    executed_tests: artifactEvidence ? 2 : 0,
+  },
+  {
+    name: "Unchain runtime protocol manifest",
+    command: "import protocol manifest from immutable wheel",
+    outcome: artifactEvidence ? "success" : "failure",
+    details: artifactFailure || artifactEvidence?.runtime_manifest.manifest_digest || "",
+    executed_tests: artifactEvidence ? 2 : 0,
   },
 ];
 for (const check of checks) {
@@ -88,6 +106,10 @@ for (const check of checks) {
     command: check.command,
     outcome: passed ? "success" : "failure",
     details: `${durationMs}ms${result.error ? `; ${result.error.message}` : ""}`,
+    executed_tests: passed && [
+      "Context V2 boundary contracts",
+      "RunBundle v1 boundary contracts",
+    ].includes(check.name) ? 1 : undefined,
   });
 }
 
@@ -124,10 +146,15 @@ const jobReport = buildJobReport({
     worktree_fingerprint: initialWorktreeFingerprint,
   },
   unchain: {
-    source_path: unchainCheckout.sourcePath,
-    locked_sha: unchainCheckout.lockedRevision,
-    tested_sha: unchainCheckout.testedRevision,
-    dirty: unchainCheckout.dirty,
+    artifact_name: artifactEvidence?.artifact.name,
+    artifact_sha256: artifactEvidence?.artifact.sha256,
+    artifact_size_bytes: artifactEvidence?.artifact.size_bytes,
+    runtime_manifest_digest: artifactEvidence?.runtime_manifest.manifest_digest,
+    runtime_manifest: artifactEvidence?.runtime_manifest,
+    source_repository: artifactEvidence?.source.repository,
+    source_ref: artifactEvidence?.source.ref,
+    source_revision: artifactEvidence?.source.revision,
+    source_dirty: artifactEvidence?.source.dirty,
   },
   requiredChecks: CONTEXT_V2_REQUIRED_CHECKS,
   checks: results,

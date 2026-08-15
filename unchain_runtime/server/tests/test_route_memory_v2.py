@@ -10,6 +10,7 @@ from flask import Flask, jsonify, request
 
 import route_memory_v2  # noqa: F401
 from context_memory_v2_capability import ContextMemoryV2CapabilityVerdict
+from context_memory_v2_capability import verify_context_memory_v2_capability
 from memory_v2_runtime import (
     _reset_memory_v2_runtime_for_tests,
     get_memory_v2_runtime,
@@ -169,12 +170,14 @@ class MemoryV2RouteTests(unittest.TestCase):
         self.assertRegex(payload["rollout_fingerprint"], r"^[0-9a-f]{64}$")
 
     def test_status_exposes_the_exact_unchain_capability_readiness(self):
-        verdict = ContextMemoryV2CapabilityVerdict(
-            ready=True,
-            reason="unchain_context_memory_ready",
-            verification="exact_sha",
-            immutable=True,
-            unchain_revision="a" * 40,
+        from unchain.runtime.runtime_protocol import runtime_protocol_manifest
+
+        manifest = runtime_protocol_manifest()
+        verdict = verify_context_memory_v2_capability(
+            manifest=manifest,
+            requested_mode="all",
+            unchain_revision="diagnostic-only",
+            unchain_runtime_source="/loaded/unchain/runtime_protocol.py",
         )
         with (
             mock.patch.dict(
@@ -201,21 +204,23 @@ class MemoryV2RouteTests(unittest.TestCase):
             {
                 key: response.get_json()[key]
                 for key in (
-                    "context_memory_capability_ready",
-                    "context_memory_capability_reason",
-                    "context_memory_capability_verification",
-                    "context_memory_capability_immutable",
+                    "runtime_protocol_ready",
+                    "runtime_protocol_reason",
+                    "runtime_protocol_verification",
+                    "runtime_protocol_immutable",
+                    "runtime_protocol_manifest",
                     "unchain_revision",
-                    "context_memory_contract",
+                    "unchain_runtime_source",
                 )
             },
             {
-                "context_memory_capability_ready": True,
-                "context_memory_capability_reason": ("unchain_context_memory_ready"),
-                "context_memory_capability_verification": "exact_sha",
-                "context_memory_capability_immutable": True,
-                "unchain_revision": "a" * 40,
-                "context_memory_contract": 1,
+                "runtime_protocol_ready": True,
+                "runtime_protocol_reason": ("unchain_runtime_protocol_compatible"),
+                "runtime_protocol_verification": "runtime_protocol",
+                "runtime_protocol_immutable": True,
+                "runtime_protocol_manifest": manifest,
+                "unchain_revision": "diagnostic-only",
+                "unchain_runtime_source": "/loaded/unchain/runtime_protocol.py",
             },
         )
         capability_probe.assert_called_once_with(requested_mode="all")

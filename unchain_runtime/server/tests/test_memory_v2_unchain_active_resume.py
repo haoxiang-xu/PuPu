@@ -16,8 +16,10 @@ def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None
     resume_kwargs: dict = {}
 
     class ActiveBridge:
-        def persist_host_event(self, event):
-            durable_events.append(dict(event))
+        execution_id = "session-resume-active"
+
+        def persist_bound_host_event(self, bound_event):
+            durable_events.append(dict(bound_event.event))
 
     bridge = ActiveBridge()
     admission = SimpleNamespace(
@@ -58,7 +60,7 @@ def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None
             }
             # A real Unchain Agent persists this through ContextRuntime before
             # invoking the PuPu host callback.
-            bridge.persist_host_event(event)
+            durable_events.append(dict(event))
             kwargs["callback"](event)
             return SimpleNamespace(
                 status="completed",
@@ -150,8 +152,5 @@ def test_active_resume_uses_canonical_host_without_legacy_double_write() -> None
     assert isinstance(runtime_context, AgentRuntimeContext)
     assert runtime_context.identity == run.identity
     assert runtime_context.grant_for(MEMORY_V2_MODULE_KEY) == run.grant
-    assert [event["type"] for event in durable_events] == [
-        "interaction_resolved",
-        "final_message",
-    ]
+    assert [event["type"] for event in durable_events] == ["final_message"]
     assert sum(event.get("type") == "final_message" for event in events) == 1

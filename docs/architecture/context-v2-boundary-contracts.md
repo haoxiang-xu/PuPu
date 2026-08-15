@@ -7,11 +7,12 @@
 
 本文不是另一份实现 schema。字段级真相仍在类型、validator 和测试中；本文固定 **谁生产、谁消费、在哪里投影、哪些序列必须被证明**。`CTX-B* / CTX-S*` 是项目 profile key。Quorum proposal 引用本 profile 时，必须在该案 `proposal.md` 内实例化为 case-local `BC-### / SEQ-###` 并映射到 `AC-###`。
 
-## 一、不可混用的四种表示
+## 一、不可混用的五种表示
 
 | 表示 | 所有者 | 允许内容 | 禁止直接进入 |
 |---|---|---|---|
 | PuPu chat/storage message | PuPu renderer | UI 文本、附件 metadata、trace/meta | provider wire |
+| PuPu bound host event | PuPu sidecar | `presentation/semantic` lane、exact execution/attempt/interaction authority 与对应事件 | 未绑定的 durable sink 或跨 attempt UI queue |
 | canonical journal message | Unchain Context V2 | durable semantic content、来源与 `HostResolvedAttachment` provenance | provider SDK |
 | canonical model message | Unchain `ModelContextProjection` | provider-neutral text/image/PDF blocks | 持久层反写 |
 | exact provider message | provider adapter/wire preparer | 对应 provider 的封闭字段与原生 content blocks | journal/domain object |
@@ -63,13 +64,33 @@
 - **义务**：plain root 允许 iteration-only identity；graph identity 使用 node + step + iteration；final 与 terminal 必须在适用轴上完全匹配。缺失/错型/错配均以 `context_v2_journal_message_projection_invalid` fail closed。
 - **证据锚点**：Unchain `tests/context_v2/test_journal_message_projection.py`、`tests/context_v2/test_context_p0_cold_composition_matrix.py`。
 
-### CTX-B06 · PuPu deployment → locked Unchain revision
+### CTX-B06 · Loaded Unchain protocol → immutable tested/shipped artifact
 
-- **Producer**：PuPu `unchain_runtime/unchain-core.lock.json` 与 release candidate identity。
-- **Consumer**：CI checkout、packaged admission 与 release certification。
-- **Policy**：`CLOSED` exact revision。
-- **义务**：所有 blocking contract tests 使用 lock revision；sibling Unchain 只作显式 dev compatibility 证据，不得替代 locked-pair 证据。revision mismatch 必须 fail closed。
-- **证据锚点**：lock 文件、release QA resolver、CI checkout log 与候选指纹。
+- **Producer**：实际 import 的 Unchain code-backed runtime protocol manifest，以及 release pipeline 单次构建的 immutable wheel。
+- **Consumer**：PuPu sidecar/Electron runtime admission、blocking contract matrix、packaged smoke 与 release certification。
+- **Policy**：runtime compatibility 使用 `VERSIONED` closed manifest；release continuity 使用 `CLOSED` artifact identity。
+- **义务**：sidecar与Electron独立校验 manifest closed shape、digest、major/minimum minor与required feature；contract tests、各平台package与report必须消费同一个 wheel bytes SHA-256和同一个manifest digest。Git revision、source path与checkout cleanliness只作telemetry/provenance，不得成为compatibility allowlist或第二套runtime authority。不兼容必须在Context/RunBundle/provider side effect前fail closed。
+- **证据锚点**：Unchain `tests/test_runtime_protocol_manifest.py`；PuPu sidecar/Electron protocol admission tests；release artifact continuity、package smoke 与report matrices。
+
+### CTX-B07 · PuPu synthesized host event → presentation 或 canonical journal
+
+- **Producer**：PuPu 的 Ask User、tool approval、max-budget callback 与 fallback-final/resolution writer。
+- **Consumer**：PuPu SSE presentation queue 或 active Unchain Context Runtime durable sink。
+- **Policy**：`CLOSED` typed envelope；lane 仅 `presentation/semantic`，authority 精确绑定 execution、current attempt、interaction、source attempt、origin 与 interaction kind。
+- **义务**：presentation 事件只 enqueue，绝不写 journal；semantic 事件必须先在 exact attempt 持久化成功再 enqueue。Ask User/tool approval/max-budget 的 subtype、confirmation/call identity 必须与 origin 一致；`interaction_resolved` 必须带 exact interaction、kind、outcome、receipt、event 与 source refs。runtime-origin event 禁止再次进入 semantic host lane。
+- **未知字段/错 identity**：在 `PupuUnchainHostEventBoundary` fail closed；不得从 ambient latest attempt、workflow root 或 UI payload猜测 owner。
+- **失败语义**：persist 失败不展示成功；enqueue 失败保留 durable semantic 供重投；重复 semantic delivery journal exactly-once。active cold resume 的 resolution 只由 typed Context input ingress 写入，host 不做 pre-bootstrap duplicate。
+- **证据锚点**：`unchain_runtime/server/tests/test_memory_v2_unchain_active_host_event_boundary.py`，以及 active root/graph/resume adapter suites。
+
+### CTX-B08 · legacy interaction resolution → canonical repair winner
+
+- **Producer**：历史 PuPu generic semantic lane 写下的 descriptor-incomplete `interaction_resolved`，以及随后由 official `ContextInputIngress.persist(HostResolvedInteractionInput)` 写下的 descriptor-bound `interaction.resolved`。
+- **Consumer**：Unchain `ContextCompiler`、graph checkpoint recovery 与 SQLite generation rebase。
+- **Policy**：`CLOSED` exact compatibility pair；这不是放宽 interaction descriptor validator。
+- **义务**：只有同一 execution、generation、attempt、interaction 的两个事件可形成 repair pair；legacy underscore 必须更早且 descriptor-incomplete，canonical dotted 必须唯一、更晚、descriptor-complete，并且 `content_ref` 必须出现在该 canonical event 自己的 authorized `resource_refs` 中。compiler 与 rebase 忽略被修复的 legacy event；graph recovery 在没有既存 legacy resume admission 时采用 canonical cursor，已有 admission 则保持原 cursor 幂等。
+- **拒绝语义**：0 个或多个 canonical candidate、reverse order、cross-scope、cross-interaction、foreign resource ref、partial/conflicting descriptor、complete legacy 或多个 pair 均维持原 fail-closed 错误；不得 raw 改写历史 journal。
+- **兼容准入**：运行时必须声明 interaction-resolution compatibility feature；Git revision 只作诊断 telemetry，不得作为 allowlist。feature manifest 迁移及 exact deployed-pair 证据完成前，active rollout 判定为 `INCOMPLETE`。
+- **证据锚点**：Unchain `tests/context_v2/test_interaction_resolution_compat.py`、compiler/graph/rebase exact-pair tests，以及 PuPu `test_cold_cancel_supersedes_historical_malformed_generic_resolution` 与 fresh-preflight poison regression。
 
 ## 三、State-sequence profile
 
@@ -80,15 +101,17 @@
 | `CTX-S03` cold resume | pending approval → persist → 新 runtime/sidecar → resume → terminal | request/receipt 来自 durable authority；provider/model/schema/attempt 保持绑定 | cold approval resume tests |
 | `CTX-S04` terminal identity | root/graph final → terminal over iteration(s) | plain root iteration 合法；graph scope 不得与 root 规则混用；错配拒绝 | journal projection + cold matrix |
 | `CTX-S05` provider media | durable image/PDF → projection → provider request → replay/next turn | wire 无 `attachments`；replay 使用实际 projected wire；不支持组合本地拒绝 | model projection + provider contract tests |
-| `CTX-S06` deployed pair | freeze PuPu SHA + lock SHA → blocking tests → packaged admission | 证据与候选完全同一 revision pair；dirty/不同 pair 不合并 | release certification artifact |
+| `CTX-S06` runtime/artifact continuity | import actual runtime → validate protocol manifest → build wheel once → blocking tests → all platform packages/smoke → final report | compatibility只由manifest决定；所有release consumer核对同一wheel SHA-256与manifest digest；revision/source/dirty只作provenance；不得重建后冒充同一artifact | runtime protocol tests + artifact continuity/package smoke/report evidence |
+| `CTX-S07` active host interaction | canonical request → presentation-only card → durable receipt → one semantic resolution → UI projection | root/graph-step/resume 使用 current attempt；presentation 0 journal writes；runtime echo 与 host resolution二选一；submitted human input显示 Selected而非 Denied | active host-event boundary + full chat tests |
+| `CTX-S08` historical poison repair | legacy malformed resolution → persisted receipt/cancel application → official canonical resolution → compile/graph recovery/rebase → fresh message | 不改历史 raw event；唯一 later canonical winner；answer进入 transcript；旧 ask closed；0 auto-resume/duplicate provider send；retry/restart exactly once | interaction-resolution compatibility + cold/fresh poison matrices |
 
 所有改动至少评估 repeat、retry、resume、restart、reset 和 rollback。只有结构上不可达的单元格可在 PS 记 `NOT_APPLICABLE + reason`；适用但没有执行的 AC 就是 `NOT_RUN`。
 
 ## 四、当前 P0 判定
 
 - 2026-08-12 的 PuPu `4a050d75` 与 Unchain `d0572979` 已落地 CTX-B01 至 CTX-B05 的代码与聚焦测试。
-- CTX-B06 的唯一发布真相始终是当前 lock 和 release evidence；commit 文本中的 SHA 只是历史锚点，不能替代候选冻结。
-- active rollout 前，CTX-S01 至 CTX-S06 中全部适用单元格必须在同一冻结候选上 `PASS`。`NOT_RUN/PENDING` 只能维持 shadow/off 并给出 `INCOMPLETE`；已运行失败是 `NO-GO`。
+- CTX-B06 的runtime兼容真相只来自实际import code导出的strict protocol manifest；release连续性只来自同一immutable wheel的SHA-256、manifest digest与完整消费证据。Git revision/source/dirty只作诊断或构建provenance。
+- active rollout 前，CTX-S01 至 CTX-S08 中全部适用单元格必须在同一冻结artifact上 `PASS`。`NOT_RUN/PENDING` 只能维持 shadow/off并给出 `INCOMPLETE`；已运行失败是 `NO-GO`。`context_memory.interaction_resolution_compat`与`durable_interaction.expected_interaction_id_cas`均为required runtime feature；缺失时必须拒绝，不得以SHA、checkout状态或任何lock替代该门禁。
 
 ## 五、维护规则
 

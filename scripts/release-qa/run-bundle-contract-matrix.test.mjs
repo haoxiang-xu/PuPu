@@ -62,8 +62,12 @@ test("RunBundle release gate freezes exact cross-boundary P0 selectors", () => {
     path.join(ROOT, "scripts", "release-qa", "run-run-bundle-contract.mjs"),
     "utf8",
   );
-  assert.match(runner, /inspectPinnedUnchainCheckout/);
-  assert.match(runner, /if \(!checkout\.valid\)/);
+  assert.match(runner, /verifyWheelRuntimeManifest/);
+  assert.match(runner, /verifyUnchainTestSourceProvenance/);
+  assert.match(runner, /UNCHAIN_ARTIFACT_PATH/);
+  assert.match(runner, /UNCHAIN_ARTIFACT_EVIDENCE_PATH/);
+  assert.match(runner, /UNCHAIN_TEST_SOURCE_PATH/);
+  assert.match(runner, /PYTHONPATH: pythonPath/);
   assert.match(runner, /name: "Unchain canonical producer and ledger"/);
   assert.match(runner, /name: "PuPu sidecar projection and state sequences"/);
   assert.match(runner, /name: "Signed official pricing catalog and immutable estimates"/);
@@ -72,6 +76,7 @@ test("RunBundle release gate freezes exact cross-boundary P0 selectors", () => {
   assert.match(runner, /requireNonzeroJestExecution/);
   assert.match(runner, /--outputFile/);
   assert.doesNotMatch(runner, /--testNamePattern/);
+  assert.doesNotMatch(runner, /Pinned|checkout\.valid|UNCHAIN_SOURCE_PATH/);
   assert.doesNotMatch(runner, /continue-on-error|advisory/i);
 });
 

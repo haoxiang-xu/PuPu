@@ -125,6 +125,150 @@ def _clock_ms() -> int:
     return time.time_ns() // 1_000_000
 
 
+def validate_pupu_unchain_admission_row(
+    row: Any,
+    *,
+    owner_chat_id: str,
+    sticky: bool,
+    replayed: bool = False,
+) -> dict[str, Any]:
+    """Validate one already-read admission row without opening storage."""
+
+    owner = _required_identifier(owner_chat_id, "owner_chat_id")
+    expected_scope_sha256 = hashlib.sha256(
+        f"{_ADMISSION_SCHEMA}:{owner}".encode("utf-8")
+    ).hexdigest()
+    if (
+        str(row["owner_chat_id"]) != owner
+        or str(row["scope_sha256"]) != expected_scope_sha256
+        or int(row["schema_version"]) != _ADMISSION_SCHEMA_VERSION
+    ):
+        raise PupuUnchainAdmissionScopeError(
+            "context_v2_admission_scope_mismatch",
+            "persisted admission state does not match the bound chat scope",
+        )
+    try:
+        admission_provenance = json.loads(row["admission_provenance_json"])
+        bootstrap_provenance = json.loads(row["bootstrap_provenance_json"])
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise PupuUnchainAdmissionError(
+            "context_v2_admission_corrupt",
+            "persisted admission metadata is unreadable",
+        ) from error
+    if not isinstance(admission_provenance, dict) or not isinstance(
+        bootstrap_provenance,
+        dict,
+    ):
+        raise PupuUnchainAdmissionError(
+            "context_v2_admission_corrupt",
+            "persisted admission metadata is invalid",
+        )
+    admission_id = _required_identifier(row["admission_id"], "admission_id")
+    first_session_id = _required_identifier(
+        row["first_session_id"],
+        "first_session_id",
+    )
+    requested_rollout_mode = str(row["requested_rollout_mode"])
+    effective_rollout_mode = str(row["effective_rollout_mode"])
+    target_mode = str(row["target_mode"])
+    effective_mode = str(row["effective_mode"])
+    bootstrap_status = str(row["bootstrap_status"])
+    bootstrap_error_code = _bounded_text(
+        row["bootstrap_error_code"],
+        "bootstrap_error_code",
+        maximum=128,
+    )
+    canary_selected_raw = row["canary_selected"]
+    canary_percent = int(row["canary_percent"])
+    canary_bucket = int(row["canary_bucket"])
+    v2_bootstrapped_raw = row["v2_bootstrapped"]
+    revision = int(row["revision"])
+    admitted_at_ms = int(row["admitted_at_ms"])
+    updated_at_ms = int(row["updated_at_ms"])
+    bootstrapped_at_raw = row["bootstrapped_at_ms"]
+    if (
+        requested_rollout_mode not in _ROLLOUT_MODES
+        or effective_rollout_mode not in _ROLLOUT_MODES
+        or target_mode != "active"
+        or effective_mode not in {"shadow", "active"}
+        or bootstrap_status not in {"pending", "complete", "failed"}
+        or canary_selected_raw not in (0, 1)
+        or v2_bootstrapped_raw not in (0, 1)
+        or not 0 <= canary_percent <= 100
+        or not 0 <= canary_bucket <= 9_999
+        or revision <= 0
+        or admitted_at_ms < 0
+        or updated_at_ms < admitted_at_ms
+    ):
+        raise PupuUnchainAdmissionError(
+            "context_v2_admission_corrupt",
+            "persisted admission metadata is invalid",
+        )
+    v2_bootstrapped = bool(v2_bootstrapped_raw)
+    bootstrapped_at_ms = (
+        int(bootstrapped_at_raw) if bootstrapped_at_raw is not None else None
+    )
+    if (
+        (
+            bootstrap_status == "complete"
+            and (
+                not v2_bootstrapped
+                or effective_mode not in {"active", "shadow"}
+                or bootstrap_error_code
+                or bootstrapped_at_ms is None
+                or not bootstrap_provenance
+            )
+        )
+        or (
+            bootstrap_status == "pending"
+            and (
+                v2_bootstrapped
+                or effective_mode != "shadow"
+                or bootstrap_error_code
+                or bootstrapped_at_ms is not None
+            )
+        )
+        or (
+            bootstrap_status == "failed"
+            and (
+                v2_bootstrapped
+                or effective_mode != "shadow"
+                or not bootstrap_error_code
+                or bootstrapped_at_ms is not None
+            )
+        )
+    ):
+        raise PupuUnchainAdmissionError(
+            "context_v2_admission_corrupt",
+            "persisted admission bootstrap state is inconsistent",
+        )
+    return {
+        "admission_id": admission_id,
+        "owner_chat_id": str(row["owner_chat_id"]),
+        "first_session_id": first_session_id,
+        "requested_rollout_mode": requested_rollout_mode,
+        "effective_rollout_mode": effective_rollout_mode,
+        "cohort": str(row["cohort"]),
+        "target_mode": target_mode,
+        "effective_mode": effective_mode,
+        "decision_reason": str(row["decision_reason"]),
+        "canary_selected": bool(canary_selected_raw),
+        "canary_percent": canary_percent,
+        "canary_bucket": canary_bucket,
+        "hash_strategy": str(row["hash_strategy"]),
+        "bootstrap_status": bootstrap_status,
+        "v2_bootstrapped": v2_bootstrapped,
+        "bootstrap_error_code": bootstrap_error_code,
+        "admission_provenance": admission_provenance,
+        "bootstrap_provenance": bootstrap_provenance,
+        "revision": revision,
+        "admitted_at_ms": admitted_at_ms,
+        "bootstrapped_at_ms": bootstrapped_at_ms,
+        "sticky": bool(sticky),
+        "replayed": bool(replayed),
+    }
+
+
 class PupuUnchainAdmissionAuthority:
     """One exact chat scope over host metadata in the Unchain-owned DB."""
 
@@ -223,60 +367,12 @@ class PupuUnchainAdmissionAuthority:
         sticky: bool,
         replayed: bool = False,
     ) -> dict[str, Any]:
-        if (
-            str(row["owner_chat_id"]) != self.owner_chat_id
-            or str(row["scope_sha256"]) != self._scope_sha256
-            or int(row["schema_version"]) != _ADMISSION_SCHEMA_VERSION
-        ):
-            raise PupuUnchainAdmissionScopeError(
-                "context_v2_admission_scope_mismatch",
-                "persisted admission state does not match the bound chat scope",
-            )
-        try:
-            admission_provenance = json.loads(row["admission_provenance_json"])
-            bootstrap_provenance = json.loads(row["bootstrap_provenance_json"])
-        except (TypeError, ValueError, json.JSONDecodeError) as error:
-            raise PupuUnchainAdmissionError(
-                "context_v2_admission_corrupt",
-                "persisted admission metadata is unreadable",
-            ) from error
-        if not isinstance(admission_provenance, dict) or not isinstance(
-            bootstrap_provenance,
-            dict,
-        ):
-            raise PupuUnchainAdmissionError(
-                "context_v2_admission_corrupt",
-                "persisted admission metadata is invalid",
-            )
-        return {
-            "admission_id": str(row["admission_id"]),
-            "owner_chat_id": str(row["owner_chat_id"]),
-            "first_session_id": str(row["first_session_id"]),
-            "requested_rollout_mode": str(row["requested_rollout_mode"]),
-            "effective_rollout_mode": str(row["effective_rollout_mode"]),
-            "cohort": str(row["cohort"]),
-            "target_mode": str(row["target_mode"]),
-            "effective_mode": str(row["effective_mode"]),
-            "decision_reason": str(row["decision_reason"]),
-            "canary_selected": bool(row["canary_selected"]),
-            "canary_percent": int(row["canary_percent"]),
-            "canary_bucket": int(row["canary_bucket"]),
-            "hash_strategy": str(row["hash_strategy"]),
-            "bootstrap_status": str(row["bootstrap_status"]),
-            "v2_bootstrapped": bool(row["v2_bootstrapped"]),
-            "bootstrap_error_code": str(row["bootstrap_error_code"]),
-            "admission_provenance": admission_provenance,
-            "bootstrap_provenance": bootstrap_provenance,
-            "revision": int(row["revision"]),
-            "admitted_at_ms": int(row["admitted_at_ms"]),
-            "bootstrapped_at_ms": (
-                int(row["bootstrapped_at_ms"])
-                if row["bootstrapped_at_ms"] is not None
-                else None
-            ),
-            "sticky": bool(sticky),
-            "replayed": bool(replayed),
-        }
+        return validate_pupu_unchain_admission_row(
+            row,
+            owner_chat_id=self.owner_chat_id,
+            sticky=sticky,
+            replayed=replayed,
+        )
 
     @staticmethod
     def _operation_id(value: object) -> str:
@@ -716,4 +812,5 @@ __all__ = [
     "PupuUnchainAdmissionError",
     "PupuUnchainAdmissionScopeError",
     "open_pupu_unchain_admission_authority",
+    "validate_pupu_unchain_admission_row",
 ]

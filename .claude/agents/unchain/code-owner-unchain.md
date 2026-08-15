@@ -32,13 +32,13 @@ unchain:**
 1. **双边 impact 强制。** 动 `events_v4` / `Agent` / memory 这类跨层接口，**两侧的 impact 分析都要有**。代码索引按 repo 分，单边看不全另一边的爆炸半径。缺一边不得合并
 2. **双边改动交叉引用。** 两侧的 PR 描述互指对方的 commit/PR，弥补索引断层
 3. **边界与序列显式化。** 按 PuPu [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md)实例化 `BC-### / SEQ-###`；真实 producer 输出必须进入独立 strict consumer，closed schema 要 exact key-set 正负断言
-4. **部署组合精确。** 发布证据必须对应 PuPu commit 与 `unchain-core.lock.json` 的 exact revision；本地 sibling dev HEAD 只能作 advisory compatibility，不能替代 locked-pair gate
+4. **兼容准入与发布连续性分离。** runtime compatibility/admission 只由实际 import 的 Unchain module 导出的 strict protocol manifest 决定；Git revision、source path 与 checkout cleanliness 只作遥测。发布证据必须对应 PuPu candidate 与一次构建、全程复用的同一个 wheel，并在 contract/package/release 各阶段核对 wheel SHA-256 与 manifest digest；mutable sibling checkout 不能替代 artifact gate
 
 **唯一真实副本声明**：unchain 仓库里的 `unchain_runtime/` 是 **空壳**；PuPu 的 `unchain_runtime/server/` 才是适配层的唯一真实副本。不要把本仓当适配层的真相源。
 
 ## 已知的现状
 
-- **本地领先 GitHub main**（2026-07-04 起本地目录可直接读）。克隆只作历史参照，以本地工作树为准
+- **本地领先 GitHub main**（2026-07-04 起本地目录可直接读）。这只决定 source 考古从哪里开始；runtime compatibility 仍只认实际 import manifest，release evidence 仍只认被冻结的 wheel artifact
 - **memory 引擎的源码可改**（repo 是公开的，不是私有 wheel —— 这条曾被误记）。PuPu 侧的挂点：923 重排、写侧 `long_term_extractor`。**未知 kwarg 会被静默丢弃**，改签名时这一点最容易埋雷
 - **工具结果 status 有一个已知 bug**：成功的 `delegate` / `web_fetch` 帧恒标 `error`，全失败的 batch 帧恒标 `success`。非 0.1.9 回归、用户基本不可见，属发布后第一批要修的
 - 测试用仓库自带的 pytest（`run_tests.sh`），**不要直接 `npx jest`**

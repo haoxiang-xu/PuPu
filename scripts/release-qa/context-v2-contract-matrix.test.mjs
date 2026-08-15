@@ -14,6 +14,12 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 
 test("Context V2 release contract keeps all three blocking evidence layers", () => {
   assert.deepEqual(UNCHAIN_CORE_CONTRACT_TESTS, [
+    "tests/context_v2/test_interaction_resolution_compat.py::test_exact_malformed_legacy_and_authorized_canonical_pair_is_narrowly_bound",
+    "tests/context_v2/test_compiler.py::test_authorized_canonical_resolution_supersedes_one_malformed_legacy_event",
+    "tests/context_v2/test_graph_interaction_resume_checkpoint.py::test_canonical_resolution_supersedes_unadmitted_malformed_legacy_cursor",
+    "tests/context_v2/test_sqlite_generation_rebase_v2.py::test_authorized_canonical_resolution_supersedes_malformed_legacy_for_rebase",
+    "tests/test_durable_interaction_runtime.py::test_cancel_pending_atomically_terminalizes_journal_and_checkpoint",
+    "tests/test_durable_interaction_runtime.py::test_cancel_pending_rejects_normal_application_winner",
     "tests/test_provider_message_contract.py::test_openai_native_and_exact_wire_reject_unknown_message_fields",
     "tests/context_v2/test_model_context_projection.py::test_coordinator_materializes_image_and_removes_top_level_provenance",
     "tests/context_v2/test_journal_message_projection.py::test_plain_root_final_and_terminal_accept_matching_iteration_identity",
@@ -65,6 +71,7 @@ test("Context V2 release contract keeps all three blocking evidence layers", () 
   assert.match(runner, /name: "Unchain core contract matrix"/);
   assert.match(runner, /name: "PuPu adapter contract matrix"/);
   assert.match(runner, /name: "Node strict provider fake"/);
+  assert.match(runner, /verifyUnchainTestSourceProvenance/);
   assert.match(runner, /--test-name-pattern/);
   assert.doesNotMatch(runner, /continue-on-error|advisory/i);
 });

@@ -11,6 +11,7 @@ describe("execution cancellation outbox", () => {
 
   test("persists, normalizes, and deduplicates exact attempts", () => {
     enqueueExecutionCancel({
+      owner_chat_id: " owner-chat-1 ",
       session_id: " chat-1 ",
       attempt_id: " attempt-1 ",
       source_attempt_id: " source-1 ",
@@ -26,13 +27,60 @@ describe("execution cancellation outbox", () => {
 
     expect(readExecutionCancelOutbox()).toEqual([
       {
+        ownerChatId: "owner-chat-1",
         sessionId: "chat-1",
         attemptId: "attempt-1",
         sourceAttemptId: "source-1",
+        interactionId: "",
         requestId: "request-1",
         reason: "user_stop",
         createdAt: 10,
       },
+    ]);
+  });
+
+  test("rejects a conflicting owner for the same exact attempt", () => {
+    enqueueExecutionCancel({
+      ownerChatId: "owner-a",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+    });
+
+    expect(
+      enqueueExecutionCancel({
+        ownerChatId: "owner-b",
+        sessionId: "session-1",
+        attemptId: "attempt-1",
+      }),
+    ).toBeNull();
+    expect(readExecutionCancelOutbox()).toEqual([
+      expect.objectContaining({ ownerChatId: "owner-a" }),
+    ]);
+  });
+
+  test("keeps sequential interaction cancels distinct within one attempt", () => {
+    enqueueExecutionCancel({
+      ownerChatId: "owner-chat-1",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+      interactionId: "interaction-1",
+    });
+    enqueueExecutionCancel({
+      ownerChatId: "owner-chat-1",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+      interactionId: "interaction-2",
+    });
+
+    expect(readExecutionCancelOutbox()).toEqual([
+      expect.objectContaining({ interactionId: "interaction-1" }),
+      expect.objectContaining({ interactionId: "interaction-2" }),
+    ]);
+    expect(
+      removeExecutionCancel("session-1", "attempt-1", "interaction-1"),
+    ).toBe(true);
+    expect(readExecutionCancelOutbox()).toEqual([
+      expect.objectContaining({ interactionId: "interaction-2" }),
     ]);
   });
 

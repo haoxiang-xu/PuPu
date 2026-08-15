@@ -106,10 +106,11 @@ class RuntimeContractHealthTests(unittest.TestCase):
     ) -> None:
         verdict = ContextMemoryV2CapabilityVerdict(
             ready=False,
-            reason="unchain_lock_revision_missing",
+            reason="unchain_runtime_protocol_manifest_missing",
             verification="failed",
             immutable=False,
-            unchain_revision="a" * 40,
+            unchain_revision="diagnostic-only",
+            unchain_runtime_source="/loaded/unchain/runtime_protocol.py",
         )
         with (
             mock.patch.dict(
@@ -132,14 +133,15 @@ class RuntimeContractHealthTests(unittest.TestCase):
         self.assertEqual(
             response.get_json()["context_memory_v2"],
             {
-                "context_memory_capability_ready": False,
-                "context_memory_capability_reason": (
-                    "unchain_lock_revision_missing"
+                "runtime_protocol_ready": False,
+                "runtime_protocol_reason": (
+                    "unchain_runtime_protocol_manifest_missing"
                 ),
-                "context_memory_capability_verification": "failed",
-                "context_memory_capability_immutable": False,
-                "unchain_revision": "a" * 40,
-                "context_memory_contract": 1,
+                "runtime_protocol_verification": "failed",
+                "runtime_protocol_immutable": False,
+                "runtime_protocol_manifest": None,
+                "unchain_revision": "diagnostic-only",
+                "unchain_runtime_source": "/loaded/unchain/runtime_protocol.py",
             },
         )
         capability_probe.assert_called_once_with(requested_mode="canary")

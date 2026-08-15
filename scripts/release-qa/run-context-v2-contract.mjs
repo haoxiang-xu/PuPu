@@ -7,10 +7,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
-  describeUnchainCheckout,
-  inspectPinnedUnchainCheckout,
-  resolveUnchainRoot,
-} from "./unchain-checkout.mjs";
+  verifyUnchainTestSourceProvenance,
+  verifyWheelRuntimeManifest,
+} from "./unchain-artifact.mjs";
 import {
   PUPU_ADAPTER_CONTRACT_TESTS,
   STRICT_FAKE_CONTRACT_FILE,
@@ -19,41 +18,40 @@ import {
 } from "./context-v2-contract-matrix.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const unchainRoot = resolveUnchainRoot({ pupuRoot: ROOT });
-const checkout = inspectPinnedUnchainCheckout({
-  pupuRoot: ROOT,
-  unchainRoot,
-});
-
-console.log(`[context-v2-contract] ${describeUnchainCheckout(checkout)}`);
-if (process.env.GITHUB_OUTPUT) {
-  fs.appendFileSync(
-    process.env.GITHUB_OUTPUT,
-    [
-      `locked_sha=${checkout.lockedRevision}`,
-      `tested_sha=${checkout.testedRevision}`,
-      `dirty=${checkout.dirty}`,
-      "",
-    ].join("\n"),
-  );
-}
-if (!checkout.valid) {
-  console.error("[context-v2-contract] pinned checkout verification failed");
-  process.exit(1);
-}
+const artifactPath = path.resolve(process.env.UNCHAIN_ARTIFACT_PATH || "");
+const evidencePath = path.resolve(
+  process.env.UNCHAIN_ARTIFACT_EVIDENCE_PATH || "",
+);
+const unchainRoot = path.resolve(process.env.UNCHAIN_TEST_SOURCE_PATH || "");
 
 const venvPython = process.platform === "win32"
   ? path.join("Scripts", "python.exe")
   : path.join("bin", "python");
 const python = process.env.PYTHON || [
   path.join(ROOT, ".venv", venvPython),
-  path.join(unchainRoot, ".venv", venvPython),
 ].find((candidate) => fs.existsSync(candidate)) ||
   (process.platform === "win32" ? "python" : "python3");
-const pythonPath = [
-  path.join(unchainRoot, "src"),
-  process.env.PYTHONPATH,
-].filter(Boolean).join(path.delimiter);
+let artifactEvidence;
+try {
+  artifactEvidence = verifyWheelRuntimeManifest({
+    artifactPath,
+    evidencePath,
+    python,
+  });
+  verifyUnchainTestSourceProvenance({
+    sourcePath: unchainRoot,
+    evidence: artifactEvidence,
+  });
+} catch (error) {
+  console.error(`[context-v2-contract] ${error.message}`);
+  process.exit(1);
+}
+console.log(
+  `[context-v2-contract] artifact=${artifactEvidence.artifact.sha256}; ` +
+    `manifest=${artifactEvidence.runtime_manifest.manifest_digest}; ` +
+    `source_revision=${artifactEvidence.source.revision}`,
+);
+const pythonPath = artifactPath;
 const strictFakeSource = fs.readFileSync(
   path.join(ROOT, STRICT_FAKE_CONTRACT_FILE),
   "utf8",
@@ -113,3 +111,9 @@ runStage({
 });
 
 console.log("\n[context-v2-contract] all blocking stages passed");
+if (process.env.GITHUB_OUTPUT) {
+  fs.appendFileSync(
+    process.env.GITHUB_OUTPUT,
+    `executed_tests=${UNCHAIN_CORE_CONTRACT_TESTS.length + PUPU_ADAPTER_CONTRACT_TESTS.length + STRICT_FAKE_CONTRACT_TEST_NAMES.length}\n`,
+  );
+}

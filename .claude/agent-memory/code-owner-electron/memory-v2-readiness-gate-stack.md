@@ -5,6 +5,8 @@ metadata:
   type: project
 ---
 
+> **SUPERSEDED（2026-08-14）：** 下文九项 readiness 中的 exact SHA、dev bypass、dirty checkout 与 capability lock 判定已被移除，不能用于当前排障或准入。现行 Electron 会独立重算并严格验证实际 runtime manifest；Git revision/source 只作遥测。本文其余历史门栈也应以当前代码重新核对。
+
 **「Memory V2 没数据」几乎从来不是后端不产，是本层的门没开。** 排查顺序永远是先看门，再看产端。
 
 **门 0 · 构建快照**（`memory_v2_rollout.js` 的 `resolveMemoryV2ReleaseConfig`）：打包态下 `build/build_feature_flags.json` 必须在、schema 必须是 `pupu.memory-v2-release.v1`、`snapshot_fingerprint` 与 `rollout_fingerprint` **两个 sha256 都要重算相等**，任一不符整体降为 `featureEnabled:false`。非打包态读 `.local/build_feature_flags.snapshot.json` 并允许 `process.env` 覆盖。

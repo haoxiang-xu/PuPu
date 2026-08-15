@@ -1,9 +1,11 @@
 ---
 name: lazy-import-defers-locked-pair-breakage
-description: PuPu sidecar imports unchain symbols lazily inside functions, so a PuPu commit depending on unreleased unchain symbols still boots clean against the locked revision and only explodes mid-chat - never treat successful boot as locked-pair compatibility evidence
+description: SUPERSEDED 2026-08-14 — 启动冒烟不能证明懒加载执行路径兼容；现用 actual-import protocol manifest 与单一 wheel artifact gate，不再使用 locked-pair SHA
 metadata:
   type: project
 ---
+
+> **SUPERSEDED（2026-08-14）：** 旧 locked-pair 机制已移除。本文“启动冒烟不能证明真实执行路径兼容”的经验仍成立，但现行修法是验证实际 import runtime 的 strict protocol manifest，并让 contract/package/release 消费同一个 wheel artifact；不是恢复或更新 SHA lock。
 
 **PuPu 侧「能 import / 能起服务」不构成 locked-pair 兼容证据。** `unchain_adapter.py` 对 `production_run_ownership` 是 **函数体内的懒 import**（本次观察到两处：约 `unchain_adapter.py:9066` 图路径、`:10669` 普通流式路径），所以一个依赖了 **lock 里还没有的 unchain 符号** 的 PuPu commit，`import unchain_adapter` / `import routes` 全部 OK，**只有真正跑到那条路径才炸**。
 

@@ -6,6 +6,7 @@ from typing import Any, Dict, Iterable, List
 
 from flask import Response, jsonify, request, stream_with_context
 
+from context_memory_v2_capability import resolve_context_memory_v2_capability
 from route_blueprint import api_blueprint
 from memory_v2_error_contract import safe_context_v2_error
 
@@ -38,6 +39,17 @@ def _root():
     import routes as routes_module
 
     return routes_module
+
+
+def _runtime_protocol_write_error(root):
+    verdict = resolve_context_memory_v2_capability(requested_mode="active")
+    if verdict.ready:
+        return None
+    return root._json_error(
+        verdict.reason,
+        f"Unchain runtime protocol gate failed: {verdict.reason}",
+        409,
+    )
 
 
 def _sse_event(event_name: str, payload: Dict) -> str:
@@ -526,6 +538,7 @@ def chat_tool_confirmation() -> Response:
         else ""
     )
     durable_result = None
+    durable_handoff = None
     durable_not_found = None
     if session_id:
         try:
@@ -536,6 +549,7 @@ def chat_tool_confirmation() -> Response:
                 reason=reason,
                 modified_arguments=modified_arguments,
             )
+            durable_handoff = root.interaction_receipt_handoff(durable_result)
         except root.DurableInteractionHostError as exc:
             if exc.code == "interaction_not_found":
                 durable_not_found = exc
@@ -548,7 +562,7 @@ def chat_tool_confirmation() -> Response:
             approved=approved,
             reason=reason,
             modified_arguments=modified_arguments,
-            durable_receipt=durable_result,
+            durable_receipt=durable_handoff,
         )
     except root.DurableInteractionHostError as exc:
         return _durable_host_error_response(exc)
@@ -623,6 +637,13 @@ def chat_execution_cancel() -> Response:
     ).strip()
     attempt_id = str(payload.get("attempt_id") or "").strip()
     source_attempt_id = str(payload.get("source_attempt_id") or "").strip()
+    interaction_id = str(payload.get("interaction_id") or "").strip()
+    owner_chat_id_raw = payload.get("owner_chat_id")
+    owner_chat_id = (
+        owner_chat_id_raw.strip()
+        if isinstance(owner_chat_id_raw, str)
+        else ""
+    )
     if not execution_id:
         return root._json_error(
             "invalid_request",
@@ -633,6 +654,18 @@ def chat_execution_cancel() -> Response:
         return root._json_error(
             "invalid_request",
             "attempt_id is required",
+            400,
+        )
+    if not _MEMORY_V2_OWNER_RE.fullmatch(owner_chat_id):
+        return root._json_error(
+            "invalid_request",
+            "owner_chat_id is required and must be a valid chat identifier",
+            400,
+        )
+    if interaction_id and not _RUN_BUNDLE_RUN_ID_RE.fullmatch(interaction_id):
+        return root._json_error(
+            "invalid_request",
+            "interaction_id must be a valid durable identifier",
             400,
         )
 
@@ -659,6 +692,8 @@ def chat_execution_cancel() -> Response:
                 session_id=execution_id,
                 attempt_id=attempt_id,
                 source_attempt_id=source_attempt_id,
+                owner_chat_id=owner_chat_id,
+                expected_interaction_id=interaction_id,
                 reason=reason,
             )
         )
@@ -709,7 +744,9 @@ def chat_stream_v2() -> Response:
             "message or attachments is required",
             400,
         )
-
+    runtime_protocol_error = _runtime_protocol_write_error(root)
+    if runtime_protocol_error is not None:
+        return runtime_protocol_error
     incoming_thread_id = payload.get("threadId") or payload.get("thread_id")
     thread_id = str(incoming_thread_id).strip() if incoming_thread_id else ""
     if not thread_id:
@@ -1028,6 +1065,9 @@ def chat_stream_v4() -> Response:
             current_user_message["attachments"] = current_attachments
         if message or current_attachments:
             options["_memory_v2_current_user_message"] = current_user_message
+    runtime_protocol_error = _runtime_protocol_write_error(root)
+    if runtime_protocol_error is not None:
+        return runtime_protocol_error
     trace_level = _sanitize_trace_level(
         payload.get("trace_level")
         or options.get("trace_level")

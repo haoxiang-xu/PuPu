@@ -1253,6 +1253,7 @@ from interaction_channels import (
 from durable_interaction_host import (
     DurableInteractionHostError,
     DurableInteractionIdTracker,
+    DurableInteractionReceiptHandoff,
     bind_execution_attempt,
     cancel_chat_execution,
     clear_execution_attempt_binding,
@@ -1264,6 +1265,16 @@ from durable_interaction_host import (
     resolve_resume_options,
     save_graph_step_resume_context,
     save_resume_context,
+)
+from memory_v2_unchain_host_event_boundary import (
+    HOST_EVENT_ORIGIN_FALLBACK_FINAL,
+    HOST_EVENT_ORIGIN_HUMAN_INPUT,
+    HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION,
+    HOST_EVENT_ORIGIN_MAX_BUDGET,
+    HOST_EVENT_ORIGIN_TOOL_APPROVAL,
+    PupuUnchainHostEventAuthority,
+    PupuUnchainHostEventBoundary,
+    PupuUnchainHostEventBoundaryError,
 )
 
 
@@ -1988,6 +1999,99 @@ def _build_modular_prompt(
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
+_LIVE_CONFIRMATION_RECEIPT_CLAIM_LIMIT = 4096
+_live_confirmation_receipt_claims: Dict[
+    tuple[str, str],
+    Dict[str, Any],
+] = {}
+
+
+def _live_confirmation_receipt_identity(
+    durable_receipt: object,
+) -> tuple[str, str, str] | None:
+    if not isinstance(durable_receipt, DurableInteractionReceiptHandoff):
+        return None
+    return (
+        durable_receipt.session_id,
+        durable_receipt.interaction_id,
+        durable_receipt.receipt_id,
+    )
+
+
+def _matching_live_confirmation_claim_locked(
+    receipt_identity: tuple[str, str, str] | None,
+) -> bool:
+    if receipt_identity is None:
+        return False
+    session_id, interaction_id, receipt_id = receipt_identity
+    claim = _live_confirmation_receipt_claims.get(
+        (session_id, interaction_id)
+    )
+    if claim is None:
+        return False
+    if str(claim.get("receipt_id") or "") != receipt_id:
+        raise DurableInteractionHostError(
+            "interaction_receipt_conflict",
+            "Live interaction already consumed a different durable receipt",
+            status_code=409,
+        )
+    return True
+
+
+def _record_live_confirmation_claim_locked(
+    receipt_identity: tuple[str, str, str] | None,
+    *,
+    cancel_event: object,
+) -> None:
+    if receipt_identity is None:
+        return
+    session_id, interaction_id, receipt_id = receipt_identity
+    key = (session_id, interaction_id)
+    existing = _live_confirmation_receipt_claims.get(key)
+    if existing is not None:
+        if str(existing.get("receipt_id") or "") != receipt_id:
+            raise DurableInteractionHostError(
+                "interaction_receipt_conflict",
+                "Live interaction already consumed a different durable receipt",
+                status_code=409,
+            )
+        return
+    _ensure_live_confirmation_claim_capacity_locked(receipt_identity)
+    _live_confirmation_receipt_claims[key] = {
+        "receipt_id": receipt_id,
+        "cancel_event": cancel_event,
+    }
+
+
+def _ensure_live_confirmation_claim_capacity_locked(
+    receipt_identity: tuple[str, str, str] | None,
+) -> None:
+    if receipt_identity is None:
+        return
+    session_id, interaction_id, _receipt_id = receipt_identity
+    if (session_id, interaction_id) in _live_confirmation_receipt_claims:
+        return
+    if len(_live_confirmation_receipt_claims) >= (
+        _LIVE_CONFIRMATION_RECEIPT_CLAIM_LIMIT
+    ):
+        for claim_key, claim in tuple(
+            _live_confirmation_receipt_claims.items()
+        ):
+            claim_cancel_event = claim.get("cancel_event")
+            if (
+                isinstance(claim_cancel_event, threading.Event)
+                and claim_cancel_event.is_set()
+            ):
+                _live_confirmation_receipt_claims.pop(claim_key, None)
+    if len(_live_confirmation_receipt_claims) >= (
+        _LIVE_CONFIRMATION_RECEIPT_CLAIM_LIMIT
+    ):
+        raise DurableInteractionHostError(
+            "live_interaction_claim_capacity",
+            "Live interaction receipt claim capacity is exhausted",
+            status_code=503,
+            retryable=True,
+        )
 
 def _compose_agent_prompt(sections: dict[str, str]) -> str:
     """Convenience: build an agent-only prompt (no user/builtin modules).
@@ -2067,6 +2171,7 @@ def _interaction_resolution_event(
     receipt_id: str = "",
     session_id: str = "",
     source_run_id: str = "",
+    event_run_id: str = "",
 ) -> Dict[str, Any]:
     normalized_interaction_id = str(interaction_id or "").strip()
     normalized_kind = str(kind or "").strip()
@@ -2076,6 +2181,7 @@ def _interaction_resolution_event(
     normalized_receipt_id = str(receipt_id or "").strip()
     normalized_session_id = str(session_id or "").strip()
     normalized_source_run_id = str(source_run_id or "").strip()
+    normalized_event_run_id = str(event_run_id or "").strip()
     identity = {
         "interaction_id": normalized_interaction_id,
         "kind": normalized_kind,
@@ -2104,9 +2210,115 @@ def _interaction_resolution_event(
     }
     if normalized_receipt_id:
         event["receipt_id"] = normalized_receipt_id
-    if normalized_source_run_id:
+    if normalized_event_run_id:
+        event["run_id"] = normalized_event_run_id
+    elif normalized_source_run_id:
+        # Legacy/off callers historically used source ownership as event
+        # ownership. Active Context V2 always supplies event_run_id explicitly.
         event["run_id"] = normalized_source_run_id
     return event
+
+
+def _interaction_owner_source_run_id(
+    owner: Dict[str, str],
+    *,
+    fallback_run_id: str = "",
+) -> str:
+    if not isinstance(owner, dict):
+        owner = {}
+    return str(
+        owner.get("source_run_id")
+        or owner.get("event_run_id")
+        or fallback_run_id
+        or ""
+    ).strip()
+
+
+def _active_host_event_authority(
+    boundary: PupuUnchainHostEventBoundary,
+    *,
+    interaction_id: str = "",
+    origin: str,
+    source_attempt_id: str = "",
+    interaction_kind: str = "",
+) -> PupuUnchainHostEventAuthority:
+    normalized_source_attempt_id = str(source_attempt_id or "").strip()
+    if origin in {
+        HOST_EVENT_ORIGIN_TOOL_APPROVAL,
+        HOST_EVENT_ORIGIN_HUMAN_INPUT,
+        HOST_EVENT_ORIGIN_MAX_BUDGET,
+        HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION,
+    } and normalized_source_attempt_id != boundary.attempt_id:
+        raise PupuUnchainHostEventBoundaryError(
+            "live interaction owner does not match the active attempt"
+        )
+    return PupuUnchainHostEventAuthority(
+        execution_id=boundary.execution_id,
+        attempt_id=boundary.attempt_id,
+        interaction_id=interaction_id,
+        origin=origin,
+        source_attempt_id=normalized_source_attempt_id,
+        interaction_kind=interaction_kind,
+    )
+
+
+def _emit_interaction_presentation_event(
+    emit_event,
+    event: Dict[str, Any],
+    *,
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None,
+    interaction_id: str,
+    origin: str,
+    source_attempt_id: str,
+    interaction_kind: str,
+) -> None:
+    if active_host_event_boundary is None:
+        emit_event(event)
+        return
+    authority = _active_host_event_authority(
+        active_host_event_boundary,
+        interaction_id=interaction_id,
+        origin=origin,
+        source_attempt_id=source_attempt_id,
+        interaction_kind=interaction_kind,
+    )
+    active_host_event_boundary.deliver(
+        active_host_event_boundary.bind_presentation(
+            event,
+            authority=authority,
+        )
+    )
+
+
+def _persist_active_fallback_final(
+    active_bridge: Any,
+    event: Dict[str, Any],
+    *,
+    execution_id: str,
+    attempt_id: str,
+) -> Dict[str, Any]:
+    delivered: list[Dict[str, Any]] = []
+    boundary = PupuUnchainHostEventBoundary(
+        active_bridge=active_bridge,
+        execution_id=execution_id,
+        attempt_id=attempt_id,
+        enqueue=lambda value: delivered.append(copy.deepcopy(value)),
+    )
+    authority = _active_host_event_authority(
+        boundary,
+        origin=HOST_EVENT_ORIGIN_FALLBACK_FINAL,
+    )
+    boundary.deliver(
+        boundary.bind_semantic(
+            event,
+            authority=authority,
+        )
+    )
+    if len(delivered) != 1:
+        raise PupuUnchainHostEventBoundaryError(
+            "fallback final was not delivered exactly once"
+        )
+    return delivered[0]
 
 
 def _make_interaction_resolution_writer(
@@ -2117,29 +2329,174 @@ def _make_interaction_resolution_writer(
     session_id: str = "",
     source_run_id: str = "",
     require_durable_receipt: bool = False,
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
 ):
+    class PersistedCallbackResolution:
+        __slots__ = ("callback_response", "event")
+
+        def __init__(
+            self,
+            *,
+            callback_response: Dict[str, Any],
+            event: Dict[str, Any] | None,
+        ) -> None:
+            self.callback_response = copy.deepcopy(callback_response)
+            self.event = copy.deepcopy(event) if isinstance(event, dict) else None
+
     def write_resolution(
         *,
         outcome: str,
-        durable_receipt: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        durable_receipt: DurableInteractionReceiptHandoff | Dict[str, Any] | None = None,
+        modified_arguments: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any] | PersistedCallbackResolution | None:
         receipt = durable_receipt if isinstance(durable_receipt, dict) else {}
-        receipt_id = str(receipt.get("receipt_id") or "").strip()
+        receipt_handoff = (
+            durable_receipt
+            if isinstance(durable_receipt, DurableInteractionReceiptHandoff)
+            else None
+        )
+        receipt_id = (
+            receipt_handoff.receipt_id
+            if receipt_handoff is not None
+            else str(receipt.get("receipt_id") or "").strip()
+        )
         if require_durable_receipt and not receipt_id:
             raise DurableInteractionHostError(
                 "interaction_receipt_required",
                 "A durable interaction receipt is required before live continuation",
                 status_code=409,
             )
+        normalized_outcome = str(outcome or "").strip().lower()
+        if kind == "human_input" and normalized_outcome == "approved":
+            normalized_outcome = "submitted"
+        callback_response: Dict[str, Any] | None = None
+        if active_host_event_boundary is not None:
+            if receipt_handoff is None:
+                raise DurableInteractionHostError(
+                    "interaction_receipt_handoff_required",
+                    "Active interaction continuation requires the persisted receipt response",
+                    status_code=409,
+                )
+            if (
+                receipt_handoff.session_id != active_host_event_boundary.execution_id
+                or receipt_handoff.interaction_id != interaction_id
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_receipt_handoff_mismatch",
+                    "Persisted interaction receipt does not match the live waiter",
+                    status_code=409,
+                )
+            persisted_response = receipt_handoff.response
+            if kind == "human_input":
+                if not isinstance(persisted_response, dict):
+                    raise DurableInteractionHostError(
+                        "interaction_receipt_integrity_error",
+                        "Persisted human-input response must be an object",
+                        status_code=500,
+                    )
+                normalized_outcome = "submitted"
+                callback_response = {
+                    "approved": True,
+                    "reason": "",
+                    "modified_arguments": {
+                        "user_response": copy.deepcopy(persisted_response),
+                    },
+                }
+            elif kind == "max_budget":
+                if not isinstance(persisted_response, dict) or not isinstance(
+                    persisted_response.get("approved"),
+                    bool,
+                ):
+                    raise DurableInteractionHostError(
+                        "interaction_receipt_integrity_error",
+                        "Persisted max-budget response must contain approved",
+                        status_code=500,
+                    )
+                approved = persisted_response["approved"]
+                normalized_outcome = "approved" if approved else "denied"
+                callback_response = {
+                    "approved": approved,
+                    "reason": "",
+                    "modified_arguments": None,
+                }
+            elif kind == "tool_approval":
+                if not isinstance(persisted_response, dict) or not isinstance(
+                    persisted_response.get("approved"),
+                    bool,
+                ):
+                    raise DurableInteractionHostError(
+                        "interaction_receipt_integrity_error",
+                        "Persisted tool-approval response must contain approved",
+                        status_code=500,
+                    )
+                approved = persisted_response["approved"]
+                persisted_modified = persisted_response.get("modified_arguments")
+                callback_response = {
+                    "approved": approved,
+                    "reason": str(persisted_response.get("reason") or ""),
+                    "modified_arguments": (
+                        copy.deepcopy(persisted_modified)
+                        if isinstance(persisted_modified, dict)
+                        else None
+                    ),
+                }
+                normalized_outcome = "approved" if approved else "denied"
+            else:
+                raise DurableInteractionHostError(
+                    "interaction_receipt_integrity_error",
+                    "Persisted interaction receipt has an unsupported kind",
+                    status_code=500,
+                )
+        if active_host_event_boundary is not None and kind == "tool_approval" and (
+            normalized_outcome == "denied"
+            or isinstance(callback_response.get("modified_arguments"), dict)
+        ):
+            # Unchain emits tool_denied/tool_confirmed after this callback
+            # returns. Those runtime events are the single graph resolution
+            # authority for these two branches; persisting a host resolution
+            # here would create an ambiguous second resolution.
+            return PersistedCallbackResolution(
+                callback_response=callback_response,
+                event=None,
+            )
         event = _interaction_resolution_event(
             interaction_id=interaction_id,
             kind=kind,
-            outcome=outcome,
+            outcome=normalized_outcome,
             receipt_id=receipt_id,
-            session_id=(receipt.get("session_id") or session_id),
+            session_id=(
+                receipt_handoff.session_id
+                if receipt_handoff is not None
+                else (receipt.get("session_id") or session_id)
+            ),
             source_run_id=source_run_id,
+            event_run_id=(
+                active_host_event_boundary.attempt_id
+                if active_host_event_boundary is not None
+                else source_run_id
+            ),
         )
-        emit_event(event)
+        if active_host_event_boundary is None:
+            emit_event(event)
+        else:
+            authority = _active_host_event_authority(
+                active_host_event_boundary,
+                interaction_id=interaction_id,
+                origin=HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION,
+                source_attempt_id=source_run_id,
+                interaction_kind=kind,
+            )
+            active_host_event_boundary.deliver_interaction_resolution(
+                active_host_event_boundary.bind_interaction_resolution(
+                    event,
+                    authority=authority,
+                    durable_receipt=receipt_handoff,
+                )
+            )
+            return PersistedCallbackResolution(
+                callback_response=callback_response,
+                event=event,
+            )
         return event
 
     return write_resolution
@@ -2231,13 +2588,25 @@ def submit_tool_confirmation(
     approved: bool,
     reason: str = "",
     modified_arguments: Dict[str, Any] | None = None,
-    durable_receipt: Dict[str, Any] | None = None,
+    durable_receipt: DurableInteractionReceiptHandoff | Dict[str, Any] | None = None,
 ) -> bool:
     normalized_id = confirmation_id.strip() if isinstance(confirmation_id, str) else ""
     if not normalized_id:
         return False
+    receipt_identity = _live_confirmation_receipt_identity(durable_receipt)
+    if (
+        receipt_identity is not None
+        and receipt_identity[1] != normalized_id
+    ):
+        raise DurableInteractionHostError(
+            "interaction_receipt_handoff_mismatch",
+            "Persisted interaction receipt does not match the live waiter",
+            status_code=409,
+        )
 
     with _pending_confirmations_lock:
+        if _matching_live_confirmation_claim_locked(receipt_identity):
+            return True
         pending = _pending_confirmations.get(normalized_id)
         if pending is None:
             return False
@@ -2247,12 +2616,25 @@ def submit_tool_confirmation(
             "reason": reason if isinstance(reason, str) else str(reason or ""),
             "modified_arguments": modified_arguments if isinstance(modified_arguments, dict) else None,
         }
+        _ensure_live_confirmation_claim_capacity_locked(receipt_identity)
         resolution_writer = pending.get("resolution_writer")
         if callable(resolution_writer):
-            resolution_writer(
+            persisted_resolution = resolution_writer(
                 outcome="approved" if approved else "denied",
                 durable_receipt=durable_receipt,
+                modified_arguments=modified_arguments,
             )
+            persisted_callback_response = getattr(
+                persisted_resolution,
+                "callback_response",
+                None,
+            )
+            if isinstance(persisted_callback_response, dict):
+                response = copy.deepcopy(persisted_callback_response)
+        _record_live_confirmation_claim_locked(
+            receipt_identity,
+            cancel_event=pending.get("cancel_event"),
+        )
         pending["response"] = response
         event = pending.get("event")
         if isinstance(event, threading.Event):
@@ -2283,6 +2665,17 @@ def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> in
             event = pending.get("event")
             if isinstance(event, threading.Event):
                 event.set()
+
+        for claim_key, claim in tuple(
+            _live_confirmation_receipt_claims.items()
+        ):
+            claim_cancel_event = claim.get("cancel_event")
+            if (
+                isinstance(cancel_event, threading.Event)
+                and claim_cancel_event is not cancel_event
+            ):
+                continue
+            _live_confirmation_receipt_claims.pop(claim_key, None)
 
     return cancelled
 
@@ -2322,6 +2715,7 @@ def _make_tool_confirm_callback(
     require_durable_interaction_id: bool = False,
     root_session_id: str = "",
     root_run_id: str = "",
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
 ):
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
@@ -2368,6 +2762,10 @@ def _make_tool_confirm_callback(
         if not confirmation_id:
             confirmation_id = str(_uuid.uuid4())
         request_payload["confirmation_id"] = confirmation_id
+        interaction_source_run_id = _interaction_owner_source_run_id(
+            interaction_owner,
+            fallback_run_id=root_run_id,
+        )
         waiter = {
             "event": threading.Event(),
             "response": None,
@@ -2377,12 +2775,9 @@ def _make_tool_confirm_callback(
                 interaction_id=confirmation_id,
                 kind="tool_approval",
                 session_id=(interaction_owner.get("session_id") or root_session_id),
-                source_run_id=(
-                    interaction_owner.get("source_run_id")
-                    or interaction_owner.get("event_run_id")
-                    or root_run_id
-                ),
+                source_run_id=interaction_source_run_id,
                 require_durable_receipt=require_durable_interaction_id,
+                active_host_event_boundary=active_host_event_boundary,
             ),
         }
 
@@ -2396,7 +2791,15 @@ def _make_tool_confirm_callback(
                     for key, value in request_payload.items()
                     if key != "_skip_emit_event"
                 }
-                emit_event(emit_payload)
+                _emit_interaction_presentation_event(
+                    emit_event,
+                    emit_payload,
+                    active_host_event_boundary=active_host_event_boundary,
+                    interaction_id=confirmation_id,
+                    origin=HOST_EVENT_ORIGIN_TOOL_APPROVAL,
+                    source_attempt_id=interaction_source_run_id,
+                    interaction_kind="tool_approval",
+                )
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
             event = waiter.get("event")
@@ -2428,6 +2831,9 @@ def _make_continuation_callback(
     cancel_event: threading.Event | None = None,
     interaction_id_tracker: DurableInteractionIdTracker | None = None,
     require_durable_interaction_id: bool = False,
+    root_session_id: str = "",
+    root_run_id: str = "",
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
 ):
     def on_continuation_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
@@ -2449,6 +2855,10 @@ def _make_continuation_callback(
                 status_code=500,
             )
         confirmation_id = durable_interaction_id or str(_uuid.uuid4())
+        interaction_source_run_id = _interaction_owner_source_run_id(
+            interaction_owner,
+            fallback_run_id=root_run_id,
+        )
         waiter: Dict[str, Any] = {
             "event": threading.Event(),
             "response": None,
@@ -2457,12 +2867,10 @@ def _make_continuation_callback(
                 emit_event,
                 interaction_id=confirmation_id,
                 kind="max_budget",
-                session_id=interaction_owner.get("session_id", ""),
-                source_run_id=(
-                    interaction_owner.get("source_run_id")
-                    or interaction_owner.get("event_run_id")
-                ),
+                session_id=(interaction_owner.get("session_id") or root_session_id),
+                source_run_id=interaction_source_run_id,
                 require_durable_receipt=require_durable_interaction_id,
+                active_host_event_boundary=active_host_event_boundary,
             ),
         }
 
@@ -2471,7 +2879,7 @@ def _make_continuation_callback(
 
         iteration = payload.get("iteration", 0)
         try:
-            emit_event({
+            presentation_event = {
                 "type": "tool_call",
                 "tool_name": "__continuation__",
                 "tool_display_name": "Continue?",
@@ -2482,7 +2890,16 @@ def _make_continuation_callback(
                 "interact_config": {},
                 "arguments": {},
                 "description": f"Agent reached {iteration} iterations without a final response.",
-            })
+            }
+            _emit_interaction_presentation_event(
+                emit_event,
+                presentation_event,
+                active_host_event_boundary=active_host_event_boundary,
+                interaction_id=confirmation_id,
+                origin=HOST_EVENT_ORIGIN_MAX_BUDGET,
+                source_attempt_id=interaction_source_run_id,
+                interaction_kind="max_budget",
+            )
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
             event = waiter.get("event")
@@ -8026,6 +8443,9 @@ def _make_human_input_callback(
     toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
     interaction_id_tracker: DurableInteractionIdTracker | None = None,
     require_durable_interaction_id: bool = False,
+    root_session_id: str = "",
+    root_run_id: str = "",
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
 ):
     """Create an on_human_input blocking callback for unchain ask_user_question.
 
@@ -8051,6 +8471,10 @@ def _make_human_input_callback(
                 status_code=500,
             )
         confirmation_id = durable_interaction_id or str(_uuid.uuid4())
+        interaction_source_run_id = _interaction_owner_source_run_id(
+            interaction_owner,
+            fallback_run_id=root_run_id,
+        )
         interact_config = request.to_dict()
         toolkit_meta = (
             toolkit_meta_by_tool_name.get(_ASK_USER_QUESTION_TOOL_NAME, {})
@@ -8082,12 +8506,10 @@ def _make_human_input_callback(
                 emit_event,
                 interaction_id=confirmation_id,
                 kind="human_input",
-                session_id=interaction_owner.get("session_id", ""),
-                source_run_id=(
-                    interaction_owner.get("source_run_id")
-                    or interaction_owner.get("event_run_id")
-                ),
+                session_id=(interaction_owner.get("session_id") or root_session_id),
+                source_run_id=interaction_source_run_id,
                 require_durable_receipt=require_durable_interaction_id,
+                active_host_event_boundary=active_host_event_boundary,
             ),
         }
         with _pending_confirmations_lock:
@@ -8095,7 +8517,15 @@ def _make_human_input_callback(
 
         try:
             if callable(emit_event):
-                emit_event(emit_payload)
+                _emit_interaction_presentation_event(
+                    emit_event,
+                    emit_payload,
+                    active_host_event_boundary=active_host_event_boundary,
+                    interaction_id=confirmation_id,
+                    origin=HOST_EVENT_ORIGIN_HUMAN_INPUT,
+                    source_attempt_id=interaction_source_run_id,
+                    interaction_kind="human_input",
+                )
 
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
@@ -9655,10 +10085,23 @@ def _stream_recipe_graph_events(
                         output_holder["last_iteration"] = iteration
                     emit(event)
 
+                step_active_host_event_boundary = (
+                    PupuUnchainHostEventBoundary(
+                        active_bridge=graph_active_bridge,
+                        execution_id=graph_active_bridge.execution_id,
+                        attempt_id=step_run_id,
+                        enqueue=step_emit,
+                    )
+                    if graph_active_bridge is not None
+                    else None
+                )
+
                 def step_host_emit(event: Dict[str, Any]) -> None:
                     _execution_raise_if_cancelled(execution_token)
                     if graph_active_bridge is not None:
-                        graph_active_bridge.persist_host_event(event)
+                        raise PupuUnchainHostEventBoundaryError(
+                            "active graph host events require the typed boundary"
+                        )
                     step_emit(event)
 
                 human_input_cb = _make_human_input_callback(
@@ -9669,6 +10112,9 @@ def _stream_recipe_graph_events(
                     require_durable_interaction_id=(
                         graph_durable_interactions_required
                     ),
+                    root_session_id=graph_execution_id,
+                    root_run_id=step_run_id,
+                    active_host_event_boundary=step_active_host_event_boundary,
                 )
                 if options.get("_recipe_subagent_run"):
                     confirm_cb = None
@@ -9683,7 +10129,10 @@ def _stream_recipe_graph_events(
                             graph_durable_interactions_required
                         ),
                         root_session_id=graph_execution_id,
-                        root_run_id=workflow_run_id,
+                        root_run_id=step_run_id,
+                        active_host_event_boundary=(
+                            step_active_host_event_boundary
+                        ),
                     )
                     max_iterations_cb = _make_continuation_callback(
                         step_host_emit,
@@ -9691,6 +10140,11 @@ def _stream_recipe_graph_events(
                         interaction_id_tracker=interaction_id_tracker,
                         require_durable_interaction_id=(
                             graph_durable_interactions_required
+                        ),
+                        root_session_id=graph_execution_id,
+                        root_run_id=step_run_id,
+                        active_host_event_boundary=(
+                            step_active_host_event_boundary
                         ),
                     )
                 step_messages = runtime_messages if index == 0 else messages_without_attachments
@@ -10716,13 +11170,25 @@ def stream_chat_events(
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
             if active_context_bridge is not None:
-                active_context_bridge.persist_host_event(event)
-            else:
-                _persist_memory_v2_semantic_event(
-                    getattr(agent, "_memory_v2_admission", None),
-                    event,
+                raise PupuUnchainHostEventBoundaryError(
+                    "active root host events require the typed boundary"
                 )
+            _persist_memory_v2_semantic_event(
+                getattr(agent, "_memory_v2_admission", None),
+                event,
+            )
             event_queue.put(event)
+
+        active_host_event_boundary = (
+            PupuUnchainHostEventBoundary(
+                active_bridge=active_context_bridge,
+                execution_id=active_context_bridge.execution_id,
+                attempt_id=execution_run_id,
+                enqueue=event_queue.put,
+            )
+            if active_context_bridge is not None
+            else None
+        )
 
         shadow_bridge = getattr(
             agent,
@@ -10745,6 +11211,7 @@ def stream_chat_events(
             require_durable_interaction_id=durable_interactions_required,
             root_session_id=normalized_session_id,
             root_run_id=execution_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,
@@ -10752,12 +11219,18 @@ def stream_chat_events(
             toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
+            root_session_id=normalized_session_id,
+            root_run_id=execution_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         max_iterations_cb = _make_continuation_callback(
             emit_if_active,
             cancel_event=confirmation_cancel_signal,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
+            root_session_id=normalized_session_id,
+            root_run_id=execution_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         if isinstance(cancel_event, threading.Event):
             def watch_stream_cancel() -> None:
@@ -11017,7 +11490,12 @@ def stream_chat_events(
                 "content": final_text,
             }
             if active_context_bridge is not None:
-                active_context_bridge.persist_host_event(fallback_event)
+                fallback_event = _persist_active_fallback_final(
+                    active_context_bridge,
+                    fallback_event,
+                    execution_id=active_context_bridge.execution_id,
+                    attempt_id=execution_run_id,
+                )
             elif shadow_bridge is not None:
                 shadow_bridge.persist(fallback_event)
             if active_context_bridge is None:
@@ -11492,13 +11970,25 @@ def resume_chat_interaction_events(
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
             if active_context_bridge is not None:
-                active_context_bridge.persist_host_event(event)
-            else:
-                _persist_memory_v2_semantic_event(
-                    getattr(agent, "_memory_v2_admission", None),
-                    event,
+                raise PupuUnchainHostEventBoundaryError(
+                    "active resume host events require the typed boundary"
                 )
+            _persist_memory_v2_semantic_event(
+                getattr(agent, "_memory_v2_admission", None),
+                event,
+            )
             event_queue.put(event)
+
+        active_host_event_boundary = (
+            PupuUnchainHostEventBoundary(
+                active_bridge=active_context_bridge,
+                execution_id=active_context_bridge.execution_id,
+                attempt_id=resume_run_id,
+                enqueue=event_queue.put,
+            )
+            if active_context_bridge is not None
+            else None
+        )
 
         shadow_bridge = getattr(
             agent,
@@ -11521,6 +12011,7 @@ def resume_chat_interaction_events(
             require_durable_interaction_id=True,
             root_session_id=normalized_session_id,
             root_run_id=resume_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,
@@ -11528,12 +12019,18 @@ def resume_chat_interaction_events(
             toolkit_meta_by_tool_name=toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
+            root_session_id=normalized_session_id,
+            root_run_id=resume_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         max_iterations_cb = _make_continuation_callback(
             emit_if_active,
             cancel_event=confirmation_cancel_signal,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
+            root_session_id=normalized_session_id,
+            root_run_id=resume_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
 
         if isinstance(cancel_event, threading.Event):
@@ -11599,18 +12096,27 @@ def resume_chat_interaction_events(
                     if isinstance(pending_state.get("resolution"), dict)
                     else {}
                 )
-                emit_if_active(
-                    _interaction_resolution_event(
-                        interaction_id=normalized_interaction_id,
-                        kind=str(pending_state.get("kind") or ""),
-                        outcome=str(
-                            pending_resolution.get("outcome") or "submitted"
-                        ),
-                        receipt_id=str(pending_state.get("receipt_id") or ""),
-                        session_id=normalized_session_id,
-                        source_run_id=source_run_id,
-                    )
+                resumed_resolution_event = _interaction_resolution_event(
+                    interaction_id=normalized_interaction_id,
+                    kind=str(pending_state.get("kind") or ""),
+                    outcome=str(
+                        pending_resolution.get("outcome") or "submitted"
+                    ),
+                    receipt_id=str(pending_state.get("receipt_id") or ""),
+                    session_id=normalized_session_id,
+                    source_run_id=source_run_id,
+                    event_run_id=(
+                        resume_run_id
+                        if active_host_event_boundary is not None
+                        else source_run_id
+                    ),
                 )
+                if active_host_event_boundary is None:
+                    emit_if_active(resumed_resolution_event)
+                # Active Context V2 already admits this resolution through
+                # PupuMemoryV2InteractionInputDraft during kernel bootstrap.
+                # Re-emitting it here would either announce success before
+                # bootstrap or create a second journal representation.
                 result = agent.resume_interaction(
                     session_id=normalized_session_id,
                     payload=_build_payload(agent.provider, resolved_options),
@@ -11788,7 +12294,12 @@ def resume_chat_interaction_events(
                 "content": final_text,
             }
             if active_context_bridge is not None:
-                active_context_bridge.persist_host_event(fallback_event)
+                fallback_event = _persist_active_fallback_final(
+                    active_context_bridge,
+                    fallback_event,
+                    execution_id=active_context_bridge.execution_id,
+                    attempt_id=resume_run_id,
+                )
             elif shadow_bridge is not None:
                 shadow_bridge.persist(fallback_event)
             if active_context_bridge is None:

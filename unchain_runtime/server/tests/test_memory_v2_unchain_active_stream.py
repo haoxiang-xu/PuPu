@@ -20,8 +20,10 @@ def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() 
     run_kwargs: dict = {}
 
     class ActiveBridge:
-        def persist_host_event(self, event):
-            durable_events.append(dict(event))
+        execution_id = "root-run-a"
+
+        def persist_bound_host_event(self, bound_event):
+            durable_events.append(dict(bound_event.event))
 
     bridge = ActiveBridge()
     admission = SimpleNamespace(
@@ -60,7 +62,7 @@ def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() 
             }
             # A real Unchain Agent performs this persistence in ContextRuntime
             # before invoking PuPu's host callback.
-            bridge.persist_host_event(event)
+            durable_events.append(dict(event))
             kwargs["callback"](event)
             return SimpleNamespace(
                 status="completed",

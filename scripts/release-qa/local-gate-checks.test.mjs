@@ -11,7 +11,10 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   const checks = buildLocalGateChecks({
     root: ROOT,
     python: "python3",
-    unchainRoot: "/tmp/unchain-fixture",
+    pythonPath: "/tmp/unchain.whl",
+    unchainArtifactPath: "/tmp/unchain.whl",
+    unchainArtifactEvidencePath: "/tmp/unchain-artifact.json",
+    unchainTestSourcePath: "/tmp/unchain-tests",
     version: "0.0.0-test",
   });
   const harnessChecks = checks.filter(
@@ -44,7 +47,10 @@ test("release QA paths both include the fixed long-run harness suite", () => {
       cwd: ROOT,
       env: {
         PYTHON: "python3",
-        UNCHAIN_SOURCE_PATH: "/tmp/unchain-fixture",
+        UNCHAIN_ARTIFACT_PATH: "/tmp/unchain.whl",
+        UNCHAIN_ARTIFACT_EVIDENCE_PATH: "/tmp/unchain-artifact.json",
+        UNCHAIN_TEST_SOURCE_PATH: "/tmp/unchain-tests",
+        PYTHONPATH: "/tmp/unchain.whl",
       },
     },
   );
@@ -56,7 +62,10 @@ test("release QA paths both include the fixed long-run harness suite", () => {
       cwd: ROOT,
       env: {
         PYTHON: "python3",
-        UNCHAIN_SOURCE_PATH: "/tmp/unchain-fixture",
+        UNCHAIN_ARTIFACT_PATH: "/tmp/unchain.whl",
+        UNCHAIN_ARTIFACT_EVIDENCE_PATH: "/tmp/unchain-artifact.json",
+        UNCHAIN_TEST_SOURCE_PATH: "/tmp/unchain-tests",
+        PYTHONPATH: "/tmp/unchain.whl",
       },
     },
   );

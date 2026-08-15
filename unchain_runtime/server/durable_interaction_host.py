@@ -10,6 +10,7 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -143,6 +144,7 @@ _STABLE_RESUME_OPTION_KEYS = frozenset(
         "model",
         "modelId",
         "model_id",
+        "_memory_v2_owner_chat_id",
         "optimizer",
         "provider",
         "recipe_name",
@@ -194,6 +196,131 @@ class DurableInteractionHostError(RuntimeError):
         self.code = str(code or "durable_interaction_failed")
         self.status_code = int(status_code)
         self.retryable = bool(retryable)
+
+
+@dataclass(frozen=True, slots=True)
+class DurableInteractionReceiptHandoff:
+    """Internal, digest-validated handoff for one persisted UI response.
+
+    The public confirmation route deliberately returns only receipt identity.
+    Live callbacks receive this separate value so Context V2 can project the
+    exact response that won the durable receipt CAS without trusting the HTTP
+    request a second time.
+    """
+
+    session_id: str
+    receipt_json: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        normalized_session_id = _required_identifier(
+            self.session_id,
+            field_name="session_id",
+        )
+        if not isinstance(self.receipt_json, str) or not self.receipt_json:
+            raise TypeError("receipt_json must be non-empty text")
+        self._load_receipt()
+        object.__setattr__(self, "session_id", normalized_session_id)
+
+    @classmethod
+    def from_persisted_receipt(
+        cls,
+        *,
+        session_id: str,
+        receipt: Any,
+    ) -> "DurableInteractionReceiptHandoff":
+        from unchain.interaction.durable import InteractionReceipt
+
+        bound_receipt = InteractionReceipt.from_dict(receipt)
+        return cls(
+            session_id=session_id,
+            receipt_json=json.dumps(
+                bound_receipt.to_dict(),
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+
+    def _load_receipt(self):
+        from unchain.interaction.durable import InteractionReceipt
+
+        try:
+            raw_receipt = json.loads(self.receipt_json)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise DurableInteractionHostError(
+                "interaction_receipt_integrity_error",
+                "Durable interaction receipt handoff is invalid",
+                status_code=500,
+            ) from exc
+        try:
+            return InteractionReceipt.from_dict(raw_receipt)
+        except Exception as exc:
+            raise DurableInteractionHostError(
+                "interaction_receipt_integrity_error",
+                "Durable interaction receipt handoff failed integrity validation",
+                status_code=500,
+            ) from exc
+
+    @property
+    def receipt_id(self) -> str:
+        return self._load_receipt().receipt_id
+
+    @property
+    def interaction_id(self) -> str:
+        return self._load_receipt().interaction_id
+
+    @property
+    def submitted_by(self) -> str:
+        return self._load_receipt().submitted_by
+
+    @property
+    def response(self) -> Any:
+        return copy.deepcopy(self._load_receipt().response)
+
+
+class DurableInteractionReceiptResult(dict):
+    """Public receipt metadata plus an out-of-band internal handoff."""
+
+    def __init__(
+        self,
+        public_result: dict[str, Any],
+        *,
+        handoff: DurableInteractionReceiptHandoff,
+    ) -> None:
+        if not isinstance(public_result, dict):
+            raise TypeError("public_result must be a dict")
+        if not isinstance(handoff, DurableInteractionReceiptHandoff):
+            raise TypeError("handoff must be a durable interaction receipt handoff")
+        if (
+            str(public_result.get("session_id") or "").strip()
+            != handoff.session_id
+            or str(public_result.get("interaction_id") or "").strip()
+            != handoff.interaction_id
+            or str(public_result.get("receipt_id") or "").strip()
+            != handoff.receipt_id
+        ):
+            raise DurableInteractionHostError(
+                "interaction_receipt_integrity_error",
+                "Public receipt metadata does not match its internal handoff",
+                status_code=500,
+            )
+        super().__init__(copy.deepcopy(public_result))
+        self._handoff = handoff
+
+    @property
+    def handoff(self) -> DurableInteractionReceiptHandoff:
+        return self._handoff
+
+
+def interaction_receipt_handoff(
+    value: Any,
+) -> DurableInteractionReceiptHandoff | None:
+    """Return the non-serializable handoff carried by a local receipt result."""
+
+    if not isinstance(value, DurableInteractionReceiptResult):
+        return None
+    return value.handoff
 
 
 def _normalized_data_dir() -> Path:
@@ -1860,13 +1987,17 @@ def _execution_control_status(session_id: str, attempt_id: str) -> str:
     return str(getattr(snapshot, "status", "") or "").strip().lower()
 
 
-def _cancel_pending_source_attempt(
+def _cancel_pending_source_attempt_result(
     session_id: str,
     source_attempt_id: str,
     *,
+    expected_interaction_id: str = "",
     reason: str,
-) -> bool:
+) -> tuple[bool, Any | None]:
     interaction_runtime = _interaction_runtime()
+    normalized_expected_interaction_id = str(
+        expected_interaction_id or ""
+    ).strip()
     cancel_pending = getattr(interaction_runtime, "cancel_pending", None)
     if not callable(cancel_pending):
         raise DurableInteractionHostError(
@@ -1881,39 +2012,92 @@ def _cancel_pending_source_attempt(
             parameter.kind is inspect.Parameter.VAR_KEYWORD
             for parameter in parameters.values()
         )
+        if (
+            normalized_expected_interaction_id
+            and "expected_interaction_id" not in parameters
+            and not accepts_var_keyword
+        ):
+            raise TypeError(
+                "cancel_pending has no exact-interaction parameter"
+            )
+        interaction_kwargs = (
+            {"expected_interaction_id": normalized_expected_interaction_id}
+            if normalized_expected_interaction_id
+            else {}
+        )
         if "source_run_id" in parameters:
             cancelled_interaction = cancel_pending(
                 session_id,
                 source_run_id=source_attempt_id,
                 reason=reason,
+                **interaction_kwargs,
             )
         elif "attempt_id" in parameters:  # pragma: no cover - compatibility
             cancelled_interaction = cancel_pending(
                 session_id,
                 attempt_id=source_attempt_id,
                 reason=reason,
+                **interaction_kwargs,
             )
         elif accepts_var_keyword:
             cancelled_interaction = cancel_pending(
                 session_id,
                 source_run_id=source_attempt_id,
                 reason=reason,
+                **interaction_kwargs,
             )
         else:  # pragma: no cover - fail closed for incompatible runtime
             raise TypeError("cancel_pending has no exact-attempt parameter")
-        return cancelled_interaction is not None
+        if (
+            normalized_expected_interaction_id
+            and cancelled_interaction is not None
+        ):
+            cancelled_request = getattr(cancelled_interaction, "request", None)
+            cancelled_checkpoint_id = str(
+                getattr(cancelled_interaction, "checkpoint_id", "") or ""
+            ).strip()
+            cancelled_application = getattr(
+                cancelled_interaction,
+                "application",
+                None,
+            )
+            if (
+                cancelled_request is None
+                or str(
+                    getattr(cancelled_request, "interaction_id", "") or ""
+                ).strip()
+                != normalized_expected_interaction_id
+                or str(
+                    getattr(cancelled_request, "source_run_id", "") or ""
+                ).strip()
+                != source_attempt_id
+                or not cancelled_checkpoint_id
+                or not isinstance(cancelled_application, dict)
+                or cancelled_application.get("applied_checkpoint_id")
+                != f"cancelled:{cancelled_checkpoint_id}"
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_cancel_claim_invalid",
+                    "Durable interaction runtime returned a foreign cancel claim",
+                    status_code=409,
+                    retryable=True,
+                )
+        return cancelled_interaction is not None, cancelled_interaction
     except Exception as exc:
         try:
             from unchain.interaction import InteractionNotPendingError
         except ImportError:  # pragma: no cover
             InteractionNotPendingError = ()  # type: ignore
         if isinstance(exc, InteractionNotPendingError):
-            return False
+            return False, None
         try:
             from unchain.interaction import InteractionIntegrityError
         except ImportError:  # pragma: no cover
             InteractionIntegrityError = ()  # type: ignore
-        if isinstance(exc, InteractionIntegrityError):
+        if (
+            isinstance(exc, InteractionIntegrityError)
+            and not normalized_expected_interaction_id
+        ):
             repaired = _reconcile_orphaned_cancelled_interaction(
                 session_id,
                 expected_source_run_id=source_attempt_id,
@@ -1921,7 +2105,7 @@ def _cancel_pending_source_attempt(
                 cancel_if_needed=False,
             )
             if repaired:
-                return True
+                return True, None
         if isinstance(exc, TypeError):
             raise DurableInteractionHostError(
                 "execution_cancellation_unavailable",
@@ -1930,6 +2114,20 @@ def _cancel_pending_source_attempt(
                 retryable=True,
             ) from exc
         raise
+
+
+def _cancel_pending_source_attempt(
+    session_id: str,
+    source_attempt_id: str,
+    *,
+    reason: str,
+) -> bool:
+    cancelled, _snapshot = _cancel_pending_source_attempt_result(
+        session_id,
+        source_attempt_id,
+        reason=reason,
+    )
+    return cancelled
 
 
 def _ensure_execution_tombstone(
@@ -2978,13 +3176,453 @@ def record_interaction_receipt(
             "interaction_receipt_missing",
             "Durable interaction receipt was not persisted",
         )
-    return {
+    public_result = {
         "status": "ok",
         "disposition": "receipt_recorded",
         "session_id": normalized_session_id,
         "interaction_id": normalized_interaction_id,
         "receipt_id": persisted.receipt.receipt_id,
     }
+    return DurableInteractionReceiptResult(
+        public_result,
+        handoff=DurableInteractionReceiptHandoff.from_persisted_receipt(
+            session_id=normalized_session_id,
+            receipt=persisted.receipt,
+        ),
+    )
+
+
+def _cold_interaction_owner_chat_id(
+    session_id: str,
+    source_attempt_id: str,
+    *,
+    explicit_owner_chat_id: str = "",
+) -> str:
+    candidates: list[str] = []
+    explicit = str(explicit_owner_chat_id or "").strip()
+    if explicit:
+        candidates.append(
+            _required_identifier(explicit, field_name="owner_chat_id")
+        )
+    graph_record = _read_graph_step_context_path(
+        _graph_step_context_path(session_id, source_attempt_id),
+        expected_session_id=session_id,
+        expected_step_attempt_id=source_attempt_id,
+    )
+    if graph_record is not None:
+        candidates.append(
+            _required_identifier(
+                graph_record.get("owner_chat_id"),
+                field_name="graph_owner_chat_id",
+            )
+        )
+    resume_record = load_resume_context(session_id, source_attempt_id)
+    if resume_record is not None:
+        options = resume_record.get("options")
+        resume_owner = (
+            str(options.get("_memory_v2_owner_chat_id") or "").strip()
+            if isinstance(options, dict)
+            else ""
+        )
+        if resume_owner:
+            candidates.append(
+                _required_identifier(
+                    resume_owner,
+                    field_name="resume_owner_chat_id",
+                )
+            )
+    if len(set(candidates)) > 1:
+        raise DurableInteractionHostError(
+            "cold_interaction_owner_conflict",
+            "Durable interaction owner authorities disagree",
+            status_code=409,
+        )
+    if candidates:
+        return candidates[0]
+
+    from memory_v2_store_boundary import (
+        STORE_OWNER_UNCHAIN,
+        configured_context_v2_store_owner,
+    )
+
+    if configured_context_v2_store_owner() == STORE_OWNER_UNCHAIN:
+        from memory_v2_unchain_active_bridge import (
+            pupu_unchain_cold_context_interaction_exists,
+        )
+
+        if pupu_unchain_cold_context_interaction_exists(
+            session_id=session_id,
+            execution_id=session_id,
+            source_attempt_id=source_attempt_id,
+        ):
+            raise DurableInteractionHostError(
+                "cold_interaction_owner_required",
+                "Canonical active interaction has no exact chat owner authority",
+                status_code=409,
+                retryable=True,
+            )
+    return ""
+
+
+def _cold_active_interaction_required(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+) -> bool:
+    from memory_v2_store_boundary import (
+        STORE_OWNER_UNCHAIN,
+        configured_context_v2_store_owner,
+    )
+
+    if configured_context_v2_store_owner() != STORE_OWNER_UNCHAIN:
+        return False
+    if not str(owner_chat_id or "").strip():
+        return False
+    from memory_v2_unchain_active_bridge import (
+        pupu_unchain_cold_active_admission,
+    )
+
+    return pupu_unchain_cold_active_admission(
+        owner_chat_id=owner_chat_id,
+        session_id=session_id,
+        execution_id=session_id,
+    )
+
+
+def _interaction_journal_entries_for_source(
+    session_id: str,
+    source_attempt_id: str,
+) -> tuple[tuple[Any, dict[str, Any], bool], ...]:
+    from unchain.interaction import InteractionRequest
+    from unchain.interaction.durable import validate_interaction_journal
+
+    runtime = _interaction_runtime()
+    snapshot = runtime.memory_runtime.load_session_snapshot(session_id)
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    active_id = str(journal.get("active_id") or "").strip()
+    entries: list[tuple[Any, dict[str, Any], bool]] = []
+    for interaction_id in journal.get("order") or ():
+        entry = (journal.get("entries") or {}).get(interaction_id)
+        if not isinstance(entry, dict):
+            continue
+        request = InteractionRequest.from_dict(entry.get("request"))
+        if request.source_run_id != source_attempt_id:
+            continue
+        entries.append(
+            (
+                request,
+                copy.deepcopy(entry),
+                request.interaction_id == active_id,
+            )
+        )
+    return tuple(entries)
+
+
+@dataclass(frozen=True)
+class _InteractionCancelTarget:
+    request: Any
+    entry: dict[str, Any]
+    is_active: bool
+    is_cancelled_applied: bool
+
+
+def _interaction_cancel_target(
+    session_id: str,
+    expected_interaction_id: str,
+) -> _InteractionCancelTarget | None:
+    """Resolve one exact durable target without consulting ambient latest state."""
+
+    from unchain.interaction import InteractionRequest
+    from unchain.interaction.durable import validate_interaction_journal
+
+    runtime = _interaction_runtime()
+    snapshot = runtime.memory_runtime.load_session_snapshot(session_id)
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    entry = (journal.get("entries") or {}).get(expected_interaction_id)
+    if entry is None:
+        return None
+    if not isinstance(entry, dict):
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_corrupt",
+            "Durable interaction target is corrupt",
+            status_code=409,
+        )
+    request = InteractionRequest.from_dict(entry.get("request"))
+    if request.interaction_id != expected_interaction_id:
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_corrupt",
+            "Durable interaction target identity changed",
+            status_code=409,
+        )
+    checkpoint_id = str(entry.get("checkpoint_id") or "").strip()
+    application = entry.get("application")
+    return _InteractionCancelTarget(
+        request=request,
+        entry=copy.deepcopy(entry),
+        is_active=str(journal.get("active_id") or "").strip()
+        == expected_interaction_id,
+        is_cancelled_applied=(
+            isinstance(application, dict)
+            and bool(checkpoint_id)
+            and application.get("applied_checkpoint_id")
+            == f"cancelled:{checkpoint_id}"
+        ),
+    )
+
+
+def _active_interaction_id(session_id: str) -> str:
+    from unchain.interaction.durable import validate_interaction_journal
+
+    runtime = _interaction_runtime()
+    snapshot = runtime.memory_runtime.load_session_snapshot(session_id)
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    return str(journal.get("active_id") or "").strip()
+
+
+def _cold_interaction_reconciliation_required(
+    session_id: str,
+    source_attempt_id: str,
+) -> bool:
+    """Return whether this exact source owns unresolved cold Context work."""
+
+    for _request, entry, is_active in _interaction_journal_entries_for_source(
+        session_id,
+        source_attempt_id,
+    ):
+        if is_active:
+            return True
+        application = entry.get("application")
+        checkpoint_id = str(entry.get("checkpoint_id") or "").strip()
+        if (
+            isinstance(application, dict)
+            and checkpoint_id
+            and application.get("applied_checkpoint_id")
+            == f"cancelled:{checkpoint_id}"
+        ):
+            return True
+    return False
+
+
+def _cancelled_interaction_receipt_handoffs(
+    session_id: str,
+    source_attempt_id: str,
+    *,
+    expected_interaction_id: str = "",
+) -> tuple[DurableInteractionReceiptHandoff, ...]:
+    from unchain.interaction import InteractionReceipt
+
+    candidates: list[DurableInteractionReceiptHandoff] = []
+    for request, entry, _is_active in _interaction_journal_entries_for_source(
+        session_id,
+        source_attempt_id,
+    ):
+        if (
+            expected_interaction_id
+            and request.interaction_id != expected_interaction_id
+        ):
+            continue
+        receipt_raw = entry.get("receipt")
+        application = entry.get("application")
+        checkpoint_id = str(entry.get("checkpoint_id") or "").strip()
+        if receipt_raw is None or not isinstance(application, dict):
+            continue
+        if application.get("applied_checkpoint_id") != f"cancelled:{checkpoint_id}":
+            continue
+        receipt = InteractionReceipt.from_dict(receipt_raw, request=request)
+        candidates.append(
+            DurableInteractionReceiptHandoff.from_persisted_receipt(
+                session_id=session_id,
+                receipt=receipt,
+            )
+        )
+    return tuple(candidates)
+
+
+def _cancelled_snapshot_receipt_handoff(
+    *,
+    session_id: str,
+    source_attempt_id: str,
+    expected_interaction_id: str = "",
+    cancellation_snapshot: Any | None,
+) -> DurableInteractionReceiptHandoff | None:
+    if cancellation_snapshot is None:
+        return None
+    request = getattr(cancellation_snapshot, "request", None)
+    receipt = getattr(cancellation_snapshot, "receipt", None)
+    application = getattr(cancellation_snapshot, "application", None)
+    checkpoint_id = str(
+        getattr(cancellation_snapshot, "checkpoint_id", "") or ""
+    ).strip()
+    if (
+        request is None
+        or receipt is None
+        or not isinstance(application, dict)
+        or not checkpoint_id
+        or str(getattr(request, "source_run_id", "") or "").strip()
+        != source_attempt_id
+        or str(getattr(receipt, "interaction_id", "") or "").strip()
+        != str(getattr(request, "interaction_id", "") or "").strip()
+        or (
+            expected_interaction_id
+            and str(getattr(request, "interaction_id", "") or "").strip()
+            != expected_interaction_id
+        )
+        or application.get("applied_checkpoint_id")
+        != f"cancelled:{checkpoint_id}"
+    ):
+        raise DurableInteractionHostError(
+            "cold_interaction_receipt_integrity_error",
+            "Cancelled interaction snapshot does not match its exact source",
+            status_code=409,
+            retryable=True,
+        )
+    return DurableInteractionReceiptHandoff.from_persisted_receipt(
+        session_id=session_id,
+        receipt=receipt,
+    )
+
+
+def _reconcile_cancelled_interaction_to_context(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+    source_attempt_id: str,
+    expected_interaction_id: str = "",
+    cancellation_applied: bool,
+    cancellation_snapshot: Any | None = None,
+) -> bool:
+    direct_handoff = _cancelled_snapshot_receipt_handoff(
+        session_id=session_id,
+        source_attempt_id=source_attempt_id,
+        expected_interaction_id=expected_interaction_id,
+        cancellation_snapshot=cancellation_snapshot,
+    )
+    candidates = (
+        (direct_handoff,)
+        if direct_handoff is not None
+        else _cancelled_interaction_receipt_handoffs(
+            session_id,
+            source_attempt_id,
+            expected_interaction_id=expected_interaction_id,
+        )
+    )
+    if not candidates and not cancellation_applied:
+        return False
+    if len(candidates) != 1:
+        raise DurableInteractionHostError(
+            "cold_interaction_receipt_ambiguous",
+            "Cancelled active interaction has no unique durable receipt",
+            status_code=409,
+            retryable=True,
+        )
+    from memory_v2_unchain_active_bridge import (
+        persist_pupu_unchain_cold_interaction_resolution,
+    )
+
+    try:
+        persist_pupu_unchain_cold_interaction_resolution(
+            owner_chat_id=owner_chat_id,
+            session_id=session_id,
+            execution_id=session_id,
+            source_attempt_id=source_attempt_id,
+            durable_receipt=candidates[0],
+        )
+    except DurableInteractionHostError:
+        raise
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            "cold_interaction_context_ingress_failed",
+            str(exc),
+            status_code=409,
+            retryable=True,
+        ) from exc
+    return True
+
+
+def reconcile_cancelled_interactions_before_active_run(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+) -> int:
+    """Repair exact cancelled receipts before a fresh active compile.
+
+    Historical/off entries without a canonical Context request are ignored.
+    Exact request intersections are projected only through official ingress.
+    """
+
+    normalized_owner_chat_id = _required_identifier(
+        owner_chat_id,
+        field_name="owner_chat_id",
+    )
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    if not _cold_active_interaction_required(
+        owner_chat_id=normalized_owner_chat_id,
+        session_id=normalized_session_id,
+    ):
+        return 0
+    from memory_v2_unchain_active_bridge import (
+        pupu_unchain_cold_context_request_exists,
+    )
+
+    repaired = 0
+    seen_interactions: set[str] = set()
+    runtime = _interaction_runtime()
+    from unchain.interaction import InteractionRequest
+    from unchain.interaction.durable import validate_interaction_journal
+
+    snapshot = runtime.memory_runtime.load_session_snapshot(
+        normalized_session_id
+    )
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    for interaction_id in journal.get("order") or ():
+        raw_entry = (journal.get("entries") or {}).get(interaction_id)
+        if not isinstance(raw_entry, dict):
+            continue
+        request = InteractionRequest.from_dict(raw_entry.get("request"))
+        checkpoint_id = str(raw_entry.get("checkpoint_id") or "").strip()
+        application = raw_entry.get("application")
+        if (
+            request.interaction_id in seen_interactions
+            or not checkpoint_id
+            or not isinstance(application, dict)
+            or application.get("applied_checkpoint_id")
+            != f"cancelled:{checkpoint_id}"
+        ):
+            continue
+        seen_interactions.add(request.interaction_id)
+        if not pupu_unchain_cold_context_request_exists(
+            session_id=normalized_session_id,
+            execution_id=normalized_session_id,
+            source_attempt_id=request.source_run_id,
+            interaction_id=request.interaction_id,
+        ):
+            continue
+        if not _reconcile_cancelled_interaction_to_context(
+            owner_chat_id=normalized_owner_chat_id,
+            session_id=normalized_session_id,
+            source_attempt_id=request.source_run_id,
+            expected_interaction_id=request.interaction_id,
+            cancellation_applied=True,
+        ):
+            raise DurableInteractionHostError(
+                "cold_interaction_repair_incomplete",
+                "Cancelled interaction repair did not persist canonical input",
+                status_code=409,
+                retryable=True,
+            )
+        repaired += 1
+    return repaired
 
 
 def cancel_chat_execution(
@@ -2992,6 +3630,8 @@ def cancel_chat_execution(
     session_id: str,
     attempt_id: str,
     source_attempt_id: str = "",
+    owner_chat_id: str = "",
+    expected_interaction_id: str = "",
     reason: str = "user_stop",
 ) -> dict[str, Any]:
     """Idempotently cancel one exact PuPu/Unchain execution attempt."""
@@ -3005,6 +3645,14 @@ def cancel_chat_execution(
         field_name="attempt_id",
     )
     normalized_reason = str(reason or "user_stop").strip() or "user_stop"
+    normalized_expected_interaction_id = str(
+        expected_interaction_id or ""
+    ).strip()
+    if normalized_expected_interaction_id:
+        normalized_expected_interaction_id = _required_identifier(
+            normalized_expected_interaction_id,
+            field_name="expected_interaction_id",
+        )
     normalized_source_attempt_id = str(source_attempt_id or "").strip()
     if normalized_source_attempt_id:
         binding = bind_execution_attempt(
@@ -3021,6 +3669,138 @@ def cancel_chat_execution(
         (binding or {}).get("source_attempt_id")
         or normalized_attempt_id
     ).strip()
+    exact_target = (
+        _interaction_cancel_target(
+            normalized_session_id,
+            normalized_expected_interaction_id,
+        )
+        if normalized_expected_interaction_id
+        else None
+    )
+    if normalized_expected_interaction_id and exact_target is None:
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_missing",
+            "Durable interaction cancel target does not exist",
+            status_code=409,
+        )
+    if exact_target is not None:
+        pending_source_attempt_id = _required_identifier(
+            exact_target.request.source_run_id,
+            field_name="interaction_source_attempt_id",
+        )
+        if not exact_target.is_active and not exact_target.is_cancelled_applied:
+            raise DurableInteractionHostError(
+                "interaction_cancel_target_not_pending",
+                "Durable interaction cancel target is no longer pending",
+                status_code=409,
+            )
+    elif _active_interaction_id(normalized_session_id):
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_required",
+            "Durable interaction cancellation requires interaction_id",
+            status_code=409,
+            retryable=True,
+        )
+
+    cold_reconciliation_required = False
+    cold_reconciliation_owners: set[str] = set()
+    for candidate_source_attempt_id in dict.fromkeys(
+        (
+            (pending_source_attempt_id,)
+            if exact_target is not None
+            else (pending_source_attempt_id, normalized_attempt_id)
+        )
+    ):
+        candidate_owner_chat_id = _cold_interaction_owner_chat_id(
+            normalized_session_id,
+            candidate_source_attempt_id,
+            explicit_owner_chat_id=owner_chat_id,
+        )
+        candidate_active = _cold_active_interaction_required(
+            owner_chat_id=candidate_owner_chat_id,
+            session_id=normalized_session_id,
+        )
+        candidate_work = _cold_interaction_reconciliation_required(
+            normalized_session_id,
+            candidate_source_attempt_id,
+        )
+        if candidate_active and candidate_work:
+            cold_reconciliation_required = True
+            cold_reconciliation_owners.add(candidate_owner_chat_id)
+    if len(cold_reconciliation_owners) > 1:
+        raise DurableInteractionHostError(
+            "cold_interaction_owner_conflict",
+            "Cold interaction source authorities disagree",
+            status_code=409,
+        )
+    durable_interaction_cancelled = False
+    cancelled_interaction_snapshot = None
+    if exact_target is not None and exact_target.is_cancelled_applied:
+        active_interaction_id = _active_interaction_id(normalized_session_id)
+        foreign_active_interaction = bool(
+            active_interaction_id
+            and active_interaction_id != normalized_expected_interaction_id
+        )
+        resolved_owner_chat_id = (
+            next(iter(cold_reconciliation_owners))
+            if cold_reconciliation_owners
+            else _cold_interaction_owner_chat_id(
+                normalized_session_id,
+                pending_source_attempt_id,
+                explicit_owner_chat_id=owner_chat_id,
+            )
+        )
+        if foreign_active_interaction:
+            context_interaction_reconciled = False
+            if cold_reconciliation_required:
+                context_interaction_reconciled = (
+                    _reconcile_cancelled_interaction_to_context(
+                        owner_chat_id=resolved_owner_chat_id,
+                        session_id=normalized_session_id,
+                        source_attempt_id=pending_source_attempt_id,
+                        expected_interaction_id=(
+                            normalized_expected_interaction_id
+                        ),
+                        cancellation_applied=True,
+                    )
+                )
+            return {
+                "status": "ok",
+                "execution_id": normalized_session_id,
+                "attempt_id": normalized_attempt_id,
+                "source_attempt_id": pending_source_attempt_id,
+                "interaction_id": normalized_expected_interaction_id,
+                "disposition": "unchanged",
+                "state": _execution_control_status(
+                    normalized_session_id,
+                    normalized_attempt_id,
+                )
+                or "running",
+                "execution": {},
+                "cancellation": None,
+                "durable_interaction_cancelled": False,
+                "context_interaction_reconciled": (
+                    context_interaction_reconciled
+                ),
+            }
+        durable_interaction_cancelled = True
+    elif exact_target is not None:
+        (
+            durable_interaction_cancelled,
+            cancelled_interaction_snapshot,
+        ) = _cancel_pending_source_attempt_result(
+            normalized_session_id,
+            pending_source_attempt_id,
+            expected_interaction_id=normalized_expected_interaction_id,
+            reason=normalized_reason,
+        )
+        if not durable_interaction_cancelled:
+            raise DurableInteractionHostError(
+                "interaction_cancel_target_changed",
+                "Durable interaction cancel target changed before atomic apply",
+                status_code=409,
+                retryable=True,
+            )
 
     try:
         registry_result = _execution_control_cancel(
@@ -3047,7 +3827,16 @@ def cancel_chat_execution(
     )
     disposition = str(registry_payload.get("disposition") or "applied")
     state = str(registry_execution.get("status") or "")
-    if state in {"completed", "failed"}:
+    if state in {"completed", "failed"} and not cold_reconciliation_required:
+        if durable_interaction_cancelled:
+            clear_resume_context(
+                normalized_session_id,
+                pending_source_attempt_id,
+            )
+        clear_resume_context(
+            normalized_session_id,
+            normalized_attempt_id,
+        )
         clear_execution_attempt_binding(
             normalized_session_id,
             normalized_attempt_id,
@@ -3061,7 +3850,7 @@ def cancel_chat_execution(
             "state": state,
             "execution": copy.deepcopy(registry_execution),
             "cancellation": None,
-            "durable_interaction_cancelled": False,
+            "durable_interaction_cancelled": durable_interaction_cancelled,
         }
 
     try:
@@ -3085,12 +3874,18 @@ def cancel_chat_execution(
             reason=normalized_reason,
         )
 
-    durable_interaction_cancelled = _cancel_pending_source_attempt(
-        normalized_session_id,
-        pending_source_attempt_id,
-        reason=normalized_reason,
-    )
+    if not normalized_expected_interaction_id:
+        (
+            durable_interaction_cancelled,
+            cancelled_interaction_snapshot,
+        ) = _cancel_pending_source_attempt_result(
+            normalized_session_id,
+            pending_source_attempt_id,
+            reason=normalized_reason,
+        )
     if (
+        not normalized_expected_interaction_id
+        and
         not durable_interaction_cancelled
         and pending_source_attempt_id == normalized_attempt_id
     ):
@@ -3103,22 +3898,65 @@ def cancel_chat_execution(
         ).strip()
         if late_source_attempt_id and late_source_attempt_id != normalized_attempt_id:
             pending_source_attempt_id = late_source_attempt_id
-            durable_interaction_cancelled = _cancel_pending_source_attempt(
+            (
+                durable_interaction_cancelled,
+                cancelled_interaction_snapshot,
+            ) = _cancel_pending_source_attempt_result(
                 normalized_session_id,
                 pending_source_attempt_id,
                 reason=normalized_reason,
             )
     if (
+        not normalized_expected_interaction_id
+        and
         not durable_interaction_cancelled
         and pending_source_attempt_id != normalized_attempt_id
     ):
         # Once resume attempt B consumes checkpoint A, a later checkpoint is
         # owned by B itself.  Exact-B fallback cancels that successor without
         # ever touching an unrelated newer owner.
-        durable_interaction_cancelled = _cancel_pending_source_attempt(
+        (
+            fallback_cancelled,
+            fallback_cancelled_snapshot,
+        ) = _cancel_pending_source_attempt_result(
             normalized_session_id,
             normalized_attempt_id,
             reason=normalized_reason,
+        )
+        if fallback_cancelled:
+            pending_source_attempt_id = normalized_attempt_id
+            durable_interaction_cancelled = True
+            cancelled_interaction_snapshot = fallback_cancelled_snapshot
+
+    if normalized_expected_interaction_id and not durable_interaction_cancelled:
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_changed",
+            "Durable interaction cancel target changed before atomic apply",
+            status_code=409,
+            retryable=True,
+        )
+
+    resolved_owner_chat_id = _cold_interaction_owner_chat_id(
+        normalized_session_id,
+        pending_source_attempt_id,
+        explicit_owner_chat_id=owner_chat_id,
+    )
+    cold_active_required = _cold_active_interaction_required(
+        owner_chat_id=resolved_owner_chat_id,
+        session_id=normalized_session_id,
+    )
+
+    context_interaction_reconciled = False
+    if cold_active_required:
+        context_interaction_reconciled = (
+            _reconcile_cancelled_interaction_to_context(
+                owner_chat_id=resolved_owner_chat_id,
+                session_id=normalized_session_id,
+                source_attempt_id=pending_source_attempt_id,
+                expected_interaction_id=normalized_expected_interaction_id,
+                cancellation_applied=durable_interaction_cancelled,
+                cancellation_snapshot=cancelled_interaction_snapshot,
+            )
         )
 
     clear_resume_context(normalized_session_id, normalized_attempt_id)
@@ -3155,6 +3993,7 @@ def cancel_chat_execution(
             "reason": str(getattr(cancellation, "reason", normalized_reason) or ""),
         },
         "durable_interaction_cancelled": durable_interaction_cancelled,
+        "context_interaction_reconciled": context_interaction_reconciled,
     }
 
 
@@ -3258,12 +4097,16 @@ class DurableInteractionIdTracker:
 __all__ = [
     "DurableInteractionHostError",
     "DurableInteractionIdTracker",
+    "DurableInteractionReceiptHandoff",
+    "DurableInteractionReceiptResult",
     "clear_graph_step_resume_context",
     "clear_resume_context",
     "get_pending_interaction",
     "load_graph_step_resume_context",
     "load_resume_context",
+    "interaction_receipt_handoff",
     "record_interaction_receipt",
+    "reconcile_cancelled_interactions_before_active_run",
     "resolve_graph_step_resume_options",
     "resolve_resume_options",
     "save_graph_step_resume_context",

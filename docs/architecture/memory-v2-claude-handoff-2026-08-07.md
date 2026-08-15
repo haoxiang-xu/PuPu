@@ -4,6 +4,8 @@
 > 交接范围：PuPu + sibling `unchain` 仓库  
 > 文档目的：让接手者不需要重新推导架构，能够直接从当前真实状态继续实现和验收。
 
+> **SUPERSEDED CONTROL NOTICE（2026-08-14）：** 本文保留 2026-08-07 的交接快照与事故考古价值，但其中所有 capability lock、exact SHA、dev bypass、lock/HEAD 对齐和 pinned-pair 操作指引均已失效，不能作为当前运行或发布规则。现行 runtime compatibility/admission 只认实际 import 的 Unchain runtime 导出的 strict protocol manifest；发布连续性由一次构建后全程复用的 wheel SHA-256 + manifest digest 证明；Git revision/source 仅为遥测。当前操作应以现行协议登记表与发布门为准。
+
 ## 1. 一页结论
 
 Memory V2 已经不再只是设计稿。Unchain 侧的五层核心、可选 Memory module、无角色 capability grant、系统 Toolkit、Curator、Workspace、长期记忆和持久化都已经实现；PuPu 侧也已经完成 active/shadow host 接线、Context V2 控制面、Trace、候选审核、promotion、Vault 和 rollout 闸门。

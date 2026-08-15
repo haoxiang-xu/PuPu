@@ -7,5 +7,5 @@
 - [Context V2 契约](context-v2-p0-contract.md) — CONTEXT_V2 18 条冻结能力(含 schema-v4 review 三件套)/无 generic proxy/schema 等值门/review 出站投影
 - [流中继的过滤粒度](stream-relay-filtering-granularity.md) — 频道=白名单/data.type=完全透传/未知 envelope.event 名=静默丢弃零计数; main 中继零过滤; 本层不知道 done.bundle 存在
 - [IPC 错误码传输](ipc-error-code-transport.md) — Electron 剥 error.code, 唯一载体是 message 的 `[code] ` 前缀; 只有 context_v2/vault/settings 三个 bridge 装了解析器, projection 两条裸字符串直穿
-- [Memory V2 就绪门栈](memory-v2-readiness-gate-stack.md) — 产第一条载荷前十道 fail-closed 门(三道等值/win32 结构不可达); degraded 之后是硬失败不是降级; 存量 pupu_legacy 无任何处置代码
+- [Memory V2 就绪门栈（旧 SHA 门已废止）](memory-v2-readiness-gate-stack.md) — 历史门栈考古；当前准入以实际 runtime protocol manifest 为准，Git/source 仅遥测
 - [Memory V2 四态早就在线上](memory-v2-four-state-already-on-the-wire.md) — 「缺单一状态源」是假的: memoryV2 已跨 IPC, 卡在 shared-arteries 的 normalizeUnchainStatus; grep 零命中是改名造成的假阴性

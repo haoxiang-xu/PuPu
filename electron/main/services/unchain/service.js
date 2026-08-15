@@ -4,7 +4,6 @@ const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
 const { createPortFinder } = require("../../../shared/port_utils");
 const {
-  MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
   MEMORY_V2_ENV_KEYS,
   constrainMemoryV2ConfigForPlatform,
   projectMemoryV2Status,
@@ -1037,6 +1036,10 @@ const createUnchainService = ({
     platform,
   );
   const initialMemoryV2Readiness = () => {
+    const protocolStatus = {
+      runtimeProtocolDigest: "",
+      runtimeProtocolVerification: "",
+    };
     if (
       memoryV2ReleaseConfig.buildFeatureEnabled &&
       !memoryV2ReleaseConfig.snapshotValid
@@ -1047,12 +1050,23 @@ const createUnchainService = ({
           memoryV2ReleaseConfig.snapshotErrorCode ||
           "memory_v2_release_snapshot_invalid",
         sidecarFingerprint: "",
+        ...protocolStatus,
       };
     }
     if (memoryV2RuntimeConfig.effectiveMode === "off") {
-      return { status: "off", reason: "rollout_off", sidecarFingerprint: "" };
+      return {
+        status: "off",
+        reason: "rollout_off",
+        sidecarFingerprint: "",
+        ...protocolStatus,
+      };
     }
-    return { status: "pending", reason: "not_verified", sidecarFingerprint: "" };
+    return {
+      status: "pending",
+      reason: "not_verified",
+      sidecarFingerprint: "",
+      ...protocolStatus,
+    };
   };
   let unchainProcess = null;
   let unchainPort = null;
@@ -1659,6 +1673,9 @@ const createUnchainService = ({
         memoryV2RuntimeConfig.releaseRolloutFingerprint,
       rolloutFingerprint: memoryV2RuntimeConfig.rolloutFingerprint,
       sidecarFingerprint: memoryV2Readiness.sidecarFingerprint,
+      runtimeProtocolDigest: memoryV2Readiness.runtimeProtocolDigest,
+      runtimeProtocolVerification:
+        memoryV2Readiness.runtimeProtocolVerification,
       snapshotFingerprint: memoryV2ReleaseConfig.snapshotFingerprint,
     },
   });
@@ -1875,15 +1892,44 @@ const createUnchainService = ({
         status: validation.ok ? "ready" : "degraded",
         reason: validation.reason,
         sidecarFingerprint: validation.status.rolloutFingerprint,
+        runtimeProtocolDigest:
+          validation.status.runtimeProtocolManifest?.manifest_digest || "",
+        runtimeProtocolVerification:
+          validation.status.runtimeProtocolVerification,
       };
     } catch (_error) {
       memoryV2Readiness = {
         status: "degraded",
         reason: "context_v2_readiness_unavailable",
         sidecarFingerprint: "",
+        runtimeProtocolDigest: "",
+        runtimeProtocolVerification: "",
       };
     }
     return memoryV2Readiness;
+  };
+
+  const getContextV2ReadinessFailure = () => {
+    if (
+      memoryV2Readiness.reason === "context_v2_unchain_protocol_invalid"
+    ) {
+      return {
+        code: "context_v2_unchain_protocol_invalid",
+        message: "Memory V2 runtime protocol manifest is invalid",
+      };
+    }
+    if (
+      memoryV2Readiness.reason === "context_v2_unchain_protocol_incompatible"
+    ) {
+      return {
+        code: "context_v2_unchain_protocol_incompatible",
+        message: "Memory V2 runtime protocol is incompatible",
+      };
+    }
+    return {
+      code: "context_v2_readiness_failed",
+      message: "Memory V2 capability is unavailable",
+    };
   };
 
   // Single choke point for every Context V2 request. Transport failures are
@@ -1899,9 +1945,10 @@ const createUnchainService = ({
       memoryV2RuntimeConfig.effectiveMode !== "off" &&
       memoryV2Readiness.status !== "ready"
     ) {
+      const failure = getContextV2ReadinessFailure();
       throw createContextV2Error(
-        "context_v2_readiness_failed",
-        "context v2 capability is unavailable",
+        failure.code,
+        failure.message,
       );
     }
     let response;
@@ -1970,6 +2017,10 @@ const createUnchainService = ({
         status: validation.ok ? "ready" : "degraded",
         reason: validation.reason,
         sidecarFingerprint: validation.status.rolloutFingerprint,
+        runtimeProtocolDigest:
+          validation.status.runtimeProtocolManifest?.manifest_digest || "",
+        runtimeProtocolVerification:
+          validation.status.runtimeProtocolVerification,
       };
       projected.available = projected.available && validation.ok;
     }
@@ -4209,12 +4260,20 @@ const createUnchainService = ({
       },
     );
 
-    return readJsonResponse(
+    const result = await readJsonResponse(
       response,
       "Miso tool confirmation request failed",
-      { status: "ok" },
+      null,
       "Invalid Miso tool confirmation response",
     );
+    if (
+      result === null ||
+      typeof result !== "object" ||
+      Array.isArray(result)
+    ) {
+      throw new Error("Invalid Miso tool confirmation response");
+    }
+    return result;
   };
 
   const getMisoPendingInteraction = async (payload = {}) => {
@@ -4240,9 +4299,16 @@ const createUnchainService = ({
     const pending = await readJsonResponse(
       response,
       "Miso pending interaction request failed",
-      { status: "none", session_id: sessionId },
+      null,
       "Invalid Miso pending interaction response",
     );
+    if (
+      pending === null ||
+      typeof pending !== "object" ||
+      Array.isArray(pending)
+    ) {
+      throw new Error("Invalid Miso pending interaction response");
+    }
     // Recovery is the same security boundary as live SSE: a Vault interaction
     // must be durably bound before any renderer can approve it.
     bindVaultUseInteractionFromStreamPayload(pending);
@@ -4749,10 +4815,6 @@ const createUnchainService = ({
       delete sidecarEnvironment.PUPU_VAULT_BROKER_URL;
       delete sidecarEnvironment.PUPU_VAULT_BROKER_KEY;
       delete sidecarEnvironment.PUPU_VAULT_BROKER_FD;
-      // This active-development exception is never inherited ambiently. It is
-      // re-added below only when the non-packaged release resolver observed
-      // the literal value "1" and both rollout gates resolved to `all`.
-      delete sidecarEnvironment[MEMORY_V2_DIRTY_ACTIVE_DEV_ENV];
       const vaultBrokerBootstrap = getVaultBrokerBootstrap();
       activeVaultBrokerKey = vaultBrokerBootstrap?.key || "";
       unchainProcess = spawn(entrypoint.command, entrypoint.args, {
@@ -4806,9 +4868,6 @@ const createUnchainService = ({
             memoryV2RuntimeConfig.sidecarEnvironment[
               MEMORY_V2_ENV_KEYS.storeOwner
             ],
-          ...(memoryV2RuntimeConfig.allowDirtyUnchainActiveDev
-            ? { [MEMORY_V2_DIRTY_ACTIVE_DEV_ENV]: "1" }
-            : {}),
           // Belt-and-braces for the desired computer-use flag. Set AFTER the
           // process.env spread so an explicit user choice wins over any dev
           // PUPU_COMPUTER_USE in the ambient env. "0" is not in the sidecar's
@@ -5314,10 +5373,8 @@ const createUnchainService = ({
       memoryV2RuntimeConfig.effectiveMode !== "off" &&
       memoryV2Readiness.status !== "ready"
     ) {
-      emitMisoStreamDirectEvent(sender, requestId, "error", {
-        code: "context_v2_readiness_failed",
-        message: "Memory V2 capability is unavailable",
-      });
+      const failure = getContextV2ReadinessFailure();
+      emitMisoStreamDirectEvent(sender, requestId, "error", failure);
       return;
     }
     const requestOptions =
@@ -5390,6 +5447,10 @@ const createUnchainService = ({
       requestPayload.attempt_id ?? requestPayload.attemptId;
     const sourceAttemptIdCandidate =
       requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
+    const ownerChatIdCandidate =
+      requestPayload.owner_chat_id ?? requestPayload.ownerChatId;
+    const interactionIdCandidate =
+      requestPayload.interaction_id ?? requestPayload.interactionId;
     const executionId =
       typeof executionIdCandidate === "string"
         ? executionIdCandidate.trim()
@@ -5400,6 +5461,14 @@ const createUnchainService = ({
       typeof sourceAttemptIdCandidate === "string"
         ? sourceAttemptIdCandidate.trim()
         : "";
+    const ownerChatId =
+      typeof ownerChatIdCandidate === "string"
+        ? ownerChatIdCandidate.trim()
+        : "";
+    const interactionId = optionalContextV2Identifier(
+      interactionIdCandidate,
+      "interactionId",
+    );
     const normalizedAttachmentId =
       typeof attachmentId === "string" ? attachmentId.trim() : "";
     const replayEnabled = Boolean(
@@ -5413,6 +5482,8 @@ const createUnchainService = ({
       executionId,
       attemptId,
       sourceAttemptId,
+      ownerChatId,
+      interactionId,
       requestOptions: { ...requestPayload.options },
       replayBuffer: [],
       replayHead: 0,
@@ -5705,6 +5776,14 @@ const createUnchainService = ({
       payload?.source_attempt_id ??
       payload?.sourceAttemptId ??
       activeStream?.sourceAttemptId;
+    const ownerChatIdCandidate =
+      payload?.owner_chat_id ??
+      payload?.ownerChatId ??
+      activeStream?.ownerChatId;
+    const interactionIdCandidate =
+      payload?.interaction_id ??
+      payload?.interactionId ??
+      activeStream?.interactionId;
     const executionId =
       typeof executionIdCandidate === "string"
         ? executionIdCandidate.trim()
@@ -5715,6 +5794,11 @@ const createUnchainService = ({
       typeof sourceAttemptIdCandidate === "string"
         ? sourceAttemptIdCandidate.trim()
         : "";
+    const ownerChatId = requireContextV2OwnerChatId(ownerChatIdCandidate);
+    const interactionId = optionalContextV2Identifier(
+      interactionIdCandidate,
+      "interactionId",
+    );
 
     if (!executionId) {
       throw new TypeError("execution_id is required to cancel an execution");
@@ -5726,6 +5810,11 @@ const createUnchainService = ({
       activeStream &&
       ((activeStream.executionId && activeStream.executionId !== executionId) ||
         (activeStream.attemptId && activeStream.attemptId !== attemptId) ||
+        (activeStream.ownerChatId &&
+          activeStream.ownerChatId !== ownerChatId) ||
+        (activeStream.interactionId &&
+          interactionId &&
+          activeStream.interactionId !== interactionId) ||
         (activeStream.sourceAttemptId &&
           sourceAttemptId &&
           activeStream.sourceAttemptId !== sourceAttemptId))
@@ -5734,11 +5823,15 @@ const createUnchainService = ({
     }
 
     const cancelPayload = {
+      owner_chat_id: ownerChatId,
       execution_id: executionId,
       attempt_id: attemptId,
     };
     if (sourceAttemptId) {
       cancelPayload.source_attempt_id = sourceAttemptId;
+    }
+    if (interactionId) {
+      cancelPayload.interaction_id = interactionId;
     }
     const reason =
       typeof payload?.reason === "string" ? payload.reason.trim() : "";
@@ -5777,6 +5870,73 @@ const createUnchainService = ({
       },
       "Invalid execution cancel response",
     );
+  };
+
+  const stopActiveMisoExecutionsForLifecycle = async (payload = {}) => {
+    const reasonCandidate =
+      typeof payload?.reason === "string" ? payload.reason.trim() : "";
+    const reason = reasonCandidate || "app_lifecycle_stop";
+    const activeSnapshot = Array.from(unchainActiveStreams.entries());
+    const exactCancellationRequests = [];
+
+    for (const [requestId, streamState] of activeSnapshot) {
+      const executionId =
+        typeof streamState?.executionId === "string"
+          ? streamState.executionId.trim()
+          : "";
+      const attemptId =
+        typeof streamState?.attemptId === "string"
+          ? streamState.attemptId.trim()
+          : "";
+      const sourceAttemptId =
+        typeof streamState?.sourceAttemptId === "string"
+          ? streamState.sourceAttemptId.trim()
+          : "";
+
+      if (executionId && attemptId) {
+        // Start the semantic cancel before severing the stream transport. Each
+        // request is independent so one failed attempt cannot keep another run
+        // alive across an app-close or system-suspend boundary.
+        exactCancellationRequests.push(
+          cancelMisoExecution({
+            request_id: requestId,
+            execution_id: executionId,
+            attempt_id: attemptId,
+            ...(sourceAttemptId
+              ? { source_attempt_id: sourceAttemptId }
+              : {}),
+            reason,
+            idempotency_key: `lifecycle-stop:${executionId}:${attemptId}`,
+          }),
+        );
+      }
+
+      if (unchainActiveStreams.get(requestId) === streamState) {
+        unchainActiveStreams.delete(requestId);
+      }
+      streamState.controller.abort();
+    }
+
+    // Lifecycle stop is terminal intent, unlike renderer/HMR detach. Clear the
+    // whole process-local replay registry, including streams that became
+    // terminal immediately before the lifecycle event; otherwise reopening the
+    // app could replay a successful terminal and launch its queued successor.
+    for (const [requestId, streamState] of unchainStreamReplays.entries()) {
+      clearMisoStreamReplayExpiry(streamState);
+      unchainStreamReplays.delete(requestId);
+    }
+
+    const settled = await Promise.allSettled(exactCancellationRequests);
+    return {
+      active_count: activeSnapshot.length,
+      exact_cancel_count: exactCancellationRequests.length,
+      exact_cancel_succeeded: settled.filter(
+        (result) => result.status === "fulfilled",
+      ).length,
+      exact_cancel_failed: settled.filter(
+        (result) => result.status === "rejected",
+      ).length,
+    };
   };
 
   const handleStreamStart = (event, payload) => {
@@ -5910,6 +6070,9 @@ const createUnchainService = ({
     getMisoPendingInteraction,
     submitMisoInterject,
     cancelMisoExecution,
+    // MAIN-PROCESS ONLY. App close/system suspend are execution intent, while
+    // renderer STREAM_DETACH remains transport-only for transient reattach.
+    stopActiveMisoExecutionsForLifecycle,
     attachMisoStreamV4,
     handleStreamStart,
     handleStreamStartV2,

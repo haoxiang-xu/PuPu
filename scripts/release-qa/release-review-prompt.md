@@ -17,7 +17,10 @@ Rules:
 5. Return only JSON matching the supplied schema.
 6. For every changed cross-repository, provider, serialization, persistence, or
    resume boundary, require direct evidence from the real producer through the
-   strict final consumer. Verify the tested Unchain SHA exactly matches the
-   runtime lock and that the tested checkout was clean. Missing applicable
+   strict final consumer. Verify every test and platform package consumed the
+   same immutable Unchain wheel SHA-256 and artifact evidence, the loaded runtime
+   protocol manifest digest matches that evidence, and the selected source
+   provenance is clean and revision-consistent. Git revision is provenance
+   telemetry, never an admission or compatibility authority. Missing applicable
    first-use, repeat, retry/resume, sequential-interaction, or cold-restart
    evidence is release-blocking, not advisory.

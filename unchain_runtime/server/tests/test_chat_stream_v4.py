@@ -225,6 +225,8 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 json={
                     "execution_id": "chat-1",
                     "attempt_id": "attempt-1",
+                    "owner_chat_id": "owner-chat-1",
+                    "interaction_id": "interaction-1",
                     "reason": "user_stop",
                     "idempotency_key": "stop:chat-1:attempt-1",
                 },
@@ -236,6 +238,8 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             session_id="chat-1",
             attempt_id="attempt-1",
             source_attempt_id="",
+            owner_chat_id="owner-chat-1",
+            expected_interaction_id="interaction-1",
             reason="user_stop",
         )
 
@@ -243,15 +247,84 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         with mock.patch.object(miso_routes, "cancel_chat_execution") as cancel:
             response = self.client.post(
                 "/chat/executions/cancel",
-                json={"execution_id": "chat-1"},
+                json={
+                    "execution_id": "chat-1",
+                    "owner_chat_id": "owner-chat-1",
+                },
             )
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("attempt_id", response.get_json()["error"]["message"])
         cancel.assert_not_called()
 
+    def test_execution_cancel_route_requires_exact_owner_chat_id(self) -> None:
+        with mock.patch.object(miso_routes, "cancel_chat_execution") as cancel:
+            missing = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "execution-1",
+                    "attempt_id": "attempt-1",
+                },
+            )
+            invalid = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "execution-1",
+                    "attempt_id": "attempt-1",
+                    "owner_chat_id": "not valid owner",
+                },
+            )
+
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("owner_chat_id", missing.get_json()["error"]["message"])
+        cancel.assert_not_called()
+
     def test_confirmation_persists_receipt_before_waking_live_waiter(self) -> None:
+        from durable_interaction_host import (
+            DurableInteractionReceiptHandoff,
+            DurableInteractionReceiptResult,
+        )
+        from unchain.interaction import (
+            INTERACTION_KIND_TOOL_APPROVAL,
+            build_interaction_receipt,
+            build_interaction_request,
+        )
+
         call_order = []
+        durable_request = build_interaction_request(
+            session_id="chat-1",
+            kind=INTERACTION_KIND_TOOL_APPROVAL,
+            source_run_id="run-1",
+            occurrence="call-route-handoff",
+            payload={"call_id": "call-route-handoff"},
+            response_contract={"type": "object"},
+            created_revision=1,
+        )
+        receipt = build_interaction_receipt(
+            durable_request,
+            {
+                "approved": True,
+                "reason": "",
+                "modified_arguments": None,
+            },
+            submitted_by="ui:test",
+            submitted_at_ms=1,
+        )
+        handoff = DurableInteractionReceiptHandoff.from_persisted_receipt(
+            session_id="chat-1",
+            receipt=receipt,
+        )
+        durable_result = DurableInteractionReceiptResult(
+            {
+                "status": "ok",
+                "disposition": "receipt_recorded",
+                "session_id": "chat-1",
+                "interaction_id": durable_request.interaction_id,
+                "receipt_id": receipt.receipt_id,
+            },
+            handoff=handoff,
+        )
         with mock.patch.object(
             miso_routes,
             "submit_tool_confirmation",
@@ -260,18 +333,12 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             miso_routes,
             "record_interaction_receipt",
             side_effect=lambda **_kwargs: call_order.append("durable")
-            or {
-                "status": "ok",
-                "disposition": "receipt_recorded",
-                "session_id": "chat-1",
-                "interaction_id": "interaction-1",
-                "receipt_id": "receipt-1",
-            },
+            or durable_result,
         ) as durable_submit:
             response = self.client.post(
                 "/chat/tool/confirmation",
                 json={
-                    "confirmation_id": "interaction-1",
+                    "confirmation_id": durable_request.interaction_id,
                     "session_id": "chat-1",
                     "approved": True,
                 },
@@ -280,8 +347,15 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["disposition"], "live_continues")
         self.assertTrue(response.get_json()["durable"])
+        self.assertNotIn("response", response.get_json())
+        self.assertNotIn("submitted_by", response.get_json())
+        self.assertNotIn("receipt_json", response.get_json())
         self.assertEqual(call_order, ["durable", "live"])
         live_submit.assert_called_once()
+        self.assertIs(
+            live_submit.call_args.kwargs["durable_receipt"],
+            handoff,
+        )
         durable_submit.assert_called_once()
 
     def test_confirmation_journal_failure_after_receipt_does_not_report_continuation(self) -> None:

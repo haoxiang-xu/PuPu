@@ -40,7 +40,7 @@ pupu:electron-builder*
 - **`react-scripts build` 之前必须先跑 `version:prepare-build`**。跳过会产出版本号错误的包
 - **PuPu 测试用 `react-scripts test`**，不要直接 `npx jest`（本仓会报 import 错）
 - **Electron 测试有 `.js` / `.cjs` 双胞胎**，改一个就要改另一个 —— 那些测试文件本身归 `code-owner-electron`，但 e2e 与 CI 编排归你，双胞胎漂移在 CI 上是你先看见
-- **跨边界发布门必须消费 lock**：blocking CI/release evidence 以 `unchain-core.lock.json` 的 exact revision 为准；对 [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md) 中适用 BC/SEQ 单元格，`NOT_RUN/PENDING` 必须显式失败或报 INCOMPLETE，不能由普通 smoke 冒充覆盖
+- **跨边界发布门必须消费同一个不可变 artifact**：Unchain 只构建一次 wheel；blocking contract matrix、package smoke 与 release report 都必须核对同一 wheel SHA-256 和同一 runtime protocol manifest digest。运行时 compatibility/admission 只认实际 import module 导出的 manifest；Git revision、source path 与 dirty 状态只作审计遥测，绝不能替代协议验证。对 [`cross-boundary-contract-gate`](../../rules/cross-boundary-contract-gate.md) 中适用 BC/SEQ 单元格，`NOT_RUN/PENDING` 必须显式失败或报 INCOMPLETE，不能由普通 smoke 冒充覆盖
 
 ## Memory
 

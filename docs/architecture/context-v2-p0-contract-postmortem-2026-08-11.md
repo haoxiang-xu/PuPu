@@ -5,6 +5,8 @@
 > 范围：PuPu + Unchain Context/Memory V2  
 > 当前契约索引：[Context V2 Boundary Contracts](context-v2-boundary-contracts.md)
 
+> **SUPERSEDED CONTROL NOTICE（2026-08-14）：** 本文是事故历史记录。下文关于 pinned release、lock revision 与 exact locked pair 的表述记录的是当时控制手段，现已失效，不得作为当前 admission 或发布依据。现行 runtime compatibility 只认实际 import 的 Unchain runtime 导出的 strict protocol manifest；发布连续性由一次构建后全程复用的 wheel SHA-256 + manifest digest 证明；Git revision/source 仅为遥测。
+
 ## 一、用户影响
 
 用户在正常发消息和后续工具 interaction 中遇到三类失败：
@@ -90,4 +92,3 @@ Context Runtime 旧路径会读取 durable active receipt，再根据上下文�
 ## 八、后续非阻断风险
 
 本事故修复不自动证明所有未来 media/provider 组合已经完成。remote `file_id` 的 provider/account 绑定、非字符串 assistant content、PDF 预算精度等后续问题仍应按新的 BC/SEQ 门另案处理；不得借 P0 已修复把它们误报为已验证。
-

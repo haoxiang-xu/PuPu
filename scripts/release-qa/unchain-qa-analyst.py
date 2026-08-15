@@ -97,7 +97,7 @@ def main() -> int:
     if not api_key:
         return _unavailable(out_path, "missing_api_key")
 
-    unchain_source = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
+    unchain_source = os.environ.get("UNCHAIN_ANALYST_SOURCE_PATH", "").strip()
     if unchain_source:
         source_path = Path(unchain_source)
         candidate = source_path / "src"

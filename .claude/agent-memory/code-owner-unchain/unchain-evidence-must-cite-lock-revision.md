@@ -1,9 +1,11 @@
 ---
 name: unchain-evidence-must-cite-lock-revision
-description: When giving unchain-side evidence to a PuPu court case, verify against the revision pinned in pupu unchain_runtime/unchain-core.lock.json, not just the local dev working tree — and say which one you read
+description: "SUPERSEDED 2026-08-14 — Historical Git-SHA lock evidence policy; do not use. Current authority is imported runtime protocol manifest plus single-wheel artifact continuity."
 metadata:
   type: feedback
 ---
+
+> **SUPERSEDED（2026-08-14）：** 这是旧 Git-SHA lock 证据政策的历史记录，不再是现行规则。Git revision/source 只能作为遥测；runtime compatibility 只认实际 import runtime 的 protocol manifest，release continuity 只认同一个 wheel 的 SHA-256 + manifest digest。下文保留用于考古。
 
 给 PuPu 的庭审出 unchain 侧证据时，**必须同时核对 `pupu:unchain_runtime/unchain-core.lock.json` 记录的 revision**，不能只读 `/Users/red/Desktop/GITRepo/unchain` 的本地工作树；发言里要写明读的是哪一份。
 

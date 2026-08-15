@@ -14,6 +14,11 @@ from memory_v2_unchain_active_bridge import (
     preflight_pupu_unchain_active_host,
     prepare_pupu_unchain_active_bridge,
 )
+from memory_v2_unchain_host_event_boundary import (
+    HOST_EVENT_ORIGIN_FALLBACK_FINAL,
+    PupuUnchainHostEventAuthority,
+    PupuUnchainHostEventBoundary,
+)
 from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
 from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
 from unchain.agent.modules import ContextModule
@@ -143,13 +148,26 @@ def test_active_bridge_mounts_canonical_context_module_and_bootstraps_input(
     ]
     assert events[1].payload["message"]["content"] == "current objective"
 
-    bridge.persist_host_event(
-        {
-            "type": "final_message",
-            "run_id": "root-active",
-            "iteration": 0,
-            "content": "done",
-        }
+    boundary = PupuUnchainHostEventBoundary(
+        active_bridge=bridge,
+        execution_id="session-active",
+        attempt_id="root-active",
+        enqueue=lambda _event: None,
+    )
+    boundary.deliver(
+        boundary.bind_semantic(
+            {
+                "type": "final_message",
+                "run_id": "root-active",
+                "iteration": 0,
+                "content": "done",
+            },
+            authority=PupuUnchainHostEventAuthority(
+                execution_id="session-active",
+                attempt_id="root-active",
+                origin=HOST_EVENT_ORIGIN_FALLBACK_FINAL,
+            ),
+        )
     )
     events = attempt.bundle.journal.capture_snapshot().events
     assert [event.event_type for event in events] == [

@@ -8,10 +8,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
-  describeUnchainCheckout,
-  inspectPinnedUnchainCheckout,
-  resolveUnchainRoot,
-} from "./unchain-checkout.mjs";
+  verifyUnchainTestSourceProvenance,
+  verifyWheelRuntimeManifest,
+} from "./unchain-artifact.mjs";
 import {
   ELECTRON_RUN_BUNDLE_TESTS,
   flattenNamedTests,
@@ -23,38 +22,40 @@ import {
 import { requireNonzeroJestExecution } from "./jest-execution-report.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const unchainRoot = resolveUnchainRoot({ pupuRoot: ROOT });
-const checkout = inspectPinnedUnchainCheckout({ pupuRoot: ROOT, unchainRoot });
-
-console.log(`[run-bundle-contract] ${describeUnchainCheckout(checkout)}`);
-if (process.env.GITHUB_OUTPUT) {
-  fs.appendFileSync(
-    process.env.GITHUB_OUTPUT,
-    [
-      `locked_sha=${checkout.lockedRevision}`,
-      `tested_sha=${checkout.testedRevision}`,
-      `dirty=${checkout.dirty}`,
-      "",
-    ].join("\n"),
-  );
-}
-if (!checkout.valid) {
-  console.error("[run-bundle-contract] pinned checkout verification failed");
-  process.exit(1);
-}
+const artifactPath = path.resolve(process.env.UNCHAIN_ARTIFACT_PATH || "");
+const evidencePath = path.resolve(
+  process.env.UNCHAIN_ARTIFACT_EVIDENCE_PATH || "",
+);
+const unchainRoot = path.resolve(process.env.UNCHAIN_TEST_SOURCE_PATH || "");
 
 const venvPython = process.platform === "win32"
   ? path.join("Scripts", "python.exe")
   : path.join("bin", "python");
 const python = process.env.PYTHON || [
   path.join(ROOT, ".venv", venvPython),
-  path.join(unchainRoot, ".venv", venvPython),
 ].find((candidate) => fs.existsSync(candidate)) ||
   (process.platform === "win32" ? "python" : "python3");
-const pythonPath = [
-  path.join(unchainRoot, "src"),
-  process.env.PYTHONPATH,
-].filter(Boolean).join(path.delimiter);
+let artifactEvidence;
+try {
+  artifactEvidence = verifyWheelRuntimeManifest({
+    artifactPath,
+    evidencePath,
+    python,
+  });
+  verifyUnchainTestSourceProvenance({
+    sourcePath: unchainRoot,
+    evidence: artifactEvidence,
+  });
+} catch (error) {
+  console.error(`[run-bundle-contract] ${error.message}`);
+  process.exit(1);
+}
+console.log(
+  `[run-bundle-contract] artifact=${artifactEvidence.artifact.sha256}; ` +
+    `manifest=${artifactEvidence.runtime_manifest.manifest_digest}; ` +
+    `source_revision=${artifactEvidence.source.revision}`,
+);
+const pythonPath = artifactPath;
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -193,3 +194,14 @@ runStage({
 });
 
 console.log("\n[run-bundle-contract] all blocking stages passed");
+if (process.env.GITHUB_OUTPUT) {
+  const namedNodeTests = [
+    ...flattenNamedTests(ELECTRON_RUN_BUNDLE_TESTS),
+    ...flattenNamedTests(RENDERER_RUN_BUNDLE_TESTS),
+    ...flattenNamedTests(PRICING_CATALOG_TESTS),
+  ].length;
+  fs.appendFileSync(
+    process.env.GITHUB_OUTPUT,
+    `executed_tests=${UNCHAIN_RUN_BUNDLE_TESTS.length + PUPU_RUN_BUNDLE_TESTS.length + namedNodeTests}\n`,
+  );
+}

@@ -9,8 +9,77 @@ const MEMORY_V2_ROLLOUT_SCHEMA = "memory_v2.rollout.v1";
 const MEMORY_V2_REQUIRED_SCHEMA_VERSION = 2;
 const MEMORY_V2_BUILD_FEATURE_KEY = "enable_memory_v2";
 const MEMORY_V2_RELEASE_FIELD = "_pupu_memory_v2_release";
-const MEMORY_V2_DIRTY_ACTIVE_DEV_ENV =
-  "PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV";
+const UNCHAIN_RUNTIME_PROTOCOL_SCHEMA = "unchain.runtime_protocol_manifest.v1";
+const UNCHAIN_RUNTIME_PROTOCOL_DIGEST_DOMAIN =
+  "unchain.runtime_protocol_manifest.v1\\u0000";
+const UNCHAIN_RUNTIME_PROTOCOL_TOP_LEVEL_KEYS = Object.freeze([
+  "manifest_digest",
+  "protocols",
+  "runtime",
+  "schema",
+]);
+const UNCHAIN_RUNTIME_PROTOCOL_ITEM_KEYS = Object.freeze([
+  "features",
+  "id",
+  "major",
+  "minor",
+]);
+const UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS = Object.freeze([
+  Object.freeze({
+    features: Object.freeze([
+      "artifact_handoff",
+      "canonical_journal",
+      "chat_deletion_sqlite_scope_closure",
+      "context_compiler",
+      "interaction_resolution_compat",
+      "long_term_promotion",
+      "memory_curator",
+      "memory_toolkit",
+      "memory_workspace",
+    ]),
+    id: "context_memory",
+    major: 1,
+    minimumMinor: 0,
+  }),
+  Object.freeze({
+    features: Object.freeze([
+      "cancel_pending",
+      "expected_interaction_id_cas",
+      "fresh_run_lineage",
+      "host_controlled_resume",
+    ]),
+    id: "durable_interaction",
+    major: 1,
+    minimumMinor: 0,
+  }),
+  Object.freeze({
+    features: Object.freeze([
+      "atomic_receipt_cas",
+      "auxiliary_calls",
+      "enforce_mode",
+      "graph_runs",
+      "memory_off",
+      "subagent_runs",
+    ]),
+    id: "provider_turn_ownership",
+    major: 1,
+    minimumMinor: 0,
+  }),
+  Object.freeze({
+    features: Object.freeze([
+      "canonical_metrics",
+      "completion_diagnostics_ref",
+      "continuation_claim",
+      "immutable_pricing_snapshot",
+      "provider_call_set_union",
+      "provider_call_usage_v1",
+      "run_bundle_v1",
+    ]),
+    id: "run_bundle",
+    major: 1,
+    minimumMinor: 0,
+  }),
+]);
 const MEMORY_V2_ENV_KEYS = Object.freeze({
   featureCeiling: "PUPU_FEATURE_MEMORY_V2",
   rolloutMode: "PUPU_MEMORY_V2_MODE",
@@ -47,6 +116,102 @@ const stableObject = (value) => {
 };
 
 const stableJson = (value) => JSON.stringify(stableObject(value));
+
+const hasExactKeys = (value, expectedKeys) => {
+  if (!isObject(value)) return false;
+  const actualKeys = Object.keys(value);
+  return (
+    actualKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) =>
+      Object.prototype.hasOwnProperty.call(value, key),
+    )
+  );
+};
+
+const compareUtf8 = (left, right) =>
+  Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+
+const isCanonicalString = (value) =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  Buffer.from(value, "utf8").toString("utf8") === value &&
+  value === value.normalize("NFC");
+
+const isStrictlySortedUnique = (values) =>
+  values.every(
+    (value, index) => index === 0 || compareUtf8(values[index - 1], value) < 0,
+  );
+
+const parseRuntimeProtocolManifest = (value) => {
+  if (!hasExactKeys(value, UNCHAIN_RUNTIME_PROTOCOL_TOP_LEVEL_KEYS)) {
+    return null;
+  }
+  if (
+    value.schema !== UNCHAIN_RUNTIME_PROTOCOL_SCHEMA ||
+    value.runtime !== "unchain" ||
+    !Array.isArray(value.protocols) ||
+    !/^sha256:[0-9a-f]{64}$/.test(value.manifest_digest)
+  ) {
+    return null;
+  }
+
+  const protocols = [];
+  for (const candidate of value.protocols) {
+    if (
+      !hasExactKeys(candidate, UNCHAIN_RUNTIME_PROTOCOL_ITEM_KEYS) ||
+      !isCanonicalString(candidate.id) ||
+      !Number.isSafeInteger(candidate.major) ||
+      candidate.major < 0 ||
+      !Number.isSafeInteger(candidate.minor) ||
+      candidate.minor < 0 ||
+      !Array.isArray(candidate.features) ||
+      !candidate.features.every(isCanonicalString) ||
+      !isStrictlySortedUnique(candidate.features)
+    ) {
+      return null;
+    }
+    protocols.push({
+      features: [...candidate.features],
+      id: candidate.id,
+      major: candidate.major,
+      minor: candidate.minor,
+    });
+  }
+  if (!isStrictlySortedUnique(protocols.map(({ id }) => id))) {
+    return null;
+  }
+
+  const body = {
+    protocols,
+    runtime: "unchain",
+    schema: UNCHAIN_RUNTIME_PROTOCOL_SCHEMA,
+  };
+  const expectedDigest = `sha256:${sha256(
+    `${UNCHAIN_RUNTIME_PROTOCOL_DIGEST_DOMAIN}${JSON.stringify(body)}`,
+  )}`;
+  if (value.manifest_digest !== expectedDigest) {
+    return null;
+  }
+  return {
+    manifest_digest: expectedDigest,
+    ...body,
+  };
+};
+
+const isRuntimeProtocolCompatible = (manifest) => {
+  const byId = new Map(
+    manifest.protocols.map((protocol) => [protocol.id, protocol]),
+  );
+  return UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS.every((required) => {
+    const protocol = byId.get(required.id);
+    return (
+      protocol != null &&
+      protocol.major === required.major &&
+      protocol.minor >= required.minimumMinor &&
+      required.features.every((feature) => protocol.features.includes(feature))
+    );
+  });
+};
 
 const normalizeMode = (value, fallback = "off") => {
   if (value === true) return "all";
@@ -264,10 +429,6 @@ const resolveMemoryV2ReleaseConfig = ({
     processEnvironment: environment,
     allowProcessOverrides: !app.isPackaged,
   });
-  const allowDirtyUnchainActiveDev =
-    !app.isPackaged &&
-    rollout.effectiveMode === "all" &&
-    environment?.[MEMORY_V2_DIRTY_ACTIVE_DEV_ENV] === "1";
   if (
     app.isPackaged &&
     featureEnabled &&
@@ -290,7 +451,6 @@ const resolveMemoryV2ReleaseConfig = ({
         typeof release?.snapshot_fingerprint === "string"
           ? release.snapshot_fingerprint
           : "",
-      allowDirtyUnchainActiveDev: false,
     });
   }
 
@@ -304,7 +464,6 @@ const resolveMemoryV2ReleaseConfig = ({
       typeof release?.snapshot_fingerprint === "string"
         ? release.snapshot_fingerprint
         : "",
-    allowDirtyUnchainActiveDev,
   });
 };
 
@@ -318,9 +477,6 @@ const constrainMemoryV2ConfigForPlatform = (releaseConfig, platform) => {
       releaseEffectiveMode: releaseConfig.effectiveMode,
       releaseRolloutFingerprint: releaseConfig.rolloutFingerprint,
       platformActiveBlocked: false,
-      allowDirtyUnchainActiveDev:
-        releaseConfig.allowDirtyUnchainActiveDev === true &&
-        releaseConfig.effectiveMode === "all",
     });
   }
   const constrained = buildRolloutConfig({
@@ -337,7 +493,6 @@ const constrainMemoryV2ConfigForPlatform = (releaseConfig, platform) => {
     releaseEffectiveMode: releaseConfig.effectiveMode,
     releaseRolloutFingerprint: releaseConfig.rolloutFingerprint,
     platformActiveBlocked: true,
-    allowDirtyUnchainActiveDev: false,
   });
 };
 
@@ -381,31 +536,43 @@ const projectMemoryV2Status = (payload = {}) => ({
       ? payload.rollout_fingerprint
       : "",
   rolloutConfigValid: payload?.rollout_config_valid === true,
-  contextMemoryCapabilityReady:
-    payload?.context_memory_capability_ready === true,
-  contextMemoryCapabilityReason:
-    typeof payload?.context_memory_capability_reason === "string"
-      ? payload.context_memory_capability_reason
+  runtimeProtocolReady: payload?.runtime_protocol_ready === true,
+  runtimeProtocolReason:
+    typeof payload?.runtime_protocol_reason === "string"
+      ? payload.runtime_protocol_reason
       : "",
-  contextMemoryCapabilityVerification:
-    typeof payload?.context_memory_capability_verification === "string"
-      ? payload.context_memory_capability_verification
+  runtimeProtocolVerification:
+    typeof payload?.runtime_protocol_verification === "string"
+      ? payload.runtime_protocol_verification
       : "",
-  contextMemoryCapabilityImmutable:
-    payload?.context_memory_capability_immutable === true,
+  runtimeProtocolImmutable: payload?.runtime_protocol_immutable === true,
+  runtimeProtocolManifest: payload?.runtime_protocol_manifest ?? null,
   unchainRevision:
     typeof payload?.unchain_revision === "string"
       ? payload.unchain_revision.trim()
       : "",
-  contextMemoryContract: Number.isSafeInteger(payload?.context_memory_contract)
-    ? payload.context_memory_contract
-    : 0,
+  unchainRuntimeSource:
+    typeof payload?.unchain_runtime_source === "string"
+      ? payload.unchain_runtime_source.trim()
+      : "",
 });
 
 const validateMemoryV2Status = (payload, releaseConfig) => {
   const status = projectMemoryV2Status(payload);
+  const manifest = parseRuntimeProtocolManifest(status.runtimeProtocolManifest);
   let reason = "";
-  if (!status.available) reason = "context_v2_unavailable";
+  if (manifest === null) {
+    reason = "context_v2_unchain_protocol_invalid";
+  } else if (!isRuntimeProtocolCompatible(manifest)) {
+    reason = "context_v2_unchain_protocol_incompatible";
+  } else if (
+    !status.runtimeProtocolReady ||
+    status.runtimeProtocolReason !== "unchain_runtime_protocol_compatible" ||
+    status.runtimeProtocolVerification !== "runtime_protocol" ||
+    !status.runtimeProtocolImmutable
+  ) {
+    reason = "context_v2_unchain_protocol_invalid";
+  } else if (!status.available) reason = "context_v2_unavailable";
   else if (status.storeOwner !== "unchain") {
     reason = "context_v2_store_owner_incompatible";
   } else if (status.schemaVersion !== MEMORY_V2_REQUIRED_SCHEMA_VERSION) {
@@ -414,26 +581,6 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
     reason = "context_v2_wal_required";
   } else if (!MEMORY_V2_ALLOWED_LEXICAL_BACKENDS.has(status.lexicalBackend)) {
     reason = "context_v2_lexical_backend_incompatible";
-  } else if (!status.contextMemoryCapabilityReady) {
-    reason = "context_v2_unchain_capability_unavailable";
-  } else if (
-    status.contextMemoryCapabilityReason !== "unchain_context_memory_ready" ||
-    status.contextMemoryContract !== 1 ||
-    !/^[0-9a-f]{40}$/.test(status.unchainRevision) ||
-    !["exact_sha", "dev_bypass", "dirty_dev_checkout"].includes(
-      status.contextMemoryCapabilityVerification,
-    ) ||
-    (status.contextMemoryCapabilityVerification === "exact_sha" &&
-      !status.contextMemoryCapabilityImmutable) ||
-    (status.contextMemoryCapabilityVerification === "dev_bypass" &&
-      (status.contextMemoryCapabilityImmutable ||
-        releaseConfig.effectiveMode !== "shadow")) ||
-    (status.contextMemoryCapabilityVerification === "dirty_dev_checkout" &&
-      (status.contextMemoryCapabilityImmutable ||
-        releaseConfig.effectiveMode !== "all" ||
-        releaseConfig.allowDirtyUnchainActiveDev !== true))
-  ) {
-    reason = "context_v2_unchain_capability_invalid";
   } else if (!status.rolloutConfigValid) {
     reason = "context_v2_rollout_config_invalid";
   } else if (
@@ -446,16 +593,20 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
   ) {
     reason = "context_v2_rollout_mismatch";
   }
+  if (manifest !== null) {
+    status.runtimeProtocolManifest = manifest;
+  }
   return { ok: reason === "", reason, status };
 };
 
 module.exports = {
   MEMORY_V2_BUILD_FEATURE_KEY,
-  MEMORY_V2_DIRTY_ACTIVE_DEV_ENV,
   MEMORY_V2_ENV_KEYS,
   MEMORY_V2_RELEASE_FIELD,
   MEMORY_V2_RELEASE_SCHEMA,
   MEMORY_V2_REQUIRED_SCHEMA_VERSION,
+  UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS,
+  UNCHAIN_RUNTIME_PROTOCOL_SCHEMA,
   constrainMemoryV2ConfigForPlatform,
   createBuildFeatureSnapshot,
   normalizeFeatureFlags,

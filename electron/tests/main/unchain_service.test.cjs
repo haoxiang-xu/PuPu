@@ -1079,7 +1079,30 @@ describe("unchain service session memory replacement", () => {
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
-          JSON.stringify({ status: "ok", disposition: "receipt_recorded" }),
+          JSON.stringify({
+            status: "ok",
+            disposition: "receipt_recorded",
+            durable: true,
+            session_id: "chat/with space",
+            interaction_id: "interaction-1",
+            receipt_id: "receipt-1",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "[]",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "null",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "",
       });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
@@ -1130,10 +1153,31 @@ describe("unchain service session memory replacement", () => {
     await expect(
       service.submitMisoToolConfirmation({
         confirmation_id: "interaction-1",
+        session_id: "chat/with space",
+        approved: true,
+      }),
+    ).rejects.toThrow("Invalid Miso tool confirmation response");
+    await expect(
+      service.getMisoPendingInteraction({ session_id: "chat/with space" }),
+    ).rejects.toThrow("Invalid Miso pending interaction response");
+    await expect(
+      service.submitMisoToolConfirmation({
+        confirmation_id: "interaction-1",
+        session_id: "chat/with space",
+        approved: true,
+      }),
+    ).rejects.toThrow("Invalid Miso tool confirmation response");
+    await expect(
+      service.getMisoPendingInteraction({ session_id: "chat/with space" }),
+    ).rejects.toThrow("Invalid Miso pending interaction response");
+
+    await expect(
+      service.submitMisoToolConfirmation({
+        confirmation_id: "interaction-1",
         approved: "false",
       }),
     ).rejects.toThrow("approved must be a boolean");
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch).toHaveBeenCalledTimes(7);
   });
 
   test("submitMisoInterject posts the payload to the interject endpoint", async () => {
@@ -3057,6 +3101,213 @@ describe("unchain service session memory replacement", () => {
     expect(firstTarget.send).toHaveBeenCalledTimes(1);
   });
 
+  test("lifecycle stop exact-cancels every active V4 attempt and drops replay even when one cancel fails", async () => {
+    const abortSignals = [];
+    const streamFetchImpl = jest.fn(async (_url, options) => {
+      abortSignals.push(options.signal);
+      return {
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: jest.fn(
+              () =>
+                new Promise((_resolve, reject) => {
+                  const rejectCancelled = () => {
+                    const error = new Error("lifecycle stream aborted");
+                    error.name = "AbortError";
+                    reject(error);
+                  };
+                  if (options.signal.aborted) {
+                    rejectCancelled();
+                    return;
+                  }
+                  options.signal.addEventListener("abort", rejectCancelled, {
+                    once: true,
+                  });
+                }),
+            ),
+          }),
+        },
+      };
+    });
+    const firstTarget = createReplayTarget(321);
+    const secondTarget = createReplayTarget(322);
+    const attachTarget = createReplayTarget(323);
+    const service = await createReplayTestService({
+      streamFetchImpl,
+      targets: new Map([
+        [firstTarget.id, firstTarget],
+        [secondTarget.id, secondTarget],
+        [attachTarget.id, attachTarget],
+      ]),
+    });
+    global.fetch
+      .mockRejectedValueOnce(new Error("cancel endpoint unavailable"))
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            status: "ok",
+            execution_id: "chat-lifecycle-b",
+            attempt_id: "attempt-lifecycle-b",
+          }),
+      });
+
+    service.handleStreamStartV4(
+      { sender: firstTarget },
+      {
+        requestId: "request-lifecycle-a",
+        attachmentId: "attachment-lifecycle-a",
+        payload: {
+          owner_chat_id: "owner-lifecycle-a",
+          threadId: "chat-lifecycle-a",
+          attempt_id: "attempt-lifecycle-a",
+          source_attempt_id: "source-lifecycle-a",
+          message: "stop on lifecycle boundary",
+          options: {},
+        },
+      },
+    );
+    service.handleStreamStartV4(
+      { sender: secondTarget },
+      {
+        requestId: "request-lifecycle-b",
+        attachmentId: "attachment-lifecycle-b",
+        payload: {
+          owner_chat_id: "owner-lifecycle-b",
+          threadId: "chat-lifecycle-b",
+          attempt_id: "attempt-lifecycle-b",
+          message: "stop this one too",
+          options: {},
+        },
+      },
+    );
+    await flushReplayStream();
+
+    const stopPromise = service.stopActiveMisoExecutionsForLifecycle({
+      reason: "system_suspend",
+    });
+    const repeatedStopPromise = service.stopActiveMisoExecutionsForLifecycle({
+      reason: "app_windows_closed",
+    });
+    expect(abortSignals).toHaveLength(2);
+    expect(abortSignals.every((signal) => signal.aborted)).toBe(true);
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachTarget },
+        {
+          requestId: "request-lifecycle-a",
+          executionId: "chat-lifecycle-a",
+          attemptId: "attempt-lifecycle-a",
+          attachmentId: "attachment-after-suspend",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: false, code: "stream_not_found" });
+
+    await expect(stopPromise).resolves.toEqual({
+      active_count: 2,
+      exact_cancel_count: 2,
+      exact_cancel_succeeded: 1,
+      exact_cancel_failed: 1,
+    });
+    await expect(repeatedStopPromise).resolves.toEqual({
+      active_count: 0,
+      exact_cancel_count: 0,
+      exact_cancel_succeeded: 0,
+      exact_cancel_failed: 0,
+    });
+    const cancelCalls = global.fetch.mock.calls.slice(1);
+    expect(cancelCalls).toHaveLength(2);
+    expect(
+      cancelCalls.map(([, options]) => JSON.parse(options.body)),
+    ).toEqual([
+      {
+        owner_chat_id: "owner-lifecycle-a",
+        execution_id: "chat-lifecycle-a",
+        attempt_id: "attempt-lifecycle-a",
+        source_attempt_id: "source-lifecycle-a",
+        reason: "system_suspend",
+        idempotency_key:
+          "lifecycle-stop:chat-lifecycle-a:attempt-lifecycle-a",
+      },
+      {
+        owner_chat_id: "owner-lifecycle-b",
+        execution_id: "chat-lifecycle-b",
+        attempt_id: "attempt-lifecycle-b",
+        reason: "system_suspend",
+        idempotency_key:
+          "lifecycle-stop:chat-lifecycle-b:attempt-lifecycle-b",
+      },
+    ]);
+  });
+
+  test("lifecycle stop drops completed terminal replay without changing transient detach semantics", async () => {
+    const { response } = createReplayStreamResponse(
+      buildRuntimeEventStreamBody("terminal-before-close", 1),
+    );
+    const sourceTarget = createReplayTarget(324);
+    const attachTarget = createReplayTarget(325);
+    const service = await createReplayTestService({
+      streamFetchImpl: jest.fn().mockResolvedValueOnce(response),
+      targets: new Map([
+        [sourceTarget.id, sourceTarget],
+        [attachTarget.id, attachTarget],
+      ]),
+    });
+
+    service.handleStreamStartV4(
+      { sender: sourceTarget },
+      {
+        requestId: "request-terminal-before-close",
+        attachmentId: "attachment-terminal-before-close",
+        payload: {
+          threadId: "chat-terminal-before-close",
+          attempt_id: "attempt-terminal-before-close",
+          message: "finish before close",
+          options: {},
+        },
+      },
+    );
+    await flushReplayStream();
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachTarget },
+        {
+          requestId: "request-terminal-before-close",
+          executionId: "chat-terminal-before-close",
+          attemptId: "attempt-terminal-before-close",
+          attachmentId: "attachment-terminal-replay",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: true, terminal: true, active: false });
+
+    await expect(
+      service.stopActiveMisoExecutionsForLifecycle({
+        reason: "app_windows_closed",
+      }),
+    ).resolves.toEqual({
+      active_count: 0,
+      exact_cancel_count: 0,
+      exact_cancel_succeeded: 0,
+      exact_cancel_failed: 0,
+    });
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachTarget },
+        {
+          requestId: "request-terminal-before-close",
+          executionId: "chat-terminal-before-close",
+          attemptId: "attempt-terminal-before-close",
+          attachmentId: "attachment-after-close",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: false, code: "stream_not_found" });
+  });
+
   test("keeps buffering when a renderer send fails and replays to a healthy attachment", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
@@ -3801,6 +4052,7 @@ describe("unchain service session memory replacement", () => {
         requestId: "req-v4-cancel",
         attachmentId: "attachment-v4-cancel",
         payload: {
+          owner_chat_id: "owner-character-chat",
           threadId: "chat-v4-cancel",
           attempt_id: "req-v4-cancel",
           source_attempt_id: "source-v4-cancel",
@@ -3815,6 +4067,18 @@ describe("unchain service session memory replacement", () => {
     await expect(
       service.cancelMisoExecution({
         requestId: "req-v4-cancel",
+        owner_chat_id: "another-owner",
+        interaction_id: "interaction-v4-cancel",
+        reason: "user_stop",
+      }),
+    ).rejects.toThrow("Cancel identity does not match the active stream attempt");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await expect(
+      service.cancelMisoExecution({
+        requestId: "req-v4-cancel",
+        owner_chat_id: "owner-character-chat",
+        interaction_id: "interaction-v4-cancel",
         reason: "user_stop",
         idempotencyKey: "cancel-once",
       }),
@@ -3829,9 +4093,11 @@ describe("unchain service session memory replacement", () => {
       },
     });
     expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
+      owner_chat_id: "owner-character-chat",
       execution_id: "chat-v4-cancel",
       attempt_id: "req-v4-cancel",
       source_attempt_id: "source-v4-cancel",
+      interaction_id: "interaction-v4-cancel",
       reason: "user_stop",
       idempotency_key: "cancel-once",
     });

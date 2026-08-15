@@ -7,7 +7,9 @@ Usage:
   build_unchain_server.sh [macos|linux|windows] [x86_64|arm64|universal2]
 
 Environment variables:
-  UNCHAIN_SOURCE_PATH      Path to unchain source repo (default: ../unchain)
+  UNCHAIN_ARTIFACT_PATH    Immutable Unchain wheel built by release QA
+  UNCHAIN_ARTIFACT_EVIDENCE_PATH
+                        Evidence JSON containing wheel and protocol digests
   UNCHAIN_PYTHON_BIN       Python 3.12 executable to create build venv
                         (default resolution: python3.12 -> python3 -> python)
   UNCHAIN_BUILD_VENV       Build venv path (default: ./.venv-unchain-build)
@@ -123,22 +125,20 @@ if [[ -n "$TARGET_ARCH" ]]; then
   fi
 fi
 
-UNCHAIN_SOURCE_PATH="${UNCHAIN_SOURCE_PATH:-"$ROOT_DIR/../unchain"}"
-if [[ ! -f "$UNCHAIN_SOURCE_PATH/src/unchain/__init__.py" || ! -f "$UNCHAIN_SOURCE_PATH/src/unchain/__init__.py" ]]; then
-  echo "Invalid unchain source path: $UNCHAIN_SOURCE_PATH"
-  echo "Expected files: src/unchain/__init__.py and src/unchain/__init__.py"
+UNCHAIN_ARTIFACT_PATH="${UNCHAIN_ARTIFACT_PATH:-}"
+UNCHAIN_ARTIFACT_EVIDENCE_PATH="${UNCHAIN_ARTIFACT_EVIDENCE_PATH:-}"
+if [[ ! -f "$UNCHAIN_ARTIFACT_PATH" || "$UNCHAIN_ARTIFACT_PATH" != *.whl ]]; then
+  echo "UNCHAIN_ARTIFACT_PATH must identify the immutable Unchain wheel"
+  exit 1
+fi
+if [[ ! -f "$UNCHAIN_ARTIFACT_EVIDENCE_PATH" ]]; then
+  echo "UNCHAIN_ARTIFACT_EVIDENCE_PATH must identify artifact evidence JSON"
   exit 1
 fi
 
-CAPABILITY_JSON="$UNCHAIN_SOURCE_PATH/src/unchain/runtime/resources/model_capabilities.json"
-DEFAULT_PAYLOADS_JSON="$UNCHAIN_SOURCE_PATH/src/unchain/runtime/resources/model_default_payloads.json"
 MCP_REGISTRY_JSON="$ROOT_DIR/src/SERVICEs/mcp_toolkit_registry.json"
-if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" || ! -f "$MCP_REGISTRY_JSON" ]]; then
-  echo "Missing required unchain model metadata files in source path: $UNCHAIN_SOURCE_PATH"
-  echo "Expected files:"
-  echo "  $CAPABILITY_JSON"
-  echo "  $DEFAULT_PAYLOADS_JSON"
-  echo "  $MCP_REGISTRY_JSON"
+if [[ ! -f "$MCP_REGISTRY_JSON" ]]; then
+  echo "Missing MCP registry: $MCP_REGISTRY_JSON"
   exit 1
 fi
 
@@ -180,9 +180,15 @@ fi
 if [[ "${UNCHAIN_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
   "$VENV_PIP" install \
     -r "$ROOT_DIR/unchain_runtime/server/requirements.txt" \
-    -e "$UNCHAIN_SOURCE_PATH" \
     'pyinstaller>=6.10'
+  "$VENV_PIP" install --force-reinstall --no-deps "$UNCHAIN_ARTIFACT_PATH"
 fi
+
+PYTHONPATH= node "$ROOT_DIR/scripts/release-qa/verify-unchain-artifact.mjs" \
+  --artifact "$UNCHAIN_ARTIFACT_PATH" \
+  --evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH" \
+  --python "$VENV_PY" \
+  --installed true
 
 # Validate the resolved Python runtime early to avoid confusing startup failures.
 "$VENV_PY" - <<PY
@@ -238,15 +244,12 @@ rm -f "$DIST_DIR/unchain-server" "$DIST_DIR/unchain-server.exe"
 ENTRYPOINT="$ROOT_DIR/unchain_runtime/server/main.py"
 
 if [[ "$TARGET_OS" == "windows" ]]; then
-  PYTHONPATH_SEP=";"
   PYI_DATA_SEP=";"
 else
-  PYTHONPATH_SEP=":"
   PYI_DATA_SEP=":"
 fi
 
-export UNCHAIN_SOURCE_PATH
-export PYTHONPATH="$UNCHAIN_SOURCE_PATH/src${PYTHONPATH:+$PYTHONPATH_SEP$PYTHONPATH}"
+unset PYTHONPATH
 
 PYINSTALLER_ARGS=(
   --clean
@@ -260,8 +263,6 @@ PYINSTALLER_ARGS=(
   --collect-submodules openai
   --collect-submodules anthropic
   --collect-data unchain
-  --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}unchain/runtime/resources"
-  --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}unchain/runtime/resources"
   --add-data "${MCP_REGISTRY_JSON}${PYI_DATA_SEP}resources"
   --hidden-import unchain
   --hidden-import unchain.runtime

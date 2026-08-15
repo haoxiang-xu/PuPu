@@ -4,7 +4,9 @@ export const buildLocalGateChecks = ({
   root,
   python,
   pythonPath = "",
-  unchainRoot,
+  unchainArtifactPath,
+  unchainArtifactEvidencePath,
+  unchainTestSourcePath,
   version,
 }) => [
   {
@@ -40,7 +42,9 @@ export const buildLocalGateChecks = ({
     cwd: root,
     env: {
       PYTHON: python,
-      UNCHAIN_SOURCE_PATH: unchainRoot,
+      UNCHAIN_ARTIFACT_PATH: unchainArtifactPath,
+      UNCHAIN_ARTIFACT_EVIDENCE_PATH: unchainArtifactEvidencePath,
+      UNCHAIN_TEST_SOURCE_PATH: unchainTestSourcePath,
       ...(pythonPath ? { PYTHONPATH: pythonPath } : {}),
     },
   },
@@ -50,7 +54,9 @@ export const buildLocalGateChecks = ({
     cwd: root,
     env: {
       PYTHON: python,
-      UNCHAIN_SOURCE_PATH: unchainRoot,
+      UNCHAIN_ARTIFACT_PATH: unchainArtifactPath,
+      UNCHAIN_ARTIFACT_EVIDENCE_PATH: unchainArtifactEvidencePath,
+      UNCHAIN_TEST_SOURCE_PATH: unchainTestSourcePath,
       ...(pythonPath ? { PYTHONPATH: pythonPath } : {}),
     },
   },

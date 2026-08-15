@@ -1,43 +1,107 @@
-"""Exact-revision compatibility policy for the Context/Memory V2 core.
+"""Runtime-relative protocol admission for Context/Memory V2.
 
-This module is additive and deliberately has no route or startup side effects.
-The product host will mount it only after the final Unchain revision is locked.
+Compatibility is decided only from the protocol manifest exported by the
+actually imported Unchain runtime.  Git revision, checkout state, environment
+bypasses, and the historical SHA lock are not admission inputs.
 """
 
 from __future__ import annotations
 
+import hashlib
+import importlib
 import json
-import os
 import re
-import subprocess
-import sys
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from importlib import resources
-from pathlib import Path
+import unicodedata
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 
-CONTEXT_MEMORY_CONTRACT_VERSION = 1
-DEV_BYPASS_ENV = "PUPU_MEMORY_V2_UNCHAIN_DEV_BYPASS"
-DIRTY_ACTIVE_DEV_ENV = "PUPU_MEMORY_V2_ALLOW_DIRTY_UNCHAIN_ACTIVE_DEV"
-_CAPABILITY_SCHEMA = "unchain.context_memory_capability.v1"
-_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
+_MANIFEST_SCHEMA = "unchain.runtime_protocol_manifest.v1"
+_DIGEST_DOMAIN = b"unchain.runtime_protocol_manifest.v1\\u0000"
+_MANIFEST_KEYS = frozenset({"manifest_digest", "protocols", "runtime", "schema"})
+_PROTOCOL_KEYS = frozenset({"features", "id", "major", "minor"})
+_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _V2_MODES = frozenset({"shadow", "canary", "all", "active"})
-_COMPONENTS = (
-    "canonical_journal",
-    "context_compiler",
-    "artifact_handoff",
-    "memory_workspace",
-    "memory_toolkit",
-    "memory_curator",
-    "long_term_promotion",
+_MAX_SAFE_INTEGER = (1 << 53) - 1
+
+
+@dataclass(frozen=True, slots=True)
+class _RuntimeProtocolRequirement:
+    id: str
+    major: int
+    minimum_minor: int
+    features: frozenset[str]
+
+
+_REQUIRED_PROTOCOLS = (
+    _RuntimeProtocolRequirement(
+        id="context_memory",
+        major=1,
+        minimum_minor=0,
+        features=frozenset(
+            {
+                "artifact_handoff",
+                "canonical_journal",
+                "chat_deletion_sqlite_scope_closure",
+                "context_compiler",
+                "interaction_resolution_compat",
+                "long_term_promotion",
+                "memory_curator",
+                "memory_toolkit",
+                "memory_workspace",
+            }
+        ),
+    ),
+    _RuntimeProtocolRequirement(
+        id="durable_interaction",
+        major=1,
+        minimum_minor=0,
+        features=frozenset(
+            {
+                "cancel_pending",
+                "expected_interaction_id_cas",
+                "fresh_run_lineage",
+                "host_controlled_resume",
+            }
+        ),
+    ),
+    _RuntimeProtocolRequirement(
+        id="provider_turn_ownership",
+        major=1,
+        minimum_minor=0,
+        features=frozenset(
+            {
+                "atomic_receipt_cas",
+                "auxiliary_calls",
+                "enforce_mode",
+                "graph_runs",
+                "memory_off",
+                "subagent_runs",
+            }
+        ),
+    ),
+    _RuntimeProtocolRequirement(
+        id="run_bundle",
+        major=1,
+        minimum_minor=0,
+        features=frozenset(
+            {
+                "canonical_metrics",
+                "completion_diagnostics_ref",
+                "continuation_claim",
+                "immutable_pricing_snapshot",
+                "provider_call_set_union",
+                "provider_call_usage_v1",
+                "run_bundle_v1",
+            }
+        ),
+    ),
 )
-_TRUE_VALUES = frozenset({"1", "true", "yes", "on", "enabled"})
 
 
-class ContextMemoryV2CapabilityError(ValueError):
-    """A trusted lock manifest is malformed or ambiguous."""
+class _RuntimeProtocolManifestInvalid(ValueError):
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,374 +111,281 @@ class ContextMemoryV2CapabilityVerdict:
     verification: str
     immutable: bool
     unchain_revision: str = ""
-    context_memory_contract: int = CONTEXT_MEMORY_CONTRACT_VERSION
+    unchain_runtime_source: str = ""
+    _runtime_protocol_manifest_json: str = field(default="", repr=False)
+
+    @property
+    def runtime_protocol_manifest(self) -> dict[str, Any] | None:
+        if not self._runtime_protocol_manifest_json:
+            return None
+        value = json.loads(self._runtime_protocol_manifest_json)
+        return value if isinstance(value, dict) else None
 
 
-def _is_revision(value: object) -> bool:
-    return isinstance(value, str) and _REVISION_RE.fullmatch(value) is not None
-
-
-def _validated_lock(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        raise ContextMemoryV2CapabilityError("lock manifest must be an object")
-    if set(value) != {"repository", "revision", "context_memory_contract"}:
-        raise ContextMemoryV2CapabilityError("lock manifest fields are invalid")
-    if value.get("repository") != "unchain":
-        raise ContextMemoryV2CapabilityError("lock repository must be unchain")
-    contract = value.get("context_memory_contract")
-    if isinstance(contract, bool) or contract != CONTEXT_MEMORY_CONTRACT_VERSION:
-        raise ContextMemoryV2CapabilityError("lock contract version is unsupported")
-    revision = value.get("revision")
-    if revision is not None and not _is_revision(revision):
-        raise ContextMemoryV2CapabilityError(
-            "lock revision must be null or a lowercase immutable commit SHA"
+def _nfc_text(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise _RuntimeProtocolManifestInvalid(
+            f"{label} must be a non-empty string"
         )
+    try:
+        value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise _RuntimeProtocolManifestInvalid(
+            f"{label} must be a strict UTF-8 Unicode scalar sequence"
+        ) from exc
+    if unicodedata.normalize("NFC", value) != value:
+        raise _RuntimeProtocolManifestInvalid(f"{label} must use NFC")
+    return value
+
+
+def _version(value: object, *, label: str) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 0
+        or value > _MAX_SAFE_INTEGER
+    ):
+        raise _RuntimeProtocolManifestInvalid(
+            f"{label} must be a non-negative safe integer"
+        )
+    return value
+
+
+def _canonical_string_array(value: object, *, label: str) -> list[str]:
+    if not isinstance(value, list):
+        raise _RuntimeProtocolManifestInvalid(f"{label} must be an array")
+    items = [_nfc_text(item, label=f"{label} item") for item in value]
+    if len(set(items)) != len(items):
+        raise _RuntimeProtocolManifestInvalid(f"{label} must be unique")
+    if items != sorted(items, key=lambda item: item.encode("utf-8")):
+        raise _RuntimeProtocolManifestInvalid(
+            f"{label} must use canonical order"
+        )
+    return items
+
+
+def _normalized_runtime_protocol_manifest(
+    value: object,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != _MANIFEST_KEYS:
+        raise _RuntimeProtocolManifestInvalid("manifest fields are invalid")
+    schema = _nfc_text(value.get("schema"), label="manifest schema")
+    runtime = _nfc_text(value.get("runtime"), label="runtime")
+    if schema != _MANIFEST_SCHEMA or runtime != "unchain":
+        raise _RuntimeProtocolManifestInvalid("manifest identity is invalid")
+    raw_protocols = value.get("protocols")
+    if not isinstance(raw_protocols, list):
+        raise _RuntimeProtocolManifestInvalid("protocols must be an array")
+    protocols: list[dict[str, Any]] = []
+    for raw_protocol in raw_protocols:
+        if not isinstance(raw_protocol, Mapping) or set(raw_protocol) != _PROTOCOL_KEYS:
+            raise _RuntimeProtocolManifestInvalid(
+                "protocol item fields are invalid"
+            )
+        protocols.append(
+            {
+                "features": _canonical_string_array(
+                    raw_protocol.get("features"),
+                    label="features",
+                ),
+                "id": _nfc_text(raw_protocol.get("id"), label="protocol id"),
+                "major": _version(raw_protocol.get("major"), label="major"),
+                "minor": _version(raw_protocol.get("minor"), label="minor"),
+            }
+        )
+    protocol_ids = [item["id"] for item in protocols]
+    if len(set(protocol_ids)) != len(protocol_ids):
+        raise _RuntimeProtocolManifestInvalid("protocol ids must be unique")
+    if protocol_ids != sorted(protocol_ids, key=lambda item: item.encode("utf-8")):
+        raise _RuntimeProtocolManifestInvalid(
+            "protocols must use canonical order"
+        )
+    digest = value.get("manifest_digest")
+    if not isinstance(digest, str) or _DIGEST_RE.fullmatch(digest) is None:
+        raise _RuntimeProtocolManifestInvalid("manifest digest is invalid")
+    body = {
+        "protocols": protocols,
+        "runtime": runtime,
+        "schema": schema,
+    }
+    try:
+        canonical = json.dumps(
+            body,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:  # pragma: no cover - typed above
+        raise _RuntimeProtocolManifestInvalid(
+            "manifest body is not canonical JSON"
+        ) from exc
+    expected_digest = "sha256:" + hashlib.sha256(
+        _DIGEST_DOMAIN + canonical
+    ).hexdigest()
+    if digest != expected_digest:
+        raise _RuntimeProtocolManifestInvalid("manifest digest does not match")
     return {
-        "repository": "unchain",
-        "revision": revision,
-        "context_memory_contract": CONTEXT_MEMORY_CONTRACT_VERSION,
+        "manifest_digest": digest,
+        "protocols": protocols,
+        "runtime": runtime,
+        "schema": schema,
     }
 
 
-def load_unchain_core_lock(path: str | Path) -> dict[str, Any]:
-    lock_path = Path(path)
-    try:
-        raw = json.loads(lock_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ContextMemoryV2CapabilityError("lock manifest is unreadable") from exc
-    return _validated_lock(raw)
+def _manifest_json(value: dict[str, Any]) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
 
 
-def _capability_error(capability: object) -> str | None:
-    if not isinstance(capability, Mapping):
-        return "unchain_context_memory_capability_missing"
-    if set(capability) != {
-        "schema",
-        "revision",
-        "context_memory_contract",
-        "components",
-    }:
-        return "unchain_context_memory_capability_invalid"
-    if capability.get("schema") != _CAPABILITY_SCHEMA:
-        return "unchain_context_memory_capability_invalid"
-    contract = capability.get("context_memory_contract")
-    if isinstance(contract, bool) or contract != CONTEXT_MEMORY_CONTRACT_VERSION:
-        return "unchain_context_memory_contract_mismatch"
-    revision = capability.get("revision")
-    if not _is_revision(revision):
-        return "unchain_context_memory_capability_invalid"
-    components = capability.get("components")
-    if isinstance(components, (str, bytes, bytearray)) or not isinstance(
-        components,
-        Sequence,
-    ):
-        return "unchain_context_memory_capability_invalid"
-    if tuple(components) != _COMPONENTS:
-        return "unchain_context_memory_capability_invalid"
-    return None
+def _incompatible_verdict(
+    *,
+    reason: str,
+    manifest: dict[str, Any] | None,
+    unchain_revision: str,
+    unchain_runtime_source: str,
+) -> ContextMemoryV2CapabilityVerdict:
+    return ContextMemoryV2CapabilityVerdict(
+        ready=False,
+        reason=reason,
+        verification="failed",
+        immutable=False,
+        unchain_revision=unchain_revision,
+        unchain_runtime_source=unchain_runtime_source,
+        _runtime_protocol_manifest_json=(
+            _manifest_json(manifest) if manifest is not None else ""
+        ),
+    )
 
 
 def verify_context_memory_v2_capability(
     *,
-    capability: Mapping[str, Any] | None,
-    lock: Mapping[str, Any],
+    manifest: object,
     requested_mode: str,
-    dev_bypass: bool = False,
-    dirty_active_dev: bool = False,
-    release: bool = False,
+    unchain_revision: str = "",
+    unchain_runtime_source: str = "",
 ) -> ContextMemoryV2CapabilityVerdict:
+    """Independently validate the runtime manifest and required protocol matrix."""
+
+    revision_telemetry = (
+        unchain_revision if isinstance(unchain_revision, str) else ""
+    )
+    source_telemetry = (
+        unchain_runtime_source if isinstance(unchain_runtime_source, str) else ""
+    )
     if requested_mode == "off":
         return ContextMemoryV2CapabilityVerdict(
             ready=True,
-            reason="memory_v2_disabled",
+            reason="protocol_not_required",
             verification="not_required",
             immutable=False,
+            unchain_revision=revision_telemetry,
+            unchain_runtime_source=source_telemetry,
         )
     if requested_mode not in _V2_MODES:
         raise ValueError("requested_mode is invalid")
-    if (
-        not isinstance(dev_bypass, bool)
-        or not isinstance(dirty_active_dev, bool)
-        or not isinstance(release, bool)
-    ):
-        raise TypeError(
-            "dev_bypass, dirty_active_dev, and release must be booleans"
+    if manifest is None:
+        return _incompatible_verdict(
+            reason="unchain_runtime_protocol_manifest_missing",
+            manifest=None,
+            unchain_revision=revision_telemetry,
+            unchain_runtime_source=source_telemetry,
         )
-    normalized_lock = _validated_lock(lock)
-    capability_error = _capability_error(capability)
-    if capability_error is not None:
-        return ContextMemoryV2CapabilityVerdict(
-            ready=False,
-            reason=capability_error,
-            verification="failed",
-            immutable=False,
+    try:
+        normalized = _normalized_runtime_protocol_manifest(manifest)
+    except _RuntimeProtocolManifestInvalid:
+        return _incompatible_verdict(
+            reason="unchain_runtime_protocol_manifest_invalid",
+            manifest=None,
+            unchain_revision=revision_telemetry,
+            unchain_runtime_source=source_telemetry,
         )
-
-    revision = str(capability["revision"])
-    locked_revision = normalized_lock["revision"]
-    if locked_revision is None:
-        if dirty_active_dev:
-            if release or requested_mode != "all":
-                return ContextMemoryV2CapabilityVerdict(
-                    ready=False,
-                    reason="unchain_dirty_active_dev_forbidden",
-                    verification="failed",
-                    immutable=False,
-                    unchain_revision=revision,
-                )
-            return ContextMemoryV2CapabilityVerdict(
-                ready=True,
-                reason="unchain_context_memory_ready",
-                verification="dirty_dev_checkout",
-                immutable=False,
-                unchain_revision=revision,
+    by_id = {item["id"]: item for item in normalized["protocols"]}
+    for requirement in _REQUIRED_PROTOCOLS:
+        protocol = by_id.get(requirement.id)
+        if protocol is None:
+            return _incompatible_verdict(
+                reason="unchain_runtime_protocol_required_protocol_missing",
+                manifest=normalized,
+                unchain_revision=revision_telemetry,
+                unchain_runtime_source=source_telemetry,
             )
-        if dev_bypass and release:
-            return ContextMemoryV2CapabilityVerdict(
-                ready=False,
-                reason="unchain_dev_bypass_forbidden",
-                verification="failed",
-                immutable=False,
-                unchain_revision=revision,
+        if protocol["major"] != requirement.major:
+            return _incompatible_verdict(
+                reason="unchain_runtime_protocol_major_mismatch",
+                manifest=normalized,
+                unchain_revision=revision_telemetry,
+                unchain_runtime_source=source_telemetry,
             )
-        if not dev_bypass:
-            return ContextMemoryV2CapabilityVerdict(
-                ready=False,
-                reason="unchain_lock_revision_missing",
-                verification="failed",
-                immutable=False,
-                unchain_revision=revision,
+        if protocol["minor"] < requirement.minimum_minor:
+            return _incompatible_verdict(
+                reason="unchain_runtime_protocol_minor_too_low",
+                manifest=normalized,
+                unchain_revision=revision_telemetry,
+                unchain_runtime_source=source_telemetry,
             )
-        return ContextMemoryV2CapabilityVerdict(
-            ready=True,
-            reason="unchain_context_memory_ready",
-            verification="dev_bypass",
-            immutable=False,
-            unchain_revision=revision,
-        )
-    if revision != locked_revision:
-        return ContextMemoryV2CapabilityVerdict(
-            ready=False,
-            reason="unchain_revision_mismatch",
-            verification="failed",
-            immutable=False,
-            unchain_revision=revision,
-        )
+        if not requirement.features.issubset(protocol["features"]):
+            return _incompatible_verdict(
+                reason="unchain_runtime_protocol_required_feature_missing",
+                manifest=normalized,
+                unchain_revision=revision_telemetry,
+                unchain_runtime_source=source_telemetry,
+            )
     return ContextMemoryV2CapabilityVerdict(
         ready=True,
-        reason="unchain_context_memory_ready",
-        verification="exact_sha",
+        reason="unchain_runtime_protocol_compatible",
+        verification="runtime_protocol",
         immutable=True,
-        unchain_revision=revision,
+        unchain_revision=revision_telemetry,
+        unchain_runtime_source=source_telemetry,
+        _runtime_protocol_manifest_json=_manifest_json(normalized),
     )
 
 
-def _default_lock_path() -> Path:
-    frozen_root = getattr(sys, "_MEIPASS", "")
-    if isinstance(frozen_root, str) and frozen_root:
-        packaged = Path(frozen_root) / "resources" / "unchain-core.lock.json"
-        if packaged.is_file():
-            return packaged
-    return Path(__file__).resolve().parents[1] / "unchain-core.lock.json"
+def _load_imported_runtime_protocol() -> tuple[object | None, str, str]:
+    """Load only the protocol exported by the actual imported runtime module."""
 
-
-def _dev_bypass_requested(environment: Mapping[str, Any]) -> bool:
-    raw = environment.get(DEV_BYPASS_ENV)
-    return str(raw or "").strip().lower() in _TRUE_VALUES
-
-
-def _dirty_active_dev_requested(environment: Mapping[str, Any]) -> bool:
-    # This is intentionally stricter than the shadow-only development bypass:
-    # active execution against mutable Unchain code requires the literal value
-    # "1" so a broad truthy environment convention cannot enable it by accident.
-    return environment.get(DIRTY_ACTIVE_DEV_ENV) == "1"
-
-
-def _normalized_runtime_capability(value: object) -> dict[str, Any] | None:
     try:
-        from unchain.runtime.context_memory_contract import ContextMemoryCapability
-
-        if not isinstance(value, Mapping):
-            return None
-        return ContextMemoryCapability.from_dict(value).to_dict()
-    except (ImportError, AttributeError, TypeError, ValueError):
-        return None
-
-
-def _load_packaged_context_memory_capability() -> dict[str, Any] | None:
-    try:
-        resource_package = __import__(
-            "unchain.runtime.resources",
-            fromlist=["__name__"],
-        )
-        resource = resources.files(resource_package).joinpath(
-            "context_memory_capability.json"
-        )
-        raw = json.loads(resource.read_text(encoding="utf-8"))
-    except (
-        AttributeError,
-        ImportError,
-        ModuleNotFoundError,
-        OSError,
-        TypeError,
-        json.JSONDecodeError,
-    ):
-        return None
-    return _normalized_runtime_capability(raw)
-
-
-def _development_unchain_revision(
-    environment: Mapping[str, Any],
-) -> tuple[str, bool]:
-    source = str(environment.get("UNCHAIN_SOURCE_PATH") or "").strip()
-    roots: list[Path] = []
-    if source:
-        candidate = Path(source).expanduser()
-        roots.append(candidate.parent if candidate.name == "src" else candidate)
-    try:
-        import unchain
-
-        module_path = Path(unchain.__file__).resolve()
-        roots.extend(module_path.parents)
-    except (ImportError, AttributeError, OSError, TypeError):
-        pass
-    seen: set[Path] = set()
-    for root in roots:
-        try:
-            resolved = root.resolve()
-        except OSError:
-            continue
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        if not (resolved / "src" / "unchain" / "__init__.py").is_file():
-            continue
-        try:
-            completed = subprocess.run(
-                ["git", "-C", str(resolved), "rev-parse", "--verify", "HEAD"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=2,
-            )
-        except (OSError, subprocess.SubprocessError):
-            continue
-        revision = str(completed.stdout or "").strip()
-        if completed.returncode != 0 or not _is_revision(revision):
-            continue
-        try:
-            dirty_probe = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(resolved),
-                    "status",
-                    "--porcelain",
-                    "--untracked-files=normal",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=2,
-            )
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if dirty_probe.returncode != 0:
-            continue
-        return revision, bool(str(dirty_probe.stdout or "").strip())
-    return "", False
-
-
-def _load_runtime_context_memory_capability(
-    *,
-    environment: Mapping[str, Any],
-    release: bool,
-) -> tuple[dict[str, Any] | None, bool]:
-    packaged = _load_packaged_context_memory_capability()
-    if packaged is not None or release:
-        return packaged, False
-    revision, checkout_dirty = _development_unchain_revision(environment)
-    if not revision:
-        return None, False
-    try:
-        from unchain.runtime.context_memory_contract import ContextMemoryCapability
-
-        return ContextMemoryCapability(revision=revision).to_dict(), checkout_dirty
-    except (ImportError, AttributeError, TypeError, ValueError):
-        return None, False
+        module = importlib.import_module("unchain.runtime.runtime_protocol")
+        producer = getattr(module, "runtime_protocol_manifest", None)
+        if not callable(producer):
+            return None, "", str(getattr(module, "__file__", "") or "")
+        manifest = producer()
+        unchain_module = importlib.import_module("unchain")
+    except Exception:
+        return None, "", ""
+    revision = getattr(unchain_module, "__revision__", "")
+    return (
+        manifest,
+        revision if isinstance(revision, str) else "",
+        str(getattr(module, "__file__", "") or ""),
+    )
 
 
 def resolve_context_memory_v2_capability(
     *,
     requested_mode: str,
-    environment: Mapping[str, Any] | None = None,
-    release: bool | None = None,
-    capability: Mapping[str, Any] | None = None,
-    lock: Mapping[str, Any] | None = None,
-    lock_path: str | Path | None = None,
 ) -> ContextMemoryV2CapabilityVerdict:
-    """Resolve the host gate without allowing ambient production bypasses."""
+    """Resolve the V2 gate from the actual loaded runtime protocol."""
 
-    source = os.environ if environment is None else environment
-    is_release = bool(getattr(sys, "frozen", False)) if release is None else release
-    if not isinstance(is_release, bool):
-        raise TypeError("release must be a boolean")
-    try:
-        resolved_lock = (
-            _validated_lock(lock)
-            if lock is not None
-            else load_unchain_core_lock(lock_path or _default_lock_path())
+    if requested_mode == "off":
+        return verify_context_memory_v2_capability(
+            manifest=None,
+            requested_mode="off",
         )
-    except ContextMemoryV2CapabilityError:
-        return ContextMemoryV2CapabilityVerdict(
-            ready=False,
-            reason="unchain_lock_unreadable",
-            verification="failed",
-            immutable=False,
-        )
-    dev_bypass = (
-        requested_mode == "shadow"
-        and not is_release
-        and _dev_bypass_requested(source)
-    )
-    dirty_active_dev = (
-        requested_mode == "all"
-        and not is_release
-        and _dirty_active_dev_requested(source)
-    )
-    if capability is not None:
-        resolved_capability = capability
-        checkout_dirty = False
-    else:
-        resolved_capability, checkout_dirty = _load_runtime_context_memory_capability(
-            environment=source,
-            release=is_release,
-        )
-    if checkout_dirty and requested_mode != "off":
-        revision = (
-            str(resolved_capability.get("revision") or "")
-            if isinstance(resolved_capability, Mapping)
-            else ""
-        )
-        if not dev_bypass and not dirty_active_dev:
-            return ContextMemoryV2CapabilityVerdict(
-                ready=False,
-                reason="unchain_checkout_dirty",
-                verification="failed",
-                immutable=False,
-                unchain_revision=revision if _is_revision(revision) else "",
-            )
-        resolved_lock = {
-            **resolved_lock,
-            "revision": None,
-        }
+    if requested_mode not in _V2_MODES:
+        raise ValueError("requested_mode is invalid")
+    manifest, revision, source = _load_imported_runtime_protocol()
     return verify_context_memory_v2_capability(
-        capability=resolved_capability,
-        lock=resolved_lock,
+        manifest=manifest,
         requested_mode=requested_mode,
-        dev_bypass=dev_bypass,
-        dirty_active_dev=dirty_active_dev if checkout_dirty else False,
-        release=is_release,
+        unchain_revision=revision,
+        unchain_runtime_source=source,
     )
 
 
@@ -422,23 +393,19 @@ def context_memory_v2_capability_status(
     verdict: ContextMemoryV2CapabilityVerdict,
 ) -> dict[str, Any]:
     return {
-        "context_memory_capability_ready": verdict.ready,
-        "context_memory_capability_reason": verdict.reason,
-        "context_memory_capability_verification": verdict.verification,
-        "context_memory_capability_immutable": verdict.immutable,
+        "runtime_protocol_ready": verdict.ready,
+        "runtime_protocol_reason": verdict.reason,
+        "runtime_protocol_verification": verdict.verification,
+        "runtime_protocol_immutable": verdict.immutable,
+        "runtime_protocol_manifest": verdict.runtime_protocol_manifest,
         "unchain_revision": verdict.unchain_revision,
-        "context_memory_contract": verdict.context_memory_contract,
+        "unchain_runtime_source": verdict.unchain_runtime_source,
     }
 
 
 __all__ = (
-    "CONTEXT_MEMORY_CONTRACT_VERSION",
-    "DEV_BYPASS_ENV",
-    "DIRTY_ACTIVE_DEV_ENV",
-    "ContextMemoryV2CapabilityError",
     "ContextMemoryV2CapabilityVerdict",
     "context_memory_v2_capability_status",
-    "load_unchain_core_lock",
     "resolve_context_memory_v2_capability",
     "verify_context_memory_v2_capability",
 )

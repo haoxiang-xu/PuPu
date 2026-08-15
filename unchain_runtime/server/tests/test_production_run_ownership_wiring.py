@@ -53,7 +53,9 @@ class _CapturingAgent:
     def __init__(self, *, active=False, shadow=False) -> None:
         self.run_kwargs = None
         if active:
-            self._memory_v2_unchain_active_bridge = SimpleNamespace()
+            self._memory_v2_unchain_active_bridge = SimpleNamespace(
+                execution_id="execution-wiring",
+            )
         if shadow:
             self._memory_v2_unchain_shadow_bridge = SimpleNamespace(
                 compose_event_callback=lambda callback: callback,

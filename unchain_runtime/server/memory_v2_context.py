@@ -1426,6 +1426,18 @@ def resolve_memory_v2_admission(
         # A persisted active cohort may not silently fall back to Legacy when
         # rollout settings or runtime capabilities change after admission.
         if admission.target_mode == "active":
+            if effective_rollout == "off":
+                capability = resolve_context_memory_v2_capability(
+                    requested_mode="active",
+                )
+                admission.update_diagnostics(
+                    context_memory_v2_capability_status(capability)
+                )
+                if not capability.ready:
+                    raise MemoryV2ContextError(
+                        "Memory V2 Unchain runtime protocol gate failed: "
+                        f"{capability.reason}"
+                    )
             if admission.read_only_degraded:
                 raise MemoryV2ReadOnlyError(
                     "Memory V2 is read-only; new model and tool runs are disabled"

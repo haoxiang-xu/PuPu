@@ -6,6 +6,7 @@ const {
   ipcMain,
   webContents,
   nativeTheme,
+  powerMonitor,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -247,6 +248,10 @@ if (!gotSingleInstanceLock) {
     unchainService.stopMiso();
   };
 
+  const stopActiveExecutionsForLifecycle = (reason) => {
+    void unchainService.stopActiveMisoExecutionsForLifecycle({ reason });
+  };
+
   // before-quit is cancelable by renderer beforeunload. Defer shutdown until
   // will-quit so a failed chat drain cannot leave a still-running app with its
   // sidecars stopped and appIsQuitting stuck true.
@@ -281,6 +286,12 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(async () => {
+    if (powerMonitor && typeof powerMonitor.on === "function") {
+      powerMonitor.on("suspend", () => {
+        stopActiveExecutionsForLifecycle("system_suspend");
+      });
+    }
+
     await chatStorageService.init();
     // Must complete before the renderer window exists: the renderer's
     // synchronous bootstrap read depends on it. init() never throws — a broken
@@ -399,6 +410,7 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on("window-all-closed", () => {
+    stopActiveExecutionsForLifecycle("app_windows_closed");
     if (process.platform !== "darwin") {
       app.quit();
     }

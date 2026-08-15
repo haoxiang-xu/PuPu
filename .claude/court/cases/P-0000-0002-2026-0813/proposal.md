@@ -1,7 +1,7 @@
 ---
 case_id: P-0000-0002-2026-0813
 boundary_revision_set: sha256:69aa52362724fdb9d8f993561906b33f2063e54a82782300856aabf2239dc968+sha256:2e144cee5fb1498b59cd6a6ee5b534f2668e4fe439aa2a0bc8752d9f354abac5
-updated_at: 2026-08-13T22:30:00-07:00
+updated_at: 2026-08-14T15:25:00-07:00
 ---
 
 # 方案
@@ -10,9 +10,9 @@ updated_at: 2026-08-13T22:30:00-07:00
 - **主 owner**: code-owner-unchain
 - **目标结果**: 以不可变 provider-call ledger 为唯一计量事实源，生成可幂等重建的整棵 Run Bundle，并完成 PuPu 严格消费、持久化、显示、暂停终结与价格快照成本闭环。
 - **non_goals**: 不内联 raw prompt、隐藏推理、secret 或无界 tool output；不从 legacy 顶层累计猜测 child/graph usage；不在请求热路径抓价格网页；不删除 provider 网络 retry、exact-once recovery 或 live stream reattach；不恢复已由用户交互暂停的旧 Run。
-- **contract_set**: BC-001, BC-002, BC-003, BC-004, BC-005, BC-006, BC-007, BC-008
+- **contract_set**: BC-001, BC-002, BC-003, BC-004, BC-005, BC-006, BC-007, BC-008, BC-009
 - **state character**: STATEFUL
-- **实施范围**: Unchain provider usage normalization、provider-call receipt、ExecutionIdentity 归因、Run Bundle reducer、child/aux topology 与 interaction abandon；PuPu graph/root materialization、strict SSE projection、Electron keyed storage、renderer selector、no-auto-resume orchestration；offline signed price catalog 与list-price estimate/reconciliation provenance。
+- **实施范围**: Unchain provider usage normalization、provider-call receipt、ExecutionIdentity 归因、Run Bundle reducer、child/aux topology、interaction abandon 与窄化的历史 resolution repair；PuPu graph/root materialization、strict SSE projection、Electron keyed storage、renderer selector、no-auto-resume orchestration、official Context interaction ingress 与 cold/fresh repair；offline signed price catalog 与list-price estimate/reconciliation provenance。
 - **owner slots**:
   - SLOT-001 | code-owner-unchain | ProviderCallReceipt、Run topology、RunBundle reducer、interaction cancel | FILLED | LEAD
   - SLOT-002 | code-owner-runtime | Graph/SSE/locked-core/pricing catalog integration | FILLED | HS-001
@@ -35,9 +35,10 @@ updated_at: 2026-08-13T22:30:00-07:00
   - AC-010 | legacy 只读记录明确标记 partial；shadow/rollback 不破坏旧 UI；最终候选用 exact PuPu revision + unchain lock 跑完 REQUIRED 矩阵
   - AC-011 | Bundle 与 usage slices 在 Electron 单事务中替换，故障注入后不留半状态，clear/reset 不误删 legacy evidence
   - AC-012 | Bundle/SSE/SQLite 不包含 raw prompt、secret、reasoning_items、provider request 或 artifact bytes，超限与禁止字段严格拒绝
-- **boundary obligations**: BC-001, BC-002, BC-003, BC-004, BC-005, BC-006, BC-007, BC-008
+  - AC-013 | 历史 descriptor-incomplete `interaction_resolved` 仅能被同 scope、同 interaction、唯一且更晚的 descriptor-bound canonical `interaction.resolved` 修复；compiler、graph recovery、generation rebase 与 PuPu cold/fresh poison 路径一致，reverse/foreign/multiple/conflict 均 fail closed，答案进入 transcript 且 0 auto-resume/duplicate provider send；runtime feature capability 缺失时 active rollout 保持 INCOMPLETE，不以 Git SHA allowlist 放行
+- **boundary obligations**: BC-001, BC-002, BC-003, BC-004, BC-005, BC-006, BC-007, BC-008, BC-009
 - **boundary N/A reason**: NOT_APPLICABLE
-- **state sequence obligations**: SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006
+- **state sequence obligations**: SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
 - **state sequence N/A reason**: NOT_APPLICABLE
 
 ### BC-001 | Provider response 到 atomic ProviderCallReceipt
@@ -176,6 +177,23 @@ updated_at: 2026-08-13T22:30:00-07:00
 - **positive acceptance**: AC-006
 - **negative acceptance**: AC-002, AC-005
 
+### BC-009 | Historical malformed resolution 到 canonical repair consumers
+- **producer**: PuPu 历史 generic lane 的 descriptor-incomplete `interaction_resolved`，随后由 official `ContextInputIngress.persist(HostResolvedInteractionInput)` 产生 descriptor-bound `interaction.resolved`
+- **producer owner**: code-owner-unchain
+- **consumer**: Unchain ContextCompiler、GraphRecoveryService 与 SQLiteGenerationRebaseService
+- **consumer owner**: code-owner-unchain
+- **canonical representation**: exact 两事件 repair pair；legacy underscore 更早且 incomplete，canonical dotted 唯一、更晚、同 execution/generation/attempt/interaction，完整 response descriptor 的 content_ref 同时存在于本事件 authorized resource_refs
+- **consumer projection**: compiler/rebase抑制被修复 legacy；graph未存在legacy resume admission时选择canonical cursor，已admitted legacy cursor保持幂等；三者共享同一closed pair policy
+- **admission policy**: CLOSED
+- **admission details**: 仅 exact 2-event、canonical ordinal大于legacy、full scope一致、descriptor/resource authority完整时兼容；不得 raw 修改历史 event 或放宽单个 malformed resolution
+- **unknown input behavior**: 0或多个canonical candidate、reverse order、cross-scope/interaction、foreign ref、partial/conflict、complete legacy均保留原typed fail-closed错误
+- **failure semantics**: 不编译provider transcript、不推进graph/rebase、不清除pending authority；保留journal供official repair/retry
+- **identity/version binding**: runtime feature `unchain.context.interaction_resolution_compat.v1` 是兼容准入；Git revision仅作telemetry，不作allowlist；诊断 expected pair为producer sha256:69aa52362724fdb9d8f993561906b33f2063e54a82782300856aabf2239dc968 + consumer sha256:2e144cee5fb1498b59cd6a6ee5b534f2668e4fe439aa2a0bc8752d9f354abac5；feature manifest与exact deployed-pair证据完成前active rollout为INCOMPLETE
+- **producer owner confirmation**: LEAD
+- **consumer owner confirmation**: LEAD
+- **positive acceptance**: AC-013
+- **negative acceptance**: AC-013
+
 ### SEQ-001 | Provider send/retry/recovery 账本序列
 - **owner**: code-owner-unchain
 - **owner confirmation**: LEAD
@@ -290,6 +308,25 @@ updated_at: 2026-08-13T22:30:00-07:00
 - **reset**: NOT_APPLICABLE | rollout 使用显式 rollback 而非清空 durable evidence
 - **rollback**: REQUIRED | AC-010
 
+### SEQ-007 | Historical interaction poison repair and fresh continuation
+- **owner**: code-owner-unchain
+- **owner confirmation**: LEAD
+- **identity key**: session_id + execution_id + generation_id + attempt_id + interaction_id + legacy/canonical cursor + response content_ref digest
+- **initial state**: durable interaction已有权威receipt或cancel application，Context journal含matching request与更早descriptor-incomplete legacy resolution，可能已failed且无active pending/binding
+- **ordered events**: official durable receipt admission → exact canonical dotted resolution persist → retry/restart dedupe → compiler/graph recovery/rebase shared winner selection → fresh user message compile/send
+- **expected observations**: canonical resolution恰好一次，legacy raw历史不改；旧ask closed、answer descriptor和内容进入transcript；graph cursor/rebase一致；0 auto-resume与0 duplicate provider send；非法pair在任何consumer side effect前失败
+- **persistence boundary**: PuPu durable interaction journal与Context V2 SQLite/artifact store，经Unchain compiler、graph checkpoint和generation rebase读取
+- **boundary contracts**: BC-008, BC-009
+- **positive acceptance**: AC-013
+- **negative acceptance**: AC-013
+- **first use**: REQUIRED | AC-013
+- **repeat**: REQUIRED | AC-013
+- **retry**: REQUIRED | AC-013
+- **resume**: REQUIRED | AC-013
+- **restart**: REQUIRED | AC-013
+- **reset**: REQUIRED | AC-013
+- **rollback**: REQUIRED | AC-013
+
 ### PS-001 | 2026-08-13T22:30:00-07:00
 - **supersedes**: null
 - **included contributions**: HS-001, HS-002, HS-003, HS-004
@@ -297,4 +334,13 @@ updated_at: 2026-08-13T22:30:00-07:00
 - **dependent review blocks**: 全案
 - **boundary object hash**: sha256:9bfe4d8c537cd0777aa107bc236b7c3905208f4c43f08d0be53f454c4a046408
 - **content hash**: sha256:c613577536c25a2858425fb76f519494112c9e8a192de187b5a19972acebe822
+- **formed_by**: code-owner-unchain
+
+### PS-002 | 2026-08-14T15:25:00-07:00
+- **supersedes**: PS-001
+- **included contributions/amendments**: 2026-08-14 durable interaction incident diagnosis、systemic host/runtime/compiler repair authorization、adversarial cold/retry/race evidence
+- **changed blocks**: 实施范围、AC-013、BC-008、BC-009、SEQ-004、SEQ-006、SEQ-007、active rollout disposition
+- **dependent review blocks**: code-owner-unchain、code-owner-runtime、code-owner-chat-core、BC-008、BC-009、SEQ-004、SEQ-006、SEQ-007、AC-013
+- **boundary object hash**: sha256:9ac70a9190701393a49fd808eb7970074c2c45aa520804c4482e8f898e9f2a14
+- **content hash**: sha256:a96153d7b426e1df4c81e568d7af52388cf3ccae0b43ce71162660f7eedf255a
 - **formed_by**: code-owner-unchain

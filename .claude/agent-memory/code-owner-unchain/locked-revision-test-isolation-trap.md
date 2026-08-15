@@ -1,9 +1,11 @@
 ---
 name: locked-revision-test-isolation-trap
-description: Running pytest from a temp worktree at the locked unchain revision silently tests the SIBLING dev HEAD instead, because the venv holds an editable install pointing at the sibling src - always override PYTHONPATH and print unchain.__file__ first
+description: "SUPERSEDED 2026-08-14 — Historical locked-revision isolation trap; do not use as current policy. Current authority is imported runtime protocol manifest plus single-wheel artifact continuity."
 metadata:
   type: feedback
 ---
+
+> **SUPERSEDED（2026-08-14）：** 这是旧 Git-SHA lock 取证机制的历史陷阱记录，不再是现行兼容或发布流程。当前 runtime admission 只验证实际 import runtime 导出的 protocol manifest；发布证据验证同一个已构建 wheel 的 SHA-256 + manifest digest。下文仅用于事故考古。
 
 要对 **lock 钉的那一版** unchain 出测试证据时，光把该 revision `git worktree add` 出来、然后 `cd` 进去跑 pytest **是错的** —— 跑出来的仍是 sibling dev HEAD 的代码。
 

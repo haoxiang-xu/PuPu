@@ -13,10 +13,10 @@ import memory_v2_context
 def _blocked_verdict() -> ContextMemoryV2CapabilityVerdict:
     return ContextMemoryV2CapabilityVerdict(
         ready=False,
-        reason="unchain_lock_revision_missing",
+        reason="unchain_runtime_protocol_manifest_missing",
         verification="failed",
         immutable=False,
-        unchain_revision="a" * 40,
+        unchain_revision="diagnostic-only",
     )
 
 
@@ -43,10 +43,10 @@ def test_preflight_never_targets_shadow_or_active_without_core_readiness() -> No
         )
 
     assert intent["target_mode"] == "off"
-    assert intent["context_memory_capability_ready"] is False
+    assert intent["runtime_protocol_ready"] is False
     assert (
-        intent["context_memory_capability_reason"]
-        == "unchain_lock_revision_missing"
+        intent["runtime_protocol_reason"]
+        == "unchain_runtime_protocol_manifest_missing"
     )
     capability_probe.assert_called_once_with(requested_mode="all")
 
@@ -62,7 +62,7 @@ def test_admission_rejects_v2_before_runtime_or_sticky_state_can_activate() -> N
         ) as capability_probe,
         pytest.raises(
             memory_v2_context.MemoryV2ContextError,
-            match="unchain_lock_revision_missing",
+            match="unchain_runtime_protocol_manifest_missing",
         ),
     ):
         memory_v2_context.resolve_memory_v2_admission(

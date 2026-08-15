@@ -1,9 +1,11 @@
 ---
 name: release-unchain-editable-source-coupling
-description: 发版构建把 unchain 核心库以 editable 方式从本地 ../unchain 源码树打包，构建前必须 pin 干净的 intended commit
+description: SUPERSEDED 2026-08-14 — 旧 editable-source 发版机制的历史记录；现行发布只消费一次构建的 immutable wheel 与 runtime manifest
 metadata:
   type: project
 ---
+
+> **SUPERSEDED（2026-08-14）：** 下文记录旧的 editable-source 打包机制，不能作为当前构建或兼容准入指引。现行 runtime compatibility 只认实际 import runtime 的 strict protocol manifest；release contract、四平台 package 与 smoke 必须消费同一个 wheel SHA-256 + manifest digest。Clean source 只用于 provenance/reproducibility，Git revision 不作 compatibility allowlist。
 
 `build:unchain` (unchain_runtime/scripts/build_unchain_server.sh) 用 `pip install -e "$UNCHAIN_SOURCE_PATH"` 打包 unchain 核心库，`UNCHAIN_SOURCE_PATH` 默认 `../unchain`，PYTHONPATH 指向 `../unchain/src`。requirements.txt 只 pin sidecar 自己的运行时依赖（Flask/Werkzeug/httpx/mcp/openai/anthropic/qdrant-client），**不 pin unchain 版本**——unchain 直接来自本地工作树。
 

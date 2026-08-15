@@ -386,11 +386,14 @@ describe("Memory V2 P0 payload seams", () => {
       source_run_id: `attempt-${interactionId}`,
       active_attempt_id: `attempt-${interactionId}`,
       kind: "tool_approval",
+      provider: "openai",
+      model: "gpt-5",
       presentation: {
         trace_frame: {
           seq: 0,
           ts: 100,
           type: "tool_call",
+          run_id: `attempt-${interactionId}`,
           stage: "durable_recovery",
           payload: toolCall,
         },
