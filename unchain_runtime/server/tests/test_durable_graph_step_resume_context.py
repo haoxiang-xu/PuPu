@@ -92,6 +92,13 @@ class DurableGraphStepResumeContextTests(unittest.TestCase):
                 "modelId": "openai:gpt-5",
                 "memory_enabled": True,
                 "recipe_name": "report",
+                "_context_composition_hint_v1": {
+                    "category": "skills",
+                    "subtype": "expanded_invocation",
+                    "surface": "messages",
+                    "utf8_bytes": 12,
+                    "source_count": 1,
+                },
                 "openai_api_key": "must-not-persist",
                 "custom_provider": {
                     "base_url": "https://models.example.test/v1",
@@ -136,6 +143,16 @@ class DurableGraphStepResumeContextTests(unittest.TestCase):
             ["workflow-attempt-1"],
         )
         self.assertNotIn("openai_api_key", record["options"])
+        self.assertEqual(
+            record["options"]["_context_composition_hint_v1"],
+            {
+                "category": "skills",
+                "subtype": "expanded_invocation",
+                "surface": "messages",
+                "utf8_bytes": 12,
+                "source_count": 1,
+            },
+        )
         self.assertEqual(
             record["options"]["custom_provider"]["api_key"],
             "[REDACTED]",

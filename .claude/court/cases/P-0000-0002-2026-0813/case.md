@@ -4,6 +4,7 @@ discussion_type: proposal
 boundary_protocol: v1
 procedure_mode: collaboration
 status: implementing
+proposal_quarantine_manifest: proposal-quarantine.json
 stage_instance_id: SI-002
 acceptance_series_id: AS-001
 evidence_continuation_ref: null
@@ -90,3 +91,5 @@ updated_at: 2026-08-13T22:36:30-07:00
 ## 文件索引
 - [协作记录](record.md)
 - [方案](proposal.md)
+- [获准 PS-001 canonical snapshot](proposal.canonical.PS-001.md)
+- [提案 quarantine manifest](proposal-quarantine.json)

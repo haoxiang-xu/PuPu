@@ -3,17 +3,18 @@ case_id: P-0000-0003-2026-0814
 discussion_type: proposal
 boundary_protocol: v1
 procedure_mode: collaboration
-status: awaiting-ruling
-stage_instance_id: null
-acceptance_series_id: null
+status: implementing
+proposal_quarantine_manifest: proposal-quarantine.PS-003.json
+stage_instance_id: SI-001
+acceptance_series_id: AS-001
 evidence_continuation_ref: null
 proposal_ruling_scope: ACTION
 lead_owner: code-owner-runtime
 current_owner: code-owner-runtime
-current_artifact_ref: P-0000-0003-2026-0814#PS-001
+current_artifact_ref: P-0000-0003-2026-0814#PS-003
 boundary_contract_refs: [BC-001, BC-002, BC-003]
 state_sequence_refs: [SEQ-001, SEQ-002, SEQ-003, SEQ-004]
-review_snapshot_ref: RS-001
+review_snapshot_ref: RS-003
 objection_group_refs: []
 full_vote_ref: null
 full_scope_overlay_ref: null
@@ -23,7 +24,7 @@ derived_from: null
 blocking: true
 blocking_case_id: null
 created_at: 2026-08-14T09:39:00-07:00
-updated_at: 2026-08-14T09:53:00-07:00
+updated_at: 2026-08-15T16:17:37-07:00
 ---
 
 # 用运行时协议握手替代 Unchain SHA 兼容锁
@@ -53,16 +54,16 @@ updated_at: 2026-08-14T09:53:00-07:00
 - **return_to**: code-owner-runtime
 
 ## 合作 owner
-- code-owner-runtime | lead/integration/release | P-0000-0003-2026-0814#PS-001 | voting=true
-- code-owner-unchain | manifest producer | P-0000-0003-2026-0814#PS-001 | voting=true
-- code-owner-electron | strict readiness consumer | P-0000-0003-2026-0814#PS-001 | voting=true
+- code-owner-runtime | lead/integration/release | P-0000-0003-2026-0814#PS-003 | voting=true
+- code-owner-unchain | manifest producer | P-0000-0003-2026-0814#PS-003 | voting=true
+- code-owner-electron | strict readiness consumer | P-0000-0003-2026-0814#PS-003 | voting=true
 
 ## 当前产出与审查
-- **artifact**: P-0000-0003-2026-0814#PS-001
-- **review electorate**: RS-001 | code-owner-runtime, code-owner-unchain, code-owner-electron | N=3
+- **artifact**: P-0000-0003-2026-0814#PS-003
+- **review electorate**: RS-003 | code-owner-runtime, code-owner-unchain, code-owner-electron | N=3
 - **Full scope overlay**: null
-- **stance events canonical**: S-0007, S-0008, S-0009
-- **stance summary**: AGREE=3, OBJECT=0, ABSTAIN=0
+- **stance events canonical**: S-0014, S-0015, S-0016; S-0011 remains historical RS-002 ABSTAIN
+- **stance summary**: RS-003 AGREE=3, OBJECT=0, ABSTAIN=0; objection window closed at 2026-08-15T16:15:00-07:00 with no new objection; R-0003 and S-0017 entered implementing while active rollout remains blocked
 
 ## 异议与程序升级
 - **lead dispositions pending**: null
@@ -90,5 +91,11 @@ updated_at: 2026-08-14T09:53:00-07:00
 ## 文件索引
 - [协作记录](record.md)
 - [方案](proposal.md)
+- [PS-002 canonical reconstruction](proposal.canonical.PS-002.md)
+- [PS-003 canonical successor](proposal.canonical.PS-003.md)
+- [提案 quarantine manifest](proposal-quarantine.json)
+- [PS-003 quarantine manifest](proposal-quarantine.PS-003.json)
 - [Unchain producer contract](contracts/unchain-runtime-protocol-producer-v1.json)
 - [PuPu consumer contract](contracts/pupu-runtime-protocol-consumer-v1.json)
+- [PS-003 Unchain contract](contracts/ps-003/unchain-runtime-protocol-producer-v1.json)
+- [PS-003 PuPu contract](contracts/ps-003/pupu-runtime-protocol-consumer-v1.json)

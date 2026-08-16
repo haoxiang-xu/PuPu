@@ -1,4 +1,11 @@
-import { memo, useState, useContext, useMemo, useCallback } from "react";
+import {
+  memo,
+  useState,
+  useContext,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import {
   colorWithAlpha,
@@ -32,6 +39,8 @@ import {
 } from "./memory_v2_trace_audit";
 import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
 import { selectRunBundleUsage } from "../../SERVICEs/run_bundle_v1";
+import { hasContextCompositionEvidence } from "../../SERVICEs/context_composition_v1";
+import ContextCompositionModal from "./context-composition/context_composition_modal";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -586,7 +595,9 @@ const AccentPoint = ({ color }) => (
 
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
-const TokenSummary = ({ usage, isDark }) => {
+const TokenSummary = ({ usage, isDark, bundle }) => {
+  const [compositionOpen, setCompositionOpen] = useState(false);
+  const triggerRef = useRef(null);
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "\u2013";
   const color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)";
@@ -597,17 +608,9 @@ const TokenSummary = ({ usage, isDark }) => {
   const hasReasoning =
     typeof usage.reasoning === "number" && usage.reasoning > 0;
   const hasCache = hasCacheRead || hasCacheCreation;
-  return (
-    <span
-      data-testid="token-summary"
-      style={{
-        fontSize: 10,
-        fontFamily: "Menlo, Monaco, Consolas, monospace",
-        color,
-        userSelect: "none",
-        letterSpacing: "0.01em",
-      }}
-    >
+  const hasComposition = hasContextCompositionEvidence(bundle);
+  const content = (
+    <>
       {fmt(usage.input)} in
       {hasCache && (
         <span style={{ color: cacheColor }}>
@@ -625,7 +628,55 @@ const TokenSummary = ({ usage, isDark }) => {
         </span>
       )}
       {" "}&middot; {fmt(usage.total)} total
-    </span>
+    </>
+  );
+  const textStyle = {
+    fontSize: 10,
+    fontFamily: "Menlo, Monaco, Consolas, monospace",
+    color,
+    userSelect: "none",
+    letterSpacing: "0.01em",
+  };
+
+  if (!hasComposition) {
+    return (
+      <span data-testid="token-summary" style={textStyle}>
+        {content}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        data-testid="token-summary"
+        aria-label="Open context composition"
+        aria-haspopup="dialog"
+        aria-expanded={compositionOpen}
+        title="View context composition"
+        onClick={() => setCompositionOpen(true)}
+        style={{
+          ...textStyle,
+          display: "inline",
+          border: 0,
+          background: "transparent",
+          padding: 0,
+          margin: 0,
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        {content}
+      </button>
+      <ContextCompositionModal
+        open={compositionOpen}
+        onClose={() => setCompositionOpen(false)}
+        bundle={bundle}
+        returnFocusRef={triggerRef}
+      />
+    </>
   );
 };
 
@@ -2019,6 +2070,7 @@ const TraceChain = ({
           <TokenSummary
             usage={tokenUsage}
             isDark={isDark}
+            bundle={bundle}
           />
         ),
         status: "done",

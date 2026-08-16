@@ -4,11 +4,15 @@
 from __future__ import annotations
 
 from io import StringIO
+import hashlib
+import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
 from boundary_gate import classify_case, scan_cases
+from quarantine_lint import lint_case
 
 
 def _case(root: Path, name: str, fields: str, extra: str = "") -> Path:
@@ -20,6 +24,114 @@ def _case(root: Path, name: str, fields: str, extra: str = "") -> Path:
 
 
 class BoundaryGateTests(unittest.TestCase):
+    def _quarantined_fixture(self, root: Path) -> tuple[Path, Path]:
+        fixture = Path(__file__).parent / "fixtures" / "valid-case"
+        case = root / "P-0000-0001-2026-0812"
+        shutil.copytree(fixture, case)
+        snapshot = case / "proposal.canonical.md"
+        shutil.copyfile(case / "proposal.md", snapshot)
+        (case / "proposal.md").write_text(
+            (case / "proposal.md").read_text(encoding="utf-8")
+            + "\n### PS-002 | 2026-08-12T14:00:00Z\n"
+            + "- **supersedes**: PS-001\n",
+            encoding="utf-8",
+        )
+        case_index = case / "case.md"
+        case_index.write_text(
+            case_index.read_text(encoding="utf-8").replace(
+                "status: acceptance\n",
+                "status: acceptance\nproposal_quarantine_manifest: proposal-quarantine.json\n",
+            ),
+            encoding="utf-8",
+        )
+        migration_id = "P-0000-0002-2026-0812"
+        _case(root, migration_id, f"case_id: {migration_id}\nstatus: drafting")
+        digest = lambda path: "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        (case / "ruling.md").write_text(
+            (case / "ruling.md").read_text(encoding="utf-8")
+            + "\n## R-0002 | 2026-08-12T14:30:00Z\n"
+            + "- **ruling identity**: Chief Judge\n"
+            + "- **record type**: PROCEDURAL_RULING\n"
+            + "- **result**: REMEDY_REQUIRED\n"
+            + "- **quarantine manifest**: proposal-quarantine.json\n"
+            + f"- **preserved source**: proposal.md | {digest(case / 'proposal.md')}\n"
+            + f"- **canonical snapshot**: {snapshot.name} | {digest(snapshot)}\n",
+            encoding="utf-8",
+        )
+        manifest = {
+            "case_id": "P-0000-0001-2026-0812",
+            "chief_authorization": "R-0002",
+            "migrated_to": [migration_id],
+            "schema": "quorum.proposal_quarantine.v1",
+            "snapshot_path": snapshot.name,
+            "snapshot_sha256": digest(snapshot),
+            "source_path": "proposal.md",
+            "source_sha256": digest(case / "proposal.md"),
+        }
+        manifest_path = case / "proposal-quarantine.json"
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return case, manifest_path
+
+    def test_chief_authorized_quarantine_delegates_canonical_snapshot_to_frozen_linter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, _ = self._quarantined_fixture(Path(directory))
+            self.assertEqual(lint_case(case, phase="ruling"), [])
+
+    def test_quarantine_fails_closed_on_source_digest_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, _ = self._quarantined_fixture(Path(directory))
+            (case / "proposal.md").write_text("changed after authorization\n", encoding="utf-8")
+            issues = lint_case(case, phase="ruling")
+            self.assertTrue(any("source SHA-256 does not match preserved bytes" in issue.message for issue in issues))
+
+    def test_quarantine_fails_closed_on_snapshot_digest_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, _ = self._quarantined_fixture(Path(directory))
+            (case / "proposal.canonical.md").write_text("changed after authorization\n", encoding="utf-8")
+            issues = lint_case(case, phase="ruling")
+            self.assertTrue(any("snapshot SHA-256 does not match preserved bytes" in issue.message for issue in issues))
+
+    def test_quarantine_fails_closed_when_manifest_and_snapshot_drift_past_ruling(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, manifest_path = self._quarantined_fixture(Path(directory))
+            snapshot = case / "proposal.canonical.md"
+            snapshot.write_text(snapshot.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["snapshot_sha256"] = "sha256:" + hashlib.sha256(snapshot.read_bytes()).hexdigest()
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+                encoding="utf-8",
+            )
+            issues = lint_case(case, phase="ruling")
+            self.assertTrue(any("exact source/snapshot byte bindings" in issue.message for issue in issues))
+
+    def test_quarantine_fails_closed_on_nonlocal_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, manifest_path = self._quarantined_fixture(Path(directory))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["snapshot_path"] = "../proposal.md"
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+                encoding="utf-8",
+            )
+            issues = lint_case(case, phase="ruling")
+            self.assertTrue(any("source and snapshot must be local case-relative paths" in issue.message for issue in issues))
+
+    def test_quarantine_fails_closed_without_matching_chief_authorization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, manifest_path = self._quarantined_fixture(Path(directory))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["chief_authorization"] = "R-9999"
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+                encoding="utf-8",
+            )
+            issues = lint_case(case, phase="ruling")
+            self.assertTrue(any("Chief authorization must resolve" in issue.message for issue in issues))
+
     def test_distinguishes_legacy_pre_gate_and_ruling_gate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

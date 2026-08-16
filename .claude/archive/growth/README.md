@@ -60,6 +60,27 @@ Three reading disciplines that this library keeps re-proving:
 Roughly weekly. Traffic's 14-day window is the hard ceiling: **two consecutive missed weeks
 punch an unrecoverable hole in the views/clones series.**
 
+**The window is `D-14 .. D-1`, not "the last 14 days including today"** (measured 2026-08-14
+across all nine snapshots — every one returns exactly 14 rows ending the day *before* the call).
+Two consequences:
+
+- The day you patrol is never captured by that patrol; it arrives in the next one.
+- **The safe interval is strictly < 14 days, and 14 itself already loses a day.** The library's
+  two permanent holes are exactly this: a 16-day gap (07-05 → 07-21) lost `07-05, 07-06`, and a
+  17-day gap (07-21 → 08-07) lost `07-21, 07-22, 07-23`. Nothing else is missing between
+  2026-05-25 and 2026-08-13.
+
+## Verifying a claim built on this library
+
+Daily traffic rows are a *union across overlapping snapshots*, so a claim about any single day
+must name the snapshot it came from. Two scale traps, both hit in practice:
+
+- **Aggregate vs daily ratios are different statistics.** `clones.count / clones.uniques` on the
+  snapshot object is a 14-day aggregate; the per-day ratio from `clones[]` is not comparable to it
+  and runs far lower. Never contrast one against the other.
+- **A single day's ratio is not a level.** One release-day CI burst dominates the 14-day aggregate
+  (2026-08-01: 416 of the window's 601 clones).
+
 ## History
 
 - **2026-08-07** — library moved here from `~/.pupu-growth/` (the constitution forbids a second
@@ -69,3 +90,13 @@ punch an unrecoverable hole in the views/clones series.**
   the library's existing slim shape, and the `-raw` suffix was dropped from the family name
   because it is what invited the raw dump in the first place. Release-note bodies dropped.
   Library went 3.6 MB → 456 KB with no loss of irreplaceable data.
+- **2026-08-14** — patrol on a 4-day interval (shortest yet), taken to close the seam risk above.
+  Nine files, schema-conformant. Established the `D-14 .. D-1` window boundary and the two
+  ratio-scale traps documented above. `download-history.ndjson` was truncated by an interrupted
+  rebuild during this patrol and regenerated from the dated `*-releases.json` files — the reason
+  it is classified re-derivable held up under a real loss.
+
+  Note on ages: snapshot files carry no capture timestamp, and their mtimes were all rewritten by
+  the 08-10 normalization pass, so they cannot serve as one. Cohort ages therefore use the
+  convention **historical snapshot = its date @ 12:00 UTC (±12 h), today's snapshot = actual
+  capture time**. Any age older than the current patrol carries that ±12 h.

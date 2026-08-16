@@ -14,6 +14,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
+from context_composition_host import (
+    AVAILABILITY_OPTION as _CONTEXT_COMPOSITION_AVAILABILITY_OPTION,
+    PRIVATE_HINT_OPTION as _CONTEXT_COMPOSITION_PRIVATE_OPTION,
+    canonical_private_context_composition_hint_bytes as _context_composition_private_bytes,
+    context_composition_availability as _context_composition_availability,
+    normalize_context_composition_availability as _normalize_context_composition_availability,
+    normalize_private_context_composition_hint as _normalize_context_composition_private_hint,
+)
+
 
 _CONTEXT_SCHEMA_VERSION = 2
 _CONTEXT_DIRECTORY = "durable_interactions"
@@ -105,6 +114,7 @@ _STABLE_RESUME_OPTION_KEYS = frozenset(
         "agent_orchestration_mode",
         "contextOptimizer",
         "context_optimizer",
+        "_context_composition_hint_v1",
         # Custom-provider definition (design §7). Safe to persist: the def
         # carries NO api key (the key rides the specialised custom_provider_api_key
         # field and is re-supplied by the renderer via _FRESH_SECRET_OPTION_KEYS).
@@ -498,11 +508,82 @@ def _json_safe(value: Any) -> Any:
 def _stable_resume_options(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
-    return {
-        key: _json_safe(value[key])
-        for key in _STABLE_RESUME_OPTION_KEYS
-        if key in value
-    }
+    stable: dict[str, Any] = {}
+    for key in _STABLE_RESUME_OPTION_KEYS:
+        if key not in value:
+            continue
+        if key == _CONTEXT_COMPOSITION_PRIVATE_OPTION:
+            try:
+                stable[key] = _normalize_context_composition_private_hint(
+                    value[key]
+                )
+            except ValueError:
+                # Composition is optional.  An invalid private value is never
+                # made durable, but it cannot block the base resume record.
+                continue
+        else:
+            stable[key] = _json_safe(value[key])
+    return stable
+
+
+def _resolve_context_composition_resume_authority(
+    *,
+    stable_options: dict[str, Any],
+    fresh_options: dict[str, Any] | None,
+) -> dict[str, Any]:
+    resolved = copy.deepcopy(stable_options)
+    fresh = fresh_options if isinstance(fresh_options, dict) else {}
+    incoming_availability = _normalize_context_composition_availability(
+        fresh.get(_CONTEXT_COMPOSITION_AVAILABILITY_OPTION)
+    )
+    if incoming_availability is not None:
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            incoming_availability
+        )
+        return resolved
+
+    baseline_present = _CONTEXT_COMPOSITION_PRIVATE_OPTION in stable_options
+    declaration_present = _CONTEXT_COMPOSITION_PRIVATE_OPTION in fresh
+    baseline = None
+    if baseline_present:
+        try:
+            baseline = _normalize_context_composition_private_hint(
+                stable_options[_CONTEXT_COMPOSITION_PRIVATE_OPTION]
+            )
+        except ValueError:
+            resolved.pop(_CONTEXT_COMPOSITION_PRIVATE_OPTION, None)
+            resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+                _context_composition_availability("resume_hint_invalid")
+            )
+            return resolved
+    if not declaration_present:
+        if baseline is not None:
+            resolved[_CONTEXT_COMPOSITION_PRIVATE_OPTION] = baseline
+        return resolved
+    try:
+        declaration = _normalize_context_composition_private_hint(
+            fresh[_CONTEXT_COMPOSITION_PRIVATE_OPTION]
+        )
+    except ValueError:
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            _context_composition_availability("resume_hint_invalid")
+        )
+        return resolved
+    if baseline is None:
+        resolved.pop(_CONTEXT_COMPOSITION_PRIVATE_OPTION, None)
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            _context_composition_availability("resume_hint_no_baseline")
+        )
+        return resolved
+    if _context_composition_private_bytes(
+        baseline
+    ) != _context_composition_private_bytes(declaration):
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            _context_composition_availability("resume_hint_mismatch")
+        )
+        return resolved
+    resolved[_CONTEXT_COMPOSITION_PRIVATE_OPTION] = baseline
+    return resolved
 
 
 def _fresh_secret_overlay(value: Any) -> dict[str, Any]:
@@ -1833,7 +1914,10 @@ def resolve_resume_options(
             "durable_resume_context_subject_mismatch",
             "Durable resume context provider/model does not match the request",
         )
-    resolved = copy.deepcopy(stable_options)
+    resolved = _resolve_context_composition_resume_authority(
+        stable_options=stable_options,
+        fresh_options=fresh_options,
+    )
     resolved.update(_fresh_secret_overlay(fresh_options or {}))
     # C6: for a custom-provider resume, keep the original ``custom.<slug>:<model>``
     # addressing intact. The persisted context provider/model are the twin
@@ -1889,7 +1973,10 @@ def resolve_graph_step_resume_options(
             "durable_graph_resume_context_corrupt",
             "Graph-step resume options must be an object",
         )
-    resolved = copy.deepcopy(stable_options)
+    resolved = _resolve_context_composition_resume_authority(
+        stable_options=stable_options,
+        fresh_options=fresh_options,
+    )
     resolved.update(_fresh_secret_overlay(fresh_options or {}))
     # The locator subject identifies the suspended step, while these options
     # rebuild the whole recipe graph.  Preserve the graph's original base

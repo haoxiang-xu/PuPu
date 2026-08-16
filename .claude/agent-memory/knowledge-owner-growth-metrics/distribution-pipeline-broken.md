@@ -27,3 +27,13 @@ metadata:
 **Why 这条重要：** CEO 最看重"有没有人真在装"。这是唯一一个**已确诊、修起来很小、却在持续复利损失**的增长漏洞 —— 每发一版就多一批永远留在旧版的用户。且它是纯工程修复，不需要曝光/运营配合。
 
 **How to apply:** 每轮巡船先看最新 release 的资产清单，缺 `latest*.yml` 就说明自动更新仍然瘫。判定修好的标志：某版资产里同时出现 `latest-mac.yml` + `latest.yml` + `*-mac.zip` + `.AppImage`。别只看下载数曲线去猜自动更新活没活 —— 资产清单是直接证据。相关：[[install-signal-2026-06]]、[[exposure-ceiling-channels]]。
+
+**2026-08-14 复查：P0 未被执行，五项判据全不满足，全部根因仍在。** v0.1.9 至今只有 3 个资产
+（`PuPu-0.1.9-arm64.dmg` / `PuPu.Setup.0.1.9.exe` / `PuPu_0.1.9.deb`），没有 `latest-mac.yml`、
+没有 `latest.yml`、没有 `*-mac.zip`、没有 `.AppImage`、没有 intel dmg。根因侧同样零变化：
+`package.json` scripts 里 `publish` 仍出现 **0 次**，`.github/workflows/` 仍是那四个
+（enforce-merge-source / release-qa / update-readme-download-links / validate-mcp-registry），
+**仍无任何 release/build workflow**。全库 15 个 release 里带更新清单的依旧只有 v0.1.2 与 v0.1.4。
+
+→ **自动更新已连续瘫痪 5 个版本（v0.1.5 起）**，搁浅面随每次发版继续复利。这条 P0 不能摘，
+且它是本库里唯一「已确诊 + 纯工程 + 不需要曝光配合」的漏洞。

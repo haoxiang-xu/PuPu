@@ -44,7 +44,9 @@ describe("use_chat_stream runtime event batching", () => {
 
   test("done and error synchronously flush pending runtime events before handlers", () => {
     const onDone = source.match(/onDone: \(done\) => \{[\s\S]*?handlers\.onDone\?\.\(donePayload\);/);
-    const onError = source.match(/onError: \(error\) => \{[\s\S]*?handlers\.onError\?\.\(error\);/);
+    const onError = source.match(
+      /onError: \(error\) => \{[\s\S]*?handlers\.onError\?\.\(error \|\| pendingRuntimeEventError\);/,
+    );
 
     expect(onDone).not.toBeNull();
     expect(onError).not.toBeNull();
@@ -54,7 +56,7 @@ describe("use_chat_stream runtime event batching", () => {
     );
     expect(onError[0]).toMatch(/runtimeEventBatcher\?\.flushNow\(\)/);
     expect(onError[0].indexOf("runtimeEventBatcher?.flushNow()")).toBeLessThan(
-      onError[0].indexOf("handlers.onError?.(error)"),
+      onError[0].indexOf("handlers.onError?.(error || pendingRuntimeEventError)"),
     );
   });
 });

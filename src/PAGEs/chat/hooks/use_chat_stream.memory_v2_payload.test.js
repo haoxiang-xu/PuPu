@@ -459,8 +459,10 @@ describe("Memory V2 P0 payload seams", () => {
 
     expect(cancellationPayload).toEqual({
       session_id: chatId,
+      owner_chat_id: chatId,
       attempt_id: `attempt-${interactionId}`,
       source_attempt_id: `attempt-${interactionId}`,
+      interaction_id: interactionId,
       reason: "interaction_suspended",
       idempotency_key: `interaction-pause:attempt-${interactionId}:${interactionId}`,
     });

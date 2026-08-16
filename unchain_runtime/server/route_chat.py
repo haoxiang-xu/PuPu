@@ -6,6 +6,15 @@ from typing import Any, Dict, Iterable, List
 
 from flask import Response, jsonify, request, stream_with_context
 
+from context_composition_bundle_projection import (
+    project_context_composition_availability,
+)
+from context_composition_host import (
+    AVAILABILITY_OPTION as _CONTEXT_COMPOSITION_AVAILABILITY_OPTION,
+    PRIVATE_HINT_OPTION as _CONTEXT_COMPOSITION_PRIVATE_OPTION,
+    normalize_context_composition_availability,
+    prepare_context_composition_options,
+)
 from context_memory_v2_capability import resolve_context_memory_v2_capability
 from route_blueprint import api_blueprint
 from memory_v2_error_contract import safe_context_v2_error
@@ -940,9 +949,9 @@ def chat_stream_v4() -> Response:
         )
     mode = str(payload.get("mode") or "").strip().lower()
     resume_interaction = mode == "resume_interaction"
-    message = str(payload.get("message", "")).strip()
+    message = str(payload.get("message", ""))
     attachments = _sanitize_attachments(payload.get("attachments"))
-    if not resume_interaction and not message and not attachments:
+    if not resume_interaction and not message.strip() and not attachments:
         return root._json_error(
             "invalid_request",
             "message or attachments is required",
@@ -981,13 +990,37 @@ def chat_stream_v4() -> Response:
         if isinstance(payload.get("options"), dict)
         else {}
     )
+    private_resume_declaration_present = (
+        resume_interaction
+        and _CONTEXT_COMPOSITION_PRIVATE_OPTION in options
+    )
+    private_resume_declaration = options.get(
+        _CONTEXT_COMPOSITION_PRIVATE_OPTION
+    )
     for key in list(options):
         if (
             key.startswith("_memory_v2_")
             or key.startswith("_run_bundle_")
+            or key.startswith("_context_composition_")
             or key in _UNTRUSTED_MEMORY_V2_OPTION_KEYS
         ):
             options.pop(key, None)
+    options = prepare_context_composition_options(
+        options,
+        public_hint=payload.get("context_composition_hint"),
+        public_hint_present="context_composition_hint" in payload,
+        private_resume_declaration=private_resume_declaration,
+        private_resume_declaration_present=(
+            private_resume_declaration_present
+        ),
+        authoritative_message=message,
+        resume_interaction=resume_interaction,
+    )
+    request_context_composition_availability = (
+        normalize_context_composition_availability(
+            options.get(_CONTEXT_COMPOSITION_AVAILABILITY_OPTION)
+        )
+    )
 
     continued_from_raw = payload.get("continued_from_run_id")
     continued_from_run_id = ""
@@ -1078,6 +1111,9 @@ def chat_stream_v4() -> Response:
         started_at = int(time.time() * 1000)
         final_bundle: Dict[str, object] | None = None
         final_completion_diagnostics: Dict[str, object] | None = None
+        final_context_composition_availability = (
+            request_context_composition_availability
+        )
         confirmation_cancel_event = threading.Event()
         bridge = RuntimeEventBridge(
             session_id=thread_id,
@@ -1131,6 +1167,22 @@ def chat_stream_v4() -> Response:
                     final_bundle = _sanitize_v4_completion_bundle(
                         raw_event.get("bundle")
                     )
+                    summary_context_composition_availability = (
+                        normalize_context_composition_availability(
+                            raw_event.get(
+                                "context_composition_availability"
+                            )
+                        )
+                    )
+                    final_context_composition_availability = (
+                        project_context_composition_availability(
+                            final_bundle,
+                            preferred=(
+                                summary_context_composition_availability
+                                or request_context_composition_availability
+                            ),
+                        )
+                    )
                     from completion_diagnostics import (
                         project_completion_diagnostics,
                     )
@@ -1154,6 +1206,10 @@ def chat_stream_v4() -> Response:
             }
             if isinstance(final_bundle, dict) and final_bundle:
                 done_payload["bundle"] = final_bundle
+            if final_context_composition_availability is not None:
+                done_payload["context_composition_availability"] = (
+                    final_context_composition_availability
+                )
             if final_completion_diagnostics is not None:
                 done_payload["completion_diagnostics"] = (
                     final_completion_diagnostics
@@ -1202,6 +1258,15 @@ def chat_stream_v4() -> Response:
                     **(
                         {"bundle": final_bundle}
                         if isinstance(final_bundle, dict) and final_bundle
+                        else {}
+                    ),
+                    **(
+                        {
+                            "context_composition_availability": (
+                                final_context_composition_availability
+                            )
+                        }
+                        if final_context_composition_availability is not None
                         else {}
                     ),
                     **(

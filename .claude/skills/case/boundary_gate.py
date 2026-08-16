@@ -11,7 +11,7 @@ import re
 import sys
 from typing import TextIO
 
-from tools.quorum_lint import lint_case
+from quarantine_lint import lint_case
 
 
 FRONTMATTER_FIELD_RE = re.compile(r"^(?P<name>[A-Za-z_][A-Za-z0-9_]*):\s*(?P<value>.*)\s*$")

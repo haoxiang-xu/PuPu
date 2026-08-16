@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatBubble from "./chat_bubble";
 import CharacterChatBubble from "./character_chat_bubble";
@@ -7,6 +7,44 @@ import CharacterChatBubble from "./character_chat_bubble";
 const {
   buildRunBundleV1,
 } = require("../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+
+const CONTEXT_COMPOSITION_EXTENSION_KEY =
+  "unchain.context/context_composition_v1";
+
+const attachContextComposition = (bundle) => {
+  bundle.provider_calls[0].extensions[CONTEXT_COMPOSITION_EXTENSION_KEY] = {
+    schema: CONTEXT_COMPOSITION_EXTENSION_KEY,
+    method: "utf8_heuristic_v1",
+    quality: "reconciled_estimate",
+    context_window_tokens: 128000,
+    wire: {
+      envelope_sha256: `sha256:${"a".repeat(64)}`,
+      route_name: "primary",
+      route_sha256: `sha256:${"b".repeat(64)}`,
+      context_mode: "semantic",
+    },
+    categories: [
+      {
+        id: "instructions",
+        tokens: 500,
+        source_count: 1,
+        subtypes: [
+          { id: "core_system", tokens: 500, source_count: 1 },
+        ],
+      },
+    ],
+    attributed_tokens: 500,
+    residual_tokens: 500,
+    coverage: {
+      status: "complete",
+      manifest_items: 1,
+      matched_items: 1,
+      wire_surfaces: 1,
+      matched_surfaces: 1,
+    },
+  };
+  return bundle;
+};
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
@@ -137,6 +175,42 @@ describe("assistant token summary", () => {
       expect(summary).toHaveTextContent("200 out (50 reasoning)");
       expect(summary).toHaveTextContent("1,200 total");
       expect(summary).not.toHaveTextContent("1,600 in");
+      expect(summary).not.toHaveAttribute("aria-haspopup");
+    } finally {
+      window.requestIdleCallback = originalIdle;
+      window.cancelIdleCallback = originalCancelIdle;
+    }
+  });
+
+  test("opens Context Composition only when a receipt carries composition evidence", async () => {
+    const originalIdle = window.requestIdleCallback;
+    const originalCancelIdle = window.cancelIdleCallback;
+    window.requestIdleCallback = (callback) => {
+      callback();
+      return 1;
+    };
+    window.cancelIdleCallback = jest.fn();
+
+    try {
+      renderWithConfig(
+        <ChatBubble
+          message={{
+            ...messageWithTokenSummary,
+            id: "assistant-context-composition",
+            meta: { bundle: attachContextComposition(buildRunBundleV1()) },
+          }}
+          traceFrames={[]}
+        />,
+      );
+
+      const summary = await screen.findByRole("button", {
+        name: "Open context composition",
+      });
+      expect(summary).toHaveTextContent("1,000 in");
+      fireEvent.click(summary);
+      expect(
+        await screen.findByRole("dialog", { name: "Context Composition" }),
+      ).toBeInTheDocument();
     } finally {
       window.requestIdleCallback = originalIdle;
       window.cancelIdleCallback = originalCancelIdle;

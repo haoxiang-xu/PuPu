@@ -21,5 +21,16 @@ metadata:
 
 **2026-08-07 更新:反馈通道终于开了(但没激活)。** **has_discussions 从 false→true——Discussions 已启用**,6 个分类齐全(Announcements/General/Ideas/Polls/Q&A/Show and tell),但 **discussions totalCount=0**(零帖、无种子帖、大概率未从 app/README 导流)。持续第一运营缺口从「开 Discussions」推进到了「激活 Discussions」:通道在了,还需一个种子帖 + app 内/README 反馈入口把沉默下载者引进来。issue 侧几乎冻结:非 PR issue 108→**109(+1,全维护者自开)**,open 47→48,外部作者仍 **3(holistis/Max-jzyan/zxp19821005)**,自 07-21 无新外部 issue 作者。closure 率 61/109=**56%**(较 07-05 的 64% 下降,纯因维护者堆 backlog issue,非用户求助没人理)。PR 侧仍无懈可击:82 总/73 merged/**1 open(维护者自己的 #193 z-index,08-02 建仍新鲜,0 stale)**,5 位外部人类贡献者 + Copilot。贡献者 roster 仍 7 人,bus factor=1(维护者 278/~314≈88%),本窗无新贡献者。**下次巡检重点:Discussions 有没有第一个帖/第一个用户提问——那将是沉默下载者缺口真正开始闭合的信号。**
 
+**2026-08-14 更新。** 社区侧 4 天完全静止：issues 109→109（零新增零关闭）、PRs 82→82、贡献者 7 人
+contributions 逐字未动、star 36→36。Discussions **仍 0 帖**（paths 里 `/discussions` 6 views /
+3 uniques —— 有人点进去看了，看到空的）。
+**上面"PR 侧无懈可击"要收回一半：#193 不是"仍新鲜 0 stale"。** 实测 `isDraft=true`、
+`mergeable=CONFLICTING`、`updated=2026-08-02T20:21:49Z`（开 PR 后第二天就再没动过，已 12 天），
+`z_layers.js` 只存在于 `.claude/worktrees/z-layers-canonical-scale/`，**origin/main 和 origin/dev
+上都没有**。即唯一那个 open PR 是一个带冲突的废弃草稿，不是在途工作。
+⚠️ **贡献者 API 的结构性盲区（本轮实证）：** 它只统计**默认分支 main** 的提交；PuPu 全部开发在
+`dev`。本轮 HEAD 前进了 22 个 commit，contributions 数字一个都没变。**别拿 contributors 数字读
+"最近有没有人在干活"** —— 它对本仓库近乎恒定，只能读 bus factor 和历史 roster。
+
 **Why:** CEO 想知道社区健不健康。raw issue 数会误导成「社区活跃」，实则全是自己开的。
 **How to apply:** 报社区健康度时务必拆「谁开的 issue」。要缩小该缺口的运营动作：在 app 内/README 放轻量反馈入口、good-first-issue 标签、开 Discussions（当前 has_discussions=false）。把「首个外部 PR」「重复外部贡献者」当作要呵护的早期社区火苗。相关：[[install-signal-2026-06]]。

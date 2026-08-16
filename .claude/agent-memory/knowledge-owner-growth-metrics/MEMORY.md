@@ -7,4 +7,6 @@
 - [安装信号](install-signal-2026-06.md) — 逐版同龄对比；台阶在 v0.1.6→v0.1.7 且三版横盘未恢复，"v0.1.9 回升"已作废
 - [发布管道是坏的](distribution-pipeline-broken.md) — 没有 --publish、没有 release workflow、产物手传 → 自动更新全瘫 + AppImage/intel 缺失
 - [沉默下载者缺口](silent-downloader-gap.md) — issue 106/109 维护者自开，用户沉默；亮点在 PR 侧外部贡献者；反馈入口仍缺
-- [曝光见顶/放大渠道](exposure-ceiling-channels.md) — star 卡 36、零社交零社区放大、Google 在缩、18% 曝光是自查灌水；P0 永远是开一条放大渠道
+- [曝光见顶/放大渠道](exposure-ceiling-channels.md) — star 卡 36、零社交零社区放大、Google 在缩、~19% 曝光是自查灌水；P0 永远是开一条放大渠道
+- [发版当天不产生曝光](release-day-produces-no-exposure.md) — 三版发版日独立访客 8/7/8 vs 日常中位数 6.5；views 尖峰 6 倍全是自刷，曝光卡点的直接测量
+- [二手结论必须复核到数字](verify-claims-built-on-my-library.md) — 别人从我库里拉的数：聚合比 vs 单日比差一个数量级、缺失日清单、别被巧合当论据

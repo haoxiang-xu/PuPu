@@ -7630,6 +7630,23 @@ def _build_developer_agent(
         else:
             modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
+    composition_options = options if isinstance(options, dict) else {}
+    composition_private_hint = composition_options.get(
+        "_context_composition_hint_v1"
+    )
+    if (
+        composition_private_hint is not None
+        and "_context_composition_availability_v2" not in composition_options
+    ):
+        from context_composition_host import (
+            build_context_composition_bootstrap_module,
+        )
+
+        composition_module = build_context_composition_bootstrap_module(
+            composition_private_hint
+        )
+        if composition_module is not None:
+            modules.append(composition_module)
     modules.extend(tuple(context_memory_v2_modules))
 
     selected_optimizer_config = _select_agent_optimizer_config(
@@ -11697,6 +11714,30 @@ def resume_chat_interaction_events(
             expected_model=str(pending_state.get("model") or ""),
         )
     resolved_options = dict(resolved_options)
+    from context_composition_host import (
+        AVAILABILITY_OPTION as _CONTEXT_COMPOSITION_AVAILABILITY_OPTION,
+        normalize_context_composition_availability,
+    )
+
+    resolved_context_composition_availability = (
+        normalize_context_composition_availability(
+            resolved_options.get(
+                _CONTEXT_COMPOSITION_AVAILABILITY_OPTION
+            )
+        )
+    )
+
+    def with_context_composition_availability(
+        event: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if resolved_context_composition_availability is None:
+            return event
+        projected = dict(event)
+        projected["context_composition_availability"] = copy.deepcopy(
+            resolved_context_composition_availability
+        )
+        return projected
+
     resolved_options["_memory_v2_requested"] = (
         graph_step_resume
         or fresh_options.get("_memory_v2_requested") is True
@@ -11796,8 +11837,9 @@ def resume_chat_interaction_events(
                 coordinator_snapshot
             )
         )
+        graph_summary_seen = False
         try:
-            yield from _stream_recipe_graph_events(
+            graph_events = _stream_recipe_graph_events(
                 recipe=recipe,
                 message="",
                 history=[],
@@ -11809,7 +11851,42 @@ def resume_chat_interaction_events(
                 execution_token=execution_token,
                 runtime_context=graph_runtime_context,
             )
+            for graph_event in graph_events:
+                if (
+                    isinstance(graph_event, dict)
+                    and graph_event.get("type") == "stream_summary"
+                ):
+                    graph_summary_seen = True
+                    graph_event = with_context_composition_availability(
+                        graph_event
+                    )
+                yield graph_event
+            if (
+                resolved_context_composition_availability is not None
+                and not graph_summary_seen
+            ):
+                yield with_context_composition_availability(
+                    {
+                        "type": "stream_summary",
+                        "run_id": source_run_id,
+                        "iteration": 0,
+                        "timestamp": time.time(),
+                    }
+                )
         except BaseException as graph_resume_error:
+            if (
+                not isinstance(graph_resume_error, GeneratorExit)
+                and resolved_context_composition_availability is not None
+                and not graph_summary_seen
+            ):
+                yield with_context_composition_availability(
+                    {
+                        "type": "stream_summary",
+                        "run_id": source_run_id,
+                        "iteration": 0,
+                        "timestamp": time.time(),
+                    }
+                )
             if not (
                 isinstance(graph_resume_error, GeneratorExit)
                 or _is_execution_cancelled_error(graph_resume_error)
@@ -12275,10 +12352,32 @@ def resume_chat_interaction_events(
             iteration=int(output_holder.get("last_iteration") or 0),
         )
         if failure_summary is not None:
-            yield failure_summary
+            yield with_context_composition_availability(failure_summary)
+        elif resolved_context_composition_availability is not None:
+            yield with_context_composition_availability(
+                {
+                    "type": "stream_summary",
+                    "run_id": resume_run_id,
+                    "iteration": int(
+                        output_holder.get("last_iteration") or 0
+                    ),
+                    "timestamp": time.time(),
+                }
+            )
         raise error
 
     if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
+        if resolved_context_composition_availability is not None:
+            yield with_context_composition_availability(
+                {
+                    "type": "stream_summary",
+                    "run_id": resume_run_id,
+                    "iteration": int(
+                        output_holder.get("last_iteration") or 0
+                    ),
+                    "timestamp": time.time(),
+                }
+            )
         return
 
     if not output_holder.get("seen_final_message"):
@@ -12345,4 +12444,13 @@ def resume_chat_interaction_events(
         }
         if completion_diagnostics is not None:
             summary_event["completion_diagnostics"] = completion_diagnostics
-        yield summary_event
+        yield with_context_composition_availability(summary_event)
+    elif resolved_context_composition_availability is not None:
+        yield with_context_composition_availability(
+            {
+                "type": "stream_summary",
+                "run_id": str(output_holder.get("last_run_id") or ""),
+                "iteration": int(output_holder.get("last_iteration") or 0),
+                "timestamp": time.time(),
+            }
+        )

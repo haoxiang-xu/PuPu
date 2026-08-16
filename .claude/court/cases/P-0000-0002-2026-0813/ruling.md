@@ -28,3 +28,16 @@
 - **next state / SI**: implementing | SI-002
 - **parent release**: NOT_APPLICABLE
 - **stop condition**: closure commit 后开始代码实施；active rollout 必须等待 acceptance 与 exact lock pair
+
+## R-0002 | 2026-08-15T14:55:00-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PROCEDURAL_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: Chief Judge user message 2026-08-15 “批准”，明确批准先修 P-0000-0002/P-0000-0003 append-only lineage 与全局 gate，再建立 P-0000-0004；不得伪造 owner stance/hash
+- **result**: REMEDY_REQUIRED
+- **quarantine manifest**: proposal-quarantine.json
+- **preserved source**: proposal.md | sha256:3d08fde751690bd74cbf55ffb44dae1e7894d885efa2ee8cdfcbe49f285efb3b
+- **canonical snapshot**: proposal.canonical.PS-001.md | sha256:dd1ce2c73b06d0e255de7a2275893580417782420cd7731863862e280ec8dc87
+- **migration disposition**: 未经 R-0001/RS-001 审查的 PS-002、BC-009、SEQ-007、AC-013 保留在原始 proposal.md 作为字节证据，并迁入独立 ACTION side-case P-0000-0005-2026-0815；不得改变 R-0001 已获准的 PS-001
+- **decision effect**: boundary gate 仅在 source/snapshot digest、迁移 case 与本程序裁定全部匹配时，以 canonical PS-001 snapshot 评估本案；任一漂移即 fail closed
+- **authorization limit**: 本裁定只授权案卷结构修复与独立立案，不授权迁移内容或新生产代码

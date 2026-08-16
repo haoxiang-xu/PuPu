@@ -5,6 +5,7 @@ import { expandCommands, extractCommands } from "../../../SERVICEs/command_regis
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { admitDoneRunAccountingV1 } from "../../../SERVICEs/run_bundle_storage";
 import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
+import { buildContextCompositionHintV2 } from "../../../SERVICEs/context_composition_hint_v2";
 import { createLogger } from "../../../SERVICEs/console_logger";
 import { createThinkTagParser } from "../think_tag_parser";
 import {
@@ -6617,6 +6618,12 @@ export const useChatStream = ({
               };
             })()
           : {};
+        const contextCompositionHint = isDurableResume
+          ? null
+          : buildContextCompositionHintV2({
+              message: promptText,
+              composer,
+            });
         const streamPayload = isDurableResume
           ? {
               ...buildDurableResumePayload(durableInteraction),
@@ -6641,6 +6648,9 @@ export const useChatStream = ({
                 ? { attempt_id: turnMutationOperationId }
                 : {}),
               message: promptText,
+              ...(contextCompositionHint
+                ? { context_composition_hint: contextCompositionHint }
+                : {}),
               history: historyForModel,
               attachments: payloadAttachments,
               options: {
