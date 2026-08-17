@@ -15,6 +15,8 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
  *   placeholder            – placeholder text shown when empty
  *   disabled               – disables the field
  *   content_section        – React node rendered at left (floats up like a label when text is entered)
+ *   above_section          – optional in-flow node capping the field box (e.g. a docked
+ *                            notice banner); the floated content section rises above it
  *   functional_section     – React node rendered at bottom-right (e.g. send button)
  *   on_focus / on_blur     – callbacks
  *   on_key_down            – keyDown handler (e.g. Shift+Enter)
@@ -30,6 +32,7 @@ const FloatingTextField = ({
   placeholder,
   disabled = false,
   content_section,
+  above_section = null,
   functional_section,
   force_content_active = false,
   /* Optional text-mirror overlay: when provided, the textarea's own text is
@@ -56,6 +59,14 @@ const FloatingTextField = ({
   const fontFamily =
     style?.fontFamily || theme?.font?.fontFamily || "Jost, sans-serif";
   const borderRadius = style?.borderRadius ?? tf.borderRadius ?? 7;
+  /* borderRadius may be a per-corner CSS string; the scrollbar track only
+     needs one numeric inset, so it takes the largest corner. */
+  const scrollbarEdgeRadius = Math.max(
+    6,
+    ...(typeof borderRadius === "number"
+      ? [borderRadius]
+      : (String(borderRadius).match(/\d+(?:\.\d+)?/g) || [7]).map(Number)),
+  );
   const bg =
     style?.backgroundColor ??
     tf.backgroundColor ??
@@ -125,6 +136,42 @@ const FloatingTextField = ({
     return () => ro.disconnect();
   }, [content_section]);
 
+  /* ---- above-section presence as an explicit ON/OFF state ----
+     ON is immediate; OFF is debounced so a cap that closes and is replaced
+     right away never flickers the layout off. While ON, the cap height is
+     tracked live: the rest position is wrapper-anchored, and the wrapper's
+     top edge rises exactly as the cap grows, so only a live offset keeps
+     the resting content section visually stationary through the cap's
+     enter/exit animation. The floated position is a constant above the
+     wrapper top and never depends on this offset. Once the cap settles the
+     value stops changing, so clicking or focusing the field never
+     re-derives anything. */
+  const aboveRef = useRef(null);
+  const [aboveOn, setAboveOn] = useState(false);
+  const [aboveOffsetH, setAboveOffsetH] = useState(0);
+  const abovePresent = above_section != null;
+  useEffect(() => {
+    if (abovePresent) {
+      setAboveOn(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      setAboveOn(false);
+      setAboveOffsetH(0);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [abovePresent]);
+  useEffect(() => {
+    if (!aboveOn || !aboveRef.current) return undefined;
+    const el = aboveRef.current;
+    setAboveOffsetH(Math.ceil(el.getBoundingClientRect().height));
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setAboveOffsetH(Math.ceil(e.contentRect.height));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [aboveOn]);
+
   /* ---- compute height ---- */
   const minH = min_rows * lineHeightPx + padding * 2;
   const maxH =
@@ -177,9 +224,14 @@ const FloatingTextField = ({
   /* ---- content section "active" = floated above the input ---- */
   const contentActive = force_content_active || hasValue || focused;
 
-  /* If min_rows > 1, the content section rests at the first-line center, else vertically centered */
+  /* If min_rows > 1, the content section rests at the first-line center, else vertically centered.
+     Positions are relative to the field-box sub-wrapper, so the rest
+     position is a constant that any in-flow above_section can never
+     disturb; the floated position lifts past the cap's live height so the
+     content section always rises above it. */
   const contentRestTop = min_rows > 1 ? padding + lineHeightPx / 2 : minH / 2;
-  const contentFloatedTop = -(contentSectionH + padding);
+  const contentFloatedTop =
+    -(contentSectionH + padding) - (aboveOn ? aboveOffsetH : 0);
   /* left offset that matches the vertical gap (top edge of content section to container top) */
   const contentRestLeft =
     contentSectionH > 0 ? contentRestTop - contentSectionH / 2 : padding;
@@ -199,6 +251,10 @@ const FloatingTextField = ({
     backdropFilter: _outer_backdrop_ignored,
     boxShadow: _outer_shadow_ignored,
     boxShadowFocus: _outer_shadow_focus_ignored,
+    /* backgroundColor is the main container's surface (`bg` token); painting
+       it on the wrapper too was invisible while the box filled the wrapper,
+       but an in-flow above_section would sit on a double-tinted ground. */
+    backgroundColor: _outer_background_ignored,
     ...outer_style
   } = style || {};
 
@@ -216,6 +272,18 @@ const FloatingTextField = ({
         if (taRef.current) taRef.current.focus();
       }}
     >
+      {/* ── Above section (in-flow cap, e.g. a docked notice banner) ── */}
+      {above_section && (
+        <div ref={aboveRef} style={{ position: "relative", zIndex: 2 }}>
+          {above_section}
+        </div>
+      )}
+
+      {/* ── Field box sub-wrapper: the positioning context for the floated
+             content section, so its rest coordinates stay box-relative and
+             immune to the cap's in-flow height. ── */}
+      <div style={{ position: "relative" }}>
+
       {/* ── Main container ── */}
       <div
         onMouseEnter={() => setHovered(true)}
@@ -234,7 +302,7 @@ const FloatingTextField = ({
           borderRadius,
           boxShadow: hovered || focused ? shadowFocus : shadow,
           transition:
-            "box-shadow 0.3s ease, height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+            "box-shadow 0.3s ease, border-radius 0.26s cubic-bezier(0.32, 0.72, 0, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
           height: contentHeight,
           overflow: "hidden",
         }}
@@ -289,11 +357,11 @@ const FloatingTextField = ({
               overlayRef.current.scrollTop = e.target.scrollTop;
           }}
           className={shouldScroll ? "scrollable" : undefined}
-          data-sb-edge={Math.max(6, borderRadius)}
+          data-sb-edge={scrollbarEdgeRadius}
           data-sb-wall={4}
-          data-sb-edge-top={Math.max(6, borderRadius)}
+          data-sb-edge-top={scrollbarEdgeRadius}
           data-sb-edge-bottom={Math.max(
-            Math.max(6, borderRadius),
+            scrollbarEdgeRadius,
             funcHeight > 0 ? funcHeight + padding + 12 : 0,
           )}
           style={{
@@ -431,6 +499,7 @@ const FloatingTextField = ({
           {content_section}
         </div>
       )}
+      </div>
     </div>
   );
 };
@@ -467,6 +536,14 @@ const TextField = ({
   const fontFamily =
     style?.fontFamily || theme?.font?.fontFamily || "Jost, sans-serif";
   const borderRadius = style?.borderRadius || tf.borderRadius || 7;
+  /* borderRadius may be a per-corner CSS string; the scrollbar track only
+     needs one numeric inset, so it takes the largest corner. */
+  const scrollbarEdgeRadius = Math.max(
+    6,
+    ...(typeof borderRadius === "number"
+      ? [borderRadius]
+      : (String(borderRadius).match(/\d+(?:\.\d+)?/g) || [7]).map(Number)),
+  );
   const baseColor = style?.color || theme?.color || (isDark ? "#CCC" : "#222");
   const padding = style?.padding ?? tf.padding ?? 12;
 
@@ -665,11 +742,11 @@ const TextField = ({
           }}
           onKeyDown={on_key_down}
           className={shouldScroll ? "scrollable" : undefined}
-          data-sb-edge={Math.max(6, borderRadius)}
+          data-sb-edge={scrollbarEdgeRadius}
           data-sb-wall={4}
-          data-sb-edge-top={Math.max(6, borderRadius)}
+          data-sb-edge-top={scrollbarEdgeRadius}
           data-sb-edge-bottom={Math.max(
-            Math.max(6, borderRadius),
+            scrollbarEdgeRadius,
             funcHeight > 0 ? funcHeight + padding + 12 : 0,
           )}
           style={{

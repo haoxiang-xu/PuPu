@@ -1,5 +1,11 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import AttachPanel from "./attach_panel";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
@@ -230,17 +236,30 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(progress).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(progress);
-    expect(await screen.findByRole("heading", { name: "Context Composition" }))
-      .toBeInTheDocument();
+    // Tooltip keeps the bubble visibility:hidden until it can measure itself,
+    // and jsdom reports every rect as 0 — so it never flips to visible here and
+    // role queries (which walk the a11y tree) would miss it. Assert on the
+    // mounted node instead; visible placement is a real-window concern.
+    const popover = await screen.findByTestId("context-composition-popover");
+    expect(within(popover).getByText("Context Usage")).toBeInTheDocument();
+    expect(within(popover).getByText("Instructions")).toBeInTheDocument();
+    // 400 attributed + 600 residual against a 2000 window: the residual is a
+    // listed row, so what the reader sees adds up to the 50% headline.
+    expect(within(popover).getByText("Unattributed")).toBeInTheDocument();
+    expect(within(popover).getByText("50% Full")).toBeInTheDocument();
     expect(progress).toHaveAttribute("aria-expanded", "true");
 
-    fireEvent.click(screen.getByTitle("Close"));
+    // It opens as an anchored menu, like the model dropdown beside it — so it
+    // carries no close button of its own and toggles off the same trigger.
+    expect(screen.queryByTitle("Close")).not.toBeInTheDocument();
+
+    fireEvent.click(progress);
     await waitFor(() => {
       expect(
-        screen.queryByRole("heading", { name: "Context Composition" }),
+        screen.queryByTestId("context-composition-popover"),
       ).not.toBeInTheDocument();
     });
-    expect(progress).toHaveFocus();
+    expect(progress).toHaveAttribute("aria-expanded", "false");
   });
 
   test("opens attach panel selector menus above the input controls", () => {

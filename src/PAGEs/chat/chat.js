@@ -11,7 +11,6 @@ import {
   ThemeContext,
 } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
-import TurnMutationQuarantine from "../../COMPONENTs/chat-messages/components/turn_mutation_quarantine";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import SecretCaptureModal from "./secret_capture_modal";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -924,6 +923,9 @@ const ChatInterface = () => {
       interjectState: stream.interjectState,
       onQueueUndo: stream.onQueueUndo,
       contextCompositionBundle,
+      turnMutationHold: stream.turnMutationHold,
+      onTurnMutationRetry: stream.retryTurnMutation,
+      onTurnMutationDiscard: stream.discardTurnMutation,
     }),
     [
       session.inputValue, session.setComposerInputValue, session.selectedModelId,
@@ -933,6 +935,7 @@ const ChatInterface = () => {
       stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
       contextCompositionBundle,
+      stream.turnMutationHold, stream.retryTurnMutation, stream.discardTurnMutation,
       isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
@@ -1197,12 +1200,6 @@ const ChatInterface = () => {
               }}
             />
             <div style={{ position: "relative" }}>
-              <TurnMutationQuarantine
-                hold={stream.turnMutationHold}
-                isDark={isDark}
-                onRetry={stream.retryTurnMutation}
-                onDiscard={stream.discardTurnMutation}
-              />
               <ChatInput {...sharedChatInputProps} />
             </div>
           </div>

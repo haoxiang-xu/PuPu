@@ -258,6 +258,108 @@ describe("Context Composition v1 renderer selector", () => {
     ]);
   });
 
+  /* The test above only ever carried instructions + skills, whose relative
+     order is the same under any arrangement — so the full sequence was never
+     actually pinned and could be reordered with every suite still green.
+     This one carries all eight. It also feeds them in wire order, which is a
+     different sequence from the display order, so it pins the two as genuinely
+     decoupled rather than accidentally identical. */
+  test("pins the whole eight-group display order, decoupled from wire order and size", () => {
+    const bundle = attach(
+      buildRunBundleV1(),
+      0,
+      extension({
+        // Canonical wire order — the closed contract rejects any other.
+        categories: [
+          {
+            id: "instructions",
+            tokens: 1,
+            source_count: 1,
+            subtypes: [{ id: "core_system", tokens: 1, source_count: 1 }],
+          },
+          {
+            id: "skills",
+            tokens: 3,
+            source_count: 1,
+            subtypes: [{ id: "loaded_body", tokens: 3, source_count: 1 }],
+          },
+          {
+            id: "tool_definitions",
+            tokens: 5,
+            source_count: 1,
+            subtypes: [{ id: "provider_schema", tokens: 5, source_count: 1 }],
+          },
+          {
+            id: "conversation",
+            tokens: 880,
+            source_count: 1,
+            subtypes: [{ id: "current_input", tokens: 880, source_count: 1 }],
+          },
+          {
+            id: "tool_activity",
+            tokens: 4,
+            source_count: 1,
+            subtypes: [{ id: "results", tokens: 4, source_count: 1 }],
+          },
+          {
+            id: "memory",
+            tokens: 2,
+            source_count: 1,
+            subtypes: [{ id: "short_term_recall", tokens: 2, source_count: 1 }],
+          },
+          {
+            id: "task_state",
+            tokens: 1,
+            source_count: 1,
+            subtypes: [{ id: "pinned_state", tokens: 1, source_count: 1 }],
+          },
+          {
+            id: "files_media",
+            tokens: 1,
+            source_count: 1,
+            subtypes: [{ id: "file_excerpt", tokens: 1, source_count: 1 }],
+          },
+          {
+            id: "agent_coordination",
+            tokens: 2,
+            source_count: 1,
+            subtypes: [{ id: "handoff_summary", tokens: 2, source_count: 1 }],
+          },
+          {
+            id: "output_contract",
+            tokens: 1,
+            source_count: 1,
+            subtypes: [{ id: "response_schema", tokens: 1, source_count: 1 }],
+          },
+        ],
+        attributedTokens: 900,
+        residualTokens: 100,
+        coverage: {
+          status: "complete",
+          manifest_items: 10,
+          matched_items: 10,
+          wire_surfaces: 1,
+          matched_surfaces: 1,
+        },
+      }),
+    );
+
+    const view = selectContextCompositionView(bundle, { scope: "model_call" });
+    expect(view.groups.map((group) => group.id)).toEqual([
+      "instructions",
+      "tools",
+      "skills",
+      "agent_coordination",
+      "output_contract",
+      "memory_task_state",
+      "files_media",
+      "conversation",
+    ]);
+    // Conversation carries 880 of the 900 attributed tokens and still sorts
+    // last — display order is semantic, never size-driven.
+    expect(view.groups[view.groups.length - 1].tokens).toBe(880);
+  });
+
   test("fails only the optional composition on unknown keys or inconsistent sums", () => {
     const extra = extension();
     extra.raw_prompt = "must never be admitted";

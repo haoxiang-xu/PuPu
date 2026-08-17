@@ -173,54 +173,61 @@ describe("ContextCompositionModal", () => {
 
     renderModal({ bundle });
     const dialog = await screen.findByRole("dialog", {
-      name: "Context Composition",
+      name: "Context Usage",
     });
     expect(dialog).toHaveAttribute(
       "aria-describedby",
       "context-composition-description",
     );
-    const closeButton = screen.getByRole("button", {
-      name: "Close Context Composition",
-    });
-    expect(closeButton).toHaveStyle({
-      top: "12px",
-      right: "12px",
-      padding: "6px 6px",
-      borderRadius: "6px",
-      opacity: "0.45",
-    });
-    expect(screen.getByRole("heading", { name: "Context Composition" })).toHaveStyle({
-      fontSize: "22px",
-      fontWeight: "600",
-      fontFamily: "NunitoSans, sans-serif",
+    expect(
+      screen.getByRole("button", { name: "Close Context Usage" }),
+    ).toBeInTheDocument();
+    // The title is deliberately quiet now — the headline number carries the
+    // visual weight it used to take at 22px.
+    expect(screen.getByRole("heading", { name: "Context Usage" })).toHaveStyle({
+      fontSize: "13px",
     });
 
-    [
+    // Fixed order: standing cost first, the one slice that grows last.
+    expect(
+      screen
+        .getAllByTestId("context-composition-group-toggle")
+        .map((row) => row.textContent.replace(/[\d.]+K?.*$/, "")),
+    ).toEqual([
       "Instructions",
-      "Skills",
       "Tools",
-      "Conversation",
-      "Memory & Task State",
-      "Files & Media",
+      "Skills",
       "Agent Coordination",
       "Output Contract",
-    ].forEach((label) => expect(screen.getByText(label)).toBeInTheDocument());
+      "Memory & Task State",
+      "Files & Media",
+      "Conversation",
+    ]);
 
-    const toggles = screen.getAllByTestId("context-composition-group-toggle");
-    expect(toggles).toHaveLength(8);
-    expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(1);
-    expect(screen.getByText("Core system")).toBeInTheDocument();
+    // Nothing is pre-expanded. The old default opened group one, so the list
+    // was already displaced before the reader had asked for anything.
+    expect(screen.queryAllByRole("button", { expanded: true })).toHaveLength(0);
+    expect(screen.queryByText("Core system")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Tools/ }));
     expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(1);
     expect(screen.getByText("Provider schema")).toBeInTheDocument();
     expect(screen.getByText("Results")).toBeInTheDocument();
 
-    expect(screen.getByText("Reconciled estimate")).toBeInTheDocument();
-    expect(screen.getByText("Reported")).toBeInTheDocument();
-    expect(screen.getByText("Complete")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Tools/ }));
+    expect(screen.queryAllByRole("button", { expanded: true })).toHaveLength(0);
+
+    expect(screen.getByTestId("context-composition-quality")).toHaveTextContent(
+      "Reconciled estimate · Complete coverage",
+    );
     expect(screen.getByTestId("context-composition-residual-segment"))
       .toHaveAttribute("data-pattern", "hatched");
+
+    // The residual is a real slice of the delivered input, so it is a row too —
+    // otherwise the listed numbers silently fail to add up to the headline.
+    expect(
+      screen.getByTestId("context-composition-residual-row"),
+    ).toHaveTextContent("Unattributed");
     expect(screen.queryByText(/sha256:/)).not.toBeInTheDocument();
     expect(dialog.innerHTML).not.toContain("pc_");
   });
@@ -247,7 +254,7 @@ describe("ContextCompositionModal", () => {
     );
 
     renderModal({ bundle });
-    await screen.findByRole("dialog", { name: "Context Composition" });
+    await screen.findByRole("dialog", { name: "Context Usage" });
 
     expect(screen.getByTestId("context-composition-headline")).toHaveTextContent(
       "1.2K attributed",
@@ -257,7 +264,13 @@ describe("ContextCompositionModal", () => {
     );
     expect(screen.getByTestId("context-composition-unknown-segment"))
       .toHaveAttribute("data-pattern", "hatched");
-    expect(screen.getByText("Estimated")).toBeInTheDocument();
+    expect(screen.getByTestId("context-composition-quality")).toHaveTextContent(
+      "Estimated",
+    );
+    // No residual reported means no residual row — never a zero-filled one.
+    expect(
+      screen.queryByTestId("context-composition-residual-row"),
+    ).not.toBeInTheDocument();
   });
 
   test("withholds category percentages when the provider context window is unavailable", async () => {
@@ -268,7 +281,7 @@ describe("ContextCompositionModal", () => {
     );
 
     renderModal({ bundle });
-    await screen.findByRole("dialog", { name: "Context Composition" });
+    await screen.findByRole("dialog", { name: "Context Usage" });
 
     expect(screen.getByTestId("context-composition-headline")).toHaveTextContent(
       "500 attributed",
@@ -318,15 +331,14 @@ describe("ContextCompositionModal", () => {
     );
 
     renderModal({ bundle });
-    await screen.findByRole("dialog", { name: "Context Composition" });
-    fireEvent.click(screen.getByRole("tab", { name: "Run Tree" }));
+    await screen.findByRole("dialog", { name: "Context Usage" });
+    fireEvent.click(screen.getByRole("tab", { name: "Run tree" }));
 
     expect(screen.getByTestId("run-tree-delivered-input")).toHaveTextContent("1.4K");
     expect(screen.getByTestId("run-tree-call-count")).toHaveTextContent("2");
-    expect(screen.getByTestId("run-tree-agent-count")).toHaveTextContent("1");
-    expect(
-      screen.getByText("Known categories within delivered input."),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("context-composition-quality")).toHaveTextContent(
+      "1 agent · Peak",
+    );
     expect(screen.getByTestId("context-composition-groups").textContent).not.toMatch(
       /\d+(?:\.\d+)?%/,
     );
@@ -338,9 +350,9 @@ describe("ContextCompositionModal", () => {
     const bundle = attachExtension(buildRunBundleV1(), 0, invalid);
 
     renderModal({ bundle });
-    await screen.findByRole("dialog", { name: "Context Composition" });
+    await screen.findByRole("dialog", { name: "Context Usage" });
 
-    expect(screen.getByText("Composition details unavailable")).toBeInTheDocument();
+    expect(screen.getByText("No composition data yet")).toBeInTheDocument();
     expect(
       screen.getByText("Receipt composition data did not pass validation."),
     ).toBeInTheDocument();
@@ -370,7 +382,7 @@ describe("ContextCompositionModal", () => {
       </ConfigContext.Provider>,
     );
 
-    const modelCallTab = await screen.findByRole("tab", { name: "Model Call" });
+    const modelCallTab = await screen.findByRole("tab", { name: "This call" });
     await waitFor(() => expect(modelCallTab).toHaveFocus());
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -378,23 +390,25 @@ describe("ContextCompositionModal", () => {
     expect(screen.getByRole("button", { name: "Context summary" })).toHaveFocus();
   });
 
-  test("uses distinct theme surfaces in light and dark mode", async () => {
+  test("uses distinct theme inks in light and dark mode", async () => {
+    // The shell now owns the surface and the panel owns its content, so the
+    // theme signal to check on the panel is its ink, not a background it no
+    // longer paints.
     const bundle = attachExtension(
       buildRunBundleV1(),
       0,
       reconciledExtension(),
     );
     const { unmount } = renderModal({ bundle, mode: "light_mode" });
-    await screen.findByRole("dialog", { name: "Context Composition" });
-    const lightBackground = screen.getByTestId("context-composition-panel").style
-      .backgroundColor;
+    await screen.findByRole("dialog", { name: "Context Usage" });
+    const lightInk = screen.getByTestId("context-composition-panel").style.color;
     unmount();
 
     renderModal({ bundle, mode: "dark_mode" });
-    await screen.findByRole("dialog", { name: "Context Composition" });
-    const darkBackground = screen.getByTestId("context-composition-panel").style
-      .backgroundColor;
+    await screen.findByRole("dialog", { name: "Context Usage" });
+    const darkInk = screen.getByTestId("context-composition-panel").style.color;
 
-    expect(lightBackground).not.toBe(darkBackground);
+    expect(lightInk).toBeTruthy();
+    expect(lightInk).not.toBe(darkInk);
   });
 });

@@ -6,12 +6,16 @@ import {
   useState,
 } from "react";
 
-import ContextCompositionModal from "../../chat-bubble/context-composition/context_composition_modal";
+import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
+import { useDropdownWheelGuard } from "../../../BUILTIN_COMPONENTs/select/use_select";
+import ContextCompositionPanel, {
+  useContextCompositionPalette,
+} from "../../chat-bubble/context-composition/context_composition_panel";
 import { selectContextCompositionView } from "../../../SERVICEs/context_composition_v1";
 
-const SIZE = 32;
-const STROKE_WIDTH = 3;
-const RADIUS = 12;
+const SIZE = 30;
+const STROKE_WIDTH = 2.6;
+const RADIUS = 11;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 const pressureColor = (pressure, highlight) => {
@@ -23,7 +27,12 @@ const pressureColor = (pressure, highlight) => {
 const ContextCompositionProgress = forwardRef(
   ({ bundle, isDark = false, highlight }, ref) => {
     const [open, setOpen] = useState(false);
+    const [hovered, setHovered] = useState(false);
     const triggerRef = useRef(null);
+    const panelRef = useRef(null);
+    const listRef = useRef(null);
+    const palette = useContextCompositionPalette();
+
     const view = useMemo(
       () =>
         selectContextCompositionView(bundle, {
@@ -40,6 +49,8 @@ const ContextCompositionProgress = forwardRef(
       }),
       [],
     );
+
+    useDropdownWheelGuard(open, panelRef, listRef);
 
     if (!view) return null;
 
@@ -58,15 +69,63 @@ const ContextCompositionProgress = forwardRef(
           : "rgba(0,0,0,0.38)"
         : pressureColor(pressure, highlight);
     const trackColor = isDark
-      ? "rgba(255,255,255,0.14)"
-      : "rgba(0,0,0,0.12)";
+      ? "rgba(255,255,255,0.15)"
+      : "rgba(0,0,0,0.13)";
     const label =
       displayPercent === null
-        ? "Open context composition; latest model call pressure unavailable"
-        : `Open context composition; latest model call ${displayPercent}% full`;
+        ? "Open context usage; latest model call pressure unavailable"
+        : `Open context usage; latest model call ${displayPercent}% full`;
+
+    /* The card paints itself — Tooltip is only the placement engine here, the
+       same way BUILTIN select drives its dropdown. Keeping the two on one
+       mechanism is what makes this read as another attach-panel menu rather
+       than a second, competing popup style. */
+    const card = (
+      <div
+        ref={panelRef}
+        data-testid="context-composition-popover"
+        style={{
+          width: 340,
+          maxWidth: "calc(100vw - 32px)",
+          maxHeight: "min(64vh, 480px)",
+          display: "flex",
+          flexDirection: "column",
+          padding: "12px 12px 4px",
+          borderRadius: 10,
+          border: "1px solid var(--pupu-menu-border, transparent)",
+          backgroundColor: palette.background,
+          boxShadow: isDark
+            ? "0 12px 24px rgba(0, 0, 0, 0.34)"
+            : "0 12px 20px rgba(0, 0, 0, 0.12)",
+          overflow: "hidden",
+        }}
+      >
+        <ContextCompositionPanel
+          bundle={bundle}
+          open={open}
+          palette={palette}
+          listRef={listRef}
+        />
+      </div>
+    );
 
     return (
-      <>
+      <Tooltip
+        trigger={["click"]}
+        position="top"
+        align="start"
+        offset={8}
+        show_arrow={false}
+        tooltip_component={card}
+        open={open}
+        on_open_change={setOpen}
+        style={{
+          padding: 0,
+          backgroundColor: "transparent",
+          boxShadow: "none",
+          border: "none",
+        }}
+      >
         <button
           ref={triggerRef}
           type="button"
@@ -79,10 +138,8 @@ const ContextCompositionProgress = forwardRef(
           aria-expanded={open}
           title={label}
           onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            setOpen(true);
-          }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
           style={{
             position: "relative",
             width: SIZE,
@@ -91,12 +148,14 @@ const ContextCompositionProgress = forwardRef(
             padding: 0,
             border: 0,
             borderRadius: 999,
-            background: "transparent",
+            backgroundColor:
+              hovered || open ? palette.hover : "transparent",
             color: ringColor,
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
+            transition: "background-color 0.16s ease",
           }}
         >
           <svg
@@ -122,7 +181,7 @@ const ContextCompositionProgress = forwardRef(
               strokeWidth={STROKE_WIDTH}
               strokeLinecap="round"
               strokeDasharray={
-                pressure === null ? "2 4" : String(CIRCUMFERENCE)
+                pressure === null ? "2 4.5" : String(CIRCUMFERENCE)
               }
               strokeDashoffset={
                 pressure === null
@@ -141,9 +200,10 @@ const ContextCompositionProgress = forwardRef(
               alignItems: "center",
               justifyContent: "center",
               fontFamily: "Menlo, Monaco, Consolas, monospace",
-              fontSize: displayPercent === null ? 10 : 8,
-              fontWeight: 700,
+              fontSize: displayPercent === null ? 11 : 9,
+              fontWeight: 660,
               lineHeight: 1,
+              letterSpacing: "-0.03em",
               color: ringColor,
               pointerEvents: "none",
             }}
@@ -151,13 +211,7 @@ const ContextCompositionProgress = forwardRef(
             {displayPercent === null ? "–" : displayPercent}
           </span>
         </button>
-        <ContextCompositionModal
-          open={open}
-          onClose={() => setOpen(false)}
-          bundle={bundle}
-          returnFocusRef={triggerRef}
-        />
-      </>
+      </Tooltip>
     );
   },
 );

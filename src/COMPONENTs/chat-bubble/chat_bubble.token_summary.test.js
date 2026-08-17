@@ -209,7 +209,7 @@ describe("assistant token summary", () => {
       expect(summary).toHaveTextContent("1,000 in");
       fireEvent.click(summary);
       expect(
-        await screen.findByRole("dialog", { name: "Context Composition" }),
+        await screen.findByRole("dialog", { name: "Context Usage" }),
       ).toBeInTheDocument();
     } finally {
       window.requestIdleCallback = originalIdle;

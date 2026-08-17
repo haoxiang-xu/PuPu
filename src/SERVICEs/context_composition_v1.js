@@ -78,6 +78,13 @@ const QUALITIES = Object.freeze([
   "partial",
 ]);
 
+/**
+ * Fixed display order, deliberately NOT by size: fixed cost first, growing cost
+ * last. Everything above Conversation is roughly the same every turn, so a
+ * reader scanning top-to-bottom sees their standing overhead and then the one
+ * slice that actually grows. Conversation is usually the largest group — with
+ * it sitting mid-list the tail read as truncated.
+ */
 export const CONTEXT_COMPOSITION_GROUPS = Object.freeze([
   Object.freeze({
     id: "instructions",
@@ -86,22 +93,28 @@ export const CONTEXT_COMPOSITION_GROUPS = Object.freeze([
     color: "#8B7BE8",
   }),
   Object.freeze({
-    id: "skills",
-    label: "Skills",
-    categories: Object.freeze(["skills"]),
-    color: "#D76BA8",
-  }),
-  Object.freeze({
     id: "tools",
     label: "Tools",
     categories: Object.freeze(["tool_definitions", "tool_activity"]),
     color: "#5E9DE6",
   }),
   Object.freeze({
-    id: "conversation",
-    label: "Conversation",
-    categories: Object.freeze(["conversation"]),
-    color: "#55B982",
+    id: "skills",
+    label: "Skills",
+    categories: Object.freeze(["skills"]),
+    color: "#D76BA8",
+  }),
+  Object.freeze({
+    id: "agent_coordination",
+    label: "Agent Coordination",
+    categories: Object.freeze(["agent_coordination"]),
+    color: "#E28B52",
+  }),
+  Object.freeze({
+    id: "output_contract",
+    label: "Output Contract",
+    categories: Object.freeze(["output_contract"]),
+    color: "#8B96A8",
   }),
   Object.freeze({
     id: "memory_task_state",
@@ -116,16 +129,10 @@ export const CONTEXT_COMPOSITION_GROUPS = Object.freeze([
     color: "#4FB8C8",
   }),
   Object.freeze({
-    id: "agent_coordination",
-    label: "Agent Coordination",
-    categories: Object.freeze(["agent_coordination"]),
-    color: "#E28B52",
-  }),
-  Object.freeze({
-    id: "output_contract",
-    label: "Output Contract",
-    categories: Object.freeze(["output_contract"]),
-    color: "#8B96A8",
+    id: "conversation",
+    label: "Conversation",
+    categories: Object.freeze(["conversation"]),
+    color: "#55B982",
   }),
 ]);
 

@@ -104,8 +104,21 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
   default: (props) => {
     lastChatInputProps = props;
     const { value, onChange, onSend, sendDisabled } = props;
+    /* The real ChatInput docks the hold banner above its capsule; the mock
+       renders the real banner straight from the same props (without the
+       real component's exit-retention window) so hold interactions and
+       absence assertions stay observable here. */
+    const TurnMutationQuarantine =
+      require("../../../COMPONENTs/chat-messages/components/turn_mutation_quarantine").default;
     return (
       <div>
+        <TurnMutationQuarantine
+          hold={props.turnMutationHold}
+          open
+          isDark={false}
+          onRetry={props.onTurnMutationRetry}
+          onDiscard={props.onTurnMutationDiscard}
+        />
         <input
           data-testid="chat-input"
           value={value}

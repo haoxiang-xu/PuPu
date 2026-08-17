@@ -49,6 +49,7 @@ from unchain.kernel.state import RunState
 from unchain.context.derived_handoff import DerivedHandoffInputIngress
 from unchain.context.ports import ContextConflictError
 from unchain.context.graph_checkpoint import (
+    GraphCheckpointError,
     GraphCheckpointService,
     GraphExecutionPlan,
     GraphStepBinding,
@@ -979,13 +980,40 @@ def test_active_graph_tool_outcome_is_the_single_resolution_authority(
             runtime_event["reason"] = "user denied"
         bridge.modules[0].runtime.persist_event(runtime_event)
 
-        evidence = service.resolved_interaction_for_step(
-            plan,
-            0,
-            interaction_id=interaction_id,
+        # The live outcome stays the single resolution record and closes the
+        # interaction cycle in place: the attempt kept running, so it never
+        # takes a resume admission and must not park as resume-ready.
+        recovery = service.recover(plan)
+        assert recovery.resume_ready_step_index is None
+        assert recovery.suspended_step_index is None
+        assert recovery.uncertain_step_index == 0
+        with pytest.raises(
+            GraphCheckpointError,
+            match="no resolved resumable interaction",
+        ):
+            service.resolved_interaction_for_step(
+                plan,
+                0,
+                interaction_id=interaction_id,
+            )
+
+        # A later prompt in the same still-running attempt must be admitted
+        # instead of rejected as an unresumed-interaction overrun.
+        follow_up_id = f"{interaction_id}-follow-up"
+        bridge.modules[0].runtime.persist_event(
+            {
+                "type": "interaction_requested",
+                "run_id": step_attempt_id,
+                "iteration": 2,
+                "interaction_id": follow_up_id,
+                "interaction_request": {
+                    "interaction_id": follow_up_id,
+                    "kind": "human_input",
+                    "question": "Continue?",
+                },
+            }
         )
-        assert evidence.interaction_id == interaction_id
-        assert service.recover(plan).resume_ready_step_index == 0
+        assert service.recover(plan).suspended_step_index == 0
     finally:
         if worker.is_alive():
             cancel_signal.set()
