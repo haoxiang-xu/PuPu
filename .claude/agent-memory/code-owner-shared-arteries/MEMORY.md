@@ -1,3 +1,6 @@
 - [Memory V2 trace 白名单拓扑](memory-v2-trace-whitelist-topology.md) — 一个导出函数管渲染+持久化两条路；只扩表不改终态解析=零效果改动
 - [发布 flag 取值不在仓库里](release-flag-state-is-not-in-the-repo.md) — 问「用户今天遇不遇得到」要扫 tag 上的 feature_flags.js，别查不入库的快照
 - [Context V2 错误码线契约](context-v2-error-code-wire-contract.md) — 判态看调用成败+拒绝码，不看载荷字段也别只信 getStatus；解析开放、失配静默变默认码
+- [bridges 错误码解析禁锚定](bridge-error-code-parser-anchoring-invariant.md) — Electron 包裹 message 并剥 error.code；同目录有个加锚定的错误范本别照抄，改坏了零测试变红
+- [P-0007 HS-004 我的立场](case-p0007-hs004-stance.md) — 已登记 AGREE(S-0039)，条件 M-27 达成；剩 K-20 注释补写待授权；案结即删
+- [交 HANDOFF_RETURN 的机械规矩](quorum-handoff-return-mechanics.md) — 先跑 quorum_lint；contribution 里每个 BC/AC 只能出现一次，重复即 FAIL

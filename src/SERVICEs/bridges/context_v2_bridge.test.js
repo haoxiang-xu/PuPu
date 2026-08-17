@@ -194,4 +194,48 @@ describe("context v2 renderer bridge", () => {
     ).toBe("context_v2_invalid_request");
     expect(parseContextV2ErrorCode(new Error("no code here"))).toBeNull();
   });
+
+  test.each([
+    "context_v2_rebase_in_progress",
+    "context_v2_rebase_recovery_required",
+    "context_v2_rebase_journal_incompatible",
+    "context_v2_operation_conflict",
+    "context_v2_revision_conflict",
+    "context_v2_generation_conflict",
+    "context_v2_rebase_unavailable",
+  ])("strictly parses %s from raw and Electron-wrapped carriers", (code) => {
+    expect(
+      parseContextV2ErrorCode(
+        new Error(`[${code}] context v2 request failed`),
+      ),
+    ).toBe(code);
+    expect(
+      parseContextV2ErrorCode(
+        new Error(
+          `Error invoking remote method 'context-v2:rebase-session': Error: [${code}] context v2 request failed`,
+        ),
+      ),
+    ).toBe(code);
+  });
+
+  test("the parser is anchored to the exact carrier and fails closed", () => {
+    expect(
+      parseContextV2ErrorCode(
+        new Error(
+          "arbitrary prefix [context_v2_rebase_journal_incompatible] hidden",
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      parseContextV2ErrorCode(
+        new Error(
+          "Error invoking remote method 'other-channel': [context_v2_failed] hidden",
+        ),
+      ),
+    ).toBeNull();
+    expect(parseContextV2ErrorCode(new Error("[HAS-DASH] nope"))).toBeNull();
+    expect(
+      parseContextV2ErrorCode(new Error(`[${"a".repeat(65)}] nope`)),
+    ).toBeNull();
+  });
 });

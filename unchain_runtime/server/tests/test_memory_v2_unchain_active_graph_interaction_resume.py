@@ -11,6 +11,7 @@ from unittest import mock
 
 import pytest
 
+import durable_interaction_host as durable_host
 import execution_control
 import unchain_adapter as adapter
 from context_memory_v2_capability import ContextMemoryV2CapabilityVerdict
@@ -581,6 +582,26 @@ def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
             graph_record,
             ensure_ascii=False,
         )
+
+        foreign_session_id = "execution-cross-session-mutation"
+        source_path = durable_host._graph_step_context_path(
+            EXECUTION_ID,
+            step_attempt_id,
+        )
+        foreign_path = durable_host._graph_step_context_path(
+            foreign_session_id,
+            step_attempt_id,
+            create_directory=True,
+        )
+        foreign_path.write_bytes(source_path.read_bytes())
+        with pytest.raises(
+            DurableInteractionHostError,
+            match="belongs to another execution or step",
+        ):
+            durable_host._durable_interaction_guard_owner_attempt(
+                foreign_session_id,
+                step_attempt_id,
+            )
 
         # Drift checks use the exact cold-resume entry point and must reject
         # before constructing a provider-backed step.

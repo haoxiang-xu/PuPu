@@ -21,10 +21,12 @@ import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import { COMPUTER_TOOLKIT_ID } from "../constants";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import { hasContextCompositionEvidence } from "../../../SERVICEs/context_composition_v1";
 import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../../SERVICEs/feature_flags";
+import ContextCompositionProgress from "./context_composition_progress";
 
 const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
@@ -124,6 +126,7 @@ const AttachPanel = forwardRef(({
   onSelectRecipe,
   queueItems = [],
   onQueueUndo,
+  contextCompositionBundle = null,
   onKeyboardActiveChange = () => {},
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
@@ -133,6 +136,10 @@ const AttachPanel = forwardRef(({
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+  const contextCompositionProgressRef = useRef(null);
+  const hasContextComposition = hasContextCompositionEvidence(
+    contextCompositionBundle,
+  );
 
   /* Optimistic mirrors for the multi-selects: the checkbox flips against
      LOCAL state instantly (re-rendering just this panel), while the real
@@ -292,6 +299,7 @@ const AttachPanel = forwardRef(({
   const kbControls = [];
   if (showModelSelector && modelSelectOptions.length > 0)
     kbControls.push("model");
+  if (hasContextComposition) kbControls.push("context_composition");
   if (onAttachFile) {
     kbControls.push("attach");
     if (onAttachScreenshot) kbControls.push("screenshot");
@@ -350,6 +358,9 @@ const AttachPanel = forwardRef(({
     } else if (id === "workspace") {
       kbOpenedSelectorRef.current = "workspace";
       handleWorkspaceOpenChange(true);
+    } else if (id === "context_composition") {
+      exitKeyboard();
+      contextCompositionProgressRef.current?.open?.();
     } else if (id === "attach") {
       exitKeyboard();
       if (attachmentsEnabled && onAttachFile) onAttachFile();
@@ -586,6 +597,25 @@ const AttachPanel = forwardRef(({
             />,
             "model",
           )}
+
+        {hasContextComposition ? (
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              borderRadius: 999,
+            }}
+          >
+            {kbGlow("context_composition")}
+            <ContextCompositionProgress
+              ref={contextCompositionProgressRef}
+              bundle={contextCompositionBundle}
+              isDark={isDark}
+              highlight={highlight}
+            />
+          </div>
+        ) : null}
 
         {onAttachFile && (
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>

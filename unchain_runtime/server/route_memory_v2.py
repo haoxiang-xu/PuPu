@@ -263,6 +263,8 @@ def _generation_operation_for_store_owner(
         )
     try:
         from memory_v2_unchain_generation_api import (
+            CONTEXT_V2_REBASE_CODE_PROJECTIONS,
+            CONTEXT_V2_REBASE_ERROR_CODES,
             MemoryV2UnchainGenerationAPIError,
             open_pupu_unchain_generation_api,
         )
@@ -302,13 +304,36 @@ def _generation_operation_for_store_owner(
         else:
             status_code = int(getattr(error, "status_code", 503))
             retryable = bool(getattr(error, "retryable", False))
+        expected_revision = getattr(error, "expected_revision", None)
+        actual_revision = getattr(error, "actual_revision", None)
+        if method_name == "rebase_session":
+            if source_code not in CONTEXT_V2_REBASE_ERROR_CODES:
+                current_app.logger.error(
+                    "blocked non-allowlisted generation rebase error code",
+                    extra={"generation_rebase_code": source_code[:64]},
+                )
+                source_code = "context_v2_rebase_unavailable"
+                status_code = 503
+                retryable = True
+                expected_revision = None
+                actual_revision = None
+            elif source_code in CONTEXT_V2_REBASE_CODE_PROJECTIONS:
+                status_code, retryable = CONTEXT_V2_REBASE_CODE_PROJECTIONS[
+                    source_code
+                ]
+            if source_code not in {
+                "context_v2_revision_conflict",
+                "context_v2_generation_conflict",
+            }:
+                expected_revision = None
+                actual_revision = None
         raise MemoryV2Error(
             source_code,
             "Unchain-owned generation request failed",
             status_code=status_code,
             retryable=retryable,
-            expected_revision=getattr(error, "expected_revision", None),
-            actual_revision=getattr(error, "actual_revision", None),
+            expected_revision=expected_revision,
+            actual_revision=actual_revision,
         ) from error
 
 

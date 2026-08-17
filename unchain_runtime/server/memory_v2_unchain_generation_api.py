@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import unicodedata
 from collections.abc import Mapping, Sequence
@@ -52,6 +53,7 @@ from unchain.persistence.sqlite_generation_rebase_v2 import (
     SQLiteGenerationRebaseV2Service,
     build_generation_rebase_operation,
 )
+from unchain.persistence import sqlite_generation_rebase_v2 as _rebase_module
 from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
 
 
@@ -64,6 +66,190 @@ _REBASE_REASONS = {
     "edit": GenerationRebaseKind.EDIT,
     "delete": GenerationRebaseKind.EDIT,
 }
+_LOGGER = logging.getLogger(__name__)
+_REBASE_FAILURE_DETAIL_SCHEMA = "unchain.generation_rebase_failure.v1"
+_REBASE_FAILURE_SUBJECT_KEYS = frozenset(
+    {
+        "execution_id",
+        "generation_id",
+        "attempt_id",
+        "orchestration_attempt_id",
+        "call_id",
+        "interaction_id",
+        "step_index",
+        "event_type",
+        "store_seq",
+        "event_id",
+        "graph_plan_id",
+        "graph_scope_id",
+    }
+)
+_TERMINAL_SESSION_GUARD_CODES = frozenset(
+    {
+        "session_guard_stop_the_world_required",
+        "session_guard_protocol_corrupt",
+        "session_guard_protocol_incompatible",
+        "session_execution_guard_corrupt",
+        "session_execution_guard_identity_mismatch",
+        "session_guard_owner_identity_drift",
+    }
+)
+_REBASE_REASON_PROJECTIONS = {
+    "checkpoint_prepared": ("context_v2_rebase_in_progress", 409, True),
+    "pending_interaction": ("context_v2_rebase_in_progress", 409, True),
+    "attempt_open": ("context_v2_rebase_in_progress", 409, True),
+    "tool_open": ("context_v2_rebase_in_progress", 409, True),
+    "graph_step_seal_missing": (
+        "context_v2_rebase_recovery_required",
+        409,
+        True,
+    ),
+    "graph_execution_seal_missing": (
+        "context_v2_rebase_recovery_required",
+        409,
+        True,
+    ),
+    "operation_identity_conflict": (
+        "context_v2_operation_conflict",
+        409,
+        False,
+    ),
+    "head_revision_conflict": (
+        "context_v2_revision_conflict",
+        409,
+        True,
+    ),
+    "source_generation_conflict": (
+        "context_v2_generation_conflict",
+        409,
+        True,
+    ),
+    "chat_binding_conflict": (
+        "context_v2_generation_conflict",
+        409,
+        True,
+    ),
+    "infrastructure_unavailable": (
+        "context_v2_rebase_unavailable",
+        503,
+        True,
+    ),
+}
+for _journal_reason in (
+    "journal_authority_invalid",
+    "current_receipt_unavailable",
+    "host_snapshot_unsanitized",
+    "interaction_resolution_duplicated",
+    "interaction_request_duplicated",
+    "interaction_lifecycle_not_paired",
+    "tool_call_identity_unstable",
+    "tool_lifecycle_not_paired",
+    "tool_start_precedes_intent",
+    "tool_seal_precedes_start",
+    "tool_result_precedes_start",
+    "tool_result_precedes_seal",
+    "tool_identity_changed",
+    "attempt_duplicate_terminal",
+    "attempt_continued_after_terminal",
+    "graph_attempt_kind_ambiguous",
+    "graph_plan_descriptor_invalid",
+    "graph_step_terminal_ambiguous",
+    "graph_step_seal_duplicated",
+    "graph_step_seal_not_last",
+    "graph_step_seal_not_adjacent",
+    "graph_step_seal_mismatched_terminal",
+    "graph_step_seal_foreign",
+    "graph_step_sequence_invalid",
+    "graph_execution_seal_duplicated",
+    "graph_execution_seal_mismatched",
+):
+    _REBASE_REASON_PROJECTIONS[_journal_reason] = (
+        "context_v2_rebase_journal_incompatible",
+        409,
+        False,
+    )
+
+CONTEXT_V2_REBASE_MAPPING_CODES = frozenset(
+    {
+        "context_v2_rebase_in_progress",
+        "context_v2_rebase_recovery_required",
+        "context_v2_rebase_journal_incompatible",
+        "context_v2_operation_conflict",
+        "context_v2_revision_conflict",
+        "context_v2_generation_conflict",
+        "context_v2_rebase_unavailable",
+    }
+)
+CONTEXT_V2_REBASE_CODE_PROJECTIONS = {
+    code: (status_code, retryable)
+    for code, status_code, retryable in _REBASE_REASON_PROJECTIONS.values()
+}
+CONTEXT_V2_REBASE_ERROR_CODES = frozenset(
+    {
+        *CONTEXT_V2_REBASE_MAPPING_CODES,
+        "context_v2_rebase_receipt_mismatch",
+        "context_v2_not_found",
+        "context_v2_invalid_request",
+        "context_v2_invalid_history",
+    }
+)
+
+
+def _installed_rebase_reason_values() -> frozenset[str] | None:
+    reason_type = getattr(_rebase_module, "GenerationRebaseFailureReason", None)
+    if not isinstance(reason_type, type):
+        return None
+    try:
+        return frozenset(str(member.value) for member in reason_type)
+    except (AttributeError, TypeError, ValueError):
+        return frozenset()
+
+
+def _structured_rebase_failure_detail(
+    error: BaseException,
+) -> tuple[str, Mapping[str, Any]] | None:
+    detail = getattr(error, "detail", None)
+    if not isinstance(detail, Mapping) or set(detail) != {
+        "schema",
+        "reason",
+        "subject",
+    }:
+        return None
+    if detail.get("schema") != _REBASE_FAILURE_DETAIL_SCHEMA:
+        return None
+    reason = detail.get("reason")
+    subject = detail.get("subject")
+    if not isinstance(reason, str) or not isinstance(subject, Mapping):
+        return None
+    if len(subject) > 12 or any(key not in _REBASE_FAILURE_SUBJECT_KEYS for key in subject):
+        return None
+    normalized_subject: dict[str, Any] = {}
+    for key, value in subject.items():
+        if isinstance(value, str):
+            if not value or len(value) > 256 or "\x00" in value:
+                return None
+        elif isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None
+        normalized_subject[str(key)] = value
+    try:
+        encoded = json.dumps(
+            normalized_subject,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError):
+        return None
+    if len(encoded) > 2048:
+        return None
+    if reason not in _REBASE_REASON_PROJECTIONS:
+        _LOGGER.warning(
+            "generation rebase reason is unknown to this sidecar",
+            extra={"rebase_reason": reason[:256]},
+        )
+        return None
+    return reason, normalized_subject
 
 
 class MemoryV2UnchainGenerationAPIError(RuntimeError):
@@ -262,12 +448,15 @@ class MemoryV2UnchainGenerationAPI:
     execution_id: str
     _service: SQLiteGenerationRebaseV2Service = field(repr=False)
     _admission: Mapping[str, Any] = field(repr=False)
+    _guard_data_dir: Path = field(repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self._service, SQLiteGenerationRebaseV2Service):
             raise TypeError("service must be a SQLiteGenerationRebaseV2Service")
         if not isinstance(self._admission, Mapping):
             raise TypeError("admission must be a mapping")
+        if not isinstance(self._guard_data_dir, Path):
+            raise TypeError("guard data directory must be a Path")
         _required_identifier(self.owner_chat_id, "owner_chat_id")
         _required_identifier(self.session_id, "session_id")
         _required_identifier(self.execution_id, "execution_id")
@@ -296,6 +485,18 @@ class MemoryV2UnchainGenerationAPI:
                 session_id=self.session_id,
             )
         except GenerationRebaseConflict as error:
+            journal_type = getattr(
+                _rebase_module,
+                "GenerationRebaseJournalIncompatible",
+                None,
+            )
+            if isinstance(journal_type, type) and isinstance(error, journal_type):
+                raise MemoryV2UnchainGenerationAPIError(
+                    "context_v2_rebase_journal_incompatible",
+                    "Unchain-owned generation request failed",
+                    status_code=409,
+                    retryable=False,
+                ) from error
             raise MemoryV2UnchainGenerationAPIError(
                 "context_v2_generation_conflict",
                 "durable generation scope changed",
@@ -352,45 +553,195 @@ class MemoryV2UnchainGenerationAPI:
         *,
         expected_revision: int,
     ) -> MemoryV2UnchainGenerationAPIError:
+        installed_reasons = _installed_rebase_reason_values()
+        if installed_reasons is not None and installed_reasons != frozenset(
+            _REBASE_REASON_PROJECTIONS
+        ):
+            _LOGGER.error(
+                "installed Unchain rebase reason contract is incompatible",
+                extra={
+                    "expected_reason_count": len(_REBASE_REASON_PROJECTIONS),
+                    "installed_reason_count": len(installed_reasons),
+                },
+            )
+            return MemoryV2UnchainGenerationAPIError(
+                "context_v2_rebase_unavailable",
+                "installed generation rebase contract is incompatible",
+                status_code=503,
+                retryable=True,
+            )
+        structured = _structured_rebase_failure_detail(error)
+        if structured is not None:
+            reason, subject = structured
+            code, status_code, retryable = _REBASE_REASON_PROJECTIONS[reason]
+            actual_revision = None
+            if code in {
+                "context_v2_revision_conflict",
+                "context_v2_generation_conflict",
+            }:
+                try:
+                    actual_revision = self._current_head().revision
+                except MemoryV2UnchainGenerationAPIError:
+                    pass
+            _LOGGER.info(
+                "generation rebase failure classified",
+                extra={
+                    "rebase_code": code,
+                    "rebase_reason": reason,
+                    "rebase_schema": _REBASE_FAILURE_DETAIL_SCHEMA,
+                    "rebase_subject": dict(subject),
+                },
+            )
+            return MemoryV2UnchainGenerationAPIError(
+                code,
+                "Unchain-owned generation request failed",
+                status_code=status_code,
+                retryable=retryable,
+                expected_revision=(
+                    expected_revision
+                    if code
+                    in {
+                        "context_v2_revision_conflict",
+                        "context_v2_generation_conflict",
+                    }
+                    else None
+                ),
+                actual_revision=actual_revision,
+            )
+
+        journal_type = getattr(
+            _rebase_module,
+            "GenerationRebaseJournalIncompatible",
+            None,
+        )
+        if isinstance(journal_type, type) and isinstance(error, journal_type):
+            return MemoryV2UnchainGenerationAPIError(
+                "context_v2_rebase_journal_incompatible",
+                "Unchain-owned generation request failed",
+                status_code=409,
+                retryable=False,
+            )
+        recovery_type = getattr(
+            _rebase_module,
+            "GenerationRebaseRecoveryRequired",
+            None,
+        )
+        if isinstance(recovery_type, type) and isinstance(error, recovery_type):
+            return MemoryV2UnchainGenerationAPIError(
+                "context_v2_rebase_recovery_required",
+                "Unchain-owned generation request failed",
+                status_code=409,
+                retryable=True,
+            )
         if isinstance(error, GenerationRebasePreflightBlocked):
             return MemoryV2UnchainGenerationAPIError(
                 "context_v2_rebase_in_progress",
-                "unfinished durable state blocks generation rebase",
+                "Unchain-owned generation request failed",
+                status_code=409,
                 retryable=True,
-            )
-        if isinstance(error, GenerationRebaseConflict):
-            message = str(error).casefold()
-            if "operation" in message or "payload" in message:
-                return MemoryV2UnchainGenerationAPIError(
-                    "context_v2_operation_conflict",
-                    "generation operation identity conflicts with durable state",
-                )
-            actual_revision = None
-            try:
-                actual_revision = self._current_head().revision
-            except MemoryV2UnchainGenerationAPIError:
-                pass
-            if "revision" in message:
-                return MemoryV2UnchainGenerationAPIError(
-                    "context_v2_revision_conflict",
-                    "Context V2 session revision conflict",
-                    retryable=True,
-                    expected_revision=expected_revision,
-                    actual_revision=actual_revision,
-                )
-            return MemoryV2UnchainGenerationAPIError(
-                "context_v2_generation_conflict",
-                "Context V2 source generation is no longer current",
-                retryable=True,
-                expected_revision=expected_revision,
-                actual_revision=actual_revision,
             )
         return MemoryV2UnchainGenerationAPIError(
             "context_v2_rebase_unavailable",
-            "durable generation rebase is unavailable",
+            "Unchain-owned generation request failed",
             status_code=503,
             retryable=True,
         )
+
+    def _rebase_with_recovery(
+        self,
+        request: GenerationRebaseRequest,
+        *,
+        expected_revision: int,
+    ):
+        try:
+            return self._service.rebase(request)
+        except (GenerationRebaseConflict, GenerationRebaseUnavailable) as error:
+            translated = self._translate_rebase_error(
+                error,
+                expected_revision=expected_revision,
+            )
+            if translated.code != "context_v2_rebase_recovery_required":
+                raise translated from error
+            from memory_v2_unchain_graph_recovery import (
+                GenerationRebaseRecoveryHostError,
+                generation_rebase_recovery_is_exhausted,
+                note_generation_rebase_recovery_failure,
+                recover_generation_rebase_once,
+            )
+
+            recovery_detail = _structured_rebase_failure_detail(error)
+            recovery_reason = (
+                recovery_detail[0] if recovery_detail is not None else ""
+            )
+            if generation_rebase_recovery_is_exhausted(
+                execution_id=self.execution_id,
+                generation_id=request.intent.previous_generation_id,
+                reason=recovery_reason,
+            ):
+                raise MemoryV2UnchainGenerationAPIError(
+                    "context_v2_rebase_journal_incompatible",
+                    "Unchain-owned generation request failed",
+                    status_code=409,
+                    retryable=False,
+                ) from error
+
+            try:
+                recovery = recover_generation_rebase_once(
+                    service=self._service,
+                    request=request,
+                    failure=error,
+                )
+            except GenerationRebaseRecoveryHostError as recovery_error:
+                if recovery_error.classification == "unavailable":
+                    raise MemoryV2UnchainGenerationAPIError(
+                        "context_v2_rebase_unavailable",
+                        "Unchain-owned generation request failed",
+                        status_code=503,
+                        retryable=True,
+                    ) from recovery_error
+                raise MemoryV2UnchainGenerationAPIError(
+                    "context_v2_rebase_journal_incompatible",
+                    "Unchain-owned generation request failed",
+                    status_code=409,
+                    retryable=False,
+                ) from recovery_error
+            if (
+                recovery.execution_id != self.execution_id
+                or recovery.generation_id != request.intent.previous_generation_id
+            ):
+                raise MemoryV2UnchainGenerationAPIError(
+                    "context_v2_rebase_journal_incompatible",
+                    "Unchain-owned generation request failed",
+                    status_code=409,
+                    retryable=False,
+                )
+
+            try:
+                return self._service.rebase(request)
+            except (
+                GenerationRebaseConflict,
+                GenerationRebaseUnavailable,
+            ) as replay_error:
+                replay_translated = self._translate_rebase_error(
+                    replay_error,
+                    expected_revision=expected_revision,
+                )
+                if replay_translated.code != "context_v2_rebase_recovery_required":
+                    raise replay_translated from replay_error
+                replay_detail = _structured_rebase_failure_detail(replay_error)
+                replay_reason = replay_detail[0] if replay_detail is not None else ""
+                if note_generation_rebase_recovery_failure(
+                    execution_id=recovery.execution_id,
+                    generation_id=recovery.generation_id,
+                    reason=replay_reason,
+                ):
+                    raise MemoryV2UnchainGenerationAPIError(
+                        "context_v2_rebase_journal_incompatible",
+                        "Unchain-owned generation request failed",
+                        status_code=409,
+                        retryable=False,
+                    ) from replay_error
+                raise replay_translated from replay_error
 
     def rebase_session(
         self,
@@ -479,12 +830,53 @@ class MemoryV2UnchainGenerationAPI:
                 intent=intent,
             ),
         )
+        from session_execution_guard import (
+            SessionExecutionGuardError,
+            SessionExecutionInProgress,
+            session_rebase_guard,
+        )
+
         try:
-            receipt = self._service.rebase(request)
-        except (GenerationRebaseConflict, GenerationRebaseUnavailable) as error:
-            raise self._translate_rebase_error(
-                error,
-                expected_revision=expected_session_revision,
+            with session_rebase_guard(
+                session_id=self.session_id,
+                operation_id=operation,
+                execution_id=self.execution_id,
+                data_dir=self._guard_data_dir,
+            ):
+                receipt = self._rebase_with_recovery(
+                    request,
+                    expected_revision=expected_session_revision,
+                )
+        except SessionExecutionInProgress as error:
+            raise MemoryV2UnchainGenerationAPIError(
+                "context_v2_rebase_in_progress",
+                "Unchain-owned generation request failed",
+                status_code=409,
+                retryable=True,
+            ) from error
+        except SessionExecutionGuardError as error:
+            if error.status_code == 409 and error.retryable:
+                raise MemoryV2UnchainGenerationAPIError(
+                    "context_v2_rebase_in_progress",
+                    "Unchain-owned generation request failed",
+                    status_code=409,
+                    retryable=True,
+                ) from error
+            if (
+                not error.retryable
+                and error.code in _TERMINAL_SESSION_GUARD_CODES
+            ):
+                raise MemoryV2UnchainGenerationAPIError(
+                    "context_v2_rebase_journal_incompatible",
+                    "Unchain-owned generation request failed",
+                    status_code=409,
+                    retryable=False,
+                ) from error
+            raise MemoryV2UnchainGenerationAPIError(
+                "context_v2_rebase_unavailable",
+                "Unchain-owned generation request failed",
+                status_code=503,
+                retryable=True,
             ) from error
         if (
             receipt.owner_chat_id != self.owner_chat_id
@@ -703,6 +1095,7 @@ def open_pupu_unchain_generation_api(
             execution_id=execution_id,
             _service=service,
             _admission=dict(admission),
+            _guard_data_dir=Path(root_dir).expanduser().resolve().parent,
         )
     except MemoryV2UnchainGenerationAPIError:
         raise
@@ -738,6 +1131,9 @@ def open_pupu_unchain_generation_api(
 
 
 __all__ = [
+    "CONTEXT_V2_REBASE_CODE_PROJECTIONS",
+    "CONTEXT_V2_REBASE_ERROR_CODES",
+    "CONTEXT_V2_REBASE_MAPPING_CODES",
     "MemoryV2UnchainGenerationAPI",
     "MemoryV2UnchainGenerationAPIError",
     "open_pupu_unchain_generation_api",

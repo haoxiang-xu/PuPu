@@ -68,6 +68,7 @@ const ChatInput = ({
   recipeOptions = [],
   interjectState,
   onQueueUndo,
+  contextCompositionBundle = null,
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
@@ -500,6 +501,7 @@ const ChatInput = ({
                       recipeOptions={recipeOptions}
                       queueItems={interjectState?.queueItems || []}
                       onQueueUndo={onQueueUndo}
+                      contextCompositionBundle={contextCompositionBundle}
                     />
                   ) : null}
                 </CommandPalettePanel>

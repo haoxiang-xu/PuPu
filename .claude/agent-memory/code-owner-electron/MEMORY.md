@@ -1,11 +1,12 @@
 - [Team Roster](team_roster.md) — 我=平台与安全组 lead (辖 electron+守), 向 CTO 汇报; 含守的安全裁量越级红线 + IPC 共门 + 同步会班底
 - [MCP IPC Channel Inventory](mcp-ipc-channel-inventory.md) — exact 24 MCP IPC channels for U3 freeze; 9 missing from test-only parity manifests (the gap to close)
 - [Security Attack Surface](security-attack-surface.md) — SEC-001 自查: IPC 任意文件读写、token 漏进 avatar URL、SSE relay 不设防、dev-gate 用 NODE_ENV 而非 app.isPackaged
-- [Electron Test Twin Mechanics](electron-test-twin-mechanics.md) — .cjs 存全部测试体, .js 是 require 壳; test:electron 只跑 .cjs, test:frontend 跑 .js; 频道 parity 守卫在 ipc_channels.test.cjs
+- [Electron Test Twin Mechanics](electron-test-twin-mechanics.md) — .cjs 存全部测试体, .js 是 require 壳; 载荷壳在 src/electron/ 下; 按文件名审计会出假阳性, 必须解析 require 目标
+- [审计前先读自己的 memory](read-own-memory-before-auditing.md) — 计数类取证前先读 memory 正文; 案卷 append-only, 错数字只能勘误不能撤
 - [Memory Vault P0 契约](memory-vault-p0-contract.md) — vault 无读通道/handle 格式/receipt 无明文/fail-closed + sink worker 启动顺序/one-shot configure/同步 drain, 动 memory_vault 前必读
 - [Boot 就绪门契约](boot-readiness-gate-contract.md) — 时钟永不开 backend gate/MCP就绪=GET /mcp/toolkits/必用 restartMiso/overlay 是模态屏障(焦点+Escape)/main 只送 code
 - [Context V2 契约](context-v2-p0-contract.md) — CONTEXT_V2 18 条冻结能力(含 schema-v4 review 三件套)/无 generic proxy/schema 等值门/review 出站投影
 - [流中继的过滤粒度](stream-relay-filtering-granularity.md) — 频道=白名单/data.type=完全透传/未知 envelope.event 名=静默丢弃零计数; main 中继零过滤; 本层不知道 done.bundle 存在
-- [IPC 错误码传输](ipc-error-code-transport.md) — Electron 剥 error.code, 唯一载体是 message 的 `[code] ` 前缀; 只有 context_v2/vault/settings 三个 bridge 装了解析器, projection 两条裸字符串直穿
+- [IPC 错误码传输](ipc-error-code-transport.md) — Electron 剥 error.code 并包一层, 载体是 `[code] ` 前缀; 解析正则禁加起始锚定(run_bundle 那个加了); 第三跳 owner 是 shared-arteries
 - [Memory V2 就绪门栈（旧 SHA 门已废止）](memory-v2-readiness-gate-stack.md) — 历史门栈考古；当前准入以实际 runtime protocol manifest 为准，Git/source 仅遥测
 - [Memory V2 四态早就在线上](memory-v2-four-state-already-on-the-wire.md) — 「缺单一状态源」是假的: memoryV2 已跨 IPC, 卡在 shared-arteries 的 normalizeUnchainStatus; grep 零命中是改名造成的假阴性

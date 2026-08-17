@@ -66,6 +66,95 @@ class RuntimeContractHealthTests(unittest.TestCase):
         )
         self.assertEqual(contract["reasons"], {})
 
+    def test_health_reports_exact_session_guard_migration_receipt(self) -> None:
+        response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()["session_guard_migration"],
+            {
+                "schema": "pupu.session-guard-migration",
+                "version": 1,
+                "status": "ready",
+                "protocol_version": 1,
+            },
+        )
+        marker = (
+            Path(self.tempdir.name)
+            / "session_execution_guards"
+            / "protocol.json"
+        )
+        self.assertTrue(marker.is_file())
+
+    def test_health_keeps_legacy_guard_migration_observable_until_flagged(
+        self,
+    ) -> None:
+        legacy = Path(self.tempdir.name) / "executions" / "session.json"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("{}", encoding="utf-8")
+        marker = (
+            Path(self.tempdir.name)
+            / "session_execution_guards"
+            / "protocol.json"
+        )
+
+        migration_required = self.client.get("/health")
+
+        self.assertEqual(migration_required.status_code, 200)
+        self.assertEqual(
+            migration_required.get_json()["session_guard_migration"],
+            {
+                "schema": "pupu.session-guard-migration",
+                "version": 1,
+                "status": "migration_required",
+                "protocol_version": 1,
+            },
+        )
+        self.assertFalse(marker.exists())
+
+        with mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_SESSION_GUARD_STOP_THE_WORLD": "1"},
+            clear=False,
+        ):
+            migrated = self.client.get("/health")
+
+        self.assertEqual(migrated.status_code, 200)
+        self.assertEqual(
+            migrated.get_json()["session_guard_migration"],
+            {
+                "schema": "pupu.session-guard-migration",
+                "version": 1,
+                "status": "ready",
+                "protocol_version": 1,
+            },
+        )
+        self.assertTrue(marker.is_file())
+
+    def test_health_reports_guard_marker_corruption_without_details(self) -> None:
+        guard_root = Path(self.tempdir.name) / "session_execution_guards"
+        guard_root.mkdir(parents=True)
+        marker = guard_root / "protocol.json"
+        marker.write_text(
+            '{"schema":"private-corrupt-marker","path":"/private/data"}',
+            encoding="utf-8",
+        )
+
+        response = self.client.get("/health")
+
+        receipt = response.get_json()["session_guard_migration"]
+        self.assertEqual(
+            receipt,
+            {
+                "schema": "pupu.session-guard-migration",
+                "version": 1,
+                "status": "unavailable",
+                "protocol_version": 1,
+            },
+        )
+        self.assertNotIn("private", str(receipt))
+        self.assertNotIn("path", str(receipt))
+
     def test_health_reports_runtime_event_probe_failure(self) -> None:
         with mock.patch.object(route_chat, "RuntimeEventBridge", None):
             response = self.client.get("/health")

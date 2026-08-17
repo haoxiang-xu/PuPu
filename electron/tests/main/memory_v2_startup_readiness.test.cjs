@@ -106,7 +106,16 @@ const createRuntimeContract = () => ({
 
 const healthResponse = () => ({
   ok: true,
-  json: async () => ({ status: "ok", contract: createRuntimeContract() }),
+  json: async () => ({
+    status: "ok",
+    contract: createRuntimeContract(),
+    session_guard_migration: {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: "ready",
+      protocol_version: 1,
+    },
+  }),
 });
 
 const fakeProcess = () => {

@@ -1,4 +1,4 @@
-# pupu-dev-chat-core — Memory Index
+# code-owner-chat-core — Memory Index（承自 pupu-dev-chat-core）
 
 - [Team Roster](team_roster.md) — 我升任 Chat 体验组 lead 下辖 chat-bubble，向 CTO 帅汇报；新组织结构、同步会班子、各组边界
 - [Contract: Bubble Streaming](contract-bubble-streaming.md) — 2026-08 更正:我交给 bubble 的是 message.meta.bundle + traceFrames;streaming_message_store 只装字符串、帧词汇不归我
@@ -13,3 +13,4 @@
 - [Memory V2 wire 路径](memory-v2-wire-path.md) — 走 done 信封不走 runtime event 总线;四道门(第四道改写值不是丢键)、active 面有 typed 回执但没出口、两个时序坑;含加帧成本速查表
 - [side-menu modal hub 的 id 契约](side-menu-modal-hub-id-contract.md) — node.chatId≡activeChatIdRef 五段证明;两条静默错主;onInspectMemory 对象参数已落地(字段表);MemoryInspectModal 有两个挂载点
 - [context_v2 消费面的两个坑](context-v2-consumer-traps-chat-core.md) — 18方法mock加一个就静默走降级分支;两张蓄意不合并的码表(判据是码×语境);store_disabled 在 src 下零出现
+- [交棒 scope 冻结在 HANDOFF 时刻](quorum-hs-scope-freezes-at-handoff.md) — return 里提新增 AC 编号会让自己刚给的 owner confirmation 失效;要拆验收就用子例+cell映射

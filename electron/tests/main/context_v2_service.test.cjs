@@ -53,7 +53,16 @@ const createRuntimeContract = () => ({
 
 const createCompatibleHealthResponse = () => ({
   ok: true,
-  json: async () => ({ status: "ok", contract: createRuntimeContract() }),
+  json: async () => ({
+    status: "ok",
+    contract: createRuntimeContract(),
+    session_guard_migration: {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: "ready",
+      protocol_version: 1,
+    },
+  }),
 });
 
 const createFakeSpawnProcess = () => {
@@ -1364,6 +1373,54 @@ describe("context v2 controlled bridge — error containment", () => {
     expect(rejection.message).not.toContain("Traceback");
     expect(rejection.message).not.toContain("sqlite3");
     expect(rejection.message).not.toContain("Application Support");
+  });
+
+  test.each([
+    ["context_v2_rebase_in_progress", 409, true],
+    ["context_v2_rebase_recovery_required", 409, true],
+    ["context_v2_rebase_journal_incompatible", 409, false],
+    ["context_v2_operation_conflict", 409, false],
+    ["context_v2_revision_conflict", 409, true],
+    ["context_v2_generation_conflict", 409, true],
+    ["context_v2_rebase_unavailable", 503, true],
+  ])("the rebase carrier preserves structured code %s exactly", async (
+    code,
+    status,
+    retryable,
+  ) => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValue({
+        ok: false,
+        status,
+        text: async () =>
+          JSON.stringify({
+            error: {
+              code,
+              message: "sidecar detail must not cross the IPC boundary",
+              retryable,
+            },
+          }),
+      });
+    const service = await startService(fetchImpl);
+
+    const rejection = await service
+      .rebaseContextV2Session({
+        ownerChatId: "chat-1",
+        sessionId: "session-1",
+        replacementHistory: [],
+        sourceGenerationId: "generation-1",
+        expectedSessionRevision: 2,
+        operationId: "op-rebase-0001",
+        reason: "edit",
+      })
+      .catch((error) => error);
+
+    expect(rejection).toBeInstanceOf(Error);
+    expect(rejection.code).toBe(code);
+    expect(rejection.message).toBe(`[${code}] context v2 request failed`);
+    expect(rejection.message).not.toContain("sidecar detail");
   });
 
   test("transport failures are normalized and never echo the target url", async () => {

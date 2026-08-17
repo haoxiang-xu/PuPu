@@ -14,6 +14,7 @@ if str(SERVER_ROOT) not in sys.path:
 
 import execution_control  # noqa: E402
 import memory_v2_runtime as memory_v2_runtime_module  # noqa: E402
+import session_execution_guard  # noqa: E402
 from context_memory_v2_capability import (  # noqa: E402
     ContextMemoryV2CapabilityVerdict,
 )
@@ -131,6 +132,9 @@ class MemoryV2TakeoverGuardTests(unittest.TestCase):
         )
 
     def _registries(self, data_dir: str, session_id: str, attempt_id: str):
+        session_execution_guard.SessionExecutionGuardRegistry(
+            data_dir
+        ).initialize_protocol()
         predecessor = execution_control.ExecutionControlRegistry(
             data_dir,
             process_owner_id="stopped-worker",
@@ -767,6 +771,9 @@ class MemoryV2TakeoverGuardTests(unittest.TestCase):
                 "bind_execution_attempt",
             ), mock.patch.object(
                 ua,
+                "_session_execution_guard_transition",
+            ), mock.patch.object(
+                ua,
                 "clear_execution_attempt_binding",
             ) as clear_binding, mock.patch.object(
                 ua,
@@ -948,6 +955,9 @@ class MemoryV2TakeoverGuardTests(unittest.TestCase):
             {"UNCHAIN_DATA_DIR": data_dir},
             clear=False,
         ):
+            session_execution_guard.SessionExecutionGuardRegistry(
+                data_dir
+            ).initialize_protocol()
             live_owner = execution_control.ExecutionControlRegistry(
                 data_dir,
                 process_owner_id="live-worker",

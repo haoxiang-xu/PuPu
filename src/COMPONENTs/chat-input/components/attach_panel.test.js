@@ -3,6 +3,45 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AttachPanel from "./attach_panel";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
+import { CONTEXT_COMPOSITION_EXTENSION_KEY } from "../../../SERVICEs/context_composition_v1";
+
+const {
+  buildRunBundleV1,
+} = require("../../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+
+const buildContextCompositionBundle = () => {
+  const bundle = buildRunBundleV1();
+  bundle.provider_calls[0].extensions[CONTEXT_COMPOSITION_EXTENSION_KEY] = {
+    schema: "unchain.context/context_composition_v1",
+    method: "utf8_heuristic_v1",
+    quality: "reconciled_estimate",
+    context_window_tokens: 2000,
+    wire: {
+      envelope_sha256: `sha256:${"a".repeat(64)}`,
+      route_name: "primary",
+      route_sha256: `sha256:${"b".repeat(64)}`,
+      context_mode: "semantic",
+    },
+    categories: [
+      {
+        id: "instructions",
+        tokens: 400,
+        source_count: 1,
+        subtypes: [{ id: "core_system", tokens: 400, source_count: 1 }],
+      },
+    ],
+    attributed_tokens: 400,
+    residual_tokens: 600,
+    coverage: {
+      status: "complete",
+      manifest_items: 1,
+      matched_items: 1,
+      wire_surfaces: 1,
+      matched_surfaces: 1,
+    },
+  };
+  return bundle;
+};
 
 jest.mock("../hooks/use_chat_input_toolkits", () => ({
   __esModule: true,
@@ -161,6 +200,47 @@ describe("AttachPanel toolkit selector refresh", () => {
       "data-open",
       "true",
     );
+  });
+
+  test("shows current context pressure and opens the composition modal", async () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        contextCompositionBundle={buildContextCompositionBundle()}
+      />,
+    );
+
+    const progress = screen.getByTestId("context-composition-progress");
+    expect(progress).toHaveAttribute("data-context-pressure", "50");
+    expect(progress).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(progress);
+    expect(await screen.findByRole("heading", { name: "Context Composition" }))
+      .toBeInTheDocument();
+    expect(progress).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByTitle("Close"));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Context Composition" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(progress).toHaveFocus();
   });
 
   test("opens attach panel selector menus above the input controls", () => {

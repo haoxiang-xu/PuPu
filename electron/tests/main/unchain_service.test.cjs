@@ -1,4 +1,6 @@
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const { createHook } = require("async_hooks");
 const { EventEmitter } = require("events");
 const { Readable } = require("stream");
@@ -34,11 +36,18 @@ const createRuntimeContract = (overrides = {}) => {
 
 const createCompatibleHealthResponse = (
   contract = createRuntimeContract(),
+  sessionGuardStatus = "ready",
 ) => ({
   ok: true,
   json: async () => ({
     status: "ok",
     contract,
+    session_guard_migration: {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: sessionGuardStatus,
+      protocol_version: 1,
+    },
   }),
 });
 
@@ -4115,6 +4124,268 @@ describe("unchain service session memory replacement", () => {
   });
 });
 
+describe("unchain service session guard migration handshake", () => {
+  const originalFetch = global.fetch;
+  const originalResourcesPath = process.resourcesPath;
+  const originalMigrationFlag =
+    process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD;
+  const hadResourcesPath = Object.prototype.hasOwnProperty.call(
+    process,
+    "resourcesPath",
+  );
+  const tempDirectories = [];
+
+  const migrationIntentPath = (userData) =>
+    path.join(
+      userData,
+      ".pupu-main",
+      "session_guard_migration_intent.json",
+    );
+
+  const exactIntentText = JSON.stringify({
+    schema: "pupu.session-guard-migration-intent",
+    version: 1,
+    state: "pending",
+    protocol_version: 1,
+  });
+
+  const createPackagedMigrationHarness = ({
+    healthReceipts,
+    initialIntent = false,
+  }) => {
+    const userData = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-guard-test-"));
+    tempDirectories.push(userData);
+    if (initialIntent) {
+      const intentPath = migrationIntentPath(userData);
+      fs.mkdirSync(path.dirname(intentPath), { recursive: true });
+      fs.writeFileSync(intentPath, exactIntentText, "utf8");
+    }
+
+    Object.defineProperty(process, "resourcesPath", {
+      configurable: true,
+      value: "/Applications/PuPu.app/Contents/Resources",
+    });
+    const packagedBinary = path.join(
+      process.resourcesPath,
+      "unchain_runtime",
+      "dist",
+      process.platform === "darwin"
+        ? "macos"
+        : process.platform === "win32"
+          ? "windows"
+          : "linux",
+      process.platform === "win32" ? "unchain-server.exe" : "unchain-server",
+    );
+    const fsImpl = {
+      ...fs,
+      existsSync: jest.fn((candidate) =>
+        candidate === packagedBinary ? true : fs.existsSync(candidate),
+      ),
+    };
+    const spawnSync = jest.fn((command) => {
+      if (command === "ps" || command === "powershell.exe") {
+        return { status: 0, stdout: process.platform === "win32" ? "[]" : "" };
+      }
+      return { status: 0, stdout: "" };
+    });
+    let firstProcessExited = false;
+    let intentAtSecondSpawn = null;
+    const processes = [];
+    const spawn = jest.fn(() => {
+      if (processes.length === 1) {
+        expect(firstProcessExited).toBe(true);
+        intentAtSecondSpawn = fs.readFileSync(
+          migrationIntentPath(userData),
+          "utf8",
+        );
+      }
+      const proc = createFakeSpawnProcess();
+      proc.pid = 6000 + processes.length;
+      proc.kill = jest.fn((signal) => {
+        proc.killed = true;
+        queueMicrotask(() => {
+          if (processes[0] === proc) {
+            firstProcessExited = true;
+          }
+          proc.emit("exit", 0, signal);
+        });
+        return true;
+      });
+      processes.push(proc);
+      return proc;
+    });
+    let healthIndex = 0;
+    global.fetch = jest.fn(async () => {
+      const receipt = healthReceipts[healthIndex] || healthReceipts.at(-1);
+      healthIndex += 1;
+      if (receipt?.status === "ready" && initialIntent !== false) {
+        expect(fs.existsSync(migrationIntentPath(userData))).toBe(true);
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          status: "ok",
+          contract: createRuntimeContract(),
+          session_guard_migration: receipt,
+        }),
+      };
+    });
+    const service = createUnchainService({
+      app: {
+        isPackaged: true,
+        getAppPath: jest.fn(
+          () => "/Applications/PuPu.app/Contents/Resources/app.asar",
+        ),
+        getPath: jest.fn(() => userData),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: fsImpl,
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+    return {
+      intentAtSecondSpawn: () => intentAtSecondSpawn,
+      packagedBinary,
+      processes,
+      service,
+      spawn,
+      spawnSync,
+      userData,
+    };
+  };
+
+  afterEach(async () => {
+    global.fetch = originalFetch;
+    if (originalMigrationFlag == null) {
+      delete process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD;
+    } else {
+      process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD = originalMigrationFlag;
+    }
+    if (hadResourcesPath) {
+      Object.defineProperty(process, "resourcesPath", {
+        configurable: true,
+        value: originalResourcesPath,
+      });
+    } else {
+      delete process.resourcesPath;
+    }
+    while (tempDirectories.length > 0) {
+      fs.rmSync(tempDirectories.pop(), { recursive: true, force: true });
+    }
+    jest.clearAllMocks();
+  });
+
+  test("packaged startup migrates once only after durable intent and proven managed exit", async () => {
+    process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD = "1";
+    const requiredReceipt = {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: "migration_required",
+      protocol_version: 1,
+    };
+    const readyReceipt = { ...requiredReceipt, status: "ready" };
+    const harness = createPackagedMigrationHarness({
+      healthReceipts: [requiredReceipt, readyReceipt],
+    });
+
+    await harness.service.startMiso();
+
+    expect(harness.spawn).toHaveBeenCalledTimes(2);
+    expect(harness.spawn.mock.calls[0][0]).toBe(harness.packagedBinary);
+    expect(harness.spawn.mock.calls[0][2].env).not.toHaveProperty(
+      "UNCHAIN_SESSION_GUARD_STOP_THE_WORLD",
+    );
+    expect(harness.processes[0].kill).toHaveBeenCalledWith("SIGTERM");
+    expect(harness.intentAtSecondSpawn()).toBe(exactIntentText);
+    expect(harness.spawn.mock.calls[1][2].env).toMatchObject({
+      UNCHAIN_SESSION_GUARD_STOP_THE_WORLD: "1",
+    });
+    expect(fs.existsSync(migrationIntentPath(harness.userData))).toBe(false);
+    expect(harness.service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      ready: true,
+    });
+
+    await harness.service.restartMiso();
+    expect(harness.spawn).toHaveBeenCalledTimes(3);
+    expect(harness.spawn.mock.calls[2][2].env).not.toHaveProperty(
+      "UNCHAIN_SESSION_GUARD_STOP_THE_WORLD",
+    );
+
+    harness.service.stopMiso();
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+
+  test("invalid receipt fails closed without persisting intent or restarting", async () => {
+    process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD = "1";
+    const harness = createPackagedMigrationHarness({
+      healthReceipts: [
+        {
+          schema: "pupu.session-guard-migration",
+          version: 1,
+          status: "ready",
+          protocol_version: 1,
+          unexpected: true,
+        },
+      ],
+    });
+
+    await harness.service.startMiso();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(harness.spawn).toHaveBeenCalledTimes(1);
+    expect(harness.spawn.mock.calls[0][2].env).not.toHaveProperty(
+      "UNCHAIN_SESSION_GUARD_STOP_THE_WORLD",
+    );
+    expect(harness.service.getMisoStatusPayload()).toMatchObject({
+      status: "error",
+      ready: false,
+      reason: "Miso session guard migration receipt is invalid",
+    });
+    expect(fs.existsSync(migrationIntentPath(harness.userData))).toBe(false);
+  });
+
+  test("a failed flagged start retains its exact intent for a later safe retry", async () => {
+    const unavailableReceipt = {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: "unavailable",
+      protocol_version: 1,
+    };
+    const harness = createPackagedMigrationHarness({
+      healthReceipts: [unavailableReceipt],
+      initialIntent: true,
+    });
+
+    await harness.service.startMiso();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(harness.spawn).toHaveBeenCalledTimes(1);
+    expect(harness.spawn.mock.calls[0][2].env).toMatchObject({
+      UNCHAIN_SESSION_GUARD_STOP_THE_WORLD: "1",
+    });
+    expect(fs.readFileSync(migrationIntentPath(harness.userData), "utf8")).toBe(
+      exactIntentText,
+    );
+    expect(harness.service.getMisoStatusPayload()).toMatchObject({
+      status: "error",
+      ready: false,
+      reason: "Miso session guard migration is unavailable",
+    });
+  });
+});
+
 describe("unchain service restartMiso", () => {
   const originalFetch = global.fetch;
   const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
@@ -4247,6 +4518,32 @@ describe("unchain service restartMiso", () => {
 
     expect(spawn).toHaveBeenCalledTimes(2);
     expect(service.getMisoStatusPayload().ready).toBe(true);
+  });
+
+  test("fails closed after TERM and bounded KILL when managed exit is never proven", async () => {
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    jest.useFakeTimers();
+    try {
+      const restarting = service.restartMiso();
+      for (let elapsed = 0; elapsed <= 5100; elapsed += 50) {
+        jest.advanceTimersByTime(50);
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+      await restarting;
+
+      expect(processes[0].kill).toHaveBeenCalledWith("SIGTERM");
+      expect(processes[0].kill).toHaveBeenCalledWith("SIGKILL");
+      expect(spawn).toHaveBeenCalledTimes(1);
+      expect(service.getMisoStatusPayload()).toMatchObject({
+        status: "error",
+        ready: false,
+        reason: "Miso process did not exit after forced shutdown",
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

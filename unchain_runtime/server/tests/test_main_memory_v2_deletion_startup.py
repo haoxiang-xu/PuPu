@@ -65,6 +65,16 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
         fake_subagent_seeds.ensure_seeds_written = lambda _path: None
         fake_recipe_seeds = types.ModuleType("recipe_seeds")
         fake_recipe_seeds.ensure_recipe_seeds_written = lambda _path: None
+        fake_session_guard = types.ModuleType("session_execution_guard")
+        fake_session_guard.session_guard_migration_receipt = (
+            lambda: calls.append("session_guard_migration_initialized")
+            or {
+                "schema": "pupu.session-guard-migration",
+                "version": 1,
+                "status": "ready",
+                "protocol_version": 1,
+            }
+        )
 
         with mock.patch.dict(
             os.environ,
@@ -81,6 +91,7 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
                 "server_thread": fake_server_thread,
                 "subagent_seeds": fake_subagent_seeds,
                 "recipe_seeds": fake_recipe_seeds,
+                "session_execution_guard": fake_session_guard,
             },
         ), mock.patch.object(
             sidecar_main,
@@ -108,11 +119,16 @@ class SidecarMemoryV2DeletionStartupTests(unittest.TestCase):
         self.assertIn("runner_started", calls)
         self.assertIn("runner_stopped", calls)
         self.assertIn("vault_transport_initialized", calls)
+        self.assertIn("session_guard_migration_initialized", calls)
         self.assertEqual(calls.count("memory_v2_recovered"), 1)
         server_created_index = next(
             index
             for index, entry in enumerate(calls)
             if isinstance(entry, tuple) and entry[0] == "server_created"
+        )
+        self.assertLess(
+            calls.index("session_guard_migration_initialized"),
+            server_created_index,
         )
         self.assertLess(
             calls.index("vault_transport_initialized"),

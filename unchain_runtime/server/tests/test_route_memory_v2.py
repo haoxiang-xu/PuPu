@@ -616,6 +616,166 @@ class MemoryV2RouteTests(unittest.TestCase):
             },
         )
 
+    def test_rebase_error_envelope_is_closed_for_exact_seven_codes(self):
+        from memory_v2_unchain_generation_api import (
+            CONTEXT_V2_REBASE_CODE_PROJECTIONS,
+            CONTEXT_V2_REBASE_ERROR_CODES,
+            CONTEXT_V2_REBASE_MAPPING_CODES,
+            MemoryV2UnchainGenerationAPIError,
+        )
+
+        expected = {
+            "context_v2_rebase_in_progress": (409, True),
+            "context_v2_rebase_recovery_required": (409, True),
+            "context_v2_rebase_journal_incompatible": (409, False),
+            "context_v2_operation_conflict": (409, False),
+            "context_v2_revision_conflict": (409, True),
+            "context_v2_generation_conflict": (409, True),
+            "context_v2_rebase_unavailable": (503, True),
+        }
+        self.assertEqual(CONTEXT_V2_REBASE_CODE_PROJECTIONS, expected)
+        self.assertEqual(CONTEXT_V2_REBASE_MAPPING_CODES, frozenset(expected))
+        self.assertEqual(
+            CONTEXT_V2_REBASE_ERROR_CODES,
+            frozenset(expected)
+            | {
+                "context_v2_rebase_receipt_mismatch",
+                "context_v2_not_found",
+                "context_v2_invalid_request",
+                "context_v2_invalid_history",
+            },
+        )
+        self.assertEqual(len(CONTEXT_V2_REBASE_MAPPING_CODES), 7)
+        self.assertEqual(len(CONTEXT_V2_REBASE_ERROR_CODES), 11)
+        request_payload = {
+            "owner_chat_id": "chat_unchain",
+            "session_id": "session_unchain",
+            "replacement_history": [
+                {"role": "user", "content": "Replacement"}
+            ],
+            "source_generation_id": "generation_unchain",
+            "expected_session_revision": 2,
+            "operation_id": "operation_unchain",
+            "reason": "edit",
+        }
+
+        for code, (expected_status, expected_retryable) in expected.items():
+            generation_api = types.SimpleNamespace(
+                rebase_session=mock.Mock(
+                    side_effect=MemoryV2UnchainGenerationAPIError(
+                        code,
+                        f"private producer detail for {code}",
+                        status_code=418,
+                        retryable=not expected_retryable,
+                        expected_revision=2,
+                        actual_revision=3,
+                    )
+                )
+            )
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+                ),
+                mock.patch.object(
+                    route_memory_v2,
+                    "_runtime",
+                    side_effect=AssertionError("legacy runtime must not open"),
+                ),
+                mock.patch(
+                    "memory_v2_unchain_generation_api."
+                    "open_pupu_unchain_generation_api",
+                    return_value=generation_api,
+                ),
+            ):
+                response = self.client.post(
+                    "/context/v2/session/rebase",
+                    headers=self.headers,
+                    json=request_payload,
+                )
+
+            expected_error = {
+                "code": code,
+                "message": "Unchain-owned generation request failed",
+                "retryable": expected_retryable,
+            }
+            if code in {
+                "context_v2_revision_conflict",
+                "context_v2_generation_conflict",
+            }:
+                expected_error.update(
+                    {"expected_revision": 2, "actual_revision": 3}
+                )
+            self.assertEqual(response.status_code, expected_status)
+            self.assertEqual(response.get_json(), {"error": expected_error})
+            self.assertNotIn("private producer detail", response.get_data(as_text=True))
+
+    def test_rebase_error_envelope_quarantines_non_allowlisted_code(self):
+        from memory_v2_unchain_generation_api import (
+            MemoryV2UnchainGenerationAPIError,
+        )
+
+        generation_api = types.SimpleNamespace(
+            rebase_session=mock.Mock(
+                side_effect=MemoryV2UnchainGenerationAPIError(
+                    "context_v2_private_internal_code",
+                    "private journal path and payload must not escape",
+                    status_code=409,
+                    retryable=False,
+                    expected_revision=111,
+                    actual_revision=222,
+                )
+            )
+        )
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+            mock.patch(
+                "memory_v2_unchain_generation_api."
+                "open_pupu_unchain_generation_api",
+                return_value=generation_api,
+            ),
+        ):
+            response = self.client.post(
+                "/context/v2/session/rebase",
+                headers=self.headers,
+                json={
+                    "owner_chat_id": "chat_unchain",
+                    "session_id": "session_unchain",
+                    "replacement_history": [
+                        {"role": "user", "content": "Replacement"}
+                    ],
+                    "source_generation_id": "generation_unchain",
+                    "expected_session_revision": 2,
+                    "operation_id": "operation_unchain",
+                    "reason": "edit",
+                },
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.get_json(),
+            {
+                "error": {
+                    "code": "context_v2_rebase_unavailable",
+                    "message": "Unchain-owned generation request failed",
+                    "retryable": True,
+                }
+            },
+        )
+        raw = response.get_data(as_text=True)
+        self.assertNotIn("context_v2_private_internal_code", raw)
+        self.assertNotIn("private journal path", raw)
+        self.assertNotIn("111", raw)
+        self.assertNotIn("222", raw)
+
     def test_unchain_unadmitted_head_normalizes_to_definitive_not_found(self):
         from memory_v2_unchain_generation_api import (
             MemoryV2UnchainGenerationAPIError,

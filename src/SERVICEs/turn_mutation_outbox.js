@@ -61,6 +61,33 @@ const V1_MIRROR_STATE_VALUES = new Set(
   Object.values(TURN_MUTATION_V1_MIRROR_STATES),
 );
 
+/* Durable retry state for the Context V2 turn-mutation leg. The attempt
+   counter is a reservation count, not an in-memory callback count: it is
+   persisted before the bridge call so a renderer remount cannot restart the
+   budget or accidentally issue a third request. */
+export const TURN_MUTATION_RETRY_STATUSES = Object.freeze({
+  IDLE: "",
+  ATTEMPTING: "attempting",
+  WAITING: "waiting",
+  IN_PROGRESS: "in_progress",
+  QUARANTINED: "quarantined",
+});
+
+export const TURN_MUTATION_MAX_REPLAY_ATTEMPTS = 2;
+export const TURN_MUTATION_RETRY_DELAY_MS = 250;
+
+const RETRY_STATUS_VALUES = new Set(
+  Object.values(TURN_MUTATION_RETRY_STATUSES),
+);
+const FAILURE_CODE_PATTERN = /^[a-z0-9_]{1,64}$/;
+
+const normalizeRetryCount = (value, upperBound) => {
+  if (value === null || typeof value === "undefined") return 0;
+  const numeric = Number(value);
+  if (!Number.isSafeInteger(numeric) || numeric < 0) return upperBound;
+  return Math.min(upperBound, numeric);
+};
+
 // Mirrors electron/main/services/unchain/service.js (which mirrors
 // memory_v2_store._OWNER_ID_RE / _ID_RE). Validating here means a payload that
 // main would reject as `context_v2_invalid_request` — a TERMINAL error that
@@ -301,6 +328,16 @@ export const normalizeTurnMutationOutboxEntry = (value) => {
     }
   }
 
+  const retryStatusCandidate = normalizedString(value?.retryStatus);
+  const retryStatus = RETRY_STATUS_VALUES.has(retryStatusCandidate)
+    ? retryStatusCandidate
+    : TURN_MUTATION_RETRY_STATUSES.IDLE;
+  const lastFailureCodeCandidate = normalizedString(value?.lastFailureCode);
+  const lastFailureCode = FAILURE_CODE_PATTERN.test(lastFailureCodeCandidate)
+    ? lastFailureCodeCandidate
+    : "";
+  const retryAtCandidate = Number(value?.retryAt);
+
   return {
     operationId,
     chatId,
@@ -336,6 +373,20 @@ export const normalizeTurnMutationOutboxEntry = (value) => {
       Number.isInteger(Number(value.expectedSessionRevision))
       ? Math.max(0, Number(value.expectedSessionRevision))
       : null,
+    replayAttempts: normalizeRetryCount(
+      value?.replayAttempts,
+      TURN_MUTATION_MAX_REPLAY_ATTEMPTS,
+    ),
+    recoveryRequiredAttempts: normalizeRetryCount(
+      value?.recoveryRequiredAttempts,
+      TURN_MUTATION_MAX_REPLAY_ATTEMPTS,
+    ),
+    retryStatus,
+    lastFailureCode,
+    retryAt:
+      Number.isFinite(retryAtCandidate) && retryAtCandidate >= 0
+        ? retryAtCandidate
+        : 0,
     createdAt:
       Number.isFinite(Number(value?.createdAt)) && Number(value.createdAt) >= 0
         ? Number(value.createdAt)
@@ -390,6 +441,146 @@ const writeTurnMutationOutbox = (entries, storage = null) => {
     return false;
   }
 };
+
+const updateTurnMutationOutboxEntry = (
+  operationId,
+  updater,
+  storage = null,
+) => {
+  const normalizedOperationId = normalizedString(operationId);
+  if (!normalizedOperationId || typeof updater !== "function") return null;
+  const snapshot = readTurnMutationOutboxState(storage);
+  if (!snapshot.available) return null;
+  const index = snapshot.entries.findIndex(
+    (entry) => entry.operationId === normalizedOperationId,
+  );
+  if (index < 0) return null;
+  const current = snapshot.entries[index];
+  const updated = normalizeTurnMutationOutboxEntry(updater(current));
+  if (!updated || updated.operationId !== current.operationId) return null;
+  const nextEntries = snapshot.entries.slice();
+  nextEntries[index] = updated;
+  return writeTurnMutationOutbox(nextEntries, storage) ? updated : null;
+};
+
+/**
+ * Reserve one Context V2 memory attempt before any bridge call is made.
+ * Returning null means the row is absent, quarantined, still waiting, or its
+ * two-call budget is already exhausted. No path here creates or resurrects a
+ * row.
+ */
+export const reserveTurnMutationRetryAttempt = (
+  operationId,
+  { now = Date.now() } = {},
+  storage = null,
+) => {
+  const normalizedNow = Number.isFinite(Number(now))
+    ? Math.max(0, Number(now))
+    : Date.now();
+  return updateTurnMutationOutboxEntry(
+    operationId,
+    (entry) => {
+      if (
+        entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED ||
+        (entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.WAITING &&
+          entry.retryAt > normalizedNow) ||
+        entry.replayAttempts >= TURN_MUTATION_MAX_REPLAY_ATTEMPTS
+      ) {
+        return null;
+      }
+      return {
+        ...entry,
+        replayAttempts: entry.replayAttempts + 1,
+        retryStatus: TURN_MUTATION_RETRY_STATUSES.ATTEMPTING,
+        /* A reservation is not permission to schedule a retry. Only the
+           successfully persisted WAITING outcome below may publish retryAt;
+           otherwise an outcome write failure could turn this ATTEMPTING row
+           into an unrecorded second bridge call. */
+        retryAt: 0,
+      };
+    },
+    storage,
+  );
+};
+
+/** Persist the closed retry decision produced by the pure classifier. */
+export const recordTurnMutationRetryOutcome = (
+  operationId,
+  { action = "", code = "", retryAt = 0 } = {},
+  storage = null,
+) => {
+  const normalizedCode = normalizedString(code);
+  const safeCode = FAILURE_CODE_PATTERN.test(normalizedCode)
+    ? normalizedCode
+    : "";
+  const normalizedRetryAt = Number.isFinite(Number(retryAt))
+    ? Math.max(0, Number(retryAt))
+    : 0;
+  return updateTurnMutationOutboxEntry(
+    operationId,
+    (entry) => {
+      if (action === "retry") {
+        return {
+          ...entry,
+          recoveryRequiredAttempts:
+            safeCode === "context_v2_rebase_recovery_required"
+              ? Math.min(
+                  TURN_MUTATION_MAX_REPLAY_ATTEMPTS,
+                  entry.recoveryRequiredAttempts + 1,
+                )
+              : entry.recoveryRequiredAttempts,
+          retryStatus: TURN_MUTATION_RETRY_STATUSES.WAITING,
+          lastFailureCode: safeCode,
+          retryAt: normalizedRetryAt,
+        };
+      }
+      if (action === "in_progress") {
+        return {
+          ...entry,
+          replayAttempts: Math.max(0, entry.replayAttempts - 1),
+          retryStatus: TURN_MUTATION_RETRY_STATUSES.IN_PROGRESS,
+          lastFailureCode: safeCode,
+          retryAt: 0,
+        };
+      }
+      if (action === "quarantine") {
+        return {
+          ...entry,
+          recoveryRequiredAttempts:
+            safeCode === "context_v2_rebase_recovery_required"
+              ? Math.min(
+                  TURN_MUTATION_MAX_REPLAY_ATTEMPTS,
+                  entry.recoveryRequiredAttempts + 1,
+                )
+              : entry.recoveryRequiredAttempts,
+          retryStatus: TURN_MUTATION_RETRY_STATUSES.QUARANTINED,
+          lastFailureCode: safeCode,
+          retryAt: 0,
+        };
+      }
+      return null;
+    },
+    storage,
+  );
+};
+
+/** The only operation that grants a quarantined row a fresh two-call budget. */
+export const clearTurnMutationRetryState = (
+  operationId,
+  storage = null,
+) =>
+  updateTurnMutationOutboxEntry(
+    operationId,
+    (entry) => ({
+      ...entry,
+      replayAttempts: 0,
+      recoveryRequiredAttempts: 0,
+      retryStatus: TURN_MUTATION_RETRY_STATUSES.IDLE,
+      lastFailureCode: "",
+      retryAt: 0,
+    }),
+    storage,
+  );
 
 export const enqueueTurnMutation = (entry, storage = null) => {
   const normalized = normalizeTurnMutationOutboxEntry(entry);

@@ -19,6 +19,16 @@ import unchain_adapter  # noqa: E402
 
 class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
     def setUp(self) -> None:
+        guard_data_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(guard_data_dir.cleanup)
+        guard_env_patcher = mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": guard_data_dir.name},
+            clear=False,
+        )
+        guard_env_patcher.start()
+        self.addCleanup(guard_env_patcher.stop)
+
         # Hermeticity: both stream_chat_events() and _create_agent() call
         # _load_recipe_from_options(), which defaults to loading the user's local
         # ~/.pupu/agent_recipes/Default.recipe. On a developer machine that has a
@@ -2049,7 +2059,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
             os.environ,
-            {"UNCHAIN_DATA_DIR": data_dir},
+            {
+                "UNCHAIN_DATA_DIR": data_dir,
+                "UNCHAIN_SESSION_GUARD_STOP_THE_WORLD": "1",
+            },
             clear=False,
         ):
             predecessor = execution_control.ExecutionControlRegistry(

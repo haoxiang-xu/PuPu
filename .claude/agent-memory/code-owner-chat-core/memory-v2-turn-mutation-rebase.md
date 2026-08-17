@@ -38,4 +38,14 @@ edit/resend/delete 在 Memory V2 下改走 `contextV2Bridge.getSessionHead` + `r
 
 - **顺序不能动**：edit/resend 的 ack 必须早于 `runTurnRequest`（optimistic user message 在那里写）；delete 的 ack 必须早于 `commitForegroundMessages` + `setChatMessages`。streaming delete 仍是先 cancel/fence 再读 head；backend 报 `context_v2_rebase_in_progress` 就留着 outbox 重试，**不伪造 cancel ack、不回落 V1**。
 
-**How to apply:** 动 turn mutation 三条路径或 recovery effect 前，先读 `context_v2_turn_mutation.js` 的文件头注释（mutationReady/shadow 那段）。测试锁在 `context_v2_turn_mutation.test.js` / `turn_mutation_outbox.test.js` / `use_chat_stream.turn_mutation_v2.test.js`。相关：[[memory-v2-p0-chat-seam]]。
+## 2026-08-15 追补 · 三条会咬人的 outbox 不变量（case P-0000-0007 复核所得，我与 lead 两侧各自回源码验过）
+
+加任何新 rebase error code、动 recovery effect、或往 outbox 加字段之前，这三条必须先读：
+
+- **"terminal" 在本仓的现行语义就是删除条目**，不是"停止重试"。四处：foreground resend / edit / delete 与 recovery，条件是 `isTerminalTurnMutationResult(result)` 且当前会话 fingerprint 仍等于 `originalFingerprint` → `removeTurnMutation`。因为 rebase 恒发生在任何本地提交之前，fingerprint 必然未变，**删除必然触发**。所以把一个新 code 加进 `TERMINAL_REBASE_ERROR_CODES` = 必然销毁用户 frozen payload。判据是**手工重做能否成功**：既有九个 conflict code 能（删除只损失一次重做），描述 durable journal 确定性状态的 code 不能（重做 100 次同一个 code）→ 后者必须走 quarantine 而非 discard。
+- **只要该 chat 有任一 outbox 条目，`isTurnMutationBlocked` 就为 true**，chat 页据此禁用发送、模型选择与消息动作按钮。推论：任何"保留条目但停止重试"的设计，**不配用户处置入口就是把这个会话永久锁死**。处置入口是必需项不是可选项，且 Discard 只在条目无 `v2Ack` 时安全（有 ack = journal 已改写、只剩 V1 mirror 未完成，删了就抹掉"V1 落后"的唯一记录）。
+- **单个条目 normalize 失败会让整库 `available:false`**（`readTurnMutationOutboxState` 的 `if (!normalized) return { available:false, entries:[] }`），而 `!available` 又让**每一个** chat 都 `isTurnMutationBlocked`、并让 recovery effect 直接报 PERSIST。所以往 entry 加字段时：**新字段只 clamp、绝不 reject**，与 `v2RebasePayload` 的"半有效即整体拒绝"纪律刻意相反（那里拒绝的是会让用户编辑被判 terminal 的输入，这里拒绝的只是自己的记账）。同理**不要升 `STORAGE_KEY` 版本**：normalizer 是 allowlist 重建，新字段被旧代码静默丢弃，rollback 天然安全；升版本反而让旧代码把整库判为不可读。
+
+一条相关的传输事实：renderer 拿不到 `{code, message, retryable}` 信封。Electron 跨 `ipcMain.handle` 丢 `error.code`，main 重建为 `[code] message`，且 renderer 实收的还是 Electron 再包一层的 `Error invoking remote method '<channel>': [<code>] <message>`。故 `retryable` **物理不可达**，`code` 是唯一分类输入，反解正则**不得加起始锚定**（同目录 `run_bundle_storage_bridge.js:16` 正是该错误范本）。我这侧两个调用点（`use_chat_stream.js:3979` / `:4072`）的 `|| "context_v2_failed"` 兜底是这条退化不至于变成数据丢失的唯一原因——`context_v2_failed` 不在九个 terminal code 内，故退化为有界重试而非删除。
+
+**How to apply:** 动 turn mutation 三条路径或 recovery effect 前，先读 `context_v2_turn_mutation.js` 的文件头注释（mutationReady/shadow 那段）与上面三条。测试锁在 `context_v2_turn_mutation.test.js` / `turn_mutation_outbox.test.js` / `use_chat_stream.turn_mutation_v2.test.js`。相关：[[memory-v2-p0-chat-seam]]、[[context-v2-consumer-traps-chat-core]]、[[quorum-hs-scope-freezes-at-handoff]]。

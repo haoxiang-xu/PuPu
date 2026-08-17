@@ -10,6 +10,11 @@ const {
   resolveMemoryV2ReleaseConfig,
   validateMemoryV2Status,
 } = require("./memory_v2_rollout");
+const {
+  SESSION_GUARD_MIGRATION_ENV,
+  createSessionGuardMigrationController,
+  validateSessionGuardMigrationReceipt,
+} = require("./session_guard_migration");
 
 const UNCHAIN_HOST = "127.0.0.1";
 const UNCHAIN_PORT_RANGE_START = 5879;
@@ -22,10 +27,10 @@ const UNCHAIN_RESTART_DELAY_MS = 1500;
    escalation plus exit-handler latency. */
 const UNCHAIN_RESTART_STOP_TIMEOUT_MS = 5000;
 const UNCHAIN_RESTART_STOP_POLL_MS = 50;
+const UNCHAIN_STOP_TERM_TIMEOUT_MS = 1200;
 const UNCHAIN_RUNTIME_CONTRACT_SCHEMA = "pupu.runtime-capabilities";
 const UNCHAIN_RUNTIME_CONTRACT_VERSION = 1;
 const UNCHAIN_DURABLE_JOBS_VERSION = "D4.1";
-const UNCHAIN_DURABLE_JOB_WORKER_FLAG = "--durable-job-worker";
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
@@ -1108,6 +1113,14 @@ const createUnchainService = ({
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const { findAvailablePort } = createPortFinder(net);
+  const sessionGuardMigration = createSessionGuardMigrationController({
+    app,
+    fs,
+    path,
+    spawnSync,
+    platform,
+    sleep,
+  });
 
   const getVaultBrokerBootstrap = () => {
     if (
@@ -1150,84 +1163,6 @@ const createUnchainService = ({
       return null;
     }
     return { url: urlValue, key: keyValue };
-  };
-
-  const _parsePosixPsLine = (line) => {
-    const match = String(line || "").match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
-    if (!match) {
-      return null;
-    }
-    return {
-      pid: Number(match[1]),
-      ppid: Number(match[2]),
-      command: match[3] || "",
-    };
-  };
-
-  const listStaleMisoPids = (entrypoint) => {
-    if (!entrypoint || process.platform === "win32") {
-      return [];
-    }
-
-    const scriptPath = Array.isArray(entrypoint.args) ? entrypoint.args[0] : "";
-    const commandPath =
-      typeof entrypoint.command === "string" ? entrypoint.command : "";
-    const matchToken = String(scriptPath || commandPath || "").trim();
-    if (!matchToken) {
-      return [];
-    }
-
-    const psProbe = spawnSync("ps", ["-axo", "pid=,ppid=,command="], {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-    if (
-      psProbe.error ||
-      psProbe.status !== 0 ||
-      typeof psProbe.stdout !== "string"
-    ) {
-      return [];
-    }
-
-    const stalePids = [];
-    const rows = psProbe.stdout.split("\n");
-    for (const row of rows) {
-      const parsed = _parsePosixPsLine(row);
-      if (!parsed) {
-        continue;
-      }
-
-      // Only reap orphaned unchain server scripts from previous crashed sessions.
-      if (parsed.ppid !== 1) {
-        continue;
-      }
-      if (parsed.pid === process.pid) {
-        continue;
-      }
-      if (!parsed.command.includes(matchToken)) {
-        continue;
-      }
-      // The frozen durable-job wrapper intentionally outlives the sidecar.
-      // It reuses the same packaged binary, so matching by executable path
-      // alone would destroy a healthy job whenever PuPu restarts.
-      if (parsed.command.includes(UNCHAIN_DURABLE_JOB_WORKER_FLAG)) {
-        continue;
-      }
-      stalePids.push(parsed.pid);
-    }
-
-    return stalePids;
-  };
-
-  const terminateStaleMisoProcesses = (entrypoint) => {
-    const stalePids = listStaleMisoPids(entrypoint);
-    for (const pid of stalePids) {
-      try {
-        process.kill(pid, "SIGTERM");
-      } catch {
-        // Ignore races where process exits between ps and kill.
-      }
-    }
   };
 
   const looksLikeUnchainSource = (sourcePath) =>
@@ -1612,12 +1547,21 @@ const createUnchainService = ({
       const healthPayload = await readMisoHealthPayload(response);
       unchainRuntimeContract = cloneRuntimeContract(healthPayload?.contract);
       validateMisoRuntimeContract(healthPayload);
+      validateSessionGuardMigrationReceipt(
+        healthPayload?.session_guard_migration,
+      );
       return true;
     } catch (error) {
       if (error?.code === "miso_runtime_contract_incompatible") {
         unchainRuntimeContract = cloneRuntimeContract(
           error.contract || unchainRuntimeContract,
         );
+        throw error;
+      }
+      if (
+        typeof error?.code === "string" &&
+        error.code.startsWith("miso_session_guard_migration_")
+      ) {
         throw error;
       }
       return false;
@@ -4738,15 +4682,20 @@ const createUnchainService = ({
       reason: "service_stopping",
     });
 
-    if (unchainProcess && !unchainProcess.killed) {
+    if (unchainProcess) {
+      const processToStop = unchainProcess;
       unchainIsStopping = true;
       unchainPreserveStatusOnStop = Boolean(preserveStatus);
-      unchainProcess.kill("SIGTERM");
+      if (!processToStop.killed) {
+        processToStop.kill("SIGTERM");
+      }
       const forceKillTimer = setTimeout(() => {
-        if (unchainProcess && !unchainProcess.killed) {
-          unchainProcess.kill("SIGKILL");
+        // ChildProcess.killed only means a signal was sent; it is not proof of
+        // process exit. The identity check below is the observable exit fence.
+        if (unchainProcess === processToStop) {
+          processToStop.kill("SIGKILL");
         }
-      }, 1200);
+      }, UNCHAIN_STOP_TERM_TIMEOUT_MS);
       if (typeof forceKillTimer.unref === "function") forceKillTimer.unref();
     } else {
       if (!preserveStatus) {
@@ -4756,6 +4705,36 @@ const createUnchainService = ({
         unchainStatusReason = "";
       }
     }
+  };
+
+  const waitForManagedMisoExit = async ({ preserveStatus = false } = {}) => {
+    const processToStop = unchainProcess;
+    if (!processToStop) {
+      return true;
+    }
+
+    stopMiso({ preserveStatus });
+    const termDeadline = Date.now() + UNCHAIN_STOP_TERM_TIMEOUT_MS;
+    while (unchainProcess === processToStop && Date.now() < termDeadline) {
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(UNCHAIN_RESTART_STOP_POLL_MS);
+    }
+    if (unchainProcess !== processToStop) {
+      return true;
+    }
+
+    try {
+      processToStop.kill("SIGKILL");
+    } catch (_error) {
+      // The exit event remains the authority; a signal race is not proof.
+    }
+    const killDeadline = Date.now() +
+      (UNCHAIN_RESTART_STOP_TIMEOUT_MS - UNCHAIN_STOP_TERM_TIMEOUT_MS);
+    while (unchainProcess === processToStop && Date.now() < killDeadline) {
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(UNCHAIN_RESTART_STOP_POLL_MS);
+    }
+    return unchainProcess !== processToStop;
   };
 
   const startMiso = async () => {
@@ -4770,6 +4749,7 @@ const createUnchainService = ({
     unchainStatusReason = "";
     unchainRuntimeContract = null;
     memoryV2Readiness = initialMemoryV2Readiness();
+    let retrySessionGuardMigration = false;
 
     unchainStartPromise = (async () => {
       let entrypoint;
@@ -4787,7 +4767,30 @@ const createUnchainService = ({
         return;
       }
 
-      terminateStaleMisoProcesses(entrypoint);
+      let migrationIntentPending = false;
+      try {
+        migrationIntentPending = sessionGuardMigration.readPendingIntent();
+      } catch (error) {
+        unchainStatus = "error";
+        unchainStatusReason =
+          error?.message || "Miso session guard migration intent is invalid";
+        return;
+      }
+
+      if (migrationIntentPending) {
+        const priorSidecarsStopped =
+          await sessionGuardMigration.terminateStaleMisoProcessesAndWait(
+            entrypoint,
+          );
+        if (!priorSidecarsStopped) {
+          unchainStatus = "error";
+          unchainStatusReason =
+            "Miso session guard migration could not prove prior sidecar shutdown";
+          return;
+        }
+      } else {
+        sessionGuardMigration.terminateStaleMisoProcesses(entrypoint);
+      }
 
       unchainPort = await findAvailableMisoPort();
       if (!unchainPort) {
@@ -4815,6 +4818,9 @@ const createUnchainService = ({
       delete sidecarEnvironment.PUPU_VAULT_BROKER_URL;
       delete sidecarEnvironment.PUPU_VAULT_BROKER_KEY;
       delete sidecarEnvironment.PUPU_VAULT_BROKER_FD;
+      // Ambient shell/user state can never authorize a stop-the-world start.
+      // Only the exact, main-owned persistent intent below may re-add it.
+      delete sidecarEnvironment[SESSION_GUARD_MIGRATION_ENV];
       const vaultBrokerBootstrap = getVaultBrokerBootstrap();
       activeVaultBrokerKey = vaultBrokerBootstrap?.key || "";
       unchainProcess = spawn(entrypoint.command, entrypoint.args, {
@@ -4881,6 +4887,9 @@ const createUnchainService = ({
                 PUPU_COMPUTER_USE_LOCAL_BETA:
                   lastComputerUseLocalBetaDesired ? "1" : "0",
               }
+            : {}),
+          ...(migrationIntentPending
+            ? { [SESSION_GUARD_MIGRATION_ENV]: "1" }
             : {}),
         },
         stdio: ["ignore", "pipe", "pipe", "pipe"],
@@ -4990,23 +4999,76 @@ const createUnchainService = ({
           readiness.error?.code === "miso_runtime_contract_incompatible"
             ? readiness.error
             : null;
+        const migrationError =
+          typeof readiness.error?.code === "string" &&
+          readiness.error.code.startsWith("miso_session_guard_migration_")
+            ? readiness.error
+            : null;
         if (!missingRuntime) {
           unchainStatus = "error";
           unchainStatusReason =
+            migrationError?.message ||
             contractError?.message ||
             unchainStatusReason ||
             `Health check timed out after ${UNCHAIN_BOOT_TIMEOUT_MS}ms`;
         }
-        stopMiso({ preserveStatus: Boolean(contractError) });
         if (missingRuntime) {
+          stopMiso();
           unchainStatus = "not_found";
           unchainStatusReason = unchainStatusReason || "Miso runtime not found";
           return;
         }
+
+        if (
+          migrationError?.code === "miso_session_guard_migration_required" &&
+          !migrationIntentPending
+        ) {
+          try {
+            sessionGuardMigration.persistPendingIntent();
+          } catch (error) {
+            unchainStatusReason =
+              error?.message ||
+              "Miso session guard migration intent could not be persisted";
+            stopMiso({ preserveStatus: true });
+            return;
+          }
+          const stopped = await waitForManagedMisoExit({
+            preserveStatus: true,
+          });
+          if (!stopped) {
+            unchainStatusReason =
+              "Miso session guard migration could not prove managed sidecar shutdown";
+            return;
+          }
+          retrySessionGuardMigration = true;
+          return;
+        }
+
+        if (migrationError || contractError) {
+          stopMiso({ preserveStatus: true });
+          return;
+        }
+
+        stopMiso();
         if (!contractError) {
           scheduleMisoRestart();
         }
         return;
+      }
+
+      if (migrationIntentPending) {
+        try {
+          // The exact ready receipt was validated by pingMiso. Only now may
+          // the one-shot authorization be atomically consumed.
+          sessionGuardMigration.consumePendingIntent();
+        } catch (error) {
+          unchainStatus = "error";
+          unchainStatusReason =
+            error?.message ||
+            "Miso session guard migration intent could not be consumed";
+          stopMiso({ preserveStatus: true });
+          return;
+        }
       }
 
       await verifyContextV2Readiness();
@@ -5024,6 +5086,9 @@ const createUnchainService = ({
       await unchainStartPromise;
     } finally {
       unchainStartPromise = null;
+    }
+    if (retrySessionGuardMigration) {
+      return startMiso();
     }
   };
 
@@ -5046,20 +5111,17 @@ const createUnchainService = ({
    * back. Hence the wait below — completion of a stop is only observable from
    * inside this closure, which is why the primitive has to live here.
    *
-   * The wait is bounded well past stopMiso()'s own 1200ms SIGTERM->SIGKILL
-   * escalation. If it still has not exited by then something is wrong at the OS
-   * level; startMiso() will no-op and the caller's own status polling is the
-   * right place for that to surface, rather than hanging here forever.
+   * The wait is bounded well past stopMiso()'s SIGTERM->SIGKILL escalation.
+   * If the exact managed child still has not emitted exit, restart fails closed
+   * instead of silently calling a start that would no-op.
    */
   const restartMiso = async () => {
-    stopMiso();
-
-    const deadline = Date.now() + UNCHAIN_RESTART_STOP_TIMEOUT_MS;
-    while (unchainProcess && Date.now() < deadline) {
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(UNCHAIN_RESTART_STOP_POLL_MS);
+    const stopped = await waitForManagedMisoExit();
+    if (!stopped) {
+      unchainStatus = "error";
+      unchainStatusReason = "Miso process did not exit after forced shutdown";
+      return;
     }
-
     return startMiso();
   };
 

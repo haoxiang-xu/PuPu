@@ -11,6 +11,7 @@ import {
   ThemeContext,
 } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
+import TurnMutationQuarantine from "../../COMPONENTs/chat-messages/components/turn_mutation_quarantine";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import SecretCaptureModal from "./secret_capture_modal";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -47,6 +48,7 @@ import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
+import { selectLatestContextCompositionBundle } from "../../SERVICEs/context_composition_v1";
 import * as bootProgress from "../../SERVICEs/boot_progress";
 
 const DEFAULT_DISCLAIMER =
@@ -844,6 +846,10 @@ const ChatInterface = () => {
 
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
+  const contextCompositionBundle = useMemo(
+    () => selectLatestContextCompositionBundle(session.messages),
+    [session.messages],
+  );
   const {
     containerRef: smoothResizeContainerRef,
     frameStyle: smoothResizeFrameStyle,
@@ -917,6 +923,7 @@ const ChatInterface = () => {
       recipeOptions,
       interjectState: stream.interjectState,
       onQueueUndo: stream.onQueueUndo,
+      contextCompositionBundle,
     }),
     [
       session.inputValue, session.setComposerInputValue, session.selectedModelId,
@@ -925,6 +932,7 @@ const ChatInterface = () => {
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
+      contextCompositionBundle,
       isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
@@ -1189,6 +1197,12 @@ const ChatInterface = () => {
               }}
             />
             <div style={{ position: "relative" }}>
+              <TurnMutationQuarantine
+                hold={stream.turnMutationHold}
+                isDark={isDark}
+                onRetry={stream.retryTurnMutation}
+                onDiscard={stream.discardTurnMutation}
+              />
               <ChatInput {...sharedChatInputProps} />
             </div>
           </div>

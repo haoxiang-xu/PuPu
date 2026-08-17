@@ -724,6 +724,22 @@ export const hasContextCompositionEvidence = (bundle) =>
       ),
   );
 
+export const selectLatestContextCompositionBundle = (messages) => {
+  if (!Array.isArray(messages)) return null;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const bundle = messages[index]?.meta?.bundle;
+    if (!isObject(bundle)) continue;
+
+    // The newest completed bundle is authoritative for the composer. If it
+    // predates Context Composition (or is malformed), do not fall back to an
+    // older call and present stale pressure as the current chat state.
+    return hasContextCompositionEvidence(bundle) ? bundle : null;
+  }
+
+  return null;
+};
+
 export const selectContextCompositionView = (
   bundle,
   { scope = "model_call", callKey = null } = {},

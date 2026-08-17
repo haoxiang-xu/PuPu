@@ -1,8 +1,11 @@
 import {
   TURN_MUTATION_ADMISSION_MODES,
   TURN_MUTATION_MEMORY_MODES,
+  TURN_MUTATION_MAX_REPLAY_ATTEMPTS,
   TURN_MUTATION_OUTBOX_STORAGE_KEY,
+  TURN_MUTATION_RETRY_STATUSES,
   TURN_MUTATION_V1_MIRROR_STATES,
+  clearTurnMutationRetryState,
   createTurnMutationOperationId,
   enqueueTurnMutation,
   fingerprintTurnMutationMessages,
@@ -12,8 +15,10 @@ import {
   readTurnMutationOutbox,
   readTurnMutationOutboxState,
   recordTurnMutationRebaseAck,
+  recordTurnMutationRetryOutcome,
   recordTurnMutationV1MirrorApplied,
   removeTurnMutation,
+  reserveTurnMutationRetryAttempt,
 } from "./turn_mutation_outbox";
 
 const entry = (overrides = {}) => ({
@@ -599,5 +604,110 @@ describe("turn mutation outbox — V1 mirror CAS", () => {
       },
     };
     expect(recordTurnMutationV1MirrorApplied("turn-op-1", storage)).toBeNull();
+  });
+});
+
+describe("turn mutation outbox — durable retry and quarantine", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  test("old rows migrate to an idle zero-attempt state", () => {
+    const normalized = normalizeTurnMutationOutboxEntry(v2Entry());
+    expect(normalized).toEqual(
+      expect.objectContaining({
+        replayAttempts: 0,
+        recoveryRequiredAttempts: 0,
+        retryStatus: TURN_MUTATION_RETRY_STATUSES.IDLE,
+        lastFailureCode: "",
+        retryAt: 0,
+      }),
+    );
+  });
+
+  test.each(["9e99", -1, {}, Number.MAX_SAFE_INTEGER])(
+    "a damaged retry count %p clamps closed without invalidating the outbox",
+    (replayAttempts) => {
+      window.localStorage.setItem(
+        TURN_MUTATION_OUTBOX_STORAGE_KEY,
+        JSON.stringify([v2Entry({ replayAttempts })]),
+      );
+      const snapshot = readTurnMutationOutboxState();
+      expect(snapshot.available).toBe(true);
+      expect(snapshot.entries[0].replayAttempts).toBe(
+        TURN_MUTATION_MAX_REPLAY_ATTEMPTS,
+      );
+    },
+  );
+
+  test("reserves before the call and permits exactly one 250ms retry", () => {
+    enqueueTurnMutation(v2Entry());
+
+    const first = reserveTurnMutationRetryAttempt("turn-op-1", { now: 100 });
+    expect(first).toEqual(
+      expect.objectContaining({
+        replayAttempts: 1,
+        retryStatus: TURN_MUTATION_RETRY_STATUSES.ATTEMPTING,
+        retryAt: 0,
+      }),
+    );
+    recordTurnMutationRetryOutcome("turn-op-1", {
+      action: "retry",
+      code: "context_v2_rebase_recovery_required",
+      retryAt: 350,
+    });
+    expect(
+      reserveTurnMutationRetryAttempt("turn-op-1", { now: 349 }),
+    ).toBeNull();
+
+    const second = reserveTurnMutationRetryAttempt("turn-op-1", { now: 350 });
+    expect(second.replayAttempts).toBe(2);
+    recordTurnMutationRetryOutcome("turn-op-1", {
+      action: "quarantine",
+      code: "context_v2_rebase_recovery_required",
+    });
+    const held = readTurnMutationOutbox()[0];
+    expect(held.retryStatus).toBe(TURN_MUTATION_RETRY_STATUSES.QUARANTINED);
+    expect(held.recoveryRequiredAttempts).toBe(2);
+    expect(
+      reserveTurnMutationRetryAttempt("turn-op-1", { now: 1000 }),
+    ).toBeNull();
+  });
+
+  test("in_progress restores the attempt budget and creates no retry timer", () => {
+    enqueueTurnMutation(v2Entry());
+    reserveTurnMutationRetryAttempt("turn-op-1", { now: 100 });
+    const held = recordTurnMutationRetryOutcome("turn-op-1", {
+      action: "in_progress",
+      code: "context_v2_rebase_in_progress",
+    });
+    expect(held).toEqual(
+      expect.objectContaining({
+        replayAttempts: 0,
+        retryStatus: TURN_MUTATION_RETRY_STATUSES.IN_PROGRESS,
+        retryAt: 0,
+      }),
+    );
+  });
+
+  test("explicit reset preserves the frozen payload and user text", () => {
+    const original = enqueueTurnMutation(
+      v2Entry({ text: "keep this edit" }),
+    );
+    reserveTurnMutationRetryAttempt("turn-op-1", { now: 100 });
+    recordTurnMutationRetryOutcome("turn-op-1", {
+      action: "quarantine",
+      code: "context_v2_rebase_journal_incompatible",
+    });
+
+    const reset = clearTurnMutationRetryState("turn-op-1");
+    expect(reset).toEqual(
+      expect.objectContaining({
+        replayAttempts: 0,
+        recoveryRequiredAttempts: 0,
+        retryStatus: TURN_MUTATION_RETRY_STATUSES.IDLE,
+        lastFailureCode: "",
+        text: "keep this edit",
+      }),
+    );
+    expect(reset.v2RebasePayload).toEqual(original.v2RebasePayload);
   });
 });

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sqlite3
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -16,8 +19,15 @@ from memory_v2_unchain_atomic_bootstrap import (
     ATOMIC_BOOTSTRAP_PROVENANCE_SCHEMA,
 )
 from memory_v2_unchain_generation_api import (
+    CONTEXT_V2_REBASE_CODE_PROJECTIONS,
+    CONTEXT_V2_REBASE_ERROR_CODES,
+    CONTEXT_V2_REBASE_MAPPING_CODES,
     MemoryV2UnchainGenerationAPIError,
     open_pupu_unchain_generation_api,
+)
+from memory_v2_unchain_graph_recovery import (
+    GenerationRebaseRecoveryObservation,
+    reset_generation_rebase_recovery_attempts,
 )
 from unchain.context import ArtifactService
 from unchain.journal import (
@@ -31,10 +41,16 @@ from unchain.persistence.sqlite_context_compiler_v2 import (
     SQLiteContextCompilerV2Store,
 )
 from unchain.persistence.sqlite_generation_rebase_v2 import (
+    GenerationRebaseConflict,
+    GenerationRebaseFailureReason,
     GenerationRebaseIntent,
+    GenerationRebaseJournalIncompatible,
     GenerationRebaseKind,
     GenerationRebasePreflight,
+    GenerationRebasePreflightBlocked,
+    GenerationRebaseRecoveryRequired,
     GenerationRebaseRequest,
+    GenerationRebaseUnavailable,
     GenerationSnapshotMessage,
     SQLiteGenerationRebaseV2Service,
     build_generation_rebase_operation,
@@ -205,6 +221,42 @@ def _rebase(api, setup: _GenerationSetup, **overrides):
     }
     values.update(overrides)
     return api.rebase_session(**values)
+
+
+def _recovery_request(
+    setup: _GenerationSetup,
+    *,
+    suffix: str,
+) -> GenerationRebaseRequest:
+    intent = GenerationRebaseIntent(
+        owner_chat_id=setup.owner_chat_id,
+        session_id=setup.session_id,
+        execution_id=setup.execution_id,
+        generation_id=f"generation-recovery-{suffix}",
+        attempt_id=f"attempt-recovery-{suffix}",
+        kind=GenerationRebaseKind.EDIT,
+        previous_generation_id=setup.receipt.generation_id,
+        expected_head_revision=setup.receipt.head_revision,
+        source_revision=f"source-recovery-{suffix}",
+        messages=(
+            GenerationSnapshotMessage(
+                message_id=f"message-recovery-{suffix}",
+                role="user",
+                content="edited prompt",
+            ),
+        ),
+        preflight=GenerationRebasePreflight(
+            proof_id=f"preflight-recovery-{suffix}",
+            host_snapshot_sanitized=True,
+        ),
+    )
+    return GenerationRebaseRequest(
+        intent=intent,
+        operation=build_generation_rebase_operation(
+            operation_id=f"operation-recovery-{suffix}",
+            intent=intent,
+        ),
+    )
 
 
 def test_cold_open_head_is_owner_bound_and_survives_restart(tmp_path: Path) -> None:
@@ -662,3 +714,411 @@ def test_invalid_host_history_and_reason_are_rejected_before_write(
 
     assert caught.value.code == expected_code
     assert _counts(setup.store) == before
+
+
+def test_exact_rebase_reason_mapping_contract(tmp_path: Path) -> None:
+    expected_reasons = {
+        "context_v2_rebase_in_progress": {
+            "checkpoint_prepared",
+            "pending_interaction",
+            "attempt_open",
+            "tool_open",
+        },
+        "context_v2_rebase_recovery_required": {
+            "graph_step_seal_missing",
+            "graph_execution_seal_missing",
+        },
+        "context_v2_rebase_journal_incompatible": {
+            "journal_authority_invalid",
+            "current_receipt_unavailable",
+            "host_snapshot_unsanitized",
+            "interaction_resolution_duplicated",
+            "interaction_request_duplicated",
+            "interaction_lifecycle_not_paired",
+            "tool_call_identity_unstable",
+            "tool_lifecycle_not_paired",
+            "tool_start_precedes_intent",
+            "tool_seal_precedes_start",
+            "tool_result_precedes_start",
+            "tool_result_precedes_seal",
+            "tool_identity_changed",
+            "attempt_duplicate_terminal",
+            "attempt_continued_after_terminal",
+            "graph_attempt_kind_ambiguous",
+            "graph_plan_descriptor_invalid",
+            "graph_step_terminal_ambiguous",
+            "graph_step_seal_duplicated",
+            "graph_step_seal_not_last",
+            "graph_step_seal_not_adjacent",
+            "graph_step_seal_mismatched_terminal",
+            "graph_step_seal_foreign",
+            "graph_step_sequence_invalid",
+            "graph_execution_seal_duplicated",
+            "graph_execution_seal_mismatched",
+        },
+        "context_v2_operation_conflict": {"operation_identity_conflict"},
+        "context_v2_revision_conflict": {"head_revision_conflict"},
+        "context_v2_generation_conflict": {
+            "source_generation_conflict",
+            "chat_binding_conflict",
+        },
+        "context_v2_rebase_unavailable": {
+            "infrastructure_unavailable",
+        },
+    }
+    expected_projection = {
+        "context_v2_rebase_in_progress": (409, True),
+        "context_v2_rebase_recovery_required": (409, True),
+        "context_v2_rebase_journal_incompatible": (409, False),
+        "context_v2_operation_conflict": (409, False),
+        "context_v2_revision_conflict": (409, True),
+        "context_v2_generation_conflict": (409, True),
+        "context_v2_rebase_unavailable": (503, True),
+    }
+    exception_types = {
+        "context_v2_rebase_in_progress": GenerationRebasePreflightBlocked,
+        "context_v2_rebase_recovery_required": GenerationRebaseRecoveryRequired,
+        "context_v2_rebase_journal_incompatible": (
+            GenerationRebaseJournalIncompatible
+        ),
+        "context_v2_operation_conflict": GenerationRebaseConflict,
+        "context_v2_revision_conflict": GenerationRebaseConflict,
+        "context_v2_generation_conflict": GenerationRebaseConflict,
+        "context_v2_rebase_unavailable": GenerationRebaseUnavailable,
+    }
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    observed = {code: set() for code in expected_reasons}
+
+    for code, reasons in expected_reasons.items():
+        for reason in reasons:
+            producer_error = exception_types[code](
+                "adversarial revision conflict unavailable recovery words",
+                reason=GenerationRebaseFailureReason(reason),
+                subject={
+                    "execution_id": setup.execution_id,
+                    "generation_id": setup.receipt.generation_id,
+                },
+            )
+            translated = api._translate_rebase_error(
+                producer_error,
+                expected_revision=setup.receipt.head_revision,
+            )
+
+            observed[translated.code].add(reason)
+            assert (translated.status_code, translated.retryable) == (
+                expected_projection[code]
+            )
+            assert str(translated) == "Unchain-owned generation request failed"
+            if code in {
+                "context_v2_revision_conflict",
+                "context_v2_generation_conflict",
+            }:
+                assert translated.expected_revision == setup.receipt.head_revision
+                assert translated.actual_revision == setup.receipt.head_revision
+            else:
+                assert translated.expected_revision is None
+                assert translated.actual_revision is None
+
+    installed_reasons = {reason.value for reason in GenerationRebaseFailureReason}
+    assert observed == expected_reasons
+    assert installed_reasons == set().union(*expected_reasons.values())
+    assert CONTEXT_V2_REBASE_MAPPING_CODES == frozenset(expected_reasons)
+    assert CONTEXT_V2_REBASE_CODE_PROJECTIONS == expected_projection
+    assert CONTEXT_V2_REBASE_ERROR_CODES == (
+        CONTEXT_V2_REBASE_MAPPING_CODES
+        | {
+            "context_v2_rebase_receipt_mismatch",
+            "context_v2_not_found",
+            "context_v2_invalid_request",
+            "context_v2_invalid_history",
+        }
+    )
+    assert len(CONTEXT_V2_REBASE_MAPPING_CODES) == 7
+    assert len(CONTEXT_V2_REBASE_ERROR_CODES) == 11
+
+
+def test_rebase_translation_ignores_exception_text_and_malformed_detail(
+    tmp_path: Path,
+) -> None:
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    producer_error = GenerationRebaseConflict(
+        "head_revision_conflict recovery_required operation_identity_conflict"
+    )
+    producer_error.detail = {
+        "schema": "unchain.generation_rebase_failure.v1",
+        "reason": "head_revision_conflict",
+        "subject": {"forbidden_private_field": "must-not-cross-boundary"},
+    }
+
+    translated = api._translate_rebase_error(
+        producer_error,
+        expected_revision=setup.receipt.head_revision,
+    )
+
+    assert translated.code == "context_v2_rebase_unavailable"
+    assert translated.status_code == 503
+    assert translated.retryable is True
+    assert translated.expected_revision is None
+    assert translated.actual_revision is None
+    assert str(translated) == "Unchain-owned generation request failed"
+
+
+def test_current_head_maps_authority_corruption_to_terminal_journal_error(
+    tmp_path: Path,
+) -> None:
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    producer_error = GenerationRebaseJournalIncompatible(
+        "durable head authority is incompatible",
+        reason=GenerationRebaseFailureReason.JOURNAL_AUTHORITY_INVALID,
+        subject={"execution_id": setup.execution_id},
+    )
+
+    with mock.patch.object(
+        SQLiteGenerationRebaseV2Service,
+        "current",
+        autospec=True,
+        side_effect=producer_error,
+    ), pytest.raises(MemoryV2UnchainGenerationAPIError) as caught:
+        api.get_session_head(
+            owner_chat_id=setup.owner_chat_id,
+            session_id=setup.session_id,
+        )
+
+    assert caught.value.code == "context_v2_rebase_journal_incompatible"
+    assert caught.value.status_code == 409
+    assert caught.value.retryable is False
+
+
+def test_rebase_guard_corruption_is_terminal_and_write_free(
+    tmp_path: Path,
+) -> None:
+    from session_execution_guard import SessionExecutionGuardRegistry
+
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    registry = SessionExecutionGuardRegistry(data_dir=api._guard_data_dir)
+    registry.initialize_protocol()
+    record_path = registry._record_path(setup.session_id)
+    record_path.write_text(
+        '{"schema_version":1,"private":"corrupt"}',
+        encoding="utf-8",
+    )
+    before = _counts(setup.store)
+
+    with pytest.raises(MemoryV2UnchainGenerationAPIError) as caught:
+        _rebase(api, setup)
+
+    assert caught.value.code == "context_v2_rebase_journal_incompatible"
+    assert caught.value.status_code == 409
+    assert caught.value.retryable is False
+    assert _counts(setup.store) == before
+
+
+def test_active_session_guard_blocks_rebase_without_any_generation_write(
+    tmp_path: Path,
+) -> None:
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    worker_source = "\n".join(
+        (
+            "import sys",
+            "sys.path.insert(0, sys.argv[1])",
+            "from session_execution_guard import SessionExecutionGuardRegistry",
+            "registry = SessionExecutionGuardRegistry(data_dir=sys.argv[2])",
+            "registry.acquire(sys.argv[3], 'attempt-live-run', "
+            "operation='run', execution_id=sys.argv[3])",
+            "print('ready', flush=True)",
+            "sys.stdin.readline()",
+            "registry.release_run(sys.argv[3], 'attempt-live-run')",
+        )
+    )
+    worker = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            worker_source,
+            str(Path(__file__).resolve().parents[1]),
+            str(api._guard_data_dir),
+            setup.session_id,
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert worker.stdout is not None
+        assert worker.stdout.readline().strip() == "ready"
+        before = _counts(setup.store)
+        with pytest.raises(MemoryV2UnchainGenerationAPIError) as blocked:
+            _rebase(api, setup)
+    finally:
+        assert worker.stdin is not None
+        worker.stdin.write("stop\n")
+        worker.stdin.flush()
+        worker.wait(timeout=5)
+
+    assert worker.returncode == 0
+    assert blocked.value.code == "context_v2_rebase_in_progress"
+    assert blocked.value.status_code == 409
+    assert blocked.value.retryable is True
+    assert _counts(setup.store) == before
+
+
+@pytest.mark.parametrize(
+    "reason",
+    (
+        GenerationRebaseFailureReason.GRAPH_STEP_SEAL_MISSING,
+        GenerationRebaseFailureReason.GRAPH_EXECUTION_SEAL_MISSING,
+    ),
+)
+def test_inline_recovery_is_bounded_to_one_call_and_one_replay(
+    tmp_path: Path,
+    reason: GenerationRebaseFailureReason,
+) -> None:
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    request = _recovery_request(setup, suffix=reason.value)
+    failure = GenerationRebaseRecoveryRequired(
+        "one graph seal is missing",
+        reason=reason,
+        subject={
+            "execution_id": setup.execution_id,
+            "generation_id": request.intent.previous_generation_id,
+        },
+    )
+    recovered = GenerationRebaseRecoveryObservation(
+        schema="unchain.generation_rebase_recovery.v1",
+        action=(
+            "step_recovered"
+            if reason is GenerationRebaseFailureReason.GRAPH_STEP_SEAL_MISSING
+            else "execution_finalized"
+        ),
+        reason=reason.value,
+        execution_id=setup.execution_id,
+        generation_id=request.intent.previous_generation_id,
+        appended_event_count=1,
+        artifact_count=(
+            1
+            if reason is GenerationRebaseFailureReason.GRAPH_STEP_SEAL_MISSING
+            else 0
+        ),
+    )
+    replay_receipt = object()
+
+    with (
+        mock.patch.object(
+            SQLiteGenerationRebaseV2Service,
+            "rebase",
+            autospec=True,
+            side_effect=(failure, replay_receipt),
+        ) as service_rebase,
+        mock.patch(
+            "memory_v2_unchain_graph_recovery.recover_generation_rebase_once",
+            return_value=recovered,
+        ) as recover_once,
+    ):
+        result = api._rebase_with_recovery(
+            request,
+            expected_revision=request.intent.expected_head_revision,
+        )
+
+    assert result is replay_receipt
+    assert service_rebase.call_count == 2
+    assert all(call.args == (api._service, request) for call in service_rebase.mock_calls)
+    recover_once.assert_called_once_with(
+        service=api._service,
+        request=request,
+        failure=failure,
+    )
+
+
+def test_inline_recovery_replay_failure_is_bounded_and_escalates(
+    tmp_path: Path,
+) -> None:
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    request = _recovery_request(setup, suffix="bounded-replay")
+    reason = GenerationRebaseFailureReason.GRAPH_STEP_SEAL_MISSING
+    failure = GenerationRebaseRecoveryRequired(
+        "recovery replay still sees the same missing seal",
+        reason=reason,
+        subject={
+            "execution_id": setup.execution_id,
+            "generation_id": request.intent.previous_generation_id,
+        },
+    )
+    recovered = GenerationRebaseRecoveryObservation(
+        schema="unchain.generation_rebase_recovery.v1",
+        action="unchanged",
+        reason=reason.value,
+        execution_id=setup.execution_id,
+        generation_id=request.intent.previous_generation_id,
+        appended_event_count=0,
+        artifact_count=0,
+    )
+    reset_generation_rebase_recovery_attempts()
+    try:
+        observed_codes = []
+        for attempt_index in range(3):
+            with (
+                mock.patch.object(
+                    SQLiteGenerationRebaseV2Service,
+                    "rebase",
+                    autospec=True,
+                    side_effect=(failure, failure),
+                ) as service_rebase,
+                mock.patch(
+                    "memory_v2_unchain_graph_recovery."
+                    "recover_generation_rebase_once",
+                    return_value=recovered,
+                ) as recover_once,
+                pytest.raises(MemoryV2UnchainGenerationAPIError) as caught,
+            ):
+                api._rebase_with_recovery(
+                    request,
+                    expected_revision=request.intent.expected_head_revision,
+                )
+            observed_codes.append(caught.value.code)
+            if attempt_index < 2:
+                assert service_rebase.call_count == 2
+                recover_once.assert_called_once_with(
+                    service=api._service,
+                    request=request,
+                    failure=failure,
+                )
+            else:
+                assert service_rebase.call_count == 1
+                recover_once.assert_not_called()
+    finally:
+        reset_generation_rebase_recovery_attempts()
+
+    assert observed_codes == [
+        "context_v2_rebase_recovery_required",
+        "context_v2_rebase_journal_incompatible",
+        "context_v2_rebase_journal_incompatible",
+    ]

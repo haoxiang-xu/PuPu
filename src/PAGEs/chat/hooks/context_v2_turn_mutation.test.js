@@ -21,6 +21,8 @@ import {
   decideTurnMutationMemoryMode,
   isTerminalContextV2RebaseError,
   projectContextV2RebaseAck,
+  resolveContextV2TurnMutationFailure,
+  TURN_MUTATION_RETRY_ACTIONS,
   verifyContextV2RebaseAck,
 } from "./context_v2_turn_mutation";
 
@@ -485,6 +487,7 @@ describe("error classification and static messaging", () => {
     "context_v2_invalid_request",
     "context_v2_history_too_large",
     "context_v2_event_too_large",
+    "context_v2_rebase_journal_incompatible",
   ])("%s is terminal for a frozen payload", (code) => {
     expect(isTerminalContextV2RebaseError(code)).toBe(true);
   });
@@ -497,6 +500,8 @@ describe("error classification and static messaging", () => {
     "context_v2_redaction_failed",
     "context_v2_failed",
     "context_v2_ack_invalid",
+    "context_v2_rebase_recovery_required",
+    "context_v2_rebase_unavailable",
     "some_future_code",
     "",
   ])("%s stays retryable so the durable intent survives", (code) => {
@@ -516,6 +521,9 @@ describe("error classification and static messaging", () => {
     expect(contextV2TurnMutationMessage("context_v2_rebase_in_progress")).toBe(
       CONTEXT_V2_TURN_MUTATION_MESSAGES.IN_PROGRESS,
     );
+    expect(contextV2TurnMutationMessage("context_v2_rebase_unavailable")).toBe(
+      CONTEXT_V2_TURN_MUTATION_MESSAGES.UNAVAILABLE,
+    );
     expect(contextV2TurnMutationMessage("context_v2_revision_conflict")).toBe(
       CONTEXT_V2_TURN_MUTATION_MESSAGES.CONFLICT,
     );
@@ -526,6 +534,51 @@ describe("error classification and static messaging", () => {
     ).toBe(CONTEXT_V2_TURN_MUTATION_MESSAGES.FAILED);
     Object.values(CONTEXT_V2_TURN_MUTATION_MESSAGES).forEach((message) => {
       expect(message).not.toMatch(/[/\\]|\bhttp|pupu:\/\//);
+    });
+  });
+
+  test("recovery_required receives one 250ms retry, then quarantines", () => {
+    expect(
+      resolveContextV2TurnMutationFailure({
+        errorCode: "context_v2_rebase_recovery_required",
+        replayAttempts: 1,
+      }),
+    ).toEqual({
+      action: TURN_MUTATION_RETRY_ACTIONS.RETRY,
+      delayMs: 250,
+    });
+    expect(
+      resolveContextV2TurnMutationFailure({
+        errorCode: "context_v2_rebase_recovery_required",
+        replayAttempts: 2,
+      }),
+    ).toEqual({
+      action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+      delayMs: 0,
+    });
+  });
+
+  test("terminal codes quarantine immediately while in_progress never does", () => {
+    expect(
+      resolveContextV2TurnMutationFailure({
+        errorCode: "context_v2_rebase_journal_incompatible",
+        replayAttempts: 1,
+      }).action,
+    ).toBe(TURN_MUTATION_RETRY_ACTIONS.QUARANTINE);
+    expect(
+      resolveContextV2TurnMutationFailure({
+        errorCode: "context_v2_revision_conflict",
+        replayAttempts: 1,
+      }).action,
+    ).toBe(TURN_MUTATION_RETRY_ACTIONS.QUARANTINE);
+    expect(
+      resolveContextV2TurnMutationFailure({
+        errorCode: "context_v2_rebase_in_progress",
+        replayAttempts: 2,
+      }),
+    ).toEqual({
+      action: TURN_MUTATION_RETRY_ACTIONS.IN_PROGRESS,
+      delayMs: 0,
     });
   });
 });

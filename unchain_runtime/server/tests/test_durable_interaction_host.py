@@ -534,6 +534,71 @@ class DurableInteractionHostTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "interaction_receipt_conflict")
         self.assertEqual(raised.exception.status_code, 409)
 
+    def test_receipt_guard_failure_is_reconciled_from_durable_state(self) -> None:
+        import session_execution_guard
+
+        request = self._seed_request(session_id="chat-receipt-reconcile")
+        original_guard_call = host._session_execution_guard_call
+        bind_failed = False
+
+        def fail_first_bind(name: str, **kwargs):
+            nonlocal bind_failed
+            if name == "bind_session_guard_receipt" and not bind_failed:
+                bind_failed = True
+                raise host.DurableInteractionHostError(
+                    "injected_post_receipt_guard_failure",
+                    "receipt committed before the injected guard failure",
+                    status_code=503,
+                    retryable=True,
+                )
+            return original_guard_call(name, **kwargs)
+
+        with mock.patch.object(
+            host,
+            "_session_execution_guard_call",
+            side_effect=fail_first_bind,
+        ), self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.record_interaction_receipt(
+                session_id="chat-receipt-reconcile",
+                interaction_id=request.interaction_id,
+                approved=True,
+                reason="approved",
+            )
+
+        self.assertEqual(
+            raised.exception.code,
+            "injected_post_receipt_guard_failure",
+        )
+        persisted = host._interaction_runtime().load(
+            "chat-receipt-reconcile",
+            interaction_id=request.interaction_id,
+            require_active=False,
+        )
+        self.assertIsNotNone(persisted.receipt)
+        restarted_registry = session_execution_guard.SessionExecutionGuardRegistry(
+            data_dir=self.temp_dir.name,
+            process_owner_id="restarted-process-owner",
+        )
+
+        with mock.patch.object(
+            session_execution_guard,
+            "_DEFAULT_REGISTRY",
+            restarted_registry,
+        ):
+            pending = host.get_pending_interaction("chat-receipt-reconcile")
+            guard = restarted_registry.snapshot("chat-receipt-reconcile")
+
+        self.assertEqual(pending["status"], "receipt_recorded")
+        self.assertEqual(
+            pending["receipt_id"],
+            persisted.receipt.receipt_id,
+        )
+        self.assertIsNotNone(guard)
+        self.assertEqual(guard.state, "parked")
+        self.assertEqual(guard.interaction_id, request.interaction_id)
+        self.assertEqual(guard.interaction_source_attempt_id, "run-1")
+        self.assertEqual(guard.receipt_id, persisted.receipt.receipt_id)
+
     def test_concurrent_conflicting_receipts_are_both_json_safe_conflicts(self) -> None:
         request = self._seed_request()
         barrier = threading.Barrier(2)
@@ -885,6 +950,62 @@ class DurableInteractionHostTests(unittest.TestCase):
                 approved=True,
             )
         self.assertEqual(raised.exception.code, "execution_cancelled")
+
+    def test_cancelled_terminal_guard_is_reconciled_after_process_restart(
+        self,
+    ) -> None:
+        import session_execution_guard
+
+        request = self._seed_cancellable_request(
+            session_id="chat-cancel-guard-restart",
+            attempt_id="attempt-cancel-guard-restart",
+        )
+        pending = host.get_pending_interaction("chat-cancel-guard-restart")
+        self.assertEqual(pending["interaction_id"], request.interaction_id)
+
+        with mock.patch.object(
+            host,
+            "_consume_cancelled_session_guard",
+            side_effect=host.DurableInteractionHostError(
+                "injected_cancel_guard_crash",
+                "process stopped after durable cancellation",
+                status_code=503,
+                retryable=True,
+            ),
+        ), self.assertRaises(host.DurableInteractionHostError) as raised:
+            host.cancel_chat_execution(
+                session_id="chat-cancel-guard-restart",
+                attempt_id="attempt-cancel-guard-restart",
+                expected_interaction_id=request.interaction_id,
+                reason="user_stop",
+            )
+        self.assertEqual(raised.exception.code, "injected_cancel_guard_crash")
+
+        restarted_registry = session_execution_guard.SessionExecutionGuardRegistry(
+            data_dir=self.temp_dir.name,
+            process_owner_id="cancel-restart-owner",
+        )
+        self.assertEqual(
+            restarted_registry.snapshot("chat-cancel-guard-restart").state,
+            "parked",
+        )
+        with mock.patch.object(
+            session_execution_guard,
+            "_DEFAULT_REGISTRY",
+            restarted_registry,
+        ):
+            result = host.get_pending_interaction(
+                "chat-cancel-guard-restart"
+            )
+            guard_snapshot = restarted_registry.snapshot(
+                "chat-cancel-guard-restart"
+            )
+
+        self.assertEqual(
+            result,
+            {"status": "none", "session_id": "chat-cancel-guard-restart"},
+        )
+        self.assertIsNone(guard_snapshot)
 
     def test_cancel_old_attempt_does_not_consume_newer_pending_interaction(self) -> None:
         request = self._seed_cancellable_request(

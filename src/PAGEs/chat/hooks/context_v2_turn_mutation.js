@@ -106,6 +106,8 @@ export const CONTEXT_V2_TURN_MUTATION_MESSAGES = Object.freeze({
     "The conversation changed before this message change could be applied. Please try it again.",
   CONFLICT_MANUAL:
     "This message change conflicted with newer conversation state and needs manual review before it can be discarded.",
+  QUARANTINED:
+    "This message change is paused because memory could not be updated safely. Retry it, or discard it to restore your text.",
   PERSIST: "Unable to safely persist this message change. Please try again.",
 });
 
@@ -374,9 +376,58 @@ const TERMINAL_REBASE_ERROR_CODES = new Set([
   "context_v2_invalid_request",
   "context_v2_history_too_large",
   "context_v2_event_too_large",
+  "context_v2_rebase_journal_incompatible",
 ]);
 
 export const CONTEXT_V2_REBASE_IN_PROGRESS_CODE = "context_v2_rebase_in_progress";
+export const CONTEXT_V2_REBASE_RECOVERY_REQUIRED_CODE =
+  "context_v2_rebase_recovery_required";
+export const CONTEXT_V2_REBASE_JOURNAL_INCOMPATIBLE_CODE =
+  "context_v2_rebase_journal_incompatible";
+
+export const TURN_MUTATION_RETRY_ACTIONS = Object.freeze({
+  RETRY: "retry",
+  IN_PROGRESS: "in_progress",
+  QUARANTINE: "quarantine",
+});
+
+/**
+ * Closed failure decision for one already-reserved bridge call.
+ *
+ * Every deterministic terminal result is quarantined rather than deleted so
+ * the user's frozen intent remains recoverable. All other failures receive at
+ * most one 250 ms retry; the second reserved call quarantines and schedules no
+ * third call. `in_progress` is deliberately outside that budget because it is
+ * a live-execution guard, not evidence that the journal is incompatible.
+ */
+export const resolveContextV2TurnMutationFailure = ({
+  errorCode = "",
+  replayAttempts = 0,
+} = {}) => {
+  const code = readString(errorCode);
+  const attempts = Number.isSafeInteger(replayAttempts)
+    ? Math.max(0, replayAttempts)
+    : 0;
+  if (code === CONTEXT_V2_REBASE_IN_PROGRESS_CODE) {
+    return {
+      action: TURN_MUTATION_RETRY_ACTIONS.IN_PROGRESS,
+      delayMs: 0,
+    };
+  }
+  if (
+    TERMINAL_REBASE_ERROR_CODES.has(code) ||
+    attempts >= 2
+  ) {
+    return {
+      action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+      delayMs: 0,
+    };
+  }
+  return {
+    action: TURN_MUTATION_RETRY_ACTIONS.RETRY,
+    delayMs: 250,
+  };
+};
 
 /**
  * Unknown codes classify as RETRYABLE on purpose: keeping a durable intent that
@@ -391,6 +442,7 @@ const RUNTIME_UNAVAILABLE_CODES = new Set([
   "context_v2_unavailable",
   "context_v2_unreachable",
   "context_v2_missing_auth_token",
+  "context_v2_rebase_unavailable",
 ]);
 
 const NOT_READY_CODES = new Set([
@@ -427,6 +479,12 @@ export const contextV2TurnMutationMessage = (reasonOrCode) => {
   }
   if (code === CONTEXT_V2_REBASE_IN_PROGRESS_CODE) {
     return CONTEXT_V2_TURN_MUTATION_MESSAGES.IN_PROGRESS;
+  }
+  if (code === CONTEXT_V2_REBASE_RECOVERY_REQUIRED_CODE) {
+    return CONTEXT_V2_TURN_MUTATION_MESSAGES.FAILED;
+  }
+  if (code === CONTEXT_V2_REBASE_JOURNAL_INCOMPATIBLE_CODE) {
+    return CONTEXT_V2_TURN_MUTATION_MESSAGES.QUARANTINED;
   }
   if (TERMINAL_REBASE_ERROR_CODES.has(code)) {
     return CONTEXT_V2_TURN_MUTATION_MESSAGES.CONFLICT;
@@ -466,6 +524,7 @@ const contextV2TurnMutation = {
   decideTurnMutationMemoryMode,
   isTerminalContextV2RebaseError,
   projectContextV2RebaseAck,
+  resolveContextV2TurnMutationFailure,
   verifyContextV2RebaseAck,
 };
 

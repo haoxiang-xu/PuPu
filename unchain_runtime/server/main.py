@@ -114,6 +114,15 @@ def main(argv: list[str] | None = None) -> int:
     port = _read_port()
     expected_parent_pid = _read_parent_pid()
 
+    try:
+        from session_execution_guard import session_guard_migration_receipt
+
+        session_guard_migration_receipt()
+    except Exception:
+        # The health receipt remains the content-free authority. Startup stays
+        # available so the launcher can observe and safely retry migration.
+        pass
+
     _initialize_vault_sink_transport()
     _log_outbound_tls_trust()
 

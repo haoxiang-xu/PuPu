@@ -206,6 +206,17 @@ def health() -> Response:
     memory_v2_capability = resolve_context_memory_v2_capability(
         requested_mode=rollout.rollout_mode,
     )
+    try:
+        from session_execution_guard import session_guard_migration_receipt
+
+        session_guard_migration = session_guard_migration_receipt()
+    except Exception:
+        session_guard_migration = {
+            "schema": "pupu.session-guard-migration",
+            "version": 1,
+            "status": "unavailable",
+            "protocol_version": 1,
+        }
 
     return jsonify(
         {
@@ -217,6 +228,7 @@ def health() -> Response:
             "context_memory_v2": context_memory_v2_capability_status(
                 memory_v2_capability
             ),
+            "session_guard_migration": session_guard_migration,
         }
     )
 

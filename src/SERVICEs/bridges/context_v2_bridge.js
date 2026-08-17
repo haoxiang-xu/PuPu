@@ -50,11 +50,13 @@ const REQUIRED_METHODS = Object.freeze([
   "decideCandidateReview",
 ]);
 
-// Same charset lock as the settings/vault parsers: codes are [a-z0-9_] only,
-// so bracketed user content can never false-match, and the code always
-// precedes message content because main builds every error as
-// `[${code}] ${message}`.
-const ERROR_CODE_TOKEN_PATTERN = /\[([a-z0-9_]+)\]\s/;
+// Accept only the two real carrier shapes: main's raw `[code] message`, or
+// Electron's exact invoke wrapper for this channel. Anchoring the whole prefix
+// prevents a later bracketed substring in arbitrary error text from being
+// promoted into a control-flow code while still handling production IPC
+// rejections. The code alphabet and 64-character ceiling mirror the producer.
+const ERROR_CODE_TOKEN_PATTERN =
+  /^(?:Error invoking remote method 'context-v2:rebase-session': (?:Error: )?)?\[([a-z0-9_]{1,64})\]\s/;
 
 const resolveApi = () => {
   if (typeof window === "undefined") return null;

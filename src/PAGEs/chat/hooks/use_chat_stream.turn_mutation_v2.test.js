@@ -1010,9 +1010,155 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
     expect(
       lastChatMessagesProps.messages.map((message) => message.id),
     ).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(rebaseCalls).toHaveLength(1);
+    const [held] = readTurnMutationOutbox().filter(
+      (item) => item.chatId === chatId,
+    );
+    expect(held.retryStatus).toBe("in_progress");
+    expect(held.replayAttempts).toBe(0);
+    expect(held.retryAt).toBe(0);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  test("a terminal conflict discards the intent only while local history still matches", async () => {
+  test("recovery-required spends two durable calls across a remount, then waits for the user", async () => {
+    setMemoryV2Flag(true);
+    installContextV2({
+      rebaseError: codedError("context_v2_rebase_recovery_required"),
+    });
+    const chatId = getChatsStore().activeChatId;
+    setChatMessages(chatId, PRIOR_MESSAGES, { source: "test" });
+    const view = renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.messages?.length).toBe(4);
+    });
+
+    await lastChatMessagesProps.onDeleteMessage(targetMessage("user-2"));
+
+    await waitFor(() => expect(rebaseCalls).toHaveLength(1));
+    let [held] = readTurnMutationOutbox().filter(
+      (item) => item.chatId === chatId,
+    );
+    expect(held.retryStatus).toBe("waiting");
+    expect(held.replayAttempts).toBe(1);
+    expect(held.recoveryRequiredAttempts).toBe(1);
+
+    view.unmount();
+    renderChat();
+    await waitForReady({ requireSendEnabled: false });
+
+    await waitFor(() => expect(rebaseCalls).toHaveLength(2), {
+      timeout: 1500,
+    });
+    await waitFor(() => {
+      [held] = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(held.retryStatus).toBe("quarantined");
+    });
+    expect(held.replayAttempts).toBe(2);
+    expect(held.recoveryRequiredAttempts).toBe(2);
+    expect(
+      screen.getByRole("button", { name: "Retry message change" }),
+    ).toBeEnabled();
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(rebaseCalls).toHaveLength(2);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry message change" }),
+    );
+    await waitFor(() => expect(rebaseCalls).toHaveLength(3));
+    [held] = readTurnMutationOutbox().filter(
+      (item) => item.chatId === chatId,
+    );
+    expect(held.retryStatus).toBe("waiting");
+    expect(held.replayAttempts).toBe(1);
+    expect(held.recoveryRequiredAttempts).toBe(1);
+  });
+
+  test("an outcome write failure cannot schedule an unpersisted second call", async () => {
+    setMemoryV2Flag(true);
+    installContextV2({
+      rebaseError: codedError("context_v2_rebase_recovery_required"),
+    });
+    const failWaitingOutcome = failOutboxWritesWhen((rows) =>
+      rows.some(
+        (row) => row?.retryStatus === "waiting" && row?.retryAt > 0,
+      ),
+    );
+    const chatId = getChatsStore().activeChatId;
+    setChatMessages(chatId, PRIOR_MESSAGES, { source: "test" });
+    const view = renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(lastChatMessagesProps?.messages?.length).toBe(4);
+    });
+
+    await lastChatMessagesProps.onDeleteMessage(targetMessage("user-2"));
+
+    await waitFor(() => expect(rebaseCalls).toHaveLength(1));
+    await waitFor(() => {
+      const [held] = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(held.retryStatus).toBe("quarantined");
+    });
+    let [held] = readTurnMutationOutbox().filter(
+      (item) => item.chatId === chatId,
+    );
+    expect(held.lastFailureCode).toBe("context_v2_persist_failed");
+    expect(held.replayAttempts).toBe(1);
+    expect(held.retryAt).toBe(0);
+    expect(streamErrorText()).toBe(
+      "Unable to safely persist this message change. Please try again.",
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(rebaseCalls).toHaveLength(1);
+
+    view.unmount();
+    renderChat();
+    await waitForReady({ requireSendEnabled: false });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(rebaseCalls).toHaveLength(1);
+
+    failWaitingOutcome.mockRestore();
+    contextV2API.rebaseSession.mockImplementation(async (payload) => {
+      rebaseCalls.push(payload);
+      callOrder.push("rebase");
+      throw codedError("context_v2_rebase_journal_incompatible");
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry message change" }),
+    );
+
+    await waitFor(() => expect(rebaseCalls).toHaveLength(2));
+    await waitFor(() => {
+      [held] = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(held.retryStatus).toBe("quarantined");
+    });
+    expect(held.lastFailureCode).toBe(
+      "context_v2_rebase_journal_incompatible",
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+    expect(rebaseCalls).toHaveLength(2);
+  });
+
+  test("a terminal conflict quarantines the intent while local history stays unchanged", async () => {
     setMemoryV2Flag(true);
     installContextV2({
       rebaseError: codedError("context_v2_revision_conflict"),
@@ -1023,17 +1169,161 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
 
     await waitFor(() => expect(rebaseCalls).toHaveLength(1));
     await waitFor(() => {
-      expect(
-        readTurnMutationOutbox().filter((item) => item.chatId === chatId),
-      ).toEqual([]);
+      const rows = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(rows[0].retryStatus).toBe("quarantined");
     });
+    const [held] = readTurnMutationOutbox().filter(
+      (item) => item.chatId === chatId,
+    );
+    expect(held.lastFailureCode).toBe("context_v2_revision_conflict");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This message change is paused because memory could not be updated safely.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Retry message change" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Discard message change and restore text",
+      }),
+    ).toBeEnabled();
     expect(
       lastChatMessagesProps.messages.map((message) => message.id),
     ).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
     expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
   });
 
+  test("discard restores an edited message to the composer before deleting its quarantined intent", async () => {
+    setMemoryV2Flag(true);
+    installContextV2({
+      rebaseError: codedError("context_v2_rebase_journal_incompatible"),
+    });
+    const chatId = await seedChat();
+    const revisedText = "second question, safely revised";
+
+    await lastChatMessagesProps.onEditMessage(
+      targetMessage("user-2"),
+      revisedText,
+    );
+
+    await waitFor(() => {
+      const [held] = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(held.retryStatus).toBe("quarantined");
+    });
+    const [held] = readTurnMutationOutbox().filter(
+      (item) => item.chatId === chatId,
+    );
+    expect(held.lastFailureCode).toBe(
+      "context_v2_rebase_journal_incompatible",
+    );
+    expect(held.text).toBe(revisedText);
+    expect(screen.getByTestId("chat-input")).toHaveValue("");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Discard message change and restore text",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-input")).toHaveValue(revisedText);
+    });
+    expect(
+      readTurnMutationOutbox().filter((item) => item.chatId === chatId),
+    ).toEqual([]);
+    expect(
+      lastChatMessagesProps.messages.map((message) => message.id),
+    ).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
+  });
+
   // ── recovery ────────────────────────────────────────────────────────────
+
+  test("discard preserves a newer draft and does not duplicate restored text when deletion must be retried", async () => {
+    setMemoryV2Flag(true);
+    installContextV2({
+      rebaseError: codedError("context_v2_rebase_journal_incompatible"),
+    });
+    const chatId = await seedChat();
+    const revisedText = "second question, safely revised";
+    const newerDraft = "a newer unrelated draft";
+
+    await lastChatMessagesProps.onEditMessage(
+      targetMessage("user-2"),
+      revisedText,
+    );
+    await waitFor(() => {
+      const [held] = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(held.retryStatus).toBe("quarantined");
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: newerDraft },
+    });
+
+    const failRemoval = failOutboxWritesWhen((rows) => rows.length === 0);
+    const discardButton = screen.getByRole("button", {
+      name: "Discard message change and restore text",
+    });
+    fireEvent.click(discardButton);
+    await waitFor(() => {
+      expect(lastChatInputProps.value).toBe(
+        `${newerDraft}\n\n${revisedText}`,
+      );
+    });
+    expect(readTurnMutationOutbox()).toHaveLength(1);
+
+    fireEvent.click(discardButton);
+    expect(lastChatInputProps.value).toBe(
+      `${newerDraft}\n\n${revisedText}`,
+    );
+    expect(readTurnMutationOutbox()).toHaveLength(1);
+
+    failRemoval.mockRestore();
+    fireEvent.click(discardButton);
+    await waitFor(() => expect(readTurnMutationOutbox()).toEqual([]));
+    expect(lastChatInputProps.value).toBe(
+      `${newerDraft}\n\n${revisedText}`,
+    );
+    expect(
+      lastChatMessagesProps.messages.map((message) => message.id),
+    ).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
+  });
+
+  test("discarding a quarantined delete leaves a newer composer draft untouched", async () => {
+    setMemoryV2Flag(true);
+    installContextV2({
+      rebaseError: codedError("context_v2_rebase_journal_incompatible"),
+    });
+    const chatId = await seedChat();
+    const newerDraft = "keep this newer draft";
+
+    await lastChatMessagesProps.onDeleteMessage(targetMessage("user-2"));
+    await waitFor(() => {
+      const [held] = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(held).toMatchObject({ retryStatus: "quarantined", text: "" });
+    });
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: newerDraft },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Discard message change and restore text",
+      }),
+    );
+
+    await waitFor(() => expect(readTurnMutationOutbox()).toEqual([]));
+    expect(screen.getByTestId("chat-input")).toHaveValue(newerDraft);
+    expect(
+      lastChatMessagesProps.messages.map((message) => message.id),
+    ).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
+  });
 
   test("recovery replays the frozen payload and never re-reads the head", async () => {
     setMemoryV2Flag(true);
@@ -1381,10 +1671,15 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
 
       await waitFor(() => expect(rebaseCalls).toHaveLength(1));
       await waitFor(() => {
-        expect(
-          readTurnMutationOutbox().filter((item) => item.chatId === chatId),
-        ).toEqual([]);
+        const rows = readTurnMutationOutbox().filter(
+          (item) => item.chatId === chatId,
+        );
+        expect(rows[0].retryStatus).toBe("quarantined");
       });
+      const [held] = readTurnMutationOutbox().filter(
+        (item) => item.chatId === chatId,
+      );
+      expect(held.lastFailureCode).toBe("context_v2_revision_conflict");
       expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
       expect(callOrder).toEqual(["rebase"]);
       expect(

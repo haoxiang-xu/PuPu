@@ -208,6 +208,37 @@ class DurableInteractionHostError(RuntimeError):
         self.retryable = bool(retryable)
 
 
+def _session_execution_guard_call(name: str, **kwargs: Any) -> Any:
+    try:
+        import session_execution_guard
+    except ImportError as exc:
+        raise DurableInteractionHostError(
+            "session_execution_guard_unavailable",
+            "Session execution guard is unavailable",
+            status_code=503,
+            retryable=True,
+        ) from exc
+    operation = getattr(session_execution_guard, name, None)
+    if not callable(operation):
+        raise DurableInteractionHostError(
+            "session_execution_guard_incompatible",
+            "Session execution guard API is incompatible",
+            status_code=503,
+            retryable=False,
+        )
+    try:
+        return operation(**kwargs)
+    except DurableInteractionHostError:
+        raise
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            str(getattr(exc, "code", "session_execution_guard_unavailable") or ""),
+            "Session execution guard rejected the durable interaction transition",
+            status_code=int(getattr(exc, "status_code", 503) or 503),
+            retryable=bool(getattr(exc, "retryable", True)),
+        ) from exc
+
+
 @dataclass(frozen=True, slots=True)
 class DurableInteractionReceiptHandoff:
     """Internal, digest-validated handoff for one persisted UI response.
@@ -2876,13 +2907,116 @@ def _presentation_for_request(request: Any) -> dict[str, Any]:
     }
 
 
+def _durable_interaction_guard_owner_attempt(
+    session_id: str,
+    source_attempt_id: str,
+) -> str:
+    graph_record = _read_graph_step_context_path(
+        _graph_step_context_path(session_id, source_attempt_id),
+        expected_session_id=session_id,
+        expected_step_attempt_id=source_attempt_id,
+    )
+    if graph_record is not None:
+        return _required_identifier(
+            graph_record.get("coordinator_attempt_id"),
+            field_name="graph_coordinator_attempt_id",
+        )
+    if source_attempt_id.startswith("graph-step-"):
+        raise DurableInteractionHostError(
+            "session_guard_graph_owner_missing",
+            "Graph interaction has no authoritative coordinator binding",
+            status_code=409,
+            retryable=False,
+        )
+    return source_attempt_id
+
+
+def _reconcile_durable_interaction_session_guard(
+    *,
+    session_id: str,
+    interaction_id: str,
+    source_attempt_id: str,
+    receipt_id: str = "",
+) -> str:
+    owner_attempt_id = _durable_interaction_guard_owner_attempt(
+        session_id,
+        source_attempt_id,
+    )
+    guard_snapshot = _session_execution_guard_call(
+        "snapshot_session_guard",
+        session_id=session_id,
+    )
+    if guard_snapshot is not None:
+        state = str(getattr(guard_snapshot, "state", "") or "").strip()
+        operation = str(
+            getattr(guard_snapshot, "operation", "") or ""
+        ).strip()
+        execution_id = str(
+            getattr(guard_snapshot, "execution_id", "") or ""
+        ).strip()
+        active_attempt_id = str(
+            getattr(guard_snapshot, "attempt_id", "") or ""
+        ).strip()
+        if operation != "run" or execution_id != session_id:
+            raise DurableInteractionHostError(
+                "session_guard_interaction_operation_mismatch",
+                "Durable interaction guard belongs to another operation",
+                status_code=409,
+                retryable=False,
+            )
+        if state == "active" and active_attempt_id != owner_attempt_id:
+            binding = load_execution_attempt_binding(
+                session_id,
+                active_attempt_id,
+            )
+            if (
+                not receipt_id
+                or binding is None
+                or binding.get("source_attempt_id") != source_attempt_id
+            ):
+                raise DurableInteractionHostError(
+                    "session_guard_active_lineage_mismatch",
+                    "Active session guard has no exact durable resume lineage",
+                    status_code=409,
+                    retryable=False,
+                )
+            return "active_resume"
+        if state not in {"active", "parked"}:
+            raise DurableInteractionHostError(
+                "session_guard_record_corrupt",
+                "Session guard state is invalid",
+                status_code=409,
+                retryable=False,
+            )
+    disposition = _session_execution_guard_call(
+        "park_session_guard_from_durable_interaction",
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+        owner_attempt_id=owner_attempt_id,
+    )
+    if disposition == "active_live":
+        return "active_live"
+    if receipt_id:
+        _session_execution_guard_call(
+            "bind_session_guard_receipt",
+            session_id=session_id,
+            interaction_id=interaction_id,
+            source_attempt_id=source_attempt_id,
+            receipt_id=receipt_id,
+        )
+    return str(disposition or "")
+
+
 def get_pending_interaction(session_id: str) -> dict[str, Any]:
     normalized_session_id = str(session_id or "").strip()
-    _reconcile_orphaned_cancelled_interaction(
+    orphan_repaired = _reconcile_orphaned_cancelled_interaction(
         normalized_session_id,
         reason="reconciled cancelled orphaned interaction",
         cancel_if_needed=False,
     )
+    if orphan_repaired:
+        _consume_terminal_session_guard(normalized_session_id)
     runtime = _interaction_runtime()
     try:
         snapshot = runtime.load_active(normalized_session_id)
@@ -2892,11 +3026,23 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         except ImportError:  # pragma: no cover
             InteractionNotPendingError = ()  # type: ignore
         if isinstance(exc, InteractionNotPendingError):
+            _consume_terminal_session_guard(normalized_session_id)
             return {"status": "none", "session_id": normalized_session_id}
         raise
 
     request = snapshot.request
     source_run_id = str(request.source_run_id or "").strip()
+    if source_run_id:
+        _reconcile_durable_interaction_session_guard(
+            session_id=normalized_session_id,
+            interaction_id=str(request.interaction_id or "").strip(),
+            source_attempt_id=source_run_id,
+            receipt_id=(
+                str(snapshot.receipt.receipt_id or "").strip()
+                if snapshot.receipt is not None
+                else ""
+            ),
+        )
     if source_run_id:
         source_registry = _execution_control_snapshot(
             normalized_session_id,
@@ -2923,6 +3069,15 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
                     getattr(source_registry, "reason", "reconciled cancellation")
                     or "reconciled cancellation"
                 ),
+            )
+            _consume_cancelled_session_guard(
+                session_id=normalized_session_id,
+                source_attempt_id=source_run_id,
+                cancelled_attempt_ids=(source_run_id,),
+                expected_interaction_id=str(
+                    request.interaction_id or ""
+                ).strip(),
+                cancelled_snapshot=None,
             )
             return {"status": "none", "session_id": normalized_session_id}
 
@@ -2963,6 +3118,15 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
                         )
                         or "reconciled cancellation"
                     ),
+                )
+                _consume_cancelled_session_guard(
+                    session_id=normalized_session_id,
+                    source_attempt_id=source_run_id,
+                    cancelled_attempt_ids=(bound_attempt_id,),
+                    expected_interaction_id=str(
+                        request.interaction_id or ""
+                    ).strip(),
+                    cancelled_snapshot=None,
                 )
                 return {"status": "none", "session_id": normalized_session_id}
 
@@ -3194,6 +3358,13 @@ def record_interaction_receipt(
                     source_attempt_id=source_run_id,
                     reason="execution cancelled before interaction receipt",
                 )
+                _consume_cancelled_session_guard(
+                    session_id=normalized_session_id,
+                    source_attempt_id=source_run_id,
+                    cancelled_attempt_ids=(cancelled_owner_id,),
+                    expected_interaction_id=normalized_interaction_id,
+                    cancelled_snapshot=None,
+                )
                 raise DurableInteractionHostError(
                     "execution_cancelled",
                     "The execution for this interaction was cancelled",
@@ -3263,6 +3434,12 @@ def record_interaction_receipt(
             "interaction_receipt_missing",
             "Durable interaction receipt was not persisted",
         )
+    _reconcile_durable_interaction_session_guard(
+        session_id=normalized_session_id,
+        interaction_id=normalized_interaction_id,
+        source_attempt_id=source_run_id,
+        receipt_id=persisted.receipt.receipt_id,
+    )
     public_result = {
         "status": "ok",
         "disposition": "receipt_recorded",
@@ -3712,6 +3889,127 @@ def reconcile_cancelled_interactions_before_active_run(
     return repaired
 
 
+def _consume_cancelled_session_guard(
+    *,
+    session_id: str,
+    source_attempt_id: str,
+    cancelled_attempt_ids: tuple[str, ...],
+    expected_interaction_id: str,
+    cancelled_snapshot: Any,
+) -> None:
+    interaction_id = str(expected_interaction_id or "").strip()
+    if not interaction_id:
+        request_value = getattr(cancelled_snapshot, "request", None)
+        interaction_id = str(
+            getattr(request_value, "interaction_id", "") or ""
+        ).strip()
+    if not interaction_id:
+        raise DurableInteractionHostError(
+            "session_guard_cancel_lineage_missing",
+            "Cancelled durable interaction has no exact guard lineage",
+            status_code=409,
+            retryable=False,
+        )
+    guard = _session_execution_guard_call(
+        "snapshot_session_guard",
+        session_id=session_id,
+    )
+    if guard is not None and str(getattr(guard, "state", "") or "") == "active":
+        active_attempt_id = str(
+            getattr(guard, "attempt_id", "") or ""
+        ).strip()
+        cancellation_lineage = {
+            source_attempt_id,
+            *(str(value or "").strip() for value in cancelled_attempt_ids),
+            *(
+                str(binding.get("attempt_id") or "").strip()
+                for binding in _bindings_for_source_attempt(
+                    session_id,
+                    source_attempt_id,
+                )
+            ),
+        }
+        if active_attempt_id not in cancellation_lineage:
+            raise DurableInteractionHostError(
+                "session_guard_cancel_attempt_mismatch",
+                "Active session guard is outside the cancellation lineage",
+                status_code=409,
+                retryable=False,
+            )
+        if (
+            _execution_control_status(session_id, active_attempt_id)
+            != "cancelled"
+            and _load_execution_cancellation(session_id, active_attempt_id)
+            is None
+        ):
+            raise DurableInteractionHostError(
+                "session_guard_cancel_not_stopped",
+                "Active cancelled session guard still has a live writer",
+                status_code=409,
+                retryable=True,
+            )
+        # The worker still owns an active guard until its cancellation
+        # finalizer proves all writes have stopped.
+        return
+    _reconcile_durable_interaction_session_guard(
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+    )
+    _session_execution_guard_call(
+        "consume_parked_session_guard",
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+    )
+
+
+def _consume_terminal_session_guard(session_id: str) -> bool:
+    """Clear only a parked guard whose exact durable request is applied."""
+
+    guard = _session_execution_guard_call(
+        "snapshot_session_guard",
+        session_id=session_id,
+    )
+    if guard is None or str(getattr(guard, "state", "") or "") != "parked":
+        return False
+    interaction_id = str(getattr(guard, "interaction_id", "") or "").strip()
+    source_attempt_id = str(
+        getattr(guard, "interaction_source_attempt_id", "") or ""
+    ).strip()
+    matches = [
+        (request, entry, is_active)
+        for request, entry, is_active in _interaction_journal_entries_for_source(
+            session_id,
+            source_attempt_id,
+        )
+        if str(getattr(request, "interaction_id", "") or "").strip()
+        == interaction_id
+    ]
+    if len(matches) != 1:
+        raise DurableInteractionHostError(
+            "session_guard_terminal_lineage_missing",
+            "Parked session guard has no unique durable interaction lineage",
+            status_code=409,
+            retryable=False,
+        )
+    _request, entry, is_active = matches[0]
+    if is_active or not isinstance(entry.get("application"), dict):
+        raise DurableInteractionHostError(
+            "session_guard_terminal_state_incomplete",
+            "Parked session guard durable interaction is not terminal",
+            status_code=409,
+            retryable=True,
+        )
+    _session_execution_guard_call(
+        "consume_parked_session_guard",
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+    )
+    return True
+
+
 def cancel_chat_execution(
     *,
     session_id: str,
@@ -3822,6 +4120,7 @@ def cancel_chat_execution(
         )
     durable_interaction_cancelled = False
     cancelled_interaction_snapshot = None
+    cancelled_bound_attempt_ids: tuple[str, ...] = ()
     if exact_target is not None and exact_target.is_cancelled_applied:
         active_interaction_id = _active_interaction_id(normalized_session_id)
         foreign_active_interaction = bool(
@@ -3916,6 +4215,14 @@ def cancel_chat_execution(
     state = str(registry_execution.get("status") or "")
     if state in {"completed", "failed"} and not cold_reconciliation_required:
         if durable_interaction_cancelled:
+            _consume_cancelled_session_guard(
+                session_id=normalized_session_id,
+                source_attempt_id=pending_source_attempt_id,
+                cancelled_attempt_ids=(normalized_attempt_id,),
+                expected_interaction_id=normalized_expected_interaction_id,
+                cancelled_snapshot=cancelled_interaction_snapshot,
+            )
+        if durable_interaction_cancelled:
             clear_resume_context(
                 normalized_session_id,
                 pending_source_attempt_id,
@@ -3955,7 +4262,7 @@ def cancel_chat_execution(
         ) from exc
 
     if pending_source_attempt_id == normalized_attempt_id:
-        _cancel_bound_resume_attempts(
+        cancelled_bound_attempt_ids = _cancel_bound_resume_attempts(
             normalized_session_id,
             normalized_attempt_id,
             reason=normalized_reason,
@@ -4065,6 +4372,18 @@ def cancel_chat_execution(
                 )
     clear_execution_attempt_binding(normalized_session_id, normalized_attempt_id)
 
+    if durable_interaction_cancelled:
+        _consume_cancelled_session_guard(
+            session_id=normalized_session_id,
+            source_attempt_id=pending_source_attempt_id,
+            cancelled_attempt_ids=(
+                normalized_attempt_id,
+                *cancelled_bound_attempt_ids,
+            ),
+            expected_interaction_id=normalized_expected_interaction_id,
+            cancelled_snapshot=cancelled_interaction_snapshot,
+        )
+
     state = state or "cancelled"
     return {
         "status": "ok",
@@ -4085,8 +4404,9 @@ def cancel_chat_execution(
 
 
 class DurableInteractionIdTracker:
-    def __init__(self) -> None:
+    def __init__(self, *, guard_owner_attempt_id: str = "") -> None:
         self._lock = threading.Lock()
+        self._guard_owner_attempt_id = str(guard_owner_attempt_id or "").strip()
         self._by_key: dict[tuple[str, str], str] = {}
         self._latest_by_kind: dict[str, str] = {}
         self._owner_by_key: dict[tuple[str, str], dict[str, str]] = {}
@@ -4121,6 +4441,16 @@ class DurableInteractionIdTracker:
             return
         if not kind or not isinstance(payload, dict):
             return
+        if interaction_id and session_id and source_run_id:
+            _session_execution_guard_call(
+                "park_session_guard",
+                session_id=session_id,
+                interaction_id=interaction_id,
+                source_attempt_id=source_run_id,
+                owner_attempt_id=(
+                    self._guard_owner_attempt_id or source_run_id
+                ),
+            )
         call_id = str(
             payload.get("call_id") or payload.get("request_id") or ""
         ).strip()

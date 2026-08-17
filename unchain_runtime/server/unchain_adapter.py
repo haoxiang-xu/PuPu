@@ -45,6 +45,7 @@ from secret_scrub_registry import register_secret_values
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
 _computer_use_logger = logging.getLogger(__name__ + ".computer_use")
+_execution_owner_logger = logging.getLogger(__name__ + ".execution_owner")
 
 
 def _run_bundle_timestamp() -> str:
@@ -1291,6 +1292,35 @@ def _execution_control_call(name: str, *args: Any, **kwargs: Any) -> Any:
     return operation(*args, **kwargs)
 
 
+def _session_execution_guard_transition(name: str, **kwargs: Any) -> Any:
+    try:
+        import session_execution_guard
+    except ImportError as exc:
+        raise DurableInteractionHostError(
+            "session_execution_guard_unavailable",
+            "Session execution guard is unavailable",
+            status_code=503,
+            retryable=True,
+        ) from exc
+    operation = getattr(session_execution_guard, name, None)
+    if not callable(operation):
+        raise DurableInteractionHostError(
+            "session_execution_guard_incompatible",
+            "Session execution guard API is incompatible",
+            status_code=503,
+            retryable=False,
+        )
+    try:
+        return operation(**kwargs)
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            str(getattr(exc, "code", "session_execution_guard_unavailable") or ""),
+            "Session execution guard rejected the continuation transition",
+            status_code=int(getattr(exc, "status_code", 503) or 503),
+            retryable=bool(getattr(exc, "retryable", True)),
+        ) from exc
+
+
 def _execution_cancellation_token(session_id: str, attempt_id: str) -> Any:
     if not str(session_id or "").strip() or not str(attempt_id or "").strip():
         return None
@@ -1345,6 +1375,90 @@ def _execution_result_status(result: Any) -> str:
 
 def _execution_result_is_terminal(result: Any) -> bool:
     return _execution_result_status(result) in {"completed", "failed", "cancelled"}
+
+
+class _AppliedExecutionOwnerScope:
+    """Own cleanup only for the attempt this call moved into running."""
+
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        attempt_id: str,
+        running: Any,
+        execution_token: Any,
+    ) -> None:
+        self._session_id = str(session_id or "").strip()
+        self._attempt_id = str(attempt_id or "").strip()
+        self._execution_token = execution_token
+        self._owns = bool(
+            self._session_id
+            and self._attempt_id
+            and str(getattr(running, "disposition", "") or "") == "applied"
+            and not _execution_result_is_terminal(running)
+        )
+        self._handed_off = False
+        self._deferred = False
+        self._settled = False
+
+    def __enter__(self) -> "_AppliedExecutionOwnerScope":
+        return self
+
+    def __exit__(self, error_type, error, traceback) -> bool:
+        if self._deferred and error is None:
+            return False
+        try:
+            self.cleanup(error=error)
+        except BaseException:
+            if error is None:
+                raise
+            _execution_owner_logger.exception(
+                "execution owner cleanup failed while preserving the original error"
+            )
+        return False
+
+    def handoff(self) -> None:
+        self._deferred = False
+        self._handed_off = True
+
+    def defer_cleanup(self) -> None:
+        """Carry ownership into an immediately following guarded setup block."""
+
+        self._deferred = True
+
+    def cleanup(self, *, error: BaseException | None = None) -> None:
+        if not self._owns or self._handed_off or self._settled:
+            return
+        cancelled = bool(
+            (error is not None and _is_execution_cancelled_error(error))
+            or _execution_is_cancelled(self._execution_token)
+        )
+        if cancelled:
+            _execution_control_call(
+                "finish_cancelled_run",
+                self._session_id,
+                self._attempt_id,
+            )
+            clear_execution_attempt_binding(
+                self._session_id,
+                self._attempt_id,
+            )
+        else:
+            failure = error or RuntimeError(
+                "execution setup exited before cleanup ownership handoff"
+            )
+            terminal = _execution_control_call(
+                "mark_failed",
+                self._session_id,
+                self._attempt_id,
+                reason=_memory_v2_failure_reason(failure),
+            )
+            if _execution_result_status(terminal) in {"completed", "failed"}:
+                clear_execution_attempt_binding(
+                    self._session_id,
+                    self._attempt_id,
+                )
+        self._settled = True
 
 
 _MEMORY_V2_TAKEOVER_RECOVERY_CODE = "memory_v2_takeover_recovery_required"
@@ -2365,6 +2479,23 @@ def _make_interaction_resolution_writer(
                 "interaction_receipt_required",
                 "A durable interaction receipt is required before live continuation",
                 status_code=409,
+            )
+        if receipt_handoff is not None:
+            if (
+                receipt_handoff.session_id != session_id
+                or receipt_handoff.interaction_id != interaction_id
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_receipt_handoff_mismatch",
+                    "Persisted interaction receipt does not match the live waiter",
+                    status_code=409,
+                )
+            _session_execution_guard_transition(
+                "resume_live_session_guard",
+                session_id=receipt_handoff.session_id,
+                interaction_id=interaction_id,
+                source_attempt_id=source_run_id,
+                receipt_id=receipt_handoff.receipt_id,
             )
         normalized_outcome = str(outcome or "").strip().lower()
         if kind == "human_input" and normalized_outcome == "approved":
@@ -10026,7 +10157,12 @@ def _stream_recipe_graph_events(
 
                 toolkit_meta = _build_toolkit_tool_index(step_toolkits)
                 step_final_holder = {"text": ""}
-                interaction_id_tracker = DurableInteractionIdTracker()
+                interaction_id_tracker = DurableInteractionIdTracker(
+                    guard_owner_attempt_id=str(
+                        options.get("_memory_v2_attempt_id")
+                        or workflow_run_id
+                    ).strip(),
+                )
 
                 def step_emit(
                     event: Dict[str, Any],
@@ -10564,6 +10700,14 @@ def _stream_recipe_graph_events(
                         token_session_id,
                         token_attempt_id,
                     )
+                elif output_holder.get("cancelled") or _execution_is_cancelled(
+                    execution_token
+                ):
+                    _execution_control_call(
+                        "finish_cancelled_run",
+                        token_session_id,
+                        token_attempt_id,
+                    )
             _disconnect_runtime_toolkits(runtime_toolkits_to_disconnect)
             run_done_event.set()
             event_queue.put(done_marker)
@@ -10893,6 +11037,82 @@ def stream_chat_events(
             normalized_session_id,
             normalized_attempt_id,
         ) if normalized_session_id and normalized_attempt_id else None
+        with _AppliedExecutionOwnerScope(
+            session_id=normalized_session_id,
+            attempt_id=normalized_attempt_id,
+            running=running,
+            execution_token=execution_token,
+        ) as execution_owner:
+            if normalized_session_id and normalized_attempt_id and (
+                str(getattr(running, "disposition", "") or "") != "applied"
+                or _execution_result_is_terminal(running)
+                or _execution_is_cancelled(execution_token)
+            ):
+                return
+            takeover_error = _memory_v2_guard_reclaimed_execution(
+                options=options,
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                registration=registration,
+                running=running,
+            )
+            if takeover_error is not None:
+                yield takeover_error
+                return
+            graph_run_id = (
+                normalized_attempt_id
+                or (
+                    str(_uuid.uuid4())
+                    if options.get("_memory_v2_requested") is True
+                    else ""
+                )
+            )
+            graph_runtime_context = (
+                _memory_v2_root_runtime_context(
+                    options=options,
+                    execution_id=(normalized_session_id or graph_run_id),
+                    run_id=graph_run_id,
+                )
+                if options.get("_memory_v2_requested") is True
+                else None
+            )
+            try:
+                graph_events = _stream_recipe_graph_events(
+                    recipe=recipe,
+                    message=message,
+                    history=history,
+                    attachments=attachments,
+                    options=options,
+                    session_id=session_id,
+                    cancel_event=cancel_event,
+                    run_id_override=graph_run_id,
+                    execution_token=execution_token,
+                    runtime_context=graph_runtime_context,
+                )
+                for graph_event in graph_events:
+                    execution_owner.handoff()
+                    yield graph_event
+            except BaseException as graph_error:
+                if _is_execution_cancelled_error(
+                    graph_error
+                ) or _execution_is_cancelled(execution_token):
+                    return
+                raise
+            execution_owner.handoff()
+        return
+
+    running = _execution_control_call(
+        "mark_running",
+        normalized_session_id,
+        normalized_attempt_id,
+    ) if normalized_session_id and normalized_attempt_id else None
+    execution_owner = _AppliedExecutionOwnerScope(
+        session_id=normalized_session_id,
+        attempt_id=normalized_attempt_id,
+        running=running,
+        execution_token=execution_token,
+    )
+    with execution_owner:
         if normalized_session_id and normalized_attempt_id and (
             str(getattr(running, "disposition", "") or "") != "applied"
             or _execution_result_is_terminal(running)
@@ -10909,121 +11129,53 @@ def stream_chat_events(
         if takeover_error is not None:
             yield takeover_error
             return
-        graph_run_id = (
-            normalized_attempt_id
-            or (
-                str(_uuid.uuid4())
-                if options.get("_memory_v2_requested") is True
-                else ""
-            )
+
+        event_queue: "queue.Queue[object]" = queue.Queue()
+        done_marker = object()
+        interject_key = session_id or f"session-{id(event_queue)}"
+        interject_channels = register_interject_channels(
+            interject_key,
+            str(message or ""),
+            options=_public_interject_options(options),
         )
-        graph_runtime_context = (
-            _memory_v2_root_runtime_context(
+
+        durable_context_saved = False
+        execution_run_id = normalized_attempt_id or str(_uuid.uuid4())
+        memory_v2_shadow_run = None
+        memory_v2_runtime_context = None
+        if options.get("_memory_v2_requested") is True:
+            from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
+            from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
+            from unchain.memory import MEMORY_V2_MODULE_KEY
+
+            memory_v2_runtime_context = _memory_v2_root_runtime_context(
                 options=options,
-                execution_id=(normalized_session_id or graph_run_id),
-                run_id=graph_run_id,
+                execution_id=(normalized_session_id or execution_run_id),
+                run_id=execution_run_id,
             )
-            if options.get("_memory_v2_requested") is True
-            else None
-        )
-        try:
-            yield from _stream_recipe_graph_events(
-                recipe=recipe,
-                message=message,
-                history=history,
-                attachments=attachments,
-                options=options,
-                session_id=session_id,
-                cancel_event=cancel_event,
-                run_id_override=graph_run_id,
-                execution_token=execution_token,
-                runtime_context=graph_runtime_context,
+            memory_v2_grant = memory_v2_runtime_context.grant_for(
+                MEMORY_V2_MODULE_KEY
             )
-        except BaseException as graph_error:
-            if not (
-                isinstance(graph_error, GeneratorExit)
-                or _is_execution_cancelled_error(graph_error)
-                or _execution_is_cancelled(execution_token)
-            ):
-                _execution_control_call(
-                    "mark_failed",
-                    normalized_session_id,
-                    normalized_attempt_id,
-                )
-            if _is_execution_cancelled_error(graph_error) or _execution_is_cancelled(
-                execution_token
-            ):
-                return
-            raise
-        return
+            if memory_v2_grant is None:
+                raise RuntimeError("root Context V2 run has no Memory V2 grant")
 
-    running = _execution_control_call(
-        "mark_running",
-        normalized_session_id,
-        normalized_attempt_id,
-    ) if normalized_session_id and normalized_attempt_id else None
-    if normalized_session_id and normalized_attempt_id and (
-        str(getattr(running, "disposition", "") or "") != "applied"
-        or _execution_result_is_terminal(running)
-        or _execution_is_cancelled(execution_token)
-    ):
-        return
-    takeover_error = _memory_v2_guard_reclaimed_execution(
-        options=options,
-        session_id=normalized_session_id,
-        attempt_id=normalized_attempt_id,
-        registration=registration,
-        running=running,
-    )
-    if takeover_error is not None:
-        yield takeover_error
-        return
-
-    event_queue: "queue.Queue[object]" = queue.Queue()
-    done_marker = object()
-    interject_key = session_id or f"session-{id(event_queue)}"
-    interject_channels = register_interject_channels(
-        interject_key,
-        str(message or ""),
-        options=_public_interject_options(options),
-    )
-
-    durable_context_saved = False
-    execution_run_id = normalized_attempt_id or str(_uuid.uuid4())
-    memory_v2_shadow_run = None
-    memory_v2_runtime_context = None
-    if options.get("_memory_v2_requested") is True:
-        from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
-        from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-        from unchain.memory import MEMORY_V2_MODULE_KEY
-
-        memory_v2_runtime_context = _memory_v2_root_runtime_context(
-            options=options,
-            execution_id=(normalized_session_id or execution_run_id),
-            run_id=execution_run_id,
-        )
-        memory_v2_grant = memory_v2_runtime_context.grant_for(
-            MEMORY_V2_MODULE_KEY
-        )
-        if memory_v2_grant is None:
-            raise RuntimeError("root Context V2 run has no Memory V2 grant")
-
-        current_input_draft = (
-            PupuMemoryV2TextInputDraft(content=message)
-            if isinstance(message, str) and message.strip()
-            else None
-        )
-        memory_v2_shadow_run = PupuUnchainShadowRunDraft(
-            session_id=(normalized_session_id or execution_run_id),
-            identity=memory_v2_runtime_context.identity,
-            grant=memory_v2_grant,
-            current_input_draft=current_input_draft,
-            attachment_blocks=tuple(
-                copy.deepcopy(item)
-                for item in (attachments or [])
-                if isinstance(item, dict)
-            ),
-        )
+            current_input_draft = (
+                PupuMemoryV2TextInputDraft(content=message)
+                if isinstance(message, str) and message.strip()
+                else None
+            )
+            memory_v2_shadow_run = PupuUnchainShadowRunDraft(
+                session_id=(normalized_session_id or execution_run_id),
+                identity=memory_v2_runtime_context.identity,
+                grant=memory_v2_grant,
+                current_input_draft=current_input_draft,
+                attachment_blocks=tuple(
+                    copy.deepcopy(item)
+                    for item in (attachments or [])
+                    if isinstance(item, dict)
+                ),
+            )
+        execution_owner.defer_cleanup()
     agent = None
     try:
         agent = _create_agent(
@@ -11424,6 +11576,14 @@ def stream_chat_events(
                             normalized_session_id,
                             normalized_attempt_id,
                         )
+                    elif output_holder.get("cancelled") or _execution_is_cancelled(
+                        execution_token
+                    ):
+                        _execution_control_call(
+                            "finish_cancelled_run",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
                 if durable_context_saved:
                     _cleanup_durable_resume_contexts(
                         session_id,
@@ -11436,7 +11596,13 @@ def stream_chat_events(
 
         worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
         worker.start()
+        execution_owner.handoff()
     except BaseException as setup_error:  # also catch GeneratorExit on abandoned SSE setup
+        setup_cancelled = bool(
+            _is_execution_cancelled_error(setup_error)
+            or _execution_is_cancelled(execution_token)
+        )
+        execution_owner.cleanup(error=setup_error)
         if durable_context_saved:
             _cleanup_durable_resume_contexts(
                 session_id,
@@ -11447,20 +11613,7 @@ def stream_chat_events(
         release_interject_channels(interject_key, interject_channels)
         if "run_done_event" in locals():
             run_done_event.set()
-        if not (
-            isinstance(setup_error, GeneratorExit)
-            or _is_execution_cancelled_error(setup_error)
-            or _execution_is_cancelled(execution_token)
-        ) and normalized_session_id and normalized_attempt_id:
-            _execution_control_call(
-                "mark_failed",
-                normalized_session_id,
-                normalized_attempt_id,
-                reason=_memory_v2_failure_reason(setup_error),
-            )
-        if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
-            execution_token
-        ):
+        if setup_cancelled:
             return
         raise
 
@@ -11787,183 +11940,252 @@ def resume_chat_interaction_events(
             status_code=422,
         )
 
-    running = _execution_control_call(
-        "mark_running",
-        normalized_session_id,
-        normalized_attempt_id,
-    ) if normalized_attempt_id else None
+    transfer = None
+    if normalized_attempt_id:
+        transfer = _session_execution_guard_transition(
+            "prepare_parked_session_guard_transfer",
+            session_id=normalized_session_id,
+            interaction_id=normalized_interaction_id,
+            source_attempt_id=source_run_id,
+            receipt_id=str(pending_state.get("receipt_id") or "").strip(),
+            attempt_id=normalized_attempt_id,
+        )
+    try:
+        running = _execution_control_call(
+            "mark_running",
+            normalized_session_id,
+            normalized_attempt_id,
+        ) if normalized_attempt_id else None
+    except BaseException:
+        if transfer is None:
+            raise
+        ambiguity = _execution_control_call(
+            "inspect_mark_running_ambiguity",
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        ambiguity_disposition = str(
+            getattr(ambiguity, "disposition", "") or ""
+        )
+        if ambiguity_disposition == "applied":
+            _session_execution_guard_transition(
+                "validate_parked_session_guard_transfer",
+                transfer=transfer,
+            )
+            _execution_owner_logger.warning(
+                "continuing after an ambiguous mark-running commit"
+            )
+            running = ambiguity
+        elif ambiguity_disposition == "already_terminal":
+            _session_execution_guard_transition(
+                "release_parked_session_guard_transfer",
+                transfer=transfer,
+            )
+            running = ambiguity
+        elif ambiguity is None or ambiguity_disposition == "not_applied":
+            _session_execution_guard_transition(
+                "rollback_parked_session_guard_transfer",
+                transfer=transfer,
+            )
+            raise
+        else:
+            raise
+    if (
+        transfer is not None
+        and str(getattr(running, "disposition", "") or "") == "unchanged"
+        and _execution_result_status(running) == "running"
+    ):
+        ambiguity = _execution_control_call(
+            "inspect_mark_running_ambiguity",
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        if str(getattr(ambiguity, "disposition", "") or "") != "applied":
+            raise DurableInteractionHostError(
+                "execution_running_owner_ambiguous",
+                "Durable resume execution owner cannot be verified",
+                status_code=409,
+                retryable=False,
+            )
+        _session_execution_guard_transition(
+            "validate_parked_session_guard_transfer",
+            transfer=transfer,
+        )
+        running = ambiguity
+    execution_owner = _AppliedExecutionOwnerScope(
+        session_id=normalized_session_id,
+        attempt_id=normalized_attempt_id,
+        running=running,
+        execution_token=execution_token,
+    )
     if normalized_attempt_id and (
         str(getattr(running, "disposition", "") or "") != "applied"
         or _execution_result_is_terminal(running)
         or _execution_is_cancelled(execution_token)
     ):
-        if _execution_result_status(running) in {"completed", "failed"}:
+        execution_owner.cleanup()
+        if _execution_result_is_terminal(running):
             clear_execution_attempt_binding(
                 normalized_session_id,
                 normalized_attempt_id,
             )
         return
-    takeover_error = _memory_v2_guard_reclaimed_execution(
-        options=resolved_options,
-        session_id=normalized_session_id,
-        attempt_id=normalized_attempt_id,
-        registration=registration,
-        running=running,
-    )
-    if takeover_error is not None:
-        clear_execution_attempt_binding(
-            normalized_session_id,
-            normalized_attempt_id,
+    try:
+        takeover_error = _memory_v2_guard_reclaimed_execution(
+            options=resolved_options,
+            session_id=normalized_session_id,
+            attempt_id=normalized_attempt_id,
+            registration=registration,
+            running=running,
         )
+    except BaseException as takeover_failure:
+        execution_owner.cleanup(error=takeover_failure)
+        raise
+    if takeover_error is not None:
+        execution_owner.cleanup()
         yield takeover_error
         return
 
     if graph_step_resume:
-        coordinator_snapshot = graph_resume_context.get(
-            "coordinator_binding_snapshot"
-        )
-        if not isinstance(coordinator_snapshot, dict):
-            raise DurableInteractionHostError(
-                "durable_graph_resume_binding_missing",
-                "Graph-step resume has no canonical coordinator binding",
-                status_code=409,
+        with execution_owner:
+            coordinator_snapshot = graph_resume_context.get(
+                "coordinator_binding_snapshot"
             )
-        from memory_v2_unchain_runtime_context import (
-            runtime_context_from_memory_binding_snapshot,
-        )
+            if not isinstance(coordinator_snapshot, dict):
+                raise DurableInteractionHostError(
+                    "durable_graph_resume_binding_missing",
+                    "Graph-step resume has no canonical coordinator binding",
+                    status_code=409,
+                )
+            from memory_v2_unchain_runtime_context import (
+                runtime_context_from_memory_binding_snapshot,
+            )
 
-        graph_runtime_context = (
-            runtime_context_from_memory_binding_snapshot(
-                coordinator_snapshot
+            graph_runtime_context = (
+                runtime_context_from_memory_binding_snapshot(
+                    coordinator_snapshot
+                )
             )
-        )
-        graph_summary_seen = False
-        try:
-            graph_events = _stream_recipe_graph_events(
-                recipe=recipe,
-                message="",
-                history=[],
-                attachments=[],
-                options=resolved_options,
-                session_id=normalized_session_id,
-                cancel_event=cancel_event,
-                run_id_override="",
-                execution_token=execution_token,
-                runtime_context=graph_runtime_context,
-            )
-            for graph_event in graph_events:
+            graph_summary_seen = False
+            try:
+                graph_events = _stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="",
+                    history=[],
+                    attachments=[],
+                    options=resolved_options,
+                    session_id=normalized_session_id,
+                    cancel_event=cancel_event,
+                    run_id_override="",
+                    execution_token=execution_token,
+                    runtime_context=graph_runtime_context,
+                )
+                for graph_event in graph_events:
+                    if (
+                        isinstance(graph_event, dict)
+                        and graph_event.get("type") == "stream_summary"
+                    ):
+                        graph_summary_seen = True
+                        graph_event = with_context_composition_availability(
+                            graph_event
+                        )
+                    execution_owner.handoff()
+                    yield graph_event
                 if (
-                    isinstance(graph_event, dict)
-                    and graph_event.get("type") == "stream_summary"
+                    resolved_context_composition_availability is not None
+                    and not graph_summary_seen
                 ):
-                    graph_summary_seen = True
-                    graph_event = with_context_composition_availability(
-                        graph_event
+                    yield with_context_composition_availability(
+                        {
+                            "type": "stream_summary",
+                            "run_id": source_run_id,
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                        }
                     )
-                yield graph_event
-            if (
-                resolved_context_composition_availability is not None
-                and not graph_summary_seen
-            ):
-                yield with_context_composition_availability(
-                    {
-                        "type": "stream_summary",
-                        "run_id": source_run_id,
-                        "iteration": 0,
-                        "timestamp": time.time(),
-                    }
-                )
-        except BaseException as graph_resume_error:
-            if (
-                not isinstance(graph_resume_error, GeneratorExit)
-                and resolved_context_composition_availability is not None
-                and not graph_summary_seen
-            ):
-                yield with_context_composition_availability(
-                    {
-                        "type": "stream_summary",
-                        "run_id": source_run_id,
-                        "iteration": 0,
-                        "timestamp": time.time(),
-                    }
-                )
-            if not (
-                isinstance(graph_resume_error, GeneratorExit)
-                or _is_execution_cancelled_error(graph_resume_error)
-                or _execution_is_cancelled(execution_token)
-            ) and normalized_attempt_id:
-                _execution_control_call(
-                    "mark_failed",
-                    normalized_session_id,
-                    normalized_attempt_id,
-                    reason=_memory_v2_failure_reason(graph_resume_error),
-                )
-            if _is_execution_cancelled_error(
-                graph_resume_error
-            ) or _execution_is_cancelled(execution_token):
-                return
-            raise
-        finally:
-            if normalized_attempt_id:
-                execution_snapshot = _execution_control_call(
-                    "snapshot",
-                    normalized_session_id,
-                    normalized_attempt_id,
-                )
-                if bool(getattr(execution_snapshot, "terminal", False)):
-                    clear_execution_attempt_binding(
+            except BaseException as graph_resume_error:
+                if (
+                    not isinstance(graph_resume_error, GeneratorExit)
+                    and resolved_context_composition_availability is not None
+                    and not graph_summary_seen
+                ):
+                    yield with_context_composition_availability(
+                        {
+                            "type": "stream_summary",
+                            "run_id": source_run_id,
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                        }
+                    )
+                if _is_execution_cancelled_error(
+                    graph_resume_error
+                ) or _execution_is_cancelled(execution_token):
+                    return
+                raise
+            finally:
+                if normalized_attempt_id:
+                    execution_snapshot = _execution_control_call(
+                        "snapshot",
                         normalized_session_id,
                         normalized_attempt_id,
                     )
+                    if bool(getattr(execution_snapshot, "terminal", False)):
+                        clear_execution_attempt_binding(
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
+            execution_owner.handoff()
         return
 
-    event_queue: "queue.Queue[object]" = queue.Queue()
-    done_marker = object()
-    interject_key = normalized_session_id
-    interject_channels = register_interject_channels(
-        interject_key,
-        "",
-        options=_public_interject_options(resolved_options),
-    )
+    with execution_owner:
+        event_queue: "queue.Queue[object]" = queue.Queue()
+        done_marker = object()
+        interject_key = normalized_session_id
+        interject_channels = register_interject_channels(
+            interject_key,
+            "",
+            options=_public_interject_options(resolved_options),
+        )
 
-    agent = None
-    resume_run_id = normalized_attempt_id or str(_uuid.uuid4())
-    memory_v2_shadow_run = None
-    memory_v2_runtime_context = None
-    if resolved_options.get("_memory_v2_requested") is True:
-        from memory_v2_unchain_run_binding import (
-            PupuMemoryV2InteractionInputDraft,
-        )
-        from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
-        from unchain.memory import MEMORY_V2_MODULE_KEY
+        agent = None
+        resume_run_id = normalized_attempt_id or str(_uuid.uuid4())
+        memory_v2_shadow_run = None
+        memory_v2_runtime_context = None
+        if resolved_options.get("_memory_v2_requested") is True:
+            from memory_v2_unchain_run_binding import (
+                PupuMemoryV2InteractionInputDraft,
+            )
+            from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
+            from unchain.memory import MEMORY_V2_MODULE_KEY
 
-        memory_v2_runtime_context = _memory_v2_root_runtime_context(
-            options=resolved_options,
-            execution_id=normalized_session_id,
-            run_id=resume_run_id,
-            source_run_id=source_run_id,
-        )
-        memory_v2_grant = memory_v2_runtime_context.grant_for(
-            MEMORY_V2_MODULE_KEY
-        )
-        if memory_v2_grant is None:
-            raise RuntimeError("resumed Context V2 run has no Memory V2 grant")
+            memory_v2_runtime_context = _memory_v2_root_runtime_context(
+                options=resolved_options,
+                execution_id=normalized_session_id,
+                run_id=resume_run_id,
+                source_run_id=source_run_id,
+            )
+            memory_v2_grant = memory_v2_runtime_context.grant_for(
+                MEMORY_V2_MODULE_KEY
+            )
+            if memory_v2_grant is None:
+                raise RuntimeError("resumed Context V2 run has no Memory V2 grant")
 
-        pending_resolution = (
-            pending_state.get("resolution")
-            if isinstance(pending_state.get("resolution"), dict)
-            else {}
-        )
-        memory_v2_shadow_run = PupuUnchainShadowRunDraft(
-            session_id=normalized_session_id,
-            identity=memory_v2_runtime_context.identity,
-            grant=memory_v2_grant,
-            current_input_draft=PupuMemoryV2InteractionInputDraft(
-                interaction_id=normalized_interaction_id,
-                response=pending_resolution.get("response"),
-                submitted_by="user",
-            ),
-        )
+            pending_resolution = (
+                pending_state.get("resolution")
+                if isinstance(pending_state.get("resolution"), dict)
+                else {}
+            )
+            memory_v2_shadow_run = PupuUnchainShadowRunDraft(
+                session_id=normalized_session_id,
+                identity=memory_v2_runtime_context.identity,
+                grant=memory_v2_grant,
+                current_input_draft=PupuMemoryV2InteractionInputDraft(
+                    interaction_id=normalized_interaction_id,
+                    response=pending_resolution.get("response"),
+                    submitted_by="user",
+                ),
+            )
+        execution_owner.defer_cleanup()
     try:
         agent = _create_agent(
             resolved_options,
@@ -12271,6 +12493,14 @@ def resume_chat_interaction_events(
                             normalized_session_id,
                             normalized_attempt_id,
                         )
+                    elif output_holder.get("cancelled") or _execution_is_cancelled(
+                        execution_token
+                    ):
+                        _execution_control_call(
+                            "finish_cancelled_run",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
                     if _execution_result_status(terminal_transition) in {
                         "completed",
                         "failed",
@@ -12293,7 +12523,13 @@ def resume_chat_interaction_events(
             name="unchain-resume-events",
             daemon=True,
         ).start()
+        execution_owner.handoff()
     except BaseException as setup_error:
+        setup_cancelled = bool(
+            _is_execution_cancelled_error(setup_error)
+            or _execution_is_cancelled(execution_token)
+        )
+        execution_owner.cleanup(error=setup_error)
         _cleanup_durable_resume_contexts(
             normalized_session_id,
             (source_run_id, resume_run_id),
@@ -12303,28 +12539,7 @@ def resume_chat_interaction_events(
         release_interject_channels(interject_key, interject_channels)
         if "run_done_event" in locals():
             run_done_event.set()
-        if not (
-            isinstance(setup_error, GeneratorExit)
-            or _is_execution_cancelled_error(setup_error)
-            or _execution_is_cancelled(execution_token)
-        ) and normalized_attempt_id:
-            terminal_transition = _execution_control_call(
-                "mark_failed",
-                normalized_session_id,
-                normalized_attempt_id,
-                reason=_memory_v2_failure_reason(setup_error),
-            )
-            if _execution_result_status(terminal_transition) in {
-                "completed",
-                "failed",
-            }:
-                clear_execution_attempt_binding(
-                    normalized_session_id,
-                    normalized_attempt_id,
-                )
-        if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
-            execution_token
-        ):
+        if setup_cancelled:
             return
         raise
 

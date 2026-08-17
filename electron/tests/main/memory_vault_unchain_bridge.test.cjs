@@ -21,7 +21,16 @@ const runtimeContract = () => ({
 
 const healthResponse = () => ({
   ok: true,
-  json: async () => ({ status: "ok", contract: runtimeContract() }),
+  json: async () => ({
+    status: "ok",
+    contract: runtimeContract(),
+    session_guard_migration: {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: "ready",
+      protocol_version: 1,
+    },
+  }),
 });
 
 const jsonResponse = (payload) => ({
