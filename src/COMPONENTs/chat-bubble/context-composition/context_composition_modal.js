@@ -49,11 +49,13 @@ export const ContextCompositionModal = ({
       ariaLabelledBy={TITLE_ID}
       ariaDescribedBy={DESCRIPTION_ID}
       style={{
-        width: 364,
+        width: 340,
         minWidth: 0,
         maxWidth: "calc(100vw - 32px)",
         maxHeight: "70vh",
-        padding: "14px 16px 12px",
+        // Matches the popover's inset so the two shells read as one component,
+        // including the extra top so all four sides read even.
+        padding: "20px 12px 12px",
         backgroundColor: palette.background,
         color: palette.text,
         overflow: "hidden",

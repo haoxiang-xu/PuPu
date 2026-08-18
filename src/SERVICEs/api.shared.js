@@ -217,6 +217,18 @@ const normalizeModelInputCapabilities = (capabilities) => {
   if (capabilityPayload.supports_tools === false) {
     normalized.supports_tools = false;
   }
+  // Context-pressure denominator. Absent whenever the producer could not report
+  // one (live Ollama models are not in the packaged capability file), so the
+  // key stays absent here too — callers must render "window unknown" rather
+  // than divide by a guess.
+  const windowTokens = capabilityPayload.max_context_window_tokens;
+  if (
+    typeof windowTokens === "number" &&
+    Number.isSafeInteger(windowTokens) &&
+    windowTokens > 0
+  ) {
+    normalized.max_context_window_tokens = windowTokens;
+  }
   if (isObject(capabilityPayload.computer_use)) {
     const computerUse = capabilityPayload.computer_use;
     normalized.computer_use = {

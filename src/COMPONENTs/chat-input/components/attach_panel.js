@@ -127,6 +127,7 @@ const AttachPanel = forwardRef(({
   queueItems = [],
   onQueueUndo,
   contextCompositionBundle = null,
+  contextUsageView = null,
   onKeyboardActiveChange = () => {},
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
@@ -137,9 +138,12 @@ const AttachPanel = forwardRef(({
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
   const contextCompositionProgressRef = useRef(null);
-  const hasContextComposition = hasContextCompositionEvidence(
-    contextCompositionBundle,
-  );
+  // Provider usage arrives on every call, composition only once a source is
+  // instrumented — so the indicator appears as soon as there is anything true
+  // to show, not only when the full breakdown exists.
+  const hasContextComposition =
+    hasContextCompositionEvidence(contextCompositionBundle) ||
+    Boolean(contextUsageView);
 
   /* Optimistic mirrors for the multi-selects: the checkbox flips against
      LOCAL state instantly (re-rendering just this panel), while the real
@@ -605,12 +609,18 @@ const AttachPanel = forwardRef(({
               display: "flex",
               alignItems: "center",
               borderRadius: 999,
+              /* The row's gap of 6 separates pills from icons, but icon-to-icon
+                 spacing inside the cluster below is 0. Cancel the gap here so
+                 the ring sits flush against the attach controls instead of
+                 reading as pushed away from them. */
+              marginRight: onAttachFile ? -6 : 0,
             }}
           >
             {kbGlow("context_composition")}
             <ContextCompositionProgress
               ref={contextCompositionProgressRef}
               bundle={contextCompositionBundle}
+              usageView={contextUsageView}
               isDark={isDark}
               highlight={highlight}
             />

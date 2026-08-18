@@ -70,6 +70,7 @@ const ChatInput = ({
   interjectState,
   onQueueUndo,
   contextCompositionBundle = null,
+  contextUsageView = null,
   /* Docked turn-mutation hold: the paused-change banner caps the composer,
      so the capsule squares its top corners while one is visible. */
   turnMutationHold = null,
@@ -525,6 +526,7 @@ const ChatInput = ({
                       queueItems={interjectState?.queueItems || []}
                       onQueueUndo={onQueueUndo}
                       contextCompositionBundle={contextCompositionBundle}
+                      contextUsageView={contextUsageView}
                     />
                   ) : null}
                 </CommandPalettePanel>

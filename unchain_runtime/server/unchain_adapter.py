@@ -3506,6 +3506,17 @@ def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[s
     }
     if raw_capabilities.get("supports_tools") is False:
         normalized["supports_tools"] = False
+    # Optional: the renderer needs a denominator to show context pressure. It is
+    # omitted rather than zero-filled when unknown (live Ollama models are not in
+    # the packaged capability file), so the consumer can tell "no window
+    # reported" apart from a real number and never invents a percentage.
+    window_tokens = raw_capabilities.get("max_context_window_tokens")
+    if (
+        isinstance(window_tokens, (int, float))
+        and not isinstance(window_tokens, bool)
+        and window_tokens > 0
+    ):
+        normalized["max_context_window_tokens"] = int(window_tokens)
     return normalized
 
 

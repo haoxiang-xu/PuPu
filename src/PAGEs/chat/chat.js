@@ -48,6 +48,11 @@ import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
 import { selectLatestContextCompositionBundle } from "../../SERVICEs/context_composition_v1";
+import {
+  buildContextUsageView,
+  selectContextWindowTokens,
+  selectLatestContextUsage,
+} from "../../SERVICEs/context_usage_v1";
 import * as bootProgress from "../../SERVICEs/boot_progress";
 
 const DEFAULT_DISCLAIMER =
@@ -849,6 +854,17 @@ const ChatInterface = () => {
     () => selectLatestContextCompositionBundle(session.messages),
     [session.messages],
   );
+  // Accounting-only pressure. Independent of Context Composition so the
+  // indicator works before any contribution source is instrumented; the window
+  // comes from model capabilities and stays null when the catalog has none.
+  const contextUsageView = useMemo(() => {
+    const usage = selectLatestContextUsage(session.messages);
+    if (!usage) return null;
+    return buildContextUsageView(
+      usage,
+      selectContextWindowTokens(activeModelCapabilities),
+    );
+  }, [session.messages, activeModelCapabilities]);
   const {
     containerRef: smoothResizeContainerRef,
     frameStyle: smoothResizeFrameStyle,
@@ -923,6 +939,7 @@ const ChatInterface = () => {
       interjectState: stream.interjectState,
       onQueueUndo: stream.onQueueUndo,
       contextCompositionBundle,
+      contextUsageView,
       turnMutationHold: stream.turnMutationHold,
       onTurnMutationRetry: stream.retryTurnMutation,
       onTurnMutationDiscard: stream.discardTurnMutation,
@@ -934,7 +951,7 @@ const ChatInterface = () => {
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
-      contextCompositionBundle,
+      contextCompositionBundle, contextUsageView,
       stream.turnMutationHold, stream.retryTurnMutation, stream.discardTurnMutation,
       isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,

@@ -72,6 +72,67 @@ export const contextCompositionPalette = (theme, isDark) => ({
   hatch: isDark ? "rgba(255,255,255,0.36)" : "rgba(255,255,255,0.68)",
 });
 
+const InfoGlyph = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 16 16"
+    aria-hidden="true"
+    style={{ flex: "0 0 auto", opacity: 0.7 }}
+  >
+    <circle cx="8" cy="8" r="6.1" stroke="currentColor" strokeWidth="1.2" fill="none" />
+    <path d="M8 7.2v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <circle cx="8" cy="4.9" r="0.78" fill="currentColor" />
+  </svg>
+);
+
+/**
+ * What the provider was billed for, minus what we could attribute.
+ *
+ * The reconciled figure only exists once coverage is complete, but the gap is
+ * real either way — without it the listed rows silently fail to add up to the
+ * headline. Naming it "unattributed" is exact: it is the part we did not
+ * account for, not a claim about what is in it.
+ */
+const resolveResidualTokens = (view) => {
+  if (Number.isSafeInteger(view.residualTokens) && view.residualTokens > 0) {
+    return view.residualTokens;
+  }
+  const total = view.providerInputTokens;
+  const attributed = view.attributedTokens;
+  if (
+    Number.isSafeInteger(total) &&
+    Number.isSafeInteger(attributed) &&
+    total > attributed
+  ) {
+    return total - attributed;
+  }
+  return null;
+};
+
+/**
+ * Window occupancy does not depend on how completely we attributed the input —
+ * it only needs the provider total and the window size. Prefer the accounting
+ * view so this reads the same number the ring outside does.
+ */
+const resolveWindowPressure = (view, usageView) => {
+  if (
+    usageView?.percentageAvailable === true &&
+    typeof usageView.windowPressure === "number" &&
+    Number.isFinite(usageView.windowPressure)
+  ) {
+    return usageView.windowPressure;
+  }
+  if (
+    view.percentageAvailable === true &&
+    typeof view.windowPressure === "number" &&
+    Number.isFinite(view.windowPressure)
+  ) {
+    return view.windowPressure;
+  }
+  return null;
+};
+
 const hatchedStyle = (palette) => ({
   backgroundColor: palette.residual,
   backgroundImage: `repeating-linear-gradient(135deg, transparent 0 2px, ${palette.hatch} 2px 3.6px)`,
@@ -93,8 +154,10 @@ const ScopeToggle = ({ scope, onChange, modelCallRef, palette }) => (
     }}
   >
     {[
-      ["model_call", "This call"],
-      ["run_tree", "Run tree"],
+      // "Context" is what fills the window on the next call; "Summary" is the
+      // whole turn's accounting, including subagents.
+      ["model_call", "Context"],
+      ["run_tree", "Summary"],
     ].map(([id, label]) => {
       const selected = scope === id;
       return (
@@ -164,7 +227,7 @@ const CallPicker = ({ calls, selectedCallKey, onChange, palette }) => {
   );
 };
 
-const Headline = ({ view, palette }) => {
+const Headline = ({ view, usageView, palette }) => {
   if (view.scope === "run_tree") {
     return (
       <div
@@ -174,11 +237,12 @@ const Headline = ({ view, palette }) => {
           alignItems: "baseline",
           justifyContent: "space-between",
           gap: 12,
+          padding: "0 8px",
           marginBottom: 8,
         }}
       >
         <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.022em" }}>
-          Run tree
+          Summary
         </span>
         <span
           data-testid="run-tree-delivered-input"
@@ -194,10 +258,7 @@ const Headline = ({ view, palette }) => {
     );
   }
 
-  const showPercent =
-    view.percentageAvailable &&
-    typeof view.windowPressure === "number" &&
-    Number.isFinite(view.windowPressure);
+  const pressure = resolveWindowPressure(view, usageView);
 
   return (
     <div
@@ -207,13 +268,21 @@ const Headline = ({ view, palette }) => {
         alignItems: "baseline",
         justifyContent: "space-between",
         gap: 12,
+        padding: "0 8px",
         marginBottom: 8,
       }}
     >
-      <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.022em" }}>
-        {showPercent
-          ? `${formatPercent(view.windowPressure)} Full`
-          : `${formatTokens(view.attributedTokens)} attributed`}
+      <span
+        style={{
+          fontSize: 19,
+          fontWeight: 600,
+          letterSpacing: "-0.022em",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {pressure === null
+          ? `${formatTokens(view.attributedTokens)} attributed`
+          : `${formatPercent(pressure)} Full`}
       </span>
       <span
         style={{ color: palette.muted, fontSize: 12, whiteSpace: "nowrap" }}
@@ -239,9 +308,9 @@ const Headline = ({ view, palette }) => {
  */
 const CompositionBar = ({ view, palette }) => {
   const semanticTotal = view.groups.reduce((sum, group) => sum + group.tokens, 0);
-  const residualKnown =
-    Number.isSafeInteger(view.residualTokens) && view.residualTokens > 0;
-  const residual = residualKnown ? view.residualTokens : 0;
+  const resolvedResidual = resolveResidualTokens(view);
+  const residualKnown = resolvedResidual !== null;
+  const residual = residualKnown ? resolvedResidual : 0;
   const windowTokens =
     typeof view.contextWindowTokens === "number" &&
     Number.isFinite(view.contextWindowTokens) &&
@@ -262,7 +331,8 @@ const CompositionBar = ({ view, palette }) => {
       }
       style={{
         display: "flex",
-        width: "100%",
+        width: "calc(100% - 16px)",
+        margin: "0 8px",
         height: 6,
         gap: 2,
         overflow: "hidden",
@@ -344,13 +414,14 @@ const Row = ({
         display: "grid",
         gridTemplateColumns: "11px minmax(0, 1fr) auto",
         alignItems: "center",
-        gap: 10,
-        width: "calc(100% + 16px)",
-        minHeight: 30,
-        margin: "0 -8px",
+        gap: 8,
+        width: "100%",
+        // Concentric with the shell: panel r22 − 12px inset = r10, on the same
+        // 28px row height the selectors beside it use.
+        minHeight: 28,
         padding: "0 8px",
         border: "none",
-        borderRadius: 6,
+        borderRadius: 10,
         backgroundColor:
           hovered && interactive ? palette.hover : "transparent",
         color: palette.text,
@@ -395,8 +466,7 @@ const Row = ({
 };
 
 const GroupList = ({ view, openGroup, onOpenGroup, palette }) => {
-  const residualKnown =
-    Number.isSafeInteger(view.residualTokens) && view.residualTokens > 0;
+  const residualTokens = resolveResidualTokens(view);
 
   return (
     <div data-testid="context-composition-groups">
@@ -425,7 +495,7 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette }) => {
               <div
                 id={detailId}
                 style={{
-                  padding: "1px 8px 6px 21px",
+                  padding: "1px 8px 6px 27px",
                   color: palette.muted,
                   fontSize: 11.5,
                 }}
@@ -461,11 +531,11 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette }) => {
 
       {/* Unattributed is a real slice of the delivered input. Listing it is what
           lets the rows add up to the headline instead of quietly falling short. */}
-      {residualKnown && (
+      {residualTokens !== null && (
         <Row
           hatched
           label="Unattributed"
-          value={formatTokens(view.residualTokens)}
+          value={formatTokens(residualTokens)}
           palette={palette}
           testId="context-composition-residual-row"
         />
@@ -497,7 +567,7 @@ const QualityLine = ({ view, palette }) => {
         alignItems: "center",
         gap: 6,
         marginTop: 4,
-        padding: "7px 0 3px",
+        padding: "7px 8px 3px",
         borderTop: `1px solid ${palette.divider}`,
         color: palette.faint,
         fontSize: 11,
@@ -507,25 +577,123 @@ const QualityLine = ({ view, palette }) => {
         textOverflow: "ellipsis",
       }}
     >
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 16 16"
-        aria-hidden="true"
-        style={{ flex: "0 0 auto", opacity: 0.7 }}
-      >
-        <circle
-          cx="8"
-          cy="8"
-          r="6.1"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          fill="none"
-        />
-        <path d="M8 7.2v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-        <circle cx="8" cy="4.9" r="0.78" fill="currentColor" />
-      </svg>
+      <InfoGlyph />
       {text}
+    </div>
+  );
+};
+
+/**
+ * Accounting-only view. Provider usage exists on every call, so this renders
+ * long before the runtime can attribute the window to categories. It shows the
+ * one number that is actually authoritative — how full the window is — and says
+ * plainly that the breakdown is not available rather than faking eight zeroes.
+ */
+const UsageOnlyView = ({ usage, palette }) => {
+  const cached = usage.cacheReadTokens;
+  const fresh =
+    usage.uncachedTokens === null && usage.cacheWriteTokens === null
+      ? null
+      : (usage.uncachedTokens || 0) + (usage.cacheWriteTokens || 0);
+
+  return (
+    <div data-testid="context-usage-only">
+      <div
+        data-testid="context-composition-headline"
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "0 8px",
+          marginBottom: 8,
+        }}
+      >
+        <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.022em" }}>
+          {usage.percentageAvailable
+            ? `${formatPercent(usage.windowPressure)} Full`
+            : `${formatTokens(usage.inputTokens)} used`}
+        </span>
+        <span style={{ color: palette.muted, fontSize: 12, whiteSpace: "nowrap" }}>
+          {usage.contextWindowTokens === null
+            ? "Window size unknown"
+            : `~${formatTokens(usage.inputTokens)} / ${formatTokens(
+                usage.contextWindowTokens,
+              )} Tokens`}
+        </span>
+      </div>
+
+      <div
+        role="img"
+        aria-label="Context window occupancy"
+        style={{
+          display: "flex",
+          width: "calc(100% - 16px)",
+          margin: "0 8px",
+          height: 6,
+          borderRadius: 3,
+          overflow: "hidden",
+          backgroundColor: palette.surfaceStrong,
+          marginBottom: 11,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: usage.percentageAvailable
+              ? `${Math.min(100, Math.max(usage.windowPressure * 100, 0.25))}%`
+              : "100%",
+            borderRadius: 2,
+            backgroundColor: usage.percentageAvailable
+              ? "#5E9DE6"
+              : palette.residual,
+            ...(usage.percentageAvailable ? {} : hatchedStyle(palette)),
+          }}
+        />
+      </div>
+
+      <div>
+        {cached !== null && (
+          <Row
+            color="#55B982"
+            label="Cached"
+            value={formatTokens(cached)}
+            palette={palette}
+            testId="context-usage-cached"
+          />
+        )}
+        {fresh !== null && (
+          <Row
+            color="#5E9DE6"
+            label="New this turn"
+            value={formatTokens(fresh)}
+            palette={palette}
+            testId="context-usage-fresh"
+          />
+        )}
+      </div>
+
+      <div
+        data-testid="context-usage-note"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginTop: 4,
+          padding: "7px 8px 3px",
+          borderTop: `1px solid ${palette.divider}`,
+          color: palette.faint,
+          fontSize: 11,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        <InfoGlyph />
+        {`${usage.callCount} ${
+          usage.callCount === 1 ? "call" : "calls"
+        } · Category breakdown unavailable`}
+      </div>
     </div>
   );
 };
@@ -535,6 +703,7 @@ const UnavailableView = ({ reason, palette }) => (
     role="status"
     style={{
       padding: "22px 14px 24px",
+      margin: "0 4px",
       borderRadius: 8,
       backgroundColor: palette.surface,
       textAlign: "center",
@@ -562,6 +731,8 @@ const ContextCompositionPanel = ({
   trailing,
   scopeRef,
   listRef,
+  usageView = null,
+  onLayoutChange,
 }) => {
   const [scope, setScope] = useState("model_call");
   const [selectedCallKey, setSelectedCallKey] = useState(null);
@@ -583,6 +754,12 @@ const ContextCompositionPanel = ({
     setOpenGroup(null);
   }, [open]);
 
+  // Everything below changes how tall this panel renders. The shell animates
+  // its height from this, so it has to be told rather than left to observe.
+  useEffect(() => {
+    onLayoutChange?.();
+  }, [scope, openGroup, selectedCallKey, view, onLayoutChange]);
+
   return (
     <div
       data-testid="context-composition-panel"
@@ -599,6 +776,7 @@ const ContextCompositionPanel = ({
           display: "flex",
           alignItems: "center",
           gap: 10,
+          padding: "0 8px",
           marginBottom: 9,
         }}
       >
@@ -641,7 +819,9 @@ const ContextCompositionPanel = ({
         aria-live="polite"
         style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}
       >
-        {view.available ? (
+        {!view.available && usageView ? (
+          <UsageOnlyView usage={usageView} palette={palette} />
+        ) : view.available ? (
           <>
             {scope === "model_call" && (
               <CallPicker
@@ -651,7 +831,7 @@ const ContextCompositionPanel = ({
                 palette={palette}
               />
             )}
-            <Headline view={view} palette={palette} />
+            <Headline view={view} usageView={usageView} palette={palette} />
             <CompositionBar view={view} palette={palette} />
             <GroupList
               view={view}

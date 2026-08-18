@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { forwardRef, useContext, useState } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -187,7 +187,9 @@ const resolveStateStyle = ({ stateStyle, hovered, pressed, disabled }) => {
  *   ariaLabel         – accessible name for icon-only buttons
  *   title             – native tooltip/title
  */
-const Button = ({
+/* forwardRef so callers that must drive focus imperatively (popup triggers
+   returning focus on close) can reach the real <button>. */
+const Button = forwardRef(({
   prefix_icon,
   prefix,
   label,
@@ -199,7 +201,12 @@ const Button = ({
   style,
   disabled = false,
   onClick = () => {},
-}) => {
+  /* Extra DOM attributes for the <button> itself — aria-expanded,
+     aria-haspopup, data-* and friends. Buttons that drive a popup need those
+     on the control, not on a wrapper, and spelling out a prop per attribute
+     would grow forever. Applied first so Button's own attributes always win. */
+  dom_props,
+}, ref) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
@@ -323,6 +330,8 @@ const Button = ({
 
   return (
     <button
+      {...(dom_props || {})}
+      ref={ref}
       aria-label={ariaLabel}
       title={title}
       disabled={disabled}
@@ -332,7 +341,10 @@ const Button = ({
         setHovered(false);
         setPressed(false);
       }}
-      onMouseDown={() => setPressed(true)}
+      onMouseDown={(event) => {
+        setPressed(true);
+        dom_props?.onMouseDown?.(event);
+      }}
       onMouseUp={() => setPressed(false)}
       style={deepMerge(computedRootStyle, rootStyle)}
     >
@@ -403,6 +415,8 @@ const Button = ({
       )}
     </button>
   );
-};
+});
+
+Button.displayName = "Button";
 
 export default Button;

@@ -507,17 +507,20 @@ const modelCallView = (bundle, callKey) => {
     attributedTokens: extension.attributed_tokens,
     residualTokens: extension.residual_tokens,
     contextWindowTokens,
+    /* percentageAvailable gates PER-CATEGORY shares: splitting a total across
+       categories is only honest once attribution reconciles.
+       Window pressure is a different question — how full the window is needs
+       only the provider total and the window size, and stays true however
+       little of it we managed to attribute. Tying the two together used to
+       blank out the percentage on every partial turn, while the ring outside
+       kept showing one from the same numbers. */
     percentageAvailable,
     windowPressure:
-      percentageAvailable &&
-      providerInputTokens !== null &&
-      contextWindowTokens !== null
+      providerInputTokens !== null && contextWindowTokens !== null
         ? providerInputTokens / contextWindowTokens
         : null,
     peakWindowPressure:
-      percentageAvailable &&
-      providerInputTokens !== null &&
-      contextWindowTokens !== null
+      providerInputTokens !== null && contextWindowTokens !== null
         ? providerInputTokens / contextWindowTokens
         : null,
     groups: groupCategories(

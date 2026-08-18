@@ -291,7 +291,7 @@ describe("ContextCompositionModal", () => {
     );
   });
 
-  test("Run Tree reports set-union totals without category share percentages", async () => {
+  test("Summary reports set-union totals without category share percentages", async () => {
     const bundle = buildRunBundleV1({ multiModel: true });
     attachExtension(
       bundle,
@@ -332,7 +332,7 @@ describe("ContextCompositionModal", () => {
 
     renderModal({ bundle });
     await screen.findByRole("dialog", { name: "Context Usage" });
-    fireEvent.click(screen.getByRole("tab", { name: "Run tree" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Summary" }));
 
     expect(screen.getByTestId("run-tree-delivered-input")).toHaveTextContent("1.4K");
     expect(screen.getByTestId("run-tree-call-count")).toHaveTextContent("2");
@@ -382,7 +382,7 @@ describe("ContextCompositionModal", () => {
       </ConfigContext.Provider>,
     );
 
-    const modelCallTab = await screen.findByRole("tab", { name: "This call" });
+    const modelCallTab = await screen.findByRole("tab", { name: "Context" });
     await waitFor(() => expect(modelCallTab).toHaveFocus());
 
     fireEvent.keyDown(window, { key: "Escape" });

@@ -437,11 +437,20 @@ describe("Context Composition v1 renderer selector", () => {
       }),
     );
     const view = selectContextCompositionView(bundle, { scope: "model_call" });
+    // The over-estimate is preserved, never clamped down to the provider total.
     expect(view.attributedTokens).toBe(1200);
+
+    // Per-category shares stay withheld: dividing an over-estimate across
+    // categories is exactly the kind of invented number this guards against.
     expect(view.percentageAvailable).toBe(false);
-    expect(view.windowPressure).toBeNull();
-    expect(view.peakWindowPressure).toBeNull();
     expect(view.groups[0].share).toBeNull();
+
+    // Window pressure is a different quantity — it divides the PROVIDER's own
+    // input total by the window, so the over-estimate never enters it and it
+    // stays both available and true. Withholding it here used to blank the
+    // percentage while the ring outside showed one from these same numbers.
+    expect(view.windowPressure).toBeCloseTo(1000 / 128000, 10);
+    expect(view.peakWindowPressure).toBeCloseTo(1000 / 128000, 10);
   });
 
   test("keeps internal wire evidence and durable identities out of the presentation model", () => {

@@ -9,7 +9,14 @@ import {
 import AttachPanel from "./attach_panel";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
-import { CONTEXT_COMPOSITION_EXTENSION_KEY } from "../../../SERVICEs/context_composition_v1";
+import {
+  CONTEXT_COMPOSITION_EXTENSION_KEY,
+  hasContextCompositionEvidence,
+} from "../../../SERVICEs/context_composition_v1";
+import {
+  buildContextUsageView,
+  selectContextUsage,
+} from "../../../SERVICEs/context_usage_v1";
 
 const {
   buildRunBundleV1,
@@ -139,15 +146,34 @@ jest.mock("../../workspace/workspace_modal", () => ({
 
 jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
   __esModule: true,
-  default: ({ onClick = () => {}, prefix_icon, style = {}, title }) => (
-    <button
-      data-testid={`button-${prefix_icon || "default"}`}
-      data-icon-size={style.iconSize ?? ""}
-      title={title}
-      onClick={onClick}
-    >
-      mock-button
-    </button>
+  // Forwards ref, dom_props and children like the real Button: controls that
+  // drive a popup put their testid, aria-expanded and focus target on the
+  // button itself, and a mock that drops them hides real wiring.
+  default: require("react").forwardRef(
+    (
+      {
+        onClick = () => {},
+        prefix_icon,
+        style = {},
+        title,
+        ariaLabel,
+        children,
+        dom_props = {},
+      },
+      ref,
+    ) => (
+      <button
+        {...dom_props}
+        ref={ref}
+        data-testid={dom_props["data-testid"] || `button-${prefix_icon || "default"}`}
+        data-icon-size={style.iconSize ?? ""}
+        title={title}
+        aria-label={ariaLabel}
+        onClick={onClick}
+      >
+        {children || "mock-button"}
+      </button>
+    ),
   ),
 }));
 
@@ -206,6 +232,88 @@ describe("AttachPanel toolkit selector refresh", () => {
       "data-open",
       "true",
     );
+  });
+
+  test("shows pressure from provider usage alone, with no composition evidence", async () => {
+    // Composition needs an instrumented contribution source; provider usage
+    // lands on every call. The indicator has to appear on the latter, otherwise
+    // it stays invisible in every ordinary chat.
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    const plainBundle = buildRunBundleV1();
+    plainBundle.provider_calls.forEach((call) => {
+      call.usage.input.total_tokens = 1000;
+    });
+    expect(hasContextCompositionEvidence(plainBundle)).toBe(false);
+    const usageView = buildContextUsageView(
+      selectContextUsage(plainBundle),
+      4000,
+    );
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        contextCompositionBundle={null}
+        contextUsageView={usageView}
+      />,
+    );
+
+    const progress = screen.getByTestId("context-composition-progress");
+    expect(progress).toHaveAttribute("data-context-pressure", "25");
+
+    fireEvent.click(progress);
+    const popover = await screen.findByTestId("context-composition-popover");
+    expect(within(popover).getByTestId("context-usage-only")).toBeInTheDocument();
+    expect(within(popover).getByText("25% Full")).toBeInTheDocument();
+    // It says the breakdown is missing rather than showing eight empty rows.
+    expect(within(popover).getByTestId("context-usage-note")).toHaveTextContent(
+      "Category breakdown unavailable",
+    );
+    expect(
+      within(popover).queryByTestId("context-composition-groups"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("renders no indicator when there is neither usage nor composition", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        contextCompositionBundle={null}
+        contextUsageView={null}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId("context-composition-progress"),
+    ).not.toBeInTheDocument();
   });
 
   test("shows current context pressure and opens the composition modal", async () => {

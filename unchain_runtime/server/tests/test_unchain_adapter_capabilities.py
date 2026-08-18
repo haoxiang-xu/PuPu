@@ -279,6 +279,82 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         self.assertNotIn("openai:text-embedding-3-small", model_capabilities)
 
+    def test_model_capability_catalog_carries_context_window_when_known(self) -> None:
+        """The renderer needs a denominator to show context pressure."""
+
+        payload = {
+            "gpt-5": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "max_context_window_tokens": 272000,
+            },
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            model_capabilities = unchain_adapter.get_model_capability_catalog()
+
+        self.assertEqual(
+            model_capabilities["openai:gpt-5"]["max_context_window_tokens"],
+            272000,
+        )
+
+    def test_model_capability_catalog_omits_unusable_context_window(self) -> None:
+        """Absent beats zero-filled.
+
+        A live Ollama model has no packaged capability entry, so the consumer
+        must be able to tell "no window reported" from a real number and render
+        the absolute token count instead of a fabricated percentage.
+        """
+
+        payload = {
+            "a-zero": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "max_context_window_tokens": 0,
+            },
+            "b-negative": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "max_context_window_tokens": -1,
+            },
+            "c-string": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "max_context_window_tokens": "272000",
+            },
+            "d-absent": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+            },
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            model_capabilities = unchain_adapter.get_model_capability_catalog()
+
+        for model_id in (
+            "openai:a-zero",
+            "openai:b-negative",
+            "openai:c-string",
+            "openai:d-absent",
+        ):
+            self.assertNotIn(
+                "max_context_window_tokens",
+                model_capabilities[model_id],
+                msg=f"{model_id} must not carry an unusable window",
+            )
+
     def test_get_default_model_capabilities_is_text_only(self) -> None:
         self.assertEqual(
             unchain_adapter.get_default_model_capabilities(),
