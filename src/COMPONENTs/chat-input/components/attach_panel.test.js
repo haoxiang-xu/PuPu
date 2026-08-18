@@ -350,10 +350,14 @@ describe("AttachPanel toolkit selector refresh", () => {
     // mounted node instead; visible placement is a real-window concern.
     const popover = await screen.findByTestId("context-composition-popover");
     expect(within(popover).getByText("Context Usage")).toBeInTheDocument();
-    expect(within(popover).getByText("Instructions")).toBeInTheDocument();
+    // Both scopes are available and share this bundle's single call, so the
+    // inactive (Summary) pane would carry the same category labels — scope
+    // through the (active-pane-only) groups testid rather than getByText.
+    const groups = within(popover).getByTestId("context-composition-groups");
+    expect(groups).toHaveTextContent("Instructions");
     // 400 attributed + 600 residual against a 2000 window: the residual is a
     // listed row, so what the reader sees adds up to the 50% headline.
-    expect(within(popover).getByText("Unattributed")).toBeInTheDocument();
+    expect(groups).toHaveTextContent("Unattributed");
     expect(within(popover).getByText("50% Full")).toBeInTheDocument();
     expect(progress).toHaveAttribute("aria-expanded", "true");
 

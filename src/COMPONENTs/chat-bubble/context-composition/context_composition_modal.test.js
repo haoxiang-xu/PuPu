@@ -352,10 +352,14 @@ describe("ContextCompositionModal", () => {
     renderModal({ bundle });
     await screen.findByRole("dialog", { name: "Context Usage" });
 
-    expect(screen.getByText("No composition data yet")).toBeInTheDocument();
-    expect(
-      screen.getByText("Receipt composition data did not pass validation."),
-    ).toBeInTheDocument();
+    // Both scopes are equally invalid here and would render identical
+    // "no data" copy — scope through the (active-pane-only) testid rather than
+    // getByText, which would otherwise match the inactive pane's copy too.
+    const unavailable = screen.getByTestId("context-composition-unavailable");
+    expect(unavailable).toHaveTextContent("No composition data yet");
+    expect(unavailable).toHaveTextContent(
+      "Receipt composition data did not pass validation.",
+    );
     expect(screen.queryByText("private content")).not.toBeInTheDocument();
   });
 

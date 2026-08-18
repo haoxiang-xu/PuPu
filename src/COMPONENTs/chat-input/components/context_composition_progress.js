@@ -1,8 +1,6 @@
 import {
   forwardRef,
-  useCallback,
   useImperativeHandle,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,8 +18,6 @@ import { selectContextCompositionView } from "../../../SERVICEs/context_composit
    icon-only control on that row is 32×32, and a 30px one silently breaks the
    row's rhythm. The ring is drawn smaller than the box so its visual weight
    lands near the 16px icons beside it rather than filling the whole square. */
-const HEIGHT_TRANSITION = "max-height 220ms cubic-bezier(0.22, 1, 0.36, 1)";
-
 const SIZE = 32;
 const STROKE_WIDTH = 2.5;
 const RADIUS = 10;
@@ -36,7 +32,6 @@ const pressureColor = (pressure, highlight) => {
 const ContextCompositionProgress = forwardRef(
   ({ bundle, usageView = null, isDark = false, highlight }, ref) => {
     const [open, setOpen] = useState(false);
-    const [contentHeight, setContentHeight] = useState(null);
     const triggerRef = useRef(null);
     const panelRef = useRef(null);
     const listRef = useRef(null);
@@ -60,41 +55,6 @@ const ContextCompositionProgress = forwardRef(
     );
 
     useDropdownWheelGuard(open, panelRef, listRef);
-
-    /* Switching scope or expanding a group changes the card's height; driving
-       max-height off the measured content lets that settle instead of jumping.
-
-       The measurement MUST drop the cap first. Reading scrollHeight while the
-       cap is applied returns the compressed height — the inner list absorbs the
-       overflow by scrolling, so nothing reports the natural size — and feeding
-       that back into the cap shrinks the card on every observation until it
-       collapses.
-
-       It is driven by explicit content changes rather than a ResizeObserver:
-       the measurement has to mutate the very element an observer would watch,
-       which re-triggers it inside its own callback and trips the browser's
-       "loop completed with undelivered notifications" guard. The panel's
-       content is computed synchronously, so a change signal covers it. */
-    const measureContent = useCallback(() => {
-      const card = panelRef.current;
-      if (!card) return;
-      const cappedMaxHeight = card.style.maxHeight;
-      const cappedTransition = card.style.transition;
-      card.style.transition = "none";
-      card.style.maxHeight = "none";
-      const natural = card.scrollHeight;
-      card.style.maxHeight = cappedMaxHeight;
-      card.style.transition = cappedTransition;
-      setContentHeight((current) => (current === natural ? current : natural));
-    }, []);
-
-    useLayoutEffect(() => {
-      if (!open) {
-        setContentHeight(null);
-        return;
-      }
-      measureContent();
-    }, [open, measureContent]);
 
     // Usage receipts exist on every call; composition only once the runtime
     // instruments a source. Render on either, and take pressure from whichever
@@ -142,13 +102,11 @@ const ContextCompositionProgress = forwardRef(
           boxSizing: "border-box",
           width: 300,
           maxWidth: "calc(100vw - 40px)",
-          // A zero measurement means "not measured yet" (first frame, or an
-          // environment without ResizeObserver) — fall back to the plain cap
-          // rather than collapsing the card to its padding.
-          maxHeight: contentHeight
-            ? `min(${contentHeight}px, 64vh, 480px)`
-            : "min(64vh, 480px)",
-          transition: HEIGHT_TRANSITION,
+          // Panel now owns its own internal height animation (it slides
+          // between two always-mounted scopes and sizes itself to whichever is
+          // active) — this only needs to be a hard outer ceiling for the rare
+          // case that somehow still exceeds it, so it stays static.
+          maxHeight: "min(64vh, 480px)",
           display: "flex",
           flexDirection: "column",
           // Roomier than the selectors' 8px inset — this panel carries a
@@ -184,7 +142,6 @@ const ContextCompositionProgress = forwardRef(
           open={open}
           palette={palette}
           listRef={listRef}
-          onLayoutChange={measureContent}
         />
       </div>
     );
@@ -217,8 +174,20 @@ const ContextCompositionProgress = forwardRef(
               displayPercent === null ? "unavailable" : String(displayPercent),
             "aria-haspopup": "dialog",
             "aria-expanded": open,
-            // The attach panel drags by its background; the ring must not.
-            onMouseDown: (event) => event.stopPropagation(),
+            // Same guard selectWrap gives the other selectors on this row: without
+            // preventDefault, mousedown moves focus to the button by default and
+            // blurs the composer's textarea. That drops `focused`, which drops
+            // `floating` in attach_panel, which collapses the row BETWEEN
+            // mousedown and mouseup — so the click lands on collapsed layout
+            // instead of the ring and never opens the popover, and the panel is
+            // left looking inactive. stopPropagation alone (the ring's original
+            // guard) only keeps the attach panel's own background-drag handler
+            // from firing; it does nothing about the browser's default focus
+            // shift, which is the actual cause here.
+            onMouseDown: (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            },
           }}
           style={{
             /* Zero padding lets the ring itself define the box, which must stay

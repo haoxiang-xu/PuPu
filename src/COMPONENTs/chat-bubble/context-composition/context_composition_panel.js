@@ -1,10 +1,32 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { selectContextCompositionView } from "../../../SERVICEs/context_composition_v1";
 
 export const TITLE_ID = "context-composition-title";
 export const DESCRIPTION_ID = "context-composition-description";
+
+/* scrollHeight rounds to an integer; real layout can land on a fraction just
+   above it (subpixel font metrics, etc). Reapplying the rounded value as an
+   exact height then leaves content a hair taller than its box, which flips
+   the viewport's own overflow:auto into showing a real scrollbar for a
+   fraction of a pixel of overflow. A small buffer absorbs that. */
+export const CONTENT_HEIGHT_BUFFER = 2;
+/* Independent of either shell's own outer cap (the popover's 64vh/480px, the
+   modal's 70vh) — Panel owns its OWN scroll boundary so genuinely tall
+   content always gets an internal scrollbar here, predictably, regardless of
+   which shell hosts it, rather than depending on doing the arithmetic against
+   a cap it cannot see. */
+export const MAX_PANE_VIEWPORT_HEIGHT = 420;
+const SLIDE_TRANSITION = "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)";
+const HEIGHT_TRANSITION = "height 220ms cubic-bezier(0.22, 1, 0.36, 1)";
 
 const FALLBACK_VIEW = Object.freeze({
   available: false,
@@ -164,11 +186,12 @@ const ScopeToggle = ({ scope, onChange, modelCallRef, palette }) => (
         <button
           key={id}
           id={`context-composition-${id}-tab`}
+          data-testid={`context-composition-${id}-tab`}
           ref={id === "model_call" ? modelCallRef : undefined}
           type="button"
           role="tab"
           aria-selected={selected}
-          aria-controls="context-composition-scope-panel"
+          aria-controls={`context-composition-${id}-panel`}
           onClick={() => onChange(id)}
           style={{
             border: "none",
@@ -227,11 +250,11 @@ const CallPicker = ({ calls, selectedCallKey, onChange, palette }) => {
   );
 };
 
-const Headline = ({ view, usageView, palette }) => {
+const Headline = ({ view, usageView, palette, active = true }) => {
   if (view.scope === "run_tree") {
     return (
       <div
-        data-testid="context-composition-headline"
+        data-testid={active ? "context-composition-headline" : undefined}
         style={{
           display: "flex",
           alignItems: "baseline",
@@ -262,7 +285,7 @@ const Headline = ({ view, usageView, palette }) => {
 
   return (
     <div
-      data-testid="context-composition-headline"
+      data-testid={active ? "context-composition-headline" : undefined}
       style={{
         display: "flex",
         alignItems: "baseline",
@@ -306,7 +329,7 @@ const Headline = ({ view, usageView, palette }) => {
  * no honest denominator, so segments normalise across what we do know and the
  * bar carries no "how full" claim at all.
  */
-const CompositionBar = ({ view, palette }) => {
+const CompositionBar = ({ view, palette, active = true }) => {
   const semanticTotal = view.groups.reduce((sum, group) => sum + group.tokens, 0);
   const resolvedResidual = resolveResidualTokens(view);
   const residualKnown = resolvedResidual !== null;
@@ -356,7 +379,7 @@ const CompositionBar = ({ view, palette }) => {
       ))}
       {residualKnown ? (
         <span
-          data-testid="context-composition-residual-segment"
+          data-testid={active ? "context-composition-residual-segment" : undefined}
           data-pattern="hatched"
           title={`Unattributed: ${formatTokens(residual)} tokens`}
           aria-hidden="true"
@@ -369,7 +392,7 @@ const CompositionBar = ({ view, palette }) => {
         />
       ) : (
         <span
-          data-testid="context-composition-unknown-segment"
+          data-testid={active ? "context-composition-unknown-segment" : undefined}
           data-pattern="hatched"
           title="Unknown remainder"
           aria-hidden="true"
@@ -395,6 +418,7 @@ const Row = ({
   detailId,
   palette,
   testId,
+  active = true,
 }) => {
   const [hovered, setHovered] = useState(false);
   const interactive = typeof onClick === "function";
@@ -403,7 +427,7 @@ const Row = ({
     <button
       type="button"
       data-group-toggle={interactive ? "true" : undefined}
-      data-testid={testId}
+      data-testid={active ? testId : undefined}
       aria-expanded={interactive ? expanded : undefined}
       aria-controls={interactive && expanded ? detailId : undefined}
       onClick={onClick}
@@ -465,11 +489,11 @@ const Row = ({
   );
 };
 
-const GroupList = ({ view, openGroup, onOpenGroup, palette }) => {
+const GroupList = ({ view, openGroup, onOpenGroup, palette, active = true }) => {
   const residualTokens = resolveResidualTokens(view);
 
   return (
-    <div data-testid="context-composition-groups">
+    <div data-testid={active ? "context-composition-groups" : undefined}>
       {view.groups.map((group) => {
         const expanded = openGroup === group.id;
         const detailId = `context-composition-group-${group.id}`;
@@ -490,6 +514,7 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette }) => {
               onClick={() => onOpenGroup(expanded ? null : group.id)}
               palette={palette}
               testId="context-composition-group-toggle"
+              active={active}
             />
             {expanded && (
               <div
@@ -538,13 +563,14 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette }) => {
           value={formatTokens(residualTokens)}
           palette={palette}
           testId="context-composition-residual-row"
+          active={active}
         />
       )}
     </div>
   );
 };
 
-const QualityLine = ({ view, palette }) => {
+const QualityLine = ({ view, palette, active = true }) => {
   const text =
     view.scope === "run_tree"
       ? `${view.agentCount} ${view.agentCount === 1 ? "agent" : "agents"} · Peak ${
@@ -560,7 +586,7 @@ const QualityLine = ({ view, palette }) => {
 
   return (
     <div
-      data-testid="context-composition-quality"
+      data-testid={active ? "context-composition-quality" : undefined}
       aria-label="Composition quality"
       style={{
         display: "flex",
@@ -589,7 +615,7 @@ const QualityLine = ({ view, palette }) => {
  * one number that is actually authoritative — how full the window is — and says
  * plainly that the breakdown is not available rather than faking eight zeroes.
  */
-const UsageOnlyView = ({ usage, palette }) => {
+const UsageOnlyView = ({ usage, palette, active = true }) => {
   const cached = usage.cacheReadTokens;
   const fresh =
     usage.uncachedTokens === null && usage.cacheWriteTokens === null
@@ -597,9 +623,9 @@ const UsageOnlyView = ({ usage, palette }) => {
       : (usage.uncachedTokens || 0) + (usage.cacheWriteTokens || 0);
 
   return (
-    <div data-testid="context-usage-only">
+    <div data-testid={active ? "context-usage-only" : undefined}>
       <div
-        data-testid="context-composition-headline"
+        data-testid={active ? "context-composition-headline" : undefined}
         style={{
           display: "flex",
           alignItems: "baseline",
@@ -660,6 +686,7 @@ const UsageOnlyView = ({ usage, palette }) => {
             value={formatTokens(cached)}
             palette={palette}
             testId="context-usage-cached"
+            active={active}
           />
         )}
         {fresh !== null && (
@@ -669,12 +696,13 @@ const UsageOnlyView = ({ usage, palette }) => {
             value={formatTokens(fresh)}
             palette={palette}
             testId="context-usage-fresh"
+            active={active}
           />
         )}
       </div>
 
       <div
-        data-testid="context-usage-note"
+        data-testid={active ? "context-usage-note" : undefined}
         style={{
           display: "flex",
           alignItems: "center",
@@ -698,9 +726,10 @@ const UsageOnlyView = ({ usage, palette }) => {
   );
 };
 
-const UnavailableView = ({ reason, palette }) => (
+const UnavailableView = ({ reason, palette, active = true }) => (
   <div
     role="status"
+    data-testid={active ? "context-composition-unavailable" : undefined}
     style={{
       padding: "22px 14px 24px",
       margin: "0 4px",
@@ -719,6 +748,79 @@ const UnavailableView = ({ reason, palette }) => (
 );
 
 /**
+ * One scope's content — Context (model_call) or Summary (run_tree). Both are
+ * mounted at all times, side by side in a 200%-wide track (see the viewport
+ * below); this is what lets switching scope slide the old one out and the new
+ * one in instead of swapping content in place and snapping the box to a new
+ * height.
+ *
+ * The inactive pane stays fully rendered (so the slide has something real to
+ * show, not a blank box) but is `aria-hidden` + `inert` — unreachable by
+ * keyboard or a screen reader — and its own `openGroup` is forced closed so
+ * an expansion made in the active pane cannot silently mirror into the one
+ * sliding off-screen. Its testids are suppressed too, since the shared
+ * category ids/labels are identical to the active pane's own — otherwise
+ * every existing `getByText`/`getByTestId` query in this component's tests
+ * would start matching twice.
+ */
+const ScopePane = ({
+  paneRef,
+  scopeId,
+  active,
+  view,
+  usageView,
+  selectedCallKey,
+  onSelectCall,
+  openGroup,
+  onOpenGroup,
+  palette,
+}) => (
+  <div
+    ref={paneRef}
+    id={`context-composition-${scopeId}-panel`}
+    data-testid={`context-composition-pane-${scopeId}`}
+    role="tabpanel"
+    aria-labelledby={`context-composition-${scopeId}-tab`}
+    aria-live="polite"
+    aria-hidden={!active}
+    inert={!active}
+    style={{ flex: "0 0 50%", minWidth: 0, boxSizing: "border-box" }}
+  >
+    {!view.available && usageView && scopeId === "model_call" ? (
+      <UsageOnlyView usage={usageView} palette={palette} active={active} />
+    ) : view.available ? (
+      <>
+        {scopeId === "model_call" && (
+          <CallPicker
+            calls={view.calls || []}
+            selectedCallKey={selectedCallKey || view.selectedCallKey}
+            onChange={onSelectCall}
+            palette={palette}
+          />
+        )}
+        <Headline
+          view={view}
+          usageView={usageView}
+          palette={palette}
+          active={active}
+        />
+        <CompositionBar view={view} palette={palette} active={active} />
+        <GroupList
+          view={view}
+          openGroup={openGroup}
+          onOpenGroup={onOpenGroup}
+          palette={palette}
+          active={active}
+        />
+        <QualityLine view={view} palette={palette} active={active} />
+      </>
+    ) : (
+      <UnavailableView reason={view.reason} palette={palette} active={active} />
+    )}
+  </div>
+);
+
+/**
  * Shared body for both shells — the anchored popover on the attach panel and
  * the centred modal reached from a trace chain. The shell owns placement,
  * dismissal and (for the modal) the close button; everything inside the card
@@ -732,20 +834,31 @@ const ContextCompositionPanel = ({
   scopeRef,
   listRef,
   usageView = null,
-  onLayoutChange,
 }) => {
   const [scope, setScope] = useState("model_call");
   const [selectedCallKey, setSelectedCallKey] = useState(null);
   const [openGroup, setOpenGroup] = useState(null);
+  const [viewportHeight, setViewportHeight] = useState(null);
+  const modelCallPaneRef = useRef(null);
+  const runTreePaneRef = useRef(null);
 
-  const view = useMemo(
+  const modelCallView = useMemo(
     () =>
       selectContextCompositionView(bundle, {
-        scope,
-        callKey: scope === "model_call" ? selectedCallKey : null,
-      }) || { ...FALLBACK_VIEW, scope },
-    [bundle, scope, selectedCallKey],
+        scope: "model_call",
+        callKey: selectedCallKey,
+      }) || { ...FALLBACK_VIEW, scope: "model_call" },
+    [bundle, selectedCallKey],
   );
+  const runTreeView = useMemo(
+    () =>
+      selectContextCompositionView(bundle, { scope: "run_tree" }) || {
+        ...FALLBACK_VIEW,
+        scope: "run_tree",
+      },
+    [bundle],
+  );
+  const overallAvailable = modelCallView.available || runTreeView.available;
 
   useEffect(() => {
     if (!open) return;
@@ -754,11 +867,24 @@ const ContextCompositionPanel = ({
     setOpenGroup(null);
   }, [open]);
 
-  // Everything below changes how tall this panel renders. The shell animates
-  // its height from this, so it has to be told rather than left to observe.
-  useEffect(() => {
-    onLayoutChange?.();
-  }, [scope, openGroup, selectedCallKey, view, onLayoutChange]);
+  /* Re-measure the ACTIVE pane's own natural height whenever anything that can
+     change it changes: switching scope, expanding a group, picking a different
+     physical call, or the underlying data itself. Each pane renders with no
+     height constraint of its own, so scrollHeight is always its true natural
+     size — unlike measuring an element that is itself capped, which reports
+     the compressed height instead and feeds an ever-shrinking value back into
+     the cap on every pass. */
+  useLayoutEffect(() => {
+    const activePane = (
+      scope === "model_call" ? modelCallPaneRef : runTreePaneRef
+    ).current;
+    if (!activePane) return;
+    const raw = activePane.scrollHeight;
+    // 0 stays 0 — that is the "not measured yet" sentinel the height fallback
+    // below checks for, not a real content height to pad.
+    const measured = raw > 0 ? raw + CONTENT_HEIGHT_BUFFER : 0;
+    setViewportHeight((current) => (current === measured ? current : measured));
+  }, [scope, openGroup, selectedCallKey, modelCallView, runTreeView, usageView]);
 
   return (
     <div
@@ -796,7 +922,7 @@ const ContextCompositionPanel = ({
         >
           Context Usage
         </h2>
-        {view.available && (
+        {overallAvailable && (
           <ScopeToggle
             scope={scope}
             onChange={setScope}
@@ -811,39 +937,57 @@ const ContextCompositionPanel = ({
         Estimated contribution to the provider input for this response.
       </p>
 
+      {/* Vertical scroll + a fixed, JS-driven height live here — a SEPARATE
+          element from the horizontal slide, which only ever needs to clip. */}
       <div
         ref={listRef}
-        id="context-composition-scope-panel"
-        role="tabpanel"
-        aria-labelledby={`context-composition-${scope}-tab`}
-        aria-live="polite"
-        style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}
+        data-testid="context-composition-viewport"
+        style={{
+          minHeight: 0,
+          overflowX: "hidden",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+          height: viewportHeight
+            ? `${Math.min(viewportHeight, MAX_PANE_VIEWPORT_HEIGHT)}px`
+            : MAX_PANE_VIEWPORT_HEIGHT,
+          transition: HEIGHT_TRANSITION,
+        }}
       >
-        {!view.available && usageView ? (
-          <UsageOnlyView usage={usageView} palette={palette} />
-        ) : view.available ? (
-          <>
-            {scope === "model_call" && (
-              <CallPicker
-                calls={view.calls || []}
-                selectedCallKey={selectedCallKey || view.selectedCallKey}
-                onChange={setSelectedCallKey}
-                palette={palette}
-              />
-            )}
-            <Headline view={view} usageView={usageView} palette={palette} />
-            <CompositionBar view={view} palette={palette} />
-            <GroupList
-              view={view}
-              openGroup={openGroup}
-              onOpenGroup={setOpenGroup}
-              palette={palette}
-            />
-            <QualityLine view={view} palette={palette} />
-          </>
-        ) : (
-          <UnavailableView reason={view.reason} palette={palette} />
-        )}
+        <div
+          data-testid="context-composition-track"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            width: "200%",
+            transform: `translateX(${scope === "model_call" ? "0%" : "-50%"})`,
+            transition: SLIDE_TRANSITION,
+          }}
+        >
+          <ScopePane
+            paneRef={modelCallPaneRef}
+            scopeId="model_call"
+            active={scope === "model_call"}
+            view={modelCallView}
+            usageView={usageView}
+            selectedCallKey={selectedCallKey}
+            onSelectCall={setSelectedCallKey}
+            openGroup={scope === "model_call" ? openGroup : null}
+            onOpenGroup={setOpenGroup}
+            palette={palette}
+          />
+          <ScopePane
+            paneRef={runTreePaneRef}
+            scopeId="run_tree"
+            active={scope === "run_tree"}
+            view={runTreeView}
+            usageView={null}
+            selectedCallKey={null}
+            onSelectCall={() => {}}
+            openGroup={scope === "run_tree" ? openGroup : null}
+            onOpenGroup={setOpenGroup}
+            palette={palette}
+          />
+        </div>
       </div>
     </div>
   );
