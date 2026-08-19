@@ -456,6 +456,7 @@ const ChatInterface = () => {
     draftAttachments,
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
+    selectedReasoningEffort: session.selectedReasoningEffort,
     agentOrchestration: session.agentOrchestration,
     selectedToolkits: effectiveSelectedToolkits,
     selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
@@ -753,6 +754,31 @@ const ChatInterface = () => {
     ],
   );
 
+  /* Effort levels the selected model actually declares — absent list hides
+     the selector entirely (provider default applies). */
+  const reasoningEffortOptions = useMemo(() => {
+    const efforts = activeModelCapabilities?.reasoning_efforts;
+    return Array.isArray(efforts) ? efforts : [];
+  }, [activeModelCapabilities]);
+
+  const onSelectReasoningEffort = useCallback(
+    (level) => {
+      if (
+        stream.isDurableInteractionBlocked ||
+        stream.isTurnMutationBlocked
+      ) {
+        return;
+      }
+      session.handleSelectReasoningEffort(level);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      session.handleSelectReasoningEffort,
+      stream.isDurableInteractionBlocked,
+      stream.isTurnMutationBlocked,
+    ],
+  );
+
   const effectiveDisclaimer = useMemo(() => {
     if (
       stream.durableInteractionStatus === "awaiting" ||
@@ -924,6 +950,9 @@ const ChatInterface = () => {
       modelCatalog,
       selectedModelId: session.selectedModelId,
       onSelectModel,
+      reasoningEffortOptions,
+      selectedReasoningEffort: session.selectedReasoningEffort,
+      onSelectReasoningEffort,
       modelSelectDisabled: isModelSelectionDisabled,
       toolSelectDisabled: stream.isSecretCapturePending,
       showModelSelector: !session.isCharacterChat,
@@ -958,6 +987,7 @@ const ChatInterface = () => {
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+      reasoningEffortOptions, session.selectedReasoningEffort, onSelectReasoningEffort,
       modelSupportsTools,
       stream.isSecretCapturePending,
       t,

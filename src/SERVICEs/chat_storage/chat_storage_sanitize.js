@@ -224,6 +224,15 @@ export const sanitizeModel = (model) => {
     cleaned.maxTokens = Math.max(0, Math.floor(Number(model.maxTokens)));
   }
 
+  if (
+    typeof model.reasoningEffort === "string" &&
+    model.reasoningEffort.trim()
+  ) {
+    cleaned.reasoningEffort = trimText(model.reasoningEffort, 32)
+      .trim()
+      .toLowerCase();
+  }
+
   return cleaned;
 };
 

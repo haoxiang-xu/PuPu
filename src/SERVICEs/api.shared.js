@@ -229,6 +229,21 @@ const normalizeModelInputCapabilities = (capabilities) => {
   ) {
     normalized.max_context_window_tokens = windowTokens;
   }
+  // Ordered reasoning-effort levels declared by the capability file. Absent
+  // for models without selectable effort — callers hide the selector then.
+  if (Array.isArray(capabilityPayload.reasoning_efforts)) {
+    const reasoningEfforts = [];
+    capabilityPayload.reasoning_efforts.forEach((level) => {
+      if (typeof level !== "string") return;
+      const normalizedLevel = level.trim().toLowerCase();
+      if (normalizedLevel && !reasoningEfforts.includes(normalizedLevel)) {
+        reasoningEfforts.push(normalizedLevel);
+      }
+    });
+    if (reasoningEfforts.length > 0) {
+      normalized.reasoning_efforts = reasoningEfforts;
+    }
+  }
   if (isObject(capabilityPayload.computer_use)) {
     const computerUse = capabilityPayload.computer_use;
     normalized.computer_use = {

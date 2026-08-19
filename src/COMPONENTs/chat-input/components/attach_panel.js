@@ -92,6 +92,88 @@ const HeaderAction = ({ children, onAct, accent = false, isDark, theme }) => {
   );
 };
 
+/* ── palette header effort pills — segmented control in the model palette's
+   bottom header (palette_actions slot). Levels come from the selected model's
+   capability declaration; clicking the active level clears it back to the
+   provider default. ── */
+
+const EFFORT_SHORT_LABELS = {
+  minimal: "min",
+  low: "low",
+  medium: "med",
+  high: "high",
+};
+
+const EffortPillRow = ({ efforts, selected, onSelect, isDark, theme }) => {
+  if (!Array.isArray(efforts) || efforts.length === 0) return null;
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 2,
+        padding: 2,
+        borderRadius: 999,
+        backgroundColor: isDark
+          ? "rgba(255,255,255,0.06)"
+          : "rgba(0,0,0,0.05)",
+      }}
+    >
+      {efforts.map((level) => {
+        const isActive = level === selected;
+        const restColor = isActive
+          ? isDark
+            ? "rgba(255,255,255,0.92)"
+            : "rgba(0,0,0,0.85)"
+          : isDark
+            ? "rgba(255,255,255,0.38)"
+            : "rgba(0,0,0,0.4)";
+        return (
+          <button
+            key={level}
+            type="button"
+            title={level}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (typeof onSelect === "function") {
+                onSelect(isActive ? null : level);
+              }
+            }}
+            onMouseEnter={(e) => {
+              if (isActive) return;
+              e.currentTarget.style.color = isDark
+                ? "rgba(255,255,255,0.7)"
+                : "rgba(0,0,0,0.7)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = restColor;
+            }}
+            style={{
+              border: "none",
+              cursor: "pointer",
+              borderRadius: 999,
+              padding: "3px 7px",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+              fontSize: 10,
+              letterSpacing: "0.02em",
+              backgroundColor: isActive
+                ? isDark
+                  ? "rgba(255,255,255,0.16)"
+                  : "rgba(0,0,0,0.1)"
+                : "transparent",
+              color: restColor,
+              transition: "background-color 0.13s ease, color 0.13s ease",
+            }}
+          >
+            {EFFORT_SHORT_LABELS[level] || level}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 /* ── main component ── */
 
 const AttachPanel = forwardRef(({
@@ -107,6 +189,9 @@ const AttachPanel = forwardRef(({
   showModelSelector = true,
   selectedModelId,
   onSelectModel,
+  reasoningEffortOptions = [],
+  selectedReasoningEffort = null,
+  onSelectReasoningEffort,
   onGroupToggle,
   modelSelectDisabled,
   isDark,
@@ -286,6 +371,10 @@ const AttachPanel = forwardRef(({
     },
     [refreshToolkits, onRequestInputFocus],
   );
+
+  const handleContextCompositionOpenChange = useCallback((next) => {
+    setOpenSelector(next ? "context_composition" : null);
+  }, []);
 
   const handleWorkspaceOpenChange = useCallback(
     (next) => {
@@ -598,6 +687,15 @@ const AttachPanel = forwardRef(({
               variant="palette"
               palette_chip="model"
               palette_rail
+              palette_actions={
+                <EffortPillRow
+                  efforts={reasoningEffortOptions}
+                  selected={selectedReasoningEffort}
+                  onSelect={onSelectReasoningEffort}
+                  isDark={isDark}
+                  theme={theme}
+                />
+              }
             />,
             "model",
           )}
@@ -623,6 +721,11 @@ const AttachPanel = forwardRef(({
               usageView={contextUsageView}
               isDark={isDark}
               highlight={highlight}
+              // Shares openSelector with the model/tools/workspace menus so
+              // opening one of the other three closes this, and vice versa —
+              // without this it was its own, uncoordinated open/closed island.
+              open={openSelector === "context_composition"}
+              onOpenChange={handleContextCompositionOpenChange}
             />
           </div>
         ) : null}

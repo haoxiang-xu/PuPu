@@ -10,6 +10,7 @@
 - [unchain 对外化定调 (2026-08-04 拍板)](unchain-externalization-charter.md) — 默认存储=JSON文件repo(不自带SQLite)/API承诺=0.x四项显式列表+minor弃用窗口/manifest立即加schema_version/先迁移后扩展;host扩展走metadata.hosts.<id>不碰封闭枚举;首发试点=attach panel widget(live artifact);唯二并行项已授权但等P0 baseline+与codex迁移切片错开才开工
 - [unchain 静默丢字段面](unchain-drop-silently-whitelists.md) — normalizer artifact payload / registry summary 都是白名单构造,未列字段无声消失;新透传字段=改解析+改summary+端到端测试三件齐,缺一视为没做;metadata 是唯一安全透传位
 - [Context V2 边界契约与状态矩阵](../../../docs/architecture/context-v2-boundary-contracts.md) — PuPu host / journal / model / provider / interaction / lock 六条边界的 canonical current-state 索引
+- [Tool Output Central Manager（统一工具输出管理）Stage0](../../../docs/architecture/memory-tool-output-module-stage0.md) — 5.3 实施起点：产物持久化 + projection policy + 压缩边界冻结，不改模型行为
 - [toolkit.toml 双解析器](pupu-duplicate-toolkit-toml-parser.md) — unchain registry 与 PuPu adapter 各读一遍,PuPu 的 [display] 生效路径不走 registry;manifest 新段只改一处=没有协议,删 PuPu 第二份必须同 PR
 - [HS 交棒返回不新设 AC 编号](hs-scope-freeze-no-new-ac.md) — HS scope 冻结在 HANDOFF 事件,新 AC 编号会使自己刚给的 owner confirmation 在送裁门禁失效(一案内实测三次);改挂既有 AC 子例;含 contribution 编号不得重复
 - [Custom Model Provider 后端 (S2)](custom-model-provider-backend.md) — 协议孪生映射(anthropic→hyperspace/openai-responses→openai/ollama→ollama)+factory+key隔离(A8专名字段,env回退阻断)+redact+test端点；custom_provider.py新模块承重,adapter只加cfg-gated分支(543测试0回归)；含对抗性评审5缺陷整改(C0/C5 graph步泄key·C1/C9 interject误路由·C6 durable resume丢custom·C2 max_tokens被当密钥·C8白名单外键丢弃),统一修法="仅当provider==cfg.twin才传cfg/factory";factory测试须patch unchain.providers.*在build前

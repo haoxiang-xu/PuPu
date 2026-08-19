@@ -852,6 +852,7 @@ export const useChatStream = ({
   draftAttachments,
   setDraftAttachments,
   selectedModelId,
+  selectedReasoningEffort,
   agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
@@ -929,6 +930,8 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedReasoningEffortRef = useRef(selectedReasoningEffort);
+  selectedReasoningEffortRef.current = selectedReasoningEffort;
   const selectedToolkitsRef = useRef(selectedToolkits);
   selectedToolkitsRef.current = selectedToolkits;
   /* Live translator ref so send-time toasts localize without perturbing the
@@ -6838,6 +6841,11 @@ export const useChatStream = ({
               attachments: payloadAttachments,
               options: {
                 modelId: effectiveModelId,
+                ...(!runIsCharacterChat &&
+                typeof selectedReasoningEffortRef.current === "string" &&
+                selectedReasoningEffortRef.current
+                  ? { reasoningEffort: selectedReasoningEffortRef.current }
+                  : {}),
                 memory_enabled: memoryEnabled,
                 ...(durableInteractionsRequired
                   ? { durable_interactions_required: true }

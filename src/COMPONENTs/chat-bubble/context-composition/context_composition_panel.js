@@ -8,6 +8,8 @@ import {
 } from "react";
 
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import { selectContextCompositionView } from "../../../SERVICEs/context_composition_v1";
 
 export const TITLE_ID = "context-composition-title";
@@ -213,40 +215,106 @@ const ScopeToggle = ({ scope, onChange, modelCallRef, palette }) => (
   </div>
 );
 
+/**
+ * Trigger row for CallPicker's Select — same compact, secondary sizing the
+ * native <select> it replaces used (26px, 11.5px), so swapping the engine
+ * doesn't also change how much visual weight this utility control carries
+ * next to the real content below it.
+ */
+const CallPickerTrigger = ({ label, open, palette }) => (
+  <button
+    type="button"
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+      width: "100%",
+      minWidth: 0,
+      height: 26,
+      marginBottom: 9,
+      padding: "0 7px",
+      border: "1px solid var(--pupu-menu-border, transparent)",
+      borderRadius: 6,
+      backgroundColor: palette.surface,
+      color: palette.text,
+      fontFamily: "NunitoSans, sans-serif",
+      fontSize: 11.5,
+      cursor: "pointer",
+    }}
+  >
+    <span
+      style={{
+        minWidth: 0,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+    <Icon
+      src="arrow_down"
+      color={palette.faint}
+      style={{
+        width: 10,
+        height: 10,
+        flex: "0 0 auto",
+        opacity: 0.75,
+        // Same disclosure convention as the category rows' chevrons:
+        // closed points down (arrow_down's natural orientation), open
+        // points up.
+        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+        transition: "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+      }}
+    />
+  </button>
+);
+
+/**
+ * Which physical call this scope is showing — riding the SAME BUILTIN Select
+ * (palette variant) as the model/tools/workspace menus, rather than a native
+ * <select>, so it opens as one more frosted menu in this family instead of
+ * the browser's own OS-styled dropdown. It manages its own open state: unlike
+ * those three, nothing outside this already-open popover needs to know when
+ * this one opens, so there is no shared state to coordinate it with.
+ */
 const CallPicker = ({ calls, selectedCallKey, onChange, palette }) => {
+  const [open, setOpen] = useState(false);
   if (calls.length < 2) return null;
   const selectedIndex = calls.findIndex((call) => call.key === selectedCallKey);
   const activeIndex = selectedIndex >= 0 ? selectedIndex : calls.length - 1;
+  const options = calls.map((call, index) => ({
+    value: String(index),
+    label: `Call ${index + 1} · ${call.provider} / ${call.model}`,
+  }));
 
   return (
-    <select
-      id="context-composition-call-picker"
+    <Select
       aria-label="Physical model call"
+      options={options}
       value={String(activeIndex)}
-      onChange={(event) => {
-        const call = calls[Number(event.target.value)];
+      set_value={(nextValue) => {
+        const call = calls[Number(nextValue)];
         if (call) onChange(call.key);
       }}
-      style={{
-        width: "100%",
-        minWidth: 0,
-        height: 26,
-        marginBottom: 9,
-        padding: "0 7px",
-        border: "1px solid var(--pupu-menu-border, transparent)",
-        borderRadius: 6,
-        color: palette.text,
-        backgroundColor: palette.surface,
-        fontFamily: "NunitoSans, sans-serif",
-        fontSize: 11.5,
-      }}
-    >
-      {calls.map((call, index) => (
-        <option key={call.key} value={String(index)}>
-          {`Call ${index + 1} · ${call.provider} / ${call.model}`}
-        </option>
-      ))}
-    </select>
+      filterable={false}
+      open={open}
+      on_open_change={setOpen}
+      dropdown_position="bottom"
+      variant="palette"
+      /* A long run reaches dozens of calls; without a ceiling the dropdown's
+         list has no max-height at all and grows past the screen. 260 matches
+         the workspace selector on the same attach-panel row. */
+      dropdown_style={{ maxHeight: 260 }}
+      custom_trigger={
+        <CallPickerTrigger
+          label={options[activeIndex]?.label ?? ""}
+          open={open}
+          palette={palette}
+        />
+      }
+    />
   );
 };
 
@@ -436,7 +504,12 @@ const Row = ({
       disabled={!interactive}
       style={{
         display: "grid",
-        gridTemplateColumns: "11px minmax(0, 1fr) auto",
+        // A fourth, fixed-width track for the disclosure chevron — reserved on
+        // EVERY row, not just expandable ones, so a row without one (the
+        // residual, or UsageOnlyView's Cached/New-this-turn rows) still lines
+        // its value up with the expandable rows above and below it instead of
+        // sitting flush against an edge they don't share.
+        gridTemplateColumns: "11px minmax(0, 1fr) auto 14px",
         alignItems: "center",
         gap: 8,
         width: "100%",
@@ -485,6 +558,23 @@ const Row = ({
       >
         {value}
       </span>
+      {interactive && (
+        <Icon
+          src="arrow_down"
+          color={palette.faint}
+          style={{
+            width: 10,
+            height: 10,
+            justifySelf: "center",
+            opacity: 0.75,
+            // Closed points down (arrow_down's natural orientation), open
+            // points up — keep this row's and CallPicker's chevrons on the
+            // same rotation language.
+            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          }}
+        />
+      )}
     </button>
   );
 };
@@ -938,7 +1028,22 @@ const ContextCompositionPanel = ({
       </p>
 
       {/* Vertical scroll + a fixed, JS-driven height live here — a SEPARATE
-          element from the horizontal slide, which only ever needs to clip. */}
+          element from the horizontal slide, which only ever needs to clip.
+
+          Before the first measurement, this sizes to content on its own
+          ("auto", capped only by the hard ceiling) instead of committing to
+          MAX_PANE_VIEWPORT_HEIGHT and animating down once the real height
+          lands. The whole popover already has one reveal — Tooltip's own
+          scale+opacity, the same one every other menu on this row uses — and
+          a SECOND, independent height animation stacked on top of it is
+          exactly what read as not matching them: it fades in, but then also
+          visibly grows or shrinks to size a beat later, which they never do
+          because their height was never anything but auto in the first
+          place. `auto` cannot be CSS-transitioned, so this first paint is
+          necessarily an immediate snap, not an animation — matching them
+          exactly. Only scope switches and group expansions AFTER that first
+          paint animate, because only then is there a prior numeric height for
+          the browser to interpolate from. */}
       <div
         ref={listRef}
         data-testid="context-composition-viewport"
@@ -949,7 +1054,8 @@ const ContextCompositionPanel = ({
           overscrollBehavior: "contain",
           height: viewportHeight
             ? `${Math.min(viewportHeight, MAX_PANE_VIEWPORT_HEIGHT)}px`
-            : MAX_PANE_VIEWPORT_HEIGHT,
+            : "auto",
+          maxHeight: viewportHeight ? undefined : MAX_PANE_VIEWPORT_HEIGHT,
           transition: HEIGHT_TRANSITION,
         }}
       >

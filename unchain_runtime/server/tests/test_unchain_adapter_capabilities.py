@@ -3142,6 +3142,101 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(tool_call.get("toolkit_name"), "Core")
         self.assertEqual(tool_result.get("toolkit_id"), "core")
         self.assertEqual(tool_result.get("toolkit_name"), "Core")
+        self.assertEqual(tool_result.get("tool_result_policy"), "default")
+
+    def test_stream_chat_events_enriches_tool_result_policy_from_tool_metadata(self) -> None:
+        class FakeTool:
+            _pupu_tool_result_policy = "artifact_only"
+
+        class FakeToolkit:
+            def __init__(self):
+                self.tools = {"read": FakeTool()}
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_ID_ATTR, "core")
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_NAME_ATTR, "Core")
+
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-5"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
+                self._toolkits = [FakeToolkit()]
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                **_kwargs,
+            ):
+                del messages, payload, max_iterations, on_tool_confirm
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "tool_call",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "call_id": "call-1",
+                            "tool_name": "read",
+                            "arguments": {"path": "/tmp/demo.txt"},
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "tool_result",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "call_id": "call-1",
+                            "tool_name": "read",
+                            "result": {"ok": True},
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        with mock.patch.object(unchain_adapter, "_load_recipe_from_options", return_value=None), \
+             mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                )
+            )
+
+        tool_call = next(event for event in events if event.get("type") == "tool_call")
+        tool_result = next(event for event in events if event.get("type") == "tool_result")
+        self.assertEqual(tool_call.get("tool_result_policy"), "artifact_only")
+        self.assertEqual(tool_result.get("tool_result_policy"), "artifact_only")
 
     def test_stream_chat_events_forwards_confirmation_capable_shell_tool_call(self) -> None:
         class FakeToolkit:
@@ -4639,6 +4734,115 @@ class CreateAgentRecipeWiringTests(unittest.TestCase):
                     except Exception:
                         pass
                 self.assertIn("gpt-4o", captured.get("model", ""))
+
+
+class ReasoningEffortTests(unittest.TestCase):
+    def _write_capability_file(self, payload: dict) -> tuple:
+        temp_dir = tempfile.TemporaryDirectory()
+        capability_file = Path(temp_dir.name) / "model_capabilities.json"
+        capability_file.write_text(json.dumps(payload), encoding="utf-8")
+        return temp_dir, capability_file
+
+    def test_catalog_carries_declared_reasoning_efforts(self) -> None:
+        payload = {
+            "gpt-5.6-luna": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "supports_reasoning": True,
+                "reasoning_efforts": ["minimal", "low", "medium", "high"],
+            },
+            "gpt-4.1": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "supports_reasoning": False,
+            },
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            catalog = unchain_adapter.get_model_capability_catalog()
+        self.assertEqual(
+            catalog["openai:gpt-5.6-luna"]["reasoning_efforts"],
+            ["minimal", "low", "medium", "high"],
+        )
+        # Absent beats empty-filled: models without levels omit the key.
+        self.assertNotIn("reasoning_efforts", catalog["openai:gpt-4.1"])
+
+    def test_catalog_drops_malformed_effort_entries(self) -> None:
+        payload = {
+            "gpt-5.6-luna": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "reasoning_efforts": ["  high  ", "", 7, None],
+            },
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            catalog = unchain_adapter.get_model_capability_catalog()
+        self.assertEqual(
+            catalog["openai:gpt-5.6-luna"]["reasoning_efforts"],
+            ["high"],
+        )
+
+    def test_openai_payload_carries_reasoning_effort(self) -> None:
+        payload = unchain_adapter._build_payload(
+            "openai",
+            {"reasoningEffort": "High"},
+        )
+        self.assertEqual(payload["reasoning"], {"effort": "high"})
+
+    def test_anthropic_payload_maps_effort_to_thinking_budget(self) -> None:
+        payload = unchain_adapter._build_payload(
+            "anthropic",
+            {"reasoningEffort": "medium"},
+        )
+        self.assertEqual(
+            payload["thinking"],
+            {"type": "enabled", "budget_tokens": 16384},
+        )
+
+    def test_anthropic_thinking_budget_clamps_below_max_tokens(self) -> None:
+        payload = unchain_adapter._build_payload(
+            "anthropic",
+            {"reasoningEffort": "high", "maxTokens": 8000},
+        )
+        self.assertEqual(payload["max_tokens"], 8000)
+        self.assertEqual(
+            payload["thinking"],
+            {"type": "enabled", "budget_tokens": 8000 - 1024},
+        )
+
+    def test_unknown_effort_and_unsupported_providers_are_omitted(self) -> None:
+        self.assertNotIn(
+            "reasoning",
+            unchain_adapter._build_payload(
+                "openai",
+                {"reasoningEffort": "ultra"},
+            ),
+        )
+        ollama_payload = unchain_adapter._build_payload(
+            "ollama",
+            {"reasoningEffort": "high"},
+        )
+        self.assertNotIn("reasoning", ollama_payload)
+        self.assertNotIn("thinking", ollama_payload)
+        # anthropic has no "minimal" tier — omitted, provider default applies
+        self.assertNotIn(
+            "thinking",
+            unchain_adapter._build_payload(
+                "anthropic",
+                {"reasoningEffort": "minimal"},
+            ),
+        )
 
 
 if __name__ == "__main__":

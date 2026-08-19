@@ -30,8 +30,32 @@ const pressureColor = (pressure, highlight) => {
 };
 
 const ContextCompositionProgress = forwardRef(
-  ({ bundle, usageView = null, isDark = false, highlight }, ref) => {
-    const [open, setOpen] = useState(false);
+  (
+    {
+      bundle,
+      usageView = null,
+      isDark = false,
+      highlight,
+      open: openProp,
+      onOpenChange,
+    },
+    ref,
+  ) => {
+    /* Controlled when a parent passes `open` (attach_panel does, so this ring
+       shares the SAME openSelector state the model/tools/workspace menus use
+       — otherwise this popover and theirs are two independent open/closed
+       islands that never learn about each other, and either can sit open
+       while the other opens too). Falls back to owning its own state so the
+       standalone tests (and any other caller that doesn't need coordination)
+       keep working unchanged — the same controlled/uncontrolled duality
+       Tooltip and Select already use. */
+    const isControlled = openProp !== undefined;
+    const [internalOpen, setInternalOpen] = useState(false);
+    const open = isControlled ? openProp : internalOpen;
+    const setOpen = (next) => {
+      if (!isControlled) setInternalOpen(next);
+      onOpenChange?.(next);
+    };
     const triggerRef = useRef(null);
     const panelRef = useRef(null);
     const listRef = useRef(null);
@@ -51,7 +75,8 @@ const ContextCompositionProgress = forwardRef(
         open: () => setOpen(true),
         focus: () => triggerRef.current?.focus?.(),
       }),
-      [],
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [isControlled, onOpenChange],
     );
 
     useDropdownWheelGuard(open, panelRef, listRef);

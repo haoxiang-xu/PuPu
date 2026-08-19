@@ -35,6 +35,7 @@ from memory_v2_context import (  # noqa: E402
     _redact_for_journal,
     bootstrap_memory_v2_current_request,
     build_memory_v2_optimizer_module,
+    build_memory_v2_tool_runtime_config,
     compile_context_envelope,
     import_memory_v2_history,
     persist_memory_v2_semantic_event,
@@ -869,6 +870,18 @@ class MemoryV2ContextTests(unittest.TestCase):
         persisted_result = runtime.calls[1][1]["event"]
         self.assertIn("full_output_ref", persisted_result)
         self.assertIn("preview", persisted_result["result"])
+        self.assertIn("projection", persisted_result["result"])
+        self.assertIn("result_projection", persisted_result)
+        self.assertEqual(
+            persisted_result["result_projection"]["projection_policy"],
+            "default",
+        )
+        self.assertEqual(
+            persisted_result["result_projection"]["projection_version"],
+            "v1",
+        )
+        self.assertFalse(persisted_result["result_projection"]["inline"])
+        self.assertGreater(persisted_result["result_projection"]["projection_bytes"], 0)
         self.assertEqual(
             runtime.calls[0][1]["content"],
             b'{"text":"' + (b"x" * 20_000) + b'"}',
@@ -895,6 +908,103 @@ class MemoryV2ContextTests(unittest.TestCase):
         self.assertEqual(len(compact["messages"]), 2)
         self.assertNotIn("large repeated prompt", str(compact))
         self.assertNotIn("secret conversation", str(compact))
+
+    def test_build_tool_runtime_config_marks_projection_for_active_mode(self):
+        runtime = _FakeRuntime()
+        runtime.calls.clear()
+        admission = SimpleNamespace(
+            mode="active",
+            is_active=True,
+            owner_chat_id="chat_a",
+            session_id="session_a",
+            attempt_id="attempt_a",
+            source_attempt_id="source_attempt_a",
+        )
+        config = build_memory_v2_tool_runtime_config(
+            admission,
+            run_id="run_a",
+            agent_id="agent_a",
+        )
+        self.assertEqual(config["memory_v2_context"]["mode"], "active")
+        self.assertTrue(config["tool_output_projection"])
+
+        shadow_admission = SimpleNamespace(
+            mode="shadow",
+            is_active=False,
+            owner_chat_id="chat_a",
+            session_id="session_a",
+            attempt_id="attempt_a",
+            source_attempt_id="source_attempt_a",
+        )
+        shadow_config = build_memory_v2_tool_runtime_config(
+            shadow_admission,
+            run_id="run_a",
+            agent_id="agent_a",
+        )
+        self.assertEqual(shadow_config["memory_v2_context"]["mode"], "shadow")
+        self.assertIn("tool_result_budget", shadow_config)
+        self.assertNotIn("tool_output_projection", shadow_config)
+
+        off_config = build_memory_v2_tool_runtime_config(
+            None,
+            run_id="run_a",
+            agent_id="agent_a",
+        )
+        self.assertEqual(off_config, {})
+
+    def test_tool_result_projection_respects_head_tail_policy(self):
+        runtime = _FakeRuntime()
+        admission = _admission(runtime)
+        persist_memory_v2_semantic_event(
+            admission,
+            {
+                "type": "tool_result",
+                "run_id": "run_a",
+                "call_id": "call_head_tail",
+                "tool_name": "search",
+                "tool_result_policy": "head_tail",
+                "result": {"text": "a" * 3000},
+            },
+        )
+        persisted_result = next(
+            (kwargs["event"] for name, kwargs in runtime.calls if name == "append"),
+            None,
+        )
+        self.assertIsNotNone(persisted_result)
+        self.assertEqual(persisted_result["result"]["projection"], "head_tail")
+        self.assertIn("preview", persisted_result["result"])
+        self.assertIn("tail_preview", persisted_result["result"])
+        self.assertEqual(
+            persisted_result["result_projection"]["projection_policy"],
+            "head_tail",
+        )
+        self.assertFalse(persisted_result["result_projection"]["inline"])
+
+    def test_tool_result_projection_respects_artifact_only_policy(self):
+        runtime = _FakeRuntime()
+        admission = _admission(runtime)
+        persist_memory_v2_semantic_event(
+            admission,
+            {
+                "type": "tool_result",
+                "run_id": "run_a",
+                "call_id": "call_artifact_only",
+                "tool_name": "search",
+                "tool_result_policy": "artifact_only",
+                "result": {"text": "keep it short"},
+            },
+        )
+        persisted_result = next(
+            (kwargs["event"] for name, kwargs in runtime.calls if name == "append"),
+            None,
+        )
+        self.assertIsNotNone(persisted_result)
+        self.assertEqual(persisted_result["result"]["projection"], "artifact_only")
+        self.assertEqual(
+            persisted_result["result_projection"]["projection_policy"],
+            "artifact_only",
+        )
+        self.assertNotIn("preview", persisted_result["result"])
 
     def test_active_persistence_failure_marks_partial_without_raw_error(self):
         runtime = _FakeRuntime()

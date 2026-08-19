@@ -96,6 +96,7 @@ from memory_v2_context import (  # noqa: E402
     resolve_memory_v2_admission as _resolve_memory_v2_admission,
 )
 from memory_v2_error_contract import safe_context_v2_message  # noqa: E402
+from tool_output_management import SUPPORTED_TOOL_OUTPUT_POLICIES  # noqa: E402
 
 
 def _memory_v2_failure_reason(error: Any) -> str:
@@ -3517,6 +3518,19 @@ def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[s
         and window_tokens > 0
     ):
         normalized["max_context_window_tokens"] = int(window_tokens)
+    # Optional: selectable reasoning-effort levels, declared per model in the
+    # capability file. Omitted (never empty-filled) when a model has none, so
+    # the renderer hides the whole effort control instead of rendering an
+    # empty one.
+    raw_efforts = raw_capabilities.get("reasoning_efforts")
+    if isinstance(raw_efforts, list):
+        efforts = [
+            level.strip()
+            for level in raw_efforts
+            if isinstance(level, str) and level.strip()
+        ]
+        if efforts:
+            normalized["reasoning_efforts"] = efforts
     return normalized
 
 
@@ -4120,6 +4134,37 @@ def _get_runtime_toolkit_metadata(toolkit_obj: Any) -> Dict[str, str]:
     }
 
 
+def _resolve_tool_result_policy(tool_obj: Any) -> str:
+    if not tool_obj:
+        return "default"
+
+    candidate_values: list[Any] = []
+    try:
+        tool_meta = getattr(tool_obj, "__tool_metadata__", None)
+        if isinstance(tool_meta, dict):
+            candidate_values.append(tool_meta.get("tool_result_policy"))
+            candidate_values.append(tool_meta.get("tool_result_projection_policy"))
+    except Exception:
+        pass
+    candidate_values.extend(
+        (
+            getattr(tool_obj, "tool_result_policy", None),
+            getattr(tool_obj, "tool_result_projection_policy", None),
+            getattr(tool_obj, "_pupu_tool_result_policy", None),
+            getattr(tool_obj, "_pupu_tool_result_projection_policy", None),
+            getattr(tool_obj, "_pupu_tool_output_policy", None),
+            getattr(tool_obj, "_tool_output_projection_policy", None),
+        )
+    )
+    for candidate in candidate_values:
+        if not isinstance(candidate, str):
+            continue
+        normalized = candidate.strip().lower()
+        if normalized in SUPPORTED_TOOL_OUTPUT_POLICIES:
+            return normalized
+    return "default"
+
+
 def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, Any]]:
     index: Dict[str, Dict[str, Any]] = {}
     for toolkit_obj in toolkits:
@@ -4143,6 +4188,7 @@ def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, An
                 "toolkit_name": toolkit_name or toolkit_id,
                 "vault_routed": toolkit_vault_routed
                 or getattr(tool_obj, "_pupu_vault_plugin", None) is not None,
+                "tool_result_policy": _resolve_tool_result_policy(tool_obj),
             }
     return index
 
@@ -4326,6 +4372,10 @@ def _enrich_tool_event_with_toolkit_metadata(
         _redact_tool_result_images(event, session_id)
 
     enriched = dict(event)
+    if toolkit_meta:
+        policy = toolkit_meta.get("tool_result_policy")
+        if policy is not None:
+            enriched["tool_result_policy"] = str(policy)
     if arguments_contain_vault_handle or bool(
         (toolkit_meta or {}).get("vault_routed", False)
     ):
@@ -5218,6 +5268,15 @@ _CUSTOM_MAX_TOKENS_PARAM_BY_PROTOCOL = {
 }
 
 
+_REASONING_EFFORT_LEVELS = ("minimal", "low", "medium", "high")
+_ANTHROPIC_THINKING_BUDGET_BY_EFFORT = {
+    "low": 4096,
+    "medium": 16384,
+    "high": 65536,
+}
+_ANTHROPIC_THINKING_BUDGET_FLOOR = 1024
+
+
 def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:
     payload: Dict[str, float] = {}
 
@@ -5243,6 +5302,35 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
             payload["max_tokens"] = max_tokens_value
         else:
             payload["num_predict"] = max_tokens_value
+
+    # Reasoning effort: declared per model in the capability file, selected by
+    # the renderer, and shipped through each provider's native request key
+    # (already present in allowed_payload_keys). Unknown levels and providers
+    # without a mapping are silently omitted — the provider default applies.
+    effort = options.get("reasoningEffort")
+    if isinstance(effort, str) and cfg is None:
+        normalized_effort = effort.strip().lower()
+        if normalized_effort in _REASONING_EFFORT_LEVELS:
+            if provider == "openai":
+                payload["reasoning"] = {"effort": normalized_effort}
+            elif provider == "anthropic":
+                budget = _ANTHROPIC_THINKING_BUDGET_BY_EFFORT.get(
+                    normalized_effort
+                )
+                if budget is not None:
+                    max_tokens_cap = payload.get("max_tokens")
+                    if (
+                        isinstance(max_tokens_cap, int)
+                        and max_tokens_cap > _ANTHROPIC_THINKING_BUDGET_FLOOR
+                    ):
+                        budget = max(
+                            _ANTHROPIC_THINKING_BUDGET_FLOOR,
+                            min(budget, max_tokens_cap - 1024),
+                        )
+                    payload["thinking"] = {
+                        "type": "enabled",
+                        "budget_tokens": budget,
+                    }
 
     return payload
 

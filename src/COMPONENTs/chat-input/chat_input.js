@@ -47,6 +47,9 @@ const ChatInput = ({
   modelCatalog,
   selectedModelId,
   onSelectModel,
+  reasoningEffortOptions = [],
+  selectedReasoningEffort = null,
+  onSelectReasoningEffort,
   modelSelectDisabled = false,
   showModelSelector = true,
   attachments = [],
@@ -505,6 +508,9 @@ const ChatInput = ({
                       showModelSelector={showModelSelector}
                       selectedModelId={selectedModelId}
                       onSelectModel={onSelectModel}
+                      reasoningEffortOptions={reasoningEffortOptions}
+                      selectedReasoningEffort={selectedReasoningEffort}
+                      onSelectReasoningEffort={onSelectReasoningEffort}
                       onGroupToggle={handleGroupToggle}
                       modelSelectDisabled={modelSelectDisabled}
                       isDark={isDark}

@@ -14,6 +14,7 @@ import {
   unregister as ttl_unregister,
   requestOpen as ttl_requestOpen,
   notifyClose as ttl_notifyClose,
+  isClickInNestedTooltip as ttl_isClickInNestedTooltip,
 } from "./tooltip_trigger_listener";
 
 let _tooltipIdCounter = 0;
@@ -477,7 +478,12 @@ const Tooltip = ({
 
   useEffect(() => {
     const id = ttl_id_ref.current;
-    ttl_register(id, force_close);
+    ttl_register(
+      id,
+      force_close,
+      () => tooltip_ref.current,
+      () => trigger_ref.current,
+    );
     return () => {
       ttl_notifyClose(id);
       ttl_unregister(id);
@@ -486,7 +492,7 @@ const Tooltip = ({
 
   useEffect(() => {
     if (isOpen) {
-      ttl_requestOpen(ttl_id_ref.current);
+      ttl_requestOpen(ttl_id_ref.current, trigger_ref.current);
     } else {
       ttl_notifyClose(ttl_id_ref.current);
     }
@@ -795,6 +801,20 @@ const Tooltip = ({
     const handleMouseDown = (e) => {
       if (trigger_ref.current?.contains(e.target)) return;
       if (tooltip_ref.current?.contains(e.target)) return;
+      /* Every tooltip bubble renders into the SAME shared portal root
+         (_acquirePortal), as a DOM SIBLING of every other one — not a
+         descendant of whichever tooltip's own trigger it visually sits
+         inside of. A tooltip nested inside another one's content (e.g. a
+         Select's own dropdown rendered inside an already-open popover) is
+         therefore invisible to the containment checks above: the click lands
+         outside THIS tooltip's own trigger/bubble nodes even though it is
+         squarely inside the popover the user is still interacting with,
+         closing the outer one out from under them. Only exempt clicks
+         inside a genuine CHILD popover (one opened from within this
+         tooltip's own bubble) — a click elsewhere in the shared portal,
+         e.g. some other row in this same popover, must still close THIS
+         tooltip normally when it isn't the one being clicked into. */
+      if (ttl_isClickInNestedTooltip(tooltip_ref.current, e.target)) return;
       if (isControlled) {
         if (on_open_change) on_open_change(false);
       }
@@ -808,10 +828,20 @@ const Tooltip = ({
         setIsClickOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleMouseDown);
+    /* CAPTURE phase, deliberately. Portal content bubbles through the REACT
+       tree, not the DOM tree — a popover physically portaled to document.body
+       still has its React ancestors wherever its component sits (e.g. the
+       attach panel's stop-propagation selectWrap around the trigger). Any
+       ancestor's synthetic stopPropagation kills the native mousedown at
+       React's delegation point, so a bubble-phase document listener would
+       simply never fire for clicks INSIDE such a popover — leaving a nested
+       dropdown unable to close on them. Capture runs on the way DOWN, before
+       any of that; the containment checks above only read e.target, so the
+       phase changes nothing else. */
+    document.addEventListener("mousedown", handleMouseDown, true);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mousedown", handleMouseDown, true);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isClickEnabled, isClickOpen, isControlled, on_open_change, open]);

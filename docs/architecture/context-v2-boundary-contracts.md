@@ -112,6 +112,7 @@
 - 2026-08-12 的 PuPu `4a050d75` 与 Unchain `d0572979` 已落地 CTX-B01 至 CTX-B05 的代码与聚焦测试。
 - CTX-B06 的runtime兼容真相只来自实际import code导出的strict protocol manifest；release连续性只来自同一immutable wheel的SHA-256、manifest digest与完整消费证据。Git revision/source/dirty只作诊断或构建provenance。
 - active rollout 前，CTX-S01 至 CTX-S08 中全部适用单元格必须在同一冻结artifact上 `PASS`。`NOT_RUN/PENDING` 只能维持 shadow/off并给出 `INCOMPLETE`；已运行失败是 `NO-GO`。`context_memory.interaction_resolution_compat`与`durable_interaction.expected_interaction_id_cas`均为required runtime feature；缺失时必须拒绝，不得以SHA、checkout状态或任何lock替代该门禁。
+- 统一 Tool Output projection 的新边界尚在 Stage0 前置阶段，文档见 [`memory-tool-output-module-stage0.md`](memory-tool-output-module-stage0.md)；未补齐 BC/SEQ/AC 映射前不进入 P0 判定。
 
 ## 五、维护规则
 

@@ -209,6 +209,12 @@ export const useChatSessionState = ({
       ? initialChat.model.id
       : "unchain-unset",
   );
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState(() =>
+    typeof initialChat.model?.reasoningEffort === "string" &&
+    initialChat.model.reasoningEffort.trim()
+      ? initialChat.model.reasoningEffort
+      : null,
+  );
   const [agentOrchestration, setAgentOrchestration] = useState(
     () => initialChat.agentOrchestration || { mode: "default" },
   );
@@ -258,6 +264,12 @@ export const useChatSessionState = ({
         },
       ],
     ]),
+  );
+  const reasoningEffortRef = useRef(
+    typeof initialChat.model?.reasoningEffort === "string" &&
+    initialChat.model.reasoningEffort.trim()
+      ? initialChat.model.reasoningEffort
+      : null,
   );
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
@@ -365,6 +377,13 @@ export const useChatSessionState = ({
             : "unchain-unset";
         modelIdRef.current = nextModelId;
         setSelectedModelId(nextModelId);
+        const nextEffort =
+          typeof nextActiveChat.model?.reasoningEffort === "string" &&
+          nextActiveChat.model.reasoningEffort.trim()
+            ? nextActiveChat.model.reasoningEffort
+            : null;
+        reasoningEffortRef.current = nextEffort;
+        setSelectedReasoningEffort(nextEffort);
         threadIdRef.current =
           typeof nextActiveChat.threadId === "string" &&
           nextActiveChat.threadId.trim()
@@ -485,6 +504,12 @@ export const useChatSessionState = ({
           ? nextActiveChat.model.id
           : "unchain-unset";
       setSelectedModelId(modelIdRef.current);
+      reasoningEffortRef.current =
+        typeof nextActiveChat.model?.reasoningEffort === "string" &&
+        nextActiveChat.model.reasoningEffort.trim()
+          ? nextActiveChat.model.reasoningEffort
+          : null;
+      setSelectedReasoningEffort(reasoningEffortRef.current);
     };
 
     // The Test API, reload restoration, or another mounted surface can switch
@@ -629,7 +654,16 @@ export const useChatSessionState = ({
     threadIdRef.current = resolvedThreadId;
     setChatThreadId(currentChatId, resolvedThreadId, { source: "chat-page" });
     if (!isCharacterChat) {
-      setChatModel(currentChatId, { id: modelIdRef.current }, { source: "chat-page" });
+      setChatModel(
+        currentChatId,
+        {
+          id: modelIdRef.current,
+          ...(reasoningEffortRef.current
+            ? { reasoningEffort: reasoningEffortRef.current }
+            : {}),
+        },
+        { source: "chat-page" },
+      );
     }
   }, []);
 
@@ -750,7 +784,42 @@ export const useChatSessionState = ({
 
       modelIdRef.current = modelId;
       setSelectedModelId(modelId);
-      setChatModel(currentChatId, { id: modelId }, { source: "chat-page" });
+      setChatModel(
+        currentChatId,
+        {
+          id: modelId,
+          ...(reasoningEffortRef.current
+            ? { reasoningEffort: reasoningEffortRef.current }
+            : {}),
+        },
+        { source: "chat-page" },
+      );
+    },
+    [activeChatKind],
+  );
+
+  /* Reasoning effort rides the same per-chat model record: null clears it
+     (provider default), a level persists alongside the model id. Validity
+     against the current model's declared levels is the selector UI's and the
+     sidecar's job — stale levels simply stop matching and are omitted. */
+  const handleSelectReasoningEffort = useCallback(
+    (level) => {
+      const currentChatId = activeChatIdRef.current;
+      const normalized =
+        typeof level === "string" && level.trim()
+          ? level.trim().toLowerCase()
+          : null;
+      reasoningEffortRef.current = normalized;
+      setSelectedReasoningEffort(normalized);
+      if (!currentChatId || activeChatKind === "character") return;
+      setChatModel(
+        currentChatId,
+        {
+          id: modelIdRef.current,
+          ...(normalized ? { reasoningEffort: normalized } : {}),
+        },
+        { source: "chat-page" },
+      );
     },
     [activeChatKind],
   );
@@ -772,6 +841,8 @@ export const useChatSessionState = ({
     modelIdRef,
     selectedModelId,
     setSelectedModelId,
+    selectedReasoningEffort,
+    handleSelectReasoningEffort,
     agentOrchestration,
     setAgentOrchestration,
     selectedToolkits,

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import defaultTheme from "../../../BUILTIN_COMPONENTs/theme/default_mini_theme.json";
 import ContextCompositionProgress from "./context_composition_progress";
+import { CONTEXT_COMPOSITION_EXTENSION_KEY } from "../../../SERVICEs/context_composition_v1";
 import {
   buildContextUsageView,
   selectContextUsage,
@@ -130,5 +131,136 @@ describe("focus is not stolen from the composer", () => {
     expect(
       await screen.findByTestId("context-composition-popover"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("CallPicker's own dropdown (nested inside the ring's popover)", () => {
+  /* Two calls so CallPicker actually renders (it returns null below 2). Real
+     BUILTIN Select, not the mock context_composition_panel.test.js uses for
+     its own coverage — this is the one place the real, doubly-nested Tooltip
+     (ring popover > Select dropdown, both riding the same shared portal) gets
+     exercised end to end. */
+  const twoCallBundle = () => {
+    const bundle = buildRunBundleV1({ multiModel: true });
+    const extension = (attributedTokens, residualTokens) => ({
+      schema: "unchain.context/context_composition_v1",
+      method: "utf8_heuristic_v1",
+      quality: "reconciled_estimate",
+      context_window_tokens: 128000,
+      wire: {
+        envelope_sha256: `sha256:${"a".repeat(64)}`,
+        route_name: "primary",
+        route_sha256: `sha256:${"b".repeat(64)}`,
+        context_mode: "semantic",
+      },
+      categories: [
+        {
+          id: "instructions",
+          tokens: 300,
+          source_count: 1,
+          subtypes: [{ id: "core_system", tokens: 300, source_count: 1 }],
+        },
+      ],
+      attributed_tokens: attributedTokens,
+      residual_tokens: residualTokens,
+      coverage: {
+        status: "complete",
+        manifest_items: 1,
+        matched_items: 1,
+        wire_surfaces: 1,
+        matched_surfaces: 1,
+      },
+    });
+    // attributed_tokens must equal the categories' own token sum (300); the
+    // two calls' own usage totals differ (350 vs 1000), so only the residual
+    // differs between them — see context_composition_panel.test.js.
+    bundle.provider_calls[0].extensions[CONTEXT_COMPOSITION_EXTENSION_KEY] =
+      extension(300, 50);
+    bundle.provider_calls[1].extensions[CONTEXT_COMPOSITION_EXTENSION_KEY] =
+      extension(300, 700);
+    return bundle;
+  };
+
+  test("clicking elsewhere in the ring's popover closes CallPicker's own dropdown, not the popover", async () => {
+    render(
+      <ConfigContext.Provider
+        value={{ theme: defaultTheme.dark_mode, onThemeMode: "dark_mode" }}
+      >
+        <ContextCompositionProgress
+          bundle={twoCallBundle()}
+          usageView={null}
+          open
+          onOpenChange={() => {}}
+        />
+      </ConfigContext.Provider>,
+    );
+    // Flush BUILTIN Icon's dynamic-import-based async load inside act().
+    // eslint-disable-next-line testing-library/no-unnecessary-act
+    await act(async () => {});
+
+    const popover = await screen.findByTestId("context-composition-popover");
+    fireEvent.click(within(popover).getByText(/^Call \d/));
+
+    // Select's dropdown rides Tooltip, which stays visibility:hidden in
+    // jsdom (it can never measure real dimensions to mark itself ready —
+    // see tooltip.test.js and context_composition_panel.test.js for the same
+    // limitation). getByRole respects that computed visibility and would
+    // never find it without { hidden: true }.
+    expect(
+      await screen.findByRole("listbox", { hidden: true }),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(popover);
+
+    expect(
+      screen.queryByRole("listbox", { hidden: true }),
+    ).not.toBeInTheDocument();
+    expect(popover).toBeInTheDocument();
+  });
+
+  test("still closes when a React ancestor stops mousedown propagation (attach_panel's selectWrap)", async () => {
+    /* Regression: portal content bubbles through the REACT tree, not the DOM
+       tree. In the real app the ring sits inside attach_panel's selectWrap,
+       whose onMouseDown calls stopPropagation — which kills the NATIVE
+       mousedown at React's delegation point for every click INSIDE the
+       portaled popover too. A bubble-phase document listener therefore never
+       fired for those clicks and the nested dropdown could not close on them;
+       the outside-click listener must run in the CAPTURE phase to be immune.
+       Verified against the live app via the test API before being fixed. */
+    render(
+      <ConfigContext.Provider
+        value={{ theme: defaultTheme.dark_mode, onThemeMode: "dark_mode" }}
+      >
+        <div
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <ContextCompositionProgress
+            bundle={twoCallBundle()}
+            usageView={null}
+            open
+            onOpenChange={() => {}}
+          />
+        </div>
+      </ConfigContext.Provider>,
+    );
+    // eslint-disable-next-line testing-library/no-unnecessary-act
+    await act(async () => {});
+
+    const popover = await screen.findByTestId("context-composition-popover");
+    fireEvent.click(within(popover).getByText(/^Call \d/));
+    expect(
+      await screen.findByRole("listbox", { hidden: true }),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(
+      within(popover).getByTestId("context-composition-headline"),
+    );
+
+    expect(
+      screen.queryByRole("listbox", { hidden: true }),
+    ).not.toBeInTheDocument();
+    expect(popover).toBeInTheDocument();
   });
 });

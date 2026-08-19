@@ -34,6 +34,10 @@ from context_memory_v2_capability import (
     context_memory_v2_capability_status,
     resolve_context_memory_v2_capability,
 )
+from tool_output_management import (
+    build_tool_result_projection,
+    normalize_tool_output_policy,
+)
 from memory_v2_sanitizer import StorageTrust
 from memory_v2_rollout import (
     ROLLOUT_RANK as _ROLLOUT_RANK,
@@ -82,6 +86,8 @@ _P0_MULTIMODAL_ESTIMATOR = "provisional_conservative_p0"
 _MAX_DURABLE_OBJECT_BYTES = 32 * 1024 * 1024
 _MAX_DURABLE_TOOL_RESULT_CHARS = _MAX_DURABLE_OBJECT_BYTES // 4
 _INLINE_DURABLE_RESULT_CHARS = 16_000
+_TOOL_RESULT_PREVIEW_CHARS = 1_200
+_TOOL_RESULT_PROJECTION_VERSION = "v1"
 _JOURNAL_PAGE_SIZE = 100
 _CONTEXT_SCHEMA = "memory_v2.context.v1"
 _UNTRUSTED_PREVIEW_CHARS = 1_200
@@ -3188,37 +3194,6 @@ def _split_turns(messages: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     return turns
 
 
-def _compact_tool_payload(message: dict[str, Any]) -> dict[str, Any]:
-    updated = copy.deepcopy(message)
-    call_ids = _tool_result_ids(updated)
-    if not call_ids:
-        return updated
-    marker = json.dumps(
-        {
-            "memory_v2_compacted": True,
-            "call_ids": sorted(call_ids),
-            "note": "Full tool output is available in the durable context journal.",
-        },
-        ensure_ascii=False,
-    )
-    if updated.get("role") == "tool":
-        updated["content"] = marker
-    elif updated.get("type") in {"function_call_output", "computer_call_output", "tool_result"}:
-        updated["output"] = marker
-    content = updated.get("content")
-    if isinstance(content, list):
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "tool_result":
-                block["content"] = marker
-    parts = updated.get("parts")
-    if isinstance(parts, list):
-        for part in parts:
-            if isinstance(part, dict) and isinstance(part.get("function_response"), dict):
-                response = part["function_response"]
-                response["response"] = {"memory_v2_compacted": True, "call_ids": sorted(call_ids)}
-    return updated
-
-
 def _reduce_to_budget(
     messages: list[dict[str, Any]],
     *,
@@ -3382,6 +3357,67 @@ def _reduce_to_budget(
         "dropped_turn_count": dropped_turns,
         "compacted_tool_result_count": compacted_results,
     }
+
+
+def _tool_result_projection_policy(event: dict[str, Any]) -> str:
+    """Resolve the policy used to present a tool result to the model."""
+    return normalize_tool_output_policy(
+        event.get("tool_result_policy")
+        or event.get("tool_result_projection_policy")
+        or "default",
+    )
+
+
+def _tool_result_projection_payload(
+    result_bytes: bytes,
+    *,
+    policy: str,
+    full_output_ref: Any,
+    digest: str,
+    content_bytes: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    projection, projection_metadata = build_tool_result_projection(
+        result_bytes,
+        policy=policy,
+        full_output_ref=full_output_ref,
+        digest=digest,
+        content_bytes=content_bytes,
+        preview_chars=_TOOL_RESULT_PREVIEW_CHARS,
+        inline_chars=_INLINE_DURABLE_RESULT_CHARS,
+        projection_version=_TOOL_RESULT_PROJECTION_VERSION,
+    )
+    return projection, projection_metadata
+
+
+def _compact_tool_payload(message: dict[str, Any]) -> dict[str, Any]:
+    updated = copy.deepcopy(message)
+    call_ids = _tool_result_ids(updated)
+    if not call_ids:
+        return updated
+    marker = json.dumps(
+        {
+            "memory_v2_compacted": True,
+            "call_ids": sorted(call_ids),
+            "note": "Full tool output is available in the durable context journal.",
+        },
+        ensure_ascii=False,
+    )
+    if updated.get("role") == "tool":
+        updated["content"] = marker
+    elif updated.get("type") in {"function_call_output", "computer_call_output", "tool_result"}:
+        updated["output"] = marker
+    content = updated.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                block["content"] = marker
+    parts = updated.get("parts")
+    if isinstance(parts, list):
+        for part in parts:
+            if isinstance(part, dict) and isinstance(part.get("function_response"), dict):
+                response = part["function_response"]
+                response["response"] = {"memory_v2_compacted": True, "call_ids": sorted(call_ids)}
+    return updated
 
 
 def _assemble_context_messages(
@@ -4195,7 +4231,6 @@ def build_memory_v2_optimizer_module(
                 MemoryV2RunStartHarness(admission),
                 MemoryV2ResumeBudgetHarness(admission),
                 MemoryV2ExecutionCheckpointHarness(),
-                MemoryV2ToolResultBudgetHarness(admission),
             )
         )
         harnesses.append(
@@ -4237,12 +4272,14 @@ def build_memory_v2_tool_runtime_config(
         "agent_id": str(agent_id or "developer"),
     }
     if admission.is_active:
+        config["tool_output_projection"] = True
+    if admission.is_active is False:
         safe_chars = _MAX_DURABLE_TOOL_RESULT_CHARS
         config["tool_result_budget"] = {
             "max_result_chars": safe_chars,
             "max_batch_chars": safe_chars,
             "min_chars_to_budget": safe_chars + 1,
-            "preview_chars": min(1_200, safe_chars),
+            "preview_chars": min(_TOOL_RESULT_PREVIEW_CHARS, safe_chars),
         }
     return config
 
@@ -4381,6 +4418,7 @@ def _tool_result_artifact_first(
     artifact_operation_id = "artifact:" + hashlib.sha256(
         f"{operation_id}:tool_result".encode("utf-8")
     ).hexdigest()
+    policy = _tool_result_projection_policy(event)
     receipt = admission.runtime.record_artifact(
         owner_chat_id=admission.owner_chat_id,
         session_id=admission.session_id,
@@ -4409,13 +4447,15 @@ def _tool_result_artifact_first(
     semantic["full_output_ref"] = copy.deepcopy(full_output_ref)
     semantic["result_bytes"] = len(content)
     semantic["result_sha256"] = digest
-    if len(content) > _INLINE_DURABLE_RESULT_CHARS:
-        semantic["result"] = {
-            "preview": content[:1_200].decode("utf-8", errors="replace"),
-            "full_output_ref": copy.deepcopy(full_output_ref),
-            "content_bytes": len(content),
-            "content_sha256": digest,
-        }
+    projection_result, projection_metadata = _tool_result_projection_payload(
+        result_bytes=content,
+        policy=policy,
+        full_output_ref=copy.deepcopy(full_output_ref),
+        digest=digest,
+        content_bytes=len(content),
+    )
+    semantic["result"] = projection_result
+    semantic["result_projection"] = projection_metadata
     return semantic, copy.deepcopy(receipt) if isinstance(receipt, dict) else {}
 
 
