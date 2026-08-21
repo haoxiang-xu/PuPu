@@ -43,7 +43,7 @@ export const FEATURE_FLAG_DEFINITIONS = {
   enable_custom_model_providers: {
     description:
       "Show Custom Model Providers in Settings and allow custom models in catalogs, selectors, connection tests, and chat requests.",
-    defaultValue: false,
+    defaultValue: true,
   },
   enable_computer_use: {
     description:

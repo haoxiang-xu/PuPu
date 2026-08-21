@@ -11,6 +11,9 @@ jest.mock("./custom-providers", () => () => (
   <div>Custom Model Providers Feature</div>
 ));
 jest.mock("./components/api_key_input", () => () => null);
+jest.mock("./components/preset_provider_section", () => ({ title }) => (
+  <div>{`Preset Provider Section: ${title}`}</div>
+));
 jest.mock("./components/active_downloads", () => () => null);
 jest.mock("./hooks/use_ollama_library", () => ({
   useOllamaLibrary: () => ({
@@ -48,7 +51,9 @@ describe("ModelProvidersSettings custom provider feature flag", () => {
     window.localStorage.clear();
   });
 
-  test("hides Custom Model Providers by default", () => {
+  test("hides Custom Model Providers when disabled", () => {
+    writeFeatureFlags({ enable_custom_model_providers: false });
+
     renderSettings();
 
     expect(
@@ -64,5 +69,42 @@ describe("ModelProvidersSettings custom provider feature flag", () => {
     expect(
       screen.getByText("Custom Model Providers Feature"),
     ).toBeInTheDocument();
+  });
+
+  test("hides DeepSeek and Kimi preset sections when disabled", () => {
+    writeFeatureFlags({ enable_custom_model_providers: false });
+
+    renderSettings();
+
+    expect(
+      screen.queryByText("Preset Provider Section: DeepSeek"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Preset Provider Section: Kimi"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("shows DeepSeek and Kimi preset sections, positioned between Anthropic and Ollama", () => {
+    writeFeatureFlags({ enable_custom_model_providers: true });
+
+    const { container } = renderSettings();
+
+    expect(
+      screen.getByText("Preset Provider Section: DeepSeek"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Preset Provider Section: Kimi"),
+    ).toBeInTheDocument();
+
+    const html = container.innerHTML;
+    const anthropicIndex = html.indexOf("Anthropic");
+    const deepseekIndex = html.indexOf("Preset Provider Section: DeepSeek");
+    const kimiIndex = html.indexOf("Preset Provider Section: Kimi");
+    const ollamaIndex = html.indexOf(">Ollama<");
+
+    expect(anthropicIndex).toBeGreaterThan(-1);
+    expect(deepseekIndex).toBeGreaterThan(anthropicIndex);
+    expect(kimiIndex).toBeGreaterThan(deepseekIndex);
+    expect(ollamaIndex).toBeGreaterThan(kimiIndex);
   });
 });

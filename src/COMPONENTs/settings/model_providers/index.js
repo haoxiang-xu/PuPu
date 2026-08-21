@@ -6,6 +6,7 @@ import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spi
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../appearance";
 import APIKeyInput from "./components/api_key_input";
+import PresetProviderSection from "./components/preset_provider_section";
 import CustomProvidersSection from "./custom-providers";
 import ModelCard from "./components/model_card";
 import ActiveDownloads from "./components/active_downloads";
@@ -38,6 +39,24 @@ const AnthropicSection = () => {
     </SettingsSection>
   );
 };
+
+const DeepSeekSection = () => (
+  <PresetProviderSection
+    title="DeepSeek"
+    icon="deepseek"
+    slugs={["deepseek"]}
+    placeholder="sk-..."
+  />
+);
+
+const KimiSection = () => (
+  <PresetProviderSection
+    title="Kimi"
+    icon="kimi"
+    slugs={["kimi", "kimi-cn"]}
+    placeholder="sk-..."
+  />
+);
 
 const OllamaLibraryBrowser = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
@@ -262,6 +281,8 @@ export const ModelProvidersSettings = () => {
     >
       <OpenAISection />
       <AnthropicSection />
+      {customModelProvidersEnabled && <DeepSeekSection />}
+      {customModelProvidersEnabled && <KimiSection />}
       <OllamaSection />
       {customModelProvidersEnabled && <CustomProvidersSection />}
     </div>

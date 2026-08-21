@@ -39,7 +39,7 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_app_update_settings: true,
       enable_theme_color_customization: false,
-      enable_custom_model_providers: false,
+      enable_custom_model_providers: true,
       enable_computer_use: false,
       enable_memory_v2: false,
     });
@@ -47,7 +47,7 @@ describe("feature_flags service", () => {
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
     expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(true);
     expect(isFeatureFlagEnabled("enable_theme_color_customization")).toBe(false);
-    expect(isFeatureFlagEnabled("enable_custom_model_providers")).toBe(false);
+    expect(isFeatureFlagEnabled("enable_custom_model_providers")).toBe(true);
     expect(isFeatureFlagEnabled("enable_computer_use")).toBe(false);
   });
 
@@ -144,7 +144,7 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_app_update_settings: true,
       enable_theme_color_customization: false,
-      enable_custom_model_providers: false,
+      enable_custom_model_providers: true,
       enable_computer_use: false,
       enable_memory_v2: false,
     });
@@ -157,7 +157,7 @@ describe("feature_flags service", () => {
         enable_user_access_to_characters: false,
         enable_app_update_settings: true,
         enable_theme_color_customization: false,
-        enable_custom_model_providers: false,
+        enable_custom_model_providers: true,
         enable_computer_use: false,
         enable_memory_v2: false,
       },
