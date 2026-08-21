@@ -45,11 +45,13 @@ _REQUIRED_PROTOCOLS = (
                 "canonical_journal",
                 "chat_deletion_sqlite_scope_closure",
                 "context_compiler",
+                "generation_rebase_live_interaction_cycles",
                 "interaction_resolution_compat",
                 "long_term_promotion",
                 "memory_curator",
                 "memory_toolkit",
                 "memory_workspace",
+                "tool_output_management_v1",
             }
         ),
     ),

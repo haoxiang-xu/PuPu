@@ -3,6 +3,10 @@ import {
   normalizeRendererRunBundleV1,
 } from "./run_bundle_v1";
 import {
+  RUN_BUNDLE_V2_SCHEMA,
+  normalizeRunBundleV2,
+} from "./run_bundle_v2";
+import {
   isRunBundleStorageBridgeAvailable,
   runBundleStorageBridge,
 } from "./bridges/run_bundle_storage_bridge";
@@ -40,6 +44,13 @@ export const persistRunBundleV1 = (rawBundle) => {
     .then((result) => validateRunBundleUpsertAck(result, bundle));
 };
 
+export const persistRunBundleV2 = (rawBundle) => {
+  const bundle = normalizeRunBundleV2(rawBundle);
+  return runBundleStorageBridge
+    .upsert(bundle)
+    .then((result) => validateRunBundleUpsertAck(result, bundle));
+};
+
 /**
  * Narrow adapter for the stream done seam. Legacy bundles are ignored rather
  * than append-counted; a canonical v1 bundle is validated before IPC.
@@ -70,14 +81,16 @@ export const persistDoneRunBundleV1 = (done) => {
       status: "legacy_read_only",
     });
   }
-  if (bundle.schema !== RUN_BUNDLE_V1_SCHEMA) {
+  if (bundle.schema !== RUN_BUNDLE_V1_SCHEMA && bundle.schema !== RUN_BUNDLE_V2_SCHEMA) {
     const error = new Error(
       "[run_bundle_stream_invalid] done.bundle uses an unsupported schema",
     );
     error.code = "run_bundle_stream_invalid";
     throw error;
   }
-  return persistRunBundleV1(bundle);
+  return bundle.schema === RUN_BUNDLE_V2_SCHEMA
+    ? persistRunBundleV2(bundle)
+    : persistRunBundleV1(bundle);
 };
 
 /**
@@ -94,12 +107,14 @@ export const admitDoneRunAccountingV1 = (done = {}) => {
       ? done.bundle
       : null;
   const canonicalBundle =
-    rawBundle?.schema === RUN_BUNDLE_V1_SCHEMA
-      ? normalizeRendererRunBundleV1(rawBundle)
-      : null;
+    rawBundle?.schema === RUN_BUNDLE_V2_SCHEMA
+      ? normalizeRunBundleV2(rawBundle)
+      : rawBundle?.schema === RUN_BUNDLE_V1_SCHEMA
+        ? normalizeRendererRunBundleV1(rawBundle)
+        : null;
   const persistence = persistDoneRunBundleV1(done);
 
-  // Pure legacy completions have no durable v1 accounting boundary to cross.
+  // Pure legacy completions have no durable canonical accounting boundary to cross.
   // Keep their established synchronous terminal semantics so an unrelated
   // microtask cannot reopen run-generation or queue-relay races. Diagnostics
   // admission above is also synchronous and fail-closed.
@@ -146,8 +161,13 @@ export const queryRunBundles = async (query = {}) => {
         "[run_bundle_storage_invalid] RunBundle query record has unknown fields",
       );
     }
-    const bundle = normalizeRendererRunBundleV1(record.bundle);
-    if (JSON.stringify(record.usageSlices) !== JSON.stringify(bundle.usage_slices)) {
+    const bundle = record.bundle?.schema === RUN_BUNDLE_V2_SCHEMA
+      ? normalizeRunBundleV2(record.bundle)
+      : normalizeRendererRunBundleV1(record.bundle);
+    if (
+      bundle.schema !== RUN_BUNDLE_V2_SCHEMA &&
+      JSON.stringify(record.usageSlices) !== JSON.stringify(bundle.usage_slices)
+    ) {
       throw new Error(
         "[run_bundle_storage_invalid] RunBundle query slices do not match the bundle",
       );
@@ -219,6 +239,7 @@ export const projectRunBundleTokenUsage = (records, query = {}) => {
   const receiptById = new Map();
   records.forEach((record) => {
     const bundle = record.bundle;
+    if (bundle.schema === RUN_BUNDLE_V2_SCHEMA) return;
     bundle.provider_calls.forEach((receipt) => {
       const immutable = JSON.stringify(receipt);
       const prior = receiptById.get(receipt.provider_call_id);

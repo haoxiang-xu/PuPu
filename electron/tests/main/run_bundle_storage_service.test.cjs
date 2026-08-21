@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const crypto = require("crypto");
 
 let sqlite = null;
 try {
@@ -26,6 +27,68 @@ const {
 const {
   buildRunBundleV1,
 } = require("../fixtures/run_bundle_v1_fixture.cjs");
+const {
+  RUN_BUNDLE_V2_SCHEMA,
+  RUN_BUNDLE_DETAILS_REF_SCHEMA,
+  canonicalizeRunBundleV2,
+} = require("../../shared/run_bundle_v2");
+
+const buildRunBundleV2 = ({
+  bundleId = "bundle-v2",
+  revision = 1,
+  identity,
+} = {}) => {
+  const body = {
+    schema: RUN_BUNDLE_V2_SCHEMA,
+    bundle_id: bundleId,
+    revision,
+    identity: identity || {
+      execution_id: "chat-1",
+      attempt_id: "attempt-v2",
+      root_run_id: "root-v2",
+      run_id: "root-v2",
+      parent_run_id: null,
+      relation: "root",
+    },
+    lifecycle: {
+      status: "completed",
+      started_at: "2026-08-20T00:00:00Z",
+      completed_at: "2026-08-20T00:01:00Z",
+      continued_from_run_id: null,
+    },
+    descriptor: {
+      model: "unknown-model",
+      display_model: "model-unavailable",
+      active_agent: "unknown",
+      agent_orchestration: "default",
+      iteration: 0,
+    },
+    provider_call_count: 2000,
+    direct_provider_call_count: 2000,
+    descendant_provider_call_count: 0,
+    aggregation_usage: { total_tokens: 2000 },
+    direct_usage: { total_tokens: 2000 },
+    descendant_usage: { total_tokens: 0 },
+    metrics: { event_count: 2000 },
+    coverage: { status: "complete" },
+    cost: { status: "unavailable" },
+    legacy: { status: "canonical" },
+    evidence: {},
+    children: { count: 0, set_sha256: "0".repeat(64) },
+    details_ref: {
+      schema: RUN_BUNDLE_DETAILS_REF_SCHEMA,
+      details_id: "rbd_" + "1".repeat(64),
+      facts_digest: "2".repeat(64),
+      total_bytes: 1000,
+      parts: [{ name: "provider_calls", item_count: 2000, canonical_bytes: 1000, root_sha256: "3".repeat(64) }],
+    },
+    extensions: {},
+  };
+  return {
+    ...body,
+    bundle_digest: crypto.createHash("sha256").update(canonicalizeRunBundleV2(body), "utf8").digest("hex"),
+  };
+};
 
 const fakeApp = (dir) => ({
   getPath: (key) => {
@@ -193,5 +256,70 @@ describeIfSqlite("RunBundle v1 SQLite storage", () => {
       sqlite,
     });
     service.init();
+  });
+
+  test("stores and reloads compact v2 without constructing v1 slices", () => {
+    const bundle = buildRunBundleV2();
+    expect(service.upsertRunBundle(bundle)).toMatchObject({
+      status: "inserted",
+      usageSliceCount: 0,
+    });
+    const [record] = service.queryRunBundles({ executionId: "chat-1" }).records;
+    expect(record.bundle.schema).toBe(RUN_BUNDLE_V2_SCHEMA);
+    expect(record.bundle.provider_call_count).toBe(2000);
+    expect(record.usageSlices).toEqual([]);
+  });
+
+  test("requires a one-way v1 to v2 revision advance and queries only the head", () => {
+    const v1 = buildRunBundleV1({ revision: 1 });
+    service.upsertRunBundle(v1);
+
+    expectCode(
+      () => service.upsertRunBundle(buildRunBundleV2({
+        bundleId: v1.bundle_id,
+        revision: 1,
+        identity: v1.identity,
+      })),
+      "bundle_revision_conflict",
+    );
+
+    const compact = buildRunBundleV2({
+      bundleId: v1.bundle_id,
+      revision: 2,
+      identity: v1.identity,
+    });
+    expect(service.upsertRunBundle(compact)).toMatchObject({
+      status: "inserted",
+      revision: 2,
+    });
+
+    const records = service.queryRunBundles({ executionId: "chat-1" }).records;
+    expect(records).toHaveLength(1);
+    expect(records[0].bundle).toEqual(compact);
+
+    expectCode(
+      () => service.upsertRunBundle(buildRunBundleV1({ revision: 3 })),
+      "bundle_revision_conflict",
+    );
+  });
+
+  test("fails closed on a durable same-revision dual-schema collision", () => {
+    const v1 = buildRunBundleV1({ revision: 1 });
+    service.upsertRunBundle(v1);
+    service.upsertRunBundle(buildRunBundleV2());
+    service.close();
+
+    const raw = new sqlite.DatabaseSync(path.join(dir, "settings.db"));
+    raw.prepare(
+      "UPDATE run_bundle_compact_records SET bundle_id = ?, revision = ? WHERE bundle_id = ?",
+    ).run(v1.bundle_id, 1, "bundle-v2");
+    raw.close();
+
+    service = createRunBundleStorageService({ app: fakeApp(dir), path, sqlite });
+    service.init();
+    expectCode(
+      () => service.queryRunBundles({ executionId: "chat-1" }),
+      "run_bundle_storage_corrupt",
+    );
   });
 });

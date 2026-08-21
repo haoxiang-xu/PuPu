@@ -30,13 +30,20 @@ from typing import Any, Callable, Iterable
 
 from unchain.kernel.harness import BaseRuntimeHarness, HarnessContext
 from unchain.optimizers.base import BaseContextOptimizer, OptimizerContext
+try:
+    from unchain.tools.output_management import ToolOutputManager
+except ModuleNotFoundError as error:
+    if (
+        error.name != "unchain.tools.output_management"
+        and str(error) != "unchain.tools.output_management"
+    ):
+        raise
+    # A legacy bundled Unchain must leave Memory V2 unavailable, not prevent
+    # the sidecar from starting in off/legacy mode.
+    ToolOutputManager = None
 from context_memory_v2_capability import (
     context_memory_v2_capability_status,
     resolve_context_memory_v2_capability,
-)
-from tool_output_management import (
-    build_tool_result_projection,
-    normalize_tool_output_policy,
 )
 from memory_v2_sanitizer import StorageTrust
 from memory_v2_rollout import (
@@ -87,7 +94,6 @@ _MAX_DURABLE_OBJECT_BYTES = 32 * 1024 * 1024
 _MAX_DURABLE_TOOL_RESULT_CHARS = _MAX_DURABLE_OBJECT_BYTES // 4
 _INLINE_DURABLE_RESULT_CHARS = 16_000
 _TOOL_RESULT_PREVIEW_CHARS = 1_200
-_TOOL_RESULT_PROJECTION_VERSION = "v1"
 _JOURNAL_PAGE_SIZE = 100
 _CONTEXT_SCHEMA = "memory_v2.context.v1"
 _UNTRUSTED_PREVIEW_CHARS = 1_200
@@ -510,6 +516,7 @@ class MemoryV2Admission:
         repr=False,
     )
     _checkpoint_candidate_runs: set[str] = field(default_factory=set, repr=False)
+    _tool_output_manager: Any = field(default=None, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @property
@@ -523,6 +530,22 @@ class MemoryV2Admission:
     def update_diagnostics(self, values: dict[str, Any]) -> None:
         with self._lock:
             self._latest = copy.deepcopy(values)
+
+    def tool_output_manager(self) -> Any:
+        if ToolOutputManager is None:
+            raise MemoryV2PersistenceError(
+                "Unchain tool-output management is unavailable"
+            )
+        with self._lock:
+            manager = self._tool_output_manager
+            if manager is None:
+                manager = ToolOutputManager.active_default(
+                    attempt_id=self.attempt_id,
+                    preview_chars=_TOOL_RESULT_PREVIEW_CHARS,
+                    inline_chars=_INLINE_DURABLE_RESULT_CHARS,
+                )
+                self._tool_output_manager = manager
+            return manager
 
     def record_trace_ref(self, kind: str, value: Any) -> None:
         record = _trace_ref_record(kind, value)
@@ -3361,63 +3384,40 @@ def _reduce_to_budget(
 
 def _tool_result_projection_policy(event: dict[str, Any]) -> str:
     """Resolve the policy used to present a tool result to the model."""
-    return normalize_tool_output_policy(
-        event.get("tool_result_policy")
-        or event.get("tool_result_projection_policy")
-        or "default",
-    )
+    value = event.get("tool_result_policy") or event.get("tool_result_projection_policy")
+    if value in (None, ""):
+        return "default"
+    return str(value).strip().lower()
 
 
 def _tool_result_projection_payload(
     result_bytes: bytes,
     *,
+    manager: Any,
     policy: str,
     full_output_ref: Any,
     digest: str,
     content_bytes: int,
+    call_id: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    projection, projection_metadata = build_tool_result_projection(
+    if ToolOutputManager is None or type(manager) is not ToolOutputManager:
+        raise MemoryV2PersistenceError("Unchain tool-output management is unavailable")
+    projection = manager.project(
         result_bytes,
-        policy=policy,
         full_output_ref=full_output_ref,
         digest=digest,
         content_bytes=content_bytes,
-        preview_chars=_TOOL_RESULT_PREVIEW_CHARS,
-        inline_chars=_INLINE_DURABLE_RESULT_CHARS,
-        projection_version=_TOOL_RESULT_PROJECTION_VERSION,
+        requested_policy=policy,
+        call_id=call_id,
     )
-    return projection, projection_metadata
+    return projection.payload, projection.metadata
 
 
 def _compact_tool_payload(message: dict[str, Any]) -> dict[str, Any]:
-    updated = copy.deepcopy(message)
-    call_ids = _tool_result_ids(updated)
-    if not call_ids:
-        return updated
-    marker = json.dumps(
-        {
-            "memory_v2_compacted": True,
-            "call_ids": sorted(call_ids),
-            "note": "Full tool output is available in the durable context journal.",
-        },
-        ensure_ascii=False,
+    return ToolOutputManager.compact_historical_message(
+        message,
+        call_ids=_tool_result_ids(message),
     )
-    if updated.get("role") == "tool":
-        updated["content"] = marker
-    elif updated.get("type") in {"function_call_output", "computer_call_output", "tool_result"}:
-        updated["output"] = marker
-    content = updated.get("content")
-    if isinstance(content, list):
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "tool_result":
-                block["content"] = marker
-    parts = updated.get("parts")
-    if isinstance(parts, list):
-        for part in parts:
-            if isinstance(part, dict) and isinstance(part.get("function_response"), dict):
-                response = part["function_response"]
-                response["response"] = {"memory_v2_compacted": True, "call_ids": sorted(call_ids)}
-    return updated
 
 
 def _assemble_context_messages(
@@ -3958,41 +3958,6 @@ class _DisabledHarness(BaseRuntimeHarness):
         return None
 
 
-class MemoryV2ToolResultBudgetHarness(BaseRuntimeHarness):
-    def __init__(self, admission: MemoryV2Admission) -> None:
-        super().__init__(
-            name="memory_v2_tool_result_budget",
-            phases=("after_tool_batch",),
-            order=90,
-        )
-        self.admission = admission
-
-    def build_delta(self, context: HarnessContext):
-        admission = self.admission
-        if not admission.is_active:
-            return None
-        # The core budget runs after the full tool_result callback.  Keep it at
-        # the durable object ceiling so context-window policy never destroys
-        # the only complete copy; the V2 compiler later chooses inline vs ref.
-        safe_chars = _MAX_DURABLE_TOOL_RESULT_CHARS
-        runtime_config = context.event.get("tool_runtime_config")
-        if not isinstance(runtime_config, dict):
-            runtime_config = {}
-            context.event["tool_runtime_config"] = runtime_config
-        existing = runtime_config.get("tool_result_budget")
-        budget = dict(existing) if isinstance(existing, dict) else {}
-        budget.update(
-            {
-                "max_result_chars": safe_chars,
-                "max_batch_chars": safe_chars,
-                "min_chars_to_budget": safe_chars + 1,
-                "preview_chars": min(1_200, safe_chars),
-            }
-        )
-        runtime_config["tool_result_budget"] = budget
-        return None
-
-
 class MemoryV2RunStartHarness(BaseRuntimeHarness):
     """Durable start barrier for dynamically-created child agents."""
 
@@ -4272,7 +4237,11 @@ def build_memory_v2_tool_runtime_config(
         "agent_id": str(agent_id or "developer"),
     }
     if admission.is_active:
-        config["tool_output_projection"] = True
+        # PuPu owns admission only.  The active Unchain ContextRuntime derives
+        # its one immutable output-manager snapshot from the actual exposed
+        # Toolkit while binding the attempt; a host default here would conceal
+        # per-tool policy declarations.
+        config.pop("tool_result_budget", None)
     if admission.is_active is False:
         safe_chars = _MAX_DURABLE_TOOL_RESULT_CHARS
         config["tool_result_budget"] = {
@@ -4449,10 +4418,12 @@ def _tool_result_artifact_first(
     semantic["result_sha256"] = digest
     projection_result, projection_metadata = _tool_result_projection_payload(
         result_bytes=content,
+        manager=admission.tool_output_manager(),
         policy=policy,
         full_output_ref=copy.deepcopy(full_output_ref),
         digest=digest,
         content_bytes=len(content),
+        call_id=str(event.get("call_id") or event.get("tool_call_id") or ""),
     )
     semantic["result"] = projection_result
     semantic["result_projection"] = projection_metadata

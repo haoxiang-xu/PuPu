@@ -409,6 +409,32 @@ describe("Context Composition v1 renderer selector", () => {
     ).toMatchObject({ available: false, reason: "extension_invalid" });
   });
 
+  test("accepts both the v1 (bytes/4, never-scaled) and v2 (calibrated, scale-onto-billed-total) method — but nothing else", () => {
+    const v1 = extension();
+    v1.method = "utf8_heuristic_v1";
+    const v1Bundle = attach(buildRunBundleV1(), 0, v1);
+    expect(
+      selectContextCompositionView(v1Bundle, { scope: "model_call" }),
+    ).toMatchObject({ available: true });
+
+    const v2 = extension();
+    v2.method = "utf8_heuristic_v2";
+    const v2Bundle = attach(buildRunBundleV1(), 0, v2);
+    expect(
+      selectContextCompositionView(v2Bundle, { scope: "model_call" }),
+    ).toMatchObject({ available: true });
+
+    // Widening the allowlist to {v1, v2} must not open it to just anything —
+    // an unrecognised method (a future v3, a typo, a hand-edited fixture)
+    // has to fail closed exactly like an unrecognised schema does.
+    const unknown = extension();
+    unknown.method = "utf8_heuristic_v3";
+    const unknownBundle = attach(buildRunBundleV1(), 0, unknown);
+    expect(
+      selectContextCompositionView(unknownBundle, { scope: "model_call" }),
+    ).toMatchObject({ available: false, reason: "extension_invalid" });
+  });
+
   test("preserves an overestimate without clamping or inventing percentages", () => {
     const bundle = attach(
       buildRunBundleV1(),

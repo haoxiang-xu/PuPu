@@ -1,6 +1,7 @@
 /* global BigInt */
 
 export const RUN_BUNDLE_V1_SCHEMA = "unchain.run_bundle.v1";
+export const RUN_BUNDLE_V2_SCHEMA = "unchain.run_bundle.v2";
 export const PROVIDER_CALL_USAGE_V1_SCHEMA = "unchain.provider_call_usage.v1";
 export const RUN_BUNDLE_V1_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -1060,6 +1061,30 @@ const tokenOrNull = (value) =>
  * annotations/subsets, never values to add to input/output/total again.
  */
 export const selectRunBundleUsage = (bundle) => {
+  if (bundle && bundle.schema === RUN_BUNDLE_V2_SCHEMA) {
+    try {
+      const usage = bundle.aggregation_usage || {};
+      const coverage = bundle.coverage || {};
+      return {
+        canonical: true,
+        input: tokenOrNull(usage.input?.total_tokens),
+        output: tokenOrNull(usage.output?.total_tokens),
+        total: tokenOrNull(usage.total_tokens),
+        cacheRead: tokenOrNull(usage.input?.cache_read_tokens),
+        cacheWrite: tokenOrNull(usage.input?.cache_write_tokens),
+        cacheWrite5m: tokenOrNull(usage.input?.cache_write_5m_tokens),
+        cacheWrite1h: tokenOrNull(usage.input?.cache_write_1h_tokens),
+        reasoning: tokenOrNull(usage.output?.reasoning_tokens),
+        coverage: coverage.status || "unavailable",
+        source: usage.source || "unavailable",
+        partial: coverage.status !== "complete",
+        cost: bundle.cost || null,
+        usageSlices: [],
+      };
+    } catch (_error) {
+      return { canonical: true, input: null, output: null, total: null, cacheRead: null, cacheWrite: null, cacheWrite5m: null, cacheWrite1h: null, reasoning: null, coverage: "unavailable", source: "unavailable", partial: true, cost: null, usageSlices: [] };
+    }
+  }
   if (bundle && bundle.schema === RUN_BUNDLE_V1_SCHEMA) {
     try {
       const normalized = normalizeRendererRunBundleV1(bundle);

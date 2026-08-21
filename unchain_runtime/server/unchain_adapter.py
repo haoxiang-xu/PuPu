@@ -96,7 +96,6 @@ from memory_v2_context import (  # noqa: E402
     resolve_memory_v2_admission as _resolve_memory_v2_admission,
 )
 from memory_v2_error_contract import safe_context_v2_message  # noqa: E402
-from tool_output_management import SUPPORTED_TOOL_OUTPUT_POLICIES  # noqa: E402
 
 
 def _memory_v2_failure_reason(error: Any) -> str:
@@ -1164,7 +1163,10 @@ def _finalize_memory_v2_curator(
 
 
 def _refresh_memory_v2_bundle(bundle: Any, admission: Any) -> None:
-    if isinstance(bundle, dict) and bundle.get("schema") == "unchain.run_bundle.v1":
+    if isinstance(bundle, dict) and bundle.get("schema") in {
+        "unchain.run_bundle.v1",
+        "unchain.run_bundle.v2",
+    }:
         # Canonical run bundles are content-addressed, closed records.  Memory
         # admission diagnostics remain available through their own stream and
         # must not be appended after the bundle digest has been computed.
@@ -4134,37 +4136,6 @@ def _get_runtime_toolkit_metadata(toolkit_obj: Any) -> Dict[str, str]:
     }
 
 
-def _resolve_tool_result_policy(tool_obj: Any) -> str:
-    if not tool_obj:
-        return "default"
-
-    candidate_values: list[Any] = []
-    try:
-        tool_meta = getattr(tool_obj, "__tool_metadata__", None)
-        if isinstance(tool_meta, dict):
-            candidate_values.append(tool_meta.get("tool_result_policy"))
-            candidate_values.append(tool_meta.get("tool_result_projection_policy"))
-    except Exception:
-        pass
-    candidate_values.extend(
-        (
-            getattr(tool_obj, "tool_result_policy", None),
-            getattr(tool_obj, "tool_result_projection_policy", None),
-            getattr(tool_obj, "_pupu_tool_result_policy", None),
-            getattr(tool_obj, "_pupu_tool_result_projection_policy", None),
-            getattr(tool_obj, "_pupu_tool_output_policy", None),
-            getattr(tool_obj, "_tool_output_projection_policy", None),
-        )
-    )
-    for candidate in candidate_values:
-        if not isinstance(candidate, str):
-            continue
-        normalized = candidate.strip().lower()
-        if normalized in SUPPORTED_TOOL_OUTPUT_POLICIES:
-            return normalized
-    return "default"
-
-
 def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, Any]]:
     index: Dict[str, Dict[str, Any]] = {}
     for toolkit_obj in toolkits:
@@ -4188,7 +4159,6 @@ def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, An
                 "toolkit_name": toolkit_name or toolkit_id,
                 "vault_routed": toolkit_vault_routed
                 or getattr(tool_obj, "_pupu_vault_plugin", None) is not None,
-                "tool_result_policy": _resolve_tool_result_policy(tool_obj),
             }
     return index
 
@@ -4372,10 +4342,6 @@ def _enrich_tool_event_with_toolkit_metadata(
         _redact_tool_result_images(event, session_id)
 
     enriched = dict(event)
-    if toolkit_meta:
-        policy = toolkit_meta.get("tool_result_policy")
-        if policy is not None:
-            enriched["tool_result_policy"] = str(policy)
     if arguments_contain_vault_handle or bool(
         (toolkit_meta or {}).get("vault_routed", False)
     ):
@@ -9844,17 +9810,42 @@ def _stream_recipe_graph_events(
 
                 prior_root_bundle = None
                 if official_run_bundle_ledger is not None:
-                    prior_roots = official_run_bundle_ledger.list_bundles(
-                        root_run_id=graph_bundle_identity.root_run_id,
-                        run_id=graph_bundle_identity.run_id,
-                        attempt_id=graph_bundle_identity.attempt_id,
+                    prior_roots = tuple(
+                        official_run_bundle_ledger.list_bundles(
+                            root_run_id=graph_bundle_identity.root_run_id,
+                            run_id=graph_bundle_identity.run_id,
+                            attempt_id=graph_bundle_identity.attempt_id,
+                        )
                     )
-                    if len(prior_roots) > 1:
+                    list_compact_bundles = getattr(
+                        official_run_bundle_ledger,
+                        "list_compact_bundles",
+                        None,
+                    )
+                    if callable(list_compact_bundles):
+                        prior_roots += tuple(
+                            list_compact_bundles(
+                                root_run_id=graph_bundle_identity.root_run_id,
+                                run_id=graph_bundle_identity.run_id,
+                                attempt_id=graph_bundle_identity.attempt_id,
+                            )
+                        )
+                    if len({item.bundle_id for item in prior_roots}) > 1:
                         raise RuntimeError(
                             "graph root resolved multiple RunBundles"
                         )
                     if prior_roots:
-                        prior_root_bundle = prior_roots[0].to_dict()
+                        head_revision = max(item.revision for item in prior_roots)
+                        heads = tuple(
+                            item
+                            for item in prior_roots
+                            if item.revision == head_revision
+                        )
+                        if len(heads) != 1:
+                            raise RuntimeError(
+                                "graph root resolved conflicting RunBundle schemas"
+                            )
+                        prior_root_bundle = heads[0].to_dict()
 
                 prior_lifecycle = (
                     prior_root_bundle.get("lifecycle", {})
@@ -9905,6 +9896,7 @@ def _stream_recipe_graph_events(
                         if isinstance(prior_root_bundle, dict)
                         else None
                     ),
+                    "details_ledger": official_run_bundle_ledger,
                 }
                 bundle = merge_run_bundles(
                     list(graph_bundle_values.values()),
@@ -9924,10 +9916,18 @@ def _stream_recipe_graph_events(
                     )
                 if official_run_bundle_ledger is not None:
                     from unchain.run_bundle import RunBundle
-
-                    official_run_bundle_ledger.persist_bundle(
-                        RunBundle.from_dict(bundle)
+                    from unchain.run_bundle_v2 import (
+                        CompactRunBundle,
+                        run_bundle_from_dict,
                     )
+
+                    parsed_bundle = run_bundle_from_dict(bundle)
+                    if type(parsed_bundle) is RunBundle:
+                        official_run_bundle_ledger.persist_bundle(parsed_bundle)
+                    elif type(parsed_bundle) is CompactRunBundle:
+                        official_run_bundle_ledger.load_compact_bundle_details(
+                            bundle=parsed_bundle
+                        )
                 output_holder["bundle"] = bundle
                 return bundle
 
@@ -11621,7 +11621,10 @@ def stream_chat_events(
                     output_holder["bundle"] = bundle
                     if (
                         provider_turn_ownership_factory is not None
-                        and bundle.get("schema") == "unchain.run_bundle.v1"
+                        and bundle.get("schema") in {
+                            "unchain.run_bundle.v1",
+                            "unchain.run_bundle.v2",
+                        }
                     ):
                         from unchain.run_bundle import RunIdentity
 

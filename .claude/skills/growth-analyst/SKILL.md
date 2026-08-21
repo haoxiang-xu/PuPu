@@ -131,3 +131,5 @@ followed by the top three actions.
 - Silently dropping traffic when the token lacks scope — say it's missing and why.
 
 Match the founder's language (reply in Chinese if they wrote Chinese).
+
+**Topics/tags work** (statistics, effect attribution, changing tags): use the companion `topic-optimizer` skill — it owns `topics-history.ndjson` and the change-window discipline.

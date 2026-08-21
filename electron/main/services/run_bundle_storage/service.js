@@ -4,6 +4,7 @@ const {
   canonicalize,
   normalizeRunBundleV1,
 } = require("../../../shared/run_bundle_v1");
+const { normalizeRunBundleV2, RUN_BUNDLE_V2_SCHEMA } = require("../../../shared/run_bundle_v2");
 
 const DB_FILE_NAME = "settings.db";
 const QUERY_DEFAULT_LIMIT = 500;
@@ -36,6 +37,29 @@ CREATE INDEX IF NOT EXISTS idx_run_bundle_execution
 
 CREATE INDEX IF NOT EXISTS idx_run_bundle_updated
   ON run_bundle_records(updated_at);
+
+CREATE TABLE IF NOT EXISTS run_bundle_compact_records (
+  bundle_id        TEXT PRIMARY KEY,
+  schema_version   INTEGER NOT NULL CHECK (schema_version = 2),
+  revision         INTEGER NOT NULL CHECK (revision >= 0),
+  bundle_digest    TEXT NOT NULL,
+  execution_id     TEXT NOT NULL,
+  attempt_id       TEXT NOT NULL,
+  root_run_id      TEXT NOT NULL,
+  run_id           TEXT NOT NULL,
+  relation         TEXT NOT NULL,
+  lifecycle_status TEXT NOT NULL,
+  started_at       TEXT,
+  completed_at     TEXT,
+  completed_at_ms  INTEGER,
+  coverage_status  TEXT NOT NULL,
+  legacy_status    TEXT NOT NULL,
+  bundle_json      TEXT NOT NULL,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_run_bundle_compact_execution
+  ON run_bundle_compact_records(execution_id, completed_at_ms);
 
 CREATE TABLE IF NOT EXISTS run_bundle_usage_slices (
   bundle_id                         TEXT NOT NULL,
@@ -280,6 +304,9 @@ const createRunBundleStorageService = ({
   };
 
   const upsertRunBundle = (rawBundle) => {
+    if (rawBundle && rawBundle.schema === RUN_BUNDLE_V2_SCHEMA) {
+      return upsertCompactRunBundle(rawBundle);
+    }
     let bundle;
     try {
       bundle = normalizeRunBundleV1(rawBundle, { verifyDigest: true });
@@ -291,6 +318,17 @@ const createRunBundleStorageService = ({
       );
     }
     const database = requireDb();
+    const compactExisting = database
+      .prepare(
+        "SELECT revision FROM run_bundle_compact_records WHERE bundle_id = ?",
+      )
+      .get(bundle.bundle_id);
+    if (compactExisting) {
+      throw errorWithCode(
+        "v1 run bundle cannot overwrite the compact durable head",
+        "bundle_revision_conflict",
+      );
+    }
     const existing = database
       .prepare(
         "SELECT revision, bundle_digest FROM run_bundle_records WHERE bundle_id = ?",
@@ -386,6 +424,68 @@ const createRunBundleStorageService = ({
     };
   };
 
+  const upsertCompactRunBundle = (rawBundle) => {
+    let bundle;
+    try {
+      bundle = normalizeRunBundleV2(rawBundle, { verifyDigest: true });
+    } catch (error) {
+      if (error && typeof error.code === "string") throw error;
+      throw errorWithCode("compact run bundle failed strict admission", "run_bundle_storage_invalid");
+    }
+    const database = requireDb();
+    const existing = database
+      .prepare("SELECT revision, bundle_digest FROM run_bundle_compact_records WHERE bundle_id = ?")
+      .get(bundle.bundle_id);
+    if (existing) {
+      const storedRevision = Number(existing.revision);
+      if (bundle.revision < storedRevision) throw errorWithCode("compact run bundle revision is stale", "stale_revision");
+      if (bundle.revision === storedRevision && bundle.bundle_digest !== existing.bundle_digest) {
+        throw errorWithCode("same compact run bundle revision has a different digest", "bundle_revision_conflict");
+      }
+      if (bundle.revision === storedRevision && bundle.bundle_digest === existing.bundle_digest) {
+        return { ok: true, status: "already_current", bundleId: bundle.bundle_id, revision: bundle.revision, bundleDigest: bundle.bundle_digest };
+      }
+    }
+    const v1Existing = database
+      .prepare("SELECT revision FROM run_bundle_records WHERE bundle_id = ?")
+      .get(bundle.bundle_id);
+    if (v1Existing) {
+      const v1Revision = Number(v1Existing.revision);
+      if (bundle.revision < v1Revision) {
+        throw errorWithCode(
+          "compact run bundle revision is stale",
+          "stale_revision",
+        );
+      }
+      if (bundle.revision === v1Revision) {
+        throw errorWithCode(
+          "compact run bundle must advance the v1 durable head",
+          "bundle_revision_conflict",
+        );
+      }
+    }
+    const persistedAt = now();
+    const completedAtMs = parseCompletedAtMs(bundle.lifecycle.completed_at);
+    database.tx(() => {
+      database.prepare(
+        "INSERT INTO run_bundle_compact_records (" +
+        "bundle_id, schema_version, revision, bundle_digest, execution_id, attempt_id, root_run_id, run_id, relation, lifecycle_status, " +
+        "started_at, completed_at, completed_at_ms, coverage_status, legacy_status, bundle_json, created_at, updated_at" +
+        ") VALUES (?, 2, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+        "ON CONFLICT(bundle_id) DO UPDATE SET revision=excluded.revision, bundle_digest=excluded.bundle_digest, " +
+        "bundle_json=excluded.bundle_json, lifecycle_status=excluded.lifecycle_status, completed_at=excluded.completed_at, " +
+        "completed_at_ms=excluded.completed_at_ms, updated_at=excluded.updated_at"
+      ).run(
+        bundle.bundle_id, bundle.revision, bundle.bundle_digest, bundle.identity.execution_id,
+        bundle.identity.attempt_id, bundle.identity.root_run_id, bundle.identity.run_id,
+        bundle.identity.relation, bundle.lifecycle.status, bundle.lifecycle.started_at,
+        bundle.lifecycle.completed_at, completedAtMs, bundle.coverage.status, bundle.legacy.status,
+        canonicalize(bundle), persistedAt, persistedAt,
+      );
+    });
+    return { ok: true, status: existing ? "updated" : "inserted", bundleId: bundle.bundle_id, revision: bundle.revision, bundleDigest: bundle.bundle_digest, usageSliceCount: 0 };
+  };
+
   const readSlices = (database, bundleId) => {
     const rows = database
       .prepare(
@@ -419,27 +519,46 @@ const createRunBundleStorageService = ({
     }
     const limit = query.limit || QUERY_DEFAULT_LIMIT;
     const offset = query.offset || 0;
-    params.push(limit, offset);
+    const queryParams = [...params, limit, offset];
     const sql =
-      "SELECT bundle_id, revision, bundle_digest, bundle_json, created_at, updated_at " +
+      "WITH all_records AS (" +
+      "SELECT bundle_id, revision, bundle_digest, bundle_json, created_at, updated_at, completed_at_ms, execution_id, lifecycle_status, 1 AS schema_version, COALESCE(completed_at_ms, updated_at) AS sort_completed_at " +
       "FROM run_bundle_records " +
-      (where.length > 0 ? `WHERE ${where.join(" AND ")} ` : "") +
-      "ORDER BY COALESCE(completed_at_ms, updated_at) DESC, bundle_id ASC " +
+      "UNION ALL " +
+      "SELECT bundle_id, revision, bundle_digest, bundle_json, created_at, updated_at, completed_at_ms, execution_id, lifecycle_status, 2 AS schema_version, COALESCE(completed_at_ms, updated_at) AS sort_completed_at " +
+      "FROM run_bundle_compact_records" +
+      "), ranked AS (" +
+      "SELECT *, ROW_NUMBER() OVER (PARTITION BY bundle_id ORDER BY revision DESC, schema_version DESC) AS ledger_rank, " +
+      "COUNT(*) OVER (PARTITION BY bundle_id, revision) AS revision_schema_count " +
+      "FROM all_records" +
+      ") " +
+      "SELECT bundle_id, revision, bundle_digest, bundle_json, created_at, updated_at, completed_at_ms, schema_version, sort_completed_at, revision_schema_count " +
+      "FROM ranked WHERE ledger_rank = 1 " +
+      (where.length > 0 ? `AND ${where.join(" AND ")} ` : "") +
+      "ORDER BY sort_completed_at DESC, bundle_id ASC " +
       "LIMIT ? OFFSET ?";
-    const rows = database.prepare(sql).all(...params);
+    const rows = database.prepare(sql).all(...queryParams);
     const records = rows.map((row) => {
+      if (Number(row.revision_schema_count) > 1) {
+        throw errorWithCode(
+          `stored run bundle ${row.bundle_id} has an ambiguous schema revision`,
+          "run_bundle_storage_corrupt",
+        );
+      }
       let parsed;
       try {
         parsed = JSON.parse(row.bundle_json);
-        parsed = normalizeRunBundleV1(parsed, { verifyDigest: true });
+        parsed = Number(row.schema_version) === 2
+          ? normalizeRunBundleV2(parsed, { verifyDigest: true })
+          : normalizeRunBundleV1(parsed, { verifyDigest: true });
       } catch (_error) {
         throw errorWithCode(
           `stored run bundle ${row.bundle_id} is corrupt`,
           "run_bundle_storage_corrupt",
         );
       }
-      const usageSlices = readSlices(database, row.bundle_id);
-      if (canonicalize(usageSlices) !== canonicalize(parsed.usage_slices)) {
+      const usageSlices = parsed.schema === RUN_BUNDLE_V2_SCHEMA ? [] : readSlices(database, row.bundle_id);
+      if (parsed.schema !== RUN_BUNDLE_V2_SCHEMA && canonicalize(usageSlices) !== canonicalize(parsed.usage_slices)) {
         throw errorWithCode(
           `stored run bundle ${row.bundle_id} has mismatched usage slices`,
           "run_bundle_storage_corrupt",
@@ -460,11 +579,17 @@ const createRunBundleStorageService = ({
     const database = requireDb();
     let result;
     database.tx(() => {
-      result = options.executionId
+      const legacyResult = options.executionId
         ? database
             .prepare("DELETE FROM run_bundle_records WHERE execution_id = ?")
             .run(options.executionId)
         : database.prepare("DELETE FROM run_bundle_records").run();
+      const compactResult = options.executionId
+        ? database
+            .prepare("DELETE FROM run_bundle_compact_records WHERE execution_id = ?")
+            .run(options.executionId)
+        : database.prepare("DELETE FROM run_bundle_compact_records").run();
+      result = { changes: Number(legacyResult.changes) + Number(compactResult.changes) };
     });
     return {
       ok: true,

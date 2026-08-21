@@ -93,7 +93,10 @@ describe("SettingsModal", () => {
       "settings",
       JSON.stringify({
         feature_flags: {
-          enable_app_update_settings: false,
+          format: 2,
+          flags: {
+            enable_app_update_settings: false,
+          },
         },
       }),
     );

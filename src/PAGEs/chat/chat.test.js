@@ -1123,9 +1123,10 @@ describe("ChatInterface stop flow", () => {
 
     await act(async () => {
       resolveCancellation({
-        status: "cancelled",
-        session_id: activeChatId,
+        status: "ok",
+        execution_id: activeChatId,
         attempt_id: "attempt-v4-1",
+        state: "cancelled",
       });
       await Promise.resolve();
     });
@@ -1141,7 +1142,12 @@ describe("ChatInterface stop flow", () => {
     window.unchainAPI.cancelExecution = jest
       .fn()
       .mockRejectedValueOnce(new Error("sidecar restarting"))
-      .mockResolvedValueOnce({ status: "ok", state: "cancelled" });
+      .mockImplementationOnce(async (payload) => ({
+        status: "ok",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        state: "cancelled",
+      }));
     window.unchainAPI.startStreamV4 = jest
       .fn()
       .mockImplementationOnce(() => ({

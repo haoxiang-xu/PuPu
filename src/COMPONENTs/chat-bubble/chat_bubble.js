@@ -23,6 +23,7 @@ const ChatBubble = ({
   traceFrames = [],
   pendingContinuationRequest,
   onContinuationDecision,
+  resendPresentation = null,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -224,6 +225,19 @@ const ChatBubble = ({
           isDark={isDark}
         />
       )}
+      {isUser && resendPresentation?.phase && (
+        <span
+          role="status"
+          aria-live="polite"
+          style={{
+            marginTop: 4,
+            fontSize: 11,
+            color: isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.56)",
+          }}
+        >
+          {resendPresentation.phase}
+        </span>
+      )}
 
       <MessageActionBar
         showActionBar={showActionBar}
@@ -241,6 +255,7 @@ const ChatBubble = ({
         canDeleteMessage={canDeleteMessage}
         onDeleteMessage={onDeleteMessage}
         color={color}
+        resendPresentation={resendPresentation}
       />
     </div>
   );
@@ -262,6 +277,7 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
   previousProps.traceFrames === nextProps.traceFrames &&
   previousProps.pendingContinuationRequest ===
     nextProps.pendingContinuationRequest &&
-  previousProps.onContinuationDecision === nextProps.onContinuationDecision;
+  previousProps.onContinuationDecision === nextProps.onContinuationDecision &&
+  previousProps.resendPresentation === nextProps.resendPresentation;
 
 export default memo(ChatBubble, areChatBubblePropsEqual);

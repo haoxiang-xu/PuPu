@@ -24,6 +24,7 @@ import {
   RUN_BUNDLE_V1_SCHEMA,
   normalizeRendererRunBundleV1,
 } from "../run_bundle_v1";
+import { RUN_BUNDLE_V2_SCHEMA, normalizeRunBundleV2 } from "../run_bundle_v2";
 
 export const DEFAULT_CHAT_KIND = "default";
 export const CHARACTER_CHAT_KIND = "character";
@@ -743,9 +744,11 @@ export const sanitizeMessage = (message) => {
 
     if (isObject(message.meta.bundle)) {
       const b = message.meta.bundle;
-      if (b.schema === RUN_BUNDLE_V1_SCHEMA) {
+      if (b.schema === RUN_BUNDLE_V1_SCHEMA || b.schema === RUN_BUNDLE_V2_SCHEMA) {
         try {
-          meta.bundle = normalizeRendererRunBundleV1(b);
+          meta.bundle = b.schema === RUN_BUNDLE_V2_SCHEMA
+            ? normalizeRunBundleV2(b)
+            : normalizeRendererRunBundleV1(b);
         } catch {
           // A malformed canonical claim is never downgraded into a legacy
           // token bundle during durable reload.

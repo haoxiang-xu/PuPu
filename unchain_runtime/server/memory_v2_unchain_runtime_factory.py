@@ -705,6 +705,7 @@ class PupuUnchainContextMemoryV2HostFactory:
                 execution_factory=execution_factory,
                 task_state_reader_resolver=self._resolve_task_state_reader,
                 provider_turns_enabled=provider_turns_enabled,
+                tool_output_management_active=provider_turns_enabled,
             )
             if self.production_enabled
             and self.projection_mode is SemanticEventProjectionMode.CANONICAL
@@ -712,6 +713,7 @@ class PupuUnchainContextMemoryV2HostFactory:
                 owner_id=_stable_id("pupu-context-v2", self.owner_chat_id),
                 execution_factory=execution_factory,
                 provider_turns_enabled=provider_turns_enabled,
+                tool_output_management_active=provider_turns_enabled,
             )
         )
         self.context_module = ContextModule(

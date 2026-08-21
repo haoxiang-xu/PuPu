@@ -366,6 +366,38 @@ def test_chat_deletion_sqlite_scope_closure_feature_is_required() -> None:
     assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
 
 
+def test_live_interaction_rebase_feature_is_required() -> None:
+    manifest = _producer_manifest()
+    context_memory = _protocol(manifest, "context_memory")
+    context_memory["features"].remove(
+        "generation_rebase_live_interaction_cycles"
+    )
+    manifest = _resign(manifest)
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest,
+        requested_mode="all",
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+
+def test_tool_output_management_feature_is_required() -> None:
+    manifest = _producer_manifest()
+    context_memory = _protocol(manifest, "context_memory")
+    context_memory["features"].remove("tool_output_management_v1")
+    manifest = _resign(manifest)
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest,
+        requested_mode="all",
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+
 def test_higher_minor_extra_feature_and_extra_protocol_are_compatible() -> None:
     manifest = _producer_manifest()
     context_memory = _protocol(manifest, "context_memory")

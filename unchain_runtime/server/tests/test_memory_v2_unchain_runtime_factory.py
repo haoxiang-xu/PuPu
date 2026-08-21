@@ -50,7 +50,10 @@ from unchain.memory.curator import RunCaptureStatus, SourceRunStatus
 from unchain.memory.curator.host import MemoryAgentWorkerDisposition
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 from unchain.subagents.types import SubagentResult
+from unchain.tools.tool import Tool
+from unchain.tools.toolkit import Toolkit
 from unchain.tools.runtime import ToolRuntimeOutcome
+from memory_v2_context import build_memory_v2_tool_runtime_config
 
 
 def _current_input(context, attempt):
@@ -258,6 +261,7 @@ def test_explicit_production_gate_mounts_only_canonical_context_owner(
     )
     assert type(host.task_state_bootstrap_module) is PinnedTaskStateBootstrapModule
     assert host.context_module.runtime.provider_turns_enabled is True
+    assert host.context_module.runtime.tool_output_management_active is True
     host.context_module.runtime.bind_context(
         _context(
             execution_id="execution-provider-turn",
@@ -280,6 +284,48 @@ def test_explicit_production_gate_mounts_only_canonical_context_owner(
     with pytest.raises(PupuUnchainHostFactoryError, match="canonical"):
         observed.modules_for_active()
     assert observed.context_module.runtime.provider_turns_enabled is False
+
+
+def test_active_pupu_admission_leaves_snapshot_to_exposed_unchain_toolkit(
+    tmp_path: Path,
+) -> None:
+    host = _factory(tmp_path, production_enabled=True)
+    admission = SimpleNamespace(
+        mode="active",
+        is_active=True,
+        owner_chat_id="chat-a",
+        session_id="execution-tool-output",
+        attempt_id="attempt-tool-output",
+        source_attempt_id="attempt-tool-output",
+    )
+    context = _context(
+        execution_id="execution-tool-output",
+        generation_id="generation-tool-output",
+        attempt_id="attempt-tool-output",
+    )
+    context.event["tool_runtime_config"] = build_memory_v2_tool_runtime_config(
+        admission,
+        run_id="attempt-tool-output",
+    )
+    context.event["toolkit"] = Toolkit(
+        {
+            "large_search": Tool(
+                name="large_search",
+                description="search",
+                output_policy="artifact_only",
+            )
+        }
+    )
+
+    host.context_module.runtime.bind_context(context)
+    host.context_module.runtime.bind_execution_toolkit(context)
+
+    runtime_config = context.event["tool_runtime_config"]
+    assert runtime_config["tool_output_policy_map"] == {
+        "schema": "unchain.tool_output_policy_map.v1",
+        "policies": {"large_search": "artifact_only"},
+    }
+    assert context.event["tool_output_manager"].active is True
 
 
 def test_memory_agent_mount_gate_requires_exact_bool_and_active_production(

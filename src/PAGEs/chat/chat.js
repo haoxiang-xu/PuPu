@@ -1198,6 +1198,9 @@ const ChatInterface = () => {
               stream.isDurableInteractionBlocked ||
               stream.isTurnMutationBlocked
             }
+            turnMutationPresentationByMessageId={
+              stream.turnMutationPresentationByMessageId
+            }
             isCharacterChat={session.isCharacterChat}
             characterName={session.activeCharacterName}
             characterAvatar={session.activeCharacterAvatar}

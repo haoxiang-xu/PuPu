@@ -2,6 +2,10 @@
 
 本阶段目标：在不改动运行行为的前提下，冻结 `Tool Output` 的上下文裁剪模型、边界契约与验收路径，供 5.3 实施（P1）和 5.6 验收（AT）直接接力。
 
+Stage 1 已完成，实施与验收边界见
+[`memory-tool-output-module-stage1.md`](memory-tool-output-module-stage1.md)。本文件保留为
+Stage 0 的历史冻结记录。
+
 此版本不包含：
 - 模型输入投影规则改动
 - compiler 压缩策略改动

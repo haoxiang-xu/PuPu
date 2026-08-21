@@ -909,7 +909,7 @@ class MemoryV2ContextTests(unittest.TestCase):
         self.assertNotIn("large repeated prompt", str(compact))
         self.assertNotIn("secret conversation", str(compact))
 
-    def test_build_tool_runtime_config_marks_projection_for_active_mode(self):
+    def test_build_tool_runtime_config_leaves_active_snapshot_to_unchain(self):
         runtime = _FakeRuntime()
         runtime.calls.clear()
         admission = SimpleNamespace(
@@ -926,7 +926,10 @@ class MemoryV2ContextTests(unittest.TestCase):
             agent_id="agent_a",
         )
         self.assertEqual(config["memory_v2_context"]["mode"], "active")
-        self.assertTrue(config["tool_output_projection"])
+        self.assertNotIn("tool_output_management", config)
+        self.assertNotIn("tool_output_policy_map", config)
+        self.assertNotIn("tool_result_budget", config)
+        self.assertNotIn("tool_output_projection", config)
 
         shadow_admission = SimpleNamespace(
             mode="shadow",
@@ -943,6 +946,7 @@ class MemoryV2ContextTests(unittest.TestCase):
         )
         self.assertEqual(shadow_config["memory_v2_context"]["mode"], "shadow")
         self.assertIn("tool_result_budget", shadow_config)
+        self.assertNotIn("tool_output_management", shadow_config)
         self.assertNotIn("tool_output_projection", shadow_config)
 
         off_config = build_memory_v2_tool_runtime_config(
@@ -1005,6 +1009,22 @@ class MemoryV2ContextTests(unittest.TestCase):
             "artifact_only",
         )
         self.assertNotIn("preview", persisted_result["result"])
+
+    def test_tool_result_projection_rejects_undeclared_policy(self):
+        runtime = _FakeRuntime()
+        admission = _admission(runtime)
+        with self.assertRaises(MemoryV2PersistenceError):
+            persist_memory_v2_semantic_event(
+                admission,
+                {
+                    "type": "tool_result",
+                    "run_id": "run_a",
+                    "call_id": "call_unknown_policy",
+                    "tool_name": "search",
+                    "tool_result_policy": "future_policy",
+                    "result": {"text": "value"},
+                },
+            )
 
     def test_active_persistence_failure_marks_partial_without_raw_error(self):
         runtime = _FakeRuntime()

@@ -3142,9 +3142,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(tool_call.get("toolkit_name"), "Core")
         self.assertEqual(tool_result.get("toolkit_id"), "core")
         self.assertEqual(tool_result.get("toolkit_name"), "Core")
-        self.assertEqual(tool_result.get("tool_result_policy"), "default")
+        self.assertIsNone(tool_result.get("tool_result_policy"))
 
-    def test_stream_chat_events_enriches_tool_result_policy_from_tool_metadata(self) -> None:
+    def test_stream_chat_events_does_not_enrich_host_tool_policy_metadata(self) -> None:
         class FakeTool:
             _pupu_tool_result_policy = "artifact_only"
 
@@ -3235,8 +3235,34 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         tool_call = next(event for event in events if event.get("type") == "tool_call")
         tool_result = next(event for event in events if event.get("type") == "tool_result")
-        self.assertEqual(tool_call.get("tool_result_policy"), "artifact_only")
-        self.assertEqual(tool_result.get("tool_result_policy"), "artifact_only")
+        self.assertIsNone(tool_call.get("tool_result_policy"))
+        self.assertIsNone(tool_result.get("tool_result_policy"))
+
+    def test_toolkit_metadata_does_not_interpret_host_tool_policy(self) -> None:
+        class FakeTool:
+            _pupu_tool_result_policy = "future_policy"
+
+        class FakeToolkit:
+            tools = {"read": FakeTool()}
+
+        index = unchain_adapter._build_toolkit_tool_index([FakeToolkit()])
+        self.assertNotIn("tool_result_policy", index["read"])
+
+    def test_toolkit_metadata_does_not_mutate_runtime_tool_policy(self) -> None:
+        class FakeTool:
+            _pupu_tool_result_policy = "artifact_only"
+
+        tool = FakeTool()
+
+        class FakeToolkit:
+            tools = {"read": tool}
+
+        toolkit = FakeToolkit()
+        index = unchain_adapter._build_toolkit_tool_index([toolkit])
+
+        self.assertFalse(hasattr(tool, "tool_result_policy"))
+        self.assertFalse(hasattr(toolkit, "tool_output_policies"))
+        self.assertNotIn("tool_result_policy", index["read"])
 
     def test_stream_chat_events_forwards_confirmation_capable_shell_tool_call(self) -> None:
         class FakeToolkit:

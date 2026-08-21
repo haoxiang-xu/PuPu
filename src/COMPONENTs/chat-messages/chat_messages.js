@@ -26,6 +26,7 @@ const ChatMessages = ({
   pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
+  turnMutationPresentationByMessageId = {},
   streamingMessageStore,
   initialVisibleCount = 12,
   loadBatchSize = 6,
@@ -270,6 +271,9 @@ const ChatMessages = ({
                           ? onContinuationDecision
                           : undefined
                       }
+                      resendPresentation={
+                        turnMutationPresentationByMessageId[msg.id]
+                      }
                     />
                   ) : (
                     <ChatBubble
@@ -298,6 +302,9 @@ const ChatMessages = ({
                         messageIndex === messages.length - 1
                           ? onContinuationDecision
                           : undefined
+                      }
+                      resendPresentation={
+                        turnMutationPresentationByMessageId[msg.id]
                       }
                     />
                   )}

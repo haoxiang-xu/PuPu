@@ -1,5 +1,9 @@
 const { CHANNELS } = require("../../shared/channels");
 const { normalizeRunBundleV1 } = require("../../shared/run_bundle_v1");
+const {
+  normalizeRunBundleV2,
+  isRunBundleV2,
+} = require("../../shared/run_bundle_v2");
 
 const assertOnlyKeys = (value, allowed, label) => {
   if (
@@ -22,7 +26,9 @@ const createRunBundleStorageBridge = (ipcRenderer) => {
   const upsert = (bundle) => {
     // Preload is an independent admission point: reconstruct from the strict
     // validator result and never forward the caller-owned object reference.
-    const normalized = normalizeRunBundleV1(bundle, { verifyDigest: false });
+    const normalized = isRunBundleV2(bundle)
+      ? normalizeRunBundleV2(bundle, { verifyDigest: false })
+      : normalizeRunBundleV1(bundle, { verifyDigest: false });
     return ipcRenderer.invoke(CHANNELS.RUN_BUNDLE_STORAGE.UPSERT, {
       bundle: normalized,
     });

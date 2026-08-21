@@ -209,6 +209,29 @@ def test_existing_fresh_or_resume_availability_has_priority_over_extension() -> 
     )
 
 
+def test_projection_accepts_both_method_generations_but_nothing_else() -> None:
+    """v1 receipts are permanently persisted history and v2 is what the
+    runtime emits since the 2026-08-21 method bump (calibrated divisor +
+    scale-onto-billed-total) — both must project as valid, or this
+    diagnostic misreports every bundle from the other generation as
+    extension_invalid. Anything unrecognised must still fail closed."""
+    v2_extension = _valid_extension()
+    v2_extension["method"] = "utf8_heuristic_v2"
+    assert (
+        project_context_composition_availability(_producer_bundle(v2_extension))
+        is None
+    )
+
+    unknown_extension = _valid_extension()
+    unknown_extension["method"] = "utf8_heuristic_v3"
+    assert project_context_composition_availability(
+        _producer_bundle(unknown_extension)
+    ) == {
+        "schema": "pupu.context_composition_availability.v2",
+        "code": "extension_invalid",
+    }
+
+
 def test_strict_projection_rejects_counter_surface_and_type_mutants() -> None:
     counter_mutant = _valid_extension()
     counter_mutant["coverage"].update({"manifest_items": 999, "matched_items": 999})

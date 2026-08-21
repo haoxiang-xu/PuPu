@@ -14,7 +14,13 @@ from context_composition_host import (
 CONTEXT_COMPOSITION_EXTENSION_KEY = "unchain.context/context_composition_v1"
 
 _EXTENSION_SCHEMA = "unchain.context/context_composition_v1"
-_METHOD = "utf8_heuristic_v1"
+# v1: raw bytes/4 heuristic. v2 (2026-08-21): calibrated bytes/4.5 plus
+# rescaling onto the provider's billed total when the heuristic overshoots.
+# Both stay accepted — receipts persisted before the bump are permanently
+# stamped v1, and this diagnostic must not misreport a valid old bundle
+# (or a valid new one) as extension_invalid. Mirrors SUPPORTED_METHODS in
+# the renderer's src/SERVICEs/context_composition_v1.js.
+_METHODS = frozenset({"utf8_heuristic_v1", "utf8_heuristic_v2"})
 _MAX_SAFE_INTEGER = (1 << 53) - 1
 _SHA256 = re.compile(r"^sha256:[a-f0-9]{64}$")
 _ROUTES = frozenset({"primary", "openai_previous_response_fallback"})
@@ -166,7 +172,7 @@ def _validate_context_composition_extension(
     extension = _exact_dict(value, _EXTENSION_KEYS)
     if (
         extension.get("schema") != _EXTENSION_SCHEMA
-        or extension.get("method") != _METHOD
+        or extension.get("method") not in _METHODS
         or extension.get("quality") not in _QUALITIES
     ):
         _fail()

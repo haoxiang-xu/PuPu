@@ -17,6 +17,61 @@ const storedRecord = (bundle) => ({
   updatedAt: Date.parse("2026-08-13T20:00:01Z"),
 });
 
+const buildRendererRunBundleV2 = () => ({
+  schema: "unchain.run_bundle.v2",
+  bundle_id: "bundle-v2",
+  revision: 1,
+  bundle_digest: "4".repeat(64),
+  identity: {
+    execution_id: "execution-1",
+    attempt_id: "attempt-1",
+    root_run_id: "root-1",
+    run_id: "root-1",
+    parent_run_id: null,
+    relation: "root",
+  },
+  lifecycle: {
+    status: "completed",
+    started_at: "2026-08-20T00:00:00Z",
+    completed_at: "2026-08-20T00:01:00Z",
+    continued_from_run_id: null,
+  },
+  descriptor: {
+    model: "unknown-model",
+    display_model: "model-unavailable",
+    active_agent: "unknown",
+    agent_orchestration: "default",
+    iteration: 0,
+  },
+  provider_call_count: 0,
+  direct_provider_call_count: 0,
+  descendant_provider_call_count: 0,
+  aggregation_usage: {},
+  direct_usage: {},
+  descendant_usage: {},
+  metrics: {},
+  coverage: { status: "unavailable" },
+  cost: { status: "unavailable" },
+  legacy: { status: "canonical" },
+  evidence: {},
+  children: { count: 0, set_sha256: "0".repeat(64) },
+  details_ref: {
+    schema: "unchain.run_bundle_details_ref.v1",
+    details_id: `rbd_${"1".repeat(64)}`,
+    facts_digest: "2".repeat(64),
+    total_bytes: 0,
+    parts: [
+      {
+        name: "provider_calls",
+        item_count: 0,
+        canonical_bytes: 0,
+        root_sha256: "3".repeat(64),
+      },
+    ],
+  },
+  extensions: {},
+});
+
 describe("RunBundle Settings usage projection", () => {
   afterEach(() => {
     delete window.runBundleStorageAPI;
@@ -110,13 +165,13 @@ describe("done RunBundle admission", () => {
     ).resolves.toMatchObject({ status: "legacy_read_only" });
   });
 
-  test("rejects present malformed and unsupported bundle schemas", () => {
+  test("rejects present malformed bundle claims", () => {
     expect(() => persistDoneRunBundleV1({ bundle: "invalid" })).toThrow(
       /done\.bundle must be an object/,
     );
     expect(() =>
       persistDoneRunBundleV1({ bundle: { schema: "unchain.run_bundle.v2" } }),
-    ).toThrow(/unsupported schema/);
+    ).toThrow(/unknown or missing fields/);
   });
 
   test("admits diagnostics and awaits an exact canonical UPSERT acknowledgement", async () => {
@@ -155,6 +210,30 @@ describe("done RunBundle admission", () => {
     ).resolves.toMatchObject({
       bundle,
       completionDiagnostics,
+      ledger: { ok: true, bundleId: bundle.bundle_id },
+    });
+    expect(upsert).toHaveBeenCalledWith(bundle);
+  });
+
+  test("keeps v2 completion behind the durable UPSERT barrier", async () => {
+    const bundle = buildRendererRunBundleV2();
+    const upsert = jest.fn(async () => ({
+      ok: true,
+      status: "inserted",
+      bundleId: bundle.bundle_id,
+      revision: bundle.revision,
+      bundleDigest: bundle.bundle_digest,
+    }));
+    window.runBundleStorageAPI = {
+      upsert,
+      query: jest.fn(),
+      clear: jest.fn(),
+    };
+
+    const admission = admitDoneRunAccountingV1({ bundle });
+    expect(admission).toBeInstanceOf(Promise);
+    await expect(admission).resolves.toMatchObject({
+      bundle,
       ledger: { ok: true, bundleId: bundle.bundle_id },
     });
     expect(upsert).toHaveBeenCalledWith(bundle);

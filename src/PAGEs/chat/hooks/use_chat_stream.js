@@ -5,6 +5,7 @@ import { expandCommands, extractCommands } from "../../../SERVICEs/command_regis
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { admitDoneRunAccountingV1 } from "../../../SERVICEs/run_bundle_storage";
 import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
+import { RUN_BUNDLE_V2_SCHEMA } from "../../../SERVICEs/run_bundle_v2";
 import { buildContextCompositionHintV2 } from "../../../SERVICEs/context_composition_hint_v2";
 import { createLogger } from "../../../SERVICEs/console_logger";
 import { createThinkTagParser } from "../think_tag_parser";
@@ -760,6 +761,62 @@ const normalizedExecutionIdentity = (identity) => {
   };
 };
 
+/* A renderer can lose its in-memory stream map while the assistant bubble has
+   already been durably written.  Stop must still address that exact run: a
+   transport disconnect alone leaves the sidecar free to continue a graph
+   worker. */
+const executionIdentityFromMessages = (chatId, messages) => {
+  const ownerChatId = typeof chatId === "string" ? chatId.trim() : "";
+  if (!ownerChatId || !Array.isArray(messages)) return null;
+  const message = [...messages].reverse().find(
+    (candidate) =>
+      candidate?.role === "assistant" &&
+      typeof candidate?.meta?.attemptId === "string" &&
+      candidate.meta.attemptId.trim() &&
+      typeof candidate?.meta?.executionSessionId === "string" &&
+      candidate.meta.executionSessionId.trim(),
+  );
+  if (!message) return null;
+  return normalizedExecutionIdentity({
+    ownerChatId,
+    sessionId: message.meta.executionSessionId,
+    attemptId: message.meta.attemptId,
+    requestId: message.meta.requestId,
+    sourceAttemptId: message.meta.sourceAttemptId,
+    interactionId: message.meta.interactionId,
+  });
+};
+
+const inspectExecutionCancellation = (response, identity) => {
+  const expected = normalizedExecutionIdentity(identity);
+  if (!expected || !response || typeof response !== "object") {
+    return { accepted: false, terminal: false };
+  }
+  const status =
+    typeof response.status === "string" ? response.status.trim() : "";
+  const executionId =
+    typeof (response.execution_id || response.session_id) === "string"
+      ? (response.execution_id || response.session_id).trim()
+      : "";
+  const attemptId =
+    typeof response.attempt_id === "string" ? response.attempt_id.trim() : "";
+  const state = typeof response.state === "string" ? response.state.trim() : "";
+  const accepted =
+    ["ok", "cancel_requested", "cancelled"].includes(status) &&
+    (!executionId || executionId === expected.sessionId) &&
+    (!attemptId || attemptId === expected.attemptId);
+  return {
+    accepted,
+    /* Older trusted preload bridges did not echo execution ids.  Missing ids
+       remain compatible, but any conflicting id fails closed.  Only an
+       explicit terminal state clears the durable retry tombstone. */
+    terminal:
+      accepted &&
+      (status === "cancelled" ||
+        ["cancelled", "completed", "failed"].includes(state)),
+  };
+};
+
 const disconnectStreamTransport = (handle) => {
   if (handle && typeof handle.disconnect === "function") {
     handle.disconnect();
@@ -818,7 +875,17 @@ const requestExecutionCancellationAndDisconnect = ({
           ? idempotencyKey.trim()
           : `stop:${normalizedIdentity.attemptId}`,
     }),
-  ).then((response) => ({ ok: true, response }))
+  ).then((response) => {
+    const confirmation = inspectExecutionCancellation(
+      response,
+      normalizedIdentity,
+    );
+    return {
+      ok: confirmation.accepted,
+      terminal: confirmation.terminal,
+      response,
+    };
+  })
     .catch((error) => {
       unchainLogger.warn("execution_cancel_failed", {
         sessionId: normalizedIdentity.sessionId,
@@ -1021,6 +1088,8 @@ export const useChatStream = ({
     });
   }
   const [turnMutationVersion, setTurnMutationVersion] = useState(0);
+  const [turnMutationPresentationByMessageId, setTurnMutationPresentationByMessageId] =
+    useState({});
   const streamingChatIdsRef = useRef(new Set());
   const runPreflightGenerationByChatIdRef = useRef(new Map());
   const turnMutationByChatIdRef = useRef(activeTurnMutationsByChatId);
@@ -1098,6 +1167,51 @@ export const useChatStream = ({
       }
     };
   }, []);
+
+  /* The resend affordance is deliberately optimistic, but it must not get
+     stuck if the durable turn-mutation entry finishes, retries, or is removed
+     by recovery in another render.  The outbox remains the source of truth;
+     this only mirrors its state for immediate UI feedback. */
+  useEffect(() => {
+    const currentChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    const entriesByTargetMessageId = new Map(
+      readTurnMutationOutbox()
+        .filter(
+          (entry) =>
+            entry.chatId === currentChatId &&
+            entry.kind === "resend" &&
+            typeof entry.targetMessageId === "string" &&
+            entry.targetMessageId.trim(),
+        )
+        .map((entry) => [entry.targetMessageId, entry]),
+    );
+    setTurnMutationPresentationByMessageId((previous) => {
+      const next = {};
+      let changed = false;
+      for (const [messageId, presentation] of Object.entries(previous)) {
+        const entry = entriesByTargetMessageId.get(messageId);
+        if (
+          !entry &&
+          presentation?.phase === "Waiting for the previous run to finish…"
+        ) {
+          changed = true;
+          continue;
+        }
+        if (!entry) {
+          next[messageId] = presentation;
+          continue;
+        }
+        const phase =
+          entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.IN_PROGRESS
+            ? "Waiting for the previous run to finish…"
+            : presentation?.phase;
+        next[messageId] = { ...presentation, phase };
+        if (phase !== presentation?.phase) changed = true;
+      }
+      return changed ? next : previous;
+    });
+  }, [chatId, turnMutationVersion]);
 
   const runContextOwnerChatId =
     typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
@@ -2928,7 +3042,9 @@ export const useChatStream = ({
       return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
     const executionIdentity =
-      executionIdentityByChatIdRef.current.get(currentChatId) || null;
+      executionIdentityByChatIdRef.current.get(currentChatId) ||
+      executionIdentityFromMessages(currentChatId, messagesRef.current) ||
+      null;
     const durableInteraction =
       durableInteractionByChatIdRef.current[currentChatId] || null;
 
@@ -2969,7 +3085,7 @@ export const useChatStream = ({
       handle,
       reason: "user_stop",
     }).then((result) => {
-      if (result?.ok && queuedCancellation) {
+      if (result?.terminal && queuedCancellation) {
         removeExecutionCancel(
           queuedCancellation.sessionId,
           queuedCancellation.attemptId,
@@ -3046,7 +3162,7 @@ export const useChatStream = ({
           handle: null,
           reason: entry.reason || "user_stop",
         });
-        if (result?.ok) {
+        if (result?.terminal) {
           removeExecutionCancel(
             entry.sessionId,
             entry.attemptId,
@@ -5812,8 +5928,10 @@ export const useChatStream = ({
                 ? doneError.message
                 : "The stream failed.",
           };
-          const hasCanonicalBundle =
-            done?.bundle?.schema === RUN_BUNDLE_V1_SCHEMA;
+          const hasCanonicalBundle = [
+            RUN_BUNDLE_V1_SCHEMA,
+            RUN_BUNDLE_V2_SCHEMA,
+          ].includes(done?.bundle?.schema);
           if (!hasCanonicalBundle) {
             handlers.onError?.(terminalError);
             return false;
@@ -6548,7 +6666,7 @@ export const useChatStream = ({
             ? `queue-relay-acceptance:${exactIdentity.attemptId}`
             : "",
         });
-        if (cancelResult?.ok && queuedCancellation) {
+        if (cancelResult?.terminal && queuedCancellation) {
           removeExecutionCancel(
             queuedCancellation.sessionId,
             queuedCancellation.attemptId,
@@ -8115,6 +8233,55 @@ export const useChatStream = ({
               const wasCancelled =
                 errorCode === "cancelled" || error?.cancelled === true;
               const errorTime = Date.now();
+              const cancellationHandledByRecovery =
+                [
+                  "execution_lease_conflict",
+                  "stream_not_found",
+                  "stream_attach_target_unavailable",
+                  "stream_replay_gap",
+                ].includes(errorCode) || errorCode.startsWith("queue_relay_");
+              const hasPendingDurableInteraction =
+                Object.keys(
+                  pendingToolConfirmationRequestsByChatIdRef.current[
+                    targetChatId
+                  ] || {},
+                ).length > 0;
+
+              /* A renderer-side error is not proof that the durable worker
+                 stopped. Persist semantic cancellation before we forget the
+                 exact identity, so a graph child cannot become an orphan that
+                 resumes when this chat is reopened. */
+              if (
+                !wasCancelled &&
+                !hasAdmittedRunAccounting &&
+                !cancellationHandledByRecovery &&
+                !hasPendingDurableInteraction
+              ) {
+                const cancellationIdentity =
+                  executionIdentityByChatIdRef.current.get(targetChatId) ||
+                  executionIdentityFromMessages(targetChatId, streamMessages);
+                const queuedCancellation = enqueueExecutionCancel({
+                  ...(cancellationIdentity || {}),
+                  ownerChatId: targetChatId,
+                  reason: "stream_error",
+                  createdAt: Date.now(),
+                });
+                if (queuedCancellation) {
+                  void requestExecutionCancellationAndDisconnect({
+                    identity: queuedCancellation,
+                    handle: streamHandlesRef.current.get(targetChatId),
+                    reason: "stream_error",
+                  }).then((result) => {
+                    if (result?.terminal) {
+                      removeExecutionCancel(
+                        queuedCancellation.sessionId,
+                        queuedCancellation.attemptId,
+                        queuedCancellation.interactionId,
+                      );
+                    }
+                  });
+                }
+              }
 
               if (isDurableResume && !hasAdmittedRunAccounting) {
                 const retrySourceMessages = materializeStreamingMessages(
@@ -9165,7 +9332,7 @@ export const useChatStream = ({
                 handle: null,
                 reason: "user_stop",
               }).then((result) => {
-                if (result?.ok && queuedCancellation) {
+                if (result?.terminal && queuedCancellation) {
                   removeExecutionCancel(
                     queuedCancellation.sessionId,
                     queuedCancellation.attemptId,
@@ -9810,6 +9977,25 @@ export const useChatStream = ({
     const executionSessionId =
       assistantMessage.meta.executionSessionId.trim();
     const assistantMessageId = assistantMessage.id;
+    const cancellationAlreadyRequested = readExecutionCancelOutbox().some(
+      (entry) =>
+        entry.sessionId === executionSessionId && entry.attemptId === attemptId,
+    );
+    if (cancellationAlreadyRequested) {
+      /* A prior Stop survives renderer restart in the cancellation outbox.
+         Do not race it by reattaching the old transport; settle the visible
+         placeholder so this attempt cannot be selected for a later reopen. */
+      stoppedRunChatIdsRef.current.add(targetChatId);
+      const { changed, nextMessages } =
+        settleStreamingAssistantMessages(storedMessages);
+      if (changed) {
+        commitForegroundMessages(targetChatId, nextMessages);
+        storageApi.setChatMessages(targetChatId, nextMessages, {
+          source: "stream-reattach-cancellation-pending",
+        });
+      }
+      return undefined;
+    }
     const runGeneration = ensureRecoveryRunGeneration(targetChatId);
     if (
       !assistantMessageId ||
@@ -10426,7 +10612,7 @@ export const useChatStream = ({
         reason: "queue_relay_acceptance_unverified",
         idempotencyKey: `queue-relay-acceptance:${attemptId}`,
       });
-      if (cancelResult?.ok && queuedCancellation) {
+      if (cancelResult?.terminal && queuedCancellation) {
         removeExecutionCancel(
           queuedCancellation.sessionId,
           queuedCancellation.attemptId,
@@ -10501,8 +10687,10 @@ export const useChatStream = ({
           done.error && typeof done.error === "object" ? done.error : null;
         if (latestProjection?.status === "error" || doneError) {
           const terminalError = projectedError || doneError;
-          const hasCanonicalBundle =
-            done?.bundle?.schema === RUN_BUNDLE_V1_SCHEMA;
+          const hasCanonicalBundle = [
+            RUN_BUNDLE_V1_SCHEMA,
+            RUN_BUNDLE_V2_SCHEMA,
+          ].includes(done?.bundle?.schema);
           if (doneError && hasCanonicalBundle) {
             terminalAccountingPending = true;
             const finishAdmittedError = ({
@@ -12738,6 +12926,28 @@ export const useChatStream = ({
     queueItems: [],
   };
 
+  const setTurnMutationPresentation = useCallback((messageId, phase) => {
+    const normalizedMessageId =
+      typeof messageId === "string" ? messageId.trim() : "";
+    if (!normalizedMessageId) return;
+    setTurnMutationPresentationByMessageId((previous) => ({
+      ...previous,
+      [normalizedMessageId]: { phase },
+    }));
+  }, []);
+
+  const clearTurnMutationPresentation = useCallback((messageId) => {
+    const normalizedMessageId =
+      typeof messageId === "string" ? messageId.trim() : "";
+    if (!normalizedMessageId) return;
+    setTurnMutationPresentationByMessageId((previous) => {
+      if (!previous[normalizedMessageId]) return previous;
+      const next = { ...previous };
+      delete next[normalizedMessageId];
+      return next;
+    });
+  }, []);
+
   const resendTurn = useCallback(
     async (message) => {
       const currentChatId = activeChatIdRef.current;
@@ -12770,6 +12980,12 @@ export const useChatStream = ({
         return;
       }
 
+      /* Presentation is intentionally independent from the rebase round trip.
+         Canonical history remains unchanged until the durable acknowledgement
+         arrives, but the click must be visible in this same renderer turn. */
+      setTurnMutationPresentation(targetMessage.id, "Preparing resend…");
+      let retainPresentation = false;
+
       /* ── Memory V2 P0 secret gate ──────────────────────────────────────────
          A resend replays a stored message, which for anything sent after this
          gate shipped is already handle-only and scans clean. A message stored
@@ -12781,12 +12997,16 @@ export const useChatStream = ({
         text,
         interactive: true,
       });
-      if (!gatedResend) return;
+      if (!gatedResend) {
+        clearTurnMutationPresentation(targetMessage.id);
+        return;
+      }
       /* The chat or its run state may have moved while the modal was open. */
       if (
         activeChatIdRef.current !== currentChatId ||
         isChatRunPending(currentChatId) !== thisChatsStreamActive
       ) {
+        clearTurnMutationPresentation(targetMessage.id);
         return;
       }
       const resendText = gatedResend.text;
@@ -12803,6 +13023,7 @@ export const useChatStream = ({
           currentChatId,
           SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
         );
+        clearTurnMutationPresentation(targetMessage.id);
         return;
       }
 
@@ -12812,7 +13033,10 @@ export const useChatStream = ({
         operationId,
         mountedRef: hookMountedRef,
       });
-      if (!turnMutationOwner) return;
+      if (!turnMutationOwner) {
+        clearTurnMutationPresentation(targetMessage.id);
+        return;
+      }
       const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
 
       try {
@@ -12942,6 +13166,13 @@ export const useChatStream = ({
           targetChatId: currentChatId,
         });
         if (!memoryResult.applied) {
+          if (memoryResult.retryAction === TURN_MUTATION_RETRY_ACTIONS.IN_PROGRESS) {
+            retainPresentation = true;
+            setTurnMutationPresentation(
+              targetMessage.id,
+              "Waiting for the previous run to finish…",
+            );
+          }
           if (
             outboxEntry.memoryMode !== TURN_MUTATION_MEMORY_MODES.V2 &&
             isTerminalTurnMutationResult(memoryResult) &&
@@ -12985,6 +13216,9 @@ export const useChatStream = ({
         });
       } finally {
         releaseTurnMutation(turnMutationOwner);
+        if (!retainPresentation) {
+          clearTurnMutationPresentation(targetMessage.id);
+        }
       }
     },
     [
@@ -13001,7 +13235,9 @@ export const useChatStream = ({
       resolveTurnMutationMemoryPlan,
       resolveSecretGateForSend,
       runTurnRequest,
+      clearTurnMutationPresentation,
       setStreamErrorForChat,
+      setTurnMutationPresentation,
       storageApi,
       threadIdRef,
     ],
@@ -14096,5 +14332,6 @@ export const useChatStream = ({
     streamError,
     toolConfirmationUiStateById,
     turnMutationHold,
+    turnMutationPresentationByMessageId,
   };
 };

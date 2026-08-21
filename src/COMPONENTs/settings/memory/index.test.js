@@ -63,7 +63,10 @@ const setMemoryV2Flag = (enabled, memorySettings = {}) => {
     "settings",
     JSON.stringify({
       memory: memorySettings,
-      feature_flags: { enable_memory_v2: enabled === true },
+      feature_flags: {
+        format: 2,
+        flags: { enable_memory_v2: enabled === true },
+      },
     }),
   );
 };

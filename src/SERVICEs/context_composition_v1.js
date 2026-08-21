@@ -4,7 +4,17 @@ export const CONTEXT_COMPOSITION_EXTENSION_KEY =
   "unchain.context/context_composition_v1";
 
 const EXTENSION_SCHEMA = "unchain.context/context_composition_v1";
-const METHOD = "utf8_heuristic_v1";
+// v1: raw bytes/4 heuristic, no reconcile-scaling — every real call
+// eventually stalls at quality="estimated" once tool schemas are attributed
+// (see the v2 producer's own comment on CONTEXT_COMPOSITION_METHOD). v2:
+// calibrated bytes/4.5 plus rescale-onto-the-billed-total when the estimate
+// overshoots it. Both must stay accepted here — every receipt persisted
+// before this method existed is permanently stamped v1, and opening one of
+// those old chats must not fail composition normalization.
+const SUPPORTED_METHODS = Object.freeze([
+  "utf8_heuristic_v1",
+  "utf8_heuristic_v2",
+]);
 const MAX_SAFE = Number.MAX_SAFE_INTEGER;
 const SHA256 = /^sha256:[a-f0-9]{64}$/;
 
@@ -221,7 +231,7 @@ export const normalizeContextCompositionExtension = (value) => {
     "composition",
   );
   if (value.schema !== EXTENSION_SCHEMA) fail("composition.schema", "is unsupported");
-  if (value.method !== METHOD) fail("composition.method", "is unsupported");
+  enumValue(value.method, SUPPORTED_METHODS, "composition.method");
   enumValue(value.quality, QUALITIES, "composition.quality");
   integer(value.context_window_tokens, "composition.context_window_tokens", {
     positive: true,

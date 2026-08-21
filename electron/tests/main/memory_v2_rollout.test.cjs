@@ -22,6 +22,7 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "canonical_journal",
       "chat_deletion_sqlite_scope_closure",
       "context_compiler",
+      "generation_rebase_live_interaction_cycles",
       "interaction_resolution_compat",
       "long_term_promotion",
       "memory_curator",
@@ -440,6 +441,7 @@ describe("Memory V2 runtime protocol admission", () => {
 
   test.each([
     ["chat_deletion_sqlite_scope_closure", "context_memory"],
+    ["generation_rebase_live_interaction_cycles", "context_memory"],
     ["interaction_resolution_compat", "context_memory"],
     ["expected_interaction_id_cas", "durable_interaction"],
   ])("requires incident compatibility feature %s", (feature, protocolId) => {

@@ -44,7 +44,10 @@ describe("AppearanceSettings theme color feature flag", () => {
       "settings",
       JSON.stringify({
         feature_flags: {
-          enable_theme_color_customization: true,
+          format: 2,
+          flags: {
+            enable_theme_color_customization: true,
+          },
         },
       }),
     );

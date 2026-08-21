@@ -86,6 +86,24 @@ describe("renderer-safe RunBundle v1 contract", () => {
 });
 
 describe("canonical RunBundle usage selector", () => {
+  test("projects compact v2 aggregate usage without inline receipts", () => {
+    const selected = selectRunBundleUsage({
+      schema: "unchain.run_bundle.v2",
+      aggregation_usage: {
+        input: { total_tokens: 1000, cache_read_tokens: 600, cache_write_tokens: 0 },
+        output: { total_tokens: 200, reasoning_tokens: 50 },
+        total_tokens: 1200,
+        source: "provider_observed",
+      },
+      coverage: { status: "complete" },
+      cost: { status: "unavailable" },
+    });
+    expect(selected.input).toBe(1000);
+    expect(selected.output).toBe(200);
+    expect(selected.total).toBe(1200);
+    expect(selected.usageSlices).toEqual([]);
+  });
+
   test("OpenAI 1000 input with 600 cached displays 1000 in, not 1600", () => {
     const selected = selectRunBundleUsage(buildRunBundleV1());
     expect(selected.input).toBe(1000);
