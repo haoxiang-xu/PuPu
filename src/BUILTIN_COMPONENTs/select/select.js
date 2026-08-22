@@ -397,11 +397,14 @@ const SinkingSelect = ({
         minWidth: dropdownMinWidth - 12,
         maxWidth: dropdownMaxWidth - 12,
         padding: dropdown_theme?.padding ?? 6,
+        /* A dropdown is a popover, so it belongs to the SURFACE layer — the
+           old chain ended at the JS theme's background, which is both the
+           wrong layer and a value that only moves on commit. Explicit
+           per-call overrides still win. */
         backgroundColor:
           dropdown_style?.backgroundColor ??
           dropdown_theme?.backgroundColor ??
-          theme?.backgroundColor ??
-          "white",
+          "var(--pupu-surface)",
         border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
@@ -749,11 +752,14 @@ const FloatingSelect = ({
         gap: 6,
         minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
         padding: dropdown_theme?.padding ?? 6,
+        /* A dropdown is a popover, so it belongs to the SURFACE layer — the
+           old chain ended at the JS theme's background, which is both the
+           wrong layer and a value that only moves on commit. Explicit
+           per-call overrides still win. */
         backgroundColor:
           dropdown_style?.backgroundColor ??
           dropdown_theme?.backgroundColor ??
-          theme?.backgroundColor ??
-          "white",
+          "var(--pupu-surface)",
         border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,

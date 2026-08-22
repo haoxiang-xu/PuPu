@@ -235,6 +235,15 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
     foregroundColor: surface,
     icon: merge(base.icon, { color: text }),
     font: merge(base.font, { color: text }),
+    /* A Button draws its label from theme.button.root.color and its icon from
+       theme.icon.color. Mapping only the second one left the two halves of
+       the same control on different colours — on the default dark palette the
+       icon went to #ffffff while the label stayed at the JSON's #CCCCCC, and
+       on any custom palette they drifted apart properly. Buttons that set
+       their own colour still win: user style is merged over this. */
+    button: merge(base.button, {
+      root: merge(base.button?.root, { color: text }),
+    }),
     input: merge(base.input, {
       backgroundColor: withAlpha(surface, 0.9),
       outline: merge(base.input?.outline, {
@@ -291,10 +300,24 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
                mid-tier var that the attach panel and context menus use */
             border: "1px solid var(--pupu-border-mid)",
           }),
+          /* Rendered prose was the biggest surface still painted from fixed
+             JSON hex, so a custom Label moved every label in the app except
+             the answer itself. These are written as var() rather than
+             resolved colours on purpose: the variables move on every preview
+             frame, while this object only moves on commit. */
           markdown: {
             ...(base.markdown || {}),
+            color: "var(--pupu-markdown-body)",
             pre: merge(base.markdown?.pre, { backgroundColor: deepTier }),
-            table: merge(base.markdown?.table, { headerBackground: deepTier }),
+            table: merge(base.markdown?.table, {
+              headerBackground: deepTier,
+              borderColor: "var(--pupu-border)",
+            }),
+            blockquote: merge(base.markdown?.blockquote, {
+              color: "var(--pupu-markdown-quote)",
+              borderColor: "var(--pupu-border)",
+            }),
+            hr: merge(base.markdown?.hr, { borderColor: "var(--pupu-border)" }),
           },
         }
       : {}),

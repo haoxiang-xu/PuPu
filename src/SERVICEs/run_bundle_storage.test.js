@@ -9,10 +9,22 @@ import { computeCompletionDiagnosticsDigestV1 } from "./completion_diagnostics_v
 const {
   buildRunBundleV1,
 } = require("../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+const {
+  canonicalize,
+} = require("../../electron/shared/run_bundle_v1");
 
 const storedRecord = (bundle) => ({
   bundle,
   usageSlices: bundle.usage_slices,
+  createdAt: Date.parse("2026-08-13T20:00:01Z"),
+  updatedAt: Date.parse("2026-08-13T20:00:01Z"),
+});
+
+const sqliteCanonicalRecord = (bundle) => ({
+  bundle,
+  usageSlices: bundle.usage_slices.map((slice) =>
+    JSON.parse(canonicalize(slice)),
+  ),
   createdAt: Date.parse("2026-08-13T20:00:01Z"),
   updatedAt: Date.parse("2026-08-13T20:00:01Z"),
 });
@@ -148,6 +160,71 @@ describe("RunBundle Settings usage projection", () => {
       limit: 5000,
       offset: 0,
     });
+  });
+
+  test("admits SQLite-canonical usage slices after bridge transport", async () => {
+    const bundle = buildRunBundleV1({ multiModel: true });
+    const record = sqliteCanonicalRecord(bundle);
+    expect(JSON.stringify(record.usageSlices)).not.toBe(
+      JSON.stringify(bundle.usage_slices),
+    );
+    const query = jest.fn(() =>
+      Promise.resolve({ ok: true, records: [record] }),
+    );
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(),
+      query,
+      clear: jest.fn(),
+    };
+
+    const rows = await queryRunBundleTokenUsage({
+      startMs: Date.parse("2026-08-13T00:00:00Z"),
+      endMs: Date.parse("2026-08-14T00:00:00Z"),
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows.reduce((sum, row) => sum + row.consumed_tokens, 0)).toBe(1650);
+    expect(rows.map((row) => row.provider_call_id)).toEqual(
+      bundle.provider_calls.map((receipt) => receipt.provider_call_id).sort(),
+    );
+    expect(query).toHaveBeenCalledWith({
+      startMs: Date.parse("2026-08-13T00:00:00Z"),
+      endMs: Date.parse("2026-08-14T00:00:00Z"),
+      limit: 5000,
+      offset: 0,
+    });
+  });
+
+  test("rejects a semantically altered SQLite-canonical usage slice", async () => {
+    const bundle = buildRunBundleV1();
+    const record = sqliteCanonicalRecord(bundle);
+    record.usageSlices[0].usage.input.uncached_tokens = 401;
+    record.usageSlices[0].usage.input.total_tokens = 1001;
+    record.usageSlices[0].usage.total_tokens = 1201;
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(),
+      query: jest.fn(() => Promise.resolve({ ok: true, records: [record] })),
+      clear: jest.fn(),
+    };
+
+    await expect(queryRunBundleTokenUsage({})).rejects.toThrow(
+      /RunBundle query slices do not match the bundle/,
+    );
+  });
+
+  test("keeps usage-slice array order strict after canonical bridge transport", async () => {
+    const bundle = buildRunBundleV1({ multiModel: true });
+    const record = sqliteCanonicalRecord(bundle);
+    record.usageSlices.reverse();
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(),
+      query: jest.fn(() => Promise.resolve({ ok: true, records: [record] })),
+      clear: jest.fn(),
+    };
+
+    await expect(queryRunBundleTokenUsage({})).rejects.toThrow(
+      /RunBundle query slices do not match the bundle/,
+    );
   });
 });
 

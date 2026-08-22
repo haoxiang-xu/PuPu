@@ -249,6 +249,7 @@
     "consumed_usage": "Uso consumido",
     "consumed_usage_desc": "Total de tokens consumidos por período selecionado.",
     "no_data": "Ainda não há dados de uso de tokens",
+    "load_failed": "Não foi possível carregar os dados de uso de tokens. Seus dados armazenados não foram alterados.",
     "breakdown": "Detalhamento entrada / saída",
     "breakdown_desc": "Fluxo de tokens separado para solicitações e respostas.",
     "clear_usage": "Limpar dados de uso",

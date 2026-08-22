@@ -249,6 +249,7 @@
     "consumed_usage": "소비 사용량",
     "consumed_usage_desc": "선택한 시간대별 총 소비 토큰입니다.",
     "no_data": "토큰 사용 데이터가 아직 없습니다",
+    "load_failed": "토큰 사용량 데이터를 불러올 수 없습니다. 저장된 데이터는 변경되지 않았습니다.",
     "breakdown": "입력 / 출력 분석",
     "breakdown_desc": "요청 및 응답의 토큰 흐름을 분리하여 표시합니다.",
     "clear_usage": "사용 데이터 지우기",

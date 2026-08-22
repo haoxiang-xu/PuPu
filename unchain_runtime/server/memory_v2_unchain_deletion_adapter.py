@@ -7,6 +7,7 @@ durable receipt.  PuPu never performs CAS garbage collection in this path.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,9 @@ from memory_v2_unchain_ownership_adapter import (
 from memory_v2_store_boundary import (
     STORE_OWNER_UNCHAIN,
     ContextV2StoreBoundaryError,
+    admit_context_v2_store_owner,
     inspect_context_v2_database,
+    read_context_v2_store_owner_manifest,
 )
 
 
@@ -44,6 +47,82 @@ _RETAINED_OWNER_CHILD_TABLES = {
 }
 _DIRECT_OWNER_COLUMNS = ("owner_chat_id", "source_owner_chat_id")
 _NO_STORE_RECEIPT_SCHEMA = "pupu.context_v2_no_store_chat_deletion.v1"
+_OWNERSHIP_POISON_BACKUP = (
+    ".context_v2.sqlite3.pupu-ownership-poison-v1.backup"
+)
+
+
+def _normalized_schema_sql(value: str) -> str:
+    return " ".join(value.split())
+
+
+_OWNERSHIP_POISON_OBJECTS = {
+    (
+        "index",
+        "idx_pupu_unchain_ownership_owner",
+        "pupu_unchain_ownership_bindings",
+    ): _normalized_schema_sql(
+        """
+        CREATE INDEX idx_pupu_unchain_ownership_owner
+        ON pupu_unchain_ownership_bindings(
+            owner_chat_id, execution_id, generation_id, attempt_id
+        )
+        """
+    ),
+    (
+        "table",
+        "pupu_unchain_ownership_bindings",
+        "pupu_unchain_ownership_bindings",
+    ): _normalized_schema_sql(
+        """
+        CREATE TABLE pupu_unchain_ownership_bindings (
+            lifecycle_key TEXT PRIMARY KEY,
+            owner_chat_id TEXT NOT NULL,
+            execution_id TEXT NOT NULL,
+            generation_id TEXT NOT NULL,
+            attempt_id TEXT NOT NULL,
+            binding_id TEXT NOT NULL,
+            chat_space_id TEXT NOT NULL,
+            revision INTEGER NOT NULL CHECK(revision = 1),
+            lifecycle_json BLOB NOT NULL,
+            lifecycle_sha256 TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(owner_chat_id, execution_id, generation_id, attempt_id)
+        )
+        """
+    ),
+    (
+        "table",
+        "pupu_unchain_ownership_operations",
+        "pupu_unchain_ownership_operations",
+    ): _normalized_schema_sql(
+        """
+        CREATE TABLE pupu_unchain_ownership_operations (
+            lifecycle_key TEXT NOT NULL,
+            operation_id TEXT NOT NULL,
+            payload_sha256 TEXT NOT NULL,
+            expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+            resulting_revision INTEGER NOT NULL CHECK(resulting_revision = 1),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(lifecycle_key, operation_id),
+            FOREIGN KEY(lifecycle_key)
+                REFERENCES pupu_unchain_ownership_bindings(lifecycle_key)
+        )
+        """
+    ),
+    (
+        "table",
+        "pupu_unchain_ownership_schema",
+        "pupu_unchain_ownership_schema",
+    ): _normalized_schema_sql(
+        """
+        CREATE TABLE pupu_unchain_ownership_schema (
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    ),
+}
 
 
 class PupuUnchainChatDeletionError(RuntimeError):
@@ -137,6 +216,248 @@ def _is_no_store(database_path: Path) -> bool:
         code=code,
         retryable=False,
     )
+
+
+def _bootstrap_absent_store(database_path: Path) -> bool:
+    """Publish Core's complete empty plane before any PuPu extension opens it."""
+
+    try:
+        inspection = inspect_context_v2_database(database_path)
+    except ContextV2StoreBoundaryError as error:
+        raise PupuUnchainChatDeletionError(
+            "durable Unchain deletion schema is unavailable",
+            code=error.code,
+            retryable=False,
+        ) from error
+    if inspection.schema_family != "absent":
+        return False
+    try:
+        admission = admit_context_v2_store_owner(
+            root_dir=database_path.parent,
+            requested_owner=STORE_OWNER_UNCHAIN,
+        )
+        if admission.database_path != database_path:
+            raise PupuUnchainChatDeletionError(
+                "durable Unchain deletion admission changed the database path"
+            )
+        if admission.database_state != "absent":
+            return False
+        try:
+            from unchain.persistence.sqlite_context_memory_bootstrap_v2 import (
+                SQLiteContextMemoryBootstrapError,
+                bootstrap_empty_context_memory_v2_database,
+            )
+        except ImportError as error:
+            raise PupuUnchainChatDeletionError(
+                "durable Unchain empty-store bootstrap is unavailable",
+                code="context_v2_unchain_delete_unavailable",
+            ) from error
+        try:
+            return bootstrap_empty_context_memory_v2_database(
+                database_path=database_path,
+                object_directory=database_path.parent / "objects",
+            )
+        except (SQLiteContextMemoryBootstrapError, OSError, sqlite3.Error) as error:
+            raise PupuUnchainChatDeletionError(
+                "durable Unchain empty-store bootstrap failed"
+            ) from error
+    except PupuUnchainChatDeletionError:
+        raise
+    except ContextV2StoreBoundaryError as error:
+        raise PupuUnchainChatDeletionError(
+            "durable Unchain deletion schema is not safely owned",
+            code=error.code,
+            retryable=False,
+        ) from error
+
+
+def _exact_empty_ownership_poison(database_path: Path) -> bool:
+    """Recognize only the historical extension-only schema with zero rows."""
+
+    try:
+        inspection = inspect_context_v2_database(database_path)
+    except ContextV2StoreBoundaryError:
+        return False
+    if (
+        inspection.schema_family != "incompatible"
+        or inspection.user_version != 0
+        or set(inspection.tables)
+        != {
+            "pupu_unchain_ownership_schema",
+            "pupu_unchain_ownership_bindings",
+            "pupu_unchain_ownership_operations",
+        }
+    ):
+        return False
+    uri = f"{database_path.as_uri()}?mode=ro"
+    try:
+        with sqlite3.connect(uri, uri=True, timeout=1.0, isolation_level=None) as connection:
+            connection.execute("PRAGMA query_only=ON")
+            objects = {
+                (str(row[0]), str(row[1]), str(row[2])): _normalized_schema_sql(
+                    str(row[3])
+                )
+                for row in connection.execute(
+                    "SELECT type, name, tbl_name, sql FROM sqlite_master "
+                    "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
+                )
+                if row[3] is not None
+            }
+            if objects != _OWNERSHIP_POISON_OBJECTS:
+                return False
+            versions = tuple(
+                int(row[0])
+                for row in connection.execute(
+                    "SELECT version FROM pupu_unchain_ownership_schema "
+                    "ORDER BY version"
+                )
+            )
+            if versions != (1,):
+                return False
+            for table_name in (
+                "pupu_unchain_ownership_bindings",
+                "pupu_unchain_ownership_operations",
+            ):
+                if int(
+                    connection.execute(
+                        f'SELECT COUNT(*) FROM "{table_name}"'
+                    ).fetchone()[0]
+                ) != 0:
+                    return False
+            return connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+    except (OSError, sqlite3.Error, TypeError, ValueError):
+        return False
+
+
+def _fsync_directory(directory: Path) -> None:
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        descriptor = os.open(directory, flags)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError:
+        pass
+
+
+def _remove_checkpoint_sidecars(database_path: Path) -> None:
+    for suffix in ("-wal", "-shm"):
+        sidecar = Path(str(database_path) + suffix)
+        try:
+            metadata = sidecar.lstat()
+        except FileNotFoundError:
+            continue
+        if sidecar.is_symlink() or not sidecar.is_file():
+            raise PupuUnchainChatDeletionError(
+                "historical ownership poison sidecar is unsafe",
+                code="context_v2_store_schema_incompatible",
+                retryable=False,
+            )
+        if suffix == "-wal" and metadata.st_size != 0:
+            raise PupuUnchainChatDeletionError(
+                "historical ownership poison WAL did not checkpoint",
+                code="context_v2_store_schema_incompatible",
+                retryable=False,
+            )
+        sidecar.unlink()
+
+
+def _checkpoint_ownership_poison(database_path: Path) -> None:
+    try:
+        with sqlite3.connect(
+            database_path,
+            timeout=30.0,
+            isolation_level=None,
+        ) as connection:
+            result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        if result is None or int(result[0]) != 0:
+            raise PupuUnchainChatDeletionError(
+                "historical ownership poison is busy"
+            )
+    except sqlite3.Error as error:
+        raise PupuUnchainChatDeletionError(
+            "historical ownership poison could not be checkpointed"
+        ) from error
+    if not _exact_empty_ownership_poison(database_path):
+        raise PupuUnchainChatDeletionError(
+            "historical ownership poison changed during recovery",
+            code="context_v2_store_schema_incompatible",
+            retryable=False,
+        )
+    _remove_checkpoint_sidecars(database_path)
+
+
+def _recover_exact_empty_ownership_poison(database_path: Path) -> bool:
+    """Recover the one historical empty poison signature without data guessing."""
+
+    try:
+        owner = read_context_v2_store_owner_manifest(database_path.parent)
+    except ContextV2StoreBoundaryError as error:
+        raise PupuUnchainChatDeletionError(
+            "historical ownership poison owner manifest is invalid",
+            code=error.code,
+            retryable=False,
+        ) from error
+    if owner != STORE_OWNER_UNCHAIN:
+        return False
+
+    backup = database_path.parent / _OWNERSHIP_POISON_BACKUP
+    database_inspection = inspect_context_v2_database(database_path)
+    backup_exists = backup.exists() or backup.is_symlink()
+
+    if database_inspection.schema_family == STORE_OWNER_UNCHAIN:
+        if backup_exists:
+            if not _exact_empty_ownership_poison(backup):
+                raise PupuUnchainChatDeletionError(
+                    "historical ownership poison backup is incompatible",
+                    code="context_v2_store_schema_incompatible",
+                    retryable=False,
+                )
+            backup.unlink()
+            _fsync_directory(database_path.parent)
+        return False
+
+    if _exact_empty_ownership_poison(database_path):
+        _checkpoint_ownership_poison(database_path)
+        if backup_exists:
+            try:
+                same_file = os.path.samefile(database_path, backup)
+            except OSError as error:
+                raise PupuUnchainChatDeletionError(
+                    "historical ownership poison backup identity is unavailable"
+                ) from error
+            if not same_file:
+                raise PupuUnchainChatDeletionError(
+                    "historical ownership poison has conflicting recovery state",
+                    code="context_v2_store_schema_incompatible",
+                    retryable=False,
+                )
+        else:
+            try:
+                os.link(database_path, backup, follow_symlinks=False)
+            except OSError as error:
+                raise PupuUnchainChatDeletionError(
+                    "historical ownership poison backup could not be created"
+                ) from error
+            _fsync_directory(database_path.parent)
+        database_path.unlink()
+        _fsync_directory(database_path.parent)
+    elif database_inspection.schema_family != "absent":
+        return False
+
+    if not backup.exists() or not _exact_empty_ownership_poison(backup):
+        return False
+    _remove_checkpoint_sidecars(database_path)
+    _bootstrap_absent_store(database_path)
+    repaired = inspect_context_v2_database(database_path)
+    if repaired.schema_family != STORE_OWNER_UNCHAIN:
+        raise PupuUnchainChatDeletionError(
+            "historical ownership poison recovery did not publish canonical schema"
+        )
+    backup.unlink()
+    _fsync_directory(database_path.parent)
+    return True
 
 
 def _quoted_identifier(value: str) -> str:
@@ -264,8 +585,11 @@ def delete_pupu_unchain_chat(
         operation_id=operation_id,
     )
     path = Path(database_path).expanduser().resolve()
+    _recover_exact_empty_ownership_poison(path)
     if _is_no_store(path):
-        return _no_store_result(owner)
+        _bootstrap_absent_store(path)
+        if _is_no_store(path):
+            return _no_store_result(owner)
     try:
         scope = _resolve_scope(
             database_path=path,

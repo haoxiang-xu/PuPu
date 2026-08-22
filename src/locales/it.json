@@ -249,6 +249,7 @@
     "consumed_usage": "Utilizzo consumato",
     "consumed_usage_desc": "Token totali consumati per periodo selezionato.",
     "no_data": "Nessun dato di utilizzo token ancora",
+    "load_failed": "Impossibile caricare i dati di utilizzo dei token. I dati salvati non sono stati modificati.",
     "breakdown": "Ripartizione input / output",
     "breakdown_desc": "Flusso token separato per richieste e risposte.",
     "clear_usage": "Cancella dati di utilizzo",

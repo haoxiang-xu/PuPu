@@ -18,7 +18,11 @@ from memory_v2_runtime import (
     get_memory_v2_runtime,
 )
 from memory_v2_store import MemoryV2Store
-from memory_v2_store_boundary import CONTEXT_V2_STORE_OWNER_ENV
+from memory_v2_store_boundary import (
+    CONTEXT_V2_STORE_OWNER_ENV,
+    STORE_OWNER_UNCHAIN,
+    inspect_context_v2_database,
+)
 from route_blueprint import api_blueprint
 
 
@@ -1104,13 +1108,12 @@ class MemoryV2RouteTests(unittest.TestCase):
 
     def test_chat_delete_dispatches_to_unchain_owner_without_legacy_runtime(self):
         expected = {
-            "schema": "pupu.unchain_chat_deletion.v1",
+            "schema": "pupu.context_v2_chat_deletion.v1",
+            "version": 1,
+            "outcome": "deleted",
             "deleted": True,
             "owner_chat_id": "chat_a",
-            "tombstone_revision": 1,
             "replayed": False,
-            "deleted_rows": {"executions": 1},
-            "gc_status": "pending_unreferenced_scan",
         }
         with (
             mock.patch.dict(
@@ -1145,10 +1148,12 @@ class MemoryV2RouteTests(unittest.TestCase):
 
     def test_chat_delete_with_off_and_absent_store_returns_no_store_without_writes(self):
         expected = {
-            "schema": "pupu.context_v2_no_store_chat_deletion.v1",
+            "schema": "pupu.context_v2_chat_deletion.v1",
+            "version": 1,
+            "outcome": "not_present",
             "deleted": True,
             "owner_chat_id": "chat_a",
-            "outcome": "not_present",
+            "replayed": False,
         }
         root = Path(self.temp_dir.name) / "memory_v2"
         with (
@@ -1172,14 +1177,25 @@ class MemoryV2RouteTests(unittest.TestCase):
         self.assertEqual(response.get_json(), expected)
         self.assertFalse(root.exists())
 
-    def test_chat_delete_with_unchain_and_empty_root_never_opens_lifecycle_schema(self):
+    def test_chat_delete_with_unchain_and_empty_root_bootstraps_before_lifecycle_schema(self):
         expected = {
-            "schema": "pupu.context_v2_no_store_chat_deletion.v1",
+            "schema": "pupu.context_v2_chat_deletion.v1",
+            "version": 1,
+            "outcome": "deleted",
             "deleted": True,
             "owner_chat_id": "chat_a",
-            "outcome": "not_present",
+            "replayed": False,
         }
         root = Path(self.temp_dir.name) / "memory_v2"
+        from memory_v2_unchain_deletion_adapter import (
+            list_pupu_unchain_ownership_lifecycles as original_list_lifecycles,
+        )
+
+        def lifecycle_after_core_bootstrap(**kwargs):
+            inspection = inspect_context_v2_database(kwargs["database_path"])
+            self.assertEqual(inspection.schema_family, STORE_OWNER_UNCHAIN)
+            return original_list_lifecycles(**kwargs)
+
         with (
             mock.patch.dict(
                 os.environ,
@@ -1192,7 +1208,7 @@ class MemoryV2RouteTests(unittest.TestCase):
             ),
             mock.patch(
                 "memory_v2_unchain_deletion_adapter.list_pupu_unchain_ownership_lifecycles",
-                side_effect=AssertionError("lifecycle schema must not open"),
+                side_effect=lifecycle_after_core_bootstrap,
             ),
         ):
             response = self.client.delete(
@@ -1203,7 +1219,72 @@ class MemoryV2RouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), expected)
-        self.assertFalse(root.exists())
+        self.assertTrue((root / "context_v2.sqlite3").is_file())
+        self.assertTrue((root / "context_v2.owner.json").is_file())
+
+    def test_chat_delete_repairs_exact_empty_ownership_poison(self):
+        from memory_v2_unchain_ownership_adapter import (
+            _initialize_lifecycle_schema,
+        )
+
+        root = Path(self.temp_dir.name) / "memory_v2"
+        database_path = root / "context_v2.sqlite3"
+        with mock.patch.dict(
+            os.environ,
+            {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+        ):
+            _initialize_lifecycle_schema(database_path)
+            response = self.client.delete(
+                "/context/v2/chat/chat_a",
+                headers=self.headers,
+                json={"operation_id": "delete_exact_ownership_poison"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(),
+            {
+                "schema": "pupu.context_v2_chat_deletion.v1",
+                "version": 1,
+                "outcome": "deleted",
+                "deleted": True,
+                "owner_chat_id": "chat_a",
+                "replayed": False,
+            },
+        )
+        self.assertEqual(
+            inspect_context_v2_database(database_path).schema_family,
+            STORE_OWNER_UNCHAIN,
+        )
+
+    def test_chat_delete_with_off_repairs_persisted_unchain_ownership_poison(self):
+        from memory_v2_unchain_ownership_adapter import (
+            _initialize_lifecycle_schema,
+        )
+
+        root = Path(self.temp_dir.name) / "memory_v2"
+        database_path = root / "context_v2.sqlite3"
+        with mock.patch.dict(
+            os.environ,
+            {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+        ):
+            _initialize_lifecycle_schema(database_path)
+        with mock.patch.dict(
+            os.environ,
+            {CONTEXT_V2_STORE_OWNER_ENV: "off"},
+        ):
+            response = self.client.delete(
+                "/context/v2/chat/chat_a",
+                headers=self.headers,
+                json={"operation_id": "delete_off_exact_ownership_poison"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["outcome"], "deleted")
+        self.assertEqual(
+            inspect_context_v2_database(database_path).schema_family,
+            STORE_OWNER_UNCHAIN,
+        )
 
     def test_chat_delete_with_off_routes_to_the_persisted_legacy_owner(self):
         root = Path(self.temp_dir.name) / "memory_v2"
@@ -1247,13 +1328,12 @@ class MemoryV2RouteTests(unittest.TestCase):
                 """
             )
         expected = {
-            "schema": "pupu.unchain_chat_deletion.v1",
+            "schema": "pupu.context_v2_chat_deletion.v1",
+            "version": 1,
+            "outcome": "deleted",
             "deleted": True,
             "owner_chat_id": "chat_a",
-            "tombstone_revision": 1,
             "replayed": False,
-            "deleted_rows": {},
-            "gc_status": "pending_unreferenced_scan",
         }
         with (
             mock.patch.dict(

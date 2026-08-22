@@ -22,6 +22,7 @@ const {
   createRunBundleStorageService,
 } = require("../../main/services/run_bundle_storage/service");
 const {
+  canonicalize,
   computeRunBundleDigest,
 } = require("../../shared/run_bundle_v1");
 const {
@@ -174,6 +175,35 @@ describeIfSqlite("RunBundle v1 SQLite storage", () => {
     expect(
       record.usageSlices[0].usage.input.cache_write_1h_tokens,
     ).toBe(40);
+  });
+
+  test("persists canonical slice JSON and returns its parsed key order", () => {
+    const bundle = buildRunBundleV1({ multiModel: true });
+    service.upsertRunBundle(bundle);
+    service.close();
+
+    const raw = new sqlite.DatabaseSync(path.join(dir, "settings.db"));
+    const rows = raw
+      .prepare(
+        "SELECT slice_json FROM run_bundle_usage_slices ORDER BY ord ASC",
+      )
+      .all();
+    raw.close();
+
+    expect(rows.map((row) => row.slice_json)).toEqual(
+      bundle.usage_slices.map((slice) => canonicalize(slice)),
+    );
+
+    service = createRunBundleStorageService({ app: fakeApp(dir), path, sqlite });
+    service.init();
+    const [record] = service.queryRunBundles({}).records;
+    expect(record.usageSlices).toEqual(rows.map((row) => JSON.parse(row.slice_json)));
+    expect(canonicalize(record.usageSlices)).toBe(
+      canonicalize(record.bundle.usage_slices),
+    );
+    expect(JSON.stringify(record.usageSlices)).not.toBe(
+      JSON.stringify(record.bundle.usage_slices),
+    );
   });
 
   test("persists unavailable coverage with unknown usage as null, never zero", () => {

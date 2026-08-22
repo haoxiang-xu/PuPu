@@ -249,6 +249,7 @@
     "consumed_usage": "Consumed Usage",
     "consumed_usage_desc": "Total tokens consumed per selected time bucket.",
     "no_data": "No token usage data yet",
+    "load_failed": "Could not load token usage data. Your stored data has not been changed.",
     "breakdown": "Input / Output Breakdown",
     "breakdown_desc": "Separated token flow for requests and responses.",
     "clear_usage": "Clear usage data",

@@ -10,11 +10,11 @@ const ActiveDownloads = ({ isDark }) => {
   const entries = Object.entries(pullingMap);
   if (entries.length === 0) return null;
 
-  const borderColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
-  const bg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)";
-  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.80)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)";
-  const barTrack = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const borderColor = "var(--pupu-border)";
+  const bg = "var(--pupu-overlay-ghost)";
+  const textColor = "var(--pupu-text-strong)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const barTrack = "var(--pupu-overlay-hover)";
   const barFill = isDark ? "rgba(255,255,255,0.50)" : "rgba(0,0,0,0.40)";
 
   return (

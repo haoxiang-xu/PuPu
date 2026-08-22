@@ -30,6 +30,11 @@ from memory_v2_store_boundary import (
     open_context_v2_owned_store,
     read_context_v2_store_owner_manifest,
 )
+
+
+_CHAT_DELETE_RECEIPT_SCHEMA = "pupu.context_v2_chat_deletion.v1"
+_CHAT_DELETE_RECEIPT_VERSION = 1
+_UNCHAIN_NO_STORE_RECEIPT_SCHEMA = "pupu.context_v2_no_store_chat_deletion.v1"
 from route_blueprint import api_blueprint
 
 
@@ -891,6 +896,19 @@ def _context_v2_deletion_store_state() -> tuple[Path, str]:
         ) from error
     if inspection.schema_family in {"absent", "blank"}:
         return root_dir, "no_store"
+    if (
+        inspection.schema_family == "incompatible"
+        and manifest_owner == STORE_OWNER_UNCHAIN
+    ):
+        try:
+            from memory_v2_unchain_deletion_adapter import (
+                _exact_empty_ownership_poison,
+            )
+        except ImportError:
+            pass
+        else:
+            if _exact_empty_ownership_poison(inspection.path):
+                return root_dir, STORE_OWNER_UNCHAIN
     if inspection.schema_family not in {
         STORE_OWNER_PUPU_LEGACY,
         STORE_OWNER_UNCHAIN,
@@ -945,6 +963,16 @@ def _delete_chat_for_store_owner(
     operation_id: str,
 ) -> dict[str, Any]:
     root_dir, persistent_owner = _context_v2_deletion_store_state()
+    if (
+        persistent_owner == "no_store"
+        and configured_context_v2_store_owner() == STORE_OWNER_OFF
+    ):
+        return {
+            "schema": _UNCHAIN_NO_STORE_RECEIPT_SCHEMA,
+            "deleted": True,
+            "owner_chat_id": owner_chat_id,
+            "outcome": "not_present",
+        }
     if persistent_owner == STORE_OWNER_PUPU_LEGACY:
         return _delete_chat_for_pupu_legacy_store(
             root_dir=root_dir,
@@ -982,6 +1010,40 @@ def _delete_chat_for_store_owner(
         ) from error
 
 
+def _chat_delete_receipt(*, owner_chat_id: str, result: Any) -> dict[str, Any]:
+    """Project every durable-owner delete into one closed HTTP receipt."""
+
+    if (
+        not isinstance(result, dict)
+        or result.get("deleted") is not True
+        or result.get("owner_chat_id") != owner_chat_id
+    ):
+        raise MemoryV2Error(
+            "context_v2_delete_receipt_invalid",
+            "Context V2 deletion receipt is invalid",
+            status_code=503,
+        )
+    replayed = result.get("replayed", False)
+    if not isinstance(replayed, bool):
+        raise MemoryV2Error(
+            "context_v2_delete_receipt_invalid",
+            "Context V2 deletion receipt is invalid",
+            status_code=503,
+        )
+    outcome = (
+        "not_present"
+        if result.get("schema") == _UNCHAIN_NO_STORE_RECEIPT_SCHEMA
+        and result.get("outcome") == "not_present"
+        else "deleted"
+    )
+    return {
+        "schema": _CHAT_DELETE_RECEIPT_SCHEMA,
+        "version": _CHAT_DELETE_RECEIPT_VERSION,
+        "outcome": outcome,
+        "deleted": True,
+        "owner_chat_id": owner_chat_id,
+        "replayed": replayed,
+    }
 def _json_body() -> dict[str, Any]:
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
@@ -1164,9 +1226,12 @@ def context_v2_session_head() -> Response:
 def context_v2_delete_chat(owner_chat_id: str) -> Response:
     payload = _json_body()
     return jsonify(
-        _delete_chat_for_store_owner(
+        _chat_delete_receipt(
             owner_chat_id=owner_chat_id,
-            operation_id=payload.get("operation_id", ""),
+            result=_delete_chat_for_store_owner(
+                owner_chat_id=owner_chat_id,
+                operation_id=payload.get("operation_id", ""),
+            ),
         )
     )
 

@@ -375,26 +375,32 @@ const ColorPickerPanel = ({
     }
   }, [applyRgb]);
 
+  /* The picker is a popover, so it sits on the SURFACE layer, and everything
+     drawn on it comes off the semantic ladder rather than fixed black/white
+     pairs — otherwise the one panel whose job is choosing colours is the one
+     panel that ignores them. `field` and `accent` used to live here with
+     nothing reading them; a dead token is deleted, not migrated. */
   const C = {
-    panel: isDark
-      ? theme?.backgroundColor ?? pickerTheme.backgroundColor ?? "#0A0A0A"
-      : selectDropdownTheme.backgroundColor ?? pickerTheme.backgroundColor ?? "#FFFFFF",
+    panel: "var(--pupu-surface)",
     popupRadius: selectDropdownTheme.borderRadius ?? 10,
+    /* shadows stay black-based: they are cast light, not a themed surface */
     popupShadow:
       selectDropdownTheme.boxShadow ??
       (isDark
         ? "0 14px 24px rgba(0, 0, 0, 0.45)"
         : "0 12px 20px rgba(0, 0, 0, 0.12)"),
-    hairline: isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.09)",
-    rowLine: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-    text: theme?.color || (isDark ? "#D6D6D6" : "#222222"),
-    muted: isDark ? "rgba(255,255,255,0.50)" : "rgba(0,0,0,0.50)",
-    value: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.72)",
-    field: isDark ? "#232323" : "#F1F1F1",
-    line: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
-    panelBorder: isDark ? "1px solid rgba(255,255,255,0.12)" : "none",
-    accent: "#2F6BFF",
-    eyeHoverBg: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
+    /* strokes take the border family — on both default palettes it lands
+       within a hair of the neutral pairs these replace */
+    hairline: "var(--pupu-border)",
+    rowLine: "var(--pupu-border)",
+    line: "var(--pupu-border)",
+    panelBorder: isDark ? "1px solid var(--pupu-border)" : "none",
+    text: "var(--pupu-text)",
+    muted: "var(--pupu-text-faint)",
+    value: "var(--pupu-text-secondary)",
+    eyeHoverBg: "var(--pupu-overlay-hover)",
+    /* a white ring is a contrast device against whatever hue sits under the
+       thumb, not a theme colour — it must NOT follow the palette */
     thumbBorder: "#FFFFFF",
   };
 

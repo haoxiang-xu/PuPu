@@ -36,8 +36,8 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
-  const accentColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const accentColor = "var(--pupu-text-secondary)";
   const successColor = "#4CAF50";
 
   const handleSave = useCallback(async () => {
@@ -107,9 +107,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
           paddingVertical: 2,
           paddingHorizontal: 4,
           borderRadius: 4,
-          hoverBackgroundColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
           content: { icon: { width: 16, height: 16 } },
         }}
         prefix_icon={visible ? "eye_closed" : "eye_open"}
@@ -119,9 +117,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         style={{
           width: 1,
           height: 14,
-          backgroundColor: isDark
-            ? "rgba(255,255,255,0.12)"
-            : "rgba(0,0,0,0.10)",
+          backgroundColor: "var(--pupu-overlay-active)",
           marginLeft: 2,
           marginRight: 2,
           flexShrink: 0,
@@ -138,9 +134,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
           borderRadius: 4,
           fontSize: 13,
           opacity: isDirty ? 1 : 0.35,
-          hoverBackgroundColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
         }}
       />
 

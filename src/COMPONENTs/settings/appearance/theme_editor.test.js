@@ -54,7 +54,7 @@ describe("ThemeEditor", () => {
     for (const label of [
       "Accent",
       "Background color",
-      "Text",
+      "Label",
       "Muted text",
       "Border",
       "Success",
@@ -464,7 +464,7 @@ describe("theme_editor.js armed reset carries a --pupu-danger affordance", () =>
   );
 
   test("armed (danger) icon color resolves to var(--pupu-danger)", () => {
-    expect(src).toMatch(/color: danger\s*\n\s*\?\s*"var\(--pupu-danger\)"/);
+    expect(src).toMatch(/color: danger\s*\??\s*\n?\s*\??\s*"var\(--pupu-danger\)"/);
   });
 
   test("armed (danger) background resolves to a tinted --pupu-danger-rgb fill", () => {
@@ -504,8 +504,13 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
     /* Overlay is a reference row, not a root: it has no picker of its own
        and says where it derives from. */
     expect(screen.getByText("Overlay")).toBeInTheDocument();
-    expect(screen.getByText("follows Text")).toBeInTheDocument();
+    /* Markdown arrived as a second group off the same mechanism, so the
+       "follows Label" caption is no longer unique — assert one per group
+       rather than one in the document. */
+    expect(screen.getByText("Markdown")).toBeInTheDocument();
+    expect(screen.getAllByText("follows Label")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Overlay" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Markdown" })).toBeNull();
   });
 
   test("no editor view preference leaks into the exported theme shape", () => {
@@ -607,11 +612,11 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
      rather than the custom bag. */
   test("pinning an alpha step at its ladder default sticks, via the details channel", () => {
     renderWithCtx();
-    fireEvent.click(screen.getByText("Text"));
+    fireEvent.click(screen.getByText("Label"));
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Strong: following Text, click to pin",
+        name: "Strong: following Label, click to pin",
       }),
     );
 
@@ -621,7 +626,7 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Strong: pinned, click to follow Text",
+        name: "Strong: pinned, click to follow Label",
       }),
     );
     expect(
@@ -631,7 +636,7 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
 
   test("an alpha step is edited through the details channel, never the custom bag", () => {
     renderWithCtx();
-    fireEvent.click(screen.getByText("Text"));
+    fireEvent.click(screen.getByText("Label"));
 
     act(() => {
       writeThemeDetails({ light_mode: { textStrongAlpha: 0.5 }, dark_mode: {} });
@@ -755,5 +760,142 @@ describe("ThemeEditor — import clamping (composed machine gate)", () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Theme imported"),
     );
+  });
+});
+
+/* The follow toggle names the STATE: following shows the whole chain, pinned
+   shows the broken one, so reading a column is a glance rather than a
+   translation. The two glyphs differ only by the corner marks, and the
+   accessible name describes the state either way, so nothing but a
+   glyph-level assertion can catch this pair being wired backwards. The hover
+   tooltip carries the action in words. */
+describe("ThemeEditor follow toggle — state glyph and hover tooltip", () => {
+  const UNLINK_CORNERS = "M17 17H22V19H19V22H17V17ZM7 7H2V5H5V2H7V7Z";
+  const glyphOf = (el) =>
+    Array.from(el.querySelectorAll("path"))
+      .map((p) => p.getAttribute("d"))
+      .join(" ");
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
+  });
+
+  const toggleFor = (name) => screen.getByRole("button", { name });
+
+  test("following shows the whole chain; pinning flips it to the broken one", async () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Accent"));
+
+    /* Icon resolves its glyph asynchronously, so every assertion has to wait
+       on the path data itself — waiting on "an svg exists" would just re-read
+       the previous glyph and pass for the wrong reason. */
+    const following = toggleFor("Tint border: following Accent, click to pin");
+    await waitFor(() =>
+      expect(glyphOf(following)).toContain("20.3164 10.7545 20.3164 7.58866"),
+    );
+    expect(glyphOf(following)).not.toContain(UNLINK_CORNERS);
+
+    fireEvent.click(following);
+
+    await waitFor(() => {
+      const pinned = toggleFor("Tint border: pinned, click to follow Accent");
+      expect(glyphOf(pinned)).toContain(UNLINK_CORNERS);
+    });
+  });
+
+  test("hovering the toggle says which state it is in", async () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Accent"));
+
+    fireEvent.mouseEnter(
+      toggleFor("Tint border: following Accent, click to pin"),
+    );
+
+    expect(
+      await screen.findByText("Following Accent — click to pin"),
+    ).toBeInTheDocument();
+  });
+});
+
+/* Two things have to stay true while a colour is being dragged: the token
+   tree must not be rebuilt (nothing in it reads the draft), and the
+   frame-coalesced CSS writes must never land after a commit. Both are
+   invisible in the rendered output — a rebuilt tree looks identical, and a
+   late frame only shows up as the app repainting a colour the user already
+   moved off — so both are asserted through their side effects. */
+describe("ThemeEditor decouples drag feedback from recoloring", () => {
+  const contrastWindow = require("../../../BUILTIN_COMPONENTs/theme/contrast_window");
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("previewing a colour does not rebuild the token tree", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByRole("button", { name: "Background color" }));
+
+    /* roleWindow has two callers, and they ask different questions.
+       resolveSemanticPalette asks about derived TIERS while clamping them, and
+       that is expected on every preview — it is how the card gets its colours.
+       The token tree asks about every top-level ROOT, once per row, and
+       nowhere else. So "was any root queried" is a direct read on whether the
+       tree was rebuilt, and it does not go off merely because a palette was
+       resolved. */
+    const roleWindow = jest.spyOn(contrastWindow, "roleWindow");
+    const cardBefore =
+      screen.getByTestId("theme-preview-card").style.backgroundColor;
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#f2e4e4" },
+    });
+
+    /* the preview genuinely happened … */
+    expect(screen.getByTestId("theme-preview-card").style.backgroundColor).not.toBe(
+      cardBefore,
+    );
+    /* … and not one row was rebuilt to pay for it */
+    const rolesAsked = roleWindow.mock.calls.map((call) => call[0]);
+    const TREE_ONLY_ROOTS = ["accent", "background", "text", "border", "danger"];
+    for (const root of TREE_ONLY_ROOTS) {
+      expect(rolesAsked).not.toContain(root);
+    }
+  });
+
+  test("a coalesced frame cannot repaint over a commit", () => {
+    jest.useFakeTimers();
+    try {
+      renderWithCtx();
+      fireEvent.click(screen.getByRole("button", { name: "Accent" }));
+      fireEvent.change(screen.getByRole("textbox"), {
+        target: { value: "#112233" },
+      });
+      const previewed =
+        document.documentElement.style.getPropertyValue("--pupu-accent");
+
+      /* a second move in the same frame is the one that would be left pending */
+      fireEvent.change(screen.getByRole("textbox"), {
+        target: { value: "#445566" },
+      });
+      fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+      const committed =
+        document.documentElement.style.getPropertyValue("--pupu-accent");
+
+      act(() => {
+        jest.advanceTimersByTime(64);
+      });
+
+      expect(
+        document.documentElement.style.getPropertyValue("--pupu-accent"),
+      ).toBe(committed);
+      expect(committed).not.toBe(previewed);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

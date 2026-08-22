@@ -249,6 +249,7 @@
     "consumed_usage": "消耗用量",
     "consumed_usage_desc": "所选时间段内消耗的总 Token 数。",
     "no_data": "暂无 Token 用量数据",
+    "load_failed": "无法加载 Token 用量数据。已存储的数据未被更改。",
     "breakdown": "输入 / 输出明细",
     "breakdown_desc": "请求和响应的分离 Token 流。",
     "clear_usage": "清除用量数据",

@@ -85,7 +85,7 @@ export const MemorySettings = ({ onNavigate }) => {
     [update],
   );
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const mutedColor = "var(--pupu-text-faint)";
   const normalizedCurrentOpenAIModel =
     typeof settings.openai_embedding_model === "string"
       ? settings.openai_embedding_model.trim()
@@ -167,18 +167,12 @@ export const MemorySettings = ({ onNavigate }) => {
               paddingVertical: 5,
               paddingHorizontal: 14,
               borderRadius: 6,
-              hoverBackgroundColor: isDark
-                ? "rgba(255,255,255,0.14)"
-                : "rgba(0,0,0,0.10)",
+              hoverBackgroundColor: "var(--pupu-overlay-active)",
               background: {
-                hoverBackgroundColor: isDark
-                  ? "rgba(255,255,255,0.14)"
-                  : "rgba(0,0,0,0.10)",
+                hoverBackgroundColor: "var(--pupu-overlay-active)",
               },
               root: {
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.08)"
-                  : "rgba(0,0,0,0.05)",
+                backgroundColor: "var(--pupu-overlay-hover)",
               },
             }}
           />
@@ -243,7 +237,7 @@ export const MemorySettings = ({ onNavigate }) => {
                   height: 20,
                   fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
-                  color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                  color: "var(--pupu-text-strong)",
                 }}
               />
             </SettingsRow>
@@ -271,11 +265,9 @@ export const MemorySettings = ({ onNavigate }) => {
                   fontSize: 12,
                   padding: "5px 14px",
                   borderRadius: 6,
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.15)"}`,
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.04)",
-                  color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                  border: `1px solid ${"var(--pupu-border)"}`,
+                  backgroundColor: "var(--pupu-overlay-hover)",
+                  color: "var(--pupu-text-strong)",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
@@ -326,7 +318,7 @@ export const MemorySettings = ({ onNavigate }) => {
                   height: 20,
                   fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
-                  color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                  color: "var(--pupu-text-strong)",
                 }}
               />
             </SettingsRow>
@@ -353,7 +345,7 @@ export const MemorySettings = ({ onNavigate }) => {
             style={{
               fontSize: 12,
               fontFamily: theme?.font?.fontFamily || "inherit",
-              color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)",
+              color: "var(--pupu-text-secondary)",
               padding: "12px 0",
               lineHeight: 1.5,
             }}

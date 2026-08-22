@@ -45,7 +45,7 @@ const OllamaModelRow = ({ model, maxSize, isDark, onDelete }) => {
           gap: 12,
           padding: "9px 0",
           borderBottom: `1px solid ${
-            isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+            "var(--pupu-overlay-ghost)"
           }`,
           opacity: deleting ? 0.4 : 1,
           transition: "opacity 0.2s",
@@ -57,7 +57,7 @@ const OllamaModelRow = ({ model, maxSize, isDark, onDelete }) => {
             minWidth: 0,
             fontSize: 12,
             fontFamily: "'SF Mono', 'Fira Code', monospace",
-            color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+            color: "var(--pupu-text-secondary)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -81,7 +81,7 @@ const OllamaModelRow = ({ model, maxSize, isDark, onDelete }) => {
               fontSize: 11,
               width: 60,
               textAlign: "right",
-              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+              color: "var(--pupu-text-faint)",
               fontVariantNumeric: "tabular-nums",
               letterSpacing: "0.2px",
             }}

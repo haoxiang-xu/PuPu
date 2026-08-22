@@ -836,6 +836,16 @@ describe("context v2 controlled bridge — boundary validation", () => {
       reason: "edit",
     });
 
+    fetchImpl.mockResolvedValueOnce(
+      jsonResponse({
+        schema: "pupu.context_v2_chat_deletion.v1",
+        version: 1,
+        outcome: "deleted",
+        deleted: true,
+        owner_chat_id: "chat-1",
+        replayed: false,
+      }),
+    );
     await service.deleteContextV2Chat({
       ownerChatId: "chat-1",
       operationId: "op-delete-0001",
@@ -860,7 +870,6 @@ describe("context v2 controlled bridge — boundary validation", () => {
               code: "context_v2_store_schema_incompatible",
               message: "schema cannot be resolved",
               retryable: false,
-              ignored: "must not be projected",
             },
           },
           { ok: false, status: 503 },
@@ -880,9 +889,105 @@ describe("context v2 controlled bridge — boundary validation", () => {
       retryable: false,
     });
     expect(rejection.message).toBe(
-      "[context_v2_store_schema_incompatible] context v2 request failed",
+      "[context_v2_store_schema_incompatible] context v2 deletion failed",
     );
     expect(rejection.message).not.toContain("schema cannot be resolved");
+  });
+
+  test("delete-chat accepts only the closed transient error pair", async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValue(
+        jsonResponse(
+          {
+            error: {
+              code: "context_v2_unchain_delete_unavailable",
+              message: "implementation detail must not cross the IPC boundary",
+              retryable: true,
+            },
+          },
+          { ok: false, status: 503 },
+        ),
+      );
+    const service = await startService(fetchImpl);
+
+    const rejection = await service
+      .deleteContextV2Chat({
+        ownerChatId: "chat-1",
+        operationId: "op-delete-transient-0001",
+      })
+      .catch((error) => error);
+
+    expect(rejection).toMatchObject({
+      code: "context_v2_unchain_delete_unavailable",
+      retryable: true,
+    });
+    expect(rejection.message).not.toContain("implementation detail");
+  });
+
+  test.each([
+    ["context_v2_unknown_delete_failure", false],
+    ["context_v2_store_schema_incompatible", true],
+  ])("delete-chat rejects an unknown or mismatched error pair: %s", async (code, retryable) => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValue(
+        jsonResponse(
+          {
+            error: {
+              code,
+              message: "must fail closed",
+              retryable,
+            },
+          },
+          { ok: false, status: 503 },
+        ),
+      );
+    const service = await startService(fetchImpl);
+
+    const rejection = await service
+      .deleteContextV2Chat({
+        ownerChatId: "chat-1",
+        operationId: "op-delete-invalid-error-pair-0001",
+      })
+      .catch((error) => error);
+
+    expect(rejection).toMatchObject({
+      code: "context_v2_delete_response_invalid",
+    });
+    expect(rejection.retryable).toBeUndefined();
+  });
+
+  test("delete-chat fails closed on a success receipt with an unknown field", async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValue(
+        jsonResponse({
+          schema: "pupu.context_v2_chat_deletion.v1",
+          version: 1,
+          outcome: "deleted",
+          deleted: true,
+          owner_chat_id: "chat-1",
+          replayed: false,
+          extra: "must fail closed",
+        }),
+      );
+    const service = await startService(fetchImpl);
+
+    const rejection = await service
+      .deleteContextV2Chat({
+        ownerChatId: "chat-1",
+        operationId: "op-delete-extra-field-0001",
+      })
+      .catch((error) => error);
+
+    expect(rejection).toMatchObject({
+      code: "context_v2_delete_response_invalid",
+    });
+    expect(rejection.retryable).toBeUndefined();
   });
 
   test("candidate decision is an enum and its body is allowlisted", async () => {

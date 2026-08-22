@@ -315,7 +315,7 @@ const ChartTitle = ({ title, description, isDark, fontFamily }) => (
       style={{
         fontSize: 13,
         fontWeight: 600,
-        color: isDark ? "#fff" : "#222",
+        color: "var(--pupu-text)",
         fontFamily,
       }}
     >
@@ -326,7 +326,7 @@ const ChartTitle = ({ title, description, isDark, fontFamily }) => (
         style={{
           marginTop: 4,
           fontSize: 11,
-          color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+          color: "var(--pupu-text-faint)",
           fontFamily,
         }}
       >
@@ -354,7 +354,7 @@ const BreakdownLegend = ({ isDark, fontFamily, series }) => (
           alignItems: "center",
           gap: 6,
           fontSize: 11,
-          color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
+          color: "var(--pupu-text-secondary)",
           fontFamily,
         }}
       >
@@ -411,7 +411,7 @@ const TokenBreakdownChart = ({
           justifyContent: "center",
           fontSize: 13,
           fontFamily,
-          color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)",
+          color: "var(--pupu-text-faint)",
         }}
       >
         {emptyMessage}
@@ -456,7 +456,7 @@ const TokenBreakdownChart = ({
               right: 4,
               top: -28,
               fontSize: 9,
-              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+              color: "var(--pupu-text-faint)",
               lineHeight: "12px",
               fontStyle: "italic",
             }}
@@ -474,7 +474,7 @@ const TokenBreakdownChart = ({
                 right: 4,
                 bottom: `calc(${pct}% - 6px)`,
                 fontSize: 10,
-                color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)",
+                color: "var(--pupu-text-faint)",
                 lineHeight: "12px",
               }}
             >
@@ -518,9 +518,7 @@ const TokenBreakdownChart = ({
                   right: 0,
                   bottom: `${pct}%`,
                   height: 1,
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(0,0,0,0.06)",
+                  backgroundColor: "var(--pupu-overlay-selected)",
                 }}
               />
             );
@@ -612,9 +610,7 @@ const TokenBreakdownChart = ({
                           display: "flex",
                           justifyContent: "space-between",
                           gap: 8,
-                          color: isDark
-                            ? "rgba(255,255,255,0.9)"
-                            : "rgba(0,0,0,0.8)",
+                          color: "var(--pupu-text-strong)",
                         }}
                       >
                         <span>{s.label}</span>
@@ -679,7 +675,7 @@ const TokenBreakdownChart = ({
                 ...barGroupStyle,
                 textAlign: "center",
                 fontSize: 10,
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+                color: "var(--pupu-text-faint)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -712,16 +708,14 @@ const StatCard = ({ label, value, isDark, fontFamily }) => {
         minWidth: 0,
         padding: "14px 16px",
         borderRadius: 10,
-        backgroundColor: isDark
-          ? "rgba(255,255,255,0.04)"
-          : "rgba(0,0,0,0.03)",
-        border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+        backgroundColor: "var(--pupu-overlay-ghost)",
+        border: `1px solid ${"var(--pupu-border)"}`,
       }}
     >
       <div
         style={{
           fontSize: 11,
-          color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+          color: "var(--pupu-text-faint)",
           fontFamily,
           textTransform: "uppercase",
           letterSpacing: "0.5px",
@@ -734,7 +728,7 @@ const StatCard = ({ label, value, isDark, fontFamily }) => {
         style={{
           fontSize: 20,
           fontWeight: 400,
-          color: isDark ? "#fff" : "#222",
+          color: "var(--pupu-text)",
           fontFamily,
           lineHeight: 1.2,
           overflowWrap: "anywhere",
@@ -767,6 +761,8 @@ export const TokenUsageSettings = () => {
   const [model, setModel] = useState(ALL);
   const [range, setRange] = useState("30d");
   const [granularity, setGranularity] = useState("day");
+  const [runBundleQueryFailed, setRunBundleQueryFailed] = useState(false);
+  const [queryAttempt, setQueryAttempt] = useState(0);
 
   // Active RunBundle storage is authoritative. Legacy token_usage stays a
   // read-only fallback only when the canonical bridge is unavailable.
@@ -780,17 +776,24 @@ export const TokenUsageSettings = () => {
       : queryTokenUsage(query);
     pending
       .then((rows) => {
-        if (!cancelled) setRecords(Array.isArray(rows) ? rows : []);
+        if (!cancelled) {
+          setRecords(Array.isArray(rows) ? rows : []);
+          setRunBundleQueryFailed(false);
+        }
       })
       .catch(() => {
         if (!cancelled) {
-          setRecords(runBundleBacked ? [] : readTokenUsageRecords());
+          if (runBundleBacked) {
+            setRunBundleQueryFailed(true);
+          } else {
+            setRecords(readTokenUsageRecords());
+          }
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [range, runBundleBacked]);
+  }, [range, runBundleBacked, queryAttempt]);
 
   // Translated versions of module-level constants
   const rangeOptions = useMemo(() => RANGE_OPTIONS.map(opt => ({
@@ -882,6 +885,59 @@ export const TokenUsageSettings = () => {
     }
     setRecords([]);
   }, [runBundleBacked]);
+
+  const handleRetry = useCallback(() => {
+    setQueryAttempt((attempt) => attempt + 1);
+  }, []);
+
+  if (runBundleBacked && runBundleQueryFailed) {
+    return (
+      <div
+        data-testid="token-usage-page"
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          overflowX: "hidden",
+        }}
+      >
+        <SettingsSection title={t("token_usage.usage")}>
+          <div
+            data-testid="token-usage-query-error"
+            role="alert"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 10,
+              padding: "28px 0",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12,
+                fontFamily,
+                color: "#ef4444",
+                textAlign: "center",
+              }}
+            >
+              {t("token_usage.load_failed")}
+            </span>
+            <Button
+              label={t("model_providers.retry")}
+              onClick={handleRetry}
+              style={{
+                fontSize: 12,
+                height: 28,
+                padding: "0 14px",
+                borderRadius: 999,
+              }}
+            />
+          </div>
+        </SettingsSection>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1088,7 +1144,7 @@ export const TokenUsageSettings = () => {
               style={{
                 fontSize: 14,
                 fontFamily,
-                color: isDark ? "#fff" : "#222",
+                color: "var(--pupu-text)",
                 marginBottom: 2,
               }}
             >
@@ -1098,7 +1154,7 @@ export const TokenUsageSettings = () => {
               style={{
                 fontSize: 12,
                 fontFamily,
-                color: isDark ? "#fff" : "#222",
+                color: "var(--pupu-text)",
                 opacity: 0.45,
               }}
             >

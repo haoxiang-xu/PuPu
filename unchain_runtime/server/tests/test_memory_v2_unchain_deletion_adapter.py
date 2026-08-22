@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -208,7 +209,14 @@ def _row_count(database_path: Path, table_name: str, owner_chat_id: str) -> int:
         )
 
 
-def test_host_deletion_of_absent_database_returns_no_store_without_writes(
+def _seed_empty_ownership_poison(tmp_path: Path) -> Path:
+    root = tmp_path / "memory_v2"
+    database_path = root / "context_v2.sqlite3"
+    _initialize_lifecycle_schema(database_path)
+    return database_path
+
+
+def test_host_deletion_of_absent_database_bootstraps_then_tombstones(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "memory_v2"
@@ -220,13 +228,18 @@ def test_host_deletion_of_absent_database_returns_no_store_without_writes(
         operation_id="delete-missing",
     )
 
-    assert result == {
-        "schema": "pupu.context_v2_no_store_chat_deletion.v1",
-        "deleted": True,
-        "owner_chat_id": "chat-missing",
-        "outcome": "not_present",
-    }
-    assert not root.exists()
+    assert result["schema"] == "pupu.unchain_chat_deletion.v1"
+    assert result["deleted"] is True
+    assert result["owner_chat_id"] == "chat-missing"
+    assert result["tombstone_revision"] == 1
+    assert result["replayed"] is False
+    assert (root / "context_v2.owner.json").is_file()
+    tombstone = read_chat_deletion_tombstone(
+        database_path=database_path,
+        owner_chat_id="chat-missing",
+    )
+    assert tombstone is not None
+    assert tombstone.scope.owner_chat_id == "chat-missing"
 
 
 def test_host_deletion_of_blank_database_returns_no_store_without_mutation(
@@ -253,6 +266,94 @@ def test_host_deletion_of_blank_database_returns_no_store_without_mutation(
     }
     assert database_path.read_bytes() == before
     assert not (root / "context_v2.owner.json").exists()
+
+
+def test_host_deletion_recovers_exact_empty_ownership_poison(
+    tmp_path: Path,
+) -> None:
+    database_path = _seed_empty_ownership_poison(tmp_path)
+
+    result = delete_pupu_unchain_chat(
+        database_path=database_path,
+        owner_chat_id="chat-missing",
+        operation_id="delete-poisoned-empty",
+    )
+
+    assert result["schema"] == "pupu.unchain_chat_deletion.v1"
+    assert result["owner_chat_id"] == "chat-missing"
+    assert result["replayed"] is False
+    assert read_chat_deletion_tombstone(
+        database_path=database_path,
+        owner_chat_id="chat-missing",
+    ) is not None
+    assert not (
+        database_path.parent
+        / ".context_v2.sqlite3.pupu-ownership-poison-v1.backup"
+    ).exists()
+
+
+def test_host_deletion_resumes_ownership_poison_after_backup_publish_crash(
+    tmp_path: Path,
+) -> None:
+    database_path = _seed_empty_ownership_poison(tmp_path)
+    backup = (
+        database_path.parent
+        / ".context_v2.sqlite3.pupu-ownership-poison-v1.backup"
+    )
+    os.link(database_path, backup)
+    database_path.unlink()
+
+    result = delete_pupu_unchain_chat(
+        database_path=database_path,
+        owner_chat_id="chat-missing",
+        operation_id="delete-poisoned-restart",
+    )
+
+    assert result["deleted"] is True
+    assert database_path.is_file()
+    assert not backup.exists()
+
+
+@pytest.mark.parametrize("mutation", ("extra_table", "binding_row", "version"))
+def test_host_deletion_never_repairs_near_match_ownership_poison(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    database_path = _seed_empty_ownership_poison(tmp_path)
+    with sqlite3.connect(database_path) as connection:
+        if mutation == "extra_table":
+            connection.execute("CREATE TABLE unexpected_poison_object(value TEXT)")
+        elif mutation == "binding_row":
+            connection.execute(
+                """
+                INSERT INTO pupu_unchain_ownership_bindings(
+                    lifecycle_key, owner_chat_id, execution_id, generation_id,
+                    attempt_id, binding_id, chat_space_id, revision,
+                    lifecycle_json, lifecycle_sha256
+                ) VALUES ('key', 'chat', 'execution', 'generation', 'attempt',
+                          'binding', 'space', 1, X'7B7D', 'digest')
+                """
+            )
+        else:
+            connection.execute(
+                "INSERT INTO pupu_unchain_ownership_schema(version) VALUES (2)"
+            )
+    before = database_path.read_bytes()
+
+    with pytest.raises(PupuUnchainChatDeletionError) as raised:
+        delete_pupu_unchain_chat(
+            database_path=database_path,
+            owner_chat_id="chat-missing",
+            operation_id=f"delete-near-poison-{mutation}",
+        )
+
+    assert raised.value.code == "context_v2_store_schema_incompatible"
+    assert raised.value.retryable is False
+    assert database_path.read_bytes() == before
+    assert not (
+        database_path.parent
+        / ".context_v2.sqlite3.pupu-ownership-poison-v1.backup"
+    ).exists()
 
 
 def test_host_deletion_resolves_exact_lifecycle_and_replays_after_restart(

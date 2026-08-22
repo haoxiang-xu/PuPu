@@ -113,12 +113,12 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
     setConfirmOpen(false);
   }
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
-  const accentColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const accentColor = "var(--pupu-text-secondary)";
   const successColor = "#4CAF50";
-  const pillActiveBg = isDark ? "rgba(255,255,255,0.11)" : "rgba(0,0,0,0.08)";
-  const pillHoverBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
-  const pillActiveTxt = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
+  const pillActiveBg = "var(--pupu-overlay-active)";
+  const pillHoverBg = "var(--pupu-overlay-selected)";
+  const pillActiveTxt = "var(--pupu-text-strong)";
   const pillInactiveTxt = isDark
     ? "rgba(255,255,255,0.45)"
     : "rgba(0,0,0,0.42)";
@@ -234,9 +234,7 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
           paddingVertical: 2,
           paddingHorizontal: 4,
           borderRadius: 4,
-          hoverBackgroundColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
           content: { icon: { width: 16, height: 16 } },
         }}
         prefix_icon={visible ? "eye_closed" : "eye_open"}
@@ -245,9 +243,7 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
         style={{
           width: 1,
           height: 14,
-          backgroundColor: isDark
-            ? "rgba(255,255,255,0.12)"
-            : "rgba(0,0,0,0.10)",
+          backgroundColor: "var(--pupu-overlay-active)",
           marginLeft: 2,
           marginRight: 2,
           flexShrink: 0,
@@ -263,9 +259,7 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
           borderRadius: 4,
           fontSize: 13,
           opacity: value.trim() ? 1 : 0.35,
-          hoverBackgroundColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
         }}
       />
     </div>
@@ -364,7 +358,7 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
               paddingRight: 4,
               borderRadius: 8,
               border: `1px solid ${
-                isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)"
+                "var(--pupu-overlay-active)"
               }`,
             }}
           >

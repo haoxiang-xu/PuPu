@@ -32,7 +32,7 @@ export const SettingsRow = ({ label, description, children }) => {
           style={{
             fontSize: 14,
             fontFamily: theme?.font?.fontFamily || "inherit",
-            color: isDark ? "#fff" : "#222",
+            color: "var(--pupu-text)",
             marginBottom: description ? 2 : 0,
           }}
         >
@@ -43,7 +43,7 @@ export const SettingsRow = ({ label, description, children }) => {
             style={{
               fontSize: 12,
               fontFamily: theme?.font?.fontFamily || "inherit",
-              color: isDark ? "#fff" : "#222",
+              color: "var(--pupu-text)",
               opacity: 0.45,
               marginTop: 2,
             }}
@@ -92,7 +92,7 @@ export const SettingsSection = ({ title, icon, children }) => {
               fontFamily: theme?.font?.fontFamily || "inherit",
               textTransform: "uppercase",
               letterSpacing: "1.5px",
-              color: isDark ? "#fff" : "#222",
+              color: "var(--pupu-text)",
               opacity: 0.35,
             }}
           >

@@ -37,6 +37,81 @@ const validateRunBundleUpsertAck = (result, bundle) => {
   return result;
 };
 
+const isPlainObject = (value) =>
+  value !== null &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  (Object.getPrototypeOf(value) === Object.prototype ||
+    Object.getPrototypeOf(value) === null);
+
+const hasOwn = (value, key) =>
+  Object.prototype.hasOwnProperty.call(value, key);
+
+const dataPropertyValue = (value, key) => {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (!descriptor || !descriptor.enumerable || !hasOwn(descriptor, "value")) {
+    return null;
+  }
+  return { value: descriptor.value };
+};
+
+/**
+ * Compare JSON-shaped values without treating object insertion order as data.
+ * This intentionally does not serialize: JSON.stringify would erase details
+ * such as undefined object keys, sparse array slots, and non-finite values.
+ */
+const hasSameStrictJsonValue = (left, right) => {
+  const leftIsObject = left !== null && typeof left === "object";
+  const rightIsObject = right !== null && typeof right === "object";
+  if (!leftIsObject || !rightIsObject) return Object.is(left, right);
+
+  const leftIsArray = Array.isArray(left);
+  if (leftIsArray !== Array.isArray(right)) return false;
+  if (leftIsArray) {
+    if (
+      left.length !== right.length ||
+      Reflect.ownKeys(left).length !== left.length + 1 ||
+      Reflect.ownKeys(right).length !== right.length + 1
+    ) {
+      return false;
+    }
+    for (let index = 0; index < left.length; index += 1) {
+      const leftItem = dataPropertyValue(left, String(index));
+      const rightItem = dataPropertyValue(right, String(index));
+      if (
+        !leftItem ||
+        !rightItem ||
+        !hasSameStrictJsonValue(leftItem.value, rightItem.value)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (!isPlainObject(left) || !isPlainObject(right)) return false;
+
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (
+    leftKeys.length !== rightKeys.length ||
+    Reflect.ownKeys(left).length !== leftKeys.length ||
+    Reflect.ownKeys(right).length !== rightKeys.length
+  ) {
+    return false;
+  }
+  return leftKeys.every((key) => {
+    if (!hasOwn(right, key)) return false;
+    const leftValue = dataPropertyValue(left, key);
+    const rightValue = dataPropertyValue(right, key);
+    return (
+      leftValue &&
+      rightValue &&
+      hasSameStrictJsonValue(leftValue.value, rightValue.value)
+    );
+  });
+};
+
 export const persistRunBundleV1 = (rawBundle) => {
   const bundle = normalizeRendererRunBundleV1(rawBundle);
   return runBundleStorageBridge
@@ -166,7 +241,7 @@ export const queryRunBundles = async (query = {}) => {
       : normalizeRendererRunBundleV1(record.bundle);
     if (
       bundle.schema !== RUN_BUNDLE_V2_SCHEMA &&
-      JSON.stringify(record.usageSlices) !== JSON.stringify(bundle.usage_slices)
+      !hasSameStrictJsonValue(record.usageSlices, bundle.usage_slices)
     ) {
       throw new Error(
         "[run_bundle_storage_invalid] RunBundle query slices do not match the bundle",

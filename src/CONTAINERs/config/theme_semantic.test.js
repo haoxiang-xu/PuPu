@@ -387,7 +387,22 @@ describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
     // non-color keys preserved
     expect(out.code.fontSize).toBe(12);
     expect(out.markdown.pre.padding).toBe(10);
-    expect(out.markdown.table.borderColor).toBe("#333333");
+    /* borderColor used to sit in the list above as a stand-in for "left
+       alone", which only held because nothing themed it yet. It is a colour,
+       and prose rules are strokes, so it belongs to the border family now —
+       the preservation check moved to a key that really is non-colour. */
+    expect(out.markdown.table.borderColor).toBe("var(--pupu-border)");
+  });
+
+  /* Rendered prose is the surface a custom Label is most visible on, and it
+     was the last one still painted from fixed hex. */
+  test("markdown prose follows the Label ladder, and its rules the border token", () => {
+    const palette = resolveSemanticPalette("dark_mode", {});
+    const out = applySemanticPaletteToTheme(BASE, palette, "dark_mode");
+    expect(out.markdown.color).toBe("var(--pupu-markdown-body)");
+    expect(out.markdown.blockquote.color).toBe("var(--pupu-markdown-quote)");
+    expect(out.markdown.blockquote.borderColor).toBe("var(--pupu-border)");
+    expect(out.markdown.hr.borderColor).toBe("var(--pupu-border)");
   });
 
   test("light mode maps deep sinks to sidebar tier", () => {
@@ -506,6 +521,9 @@ describe("taxonomy v2 — emitted variable set (whitelist increment lock)", () =
     expected.push(
       "--pupu-text-strong", "--pupu-text-secondary",
       "--pupu-text-faint", "--pupu-text-disabled",
+      /* Markdown section: prose is an alpha of Label like every other step,
+         so rendered answers follow a custom Label instead of a fixed hex. */
+      "--pupu-markdown-body", "--pupu-markdown-quote",
       "--pupu-overlay-hover", "--pupu-overlay-active",
       "--pupu-overlay-selected", "--pupu-overlay-ghost",
       "--pupu-border-strong", "--pupu-border-mid", "--pupu-border-subtle",
@@ -600,5 +618,57 @@ describe("taxonomy v2 — per-node minStep stops the sidebar drift", () => {
       hexToHsl(warmLight.sidebar).s,
       2,
     );
+  });
+});
+
+/* A Button reads its label colour from theme.button.root.color and hands its
+   icon theme.icon.color. Mapping only the icon split the two halves of one
+   control apart: on the default dark palette the icon moved to #ffffff while
+   the label stayed on the JSON's #CCCCCC, and on a custom palette they
+   drifted properly. The settings side menu is where it showed first, but
+   every plain Button in the app had it. */
+describe("applySemanticPaletteToTheme keeps a button's label with its icon", () => {
+  const semantic = {
+    accent: "#112233",
+    background: "#abcdef",
+    surface: "#fedcba",
+    text: "#010203",
+    textMuted: "#445566",
+    border: "#2e2e2e",
+    success: "#00aa00",
+    warning: "#aa8800",
+    danger: "#aa0000",
+    info: "#0000aa",
+  };
+
+  test("label and icon land on the same text token", () => {
+    const themed = applySemanticPaletteToTheme(
+      { button: { root: { color: "#CCCCCC", fontSize: 16 } }, icon: {} },
+      semantic,
+    );
+
+    expect(themed.button.root.color).toBe(semantic.text);
+    expect(themed.button.root.color).toBe(themed.icon.color);
+  });
+
+  test("the rest of the button theme survives the mapping", () => {
+    const themed = applySemanticPaletteToTheme(
+      {
+        button: {
+          root: { color: "#CCCCCC", fontSize: 16 },
+          background: { hoverBackgroundColor: "#101010" },
+        },
+        icon: {},
+      },
+      semantic,
+    );
+
+    expect(themed.button.root.fontSize).toBe(16);
+    expect(themed.button.background.hoverBackgroundColor).toBe("#101010");
+  });
+
+  test("a theme with no button section does not blow up", () => {
+    const themed = applySemanticPaletteToTheme({ icon: {} }, semantic);
+    expect(themed.button.root.color).toBe(semantic.text);
   });
 });

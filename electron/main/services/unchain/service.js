@@ -141,6 +141,27 @@ const CONTEXT_V2_REBASE_MESSAGE_BYTES_MAX = 4 * 1024 * 1024;
 const CONTEXT_V2_REBASE_JSON_DEPTH_MAX = 64;
 const CONTEXT_V2_REBASE_JSON_NODES_MAX = 250_000;
 const CONTEXT_V2_READINESS_TIMEOUT_MS = 5_000;
+const CONTEXT_V2_DELETE_TIMEOUT_MS = 5_000;
+const CONTEXT_V2_DELETE_RECEIPT_SCHEMA = "pupu.context_v2_chat_deletion.v1";
+const CONTEXT_V2_DELETE_RECEIPT_VERSION = 1;
+// Privacy deletion is driven by a durable outbox.  Keep its error wire closed:
+// a syntactically valid but unrecognized code must never grant itself retry
+// authority and therefore cannot hot-loop the outbox.
+const CONTEXT_V2_DELETE_ERROR_RETRYABILITY = Object.freeze(
+  new Map([
+    ["context_v2_invalid_request", false],
+    ["context_v2_store_disabled", false],
+    ["context_v2_store_owner_claim_failed", false],
+    ["context_v2_store_owner_conflict", false],
+    ["context_v2_store_owner_invalid", false],
+    ["context_v2_store_owner_manifest_invalid", false],
+    ["context_v2_store_schema_incompatible", false],
+    ["context_v2_store_schema_unreadable", false],
+    ["context_v2_unavailable", true],
+    ["context_v2_unchain_delete_failed", true],
+    ["context_v2_unchain_delete_unavailable", true],
+  ]),
+);
 
 // Closed ref grammar, mirroring memory_v2_store's ref regexes. Anything else is
 // rejected before encoding, so no traversal / query / fragment smuggling can
@@ -1752,6 +1773,70 @@ const createUnchainService = ({
     }
   };
 
+  const readContextV2DeleteReceipt = async (response, ownerChatId) => {
+    const bodyText = await response.text();
+    if (bodyText.length > 64 * 1024) {
+      throw createContextV2Error(
+        "context_v2_delete_response_invalid",
+        "context v2 deletion response is invalid",
+      );
+    }
+    let payload;
+    try {
+      payload = JSON.parse(bodyText);
+    } catch (_error) {
+      throw createContextV2Error(
+        "context_v2_delete_response_invalid",
+        "context v2 deletion response is invalid",
+      );
+    }
+    if (!response.ok) {
+      const error = payload?.error;
+      const keys = error && typeof error === "object" ? Object.keys(error) : [];
+      const expectedRetryable = CONTEXT_V2_DELETE_ERROR_RETRYABILITY.get(error?.code);
+      if (
+        Object.keys(payload || {}).length !== 1 ||
+        !Object.prototype.hasOwnProperty.call(payload || {}, "error") ||
+        keys.length !== 3 ||
+        !keys.every((key) => ["code", "message", "retryable"].includes(key)) ||
+        !CONTEXT_V2_ID_PATTERN.test(error.code || "") ||
+        !CONTEXT_V2_DELETE_ERROR_RETRYABILITY.has(error.code) ||
+        typeof error.message !== "string" ||
+        typeof error.retryable !== "boolean" ||
+        error.retryable !== expectedRetryable
+      ) {
+        throw createContextV2Error(
+          "context_v2_delete_response_invalid",
+          "context v2 deletion response is invalid",
+        );
+      }
+      throw createContextV2Error(error.code, "context v2 deletion failed", {
+        retryable: error.retryable,
+      });
+    }
+    const keys = payload && typeof payload === "object" ? Object.keys(payload) : [];
+    if (
+      keys.length !== 6 ||
+      !keys.every((key) =>
+        ["schema", "version", "outcome", "deleted", "owner_chat_id", "replayed"].includes(
+          key,
+        ),
+      ) ||
+      payload.schema !== CONTEXT_V2_DELETE_RECEIPT_SCHEMA ||
+      payload.version !== CONTEXT_V2_DELETE_RECEIPT_VERSION ||
+      !["deleted", "not_present"].includes(payload.outcome) ||
+      payload.deleted !== true ||
+      payload.owner_chat_id !== ownerChatId ||
+      typeof payload.replayed !== "boolean"
+    ) {
+      throw createContextV2Error(
+        "context_v2_delete_response_invalid",
+        "context v2 deletion response is invalid",
+      );
+    }
+    return payload;
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Context / Memory V2 (P0) — the ONLY main-process surface the renderer has
   // for the sidecar's /context/v2 routes.
@@ -2097,11 +2182,40 @@ const createUnchainService = ({
 
   const deleteContextV2Chat = async (payload = {}) => {
     const ownerChatId = requireContextV2OwnerChatId(payload?.ownerChatId);
-    return contextV2Request(
-      "DELETE",
-      `${CONTEXT_V2_ENDPOINT}/chat/${encodeURIComponent(ownerChatId)}`,
-      { operation_id: requireContextV2OperationId(payload?.operationId) },
-    );
+    const operationId = requireContextV2OperationId(payload?.operationId);
+    try {
+      ensureMisoReady();
+    } catch (_error) {
+      throw createContextV2Error(
+        "context_v2_unreachable",
+        "context v2 runtime is unreachable",
+        { retryable: true },
+      );
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CONTEXT_V2_DELETE_TIMEOUT_MS);
+    if (typeof timeout.unref === "function") timeout.unref();
+    try {
+      const response = await fetch(
+        `http://${UNCHAIN_HOST}:${unchainPort}${CONTEXT_V2_ENDPOINT}/chat/${encodeURIComponent(ownerChatId)}`,
+        {
+          method: "DELETE",
+          headers: contextV2Headers(true),
+          body: JSON.stringify({ operation_id: operationId }),
+          signal: controller.signal,
+        },
+      );
+      return await readContextV2DeleteReceipt(response, ownerChatId);
+    } catch (error) {
+      if (error?.code) throw error;
+      throw createContextV2Error(
+        "context_v2_unreachable",
+        "context v2 runtime is unreachable",
+        { retryable: true },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
   };
 
   const listContextV2Spaces = async (payload = {}) => {

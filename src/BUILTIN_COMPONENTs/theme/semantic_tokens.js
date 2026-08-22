@@ -101,7 +101,7 @@ export const SEMANTIC_TOKEN_TREE = {
   /* ── roots ─────────────────────────────────────────────────────────── */
   accent: { parent: null, kind: "literal", varName: "accent", label: "Accent", phase: "shipped" },
   background: { parent: null, kind: "literal", varName: "background", label: "Background", phase: "shipped" },
-  text: { parent: null, kind: "literal", varName: "text", label: "Text", phase: "shipped" },
+  text: { parent: null, kind: "literal", varName: "text", label: "Label", phase: "shipped" },
   border: { parent: null, kind: "literal", varName: "border", label: "Border", phase: "shipped" },
   success: { parent: null, kind: "literal", varName: "success", label: "Success", phase: "shipped" },
   warning: { parent: null, kind: "literal", varName: "warning", label: "Warning", phase: "P1" },
@@ -159,6 +159,24 @@ export const SEMANTIC_TOKEN_TREE = {
   textDisabled: {
     parent: "text", kind: "alpha", varName: "text-disabled", label: "Disabled", phase: "P1",
     rung: "A4", alpha: { dark: 0.22, light: 0.2 }, detailsKey: "textDisabledAlpha",
+  },
+
+  /* ── markdown family: the prose the assistant writes ─────────────────
+     Rendered markdown was the largest surface still painted from fixed
+     JSON hex (#E0E0E0 body, #B5B5B5 quote), so a custom Label moved every
+     label in the app except the actual answer text. These are alphas of
+     Label like everything else, and their defaults are the old hex values
+     re-expressed over each mode's background, so adopting them changes
+     nothing until the user reaches for them. */
+  markdownBody: {
+    parent: "text", kind: "alpha", varName: "markdown-body", group: "markdown",
+    label: "Body", phase: "P2",
+    rung: "A8", alpha: { dark: 0.88, light: 1 }, detailsKey: "markdownBodyAlpha",
+  },
+  markdownQuote: {
+    parent: "text", kind: "alpha", varName: "markdown-quote", group: "markdown",
+    label: "Quote", phase: "P2",
+    rung: "A7", alpha: { dark: 0.69, light: 0.67 }, detailsKey: "markdownQuoteAlpha",
   },
 
   /* ── overlay family: neutral FILL only, never a hairline ────────────

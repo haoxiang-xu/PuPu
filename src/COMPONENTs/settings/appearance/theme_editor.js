@@ -1,10 +1,11 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
 import Explorer from "../../../BUILTIN_COMPONENTs/explorer/explorer";
+import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { GradientSlider } from "../../../BUILTIN_COMPONENTs/input/slider";
 import ThemePreviewCard from "./theme_preview_card";
 import { toast } from "../../../SERVICEs/toast";
@@ -83,18 +84,38 @@ const ROW_HEIGHT = 30;
 const ROW_RADIUS = 7;
 const ROW_FONT_SIZE = 13;
 
-const OVERLAY_GROUP = "__overlay";
-
 const alphaStepsFor = (key) =>
   ALPHA_STEPS.filter((step) => step.parent === key && !step.group);
-const OVERLAY_STEPS = ALPHA_STEPS.filter((step) => step.group === "overlay");
+
+/* A grouped alpha step gets its own reference row instead of being buried
+   under its parent — that is how Overlay reads as "fill" rather than "four
+   more shades of Text", and it is what lets Markdown arrive as a section
+   without touching this file's rendering at all. Groups are discovered from
+   the token table in declaration order, so adding one there is enough. */
+const GROUP_TITLES = { overlay: "Overlay", markdown: "Markdown" };
+const STEP_GROUPS = ALPHA_STEPS.filter((step) => step.group).reduce(
+  (acc, step) => {
+    const found = acc.find((g) => g.name === step.group);
+    if (found) found.steps.push(step);
+    else
+      acc.push({
+        name: step.group,
+        rowKey: `__${step.group}`,
+        title: GROUP_TITLES[step.group] || step.group,
+        parent: step.parent,
+        steps: [step],
+      });
+    return acc;
+  },
+  [],
+);
 
 const TOKEN_LABELS = {
   accent: "Accent",
   background: "Background",
   sidebar: "Sidebar",
   surface: "Surface",
-  text: "Text",
+  text: "Label",
   textMuted: "Muted text",
   border: "Border",
   success: "Success",
@@ -128,7 +149,8 @@ const prettyPresetLabel = (name) =>
 
 const ThemeEditor = () => {
   const { onThemeMode, theme, setTheme } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
+  /* No isDark here any more: every colour this editor paints now comes off
+     the semantic variables, which already carry the light/dark split. */
   const activeMode = onThemeMode === "dark_mode" ? "dark_mode" : "light_mode";
 
   const [settings, setSettings] = useState(() => readThemeSettings());
@@ -153,6 +175,42 @@ const ThemeEditor = () => {
   }));
 
   const [draftColor, setDraftColor] = useState(null);
+
+  /* ── Recoloring is coalesced to one write per frame ──────────────────────
+     A drag emits pointer events far faster than the screen refreshes, and
+     each one used to rewrite ~50 custom properties on documentElement, which
+     invalidates style for the whole document. The first move of a gesture
+     still applies synchronously — that is what makes the picker feel
+     attached to the cursor, and what the existing tests read — and every
+     further move inside the same frame collapses into one trailing write.
+
+     The pending write MUST be dropped on commit: a stale frame landing after
+     the committed palette would repaint the app in a colour the user already
+     moved off. cancelPendingVars is called there and on unmount. */
+  const varsFrameRef = useRef(0);
+  const pendingVarsRef = useRef(null);
+
+  const cancelPendingVars = () => {
+    if (varsFrameRef.current) cancelAnimationFrame(varsFrameRef.current);
+    varsFrameRef.current = 0;
+    pendingVarsRef.current = null;
+  };
+
+  useEffect(() => cancelPendingVars, []);
+
+  const applyVarsCoalesced = (nextPalette, nextDetails) => {
+    if (varsFrameRef.current) {
+      pendingVarsRef.current = [nextPalette, nextDetails];
+      return;
+    }
+    applySemanticCssVars(nextPalette, undefined, nextDetails);
+    varsFrameRef.current = requestAnimationFrame(() => {
+      varsFrameRef.current = 0;
+      const pending = pendingVarsRef.current;
+      pendingVarsRef.current = null;
+      if (pending) applySemanticCssVars(pending[0], undefined, pending[1]);
+    });
+  };
 
   /* One way to express "settings, with this uncommitted color in them", so the
      preview card and the live CSS vars cannot drift apart. */
@@ -191,10 +249,11 @@ const ThemeEditor = () => {
       preset: settings.preset,
       details: settings.details,
     });
-    applySemanticCssVars(livePalette, undefined, liveDetails);
+    applyVarsCoalesced(livePalette, liveDetails);
   };
 
   const syncCommittedSettings = (next) => {
+    cancelPendingVars();
     const livePalette = resolveSemanticPalette(activeMode, {
       preset: next.preset,
       custom: next.custom,
@@ -257,7 +316,7 @@ const ThemeEditor = () => {
         },
       },
     });
-    applySemanticCssVars(palette, undefined, liveDetails);
+    applyVarsCoalesced(palette, liveDetails);
   };
 
   const commitAlpha = (step) => {
@@ -387,24 +446,20 @@ const ThemeEditor = () => {
       paddingHorizontal: 10,
       fontSize: 12,
       gap: 6,
-      color: danger
-        ? "var(--pupu-danger)"
-        : isDark
-          ? "rgba(255,255,255,0.65)"
-          : "rgba(0,0,0,0.55)",
+      /* Import / Export / Reset are the editor's own chrome, so they have to
+         follow the theme they edit. The neutral pairs they used to carry are
+         the strength ladder written out by hand — one step off it, and frozen
+         to black/white instead of the label colour. */
+      color: danger ? "var(--pupu-danger)" : "var(--pupu-text-secondary)",
       backgroundColor: danger ? "rgba(var(--pupu-danger-rgb),0.12)" : undefined,
     },
     background: {
       hoverBackgroundColor: danger
         ? "rgba(var(--pupu-danger-rgb),0.18)"
-        : isDark
-          ? "rgba(255,255,255,0.10)"
-          : "rgba(0,0,0,0.06)",
+        : "var(--pupu-overlay-hover)",
       activeBackgroundColor: danger
         ? "rgba(var(--pupu-danger-rgb),0.22)"
-        : isDark
-          ? "rgba(255,255,255,0.14)"
-          : "rgba(0,0,0,0.09)",
+        : "var(--pupu-overlay-active)",
     },
     content: {
       icon: { width: 15, height: 15 },
@@ -416,9 +471,7 @@ const ThemeEditor = () => {
     fontSize: 13,
     paddingVertical: 4,
     paddingHorizontal: 10,
-    backgroundColor: isDark
-      ? "rgba(255,255,255,0.08)"
-      : "rgba(0,0,0,0.05)",
+    backgroundColor: "var(--pupu-overlay-selected)",
   };
   /* palette variant: maxHeight bounds the listbox only — panel look (radius
      22 frosted blur, hairline, sliding row highlight) is the variant's own,
@@ -446,40 +499,49 @@ const ThemeEditor = () => {
   /* The accessible name carries the CHILD as well as the parent: two
      children of the same parent would otherwise be indistinguishable to a
      screen reader (and to a test). */
+  /* The glyph names the STATE: following shows the whole chain, pinned shows
+     the broken one. Reading a row is then a glance down the column rather
+     than a translation from "what would clicking do" back to where things
+     stand. The hover tooltip carries the action in words. */
   const followToggle = (linked, selfLabel, parentLabel, onClick) => (
-    <Button
-      ariaLabel={
-        linked
-          ? `${selfLabel}: following ${parentLabel}, click to pin`
-          : `${selfLabel}: pinned, click to follow ${parentLabel}`
-      }
-      title={
+    <Tooltip
+      label={
         linked
           ? `Following ${parentLabel} — click to pin`
           : `Pinned — click to follow ${parentLabel}`
       }
-      prefix_icon={linked ? "link" : "pin"}
-      onClick={onClick}
-      style={{
-        root: {
-          width: 24,
-          height: 24,
-          borderRadius: 6,
-          paddingVertical: 0,
-          paddingHorizontal: 0,
-          iconOnlyPaddingVertical: 0,
-          iconOnlyPaddingHorizontal: 0,
-          color: linked
-            ? "rgba(var(--pupu-accent-rgb),0.70)"
-            : "rgba(var(--pupu-text-rgb),0.45)",
-        },
-        background: {
-          hoverBackgroundColor: "var(--pupu-overlay-hover)",
-          activeBackgroundColor: "var(--pupu-overlay-active)",
-        },
-        content: { icon: { width: 14, height: 14 } },
-      }}
-    />
+      position="top"
+      style={{ padding: "7px 12px", maxWidth: 320 }}
+    >
+      <Button
+        ariaLabel={
+          linked
+            ? `${selfLabel}: following ${parentLabel}, click to pin`
+            : `${selfLabel}: pinned, click to follow ${parentLabel}`
+        }
+        prefix_icon={linked ? "link" : "unlink"}
+        onClick={onClick}
+        style={{
+          root: {
+            width: 24,
+            height: 24,
+            borderRadius: 6,
+            paddingVertical: 0,
+            paddingHorizontal: 0,
+            iconOnlyPaddingVertical: 0,
+            iconOnlyPaddingHorizontal: 0,
+            color: linked
+              ? "rgba(var(--pupu-accent-rgb),0.70)"
+              : "rgba(var(--pupu-text-rgb),0.45)",
+          },
+          background: {
+            hoverBackgroundColor: "var(--pupu-overlay-hover)",
+            activeBackgroundColor: "var(--pupu-overlay-active)",
+          },
+          content: { icon: { width: 14, height: 14 } },
+        }}
+      />
+    </Tooltip>
   );
 
   /* Family roots keep the " color" suffix so a screen reader can tell the
@@ -569,8 +631,18 @@ const ThemeEditor = () => {
     };
   };
 
-  /* ── tree ──────────────────────────────────────────────────────────── */
+  /* ── tree ──────────────────────────────────────────────────────────────
+     Built once per real change and then held, so that dragging a colour does
+     not rebuild it. Not one row here reads the uncommitted colour — the
+     preview card and the CSS variables own that — yet every pointer move used
+     to recreate thirty-odd rows with a ColorPicker, Tooltip and Slider each,
+     purely because the draft lives in this component's state. Holding the
+     element by reference lets React skip the whole subtree instead.
 
+     `draftColor` is deliberately absent from the dependency list below: it is
+     the one input the tree must NOT react to, which is the entire point.
+     `alphaDraft` IS listed, because an alpha row shows its own live number. */
+  const tokenTree = useMemo(() => {
   const topLevelKeys = SEMANTIC_TOKEN_KEYS.filter(
     (k) => !ADVANCED_TIERS.includes(k),
   );
@@ -627,35 +699,50 @@ const ThemeEditor = () => {
     }
   }
 
-  /* Overlay has no root colour of its own — it is neutral ink over the
-     shell, so it derives from Text. Showing it as its own reference row
-     rather than burying four "fill" steps inside Text keeps the fill-vs-
-     stroke distinction legible, which is the entire reason overlay and
-     border are separate families. */
-  explorerRoot.push(OVERLAY_GROUP);
-  explorerData[OVERLAY_GROUP] = {
-    label: "Overlay",
-    children: OVERLAY_STEPS.map((s) => s.key),
-    trailing: (
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--pupu-text-faint)",
-          paddingRight: 4,
-        }}
-      >
-        follows Text
-      </span>
-    ),
-  };
-  for (const step of OVERLAY_STEPS) {
-    explorerData[step.key] = alphaRow(step);
+  /* A group has no root colour of its own — Overlay is neutral ink over the
+     shell and Markdown is the prose on it, both derived from Label. Giving
+     each its own reference row, rather than burying the steps inside Label,
+     is what keeps "fill" distinct from "stroke" from "prose" — the whole
+     reason these are separate families rather than more shades of one. */
+  for (const group of STEP_GROUPS) {
+    explorerRoot.push(group.rowKey);
+    explorerData[group.rowKey] = {
+      label: group.title,
+      children: group.steps.map((s) => s.key),
+      trailing: (
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--pupu-text-faint)",
+            paddingRight: 4,
+          }}
+        >
+          follows {TOKEN_LABELS[group.parent] || group.parent}
+        </span>
+      ),
+    };
+    for (const step of group.steps) {
+      explorerData[step.key] = alphaRow(step);
+    }
   }
+
+    return (
+      <Explorer
+        data={explorerData}
+        root={explorerRoot}
+        row_height={ROW_HEIGHT}
+        row_radius={ROW_RADIUS}
+        row_hover={false}
+        style={{ width: "100%", fontSize: ROW_FONT_SIZE }}
+      />
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, editMode, activeMode, alphaDraft, theme, setTheme]);
 
   return (
     <div style={{ padding: "8px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-        <span style={{ fontSize: 12, opacity: 0.6, color: isDark ? "#fff" : "#222" }}>
+        <span style={{ fontSize: 12, opacity: 0.6, color: "var(--pupu-text)" }}>
           Preset
         </span>
         <Select
@@ -714,14 +801,7 @@ const ThemeEditor = () => {
         </div>
       </div>
 
-      <Explorer
-        data={explorerData}
-        root={explorerRoot}
-        row_height={ROW_HEIGHT}
-        row_radius={ROW_RADIUS}
-        row_hover={false}
-        style={{ width: "100%", fontSize: ROW_FONT_SIZE }}
-      />
+      {tokenTree}
 
       <input
         ref={importInputRef}

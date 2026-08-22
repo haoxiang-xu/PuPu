@@ -9,12 +9,12 @@
 已完成 **P0 containment**，但未完成 M1 出口、更未获得全量开放授权：
 
 - 删除路由改为读取持久 marker/schema 决定实际 owner；`off` 不再关闭已存数据的隐私删除 authority；
-- absent 或真正 blank 的 SQLite 返回 closed `not_present` 收据，且不创建 root、marker、SQLite、WAL 或 SHM；
-- 空 Unchain root 在进入 lifecycle reader 前短路，因此不再留下 extension-only partial schema；
+- `off + absent` 与真正 blank 的 SQLite 返回 closed `not_present` 收据；`off + absent` 不创建 root、marker、SQLite、WAL 或 SHM；
+- `unchain + absent` 先由公开 Core initializer 在 sibling temporary database 构造完整 canonical schema，以 exclusive hard link 发布，再打开 lifecycle reader 并写 empty-scope tombstone；不再留下 extension-only partial schema；
 - known legacy / known Unchain schema 即使当前配置为 `off` 也分别交由其真实 owner 删除；unknown、zero-byte、mixed 或 partial schema 返回 typed non-retryable error；
 - 相关 sidecar 三组测试为 `50 passed, 3 subtests passed`，Electron deletion-outbox 主测试为 `17 passed`；另以单一构建的 Unchain wheel（`sha256:f9e44d9b27dfb061b26d4fa6a37103ecd5ae0ec69a172cdfc335a8b66448446c`，manifest `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`，revision `abd7e08f26452e1dbe2767fac3dbfaff7dfb9f3b`）运行 P0 精确格，`8 passed`。此前 mutable sibling source 测试只作为快速 containment 证据；该 exact pair 仍不替代 P6 的全部状态矩阵。
 
-仍未完成：P6 direct-plan 的完整 BC/SEQ/AC 与验收证据、Electron DELETE 的 strict protocol/deadline/allowlist、Unchain 公开 canonical schema-only bootstrap、empty-scope tombstone、**完整状态矩阵的** exact wheel-pair 验证及实施闭合。因此总状态继续是 `NO-GO`。
+仍未完成：P6 direct-plan 的**完整状态矩阵**、clean-source release artifact provenance、exact PuPu packaged/installed candidate 与跨平台验证及实施闭合。公开 canonical schema bootstrap、empty-scope tombstone 和本地单 wheel 边界验证已完成；因此总状态继续是 `NO-GO`。
 
 ### 0.1 P6 / W0-07 子交付：Electron terminal failure containment（2026-08-22）
 
@@ -39,12 +39,123 @@ P6 closure，也不能作为 Windows Active 或 legacy retirement 的资格证�
 - `AC-P6-005-04`：explicit repair/requeue 从 quarantine 记录递增 generation/reason，保留
   checkpoint 与 operation ID，且恢复后可完成；**PASS（local）**。
 - `AC-P6-005-05`：sidecar strict versioned success/error union、deadline、unknown
-  error-code allowlist，以及 exact PuPu candidate + single Unchain wheel matrix；
-  **NOT_RUN / BLOCKING**。
+  error-code/retryability allowlist 已在本地 PASS；exact PuPu candidate + single Unchain
+  wheel matrix仍为 **NOT_RUN / BLOCKING**。
 
 未改变的决定：Context failure 仍会阻断 Vault，直到 P6 对双腿独立收敛作出可验证决定；
 不允许 Electron 从 404/503/error code 推断 no-store。当前 generic request adapter 只补回
 `retryable`，尚不是 W3-03 所要求的 DELETE 专用 strict parser/deadline。
+
+### 0.2 W3-03 子交付：专用 privacy DELETE transport（2026-08-22）
+
+`BC-005c` 现为固定的 main-only `DELETE /context/v2/chat/<owner>`：它只绕过普通
+Memory V2 rollout/readiness admission，仍要求受管 sidecar、认证 header、已验证的
+owner/operation ID、5 秒 deadline 和 64 KiB response 上限。sidecar 将 legacy、Unchain
+和 no-store 删除结果投影为唯一 closed receipt：
+`{schema:"pupu.context_v2_chat_deletion.v1",version:1,outcome,deleted,owner_chat_id,replayed}`。
+Electron 对 success 与 error 都精确比对 key set；多字段、缺字段、错版本或非法类型均为
+terminal `context_v2_delete_response_invalid`，不能被 outbox 当作 transient。
+
+本地证据：Electron focused suites `57 PASS`；sidecar route suite
+`29 passed, 3 subtests passed`。Python 修改尚未通过运行中 sidecar 验收；部署或手工
+验证前必须重启 sidecar。DELETE error-code/retryability closed allowlist 也已在 Electron
+parser 固定；仍未完成 Windows degraded-mode 端到端格和 exact deployed artifact-pair
+证据，故 P6 / Windows Active 继续 `NO-GO`。
+
+### 0.3 P6 direct plan：durable deletion closure（2026-08-22）
+
+本节是 #195 内 P6 的普通工程 Plan，适用
+[`cross-boundary-contract-gate`](../../.claude/rules/cross-boundary-contract-gate.md)。它固定当前
+实现允许做什么，也明确尚未获得实现授权的行为；不替代 P6 closure 或 Windows Active
+资格。
+
+#### P6 identity、状态与已定顺序
+
+- durable operation 的主键是 `deletion_id`；`owner_chat_id` 是该 operation 的不可重用
+  write fence identity；Context leg 使用固定 `ctxdel_<deletion_id>`，每个 Vault secret
+  使用从 `(deletion_id, handle)` 确定性导出的 operation ID。
+- durable row 的最小状态为 `pending | retry | quarantined | complete`，两个独立 checkpoint
+  为 `context_done` 与 `vault_done`。只有二者均为真才可 `complete`；quarantine 仍保持
+  chat identity fence。
+- **当前冻结顺序**：先完成 Context，再开始 Vault。Context leg 失败（包括 terminal 或
+  budget exhausted）时，整单进入 retry/quarantine，**不尝试 Vault**。这是当前 P0
+  containment 的保守语义；P6 未来若要改为独立收敛，必须先新增本节的 BC/SEQ/AC 和
+  完整的双腿 partial-state matrix，不能在修 bootstrap 时顺带改变。
+- `off + root/DB/marker 均不存在` 只允许 closed `not_present` receipt 且零写入；
+  `unchain + absent store` 已由 canonical Unchain schema bootstrap + empty-scope tombstone
+  取代。历史 extension-only 空 poison 只在精确签名、Unchain marker、零业务行时进入有界恢复。
+
+#### 边界合同
+
+| ID | producer → consumer | policy 与 canonical shape | failure / admission |
+|---|---|---|---|
+| `BC-P6-001` | chat-storage transaction → deletion outbox row | `CLOSED`。`deletion_id`、`owner_chat_id`、`operation_id`、two checkpoints、status、retry count、next attempt 与 bounded receipt 必须在同一 chats DB durable row 中。 | 非法 chat/deletion/requeue identity 本地拒绝；任何 `status != complete` 保持 write fence。 |
+| `BC-P6-002` | outbox → Electron main `deleteContextV2Chat` | `CLOSED` main-only call，只能发送 validated owner 与固定 Context operation ID；没有 renderer IPC。 | runner 只把明确 `retryable=true` 视为 transient；未知、非法或 terminal 进入 quarantine。 |
+| `BC-P6-003` | sidecar DELETE HTTP → Electron strict parser | `VERSIONED + CLOSED`。成功只接受六字段 `pupu.context_v2_chat_deletion.v1` / version 1 receipt；错误只接受 `{error:{code,message,retryable}}` 的精确 key set，code/retryability pair 使用 closed allowlist。 | extra/missing/unknown/wrong-version/wrong owner/pair mismatch 都投影为 terminal `context_v2_delete_response_invalid`；transport/timeout 为 `context_v2_unreachable, retryable=true`。 |
+| `BC-P6-004` | durable owner resolver → legacy / Unchain deletion implementation | `CLOSED` owner selection。已知 legacy 或 Unchain schema 只交给其真实 owner；absent/blank 与 unknown/partial/mixed 的处置必须有显式 discriminant。历史 poison 只有在 Unchain marker、user_version 0、精确三表一索引 DDL、version 1、零 binding/operation 行时可恢复。 | owner/schema 不能证明时 typed non-retryable；near-match 多一表、多一行、版本漂移、marker 不匹配均保持原字节且不得由 Electron 以 HTTP status 猜测 no-store。 |
+| `BC-P6-005` | outbox → Vault use-state/descriptors/secrets | `CLOSED` main-process API。Vault checkpoint 只在 use-state 删除、descriptor enumeration 与每个 deterministic secret deletion 完成后写入。 | 当前仅在 `context_done=true` 后进入；任一 terminal/unknown Vault failure quarantine，transient 使用同一 operation retry budget。 |
+| `BC-P6-006` | durable row / sidecar tombstone → restart/replay | `CLOSED` identity replay。重启只继续未完成 leg，保留 operation ID、failure count、quarantine receipt 和 repair generations。 | 不得重置 budget、自动解除 quarantine、重复已完成 leg 或复活 fenced chat。 |
+| `BC-P6-007` | public Unchain initializer → empty-scope tombstone | `VERSIONED + CLOSED`。Core `bootstrap_empty_context_memory_v2_database` 在 sibling temporary database 构造 Context/compiler/memory/curator/promotion/legacy/host/deletion 全部 schema，以 exclusive hard link 发布；PuPu 仅在 `unchain + absent` admission 后调用它，再打开 lifecycle reader 并写 exact owner tombstone。 | 不得创建 extension-only partial schema；目标已存在（含 blank）不覆盖。bootstrap 竞争者必须重读而非覆盖既有 tombstone。exact wheel-pair 仍是 P6 closure 的阻断项。 |
+
+#### 状态序列与 acceptance 映射
+
+| ID | 顺序与持久化观察点 | AC | 当前证据状态 |
+|---|---|---|---|
+| `SEQ-P6-001` | delete transaction → enqueue one row → same chat write/import 被 fence | `AC-P6-001`：重复 delete 复用同一 operation；未 complete 前不能重建 chat。 | PASS（local outbox） |
+| `SEQ-P6-002` | Context success receipt → durable `context_done` → Vault cleanup → durable `vault_done` → complete | `AC-P6-002`：每个已完成 leg 在冷重启后不重放；仅双 done complete。 | PASS（local focused） |
+| `SEQ-P6-003` | Context transient → durable retry count/next attempt → restart → same Context operation ID → success | `AC-P6-003`：budget 不归零，恢复后只继续缺失 leg。 | PASS（local focused）；exact pair NOT_RUN |
+| `SEQ-P6-004` | Context terminal/unknown/invalid receipt → quarantine → no due wake → fence preserved | `AC-P6-004`：不执行 Vault、不热循环、不记录 upstream detail。 | PASS（local focused） |
+| `SEQ-P6-005` | quarantine → explicit main-only repair(requeue) → new generation/reason → retry | `AC-P6-005`：operation ID/checkpoint 保持，重启不自动 repair。 | PASS（local focused） |
+| `SEQ-P6-006` | `off` 或 persisted owner lookup → DELETE → exact success/no-store/error projection | `AC-P6-006`：off/shadow/degraded/canary/all 的 method/path/auth/body 不漂移；data-plane 仍受普通 readiness gate。 | partial：unit/route PASS；Windows mode matrix NOT_RUN |
+| `SEQ-P6-007` | `unchain + absent` 或 exact empty poison → canonical base schema → lifecycle reader → empty-scope tombstone → cold restart / later admission | `AC-P6-007`：零 partial schema、删除 identity 不复活、receipt replay stable；poison recovery 在 exclusive backup 发布后崩溃可继续。 | PASS（local source + single-wheel）：Core bootstrap/deletion/host 36 passed；PuPu capability/boundary/deletion/route/read 75 passed + 3 subtests，含 configured off、exact poison、backup+absent restart 与三类 near-match 零改写。installed sidecar/package NOT_RUN。 |
+| `SEQ-P6-008` | exact candidate + one reused wheel → sidecar cold restart / app restart → all applicable above sequences | `AC-P6-008`：wheel SHA、runtime manifest digest、sidecar/package identity 相同且每格 nonzero evidence。 | PARTIAL：本地 dirty-source candidate wheel 只构建一次并由两侧复用，strict manifest PASS；clean provenance、exact PuPu package/install、完整矩阵 NOT_RUN / BLOCKING。 |
+
+#### 实施与验收顺序
+
+1. `DONE (local source + single-wheel pair)`：为 `BC-P6-007 / SEQ-P6-007` 实现并单测公开
+   canonical bootstrap 与 empty-scope tombstone；真实 Core initializer 驱动 PuPu host adapter，
+   且同一 wheel producer 已通过严格 manifest consumer。发布前仍须 clean provenance 与 exact
+   packaged/installed PuPu candidate。
+2. 覆盖 `SEQ-P6-006` 的 rollout-mode、offline、deadline、cold-restart 格；Windows
+   仍保持 Shadow，不能把 source Electron 结果当 installed evidence。
+3. 用一次构建后复用的 Unchain wheel 与 exact PuPu candidate 跑 `SEQ-P6-001..008`；报告
+   wheel SHA-256、runtime manifest digest、sidecar bytes、candidate/install identity。
+4. 只有全部适用 AC PASS 后，才把 P6 从 `INCOMPLETE` 改为 CLOSED；该闭合仍只解除
+   P6 dependency，不自动授权 Windows Active 或 legacy retirement。
+
+#### 0.3.1 本地 single-wheel evidence（2026-08-22）
+
+- wheel：`unchain-0.2.0-py3-none-any.whl`，1,070,950 bytes，
+  `sha256:dc312826b17678cfd220fd17559030729cadbd824ccc0e48d372d6225031d541`；
+- wheel 实际 import 的 manifest：
+  `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`，
+  strict release validator PASS，4 个 protocol families；
+- Core wheel-backed：36 passed（含 concurrent publisher 竞争和 candidate 初始化失败零发布）；PuPu wheel-backed capability/boundary/deletion/route/read：
+  75 passed、3 subtests passed；两侧全程复用同一 wheel bytes；
+- provenance 遥测：source revision
+  `abd7e08f26452e1dbe2767fac3dbfaff7dfb9f3b`，`dirty=true`（包含本次尚未提交的 Core
+  bootstrap 变更）。因此本证据不能生成或冒充 `pupu.release.unchain-artifact.v1`，只证明本地
+  immutable artifact boundary，不证明 release/package/install continuity。
+
+#### 0.3.2 隔离 Sidecar HTTP / cold-restart evidence（2026-08-22）
+
+- 新增 `scripts/release-qa/p6-delete-runtime-matrix.py`，只接受显式 Python、单一 wheel、
+  Sidecar entrypoint 与输出路径；wheel 安装到临时 target，`UNCHAIN_SOURCE_PATH` 被移除，
+  报告只在实际 `unchain.__file__` 位于该 target 时成立。所有数据目录与端口均为临时隔离，
+  不连接运行中的 5879，也不读取或修改真实聊天数据。
+- 复用 0.3.1 的同一 wheel：
+  `sha256:dc312826b17678cfd220fd17559030729cadbd824ccc0e48d372d6225031d541`；实际 import 的
+  runtime manifest 仍为
+  `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`。
+- `BC-P6-003/004/007`、`SEQ-P6-006/007/008` 的隔离跨进程子矩阵 **9/9 PASS**：
+  unauthenticated DELETE 拒绝；`off + absent + degraded` 首次和冷重启均返回 exact
+  `not_present` 且零 `memory_v2` 写入；`unchain + absent + degraded` 建立 canonical schema
+  与 tombstone；同 operation 热重放、Sidecar 冷重启重放均返回 exact `replayed=true`，
+  durable tombstone/operation identity 一致。
+- 本证据使用 PuPu source entrypoint + immutable wheel，不是 packaged/installed PuPu
+  candidate；Core source 仍 dirty。因此 `SEQ-P6-008` 只增加 runtime-process evidence，
+  clean provenance、Electron→Sidecar→Vault 全腿、package/install 与 Windows 格继续
+  `NOT_RUN / BLOCKING`。
 
 ## 1. 最终目标
 
@@ -62,7 +173,7 @@ P6 closure，也不能作为 Windows Active 或 legacy retirement 的资格证�
 | ID | 现场 | 当前后果 | 放行条件 |
 |---|---|---|---|
 | `P0-DEL-01` | `owner=off` 删除 chat | sidecar 返回 `context_v2_store_disabled`；outbox 持续重试；Vault 清理不执行 | `off` 只禁止新 admission；隐私删除按持久 owner 路由，或由 sidecar 严格证明 no-store 后返回成功 |
-| `P0-DEL-02` | `owner=unchain`、数据库不存在时先删除旧 chat | lifecycle “读”路径曾先写 owner marker 和三张扩展表，形成 partial schema；后续官方 V2 无法启动 | 当前 containment 在空根返回 no-store 且零写入；最终仍须由 canonical Unchain base schema → extensions → empty-scope tombstone 取代 |
+| `P0-DEL-02` | `owner=unchain`、数据库不存在时先删除旧 chat | lifecycle “读”路径曾先写 owner marker 和三张扩展表，形成 partial schema；后续官方 V2 无法启动 | 已实现 canonical Unchain base schema → extensions → empty-scope tombstone；精确历史空 poison 可有界恢复，near-match 原样 fail closed。package/install 证据仍阻断正式关闭 |
 | `P0-P6-03` | P6 删除闭包仍缺 direct-plan 完整证据 | BC / SEQ / AC 与完整状态矩阵未闭合，不能放行跨进程、跨仓和持久化行为变化 | P6 在本路线图/#195 中补齐 BC/SEQ/AC、exact artifact pair、边界测试和 acceptance evidence |
 | `P0-WIN-04` | Windows `canary/all` 被强制压到 `shadow` | Vault worker 没有可证明的整树收容；readiness=`degraded`，Active 不可达；degraded readiness 还会拦截 privacy DELETE | 在任何解密前完成两阶段 containment、用 Windows Job Object 收容 worker 及普通子孙进程、给删除建立独立内部通道，并以真实 Windows 安装包完成 crash/quit/restart 矩阵 |
 | `P0-WIN-05` | clean CI 没有受控 Memory V2 release snapshot，Windows smoke 也没有执行已安装 NSIS candidate | clean checkout 会把 feature flags 默认为 off；package smoke 又直接给 build-output sidecar 注入 `all`，可能出现“sidecar 绿、安装包功能仍关闭”的假绿；final merge 未强制 installed/Playwright/containment 报告存在，live ruleset 也未要求 aggregator check | release build 缺 snapshot 时 fail closed；payload/build/package/install 全链绑定；同一安装包 install 后黑盒 E2E；缺报告或 `executed_tests=0` 必须失败；稳定 aggregator 成为 repository/promotion required gate |
@@ -81,7 +192,7 @@ P6 closure，也不能作为 Windows Active 或 legacy retirement 的资格证�
 ### 3.2 no-store 与 empty-scope 是两件事
 
 - `off + DB/marker 双 absent`：允许返回 terminal `not_present`；不得创建目录、DB 或 marker。
-- `unchain + absent store`：最终 P6 不能停在 no-op；必须建立 canonical data plane，再写 empty-scope tombstone，以阻止同一 chat identity 后续复活。**在公开 initializer 尚不存在期间，P0 containment 暂时返回 no-store 收据且零写入**；它只消除 partial-schema poison，不构成 P6 closure 或 active-rollout 资格。
+- `unchain + absent store`：建立 canonical data plane 后写 empty-scope tombstone，以阻止同一 chat identity 后续复活；公开 initializer 与本地 single-wheel 边界现已实现并验证，但 package/install continuity 仍未完成。
 - marker/schema 冲突、zero-byte、mixed/unknown partial schema：fail closed；不得自动猜 owner。
 
 ### 3.3 Context 与 Vault 是两个 durable checkpoint
@@ -1743,14 +1854,14 @@ M5 出口：生产 durable inventory 中 legacy owner 为零、pending deletion 
 
 | 顺序 | 工作项 | 当前状态 |
 |---|---|---|
-| 1 | P6 集成 BC/SEQ/AC 并在 direct Plan 固定 chat identity 与 Context/Vault 顺序 | `BLOCKED / NEXT` |
-| 2 | 保存两个 P0 的 red-before-green 证据 | `PENDING` |
-| 3 | 实现删除专用 durable-owner preflight | `PENDING` |
-| 4 | 修 `off` privacy-delete dispatch | `PENDING` |
-| 5 | 实现 canonical Unchain full-schema bootstrap | `PENDING` |
-| 6 | 修 scope reader 与精确 poisoned-store recovery | `PENDING` |
-| 7 | 实现 typed retry/quarantine 与双 checkpoint（以 P6 direct-plan evidence 为准） | `PENDING` |
-| 8 | focused/integration/exact-wheel 验收并完成 P6 closure | `PENDING` |
+| 1 | P6 集成 BC/SEQ/AC 并在 direct Plan 固定 chat identity 与 Context/Vault 顺序 | `DONE (plan; AC evidence pending)` |
+| 2 | 保存两个 P0 的 red-before-green 证据 | `PARTIAL (containment evidence saved; full matrix pending)` |
+| 3 | 实现删除专用 durable-owner preflight | `DONE (local containment; P6 closure pending)` |
+| 4 | 修 `off` privacy-delete dispatch | `DONE (local containment; P6 closure pending)` |
+| 5 | 实现 canonical Unchain full-schema bootstrap | `DONE (local source + single-wheel pair; package/install pending)` |
+| 6 | 修 scope reader 与精确 poisoned-store recovery | `DONE (local source + single-wheel; package/install pending)` |
+| 7 | 实现 typed retry/quarantine 与双 checkpoint（以 P6 direct-plan evidence 为准） | `PARTIAL (local implementation; exact matrix pending)` |
+| 8 | focused/integration/exact-wheel 验收并完成 P6 closure | `PARTIAL (single-wheel local PASS; clean package/install/full matrix pending)` |
 | 9 | M2 sticky owner 全路径 | `PENDING` |
 | 10 | MW-0 Windows containment direct Plan、support/candidate 契约与 red evidence（详见 6B.10） | `NEXT / PLAN READY` |
 | 11 | MW-1 两阶段 executor：contained-ready 后才 claim/decrypt | `PENDING` |
@@ -1768,9 +1879,9 @@ M5 出口：生产 durable inventory 中 legacy owner 为零、pending deletion 
 
 - `_delete_chat_for_store_owner`：LOW；
 - `_context_v2_chat_state_exists_read_only`：LOW，但语义不足，不作为删除 authority；
-- `delete_pupu_unchain_chat`：CRITICAL；
-- `_resolve_scope`：CRITICAL；
-- `inspect_context_v2_database`：CRITICAL，计划保持不变；
+- `delete_pupu_unchain_chat`：MEDIUM（11 个 direct callers / tests，2 个模块）；
+- `_resolve_scope`：LOW（1 个 direct caller，13 个 total dependents）；
+- `inspect_context_v2_database`：HIGH（9 个 direct、157 个 total dependents），计划保持不变；
 - ownership lifecycle list：索引无法可靠解析，人工确认被多个 read/workspace/promotion/recall/review/curator/deletion 路径共享；
 - `electron/main/services/unchain/service.js`：MEDIUM；应优先采用窄改动。
 

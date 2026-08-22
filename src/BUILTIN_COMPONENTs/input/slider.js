@@ -59,8 +59,10 @@ const isDuplicateMouseDown = (e) =>
   !!window.PointerEvent;
 
 /* The button is already up — this move belongs to a drag that ended outside
-   the window, so it must end the drag and NOT move the value. */
-const isReleasedOutside = (e) => e.type === "mousemove" && e.buttons === 0;
+   the window, so it must end the drag and NOT move the value.
+   `buttons` is meaningless on touchmove, hence the explicit type list. */
+const isReleasedOutside = (e) =>
+  (e.type === "mousemove" || e.type === "pointermove") && e.buttons === 0;
 
 const snapToStep = (v, min, max, step) => {
   const s = Math.round((v - min) / step) * step + min;
@@ -292,6 +294,12 @@ const Slider = ({
       const cx = e.clientX ?? e.touches?.[0]?.clientX;
       if (cx !== undefined) handleChange(getValueFromX(cx));
     };
+    /* pointermove is the stream that actually survives: onPointerDown calls
+       preventDefault to stop the press selecting text, and a canceled
+       pointerdown suppresses the whole compatibility mouse sequence for that
+       pointer — mousemove included. mousemove stays for environments with no
+       PointerEvent at all, where it is the only stream there is. */
+    window.addEventListener("pointermove", onMove);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     window.addEventListener("pointerup", onUp);
@@ -300,6 +308,7 @@ const Slider = ({
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
     return () => {
+      window.removeEventListener("pointermove", onMove);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       window.removeEventListener("pointerup", onUp);
@@ -697,6 +706,12 @@ const RangeSlider = ({
         handleChange(currentLow, v);
       }
     };
+    /* pointermove is the stream that actually survives: onPointerDown calls
+       preventDefault to stop the press selecting text, and a canceled
+       pointerdown suppresses the whole compatibility mouse sequence for that
+       pointer — mousemove included. mousemove stays for environments with no
+       PointerEvent at all, where it is the only stream there is. */
+    window.addEventListener("pointermove", onMove);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     window.addEventListener("pointerup", onUp);
@@ -705,6 +720,7 @@ const RangeSlider = ({
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
     return () => {
+      window.removeEventListener("pointermove", onMove);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       window.removeEventListener("pointerup", onUp);
@@ -1443,6 +1459,12 @@ const GradientSlider = ({
       const cx = e.clientX ?? e.touches?.[0]?.clientX;
       if (cx !== undefined) handleChange(getValueFromX(cx));
     };
+    /* pointermove is the stream that actually survives: onPointerDown calls
+       preventDefault to stop the press selecting text, and a canceled
+       pointerdown suppresses the whole compatibility mouse sequence for that
+       pointer — mousemove included. mousemove stays for environments with no
+       PointerEvent at all, where it is the only stream there is. */
+    window.addEventListener("pointermove", onMove);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     window.addEventListener("pointerup", onUp);
@@ -1451,6 +1473,7 @@ const GradientSlider = ({
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
     return () => {
+      window.removeEventListener("pointermove", onMove);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       window.removeEventListener("pointerup", onUp);

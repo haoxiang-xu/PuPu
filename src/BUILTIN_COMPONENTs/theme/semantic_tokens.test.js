@@ -223,7 +223,7 @@ describe("SEMANTIC_TOKEN_TREE", () => {
   });
 
   test("alpha steps cite a real ladder rung and publish a details key", () => {
-    expect(ALPHA_STEPS.length).toBe(31);
+    expect(ALPHA_STEPS.length).toBe(33);
     const detailsKeys = ALPHA_STEPS.map((s) => s.detailsKey);
     /* the three shipped border keys must still be present and unchanged */
     expect(detailsKeys).toContain("borderAlphaStrong");
