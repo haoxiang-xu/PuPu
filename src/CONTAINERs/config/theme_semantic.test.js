@@ -672,3 +672,47 @@ describe("applySemanticPaletteToTheme keeps a button's label with its icon", () 
     expect(themed.button.root.color).toBe(semantic.text);
   });
 });
+
+/* The trace chain reads its palette out of theme.timeline, which the JSON
+   filled with fixed neutrals — so the row title, the "detail" toggle and the
+   elapsed-time indicator were the last things in a message still ignoring a
+   custom Label. */
+describe("applySemanticPaletteToTheme wires the trace chain to Label", () => {
+  const palette = resolveSemanticPalette("dark_mode", {});
+  const out = applySemanticPaletteToTheme(
+    { timeline: { spanFontSize: "11px", titleColor: "#CCCCCC" } },
+    palette,
+    "dark_mode",
+  );
+
+  test("title, elapsed time and the detail toggle take label steps", () => {
+    expect(out.timeline.titleColor).toBe("var(--pupu-text-strong)");
+    expect(out.timeline.spanColor).toBe("var(--pupu-text-faint)");
+    expect(out.timeline.seeDetailsColor).toBe("var(--pupu-text-faint)");
+  });
+
+  /* Deliberately off-ladder: these four encode done-vs-pending, and one
+     shared rung would flatten the rail into a single tone. They still follow
+     Label — that is the part that must not regress. */
+  test("the rail and its points follow Label while keeping their own alphas", () => {
+    for (const key of [
+      "lineColor",
+      "lineDoneColor",
+      "pointDoneColor",
+      "pointPendingColor",
+    ]) {
+      expect(out.timeline[key]).toMatch(/^rgba\(var\(--pupu-text-rgb\),0\.\d+\)$/);
+    }
+    const alphas = [
+      out.timeline.lineColor,
+      out.timeline.lineDoneColor,
+      out.timeline.pointDoneColor,
+      out.timeline.pointPendingColor,
+    ];
+    expect(new Set(alphas).size).toBe(4);
+  });
+
+  test("non-colour timeline keys survive the merge", () => {
+    expect(out.timeline.spanFontSize).toBe("11px");
+  });
+});

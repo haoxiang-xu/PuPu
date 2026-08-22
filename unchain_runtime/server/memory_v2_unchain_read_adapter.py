@@ -27,6 +27,10 @@ from unchain.persistence.sqlite_chat_deletion_v2 import (
     ChatDeletionError,
     is_chat_deleted,
 )
+from unchain.persistence.sqlite_context_memory_bootstrap_v2 import (
+    SQLiteContextMemoryBootstrapError,
+    bootstrap_empty_context_memory_v2_database,
+)
 from unchain.persistence.sqlite_context_compiler_v2 import (
     SQLiteContextCompilerV2Store,
 )
@@ -679,16 +683,15 @@ def read_pupu_unchain_memory_v2_store_status(
         )
         if (
             admission.owner == STORE_OWNER_UNCHAIN
-            and admission.database_state in {"absent", "blank"}
+            and admission.database_state == "absent"
         ):
-            object_directory = admission.root_dir / "objects"
-            SQLiteContextV2Store(
+            # Status is the first real Sidecar request during startup.  It must
+            # publish the same complete empty plane that deletion relies on;
+            # opening just Context + Memory here leaves an owner-marked partial
+            # schema which Core correctly refuses to delete.
+            bootstrap_empty_context_memory_v2_database(
                 database_path=admission.database_path,
-                object_directory=object_directory,
-            )
-            SQLiteMemoryV2Store(
-                database_path=admission.database_path,
-                object_directory=object_directory,
+                object_directory=admission.root_dir / "objects",
             )
             admission = admit_context_v2_store_owner(
                 root_dir=root_dir,
@@ -708,6 +711,7 @@ def read_pupu_unchain_memory_v2_store_status(
         raise
     except (
         ContextV2StoreBoundaryError,
+        SQLiteContextMemoryBootstrapError,
         SQLiteContextV2ReadError,
         TypeError,
         ValueError,

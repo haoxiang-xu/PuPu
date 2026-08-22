@@ -10,7 +10,7 @@
 
 - 删除路由改为读取持久 marker/schema 决定实际 owner；`off` 不再关闭已存数据的隐私删除 authority；
 - `off + absent` 与真正 blank 的 SQLite 返回 closed `not_present` 收据；`off + absent` 不创建 root、marker、SQLite、WAL 或 SHM；
-- `unchain + absent` 先由公开 Core initializer 在 sibling temporary database 构造完整 canonical schema，以 exclusive hard link 发布，再打开 lifecycle reader 并写 empty-scope tombstone；不再留下 extension-only partial schema；
+- `unchain + absent` 无论首先来自 status 还是 DELETE，均先由公开 Core initializer 在 sibling temporary database 构造完整 canonical schema，以 exclusive hard link 发布；随后才打开 lifecycle reader 或写 empty-scope tombstone，不再留下 extension-only partial schema；真正 blank 的既有 SQLite 不覆盖，status fail closed、DELETE 仍投影为 closed `not_present`；
 - known legacy / known Unchain schema 即使当前配置为 `off` 也分别交由其真实 owner 删除；unknown、zero-byte、mixed 或 partial schema 返回 typed non-retryable error；
 - 相关 sidecar 三组测试为 `50 passed, 3 subtests passed`，Electron deletion-outbox 主测试为 `17 passed`；另以单一构建的 Unchain wheel（`sha256:f9e44d9b27dfb061b26d4fa6a37103ecd5ae0ec69a172cdfc335a8b66448446c`，manifest `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`，revision `abd7e08f26452e1dbe2767fac3dbfaff7dfb9f3b`）运行 P0 精确格，`8 passed`。此前 mutable sibling source 测试只作为快速 containment 证据；该 exact pair 仍不替代 P6 的全部状态矩阵。
 
@@ -95,20 +95,22 @@ parser 固定；仍未完成 Windows degraded-mode 端到端格和 exact deploye
 | `BC-P6-004` | durable owner resolver → legacy / Unchain deletion implementation | `CLOSED` owner selection。已知 legacy 或 Unchain schema 只交给其真实 owner；absent/blank 与 unknown/partial/mixed 的处置必须有显式 discriminant。历史 poison 只有在 Unchain marker、user_version 0、精确三表一索引 DDL、version 1、零 binding/operation 行时可恢复。 | owner/schema 不能证明时 typed non-retryable；near-match 多一表、多一行、版本漂移、marker 不匹配均保持原字节且不得由 Electron 以 HTTP status 猜测 no-store。 |
 | `BC-P6-005` | outbox → Vault use-state/descriptors/secrets | `CLOSED` main-process API。Vault checkpoint 只在 use-state 删除、descriptor enumeration 与每个 deterministic secret deletion 完成后写入。 | 当前仅在 `context_done=true` 后进入；任一 terminal/unknown Vault failure quarantine，transient 使用同一 operation retry budget。 |
 | `BC-P6-006` | durable row / sidecar tombstone → restart/replay | `CLOSED` identity replay。重启只继续未完成 leg，保留 operation ID、failure count、quarantine receipt 和 repair generations。 | 不得重置 budget、自动解除 quarantine、重复已完成 leg 或复活 fenced chat。 |
-| `BC-P6-007` | public Unchain initializer → empty-scope tombstone | `VERSIONED + CLOSED`。Core `bootstrap_empty_context_memory_v2_database` 在 sibling temporary database 构造 Context/compiler/memory/curator/promotion/legacy/host/deletion 全部 schema，以 exclusive hard link 发布；PuPu 仅在 `unchain + absent` admission 后调用它，再打开 lifecycle reader 并写 exact owner tombstone。 | 不得创建 extension-only partial schema；目标已存在（含 blank）不覆盖。bootstrap 竞争者必须重读而非覆盖既有 tombstone。exact wheel-pair 仍是 P6 closure 的阻断项。 |
+| `BC-P6-007` | public Unchain initializer → empty-scope tombstone | `VERSIONED + CLOSED`。Core `bootstrap_empty_context_memory_v2_database` 在 sibling temporary database 构造 Context/compiler/memory/curator/promotion/legacy/host/deletion 全部 schema，以 exclusive hard link 发布；PuPu 仅在 `unchain + absent` admission 后调用它，再打开 lifecycle reader 或写 exact owner tombstone。 | status 与 DELETE 都不得创建 extension-only partial schema；目标已存在（含 blank）不覆盖。真正 blank 的 status fail closed，privacy DELETE 维持 no-store 投影。bootstrap 竞争者必须重读而非覆盖既有 tombstone。exact wheel-pair 仍是 P6 closure 的阻断项。 |
+| `BC-P6-008` | macOS DMG → isolated installed `.app` → packaged main/sidecar/snapshot | `VERSIONED + CLOSED`。同一验收报告记录 DMG、Mach-O 主可执行文件、`app.asar`、packaged Sidecar 与嵌入 snapshot 的 exact SHA-256，并绑定唯一 clean Unchain wheel evidence/runtime manifest。 | DMG 内 `.app` 缺失/多个、安装布局缺件、snapshot bytes 不一致、manifest 漂移或任一子报告 `executed_tests=0` 均 fail closed；dirty PuPu 产物只能标记 diagnostic，不得冒充 release candidate。 |
 
 #### 状态序列与 acceptance 映射
 
 | ID | 顺序与持久化观察点 | AC | 当前证据状态 |
 |---|---|---|---|
 | `SEQ-P6-001` | delete transaction → enqueue one row → same chat write/import 被 fence | `AC-P6-001`：重复 delete 复用同一 operation；未 complete 前不能重建 chat。 | PASS（local outbox） |
-| `SEQ-P6-002` | Context success receipt → durable `context_done` → Vault cleanup → durable `vault_done` → complete | `AC-P6-002`：每个已完成 leg 在冷重启后不重放；仅双 done complete。 | PASS（local focused） |
-| `SEQ-P6-003` | Context transient → durable retry count/next attempt → restart → same Context operation ID → success | `AC-P6-003`：budget 不归零，恢复后只继续缺失 leg。 | PASS（local focused）；exact pair NOT_RUN |
-| `SEQ-P6-004` | Context terminal/unknown/invalid receipt → quarantine → no due wake → fence preserved | `AC-P6-004`：不执行 Vault、不热循环、不记录 upstream detail。 | PASS（local focused） |
-| `SEQ-P6-005` | quarantine → explicit main-only repair(requeue) → new generation/reason → retry | `AC-P6-005`：operation ID/checkpoint 保持，重启不自动 repair。 | PASS（local focused） |
+| `SEQ-P6-002` | Context success receipt → durable `context_done` → Vault cleanup → durable `vault_done` → complete | `AC-P6-002`：每个已完成 leg 在冷重启后不重放；仅双 done complete。 | PASS（local focused + single-wheel full leg） |
+| `SEQ-P6-003` | Context transient → durable retry count/next attempt → restart → same Context operation ID → success | `AC-P6-003`：budget 不归零，恢复后只继续缺失 leg。 | PASS（local focused + single-wheel full leg）；package/install NOT_RUN |
+| `SEQ-P6-004` | Context terminal/unknown/invalid receipt → quarantine → no due wake → fence preserved | `AC-P6-004`：不执行 Vault、不热循环、不记录 upstream detail。 | PASS（local focused + single-wheel full leg） |
+| `SEQ-P6-005` | quarantine → explicit main-only repair(requeue) → new generation/reason → retry | `AC-P6-005`：operation ID/checkpoint 保持，重启不自动 repair。 | PASS（local focused + single-wheel full leg） |
 | `SEQ-P6-006` | `off` 或 persisted owner lookup → DELETE → exact success/no-store/error projection | `AC-P6-006`：off/shadow/degraded/canary/all 的 method/path/auth/body 不漂移；data-plane 仍受普通 readiness gate。 | partial：unit/route PASS；Windows mode matrix NOT_RUN |
-| `SEQ-P6-007` | `unchain + absent` 或 exact empty poison → canonical base schema → lifecycle reader → empty-scope tombstone → cold restart / later admission | `AC-P6-007`：零 partial schema、删除 identity 不复活、receipt replay stable；poison recovery 在 exclusive backup 发布后崩溃可继续。 | PASS（local source + single-wheel）：Core bootstrap/deletion/host 36 passed；PuPu capability/boundary/deletion/route/read 75 passed + 3 subtests，含 configured off、exact poison、backup+absent restart 与三类 near-match 零改写。installed sidecar/package NOT_RUN。 |
-| `SEQ-P6-008` | exact candidate + one reused wheel → sidecar cold restart / app restart → all applicable above sequences | `AC-P6-008`：wheel SHA、runtime manifest digest、sidecar/package identity 相同且每格 nonzero evidence。 | PARTIAL：本地 dirty-source candidate wheel 只构建一次并由两侧复用，strict manifest PASS；clean provenance、exact PuPu package/install、完整矩阵 NOT_RUN / BLOCKING。 |
+| `SEQ-P6-007` | `unchain + absent` 或 exact empty poison → canonical base schema → lifecycle reader → empty-scope tombstone → cold restart / later admission | `AC-P6-007`：无论 status 或 DELETE 首先到达都零 partial schema；删除 identity 不复活、receipt replay stable；poison recovery 在 exclusive backup 发布后崩溃可继续。 | PASS（local source + single-wheel）：Core bootstrap/deletion/host 36 passed；PuPu capability/boundary/deletion/route/read 75 passed + 3 subtests，含 configured off、exact poison、backup+absent restart 与三类 near-match 零改写。installed sidecar/package NOT_RUN。 |
+| `SEQ-P6-008` | exact candidate + one reused wheel → sidecar cold restart / app restart → all applicable above sequences | `AC-P6-008`：wheel SHA、runtime manifest digest、sidecar/package identity 相同且每格 nonzero evidence。 | PARTIAL：clean Core wheel + macOS dirty-PuPu diagnostic DMG 的 package/install/full-leg 已 PASS；clean PuPu provenance、signed/notarized exact release candidate 与 Windows 完整矩阵仍 NOT_RUN / BLOCKING。 |
+| `SEQ-P6-009` | mount DMG → copy-install `.app` → verify identities → launch packaged app/Sidecar → quit/no descendants → installed main services 运行 P6 matrix | `AC-P6-009`：必须从安装包内 exact Sidecar 获得 authenticated health/status，嵌入 snapshot fingerprint 与 runtime manifest 符合 evidence，安装包代码运行的 P6 报告非零且退出无测试进程残留。 | PASS（macOS diagnostic 33/33）；clean signed/notarized candidate 与 Windows installed matrix 仍 NOT_RUN。 |
 
 #### 实施与验收顺序
 
@@ -154,8 +156,131 @@ parser 固定；仍未完成 Windows degraded-mode 端到端格和 exact deploye
   durable tombstone/operation identity 一致。
 - 本证据使用 PuPu source entrypoint + immutable wheel，不是 packaged/installed PuPu
   candidate；Core source 仍 dirty。因此 `SEQ-P6-008` 只增加 runtime-process evidence，
-  clean provenance、Electron→Sidecar→Vault 全腿、package/install 与 Windows 格继续
-  `NOT_RUN / BLOCKING`。
+  clean provenance、package/install 与 Windows 格继续 `NOT_RUN / BLOCKING`。
+
+#### 0.3.3 Electron → Sidecar → Vault full-leg evidence（2026-08-22）
+
+- `scripts/release-qa/p6-full-leg-runtime-matrix.cjs` 以临时 app root、user-data、SQLite
+  与 Vault 运行真实 Electron main services；Sidecar 仍从单一 immutable wheel target import，
+  runtime source 不得通过 sibling checkout 被重新发现。临时 app root 仅复制 Sidecar 所需的
+  versioned MCP registry artifact，绝不触碰运行中的 Sidecar、真实 chats DB 或 Vault。
+- 该格先启动真实 Sidecar（它会先请求 `/context/v2/status`），再删除 chat。因此曾复现
+  status 只初始化 Context+Memory、而删除 Core 拒绝 incomplete closure 的 P0；修复后 status
+  只在 database `absent` 时复用 `bootstrap_empty_context_memory_v2_database`。既有合法 blank
+  SQLite 不覆盖：status fail closed，DELETE 保持 no-store receipt。
+- 复用 wheel `sha256:dc312826b17678cfd220fd17559030729cadbd824ccc0e48d372d6225031d541` 与
+  runtime manifest `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`：
+  **19/19 PASS**。首轮真实 Context DELETE 只持久化一次 tombstone；注入一次 retryable Vault
+  enumeration failure 后 outbox 持久化 `context_done=1/vault_done=0`，冷重启只继续 Vault，
+  chat-scope secret 被删、user-scope secret 保留、两 checkpoint 后才 complete。
+- 同一矩阵再将临时 Sidecar database 精确置为 zero-byte incompatible fixture，验证真实 HTTP
+  terminal schema response 在 Context leg quarantine，Vault use-state/descriptor/secret 调用均为
+  0；app cold restart 不会自动重试。外部移除该临时 fault 后，只有 explicit main-process
+  requeue 可用**原** Context operation ID 完成；Sidecar tombstone 仅写一次。
+- 矩阵还会停止真实 Sidecar，验证 Context transport unavailable 进入 durable retry 而非
+  quarantine、Vault 调用为 0；app cold restart 保持 backoff。Sidecar 冷启动并强制到期后，
+  同一 Context operation ID 成功，Vault 才运行，tombstone 仍仅一条。
+- 同批局部回归：Sidecar read-adapter/deletion-adapter/route **59 passed + 3 subtests**，Electron Context V2 /
+  deletion-outbox **60 passed**。这仍是 source-entrypoint evidence；clean provenance、exact
+  packaged/install candidate 与 Windows matrix 继续是 P6 / Windows Active 的阻断项。
+
+#### 0.3.4 clean provenance candidate preflight（2026-08-22）
+
+- candidate producer、snapshot producer、artifact verifier 与 packaged-sidecar smoke 的本地工具
+  契约自测 **19/19 PASS**。它们要求一份 clean Unchain revision 只产生一个 wheel、evidence 记录
+  exact revision/bytes/runtime manifest，package job 只下载复用该 wheel 与同一 snapshot bytes。
+- 原 Unchain worktree 虽含 hand-maintained instructions 而 non-clean，仍可从同一 `HEAD`
+  `6c589152dcb6c6c88879b6e8ef302c55ba8a81cc` 建立 isolated detached clean source。该 source
+  已产出唯一 wheel `sha256:286101fe4cd4f283144d074870ae1c83df94bc7297e2d91852f906844e6d62d9`，
+  runtime manifest `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`；同一
+  `release-profile.shadow.v1` snapshot SHA-256 为
+  `180ac230aa8a1d19dab78e28ace8eea2a2761dbd4e7a54b0d2ac98a9f16df8ac`。该 exact wheel 的
+  Context V2 boundary contract 为 Core **47 PASS**、PuPu adapter **23 PASS + 3 subtests**、Node
+  strict fake **2 PASS**，并通过 Electron → Sidecar → Vault **19/19 PASS**。
+- 这只完成 clean Core artifact leg，尚不能生成完整 release candidate：PuPu worktree 仍 non-clean，
+  且没有以 clean PuPu revision 复用该 wheel 的 package/install evidence。既有
+  `direct-fix-final-8g03raXW` wheel 的静态 evidence verification 也因缺少当前 required
+  `context_memory.generation_rebase_live_interaction_cycles` feature 而 fail closed，不能复用为
+  本轮 P6 candidate。
+- 同一 exact wheel 与 Shadow snapshot 对现有 macOS build-output sidecar 的严格 smoke 亦为 red：
+  该 binary 缺少 `context_memory.generation_rebase_live_interaction_cycles`，在 authenticated
+  protocol projection 前被拒绝。它是旧产物诊断，不是 package/install test；结论是不得复用，
+  必须从 clean PuPu candidate 重新生成 sidecar 与 installer。
+- 下一实际 gate：代码 owner 审阅并提交本轮 PuPu P6 变更、使 PuPu 回到 clean exact ref；复用上述
+  wheel 与受控 Shadow snapshot，打包并对该 exact candidate 跑 package smoke / installed matrix。
+  此前所有本地结果只能记作 source 或 single-wheel evidence，绝不记作 package/install PASS。
+
+#### 0.3.5 P6 standalone feature audit / source closeout（2026-08-22）
+
+该 audit 只验收本轮 P6 diff 与 blast radius，不改变任何 Release issue / Project 状态。
+
+- `1. i18n: PASS (coverage)`：以 `en` 的 716 keys 为基准，10 个 locale 的 missing、orphan、
+  placeholder mismatch 全部为 0。静态扫描仍报告既有 dead-key candidates 与 34 个 dynamic-key
+  blind spots；P6 不新增 UI 文案，未自动删除或改写这些仓库级候选。
+- `2. UI: N/A`：P6 diff 没有 renderer component、交互控件、颜色或 theme 变更。
+- `3. model × agent builder: N/A`：P6 只改变删除闭包、Sidecar status bootstrap 与 QA matrix，
+  不改变 model/provider/effort/agent-builder schema。
+- `4. static rules: PASS`：feature file list 未新增 `ipcRenderer`、`localStorage`、
+  `react-router-dom`、`createContext`、bare button 或颜色；没有 Electron test twin 变更。
+- `5. end-to-end: FAIL (release evidence incomplete)`：先确认运行中 Sidecar 早于 Python diff，
+  再由 main crash-restart path 从 PID `79426` 切换为 `32953`；新进程 ready，imported runtime
+  manifest 为
+  `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`。
+  PuPu Test API 随后使用真实 `openai:gpt-4.1` probe，验证模型回复 sentinel 后删除 chat：UI list
+  最终不再包含该 chat，`chats` / `messages` 行均为 0，durable outbox 为
+  `context_done=1/vault_done=1/status=complete/retry_count=0`，Core operation 与 revision 1
+  tombstone 复用同一 `ctxdel_...` identity。即时 post-delete detail 曾返回 HTTP 500 而非 Test API
+  文档声明的 404，约 1.5 秒后 list 与数据库已收敛；该 test-harness 语义另列观察项，不改写 P6
+  durable-delete verdict。
+- final focused evidence：Sidecar **59 PASS + 3 subtests**；Electron **60/60 PASS**；clean Core
+  wheel 的 Electron → Sidecar → Vault **19/19 PASS**；candidate/provenance tooling **19/19 PASS**；
+  syntax、`py_compile` 与 `git diff --check` PASS。unstaged GitNexus scope 为 LOW、0 affected
+  processes；相对 `main` 的累计 branch scope 仍为 CRITICAL（1761 files / 257 processes），不能
+  被本轮局部结果覆盖。
+
+`当时 Overall: FAIL (release audit)`，同时 `P6 source closeout: PASS`。阻断原因不是当前删除行为回归，
+而是没有 release-qualified exact PuPu candidate digest、package/install smoke 与 installed matrix。已复用的 clean
+Unchain wheel 是
+`sha256:286101fe4cd4f283144d074870ae1c83df94bc7297e2d91852f906844e6d62d9`；PuPu candidate digest
+保持 `N/A`，不得将 source closeout 解释为 Release Done。后续 0.3.6 已补上
+dirty-PuPu diagnostic 安装证据，但它不会回写或替代本段的 release-qualified 缺口。
+
+#### 0.3.6 macOS package smoke / installed matrix（2026-08-22）
+
+- 新增 `scripts/release-qa/macos-installed-candidate.mjs`：挂载 DMG 后用 `ditto`
+  复制到唯一临时安装目录，验证 DMG、主可执行文件、`app.asar`、
+  packaged Sidecar、canonical deployed snapshot 和 clean wheel 的 exact SHA-256。验收后
+  自动 detach 并删除隔离 HOME/userData，不读写真实用户 chats DB 或 Vault。
+- 当前 arm64 DMG（`0.1.9`）为 **dirty-PuPu / unsigned diagnostic**，不是 release
+  candidate：PuPu revision `99371b1d0279879225c58e8c786e867769a7cfcb`，DMG
+  `sha256:5c177c2ce4ff90523899a43df4575df6f9632ae3d77e99fc2f6ada3ac7681756`，
+  `app.asar` `sha256:e9aab630117cd9f7f8f14bc50a66520df73c7431105df2decd9f08debade0c07`，
+  packaged Sidecar `sha256:3a7a9b7168ded9afdcede83d5cdf694e3bd0aca5920584843070f99698f6c017`。
+- 同一安装包复用 clean Unchain revision
+  `6c589152dcb6c6c88879b6e8ef302c55ba8a81cc`、wheel
+  `sha256:286101fe4cd4f283144d074870ae1c83df94bc7297e2d91852f906844e6d62d9`、
+  runtime manifest
+  `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`；
+  deployed snapshot SHA-256 为
+  `180ac230aa8a1d19dab78e28ace8eea2a2761dbd4e7a54b0d2ac98a9f16df8ac`，
+  snapshot fingerprint 为
+  `2d5e98e6e48aacd8aab345f1158926933e7a3be1eeb9a098111d5023ec997e87`。
+- package Sidecar auth/health/status **5/5 PASS**；已安装 app 在隔离 HOME 与
+  Chromium mock keychain 下启动 exact packaged Sidecar，再由 JXA 向 exact app path
+  发送正常 quit，退出无候选进程残留 **4/4 PASS**；从已安装 `app.asar`
+  提取的 exact Electron main services + packaged Sidecar 完成 P6 full-leg **24/24 PASS**，
+  总计 **33/33 PASS**。source-mode full-leg 同时回归 **19/19 PASS**，验收器
+  contract 自测 **6/6 PASS**。
+- 同次实跑发现并修正两个 QA tooling 问题：macOS unsigned script 必须显式
+  `mac.identity=null`，否则 electron-builder 26 会回退 ad-hoc signing 并尝试写入已 seal
+  的 MCP runtime；package smoke 只在 `/health.context_memory_v2` 验 runtime protocol，
+  rollout projection 必须在 `/context/v2/status` 验证。
+- 仍未完成：clean PuPu revision 重打同一矩阵；Developer ID signing/notarization/Gatekeeper
+  与真实 Keychain UX（本次 unsigned 随机路径会阻塞在授权 UI，因此 lifecycle 明确使用
+  mock keychain）；
+  macOS x64 installed matrix；Windows NSIS 安装包、Job Object containment 与 Active 矩阵；
+  最终 repository/promotion required gate。因此 `Overall` 仍为 **NO-GO**，但 macOS
+  diagnostic package/install leg 已从 `NOT_RUN` 提升为 `PASS`。
 
 ## 1. 最终目标
 

@@ -363,13 +363,13 @@ const ToolTag = ({ name, isDark, compact = false }) => (
       alignItems: "center",
       padding: compact ? "1px 6px" : "1px 7px",
       borderRadius: compact ? 4 : 5,
-      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+      background: "var(--pupu-overlay-selected)",
       /* off by default; themes opt in via the JSON details channel */
       border: "1px solid var(--pupu-chip-border, transparent)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: compact ? "0.74em" : "0.82em",
       letterSpacing: 0.1,
-      color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.65)",
+      color: "var(--pupu-text-secondary)",
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -389,11 +389,11 @@ const CountBadge = ({ count, isDark }) => (
       minWidth: 16,
       height: 16,
       borderRadius: 8,
-      background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.055)",
+      background: "var(--pupu-overlay-hover)",
       border: "1px solid var(--pupu-chip-border, transparent)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: "0.72em",
-      color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
+      color: "var(--pupu-text-faint)",
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -459,7 +459,7 @@ const getSubagentStatusColor = (status, isDark) => {
     normalized === "timeout" ||
     normalized === "partial_failure"
   ) {
-    return isDark ? "rgba(252,165,165,0.9)" : "rgba(220,38,38,0.85)";
+    return "var(--pupu-danger)";
   }
   if (
     normalized === "completed" ||
@@ -467,9 +467,9 @@ const getSubagentStatusColor = (status, isDark) => {
     normalized === "running" ||
     normalized === "spawned"
   ) {
-    return isDark ? "rgba(110,231,183,0.88)" : "rgba(5,150,105,0.85)";
+    return "var(--pupu-success)";
   }
-  return isDark ? "rgba(255,255,255,0.56)" : "rgba(0,0,0,0.46)";
+  return "var(--pupu-text-secondary)";
 };
 
 const getSubagentTraceStatus = (status) => {
@@ -506,7 +506,7 @@ const BranchExpandArrow = ({ open, onClick, isDark }) => (
       border: "none",
       cursor: "pointer",
       fontSize: "10px",
-      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+      color: "var(--pupu-text-faint)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       outline: "none",
       userSelect: "none",
@@ -543,7 +543,7 @@ const HammerPoint = ({ isDark }) => (
       height: 10,
       borderRadius: "50%",
       background: "transparent",
-      border: `1px solid ${isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.22)"}`,
+      border: `1px solid ${"var(--pupu-border)"}`,
       flexShrink: 0,
       boxSizing: "border-box",
     }}
@@ -558,7 +558,7 @@ const ErrorPoint = () => (
       width: 16,
       height: 16,
       flexShrink: 0,
-      color: "#ef4444",
+      color: "var(--pupu-danger)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -600,8 +600,8 @@ const TokenSummary = ({ usage, isDark, bundle }) => {
   const triggerRef = useRef(null);
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "\u2013";
-  const color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)";
-  const cacheColor = isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.2)";
+  const color = "var(--pupu-text-faint)";
+  const cacheColor = "var(--pupu-text-disabled)";
   const hasCacheRead = typeof usage.cacheRead === "number" && usage.cacheRead > 0;
   const hasCacheCreation =
     typeof usage.cacheWrite === "number" && usage.cacheWrite > 0;
@@ -1055,7 +1055,7 @@ const TraceChain = ({
                 lineHeight={1.65}
                 style={{
                   ...TRACE_DETAIL_MARKDOWN_STYLE,
-                  color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
+                  color: "var(--pupu-text-secondary)",
                 }}
               />
             ) : undefined,
@@ -1095,9 +1095,7 @@ const TraceChain = ({
                     fontFamily: "inherit",
                     whiteSpace: "pre-wrap",
                     wordBreak: "break-word",
-                    color: isDark
-                      ? "rgba(255,255,255,0.68)"
-                      : "rgba(0,0,0,0.62)",
+                    color: "var(--pupu-text-secondary)",
                   }}
                 >
                   {typeof m?.text === "string" ? m.text : ""}
@@ -1132,9 +1130,7 @@ const TraceChain = ({
                   style={{
                     fontSize: 11.5,
                     lineHeight: 1.55,
-                    color: isDark
-                      ? "rgba(255,255,255,0.42)"
-                      : "rgba(0,0,0,0.4)",
+                    color: "var(--pupu-text-faint)",
                   }}
                 >
                   {question}
@@ -1148,9 +1144,7 @@ const TraceChain = ({
                   lineHeight={1.65}
                   style={{
                     ...TRACE_DETAIL_MARKDOWN_STYLE,
-                    color: isDark
-                      ? "rgba(255,255,255,0.75)"
-                      : "rgba(0,0,0,0.7)",
+                    color: "var(--pupu-text-secondary)",
                   }}
                 />
               )}
@@ -1190,12 +1184,8 @@ const TraceChain = ({
           ? { value: defaultClarifyOption.value }
           : undefined;
         const clarifyStatusColor = isClarifyResolved
-          ? isDark
-            ? "rgba(110,231,183,0.95)"
-            : "rgba(5,150,105,0.95)"
-          : isDark
-            ? "rgba(255,255,255,0.6)"
-            : "rgba(0,0,0,0.52)";
+          ? "var(--pupu-success)"
+          : "var(--pupu-text-secondary)";
 
         items.push({
           key: `${frame.seq}-clarify`,
@@ -1418,21 +1408,13 @@ const TraceChain = ({
           const labelStyle = {
             fontSize: "0.82em",
             fontFamily: "Menlo, Monaco, Consolas, monospace",
-            color: isDark
-              ? "rgba(255,255,255,0.35)"
-              : "rgba(0,0,0,0.3)",
+            color: "var(--pupu-text-faint)",
             userSelect: "none",
           };
           const statusStyle = {
             fontSize: "0.82em",
             fontFamily: "Menlo, Monaco, Consolas, monospace",
-            color: failed
-              ? isDark
-                ? "rgba(252,165,165,0.9)"
-                : "rgba(220,38,38,0.85)"
-              : isDark
-                ? "rgba(110,231,183,0.8)"
-                : "rgba(5,150,105,0.8)",
+            color: failed ? "var(--pupu-danger)" : "var(--pupu-success)",
             userSelect: "none",
           };
 
@@ -1543,9 +1525,7 @@ const TraceChain = ({
                   style={{
                     fontSize: 11,
                     fontFamily: "Menlo, Monaco, Consolas, monospace",
-                    color: isDark
-                      ? "rgba(255,255,255,0.3)"
-                      : "rgba(0,0,0,0.25)",
+                    color: "var(--pupu-text-faint)",
                     padding: "4px 0",
                     userSelect: "none",
                   }}
@@ -1720,17 +1700,13 @@ const TraceChain = ({
             !isSubmitting &&
             typeof onToolConfirmationDecision === "function";
 
+          /* approved / denied / pending are success, danger and neutral —
+             three roles the palette already owns, so they follow it. */
           const statusColor = isResolved
             ? resolvedDecision === "approved"
-              ? isDark
-                ? "rgba(110,231,183,0.95)"
-                : "rgba(5,150,105,0.95)"
-              : isDark
-                ? "rgba(252,165,165,0.95)"
-                : "rgba(220,38,38,0.95)"
-            : isDark
-              ? "rgba(255,255,255,0.6)"
-              : "rgba(0,0,0,0.52)";
+              ? "var(--pupu-success)"
+              : "var(--pupu-danger)"
+            : "var(--pupu-text-secondary)";
 
           toolPointEl = <HammerPoint isDark={isDark} />;
           toolStatus = "done";
@@ -1815,7 +1791,7 @@ const TraceChain = ({
             <KVPanel
               sections={[{ pairs }]}
               isDark={isDark}
-              color={isDark ? "#f87171" : "#dc2626"}
+              color="var(--pupu-danger)"
             />
           ),
         });
@@ -1936,9 +1912,7 @@ const TraceChain = ({
                   lineHeight={1.65}
                   style={{
                     ...TRACE_DETAIL_MARKDOWN_STYLE,
-                    color: isDark
-                      ? "rgba(255,255,255,0.6)"
-                      : "rgba(0,0,0,0.55)",
+                    color: "var(--pupu-text-secondary)",
                   }}
                 />
               ),

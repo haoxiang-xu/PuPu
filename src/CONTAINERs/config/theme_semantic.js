@@ -280,6 +280,24 @@ export const applySemanticPaletteToTheme = (base, semantic, mode) => {
          on its highest-traffic consumer. */
       warningAccent: warning,
     }),
+    /* The trace chain's palette lived in the JSON as fixed neutrals — the row
+       title, the "detail" toggle and the elapsed-time indicator all stayed
+       grey while the rest of the app followed a custom Label.
+
+       The rail and its points keep their own alphas instead of snapping to
+       the nearest ladder rung: those four values encode done-vs-pending, and
+       collapsing them onto one step would erase a distinction the timeline is
+       drawn around. They still ride --pupu-text-rgb, so they follow Label
+       like everything else — off-ladder by intent, not by omission. */
+    timeline: merge(base.timeline, {
+      titleColor: "var(--pupu-text-strong)",
+      spanColor: "var(--pupu-text-faint)",
+      seeDetailsColor: "var(--pupu-text-faint)",
+      lineColor: "rgba(var(--pupu-text-rgb),0.12)",
+      lineDoneColor: "rgba(var(--pupu-text-rgb),0.15)",
+      pointDoneColor: "rgba(var(--pupu-text-rgb),0.22)",
+      pointPendingColor: "rgba(var(--pupu-text-rgb),0.18)",
+    }),
     switch: merge(base.switch, {
       backgroundColor_on: accent,
       /* off track: 20% text over whatever it sits on — reproduces the old

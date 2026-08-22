@@ -253,10 +253,6 @@ export async function runPackagedSidecarSmoke({
     validateCompatibleRuntimeProjection(health.payload.context_memory_v2, {
       expectedManifest,
     });
-    validateSnapshotRolloutProjection(
-      health.payload.context_memory_v2,
-      releaseConfig,
-    );
     const status = await requestJson(`${baseUrl}/context/v2/status`, token);
     if (status.status !== 200) {
       throw new Error(

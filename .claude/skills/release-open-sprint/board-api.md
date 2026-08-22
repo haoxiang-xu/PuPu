@@ -148,10 +148,22 @@ Missing, NO-GO, or INCOMPLETE certification keeps the parent In Review.
 
 ## Repo labels
 
-Use only this closed label set; never create a new label:
+Use only this closed label set; never create a new label. Every label carries a
+description in GitHub — read it there rather than guessing from the name.
 
-bug, new feature, improvement, documentation, refactor, UI, MISO, MINI UI
-component, help wanted, question, regular, release, Unchain.
+**Work type** (required, mutually exclusive; the release gate reads this):
+bug, new feature, improvement, refactor, documentation.
+`new feature` is the one that requires a feature audit before its release can close.
+
+**Blocker** (optional): needs-decision, blocked.
+`needs-decision` means the ticket is waiting on the project owner, not on
+engineering — apply it whenever a scope, design, or content choice is what stops
+work from starting.
+
+**Contributor navigation** (optional): good first issue, help wanted, UI.
+
+**Other**: release (version parent), Unchain (also needs changes in the unchain
+repository).
 
 ## Failure handling
 

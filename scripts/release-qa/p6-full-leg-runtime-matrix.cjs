@@ -2,8 +2,9 @@
 
 // Exercise the complete P6 deletion sequence without touching a user's
 // Sidecar, chats.db, or Vault.  This is intentionally a release-QA entrypoint:
-// it requires an explicit immutable Unchain wheel and produces no claim about
-// a packaged or installed PuPu candidate.
+// it requires an explicit immutable Unchain wheel. With --installed-app it
+// loads the exact main-process modules and release snapshot from that app.asar
+// and launches only the Sidecar bundled in the installed application.
 
 const crypto = require("node:crypto");
 const childProcess = require("node:child_process");
@@ -11,10 +12,6 @@ const fs = require("node:fs");
 const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
-
-const { createChatStorageService } = require("../../electron/main/services/chat_storage/service");
-const { createMemoryVaultService } = require("../../electron/main/services/memory_vault/service");
-const { createUnchainService } = require("../../electron/main/services/unchain/service");
 
 let sqlite = null;
 try {
@@ -32,6 +29,63 @@ try {
 const REPORT_SCHEMA = "pupu.p6.full-leg-runtime-matrix.v1";
 const DELETE_RECEIPT_SCHEMA = "pupu.context_v2_chat_deletion.v1";
 const RUNTIME_MANIFEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
+
+const extractInstalledMainRuntime = ({ installedApp, targetRoot }) => {
+  const asar = require("@electron/asar");
+  const resourcesPath = path.join(installedApp, "Contents", "Resources");
+  const asarPath = path.join(resourcesPath, "app.asar");
+  const sidecarPath = path.join(
+    resourcesPath,
+    "unchain_runtime",
+    "dist",
+    "macos",
+    "unchain-server",
+  );
+  if (!fs.existsSync(asarPath)) {
+    throw new Error("installed app.asar is missing");
+  }
+  if (!fs.existsSync(sidecarPath)) {
+    throw new Error("installed packaged Sidecar is missing");
+  }
+
+  const entries = asar.listPackage(asarPath);
+  const files = entries.filter((entry) => {
+    if (!entry.startsWith("/electron/")) return false;
+    return !asar.statFile(asarPath, entry.slice(1)).files;
+  });
+  if (files.length === 0) {
+    throw new Error("installed app.asar has no Electron main runtime");
+  }
+  for (const entry of files) {
+    const outputPath = path.join(targetRoot, entry.slice(1));
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, asar.extractFile(asarPath, entry.slice(1)));
+  }
+
+  const snapshotEntry = "build/build_feature_flags.json";
+  const snapshotBytes = Buffer.from(asar.extractFile(asarPath, snapshotEntry));
+  const snapshotPath = path.join(targetRoot, snapshotEntry);
+  fs.mkdirSync(path.dirname(snapshotPath), { recursive: true });
+  fs.writeFileSync(snapshotPath, snapshotBytes);
+  const snapshot = JSON.parse(snapshotBytes.toString("utf8"));
+  const releaseMetadata = snapshot?._pupu_memory_v2_release;
+  if (
+    snapshot?.enable_memory_v2 !== true ||
+    releaseMetadata?.schema !== "pupu.memory-v2-release.v1" ||
+    typeof releaseMetadata?.snapshot_fingerprint !== "string" ||
+    !releaseMetadata.snapshot_fingerprint
+  ) {
+    throw new Error("installed Memory V2 release snapshot is invalid");
+  }
+  return {
+    asarPath,
+    resourcesPath,
+    sidecarPath,
+    snapshot,
+    snapshotBytes,
+    snapshotFingerprint: releaseMetadata.snapshot_fingerprint,
+  };
+};
 
 const parseArgs = (argv) => {
   const parsed = {};
@@ -134,14 +188,14 @@ const createSafeStorage = () => ({
   },
 });
 
-const createApp = ({ appRoot, userData }) => ({
-  isPackaged: false,
+const createApp = ({ appRoot, userData, isPackaged = false, version = "0.1.10-p6-qa" }) => ({
+  isPackaged,
   getAppPath: () => appRoot,
   getPath: (key) => {
     if (key === "userData") return userData;
     throw new Error(`unexpected app path: ${key}`);
   },
-  getVersion: () => "0.1.10-p6-qa",
+  getVersion: () => version,
 });
 
 const readOutbox = ({ userData, ownerChatId }) => {
@@ -198,8 +252,17 @@ const readSidecarOperation = ({ userData, ownerChatId }) => {
   }
 };
 
-const setScopedEnvironment = ({ pythonPath, wheelTarget }) => {
-  const updates = {
+const setScopedEnvironment = ({ pythonPath, wheelTarget, installed }) => {
+  const updates = installed ? {
+    PYTHONPATH: undefined,
+    UNCHAIN_PYTHON_BIN: undefined,
+    UNCHAIN_SOURCE_PATH: undefined,
+    PUPU_FEATURE_MEMORY_V2: undefined,
+    PUPU_MEMORY_V2_MODE: undefined,
+    PUPU_MEMORY_V2_CANARY_PERCENT: undefined,
+    PUPU_MEMORY_V2_READ_ONLY_DEGRADED: undefined,
+    PUPU_CONTEXT_V2_STORE_OWNER: undefined,
+  } : {
     PYTHONPATH: wheelTarget,
     UNCHAIN_PYTHON_BIN: pythonPath,
     UNCHAIN_SOURCE_PATH: undefined,
@@ -224,7 +287,12 @@ const setScopedEnvironment = ({ pythonPath, wheelTarget }) => {
   };
 };
 
-const runMatrix = async ({ pythonPath, wheelPath }) => {
+const runMatrix = async ({
+  pythonPath,
+  wheelPath,
+  installedApp = "",
+  appVersion = "",
+}) => {
   if (!sqlite || typeof sqlite.DatabaseSync !== "function") {
     throw new Error("node:sqlite is required for the P6 full-leg matrix");
   }
@@ -234,7 +302,18 @@ const runMatrix = async ({ pythonPath, wheelPath }) => {
   const appRoot = path.join(tempRoot, "app");
   const userData = path.join(tempRoot, "user-data");
   const repoRoot = path.resolve(__dirname, "..", "..");
-  const restoreEnvironment = setScopedEnvironment({ pythonPath, wheelTarget });
+  const installed = Boolean(installedApp);
+  const restoreEnvironment = setScopedEnvironment({
+    pythonPath,
+    wheelTarget,
+    installed,
+  });
+  const hadResourcesPath = Object.prototype.hasOwnProperty.call(
+    process,
+    "resourcesPath",
+  );
+  const previousResourcesPath = process.resourcesPath;
+  let installedIdentity = null;
   let chatService = null;
   let restartedChatService = null;
   let vaultService = null;
@@ -253,23 +332,71 @@ const runMatrix = async ({ pythonPath, wheelPath }) => {
     ]);
     const runtimeIdentity = wheelRuntimeIdentity({ pythonPath, wheelTarget });
 
-    fs.mkdirSync(appRoot, { recursive: true });
     fs.mkdirSync(userData, { recursive: true });
-    fs.mkdirSync(path.join(appRoot, ".local"), { recursive: true });
-    fs.writeFileSync(
-      path.join(appRoot, ".local", "build_feature_flags.snapshot.json"),
-      `${JSON.stringify({ enable_memory_v2: true })}\n`,
-      "utf8",
-    );
-    // Do not symlink this directory. The server's Python bootstrap resolves
-    // __file__; a symlink would rediscover the mutable sibling Unchain source
-    // and put it ahead of this matrix's immutable wheel target.
-    fs.cpSync(
-      path.join(repoRoot, "unchain_runtime"),
-      path.join(appRoot, "unchain_runtime"),
-      { recursive: true },
-    );
-    const app = createApp({ appRoot, userData });
+    fs.mkdirSync(appRoot, { recursive: true });
+    if (installed) {
+      installedIdentity = extractInstalledMainRuntime({
+        installedApp,
+        targetRoot: appRoot,
+      });
+      process.resourcesPath = installedIdentity.resourcesPath;
+    } else {
+      fs.mkdirSync(path.join(appRoot, ".local"), { recursive: true });
+      fs.writeFileSync(
+        path.join(appRoot, ".local", "build_feature_flags.snapshot.json"),
+        `${JSON.stringify({ enable_memory_v2: true })}\n`,
+        "utf8",
+      );
+      // Do not symlink this directory. The server's Python bootstrap resolves
+      // __file__; a symlink would rediscover the mutable sibling Unchain source
+      // and put it ahead of this matrix's immutable wheel target.
+      fs.cpSync(
+        path.join(repoRoot, "unchain_runtime"),
+        path.join(appRoot, "unchain_runtime"),
+        { recursive: true },
+      );
+      // The Sidecar's MCP registry is a versioned PuPu artifact, not an ambient
+      // user setting. Copy precisely that startup dependency into the temporary
+      // app root so the real Electron launcher sees the same layout it does in
+      // development, without allowing the copied Sidecar to rediscover mutable
+      // Unchain source.
+      const mcpRegistrySource = path.join(
+        repoRoot,
+        "src",
+        "SERVICEs",
+        "mcp_toolkit_registry.json",
+      );
+      const mcpRegistryTarget = path.join(
+        appRoot,
+        "src",
+        "SERVICEs",
+        "mcp_toolkit_registry.json",
+      );
+      if (!fs.existsSync(mcpRegistrySource)) {
+        throw new Error("P6 full-leg matrix MCP registry artifact is missing");
+      }
+      fs.mkdirSync(path.dirname(mcpRegistryTarget), { recursive: true });
+      fs.copyFileSync(mcpRegistrySource, mcpRegistryTarget);
+    }
+    const serviceRoot = installed ? appRoot : repoRoot;
+    const { createChatStorageService } = require(path.join(
+      serviceRoot,
+      "electron/main/services/chat_storage/service",
+    ));
+    const { createMemoryVaultService } = require(path.join(
+      serviceRoot,
+      "electron/main/services/memory_vault/service",
+    ));
+    const { createUnchainService } = require(path.join(
+      serviceRoot,
+      "electron/main/services/unchain/service",
+    ));
+    const app = createApp({
+      appRoot,
+      userData,
+      isPackaged: installed,
+      version: installed ? appVersion || "installed-p6-qa" : "0.1.10-p6-qa",
+    });
     const webContents = {
       fromId: () => null,
       getAllWebContents: () => [],
@@ -296,6 +423,18 @@ const runMatrix = async ({ pythonPath, wheelPath }) => {
         "isolated Electron Sidecar did not become ready " +
           `(status=${startupStatus.status}, reason=${safeReason || "none"})`,
       );
+    }
+    if (installed) {
+      if (
+        startupStatus.memoryV2?.runtimeProtocolDigest !==
+          runtimeIdentity.manifest.manifest_digest ||
+        startupStatus.memoryV2?.snapshotFingerprint !==
+          installedIdentity.snapshotFingerprint
+      ) {
+        throw new Error(
+          "installed Sidecar runtime identity does not match the wheel/snapshot contract",
+        );
+      }
     }
 
     chatService = createChatStorageService({ app, fs, path, sqlite });
@@ -439,12 +578,333 @@ const runMatrix = async ({ pythonPath, wheelPath }) => {
       throw new Error("cold restart replayed the completed Context operation");
     }
 
+    // A real terminal Sidecar response must quarantine before any Vault call.
+    // This intentionally corrupts only this uniquely named temporary database,
+    // after the primary happy/retry sequence is complete.  The Sidecar remains
+    // the real HTTP producer; Electron's strict error parser classifies the
+    // response and drives the real durable outbox transition.
+    const terminalChatId = "p6_terminal_context_chat";
+    vaultService.deposit({
+      operationId: "p6-terminal-chat-deposit-0001",
+      scopeKind: "chat",
+      scopeId: terminalChatId,
+      label: "terminal schema fixture",
+      plaintext: "p6-terminal-context-fixture",
+    });
+    await unchainService.stopMiso();
+    await waitFor(
+      () => !unchainService.getMisoStatusPayload().pid,
+      5000,
+      "isolated Sidecar stop before terminal schema fixture",
+    );
+    const contextDatabasePath = path.join(
+      userData,
+      "memory_v2",
+      "context_v2.sqlite3",
+    );
+    fs.rmSync(contextDatabasePath, { force: true });
+    fs.rmSync(`${contextDatabasePath}-wal`, { force: true });
+    fs.rmSync(`${contextDatabasePath}-shm`, { force: true });
+    fs.writeFileSync(contextDatabasePath, "", "utf8");
+    await unchainService.startMiso();
+    if (!unchainService.getMisoStatusPayload().ready) {
+      throw new Error("isolated Sidecar did not restart for terminal schema matrix");
+    }
+
+    const terminalContextCalls = [];
+    const terminalContextTarget = {
+      deleteContextV2Chat: async (payload) => {
+        terminalContextCalls.push({ ...payload });
+        return unchainService.deleteContextV2Chat(payload);
+      },
+    };
+    const terminalVaultCalls = {
+      deleteUseState: 0,
+      listDescriptors: 0,
+      deleteSecret: 0,
+    };
+    const terminalVaultTarget = {
+      deleteUseStateForOwnerChat: (value) => {
+        terminalVaultCalls.deleteUseState += 1;
+        return vaultService.deleteUseStateForOwnerChat(value);
+      },
+      listDescriptors: (payload) => {
+        terminalVaultCalls.listDescriptors += 1;
+        return vaultService.listDescriptors(payload);
+      },
+      deleteSecret: (payload) => {
+        terminalVaultCalls.deleteSecret += 1;
+        return vaultService.deleteSecret(payload);
+      },
+    };
+    restartedChatService.configureDeletionTargets({
+      unchainService: terminalContextTarget,
+      memoryVaultService: terminalVaultTarget,
+    });
+    restartedChatService.applyOps([
+      {
+        type: "put_chat_meta",
+        chatId: terminalChatId,
+        meta: { id: terminalChatId, title: "P6 terminal QA" },
+      },
+      {
+        type: "put_messages",
+        chatId: terminalChatId,
+        messages: [{ role: "user", content: "terminal Context fixture" }],
+      },
+      { type: "delete_chats", chatIds: [terminalChatId] },
+    ]);
+    const terminalFirstResult =
+      await restartedChatService.processDeletionOutboxOnce();
+    const terminalAfterFirst = readOutbox({ userData, ownerChatId: terminalChatId });
+    if (
+      terminalFirstResult?.errorCode !== "context_delete_failed" ||
+      terminalFirstResult?.quarantined !== true ||
+      Number(terminalAfterFirst?.context_done) !== 0 ||
+      Number(terminalAfterFirst?.vault_done) !== 0 ||
+      terminalAfterFirst?.status !== "quarantined" ||
+      terminalContextCalls.length !== 1 ||
+      terminalVaultCalls.deleteUseState !== 0 ||
+      terminalVaultCalls.listDescriptors !== 0 ||
+      terminalVaultCalls.deleteSecret !== 0
+    ) {
+      throw new Error("terminal Context failure did not quarantine before Vault");
+    }
+
+    restartedChatService.close();
+    restartedChatService = null;
+    chatService = createChatStorageService({ app, fs, path, sqlite });
+    chatService.init();
+    chatService.configureDeletionTargets({
+      unchainService: terminalContextTarget,
+      memoryVaultService: terminalVaultTarget,
+    });
+    const terminalColdResult = await chatService.processDeletionOutboxOnce();
+    if (
+      terminalColdResult?.reason !== "not_due" ||
+      terminalContextCalls.length !== 1 ||
+      terminalVaultCalls.deleteUseState !== 0
+    ) {
+      throw new Error("cold restart retried a quarantined Context operation");
+    }
+
+    // Repair is intentionally external to the outbox. Once the temporary
+    // schema fault is removed, only the explicit main-process requeue may
+    // reuse the stable Context operation and resume this fenced chat.
+    await unchainService.stopMiso();
+    await waitFor(
+      () => !unchainService.getMisoStatusPayload().pid,
+      5000,
+      "isolated Sidecar stop before terminal schema repair",
+    );
+    fs.rmSync(path.join(userData, "memory_v2"), {
+      recursive: true,
+      force: true,
+    });
+    await unchainService.startMiso();
+    if (!unchainService.getMisoStatusPayload().ready) {
+      throw new Error("isolated Sidecar did not restart after terminal schema repair");
+    }
+    const requeue = chatService.requeueQuarantinedDeletion({
+      deletionId: terminalAfterFirst.deletion_id,
+      reason: "schema_repaired",
+    });
+    if (
+      requeue?.requeued !== true ||
+      requeue.generation !== 1 ||
+      requeue.operationId !== terminalAfterFirst.operation_id
+    ) {
+      throw new Error("explicit quarantine requeue changed deletion identity");
+    }
+    chatService.configureDeletionTargets({
+      unchainService: terminalContextTarget,
+      memoryVaultService: vaultService,
+    });
+    const terminalRepairResult = await chatService.processDeletionOutboxOnce();
+    const terminalAfterRepair = readOutbox({
+      userData,
+      ownerChatId: terminalChatId,
+    });
+    const terminalSidecar = readSidecarOperation({
+      userData,
+      ownerChatId: terminalChatId,
+    });
+    const terminalVaultDescriptors = vaultService.listDescriptors({
+      scopeKind: "chat",
+      scopeId: terminalChatId,
+    });
+    if (
+      terminalRepairResult?.completed !== true ||
+      terminalAfterRepair?.status !== "complete" ||
+      Number(terminalAfterRepair?.context_done) !== 1 ||
+      Number(terminalAfterRepair?.vault_done) !== 1 ||
+      terminalContextCalls.length !== 2 ||
+      terminalSidecar?.tombstone?.first_operation_id !==
+        terminalAfterFirst.operation_id ||
+      terminalSidecar.operations?.length !== 1 ||
+      terminalVaultDescriptors?.descriptors?.length !== 0
+    ) {
+      throw new Error("repaired terminal Context operation did not complete exactly once");
+    }
+
+    // Exercise a genuine Sidecar outage rather than a synthetic retryable
+    // error: Context must back off before Vault, survive an app cold restart,
+    // and then reuse the original operation once the managed Sidecar returns.
+    const offlineChatId = "p6_offline_context_chat";
+    vaultService.deposit({
+      operationId: "p6-offline-chat-deposit-0001",
+      scopeKind: "chat",
+      scopeId: offlineChatId,
+      label: "offline Context fixture",
+      plaintext: "p6-offline-context-fixture",
+    });
+    const offlineContextCalls = [];
+    const offlineContextTarget = {
+      deleteContextV2Chat: async (payload) => {
+        offlineContextCalls.push({ ...payload });
+        return unchainService.deleteContextV2Chat(payload);
+      },
+    };
+    const offlineVaultCalls = {
+      deleteUseState: 0,
+      listDescriptors: 0,
+      deleteSecret: 0,
+    };
+    const offlineVaultTarget = {
+      deleteUseStateForOwnerChat: (value) => {
+        offlineVaultCalls.deleteUseState += 1;
+        return vaultService.deleteUseStateForOwnerChat(value);
+      },
+      listDescriptors: (payload) => {
+        offlineVaultCalls.listDescriptors += 1;
+        return vaultService.listDescriptors(payload);
+      },
+      deleteSecret: (payload) => {
+        offlineVaultCalls.deleteSecret += 1;
+        return vaultService.deleteSecret(payload);
+      },
+    };
+    await unchainService.stopMiso();
+    await waitFor(
+      () => !unchainService.getMisoStatusPayload().pid,
+      5000,
+      "isolated Sidecar stop before offline retry matrix",
+    );
+    chatService.configureDeletionTargets({
+      unchainService: offlineContextTarget,
+      memoryVaultService: offlineVaultTarget,
+    });
+    chatService.applyOps([
+      {
+        type: "put_chat_meta",
+        chatId: offlineChatId,
+        meta: { id: offlineChatId, title: "P6 offline QA" },
+      },
+      {
+        type: "put_messages",
+        chatId: offlineChatId,
+        messages: [{ role: "user", content: "offline Context fixture" }],
+      },
+      { type: "delete_chats", chatIds: [offlineChatId] },
+    ]);
+    const offlineFirstResult = await chatService.processDeletionOutboxOnce();
+    const offlineAfterFirst = readOutbox({ userData, ownerChatId: offlineChatId });
+    if (
+      offlineFirstResult?.errorCode !== "context_delete_failed" ||
+      offlineFirstResult?.quarantined !== false ||
+      Number(offlineAfterFirst?.context_done) !== 0 ||
+      Number(offlineAfterFirst?.vault_done) !== 0 ||
+      offlineAfterFirst?.status !== "retry" ||
+      offlineContextCalls.length !== 1 ||
+      offlineVaultCalls.deleteUseState !== 0 ||
+      offlineVaultCalls.listDescriptors !== 0 ||
+      offlineVaultCalls.deleteSecret !== 0
+    ) {
+      throw new Error("offline Context failure did not persist retry before Vault");
+    }
+
+    chatService.close();
+    chatService = null;
+    restartedChatService = createChatStorageService({ app, fs, path, sqlite });
+    restartedChatService.init();
+    restartedChatService.configureDeletionTargets({
+      unchainService: offlineContextTarget,
+      memoryVaultService: offlineVaultTarget,
+    });
+    const offlineColdResult =
+      await restartedChatService.processDeletionOutboxOnce();
+    if (
+      offlineColdResult?.reason !== "not_due" ||
+      offlineContextCalls.length !== 1 ||
+      offlineVaultCalls.deleteUseState !== 0
+    ) {
+      throw new Error("cold restart retried a Context backoff before it was due");
+    }
+    restartedChatService.close();
+    restartedChatService = null;
+
+    await unchainService.startMiso();
+    if (!unchainService.getMisoStatusPayload().ready) {
+      throw new Error("isolated Sidecar did not restart for offline retry recovery");
+    }
+    forceOutboxDue({ userData, ownerChatId: offlineChatId });
+    chatService = createChatStorageService({ app, fs, path, sqlite });
+    chatService.init();
+    chatService.configureDeletionTargets({
+      unchainService: offlineContextTarget,
+      memoryVaultService: vaultService,
+    });
+    const offlineRecoveryResult = await chatService.processDeletionOutboxOnce();
+    const offlineAfterRecovery = readOutbox({
+      userData,
+      ownerChatId: offlineChatId,
+    });
+    const offlineSidecar = readSidecarOperation({
+      userData,
+      ownerChatId: offlineChatId,
+    });
+    const offlineVaultDescriptors = vaultService.listDescriptors({
+      scopeKind: "chat",
+      scopeId: offlineChatId,
+    });
+    if (
+      offlineRecoveryResult?.completed !== true ||
+      offlineAfterRecovery?.operation_id !== offlineAfterFirst.operation_id ||
+      offlineAfterRecovery?.status !== "complete" ||
+      Number(offlineAfterRecovery?.context_done) !== 1 ||
+      Number(offlineAfterRecovery?.vault_done) !== 1 ||
+      offlineContextCalls.length !== 2 ||
+      offlineSidecar?.tombstone?.first_operation_id !==
+        offlineAfterFirst.operation_id ||
+      offlineSidecar.operations?.length !== 1 ||
+      offlineVaultDescriptors?.descriptors?.length !== 0
+    ) {
+      throw new Error("offline Context retry recovery did not complete exactly once");
+    }
+
+    const installedChecks = installed ? {
+      installed_asar_main_runtime_loaded: "pass",
+      installed_packaged_sidecar_started: "pass",
+      installed_snapshot_loaded: "pass",
+      installed_runtime_manifest_matches_wheel: "pass",
+      installed_snapshot_matches_runtime: "pass",
+    } : {};
     return {
       schema: REPORT_SCHEMA,
-      executed_tests: 10,
+      executed_tests: 19 + Object.keys(installedChecks).length,
       wheel_sha256: sha256(wheelPath),
       runtime_manifest_digest: runtimeIdentity.manifest.manifest_digest,
       runtime_origin_is_wheel_target: true,
+      candidate_source: installed ? "installed_macos_app" : "source_entrypoint",
+      installed_identity: installed ? {
+        app_asar_sha256: sha256(installedIdentity.asarPath),
+        packaged_sidecar_sha256: sha256(installedIdentity.sidecarPath),
+        snapshot_sha256: crypto
+          .createHash("sha256")
+          .update(installedIdentity.snapshotBytes)
+          .digest("hex"),
+        snapshot_fingerprint: installedIdentity.snapshotFingerprint,
+      } : null,
       checks: {
         immutable_wheel_runtime_import: "pass",
         electron_started_isolated_sidecar: "pass",
@@ -456,6 +916,16 @@ const runMatrix = async ({ pythonPath, wheelPath }) => {
         vault_chat_scope_deleted: "pass",
         vault_user_scope_preserved: "pass",
         complete_requires_both_checkpoints: "pass",
+        terminal_context_quarantines_before_vault: "pass",
+        quarantine_cold_restart_does_not_replay: "pass",
+        explicit_requeue_preserves_context_operation: "pass",
+        external_schema_repair_then_requeue_completes: "pass",
+        requeued_sidecar_tombstone_persisted_once: "pass",
+        offline_context_retry_blocks_vault: "pass",
+        offline_cold_restart_respects_backoff: "pass",
+        offline_context_recovery_reuses_operation: "pass",
+        offline_recovery_sidecar_tombstone_persisted_once: "pass",
+        ...installedChecks,
       },
     };
   } finally {
@@ -486,6 +956,8 @@ const runMatrix = async ({ pythonPath, wheelPath }) => {
       // already exited. The caller receives the original matrix failure.
     }
     restoreEnvironment();
+    if (hadResourcesPath) process.resourcesPath = previousResourcesPath;
+    else delete process.resourcesPath;
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 };
@@ -499,7 +971,13 @@ const main = async () => {
   if (!fs.existsSync(wheelPath) || !wheelPath.endsWith(".whl")) {
     throw new Error("--wheel must be an existing wheel");
   }
-  const report = await runMatrix({ pythonPath, wheelPath });
+  const installedApp = args["installed-app"]
+    ? path.resolve(args["installed-app"])
+    : "";
+  if (installedApp && !installedApp.endsWith(".app")) {
+    throw new Error("--installed-app must identify a macOS .app bundle");
+  }
+  const report = await runMatrix({ pythonPath, wheelPath, installedApp });
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   process.stdout.write(
@@ -507,7 +985,16 @@ const main = async () => {
   );
 };
 
-main().catch((error) => {
-  process.stderr.write(`[release-qa] P6 full-leg runtime matrix failed: ${error.message}\n`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(
+      `[release-qa] P6 full-leg runtime matrix failed: ${error.message}\n`,
+    );
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  parseArgs,
+  runMatrix,
+};

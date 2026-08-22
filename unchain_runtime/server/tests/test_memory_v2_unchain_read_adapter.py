@@ -409,16 +409,9 @@ def test_host_store_status_is_database_scoped_without_fabricated_chat_scope(
     assert "execution_ids" not in status
 
 
-@pytest.mark.parametrize("initial_state", ("absent", "blank"))
 def test_host_store_status_initializes_fresh_unchain_store_idempotently(
     tmp_path: Path,
-    initial_state: str,
 ) -> None:
-    if initial_state == "blank":
-        database_path = tmp_path / "context_v2.sqlite3"
-        with sqlite3.connect(database_path) as connection:
-            connection.execute("VACUUM")
-
     first = read_pupu_unchain_memory_v2_store_status(root_dir=tmp_path)
     second = read_pupu_unchain_memory_v2_store_status(root_dir=tmp_path)
     admission = admit_context_v2_store_owner(
@@ -436,6 +429,34 @@ def test_host_store_status_initializes_fresh_unchain_store_idempotently(
         "storeOwner": "unchain",
     }
     assert admission.database_state == STORE_OWNER_UNCHAIN
+
+    first_delete = delete_pupu_unchain_chat(
+        database_path=tmp_path / "context_v2.sqlite3",
+        owner_chat_id="fresh-status-chat",
+        operation_id="delete-after-status",
+    )
+    replay_delete = delete_pupu_unchain_chat(
+        database_path=tmp_path / "context_v2.sqlite3",
+        owner_chat_id="fresh-status-chat",
+        operation_id="delete-after-status",
+    )
+    assert first_delete["deleted"] is True
+    assert first_delete["owner_chat_id"] == "fresh-status-chat"
+    assert first_delete["replayed"] is False
+    assert replay_delete["replayed"] is True
+
+
+def test_host_store_status_preserves_existing_blank_database(tmp_path: Path) -> None:
+    database_path = tmp_path / "context_v2.sqlite3"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("VACUUM")
+    before = database_path.read_bytes()
+
+    with pytest.raises(PupuUnchainMemoryV2ReadError, match="database is unavailable"):
+        read_pupu_unchain_memory_v2_store_status(root_dir=tmp_path)
+
+    assert database_path.read_bytes() == before
+    assert not (tmp_path / "objects").exists()
 
 
 def test_host_store_status_fails_closed_for_existing_legacy_owner(
