@@ -32,14 +32,6 @@ test("release QA paths both include the fixed long-run harness suite", () => {
     "npm run test:release-qa:unit",
   );
   assert.deepEqual(
-    checks.find((check) => check.name === "Quorum boundary protocol"),
-    {
-      name: "Quorum boundary protocol",
-      command: "npm run test:quorum-boundary",
-      cwd: ROOT,
-    },
-  );
-  assert.deepEqual(
     checks.find((check) => check.name === "Context V2 boundary contracts"),
     {
       name: "Context V2 boundary contracts",
@@ -90,10 +82,7 @@ test("release QA paths both include the fixed long-run harness suite", () => {
     packageJson.scripts["test:release-qa"],
     "npm run test:release-qa:unit && npm run test:long-run-harness",
   );
-  assert.equal(
-    packageJson.scripts["test:quorum-boundary"],
-    "python3 -B .claude/skills/case/boundary_vendor_verify.py && python3 -B .claude/skills/case/boundary_lint_selftest.py && python3 -B .claude/skills/case/boundary_gate_selftest.py && python3 -B .claude/skills/case/boundary_gate.py --cases-root .claude/court/cases",
-  );
+  assert.equal(packageJson.scripts["test:quorum-boundary"], undefined);
   assert.equal(
     packageJson.scripts["test:context-v2-contract"],
     "node scripts/release-qa/run-context-v2-contract.mjs",

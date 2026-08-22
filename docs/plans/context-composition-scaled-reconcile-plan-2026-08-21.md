@@ -58,20 +58,66 @@
 - toolkit 选择 bug(74/20 与选择无关)是独立立项,不碰;
 - unchain 主树他人 dirty 文件(P-0007 相关)不碰。
 
-## 4. 边界契约(轻量声明)
+## 4. 直接工程契约与状态序列
 
-- **BC-002**:extension `method` 字段,CLOSED 枚举由单值扩为双值。producer=unchain composition.py,consumer=PuPu normalizer。正向:v1(历史)与 v2(新)均被接受;负向:未知值仍在 `:224` 处 fail。其余 schema 字段零变更。
-- **SEQ 单元格**:① 带 toolkit 会话第一条消息;② 同会话第二条;③ sidecar 冷重启后再发一条;④ **历史 v1 数据回读**(打开一个 08-18~08-21 的旧会话,面板不炸、照常渲染)。retry/resume 沿用前计划的 NOT_RUN 口径(随 0.1.10 发布门)。
+`BC/SEQ/AC` 是技术追踪标识，不产生 owner、case、proposal、ruling、交接或批准流程。Git revision 只可记录为构建遥测；验收与发布只认下面的候选产物 digest、wheel SHA-256 和 runtime manifest digest。
 
-## 5. 验收标准(AC,验收方逐条实测)
+- **BC-001 — Unchain receipt → PuPu sidecar**：producer 为 unchain
+  `composition.py` 生成的 `unchain.context/context_composition_v1` receipt
+  extension；consumer 为 PuPu sidecar 的严格 bundle projection。admission 为
+  `VERSIONED + CLOSED`：仅 `utf8_heuristic_v1` 与
+  `utf8_heuristic_v2` 合法，未知 method、未知 key、非法 identity、错误的
+  category/attributed/reconciliation 等式都在 sidecar 拒绝。缺 extension 是
+  optional-by-absence，不得损坏 base receipt；错误 extension 不得降级成可信数据。
+- **BC-002 — sidecar projection → renderer normalization**：sidecar 只投影
+  已验证的 content-free shape，renderer normalizer 独立重复严格 admission。
+  历史 v1 只按 v1 原义显示，绝不静默重解释成 v2；v2 完整覆盖且缩放成立时，
+  `Σcategories == attributed_tokens == provider input total`、
+  `residual_tokens == 0`；不满足缩放前提时保留未缩放 estimate、percentage 为
+  null、residual 为 null。
+- **BC-003 — deployed artifact identity**：冻结 PuPu candidate 后计算
+  candidate digest；从当前 clean Unchain source 只构建一次 wheel，记录 wheel
+  SHA-256 与从该 wheel 实际 import 的 runtime manifest digest。contract matrix、
+  package smoke、sidecar import 与最终 audit 必须复用同一 wheel 并核对这三个
+  digest。源码 revision 可以记录为 provenance，但不参与 runtime admission，
+  也不能用来替代 artifact evidence。
 
-- **AC-1** unchain 全量 pytest 绿;缩放数学测试有 red-before-green 记录。
-- **AC-2** PuPu 侧:`context_composition_v1.test.js` 及相关 suite 绿(定向跑,别被隔壁 feature_flags 的 5 个红 suite 挡住——那是并发工作,与本案无关);v2 正向 + 未知负向都有断言。
-- **AC-3** 真机(sidecar 重启后,带 toolkit 会话两连发):两条 call 均 `quality=="reconciled_estimate"`、`residual_tokens==0`、`Σcategories==attributed==usage.input.total_tokens` 三值精确相等。
-- **AC-4** 真机 UI:popover 质量行 "Reconciled estimate · Complete coverage";**每行右侧出现份额百分比**(percentageAvailable 激活是本案的用户可见收益);类别行之和与标题行总量自洽。
-- **AC-5** 真机历史数据(SEQ ④):打开旧会话(v1 extension),面板照常渲染不炸。
-- **AC-6** 冷重启(SEQ ③):重启后新消息数值链路稳定。
-- **AC-7** 守卫与不可用路径:单测覆盖(真机不可造),`estimated` 仅剩 usage-缺失/守卫两种来源。
+适用的状态序列全部必须有命名 AC 与 PASS；`NOT_RUN` 不能作为 release
+disposition：
+
+- **SEQ-001 — live normal path**：带 toolkit 的第一条正常消息、同 chat
+  第二条正常消息、无 toolkit 负向路径、历史 v1 receipt 重读。
+- **SEQ-002 — interaction and recovery**：同一执行内第一及第二次 interaction，
+  retry、durable resume、cold sidecar restart 后的 resume/replay。
+- **SEQ-003 — route and identity**：normal、graph、subagent 路径，以及 provider、
+  runtime manifest、wheel 或 PuPu candidate identity 改变后不得复用旧 evidence。
+
+## 5. 验收标准（AC，验收方逐条实测）
+
+- **AC-001（BC-001/BC-002）**：Unchain producer、sidecar projection、renderer
+  normalizer 各自接受合法 v1/v2，且分别拒绝未知 method/key、坏 identity、坏
+  reconciliation state 与泄漏内容；测试输入必须来自真实 producer，不共享宽松
+  helper。
+- **AC-002（v2 reconciliation）**：完整覆盖且满足 guard 时，largest-remainder
+  分配可重复，`Σcategories == attributed_tokens == usage.input.total_tokens`，
+  `residual_tokens == 0`，百分比可用。
+- **AC-003（honest fallback）**：usage 缺失、覆盖不全、malformed、总量为零、或
+  provider tokens 少于 attribution leaves 时不缩放；保留 unscaled estimate，
+  percentage 与 residual 都为 null。
+- **AC-004（SEQ-001）**：真机 sidecar 重启后带 toolkit 会话两连发均满足三值
+  等式；无 toolkit 路径不虚构 Tools；历史 v1 会话可正常打开且仍显示 v1 原义。
+- **AC-005（SEQ-002）**：第一/第二 interaction、retry、durable resume 与冷重启
+  replay 都保持同一 receipt identity，不重复 physical send，也不丢失已验证的
+  composition projection。
+- **AC-006（SEQ-003 route）**：normal、graph、subagent 的 producer→strict
+  consumer 路径均通过；graph/subagent 的 child receipt 不污染 parent 或被重复
+  聚合。
+- **AC-007（BC-003）**：同一 PuPu candidate、同一 wheel 与同一 imported manifest
+  贯穿 matrix、package smoke 和最终 audit；任一 identity 改变会导致旧 evidence
+  被拒绝。
+- **AC-008（real app/UI）**：真实 `openai:gpt-4.1` 探针显示
+  `Reconciled estimate · Complete coverage`、每行百分比和与标题总量一致；探针
+  会话删除并恢复原会话。
 
 ## 6. 执行约束(违者验收打回)
 

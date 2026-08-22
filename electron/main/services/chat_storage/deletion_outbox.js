@@ -8,6 +8,7 @@
 const OUTBOX_STATUS = Object.freeze({
   PENDING: "pending",
   RETRY: "retry",
+  QUARANTINED: "quarantined",
   COMPLETE: "complete",
 });
 
@@ -23,8 +24,12 @@ const CHAT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const RECEIPT_LIMIT = 256;
 const RETRY_BASE_MS = 250;
 const RETRY_CAP_MS = 60 * 1000;
+const MAX_FAILURE_ATTEMPTS = 12;
+const MAX_REQUEUE_RECEIPTS = 8;
 const IDLE_POLL_MS = 1000;
 const MAX_WAKE_MS = 5000;
+const DELETION_ID_PATTERN = /^[0-9a-f]{32}$/;
+const REQUEUE_REASON_PATTERN = /^[a-z][a-z0-9_:-]{2,63}$/;
 
 const codedError = (code, message) => {
   const error = new Error(message);
@@ -46,6 +51,24 @@ const validateChatId = (chatId) => {
     throw codedError(
       "chat_deletion_invalid_chat_id",
       "chat deletion requires a valid chat identifier",
+    );
+  }
+};
+
+const validateDeletionId = (deletionId) => {
+  if (typeof deletionId !== "string" || !DELETION_ID_PATTERN.test(deletionId)) {
+    throw codedError(
+      "chat_deletion_invalid_deletion_id",
+      "chat deletion requeue requires a valid deletion identifier",
+    );
+  }
+};
+
+const validateRequeueReason = (reason) => {
+  if (typeof reason !== "string" || !REQUEUE_REASON_PATTERN.test(reason)) {
+    throw codedError(
+      "chat_deletion_invalid_requeue_reason",
+      "chat deletion requeue requires a valid repair reason",
     );
   }
 };
@@ -155,19 +178,50 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
     deletionTargets = { unchainService, memoryVaultService };
   };
 
-  const receiptFor = (row, updates = {}) => ({
-    contextDone:
-      updates.contextDone === undefined
-        ? Number(row.context_done) === 1
-        : updates.contextDone,
-    vaultDone:
-      updates.vaultDone === undefined
-        ? Number(row.vault_done) === 1
-        : updates.vaultDone,
-    ...(Number.isSafeInteger(updates.vaultDeleted)
-      ? { vaultDeleted: updates.vaultDeleted }
-      : {}),
-  });
+  const savedReceipt = (row) => {
+    try {
+      const parsed = JSON.parse(row?.receipt_json || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed
+        : {};
+    } catch (_error) {
+      return {};
+    }
+  };
+
+  const receiptFor = (row, updates = {}) => {
+    const previous = savedReceipt(row);
+    const receipt = {
+      contextDone:
+        updates.contextDone === undefined
+          ? Number(row.context_done) === 1
+          : updates.contextDone,
+      vaultDone:
+        updates.vaultDone === undefined
+          ? Number(row.vault_done) === 1
+          : updates.vaultDone,
+    };
+    const vaultDeleted = Number.isSafeInteger(updates.vaultDeleted)
+      ? updates.vaultDeleted
+      : previous.vaultDeleted;
+    if (Number.isSafeInteger(vaultDeleted) && vaultDeleted >= 0) {
+      receipt.vaultDeleted = vaultDeleted;
+    }
+    if (updates.quarantine || previous.quarantine) {
+      receipt.quarantine = updates.quarantine || previous.quarantine;
+    }
+    if (Array.isArray(updates.requeues) || Array.isArray(previous.requeues)) {
+      receipt.requeues = Array.isArray(updates.requeues)
+        ? updates.requeues
+        : previous.requeues;
+    }
+    if (Number.isSafeInteger(updates.requeueGeneration)) {
+      receipt.requeueGeneration = updates.requeueGeneration;
+    } else if (Number.isSafeInteger(previous.requeueGeneration)) {
+      receipt.requeueGeneration = previous.requeueGeneration;
+    }
+    return receipt;
+  };
 
   const persistProgress = (row, fields) => {
     const stamp = now();
@@ -181,6 +235,7 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
       : Number(row.vault_done) === 1
         ? 1
         : 0;
+    const receiptJson = JSON.stringify(receiptFor(row, fields));
     getDb()
       .prepare(
         "UPDATE chat_deletion_outbox SET context_done = ?, vault_done = ?, " +
@@ -191,12 +246,13 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
         contextDone,
         vaultDone,
         OUTBOX_STATUS.PENDING,
-        JSON.stringify(receiptFor(row, fields)),
+        receiptJson,
         stamp,
         row.deletion_id,
       );
     row.context_done = contextDone;
     row.vault_done = vaultDone;
+    row.receipt_json = receiptJson;
   };
 
   const retryDelay = (retryCount) =>
@@ -205,8 +261,7 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
       RETRY_CAP_MS,
     );
 
-  const persistRetry = (row, errorCode) => {
-    const retryCount = Number(row.retry_count) + 1;
+  const persistRetry = (row, errorCode, retryCount) => {
     const stamp = now();
     const nextAttemptAt = stamp + retryDelay(retryCount - 1);
     getDb()
@@ -228,6 +283,50 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
     return nextAttemptAt;
   };
 
+  const persistQuarantine = (row, errorCode, retryCount) => {
+    const stamp = now();
+    const receiptJson = JSON.stringify(
+      receiptFor(row, {
+        quarantine: {
+          schema: "pupu.chat_deletion_quarantine.v1",
+          errorCode,
+          failureCount: retryCount,
+          recordedAtMs: stamp,
+        },
+      }),
+    );
+    getDb()
+      .prepare(
+        "UPDATE chat_deletion_outbox SET status = ?, retry_count = ?, " +
+          "next_attempt_at = ?, last_error_code = ?, receipt_json = ?, updated_at = ? " +
+          "WHERE deletion_id = ?",
+      )
+      .run(
+        OUTBOX_STATUS.QUARANTINED,
+        retryCount,
+        0,
+        errorCode,
+        receiptJson,
+        stamp,
+        row.deletion_id,
+      );
+    row.receipt_json = receiptJson;
+    // Never log the chat id, handle, upstream error message, or response.
+    console.warn(`[chat-deletion-outbox] ${errorCode}`);
+  };
+
+  const persistFailure = (row, errorCode, error) => {
+    const retryCount = Number(row.retry_count) + 1;
+    if (error?.retryable === true && retryCount < MAX_FAILURE_ATTEMPTS) {
+      return {
+        status: OUTBOX_STATUS.RETRY,
+        nextAttemptAt: persistRetry(row, errorCode, retryCount),
+      };
+    }
+    persistQuarantine(row, errorCode, retryCount);
+    return { status: OUTBOX_STATUS.QUARANTINED, nextAttemptAt: null };
+  };
+
   const pruneReceipts = () => {
     getDb()
       .prepare(
@@ -240,6 +339,13 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
 
   const persistComplete = (row, vaultDeleted) => {
     const stamp = now();
+    const receiptJson = JSON.stringify(
+      receiptFor(row, {
+        contextDone: true,
+        vaultDone: true,
+        vaultDeleted,
+      }),
+    );
     getDb()
       .prepare(
         "UPDATE chat_deletion_outbox SET context_done = 1, vault_done = 1, " +
@@ -248,13 +354,7 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
       )
       .run(
         OUTBOX_STATUS.COMPLETE,
-        JSON.stringify(
-          receiptFor(row, {
-            contextDone: true,
-            vaultDone: true,
-            vaultDeleted,
-          }),
-        ),
+        receiptJson,
         stamp,
         stamp,
         row.deletion_id,
@@ -266,11 +366,62 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
     getDb()
       .prepare(
         "SELECT deletion_id, owner_chat_id, operation_id, context_done, " +
-          "vault_done, retry_count, next_attempt_at FROM chat_deletion_outbox " +
-          "WHERE status != ? AND next_attempt_at <= ? " +
+          "vault_done, retry_count, next_attempt_at, receipt_json " +
+            "FROM chat_deletion_outbox " +
+          "WHERE status IN (?, ?) AND next_attempt_at <= ? " +
           "ORDER BY next_attempt_at ASC, created_at ASC LIMIT 1",
       )
-      .get(OUTBOX_STATUS.COMPLETE, now());
+      .get(OUTBOX_STATUS.PENDING, OUTBOX_STATUS.RETRY, now());
+
+  const requeueQuarantinedDeletion = ({ deletionId, reason } = {}) => {
+    validateDeletionId(deletionId);
+    validateRequeueReason(reason);
+    const row = getDb()
+      .prepare(
+        "SELECT deletion_id, owner_chat_id, operation_id, context_done, vault_done, " +
+          "retry_count, receipt_json, status FROM chat_deletion_outbox WHERE deletion_id = ?",
+      )
+      .get(deletionId);
+    if (!row) {
+      throw codedError(
+        "chat_deletion_not_found",
+        "chat deletion requeue target was not found",
+      );
+    }
+    if (row.status !== OUTBOX_STATUS.QUARANTINED) {
+      throw codedError(
+        "chat_deletion_not_quarantined",
+        "chat deletion can only be requeued from quarantine",
+      );
+    }
+    const previous = savedReceipt(row);
+    const priorGeneration = Number.isSafeInteger(previous.requeueGeneration)
+      ? previous.requeueGeneration
+      : 0;
+    const generation = priorGeneration + 1;
+    const stamp = now();
+    const requeues = [
+      ...(Array.isArray(previous.requeues) ? previous.requeues : []),
+      { generation, reason, requeuedAtMs: stamp },
+    ].slice(-MAX_REQUEUE_RECEIPTS);
+    const receiptJson = JSON.stringify(
+      receiptFor(row, { requeues, requeueGeneration: generation }),
+    );
+    getDb()
+      .prepare(
+        "UPDATE chat_deletion_outbox SET status = ?, retry_count = 0, " +
+          "next_attempt_at = ?, last_error_code = NULL, receipt_json = ?, " +
+          "updated_at = ? WHERE deletion_id = ?",
+      )
+      .run(OUTBOX_STATUS.PENDING, stamp, receiptJson, stamp, deletionId);
+    schedule(0);
+    return {
+      deletionId: row.deletion_id,
+      operationId: row.operation_id,
+      generation,
+      requeued: true,
+    };
+  };
 
   const processDeletionOutboxOnce = async () => {
     if (processing) return { processed: false, reason: "busy" };
@@ -296,13 +447,14 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
             throw new Error("invalid context deletion response");
           }
           persistProgress(row, { contextDone: true });
-        } catch (_error) {
-          const nextAttemptAt = persistRetry(row, STATIC_ERROR_CODES.CONTEXT);
+        } catch (error) {
+          const failure = persistFailure(row, STATIC_ERROR_CODES.CONTEXT, error);
           return {
             processed: true,
             completed: false,
             errorCode: STATIC_ERROR_CODES.CONTEXT,
-            nextAttemptAt,
+            quarantined: failure.status === OUTBOX_STATUS.QUARANTINED,
+            nextAttemptAt: failure.nextAttemptAt,
           };
         }
       }
@@ -323,16 +475,18 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
         ) {
           throw new Error("invalid vault use-state deletion response");
         }
-      } catch (_error) {
-        const nextAttemptAt = persistRetry(
+      } catch (error) {
+        const failure = persistFailure(
           row,
           STATIC_ERROR_CODES.VAULT_USE_STATE,
+          error,
         );
         return {
           processed: true,
           completed: false,
           errorCode: STATIC_ERROR_CODES.VAULT_USE_STATE,
-          nextAttemptAt,
+          quarantined: failure.status === OUTBOX_STATUS.QUARANTINED,
+          nextAttemptAt: failure.nextAttemptAt,
         };
       }
 
@@ -346,13 +500,14 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
           throw new Error("invalid vault descriptor response");
         }
         descriptors = result.descriptors;
-      } catch (_error) {
-        const nextAttemptAt = persistRetry(row, STATIC_ERROR_CODES.VAULT_LIST);
+      } catch (error) {
+        const failure = persistFailure(row, STATIC_ERROR_CODES.VAULT_LIST, error);
         return {
           processed: true,
           completed: false,
           errorCode: STATIC_ERROR_CODES.VAULT_LIST,
-          nextAttemptAt,
+          quarantined: failure.status === OUTBOX_STATUS.QUARANTINED,
+          nextAttemptAt: failure.nextAttemptAt,
         };
       }
 
@@ -374,16 +529,18 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
             throw new Error("invalid vault deletion response");
           }
           deleted += 1;
-        } catch (_error) {
-          const nextAttemptAt = persistRetry(
+        } catch (error) {
+          const failure = persistFailure(
             row,
             STATIC_ERROR_CODES.VAULT_DELETE,
+            error,
           );
           return {
             processed: true,
             completed: false,
             errorCode: STATIC_ERROR_CODES.VAULT_DELETE,
-            nextAttemptAt,
+            quarantined: failure.status === OUTBOX_STATUS.QUARANTINED,
+            nextAttemptAt: failure.nextAttemptAt,
           };
         }
       }
@@ -391,14 +548,15 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
       persistProgress(row, { vaultDone: true, vaultDeleted: deleted });
       persistComplete(row, deleted);
       return { processed: true, completed: true };
-    } catch (_error) {
+    } catch (error) {
       try {
-        const nextAttemptAt = persistRetry(row, STATIC_ERROR_CODES.STATE);
+        const failure = persistFailure(row, STATIC_ERROR_CODES.STATE, error);
         return {
           processed: true,
           completed: false,
           errorCode: STATIC_ERROR_CODES.STATE,
-          nextAttemptAt,
+          quarantined: failure.status === OUTBOX_STATUS.QUARANTINED,
+          nextAttemptAt: failure.nextAttemptAt,
         };
       } catch (_persistError) {
         console.warn(`[chat-deletion-outbox] ${STATIC_ERROR_CODES.STATE}`);
@@ -418,10 +576,10 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
     try {
       row = getDb()
         .prepare(
-          "SELECT MIN(next_attempt_at) AS next_attempt_at " +
-            "FROM chat_deletion_outbox WHERE status != ?",
+            "SELECT MIN(next_attempt_at) AS next_attempt_at " +
+            "FROM chat_deletion_outbox WHERE status IN (?, ?)",
         )
-        .get(OUTBOX_STATUS.COMPLETE);
+        .get(OUTBOX_STATUS.PENDING, OUTBOX_STATUS.RETRY);
     } catch (_error) {
       return IDLE_POLL_MS;
     }
@@ -475,6 +633,7 @@ const createChatDeletionOutbox = ({ getDb, crypto } = {}) => {
     assertOpWritable,
     configureDeletionTargets,
     processDeletionOutboxOnce,
+    requeueQuarantinedDeletion,
     startDeletionOutboxRunner,
     stopDeletionOutboxRunner,
   };

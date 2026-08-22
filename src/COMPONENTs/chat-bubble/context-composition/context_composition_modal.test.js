@@ -1,7 +1,7 @@
 import { createRef } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { ConfigContext, LocaleContext } from "../../../CONTAINERs/config/context";
 import defaultTheme from "../../../BUILTIN_COMPONENTs/theme/default_mini_theme.json";
 import { CONTEXT_COMPOSITION_EXTENSION_KEY } from "../../../SERVICEs/context_composition_v1";
 import ContextCompositionModal from "./context_composition_modal";
@@ -127,20 +127,23 @@ const attachExtension = (bundle, index, extension) => {
 const renderModal = ({
   bundle,
   mode = "light_mode",
+  locale = "en",
   onClose = jest.fn(),
   returnFocusRef,
 } = {}) =>
   render(
-    <ConfigContext.Provider
-      value={{ theme: defaultTheme[mode], onThemeMode: mode }}
-    >
-      <ContextCompositionModal
-        open
-        onClose={onClose}
-        bundle={bundle}
-        returnFocusRef={returnFocusRef}
-      />
-    </ConfigContext.Provider>,
+    <LocaleContext.Provider value={{ locale, setLocale: () => {} }}>
+      <ConfigContext.Provider
+        value={{ theme: defaultTheme[mode], onThemeMode: mode }}
+      >
+        <ContextCompositionModal
+          open
+          onClose={onClose}
+          bundle={bundle}
+          returnFocusRef={returnFocusRef}
+        />
+      </ConfigContext.Provider>
+    </LocaleContext.Provider>,
   );
 
 describe("ContextCompositionModal", () => {
@@ -230,6 +233,27 @@ describe("ContextCompositionModal", () => {
     ).toHaveTextContent("Unattributed");
     expect(screen.queryByText(/sha256:/)).not.toBeInTheDocument();
     expect(dialog.innerHTML).not.toContain("pc_");
+  });
+
+  test("uses the selected locale for static Context Usage text", async () => {
+    const bundle = attachExtension(
+      buildRunBundleV1(),
+      0,
+      reconciledExtension(),
+    );
+
+    renderModal({ bundle, locale: "zh-CN" });
+
+    await screen.findByRole("dialog", { name: "上下文用量" });
+    expect(
+      screen.getByRole("button", { name: "关闭上下文用量" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "上下文" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "汇总" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /指令/ })).toBeInTheDocument();
+    expect(screen.getByTestId("context-composition-quality")).toHaveTextContent(
+      "已对账估算 · 覆盖完整",
+    );
   });
 
   test("withholds percentages and paints unknown separately for an estimate", async () => {

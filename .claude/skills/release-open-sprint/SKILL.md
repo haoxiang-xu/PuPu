@@ -1,32 +1,66 @@
 ---
 name: release-open-sprint
-description: "Use when the founder opens a new PuPu version/sprint — \"开 0.1.11\", \"open the next sprint\", \"开新版本\", start-of-release planning. Runs the staged planning conversation and produces the sprint doc. Not for adding a single ticket mid-sprint (release-draft-ticket) or closing (release-close-sprint)."
+description: "Use when the project owner opens a new PuPu version/release — \"开 0.1.11\", \"open the next release\", \"开新版本\". Creates and scopes one Size=Release parent issue in PUPU Project; all version work is its direct sub-issues. Not for adding one item mid-release (release-draft-ticket) or closing a release (release-close-sprint)."
 ---
 
-# Release: Open Sprint (step 1)
+# Release: Open
 
-A staged planning conversation. **Every scope call in every act belongs to the founder — you present, they decide, you execute and record.** Never batch-decide on their behalf; walk each item.
+GitHub Project is the only operational record. A version is one open parent
+issue whose Project Size is Release; its direct sub-issues are the whole release
+scope. Iterations is optional scheduling, never version membership. Do not
+create or maintain a sprint document.
 
-**Plumbing:** `board-api.md` in this directory (preflight first — no `project` scope, no sprint).
+**Plumbing:** read board-api.md in this directory first. Without project scope,
+do not mutate the Project.
 
-## Acts (in order, each ends with founder sign-off)
+## Acts
 
-**Act 0 — data first.** Growth summary before any decision: run `growth-analyst` in light mode (reuse `.claude/archive/growth/` snapshots if <7 days old, else collect fresh). Report: last release's download rate and trend, stars/uniques delta, search-channel movement, notable new issues/discussions, and the current tags verdict from `topic-optimizer` history (PENDING if inside a window). One screen, business language.
+Every scope call belongs to the project owner: present one item, wait for the decision,
+then execute and record it on the affected GitHub issue.
 
-**Act 1 — version number.** Propose previous +0.0.1 as default; founder confirms or overrides. This becomes the sprint value and the doc name.
+**Act 0 — data first.** Run growth-analyst in light mode, reusing
+.claude/archive/growth snapshots younger than seven days. Report the previous
+release's download trend, stars/uniques delta, search movement, notable new
+issues/discussions, and the topic-optimizer verdict. One screen, business
+language.
 
-**Act 2 — last sprint's unfinished.** List board items with sprint = previous version and state ≠ done (also cross-check the previous sprint doc's 收尾 section). Per item, founder picks one: 拖入本 sprint / close / 改到未来 sprint / 摘掉 sprint 值. Execute immediately, record in both docs (previous 收尾去向, new 计划 with 来源: 上版拖入).
+**Act 1 — open the Release parent.** Propose the previous version +0.0.1, or
+use the project owner's version. Find open Size=Release parents first; zero or several
+matches requires an explicit project owner choice. For a new release, create
+Release vX.Y.Z with label release, add it to PUPU Project, set Size=Release and
+Status=Planning. The project owner dictates the version intent and release conditions;
+write their words in the parent body without inventing a keynote. Set Iterations
+only if the project owner explicitly chooses a time cadence.
 
-**Act 3 — backlog sweep.** List board items with no sprint value or a postponed/backlog status. Per item: 进 (set sprint, add to 计划, 来源: 遗留) or 不进 (untouched). Don't editorialize beyond one line of context per item.
+**Act 2 — carryover.** List the previous Release parent's open direct
+sub-issues and unparented backlog items. For each, the project owner chooses: attach
+to this Release, keep backlog, close, or move to a named future Release. Before
+removing or reparenting, comment the decision, reason, and destination on the
+old parent; after attaching, note it on the new parent. Never infer membership
+from an Iterations value, title, or label. Before attaching any legacy item,
+confirm its work-type label with the project owner; a new user-facing capability must
+carry new feature, and an unclassified item stays out of the Release.
 
-**Act 4 — keynote + new work.** Founder states the version's 基调 and dictates new items. Record the keynote verbatim-ish into the doc. For each new item invoke `release-draft-ticket` (immediate-file mode); batch-review all drafts at the act's end. Roadmap memories (e.g. prior 0.1.11 slicing decisions) may be OFFERED as reminders — never auto-imported as scope.
+**Act 3 — backlog sweep.** Present unparented open Project items one at a time.
+Only items the project owner accepts become direct sub-issues of this Release.
+Confirm or add the correct work-type label before attaching. Iterations may be
+set separately as a scheduling choice.
 
-**Act 5 — freeze the doc.** Create `.claude/archive/sprints/v{X.Y.Z}.md` from `TEMPLATE.md`, fill 基调 + full 计划 table, read the final plan back to the founder in 5 lines or less. Done.
+**Act 4 — new work.** The project owner dictates new items. Invoke
+release-draft-ticket with this Release parent as the target; it creates each
+item as a direct sub-issue. Roadmap memories may be offered as reminders, never
+imported as scope.
+
+**Act 5 — freeze scope.** Read back the parent and its direct children in five
+lines or fewer. After project owner confirmation, post one scope-frozen comment on
+the parent and set its Project Status to In Progress. Later scope changes need
+an explicit project owner decision comment and return the parent to In Progress
+if it was already In Review. The implementing agent may later refine a direct
+child's issue body within this frozen scope; body detail is not a scope change.
 
 ## Common mistakes
 
-- Skipping Act 0 because "the founder already knows" — the point is deciding on today's numbers, not remembered ones.
-- Deciding carryover dispositions yourself ("obviously continue") — present, wait, execute.
-- Importing roadmap memory items into the plan without the founder saying so this session.
-- Creating the doc at Act 1 — the doc freezes at Act 5, after scope is final; between acts, track state in the conversation only (no scratch files).
-- Leaving Act 2 items half-executed (moved on board, not recorded in the old doc's 收尾去向).
+- Treating Iterations as release membership.
+- Adding a child to a Release already In Review without explicitly reopening scope.
+- Moving a child between parents without the project owner's decision and a comment.
+- Creating a second plan in docs/sprints or mirroring Project fields elsewhere.

@@ -15,6 +15,11 @@ from memory_v2_unchain_ownership_adapter import (
     PupuUnchainMemoryV2OwnershipError,
     list_pupu_unchain_ownership_lifecycles,
 )
+from memory_v2_store_boundary import (
+    STORE_OWNER_UNCHAIN,
+    ContextV2StoreBoundaryError,
+    inspect_context_v2_database,
+)
 
 
 _MAX_LIFECYCLES = 10_000
@@ -38,10 +43,24 @@ _RETAINED_OWNER_CHILD_TABLES = {
     ),
 }
 _DIRECT_OWNER_COLUMNS = ("owner_chat_id", "source_owner_chat_id")
+_NO_STORE_RECEIPT_SCHEMA = "pupu.context_v2_no_store_chat_deletion.v1"
 
 
 class PupuUnchainChatDeletionError(RuntimeError):
     """The host could not prove or transactionally delete one exact chat."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "context_v2_unchain_delete_failed",
+        status_code: int = 503,
+        retryable: bool = True,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status_code = status_code
+        self.retryable = retryable
 
 
 def _result_dict(receipt: Any) -> dict[str, Any]:
@@ -54,6 +73,70 @@ def _result_dict(receipt: Any) -> dict[str, Any]:
         "deleted_rows": dict(receipt.deleted_rows),
         "gc_status": "pending_unreferenced_scan",
     }
+
+
+def _no_store_result(owner_chat_id: str) -> dict[str, Any]:
+    return {
+        "schema": _NO_STORE_RECEIPT_SCHEMA,
+        "deleted": True,
+        "owner_chat_id": owner_chat_id,
+        "outcome": "not_present",
+    }
+
+
+def _canonical_request_identifiers(
+    *,
+    owner_chat_id: str,
+    operation_id: str,
+) -> tuple[str, str]:
+    """Use Core's identifier boundary before accepting a no-store delete."""
+
+    try:
+        from unchain.persistence.sqlite_chat_deletion_v2 import ChatDeletionScope
+    except ImportError as error:
+        raise PupuUnchainChatDeletionError(
+            "durable Unchain deletion support is unavailable",
+            code="context_v2_unchain_delete_unavailable",
+        ) from error
+
+    try:
+        owner = ChatDeletionScope(owner_chat_id=owner_chat_id).owner_chat_id
+        operation = ChatDeletionScope(owner_chat_id=operation_id).owner_chat_id
+    except (TypeError, ValueError) as error:
+        raise PupuUnchainChatDeletionError(
+            "Unchain chat deletion request is invalid",
+            code="context_v2_invalid_request",
+            status_code=400,
+            retryable=False,
+        ) from error
+    return owner, operation
+
+
+def _is_no_store(database_path: Path) -> bool:
+    """Classify only the harmless no-state cases before Core opens SQLite."""
+
+    try:
+        inspection = inspect_context_v2_database(database_path)
+    except ContextV2StoreBoundaryError as error:
+        raise PupuUnchainChatDeletionError(
+            "durable Unchain deletion schema is unavailable",
+            code=error.code,
+            retryable=False,
+        ) from error
+    if inspection.schema_family in {"absent", "blank"}:
+        return True
+    if inspection.schema_family == STORE_OWNER_UNCHAIN:
+        return False
+    code = (
+        "context_v2_store_owner_conflict"
+        if inspection.schema_family == "pupu_legacy"
+        else "context_v2_store_schema_incompatible"
+    )
+    raise PupuUnchainChatDeletionError(
+        "durable Unchain deletion schema is not safely owned",
+        code=code,
+        retryable=False,
+    )
 
 
 def _quoted_identifier(value: str) -> str:
@@ -176,11 +259,17 @@ def delete_pupu_unchain_chat(
         SQLiteChatDeletionV2Service,
     )
 
-    path = Path(database_path)
+    owner, operation = _canonical_request_identifiers(
+        owner_chat_id=owner_chat_id,
+        operation_id=operation_id,
+    )
+    path = Path(database_path).expanduser().resolve()
+    if _is_no_store(path):
+        return _no_store_result(owner)
     try:
         scope = _resolve_scope(
             database_path=path,
-            owner_chat_id=owner_chat_id,
+            owner_chat_id=owner,
         )
         receipt = SQLiteChatDeletionV2Service(
             database_path=path,
@@ -189,18 +278,27 @@ def delete_pupu_unchain_chat(
             owner_scoped_deletion_tables=_owner_scoped_deletion_tables(path),
         ).delete_chat(
             scope=scope,
-            operation_id=operation_id,
+            operation_id=operation,
         )
         return _result_dict(receipt)
     except PupuUnchainChatDeletionError:
         raise
+    except ContextV2StoreBoundaryError as error:
+        raise PupuUnchainChatDeletionError(
+            "durable Unchain deletion schema is unavailable",
+            code=error.code,
+            retryable=False,
+        ) from error
     except (ChatDeletionError, PupuUnchainMemoryV2OwnershipError) as error:
         raise PupuUnchainChatDeletionError(
             f"Unchain chat deletion scope or durable state is unavailable: {error}"
         ) from error
     except (TypeError, ValueError) as error:
         raise PupuUnchainChatDeletionError(
-            f"Unchain chat deletion request is invalid: {error}"
+            f"Unchain chat deletion request is invalid: {error}",
+            code="context_v2_invalid_request",
+            status_code=400,
+            retryable=False,
         ) from error
 
 

@@ -1,45 +1,169 @@
-# Shared board plumbing (all release-* skills)
+# Shared GitHub Project contract (all release-* skills)
 
-## Preflight (run before anything else)
+## One operational record
 
-```bash
-gh auth status 2>&1 | grep -i scope   # must contain "project"
-```
+PUPU Project is the only operational source of truth. Do not create, read, or
+mirror a sprint document.
 
-Missing `project` scope → tell the founder to run `! gh auth refresh -s project` in the prompt box, then STOP. Never proceed degraded.
+- A version is one open GitHub issue in PUPU Project with Size = Release.
+- A release's scope is exactly the direct sub-issues of that parent issue.
+- Before attaching a child, confirm its work-type label. A new user-facing
+  capability must carry new feature; a defect carries bug; other work uses the
+  nearest existing type label. An unclassified child cannot enter a Release.
+- Parent issue and Sub-issues progress are derived Project fields. Change the
+  GitHub issue relationship, never those fields directly.
+- Iterations is an optional time-planning field. It is not release membership
+  and must never be called or treated as Sprint.
+- Discover Project and field IDs for every run; do not write a board-ids cache.
 
-## Discover project + fields (do not hardcode IDs)
+## Issue bodies maintained by the implementing agent
 
-```bash
-# Find the PuPu board (pick the open project whose title matches PuPu / whose items are PuPu issues)
-gh api graphql -f query='query{user(login:"haoxiang-xu"){projectsV2(first:10){nodes{id number title closed}}}}'
+A direct Release child intentionally opens with a draft description. The agent
+actively implementing that child may update its
+issue body directly before or during implementation, without a separate
+refinement handoff or per-edit project owner confirmation. Active responsibility
+comes from the implementation task, not from the GitHub assignee; review,
+research, or audit participation alone is insufficient.
 
-# Discover fields: need Status, Size, and the Sprint field (iteration or single-select — take whatever exists)
-gh api graphql -f query='query{node(id:"PROJECT_ID"){... on ProjectV2{fields(first:30){nodes{... on ProjectV2FieldCommon{id name dataType} ... on ProjectV2SingleSelectField{id name options{id name}} ... on ProjectV2IterationField{id name configuration{iterations{id title}}}}}}}}'
-```
+The implementing agent may turn the draft into a usable brief: preserve the
+project owner's What & Why and outcome-level acceptance, then add architecture
+context, relevant files, implementation path, verification, risks,
+dependencies, BC/SEQ/AC evidence, and delivery links. It may make existing
+acceptance testable and remove the `[DRAFT]` marker.
 
-Cache discovered IDs in `.claude/archive/sprints/board-ids.json` (`{project_id, project_number, fields:{...}, cached}`); on any ID-mismatch error, re-discover and rewrite the cache.
+This delegation is body-only. It does not authorize a change to the intended
+user result, release scope, non-goals, required capability, title, labels,
+Size, Project Status, Iteration, assignee, parent/child relationship, Release
+membership, defer/cancel decision, or closure. If a refinement reveals a need
+for any of those, report evidence and options to the project owner and wait for
+their decision.
 
-## Item operations
+## Preflight
 
-```bash
-# List items with field values (paginate with after:)
-gh api graphql -f query='query{node(id:"PROJECT_ID"){... on ProjectV2{items(first:100){pageInfo{hasNextPage endCursor}nodes{id content{... on Issue{number title state url}}fieldValues(first:15){nodes{... on ProjectV2ItemFieldSingleSelectValue{name field{... on ProjectV2FieldCommon{name}}} ... on ProjectV2ItemFieldIterationValue{title field{... on ProjectV2FieldCommon{name}}}}}}}}}}'
+~~~bash
+gh auth status 2>&1 | grep -q "'project'"
+~~~
 
-# Create issue then add to board
-gh issue create -R haoxiang-xu/PuPu --title "..." --body-file /tmp/body.md --label "new feature"
-gh project item-add PROJECT_NUMBER --owner haoxiang-xu --url ISSUE_URL
+If project scope is missing, tell the project owner to run
+! gh auth refresh -s project, then STOP. Never proceed degraded.
 
-# Set / clear a field value on an item
-gh api graphql -f query='mutation{updateProjectV2ItemFieldValue(input:{projectId:"...",itemId:"...",fieldId:"...",value:{singleSelectOptionId:"..."}}){projectV2Item{id}}}'
-gh api graphql -f query='mutation{clearProjectV2ItemFieldValue(input:{projectId:"...",itemId:"...",fieldId:"..."}){projectV2Item{id}}}'
-```
+## Discover PUPU Project and fields
 
-## Repo labels (closed set — never create new labels)
+Do not hard-code IDs or option IDs. Find the open PUPU Project, then read its
+fields, including Status, Size, and Iterations.
 
-`bug` `new feature` `improvement` `documentation` `refactor` `UI` `MISO` `MINI UI component` `help wanted` `question` `regular` `release` `Unchain`
+~~~bash
+gh project list --owner haoxiang-xu --limit 30 --format json
+gh project field-list PROJECT_NUMBER --owner haoxiang-xu --format json
+~~~
 
-## Sprint doc contract
+Field-list exposes single-select options but not the Iterations titles or IDs.
+Only when the project owner explicitly wants an Iterations value, discover those
+options from GraphQL and select the named iteration:
 
-Path: `.claude/archive/sprints/v{X.Y.Z}.md` (template: `.claude/archive/sprints/TEMPLATE.md`).
-Iron rule for every release-* skill: **any board/ticket mutation must be mirrored into the sprint doc in the same run.** On doc↔board divergence, the board is truth — fix the doc.
+~~~bash
+gh api graphql -f query='query($project:ID!){node(id:$project){...on ProjectV2{fields(first:100){nodes{...on ProjectV2IterationField{id name configuration{iterations{id title startDate duration}}}}}}}}' -f project="$PROJECT_ID"
+~~~
+
+PUPU currently uses these semantics:
+
+- Size = Release identifies a release parent. Delivery issues use XS through XL.
+- Status is Planning, Ready for Pickup, Assigned, In Progress, In Review, Done.
+- Release parents use Planning, In Progress, In Review, and Done; never make a
+  release parent available for pickup or Assigned.
+- Delivery issues may use the full Status flow from Planning through Done.
+
+## Item and relationship operations
+
+Create an issue, add it to Project, and retain the two distinct IDs:
+
+~~~bash
+ISSUE_URL=$(gh issue create -R haoxiang-xu/PuPu --title "..." --body-file /tmp/body.md --label "...")
+ISSUE_ID=$(gh issue view "$ISSUE_URL" -R haoxiang-xu/PuPu --json id --jq .id)
+ITEM_ID=$(gh project item-add PROJECT_NUMBER --owner haoxiang-xu --url "$ISSUE_URL" --format json --jq .id)
+~~~
+
+ISSUE_ID is a GitHub issue node ID; ITEM_ID is a Project item ID. Do not mix
+them. Set Project fields with the discovered IDs:
+
+~~~bash
+gh project item-edit --id "$ITEM_ID" --project-id "$PROJECT_ID" --field-id "$FIELD_ID" --single-select-option-id "$OPTION_ID"
+gh project item-edit --id "$ITEM_ID" --project-id "$PROJECT_ID" --field-id "$ITERATIONS_FIELD_ID" --iteration-id "$ITERATION_ID"
+~~~
+
+Attach a delivery issue to a release using the GitHub sub-issue API:
+
+~~~bash
+gh api graphql -f query='mutation($parent:ID!,$child:ID!){addSubIssue(input:{issueId:$parent,subIssueId:$child}){issue{id number} subIssue{id number}}}' -f parent="$PARENT_ISSUE_ID" -f child="$CHILD_ISSUE_ID"
+~~~
+
+If the child already has a parent, STOP. Use replaceParent: true only after the
+project owner explicitly decided to move that issue. Record the old parent decision
+first, then use the explicit reparent mutation and read it back:
+
+~~~bash
+gh api graphql -f query='mutation($parent:ID!,$child:ID!){addSubIssue(input:{issueId:$parent,subIssueId:$child,replaceParent:true}){issue{id number} subIssue{id number}}}' -f parent="$NEW_PARENT_ISSUE_ID" -f child="$CHILD_ISSUE_ID"
+~~~
+
+To defer a child, record the decision on the release parent first, then remove
+the relationship:
+
+~~~bash
+gh api graphql -f query='mutation($parent:ID!,$child:ID!){removeSubIssue(input:{issueId:$parent,subIssueId:$child}){issue{id number} subIssue{id number}}}' -f parent="$PARENT_ISSUE_ID" -f child="$CHILD_ISSUE_ID"
+~~~
+
+After every mutation, read back the Project item and the parent's direct
+sub-issues. GitHub permits a parent to close while children remain open; the
+release skills must enforce the gate themselves.
+
+Read direct children with pagination; do not use the derived Project progress
+field as a close gate:
+
+~~~bash
+gh api graphql --paginate -F owner=haoxiang-xu -F repo=PuPu -F number="$RELEASE_NUMBER" -f query='query($owner:String!,$repo:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$repo){issue(number:$number){id number title state subIssues(first:100,after:$endCursor){totalCount nodes{id number title state url parent{number}} pageInfo{hasNextPage endCursor}}}}}'
+gh project item-list PROJECT_NUMBER --owner haoxiang-xu --limit 500 --format json
+~~~
+
+The first command is the authoritative direct-child list. In the Project item
+list, match each child and verify Status=Done before a parent can close.
+
+## Release close gate
+
+Do not close a Release parent until every direct child is closed and its Project
+Status is Done. Each new feature also needs a fresh feature-audit PASS bound to
+its delivered candidate digest, or an explicit project owner waiver. The release parent stays In
+Review until release certification records GO or an authorized exception.
+
+For a feature audit, accept only a child comment carrying the exact
+release-feature-audit:v2 marker, the same Release parent, Overall=PASS, and a
+Candidate digest matching the delivered candidate. For a waiver, require
+the release-audit-waiver:v2 marker plus the omitted gate, candidate digest, risk,
+reason, project owner approver, and date on both child and parent. Never treat free
+text as audit or waiver evidence.
+
+Done means delivered work, never canceled or deferred work. Parent closure also
+requires a structured release-certification comment with an immutable candidate
+tag or SHA, evidence link, GO or EXCEPTION verdict, project owner/COO authority, and date.
+Missing, NO-GO, or INCOMPLETE certification keeps the parent In Review.
+
+## Repo labels
+
+Use only this closed label set; never create a new label:
+
+bug, new feature, improvement, documentation, refactor, UI, MISO, MINI UI
+component, help wanted, question, regular, release, Unchain.
+
+## Failure handling
+
+GitHub mutations are not transactional. On a failed remote step, STOP, report
+the exact issue, Project item, field, and parent relationship state, and repair
+only with the project owner's direction. Never claim all-or-none and never use a
+document as a second recovery log.
+
+Deferring removes release membership only. The project owner must also choose the
+child's destination state: backlog normally becomes Planning; a future Release
+gets an explicit parent and Status; Iterations is cleared or changed only by
+explicit decision.
+
+Cancellation is a separate disposition: record it, remove the child from the
+Release, and never mark the Project item Done merely to make a close gate pass.

@@ -164,23 +164,3 @@ export const clearThemeCustomColor = (mode, key) => {
   persist(theme);
   return theme;
 };
-
-/* Editor-local view preference. Deliberately NOT inside `theme`: that
-   object's shape is the published import/export contract, and a UI toggle
-   has no business travelling inside someone's exported palette. */
-export const readShowAllTiers = () => {
-  const appearance = readAppearance();
-  return appearance.theme_editor_show_tiers === true;
-};
-
-export const writeShowAllTiers = (value) => {
-  updateNamespace(
-    APPEARANCE_NAMESPACE,
-    (current) => ({
-      ...(isObject(current) ? current : {}),
-      theme_editor_show_tiers: !!value,
-    }),
-    { throwSyncWriteErrors: true },
-  ).catch(() => {});
-  return !!value;
-};

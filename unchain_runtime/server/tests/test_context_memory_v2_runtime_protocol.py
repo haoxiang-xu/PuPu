@@ -9,9 +9,77 @@ from pathlib import Path
 import pytest
 
 import context_memory_v2_capability as capability_gate
+import vault_sink_worker
 
 
 DIGEST_DOMAIN = b"unchain.runtime_protocol_manifest.v1\\u0000"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+WINDOWS_PROTOCOL_SINK_CONTRACT = (
+    REPO_ROOT
+    / "contracts"
+    / "memory-v2"
+    / "windows-required-protocol-and-sink-contract.v1.json"
+)
+
+
+def _windows_protocol_sink_contract() -> dict[str, object]:
+    value = json.loads(WINDOWS_PROTOCOL_SINK_CONTRACT.read_text(encoding="utf-8"))
+    assert set(value) == {"runtime_protocol", "schema", "vault_sink", "version"}
+    assert value["schema"] == (
+        "pupu.memory-v2.windows-required-protocol-and-sink-contract.v1"
+    )
+    assert value["version"] == 1
+    runtime_protocol = value["runtime_protocol"]
+    assert set(runtime_protocol) == {"manifest_schema", "required_protocols"}
+    assert runtime_protocol["manifest_schema"] == capability_gate._MANIFEST_SCHEMA
+    for protocol in runtime_protocol["required_protocols"]:
+        assert set(protocol) == {"features", "id", "major", "minimum_minor"}
+        assert protocol["features"] == sorted(set(protocol["features"]))
+        assert protocol["major"] == 1
+        assert protocol["minimum_minor"] == 0
+    vault_sink = value["vault_sink"]
+    assert vault_sink["recognized_kinds"] == sorted(
+        set(vault_sink["recognized_kinds"])
+    )
+    assert vault_sink["windows"]["enabled_kinds"] == []
+    assert vault_sink["windows"]["unsupported_kinds"] == ["computer_input"]
+    assert vault_sink["windows"]["disabled_kinds"] == sorted(
+        set(vault_sink["windows"]["disabled_kinds"])
+    )
+    assert vault_sink["negative_cases"] == [
+        "missing_required_feature",
+        "unknown_sink_kind",
+        "disabled_windows_sink",
+    ]
+    return value
+
+
+def test_versioned_windows_protocol_sink_contract_matches_sidecar_requirements() -> None:
+    contract = _windows_protocol_sink_contract()
+    expected = {
+        protocol["id"]: {
+            "major": protocol["major"],
+            "minimum_minor": protocol["minimum_minor"],
+            "features": frozenset(protocol["features"]),
+        }
+        for protocol in contract["runtime_protocol"]["required_protocols"]
+    }
+    actual = {
+        requirement.id: {
+            "major": requirement.major,
+            "minimum_minor": requirement.minimum_minor,
+            "features": requirement.features,
+        }
+        for requirement in capability_gate._REQUIRED_PROTOCOLS
+    }
+
+    assert actual == expected
+    vault_sink = contract["vault_sink"]
+    assert vault_sink_worker.PROTOCOL_VERSION == vault_sink["worker_protocol_version"]
+    assert sorted(vault_sink_worker._SINK_KINDS) == vault_sink["recognized_kinds"]
+    assert set(vault_sink["windows"]["disabled_kinds"]) | set(
+        vault_sink["windows"]["unsupported_kinds"]
+    ) == vault_sink_worker._SINK_KINDS
 
 
 def _producer_manifest() -> dict[str, object]:

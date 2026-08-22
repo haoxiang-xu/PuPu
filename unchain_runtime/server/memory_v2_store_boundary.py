@@ -264,6 +264,15 @@ def _read_owner_manifest(path: Path) -> str | None:
     return str(owner)
 
 
+def read_context_v2_store_owner_manifest(
+    root_dir: str | os.PathLike[str],
+) -> str | None:
+    """Read the durable owner claim without creating a Context V2 root."""
+
+    root = Path(root_dir).expanduser().resolve()
+    return _read_owner_manifest(root / CONTEXT_V2_OWNER_FILENAME)
+
+
 def _write_owner_claim(root_dir: Path, marker_path: Path, owner: str) -> _OwnerClaim:
     payload = (
         json.dumps(
@@ -426,4 +435,5 @@ __all__ = (
     "configured_context_v2_store_owner",
     "inspect_context_v2_database",
     "open_context_v2_owned_store",
+    "read_context_v2_store_owner_manifest",
 )

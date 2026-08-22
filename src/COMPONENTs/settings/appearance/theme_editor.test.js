@@ -182,6 +182,37 @@ describe("ThemeEditor", () => {
     );
   });
 
+  /* The card is a pure function of the palette it is handed, so the whole
+     question is whether that palette was DERIVED or just key-patched. A
+     shallow `{...palette, [key]: value}` moves only the root, leaving every
+     tier that hangs off it — sidebar, surface — on its committed value: the
+     card's own background jumps while its sidebar strip and bubble wait for
+     the commit. The live CSS vars never had this problem because they go
+     through resolveSemanticPalette; the card has to take the same road. */
+  test("previewing a root color re-derives its tiers inside the preview card", () => {
+    renderWithCtx();
+
+    const bgOf = (id) => screen.getByTestId(id).style.backgroundColor;
+    const before = {
+      card: bgOf("theme-preview-card"),
+      sidebar: bgOf("theme-preview-sidebar"),
+      bubble: bgOf("theme-preview-bubble"),
+    };
+
+    fireEvent.click(screen.getByRole("button", { name: "Background color" }));
+    /* Light mode, so this has to be a light color — the picker clamps a dark
+       one into the legal shell window and the exact landing value is the
+       constraint's business, not this test's. What matters is that all three
+       regions move together. */
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#f2e4e4" },
+    });
+
+    expect(bgOf("theme-preview-card")).not.toBe(before.card);
+    expect(bgOf("theme-preview-sidebar")).not.toBe(before.sidebar);
+    expect(bgOf("theme-preview-bubble")).not.toBe(before.bubble);
+  });
+
   test("renders preset selector with MiniUI Select instead of native select", () => {
     const { container } = renderWithCtx();
 
@@ -461,11 +492,14 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
     expect(screen.getByRole("button", { name: "Info" })).toBeInTheDocument();
   });
 
-  test("strength steps are hidden until Show all tiers is on", () => {
+  /* There is no show/hide switch any more: every tier the editor knows about
+     is on screen from the first frame, and depth is expressed by the
+     Explorer's own expanders. */
+  test("strength steps are on screen with no toggle to reveal them", () => {
     renderWithCtx();
-    expect(screen.queryByText("Overlay")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Show all tiers" }));
+    for (const name of ["Show all tiers", "Hide tiers"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
 
     /* Overlay is a reference row, not a root: it has no picker of its own
        and says where it derives from. */
@@ -474,18 +508,8 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
     expect(screen.queryByRole("button", { name: "Overlay" })).toBeNull();
   });
 
-  test("the tiers toggle survives a remount (it is a stored preference)", () => {
-    const { unmount } = renderWithCtx();
-    fireEvent.click(screen.getByRole("button", { name: "Show all tiers" }));
-    unmount();
-
+  test("no editor view preference leaks into the exported theme shape", () => {
     renderWithCtx();
-    expect(screen.getByRole("button", { name: "Hide tiers" })).toBeInTheDocument();
-  });
-
-  test("the tiers toggle never leaks into the exported theme shape", () => {
-    renderWithCtx();
-    fireEvent.click(screen.getByRole("button", { name: "Show all tiers" }));
     const theme = readThemeSettings();
     expect(theme.theme_editor_show_tiers).toBeUndefined();
     expect(Object.keys(theme).sort()).toEqual(["custom", "preset"]);
@@ -583,7 +607,6 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
      rather than the custom bag. */
   test("pinning an alpha step at its ladder default sticks, via the details channel", () => {
     renderWithCtx();
-    fireEvent.click(screen.getByRole("button", { name: "Show all tiers" }));
     fireEvent.click(screen.getByText("Text"));
 
     fireEvent.click(
@@ -608,7 +631,6 @@ describe("ThemeEditor — taxonomy v2 editor", () => {
 
   test("an alpha step is edited through the details channel, never the custom bag", () => {
     renderWithCtx();
-    fireEvent.click(screen.getByRole("button", { name: "Show all tiers" }));
     fireEvent.click(screen.getByText("Text"));
 
     act(() => {

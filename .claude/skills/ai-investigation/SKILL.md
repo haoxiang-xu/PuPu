@@ -61,8 +61,8 @@ codex exec -p researcher -C "$SCRATCH" "Clone <repo-url> into this directory, th
 - 绝不把 HYPOTHESIS 或 UNKNOWN 当结论呈上。合理 ≠ 已证
 - 守住 charter 范围；发现范围划错了，**明说**，不要悄悄扩大
 - 工具不可用（如无网络无法 clone）→ 报为 UNKNOWN 的限制，不猜
-- 调查不决定任何事。它供给证据，取舍归 `chief-judge`
+- 调查不决定任何事。它供给证据，取舍归 project owner
 
-## 透明度（[`hybrid-execution-policy.md`](../../codex/hybrid-execution-policy.md) Mode R）
+## 透明度
 
 报告须附：规划/审阅模型 · Codex profile · 工作目录 · 命令形状（凭据 redacted）· 结果。命令要可审计，密钥绝不能出现。

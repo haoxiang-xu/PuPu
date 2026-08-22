@@ -28,6 +28,7 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "memory_curator",
       "memory_toolkit",
       "memory_workspace",
+      "tool_output_management_v1",
     ]),
   }),
   Object.freeze({
@@ -312,7 +313,8 @@ describe("Memory V2 runtime protocol admission", () => {
   test("accepts higher minor, extra optional features, and extra protocols", () => {
     const protocols = cloneProtocols();
     protocols[0].minor = Number.MAX_SAFE_INTEGER;
-    protocols[0].features.push("optional_future_feature ");
+    protocols[0].features.push("optional_future_feature");
+    protocols[0].features.sort();
     protocols.push({
       features: ["optional_feature"],
       id: "z_optional_protocol",
@@ -443,6 +445,7 @@ describe("Memory V2 runtime protocol admission", () => {
     ["chat_deletion_sqlite_scope_closure", "context_memory"],
     ["generation_rebase_live_interaction_cycles", "context_memory"],
     ["interaction_resolution_compat", "context_memory"],
+    ["tool_output_management_v1", "context_memory"],
     ["expected_interaction_id_cas", "durable_interaction"],
   ])("requires incident compatibility feature %s", (feature, protocolId) => {
     const protocols = cloneProtocols();

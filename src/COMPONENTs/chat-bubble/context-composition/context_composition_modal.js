@@ -3,6 +3,7 @@ import { useContext, useEffect, useRef } from "react";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
 import { useModalLifecycle } from "../../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ContextCompositionPanel, {
   DESCRIPTION_ID,
@@ -27,6 +28,7 @@ export const ContextCompositionModal = ({
 }) => {
   useModalLifecycle("context-composition-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const palette = contextCompositionPalette(theme, isDark);
   const scopeRef = useRef(null);
@@ -53,46 +55,44 @@ export const ContextCompositionModal = ({
         minWidth: 0,
         maxWidth: "calc(100vw - 32px)",
         maxHeight: "70vh",
-        // Matches the popover's inset so the two shells read as one component,
-        // including the extra top so all four sides read even.
-        padding: "20px 12px 12px",
+        // Keep room below the standard, absolutely-positioned close button.
+        padding: "44px 12px 12px",
         backgroundColor: palette.background,
         color: palette.text,
         overflow: "hidden",
       }}
     >
+      <Button
+        prefix_icon="close"
+        ariaLabel={t("context_usage.close_dialog")}
+        title={t("context_usage.close")}
+        onClick={handleClose}
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 12,
+          paddingVertical: 6,
+          paddingHorizontal: 6,
+          borderRadius: 6,
+          opacity: 0.45,
+          zIndex: 2,
+          WebkitAppRegion: "no-drag",
+          content: {
+            prefixIconWrap: {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 0,
+            },
+            icon: { width: 14, height: 14 },
+          },
+        }}
+      />
       <ContextCompositionPanel
         bundle={bundle}
         open={open}
         palette={palette}
         scopeRef={scopeRef}
-        trailing={
-          <Button
-            prefix_icon="close"
-            ariaLabel="Close Context Usage"
-            title="Close"
-            onClick={handleClose}
-            style={{
-              flex: "0 0 auto",
-              paddingVertical: 4,
-              paddingHorizontal: 4,
-              iconOnlyPaddingVertical: 4,
-              iconOnlyPaddingHorizontal: 4,
-              borderRadius: 6,
-              opacity: 0.45,
-              WebkitAppRegion: "no-drag",
-              content: {
-                prefixIconWrap: {
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  lineHeight: 0,
-                },
-                icon: { width: 13, height: 13 },
-              },
-            }}
-          />
-        }
       />
     </Modal>
   );

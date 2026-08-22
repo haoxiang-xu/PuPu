@@ -42,8 +42,8 @@ export const FEATURE_FLAG_DEFINITIONS = {
   },
   enable_custom_model_providers: {
     description:
-      "Show Custom Model Providers in Settings and allow custom models in catalogs, selectors, connection tests, and chat requests.",
-    defaultValue: true,
+      "Show Custom Model Providers plus the shipped DeepSeek/Kimi preset sections in Settings, and allow custom models in catalogs, selectors, connection tests, and chat requests.",
+    defaultValue: false,
   },
   enable_computer_use: {
     description:

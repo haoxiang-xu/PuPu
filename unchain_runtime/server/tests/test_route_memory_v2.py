@@ -1,4 +1,6 @@
+import json
 import os
+import sqlite3
 import sys
 import tempfile
 import types
@@ -15,6 +17,7 @@ from memory_v2_runtime import (
     _reset_memory_v2_runtime_for_tests,
     get_memory_v2_runtime,
 )
+from memory_v2_store import MemoryV2Store
 from memory_v2_store_boundary import CONTEXT_V2_STORE_OWNER_ENV
 from route_blueprint import api_blueprint
 
@@ -1138,6 +1141,189 @@ class MemoryV2RouteTests(unittest.TestCase):
             ).resolve(),
             owner_chat_id="chat_a",
             operation_id="delete_unchain_chat_a",
+        )
+
+    def test_chat_delete_with_off_and_absent_store_returns_no_store_without_writes(self):
+        expected = {
+            "schema": "pupu.context_v2_no_store_chat_deletion.v1",
+            "deleted": True,
+            "owner_chat_id": "chat_a",
+            "outcome": "not_present",
+        }
+        root = Path(self.temp_dir.name) / "memory_v2"
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "off"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+        ):
+            response = self.client.delete(
+                "/context/v2/chat/chat_a",
+                headers=self.headers,
+                json={"operation_id": "delete_off_no_store"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), expected)
+        self.assertFalse(root.exists())
+
+    def test_chat_delete_with_unchain_and_empty_root_never_opens_lifecycle_schema(self):
+        expected = {
+            "schema": "pupu.context_v2_no_store_chat_deletion.v1",
+            "deleted": True,
+            "owner_chat_id": "chat_a",
+            "outcome": "not_present",
+        }
+        root = Path(self.temp_dir.name) / "memory_v2"
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+            mock.patch(
+                "memory_v2_unchain_deletion_adapter.list_pupu_unchain_ownership_lifecycles",
+                side_effect=AssertionError("lifecycle schema must not open"),
+            ),
+        ):
+            response = self.client.delete(
+                "/context/v2/chat/chat_a",
+                headers=self.headers,
+                json={"operation_id": "delete_unchain_no_store"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), expected)
+        self.assertFalse(root.exists())
+
+    def test_chat_delete_with_off_routes_to_the_persisted_legacy_owner(self):
+        root = Path(self.temp_dir.name) / "memory_v2"
+        legacy = MemoryV2Store(root)
+        legacy.close()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "off"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime singleton must not open"),
+            ),
+        ):
+            response = self.client.delete(
+                "/context/v2/chat/chat_a",
+                headers=self.headers,
+                json={"operation_id": "delete_off_legacy"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["deleted"])
+        self.assertEqual(response.get_json()["owner_chat_id"], "chat_a")
+
+    def test_chat_delete_with_off_routes_to_the_persisted_unchain_owner(self):
+        root = Path(self.temp_dir.name) / "memory_v2"
+        root.mkdir()
+        database_path = root / "context_v2.sqlite3"
+        with sqlite3.connect(database_path) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE context_v2_schema(version INTEGER PRIMARY KEY);
+                INSERT INTO context_v2_schema(version) VALUES (1), (2);
+                CREATE TABLE executions(execution_id TEXT PRIMARY KEY);
+                CREATE TABLE events(event_id TEXT PRIMARY KEY);
+                CREATE TABLE operations(operation_id TEXT PRIMARY KEY);
+                CREATE TABLE objects(sha256 TEXT PRIMARY KEY);
+                CREATE TABLE artifacts(artifact_id TEXT PRIMARY KEY);
+                """
+            )
+        expected = {
+            "schema": "pupu.unchain_chat_deletion.v1",
+            "deleted": True,
+            "owner_chat_id": "chat_a",
+            "tombstone_revision": 1,
+            "replayed": False,
+            "deleted_rows": {},
+            "gc_status": "pending_unreferenced_scan",
+        }
+        with (
+            mock.patch.dict(
+                os.environ,
+                {CONTEXT_V2_STORE_OWNER_ENV: "off"},
+            ),
+            mock.patch.object(
+                route_memory_v2,
+                "_runtime",
+                side_effect=AssertionError("legacy runtime must not open"),
+            ),
+            mock.patch(
+                "memory_v2_unchain_deletion_adapter.delete_pupu_unchain_chat",
+                return_value=expected,
+            ) as delete_chat,
+        ):
+            response = self.client.delete(
+                "/context/v2/chat/chat_a",
+                headers=self.headers,
+                json={"operation_id": "delete_off_unchain"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), expected)
+        delete_chat.assert_called_once_with(
+            database_path=database_path.resolve(),
+            owner_chat_id="chat_a",
+            operation_id="delete_off_unchain",
+        )
+
+    def test_chat_delete_reports_partial_unchain_schema_as_a_typed_non_retryable_error(self):
+        root = Path(self.temp_dir.name) / "memory_v2"
+        root.mkdir()
+        marker = root / "context_v2.owner.json"
+        marker.write_text(
+            json.dumps(
+                {
+                    "database": "context_v2.sqlite3",
+                    "owner": "unchain",
+                    "schema": "pupu.context-v2-store-owner.v1",
+                }
+            ),
+            encoding="utf-8",
+        )
+        with sqlite3.connect(root / "context_v2.sqlite3") as connection:
+            connection.executescript(
+                """
+                CREATE TABLE pupu_unchain_ownership_schema(version INTEGER PRIMARY KEY);
+                CREATE TABLE pupu_unchain_ownership_bindings(binding_id TEXT PRIMARY KEY);
+                CREATE TABLE pupu_unchain_ownership_operations(operation_id TEXT PRIMARY KEY);
+                """
+            )
+        with mock.patch.dict(
+            os.environ,
+            {CONTEXT_V2_STORE_OWNER_ENV: "unchain"},
+        ):
+            response = self.client.delete(
+                "/context/v2/chat/chat_a",
+                headers=self.headers,
+                json={"operation_id": "delete_partial_unchain"},
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.get_json()["error"],
+            {
+                "code": "context_v2_store_schema_incompatible",
+                "message": "Context V2 storage scope cannot be determined safely",
+                "retryable": False,
+            },
         )
 
     def test_owner_scoped_get_routes_use_unchain_reader_without_legacy_runtime(self):

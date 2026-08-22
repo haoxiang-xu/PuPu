@@ -5,7 +5,6 @@ import { validateRuntimeManifestForRelease } from "./unchain-artifact.mjs";
 
 export const REPORT_SCHEMA_VERSION = 2;
 export const CONTEXT_V2_REQUIRED_CHECKS = Object.freeze([
-  "Quorum boundary protocol",
   "Unchain artifact continuity",
   "Unchain runtime protocol manifest",
   "Context V2 boundary contracts",
@@ -40,6 +39,7 @@ const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
 const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const NONZERO_EVIDENCE_CHECKS = new Set([
+  "Playwright Electron release smoke",
   "Unchain artifact continuity",
   "Unchain runtime protocol manifest",
   "Context V2 boundary contracts",
@@ -325,7 +325,43 @@ export function buildJobReport({
   });
 }
 
-export function mergeReports(reports, { unchainAnalysis } = {}) {
+const enforceExpectedReportTopology = (reports, requiredPlatforms) => {
+  const checks = [];
+  for (const platformName of [...new Set(requiredPlatforms || [])]) {
+    const matches = reports.filter(
+      (report) => report.platform?.name === platformName,
+    );
+    if (matches.length === 0) {
+      checks.push(normalizeCheck({
+        name: `required report ${platformName}`,
+        outcome: "failure",
+        details: "required report is missing (INCOMPLETE)",
+      }));
+      continue;
+    }
+    if (matches.length !== 1) {
+      checks.push(normalizeCheck({
+        name: `required report ${platformName}`,
+        outcome: "failure",
+        details: "required report appears more than once (INCOMPLETE)",
+      }));
+      continue;
+    }
+    if (matches[0].deterministic_result?.status !== "passed") {
+      checks.push(normalizeCheck({
+        name: `required report ${platformName}`,
+        outcome: "failure",
+        details: "required report contains failed, skipped, or zero-evidence checks (INCOMPLETE)",
+      }));
+    }
+  }
+  return checks;
+};
+
+export function mergeReports(
+  reports,
+  { unchainAnalysis, mode: requestedMode = "", requiredReportPlatforms = [] } = {},
+) {
   const normalizedReports = Array.isArray(reports)
     ? reports.filter((report) => report && typeof report === "object")
     : [];
@@ -350,9 +386,10 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
     (report) => report.platform?.name === "deterministic",
   );
   const unchain = normalizeUnchain(deterministicReport?.unchain || {});
-  const mode = normalizedReports.some((report) => report.mode === "release")
+  const inferredMode = normalizedReports.some((report) => report.mode === "release")
     ? "release"
     : cleanString(firstReport.mode) || "lite";
+  const mode = cleanString(requestedMode) || inferredMode;
   const deterministicReports = normalizedReports.filter((report) => {
     const checkNames = new Set(
       (report.checks || []).map((check) => cleanString(check.name)),
@@ -374,6 +411,9 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
       details: "deterministic job report is missing (INCOMPLETE)",
     }));
   }
+  checks.push(
+    ...enforceExpectedReportTopology(normalizedReports, requiredReportPlatforms),
+  );
   if (mode === "release") {
     for (const platformName of RELEASE_PACKAGE_PLATFORMS) {
       const report = normalizedReports.find(

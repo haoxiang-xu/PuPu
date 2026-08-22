@@ -520,3 +520,38 @@ describe("ConfigContainer boot-loading-gate integration", () => {
     expect(document.getElementById("boot-overlay")).not.toBeNull();
   });
 });
+
+/* jsdom's CSSOM drops any value containing var() — `style.background` comes
+   back as the empty string — so the shell's paint cannot be asserted through
+   the DOM. Same situation, same remedy as the armed-reset affordance in
+   theme_editor.test.js: scan the source.
+
+   What this protects: the shell must carry ONE background declaration whose
+   fallback lives inside the var(). A literal `backgroundColor` written next
+   to a `background: var(...)` shorthand writes the same CSSOM slot, and the
+   literal wins — pinning the shell to the JS `theme` object. `theme` only
+   moves when the theme editor commits, while --pupu-background moves on every
+   preview frame, so that collision is what made the area behind the message
+   list wait for the color picker to close (measured live: with the literal
+   present, setting --pupu-background left the shell at its old value; with it
+   removed, the shell followed immediately). */
+describe("container.js shell paints from --pupu-background alone", () => {
+  const src = require("fs").readFileSync(
+    require("path").join(__dirname, "container.js"),
+    "utf8",
+  );
+  const shellStyle = src.slice(
+    src.indexOf("<ConfigContext.Provider value={configValue}>"),
+  );
+
+  test("the shell background is one var() declaration carrying its own fallback", () => {
+    expect(shellStyle).toMatch(
+      /background: `var\(--pupu-background, \$\{[\s\S]*?\}\)`/,
+    );
+  });
+
+  test("no literal backgroundColor competes with it on the shell element", () => {
+    const styleBlock = shellStyle.slice(0, shellStyle.indexOf("</div>"));
+    expect(styleBlock).not.toMatch(/^\s*backgroundColor:/m);
+  });
+});

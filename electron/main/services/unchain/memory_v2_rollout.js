@@ -37,6 +37,7 @@ const UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS = Object.freeze([
       "memory_curator",
       "memory_toolkit",
       "memory_workspace",
+      "tool_output_management_v1",
     ]),
     id: "context_memory",
     major: 1,

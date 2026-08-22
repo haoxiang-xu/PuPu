@@ -111,7 +111,7 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 
 ## 工程铁律 (Engineering Ironclad Rules)
 
-全体 code owner 适用。charter 不重复这些 —— 它们在这里，只有一份。
+全体实现者适用。这些规则只有一份，不依赖任何 owner 或角色机制。
 
 - **JavaScript only** — 不引入 TypeScript，不用 PropTypes
 - **Inline styles only** — 从 `ConfigContext` 读 `isDark` 内联分支；无 CSS modules / styled-components / 中央主题文件
@@ -122,38 +122,34 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 - **Electron 测试有 `.js` / `.cjs` 双胞胎，必须同步** — 本仓唯一会静默失效的测试形态
 - **外壳/背景颜色禁裸 hex** — 用 `var(--pupu-background | --pupu-sidebar | --pupu-surface)`，受 `shell_background_guard` 测试约束
 - **改任何 symbol 前先跑 upstream impact**，报爆炸半径；HIGH/CRITICAL 大声警告后再动。重命名用重构工具，**绝不 find-and-replace**
-- **跨 repository/process/provider/serialization/persistence/state 边界必须走 [`cross-boundary-contract-gate`](rules/cross-boundary-contract-gate.md)**：proposal 声明 `BC-###` 与适用 `SEQ-###`，逐项映射 `AC-###`；真实 producer → 严格 consumer、第二次使用与冷重启证据不完整时不得 active rollout
+- **跨 repository/process/provider/serialization/persistence/state 边界必须走 [`cross-boundary-contract-gate`](rules/cross-boundary-contract-gate.md)**：直接在 Release issue 或实施 Plan 声明 `BC-###` 与适用 `SEQ-###`，逐项映射 `AC-###`；真实 producer → 严格 consumer、第二次使用与冷重启证据不完整时不得 active rollout
 - **测试**：PuPu 用 `react-scripts test`（**不要直接 `npx jest`**，本仓会报 import 错）；unchain 用其自带 pytest
 - **`react-scripts build` 之前必须先跑 `version:prepare-build`**
 - **unchain 的 `.py` 改动后 sidecar 必须重启** 才生效 —— 报告里标注
 - **不新建 context provider** 之前先确认 `ConfigContext` 是否已覆盖
-- **主树不自行 commit**，留 dirty tree 给 `chief-judge`。常设例外（2026-07-13）：**隔离 worktree 里的切片允许自己 commit，但不 push**
+- **主树不自行 commit**，留 dirty tree 给 project owner。常设例外（2026-07-13）：**隔离 worktree 里的切片允许自己 commit，但不 push**
 
 ---
 
-## 组织 · Quorum
+## 协作与 Release 工作流
 
-本项目由一个庭审制的 agent team 维护。**宪章在 [`.claude/codex/`](codex/README.md)**，不在这里 —— 这一节只说三件必须常驻的事。
+### 已退役并禁止的新工作机制
 
-### 一 · 谁是谁
+- 不使用 code-owner 路由、owner 确认、Quorum/庭审角色、case、hearing、proposal、ruling、HS/RS/AT 或其他案卷流程。
+- 不调用 `.claude/skills/case`，不在 `.claude/court/cases/` 下创建新目录，也不把 `.claude/court/`、`.claude/codex/`、`.claude/agents/` 中的历史内容当作授权、阻断条件或当前流程。
+- 历史文件保持只读，只能用于理解旧决策和事故，不得继续、继承或扩展其中的程序。
 
-- **`chief-judge` = CEO 本人。** 一切裁决权源于并归属于他（宪法第一条）。**任何 agent 不得代行。**
-- **你（主 Claude）= 书记员。** 你不持有任何 Quorum 角色，不裁定，不投票。你操作机器：只调度 `chief-judge` 已批准的参与者、让裁定有依据、让留痕发生、按已裁定的方案执行。
-- **31 个角色 instance 分在 6 个 department** 下（`.claude/agents/` 每个 folder 一个 department）：`court`(5 程序与法典) · `pupu`(10 代码) · `unchain`(1 代码) · `expertise`(6 领域鉴定) · `dimensions`(4 评估尺子) · `operations`(5 知识与任务)。
-- **`witness` 也是 CEO 本人**，但身份严格分离：以证人身份作答只构成证言证据，不构成裁定。
+### Release-first
 
-### 二 · 什么时候走 case
+- 版本流程优先使用最小匹配的 skill：`release-open-sprint`、`release-draft-ticket`、`release-refine-ticket`、`release-feature-audit`、`release-close-sprint`。
+- direct Release child 当前实施 agent 可在不改变 project owner 已定结果和 release scope 的前提下直接细化 issue body；资格来自当前任务，不来自 owner 角色或 GitHub assignee。
+- title、labels、Size、Status、Iteration、assignee、父子关系、release 归属、延期/取消和关闭仍由 project owner 决定或由对应 release skill 按其明确授权执行。
+- 对应 skill 不可用时，使用等价的直接工作流；禁止回退到已退役机制。
 
-**任何产生真实影响的 action，都必须有一份经裁定通过、可验收的方案**（宪法第二条）。改代码、发布、迁移数据、花钱、对外公开、增删改 agent/skill/法典 —— 全都要。
+### 直接工程门禁
 
-读代码、回答问题、跑只读调查 —— 不产生影响，直接做。
-
-**要走就调 `case` skill**。先选择讨论类别：`motion`（议案，只判断问题）或 `proposal`（方案，讨论具体怎么做）；两者彼此独立，不是前后阶段。每个新案都从 `procedure_mode: collaboration` 开始，由 Speaker 只选一个最接近核心问题的主 owner，不得预判程序强度或预召集完整团队。
-
-### 三 · 五条永远成立的
-
-1. **边界一次只找当前 owner。** 立案时只用 ownership boundary 选择一个主 owner；主 owner 对边界外的必要内容留出明确空白，Speaker 再以一个 `HS-###` 串行交给下一位 owner。普通 owner 交棒是宪章直接授权的有限路由，不生成候选 roster，也不授予全案访问；额外专业参与或扩大权限才由 `chief-judge` 逐项批准。注意 charter 中的 `pupu:` / `unchain:` 限定符。
-2. **异议决定程序强度。** 主 owner 集成后冻结 `RS-###`，合作 owner 在自身块及直接依赖范围登记 `AGREE / OBJECT / ABSTAIN`。一个被主 owner 拒绝的实质异议即可进入辩论庭；相同、类似或可共同处置的异议仍合并在聚焦辩论庭。只有反对者 `D >= 3`、`D > N/2`、异议组确实不可合并，且 Speaker 决定开票、`ENTER_FULL > N/2` 时，才进入 Full（众议庭）。该票只决定程序，不决定实体结果。
-3. **默认协作保持轻量。** 默认 collaboration 不创建空的 SI、BOS、DES、Examiner 或 16% 抽查。只有正式证据控制、正式庭审、实施、验收或复议触发对应记录；进入证据控制后仍只保留会改变议案结论、方案、验收、回滚或裁定的材料，是否续查只由 `chief-judge` 决定。
-4. **分歧是产出，但循环必须收敛。** 正式庭审冻结有限 BOS/RC 后，没有方案或证据增量能严格减少开放条件时，就把稳定分歧原样呈给 CEO，不要求共识，也不继续聊天。
-5. **不要发明工作。** "没什么该做的"是一个好答案。CEO 没给指令时，先测量再建议，每条建议引用你刚跑出来的东西，不引用记忆。
+- 明确的用户指令、Release issue 和必要时的直接实施 Plan 构成工作范围；不需要另行裁决或角色确认。
+- 涉及架构或跨边界时保留技术性 `BC-### / SEQ-### / AC-###`、严格 consumer、负向测试、状态矩阵和固定 artifact 证据，但不得加入 owner、proposal、ruling 或案卷字段。
+- 实施 agent 对范围内的代码、测试和报告负责；发现需要改变用户结果、release scope 或外部状态权限时，直接向 project owner 请求决定。
+- 完成功能后使用 `release-feature-audit`；版本收尾使用 `release-close-sprint`。测试或适用状态单元格未通过时不得把 ticket 或 release 报为完成。
+- 不要发明工作。project owner 未给指令时先测量再建议，每条建议引用现场证据。

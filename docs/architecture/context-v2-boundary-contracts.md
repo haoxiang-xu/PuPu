@@ -5,7 +5,7 @@
 > 适用仓库：PuPu + `https://github.com/haoxiang-xu/unchain.git`  
 > 治理规则：[`cross-boundary-contract-gate`](../../.claude/rules/cross-boundary-contract-gate.md)
 
-本文不是另一份实现 schema。字段级真相仍在类型、validator 和测试中；本文固定 **谁生产、谁消费、在哪里投影、哪些序列必须被证明**。`CTX-B* / CTX-S*` 是项目 profile key。Quorum proposal 引用本 profile 时，必须在该案 `proposal.md` 内实例化为 case-local `BC-### / SEQ-###` 并映射到 `AC-###`。
+本文不是另一份实现 schema。字段级真相仍在类型、validator 和测试中；本文固定 **谁生产、谁消费、在哪里投影、哪些序列必须被证明**。`CTX-B* / CTX-S*` 是项目 profile key。Release issue 或普通实施 Plan 引用本 profile 时，直接实例化为任务内的 `BC-### / SEQ-###` 并映射到 `AC-###`；这些只是工程追踪标识，不触发 owner、case 或庭审流程。
 
 ## 一、不可混用的五种表示
 

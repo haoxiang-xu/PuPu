@@ -81,7 +81,7 @@
 
 ## 执行约束(仓库规矩,违者验收直接打回)
 
-1. unchain 主树当前有**他人 dirty 文件**(P-0007 相关):禁 `git add -A`、禁 stash、只碰自己名单内文件;改动**留工作树不 commit**(主树铁律,commit 归 chief-judge)。PuPu 侧预期零代码改动。
+1. unchain 主树当前有**他人 dirty 文件**(P-0007 相关):禁 `git add -A`、禁 stash、只碰自己名单内文件;改动**留工作树不 commit**(主树铁律,commit 归 project owner)。PuPu 侧预期零代码改动。
 2. `.py` 改动后**必须重启 sidecar** 并在报告注明;真机探针发消息用 `openai:gpt-4.1`(别用本地 ollama),探针会话用完即删。
 3. 测试命令:unchain 用其自带 pytest;PuPu 用 `CI=true npx react-scripts test --watchAll=false`(禁裸 `npx jest`)。
 4. 全库证据扫描配方(验收方也会用):copy `~/Library/Application Support/PuPu/chats.db{,-wal}` 到临时目录,messages.payload JSON 递归找 `provider_calls[].extensions`。

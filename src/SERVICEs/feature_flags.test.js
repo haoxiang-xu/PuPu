@@ -39,7 +39,7 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_app_update_settings: true,
       enable_theme_color_customization: false,
-      enable_custom_model_providers: true,
+      enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
     });
@@ -47,7 +47,7 @@ describe("feature_flags service", () => {
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
     expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(true);
     expect(isFeatureFlagEnabled("enable_theme_color_customization")).toBe(false);
-    expect(isFeatureFlagEnabled("enable_custom_model_providers")).toBe(true);
+    expect(isFeatureFlagEnabled("enable_custom_model_providers")).toBe(false);
     expect(isFeatureFlagEnabled("enable_computer_use")).toBe(false);
   });
 
@@ -93,17 +93,17 @@ describe("feature_flags service", () => {
   });
 
   test("an old unversioned full-snapshot namespace is discarded wholesale on read", () => {
-    // Pre-fix shape: every key explicitly resolved (including a now-stale
-    // `false` for enable_custom_model_providers, whose code default has
-    // since flipped to true). This is exactly the corruption this fix must
-    // cure — the whole blob must be ignored, not partially trusted.
+    // Pre-fix shape: every key explicitly resolved, including a now-stale
+    // `false` for enable_app_update_settings, whose code default is true.
+    // That disagreement is what gives this test its teeth — the whole blob
+    // must be ignored, not partially trusted.
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
         feature_flags: {
           enable_user_access_to_agents: false,
           enable_user_access_to_characters: false,
-          enable_app_update_settings: true,
+          enable_app_update_settings: false,
           enable_theme_color_customization: false,
           enable_custom_model_providers: false,
           enable_computer_use: false,
@@ -117,12 +117,12 @@ describe("feature_flags service", () => {
     expect(readFeatureFlags()).toEqual({
       enable_user_access_to_agents: false,
       enable_user_access_to_characters: false,
-      enable_app_update_settings: true,
-      enable_theme_color_customization: false,
       // The stale explicit `false` snapshot value must NOT win: with the
       // legacy blob discarded, this falls through to the current code
       // default, which is true.
-      enable_custom_model_providers: true,
+      enable_app_update_settings: true,
+      enable_theme_color_customization: false,
+      enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
     });
@@ -150,7 +150,7 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_app_update_settings: true,
       enable_theme_color_customization: false,
-      enable_custom_model_providers: true,
+      enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
     });
@@ -173,15 +173,15 @@ describe("feature_flags service", () => {
     const { writeFeatureFlags, readFeatureFlags, isFeatureFlagEnabled } =
       loadFeatureFlagsModule();
 
-    // enable_custom_model_providers defaults to true; an explicit false must
+    // enable_app_update_settings defaults to true; an explicit false must
     // keep winning across reads until the user changes it again.
-    writeFeatureFlags({ enable_custom_model_providers: false });
+    writeFeatureFlags({ enable_app_update_settings: false });
 
-    expect(readFeatureFlags().enable_custom_model_providers).toBe(false);
-    expect(isFeatureFlagEnabled("enable_custom_model_providers")).toBe(false);
+    expect(readFeatureFlags().enable_app_update_settings).toBe(false);
+    expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(false);
 
     // A second, unrelated read must not have relaxed the override.
-    expect(readFeatureFlags().enable_custom_model_providers).toBe(false);
+    expect(readFeatureFlags().enable_app_update_settings).toBe(false);
   });
 
   test("two sequential writes of different keys both persist as explicit sparse choices", () => {
@@ -195,7 +195,7 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_app_update_settings: true,
       enable_theme_color_customization: false,
-      enable_custom_model_providers: true,
+      enable_custom_model_providers: false,
       enable_computer_use: true,
       enable_memory_v2: false,
     });
@@ -221,7 +221,7 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_app_update_settings: true,
       enable_theme_color_customization: false,
-      enable_custom_model_providers: true,
+      enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
     });

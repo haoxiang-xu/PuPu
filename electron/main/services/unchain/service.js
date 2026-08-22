@@ -187,9 +187,13 @@ const CONTEXT_V2_REVIEW_SOURCE_EVENTS_MAX = 256;
 // code rides in the message behind a "[<code>] " prefix (Electron strips
 // error.code across ipcMain.handle) AND stays on .code for main-process
 // callers. `field` is always a literal from this file, never renderer input.
-const createContextV2Error = (code, message) => {
+const createContextV2Error = (code, message, { retryable } = {}) => {
   const error = new Error(`[${code}] ${message}`);
   error.code = code;
+  // This is main-process-only metadata.  It lets the private privacy-delete
+  // outbox distinguish a transport outage from a terminal sidecar refusal;
+  // IPC still carries only the stable code/message pair.
+  if (typeof retryable === "boolean") error.retryable = retryable;
   return error;
 };
 
@@ -1701,6 +1705,7 @@ const createUnchainService = ({
     if (!response.ok) {
       let message = `${errorPrefix} (${response.status})`;
       let errorCode = "";
+      let retryable;
       if (bodyText) {
         try {
           const parsed = JSON.parse(bodyText);
@@ -1716,6 +1721,9 @@ const createUnchainService = ({
             (typeof parsed?.message === "string" && parsed.message.trim()) ||
             "";
           errorCode = serverCode;
+          if (typeof parsed?.error?.retryable === "boolean") {
+            retryable = parsed.error.retryable;
+          }
           if (serverMessage) {
             message = serverCode
               ? `${serverCode}: ${String(serverMessage)}`
@@ -1729,6 +1737,7 @@ const createUnchainService = ({
       if (errorCode) {
         error.code = errorCode;
       }
+      if (typeof retryable === "boolean") error.retryable = retryable;
       throw error;
     }
 
@@ -1782,6 +1791,7 @@ const createUnchainService = ({
       throw createContextV2Error(
         "context_v2_unreachable",
         "context v2 runtime is unreachable",
+        { retryable: true },
       );
     }
     const controller = new AbortController();
@@ -1909,6 +1919,7 @@ const createUnchainService = ({
       throw createContextV2Error(
         "context_v2_unreachable",
         "context v2 runtime is unreachable",
+        { retryable: true },
       );
     }
 
@@ -1926,7 +1937,10 @@ const createUnchainService = ({
         error && typeof error.code === "string" && error.code
           ? error.code
           : "context_v2_failed";
-      throw createContextV2Error(code, "context v2 request failed");
+      throw createContextV2Error(code, "context v2 request failed", {
+        retryable:
+          typeof error?.retryable === "boolean" ? error.retryable : undefined,
+      });
     }
   };
 

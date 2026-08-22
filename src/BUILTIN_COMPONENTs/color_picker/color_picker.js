@@ -262,10 +262,22 @@ const ColorPickerPanel = ({
       }
       e.preventDefault();
       e.stopPropagation();
+      /* Capture routes the release back here even when it lands outside the
+         app window, where a bare pointerup is never delivered; window blur
+         covers the release-onto-another-app case. Without both, the drag
+         stayed armed and the cursor kept dragging the swatch on re-entry. */
+      if (e.pointerId != null && typeof e.currentTarget?.setPointerCapture === "function") {
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch (_err) {
+          /* capture is an optimisation — blur still ends the drag */
+        }
+      }
       setDragging(true);
       const start = getClientPoint(e);
       updateFromSV(start.x, start.y);
       const move = (ev) => {
+        if (ev.type === "pointermove" && ev.buttons === 0) return up();
         const point = getClientPoint(ev);
         updateFromSV(point.x, point.y);
       };
@@ -273,9 +285,13 @@ const ColorPickerPanel = ({
         setDragging(false);
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        window.removeEventListener("blur", up);
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+      window.addEventListener("blur", up);
     },
     [updateFromSV],
   );
@@ -566,6 +582,7 @@ const ColorPickerPanel = ({
           <ControlRow label="HUE" first hairline={C.rowLine} muted={C.muted}>
             <div data-testid="color-picker-hue" style={{ flex: 1, minWidth: 0 }}>
               <GradientSlider
+                material="glass"
                 value={hsv.h}
                 set_value={(h) =>
                   setHsv((prev) => {
@@ -606,6 +623,7 @@ const ColorPickerPanel = ({
             <ControlRow label="ALPHA" hairline={C.rowLine} muted={C.muted}>
               <div data-testid="color-picker-alpha" style={{ flex: 1, minWidth: 0 }}>
                 <GradientSlider
+                  material="glass"
                   value={a}
                   set_value={(next) => setA(Math.round(next))}
                   min={0}

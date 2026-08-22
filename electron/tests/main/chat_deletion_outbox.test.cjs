@@ -44,6 +44,12 @@ const waitFor = async (predicate, timeoutMs = 2000) => {
   throw new Error("timed out waiting for deletion outbox");
 };
 
+const retryableError = (message) => {
+  const error = new Error(message);
+  error.retryable = true;
+  return error;
+};
+
 describeIfSqlite("chat deletion outbox", () => {
   let dir;
   let services;
@@ -280,7 +286,7 @@ describeIfSqlite("chat deletion outbox", () => {
     test("an import-queued deletion retries with one stable operation id when the sidecar is down", async () => {
       const service = makeService();
       const contextDelete = jest.fn(async () => {
-        throw new Error("sidecar offline");
+        throw retryableError("sidecar offline");
       });
       service.configureDeletionTargets(makeTargets({ contextDelete }));
 
@@ -441,7 +447,7 @@ describeIfSqlite("chat deletion outbox", () => {
     const service = makeService();
     const contextDelete = jest
       .fn()
-      .mockRejectedValueOnce(new Error("connection refused"))
+      .mockRejectedValueOnce(retryableError("connection refused"))
       .mockImplementationOnce(async ({ ownerChatId }) => ({
         owner_chat_id: ownerChatId,
         deleted: true,
@@ -492,6 +498,103 @@ describeIfSqlite("chat deletion outbox", () => {
     );
   });
 
+  test("terminal Context failure quarantines without a due-loop and keeps the chat id fenced", async () => {
+    const service = makeService();
+    const terminalError = new Error("schema cannot be resolved");
+    terminalError.code = "context_v2_store_schema_incompatible";
+    terminalError.retryable = false;
+    const contextDelete = jest
+      .fn()
+      .mockRejectedValueOnce(terminalError)
+      .mockImplementationOnce(async ({ ownerChatId }) => ({
+        owner_chat_id: ownerChatId,
+        deleted: true,
+      }));
+    const targets = makeTargets({ contextDelete });
+    service.configureDeletionTargets(targets);
+    service.applyOps([
+      { type: "delete_chats", chatIds: ["chat-terminal-failure"] },
+    ]);
+
+    await expect(service.processDeletionOutboxOnce()).resolves.toMatchObject({
+      processed: true,
+      completed: false,
+      errorCode: "context_delete_failed",
+      quarantined: true,
+      nextAttemptAt: null,
+    });
+    const quarantined = readOutbox("chat-terminal-failure");
+    expect(quarantined).toMatchObject({
+      context_done: 0,
+      vault_done: 0,
+      status: "quarantined",
+      retry_count: 1,
+      next_attempt_at: 0,
+      last_error_code: "context_delete_failed",
+    });
+    expect(JSON.parse(quarantined.receipt_json)).toMatchObject({
+      quarantine: {
+        schema: "pupu.chat_deletion_quarantine.v1",
+        errorCode: "context_delete_failed",
+        failureCount: 1,
+      },
+    });
+    expect(targets.memoryVaultService.deleteUseStateForOwnerChat).not.toHaveBeenCalled();
+
+    await expect(service.processDeletionOutboxOnce()).resolves.toEqual({
+      processed: false,
+      reason: "not_due",
+    });
+    expect(contextDelete).toHaveBeenCalledTimes(1);
+    let fenceError;
+    try {
+      service.applyOps([
+        {
+          type: "put_chat_meta",
+          chatId: "chat-terminal-failure",
+          meta: { id: "chat-terminal-failure" },
+        },
+      ]);
+    } catch (error) {
+      fenceError = error;
+    }
+    expect(fenceError).toMatchObject({ code: "chat_deletion_pending" });
+
+    expect(
+      service.requeueQuarantinedDeletion({
+        deletionId: quarantined.deletion_id,
+        reason: "schema_repaired",
+      }),
+    ).toMatchObject({
+      deletionId: quarantined.deletion_id,
+      operationId: quarantined.operation_id,
+      generation: 1,
+      requeued: true,
+    });
+    const requeued = readOutbox("chat-terminal-failure");
+    expect(requeued).toMatchObject({
+      status: "pending",
+      retry_count: 0,
+      last_error_code: null,
+    });
+    expect(JSON.parse(requeued.receipt_json)).toMatchObject({
+      quarantine: { errorCode: "context_delete_failed" },
+      requeueGeneration: 1,
+      requeues: [{ generation: 1, reason: "schema_repaired" }],
+    });
+
+    await expect(service.processDeletionOutboxOnce()).resolves.toMatchObject({
+      processed: true,
+      completed: true,
+    });
+    expect(contextDelete).toHaveBeenCalledTimes(2);
+    expect(readOutbox("chat-terminal-failure")).toMatchObject({
+      status: "complete",
+      context_done: 1,
+      vault_done: 1,
+    });
+  });
+
   test("Vault use-state cleanup failure retries before secret enumeration", async () => {
     const service = makeService();
     const contextDelete = jest.fn(async ({ ownerChatId }) => ({
@@ -503,6 +606,7 @@ describeIfSqlite("chat deletion outbox", () => {
       .mockImplementationOnce(() => {
         const error = new Error("active Vault use must finish first");
         error.code = "vault_use_cleanup_in_progress";
+        error.retryable = true;
         throw error;
       })
       .mockImplementationOnce((ownerChatId) => ({
@@ -563,7 +667,7 @@ describeIfSqlite("chat deletion outbox", () => {
     expect(listDescriptors).toHaveBeenCalledTimes(1);
   });
 
-  test("invalid Vault use-state receipts fail closed with the stable retry code", async () => {
+  test("invalid Vault use-state receipts fail closed into quarantine", async () => {
     const service = makeService();
     const deleteUseState = jest.fn(() => ({
       ok: true,
@@ -583,11 +687,12 @@ describeIfSqlite("chat deletion outbox", () => {
       processed: true,
       completed: false,
       errorCode: "vault_use_state_delete_failed",
+      quarantined: true,
     });
     expect(readOutbox("chat-invalid-use-state")).toMatchObject({
       context_done: 1,
       vault_done: 0,
-      status: "retry",
+      status: "quarantined",
       last_error_code: "vault_use_state_delete_failed",
     });
     expect(listDescriptors).not.toHaveBeenCalled();
@@ -596,7 +701,7 @@ describeIfSqlite("chat deletion outbox", () => {
   test("retry delay grows exponentially and is capped", async () => {
     const service = makeService();
     const contextDelete = jest.fn(async () => {
-      throw new Error("offline");
+      throw retryableError("offline");
     });
     service.configureDeletionTargets(makeTargets({ contextDelete }));
     service.applyOps([{ type: "delete_chats", chatIds: ["chat-backoff"] }]);
@@ -641,7 +746,7 @@ describeIfSqlite("chat deletion outbox", () => {
         contextDelete: firstContextDelete,
         deleteUseState: firstDeleteUseState,
         listDescriptors: jest.fn(() => {
-          throw new Error("vault temporarily unavailable");
+          throw retryableError("vault temporarily unavailable");
         }),
       }),
     );
@@ -709,7 +814,7 @@ describeIfSqlite("chat deletion outbox", () => {
     const deleteSecret = jest.fn(({ handle }) => {
       if (handle === handleB && failSecond) {
         failSecond = false;
-        throw new Error("temporary delete failure");
+        throw retryableError("temporary delete failure");
       }
       return { ok: true, handle, deleted: true };
     });
@@ -816,7 +921,7 @@ describeIfSqlite("chat deletion outbox", () => {
     expect(source).toMatch(/chatStorageService\.startDeletionOutboxRunner\(\)/);
     expect(source).toMatch(/chatStorageService\.stopDeletionOutboxRunner\(\)/);
     expect(handlers).not.toMatch(
-      /configureDeletionTargets|deleteUseStateForOwnerChat|processDeletionOutboxOnce|DeletionOutboxRunner/,
+      /configureDeletionTargets|deleteUseStateForOwnerChat|processDeletionOutboxOnce|requeueQuarantinedDeletion|DeletionOutboxRunner/,
     );
   });
 

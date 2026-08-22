@@ -558,6 +558,7 @@ const createChatStorageService = ({ app, fs, path, sqlite } = {}) => {
     write,
     configureDeletionTargets: deletionOutbox.configureDeletionTargets,
     processDeletionOutboxOnce: deletionOutbox.processDeletionOutboxOnce,
+    requeueQuarantinedDeletion: deletionOutbox.requeueQuarantinedDeletion,
     startDeletionOutboxRunner: deletionOutbox.startDeletionOutboxRunner,
     stopDeletionOutboxRunner: deletionOutbox.stopDeletionOutboxRunner,
     close,

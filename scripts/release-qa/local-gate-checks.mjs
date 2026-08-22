@@ -32,11 +32,6 @@ export const buildLocalGateChecks = ({
     env: pythonPath ? { PYTHONPATH: pythonPath } : {},
   },
   {
-    name: "Quorum boundary protocol",
-    command: "npm run test:quorum-boundary",
-    cwd: root,
-  },
-  {
     name: "Context V2 boundary contracts",
     command: "npm run test:context-v2-contract",
     cwd: root,

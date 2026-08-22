@@ -211,6 +211,18 @@ case `0000-0002-2026-0807` 立案时 **同一裸文件名缺陷第三次发作**
 
 ---
 
+## A-013 · Release skill 套件收入法典映射
+
+[`release-skill-mapping.md`](release-skill-mapping.md) 记录 `.claude/skills/release-*`（`open-sprint` / `draft-ticket` / `refine-ticket` / `close-sprint` / `feature-audit`）五个 skill 各自触及哪个角色的权限边界、在何处明确止步（尤其 `release-close-sprint` 不得替代 `task-owner-release-certification` 的 GO/NO-GO 裁决，`release-feature-audit` 不得替代 code-owner 的验收结论）。
+
+**理由**: 与 A-007（hybrid-execution-policy）同性质——这是一条 **组织级程序规则**（这些 skill 在何种范围内可以不经 case 直接落地、越界后判断权归谁），不是某个 sprint 的技术知识，符合法典"跨项目复用"的准入边界。缺这条映射，日后新角色或新 skill 迭代时无法回答"这个 skill 是否已经在悄悄替某个角色做主"。
+
+**依据**: 2026-08-21 `chief-judge` 建成该 skill 套件后直接指示"在 codex 哪里做一个映射"；本条把套件运作方式与既有 A-009 豁免逻辑（`chief-judge` 直令范围内的记录/归档不构成需要 `proposal` 的"真实 action"）显式关联，并把该豁免的适用范围从单个 `create-issue` 先例扩展为明文条款，覆盖整个 release-* 套件。
+
+**2026-08-21 追加**: project owner 明确授权：Release direct child 开票时的 description 只是 `[DRAFT]` 初始意图；当前实际负责实现该 ticket 的 code owner / agent 可自行细化其 **body**，不必另派 refine agent 或逐次确认。授权不扩及用户结果、release scope、Project 字段、父子关系、延期/取消或关闭；这些仍由 project owner 裁决。资格来自实施任务，而非 GitHub assignee。
+
+---
+
 # 上游同步记录
 
 上游 Quorum 自身的演进。**这些不是本仓偏离，是本仓跟上上游** —— 与上面 A-0xx 的性质相反，不可混计。

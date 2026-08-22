@@ -15,9 +15,53 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Icon from "../icon/icon";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
+/* { Material } -------------------------------------------------------------------------------------------------------------- */
+import { useMaterial, resolveComponentMaterial } from "../material";
+/* { Material } -------------------------------------------------------------------------------------------------------------- */
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Shared helpers                                                                                                              */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* The materials the gradient slider supports. An unrecognised request (e.g.
+   "frosted") falls back to plain via resolveComponentMaterial — never errors,
+   never blanks. Only GradientSlider is material-aware in PuPu; Slider /
+   RangeSlider stay plain-only until a surface actually needs them. */
+const SLIDER_MATERIALS = { plain: true, glass: true };
+const SLIDER_DEFAULT_MATERIAL = "plain";
+
+/* ── Ending a drag that was released outside the window ─────────────────
+   A mouse released outside the app window never delivers its mouseup. A drag
+   armed on mousedown alone therefore stays live: the thumb keeps tracking the
+   cursor the moment it re-enters, and only a second click frees it. Three
+   signals close that hole, listed by how early they fire:
+
+     1. pointer capture — routes pointerup back to us even outside the window;
+     2. window blur — fires when the release lands on another application;
+     3. buttons === 0 on the next mousemove — the release, observed late.
+
+   All three are idempotent: whichever arrives first ends the drag. */
+const capturePointer = (e) => {
+  if (e.pointerId == null) return;
+  const el = e.currentTarget;
+  if (!el || typeof el.setPointerCapture !== "function") return;
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch (_err) {
+    /* capture is an optimisation; blur and buttons===0 still cover us */
+  }
+};
+
+/* A pointerdown is always followed by a compatibility mousedown. Take one, or
+   the gesture starts twice. Same guard the color picker's SV square uses. */
+const isDuplicateMouseDown = (e) =>
+  e.type === "mousedown" &&
+  typeof window !== "undefined" &&
+  !!window.PointerEvent;
+
+/* The button is already up — this move belongs to a drag that ended outside
+   the window, so it must end the drag and NOT move the value. */
+const isReleasedOutside = (e) => e.type === "mousemove" && e.buttons === 0;
+
 const snapToStep = (v, min, max, step) => {
   const s = Math.round((v - min) / step) * step + min;
   return Math.min(max, Math.max(min, parseFloat(s.toFixed(10))));
@@ -226,8 +270,9 @@ const Slider = ({
 
   const onPointerDown = useCallback(
     (e) => {
-      if (disabled) return;
+      if (disabled || isDuplicateMouseDown(e)) return;
       e.preventDefault();
+      capturePointer(e);
       setIsDragging(true);
       setIsPressed(true);
       const cx = e.clientX ?? e.touches?.[0]?.clientX;
@@ -238,21 +283,28 @@ const Slider = ({
 
   useEffect(() => {
     if (!isDragging) return;
-    const onMove = (e) => {
-      const cx = e.clientX ?? e.touches?.[0]?.clientX;
-      if (cx !== undefined) handleChange(getValueFromX(cx));
-    };
     const onUp = () => {
       setIsDragging(false);
       setIsPressed(false);
     };
+    const onMove = (e) => {
+      if (isReleasedOutside(e)) return onUp();
+      const cx = e.clientX ?? e.touches?.[0]?.clientX;
+      if (cx !== undefined) handleChange(getValueFromX(cx));
+    };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("blur", onUp);
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("blur", onUp);
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onUp);
     };
@@ -337,6 +389,7 @@ const Slider = ({
           WebkitUserSelect: "none",
           outline: "none",
         }}
+        onPointerDown={onPointerDown}
         onMouseDown={onPointerDown}
         onTouchStart={onPointerDown}
         onMouseEnter={() => setIsHovering(true)}
@@ -607,8 +660,9 @@ const RangeSlider = ({
 
   const onPointerDown = useCallback(
     (e) => {
-      if (disabled) return;
+      if (disabled || isDuplicateMouseDown(e)) return;
       e.preventDefault();
+      capturePointer(e);
       const cx = e.clientX ?? e.touches?.[0]?.clientX;
       if (cx === undefined) return;
       const v = getValueFromX(cx);
@@ -628,7 +682,12 @@ const RangeSlider = ({
 
   useEffect(() => {
     if (!activeThumb) return;
+    const onUp = () => {
+      setActiveThumb(null);
+      setPressedThumb(null);
+    };
     const onMove = (e) => {
+      if (isReleasedOutside(e)) return onUp();
       const cx = e.clientX ?? e.touches?.[0]?.clientX;
       if (cx === undefined) return;
       const v = getValueFromX(cx);
@@ -638,17 +697,19 @@ const RangeSlider = ({
         handleChange(currentLow, v);
       }
     };
-    const onUp = () => {
-      setActiveThumb(null);
-      setPressedThumb(null);
-    };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("blur", onUp);
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("blur", onUp);
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onUp);
     };
@@ -780,6 +841,7 @@ const RangeSlider = ({
           WebkitUserSelect: "none",
           outline: "none",
         }}
+        onPointerDown={onPointerDown}
         onMouseDown={onPointerDown}
         onTouchStart={onPointerDown}
         onMouseEnter={() => setIsHovering(true)}
@@ -1191,12 +1253,21 @@ const GradientSlider = ({
   postfix_icon,
   postfix_label,
   disabled = false,
+  material,
   /* ── gradient-specific props ───────────────────────── */
   gradient = "linear-gradient(to right, #3b82f6, #8b5cf6, #ec4899)",
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const containerRef = useRef(null);
+  const contextMaterial = useMaterial();
+  const requested = material !== undefined ? material : contextMaterial;
+  const resolvedMaterial = resolveComponentMaterial(
+    requested,
+    SLIDER_MATERIALS,
+    SLIDER_DEFAULT_MATERIAL,
+  );
+  const glass = resolvedMaterial === "glass";
 
   /* ── uncontrolled fallback ─────────────────────────── */
   const [internalValue, setInternalValue] = useState(
@@ -1350,8 +1421,9 @@ const GradientSlider = ({
 
   const onPointerDown = useCallback(
     (e) => {
-      if (disabled) return;
+      if (disabled || isDuplicateMouseDown(e)) return;
       e.preventDefault();
+      capturePointer(e);
       setIsDragging(true);
       setIsPressed(true);
       const cx = e.clientX ?? e.touches?.[0]?.clientX;
@@ -1362,21 +1434,28 @@ const GradientSlider = ({
 
   useEffect(() => {
     if (!isDragging) return;
-    const onMove = (e) => {
-      const cx = e.clientX ?? e.touches?.[0]?.clientX;
-      if (cx !== undefined) handleChange(getValueFromX(cx));
-    };
     const onUp = () => {
       setIsDragging(false);
       setIsPressed(false);
     };
+    const onMove = (e) => {
+      if (isReleasedOutside(e)) return onUp();
+      const cx = e.clientX ?? e.touches?.[0]?.clientX;
+      if (cx !== undefined) handleChange(getValueFromX(cx));
+    };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("blur", onUp);
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("blur", onUp);
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onUp);
     };
@@ -1428,7 +1507,16 @@ const GradientSlider = ({
   const TRACK_T =
     `height 0.36s ${DECEL}, ` +
     `border-radius 0.36s ${DECEL}, ` +
-    `box-shadow 0.36s ${DECEL}`;
+    `box-shadow 0.36s ${DECEL}, ` +
+    `left 0.36s ${DECEL}, ` +
+    `width 0.36s ${DECEL}`;
+  /* glass at rest: the track retracts to the thumb-travel range so the colour
+     core stays concentric with the track's rounded end at the extremes (no
+     sliver of track peeking past the thumb in the thin state). On activation
+     it morphs out to the full-width pill, and the gradient swaps to its
+     extended mapping so the colours stay aligned. Plain keeps the full-width
+     track it has always had. */
+  const trackRetracted = glass && !isActivated;
   const trackDepthShadow = isActivated
     ? isDark
       ? "inset 0 1px 3px rgba(0,0,0,0.35)"
@@ -1477,6 +1565,7 @@ const GradientSlider = ({
           WebkitUserSelect: "none",
           outline: "none",
         }}
+        onPointerDown={onPointerDown}
         onMouseDown={onPointerDown}
         onTouchStart={onPointerDown}
         onMouseEnter={() => !disabled && setIsHovering(true)}
@@ -1491,8 +1580,8 @@ const GradientSlider = ({
           style={{
             position: "absolute",
             top: "50%",
-            left: 0,
-            width: W,
+            left: trackRetracted ? selectableStart : 0,
+            width: trackRetracted ? selectableW : W,
             height: currentTrackH,
             borderRadius: currentTrackR,
             overflow: "hidden",
@@ -1502,12 +1591,13 @@ const GradientSlider = ({
             boxShadow: trackBoxShadow,
           }}
         >
-          {/* Gradient fill — always shown */}
+          {/* Gradient fill — extended mapping when full-width, raw gradient
+              when the track is retracted to the (linear) travel range */}
           <div
             style={{
               position: "absolute",
               inset: 0,
-              background: mappedGradientCSS,
+              background: trackRetracted ? gradient : mappedGradientCSS,
               borderRadius: "inherit",
             }}
           />
@@ -1542,33 +1632,90 @@ const GradientSlider = ({
             );
           })}
 
-        {/* ─── Thumb — always visible, bordered circle with gradient color ─── */}
-        <div
-          data-testid="gradient-slider-thumb"
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: thumbLeftPx,
-            width: currentThumbSize,
-            height: currentThumbSize,
-            borderRadius: "50%",
-            background: gradientThumbBackground ?? thumbColor,
-            border: `${gradientThumbBorderWidth}px solid ${gradientThumbBorderColor}`,
-            boxShadow:
-              "0 1px 4px rgba(0,0,0,0.22), 0 0 0 0.5px rgba(0,0,0,0.08)",
-            transform: `translate(-50%, -50%) scale(${thumbScale})`,
-            transition: isDragging
-              ? `transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), ` +
-                `width 0.32s ${DECEL}, height 0.32s ${DECEL}, ` +
-                `background-color 0.08s ease`
-              : `left 0.18s cubic-bezier(0.4,0,0.2,1), ` +
-                `transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), ` +
-                `width 0.32s ${DECEL}, height 0.32s ${DECEL}, ` +
-                `background-color 0.15s ease`,
-            pointerEvents: "none",
-            zIndex: 4,
-          }}
-        />
+        {/* ─── Thumb ─── */}
+        {glass ? (
+          <>
+            {/* frosted ring — hidden at rest, blooms on hover around the colour core */}
+            <div
+              data-testid="gradient-slider-thumb"
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: thumbLeftPx,
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                boxSizing: "border-box",
+                opacity: isActivated ? 1 : 0,
+                transform: `translate(-50%, -50%) scale(${isActivated ? (isPressed ? 1.18 : 1) : 0.4})`,
+                transition: isDragging
+                  ? `opacity 0.18s ease, box-shadow 0.32s ${DECEL}, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)`
+                  : `left 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease, box-shadow 0.32s ${DECEL}, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)`,
+                background: isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(255,255,255,0.22)",
+                backdropFilter: "blur(4px)",
+                WebkitBackdropFilter: "blur(4px)",
+                border: isDark
+                  ? "1px solid rgba(255,255,255,0.18)"
+                  : "1px solid rgba(255,255,255,0.55)",
+                boxShadow: isDark
+                  ? "0 2px 8px rgba(0,0,0,0.5), inset 0 0 0 0.5px rgba(255,255,255,0.12)"
+                  : "0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 0.5px rgba(255,255,255,0.7)",
+                pointerEvents: "none",
+                zIndex: 4,
+              }}
+            />
+            {/* colour core — ALWAYS visible so the selected colour reads even at rest */}
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: thumbLeftPx,
+                width: isActivated ? 10 : 13,
+                height: isActivated ? 10 : 13,
+                borderRadius: "50%",
+                background: gradientThumbBackground ?? thumbColor,
+                boxShadow:
+                  "0 0 0 2px rgba(255,255,255,0.95), 0 1px 3px rgba(0,0,0,0.3)",
+                transform: `translate(-50%, -50%) scale(${isPressed ? 1.1 : 1})`,
+                transition: isDragging
+                  ? `width 0.32s ${DECEL}, height 0.32s ${DECEL}, background-color 0.1s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)`
+                  : `left 0.18s cubic-bezier(0.4,0,0.2,1), width 0.32s ${DECEL}, height 0.32s ${DECEL}, background-color 0.12s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)`,
+                pointerEvents: "none",
+                zIndex: 5,
+              }}
+            />
+          </>
+        ) : (
+          // plain: always-visible bordered circle showing the gradient colour
+          <div
+            data-testid="gradient-slider-thumb"
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: thumbLeftPx,
+              width: currentThumbSize,
+              height: currentThumbSize,
+              borderRadius: "50%",
+              background: gradientThumbBackground ?? thumbColor,
+              border: `${gradientThumbBorderWidth}px solid ${gradientThumbBorderColor}`,
+              boxShadow:
+                "0 1px 4px rgba(0,0,0,0.22), 0 0 0 0.5px rgba(0,0,0,0.08)",
+              transform: `translate(-50%, -50%) scale(${thumbScale})`,
+              transition: isDragging
+                ? `transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), ` +
+                  `width 0.32s ${DECEL}, height 0.32s ${DECEL}, ` +
+                  `background-color 0.08s ease`
+                : `left 0.18s cubic-bezier(0.4,0,0.2,1), ` +
+                  `transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), ` +
+                  `width 0.32s ${DECEL}, height 0.32s ${DECEL}, ` +
+                  `background-color 0.15s ease`,
+              pointerEvents: "none",
+              zIndex: 4,
+            }}
+          />
+        )}
 
         {/* ─── Floating tooltip above thumb ─── */}
         {show_tooltip && (

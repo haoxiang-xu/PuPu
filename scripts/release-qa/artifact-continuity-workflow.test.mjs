@@ -22,10 +22,17 @@ test("release builds Unchain once and every test/package consumes the same bytes
     "only the deterministic producer may checkout Unchain",
   );
   assert.match(workflow, /name: unchain-release-artifact/);
+  assert.match(workflow, /Create the single controlled Memory V2 build snapshot/);
+  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
+  assert.match(workflow, /name: memory-v2-build-feature-snapshot/);
+  assert.match(workflow, /Download the immutable Memory V2 build snapshot/);
+  assert.match(workflow, /Verify the downloaded Memory V2 build snapshot bytes/);
+  assert.match(workflow, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=/);
   assert.match(workflow, /Download the deterministic Unchain artifact/);
   assert.match(workflow, /UNCHAIN_ARTIFACT_PATH/);
   assert.match(workflow, /UNCHAIN_ARTIFACT_EVIDENCE_PATH/);
   assert.match(workflow, /package-sidecar-smoke\.mjs/);
+  assert.match(workflow, /--snapshot "\$PUPU_BUILD_FEATURE_SNAPSHOT_PATH"/);
   assert.match(workflow, /executed_tests/);
   assert.match(workflow, /--bytes-only true/);
   assert.match(

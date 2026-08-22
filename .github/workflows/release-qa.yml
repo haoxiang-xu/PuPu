@@ -16,6 +16,7 @@ on:
         options:
           - lite
           - release
+          - windows-active-qualification
         default: lite
       run_unchain_analysis:
         description: "Run optional Unchain advisory analysis"
@@ -36,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       UNCHAIN_SOURCE_REF: ${{ inputs.unchain_ref || 'dev' }}
-      QA_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && 'release' || 'lite' }}
+      QA_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || github.event.inputs.qa_mode || 'lite' }}
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
@@ -61,11 +62,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Quorum boundary protocol gate
-        id: quorum_boundary
-        working-directory: pupu
-        run: npm run test:quorum-boundary
 
       - name: Install Node dependencies
         working-directory: pupu
@@ -107,6 +103,31 @@ jobs:
           path: |
             pupu/.release-qa/unchain-artifact/*.whl
             pupu/.release-qa/unchain-artifact/unchain-artifact.json
+          if-no-files-found: error
+
+      - name: Create the single controlled Memory V2 build snapshot
+        id: build_feature_snapshot
+        working-directory: pupu
+        shell: bash
+        run: |
+          SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"
+          node scripts/write-build-feature-snapshot.cjs \
+            --out "$SNAPSHOT_PATH" \
+            --profile contracts/memory-v2/release-profile.shadow.v1.json
+          SNAPSHOT_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"
+          printf '%s\n' "$SNAPSHOT_SHA256" > "${SNAPSHOT_PATH}.sha256"
+          {
+            echo "snapshot_path=$SNAPSHOT_PATH"
+            echo "snapshot_sha256=$SNAPSHOT_SHA256"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload the immutable Memory V2 build snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-v2-build-feature-snapshot
+          path: |
+            pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+            pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json.sha256
           if-no-files-found: error
 
       - name: Resolve QA version
@@ -205,13 +226,12 @@ jobs:
         env:
           QA_PLATFORM_NAME: deterministic
           QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}
-          QA_REQUIRED_CHECKS_JSON: '["Quorum boundary protocol","Unchain artifact continuity","Unchain runtime protocol manifest","Context V2 boundary contracts","RunBundle v1 boundary contracts"]'
+          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Unchain runtime protocol manifest","Context V2 boundary contracts","RunBundle v1 boundary contracts"]'
           QA_CHECKS_JSON: |
             [
               {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},
               {"name":"electron tests","command":"npm run test:electron","outcome":"${{ steps.electron.outcome }}"},
               {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
-              {"name":"Quorum boundary protocol","command":"npm run test:quorum-boundary","outcome":"${{ steps.quorum_boundary.outcome }}"},
               {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
               {"name":"Unchain runtime protocol manifest","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
               {"name":"Context V2 boundary contracts","command":"npm run test:context-v2-contract","outcome":"${{ steps.context_v2_contract.outcome }}","executed_tests":${{ steps.context_v2_contract.outputs.executed_tests || 0 }}},
@@ -243,9 +263,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON((startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON((startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' || github.event.inputs.qa_mode == 'windows-active-qualification') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     env:
-      QA_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && 'release' || 'lite' }}
+      QA_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || github.event.inputs.qa_mode || 'lite' }}
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
@@ -284,15 +304,22 @@ jobs:
             npm run test:e2e
           fi
 
+      - name: Verify nonzero Playwright execution evidence
+        id: playwright_evidence
+        if: always()
+        continue-on-error: true
+        run: node scripts/release-qa/verify-playwright-execution.mjs --results test-results/playwright/results.json
+
       - name: Write Playwright QA report
         if: always()
         env:
           QA_PLATFORM_NAME: playwright-${{ runner.os }}
           QA_PLATFORM_COMMAND: npm run test:e2e
+          QA_REQUIRED_CHECKS_JSON: '["Playwright Electron release smoke"]'
           QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
           QA_CHECKS_JSON: |
             [
-              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}"}
+              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
 
@@ -318,7 +345,7 @@ jobs:
   package-matrix:
     name: Package ${{ matrix.name }}
     needs: deterministic-checks
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' }}
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' || github.event.inputs.qa_mode == 'windows-active-qualification' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -362,6 +389,28 @@ jobs:
         with:
           name: unchain-release-artifact
           path: pupu/.release-qa/unchain-artifact
+
+      - name: Download the immutable Memory V2 build snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: memory-v2-build-feature-snapshot
+          path: pupu/.release-qa/build-feature-snapshot
+
+      - name: Verify the downloaded Memory V2 build snapshot bytes
+        working-directory: pupu
+        shell: bash
+        run: |
+          SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"
+          EXPECTED_SHA256="$(tr -d '\r\n' < "${SNAPSHOT_PATH}.sha256")"
+          ACTUAL_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"
+          if [ -z "$EXPECTED_SHA256" ] || [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "::error title=Build feature snapshot mismatch::downloaded snapshot bytes differ from producer evidence"
+            exit 1
+          fi
+          {
+            echo "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$SNAPSHOT_PATH"
+            echo "PUPU_BUILD_FEATURE_SNAPSHOT_SHA256=$ACTUAL_SHA256"
+          } >> "$GITHUB_ENV"
 
       - name: Verify downloaded immutable Unchain bytes
         id: artifact_verify
@@ -427,6 +476,7 @@ jobs:
             --binary "$SIDECAR_BINARY" \
             --artifact "$UNCHAIN_ARTIFACT_PATH" \
             --evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH" \
+            --snapshot "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" \
             --out packaged-sidecar-smoke.json
 
       - name: Write package QA report
@@ -514,6 +564,8 @@ jobs:
       - deterministic-checks
       - playwright-electron
       - package-matrix
+    env:
+      QA_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || github.event.inputs.qa_mode || 'lite' }}
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
@@ -537,6 +589,8 @@ jobs:
         run: |
           node scripts/release-qa/merge-reports.mjs \
             --input-dir ../qa-job-reports \
+            --mode "$QA_MODE" \
+            --expected-report-manifest contracts/memory-v2/release-qa-report-topology.v1.json \
             --out-json release-qa-report.json \
             --out-md release-qa-report.md
 
@@ -573,20 +627,32 @@ jobs:
           fi
           node scripts/release-qa/merge-reports.mjs \
             --input-dir ../qa-job-reports \
+            --mode "$QA_MODE" \
+            --expected-report-manifest contracts/memory-v2/release-qa-report-topology.v1.json \
             --out-json release-qa-report.json \
             --out-md release-qa-report.md \
             --fail-on-deterministic-failure true \
             "${ANALYSIS_ARGS[@]}"
           cat release-qa-report.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Enforce final deterministic result
+      - name: Enforce final required report topology
         if: always()
         working-directory: pupu
         env:
           DETERMINISTIC_JOB_RESULT: ${{ needs.deterministic-checks.result }}
+          PLAYWRIGHT_JOB_RESULT: ${{ needs.playwright-electron.result }}
+          PACKAGE_JOB_RESULT: ${{ needs.package-matrix.result }}
         run: |
           if [ "$DETERMINISTIC_JOB_RESULT" != "success" ]; then
             echo "::error title=Deterministic job failed::deterministic-checks result was $DETERMINISTIC_JOB_RESULT"
+            exit 1
+          fi
+          if [ "$PLAYWRIGHT_JOB_RESULT" != "success" ]; then
+            echo "::error title=Playwright job failed::playwright-electron result was $PLAYWRIGHT_JOB_RESULT"
+            exit 1
+          fi
+          if [ "$QA_MODE" != "lite" ] && [ "$PACKAGE_JOB_RESULT" != "success" ]; then
+            echo "::error title=Package matrix failed::package-matrix result was $PACKAGE_JOB_RESULT"
             exit 1
           fi
           node -e "const r=require('./release-qa-report.json'); if (r.deterministic_result.status !== 'passed') { console.error('Final Release QA incomplete or failed'); process.exit(1); }"

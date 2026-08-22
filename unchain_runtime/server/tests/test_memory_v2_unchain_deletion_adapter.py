@@ -208,6 +208,53 @@ def _row_count(database_path: Path, table_name: str, owner_chat_id: str) -> int:
         )
 
 
+def test_host_deletion_of_absent_database_returns_no_store_without_writes(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "memory_v2"
+    database_path = root / "context_v2.sqlite3"
+
+    result = delete_pupu_unchain_chat(
+        database_path=database_path,
+        owner_chat_id="chat-missing",
+        operation_id="delete-missing",
+    )
+
+    assert result == {
+        "schema": "pupu.context_v2_no_store_chat_deletion.v1",
+        "deleted": True,
+        "owner_chat_id": "chat-missing",
+        "outcome": "not_present",
+    }
+    assert not root.exists()
+
+
+def test_host_deletion_of_blank_database_returns_no_store_without_mutation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "memory_v2"
+    root.mkdir()
+    database_path = root / "context_v2.sqlite3"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("PRAGMA user_version=0")
+    before = database_path.read_bytes()
+
+    result = delete_pupu_unchain_chat(
+        database_path=database_path,
+        owner_chat_id="chat-missing",
+        operation_id="delete-missing",
+    )
+
+    assert result == {
+        "schema": "pupu.context_v2_no_store_chat_deletion.v1",
+        "deleted": True,
+        "owner_chat_id": "chat-missing",
+        "outcome": "not_present",
+    }
+    assert database_path.read_bytes() == before
+    assert not (root / "context_v2.owner.json").exists()
+
+
 def test_host_deletion_resolves_exact_lifecycle_and_replays_after_restart(
     tmp_path: Path,
 ) -> None:

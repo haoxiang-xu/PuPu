@@ -1,9 +1,11 @@
 # 法典 · Codex
 
+> **已于 2026-08-21 完全退役。** 本目录仅保存历史制度与事故考古材料，不再是 PuPu 的生效规则。禁止用其中的 owner、Quorum、case、proposal、ruling、handoff 或庭审内容授权、阻断或组织新工作。当前规则只看根目录 `CLAUDE.md`、`AGENTS.md`、`.claude/CLAUDE.md` 和对应 Release skill。
+
 > **quorum** — 议事有效所需的最少出席者；在分布式系统中，则是达成决议所需的最小节点集。
 > 两个含义在此合一：[本文的传唤机制](lifecycle/summons.md)，管的正是"该到的人到齐了没有"。
 
-本目录是 PuPu 当前生效的 Quorum 法典副本，归 [`codex`](roles/codex.md) 维护。具体角色 instance 位于 `.claude/agents/`；历史案卷位于 `.claude/court/`。
+本目录是 PuPu 已退役的 Quorum 法典历史副本。角色材料与案卷同样只读，不再参与当前工作流。
 
 ## 来源与版本
 
@@ -12,10 +14,10 @@
 | 上游 | `https://github.com/haoxiang-xu/quorum.git` · `docs/quorum/` |
 | 已提交迁入基线 | `ab40f4d` · 2026-08-10 |
 | 当前同步状态 | 2026-08-12 冻结的上游未提交 working tree；source manifest `72e37a93…`，normative manifest `ba173463…`；commit pin 待上游提交后回填 |
-| 本地生效副本 | `.claude/codex/` |
+| 本地历史副本 | `.claude/codex/` |
 | PuPu 专有差异 | [`adaptations.md`](adaptations.md) |
 
-上游是通用规范来源，本目录是 PuPu 的生效版本。当前 Boundary Protocol v1 是经 CEO 授权从同机 Quorum working tree 选择性同步的已批准内容；在上游产生 commit 前，不得为它捏造 commit SHA。冻结内容由 `.claude/skills/case/boundary_vendor_verify.py` 的精确 manifest、逐文件 hash 与 sibling byte parity 验证。同步不得覆盖 `.claude` 路径适配、混合执行政策、判例或历史兼容页；所有本仓偏离都必须在 `adaptations.md` 说明。
+上游曾是通用规范来源，本目录曾作为 PuPu 的生效版本；该关系已终止。后文的 Boundary Protocol、冻结工具与差异说明只解释历史状态，不构成当前要求。
 
 ## 推荐阅读顺序
 
@@ -61,6 +63,7 @@
 
 - [`adaptations.md`](adaptations.md) —— 因地制宜台账与上游同步记录
 - [`hybrid-execution-policy.md`](hybrid-execution-policy.md) —— Claude/Codex 混合执行政策
+- [`release-skill-mapping.md`](release-skill-mapping.md) —— release-* skill 套件的角色映射：谁的边界被触及、各自止步之处
 - [`precedents/`](precedents/) —— 判例库
 - [`lifecycle/tracks.md`](lifecycle/tracks.md) —— 旧 Track 案卷的只读兼容说明，不具现行效力
 - [`lifecycle/quorum.md`](lifecycle/quorum.md) —— 旧 roster 案卷与调度故障的只读兼容说明，不具现行增员效力

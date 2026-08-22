@@ -10,6 +10,7 @@ import {
   writeJson,
   writeText,
 } from "./reporting.mjs";
+import { expectedReportPlatformsForMode } from "./release-qa-mode-manifest.mjs";
 
 function parseArgs(argv) {
   const args = {};
@@ -34,6 +35,24 @@ const outJson = args["out-json"] || "release-qa-report.json";
 const outMd = args["out-md"] || "release-qa-report.md";
 const analysisPath = args["analysis-json"] || "";
 const failOnDeterministicFailure = args["fail-on-deterministic-failure"] === "true";
+const requestedMode = args.mode || "";
+const topologyPath = args["expected-report-manifest"] || "";
+let requiredReportPlatforms = [];
+if (topologyPath) {
+  if (!requestedMode) {
+    console.error("[release-qa] --mode is required with --expected-report-manifest");
+    process.exit(2);
+  }
+  try {
+    requiredReportPlatforms = expectedReportPlatformsForMode(
+      readJson(topologyPath),
+      requestedMode,
+    );
+  } catch (error) {
+    console.error(`[release-qa] invalid expected report topology: ${error.message}`);
+    process.exit(2);
+  }
+}
 
 const reportPaths = findJobReports(inputDir);
 const reports = reportPaths.map(readJson);
@@ -57,7 +76,11 @@ if (reports.length === 0) {
 }
 
 const unchainAnalysis = analysisPath ? readJson(analysisPath) : undefined;
-const merged = mergeReports(reports, { unchainAnalysis });
+const merged = mergeReports(reports, {
+  unchainAnalysis,
+  mode: requestedMode,
+  requiredReportPlatforms,
+});
 
 writeJson(outJson, merged);
 writeText(outMd, renderMarkdown(merged));

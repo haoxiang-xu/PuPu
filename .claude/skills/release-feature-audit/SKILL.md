@@ -5,9 +5,36 @@ description: "Use when a new PuPu feature finishes implementation and needs its 
 
 # Release: Feature Audit
 
-Five consistency checks against one completed feature. Run before the ticket is marked done; close-sprint roll-call treats an unaudited new feature as not-done-yet. **Scope = the feature's diff and its blast radius, not the whole repo** — except i18n, which is always a full scan (cheap, script-driven).
+Five consistency checks against one completed feature. Run before a direct
+Release sub-issue is marked Done; close-sprint treats an unaudited new feature
+as not-done-yet. **Scope = the feature's diff and its blast radius, not the
+whole repo** — except i18n, which is always a full scan (cheap, script-driven).
 
-Findings are report-first: list violations with file:line, propose the fix, let the founder/implementer decide. Only i18n missing-key auto-fill applies changes directly (rule inherited from the old i18n-coverage skill).
+Findings are report-first: list violations with file:line, propose the fix, let
+the project maintainer/implementer decide. Only i18n missing-key auto-fill applies changes
+directly (rule inherited from the old i18n-coverage skill).
+
+## Retired workflow exclusions
+
+Do not read, request, or validate implementation-owner confirmations, Quorum or
+court records, cases, proposals, rulings, handoffs, HS/RS/AT records, or any
+other retired authorization artifact. Their presence or absence must never
+affect PASS/FAIL. For cross-boundary work, use only the current Release issue or
+direct Plan plus the technical BC/SEQ/AC and immutable artifact evidence below.
+
+## Release membership
+
+For a ticket audit, first resolve the ticket's direct Size=Release parent and
+verify its Project item. The Parent issue and Sub-issues progress Project fields
+are views; GitHub's issue relationship is authoritative. A ticket without a
+Release parent may receive a standalone audit report, but it does not change
+release state. Every ticket labelled new feature needs a fresh audit PASS bound
+to its delivered candidate digest, or an explicit maintainer waiver, before its parent Release
+can close.
+
+**Plumbing:** before reading or changing a Project field, follow
+.claude/skills/release-open-sprint/board-api.md: run the project-scope preflight,
+discover the current fields, and verify the child's Project item.
 
 ## Check 1 — i18n coverage (full scan, scripts in this directory)
 
@@ -50,14 +77,55 @@ Plus: if `electron/tests/**` changed, verify the `.js`/`.cjs` twin changed too (
 
 A rendered panel is not evidence the pipeline works — PuPu has shipped a panel whose producer emitted zero records ever, with every try/except silent. So: drive the feature once in the real running app via the `test-api` skill (real LLM, `openai:gpt-4.1`; delete probe sessions) and verify **real data reaches the UI end-to-end** — not mocks, not "the component renders". If the feature has a producer side (extension/event/log), grep persisted output for at least one real record produced by your probe. `UI renders + producer silent = FAIL`, and it's the most important failure this audit can catch.
 
+If the feature changed unchain Python, restart the sidecar before this probe or
+the test is evidence for old code. If a cross-boundary contract gate applies,
+verify the required BC, SEQ, AC, and exact deployed artifact evidence before
+PASS: the PuPu candidate digest, one reused Unchain wheel SHA-256, and the
+imported runtime manifest digest.
+
 ## Output
 
-One verdict block per check: `PASS / FAIL (violations listed) / N/A (reason)`. If invoked for a ticket, append one 变更记录 line to the sprint doc (`.claude/archive/sprints/v{X.Y.Z}.md`; skip silently if none exists): `#N audited — <5 verdicts>`. No commits, tree stays dirty. Auto-filled i18n translations are listed in the report for the founder to review in the diff.
+Give one verdict block per check: PASS, FAIL with violations, or N/A with a
+reason. For a ticket audit, post a structured comment on the child issue:
+
+~~~
+<!-- release-feature-audit:v2 -->
+## Release feature audit — YYYY-MM-DD
+Release: #PARENT
+Overall: PASS | FAIL
+1. i18n: PASS | FAIL | N/A — reason
+2. UI: PASS | FAIL | N/A — reason
+3. model × agent builder: PASS | FAIL | N/A — reason
+4. static rules: PASS | FAIL | N/A — reason
+5. end-to-end: PASS | FAIL | N/A — reason
+Candidate digest: sha256:<64 hex>
+Unchain wheel SHA-256: sha256:<64 hex> | N/A
+Runtime manifest digest: sha256:<64 hex> | N/A
+Evidence: links, commands, and sidecar/BC/SEQ/artifact verdict where applicable
+~~~
+
+Overall PASS requires every applicable check to pass. N/A needs its reason.
+On PASS, set the child Project Status to In Review; the audit never closes the
+issue or marks it Done. Normal acceptance may close a PASS child and set Done.
+On FAIL, keep or return the child to In Progress. A PASS is fresh only if its
+Candidate digest equals the delivered candidate; any candidate-input change
+changes that digest and requires a new audit. Git ref, source revision, and
+working-tree cleanliness may be recorded as provenance but never determine
+runtime compatibility or audit admission.
+
+An audit waiver must be explicitly approved by the project maintainer and recorded on both
+the child and Release parent with the marker
+<!-- release-audit-waiver:v2 -->, omitted gate, candidate digest, risk, reason,
+approver, and date. No commits. Auto-filled i18n translations remain listed for
+review.
 
 ## Common mistakes
 
 - Auditing the whole repo for checks 2–5 — scope is the feature's diff; repo-wide sweeps drown the signal.
+- Consulting retired owner/court/case records or treating them as an audit gate.
 - Marking check 5 PASS because the UI renders with mock/dev data — only a real-app probe with real output counts.
 - Treating check 3 as N/A because "it's just a provider preset" — presets surface in builder pickers; verify, then say N/A.
 - Auto-applying anything beyond i18n missing-key fills.
 - Running i18n scripts from the old `.claude/skills/cto/...` or `.claude/skills/i18n-coverage/...` paths — they live HERE now.
+- Treating any audit comment as a PASS, or marking a child Done from this skill.
+- Writing audit state to a sprint document instead of the child and Release issues.

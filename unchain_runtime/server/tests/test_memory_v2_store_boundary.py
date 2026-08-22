@@ -24,6 +24,7 @@ from memory_v2_store_boundary import (
     admit_context_v2_store_owner,
     inspect_context_v2_database,
     open_context_v2_owned_store,
+    read_context_v2_store_owner_manifest,
 )
 
 
@@ -110,6 +111,13 @@ def test_first_blank_store_claim_is_durable_and_losing_factory_never_runs(
 
     assert raised.value.code == "context_v2_store_owner_conflict"
     assert opened == [STORE_OWNER_PUPU_LEGACY]
+
+
+def test_read_owner_manifest_is_read_only_when_root_is_absent(tmp_path: Path) -> None:
+    root = tmp_path / "memory_v2"
+
+    assert read_context_v2_store_owner_manifest(root) is None
+    assert not root.exists()
 
 
 def test_existing_legacy_schema_blocks_unchain_without_rewriting_data(

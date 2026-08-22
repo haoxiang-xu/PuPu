@@ -849,6 +849,42 @@ describe("context v2 controlled bridge — boundary validation", () => {
     });
   });
 
+  test("delete-chat preserves the sidecar retryable classification for the private outbox", async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValue(
+        jsonResponse(
+          {
+            error: {
+              code: "context_v2_store_schema_incompatible",
+              message: "schema cannot be resolved",
+              retryable: false,
+              ignored: "must not be projected",
+            },
+          },
+          { ok: false, status: 503 },
+        ),
+      );
+    const service = await startService(fetchImpl);
+
+    const rejection = await service
+      .deleteContextV2Chat({
+        ownerChatId: "chat-1",
+        operationId: "op-delete-typed-error-0001",
+      })
+      .catch((error) => error);
+
+    expect(rejection).toMatchObject({
+      code: "context_v2_store_schema_incompatible",
+      retryable: false,
+    });
+    expect(rejection.message).toBe(
+      "[context_v2_store_schema_incompatible] context v2 request failed",
+    );
+    expect(rejection.message).not.toContain("schema cannot be resolved");
+  });
+
   test("candidate decision is an enum and its body is allowlisted", async () => {
     const { service, fetchImpl } = await startReadyService({ ok: true });
 
@@ -1419,6 +1455,7 @@ describe("context v2 controlled bridge — error containment", () => {
 
     expect(rejection).toBeInstanceOf(Error);
     expect(rejection.code).toBe(code);
+    expect(rejection.retryable).toBe(retryable);
     expect(rejection.message).toBe(`[${code}] context v2 request failed`);
     expect(rejection.message).not.toContain("sidecar detail");
   });
@@ -1437,6 +1474,7 @@ describe("context v2 controlled bridge — error containment", () => {
       .catch((error) => error);
 
     expect(rejection.code).toBe("context_v2_unreachable");
+    expect(rejection.retryable).toBe(true);
     expect(rejection.message).toBe(
       "[context_v2_unreachable] context v2 runtime is unreachable",
     );

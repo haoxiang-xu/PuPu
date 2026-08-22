@@ -36,8 +36,6 @@ import {
   clearThemeCustomColor,
   writeThemeDetailValue,
   clearThemeDetailValue,
-  readShowAllTiers,
-  writeShowAllTiers,
 } from "./storage";
 import { ADVANCED_TIERS, advancedTokenState } from "./advanced_state";
 
@@ -156,8 +154,28 @@ const ThemeEditor = () => {
 
   const [draftColor, setDraftColor] = useState(null);
 
+  /* One way to express "settings, with this uncommitted color in them", so the
+     preview card and the live CSS vars cannot drift apart. */
+  const settingsWithColor = (mode, key, value) => ({
+    preset: settings.preset,
+    custom: {
+      ...settings.custom,
+      [mode]: {
+        ...(settings.custom?.[mode] || {}),
+        [key]: value,
+      },
+    },
+  });
+
+  /* Resolve, don't key-patch. A shallow `{...palette, [key]: value}` moves the
+     root and leaves every tier hanging off it — sidebar, surface — on its
+     committed value, so the card's own background jumped while its sidebar
+     strip and bubble waited for the commit. */
   const cardPalette = draftColor
-    ? { ...palette, [draftColor.key]: draftColor.value }
+    ? resolveSemanticPalette(
+        editMode,
+        settingsWithColor(editMode, draftColor.key, draftColor.value),
+      )
     : palette;
 
   const previewThemeColor = (mode, key, value) => {
@@ -165,16 +183,10 @@ const ThemeEditor = () => {
     if (mode !== activeMode) {
       return;
     }
-    const livePalette = resolveSemanticPalette(activeMode, {
-      preset: settings.preset,
-      custom: {
-        ...settings.custom,
-        [mode]: {
-          ...(settings.custom?.[mode] || {}),
-          [key]: value,
-        },
-      },
-    });
+    const livePalette = resolveSemanticPalette(
+      activeMode,
+      settingsWithColor(mode, key, value),
+    );
     const liveDetails = resolveThemeDetails(activeMode, {
       preset: settings.preset,
       details: settings.details,
@@ -215,14 +227,6 @@ const ThemeEditor = () => {
   };
 
   const advState = advancedTokenState(settings, editMode, palette);
-
-  const [showAllTiers, setShowAllTiers] = useState(() => readShowAllTiers());
-  const onToggleShowAllTiers = () => {
-    setShowAllTiers((prev) => {
-      writeShowAllTiers(!prev);
-      return !prev;
-    });
-  };
 
   /* Resolved alphas for the edited mode; a key present in
      settings.details[mode] means that step is PINNED. */
@@ -479,9 +483,9 @@ const ThemeEditor = () => {
   );
 
   /* Family roots keep the " color" suffix so a screen reader can tell the
-     picker apart from the expander row that carries the same name. Whether
-     the row has children must NOT depend on the Show-all-tiers toggle, or
-     the accessible name would change under the user. */
+     picker apart from the expander row that carries the same name. Every
+     family with children reads the same way whether or not the row is
+     expanded, so the accessible name never changes under the user. */
   const colorPickerFor = (key, value) => (
     <ColorPicker
       label={
@@ -535,6 +539,7 @@ const ThemeEditor = () => {
           )}
           <div style={{ width: 96 }}>
             <GradientSlider
+              material="glass"
               value={Math.round(alpha * 100)}
               set_value={(v) => previewAlpha(step, Math.round(v) / 100)}
               min={0}
@@ -575,7 +580,7 @@ const ThemeEditor = () => {
   for (const key of topLevelKeys) {
     explorerRoot.push(key);
     const tierChildren = DERIVED_CHILDREN[key] || [];
-    const stepChildren = showAllTiers ? alphaStepsFor(key) : [];
+    const stepChildren = alphaStepsFor(key);
     const childKeys = [...tierChildren, ...stepChildren.map((s) => s.key)];
 
     const linkedCount = tierChildren.filter((k) => advState[k].isLinked).length;
@@ -627,26 +632,24 @@ const ThemeEditor = () => {
      rather than burying four "fill" steps inside Text keeps the fill-vs-
      stroke distinction legible, which is the entire reason overlay and
      border are separate families. */
-  if (showAllTiers) {
-    explorerRoot.push(OVERLAY_GROUP);
-    explorerData[OVERLAY_GROUP] = {
-      label: "Overlay",
-      children: OVERLAY_STEPS.map((s) => s.key),
-      trailing: (
-        <span
-          style={{
-            fontSize: 11,
-            color: "var(--pupu-text-faint)",
-            paddingRight: 4,
-          }}
-        >
-          follows Text
-        </span>
-      ),
-    };
-    for (const step of OVERLAY_STEPS) {
-      explorerData[step.key] = alphaRow(step);
-    }
+  explorerRoot.push(OVERLAY_GROUP);
+  explorerData[OVERLAY_GROUP] = {
+    label: "Overlay",
+    children: OVERLAY_STEPS.map((s) => s.key),
+    trailing: (
+      <span
+        style={{
+          fontSize: 11,
+          color: "var(--pupu-text-faint)",
+          paddingRight: 4,
+        }}
+      >
+        follows Text
+      </span>
+    ),
+  };
+  for (const step of OVERLAY_STEPS) {
+    explorerData[step.key] = alphaRow(step);
   }
 
   return (
@@ -690,12 +693,6 @@ const ThemeEditor = () => {
           button_style={{ padding: "4px 10px" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <Button
-            label={showAllTiers ? "Hide tiers" : "Show all tiers"}
-            ariaLabel={showAllTiers ? "Hide tiers" : "Show all tiers"}
-            onClick={onToggleShowAllTiers}
-            style={textToolButtonStyle()}
-          />
           <Button
             label="Import"
             ariaLabel="Import theme"

@@ -198,7 +198,12 @@ describe("ColorPickerPanel", () => {
     expect(screen.getByTestId("color-picker-value-b")).toBeInTheDocument();
   });
 
-  it("uses white thumb borders in light mode", async () => {
+  /* The SV square still draws a plain white ring. The hue and alpha sliders
+     moved to the glass material, where that job is done by a frosted rim
+     (plus a white ring around the colour core) instead of a flat border —
+     same intent, different mark: the thumb must read against whatever hue
+     sits under it. */
+  it("keeps the thumb reading white in light mode — plain ring on SV, frosted rim on the sliders", async () => {
     renderWithTheme(<ColorPickerPanel value="#3D76C9" set_value={jest.fn()} />, {
       nextTheme: { ...theme, color: "#222222", backgroundColor: "#FFFFFF" },
       mode: "light_mode",
@@ -210,16 +215,17 @@ describe("ColorPickerPanel", () => {
     ).toBe(
       "2.5px solid #ffffff",
     );
-    expect(
-      within(screen.getByTestId("color-picker-hue")).getByTestId(
+    for (const row of ["color-picker-hue", "color-picker-alpha"]) {
+      const thumb = within(screen.getByTestId(row)).getByTestId(
         "gradient-slider-thumb",
-      ).style.border.toLowerCase(),
-    ).toBe("2.5px solid #ffffff");
-    expect(
-      within(screen.getByTestId("color-picker-alpha")).getByTestId(
-        "gradient-slider-thumb",
-      ).style.border.toLowerCase(),
-    ).toBe("2.5px solid #ffffff");
+      );
+      expect(thumb.style.border.toLowerCase()).toBe(
+        "1px solid rgba(255,255,255,0.55)",
+      );
+      expect(
+        thumb.style.backdropFilter || thumb.style.webkitBackdropFilter,
+      ).toContain("blur");
+    }
   });
 });
 

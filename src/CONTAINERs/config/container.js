@@ -523,10 +523,19 @@ const ConfigContainer = ({ children }) => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor:
+          /* ONE declaration, fallback inside the var — same shape as
+             ThemeBootScreen above. A separate literal `backgroundColor`
+             alongside a `background: var(...)` shorthand does not degrade
+             gracefully: the two write the same CSSOM slot, the literal wins,
+             and the shell then paints the JS theme instead of the variable.
+             That is invisible at rest (both carry the same value) and shows
+             up only while the theme editor is previewing — CSS vars update
+             live on every drag, `theme` only on commit, so the shell behind
+             the message list used to lag until the picker closed. */
+          background: `var(--pupu-background, ${
             theme?.backgroundColor ||
-            (onThemeMode === "dark_mode" ? "#121212" : "#FFFFFF"),
-          background: theme?.semantic ? "var(--pupu-background)" : undefined,
+            (onThemeMode === "dark_mode" ? "#121212" : "#FFFFFF")
+          })`,
         }}
       >
         {isThemeBooting ? (

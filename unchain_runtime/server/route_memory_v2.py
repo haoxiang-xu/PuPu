@@ -18,7 +18,7 @@ from context_memory_v2_capability import (
 )
 from memory_v2_rollout import normalize_rollout_mode, resolve_memory_v2_rollout
 from memory_v2_runtime import get_memory_v2_runtime
-from memory_v2_store import MemoryV2Error
+from memory_v2_store import MemoryV2Error, MemoryV2Store
 from memory_v2_store_boundary import (
     CONTEXT_V2_DATABASE_FILENAME,
     STORE_OWNER_OFF,
@@ -27,6 +27,8 @@ from memory_v2_store_boundary import (
     ContextV2StoreBoundaryError,
     configured_context_v2_store_owner,
     inspect_context_v2_database,
+    open_context_v2_owned_store,
+    read_context_v2_store_owner_manifest,
 )
 from route_blueprint import api_blueprint
 
@@ -856,25 +858,17 @@ def _status_for_store_owner() -> dict[str, Any]:
         ) from error
 
 
-def _delete_chat_for_store_owner(
-    *,
-    owner_chat_id: str,
-    operation_id: str,
-) -> dict[str, Any]:
+def _context_v2_deletion_store_state() -> tuple[Path, str]:
+    """Resolve stored deletion authority without admitting either data plane."""
+
     try:
-        store_owner = configured_context_v2_store_owner()
+        configured_context_v2_store_owner()
     except ContextV2StoreBoundaryError as error:
         raise MemoryV2Error(
             error.code,
             str(error),
             status_code=503,
         ) from error
-    if store_owner != STORE_OWNER_UNCHAIN:
-        return _runtime().delete_chat(
-            owner_chat_id=owner_chat_id,
-            operation_id=operation_id,
-        )
-
     raw_data_dir = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
     if not raw_data_dir:
         raise MemoryV2Error(
@@ -883,11 +877,80 @@ def _delete_chat_for_store_owner(
             status_code=503,
             retryable=True,
         )
-    database_path = (
-        Path(raw_data_dir).expanduser().resolve()
-        / "memory_v2"
-        / CONTEXT_V2_DATABASE_FILENAME
-    )
+    root_dir = Path(raw_data_dir).expanduser().resolve() / "memory_v2"
+    try:
+        manifest_owner = read_context_v2_store_owner_manifest(root_dir)
+        inspection = inspect_context_v2_database(
+            root_dir / CONTEXT_V2_DATABASE_FILENAME
+        )
+    except ContextV2StoreBoundaryError as error:
+        raise MemoryV2Error(
+            error.code,
+            "Context V2 storage scope could not be inspected",
+            status_code=503,
+        ) from error
+    if inspection.schema_family in {"absent", "blank"}:
+        return root_dir, "no_store"
+    if inspection.schema_family not in {
+        STORE_OWNER_PUPU_LEGACY,
+        STORE_OWNER_UNCHAIN,
+    }:
+        raise MemoryV2Error(
+            "context_v2_store_schema_incompatible",
+            "Context V2 storage scope cannot be determined safely",
+            status_code=503,
+        )
+    if manifest_owner is not None and manifest_owner != inspection.schema_family:
+        raise MemoryV2Error(
+            "context_v2_store_owner_conflict",
+            "Context V2 storage owner cannot be determined safely",
+            status_code=503,
+        )
+    return root_dir, inspection.schema_family
+
+
+def _delete_chat_for_pupu_legacy_store(
+    *,
+    root_dir: Path,
+    owner_chat_id: str,
+    operation_id: str,
+) -> dict[str, Any]:
+    def delete(admission: Any) -> dict[str, Any]:
+        store = MemoryV2Store(admission.root_dir)
+        try:
+            return store.delete_chat(
+                owner_chat_id=owner_chat_id,
+                operation_id=operation_id,
+            )
+        finally:
+            store.close()
+
+    try:
+        return open_context_v2_owned_store(
+            root_dir=root_dir,
+            requested_owner=STORE_OWNER_PUPU_LEGACY,
+            opener=delete,
+        )
+    except ContextV2StoreBoundaryError as error:
+        raise MemoryV2Error(
+            error.code,
+            "Context V2 legacy deletion is unavailable",
+            status_code=503,
+        ) from error
+
+
+def _delete_chat_for_store_owner(
+    *,
+    owner_chat_id: str,
+    operation_id: str,
+) -> dict[str, Any]:
+    root_dir, persistent_owner = _context_v2_deletion_store_state()
+    if persistent_owner == STORE_OWNER_PUPU_LEGACY:
+        return _delete_chat_for_pupu_legacy_store(
+            root_dir=root_dir,
+            owner_chat_id=owner_chat_id,
+            operation_id=operation_id,
+        )
     try:
         from memory_v2_unchain_deletion_adapter import (
             PupuUnchainChatDeletionError,
@@ -902,16 +965,20 @@ def _delete_chat_for_store_owner(
         ) from error
     try:
         return delete_pupu_unchain_chat(
-            database_path=database_path,
+            database_path=root_dir / CONTEXT_V2_DATABASE_FILENAME,
             owner_chat_id=owner_chat_id,
             operation_id=operation_id,
         )
     except PupuUnchainChatDeletionError as error:
         raise MemoryV2Error(
-            "context_v2_unchain_delete_failed",
-            "Unchain-owned chat deletion is temporarily unavailable",
-            status_code=503,
-            retryable=True,
+            error.code,
+            (
+                "Context V2 deletion request is invalid"
+                if error.code == "context_v2_invalid_request"
+                else "Unchain-owned chat deletion is unavailable"
+            ),
+            status_code=error.status_code,
+            retryable=error.retryable,
         ) from error
 
 

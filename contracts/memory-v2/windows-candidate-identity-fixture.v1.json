@@ -1,0 +1,23 @@
+{
+  "schema": "pupu.memory-v2.windows-candidate-identity-fixture.v1",
+  "payload_lineage": {
+    "arch": "x64",
+    "pupu_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "runtime_manifest_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "sidecar_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "unchain_wheel_sha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "worktree_fingerprint": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "snapshots": {
+    "active_descendant": {
+      "configured_mode": "all",
+      "feature_ceiling": "all",
+      "snapshot_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "shadow": {
+      "configured_mode": "shadow",
+      "feature_ceiling": "shadow",
+      "snapshot_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  }
+}

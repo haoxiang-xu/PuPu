@@ -36,3 +36,4 @@
 - code 代码实现责任:
     - 负责 根据最终定案的 **设计方案** 或 **重构优化方案** 等，进行 属于本代码库职责范围内的 **代码实现**
     - BC 适用时，以真实 producer 输出、实际 projection、严格 consumer 与冻结 revision 证明正负契约；SEQ 适用时执行每个 `REQUIRED` 单元格，不能只证明首次成功
+    - 对自己当前负责实现的 direct Release child，可在实施前或实施中直接细化其 GitHub issue **body**；`[DRAFT]` 只是初始意图，不需要另派 refine agent 或逐次请 project owner 确认。资格来自当前实施任务，不由 GitHub assignee 推定。须保留 project owner 已定的用户结果与 release scope；标题、labels、Size、Status、Iteration、assignee、父子关系、release 归属、延期/取消与关闭仍只可由 project owner 决定。发现这些需要变更时，交证据和选项给 project owner。

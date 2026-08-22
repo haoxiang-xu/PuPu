@@ -9,11 +9,9 @@ const {
 } = require("../electron/main/services/unchain/memory_v2_rollout");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
-const SNAPSHOT_PATH = path.join(
-  ROOT_DIR,
-  ".local",
-  "build_feature_flags.snapshot.json",
-);
+const SNAPSHOT_PATH = process.env.PUPU_BUILD_FEATURE_SNAPSHOT_PATH
+  ? path.resolve(ROOT_DIR, process.env.PUPU_BUILD_FEATURE_SNAPSHOT_PATH)
+  : path.join(ROOT_DIR, ".local", "build_feature_flags.snapshot.json");
 const RUNTIME_SNAPSHOT_PATH = path.join(
   ROOT_DIR,
   "build",
@@ -27,33 +25,52 @@ const REACT_SCRIPTS_BUILD_PATH = path.join(
   "build.js",
 );
 
+const requireSnapshot =
+  process.env.PUPU_REQUIRE_BUILD_FEATURE_SNAPSHOT === "1" ||
+  process.env.PUPU_VERSION_PREPARED === "1";
+
 const readBuildFeatureFlagsSnapshot = () => {
   if (!fs.existsSync(SNAPSHOT_PATH)) {
-    return normalizeFeatureFlags({});
+    if (requireSnapshot) {
+      throw new Error(
+        `Build feature flag snapshot is required but missing: ${SNAPSHOT_PATH}`,
+      );
+    }
+    return { loaded: false, source: {} };
   }
 
   try {
     const raw = fs.readFileSync(SNAPSHOT_PATH, "utf-8");
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return normalizeFeatureFlags({});
+      throw new Error("snapshot must be an object");
     }
 
-    return normalizeFeatureFlags(parsed);
+    return { loaded: true, source: parsed };
   } catch (error) {
-    console.warn(
-      `[build:web] Failed to read feature flag snapshot at ${SNAPSHOT_PATH}: ${error.message}`,
-    );
-    return normalizeFeatureFlags({});
+    if (requireSnapshot) {
+      throw new Error(
+        `Build feature flag snapshot is invalid at ${SNAPSHOT_PATH}: ${error.message}`,
+      );
+    }
+    console.warn(`[build:web] Failed to read feature flag snapshot at ${SNAPSHOT_PATH}: ${error.message}`);
+    return { loaded: false, source: {} };
   }
 };
 
 const printFlagsOnly = process.argv.includes("--print-flags");
-const buildFeatureFlags = readBuildFeatureFlagsSnapshot();
+let snapshot;
+try {
+  snapshot = readBuildFeatureFlagsSnapshot();
+} catch (error) {
+  console.error(`[build:web] ${error.message}`);
+  process.exit(1);
+}
+const buildFeatureFlags = normalizeFeatureFlags(snapshot.source);
 const serializedFlags = JSON.stringify(buildFeatureFlags);
 const runtimeSnapshot = createBuildFeatureSnapshot(
-  buildFeatureFlags,
-  process.env,
+  snapshot.source,
+  snapshot.loaded ? {} : process.env,
 );
 
 if (printFlagsOnly) {
@@ -63,7 +80,7 @@ if (printFlagsOnly) {
 
 console.log(
   `[build:web] Using build feature flags: ${serializedFlags} ${
-    fs.existsSync(SNAPSHOT_PATH) ? `(from ${SNAPSHOT_PATH})` : "(snapshot not found; using defaults)"
+    snapshot.loaded ? `(from ${SNAPSHOT_PATH})` : "(snapshot not found; using local defaults)"
   }`,
 );
 

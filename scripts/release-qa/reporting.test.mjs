@@ -47,7 +47,7 @@ const deterministicChecks = (overrides = {}) =>
   DETERMINISTIC_REQUIRED_CHECKS.map((name) => ({
     name,
     outcome: overrides[name] || "success",
-    executed_tests: name === "Quorum boundary protocol" ? undefined : 1,
+    executed_tests: 1,
   }));
 const packageReport = (platform, { unchain = unchainEvidence(), smoke = 4 } = {}) =>
   buildJobReport({

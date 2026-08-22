@@ -8,7 +8,9 @@ import {
 } from "react";
 
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import { selectContextCompositionView } from "../../../SERVICEs/context_composition_v1";
 
@@ -44,8 +46,10 @@ const humanize = (value) => {
   return words ? `${words.charAt(0).toUpperCase()}${words.slice(1)}` : "";
 };
 
-const formatTokens = (value) => {
-  if (!Number.isSafeInteger(value) || value < 0) return "Unavailable";
+const formatTokens = (value, t) => {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    return t("context_usage.unavailable");
+  }
   if (value >= 1000000) {
     const formatted = (value / 1000000).toFixed(1).replace(/\.0$/, "");
     return `${formatted}M`;
@@ -57,28 +61,52 @@ const formatTokens = (value) => {
   return String(value);
 };
 
-const formatPercent = (ratio) => {
+const formatPercent = (ratio, t) => {
   if (typeof ratio !== "number" || !Number.isFinite(ratio) || ratio < 0) {
-    return "Unavailable";
+    return t("context_usage.unavailable");
   }
   if (ratio > 0 && ratio < 0.001) return "<0.1%";
   const digits = ratio >= 0.1 ? 0 : 1;
   return `${(ratio * 100).toFixed(digits).replace(/\.0$/, "")}%`;
 };
 
-const qualityLabel = (quality) => {
-  if (quality === "reconciled_estimate") return "Reconciled estimate";
-  if (quality === "estimated") return "Estimated";
-  if (quality === "partial") return "Partial";
-  return "Unavailable";
+const qualityLabel = (quality, t) => {
+  if (quality === "reconciled_estimate") {
+    return t("context_usage.quality_reconciled_estimate");
+  }
+  if (quality === "estimated") return t("context_usage.quality_estimated");
+  if (quality === "partial") return t("context_usage.quality_partial");
+  return t("context_usage.unavailable");
 };
 
-const unavailableCopy = (reason) => {
+const unavailableCopy = (reason, t) => {
   if (reason === "extension_invalid") {
-    return "Receipt composition data did not pass validation.";
+    return t("context_usage.invalid_receipt");
   }
-  return "This response carried no Context Composition evidence.";
+  return t("context_usage.no_evidence");
 };
+
+const formatCallCount = (count, t) =>
+  t(
+    count === 1
+      ? "context_usage.call_count_one"
+      : "context_usage.call_count_other",
+    { count },
+  );
+
+const GROUP_LABEL_KEYS = Object.freeze({
+  instructions: "context_usage.group_instructions",
+  tools: "context_usage.group_tools",
+  skills: "context_usage.group_skills",
+  agent_coordination: "context_usage.group_agent_coordination",
+  output_contract: "context_usage.group_output_contract",
+  memory_task_state: "context_usage.group_memory_task_state",
+  files_media: "context_usage.group_files_media",
+  conversation: "context_usage.group_conversation",
+});
+
+const groupLabel = (group, t) =>
+  GROUP_LABEL_KEYS[group.id] ? t(GROUP_LABEL_KEYS[group.id]) : group.label;
 
 export const contextCompositionPalette = (theme, isDark) => ({
   background:
@@ -163,10 +191,10 @@ const hatchedStyle = (palette) => ({
 });
 
 /* ── Scope toggle — rides the title row, where the close button used to be ── */
-const ScopeToggle = ({ scope, onChange, modelCallRef, palette }) => (
+const ScopeToggle = ({ scope, onChange, modelCallRef, palette, t }) => (
   <div
     role="tablist"
-    aria-label="Composition scope"
+    aria-label={t("context_usage.scope_label")}
     style={{
       marginLeft: "auto",
       flex: "0 0 auto",
@@ -178,38 +206,36 @@ const ScopeToggle = ({ scope, onChange, modelCallRef, palette }) => (
     }}
   >
     {[
-      // "Context" is what fills the window on the next call; "Summary" is the
-      // whole turn's accounting, including subagents.
-      ["model_call", "Context"],
-      ["run_tree", "Summary"],
+      ["model_call", t("context_usage.context")],
+      ["run_tree", t("context_usage.summary")],
     ].map(([id, label]) => {
       const selected = scope === id;
       return (
-        <button
+        <Button
           key={id}
-          id={`context-composition-${id}-tab`}
-          data-testid={`context-composition-${id}-tab`}
           ref={id === "model_call" ? modelCallRef : undefined}
-          type="button"
-          role="tab"
-          aria-selected={selected}
-          aria-controls={`context-composition-${id}-panel`}
+          label={label}
           onClick={() => onChange(id)}
+          dom_props={{
+            id: `context-composition-${id}-tab`,
+            "data-testid": `context-composition-${id}-tab`,
+            type: "button",
+            role: "tab",
+            "aria-selected": selected,
+            "aria-controls": `context-composition-${id}-panel`,
+          }}
           style={{
-            border: "none",
             borderRadius: 5,
-            padding: "2.5px 8px",
+            paddingVertical: 2.5,
+            paddingHorizontal: 8,
             backgroundColor: selected ? palette.surfaceStrong : "transparent",
             color: palette.text,
             opacity: selected ? 1 : 0.62,
             fontFamily: "NunitoSans, sans-serif",
             fontSize: 11,
             fontWeight: selected ? 580 : 500,
-            cursor: "pointer",
           }}
-        >
-          {label}
-        </button>
+        />
       );
     })}
   </div>
@@ -222,53 +248,44 @@ const ScopeToggle = ({ scope, onChange, modelCallRef, palette }) => (
  * next to the real content below it.
  */
 const CallPickerTrigger = ({ label, open, palette }) => (
-  <button
-    type="button"
+  <Button
+    label={label}
+    postfix_icon="arrow_down"
+    dom_props={{ type: "button" }}
     style={{
-      display: "flex",
-      alignItems: "center",
       justifyContent: "space-between",
       gap: 8,
       width: "100%",
       minWidth: 0,
       height: 26,
       marginBottom: 9,
-      padding: "0 7px",
+      paddingVertical: 0,
+      paddingHorizontal: 7,
       border: "1px solid var(--pupu-menu-border, transparent)",
       borderRadius: 6,
       backgroundColor: palette.surface,
       color: palette.text,
       fontFamily: "NunitoSans, sans-serif",
       fontSize: 11.5,
-      cursor: "pointer",
+      content: {
+        label: {
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          flex: 1,
+          textAlign: "left",
+        },
+        postfixIconWrap: {
+          flex: "0 0 auto",
+          opacity: 0.75,
+          transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        },
+        icon: { width: 10, height: 10, color: palette.faint },
+      },
     }}
-  >
-    <span
-      style={{
-        minWidth: 0,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-    </span>
-    <Icon
-      src="arrow_down"
-      color={palette.faint}
-      style={{
-        width: 10,
-        height: 10,
-        flex: "0 0 auto",
-        opacity: 0.75,
-        // Same disclosure convention as the category rows' chevrons:
-        // closed points down (arrow_down's natural orientation), open
-        // points up.
-        transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        transition: "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-      }}
-    />
-  </button>
+  />
 );
 
 /**
@@ -279,19 +296,23 @@ const CallPickerTrigger = ({ label, open, palette }) => (
  * those three, nothing outside this already-open popover needs to know when
  * this one opens, so there is no shared state to coordinate it with.
  */
-const CallPicker = ({ calls, selectedCallKey, onChange, palette }) => {
+const CallPicker = ({ calls, selectedCallKey, onChange, palette, t }) => {
   const [open, setOpen] = useState(false);
   if (calls.length < 2) return null;
   const selectedIndex = calls.findIndex((call) => call.key === selectedCallKey);
   const activeIndex = selectedIndex >= 0 ? selectedIndex : calls.length - 1;
   const options = calls.map((call, index) => ({
     value: String(index),
-    label: `Call ${index + 1} · ${call.provider} / ${call.model}`,
+    label: t("context_usage.call_label", {
+      number: index + 1,
+      provider: call.provider,
+      model: call.model,
+    }),
   }));
 
   return (
     <Select
-      aria-label="Physical model call"
+      aria-label={t("context_usage.physical_call")}
       options={options}
       value={String(activeIndex)}
       set_value={(nextValue) => {
@@ -318,7 +339,7 @@ const CallPicker = ({ calls, selectedCallKey, onChange, palette }) => {
   );
 };
 
-const Headline = ({ view, usageView, palette, active = true }) => {
+const Headline = ({ view, usageView, palette, t, active = true }) => {
   if (view.scope === "run_tree") {
     return (
       <div
@@ -333,17 +354,19 @@ const Headline = ({ view, usageView, palette, active = true }) => {
         }}
       >
         <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.022em" }}>
-          Summary
+          {t("context_usage.summary")}
         </span>
         <span
           data-testid="run-tree-delivered-input"
           style={{ color: palette.muted, fontSize: 12, whiteSpace: "nowrap" }}
         >
           {view.providerTotalQuality === "reported"
-            ? `~${formatTokens(view.deliveredInputTokens)}`
-            : "Delivered unavailable"}
+            ? `~${formatTokens(view.deliveredInputTokens, t)}`
+            : t("context_usage.delivered_unavailable")}
           {" · "}
-          <span data-testid="run-tree-call-count">{view.callCount}</span> calls
+          <span data-testid="run-tree-call-count">
+            {formatCallCount(view.callCount, t)}
+          </span>
         </span>
       </div>
     );
@@ -372,19 +395,22 @@ const Headline = ({ view, usageView, palette, active = true }) => {
         }}
       >
         {pressure === null
-          ? `${formatTokens(view.attributedTokens)} attributed`
-          : `${formatPercent(pressure)} Full`}
+          ? t("context_usage.attributed", {
+              tokens: formatTokens(view.attributedTokens, t),
+            })
+          : t("context_usage.full", { percentage: formatPercent(pressure, t) })}
       </span>
       <span
         style={{ color: palette.muted, fontSize: 12, whiteSpace: "nowrap" }}
       >
         {view.providerInputTokens === null
-          ? "Provider total unavailable"
+          ? t("context_usage.provider_total_unavailable")
           : view.contextWindowTokens === null
-            ? "Window size unknown"
-            : `~${formatTokens(view.providerInputTokens)} / ${formatTokens(
-                view.contextWindowTokens,
-              )} Tokens`}
+            ? t("context_usage.window_size_unknown")
+            : t("context_usage.token_window", {
+                inputTokens: formatTokens(view.providerInputTokens, t),
+                contextWindowTokens: formatTokens(view.contextWindowTokens, t),
+              })}
       </span>
     </div>
   );
@@ -397,7 +423,7 @@ const Headline = ({ view, usageView, palette, active = true }) => {
  * no honest denominator, so segments normalise across what we do know and the
  * bar carries no "how full" claim at all.
  */
-const CompositionBar = ({ view, palette, active = true }) => {
+const CompositionBar = ({ view, palette, t, active = true }) => {
   const semanticTotal = view.groups.reduce((sum, group) => sum + group.tokens, 0);
   const resolvedResidual = resolveResidualTokens(view);
   const residualKnown = resolvedResidual !== null;
@@ -417,8 +443,8 @@ const CompositionBar = ({ view, palette, active = true }) => {
       role="img"
       aria-label={
         windowTokens
-          ? "Estimated input composition against the context window"
-          : "Estimated input composition; context window size unknown"
+          ? t("context_usage.estimated_composition_with_window")
+          : t("context_usage.estimated_composition_without_window")
       }
       style={{
         display: "flex",
@@ -435,7 +461,10 @@ const CompositionBar = ({ view, palette, active = true }) => {
       {view.groups.map((group) => (
         <span
           key={group.id}
-          title={`${group.label}: ${formatTokens(group.tokens)} tokens`}
+          title={t("context_usage.group_tokens", {
+            label: groupLabel(group, t),
+            tokens: formatTokens(group.tokens, t),
+          })}
           aria-hidden="true"
           style={{
             flex: "0 0 auto",
@@ -449,7 +478,9 @@ const CompositionBar = ({ view, palette, active = true }) => {
         <span
           data-testid={active ? "context-composition-residual-segment" : undefined}
           data-pattern="hatched"
-          title={`Unattributed: ${formatTokens(residual)} tokens`}
+          title={t("context_usage.unattributed_tokens", {
+            tokens: formatTokens(residual, t),
+          })}
           aria-hidden="true"
           style={{
             ...hatchedStyle(palette),
@@ -462,7 +493,7 @@ const CompositionBar = ({ view, palette, active = true }) => {
         <span
           data-testid={active ? "context-composition-unknown-segment" : undefined}
           data-pattern="hatched"
-          title="Unknown remainder"
+          title={t("context_usage.unknown_remainder")}
           aria-hidden="true"
           style={{
             ...hatchedStyle(palette),
@@ -488,20 +519,19 @@ const Row = ({
   testId,
   active = true,
 }) => {
-  const [hovered, setHovered] = useState(false);
   const interactive = typeof onClick === "function";
 
   return (
-    <button
-      type="button"
-      data-group-toggle={interactive ? "true" : undefined}
-      data-testid={active ? testId : undefined}
-      aria-expanded={interactive ? expanded : undefined}
-      aria-controls={interactive && expanded ? detailId : undefined}
+    <Button
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       disabled={!interactive}
+      dom_props={{
+        type: "button",
+        "data-group-toggle": interactive ? "true" : undefined,
+        "data-testid": active ? testId : undefined,
+        "aria-expanded": interactive ? expanded : undefined,
+        "aria-controls": interactive && expanded ? detailId : undefined,
+      }}
       style={{
         display: "grid",
         // A fourth, fixed-width track for the disclosure chevron — reserved on
@@ -516,18 +546,26 @@ const Row = ({
         // Concentric with the shell: panel r22 − 12px inset = r10, on the same
         // 28px row height the selectors beside it use.
         minHeight: 28,
-        padding: "0 8px",
-        border: "none",
+        paddingVertical: 0,
+        paddingHorizontal: 8,
         borderRadius: 10,
-        backgroundColor:
-          hovered && interactive ? palette.hover : "transparent",
         color: palette.text,
         fontFamily: "NunitoSans, sans-serif",
         fontSize: 13,
         fontWeight: 470,
         textAlign: "left",
-        cursor: interactive ? "pointer" : "default",
-        transition: "background-color 0.13s ease",
+        background: {
+          hoverBackgroundColor: palette.hover,
+          activeBackgroundColor: palette.hover,
+          transitionIn: "background-color 0.13s ease",
+          transitionOut: "background-color 0.13s ease",
+        },
+        content: {
+          children: { display: "contents" },
+        },
+        state: {
+          disabled: { root: { opacity: 1, cursor: "default" } },
+        },
       }}
     >
       <span
@@ -575,11 +613,11 @@ const Row = ({
           }}
         />
       )}
-    </button>
+    </Button>
   );
 };
 
-const GroupList = ({ view, openGroup, onOpenGroup, palette, active = true }) => {
+const GroupList = ({ view, openGroup, onOpenGroup, palette, t, active = true }) => {
   const residualTokens = resolveResidualTokens(view);
 
   return (
@@ -591,13 +629,13 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette, active = true }) => 
           <div key={group.id}>
             <Row
               color={group.color}
-              label={group.label}
+              label={groupLabel(group, t)}
               value={
                 view.scope === "model_call" &&
                 view.percentageAvailable &&
                 group.share !== null
-                  ? `${formatTokens(group.tokens)} · ${formatPercent(group.share)}`
-                  : formatTokens(group.tokens)
+                  ? `${formatTokens(group.tokens, t)} · ${formatPercent(group.share, t)}`
+                  : formatTokens(group.tokens, t)
               }
               expanded={expanded}
               detailId={detailId}
@@ -633,8 +671,13 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette, active = true }) => 
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {formatTokens(subtype.tokens)} · {subtype.sourceCount}{" "}
-                      {subtype.sourceCount === 1 ? "source" : "sources"}
+                      {formatTokens(subtype.tokens, t)} ·{" "}
+                      {t(
+                        subtype.sourceCount === 1
+                          ? "context_usage.source_count_one"
+                          : "context_usage.source_count_other",
+                        { count: subtype.sourceCount },
+                      )}
                     </span>
                   </div>
                 ))}
@@ -649,8 +692,8 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette, active = true }) => 
       {residualTokens !== null && (
         <Row
           hatched
-          label="Unattributed"
-          value={formatTokens(residualTokens)}
+          label={t("context_usage.unattributed")}
+          value={formatTokens(residualTokens, t)}
           palette={palette}
           testId="context-composition-residual-row"
           active={active}
@@ -660,24 +703,30 @@ const GroupList = ({ view, openGroup, onOpenGroup, palette, active = true }) => 
   );
 };
 
-const QualityLine = ({ view, palette, active = true }) => {
+const QualityLine = ({ view, palette, t, active = true }) => {
   const text =
     view.scope === "run_tree"
-      ? `${view.agentCount} ${view.agentCount === 1 ? "agent" : "agents"} · Peak ${
-          view.peakWindowPressure === null
-            ? "unavailable"
-            : formatPercent(view.peakWindowPressure)
-        }`
-      : `${qualityLabel(view.compositionQuality)}${
+      ? `${t(
+          view.agentCount === 1
+            ? "context_usage.agent_count_one"
+            : "context_usage.agent_count_other",
+          { count: view.agentCount },
+        )} · ${t("context_usage.peak", {
+          value:
+            view.peakWindowPressure === null
+              ? t("context_usage.unavailable")
+              : formatPercent(view.peakWindowPressure, t),
+        })}`
+      : `${qualityLabel(view.compositionQuality, t)}${
           view.coverage?.status === "complete"
-            ? " · Complete coverage"
-            : " · Partial coverage"
+            ? ` · ${t("context_usage.complete_coverage")}`
+            : ` · ${t("context_usage.partial_coverage")}`
         }`;
 
   return (
     <div
       data-testid={active ? "context-composition-quality" : undefined}
-      aria-label="Composition quality"
+      aria-label={t("context_usage.composition_quality")}
       style={{
         display: "flex",
         alignItems: "center",
@@ -705,7 +754,7 @@ const QualityLine = ({ view, palette, active = true }) => {
  * one number that is actually authoritative — how full the window is — and says
  * plainly that the breakdown is not available rather than faking eight zeroes.
  */
-const UsageOnlyView = ({ usage, palette, active = true }) => {
+const UsageOnlyView = ({ usage, palette, t, active = true }) => {
   const cached = usage.cacheReadTokens;
   const fresh =
     usage.uncachedTokens === null && usage.cacheWriteTokens === null
@@ -727,21 +776,26 @@ const UsageOnlyView = ({ usage, palette, active = true }) => {
       >
         <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.022em" }}>
           {usage.percentageAvailable
-            ? `${formatPercent(usage.windowPressure)} Full`
-            : `${formatTokens(usage.inputTokens)} used`}
+            ? t("context_usage.full", {
+                percentage: formatPercent(usage.windowPressure, t),
+              })
+            : t("context_usage.used", {
+                tokens: formatTokens(usage.inputTokens, t),
+              })}
         </span>
         <span style={{ color: palette.muted, fontSize: 12, whiteSpace: "nowrap" }}>
           {usage.contextWindowTokens === null
-            ? "Window size unknown"
-            : `~${formatTokens(usage.inputTokens)} / ${formatTokens(
-                usage.contextWindowTokens,
-              )} Tokens`}
+            ? t("context_usage.window_size_unknown")
+            : t("context_usage.token_window", {
+                inputTokens: formatTokens(usage.inputTokens, t),
+                contextWindowTokens: formatTokens(usage.contextWindowTokens, t),
+              })}
         </span>
       </div>
 
       <div
         role="img"
-        aria-label="Context window occupancy"
+        aria-label={t("context_usage.context_window_occupancy")}
         style={{
           display: "flex",
           width: "calc(100% - 16px)",
@@ -772,8 +826,8 @@ const UsageOnlyView = ({ usage, palette, active = true }) => {
         {cached !== null && (
           <Row
             color="#55B982"
-            label="Cached"
-            value={formatTokens(cached)}
+            label={t("context_usage.cached")}
+            value={formatTokens(cached, t)}
             palette={palette}
             testId="context-usage-cached"
             active={active}
@@ -782,8 +836,8 @@ const UsageOnlyView = ({ usage, palette, active = true }) => {
         {fresh !== null && (
           <Row
             color="#5E9DE6"
-            label="New this turn"
-            value={formatTokens(fresh)}
+            label={t("context_usage.new_this_turn")}
+            value={formatTokens(fresh, t)}
             palette={palette}
             testId="context-usage-fresh"
             active={active}
@@ -808,15 +862,15 @@ const UsageOnlyView = ({ usage, palette, active = true }) => {
         }}
       >
         <InfoGlyph />
-        {`${usage.callCount} ${
-          usage.callCount === 1 ? "call" : "calls"
-        } · Category breakdown unavailable`}
+        {t("context_usage.usage_note", {
+          calls: formatCallCount(usage.callCount, t),
+        })}
       </div>
     </div>
   );
 };
 
-const UnavailableView = ({ reason, palette, active = true }) => (
+const UnavailableView = ({ reason, palette, t, active = true }) => (
   <div
     role="status"
     data-testid={active ? "context-composition-unavailable" : undefined}
@@ -829,10 +883,10 @@ const UnavailableView = ({ reason, palette, active = true }) => (
     }}
   >
     <div style={{ fontSize: 13, fontWeight: 560, marginBottom: 4 }}>
-      No composition data yet
+      {t("context_usage.no_data_yet")}
     </div>
     <div style={{ color: palette.muted, fontSize: 11.5, lineHeight: 1.5 }}>
-      {unavailableCopy(reason)}
+      {unavailableCopy(reason, t)}
     </div>
   </div>
 );
@@ -864,6 +918,7 @@ const ScopePane = ({
   openGroup,
   onOpenGroup,
   palette,
+  t,
 }) => (
   <div
     ref={paneRef}
@@ -877,7 +932,7 @@ const ScopePane = ({
     style={{ flex: "0 0 50%", minWidth: 0, boxSizing: "border-box" }}
   >
     {!view.available && usageView && scopeId === "model_call" ? (
-      <UsageOnlyView usage={usageView} palette={palette} active={active} />
+      <UsageOnlyView usage={usageView} palette={palette} t={t} active={active} />
     ) : view.available ? (
       <>
         {scopeId === "model_call" && (
@@ -886,26 +941,29 @@ const ScopePane = ({
             selectedCallKey={selectedCallKey || view.selectedCallKey}
             onChange={onSelectCall}
             palette={palette}
+            t={t}
           />
         )}
         <Headline
           view={view}
           usageView={usageView}
           palette={palette}
+          t={t}
           active={active}
         />
-        <CompositionBar view={view} palette={palette} active={active} />
+        <CompositionBar view={view} palette={palette} t={t} active={active} />
         <GroupList
           view={view}
           openGroup={openGroup}
           onOpenGroup={onOpenGroup}
           palette={palette}
+          t={t}
           active={active}
         />
-        <QualityLine view={view} palette={palette} active={active} />
+        <QualityLine view={view} palette={palette} t={t} active={active} />
       </>
     ) : (
-      <UnavailableView reason={view.reason} palette={palette} active={active} />
+      <UnavailableView reason={view.reason} palette={palette} t={t} active={active} />
     )}
   </div>
 );
@@ -925,6 +983,7 @@ const ContextCompositionPanel = ({
   listRef,
   usageView = null,
 }) => {
+  const { t } = useTranslation();
   const [scope, setScope] = useState("model_call");
   const [selectedCallKey, setSelectedCallKey] = useState(null);
   const [openGroup, setOpenGroup] = useState(null);
@@ -1010,7 +1069,7 @@ const ContextCompositionPanel = ({
             lineHeight: 1.3,
           }}
         >
-          Context Usage
+          {t("context_usage.title")}
         </h2>
         {overallAvailable && (
           <ScopeToggle
@@ -1018,13 +1077,14 @@ const ContextCompositionPanel = ({
             onChange={setScope}
             modelCallRef={scopeRef}
             palette={palette}
+            t={t}
           />
         )}
         {trailing}
       </div>
 
       <p id={DESCRIPTION_ID} style={{ display: "none" }}>
-        Estimated contribution to the provider input for this response.
+        {t("context_usage.description")}
       </p>
 
       {/* Vertical scroll + a fixed, JS-driven height live here — a SEPARATE
@@ -1080,6 +1140,7 @@ const ContextCompositionPanel = ({
             openGroup={scope === "model_call" ? openGroup : null}
             onOpenGroup={setOpenGroup}
             palette={palette}
+            t={t}
           />
           <ScopePane
             paneRef={runTreePaneRef}
@@ -1092,6 +1153,7 @@ const ContextCompositionPanel = ({
             openGroup={scope === "run_tree" ? openGroup : null}
             onOpenGroup={setOpenGroup}
             palette={palette}
+            t={t}
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
-# Cross-Boundary Contract Gate
+# Cross-Boundary Engineering Gate
 
-本规则始终生效。它把 [Quorum 的 Boundary Contract / State Sequence 规则](../codex/lifecycle/boundary-contracts.md)具体化为 PuPu 的实施与发布门。
+本规则始终生效。它只保留跨边界工程安全要求，不使用 owner、case、proposal、ruling 或任何庭审机制。技术记录直接写入 Release issue 或普通实施 Plan；历史案卷不具有当前授权或阻断效力。
 
 ## 何时触发
 
@@ -10,15 +10,14 @@
 - 同一对象从 journal/domain model 投影为 compiler/model/provider wire；
 - 修改封闭 schema、allowlist、序列化、版本握手、runtime protocol manifest 或发布 artifact；
 - 行为依赖 attempt、interaction、retry、resume、restart、replay 或 rollout 状态；
-- 两个 owner 分别拥有 producer 与 consumer。
 
-不适用时也必须在 proposal 中明确写 `NOT_APPLICABLE` 及可核验理由。沉默不等于不适用。
+不适用时在 Release issue 或普通实施 Plan 中写 `NOT_APPLICABLE` 及可核验理由。沉默不等于不适用。
 
 ## 方案义务
 
-每一条真实边界建立一个 `BC-###`，正文唯一保存在 `proposal.md`：
+每一条真实边界建立一个技术性 `BC-###`，正文直接保存在 Release issue 或普通实施 Plan：
 
-1. producer、consumer、两侧 owner 与传输边界；
+1. producer、consumer 与传输边界；
 2. producer shape、canonical representation、consumer/wire shape；
 3. admission policy：`CLOSED / OPEN / VERSIONED`；
 4. projection、未知字段、失败与降级语义；
@@ -30,7 +29,9 @@
 1. identity key、初始状态与按顺序发生的事件；
 2. 每一步的可观察结果；
 3. repeat、retry、resume、restart、reset、rollback 中适用的单元格；
-4. persistence boundary、关联 `BC-###`、owner 与 `AC-###`。
+4. persistence boundary、关联 `BC-###` 与 `AC-###`。
+
+`BC/SEQ/AC` 只是工程追踪标识，不生成角色、投票、确认、案卷或授权流程。实施 agent 可在已批准的用户目标和 Release scope 内直接维护这些内容。
 
 `Mapping`、普通 object/dict、宽松 fixture 或 `toMatchObject` 不是 wire contract。`CLOSED` 边界必须精确比较 key set；`OPEN` 边界必须明确 extension policy；`VERSIONED` 边界必须证明版本协商与 fail-closed 行为。
 
@@ -61,10 +62,10 @@
 
 ## 阻断规则
 
-- `BC-###` 或 `SEQ-###` 缺字段、缺 owner 确认、缺 AC 映射：proposal 不得成为 ruling-ready 或送裁；drafting 中间快照可以保留明确空白。
-- 实施越过未声明边界：立即停止，回到方案返修；不得由实现者补写授权。
+- `BC-###` 或 `SEQ-###` 缺必要技术字段或缺 AC 映射：active rollout 保持 `INCOMPLETE`，先补齐 Release issue 或普通实施 Plan 与对应测试。
+- 实施发现未声明边界：在不改变用户目标和 Release scope 的前提下直接补充 Plan 与测试；若会改变目标、范围或外部权限，则停止并请求 project owner 决定。
 - 适用状态单元格为 `NOT_RUN / PENDING`：active rollout 结论只能是 `INCOMPLETE`；可以保持 shadow/off。
 - 已运行但断言失败、schema/protocol 漂移或 artifact identity 不匹配：结论是 `NO-GO`。
-- Acceptance Inspector 只能检查获准 BC/SEQ 映射的 AC；若映射缺失，应拒绝 intake，而不是自行发明标准。
+- `release-feature-audit` 只按 Release issue / Plan 已声明的 BC/SEQ/AC 和现场证据验收；映射缺失或证据不足时报告 `INCOMPLETE`，不得自行发明标准。
 
 PuPu 的当前 Context V2 实例见 [`docs/architecture/context-v2-boundary-contracts.md`](../../docs/architecture/context-v2-boundary-contracts.md)。事故事实见 [`docs/architecture/context-v2-p0-contract-postmortem-2026-08-11.md`](../../docs/architecture/context-v2-p0-contract-postmortem-2026-08-11.md)。

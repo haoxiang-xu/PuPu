@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { useDropdownWheelGuard } from "../../../BUILTIN_COMPONENTs/select/use_select";
 import ContextCompositionPanel, {
@@ -60,6 +61,7 @@ const ContextCompositionProgress = forwardRef(
     const panelRef = useRef(null);
     const listRef = useRef(null);
     const palette = useContextCompositionPalette();
+    const { t } = useTranslation();
 
     const view = useMemo(
       () =>
@@ -110,8 +112,8 @@ const ContextCompositionProgress = forwardRef(
       : "rgba(0,0,0,0.13)";
     const label =
       displayPercent === null
-        ? "Open context usage; latest model call pressure unavailable"
-        : `Open context usage; latest model call ${displayPercent}% full`;
+        ? t("context_usage.open_progress_unavailable")
+        : t("context_usage.open_progress", { percentage: displayPercent });
 
     /* Tooltip is only the placement engine; the card paints itself in the
        attach-panel menu language — the frosted palette surface that the model,
