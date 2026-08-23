@@ -761,6 +761,27 @@ const ChatInterface = () => {
     return Array.isArray(efforts) ? efforts : [];
   }, [activeModelCapabilities]);
 
+  /* The level the model runs at when the request carries no effort field.
+     Preferred source is the capability declaration; where a model declares
+     levels but no default, "medium" is the provider convention and otherwise
+     the middle of the declared ladder is the honest guess. This value is
+     DISPLAYED ONLY — it never enters the payload (see EffortPillRow). */
+  const defaultReasoningEffort = useMemo(() => {
+    const declared = activeModelCapabilities?.default_reasoning_effort;
+    if (
+      typeof declared === "string" &&
+      reasoningEffortOptions.includes(declared)
+    ) {
+      return declared;
+    }
+    if (reasoningEffortOptions.length === 0) return null;
+    if (reasoningEffortOptions.includes("medium")) return "medium";
+    return reasoningEffortOptions[
+      Math.floor((reasoningEffortOptions.length - 1) / 2)
+    ];
+  }, [activeModelCapabilities, reasoningEffortOptions]);
+
+
   const onSelectReasoningEffort = useCallback(
     (level) => {
       if (
@@ -952,6 +973,7 @@ const ChatInterface = () => {
       onSelectModel,
       reasoningEffortOptions,
       selectedReasoningEffort: session.selectedReasoningEffort,
+      defaultReasoningEffort,
       onSelectReasoningEffort,
       modelSelectDisabled: isModelSelectionDisabled,
       toolSelectDisabled: stream.isSecretCapturePending,
@@ -988,6 +1010,7 @@ const ChatInterface = () => {
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
       reasoningEffortOptions, session.selectedReasoningEffort, onSelectReasoningEffort,
+      defaultReasoningEffort,
       modelSupportsTools,
       stream.isSecretCapturePending,
       t,

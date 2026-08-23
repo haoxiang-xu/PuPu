@@ -96,7 +96,19 @@ _DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 32768
 # (design §7.3). Values chosen to match each protocol's maxTokens parameter name
 # plus the generic sampling knobs PuPu forwards.
 PROTOCOL_ALLOWED_PAYLOAD_KEYS: Dict[str, Tuple[str, ...]] = {
-    "anthropic": ("temperature", "max_tokens", "top_p", "top_k", "thinking", "stop_sequences"),
+    "anthropic": (
+        "temperature",
+        "max_tokens",
+        "top_p",
+        "top_k",
+        "thinking",
+        # Anthropic's reasoning-effort knob. Admitted here so an anthropic-
+        # protocol custom provider can carry effort at all; whether a given
+        # endpoint honours it is that endpoint's business, and PuPu only
+        # sends it for models that declare `reasoning_efforts`.
+        "output_config",
+        "stop_sequences",
+    ),
     "openai-responses": ("temperature", "max_output_tokens", "top_p", "reasoning"),
     "ollama": ("temperature", "num_predict", "top_p", "top_k"),
 }

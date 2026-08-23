@@ -139,22 +139,9 @@ const resolveTargetVersion = async () => {
   return { source: "prompt", value: prompted };
 };
 
-const runUpdateReadmeLinks = () => {
-  const scriptPath = path.resolve(__dirname, "update-readme-links.cjs");
-  const nodeCommand = process.execPath;
-  const result = spawnSync(nodeCommand, [scriptPath], {
-    stdio: "inherit",
-    cwd: path.resolve(__dirname, ".."),
-  });
-  if (result.error) {
-    logError(`Failed to run update-readme-links: ${result.error.message}`);
-  }
-};
-
 const main = async () => {
   if (process.env[SKIP_ENV_KEY] === "1") {
     logInfo(`Skipped because ${SKIP_ENV_KEY}=1`);
-    runUpdateReadmeLinks();
     return;
   }
 
@@ -174,7 +161,6 @@ const main = async () => {
 
   if (normalized === currentVersion) {
     logInfo(`Version already ${normalized}; no update needed.`);
-    runUpdateReadmeLinks();
     return;
   }
 
@@ -183,7 +169,6 @@ const main = async () => {
   );
   runNpmVersion(normalized);
   logInfo(`Version updated to ${normalized}.`);
-  runUpdateReadmeLinks();
 };
 
 main().catch((error) => {

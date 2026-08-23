@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { AppearanceSettings } from "./appearance";
+import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
@@ -40,17 +41,7 @@ describe("AppearanceSettings theme color feature flag", () => {
   });
 
   test("shows Theme colors when color customization is enabled", () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          format: 2,
-          flags: {
-            enable_theme_color_customization: true,
-          },
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     renderAppearanceSettings();
 

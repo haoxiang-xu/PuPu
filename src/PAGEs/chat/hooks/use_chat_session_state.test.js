@@ -284,3 +284,81 @@ describe("useChatSessionState deleted active chat handling", () => {
     ]);
   });
 });
+
+describe("useChatSessionState per-model reasoning effort", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  const renderSession = () =>
+    renderHook(() =>
+      useChatSessionState({
+        draftAttachments: [],
+        setDraftAttachments: jest.fn(),
+        activeStreamsRef: { current: new Map() },
+        setStreamError: jest.fn(),
+      }),
+    );
+
+  test("a level chosen for one model is restored when switching back to it", async () => {
+    const { result } = renderSession();
+    const chatId = result.current.activeChatIdRef.current;
+
+    act(() => {
+      result.current.handleSelectModel("openai:gpt-5.6-sol");
+    });
+    act(() => {
+      result.current.handleSelectReasoningEffort("xhigh");
+    });
+    await waitFor(() => {
+      expect(result.current.selectedReasoningEffort).toBe("xhigh");
+    });
+
+    // Switch away: the new model must NOT inherit the previous model's level.
+    act(() => {
+      result.current.handleSelectModel("anthropic:claude-opus-4-8");
+    });
+    await waitFor(() => {
+      expect(result.current.selectedReasoningEffort).toBeNull();
+    });
+    expect(
+      getChatsStore().chatsById[chatId].model.reasoningEffort,
+    ).toBeUndefined();
+
+    // Switch back: the level this model was set to comes back.
+    act(() => {
+      result.current.handleSelectModel("openai:gpt-5.6-sol");
+    });
+    await waitFor(() => {
+      expect(result.current.selectedReasoningEffort).toBe("xhigh");
+    });
+    expect(getChatsStore().chatsById[chatId].model.reasoningEffort).toBe(
+      "xhigh",
+    );
+  });
+
+  test("clearing a level forgets it rather than leaving a stale one behind", async () => {
+    const { result } = renderSession();
+
+    act(() => {
+      result.current.handleSelectModel("openai:gpt-5.6-sol");
+    });
+    act(() => {
+      result.current.handleSelectReasoningEffort("max");
+    });
+    act(() => {
+      result.current.handleSelectReasoningEffort(null);
+    });
+
+    act(() => {
+      result.current.handleSelectModel("anthropic:claude-opus-4-8");
+    });
+    act(() => {
+      result.current.handleSelectModel("openai:gpt-5.6-sol");
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedReasoningEffort).toBeNull();
+    });
+  });
+});

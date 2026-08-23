@@ -520,7 +520,9 @@
       "select_workspaces": "Seleziona spazi",
       "computer": "Computer",
       "computer_description": "Consenti al modello di vedere e controllare lo schermo",
-      "computer_requires_supported_model": "Richiede un modello Anthropic supportato"
+      "computer_requires_supported_model": "Richiede un modello Anthropic supportato",
+      "effort": "sforzo",
+      "effort_default_hint": "Predefinito del modello: {level}"
     }
   },
   "toolkit": {

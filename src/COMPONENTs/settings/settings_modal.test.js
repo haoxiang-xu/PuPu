@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { SettingsModal } from "./settings_modal";
+import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 jest.mock("../../BUILTIN_COMPONENTs/modal/modal", () => ({
   __esModule: true,
@@ -89,17 +90,7 @@ describe("SettingsModal", () => {
   });
 
   test("hides the Update page when the app update feature flag is disabled", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          format: 2,
-          flags: {
-            enable_app_update_settings: false,
-          },
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_app_update_settings: false });
 
     renderSettingsModal();
 

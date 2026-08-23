@@ -59,16 +59,8 @@ const setMemorySettings = (memorySettings) => {
 };
 
 const setMemoryV2Flag = (enabled, memorySettings = {}) => {
-  window.localStorage.setItem(
-    "settings",
-    JSON.stringify({
-      memory: memorySettings,
-      feature_flags: {
-        format: 2,
-        flags: { enable_memory_v2: enabled === true },
-      },
-    }),
-  );
+  setMemorySettings(memorySettings);
+  writeFeatureFlags({ enable_memory_v2: enabled === true });
 };
 
 const LEGACY_NOTE_TITLE = "Legacy Context Memory";

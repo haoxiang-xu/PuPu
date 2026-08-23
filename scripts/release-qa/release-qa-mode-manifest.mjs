@@ -2,6 +2,7 @@ const TOPOLOGY_SCHEMA = "pupu.release-qa-report-topology.v1";
 const MODES = Object.freeze([
   "lite",
   "release",
+  "release-candidate",
   "windows-active-qualification",
 ]);
 

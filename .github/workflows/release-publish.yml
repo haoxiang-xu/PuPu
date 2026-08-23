@@ -1,0 +1,117 @@
+name: Publish Verified Draft Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Draft vX.Y.Z tag to publish"
+        required: true
+        type: string
+      confirmation:
+        description: "Type PUBLISH after reviewing the Draft Release"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: release-publish-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish-environment-preflight:
+    name: Verify protected publish Environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node for release environment verifier
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Checkout release environment verifier
+        uses: actions/checkout@v4
+
+      - name: Require protected release-publish Environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/environments/release-publish" \
+            | node scripts/release-qa/verify-github-environment.mjs --environment release-publish
+
+  publish-draft:
+    name: Re-verify and publish Draft Release
+    needs: publish-environment-preflight
+    runs-on: ubuntu-latest
+    environment: release-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Require explicit publish confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$CONFIRMATION" != "PUBLISH" ]; then
+            echo "::error title=Confirmation required::Enter PUBLISH only after reviewing the Draft Release"
+            exit 1
+          fi
+
+      - name: Checkout the exact release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install release verifier dependencies
+        run: npm ci
+
+      - name: Require an existing Draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [ "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" != "true" ]; then
+            echo "::error title=Draft Release required::Only a Draft Release staged by the verified candidate path may be published"
+            exit 1
+          fi
+
+      - name: Re-download and verify the Draft Release asset inventory and bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir draft-assets --clobber
+          node scripts/release-qa/verify-release-candidate.mjs \
+            --manifest draft-assets/release-assets.v1.json \
+            --asset-dir draft-assets \
+            --qa-report draft-assets/release-qa-report.json \
+            --qualification draft-assets/release-qualification.v1.json \
+            --require-qualification true \
+            --allow-extra release-assets.v1.json \
+            --allow-extra release-qa-report.json \
+            --allow-extra release-qualification.v1.json \
+            --tag "$RELEASE_TAG" \
+            --commit "$TAG_COMMIT"
+
+      - name: Publish without rebuilding or uploading
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+  render-readme:
+    name: Render README links from verified release manifest
+    needs: publish-draft
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/update-readme-download-links.yml
+    with:
+      release_tag: ${{ inputs.release_tag }}

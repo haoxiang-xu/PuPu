@@ -4826,26 +4826,123 @@ class ReasoningEffortTests(unittest.TestCase):
         )
         self.assertEqual(payload["reasoning"], {"effort": "high"})
 
-    def test_anthropic_payload_maps_effort_to_thinking_budget(self) -> None:
+    def test_catalog_carries_declared_default_effort(self) -> None:
+        payload = {
+            "gpt-5.6-luna": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "reasoning_efforts": ["low", "medium", "high"],
+                "default_reasoning_effort": " medium ",
+            },
+            "gpt-4.1": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                "reasoning_efforts": ["low", "high"],
+                # Not on the ladder — dropped rather than forwarded, so the
+                # renderer can never mark an unreachable level as default.
+                "default_reasoning_effort": "medium",
+            },
+            "gpt-5.4": {
+                "provider": "openai",
+                "input_modalities": ["text"],
+                # No ladder at all — a default alone means nothing.
+                "default_reasoning_effort": "high",
+            },
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            catalog = unchain_adapter.get_model_capability_catalog()
+        self.assertEqual(
+            catalog["openai:gpt-5.6-luna"]["default_reasoning_effort"],
+            "medium",
+        )
+        self.assertNotIn("default_reasoning_effort", catalog["openai:gpt-4.1"])
+        self.assertNotIn("default_reasoning_effort", catalog["openai:gpt-5.4"])
+
+    def test_openai_payload_carries_extended_effort_ladder(self) -> None:
+        for level in ("none", "minimal", "low", "medium", "high", "xhigh", "max"):
+            with self.subTest(level=level):
+                payload = unchain_adapter._build_payload(
+                    "openai",
+                    {"reasoningEffort": level},
+                )
+                self.assertEqual(payload["reasoning"], {"effort": level})
+
+    def test_anthropic_payload_maps_effort_to_output_config(self) -> None:
+        """Anthropic's knob is output_config.effort, not a thinking budget.
+
+        Every Anthropic model that declares reasoning_efforts is Opus 4.6 or
+        later, where `thinking: {type: "enabled", budget_tokens: N}` is a 400.
+        Sending a budget here failed the request outright.
+        """
         payload = unchain_adapter._build_payload(
             "anthropic",
-            {"reasoningEffort": "medium"},
+            {"reasoningEffort": "Medium"},
+        )
+        self.assertEqual(payload["output_config"], {"effort": "medium"})
+        self.assertNotIn("thinking", payload)
+
+    def test_anthropic_effort_never_emits_a_thinking_budget(self) -> None:
+        """Negative: no effort level may reintroduce the rejected wire shape."""
+        for level in ("low", "medium", "high", "xhigh", "max"):
+            with self.subTest(level=level):
+                payload = unchain_adapter._build_payload(
+                    "anthropic",
+                    {"reasoningEffort": level, "maxTokens": 8000},
+                )
+                self.assertEqual(payload["output_config"], {"effort": level})
+                self.assertNotIn("thinking", payload)
+
+    def test_anthropic_rejects_levels_outside_its_ladder(self) -> None:
+        # Anthropic has no "none"/"minimal" rung — omitted, provider default
+        # applies, rather than forwarding a level the API would reject.
+        for level in ("none", "minimal"):
+            with self.subTest(level=level):
+                payload = unchain_adapter._build_payload(
+                    "anthropic",
+                    {"reasoningEffort": level},
+                )
+                self.assertNotIn("output_config", payload)
+                self.assertNotIn("thinking", payload)
+
+    def test_custom_provider_effort_follows_declared_protocol(self) -> None:
+        """Custom providers speak their own protocol's effort shape."""
+        anthropic_options = {
+            "reasoningEffort": "high",
+            "custom_provider": {
+                "config_version": 1,
+                "id": "deepseek",
+                "display_name": "DeepSeek",
+                "protocol": "anthropic",
+                "base_url": "https://api.deepseek.com/anthropic",
+                "auth": {"mode": "x-api-key"},
+                "models": [{"id": "deepseek-v4-flash"}],
+            },
+        }
+        anthropic_payload = unchain_adapter._build_payload(
+            "hyperspace",
+            anthropic_options,
         )
         self.assertEqual(
-            payload["thinking"],
-            {"type": "enabled", "budget_tokens": 16384},
+            anthropic_payload["output_config"],
+            {"effort": "high"},
         )
 
-    def test_anthropic_thinking_budget_clamps_below_max_tokens(self) -> None:
-        payload = unchain_adapter._build_payload(
-            "anthropic",
-            {"reasoningEffort": "high", "maxTokens": 8000},
+        openai_options = dict(anthropic_options)
+        openai_options["custom_provider"] = {
+            **anthropic_options["custom_provider"],
+            "protocol": "openai-responses",
+        }
+        openai_payload = unchain_adapter._build_payload(
+            "openai",
+            openai_options,
         )
-        self.assertEqual(payload["max_tokens"], 8000)
-        self.assertEqual(
-            payload["thinking"],
-            {"type": "enabled", "budget_tokens": 8000 - 1024},
-        )
+        self.assertEqual(openai_payload["reasoning"], {"effort": "high"})
 
     def test_unknown_effort_and_unsupported_providers_are_omitted(self) -> None:
         self.assertNotIn(
@@ -4861,15 +4958,54 @@ class ReasoningEffortTests(unittest.TestCase):
         )
         self.assertNotIn("reasoning", ollama_payload)
         self.assertNotIn("thinking", ollama_payload)
-        # anthropic has no "minimal" tier — omitted, provider default applies
-        self.assertNotIn(
-            "thinking",
-            unchain_adapter._build_payload(
-                "anthropic",
-                {"reasoningEffort": "minimal"},
-            ),
-        )
+        self.assertNotIn("output_config", ollama_payload)
 
+    def test_shipped_capability_file_effort_declarations_are_coherent(self) -> None:
+        """Contract check against the REAL capability file, not a fixture.
+
+        Every declared level must be one the adapter admits, every declared
+        default must be on its own model's ladder, and any Anthropic model
+        offering effort must admit `output_config` — otherwise the level is
+        selected in the UI and then silently stripped before the wire.
+        """
+        raw = unchain_adapter._load_raw_capability_catalog()
+        self.assertTrue(raw, "capability file did not load")
+
+        checked = 0
+        for model_id, entry in raw.items():
+            efforts = entry.get("reasoning_efforts")
+            if not efforts:
+                continue
+            checked += 1
+            with self.subTest(model=model_id):
+                for level in efforts:
+                    self.assertIn(
+                        level,
+                        unchain_adapter._REASONING_EFFORT_LEVELS,
+                        f"{model_id} declares unadmitted level {level!r}",
+                    )
+                declared_default = entry.get("default_reasoning_effort")
+                if declared_default is not None:
+                    self.assertIn(
+                        declared_default,
+                        efforts,
+                        f"{model_id} default is not on its own ladder",
+                    )
+                if entry.get("provider") == "anthropic":
+                    allowed = entry.get("allowed_payload_keys") or []
+                    self.assertIn(
+                        "output_config",
+                        allowed,
+                        f"{model_id} offers effort but cannot carry it",
+                    )
+                    for level in efforts:
+                        self.assertIn(
+                            level,
+                            unchain_adapter._ANTHROPIC_EFFORT_LEVELS,
+                            f"{model_id} declares non-Anthropic level {level!r}",
+                        )
+
+        self.assertGreater(checked, 0, "no model declares reasoning_efforts")
 
 if __name__ == "__main__":
     unittest.main()

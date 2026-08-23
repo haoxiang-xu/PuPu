@@ -36,6 +36,7 @@ import {
   detectLikelySecretAssignment,
   hasSecretCaptureSyntax,
 } from "./secret_capture";
+import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 import {
   draftTextLooksSecret,
   useChatSessionState,
@@ -47,12 +48,7 @@ const ASSIGNMENT_TEXT = "api_key = zY9pQ2rL7wKm";
 const INNOCENT_TEXT = "how do I rotate a password safely?";
 
 const setMemoryV2Flag = (enabled) => {
-  const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-  root.feature_flags = {
-    ...(root.feature_flags || {}),
-    enable_memory_v2: enabled === true,
-  };
-  window.localStorage.setItem("settings", JSON.stringify(root));
+  writeFeatureFlags({ enable_memory_v2: enabled === true });
 };
 
 const findNodeIdByChatId = (tree, chatId) =>

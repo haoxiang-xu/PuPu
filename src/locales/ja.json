@@ -520,7 +520,9 @@
       "select_workspaces": "ワークスペースを選択",
       "computer": "コンピューター",
       "computer_description": "モデルが画面を表示して操作できるようにする",
-      "computer_requires_supported_model": "対応するAnthropicモデルが必要です"
+      "computer_requires_supported_model": "対応するAnthropicモデルが必要です",
+      "effort": "推論強度",
+      "effort_default_hint": "モデル既定: {level}"
     }
   },
   "toolkit": {

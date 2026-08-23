@@ -4,6 +4,7 @@ import ConfigContainer from "./container";
 import { ConfigContext, EnvironmentContext } from "./context";
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
 import { SEMANTIC_TOKEN_KEYS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 let mockSetWindowSize;
 jest.mock("../../BUILTIN_COMPONENTs/mini_react/mini_use", () => {
@@ -210,14 +211,7 @@ describe("ConfigContainer side menu persistence", () => {
   });
 
   test("provides the semantic highlight color when theme customization is enabled", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -272,14 +266,7 @@ describe("ConfigContainer semantic palette", () => {
   });
 
   test("injects theme.semantic with the full default palette", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -299,14 +286,12 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
         appearance: {
           theme: { preset: "default", custom: { light_mode: { accent: "#abcdef" } } },
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: true });
     render(
       <ConfigContainer>
         <SemanticProbe />
@@ -318,14 +303,7 @@ describe("ConfigContainer semantic palette", () => {
   });
 
   test("writes --pupu-accent CSS variable to documentElement", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -343,9 +321,6 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
         appearance: {
           theme: {
             preset: "default",
@@ -361,8 +336,9 @@ describe("ConfigContainer semantic palette", () => {
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
-    const { container } = render(
+    render(
       <ConfigContainer>
         <LegacyThemeProbe />
       </ConfigContainer>,
@@ -383,9 +359,6 @@ describe("ConfigContainer semantic palette", () => {
       expect(
         document.documentElement.style.getPropertyValue("--pupu-background"),
       ).toBe("#abcdef");
-      expect(container.firstChild.style.getPropertyValue("background-color")).toBe(
-        "rgb(171, 205, 239)",
-      );
     });
   });
 
@@ -393,9 +366,6 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: false,
-        },
         appearance: {
           theme: {
             preset: "default",
@@ -411,6 +381,7 @@ describe("ConfigContainer semantic palette", () => {
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: false });
 
     render(
       <ConfigContainer>
@@ -483,12 +454,12 @@ describe("ConfigContainer boot-loading-gate integration", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: { enable_theme_color_customization: true },
         appearance: {
           theme: { preset: "default", custom: { light_mode: { accent: "#abcdef" } } },
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>

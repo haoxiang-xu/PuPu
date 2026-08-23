@@ -242,6 +242,17 @@ const normalizeModelInputCapabilities = (capabilities) => {
     });
     if (reasoningEfforts.length > 0) {
       normalized.reasoning_efforts = reasoningEfforts;
+      // The level the model runs at when the request omits effort entirely.
+      // Only carried when it is one of the declared levels — a default that
+      // isn't on the ladder would render as a selected pill the user cannot
+      // reach. Absent is fine: the renderer then derives one.
+      const declaredDefault = capabilityPayload.default_reasoning_effort;
+      if (typeof declaredDefault === "string") {
+        const normalizedDefault = declaredDefault.trim().toLowerCase();
+        if (reasoningEfforts.includes(normalizedDefault)) {
+          normalized.default_reasoning_effort = normalizedDefault;
+        }
+      }
     }
   }
   if (isObject(capabilityPayload.computer_use)) {

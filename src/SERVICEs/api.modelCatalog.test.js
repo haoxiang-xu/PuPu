@@ -78,6 +78,44 @@ describe("normalizeModelCatalog", () => {
     ).toBeUndefined();
   });
 
+  test("carries a declared default effort only when it is on the ladder", () => {
+    const normalized = normalizeModelCatalog({
+      providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },
+      model_capabilities: {
+        "openai:on-ladder": {
+          input_modalities: ["text"],
+          reasoning_efforts: ["low", "medium", "high"],
+          default_reasoning_effort: " MEDIUM ",
+        },
+        "openai:off-ladder": {
+          input_modalities: ["text"],
+          reasoning_efforts: ["low", "high"],
+          // "medium" is not offered — marking it default would render a
+          // selected pill the user can never reach.
+          default_reasoning_effort: "medium",
+        },
+        "openai:no-efforts": {
+          input_modalities: ["text"],
+          default_reasoning_effort: "high",
+        },
+      },
+    });
+
+    expect(
+      normalized.modelCapabilities["openai:on-ladder"]
+        .default_reasoning_effort,
+    ).toBe("medium");
+    expect(
+      normalized.modelCapabilities["openai:off-ladder"]
+        .default_reasoning_effort,
+    ).toBeUndefined();
+    // No ladder at all → no default either.
+    expect(
+      normalized.modelCapabilities["openai:no-efforts"]
+        .default_reasoning_effort,
+    ).toBeUndefined();
+  });
+
   test("falls back to text-only defaults for invalid capability payloads", () => {
     const normalized = normalizeModelCatalog({
       active: {

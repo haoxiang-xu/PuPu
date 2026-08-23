@@ -44,6 +44,7 @@ import {
   fingerprintTurnMutationMessages,
   readTurnMutationOutbox,
 } from "../../../SERVICEs/turn_mutation_outbox";
+import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -137,12 +138,7 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
 }));
 
 const setMemoryV2Flag = (enabled) => {
-  const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-  root.feature_flags = {
-    ...(root.feature_flags || {}),
-    enable_memory_v2: enabled === true,
-  };
-  window.localStorage.setItem("settings", JSON.stringify(root));
+  writeFeatureFlags({ enable_memory_v2: enabled === true });
 };
 
 const setMemoryEnabled = (enabled) => {

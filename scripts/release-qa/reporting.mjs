@@ -52,6 +52,7 @@ const RELEASE_PACKAGE_PLATFORMS = Object.freeze([
   "windows",
   "linux",
 ]);
+const RELEASE_PACKAGE_MODES = new Set(["release", "release-candidate"]);
 
 export function normalizeStatus(value) {
   const normalized = cleanString(value).toLowerCase();
@@ -414,7 +415,7 @@ export function mergeReports(
   checks.push(
     ...enforceExpectedReportTopology(normalizedReports, requiredReportPlatforms),
   );
-  if (mode === "release") {
+  if (RELEASE_PACKAGE_MODES.has(mode)) {
     for (const platformName of RELEASE_PACKAGE_PLATFORMS) {
       const report = normalizedReports.find(
         (candidate) => candidate.platform?.name === platformName,

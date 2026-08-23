@@ -13,6 +13,10 @@ import {
   updateChatDraft,
 } from "../../../SERVICEs/chat_storage";
 import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
+import {
+  readReasoningEffortPref,
+  writeReasoningEffortPref,
+} from "../../../SERVICEs/reasoning_effort_prefs";
 import { settleStreamingAssistantMessages } from "../utils/chat_turn_utils";
 import {
   cancelBackgroundPersist,
@@ -20,6 +24,17 @@ import {
 } from "./background_stream_persister";
 
 const DRAFT_PERSIST_DELAY_MS = 250;
+
+/* A chat's own recorded effort wins — it is what that conversation has been
+   running at. Only when the chat never recorded one (a fresh chat, or a chat
+   from before effort existed) does the model's remembered level fill in, so
+   the user's per-model choice carries into new chats without ever rewriting
+   the history of an existing one. */
+const resolveChatReasoningEffort = (chat, modelId) => {
+  const recorded = chat?.model?.reasoningEffort;
+  if (typeof recorded === "string" && recorded.trim()) return recorded;
+  return readReasoningEffortPref(modelId);
+};
 
 /* ---- Memory V2 P0: draft-persistence secret guard ------------------------
 
@@ -210,10 +225,7 @@ export const useChatSessionState = ({
       : "unchain-unset",
   );
   const [selectedReasoningEffort, setSelectedReasoningEffort] = useState(() =>
-    typeof initialChat.model?.reasoningEffort === "string" &&
-    initialChat.model.reasoningEffort.trim()
-      ? initialChat.model.reasoningEffort
-      : null,
+    resolveChatReasoningEffort(initialChat, initialChat.model?.id),
   );
   const [agentOrchestration, setAgentOrchestration] = useState(
     () => initialChat.agentOrchestration || { mode: "default" },
@@ -266,10 +278,7 @@ export const useChatSessionState = ({
     ]),
   );
   const reasoningEffortRef = useRef(
-    typeof initialChat.model?.reasoningEffort === "string" &&
-    initialChat.model.reasoningEffort.trim()
-      ? initialChat.model.reasoningEffort
-      : null,
+    resolveChatReasoningEffort(initialChat, initialChat.model?.id),
   );
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
@@ -377,11 +386,10 @@ export const useChatSessionState = ({
             : "unchain-unset";
         modelIdRef.current = nextModelId;
         setSelectedModelId(nextModelId);
-        const nextEffort =
-          typeof nextActiveChat.model?.reasoningEffort === "string" &&
-          nextActiveChat.model.reasoningEffort.trim()
-            ? nextActiveChat.model.reasoningEffort
-            : null;
+        const nextEffort = resolveChatReasoningEffort(
+          nextActiveChat,
+          nextModelId,
+        );
         reasoningEffortRef.current = nextEffort;
         setSelectedReasoningEffort(nextEffort);
         threadIdRef.current =
@@ -504,11 +512,10 @@ export const useChatSessionState = ({
           ? nextActiveChat.model.id
           : "unchain-unset";
       setSelectedModelId(modelIdRef.current);
-      reasoningEffortRef.current =
-        typeof nextActiveChat.model?.reasoningEffort === "string" &&
-        nextActiveChat.model.reasoningEffort.trim()
-          ? nextActiveChat.model.reasoningEffort
-          : null;
+      reasoningEffortRef.current = resolveChatReasoningEffort(
+        nextActiveChat,
+        modelIdRef.current,
+      );
       setSelectedReasoningEffort(reasoningEffortRef.current);
     };
 
@@ -784,13 +791,20 @@ export const useChatSessionState = ({
 
       modelIdRef.current = modelId;
       setSelectedModelId(modelId);
+
+      /* Effort is a property of the MODEL, not of the chat's history: carrying
+         the outgoing model's level onto the incoming one silently applies a
+         level the new model may not even declare. Restore what this model was
+         last set to instead, and leave it unset when it was never set. */
+      const rememberedEffort = readReasoningEffortPref(modelId);
+      reasoningEffortRef.current = rememberedEffort;
+      setSelectedReasoningEffort(rememberedEffort);
+
       setChatModel(
         currentChatId,
         {
           id: modelId,
-          ...(reasoningEffortRef.current
-            ? { reasoningEffort: reasoningEffortRef.current }
-            : {}),
+          ...(rememberedEffort ? { reasoningEffort: rememberedEffort } : {}),
         },
         { source: "chat-page" },
       );
@@ -811,6 +825,15 @@ export const useChatSessionState = ({
           : null;
       reasoningEffortRef.current = normalized;
       setSelectedReasoningEffort(normalized);
+
+      /* Remember it for this model so every later chat on it starts here.
+         Written even when there is no active chat to persist to — the choice
+         belongs to the model, and a null clears the memory rather than
+         leaving a stale level behind. */
+      if (modelIdRef.current) {
+        writeReasoningEffortPref(modelIdRef.current, normalized);
+      }
+
       if (!currentChatId || activeChatKind === "character") return;
       setChatModel(
         currentChatId,

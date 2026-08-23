@@ -49,6 +49,7 @@ const ChatInput = ({
   onSelectModel,
   reasoningEffortOptions = [],
   selectedReasoningEffort = null,
+  defaultReasoningEffort = null,
   onSelectReasoningEffort,
   modelSelectDisabled = false,
   showModelSelector = true,
@@ -510,6 +511,7 @@ const ChatInput = ({
                       onSelectModel={onSelectModel}
                       reasoningEffortOptions={reasoningEffortOptions}
                       selectedReasoningEffort={selectedReasoningEffort}
+                      defaultReasoningEffort={defaultReasoningEffort}
                       onSelectReasoningEffort={onSelectReasoningEffort}
                       onGroupToggle={handleGroupToggle}
                       modelSelectDisabled={modelSelectDisabled}

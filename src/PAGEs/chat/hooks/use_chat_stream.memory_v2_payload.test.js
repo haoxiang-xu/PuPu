@@ -36,6 +36,7 @@ import {
   setChatMessages,
   setChatModel,
 } from "../../../SERVICEs/chat_storage";
+import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -113,12 +114,7 @@ const deepHasValue = (value, needle) => {
 };
 
 const setMemoryV2Flag = (enabled) => {
-  const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-  root.feature_flags = {
-    ...(root.feature_flags || {}),
-    enable_memory_v2: enabled === true,
-  };
-  window.localStorage.setItem("settings", JSON.stringify(root));
+  writeFeatureFlags({ enable_memory_v2: enabled === true });
 };
 
 // Seeds the memory_agent_v2 settings namespace the way the Agent Builder

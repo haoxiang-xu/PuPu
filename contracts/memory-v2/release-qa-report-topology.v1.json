@@ -19,6 +19,18 @@
         { "platform": "linux" }
       ]
     },
+    "release-candidate": {
+      "required_reports": [
+        { "platform": "deterministic" },
+        { "platform": "playwright-Linux" },
+        { "platform": "playwright-macOS" },
+        { "platform": "playwright-Windows" },
+        { "platform": "mac-arm64" },
+        { "platform": "mac-intel" },
+        { "platform": "windows" },
+        { "platform": "linux" }
+      ]
+    },
     "windows-active-qualification": {
       "required_reports": [
         { "platform": "deterministic" },

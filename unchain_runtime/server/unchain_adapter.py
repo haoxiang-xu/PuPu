@@ -3533,6 +3533,13 @@ def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[s
         ]
         if efforts:
             normalized["reasoning_efforts"] = efforts
+            # Optional: the level the model uses when the request carries no
+            # effort field. Only forwarded when it is one of the declared
+            # levels, so the renderer can never mark an unreachable pill as
+            # the default.
+            raw_default = raw_capabilities.get("default_reasoning_effort")
+            if isinstance(raw_default, str) and raw_default.strip() in efforts:
+                normalized["default_reasoning_effort"] = raw_default.strip()
     return normalized
 
 
@@ -5234,13 +5241,28 @@ _CUSTOM_MAX_TOKENS_PARAM_BY_PROTOCOL = {
 }
 
 
-_REASONING_EFFORT_LEVELS = ("minimal", "low", "medium", "high")
-_ANTHROPIC_THINKING_BUDGET_BY_EFFORT = {
-    "low": 4096,
-    "medium": 16384,
-    "high": 65536,
-}
-_ANTHROPIC_THINKING_BUDGET_FLOOR = 1024
+# Union of every level any supported provider declares. This is an admission
+# allowlist only — which levels a given model actually offers comes from that
+# model's `reasoning_efforts` capability, and the renderer only ever offers
+# those. A level outside this tuple is dropped rather than forwarded.
+_REASONING_EFFORT_LEVELS = (
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+)
+
+# Anthropic's effort ladder has no "none"/"minimal" rung; a request carrying
+# one would be rejected, so it is dropped and the provider default applies.
+_ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+# Per-protocol wire key for custom providers. Both shapes are the respective
+# protocol's own documented one, so an Anthropic-compatible endpoint gets the
+# Anthropic shape and an OpenAI-Responses-compatible one gets the OpenAI shape.
+_CUSTOM_EFFORT_PROTOCOLS = ("anthropic", "openai-responses")
 
 
 def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:
@@ -5273,30 +5295,29 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     # the renderer, and shipped through each provider's native request key
     # (already present in allowed_payload_keys). Unknown levels and providers
     # without a mapping are silently omitted — the provider default applies.
+    #
+    # Anthropic's key is `output_config.effort`, NOT a thinking budget. Effort
+    # replaced the fixed-budget knob on Opus 4.7 and later, and every Anthropic
+    # model that declares `reasoning_efforts` is in that generation — sending
+    # `thinking: {type: "enabled", budget_tokens: N}` to one is a 400, so the
+    # whole effort feature failed closed on Claude before this mapping existed.
     effort = options.get("reasoningEffort")
-    if isinstance(effort, str) and cfg is None:
+    if isinstance(effort, str):
         normalized_effort = effort.strip().lower()
         if normalized_effort in _REASONING_EFFORT_LEVELS:
-            if provider == "openai":
+            if cfg is not None:
+                # Custom providers speak their declared protocol's shape. A
+                # protocol without an effort concept (ollama) gets nothing.
+                if cfg.protocol == "anthropic":
+                    if normalized_effort in _ANTHROPIC_EFFORT_LEVELS:
+                        payload["output_config"] = {"effort": normalized_effort}
+                elif cfg.protocol == "openai-responses":
+                    payload["reasoning"] = {"effort": normalized_effort}
+            elif provider == "openai":
                 payload["reasoning"] = {"effort": normalized_effort}
             elif provider == "anthropic":
-                budget = _ANTHROPIC_THINKING_BUDGET_BY_EFFORT.get(
-                    normalized_effort
-                )
-                if budget is not None:
-                    max_tokens_cap = payload.get("max_tokens")
-                    if (
-                        isinstance(max_tokens_cap, int)
-                        and max_tokens_cap > _ANTHROPIC_THINKING_BUDGET_FLOOR
-                    ):
-                        budget = max(
-                            _ANTHROPIC_THINKING_BUDGET_FLOOR,
-                            min(budget, max_tokens_cap - 1024),
-                        )
-                    payload["thinking"] = {
-                        "type": "enabled",
-                        "budget_tokens": budget,
-                    }
+                if normalized_effort in _ANTHROPIC_EFFORT_LEVELS:
+                    payload["output_config"] = {"effort": normalized_effort}
 
     return payload
 

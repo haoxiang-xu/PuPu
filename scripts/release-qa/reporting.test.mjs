@@ -49,9 +49,13 @@ const deterministicChecks = (overrides = {}) =>
     outcome: overrides[name] || "success",
     executed_tests: 1,
   }));
-const packageReport = (platform, { unchain = unchainEvidence(), smoke = 4 } = {}) =>
+const packageReport = (platform, {
+  unchain = unchainEvidence(),
+  smoke = 4,
+  mode = "release",
+} = {}) =>
   buildJobReport({
-    mode: "release",
+    mode,
     platform: { name: platform, os: platform },
     unchain,
     requiredChecks: PACKAGE_REQUIRED_CHECKS,
@@ -183,6 +187,33 @@ test("release merge requires all package platforms, identical bytes, and real sm
       (check) => check.name === "packaged sidecar protocol smoke linux",
     ).status,
     "failed",
+  );
+});
+
+test("release-candidate merge keeps the complete package continuity gate", () => {
+  const deterministic = buildJobReport({
+    mode: "release-candidate",
+    platform: { name: "deterministic", os: "linux" },
+    version: "0.1.10",
+    unchain: unchainEvidence(),
+    checks: deterministicChecks(),
+  });
+  const complete = mergeReports([
+    deterministic,
+    ...["mac-arm64", "mac-intel", "windows", "linux"].map((platform) =>
+      packageReport(platform, { mode: "release-candidate" })
+    ),
+  ], { mode: "release-candidate" });
+  assert.equal(complete.deterministic_result.status, "passed");
+
+  const incomplete = mergeReports([
+    deterministic,
+    packageReport("linux", { mode: "release-candidate" }),
+  ], { mode: "release-candidate" });
+  assert.equal(incomplete.deterministic_result.status, "failed");
+  assert.match(
+    incomplete.checks.find((check) => check.name === "package report mac-arm64").details,
+    /missing/,
   );
 });
 

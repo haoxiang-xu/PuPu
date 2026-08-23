@@ -17,6 +17,7 @@ import {
   buildContextUsageView,
   selectContextUsage,
 } from "../../../SERVICEs/context_usage_v1";
+import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 
 const {
   buildRunBundleV1,
@@ -66,6 +67,11 @@ jest.mock("../hooks/use_chat_input_workspaces", () => ({
   default: jest.fn(() => ({ workspaceOptions: [] })),
 }));
 
+/* Keyed by selector: AttachPanel renders several Selects and only the model
+   one carries a keep-open predicate — a single shared slot would be
+   overwritten with undefined by whichever Select renders last. */
+const mockKeepOpenBySelector = {};
+
 jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
   __esModule: true,
   Select: ({
@@ -80,7 +86,14 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     value,
     set_value = () => {},
     palette_actions = null,
+    palette_footer = null,
+    keep_open_on_select,
   }) => {
+    /* Surfaced so a test can assert the predicate AttachPanel hands down,
+       rather than re-implementing close-on-select inside this mock — the
+       real semantics belong to use_select and are tested there. */
+    mockKeepOpenBySelector[search_placeholder || placeholder || "default"] =
+      keep_open_on_select;
     const toggleOption = (item) => {
       if (!item || item.disabled) return;
       if (multi) {
@@ -131,6 +144,9 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
         {renderOptionLabels(options)}
         {palette_actions ? (
           <div data-testid="palette-actions">{palette_actions}</div>
+        ) : null}
+        {palette_footer ? (
+          <div data-testid="palette-footer">{palette_footer}</div>
         ) : null}
         {custom_trigger}
       </div>
@@ -600,14 +616,7 @@ describe("AttachPanel toolkit selector refresh", () => {
   });
 
   test("never shows agent recipe options in the model selector", () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_user_access_to_agents: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_user_access_to_agents: true });
     useChatInputToolkits.mockReturnValue({
       toolkitOptions: [],
       toolkitLoading: false,
@@ -897,7 +906,7 @@ describe("attach panel semantic surface binding", () => {
   });
 });
 
-describe("AttachPanel reasoning effort pills", () => {
+describe("AttachPanel reasoning effort capsule", () => {
   beforeEach(() => {
     window.localStorage.clear();
     useChatInputToolkits.mockReset();
@@ -910,72 +919,135 @@ describe("AttachPanel reasoning effort pills", () => {
     useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
   });
 
-  const renderPanel = (props = {}) =>
-    render(
-      <AttachPanel
-        color="#222"
-        active={false}
-        focused={false}
-        onAttachFile={() => {}}
-        isDark={false}
-        attachments={[]}
-        selectedToolkits={[]}
-        onToolkitsChange={() => {}}
-        selectedWorkspaceIds={[]}
-        onWorkspaceIdsChange={() => {}}
-        modelOptions={[{ value: "openai:gpt-5", label: "gpt-5" }]}
-        selectedModelId="openai:gpt-5"
-        onSelectModel={() => {}}
-        {...props}
-      />,
-    );
+  const baseProps = {
+    color: "#222",
+    active: false,
+    focused: false,
+    onAttachFile: () => {},
+    isDark: false,
+    attachments: [],
+    selectedToolkits: [],
+    onToolkitsChange: () => {},
+    selectedWorkspaceIds: [],
+    onWorkspaceIdsChange: () => {},
+    modelOptions: [{ value: "openai:gpt-5", label: "gpt-5" }],
+    selectedModelId: "openai:gpt-5",
+    onSelectModel: () => {},
+  };
 
-  test("renders one pill per declared level inside the model palette header", () => {
+  const renderPanel = (props = {}) =>
+    render(<AttachPanel {...baseProps} {...props} />);
+
+  const modelSelect = () => screen.getByTestId("select-Search models…");
+  const footer = () => within(modelSelect()).getByTestId("palette-footer");
+  const fill = () =>
+    footer().querySelector('[aria-hidden="true"]');
+
+  test("renders one cell per declared level, labelled short", () => {
     renderPanel({
-      reasoningEffortOptions: ["minimal", "low", "medium", "high"],
-      selectedReasoningEffort: "medium",
+      reasoningEffortOptions: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+      selectedReasoningEffort: "high",
+      defaultReasoningEffort: "medium",
       onSelectReasoningEffort: () => {},
     });
 
-    const modelSelect = screen.getByTestId("select-Search models…");
-    const actions = within(modelSelect).getByTestId("palette-actions");
-    expect(within(actions).getByTitle("minimal")).toHaveTextContent("min");
-    expect(within(actions).getByTitle("low")).toHaveTextContent("low");
-    expect(within(actions).getByTitle("medium")).toHaveTextContent("med");
-    expect(within(actions).getByTitle("high")).toHaveTextContent("high");
+    const cells = footer();
+    expect(within(cells).getByTitle("minimal")).toHaveTextContent("min");
+    expect(within(cells).getByTitle("medium")).toHaveTextContent("med");
+    expect(within(cells).getByTitle("xhigh")).toHaveTextContent("x-high");
+    expect(within(cells).getByTitle("max")).toHaveTextContent("max");
   });
 
-  test("selects an inactive level and clears by re-pressing the active one", () => {
+  test("the fill reaches the far edge of the chosen level", () => {
+    renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high", "xhigh"],
+      selectedReasoningEffort: "medium",
+      defaultReasoningEffort: "low",
+      onSelectReasoningEffort: () => {},
+    });
+    // second of four levels, inclusive → half the ladder
+    expect(fill().style.width).toBe("50%");
+  });
+
+  test("an untouched model shows no fill at all", () => {
+    renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high", "xhigh"],
+      selectedReasoningEffort: null,
+      defaultReasoningEffort: "medium",
+      onSelectReasoningEffort: () => {},
+    });
+    // the default is displayed, never sent — so nothing is filled
+    expect(fill().style.width).toBe("0%");
+  });
+
+  test("the default is dashed, and a real pick is the raised puck", () => {
+    const { rerender } = renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high"],
+      selectedReasoningEffort: null,
+      defaultReasoningEffort: "medium",
+      onSelectReasoningEffort: () => {},
+    });
+
+    const dashed = within(footer()).getByTitle("Model default: medium");
+    expect(dashed.style.borderStyle).toBe("dashed");
+    expect(dashed.style.boxShadow).toBe("none");
+
+    rerender(
+      <AttachPanel
+        {...baseProps}
+        reasoningEffortOptions={["low", "medium", "high"]}
+        selectedReasoningEffort="medium"
+        defaultReasoningEffort="medium"
+        onSelectReasoningEffort={() => {}}
+      />,
+    );
+
+    // same level, now explicitly picked: no dash left anywhere, and it is raised
+    const picked = within(footer()).getByTitle("medium");
+    expect(picked.style.borderStyle).not.toBe("dashed");
+    expect(picked.style.boxShadow).not.toBe("none");
+    expect(
+      within(footer()).queryByTitle("Model default: medium"),
+    ).toBeNull();
+  });
+
+  test("picking is one-way — re-pressing the chosen level never clears it", () => {
     const onSelectReasoningEffort = jest.fn();
     renderPanel({
       reasoningEffortOptions: ["low", "medium", "high"],
       selectedReasoningEffort: "medium",
+      defaultReasoningEffort: "medium",
       onSelectReasoningEffort,
     });
 
-    const actions = within(
-      screen.getByTestId("select-Search models…"),
-    ).getByTestId("palette-actions");
-
-    fireEvent.mouseDown(within(actions).getByTitle("high"));
+    fireEvent.mouseDown(within(footer()).getByTitle("high"));
     expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("high");
 
-    fireEvent.mouseDown(within(actions).getByTitle("medium"));
-    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith(null);
+    // there is no reset control, and the chosen cell must not act as one
+    fireEvent.mouseDown(within(footer()).getByTitle("medium"));
+    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("medium");
+    expect(onSelectReasoningEffort).not.toHaveBeenCalledWith(null);
   });
 
-  test("renders no pills when the model declares no effort levels", () => {
+  test("picking a model never closes the palette, effort or not", () => {
     renderPanel({
       reasoningEffortOptions: [],
       selectedReasoningEffort: null,
       onSelectReasoningEffort: () => {},
     });
 
-    const modelSelect = screen.getByTestId("select-Search models…");
-    expect(
-      within(modelSelect).queryByTestId("palette-actions"),
-    ).not.toBeNull();
-    expect(within(modelSelect).queryByTitle("low")).toBeNull();
-    expect(within(modelSelect).queryByTitle("high")).toBeNull();
+    // A model with no effort row is no longer a special case: switching
+    // models is something users do repeatedly to compare, so the palette
+    // stays put and the trigger / an outside click remain the ways out.
+    expect(mockKeepOpenBySelector["Search models…"]).toBe(true);
+  });
+
+  test("a model with no effort levels passes no footer at all", () => {
+    renderPanel({
+      reasoningEffortOptions: [],
+      selectedReasoningEffort: null,
+      onSelectReasoningEffort: () => {},
+    });
+    expect(within(modelSelect()).queryByTestId("palette-footer")).toBeNull();
   });
 });

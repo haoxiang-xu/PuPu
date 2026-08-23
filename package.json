@@ -57,16 +57,20 @@
     "build:unchain:linux:raw": "npm run version:prepare-build && node ./scripts/prepare-mcp-runtime.cjs --target linux-x64 && bash ./unchain_runtime/scripts/build_unchain_server.sh linux",
     "build:unchain:win": "node scripts/release-qa/run-with-unchain-artifact.mjs -- npm run build:unchain:win:raw",
     "build:unchain:win:raw": "npm run version:prepare-build && node ./scripts/prepare-mcp-runtime.cjs --target win32-x64 && powershell -ExecutionPolicy Bypass -File ./unchain_runtime/scripts/build_unchain_server.ps1 windows",
-    "build:electron": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain && npm run build:web && npm run notices:check && electron-builder\"",
-    "build:electron:mac": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64\"",
-    "build:electron:mac:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64 --config.mac.identity=null\"",
-    "build:electron:mac:intel": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && npm run notices:check && electron-builder --mac --x64\"",
-    "build:electron:mac:intel:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && npm run notices:check && electron-builder --mac --x64 --config.mac.identity=null\"",
-    "build:win:chain": "npm run build:unchain:win && npm run build:web && npm run notices:check && electron-builder --win",
-    "build:win:chain:unsigned": "npm run build:unchain:win && npm run build:web && npm run notices:check && electron-builder --win --config.win.verifyUpdateCodeSignature=false",
+    "build:electron": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain && npm run build:web && npm run notices:check && electron-builder --publish never\"",
+    "build:electron:mac": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64 --publish never\"",
+    "build:electron:mac:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64 --publish never --config.mac.identity=null\"",
+    "build:electron:mac:release": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64 --publish never --config.mac.forceCodeSigning=true\"",
+    "build:electron:mac:intel": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && npm run notices:check && electron-builder --mac --x64 --publish never\"",
+    "build:electron:mac:intel:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && npm run notices:check && electron-builder --mac --x64 --publish never --config.mac.identity=null\"",
+    "build:electron:mac:intel:release": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && npm run notices:check && electron-builder --mac --x64 --publish never --config.mac.forceCodeSigning=true\"",
+    "build:win:chain": "npm run build:unchain:win && npm run build:web && npm run notices:check && electron-builder --win --x64 --publish never",
+    "build:win:chain:unsigned": "npm run build:unchain:win && npm run build:web && npm run notices:check && electron-builder --win --x64 --publish never --config.win.verifyUpdateCodeSignature=false",
+    "build:win:chain:release": "npm run build:unchain:win && npm run build:web && npm run notices:check && electron-builder --win --x64 --publish never --config.win.forceCodeSigning=true",
     "build:electron:win": "npm run version:prepare-build && cross-env PUPU_VERSION_PREPARED=1 npm run build:win:chain",
     "build:electron:win:unsigned": "npm run version:prepare-build && cross-env WIN_CSC_LINK= CSC_LINK= WIN_CSC_KEY_PASSWORD= CSC_KEY_PASSWORD= CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 npm run build:win:chain:unsigned",
-    "build:electron:linux": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:linux && npm run build:web && npm run notices:check && electron-builder --linux\"",
+    "build:electron:win:release": "npm run version:prepare-build && cross-env PUPU_VERSION_PREPARED=1 npm run build:win:chain:release",
+    "build:electron:linux": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:linux && npm run build:web && npm run notices:check && electron-builder --linux --x64 --publish never\"",
     "notices": "node ./scripts/generate-third-party-notices.cjs",
     "notices:check": "node ./scripts/generate-third-party-notices.cjs --check",
     "pack": "npm run build:electron",
@@ -161,7 +165,8 @@
         "zip"
       ],
       "forceCodeSigning": false,
-      "icon": "public/icon.icns"
+      "icon": "public/icon.icns",
+      "artifactName": "${productName}-${version}-macos-${arch}.${ext}"
     },
     "win": {
       "target": [
@@ -172,7 +177,11 @@
           ]
         }
       ],
-      "icon": "public/icon-win.ico"
+      "icon": "public/icon-win.ico",
+      "artifactName": "${productName}-${version}-windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-windows-${arch}-setup.${ext}"
     },
     "linux": {
       "target": [
@@ -180,7 +189,9 @@
         "deb"
       ],
       "icon": "public/logo512.png",
-      "category": "Utility"
+      "category": "Utility",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "publish": null
     },
     "toolsets": {
       "winCodeSign": "1.1.0"

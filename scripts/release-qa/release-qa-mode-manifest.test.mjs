@@ -28,6 +28,10 @@ test("W0-06 freezes distinct expected report sets for lite, release, and Windows
     expectedReportPlatformsForMode(topology, "release").includes("windows"),
     true,
   );
+  assert.deepEqual(
+    expectedReportPlatformsForMode(topology, "release-candidate"),
+    expectedReportPlatformsForMode(topology, "release"),
+  );
   assert.equal(
     expectedReportPlatformsForMode(topology, "windows-active-qualification")
       .includes("windows-installed-qualification"),

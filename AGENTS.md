@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **PuPu** (27865 symbols, 60674 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **PuPu** (28147 symbols, 61373 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -56,6 +56,7 @@ These are load-bearing — violating them breaks the build or the architecture. 
 - Custom router `BUILTIN_COMPONENTs/mini_react/mini_router.js` for internal routing — not react-router-dom.
 - React never touches `ipcRenderer`. System access goes through preload bridges (`window.unchainAPI`, `ollamaAPI`, `themeAPI`, etc.). IPC channel constants in `electron/shared/` must match both ends.
 - localStorage writes go only through helpers in `src/SERVICEs/`, never directly from components.
+- Overlay `zIndex` comes from `Z` in `BUILTIN_COMPONENTs/layer/z_layers.js` — never a literal — for anything portalled to `document.body` or `position: fixed`. `z_layers_guard` enforces this, but only for literals ≥1000 (`CONTENT_RAISED: 10` and `SCROLL_OVERLAY: 500` are legitimately small), so sub-1000 literals and wrong-layer choices are review's job: `Z.MODAL` where `Z.POPOVER` belongs passes the guard and is still wrong.
 - Electron tests have both `.js` and `.cjs` variants — keep them in sync.
 
 **Backend (`unchain_runtime/server/`):**

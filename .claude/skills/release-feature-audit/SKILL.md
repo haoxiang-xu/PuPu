@@ -48,6 +48,7 @@ discover the current fields, and verify the child's Project item.
 
 - **Reuse**: every new interactive element must come from `src/BUILTIN_COMPONENTs/` when a primitive exists (buttons ALWAYS builtin default form — no bare `<button>`, no transparent text-link buttons; anchored popovers use the Tooltip engine, never hand-rolled positioning). Flag hand-rolled widgets that duplicate a primitive; the original behavior source is the `mini_ui` repo if fidelity is in question.
 - **Theme**: every color must survive a whole-theme switch — `isDark` from ConfigContext with BOTH branches present (a color defined for one theme only is a violation); shell/background layers use `var(--pupu-background|--pupu-sidebar|--pupu-surface)`, never bare hex (`shell_background_guard` enforces); no colors invented outside the component's palette pattern. Grep the diff for hex literals and single-branch ternaries.
+- **Layering**: anything portalled to `document.body` or `position: fixed` takes its `zIndex` from `Z` in `BUILTIN_COMPONENTs/layer/z_layers.js`, never a literal (`z_layers_guard` enforces). Do NOT re-run that scan here — it runs in CI and is stricter than a grep. Audit the two things it structurally cannot see: (a) literals **below 1000**, which it deliberately ignores because `CONTENT_RAISED: 10` and `SCROLL_OVERLAY: 500` are legitimately small, and (b) a **semantically wrong layer** — `Z.MODAL` on a menu passes the guard and is still wrong. Read the chosen constant against the rationale in that file's header, and treat a new overlay that computes its own `zIndex` dynamically as needing an explicit justification.
 
 ## Check 3 — model features × agent builder (model-related features only)
 
@@ -79,9 +80,25 @@ A rendered panel is not evidence the pipeline works — PuPu has shipped a panel
 
 If the feature changed unchain Python, restart the sidecar before this probe or
 the test is evidence for old code. If a cross-boundary contract gate applies,
-verify the required BC, SEQ, AC, and exact deployed artifact evidence before
+verify the required BC, SEQ, AC, and exact delivered-candidate artifact evidence before
 PASS: the PuPu candidate digest, one reused Unchain wheel SHA-256, and the
 imported runtime manifest digest.
+
+### Feature-audit boundary
+
+This audit proves that the completed feature works in a real app path and that
+the recorded candidate uses the intended immutable artifacts. It does **not**
+require public or internal-user rollout, shadow/canary cohorts, rollout duration,
+production traffic, or post-rollout reliability metrics. Those belong to Release
+certification and must not block a feature ticket's audit PASS. A diagnostic,
+local, unsigned, or not-yet-notarized candidate may be valid audit evidence when
+the exact candidate digest, wheel digest, runtime manifest digest, package smoke,
+and applicable real-app behavior are verified. Source-tree dirtiness is
+provenance, not an automatic failure.
+
+Only audit shadow/canary behavior when the ticket's feature is the rollout
+mechanism itself. Do not reinterpret wording such as "available before release
+certification" as a prerequisite for completing the underlying feature ticket.
 
 ## Output
 
@@ -124,6 +141,7 @@ review.
 - Auditing the whole repo for checks 2–5 — scope is the feature's diff; repo-wide sweeps drown the signal.
 - Consulting retired owner/court/case records or treating them as an audit gate.
 - Marking check 5 PASS because the UI renders with mock/dev data — only a real-app probe with real output counts.
+- Requiring shadow/canary traffic, real users, rollout duration, signing/notarization, or production metrics for an ordinary feature audit; those are Release-certification gates unless rollout is the feature.
 - Treating check 3 as N/A because "it's just a provider preset" — presets surface in builder pickers; verify, then say N/A.
 - Auto-applying anything beyond i18n missing-key fills.
 - Running i18n scripts from the old `.claude/skills/cto/...` or `.claude/skills/i18n-coverage/...` paths — they live HERE now.

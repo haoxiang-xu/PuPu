@@ -1,5 +1,7 @@
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_BUILD_FEATURE_FLAGS = process.env.REACT_APP_BUILD_FEATURE_FLAGS;
+const fs = require("fs");
+const path = require("path");
 
 const loadFeatureFlagsModule = ({
   nodeEnv = "test",
@@ -126,6 +128,31 @@ describe("feature_flags service", () => {
       enable_computer_use: false,
       enable_memory_v2: false,
     });
+  });
+
+  test("consumer tests never handcraft the private feature-flag storage envelope", () => {
+    const pendingDirectories = [path.resolve(__dirname, "..")];
+    const offenders = [];
+
+    while (pendingDirectories.length > 0) {
+      const directory = pendingDirectories.pop();
+      fs.readdirSync(directory, { withFileTypes: true }).forEach((entry) => {
+        const entryPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          pendingDirectories.push(entryPath);
+          return;
+        }
+        if (!/\.test\.(?:js|cjs)$/.test(entry.name) || entryPath === __filename) {
+          return;
+        }
+        const source = fs.readFileSync(entryPath, "utf8");
+        if (/\bfeature_flags\s*:\s*\{/.test(source)) {
+          offenders.push(path.relative(path.resolve(__dirname, ".."), entryPath));
+        }
+      });
+    }
+
+    expect(offenders.sort()).toEqual([]);
   });
 
   test("writeFeatureFlags persists only the patched key, sparse, under the versioned envelope", () => {
