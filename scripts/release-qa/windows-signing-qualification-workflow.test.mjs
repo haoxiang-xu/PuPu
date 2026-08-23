@@ -18,6 +18,12 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /\$env:RUNNER_TEMP/);
   assert.doesNotMatch(workflow, /\$\{\{\s*runner\.temp\s*\}\}/);
+  assert.match(workflow, /Checkout Unchain source for the qualification build/);
+  assert.match(workflow, /repository: haoxiang-xu\/unchain/);
+  assert.match(workflow, /ref: dev/);
+  assert.match(workflow, /path: \.qualification-unchain/);
+  assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\/.qualification-unchain/);
+  assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_REF: dev/);
   assert.match(workflow, /azure\/login@v3/);
   assert.equal((workflow.match(/azure\/artifact-signing-action@v2/g) || []).length, 2);
   assert.match(workflow, /AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME/);

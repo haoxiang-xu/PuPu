@@ -41,6 +41,13 @@ jobs:
       - name: Checkout the selected source revision
         uses: actions/checkout@v4
 
+      - name: Checkout Unchain source for the qualification build
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: dev
+          path: .qualification-unchain
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -65,6 +72,9 @@ jobs:
           "PUPU_BUILD_VERSION=$buildVersion" >> $env:GITHUB_ENV
 
       - name: Build an unsigned unpacked Windows payload
+        env:
+          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/.qualification-unchain
+          UNCHAIN_ARTIFACT_SOURCE_REF: dev
         run: npm run build:electron:win:unpacked
 
       - name: Copy the exact payload into an isolated signing directory
