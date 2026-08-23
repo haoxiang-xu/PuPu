@@ -1,0 +1,182 @@
+name: Windows Signing Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type SIGN_WINDOWS_QUALIFICATION to build and sign a non-publishing Windows qualification package"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows-signing-qualification:
+    name: Build and verify Windows Artifact Signing
+    runs-on: windows-latest
+    environment: release-signing
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      QUALIFICATION_ROOT: ${{ runner.temp }}\pupu-windows-signing-${{ github.run_id }}
+      QUALIFICATION_PAYLOAD: ${{ runner.temp }}\pupu-windows-signing-${{ github.run_id }}\payload
+
+    steps:
+      - name: Require explicit non-publishing signing confirmation
+        shell: pwsh
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if ($env:CONFIRMATION -ne "SIGN_WINDOWS_QUALIFICATION") {
+            throw "confirmation must equal SIGN_WINDOWS_QUALIFICATION"
+          }
+
+      - name: Checkout the selected source revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: npm ci
+
+      - name: Build an unsigned unpacked Windows payload
+        run: npm run build:electron:win:unpacked
+
+      - name: Copy the exact payload into an isolated signing directory
+        shell: pwsh
+        run: |
+          $source = Join-Path $PWD "dist\win-unpacked"
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            throw "missing unpacked Windows payload: $source"
+          }
+          if (Test-Path -LiteralPath $env:QUALIFICATION_ROOT) {
+            throw "qualification directory unexpectedly already exists: $env:QUALIFICATION_ROOT"
+          }
+          New-Item -ItemType Directory -Path $env:QUALIFICATION_ROOT -Force | Out-Null
+          Copy-Item -LiteralPath $source -Destination $env:QUALIFICATION_PAYLOAD -Recurse
+          $signableFiles = @(Get-ChildItem -LiteralPath $env:QUALIFICATION_PAYLOAD -File -Recurse |
+            Where-Object { $_.Extension -in ".exe", ".dll" })
+          if ($signableFiles.Count -eq 0) {
+            throw "unpacked Windows payload contains no .exe or .dll files"
+          }
+
+      - name: Azure login for Windows Artifact Signing
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign isolated Windows payload with Artifact Signing
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ env.QUALIFICATION_PAYLOAD }}
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+
+      - name: Build a non-publishing installer from the signed payload
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npx electron-builder --win nsis --x64 --prepackaged "$env:QUALIFICATION_PAYLOAD" --publish never --config.win.verifyUpdateCodeSignature=false
+
+      - name: Resolve the only generated Windows installer
+        id: windows_installer
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath (Join-Path $PWD "dist") -File -Filter "*-windows-x64-setup.exe")
+          if ($installers.Count -ne 1) {
+            throw "expected exactly one Windows x64 installer, found $($installers.Count)"
+          }
+          "path=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Sign the non-publishing Windows installer
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          files: ${{ steps.windows_installer.outputs.path }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+
+      - name: Verify every signed payload file and installer
+        shell: pwsh
+        run: |
+          $payloadFiles = @(Get-ChildItem -LiteralPath $env:QUALIFICATION_PAYLOAD -File -Recurse |
+            Where-Object { $_.Extension -in ".exe", ".dll" })
+          $installers = @(Get-ChildItem -LiteralPath (Join-Path $PWD "dist") -File -Filter "*-windows-x64-setup.exe")
+          if ($installers.Count -ne 1) {
+            throw "expected exactly one Windows x64 installer, found $($installers.Count)"
+          }
+          $signedFiles = @($payloadFiles) + @($installers)
+          $evidence = foreach ($file in $signedFiles) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
+              throw "Authenticode status for $($file.FullName): $($signature.Status)"
+            }
+            [ordered]@{
+              path = $file.FullName
+              sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+              signer_subject = $signature.SignerCertificate.Subject
+              signer_thumbprint = $signature.SignerCertificate.Thumbprint
+            }
+          }
+          $report = [ordered]@{
+            schema = "pupu.windows-signing-qualification.v1"
+            status = "passed"
+            run_id = $env:GITHUB_RUN_ID
+            source_revision = $env:GITHUB_SHA
+            payload_file_count = $payloadFiles.Count
+            installer_file_count = $installers.Count
+            signed_files = @($evidence)
+          }
+          $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "windows-signing-qualification.v1.json" -Encoding utf8
+
+      - name: Upload signing qualification evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-signing-qualification
+          path: windows-signing-qualification.v1.json
+          if-no-files-found: error
+          retention-days: 30

@@ -26,10 +26,17 @@ export function releaseSigningFailures(platform, environment = process.env) {
     }
   }
   if (platform === "windows") {
-    const hasCertificate = has(environment, "WIN_CSC_LINK") || has(environment, "CSC_LINK");
-    const hasPassword = has(environment, "WIN_CSC_KEY_PASSWORD") || has(environment, "CSC_KEY_PASSWORD");
-    if (!hasCertificate || !hasPassword) {
-      failures.push("Windows requires WIN_CSC_LINK/CSC_LINK and WIN_CSC_KEY_PASSWORD/CSC_KEY_PASSWORD");
+    const required = [
+      "AZURE_CLIENT_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_ARTIFACT_SIGNING_ENDPOINT",
+      "AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME",
+      "AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME",
+    ];
+    const missing = required.filter((key) => !has(environment, key));
+    if (missing.length > 0) {
+      failures.push(`Windows Artifact Signing requires ${missing.join(", ")}`);
     }
   }
   return failures;

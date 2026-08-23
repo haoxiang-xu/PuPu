@@ -78,3 +78,42 @@ Both the clone spike and the view spike are measurement artifacts:
 non-human cloning (292 count / 3 uniques) and owner self-traffic. The 2026-08-21 topics
 change remains **PENDING**, day 1 of 14, window closes **2026-09-04**. Ranking is
 star-gated, so the realistic lever is stars and off-GitHub distribution, not more tag edits.
+
+---
+
+## Update 2026-08-23 — the wave continued, and downloads settled it
+
+The crawler wave was not a one-day event.
+
+| | 08-21 | 08-22 | 08-23 |
+|---|---|---|---|
+| clones 14d count | 134 | 425 | **940** |
+| clones 14d uniques | 83 | 83 | **92** |
+| views 14d count | 294 | 298 | **412** |
+| views 14d uniques | 87 | 90 | **96** |
+| **v0.1.9 downloads** | 29 | 29 | **29** |
+
+Per-day count / uniques ratio — a normal day sits at 1.0–2.5:
+
+- 08-19 `2.0` · 08-20 `1.0` — normal
+- 08-21 `97.3` (292 / 3)
+- 08-22 `26.2` (524 / 20)
+
+Views show the same signature: ratio `8.2` on 08-22 against `2.4` on 08-20. The `github.com` referrer reads 104 count / 6 uniques (ratio 17).
+
+### The decisive fact
+
+**14-day clones went 134 → 940 while v0.1.9 downloads stayed at exactly 29.**
+
+Zero conversion out of 940 clones. Real people finding a desktop AI client produce at least a few downloads. None appeared.
+
+### Rule for the rest of this window
+
+`count` is **void for the entire 2026-08-21 → 2026-09-04 window**, not just for one day. Attribute the topics change only on:
+
+1. search-referrer uniques
+2. 14-day unique visitors
+3. 14-day unique cloners
+4. release downloads
+
+Current state of those four, day 2 of 14: search uniques 26 → 29 (yandex 12→13, Google 9→10, Bing 3→5, yandex.ru 2→1); unique visitors 90 → 96; unique cloners 83 → 92; downloads 29 → 29. All inside normal variance. Verdict stays **PENDING**.

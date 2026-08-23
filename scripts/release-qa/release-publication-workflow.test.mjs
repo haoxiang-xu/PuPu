@@ -25,11 +25,12 @@ test("electron-builder uses canonical architecture-bearing names and every packa
     "build:electron:mac:intel:release",
     "build:win:chain",
     "build:win:chain:unsigned",
-    "build:win:chain:release",
+    "build:win:chain:unpacked",
     "build:electron:linux",
   ]) {
     assert.match(scripts[scriptName], /--publish never/, `${scriptName} must never implicitly publish`);
   }
+  assert.match(scripts["build:electron:win:unpacked"], /build:win:chain:unpacked/);
   assert.equal(packageJson.build.mac.artifactName, "${productName}-${version}-macos-${arch}.${ext}");
   assert.equal(packageJson.build.nsis.artifactName, "${productName}-${version}-windows-${arch}-setup.${ext}");
   assert.equal(packageJson.build.linux.artifactName, "${productName}-${version}-linux-${arch}.${ext}");
@@ -45,12 +46,20 @@ test("release QA has an explicit signed, non-publishing candidate mode and seals
   assert.equal(workflow.split(modeExpression).length - 1, 5, "all jobs must resolve manual candidate mode before tag fallback");
   assert.match(workflow, /build:electron:mac:release/);
   assert.match(workflow, /build:electron:mac:intel:release/);
-  assert.match(workflow, /build:electron:win:release/);
+  assert.match(workflow, /build:electron:win:unpacked/);
   assert.match(workflow, /release-signing\.mjs/);
   assert.match(workflow, /verify-github-environment\.mjs --environment release-signing/);
   assert.match(workflow, /codesign --verify --deep --strict/);
   assert.match(workflow, /xcrun stapler validate/);
   assert.match(workflow, /Get-AuthenticodeSignature/);
+  assert.match(workflow, /azure\/login@v3/);
+  assert.match(workflow, /azure\/artifact-signing-action@v2/);
+  assert.match(workflow, /id-token: write/);
+  assert.match(workflow, /AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME/);
+  assert.match(workflow, /Sign unpacked Windows payload with Artifact Signing/);
+  assert.match(workflow, /Build installer from Azure-signed Windows payload/);
+  assert.match(workflow, /Sign Windows installer with Artifact Signing/);
+  assert.doesNotMatch(workflow, /secrets\.WIN_CSC_LINK|secrets\.WIN_CSC_KEY_PASSWORD/);
   assert.match(workflow, /verify-release-package-output\.mjs/);
   assert.match(workflow, /assemble-release-candidate\.mjs/);
   assert.ok(workflow.indexOf("Resolve final QA version") < workflow.indexOf("assemble-release-candidate.mjs"));

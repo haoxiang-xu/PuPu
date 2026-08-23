@@ -400,7 +400,7 @@ jobs:
             target_id: windows-x64
             signing_platform: windows
             command: npm run build:electron:win:unsigned
-            candidate_command: npm run build:electron:win:release
+            candidate_command: npm run build:electron:win:unpacked
           - name: linux
             os: ubuntu-latest
             target_id: linux-x64
@@ -411,6 +411,10 @@ jobs:
       QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
       UNCHAIN_SOURCE_REF: ${{ github.event.inputs.unchain_ref || 'dev' }}
       PUPU_REQUIRE_NATIVE_MCP_SMOKE: "1"
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
@@ -500,8 +504,12 @@ jobs:
         env:
           CSC_LINK: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.CSC_KEY_PASSWORD || '' }}
-          WIN_CSC_LINK: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && secrets.WIN_CSC_LINK || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          AZURE_CLIENT_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_TENANT_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_SUBSCRIPTION_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && secrets.AZURE_SUBSCRIPTION_ID || '' }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && vars.AZURE_ARTIFACT_SIGNING_ENDPOINT || '' }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME || '' }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME || '' }}
           APPLE_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.APPLE_API_KEY || '' }}
           APPLE_API_KEY_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.APPLE_API_KEY_ID || '' }}
           APPLE_API_ISSUER: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.APPLE_API_ISSUER || '' }}
@@ -534,8 +542,6 @@ jobs:
           UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
           CSC_LINK: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.CSC_KEY_PASSWORD || '' }}
-          WIN_CSC_LINK: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && secrets.WIN_CSC_LINK || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
           APPLE_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.APPLE_API_KEY || '' }}
           APPLE_API_KEY_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.APPLE_API_KEY_ID || '' }}
           APPLE_API_ISSUER: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && matrix.signing_platform == 'macos' && secrets.APPLE_API_ISSUER || '' }}
@@ -575,6 +581,94 @@ jobs:
             --snapshot "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" \
             --out packaged-sidecar-smoke.json
 
+      - name: Prepare Windows payload for Artifact Signing
+        id: windows_payload
+        if: env.QA_MODE == 'release-candidate' && matrix.signing_platform == 'windows' && steps.package.outcome == 'success' && steps.sidecar_smoke.outcome == 'success'
+        working-directory: pupu
+        shell: pwsh
+        run: |
+          $source = Join-Path $PWD "dist/win-unpacked"
+          $destination = Join-Path $PWD ".release-qa/windows-unpacked"
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            throw "missing unpacked Windows payload: $source"
+          }
+          if (Test-Path -LiteralPath $destination) {
+            throw "stale unpacked Windows payload exists: $destination"
+          }
+          New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+          Move-Item -LiteralPath $source -Destination $destination
+          $signableFiles = @(Get-ChildItem -LiteralPath $destination -File -Recurse | Where-Object { $_.Extension -in ".exe", ".dll" })
+          if ($signableFiles.Count -eq 0) {
+            throw "unpacked Windows payload contains no .exe or .dll files"
+          }
+
+      - name: Azure login for Windows Artifact Signing
+        id: windows_azure_login
+        if: env.QA_MODE == 'release-candidate' && matrix.signing_platform == 'windows' && steps.windows_payload.outcome == 'success'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign unpacked Windows payload with Artifact Signing
+        id: windows_payload_signing
+        if: env.QA_MODE == 'release-candidate' && matrix.signing_platform == 'windows' && steps.windows_azure_login.outcome == 'success'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\pupu\.release-qa\windows-unpacked
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+
+      - name: Build installer from Azure-signed Windows payload
+        id: windows_repackage
+        if: env.QA_MODE == 'release-candidate' && matrix.signing_platform == 'windows' && steps.windows_payload_signing.outcome == 'success'
+        working-directory: pupu
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npx electron-builder --win nsis --x64 --prepackaged .release-qa/windows-unpacked --publish never --config.win.verifyUpdateCodeSignature=false
+
+      - name: Sign Windows installer with Artifact Signing
+        id: windows_installer_signing
+        if: env.QA_MODE == 'release-candidate' && matrix.signing_platform == 'windows' && steps.windows_repackage.outcome == 'success'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          files: ${{ github.workspace }}\pupu\dist\PuPu-${{ env.QA_VERSION }}-windows-x64-setup.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+
       - name: Verify signed and notarized release candidate package
         id: release_signing
         if: always() && env.QA_MODE == 'release-candidate'
@@ -600,7 +694,7 @@ jobs:
                 exit 1
               fi
               export INSTALLER_PATH
-              powershell -NoProfile -NonInteractive -Command '$signature = Get-AuthenticodeSignature -LiteralPath $env:INSTALLER_PATH; if ($signature.Status -ne "Valid") { throw "Authenticode status: $($signature.Status)" }'
+              powershell -NoProfile -NonInteractive -Command '$payload = Get-ChildItem -LiteralPath ".release-qa/windows-unpacked" -File -Recurse | Where-Object { $_.Extension -in ".exe", ".dll" }; if ($payload.Count -eq 0) { throw "No Windows payload files found for Authenticode verification" }; foreach ($file in @($payload) + (Get-Item -LiteralPath $env:INSTALLER_PATH)) { $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName; if ($signature.Status -ne "Valid") { throw "Authenticode status for $($file.FullName): $($signature.Status)" } }'
               ;;
             linux)
               echo "Linux x64 has no code-signing/notarization contract in v0.1.10"
@@ -667,6 +761,25 @@ jobs:
           if [ "${{ steps.sidecar_smoke.outcome }}" != "success" ]; then
             echo "::error title=Packaged sidecar smoke failed::${{ matrix.name }} did not start and pass authenticated protocol checks"
             exit 1
+          fi
+          if [ "$QA_MODE" = "release-candidate" ] && [ "${{ steps.release_signing.outcome }}" != "success" ]; then
+            echo "::error title=Release signature verification failed::${{ matrix.name }} did not pass native signing verification"
+            exit 1
+          fi
+          if [ "$QA_MODE" = "release-candidate" ] && [ "${{ matrix.signing_platform }}" = "windows" ]; then
+            for step in windows_payload windows_azure_login windows_payload_signing windows_repackage windows_installer_signing; do
+              case "$step" in
+                windows_payload) outcome="${{ steps.windows_payload.outcome }}" ;;
+                windows_azure_login) outcome="${{ steps.windows_azure_login.outcome }}" ;;
+                windows_payload_signing) outcome="${{ steps.windows_payload_signing.outcome }}" ;;
+                windows_repackage) outcome="${{ steps.windows_repackage.outcome }}" ;;
+                windows_installer_signing) outcome="${{ steps.windows_installer_signing.outcome }}" ;;
+              esac
+              if [ "$outcome" != "success" ]; then
+                echo "::error title=Windows Artifact Signing failed::$step outcome was $outcome"
+                exit 1
+              fi
+            done
           fi
 
   final-report:
