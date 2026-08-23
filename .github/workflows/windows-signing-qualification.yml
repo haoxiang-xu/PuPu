@@ -19,9 +19,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      QUALIFICATION_ROOT: ${{ runner.temp }}\pupu-windows-signing-${{ github.run_id }}
-      QUALIFICATION_PAYLOAD: ${{ runner.temp }}\pupu-windows-signing-${{ github.run_id }}\payload
 
     steps:
       - name: Require explicit non-publishing signing confirmation
@@ -32,6 +29,14 @@ jobs:
           if ($env:CONFIRMATION -ne "SIGN_WINDOWS_QUALIFICATION") {
             throw "confirmation must equal SIGN_WINDOWS_QUALIFICATION"
           }
+
+      - name: Initialize isolated qualification paths
+        shell: pwsh
+        run: |
+          $qualificationRoot = Join-Path $env:RUNNER_TEMP "pupu-windows-signing-$env:GITHUB_RUN_ID"
+          $qualificationPayload = Join-Path $qualificationRoot "payload"
+          "QUALIFICATION_ROOT=$qualificationRoot" >> $env:GITHUB_ENV
+          "QUALIFICATION_PAYLOAD=$qualificationPayload" >> $env:GITHUB_ENV
 
       - name: Checkout the selected source revision
         uses: actions/checkout@v4

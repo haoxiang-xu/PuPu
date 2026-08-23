@@ -16,6 +16,8 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /SIGN_WINDOWS_QUALIFICATION/);
   assert.match(workflow, /environment: release-signing/);
   assert.match(workflow, /id-token: write/);
+  assert.match(workflow, /\$env:RUNNER_TEMP/);
+  assert.doesNotMatch(workflow, /\$\{\{\s*runner\.temp\s*\}\}/);
   assert.match(workflow, /azure\/login@v3/);
   assert.equal((workflow.match(/azure\/artifact-signing-action@v2/g) || []).length, 2);
   assert.match(workflow, /AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME/);
