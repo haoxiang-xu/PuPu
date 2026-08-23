@@ -55,6 +55,15 @@ jobs:
       - name: Install build dependencies
         run: npm ci
 
+      - name: Resolve non-interactive build version
+        shell: pwsh
+        run: |
+          $buildVersion = node -p "require('./package.json').version"
+          if ([string]::IsNullOrWhiteSpace($buildVersion)) {
+            throw "package.json did not provide a build version"
+          }
+          "PUPU_BUILD_VERSION=$buildVersion" >> $env:GITHUB_ENV
+
       - name: Build an unsigned unpacked Windows payload
         run: npm run build:electron:win:unpacked
 
@@ -178,7 +187,7 @@ jobs:
           $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "windows-signing-qualification.v1.json" -Encoding utf8
 
       - name: Upload signing qualification evidence only
-        if: always()
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: windows-signing-qualification

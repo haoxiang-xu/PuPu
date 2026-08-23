@@ -21,6 +21,9 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /azure\/login@v3/);
   assert.equal((workflow.match(/azure\/artifact-signing-action@v2/g) || []).length, 2);
   assert.match(workflow, /AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME/);
+  assert.match(workflow, /Resolve non-interactive build version/);
+  assert.match(workflow, /PUPU_BUILD_VERSION=\$buildVersion/);
+  assert.match(workflow, /package\.json did not provide a build version/);
   assert.match(workflow, /build:electron:win:unpacked/);
   assert.match(workflow, /--prepackaged/);
   assert.match(workflow, /--publish never/);
@@ -29,6 +32,9 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /pupu\.windows-signing-qualification\.v1/);
   assert.match(workflow, /name: windows-signing-qualification/);
   assert.match(workflow, /path: windows-signing-qualification\.v1\.json/);
+  const evidenceUploadStep = workflow.slice(workflow.indexOf("- name: Upload signing qualification evidence only"));
+  assert.match(evidenceUploadStep, /if:\s*\$\{\{ success\(\) \}\}/);
+  assert.doesNotMatch(evidenceUploadStep, /if:\s*always\(\)/);
   assert.doesNotMatch(workflow, /gh release (create|upload|edit|delete)/);
   assert.doesNotMatch(workflow, /contents: write/);
   assert.doesNotMatch(workflow, /path:\s*(dist|\$\{\{ github\.workspace \}\})\s*$/m);
