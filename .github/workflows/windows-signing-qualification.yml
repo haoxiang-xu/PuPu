@@ -105,6 +105,11 @@ jobs:
           if ($signableFiles.Count -eq 0) {
             throw "unpacked Windows payload contains no .exe or .dll files"
           }
+          $signableFiles | ForEach-Object { $_.IsReadOnly = $false }
+          $readOnlySignableFiles = @($signableFiles | Where-Object { $_.IsReadOnly })
+          if ($readOnlySignableFiles.Count -ne 0) {
+            throw "isolated signing payload still contains read-only .exe or .dll files"
+          }
 
       - name: Azure login for Windows Artifact Signing
         uses: azure/login@v3

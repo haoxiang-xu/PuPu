@@ -37,6 +37,8 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /PUPU_BUILD_VERSION=\$buildVersion/);
   assert.match(workflow, /package\.json did not provide a build version/);
   assert.match(workflow, /build:electron:win:unpacked/);
+  assert.match(workflow, /\$signableFiles \| ForEach-Object \{ \$_\.IsReadOnly = \$false \}/);
+  assert.match(workflow, /isolated signing payload still contains read-only \.exe or \.dll files/);
   assert.match(workflow, /--prepackaged/);
   assert.match(workflow, /--publish never/);
   assert.match(workflow, /Get-AuthenticodeSignature/);
