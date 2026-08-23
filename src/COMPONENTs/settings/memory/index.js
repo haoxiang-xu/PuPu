@@ -44,9 +44,8 @@ const formatThresholdValue = (value) => {
 };
 
 export const MemorySettings = ({ onNavigate }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
-  const isDark = onThemeMode === "dark_mode";
   const {
     models: openaiEmbeddingModels,
     loading: openaiEmbeddingLoading,

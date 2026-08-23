@@ -14,8 +14,7 @@ import {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export const SettingsRow = ({ label, description, children }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
+  const { theme } = useContext(ConfigContext);
 
   return (
     <div

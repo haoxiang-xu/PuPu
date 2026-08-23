@@ -227,7 +227,6 @@ const ColorPickerPanel = ({
   const rgb = hsvToRgb(hsv.h, hsv.s, hsv.v);
   const hex = rgbToHex(rgb);
   const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
-  const pickerTheme = theme?.colorPicker || {};
   const selectDropdownTheme = theme?.select?.dropdown || {};
 
   useEffect(() => {

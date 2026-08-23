@@ -934,8 +934,7 @@ const Input = ({
   postfix_label,
   postfix_component,
 }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
+  const { theme } = useContext(ConfigContext);
   const tf = theme?.textfield || {};
 
   const [defaultValue, setDefaultValue] = useState("");

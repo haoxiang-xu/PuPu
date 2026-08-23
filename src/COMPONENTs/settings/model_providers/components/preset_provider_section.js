@@ -98,7 +98,6 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
   );
   const [saved, setSaved] = useState(() => hasCustomProviderSecret(activeSlug));
   const [visible, setVisible] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -109,7 +108,6 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
     setValue(nowSaved ? getCustomProviderSecret(activeSlug) : "");
     setSaved(nowSaved);
     setSeedSlug(activeSlug);
-    setJustSaved(false);
     setConfirmOpen(false);
   }
 
@@ -131,7 +129,6 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
 
   const handleChange = (v) => {
     setValue(v);
-    setJustSaved(false);
   };
 
   const handleSave = async () => {
@@ -181,7 +178,6 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
 
       setValue(trimmed);
       setSaved(true);
-      setJustSaved(true);
       toast.success(`${title} saved`, {
         dedupeKey: `preset_provider_saved_${activeSlug}`,
       });
@@ -214,7 +210,6 @@ export const PresetProviderSection = ({ title, icon, slugs, placeholder }) => {
       }
       setValue("");
       setSaved(false);
-      setJustSaved(false);
       return true;
     } catch (_error) {
       toast.error(t("model_providers.custom.save_failed"), {
