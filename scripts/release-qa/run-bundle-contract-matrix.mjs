@@ -28,7 +28,7 @@ export const UNCHAIN_RUN_BUNDLE_TESTS = Object.freeze([
   "tests/test_run_bundle_ledger_runtime.py::test_compact_projection_rejects_present_null_extension_on_replay",
   "tests/test_run_bundle_ledger_runtime.py::test_compact_projection_details_digest_is_bound_to_bundle_extension",
   "tests/test_run_bundle_ledger_runtime.py::test_compact_projection_reuses_final_revision_details_row_and_never_conflicts",
-  "tests/test_run_bundle_ledger_runtime.py::test_materialize_fails_when_metric_event_compaction_still_exceeds_v1_limit",
+  "tests/test_run_bundle_ledger_runtime.py::test_materialize_switches_to_v2_when_compaction_still_exceeds_v1_limit",
   "tests/test_run_bundle_ledger_runtime.py::test_compact_projection_requires_durable_projection_details",
   "tests/test_run_bundle_ledger_runtime.py::test_persist_bundle_with_projection_details_is_atomic_on_projection_conflict",
   "tests/test_run_bundle_ledger_runtime.py::test_projection_details_accept_more_than_legacy_receipt_query_limit",
