@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useContext } from "react";
 import ReactDOM from "react-dom";
 import Icon from "../icon/icon";
+import { Z } from "../layer/z_layers";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -72,7 +73,7 @@ const Modal = ({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 9999,
+        zIndex: Z.MODAL,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

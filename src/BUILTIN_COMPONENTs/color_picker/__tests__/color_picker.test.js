@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import ColorPicker, { ColorPickerPanel } from "../color_picker";
+import { Z } from "../../layer/z_layers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 const theme = {
@@ -323,7 +324,10 @@ describe("ColorPicker", () => {
       height: "100%",
     });
     expect(blocker.style.inset).toBe("0");
-    expect(blocker.style.zIndex).toBe("9999");
+    expect(blocker.style.zIndex).toBe(String(Z.POPOVER_BLOCKER));
+    // blocker 要盖住 modal,但不能盖住任何 picker 的 panel
+    expect(Z.POPOVER_BLOCKER).toBeGreaterThan(Z.MODAL);
+    expect(Z.POPOVER_BLOCKER).toBeLessThan(Z.POPOVER);
 
     fireEvent.mouseDown(blocker);
     fireEvent.mouseUp(blocker);

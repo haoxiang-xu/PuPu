@@ -8,6 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useLayoutEffect } from "../mini_react/mini_use";
+import { Z } from "../layer/z_layers";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import {
   register as ttl_register,
@@ -1108,7 +1109,7 @@ const Tooltip = ({
                 top: positionStyle.top,
                 left: positionStyle.left,
                 transform: positionStyle.transform,
-                zIndex: 10000,
+                zIndex: Z.TOOLTIP,
                 width: tooltipWidth,
                 height: tooltipHeight,
                 pointerEvents: isReady ? "auto" : "none",

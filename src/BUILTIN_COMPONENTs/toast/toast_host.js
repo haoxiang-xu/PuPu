@@ -8,6 +8,7 @@ import {
 import ReactDOM from "react-dom";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { subscribe } from "../../SERVICEs/toast_bus";
+import { Z } from "../layer/z_layers";
 import Icon from "../icon/icon";
 import Button from "../input/button";
 import ArcSpinner from "../spinner/arc_spinner";
@@ -353,7 +354,7 @@ const Pile = ({ position, items, onDismiss, onHoverChange }) => {
       }}
       style={{
         position: "fixed",
-        zIndex: 9999,
+        zIndex: Z.TOAST,
         display: "flex",
         flexDirection: top ? "column" : "column-reverse",
         /* the whole pile (incl. the gaps between expanded cards) must be ONE

@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import ReactDOM from "react-dom";
 import AnimatedChildren from "../class/animated_children";
+import { Z } from "../layer/z_layers";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -35,8 +36,16 @@ const AUTO_EXPAND_DELAY = 500;
    outside a modal must stay below that barrier; a preview that originates
    inside one is portalled into that modal's own stacking context. */
 const MODAL_OVERLAY_SELECTOR = "[data-pupu-modal-overlay-host='true']";
-const PAGE_LABEL_PREVIEW_Z_INDEX = 9998;
-const MODAL_LABEL_PREVIEW_Z_INDEX = 10000;
+/* A page-mounted preview sits just UNDER modals on purpose. resolveLabelPreviewLayer
+   already suppresses it whenever any modal is open, so this is defence in depth:
+   if that guard ever regresses, a stale ghost still cannot cover a modal — which
+   is exactly the class of bug #178 set out to make structurally impossible. It is
+   derived from Z.MODAL rather than written as a number so it tracks the scale. */
+const PAGE_LABEL_PREVIEW_Z_INDEX = Z.MODAL - 1;
+/* A modal-owned preview is portalled INTO that modal, so it only competes inside
+   that stacking context; Z.TOOLTIP carries the same "passive hint, below menus"
+   meaning it has everywhere else. */
+const MODAL_LABEL_PREVIEW_Z_INDEX = Z.TOOLTIP;
 const DRAG_BLOCK_SELECTOR = [
   "input",
   "textarea",
@@ -1107,9 +1116,8 @@ const ExplorerRowBase = ({
               borderRadius: 5,
               whiteSpace: "nowrap",
               pointerEvents: "none",
-              /* Page previews are below modal.js (9999). Modal-owned previews
-                 are portalled into that overlay and stay local to its stacking
-                 context. Both remain below context_menu.js (99999). */
+              /* Resolved per mount point — see resolveLabelPreviewLayer. Both
+                 values come from layer/z_layers.js; neither is a literal. */
               zIndex: ghostRect.zIndex,
             }}
           >
@@ -2048,7 +2056,7 @@ const Explorer = ({
               whiteSpace: "nowrap",
               cursor: "grabbing",
               pointerEvents: "none",
-              zIndex: 999999,
+              zIndex: Z.DRAG_GHOST,
               willChange: "transform",
             }}
           >

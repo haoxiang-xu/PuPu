@@ -1,6 +1,7 @@
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import Explorer from "./explorer";
+import { Z } from "../layer/z_layers";
 import Modal from "../modal/modal";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
@@ -370,8 +371,8 @@ describe("Explorer", () => {
 
       const ghost = findGhost();
       expect(ghost).toBeDefined();
-      // context_menu.js 用 99999;ghost 必须低于它才不会盖住菜单
-      expect(Number(ghost.style.zIndex)).toBeLessThan(99999);
+      // ghost 必须低于可交互菜单才不会盖住它
+      expect(Number(ghost.style.zIndex)).toBeLessThan(Z.POPOVER);
     });
 
     test("页面级 ghost 必须留在 modal 之下", () => {
@@ -381,8 +382,10 @@ describe("Explorer", () => {
       const ghost = findGhost();
       expect(ghost).toBeDefined();
       expect(document.body).toContainElement(ghost);
-      // modal.js 用 9999；侧栏标题提示绝不能覆盖 modal。
-      expect(Number(ghost.style.zIndex)).toBeLessThan(9999);
+      /* 页面挂载的 ghost 必须停在 modal 之下。resolveLabelPreviewLayer 已经
+         在任何 modal 打开时压制它,这条断言是纵深防御:守卫万一回归,陈旧的
+         ghost 也不该盖住 modal。 */
+      expect(Number(ghost.style.zIndex)).toBeLessThan(Z.MODAL);
     });
 
     test("modal 内的 ghost 挂在所属 overlay 内并保持可见", () => {
@@ -399,8 +402,10 @@ describe("Explorer", () => {
       const dialog = screen.getByRole("dialog");
       expect(ghost).toBeDefined();
       expect(dialog).toContainElement(ghost);
-      expect(Number(ghost.style.zIndex)).toBeGreaterThan(9999);
-      expect(Number(ghost.style.zIndex)).toBeLessThan(99999);
+      /* Portalled INTO the modal, so it only competes inside that stacking
+         context — above the modal itself, still below interactive menus. */
+      expect(Number(ghost.style.zIndex)).toBeGreaterThan(Z.MODAL);
+      expect(Number(ghost.style.zIndex)).toBeLessThan(Z.POPOVER);
     });
 
     test("等待中的页面级 ghost 在 modal 挂载后不得出现", () => {

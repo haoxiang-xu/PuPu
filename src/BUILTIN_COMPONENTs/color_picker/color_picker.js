@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 
 /* { Contexts } -------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { Z } from "../layer/z_layers";
 import Input from "../input/input";
 import Button from "../input/button";
 import { GradientSlider } from "../input/slider";
@@ -882,7 +883,9 @@ const ColorPicker = ({
                 inset: 0,
                 width: "100%",
                 height: "100%",
-                zIndex: 9999,
+                /* 低于 panel 一层:同值时,同屏另一个 picker 的 blocker 会盖住
+                   本实例的 panel(theme editor 一列 picker,无 focus trap)。 */
+                zIndex: Z.POPOVER_BLOCKER,
                 background: "transparent",
               }}
             />
@@ -895,7 +898,8 @@ const ColorPicker = ({
                 position: "fixed",
                 top: popoverPosition?.top ?? 0,
                 left: popoverPosition?.left ?? 0,
-                zIndex: 10000,
+                /* 严格高于 blocker,不依赖 DOM 顺序 */
+                zIndex: Z.POPOVER,
                 visibility: popoverPosition ? "visible" : "hidden",
               }}
             >

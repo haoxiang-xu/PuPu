@@ -1,6 +1,7 @@
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ToastHost from "./toast_host";
+import { Z } from "../layer/z_layers";
 import { toast } from "../../SERVICEs/toast";
 import { _resetForTest } from "../../SERVICEs/toast_bus";
 
@@ -151,5 +152,14 @@ describe("ToastHost", () => {
     act(() => { jest.advanceTimersByTime(4100); });
     expect(screen.getByText("boom")).toBeInTheDocument();
     jest.useRealTimers();
+  });
+
+  test("pile 必须画在 modal 之上 —— modal 内触发的提示不能看不见", async () => {
+    renderHost();
+    act(() => { toast.success("saved"); });
+    await flushIconUpdates();
+    const pile = screen.getByTestId("toast-pile-top");
+    expect(Number(pile.style.zIndex)).toBe(Z.TOAST);
+    expect(Number(pile.style.zIndex)).toBeGreaterThan(Z.MODAL);
   });
 });

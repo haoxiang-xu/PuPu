@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useContext } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ShaderBlobBackground from "../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
+import { Z } from "../../BUILTIN_COMPONENTs/layer/z_layers";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -188,7 +189,9 @@ const BootOverlay = () => {
   const rootStyle = {
     position: "fixed",
     inset: 0,
-    zIndex: 2147483647,
+    /* public/index.html 的静态 shell CSS 里有一份同值副本(静态 shell 无法
+       import JS 模块),改这里必须同步改那里。见 layer/z_layers.js。 */
+    zIndex: Z.BOOT,
     background,
     border: "none",
     outline: "none",
