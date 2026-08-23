@@ -65,6 +65,14 @@ jobs:
       - name: Install build dependencies
         run: npm ci
 
+      - name: Create controlled Memory V2 build snapshot
+        shell: pwsh
+        run: |
+          $snapshotRoot = Join-Path $env:RUNNER_TEMP "pupu-memory-snapshot-$env:GITHUB_RUN_ID"
+          $snapshotPath = Join-Path $snapshotRoot "build_feature_flags.snapshot.json"
+          node scripts/write-build-feature-snapshot.cjs --out "$snapshotPath" --profile contracts/memory-v2/release-profile.shadow.v1.json
+          "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshotPath" >> $env:GITHUB_ENV
+
       - name: Resolve non-interactive build version
         shell: pwsh
         run: |
