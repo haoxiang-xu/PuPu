@@ -1,7 +1,8 @@
 import React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../CONTAINERs/config/context";
 import { MemorySettings } from "./index";
+import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 
@@ -56,6 +57,23 @@ const setMemorySettings = (memorySettings) => {
     }),
   );
 };
+
+const setMemoryV2Flag = (enabled, memorySettings = {}) => {
+  window.localStorage.setItem(
+    "settings",
+    JSON.stringify({
+      memory: memorySettings,
+      feature_flags: {
+        format: 2,
+        flags: { enable_memory_v2: enabled === true },
+      },
+    }),
+  );
+};
+
+const LEGACY_NOTE_TITLE = "Legacy Context Memory";
+const LEGACY_NOTE_BODY =
+  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory V2 runs as an optional Unchain module and is not an Agent Builder node.";
 
 describe("MemorySettings OpenAI embedding selector", () => {
   beforeEach(() => {
@@ -173,5 +191,94 @@ describe("MemorySettings OpenAI embedding selector", () => {
     expect(screen.getByText("Recall threshold — 0.45")).toBeInTheDocument();
     expect(screen.getByText("Long-term top K — 5")).toBeInTheDocument();
     expect(screen.getByText("Long-term threshold — 0.65")).toBeInTheDocument();
+  });
+});
+
+describe("MemorySettings legacy context section under enable_memory_v2", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+
+    useOllamaEmbeddingModels.mockReturnValue({
+      models: [],
+      loading: false,
+      error: null,
+    });
+
+    useOpenAIEmbeddingModels.mockReturnValue({
+      models: ["text-embedding-3-small"],
+      loading: false,
+      error: null,
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("flag off keeps the legacy Context Strategy controls untouched", () => {
+    setMemoryV2Flag(false, { last_n_turns: 8, vector_top_k: 6, vector_min_score: 0.45 });
+
+    renderMemorySettings();
+
+    expect(screen.getByText("Context Strategy")).toBeInTheDocument();
+    expect(screen.getByText("Last N turns — 8")).toBeInTheDocument();
+    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
+    expect(screen.getByText("Recall threshold — 0.45")).toBeInTheDocument();
+
+    // Long-term section keeps its exact untouched title, no "(Legacy)" suffix.
+    expect(screen.getByText("Long-Term Memory")).toBeInTheDocument();
+    expect(screen.queryByText(LEGACY_NOTE_TITLE)).toBeNull();
+  });
+
+  test("flag on hides short-term controls and explains why", () => {
+    setMemoryV2Flag(true, { last_n_turns: 8, vector_top_k: 6, vector_min_score: 0.45 });
+
+    renderMemorySettings();
+
+    expect(screen.queryByText("Context Strategy")).toBeNull();
+    expect(screen.queryByText("Last N turns — 8")).toBeNull();
+    expect(screen.queryByText("Recall top K — 6")).toBeNull();
+    expect(screen.queryByText("Recall threshold — 0.45")).toBeNull();
+
+    expect(screen.getByText(LEGACY_NOTE_TITLE)).toBeInTheDocument();
+    expect(screen.getByText(LEGACY_NOTE_BODY)).toBeInTheDocument();
+  });
+
+  test("flag on keeps long-term and embedding controls, labelling long-term legacy", () => {
+    setMemoryV2Flag(true, { long_term_top_k: 5, long_term_min_score: 0.65 });
+
+    renderMemorySettings();
+
+    // Long-term enable / inspect survive.
+    expect(screen.getByText("Enable long-term memory")).toBeInTheDocument();
+    expect(screen.getByText("Inspect long-term memory")).toBeInTheDocument();
+    // Long-term tuning survives, section explicitly marked legacy.
+    expect(screen.getByText("Long-Term Memory (Legacy)")).toBeInTheDocument();
+    expect(screen.getByText("Long-term top K — 5")).toBeInTheDocument();
+    expect(screen.getByText("Long-term threshold — 0.65")).toBeInTheDocument();
+    // Embedding provider controls survive.
+    expect(screen.getByText("Embedding Model")).toBeInTheDocument();
+    expect(screen.getByText("Provider")).toBeInTheDocument();
+  });
+
+  test("reacts to a flag change while the settings view stays mounted", () => {
+    setMemoryV2Flag(false, { vector_top_k: 6 });
+
+    renderMemorySettings();
+    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
+
+    act(() => {
+      writeFeatureFlags({ enable_memory_v2: true });
+    });
+
+    expect(screen.queryByText("Recall top K — 6")).toBeNull();
+    expect(screen.getByText(LEGACY_NOTE_TITLE)).toBeInTheDocument();
+
+    act(() => {
+      writeFeatureFlags({ enable_memory_v2: false });
+    });
+
+    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
+    expect(screen.queryByText(LEGACY_NOTE_TITLE)).toBeNull();
   });
 });

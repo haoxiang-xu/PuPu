@@ -9,31 +9,30 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildJobReport,
+  CONTEXT_V2_REQUIRED_CHECKS,
   mergeReports,
   renderMarkdown,
   writeJson,
   writeText,
 } from "./reporting.mjs";
 import { buildLocalGateChecks } from "./local-gate-checks.mjs";
+import {
+  verifyWheelRuntimeManifest,
+} from "./unchain-artifact.mjs";
 import { computeWorktreeFingerprint } from "./worktree-fingerprint.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUTPUT_DIR = path.join(ROOT, ".release-qa", "local");
-const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const venvPython = process.platform === "win32"
+  ? path.join(ROOT, ".venv", "Scripts", "python.exe")
+  : path.join(ROOT, ".venv", "bin", "python");
+const PYTHON = process.env.PYTHON ||
+  (fs.existsSync(venvPython)
+    ? venvPython
+    : process.platform === "win32" ? "python" : "python3");
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
 );
-
-const siblingUnchain = path.resolve(ROOT, "..", "unchain", "src");
-const pythonPath = process.env.PYTHONPATH ||
-  (fs.existsSync(siblingUnchain) ? siblingUnchain : "");
-
-const checks = buildLocalGateChecks({
-  root: ROOT,
-  python: PYTHON,
-  pythonPath,
-  version: packageJson.version,
-});
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 const initialHead = spawnSync("git", ["rev-parse", "HEAD"], {
@@ -41,8 +40,55 @@ const initialHead = spawnSync("git", ["rev-parse", "HEAD"], {
   encoding: "utf8",
 }).stdout?.trim();
 const initialWorktreeFingerprint = computeWorktreeFingerprint(ROOT);
+const unchainArtifactPath = path.resolve(process.env.UNCHAIN_ARTIFACT_PATH || "");
+const unchainArtifactEvidencePath = path.resolve(
+  process.env.UNCHAIN_ARTIFACT_EVIDENCE_PATH || "",
+);
+const unchainTestSourcePath = path.resolve(
+  process.env.UNCHAIN_TEST_SOURCE_PATH || "",
+);
+let artifactEvidence = null;
+let artifactFailure = "";
+try {
+  artifactEvidence = verifyWheelRuntimeManifest({
+    artifactPath: unchainArtifactPath,
+    evidencePath: unchainArtifactEvidencePath,
+    python: PYTHON,
+  });
+  if (!fs.existsSync(path.join(unchainTestSourcePath, "tests"))) {
+    throw new Error("UNCHAIN_TEST_SOURCE_PATH must contain Unchain tests");
+  }
+} catch (error) {
+  artifactFailure = error.message;
+}
+const checks = artifactEvidence
+  ? buildLocalGateChecks({
+      root: ROOT,
+      python: PYTHON,
+      pythonPath: unchainArtifactPath,
+      unchainArtifactPath,
+      unchainArtifactEvidencePath,
+      unchainTestSourcePath,
+      version: packageJson.version,
+    })
+  : [];
 
-const results = [];
+const results = [
+  {
+    name: "Unchain artifact continuity",
+    command: "verify immutable wheel bytes and runtime manifest evidence",
+    outcome: artifactEvidence ? "success" : "failure",
+    details: artifactFailure || artifactEvidence?.artifact.sha256 || "",
+    executed_tests: artifactEvidence ? 2 : 0,
+  },
+  {
+    name: "Unchain runtime protocol manifest",
+    command: "import protocol manifest from immutable wheel",
+    outcome: artifactEvidence ? "success" : "failure",
+    details: artifactFailure || artifactEvidence?.runtime_manifest.manifest_digest || "",
+    executed_tests: artifactEvidence ? 2 : 0,
+  },
+];
 for (const check of checks) {
   console.log(`\n[release-qa] ${check.name}`);
   console.log(`[release-qa] $ ${check.command}`);
@@ -60,6 +106,10 @@ for (const check of checks) {
     command: check.command,
     outcome: passed ? "success" : "failure",
     details: `${durationMs}ms${result.error ? `; ${result.error.message}` : ""}`,
+    executed_tests: passed && [
+      "Context V2 boundary contracts",
+      "RunBundle v1 boundary contracts",
+    ].includes(check.name) ? 1 : undefined,
   });
 }
 
@@ -95,6 +145,18 @@ const jobReport = buildJobReport({
     ref: "local",
     worktree_fingerprint: initialWorktreeFingerprint,
   },
+  unchain: {
+    artifact_name: artifactEvidence?.artifact.name,
+    artifact_sha256: artifactEvidence?.artifact.sha256,
+    artifact_size_bytes: artifactEvidence?.artifact.size_bytes,
+    runtime_manifest_digest: artifactEvidence?.runtime_manifest.manifest_digest,
+    runtime_manifest: artifactEvidence?.runtime_manifest,
+    source_repository: artifactEvidence?.source.repository,
+    source_ref: artifactEvidence?.source.ref,
+    source_revision: artifactEvidence?.source.revision,
+    source_dirty: artifactEvidence?.source.dirty,
+  },
+  requiredChecks: CONTEXT_V2_REQUIRED_CHECKS,
   checks: results,
   artifacts: [
     { name: "Playwright HTML report", path: "playwright-report/index.html" },

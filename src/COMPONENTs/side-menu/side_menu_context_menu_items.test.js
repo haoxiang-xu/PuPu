@@ -1,5 +1,6 @@
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
 import {
+  buildCharacterMemorySessionId,
   createChatInSelectedContext,
   createFolder,
   getChatsStore,
@@ -290,6 +291,89 @@ describe("side_menu_context_menu_items root paste", () => {
     expect(items.some((item) => item?.label === "Delete")).toBe(true);
     expect(items.some((item) => item?.label === "Rename")).toBe(false);
     expect(items.some((item) => item?.label === "Copy")).toBe(false);
+  });
+});
+
+describe("side_menu_context_menu_items onInspectMemory payload", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  const clickInspectMemory = (node, chatStore, onInspectMemory) => {
+    const items = buildSideMenuContextMenuItems({
+      node,
+      clipboard: null,
+      chatStore,
+      setChatStore: jest.fn(),
+      handleStartRename: jest.fn(),
+      setClipboard: jest.fn(),
+      setConfirmDelete: jest.fn(),
+      onInspectMemory,
+      t: testT,
+    });
+    const inspect = items.find((item) => item?.label === "Inspect Memory");
+    expect(inspect).toBeDefined();
+    inspect.onClick();
+  };
+
+  const findChatNode = (chatStore, chatId) =>
+    Object.values(chatStore.tree.nodesById).find(
+      (treeNode) => treeNode?.entity === "chat" && treeNode?.chatId === chatId,
+    );
+
+  test("plain chat passes a single object with ownerChatId = node.chatId", () => {
+    const created = createChatInSelectedContext(
+      { title: "Plain Chat" },
+      { source: "test" },
+    );
+    const chatStore = getChatsStore();
+    const node = findChatNode(chatStore, created.chatId);
+    const onInspectMemory = jest.fn();
+
+    clickInspectMemory(node, chatStore, onInspectMemory);
+
+    // Object parameter, not positional: exactly one argument.
+    expect(onInspectMemory).toHaveBeenCalledTimes(1);
+    expect(onInspectMemory.mock.calls[0]).toHaveLength(1);
+    expect(onInspectMemory).toHaveBeenCalledWith({
+      sessionId: created.chatId,
+      chatTitle: "Plain Chat",
+      ownerChatId: created.chatId,
+    });
+  });
+
+  test("character chat carries ownerChatId = node.chatId, distinct from the derived sessionId", () => {
+    const initialStore = getChatsStore();
+    setChatModel(
+      initialStore.activeChatId,
+      { id: "openai:gpt-5" },
+      { source: "test" },
+    );
+    const created = openCharacterChat(
+      { character: { id: "nico", name: "Nico" } },
+      { source: "test" },
+    );
+    const chatStore = getChatsStore();
+    const node = findChatNode(chatStore, created.chatId);
+    const chat = chatStore.chatsById[created.chatId];
+    const onInspectMemory = jest.fn();
+
+    clickInspectMemory(node, chatStore, onInspectMemory);
+
+    expect(onInspectMemory).toHaveBeenCalledTimes(1);
+    expect(onInspectMemory.mock.calls[0]).toHaveLength(1);
+    const payload = onInspectMemory.mock.calls[0][0];
+
+    // The V2 owner key is the UI chat id, taken straight from the node.
+    expect(payload.ownerChatId).toBe(created.chatId);
+
+    // The V1 session key is the derived character memory id — a different
+    // value, and a lossy mapping that cannot be inverted back to the chat id.
+    expect(payload.sessionId).toBe(
+      buildCharacterMemorySessionId(chat.characterId, chat.threadId || "main"),
+    );
+    expect(payload.sessionId).not.toBe(created.chatId);
+    expect(payload.sessionId.startsWith("character_")).toBe(true);
   });
 });
 

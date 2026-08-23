@@ -2,6 +2,7 @@ import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import Explorer from "./explorer";
 import { Z } from "../layer/z_layers";
+import Modal from "../modal/modal";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 jest.mock("../icon/icon", () => () => <span data-testid="icon" />);
@@ -301,11 +302,9 @@ describe("Explorer", () => {
     expect(screen.getByText("Two")).toBeInTheDocument();
   });
 
-  /* 截断标签的 hover ghost:它是一个 portal 到 body 的 fixed 覆盖层。
-     两条契约由这些用例锁定:
-       1. 它必须留在 context menu 之下 —— ghost 是纯提示,菜单是可交互层;
-       2. 任何 mousedown 必须立刻收起它 —— 点击往往会打开 modal 或右键菜单,
-          而 mouseleave 不会触发(指针仍停在原行上),此前 ghost 会一直悬着。 */
+  /* 截断标签的 hover ghost 是 fixed 覆盖层。页面里的 Explorer 将它挂到
+     body 且留在 modal 下方；modal 自己的 Explorer 则挂进所属 overlay，
+     因而既能显示完整标题，也无法越过另一个 modal。 */
   describe("label overflow ghost", () => {
     const LONG = "a very long chat label that overflows its row";
 
@@ -338,6 +337,17 @@ describe("Explorer", () => {
     const renderLongRow = () =>
       renderExplorer({ data: { long_chat: { label: LONG } }, root: ["long_chat"] });
 
+    const renderModal = (children = <span>modal content</span>) =>
+      render(
+        <ConfigContext.Provider
+          value={{ theme: {}, onThemeMode: "light_mode" }}
+        >
+          <Modal open onClose={jest.fn()}>
+            {children}
+          </Modal>
+        </ConfigContext.Provider>,
+      );
+
     const hoverUntilGhost = (row) => {
       fireEvent.mouseEnter(row);
       act(() => {
@@ -365,14 +375,107 @@ describe("Explorer", () => {
       expect(Number(ghost.style.zIndex)).toBeLessThan(Z.POPOVER);
     });
 
-    test("ghost 仍需高于 modal,因为 explorer 会被用在 modal 内(memory-inspect)", () => {
+    test("页面级 ghost 必须留在 modal 之下", () => {
       renderLongRow();
       hoverUntilGhost(screen.getByText(LONG));
 
       const ghost = findGhost();
       expect(ghost).toBeDefined();
-      // 压到 modal 之下会让 modal 内的 explorer 提示被自己的 modal 遮住
+      expect(document.body).toContainElement(ghost);
+      /* 页面挂载的 ghost 必须停在 modal 之下。resolveLabelPreviewLayer 已经
+         在任何 modal 打开时压制它,这条断言是纵深防御:守卫万一回归,陈旧的
+         ghost 也不该盖住 modal。 */
+      expect(Number(ghost.style.zIndex)).toBeLessThan(Z.MODAL);
+    });
+
+    test("modal 内的 ghost 挂在所属 overlay 内并保持可见", () => {
+      renderModal(
+        <Explorer
+          style={{ width: 240 }}
+          data={{ long_chat: { label: LONG } }}
+          root={["long_chat"]}
+        />,
+      );
+      hoverUntilGhost(screen.getByText(LONG));
+
+      const ghost = findGhost();
+      const dialog = screen.getByRole("dialog");
+      expect(ghost).toBeDefined();
+      expect(dialog).toContainElement(ghost);
+      /* Portalled INTO the modal, so it only competes inside that stacking
+         context — above the modal itself, still below interactive menus. */
       expect(Number(ghost.style.zIndex)).toBeGreaterThan(Z.MODAL);
+      expect(Number(ghost.style.zIndex)).toBeLessThan(Z.POPOVER);
+    });
+
+    test("等待中的页面级 ghost 在 modal 挂载后不得出现", () => {
+      renderLongRow();
+      fireEvent.mouseEnter(screen.getByText(LONG));
+
+      renderModal();
+      act(() => {
+        jest.advanceTimersByTime(700);
+      });
+
+      expect(findGhost()).toBeUndefined();
+    });
+
+    test("modal 已挂载后，背景行被重新 mouseenter 也不得出现 ghost", () => {
+      renderLongRow();
+      renderModal();
+
+      // 模拟 ContextMenu 卸载后 Chromium 在没有 mousemove 的情况下，
+      // 对指针下方的下一条 chat row 重新派发 mouseenter。
+      fireEvent.mouseEnter(screen.getByText(LONG));
+      act(() => {
+        jest.advanceTimersByTime(700);
+      });
+
+      expect(findGhost()).toBeUndefined();
+    });
+
+    test("已经显示的页面级 ghost 会在 modal 挂载时立即收起", async () => {
+      renderLongRow();
+      hoverUntilGhost(screen.getByText(LONG));
+      expect(findGhost()).toBeDefined();
+
+      renderModal();
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(findGhost()).toBeUndefined();
+    });
+
+    test("多层 modal 只允许最上层 Explorer 显示自己的 ghost", () => {
+      renderModal(<span>covered modal</span>);
+      renderModal(
+        <Explorer
+          style={{ width: 240 }}
+          data={{ long_chat: { label: LONG } }}
+          root={["long_chat"]}
+        />,
+      );
+      hoverUntilGhost(screen.getByText(LONG));
+
+      const dialogs = screen.getAllByRole("dialog");
+      const ghost = findGhost();
+      expect(ghost).toBeDefined();
+      expect(dialogs[1]).toContainElement(ghost);
+    });
+
+    test("被上层 modal 盖住的 Explorer 不得显示 ghost", () => {
+      renderModal(
+        <Explorer
+          style={{ width: 240 }}
+          data={{ long_chat: { label: LONG } }}
+          root={["long_chat"]}
+        />,
+      );
+      renderModal(<span>top modal</span>);
+      hoverUntilGhost(screen.getByText(LONG));
+
+      expect(findGhost()).toBeUndefined();
     });
 
     test("mousedown 立刻收起 ghost(点击通常会打开 modal,而 mouseleave 不会触发)", () => {
@@ -409,5 +512,59 @@ describe("Explorer", () => {
 
       expect(findGhost()).toBeUndefined();
     });
+  });
+});
+
+describe("row_hover prop", () => {
+  /* The hover/press wash is rendered as an aria-hidden span whose opacity
+     is driven by state, so assert on that layer directly. */
+  const hoverLayer = (container) =>
+    Array.from(container.querySelectorAll("span[aria-hidden='true']")).filter(
+      (el) => el.style.transition && el.style.transition.includes("transform"),
+    );
+
+  const DATA = { a: { label: "Alpha" }, b: { label: "Beta" } };
+
+  test("defaults to showing hover feedback (existing consumers unchanged)", () => {
+    const { container } = renderExplorer({ data: DATA, root: ["a", "b"] });
+    const row = screen.getByText("Alpha").closest("div");
+    fireEvent.mouseEnter(row);
+    const layers = hoverLayer(container);
+    expect(layers.some((el) => el.style.opacity === "1")).toBe(true);
+  });
+
+  test("row_hover=false suppresses hover feedback", () => {
+    const { container } = renderExplorer({
+      data: DATA,
+      root: ["a", "b"],
+      row_hover: false,
+    });
+    const row = screen.getByText("Alpha").closest("div");
+    fireEvent.mouseEnter(row);
+    const layers = hoverLayer(container);
+    expect(layers.every((el) => el.style.opacity !== "1")).toBe(true);
+  });
+
+  test("row_hover=false still gives press feedback (rows remain clickable)", () => {
+    const { container } = renderExplorer({
+      data: DATA,
+      root: ["a", "b"],
+      row_hover: false,
+    });
+    const row = screen.getByText("Alpha").closest("div");
+    fireEvent.mouseDown(row);
+    const layers = hoverLayer(container);
+    expect(layers.some((el) => el.style.opacity === "1")).toBe(true);
+  });
+
+  test("custom-component rows honour row_hover too (the duplicated path)", () => {
+    const data = {
+      c: { component: () => <div>Custom</div> },
+    };
+    const { container } = renderExplorer({ data, root: ["c"], row_hover: false });
+    const row = screen.getByText("Custom").closest("div").parentElement;
+    fireEvent.mouseEnter(row);
+    const layers = hoverLayer(container);
+    expect(layers.every((el) => el.style.opacity !== "1")).toBe(true);
   });
 });

@@ -12,6 +12,7 @@ import {
   subscribeChatsStore,
   updateChatDraft,
 } from "../../../SERVICEs/chat_storage";
+import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
 import { settleStreamingAssistantMessages } from "../utils/chat_turn_utils";
 import {
   cancelBackgroundPersist,
@@ -19,6 +20,92 @@ import {
 } from "./background_stream_persister";
 
 const DRAFT_PERSIST_DELAY_MS = 250;
+
+/* ---- Memory V2 P0: draft-persistence secret guard ------------------------
+
+   The composer debounces its text into the chats DB every 250ms, and also
+   tail-flushes it on unload / chat switch / unmount. Secret capture only runs
+   on the SEND path, so without this guard a wrapped `{{secret:...}}` value or
+   a plainly typed credential reaches durable storage BEFORE it is ever sent —
+   the send-path fail-closed guarantee would be bypassed by simply typing.
+
+   These predicates are a deliberate LOCAL COPY of the two secret_capture
+   heuristics (explicit syntax + conservative unwrapped-credential detection)
+   rather than an import, to keep this file decoupled from a module under
+   concurrent edit. Parity with secret_capture.js is locked by
+   use_chat_session_state.draft_secret_guard.test.js — if that test fails, the
+   copy has drifted and must be re-synced.
+
+   Invariants:
+     - matched text is NEVER logged, echoed, or surfaced anywhere;
+     - the guard only ever REPLACES persisted text with "" — it never mutates
+       the in-memory composer, so typing is untouched;
+     - fully inert when `enable_memory_v2` is off (byte-for-byte equivalent).
+*/
+const MEMORY_V2_FLAG = "enable_memory_v2";
+
+const SECRET_SYNTAX_OPEN_PREFIX = "{{secret:";
+const SECRET_SYNTAX_CLOSE_TAG = "{{/secret}}";
+
+const KNOWN_TOKEN_PATTERNS = [
+  /\bsk-[A-Za-z0-9_-]{16,}\b/,
+  /\bghp_[A-Za-z0-9]{20,}\b/,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+];
+
+const ASSIGNMENT_PATTERN =
+  /(password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|client[_-]?secret|auth[_-]?token)["']?\s*[:=]\s*["']?([^\s"']+)/gi;
+
+const PLACEHOLDER_VALUE_PATTERN =
+  /^(<|\$\{|\{\{|\{|\[|\*+$|x{3,}$|your[_-]?|my[_-]|placeholder|example|sample|dummy|change[_-]?me|redacted|hidden|masked|omitted|unset$|none$|null$|undefined$|true$|false$|process\.env|os\.environ|env\[|secret-handle)/i;
+
+const looksLikeCredentialValue = (rawValue) => {
+  const value = String(rawValue).replace(/[.,;:!?)\]}]+$/, "");
+  if (value.length < 8) return false;
+  if (PLACEHOLDER_VALUE_PATTERN.test(value)) return false;
+  return /[A-Za-z]/.test(value) && /[0-9]/.test(value);
+};
+
+/**
+ * True when a draft text must not be written to storage in plaintext:
+ * explicit secret-capture syntax, a recognized credential token prefix, or a
+ * conservative password/token/api-key assignment. Pure; never reveals what
+ * matched.
+ */
+export const draftTextLooksSecret = (text) => {
+  const source = typeof text === "string" ? text : "";
+  if (!source) return false;
+  if (
+    source.includes(SECRET_SYNTAX_OPEN_PREFIX) ||
+    source.includes(SECRET_SYNTAX_CLOSE_TAG)
+  ) {
+    return true;
+  }
+  if (KNOWN_TOKEN_PATTERNS.some((pattern) => pattern.test(source))) {
+    return true;
+  }
+  ASSIGNMENT_PATTERN.lastIndex = 0;
+  let match = ASSIGNMENT_PATTERN.exec(source);
+  while (match) {
+    if (looksLikeCredentialValue(match[2])) {
+      ASSIGNMENT_PATTERN.lastIndex = 0;
+      return true;
+    }
+    match = ASSIGNMENT_PATTERN.exec(source);
+  }
+  return false;
+};
+
+/* Flag is read BEFORE the predicate so a disabled build does exactly what it
+   did before this guard existed. Attachments are deliberately untouched. */
+const secretSafeDraftText = (text) => {
+  if (typeof text !== "string" || !text) return text;
+  if (!isFeatureFlagEnabled(MEMORY_V2_FLAG)) return text;
+  return draftTextLooksSecret(text) ? "" : text;
+};
 
 export const flushChatWritesBeforeUnload = (
   event,
@@ -122,6 +209,12 @@ export const useChatSessionState = ({
       ? initialChat.model.id
       : "unchain-unset",
   );
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState(() =>
+    typeof initialChat.model?.reasoningEffort === "string" &&
+    initialChat.model.reasoningEffort.trim()
+      ? initialChat.model.reasoningEffort
+      : null,
+  );
   const [agentOrchestration, setAgentOrchestration] = useState(
     () => initialChat.agentOrchestration || { mode: "default" },
   );
@@ -171,6 +264,12 @@ export const useChatSessionState = ({
         },
       ],
     ]),
+  );
+  const reasoningEffortRef = useRef(
+    typeof initialChat.model?.reasoningEffort === "string" &&
+    initialChat.model.reasoningEffort.trim()
+      ? initialChat.model.reasoningEffort
+      : null,
   );
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
@@ -241,7 +340,9 @@ export const useChatSessionState = ({
     updateChatDraft(
       chatId,
       {
-        text: nextDraft.text,
+        // Tail flush (unload / chat switch / unmount) is the last write before
+        // the composer value could otherwise be frozen into storage.
+        text: secretSafeDraftText(nextDraft.text),
         attachments: nextDraft.attachments,
       },
       { source: "chat-page" },
@@ -276,6 +377,13 @@ export const useChatSessionState = ({
             : "unchain-unset";
         modelIdRef.current = nextModelId;
         setSelectedModelId(nextModelId);
+        const nextEffort =
+          typeof nextActiveChat.model?.reasoningEffort === "string" &&
+          nextActiveChat.model.reasoningEffort.trim()
+            ? nextActiveChat.model.reasoningEffort
+            : null;
+        reasoningEffortRef.current = nextEffort;
+        setSelectedReasoningEffort(nextEffort);
         threadIdRef.current =
           typeof nextActiveChat.threadId === "string" &&
           nextActiveChat.threadId.trim()
@@ -396,6 +504,12 @@ export const useChatSessionState = ({
           ? nextActiveChat.model.id
           : "unchain-unset";
       setSelectedModelId(modelIdRef.current);
+      reasoningEffortRef.current =
+        typeof nextActiveChat.model?.reasoningEffort === "string" &&
+        nextActiveChat.model.reasoningEffort.trim()
+          ? nextActiveChat.model.reasoningEffort
+          : null;
+      setSelectedReasoningEffort(reasoningEffortRef.current);
     };
 
     // The Test API, reload restoration, or another mounted surface can switch
@@ -476,7 +590,9 @@ export const useChatSessionState = ({
       updateChatDraft(
         currentChatId,
         {
-          text: inputValue,
+          // Redaction happens at the storage boundary only — `inputValue`
+          // (what the user sees and can still edit/send) is never rewritten.
+          text: secretSafeDraftText(inputValue),
           attachments: draftAttachments,
         },
         { source: "chat-page" },
@@ -495,6 +611,32 @@ export const useChatSessionState = ({
     };
   }, [activeStreamsRef, draftAttachments, inputValue]);
 
+  /* Scrub a plaintext credential that is ALREADY sitting in storage for the
+     chat we just opened — e.g. persisted by a build without this guard, or by
+     another writer. Runs on mount and on every chat switch, as a passive
+     effect rather than inside the store subscriber, so it can never re-enter
+     the store emit that switched the chat. The in-memory composer keeps the
+     text: the user can still see, edit, and send it (send-path capture then
+     handles it) — only the durable copy is emptied. */
+  useEffect(() => {
+    if (!isFeatureFlagEnabled(MEMORY_V2_FLAG)) {
+      return;
+    }
+    const currentChatId = activeChatIdRef.current;
+    if (!currentChatId) {
+      return;
+    }
+    const storedText =
+      getChatsStore()?.chatsById?.[currentChatId]?.draft?.text;
+    if (typeof storedText !== "string" || !storedText) {
+      return;
+    }
+    if (!draftTextLooksSecret(storedText)) {
+      return;
+    }
+    updateChatDraft(currentChatId, { text: "" }, { source: "chat-page" });
+  }, [activeChatId]);
+
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;
     if (!currentChatId) {
@@ -512,7 +654,16 @@ export const useChatSessionState = ({
     threadIdRef.current = resolvedThreadId;
     setChatThreadId(currentChatId, resolvedThreadId, { source: "chat-page" });
     if (!isCharacterChat) {
-      setChatModel(currentChatId, { id: modelIdRef.current }, { source: "chat-page" });
+      setChatModel(
+        currentChatId,
+        {
+          id: modelIdRef.current,
+          ...(reasoningEffortRef.current
+            ? { reasoningEffort: reasoningEffortRef.current }
+            : {}),
+        },
+        { source: "chat-page" },
+      );
     }
   }, []);
 
@@ -633,7 +784,42 @@ export const useChatSessionState = ({
 
       modelIdRef.current = modelId;
       setSelectedModelId(modelId);
-      setChatModel(currentChatId, { id: modelId }, { source: "chat-page" });
+      setChatModel(
+        currentChatId,
+        {
+          id: modelId,
+          ...(reasoningEffortRef.current
+            ? { reasoningEffort: reasoningEffortRef.current }
+            : {}),
+        },
+        { source: "chat-page" },
+      );
+    },
+    [activeChatKind],
+  );
+
+  /* Reasoning effort rides the same per-chat model record: null clears it
+     (provider default), a level persists alongside the model id. Validity
+     against the current model's declared levels is the selector UI's and the
+     sidecar's job — stale levels simply stop matching and are omitted. */
+  const handleSelectReasoningEffort = useCallback(
+    (level) => {
+      const currentChatId = activeChatIdRef.current;
+      const normalized =
+        typeof level === "string" && level.trim()
+          ? level.trim().toLowerCase()
+          : null;
+      reasoningEffortRef.current = normalized;
+      setSelectedReasoningEffort(normalized);
+      if (!currentChatId || activeChatKind === "character") return;
+      setChatModel(
+        currentChatId,
+        {
+          id: modelIdRef.current,
+          ...(normalized ? { reasoningEffort: normalized } : {}),
+        },
+        { source: "chat-page" },
+      );
     },
     [activeChatKind],
   );
@@ -655,6 +841,8 @@ export const useChatSessionState = ({
     modelIdRef,
     selectedModelId,
     setSelectedModelId,
+    selectedReasoningEffort,
+    handleSelectReasoningEffort,
     agentOrchestration,
     setAgentOrchestration,
     selectedToolkits,

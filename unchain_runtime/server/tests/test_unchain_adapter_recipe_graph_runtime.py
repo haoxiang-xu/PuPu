@@ -60,6 +60,94 @@ class FakeAgent:
 
 
 class RecipeGraphRuntimeTests(unittest.TestCase):
+    def setUp(self):
+        # This legacy-control-flow suite uses FakeAgent values that predate the
+        # canonical RunBundle contract.  Tests that exercise production bundle
+        # ownership explicitly stop this patch and configure UNCHAIN_DATA_DIR.
+        self._legacy_owner_patch = mock.patch(
+            "production_run_ownership.production_ownership_factory_for_agent",
+            return_value=None,
+        )
+        self._legacy_owner_patch.start()
+
+    def tearDown(self):
+        self._legacy_owner_patch.stop()
+
+    def test_plain_stream_preserves_typed_context_v2_error(self):
+        import unchain_adapter as ua
+
+        class ProjectionError(RuntimeError):
+            code = "context_v2_model_projection_invalid"
+            reason = "attachment_envelope_invalid"
+
+        failure = ProjectionError(ProjectionError.code)
+        agent = SimpleNamespace(
+            provider="openai",
+            _toolkits=[],
+            _max_iterations=1,
+            _max_context_window_tokens=0,
+            run=mock.Mock(side_effect=failure),
+        )
+        memory_runtime = {
+            "required": False,
+            "durability_available": False,
+            "kind": "",
+            "requested": False,
+            "legacy_context_available": False,
+            "reason": "",
+        }
+
+        with mock.patch.object(
+            ua, "_load_recipe_from_options", return_value=None
+        ), mock.patch.object(
+            ua, "_create_agent", return_value=agent
+        ), mock.patch.object(
+            ua, "_memory_runtime_from_agent", return_value=memory_runtime
+        ), mock.patch.object(
+            ua, "_build_payload", return_value={}
+        ):
+            with self.assertRaises(ProjectionError) as caught:
+                list(
+                    ua.stream_chat(
+                        message="hello",
+                        history=[],
+                        attachments=[],
+                        options={"modelId": "openai:gpt-test"},
+                        session_id="plain-context-error",
+                    )
+                )
+
+        self.assertIs(caught.exception, failure)
+
+    def test_memory_v2_failure_reason_preserves_only_safe_context_reason(self):
+        import unchain_adapter as ua
+
+        class ProjectionError(RuntimeError):
+            code = "context_v2_journal_message_projection_invalid"
+
+            def __init__(self, reason):
+                self.reason = reason
+                super().__init__(self.code)
+
+        self.assertEqual(
+            ua._memory_v2_failure_reason(
+                ProjectionError("terminal_scope_conflict")
+            ),
+            "context_v2_journal_message_projection_invalid: terminal_scope_conflict",
+        )
+        self.assertEqual(
+            ua._memory_v2_failure_reason(
+                ProjectionError("private/path/or/provider-body")
+            ),
+            "context_v2_journal_message_projection_invalid",
+        )
+        unknown = ProjectionError("terminal_scope_conflict")
+        unknown.code = "context_v2_private/path"
+        self.assertEqual(
+            ua._memory_v2_failure_reason(unknown),
+            "context_v2_failed",
+        )
+
     def test_legacy_graph_membership_fields_fail_closed_without_type_error(self):
         import unchain_adapter as ua
 
@@ -317,6 +405,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
     def test_stream_recipe_graph_rejects_memory_owned_full_history_before_agent_run(self):
         import unchain_adapter as ua
         from unchain.memory import InMemorySessionStore, MemoryManager
+        from unchain.memory.ownership import SessionHistoryOwnershipError
 
         recipe = parse_recipe_json(_recipe_dict())
         store = InMemorySessionStore()
@@ -342,7 +431,10 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                  ),
              ), \
              mock.patch.object(ua, "_build_requested_toolkits", return_value=[]):
-            with self.assertRaisesRegex(RuntimeError, "session history ownership conflict"):
+            with self.assertRaisesRegex(
+                SessionHistoryOwnershipError,
+                "session history ownership conflict",
+            ):
                 list(
                     ua._stream_recipe_graph_events(
                         recipe=recipe,
@@ -393,7 +485,10 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                  ),
              ), \
              mock.patch.object(ua, "_build_requested_toolkits", return_value=[]):
-            with self.assertRaisesRegex(RuntimeError, "checkpoint must be resumed"):
+            with self.assertRaisesRegex(
+                CheckpointResumeRequired,
+                "checkpoint must be resumed",
+            ) as raised:
                 for event in ua._stream_recipe_graph_events(
                     recipe=recipe,
                     message="new user",
@@ -404,6 +499,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                 ):
                     events.append(event)
 
+        self.assertEqual(raised.exception.code, "execution_checkpoint_resume_required")
         self.assertEqual(events, [])
         self.assertEqual(memory_manager.prepare_calls, 1)
         self.assertEqual(memory_manager.commit_calls, 0)
@@ -607,6 +703,215 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
         self.assertEqual(finals[0]["content"], "first Hello second")
         step_finals = [event for event in events if event.get("type") == "workflow_step_final"]
         self.assertEqual(step_finals[0]["content"], "first Hello")
+
+    def test_stream_recipe_graph_unions_every_canonical_step_receipt(self):
+        self._legacy_owner_patch.stop()
+        import unchain_adapter as ua
+        from production_run_ownership import (
+            PupuProductionProviderTurnOwnershipFactory,
+            STORE_DIRECTORY,
+        )
+        from unchain.run_bundle import (
+            ProviderCallIdentity,
+            ProviderCallReceipt,
+            ProviderCallTiming,
+            ProviderCallUsage,
+            RunBundleReducer,
+            RunIdentity,
+            RunLifecycle,
+        )
+
+        recipe = parse_recipe_json(_recipe_dict())
+        built = []
+
+        class CanonicalAgent(FakeAgent):
+            def __init__(self, instructions, toolkits, ordinal):
+                super().__init__(instructions, toolkits)
+                self.ordinal = ordinal
+
+            def run(
+                self,
+                *,
+                callback=None,
+                run_id=None,
+                _run_bundle_identity=None,
+                **_kwargs,
+            ):
+                result = super().run(callback=callback, run_id=run_id)
+                digit = str(self.ordinal)
+                usage = ProviderCallUsage(
+                    input_uncached_tokens=self.ordinal * 10,
+                    input_cache_read_tokens=0,
+                    input_cache_write_tokens=0,
+                    input_cache_write_5m_tokens=0,
+                    input_cache_write_1h_tokens=0,
+                    input_total_tokens=self.ordinal * 10,
+                    output_visible_tokens=self.ordinal,
+                    output_reasoning_tokens=0,
+                    output_total_tokens=self.ordinal,
+                    total_tokens=self.ordinal * 11,
+                    source="provider_observed",
+                )
+                receipt = ProviderCallReceipt(
+                    identity=ProviderCallIdentity(
+                        execution_id=_run_bundle_identity.execution_id,
+                        attempt_id=_run_bundle_identity.attempt_id,
+                        root_run_id=_run_bundle_identity.root_run_id,
+                        owner_run_id=_run_bundle_identity.run_id,
+                        parent_run_id=_run_bundle_identity.parent_run_id,
+                        iteration=0,
+                        retry_ordinal=0,
+                        purpose="agent_turn",
+                        request_sha256=digit * 64,
+                        route="primary",
+                    ),
+                    provider="ollama",
+                    model="test",
+                    status="completed",
+                    usage=usage,
+                    raw_usage_sha256=digit * 64,
+                    timing=ProviderCallTiming(
+                        started_at="2026-08-13T20:00:00Z",
+                        completed_at="2026-08-13T20:00:01Z",
+                    ),
+                )
+                result.run_bundle = RunBundleReducer.reduce(
+                    identity=_run_bundle_identity,
+                    lifecycle=RunLifecycle(
+                        status="completed",
+                        started_at="2026-08-13T20:00:00Z",
+                        completed_at="2026-08-13T20:00:01Z",
+                    ),
+                    receipts=(receipt,),
+                ).to_dict()
+                return result
+
+        def fake_build(**kwargs):
+            agent = CanonicalAgent(
+                kwargs["recipe"].agent.prompt,
+                kwargs["toolkits"],
+                len(built) + 1,
+            )
+            built.append(agent)
+            return agent
+
+        order = []
+
+        class RecordingMemoryManager:
+            last_prepare_info = {"session_revision": 1}
+            last_commit_info = {}
+
+            def prepare_messages(self, **kwargs):
+                return list(kwargs["incoming"])
+
+            def commit_messages(self, **_kwargs):
+                order.append("memory_commit")
+
+        memory_manager = RecordingMemoryManager()
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+             mock.patch.dict(
+                 os.environ,
+                 {"UNCHAIN_DATA_DIR": data_dir},
+                 clear=False,
+             ), \
+             mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(
+                 ua,
+                 "_resolve_memory_runtime",
+                 return_value=(
+                     {"requested": True, "available": True, "reason": ""},
+                     memory_manager,
+                 ),
+             ):
+            events = list(
+                ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="Hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "modelId": "ollama:test",
+                        "memory_enabled": True,
+                    },
+                    session_id="graph-bundle-session",
+                )
+            )
+            summary = next(
+                event
+                for event in events
+                if event.get("type") == "stream_summary"
+            )
+            bundle = summary["bundle"]
+            cold_owner = PupuProductionProviderTurnOwnershipFactory(
+                root_directory=Path(data_dir) / STORE_DIRECTORY,
+            ).bind(identity=RunIdentity.from_dict(bundle["identity"]))
+            durable = cold_owner.ledger.list_bundles(
+                root_run_id=bundle["identity"]["root_run_id"],
+                run_id=bundle["identity"]["run_id"],
+                attempt_id=bundle["identity"]["attempt_id"],
+            )
+
+        self.assertEqual(bundle["schema"], "unchain.run_bundle.v1")
+        self.assertEqual(len(bundle["provider_calls"]), 2)
+        self.assertEqual(len(bundle["aggregation"]["all_call_ids"]), 2)
+        self.assertEqual(bundle["aggregation"]["direct_call_ids"], [])
+        self.assertEqual(len(bundle["aggregation"]["descendant_call_ids"]), 2)
+        self.assertEqual(bundle["aggregation"]["all_usage"]["total_tokens"], 33)
+        self.assertEqual(len(bundle["children"]), 2)
+        diagnostics = summary["completion_diagnostics"]
+        self.assertEqual(
+            bundle["extensions"][
+                "pupu.run/completion_diagnostics_ref_v1"
+            ]["diagnostics_sha256"],
+            diagnostics["diagnostics_digest"],
+        )
+        self.assertEqual(len(durable), 1)
+        self.assertEqual(durable[0].to_dict(), bundle)
+        self.assertEqual(order, ["memory_commit"])
+
+    def test_stream_recipe_graph_rejects_all_missing_bundles_when_ledger_is_active(self):
+        self._legacy_owner_patch.stop()
+        import unchain_adapter as ua
+        from run_bundle_adapter import RunBundleProjectionError
+
+        recipe = parse_recipe_json(_recipe_dict())
+
+        def fake_build(**kwargs):
+            return FakeAgent(
+                kwargs["recipe"].agent.prompt,
+                kwargs["toolkits"],
+            )
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+             mock.patch.dict(
+                 os.environ,
+                 {"UNCHAIN_DATA_DIR": data_dir},
+                 clear=False,
+             ), \
+             mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result") as legacy_bundle:
+            with self.assertRaises(RunBundleProjectionError) as caught:
+                list(
+                    ua._stream_recipe_graph_events(
+                        recipe=recipe,
+                        message="Hello",
+                        history=[],
+                        attachments=[],
+                        options={"modelId": "ollama:test"},
+                        session_id="graph-bundle-required",
+                    )
+                )
+
+        self.assertEqual(
+            caught.exception.reason,
+            "graph_bundle_coverage_incomplete",
+        )
+        legacy_bundle.assert_not_called()
 
     def test_stream_recipe_graph_ignores_user_toolkits_without_merge_pool(self):
         import unchain_adapter as ua
@@ -972,6 +1277,9 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
             ua,
             "_build_bundle_from_result",
             return_value={},
+        ), mock.patch(
+            "run_bundle_ledger.ledger_from_environment",
+            return_value=None,
         ):
             stream = ua.stream_chat_events(
                 message="Hello",
@@ -1095,6 +1403,9 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                 ua,
                 "_build_bundle_from_result",
                 return_value={},
+            ), mock.patch(
+                "run_bundle_ledger.ledger_from_environment",
+                return_value=None,
             ):
                 events = list(
                     ua.stream_chat_events(
@@ -1152,6 +1463,50 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
         self.assertEqual(result.status, "completed")
         self.assertEqual(result.messages[-1]["content"], "done")
         self.assertEqual(stream_graph.call_args.kwargs["run_id_override"], "child-run-ask")
+
+    def test_workflow_recipe_subagent_returns_child_graph_run_bundle(self):
+        import run_bundle_adapter
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        agent = ua._WorkflowRecipeSubagentAgent(
+            recipe=recipe,
+            options={"modelId": "ollama:test"},
+            name="Explore",
+        )
+        projected = {
+            "schema": "unchain.run_bundle.v1",
+            "bundle_id": "child-graph-bundle",
+        }
+
+        with mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+            return_value=iter(
+                [
+                    {
+                        "type": "final_message",
+                        "run_id": "child-run-bundle",
+                        "content": "done",
+                    },
+                    {
+                        "type": "stream_summary",
+                        "run_id": "child-run-bundle",
+                        "bundle": {"schema": "unchain.run_bundle.v1"},
+                    },
+                ]
+            ),
+        ), mock.patch.object(
+            run_bundle_adapter,
+            "project_run_bundle",
+            return_value=projected,
+        ):
+            result = agent.run(
+                [{"role": "user", "content": "Inspect the frontend"}],
+                run_id="child-run-bundle",
+            )
+
+        self.assertIs(result.run_bundle, projected)
 
     def test_toolkit_pool_merge_switch_controls_user_toolkits(self):
         import unchain_adapter as ua

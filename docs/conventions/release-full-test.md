@@ -64,11 +64,13 @@ One run certifies one immutable tuple:
 
 ```text
 PuPu commit + PuPu worktree fingerprint + PuPu version
-+ unchain commit + unchain worktree state
++ immutable Unchain wheel SHA-256 + runtime manifest digest
++ Unchain source ref/revision/cleanliness provenance
 + dependency lockfiles + test configuration
 ```
 
-At the start, record for both repositories:
+At the start, record PuPu candidate identity and the selected Unchain source
+provenance:
 
 ```bash
 git status --short
@@ -76,11 +78,21 @@ git branch --show-current
 git rev-parse HEAD
 ```
 
+Build the selected clean Unchain source exactly once as a wheel before the
+deterministic gate. Preserve its artifact evidence JSON, which independently
+records and verifies the wheel SHA-256, complete runtime protocol manifest and
+manifest digest, and source ref/revision telemetry. Context V2, RunBundle,
+backend, packaging, and packaged-sidecar smoke must all consume those same
+wheel bytes; none may rebuild or substitute a checkout. The gate also proves
+that Unchain tests come from the clean source revision recorded in the artifact
+evidence.
+
 The deterministic local gate records PuPu's full worktree fingerprint and
-checks that it remains stable. A dirty candidate may be exercised before a
-commit, but the final result is `INCOMPLETE` for release until the exact tested
-contents are reproducibly committed/pinned. If either repository changes while
-the protocol is running, discard the qualification and start again.
+checks that it remains stable. A dirty PuPu candidate may be exercised before
+a commit, but final release evidence remains `INCOMPLETE` until the exact
+tested contents are reproducible. If PuPu, the selected Unchain source, the
+wheel bytes, or their evidence changes while the protocol is running, discard
+the qualification and start again.
 
 Before testing, inspect the release delta with GitNexus. HIGH or CRITICAL
 impact requires an explicit warning and the relevant owner/sign-off before
@@ -111,6 +123,8 @@ This currently covers:
 - frontend Jest;
 - Electron main/preload/Test API Jest;
 - Python sidecar pytest;
+- exact Context V2 and RunBundle contract matrices against the immutable
+  Unchain wheel and its matching clean test-source revision;
 - MCP registry validation;
 - production web build and version generation;
 - release-QA script tests;
@@ -321,7 +335,7 @@ Conditional specialist gates:
 
 Allowed only when:
 
-- the candidate is committed/pinned, reproducible, and unchanged;
+- the PuPu candidate and immutable Unchain artifact are reproducible and unchanged;
 - every required non-paid check passed;
 - every user-visible `available` MCP entry passed real launch/auth/handshake/
   discovery/representative-call validation;
@@ -342,15 +356,17 @@ a security blocker remains open, or evidence identifies a product regression.
 Required when evidence is missing or stale: paid approval/credentials absent,
 a required CLI is logged out, a platform/test account is unavailable, a manual
 check is skipped, an available MCP cannot be exercised, a specialist sign-off
-is missing, the candidate is dirty/unpinned, the worktree changed, or only
-smoke-duration live tests ran.
+is missing, the candidate is dirty/non-reproducible, artifact evidence is
+missing or mismatched, the worktree changed, or only smoke-duration live tests
+ran.
 
 ## Required handoff report
 
 ```text
 Release candidate
 - PuPu: branch, SHA, version, clean/dirty, fingerprint
-- unchain: branch, SHA, clean/dirty
+- Unchain artifact: wheel SHA-256, runtime manifest digest, source ref/revision,
+  clean/dirty provenance
 - immutable evidence root and deterministic/AI snapshot paths
 
 Automated evidence

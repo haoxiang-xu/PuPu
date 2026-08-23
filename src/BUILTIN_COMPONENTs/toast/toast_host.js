@@ -99,8 +99,15 @@ const getStatusStyle = (variant, theme, isDark) => {
   const colors = {
     success: semantic.success || "#2f9e44",
     error: semantic.danger || "#d64545",
-    warning: "#d97706",
-    info: semantic.accent || theme?.highlightColor || "#2563eb",
+    warning: semantic.warning || "#d97706",
+    /* info used to alias accent, so an "informational" toast rendered in
+       the brand colour — green on the default palette. accent means brand
+       emphasis, info means neutral notice; collapsing them lost that
+       distinction. Falls back to accent so an imported pre-v2 theme with
+       no info key keeps its old look. */
+    info: semantic.info || semantic.accent || theme?.highlightColor || "#2563eb",
+    /* loading intentionally KEEPS accent: it says "the app is working for
+       you", which is a brand moment, not a neutral notice. */
     loading: semantic.accent || theme?.highlightColor || "#2563eb",
     default: muted,
   };

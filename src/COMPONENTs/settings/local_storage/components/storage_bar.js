@@ -4,7 +4,7 @@ const StorageBar = ({ ratio, isDark }) => (
       width: 64,
       height: 3,
       borderRadius: 99,
-      backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+      backgroundColor: "var(--pupu-overlay-hover)",
       overflow: "hidden",
       flexShrink: 0,
     }}

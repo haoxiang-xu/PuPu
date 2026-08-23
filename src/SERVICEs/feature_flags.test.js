@@ -41,6 +41,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
+      enable_memory_v2: false,
     });
     expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
@@ -55,8 +56,11 @@ describe("feature_flags service", () => {
       "settings",
       JSON.stringify({
         feature_flags: {
-          enable_user_access_to_agents: false,
-          enable_user_access_to_characters: false,
+          format: 2,
+          flags: {
+            enable_user_access_to_agents: false,
+            enable_user_access_to_characters: false,
+          },
         },
       }),
     );
@@ -70,9 +74,13 @@ describe("feature_flags service", () => {
         enable_theme_color_customization: true,
         enable_custom_model_providers: true,
         enable_computer_use: true,
+        enable_memory_v2: true,
       }),
     });
 
+    // Production never reads the storage namespace at all — the stored
+    // (even correctly sparse+versioned) overrides above must have zero
+    // effect on the resolved flags.
     expect(readFeatureFlags()).toEqual({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
@@ -80,10 +88,47 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
+      enable_memory_v2: true,
     });
   });
 
-  test("persists feature flag updates under settings.feature_flags", () => {
+  test("an old unversioned full-snapshot namespace is discarded wholesale on read", () => {
+    // Pre-fix shape: every key explicitly resolved, including a now-stale
+    // `false` for enable_app_update_settings, whose code default is true.
+    // That disagreement is what gives this test its teeth — the whole blob
+    // must be ignored, not partially trusted.
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_user_access_to_agents: false,
+          enable_user_access_to_characters: false,
+          enable_app_update_settings: false,
+          enable_theme_color_customization: false,
+          enable_custom_model_providers: false,
+          enable_computer_use: false,
+          enable_memory_v2: false,
+        },
+      }),
+    );
+
+    const { readFeatureFlags } = loadFeatureFlagsModule();
+
+    expect(readFeatureFlags()).toEqual({
+      enable_user_access_to_agents: false,
+      enable_user_access_to_characters: false,
+      // The stale explicit `false` snapshot value must NOT win: with the
+      // legacy blob discarded, this falls through to the current code
+      // default, which is true.
+      enable_app_update_settings: true,
+      enable_theme_color_customization: false,
+      enable_custom_model_providers: false,
+      enable_computer_use: false,
+      enable_memory_v2: false,
+    });
+  });
+
+  test("writeFeatureFlags persists only the patched key, sparse, under the versioned envelope", () => {
     const { writeFeatureFlags } = loadFeatureFlagsModule();
 
     window.localStorage.setItem(
@@ -95,35 +140,73 @@ describe("feature_flags service", () => {
       }),
     );
 
-    expect(
-      writeFeatureFlags({
-        enable_user_access_to_agents: true,
-        enable_user_access_to_characters: true,
-        enable_app_update_settings: false,
-        enable_theme_color_customization: true,
-        enable_custom_model_providers: true,
-        enable_computer_use: true,
-      }),
-    ).toEqual({
+    const resolved = writeFeatureFlags({
       enable_user_access_to_agents: true,
-      enable_user_access_to_characters: true,
-      enable_app_update_settings: false,
-      enable_theme_color_customization: true,
-      enable_custom_model_providers: true,
-      enable_computer_use: true,
     });
 
+    // Public return shape is unchanged: a fully resolved flags object.
+    expect(resolved).toEqual({
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: false,
+      enable_app_update_settings: true,
+      enable_theme_color_customization: false,
+      enable_custom_model_providers: false,
+      enable_computer_use: false,
+      enable_memory_v2: false,
+    });
+
+    // Storage shape: sparse (only the patched key) + format sentinel.
     expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
       appearance: {
         theme: "dark_mode",
       },
       feature_flags: {
-        enable_user_access_to_agents: true,
-        enable_user_access_to_characters: true,
-        enable_app_update_settings: false,
-        enable_theme_color_customization: true,
-        enable_custom_model_providers: true,
-        enable_computer_use: true,
+        format: 2,
+        flags: {
+          enable_user_access_to_agents: true,
+        },
+      },
+    });
+  });
+
+  test("an explicit false override keeps suppressing a true-by-default flag", () => {
+    const { writeFeatureFlags, readFeatureFlags, isFeatureFlagEnabled } =
+      loadFeatureFlagsModule();
+
+    // enable_app_update_settings defaults to true; an explicit false must
+    // keep winning across reads until the user changes it again.
+    writeFeatureFlags({ enable_app_update_settings: false });
+
+    expect(readFeatureFlags().enable_app_update_settings).toBe(false);
+    expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(false);
+
+    // A second, unrelated read must not have relaxed the override.
+    expect(readFeatureFlags().enable_app_update_settings).toBe(false);
+  });
+
+  test("two sequential writes of different keys both persist as explicit sparse choices", () => {
+    const { writeFeatureFlags, readFeatureFlags } = loadFeatureFlagsModule();
+
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    writeFeatureFlags({ enable_computer_use: true });
+
+    expect(readFeatureFlags()).toEqual({
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: false,
+      enable_app_update_settings: true,
+      enable_theme_color_customization: false,
+      enable_custom_model_providers: false,
+      enable_computer_use: true,
+      enable_memory_v2: false,
+    });
+
+    expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
+      feature_flags: {
+        format: 2,
+        flags: {
+          enable_user_access_to_agents: true,
+          enable_computer_use: true,
+        },
       },
     });
   });
@@ -140,18 +223,17 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
+      enable_memory_v2: false,
     });
 
     writeFeatureFlags({ enable_user_access_to_agents: true });
 
     expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
       feature_flags: {
-        enable_user_access_to_agents: true,
-        enable_user_access_to_characters: false,
-        enable_app_update_settings: true,
-        enable_theme_color_customization: false,
-        enable_custom_model_providers: false,
-        enable_computer_use: false,
+        format: 2,
+        flags: {
+          enable_user_access_to_agents: true,
+        },
       },
     });
   });
@@ -163,10 +245,10 @@ describe("feature_flags service", () => {
 
     expect(readFeatureFlags().totally_unknown_flag).toBeUndefined();
     const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-    expect(root.feature_flags.totally_unknown_flag).toBeUndefined();
+    expect(root.feature_flags.flags.totally_unknown_flag).toBeUndefined();
   });
 
-  test("notifies subscribers when feature flags change", () => {
+  test("notifies subscribers with the fully resolved flags object when feature flags change", () => {
     const { subscribeFeatureFlags, writeFeatureFlags } = loadFeatureFlagsModule();
     const listener = jest.fn();
     const unsubscribe = subscribeFeatureFlags(listener);
@@ -178,6 +260,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
+      enable_memory_v2: true,
     });
 
     expect(listener).toHaveBeenCalledWith({
@@ -187,6 +270,7 @@ describe("feature_flags service", () => {
       enable_theme_color_customization: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
+      enable_memory_v2: true,
     });
 
     unsubscribe();

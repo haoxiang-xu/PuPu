@@ -1,8 +1,60 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import AttachPanel from "./attach_panel";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
+import {
+  CONTEXT_COMPOSITION_EXTENSION_KEY,
+  hasContextCompositionEvidence,
+} from "../../../SERVICEs/context_composition_v1";
+import {
+  buildContextUsageView,
+  selectContextUsage,
+} from "../../../SERVICEs/context_usage_v1";
+
+const {
+  buildRunBundleV1,
+} = require("../../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+
+const buildContextCompositionBundle = () => {
+  const bundle = buildRunBundleV1();
+  bundle.provider_calls[0].extensions[CONTEXT_COMPOSITION_EXTENSION_KEY] = {
+    schema: "unchain.context/context_composition_v1",
+    method: "utf8_heuristic_v1",
+    quality: "reconciled_estimate",
+    context_window_tokens: 2000,
+    wire: {
+      envelope_sha256: `sha256:${"a".repeat(64)}`,
+      route_name: "primary",
+      route_sha256: `sha256:${"b".repeat(64)}`,
+      context_mode: "semantic",
+    },
+    categories: [
+      {
+        id: "instructions",
+        tokens: 400,
+        source_count: 1,
+        subtypes: [{ id: "core_system", tokens: 400, source_count: 1 }],
+      },
+    ],
+    attributed_tokens: 400,
+    residual_tokens: 600,
+    coverage: {
+      status: "complete",
+      manifest_items: 1,
+      matched_items: 1,
+      wire_surfaces: 1,
+      matched_surfaces: 1,
+    },
+  };
+  return bundle;
+};
 
 jest.mock("../hooks/use_chat_input_toolkits", () => ({
   __esModule: true,
@@ -27,6 +79,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     multi = false,
     value,
     set_value = () => {},
+    palette_actions = null,
   }) => {
     const toggleOption = (item) => {
       if (!item || item.disabled) return;
@@ -76,6 +129,9 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       >
         {search_placeholder || placeholder || "select"}
         {renderOptionLabels(options)}
+        {palette_actions ? (
+          <div data-testid="palette-actions">{palette_actions}</div>
+        ) : null}
         {custom_trigger}
       </div>
     );
@@ -94,15 +150,34 @@ jest.mock("../../workspace/workspace_modal", () => ({
 
 jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
   __esModule: true,
-  default: ({ onClick = () => {}, prefix_icon, style = {}, title }) => (
-    <button
-      data-testid={`button-${prefix_icon || "default"}`}
-      data-icon-size={style.iconSize ?? ""}
-      title={title}
-      onClick={onClick}
-    >
-      mock-button
-    </button>
+  // Forwards ref, dom_props and children like the real Button: controls that
+  // drive a popup put their testid, aria-expanded and focus target on the
+  // button itself, and a mock that drops them hides real wiring.
+  default: require("react").forwardRef(
+    (
+      {
+        onClick = () => {},
+        prefix_icon,
+        style = {},
+        title,
+        ariaLabel,
+        children,
+        dom_props = {},
+      },
+      ref,
+    ) => (
+      <button
+        {...dom_props}
+        ref={ref}
+        data-testid={dom_props["data-testid"] || `button-${prefix_icon || "default"}`}
+        data-icon-size={style.iconSize ?? ""}
+        title={title}
+        aria-label={ariaLabel}
+        onClick={onClick}
+      >
+        {children || "mock-button"}
+      </button>
+    ),
   ),
 }));
 
@@ -161,6 +236,198 @@ describe("AttachPanel toolkit selector refresh", () => {
       "data-open",
       "true",
     );
+  });
+
+  test("shows pressure from provider usage alone, with no composition evidence", async () => {
+    // Composition needs an instrumented contribution source; provider usage
+    // lands on every call. The indicator has to appear on the latter, otherwise
+    // it stays invisible in every ordinary chat.
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    const plainBundle = buildRunBundleV1();
+    plainBundle.provider_calls.forEach((call) => {
+      call.usage.input.total_tokens = 1000;
+    });
+    expect(hasContextCompositionEvidence(plainBundle)).toBe(false);
+    const usageView = buildContextUsageView(
+      selectContextUsage(plainBundle),
+      4000,
+    );
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        contextCompositionBundle={null}
+        contextUsageView={usageView}
+      />,
+    );
+
+    const progress = screen.getByTestId("context-composition-progress");
+    expect(progress).toHaveAttribute("data-context-pressure", "25");
+
+    fireEvent.click(progress);
+    const popover = await screen.findByTestId("context-composition-popover");
+    expect(within(popover).getByTestId("context-usage-only")).toBeInTheDocument();
+    expect(within(popover).getByText("25% Full")).toBeInTheDocument();
+    // It says the breakdown is missing rather than showing eight empty rows.
+    expect(within(popover).getByTestId("context-usage-note")).toHaveTextContent(
+      "Category breakdown unavailable",
+    );
+    expect(
+      within(popover).queryByTestId("context-composition-groups"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("renders no indicator when there is neither usage nor composition", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        contextCompositionBundle={null}
+        contextUsageView={null}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId("context-composition-progress"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("shows current context pressure and opens the composition modal", async () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        contextCompositionBundle={buildContextCompositionBundle()}
+      />,
+    );
+
+    const progress = screen.getByTestId("context-composition-progress");
+    expect(progress).toHaveAttribute("data-context-pressure", "50");
+    expect(progress).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(progress);
+    // Tooltip keeps the bubble visibility:hidden until it can measure itself,
+    // and jsdom reports every rect as 0 — so it never flips to visible here and
+    // role queries (which walk the a11y tree) would miss it. Assert on the
+    // mounted node instead; visible placement is a real-window concern.
+    const popover = await screen.findByTestId("context-composition-popover");
+    expect(within(popover).getByText("Context Usage")).toBeInTheDocument();
+    // Both scopes are available and share this bundle's single call, so the
+    // inactive (Summary) pane would carry the same category labels — scope
+    // through the (active-pane-only) groups testid rather than getByText.
+    const groups = within(popover).getByTestId("context-composition-groups");
+    expect(groups).toHaveTextContent("Instructions");
+    // 400 attributed + 600 residual against a 2000 window: the residual is a
+    // listed row, so what the reader sees adds up to the 50% headline.
+    expect(groups).toHaveTextContent("Unattributed");
+    expect(within(popover).getByText("50% Full")).toBeInTheDocument();
+    expect(progress).toHaveAttribute("aria-expanded", "true");
+
+    // It opens as an anchored menu, like the model dropdown beside it — so it
+    // carries no close button of its own and toggles off the same trigger.
+    expect(screen.queryByTitle("Close")).not.toBeInTheDocument();
+
+    fireEvent.click(progress);
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("context-composition-popover"),
+      ).not.toBeInTheDocument();
+    });
+    expect(progress).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("opening the context usage ring closes the model selector, and vice versa", async () => {
+    /* Regression: the ring used to own its open state entirely on its own —
+       an island the model/tools/workspace selectors' shared `openSelector`
+       state never knew about. Opening the model selector and then clicking
+       the ring left BOTH open at once, since neither told the other to close. */
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "openai:gpt-5", label: "GPT-5" }]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        contextCompositionBundle={buildContextCompositionBundle()}
+      />,
+    );
+
+    const modelSelect = screen.getByTestId("select-Search models…");
+    const progress = screen.getByTestId("context-composition-progress");
+
+    fireEvent.click(modelSelect);
+    expect(modelSelect).toHaveAttribute("data-open", "true");
+
+    fireEvent.click(progress);
+    await screen.findByTestId("context-composition-popover");
+    expect(modelSelect).toHaveAttribute("data-open", "false");
+    expect(progress).toHaveAttribute("aria-expanded", "true");
+
+    // And the reverse direction: opening the model selector while the ring's
+    // popover is open must close the popover in turn.
+    fireEvent.click(modelSelect);
+    expect(modelSelect).toHaveAttribute("data-open", "true");
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("context-composition-popover"),
+      ).not.toBeInTheDocument();
+    });
+    expect(progress).toHaveAttribute("aria-expanded", "false");
   });
 
   test("opens attach panel selector menus above the input controls", () => {
@@ -627,5 +894,88 @@ describe("attach panel semantic surface binding", () => {
     expect(src).toMatch(/selectBg = isDark[\s\S]{0,140}var\(--pupu-text-rgb\)/);
     // floating pill hairline border binds the mid border-strength tier (input-family)
     expect(src).toMatch(/border: floating[\s\S]{0,80}var\(--pupu-border-mid\)/);
+  });
+});
+
+describe("AttachPanel reasoning effort pills", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useChatInputToolkits.mockReset();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useChatInputWorkspaces.mockReset();
+    useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
+  });
+
+  const renderPanel = (props = {}) =>
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        modelOptions={[{ value: "openai:gpt-5", label: "gpt-5" }]}
+        selectedModelId="openai:gpt-5"
+        onSelectModel={() => {}}
+        {...props}
+      />,
+    );
+
+  test("renders one pill per declared level inside the model palette header", () => {
+    renderPanel({
+      reasoningEffortOptions: ["minimal", "low", "medium", "high"],
+      selectedReasoningEffort: "medium",
+      onSelectReasoningEffort: () => {},
+    });
+
+    const modelSelect = screen.getByTestId("select-Search models…");
+    const actions = within(modelSelect).getByTestId("palette-actions");
+    expect(within(actions).getByTitle("minimal")).toHaveTextContent("min");
+    expect(within(actions).getByTitle("low")).toHaveTextContent("low");
+    expect(within(actions).getByTitle("medium")).toHaveTextContent("med");
+    expect(within(actions).getByTitle("high")).toHaveTextContent("high");
+  });
+
+  test("selects an inactive level and clears by re-pressing the active one", () => {
+    const onSelectReasoningEffort = jest.fn();
+    renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high"],
+      selectedReasoningEffort: "medium",
+      onSelectReasoningEffort,
+    });
+
+    const actions = within(
+      screen.getByTestId("select-Search models…"),
+    ).getByTestId("palette-actions");
+
+    fireEvent.mouseDown(within(actions).getByTitle("high"));
+    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("high");
+
+    fireEvent.mouseDown(within(actions).getByTitle("medium"));
+    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith(null);
+  });
+
+  test("renders no pills when the model declares no effort levels", () => {
+    renderPanel({
+      reasoningEffortOptions: [],
+      selectedReasoningEffort: null,
+      onSelectReasoningEffort: () => {},
+    });
+
+    const modelSelect = screen.getByTestId("select-Search models…");
+    expect(
+      within(modelSelect).queryByTestId("palette-actions"),
+    ).not.toBeNull();
+    expect(within(modelSelect).queryByTitle("low")).toBeNull();
+    expect(within(modelSelect).queryByTitle("high")).toBeNull();
   });
 });

@@ -21,10 +21,12 @@ import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import { COMPUTER_TOOLKIT_ID } from "../constants";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import { hasContextCompositionEvidence } from "../../../SERVICEs/context_composition_v1";
 import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../../SERVICEs/feature_flags";
+import ContextCompositionProgress from "./context_composition_progress";
 
 const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
@@ -90,6 +92,88 @@ const HeaderAction = ({ children, onAct, accent = false, isDark, theme }) => {
   );
 };
 
+/* ── palette header effort pills — segmented control in the model palette's
+   bottom header (palette_actions slot). Levels come from the selected model's
+   capability declaration; clicking the active level clears it back to the
+   provider default. ── */
+
+const EFFORT_SHORT_LABELS = {
+  minimal: "min",
+  low: "low",
+  medium: "med",
+  high: "high",
+};
+
+const EffortPillRow = ({ efforts, selected, onSelect, isDark, theme }) => {
+  if (!Array.isArray(efforts) || efforts.length === 0) return null;
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 2,
+        padding: 2,
+        borderRadius: 999,
+        backgroundColor: isDark
+          ? "rgba(255,255,255,0.06)"
+          : "rgba(0,0,0,0.05)",
+      }}
+    >
+      {efforts.map((level) => {
+        const isActive = level === selected;
+        const restColor = isActive
+          ? isDark
+            ? "rgba(255,255,255,0.92)"
+            : "rgba(0,0,0,0.85)"
+          : isDark
+            ? "rgba(255,255,255,0.38)"
+            : "rgba(0,0,0,0.4)";
+        return (
+          <button
+            key={level}
+            type="button"
+            title={level}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (typeof onSelect === "function") {
+                onSelect(isActive ? null : level);
+              }
+            }}
+            onMouseEnter={(e) => {
+              if (isActive) return;
+              e.currentTarget.style.color = isDark
+                ? "rgba(255,255,255,0.7)"
+                : "rgba(0,0,0,0.7)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = restColor;
+            }}
+            style={{
+              border: "none",
+              cursor: "pointer",
+              borderRadius: 999,
+              padding: "3px 7px",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+              fontSize: 10,
+              letterSpacing: "0.02em",
+              backgroundColor: isActive
+                ? isDark
+                  ? "rgba(255,255,255,0.16)"
+                  : "rgba(0,0,0,0.1)"
+                : "transparent",
+              color: restColor,
+              transition: "background-color 0.13s ease, color 0.13s ease",
+            }}
+          >
+            {EFFORT_SHORT_LABELS[level] || level}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 /* ── main component ── */
 
 const AttachPanel = forwardRef(({
@@ -105,6 +189,9 @@ const AttachPanel = forwardRef(({
   showModelSelector = true,
   selectedModelId,
   onSelectModel,
+  reasoningEffortOptions = [],
+  selectedReasoningEffort = null,
+  onSelectReasoningEffort,
   onGroupToggle,
   modelSelectDisabled,
   isDark,
@@ -114,6 +201,7 @@ const AttachPanel = forwardRef(({
   onRemoveAttachment,
   isStreaming = false,
   showToolSelector = true,
+  toolSelectDisabled = false,
   selectedToolkits = [],
   onToolkitsChange,
   showWorkspaceSelector = true,
@@ -123,6 +211,8 @@ const AttachPanel = forwardRef(({
   onSelectRecipe,
   queueItems = [],
   onQueueUndo,
+  contextCompositionBundle = null,
+  contextUsageView = null,
   onKeyboardActiveChange = () => {},
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
@@ -132,6 +222,13 @@ const AttachPanel = forwardRef(({
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+  const contextCompositionProgressRef = useRef(null);
+  // Provider usage arrives on every call, composition only once a source is
+  // instrumented — so the indicator appears as soon as there is anything true
+  // to show, not only when the full breakdown exists.
+  const hasContextComposition =
+    hasContextCompositionEvidence(contextCompositionBundle) ||
+    Boolean(contextUsageView);
 
   /* Optimistic mirrors for the multi-selects: the checkbox flips against
      LOCAL state instantly (re-rendering just this panel), while the real
@@ -275,6 +372,10 @@ const AttachPanel = forwardRef(({
     [refreshToolkits, onRequestInputFocus],
   );
 
+  const handleContextCompositionOpenChange = useCallback((next) => {
+    setOpenSelector(next ? "context_composition" : null);
+  }, []);
+
   const handleWorkspaceOpenChange = useCallback(
     (next) => {
       setOpenSelector(next ? "workspace" : null);
@@ -291,6 +392,7 @@ const AttachPanel = forwardRef(({
   const kbControls = [];
   if (showModelSelector && modelSelectOptions.length > 0)
     kbControls.push("model");
+  if (hasContextComposition) kbControls.push("context_composition");
   if (onAttachFile) {
     kbControls.push("attach");
     if (onAttachScreenshot) kbControls.push("screenshot");
@@ -349,6 +451,9 @@ const AttachPanel = forwardRef(({
     } else if (id === "workspace") {
       kbOpenedSelectorRef.current = "workspace";
       handleWorkspaceOpenChange(true);
+    } else if (id === "context_composition") {
+      exitKeyboard();
+      contextCompositionProgressRef.current?.open?.();
     } else if (id === "attach") {
       exitKeyboard();
       if (attachmentsEnabled && onAttachFile) onAttachFile();
@@ -582,9 +687,48 @@ const AttachPanel = forwardRef(({
               variant="palette"
               palette_chip="model"
               palette_rail
+              palette_actions={
+                <EffortPillRow
+                  efforts={reasoningEffortOptions}
+                  selected={selectedReasoningEffort}
+                  onSelect={onSelectReasoningEffort}
+                  isDark={isDark}
+                  theme={theme}
+                />
+              }
             />,
             "model",
           )}
+
+        {hasContextComposition ? (
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              borderRadius: 999,
+              /* The row's gap of 6 separates pills from icons, but icon-to-icon
+                 spacing inside the cluster below is 0. Cancel the gap here so
+                 the ring sits flush against the attach controls instead of
+                 reading as pushed away from them. */
+              marginRight: onAttachFile ? -6 : 0,
+            }}
+          >
+            {kbGlow("context_composition")}
+            <ContextCompositionProgress
+              ref={contextCompositionProgressRef}
+              bundle={contextCompositionBundle}
+              usageView={contextUsageView}
+              isDark={isDark}
+              highlight={highlight}
+              // Shares openSelector with the model/tools/workspace menus so
+              // opening one of the other three closes this, and vice versa —
+              // without this it was its own, uncoordinated open/closed island.
+              open={openSelector === "context_composition"}
+              onOpenChange={handleContextCompositionOpenChange}
+            />
+          </div>
+        ) : null}
 
         {onAttachFile && (
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
@@ -648,6 +792,7 @@ const AttachPanel = forwardRef(({
                   filterable={true}
                   filter_mode="panel"
                   search_placeholder={t("toolkit.search_placeholder")}
+                  disabled={toolSelectDisabled}
                   open={openSelector === "tools"}
                   on_open_change={handleToolsOpenChange}
                   dropdown_position="top"

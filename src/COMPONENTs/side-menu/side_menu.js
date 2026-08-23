@@ -239,6 +239,7 @@ const SideMenu = () => {
     open: false,
     sessionId: null,
     chatTitle: "",
+    ownerChatId: null,
   });
   if (memoryInspect.open) lazyMountedRef.current.memory = true;
 
@@ -294,8 +295,40 @@ const SideMenu = () => {
     [],
   );
 
-  const handleInspectMemory = useCallback((sessionId, chatTitle) => {
-    setMemoryInspect({ open: true, sessionId, chatTitle: chatTitle || "" });
+  /*
+   * Mount interface for the memory inspector. Object parameter, never
+   * positional: `sessionId` and `ownerChatId` are both legal chat-id-shaped
+   * strings, so a positional swap would be silent in JS and would send the
+   * inspector at the wrong owner while every layer below reports success.
+   *
+   *   sessionId   — V1 vector view key. Character chats: the derived
+   *                 character memory session id. Plain chats: the chat id.
+   *   chatTitle   — display title for the modal header.
+   *   ownerChatId — V2 context_v2 owner key. ALWAYS the UI chat id
+   *                 (`node.chatId`) for both branches. Never derived from
+   *                 `sessionId` — that mapping is lossy and non-invertible.
+   *
+   * Snapshot semantics: values are captured from the right-clicked node at
+   * open time and do not follow the active chat afterwards.
+   */
+  const handleInspectMemory = useCallback((params) => {
+    if (!params || typeof params !== "object") {
+      // Guards the exact failure this interface exists to prevent: a legacy
+      // positional call destructures to all-undefined without throwing.
+      console.error(
+        "[side-menu] onInspectMemory expects an object " +
+          "({ sessionId, chatTitle, ownerChatId }), received:",
+        params,
+      );
+      return;
+    }
+    const { sessionId, chatTitle, ownerChatId } = params;
+    setMemoryInspect({
+      open: true,
+      sessionId,
+      chatTitle: chatTitle || "",
+      ownerChatId: ownerChatId || null,
+    });
     setContextMenu((c) => ({ ...c, visible: false }));
   }, []);
 
@@ -776,8 +809,14 @@ const SideMenu = () => {
             open={memoryInspect.open}
             sessionId={memoryInspect.sessionId}
             chatTitle={memoryInspect.chatTitle}
+            ownerChatId={memoryInspect.ownerChatId}
             onClose={() =>
-              setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })
+              setMemoryInspect({
+                open: false,
+                sessionId: null,
+                chatTitle: "",
+                ownerChatId: null,
+              })
             }
           />
         )}

@@ -41,8 +41,8 @@ const CustomProvidersSection = () => {
   useEffect(() => subscribeModelCatalogRefresh(refresh), []);
 
   const accentColor = isDark ? "#7c8cf8" : "#2563eb";
-  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.45)";
-  const actionBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.055)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const actionBg = "var(--pupu-overlay-active)";
 
   const openAdd = () => {
     setEditingSlug(null);

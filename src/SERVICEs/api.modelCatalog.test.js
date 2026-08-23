@@ -52,6 +52,32 @@ describe("normalizeModelCatalog", () => {
     });
   });
 
+  test("keeps declared reasoning effort levels and drops malformed entries", () => {
+    const normalized = normalizeModelCatalog({
+      providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },
+      model_capabilities: {
+        "openai:gpt-5": {
+          input_modalities: ["text"],
+          reasoning_efforts: ["  MINIMAL ", "low", 42, "", "low", "high"],
+        },
+        "openai:gpt-5-codex": {
+          input_modalities: ["text"],
+          reasoning_efforts: [null, "", 7],
+        },
+      },
+    });
+
+    expect(normalized.modelCapabilities["openai:gpt-5"].reasoning_efforts).toEqual([
+      "minimal",
+      "low",
+      "high",
+    ]);
+    // All entries malformed → the key stays absent, callers hide the selector.
+    expect(
+      normalized.modelCapabilities["openai:gpt-5-codex"].reasoning_efforts,
+    ).toBeUndefined();
+  });
+
   test("falls back to text-only defaults for invalid capability payloads", () => {
     const normalized = normalizeModelCatalog({
       active: {

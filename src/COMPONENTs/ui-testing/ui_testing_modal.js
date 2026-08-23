@@ -19,10 +19,16 @@ import CodeDiffInteractRunner from "./runners/code_diff_runner";
 import ArtifactSummaryRunner from "./runners/artifact_summary_runner";
 import ToastRunner from "./runners/toast_runner";
 import InterjectRunner from "./runners/interject_runner";
+import TurnMutationHoldRunner from "./runners/turn_mutation_hold_runner";
 
 /* ── test component registry ── */
 const COMPONENTS = [
   { key: "interject", label: "Interject", runner: InterjectRunner },
+  {
+    key: "turn_mutation_hold",
+    label: "Turn Mutation Hold",
+    runner: TurnMutationHoldRunner,
+  },
   { key: "trace_chain", label: "TraceChain", runner: TraceChainRunner },
   {
     key: "code_diff_interact",

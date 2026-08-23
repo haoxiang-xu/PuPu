@@ -1,0 +1,31 @@
+# Ruling
+
+## R-0001 | 2026-08-15T17:08:04-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PLAN_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: P-0000-0004-2026-0815#PS-002, RS-002, S-0050, S-0051, S-0053, S-0073, S-0074, S-0075
+- **chief authorization**: user explicitly approved the P4 governance and action path with “批准”; this supplies Chief Judge participation but does not replace owner stances or acceptance evidence
+- **evidence flag disposition**: NOT_APPLICABLE
+- **mandatory responses**: NOT_APPLICABLE
+- **proposal result**: APPROVED
+- **ruling scope**: ACTION
+- **approved proposal/snapshot**: P-0000-0004-2026-0815#PS-002
+- **authorized action**: implement Context Composition V1 against the exact r10 producer/consumer contract pair: one namespaced ProviderCallReceipt extension, existing RunBundle receipt-set/all_call_ids authority, availability-only PuPu projection, strict Model Call/Run Tree selectors and the read-only Context Composition modal; no second ledger, Agent Run, new Electron persistence, raw-content authority or SHA admission lock
+- **acceptance criteria**: AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-009, AC-010, AC-011, AC-012, AC-013, AC-014, AC-015, AC-016, AC-017, AC-018, AC-019, AC-020
+- **boundary revision set**: sha256:1d37e836a3631fb7ff333a004f477ee979059fae3fc76626041ba753edbae93c+sha256:9971243d2cacfe6ac4847dd032b0922e997f70d543366932e8cf3c792574abc9
+- **boundary protocol**: v1
+- **boundary contracts / state sequences**: BC-001, BC-002, BC-003, BC-004, BC-005, BC-006, BC-007, BC-008, BC-009, SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
+- **evidence disposition**: implementation acceptance must prove the exact wrapped-v2 fresh hint and UTF-16/scalar/strict-UTF-8 equality, physical retry/fallback identity/CAS, receipt-set union, live/reattach/replay/restart persistence, strict selector/privacy/accessibility behavior, and AC-015 exact PuPu candidate plus one immutable test/import/package wheel across all eight canonical matrix cells
+- **accepted uncovered risks**: context-composition implementation and its Unicode/lifecycle/UI/deployed-matrix tests are presently NOT_RUN; primary retry>0→fallback remains an explicit fail-closed non-goal; heuristic overestimate remains partial/unreconciled with null percentage
+- **BOS disposition**: NOT_APPLICABLE
+- **acceptance series**: AS-001
+- **effect status at append**: PENDING_CLOSURE
+- **closure bundle manifest**: {"bundle_body":{"case_id":"P-0000-0004-2026-0815","commit_event_id":"S-0077","deadline":"2026-08-15T17:09:00-07:00","new_logical_state":"implementing","old_logical_state":"awaiting-ruling","precommit_events":[],"ruling_id":"R-0001"},"commit_payload":{"case_id":"P-0000-0004-2026-0815","closure_bundle_hash":"sha256:cd64cccc62b3e0d4dda1526ae520735032a9201ec285fb029693f321e59a7991","event_id":"S-0077","new_logical_state":"implementing","notice_kind":"CLOSURE_COMMIT","old_logical_state":"awaiting-ruling","precommit_event_hashes":[],"ruling_id":"R-0001","type":"NOTICE"},"precommit_event_payloads":[]}
+- **closure bundle hash**: sha256:cd64cccc62b3e0d4dda1526ae520735032a9201ec285fb029693f321e59a7991
+- **expected commit payload hash**: sha256:5ef890d220b5bb33511706521c927accc5196f64596c058f3e05978d239e432e
+- **closure deadline**: 2026-08-15T17:09:00-07:00
+- **effective when**: record.md#S-0077 NOTICE:CLOSURE_COMMIT
+- **next state / SI**: implementing | SI-001
+- **parent release**: IMPLEMENTATION_AUTHORIZED | active rollout remains blocked by AC-015 until exact one-wheel/all-eight-PASS evidence
+- **stop condition**: implementation may begin after CLOSURE_COMMIT; active rollout remains blocked until AS-001 proves every approved acceptance criterion, especially AC-015 exact deployed-artifact evidence

@@ -16,11 +16,16 @@ on:
         options:
           - lite
           - release
+          - windows-active-qualification
         default: lite
       run_unchain_analysis:
         description: "Run optional Unchain advisory analysis"
         type: boolean
         default: true
+      unchain_ref:
+        description: "Unchain source ref selected once for the immutable release artifact"
+        type: string
+        default: dev
 
 permissions:
   contents: read
@@ -31,19 +36,19 @@ jobs:
     name: Deterministic QA
     runs-on: ubuntu-latest
     env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
-      QA_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && 'release' || 'lite' }}
+      UNCHAIN_SOURCE_REF: ${{ inputs.unchain_ref || 'dev' }}
+      QA_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || github.event.inputs.qa_mode || 'lite' }}
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
         with:
           path: pupu
 
-      - name: Checkout unchain
+      - name: Checkout selected Unchain source once
         uses: actions/checkout@v4
         with:
           repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
+          ref: ${{ inputs.unchain_ref || 'dev' }}
           path: unchain
 
       - name: Set up Node
@@ -66,7 +71,64 @@ jobs:
         working-directory: pupu
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r unchain_runtime/server/requirements.txt -e ../unchain pytest
+          python -m pip install -r unchain_runtime/server/requirements.txt pytest
+
+      - name: Build one immutable Unchain wheel
+        id: unchain_artifact
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/build-unchain-artifact.mjs \
+            --source ../unchain \
+            --source-ref "$UNCHAIN_SOURCE_REF" \
+            --out-dir .release-qa/unchain-artifact \
+            --evidence .release-qa/unchain-artifact/unchain-artifact.json \
+            --python python
+
+      - name: Install and verify the exact Unchain artifact
+        id: artifact_verify
+        working-directory: pupu
+        run: |
+          python -m pip install --force-reinstall --no-deps \
+            "${{ steps.unchain_artifact.outputs.artifact_path }}"
+          node scripts/release-qa/verify-unchain-artifact.mjs \
+            --artifact "${{ steps.unchain_artifact.outputs.artifact_path }}" \
+            --evidence "${{ steps.unchain_artifact.outputs.evidence_path }}" \
+            --python python \
+            --installed true
+
+      - name: Upload immutable Unchain artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: |
+            pupu/.release-qa/unchain-artifact/*.whl
+            pupu/.release-qa/unchain-artifact/unchain-artifact.json
+          if-no-files-found: error
+
+      - name: Create the single controlled Memory V2 build snapshot
+        id: build_feature_snapshot
+        working-directory: pupu
+        shell: bash
+        run: |
+          SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"
+          node scripts/write-build-feature-snapshot.cjs \
+            --out "$SNAPSHOT_PATH" \
+            --profile contracts/memory-v2/release-profile.shadow.v1.json
+          SNAPSHOT_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"
+          printf '%s\n' "$SNAPSHOT_SHA256" > "${SNAPSHOT_PATH}.sha256"
+          {
+            echo "snapshot_path=$SNAPSHOT_PATH"
+            echo "snapshot_sha256=$SNAPSHOT_SHA256"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload the immutable Memory V2 build snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-v2-build-feature-snapshot
+          path: |
+            pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+            pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json.sha256
+          if-no-files-found: error
 
       - name: Resolve QA version
         working-directory: pupu
@@ -103,8 +165,28 @@ jobs:
         continue-on-error: true
         working-directory: pupu/unchain_runtime/server
         env:
-          PYTHONPATH: ${{ github.workspace }}/unchain/src
+          PYTHONPATH: ${{ steps.unchain_artifact.outputs.artifact_path }}
         run: python -m pytest tests/ -q --tb=short
+
+      - name: Context V2 boundary contract gate
+        id: context_v2_contract
+        working-directory: pupu
+        env:
+          PYTHON: python
+          UNCHAIN_ARTIFACT_PATH: ${{ steps.unchain_artifact.outputs.artifact_path }}
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}
+          UNCHAIN_TEST_SOURCE_PATH: ${{ github.workspace }}/unchain
+        run: npm run test:context-v2-contract
+
+      - name: RunBundle v1 boundary contract gate
+        id: run_bundle_contract
+        working-directory: pupu
+        env:
+          PYTHON: python
+          UNCHAIN_ARTIFACT_PATH: ${{ steps.unchain_artifact.outputs.artifact_path }}
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}
+          UNCHAIN_TEST_SOURCE_PATH: ${{ github.workspace }}/unchain
+        run: npm run test:run-bundle-contract
 
       - name: Web build and version check
         id: web_build
@@ -143,11 +225,17 @@ jobs:
         working-directory: pupu
         env:
           QA_PLATFORM_NAME: deterministic
+          QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}
+          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Unchain runtime protocol manifest","Context V2 boundary contracts","RunBundle v1 boundary contracts"]'
           QA_CHECKS_JSON: |
             [
               {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},
               {"name":"electron tests","command":"npm run test:electron","outcome":"${{ steps.electron.outcome }}"},
               {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
+              {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"Unchain runtime protocol manifest","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"Context V2 boundary contracts","command":"npm run test:context-v2-contract","outcome":"${{ steps.context_v2_contract.outcome }}","executed_tests":${{ steps.context_v2_contract.outputs.executed_tests || 0 }}},
+              {"name":"RunBundle v1 boundary contracts","command":"npm run test:run-bundle-contract","outcome":"${{ steps.run_bundle_contract.outcome }}","executed_tests":${{ steps.run_bundle_contract.outputs.executed_tests || 0 }}},
               {"name":"web build and version check","command":"npm run build","outcome":"${{ steps.web_build.outcome }}"},
               {"name":"MCP registry validation","command":"npm run validate:mcp","outcome":"${{ steps.mcp_registry.outcome }}"},
               {"name":"MCP bundled runtime build tests","command":"npm run test:mcp-runtime","outcome":"${{ steps.mcp_runtime.outcome }}"},
@@ -167,59 +255,7 @@ jobs:
         if: always()
         working-directory: pupu
         run: |
-          node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
-
-  unchain-dev-compatibility:
-    name: Unchain Dev Compatibility
-    runs-on: ubuntu-latest
-    # Advisory drift radar: tracks the MOVING unchain dev ref on purpose, so it
-    # must never hard-block a PuPu release — unchain-side churn is not a PuPu
-    # regression. The pytest step soft-fails and only emits a warning.
-    permissions:
-      contents: read
-    env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
-    steps:
-      - name: Checkout PuPu
-        uses: actions/checkout@v4
-        with:
-          path: pupu
-
-      - name: Checkout current Unchain dev
-        uses: actions/checkout@v4
-        with:
-          repository: haoxiang-xu/unchain
-          ref: dev
-          path: unchain
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install compatibility test dependencies
-        working-directory: pupu
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r unchain_runtime/server/requirements.txt -e ../unchain pytest
-
-      - name: Run PuPu-Unchain compatibility contracts
-        id: compat
-        continue-on-error: true
-        working-directory: pupu/unchain_runtime/server
-        env:
-          PYTHONPATH: ${{ github.workspace }}/unchain/src
-        run: |
-          python -m pytest \
-            tests/test_memory_factory.py \
-            tests/test_session_transcript_media.py \
-            tests/test_durable_interaction_host.py \
-            -q --tb=short
-
-      - name: Warn on unchain dev drift (advisory only)
-        if: steps.compat.outcome != 'success'
-        run: |
-          echo "::warning title=Unchain dev drift::PuPu is not compatible with the current unchain dev branch (advisory only — release not blocked). Sync the memory-contract proxy before the next unchain upgrade."
+          node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status !== 'passed') { console.error('Deterministic Release QA incomplete or failed'); process.exit(1); }"
 
   playwright-electron:
     name: Playwright Electron (${{ matrix.os }})
@@ -227,9 +263,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON((startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON((startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' || github.event.inputs.qa_mode == 'windows-active-qualification') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     env:
-      QA_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && 'release' || 'lite' }}
+      QA_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || github.event.inputs.qa_mode || 'lite' }}
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
@@ -268,15 +304,22 @@ jobs:
             npm run test:e2e
           fi
 
+      - name: Verify nonzero Playwright execution evidence
+        id: playwright_evidence
+        if: always()
+        continue-on-error: true
+        run: node scripts/release-qa/verify-playwright-execution.mjs --results test-results/playwright/results.json
+
       - name: Write Playwright QA report
         if: always()
         env:
           QA_PLATFORM_NAME: playwright-${{ runner.os }}
           QA_PLATFORM_COMMAND: npm run test:e2e
+          QA_REQUIRED_CHECKS_JSON: '["Playwright Electron release smoke"]'
           QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
           QA_CHECKS_JSON: |
             [
-              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}"}
+              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
 
@@ -301,7 +344,8 @@ jobs:
 
   package-matrix:
     name: Package ${{ matrix.name }}
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' }}
+    needs: deterministic-checks
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' || github.event.inputs.qa_mode == 'windows-active-qualification' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -320,7 +364,6 @@ jobs:
             os: ubuntu-latest
             command: npm run build:electron:linux
     env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
       QA_MODE: release
       PUPU_REQUIRE_NATIVE_MCP_SMOKE: "1"
     steps:
@@ -328,13 +371,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: pupu
-
-      - name: Checkout unchain
-        uses: actions/checkout@v4
-        with:
-          repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
-          path: unchain
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -347,6 +383,50 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Download the deterministic Unchain artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: pupu/.release-qa/unchain-artifact
+
+      - name: Download the immutable Memory V2 build snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: memory-v2-build-feature-snapshot
+          path: pupu/.release-qa/build-feature-snapshot
+
+      - name: Verify the downloaded Memory V2 build snapshot bytes
+        working-directory: pupu
+        shell: bash
+        run: |
+          SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"
+          EXPECTED_SHA256="$(tr -d '\r\n' < "${SNAPSHOT_PATH}.sha256")"
+          ACTUAL_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"
+          if [ -z "$EXPECTED_SHA256" ] || [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "::error title=Build feature snapshot mismatch::downloaded snapshot bytes differ from producer evidence"
+            exit 1
+          fi
+          {
+            echo "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$SNAPSHOT_PATH"
+            echo "PUPU_BUILD_FEATURE_SNAPSHOT_SHA256=$ACTUAL_SHA256"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify downloaded immutable Unchain bytes
+        id: artifact_verify
+        working-directory: pupu
+        shell: bash
+        run: |
+          WHEEL_PATH="$(find .release-qa/unchain-artifact -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          EVIDENCE_PATH=".release-qa/unchain-artifact/unchain-artifact.json"
+          if [ -z "$WHEEL_PATH" ] || [ ! -f "$EVIDENCE_PATH" ]; then
+            echo "::error title=Missing Unchain artifact::wheel or evidence is absent"
+            exit 1
+          fi
+          node scripts/release-qa/verify-unchain-artifact.mjs \
+            --artifact "$WHEEL_PATH" \
+            --evidence "$EVIDENCE_PATH" \
+            --bytes-only true
 
       - name: Install Node dependencies
         working-directory: pupu
@@ -372,7 +452,32 @@ jobs:
         id: package
         continue-on-error: true
         working-directory: pupu
+        env:
+          UNCHAIN_ARTIFACT_PATH: ${{ steps.artifact_verify.outputs.artifact_path }}
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
         run: ${{ matrix.command }}
+
+      - name: Start packaged sidecar and verify authenticated protocol
+        id: sidecar_smoke
+        if: always()
+        continue-on-error: true
+        working-directory: pupu
+        shell: bash
+        env:
+          UNCHAIN_ARTIFACT_PATH: ${{ steps.artifact_verify.outputs.artifact_path }}
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+        run: |
+          case "${{ matrix.name }}" in
+            windows) SIDECAR_BINARY="unchain_runtime/dist/windows/unchain-server.exe" ;;
+            mac-*) SIDECAR_BINARY="unchain_runtime/dist/macos/unchain-server" ;;
+            linux) SIDECAR_BINARY="unchain_runtime/dist/linux/unchain-server" ;;
+          esac
+          node scripts/release-qa/package-sidecar-smoke.mjs \
+            --binary "$SIDECAR_BINARY" \
+            --artifact "$UNCHAIN_ARTIFACT_PATH" \
+            --evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH" \
+            --snapshot "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" \
+            --out packaged-sidecar-smoke.json
 
       - name: Write package QA report
         if: always()
@@ -381,9 +486,13 @@ jobs:
         env:
           QA_PLATFORM_NAME: ${{ matrix.name }}
           QA_PLATFORM_COMMAND: ${{ matrix.command }}
-          QA_ARTIFACT_GLOBS_JSON: '["dist/**/*","unchain_runtime/dist/**/*"]'
+          QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","packaged sidecar protocol smoke"]'
+          QA_ARTIFACT_GLOBS_JSON: '["dist/**/*","unchain_runtime/dist/**/*","packaged-sidecar-smoke.json"]'
           QA_CHECKS_JSON: |
             [
+              {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"packaged sidecar protocol smoke","command":"node scripts/release-qa/package-sidecar-smoke.mjs","outcome":"${{ steps.sidecar_smoke.outcome }}","executed_tests":${{ steps.sidecar_smoke.outputs.executed_tests || 0 }}},
               {"name":"unsigned package build","command":"${{ matrix.command }}","outcome":"${{ steps.package.outcome }}"}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
@@ -442,6 +551,10 @@ jobs:
             echo "::error title=Package build failed::${{ matrix.name }} did not pass its full build, including bundled MCP runtime verification"
             exit 1
           fi
+          if [ "${{ steps.sidecar_smoke.outcome }}" != "success" ]; then
+            echo "::error title=Packaged sidecar smoke failed::${{ matrix.name }} did not start and pass authenticated protocol checks"
+            exit 1
+          fi
 
   final-report:
     name: Final Release QA Report
@@ -449,23 +562,15 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - deterministic-checks
-      - unchain-dev-compatibility
       - playwright-electron
       - package-matrix
     env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
+      QA_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || github.event.inputs.qa_mode || 'lite' }}
     steps:
       - name: Checkout PuPu
         uses: actions/checkout@v4
         with:
           path: pupu
-
-      - name: Checkout unchain
-        uses: actions/checkout@v4
-        with:
-          repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
-          path: unchain
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -484,6 +589,8 @@ jobs:
         run: |
           node scripts/release-qa/merge-reports.mjs \
             --input-dir ../qa-job-reports \
+            --mode "$QA_MODE" \
+            --expected-report-manifest contracts/memory-v2/release-qa-report-topology.v1.json \
             --out-json release-qa-report.json \
             --out-md release-qa-report.md
 
@@ -493,7 +600,7 @@ jobs:
         working-directory: pupu
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ../unchain openai anthropic
+          python -m pip install openai anthropic
 
       - name: Run optional Unchain analyst
         if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.qa_mode == 'release' && inputs.run_unchain_analysis }}
@@ -520,10 +627,35 @@ jobs:
           fi
           node scripts/release-qa/merge-reports.mjs \
             --input-dir ../qa-job-reports \
+            --mode "$QA_MODE" \
+            --expected-report-manifest contracts/memory-v2/release-qa-report-topology.v1.json \
             --out-json release-qa-report.json \
             --out-md release-qa-report.md \
+            --fail-on-deterministic-failure true \
             "${ANALYSIS_ARGS[@]}"
           cat release-qa-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce final required report topology
+        if: always()
+        working-directory: pupu
+        env:
+          DETERMINISTIC_JOB_RESULT: ${{ needs.deterministic-checks.result }}
+          PLAYWRIGHT_JOB_RESULT: ${{ needs.playwright-electron.result }}
+          PACKAGE_JOB_RESULT: ${{ needs.package-matrix.result }}
+        run: |
+          if [ "$DETERMINISTIC_JOB_RESULT" != "success" ]; then
+            echo "::error title=Deterministic job failed::deterministic-checks result was $DETERMINISTIC_JOB_RESULT"
+            exit 1
+          fi
+          if [ "$PLAYWRIGHT_JOB_RESULT" != "success" ]; then
+            echo "::error title=Playwright job failed::playwright-electron result was $PLAYWRIGHT_JOB_RESULT"
+            exit 1
+          fi
+          if [ "$QA_MODE" != "lite" ] && [ "$PACKAGE_JOB_RESULT" != "success" ]; then
+            echo "::error title=Package matrix failed::package-matrix result was $PACKAGE_JOB_RESULT"
+            exit 1
+          fi
+          node -e "const r=require('./release-qa-report.json'); if (r.deterministic_result.status !== 'passed') { console.error('Final Release QA incomplete or failed'); process.exit(1); }"
 
       - name: Upload final QA report
         if: always()

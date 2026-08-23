@@ -158,6 +158,15 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
       expandsTo: TEMPLATE,
       availability: (ctx) => ctx.phase === "composer",
     });
+    registerCommand({
+      name: "/noop",
+      description: "Route without injecting context",
+      source: PLUGIN_SOURCE,
+      sourceLabel: "Plankit",
+      sourceToolkitId: PLUGIN_TOOLKIT_ID,
+      expandsTo: "",
+      availability: (ctx) => ctx.phase === "composer",
+    });
   });
 
   afterEach(() => {
@@ -237,6 +246,21 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     expect(msg.content.slice(msg.composer.templateLength)).toBe(
       "\n\nbuild the login flow",
     );
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.context_composition_hint).toEqual({
+      schema: "pupu.context_composition_hint.v2",
+      contributions: [
+        {
+          category: "skills",
+          subtype: "expanded_invocation",
+          surface: "messages",
+          prefix_utf16_units: TEMPLATE.length,
+          utf8_bytes: TEMPLATE.length,
+          source_count: 1,
+        },
+      ],
+    });
   });
 
   test("no command → no composer field on the user message", async () => {
@@ -252,6 +276,21 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
       expect(lastUserMessage()?.content).toBe("just a plain message");
     });
     expect("composer" in (lastUserMessage() || {})).toBe(false);
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload).not.toHaveProperty("context_composition_hint");
+  });
+
+  test("zero-template command omits the context composition hint", async () => {
+    renderChat();
+    await waitForReady();
+
+    sendText("/noop keep the visible text");
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload).not.toHaveProperty("context_composition_hint");
   });
 
   test("禁读: composer/rawText never appear in the stream payload (§3.2)", async () => {
@@ -294,6 +333,7 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     const [interjectPayload] = window.unchainAPI.interject.mock.calls[0];
     expect(interjectPayload.text).toBe("/plan build something else");
     expect(deepHasKey(interjectPayload, "composer")).toBe(false);
+    expect(interjectPayload).not.toHaveProperty("context_composition_hint");
     // never re-entered the new-turn send
     expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
   });
@@ -331,6 +371,19 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     // and the model payload for the edit run is still clean
     const [editPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
     expect(deepHasKey(editPayload, "composer")).toBe(false);
+    expect(editPayload.context_composition_hint).toEqual({
+      schema: "pupu.context_composition_hint.v2",
+      contributions: [
+        {
+          category: "skills",
+          subtype: "expanded_invocation",
+          surface: "messages",
+          prefix_utf16_units: TEMPLATE.length,
+          utf8_bytes: TEMPLATE.length,
+          source_count: 1,
+        },
+      ],
+    });
   });
 
   test("edit to plain text drops the stale composer (宁删勿 stale, §2铁律)", async () => {
@@ -393,5 +446,6 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     // resend payload also clean
     const [resendPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
     expect(deepHasKey(resendPayload, "composer")).toBe(false);
+    expect(resendPayload).not.toHaveProperty("context_composition_hint");
   });
 });

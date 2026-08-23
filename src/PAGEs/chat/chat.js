@@ -12,6 +12,7 @@ import {
 } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
+import SecretCaptureModal from "./secret_capture_modal";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
@@ -35,8 +36,8 @@ import {
   start as progressStart,
   stop as progressStop,
 } from "../../SERVICEs/progress_bus";
-import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
 import { resolveCustomModelCapabilities } from "../../SERVICEs/custom_provider_store";
+import { providerSecretConfigured } from "../../SERVICEs/provider_secret_status";
 import { LogoSVGs, UISVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
@@ -46,6 +47,12 @@ import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
+import { selectLatestContextCompositionBundle } from "../../SERVICEs/context_composition_v1";
+import {
+  buildContextUsageView,
+  selectContextWindowTokens,
+  selectLatestContextUsage,
+} from "../../SERVICEs/context_usage_v1";
 import * as bootProgress from "../../SERVICEs/boot_progress";
 
 const DEFAULT_DISCLAIMER =
@@ -90,6 +97,11 @@ const isSameUnchainStatus = (current, next) =>
   current?.ready === next?.ready &&
   current?.url === next?.url &&
   current?.reason === next?.reason;
+
+const readConfiguredBuiltInProviders = () => ({
+  hasOpenAI: providerSecretConfigured("openai"),
+  hasAnthropic: providerSecretConfigured("anthropic"),
+});
 
 /* Rise-in wrapper that DROPS its animation once finished. The lingering
    transform of `fill: both` turns a static wrapper into a stacking context,
@@ -246,10 +258,9 @@ const ChatInterface = () => {
   });
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
   const [recipeOptions, setRecipeOptions] = useState([]);
-  const [configuredProviders, setConfiguredProviders] = useState(() => {
-    const stored = readModelProviders();
-    return { hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key };
-  });
+  const [configuredProviders, setConfiguredProviders] = useState(
+    readConfiguredBuiltInProviders,
+  );
 
   const activeStreamsRef = useRef(new Map());
   const messagePersistTimerRef = useRef(null);
@@ -300,9 +311,9 @@ const ChatInterface = () => {
   /* Boot gate S3: chat page's first effect firing is "chat first-screen
      rendered" — the readiness threshold the hero-boot-overlay design pins
      the Enter gate to. One-time and idempotent (bootProgress.signalReady()
-     no-ops on repeat calls). Unlike the old release(), this does not
-     dismiss anything by itself — it only reveals the BootOverlay's Enter
-     button; the user drives the actual transition into chat. */
+     no-ops on repeat calls). It satisfies ONE of the boot gates and dismisses
+     nothing: the overlay stays up until the local backend is ready too, and
+     then the user drives the actual transition into chat. */
   useEffect(() => {
     bootProgress.signalReady();
   }, []);
@@ -445,6 +456,7 @@ const ChatInterface = () => {
     draftAttachments,
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
+    selectedReasoningEffort: session.selectedReasoningEffort,
     agentOrchestration: session.agentOrchestration,
     selectedToolkits: effectiveSelectedToolkits,
     selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
@@ -703,8 +715,7 @@ const ChatInterface = () => {
 
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
-      const stored = readModelProviders();
-      setConfiguredProviders({ hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key });
+      setConfiguredProviders(readConfiguredBuiltInProviders());
     });
 
     return () => {
@@ -713,9 +724,14 @@ const ChatInterface = () => {
     };
   }, [unchainStatus.ready, refreshModelCatalog]);
 
+  /* Memory V2 P0 secret gate: while the user is deciding what to do with a
+     detected credential, the whole composer surface is frozen. Changing the
+     model, the toolkits or the attachments mid-decision would change what the
+     approved message is actually sent with. */
   const isModelSelectionDisabled =
     stream.isStreaming ||
     session.isCharacterChat ||
+    stream.isSecretCapturePending ||
     stream.isDurableInteractionBlocked ||
     stream.isTurnMutationBlocked;
 
@@ -735,6 +751,31 @@ const ChatInterface = () => {
       stream.isDurableInteractionBlocked,
       stream.isTurnMutationBlocked,
       stream.isStreaming,
+    ],
+  );
+
+  /* Effort levels the selected model actually declares — absent list hides
+     the selector entirely (provider default applies). */
+  const reasoningEffortOptions = useMemo(() => {
+    const efforts = activeModelCapabilities?.reasoning_efforts;
+    return Array.isArray(efforts) ? efforts : [];
+  }, [activeModelCapabilities]);
+
+  const onSelectReasoningEffort = useCallback(
+    (level) => {
+      if (
+        stream.isDurableInteractionBlocked ||
+        stream.isTurnMutationBlocked
+      ) {
+        return;
+      }
+      session.handleSelectReasoningEffort(level);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      session.handleSelectReasoningEffort,
+      stream.isDurableInteractionBlocked,
+      stream.isTurnMutationBlocked,
     ],
   );
 
@@ -790,8 +831,12 @@ const ChatInterface = () => {
   ]);
 
   const isSendDisabled =
-    stream.isDurableInteractionBlocked ||
+    (stream.isDurableInteractionBlocked &&
+      !["awaiting_response", "receipt_recorded"].includes(
+        stream.durableInteractionStatus,
+      )) ||
     stream.isTurnMutationBlocked ||
+    stream.isSecretCapturePending ||
     (!unchainStatus.ready && !stream.isStreaming) ||
     !hasSelectedModel;
 
@@ -831,6 +876,21 @@ const ChatInterface = () => {
 
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
+  const contextCompositionBundle = useMemo(
+    () => selectLatestContextCompositionBundle(session.messages),
+    [session.messages],
+  );
+  // Accounting-only pressure. Independent of Context Composition so the
+  // indicator works before any contribution source is instrumented; the window
+  // comes from model capabilities and stays null when the catalog has none.
+  const contextUsageView = useMemo(() => {
+    const usage = selectLatestContextUsage(session.messages);
+    if (!usage) return null;
+    return buildContextUsageView(
+      usage,
+      selectContextWindowTokens(activeModelCapabilities),
+    );
+  }, [session.messages, activeModelCapabilities]);
   const {
     containerRef: smoothResizeContainerRef,
     frameStyle: smoothResizeFrameStyle,
@@ -885,12 +945,16 @@ const ChatInterface = () => {
       onDropFiles: attachments.processFiles,
       attachments: draftAttachments,
       onRemoveAttachment: attachments.removeDraftAttachment,
-      attachmentsEnabled,
+      attachmentsEnabled: attachmentsEnabled && !stream.isSecretCapturePending,
       attachmentsDisabledReason,
       modelCatalog,
       selectedModelId: session.selectedModelId,
       onSelectModel,
+      reasoningEffortOptions,
+      selectedReasoningEffort: session.selectedReasoningEffort,
+      onSelectReasoningEffort,
       modelSelectDisabled: isModelSelectionDisabled,
+      toolSelectDisabled: stream.isSecretCapturePending,
       showModelSelector: !session.isCharacterChat,
       showToolSelector: !session.isCharacterChat && modelSupportsTools,
       showWorkspaceSelector: !session.isCharacterChat && modelSupportsTools,
@@ -903,6 +967,11 @@ const ChatInterface = () => {
       recipeOptions,
       interjectState: stream.interjectState,
       onQueueUndo: stream.onQueueUndo,
+      contextCompositionBundle,
+      contextUsageView,
+      turnMutationHold: stream.turnMutationHold,
+      onTurnMutationRetry: stream.retryTurnMutation,
+      onTurnMutationDiscard: stream.discardTurnMutation,
     }),
     [
       session.inputValue, session.setComposerInputValue, session.selectedModelId,
@@ -911,12 +980,16 @@ const ChatInterface = () => {
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
+      contextCompositionBundle, contextUsageView,
+      stream.turnMutationHold, stream.retryTurnMutation, stream.discardTurnMutation,
       isModelSelectionDisabled,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+      reasoningEffortOptions, session.selectedReasoningEffort, onSelectReasoningEffort,
       modelSupportsTools,
+      stream.isSecretCapturePending,
       t,
     ],
   );
@@ -1125,6 +1198,9 @@ const ChatInterface = () => {
               stream.isDurableInteractionBlocked ||
               stream.isTurnMutationBlocked
             }
+            turnMutationPresentationByMessageId={
+              stream.turnMutationPresentationByMessageId
+            }
             isCharacterChat={session.isCharacterChat}
             characterName={session.activeCharacterName}
             characterAvatar={session.activeCharacterAvatar}
@@ -1180,6 +1256,18 @@ const ChatInterface = () => {
         </>
       )}
       </div>
+
+      {/* Memory V2 P0 secret gate. Portalled by Modal, so it sits outside the
+          chat layout; it receives only the six-field public gate object and
+          never any message text. Close / ESC / backdrop all map to onCancel,
+          which stores nothing, sends nothing and keeps the composer intact. */}
+      <SecretCaptureModal
+        gate={stream.secretCaptureGate}
+        onConfirmStore={stream.confirmSecretCaptureStore}
+        onConfirmPlain={stream.confirmSecretCapturePlain}
+        onCancel={stream.cancelSecretCapture}
+        onScopeChange={stream.setSecretCaptureScope}
+      />
     </div>
   );
 };

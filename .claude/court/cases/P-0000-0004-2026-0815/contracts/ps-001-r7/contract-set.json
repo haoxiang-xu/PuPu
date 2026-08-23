@@ -1,0 +1,16 @@
+{
+  "consumer": {
+    "path": "contracts/ps-001-r7/pupu-context-composition-consumer-v1.json",
+    "sha256": "sha256:278149476c4ce35ce7ec53ce67866c5ce117d927f2d42e787f208cdb719d7878"
+  },
+  "lineage": {
+    "base": "contracts/ps-001-r6",
+    "decision": "S-0020",
+    "delta": "closed availability reason and rollout evidence contracts"
+  },
+  "producer": {
+    "path": "contracts/ps-001-r6/unchain-context-composition-producer-v1.json",
+    "sha256": "sha256:5dae9c3d1c6faf5cc1cfea8f5adf4687f0ab90965ed899191a7ab1a9419b5bf2"
+  },
+  "schema": "quorum.context_composition.contract_set.v1"
+}

@@ -39,22 +39,26 @@ cost authorization.
 
 ### GitHub on every PR
 
-The `Release QA` workflow runs:
+The `Release QA` workflow builds the selected clean Unchain source exactly once
+as an immutable wheel, then runs:
 
 1. Full frontend Jest suite.
 2. Electron main/preload/Test API Jest suite.
-3. Full Python sidecar pytest suite against the pinned Unchain revision.
-4. Production web build and version checks.
-5. MCP registry validation.
-6. Release QA script tests.
-7. Third-party notice script tests.
+3. Full Python sidecar pytest suite with the immutable Unchain wheel.
+4. Blocking Context V2 and RunBundle contract matrices using the same wheel
+   and tests from its recorded clean source revision.
+5. Independent wheel SHA-256 and complete runtime protocol manifest/digest
+   validation.
+6. Production web build and version checks.
+7. MCP registry, release-QA script, and third-party notice tests.
 8. Playwright Electron smoke on Ubuntu under Xvfb.
-9. Advisory compatibility checks against the moving Unchain `dev` branch.
 
 The deterministic, Playwright, and packaging jobs emit the same machine-readable
 report shape. The final job merges those reports, publishes Markdown/JSON evidence,
-and fails when any deterministic check failed. The moving-Unchain compatibility
-check remains a separate advisory warning.
+and fails when required checks have no executed tests or artifact/manifest evidence
+is missing, malformed, or inconsistent. Runtime compatibility is decided only by
+the loaded code-backed protocol manifest; Git revision and source are provenance
+telemetry, not an admission lock.
 
 ### GitHub in release mode
 
@@ -62,6 +66,10 @@ A `v*` tag or manual `qa_mode=release` run adds:
 
 - Playwright Electron on Ubuntu, macOS, and Windows.
 - Unsigned package builds for macOS arm64, macOS Intel, Windows, and Linux.
+- All four package jobs download the exact deterministic wheel/evidence bytes,
+  force-install that wheel into the PyInstaller environment, and start the real
+  packaged sidecar for authenticated `/health` and `/context/v2/status` protocol
+  smoke checks.
 - Version-to-tag validation.
 - Optional API-backed Unchain release analysis only from a protected manual
   `qa_mode=release` run on `main`, when CI secrets are configured.

@@ -132,3 +132,42 @@ describe("Icon", () => {
     });
   });
 });
+
+describe("link vs unlink glyphs", () => {
+  const pathsOf = (container) =>
+    Array.from(container.querySelectorAll("path"))
+      .map((p) => p.getAttribute("d"))
+      .join(" ");
+
+  /* The two share the same chain body, so only the corner marks tell them
+     apart — that is exactly the pair the theme editor's follow toggle swaps
+     between, and a copy-paste slip there would be invisible without this. */
+  const CORNER_MARKS = "M17 17H22V19H19V22H17V17ZM7 7H2V5H5V2H7V7Z";
+
+  test("unlink carries the broken-apart corner marks", async () => {
+    const { container } = render(
+      <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+        <Icon src="unlink" />
+      </ConfigContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector("svg")).toBeInTheDocument();
+    });
+    expect(pathsOf(container)).toContain(CORNER_MARKS);
+  });
+
+  test("link is the same chain without them", async () => {
+    const { container } = render(
+      <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+        <Icon src="link" />
+      </ConfigContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector("svg")).toBeInTheDocument();
+    });
+    expect(pathsOf(container)).not.toContain(CORNER_MARKS);
+    expect(pathsOf(container)).toContain("20.3164 10.7545 20.3164 7.58866");
+  });
+});

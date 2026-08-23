@@ -4,6 +4,9 @@ const MAX_ENTRIES = 64;
 const normalizedString = (value) =>
   typeof value === "string" ? value.trim() : "";
 
+const cancellationKey = (entry) =>
+  `${entry.sessionId}\u0000${entry.attemptId}\u0000${entry.interactionId || ""}`;
+
 export const normalizeExecutionCancelOutboxEntry = (value) => {
   const sessionId = normalizedString(value?.sessionId || value?.session_id);
   const attemptId = normalizedString(value?.attemptId || value?.attempt_id);
@@ -11,10 +14,16 @@ export const normalizeExecutionCancelOutboxEntry = (value) => {
     return null;
   }
   return {
+    ownerChatId: normalizedString(
+      value?.ownerChatId || value?.owner_chat_id,
+    ),
     sessionId,
     attemptId,
     sourceAttemptId: normalizedString(
       value?.sourceAttemptId || value?.source_attempt_id,
+    ),
+    interactionId: normalizedString(
+      value?.interactionId || value?.interaction_id,
     ),
     requestId: normalizedString(value?.requestId || value?.request_id),
     reason: normalizedString(value?.reason) || "user_stop",
@@ -50,7 +59,7 @@ export const readExecutionCancelOutbox = (storage = null) => {
       const normalized = normalizeExecutionCancelOutboxEntry(item);
       if (normalized) {
         deduplicated.set(
-          `${normalized.sessionId}\u0000${normalized.attemptId}`,
+          cancellationKey(normalized),
           normalized,
         );
       }
@@ -84,26 +93,30 @@ export const enqueueExecutionCancel = (identity, storage = null) => {
   }
   const currentEntries = readExecutionCancelOutbox(storage);
   const previous = currentEntries.find(
-    (entry) =>
-      entry.sessionId === normalized.sessionId &&
-      entry.attemptId === normalized.attemptId,
+    (entry) => cancellationKey(entry) === cancellationKey(normalized),
   );
+  if (
+    previous?.ownerChatId &&
+    normalized.ownerChatId &&
+    previous.ownerChatId !== normalized.ownerChatId
+  ) {
+    return null;
+  }
   const merged = previous
     ? {
         ...previous,
         ...normalized,
+        ownerChatId: normalized.ownerChatId || previous.ownerChatId,
         sourceAttemptId:
           normalized.sourceAttemptId || previous.sourceAttemptId,
+        interactionId:
+          normalized.interactionId || previous.interactionId,
         requestId: normalized.requestId || previous.requestId,
         createdAt: Math.min(previous.createdAt, normalized.createdAt),
       }
     : normalized;
   const entries = currentEntries.filter(
-    (entry) =>
-      !(
-        entry.sessionId === normalized.sessionId &&
-        entry.attemptId === normalized.attemptId
-      ),
+    (entry) => cancellationKey(entry) !== cancellationKey(normalized),
   );
   entries.push(merged);
   writeExecutionCancelOutbox(entries, storage);
@@ -115,16 +128,19 @@ export const enqueueExecutionCancel = (identity, storage = null) => {
 export const removeExecutionCancel = (
   sessionId,
   attemptId,
+  interactionId = "",
   storage = null,
 ) => {
   const normalizedSessionId = normalizedString(sessionId);
   const normalizedAttemptId = normalizedString(attemptId);
+  const normalizedInteractionId = normalizedString(interactionId);
   const entries = readExecutionCancelOutbox(storage);
   const nextEntries = entries.filter(
     (entry) =>
       !(
         entry.sessionId === normalizedSessionId &&
-        entry.attemptId === normalizedAttemptId
+        entry.attemptId === normalizedAttemptId &&
+        entry.interactionId === normalizedInteractionId
       ),
   );
   if (nextEntries.length !== entries.length) {

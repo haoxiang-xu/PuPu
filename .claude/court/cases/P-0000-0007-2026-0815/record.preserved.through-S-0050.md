@@ -1,0 +1,1094 @@
+# Record
+
+## S-0001 | 2026-08-15T20:23:40-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: FRAMING
+- **target**: case
+- **basis**: Chief Judge user direction 2026-08-15 “你看看你有没有办法修复一下” + 附全文诊断报告; intake-sha256:655dd8b863f35cd42df814d0162bbdfd9b8f7f162296736608a2366cd2478c03; intake-sha256:32d7e622b3f7a1d7e8e9ddb7497e831ca29b49976223f1298816559e8e1679d1
+- **decision effect**: 固定本案讨论对象、non-goals 与唯一主 owner；production authority 保持 NONE
+- **核心问题/目标**: 建立 Unchain durable journal 上 GraphCheckpoint seal producer 与 generation rebase preflight consumer 一致的 attempt quiescence 契约，并使失败语义从 Unchain 异常经 sidecar error code 到 renderer retry 分类端到端结构化，停止不可恢复状态的热循环重试且不丢用户 outbox
+- **non_goals**: 不改写/重排/删除历史 journal，用户原库只读；不改动 GraphCheckpoint seal-after-terminal 契约本身及其冷恢复测试；不改 runtime protocol 版本 lock、不恢复 SHA gate；不因失败丢弃 turn-mutation outbox；不为任意 post-terminal 事件开通用口子；不放行真正等待 interaction 的 graph；Context Composition / token usage UI（P-0000-0004-2026-0815）与 historical durable interaction resolution repair（P-0000-0005-2026-0815）不入本案
+- **主 owner**: code-owner-unchain
+- **选择依据**: producer（`graph_checkpoint.py` seal）与 consumer（`sqlite_generation_rebase_v2.py` terminal-last validator）双方均在 `unchain:**` 边界内，结构化失败语义必须先由 Unchain 异常族产出；主要实施结果的集成责任在 Unchain core owner
+- **选择不确定性**: sidecar 错误分类（code-owner-runtime）、renderer retry/outbox 分类（code-owner-chat-core）、可能的 IPC/bridge 转发（code-owner-electron）与 delegated/shadow orchestration 生命周期归属均在主 owner 边界外，必须留明确空白并逐个串行 HS 确认。机械匹配 `summon.py lead proposal` 输出 `code-owner-electron`，Speaker 否决：其 18 处命中含 6 处裸文件名多解，且把 unchain 仓路径（如 `tests/context_v2/test_sqlite_generation_rebase_v2.py`）误前缀为 `pupu:`，属路径字面比对失真而非语义责任判断
+- **初始已知范围**: Unchain `persistence/sqlite_generation_rebase_v2.py`、`context/graph_checkpoint.py`、`kernel/run_outcomes.py`、`journal/runtime.py`、`tests/context_v2/`；PuPu sidecar `memory_v2_unchain_generation_api.py`、`route_memory_v2.py`、`memory_v2_unchain_graph_checkpoint.py`、`memory_v2_unchain_graph_root_completion.py`、`unchain_adapter.py`；PuPu renderer `context_v2_turn_mutation.js`、`turn_mutation_outbox.js`、`use_chat_stream.js` recovery 与 `context_v2_bridge` IPC 链
+- **boundary protocol**: v1 | APPLICABLE，cross-repository + persistence + process；`PENDING_DISCOVERY` 仅在 drafting 合法，送裁前必须由完整 BC/SEQ 与 AC 映射取代，不得写 N/A 结论
+- **relation**: null | 独立 ACTION proposal；不迁移任何 parent proposal 正文，不作为任何 parent 冻结目标的必要子块，结果不返回 parent 集成
+
+## S-0002 | 2026-08-15T20:24:10-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: intake/fact-check.md, intake/chief-directive.md
+- **basis**: S-0001
+- **decision effect**: 把两份 intake 材料登记为本案 intake 输入供主 owner 集成；它们不是 PS、RS、E、owner stance，也不构成 action authority
+- **notice kind**: INTAKE_MATERIAL
+- **items**:
+  - intake/fact-check.md | sha256:655dd8b863f35cd42df814d0162bbdfd9b8f7f162296736608a2366cd2478c03 | 六路只读取证；基线 PuPu dev `28b1e0ef`（工作树含 P-0000-0004 在途未提交改动）、unchain dev `d5b0f71`（树干净）
+  - intake/chief-directive.md | sha256:32d7e622b3f7a1d7e8e9ddb7497e831ca29b49976223f1298816559e8e1679d1 | Chief 指令、外部诊断报告的建议方向 A–D、14 条验收矩阵与明确排除项
+- **evidentiary status**: NOT_EVIDENCE | 若某项事实要支撑异议、AC 或裁定，须由责任 owner 在 `evidence.md` 另立 `E-####` 并写明 locator、acquisition、limitations
+- **owner confirmation status**: PENDING_LEAD_INTEGRATION
+- **production effect**: NONE
+- **authorization effect**: NONE | 诊断报告的方案 A–D 与验收矩阵是参考输入，不是获准方案、不是 owner stance、不预定 BC/SEQ/AC 编号
+
+## S-0003 | 2026-08-15T20:47:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: PROPOSAL
+- **target**: P-0000-0007-2026-0815#PS-001
+- **basis**: S-0001, S-0002；unchain `d5b0f71`（树干净）与 PuPu `28b1e0ef` 上由主 owner 自行复核的只读源码事实
+- **decision effect**: 建立本案首个方案快照 PS-001，冻结 attempt quiescence 分类设计、crash window 语义推荐、orchestration 生命周期分类、结构化失败语义与 BC-001..BC-004 / SEQ-001..SEQ-006 / AC-001..AC-015；production effect 保持 NONE
+- **artifact**: P-0000-0007-2026-0815#PS-001
+- **boundary object hash**: sha256:cf8b84c026cacd4c20fe3d2b0c2bf97dbdbd9a27f688be411cd38784e7a7fee4
+- **content hash**: sha256:91211df464dcd60e2ffdb6d1ac0a9c577e0c0e6a0e209768048dfcc6fcda2709
+- **content hash derivation**: `proposal.md` 中位于 `### PS-001` 标题行之前的全部字节的 SHA-256（49309 bytes）；boundary object hash 由 `.claude/skills/case/tools/quorum_lint` 的 `quorum.boundary.objects.v1` 算法对全部 BC/SEQ 对象计算
+- **boundary protocol**: v1 | APPLICABLE；BC-001, BC-002, BC-003, BC-004 / SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006
+- **核心设计**: attempt 分三类判定（PLAIN 维持 terminal-last；GRAPH_STEP 要求唯一 `graph.step.started`、唯一 terminal、唯一 seal 为组内最后一条且为 terminal 的直接后继、status 家族一致、`terminal_cursor` 与 `execution_event_range` 两端逐字匹配、step/plan/scope 绑定一致；GRAPH_ORCHESTRATION 接受 root-terminal、graph-sealed 与 graph-dead 三种 quiescence 形态），聚合优先级 UNAVAILABLE 高于 RECOVERY_REQUIRED 高于 BLOCKED 高于 PASS
+- **crash window 推荐**: 新增 `GenerationRebaseRecoveryRequired`，继承 `GenerationRebasePreflightBlocked` 以保证未升级 sidecar 安全降级为今日的 `context_v2_rebase_in_progress`；validator 严格只读、绝不调用 `recover()`，恢复动作归 host 编排，Unchain 只提供只读 plan 定位辅助（决定点 K-1、K-2）
+- **主 owner 自行复核的新发现**: `run_max_iterations` 是 durable lifecycle 事件且被 GraphCheckpoint 视为 failed terminal，却不在 rebase validator 的 terminal 集合内，构成 intake 未涵盖的第二条 producer/consumer 词汇分叉；但它并非可靠 terminal（`kernel/run_limits.py:44` 在批准增额后 run 会继续），因此只采用窄规则而非直接并入 terminal 集合（决定点 K-4、残留项 K-5）
+- **intake 偏差更正**: `context_v2_turn_mutation.js` 实际位于 `src/PAGEs/chat/hooks/` 而非 `src/SERVICEs/`；冷恢复用例函数定义在 `tests/context_v2/test_graph_checkpoint.py:299`
+- **owner 空白**: SLOT-002 与 SLOT-005 | code-owner-runtime | HS-001；SLOT-003 | code-owner-chat-core | PENDING_HANDOFF；SLOT-004 | code-owner-electron | PENDING_HANDOFF
+- **ruling-ready status**: NOT_READY | `boundary_revision_set` 为 PENDING_CANDIDATE_FREEZE；BC-003 consumer、BC-004 双侧与 SEQ-004/SEQ-005/SEQ-006 的 owner confirmation 为 PENDING_HS；AC-011 与 AC-012 正文待交棒；AC-013 需 Chief 授权提供用户库只读副本；`case.md` 的 write_set/contract_set/boundary contracts/state sequences 待 Speaker 同步
+- **production effect**: NONE
+- **authorization effect**: NONE | 本快照不授权任何生产代码改动，PLAIN_RULING 与 CLOSURE_COMMIT 生效前只存在案卷文件
+
+## S-0004 | 2026-08-15T20:47:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: HANDOFF_REQUEST
+- **target**: P-0000-0007-2026-0815#SLOT-002, P-0000-0007-2026-0815#SLOT-005
+- **basis**: P-0000-0007-2026-0815#PS-001
+- **decision effect**: sidecar 是 Unchain 结构化失败 detail 的直接 consumer，也是 `recovery_required` 唯一可能的编排者；缺该确认则 BC-003 consumer 侧、BC-004 producer 侧、SEQ-005、SEQ-006 与 AC-011 无法形成，方案不可送裁
+- **目标 ownership boundary**: code-owner-runtime
+- **期待交付**: 一、SLOT-002 的 `reason` → error code 映射表（含新 code 名称、HTTP status、`retryable` 语义），取代 `memory_v2_unchain_generation_api.py:361-386` 的 `str(error).casefold()` 关键词分类，并说明 `route_memory_v2.py:305-312` 的 detail 二次覆写如何处理；二、收到 `recovery_required` 时的有界 recovery 编排（在哪一层触发、调用几次、失败后返回什么 code、如何避免与活跃 graph 运行争用），以及是否采用 PS-001 第二节提出的只读 plan 定位辅助；三、SLOT-005 的判断，即 delegated / shadow 分支未来是否在 orchestration attempt 上补写 root terminal（PS-001 的 orchestration 分类 (b) 已使其对正确性非必需，但形态统一可能仍可取），若补写请说明与 `unchain_adapter.py:10479-10496` 授权判断的关系；四、BC-003 consumer owner confirmation、BC-004 producer owner confirmation、SEQ-005 与 SEQ-006 的 owner confirmation；五、AC-011 的可验收正文与 AC-014 中 sidecar 侧的 manifest digest 取证方法
+- **缺席影响**: BC-003 与 BC-004 的 owner 确认缺失，SEQ-005、SEQ-006 无 owner，AC-011 无正文；PS-001 无法成为 ruling-ready，结构化失败语义无法端到端闭合，热循环重试无法停止
+- **最小访问范围**: P-0000-0007-2026-0815#PS-001, SLOT-002, SLOT-005, BC-003, BC-004, SEQ-005, SEQ-006, AC-009, AC-010, AC-011, AC-014, intake/fact-check.md, intake/chief-directive.md
+- **完成后返回**: code-owner-unchain
+
+## S-0005 | 2026-08-15T20:55:40-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: HANDOFF
+- **target**: HS-001
+- **basis**: S-0004, S-0003
+- **decision effect**: 授予 code-owner-runtime 一次有限 owner 交付；这是本案唯一 OPEN handoff
+- **from**: code-owner-unchain
+- **to**: code-owner-runtime
+- **scope**: P-0000-0007-2026-0815#PS-001, SLOT-002, SLOT-005, BC-003, BC-004, SEQ-005, SEQ-006, AC-009, AC-010, AC-011, AC-012, AC-014, intake/fact-check.md, intake/chief-directive.md
+- **scope completion**: 相对 S-0004 只增加一个同案裸 AC 引用，理由是机械的：S-0004 点名的 BC-004 producer owner confirmation，其 responsibility criteria 为该 BC 的正向与负向 acceptance 并集，而该并集包含一个 S-0004 未列入的 AC；缺它则该确认在送裁门禁上必然无效（`quorum_lint` 的 `confirmation handoff scope does not cover responsibility criteria` 检查）。本补齐只扩大只读访问，不新增交付项、不改变期待交付内容，也不构成 Speaker 对该 AC 内容的任何判断
+- **delivery**: 按 S-0004 的五项期待交付：一、SLOT-002 的 reason → error code 映射表（新 code 名称、HTTP status、retryable 语义）及 detail 二次覆写处置；二、收到 recovery_required 时的有界 recovery 编排与是否采用只读 plan 定位辅助；三、SLOT-005 关于 delegated / shadow 是否补写 root terminal 的 PuPu 侧判断；四、BC-003 consumer、BC-004 producer、SEQ-005、SEQ-006 的 owner confirmation；五、AC-011 可验收正文与 AC-014 中 sidecar 侧 manifest digest 取证方法
+- **return_to**: code-owner-unchain
+- **expires at**: 2026-08-15T22:55:00-07:00
+- **expiry effect**: 到期无合格 return 时 Speaker 追加 `NOTICE: HANDOFF_EXPIRED`，随后重新路由、转移 lead 或送 Chief；不把空白视为已完成
+- **status**: OPEN
+
+## S-0006 | 2026-08-15T20:56:10-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: P-0000-0007-2026-0815#PS-001
+- **basis**: S-0003, S-0005
+- **decision effect**: 记录 Speaker 对 PS-001 的机械门禁复核结果；三项待修由主 owner 在下次集成时处置，均不阻塞 HS-001
+- **notice kind**: GATE_FINDING
+- **scope of check**: 只做结构、引用、哈希与交棒覆盖的机械复核；不判断设计正确性、K-1..K-5 的取舍或任何实体结论
+- **verified**:
+  - PS-001 content hash | PASS | 按 S-0003 声明的派生方式重算（`proposal.md` 中 `### PS-001` 标题行之前的 49309 bytes）得 sha256:91211df464dcd60e2ffdb6d1ac0a9c577e0c0e6a0e209768048dfcc6fcda2709，与声明逐字一致
+  - PS-001 boundary object hash | PASS | `quorum_lint` 以 `quorum.boundary.objects.v1` 重算未报不一致
+  - PS lineage | PASS | 唯一 PS-001、supersedes null
+  - HS-001 覆盖 | PASS（补齐后）| S-0005 的 scope 覆盖 BC-003、BC-004、SEQ-005、SEQ-006 及其全部 responsibility criteria
+- **defect 1 · canonical artifact 残留**: `proposal.md` 末尾第 383–384 行残留两行工具调用标记 `</content>` 与 `</invoke>`。它们位于 `### PS-001` 标题之后的 412 bytes 尾段内，因此不影响已核验的 content hash，但属 canonical 记录污染。按发言协议由原提交者重排，Speaker 不代改。请主 owner 在下一次写入 `proposal.md` 时删除这两行；若删除发生在 PS-001 之后的尾段而不触及 hash 前缀，content hash 不需重算，请在返修事件中明示这一点
+- **defect 2 · BC-004 producer 侧无自证 AC**: BC-004 的 producer owner 为 code-owner-runtime，但其 positive acceptance 与 negative acceptance 合计只引用两个 AC，其一是 SLOT-003（code-owner-chat-core）尚未交付、当前仅有占位文字的那一条。后果有二：其一，runtime 在 HS-001 内对 BC-004 producer 的确认将针对一条尚无正文的 AC，返回后仍可能需要在 SLOT-003 交付后重新确认；其二，sidecar 侧 error envelope 作为 producer 的义务当前没有任何直接验证它的 AC。是否为 BC-004 补一条 producer 侧 AC、或把该确认推迟到 SLOT-003 交棒之后，属主 owner 的方案判断，Speaker 不代为选择
+- **observation · 同一 AC 兼任正负**: BC-004 与 SEQ-004 均把同一个 AC 同时列为 positive 与 negative acceptance。法典只要求“至少一个正向与一个负向 AC”，linter 亦未拒绝，故不记为 defect；但正负路径由同一条 AC 承载时，验收时难以逐格追踪，建议主 owner 复核
+- **case.md 同步**: 已按 PS-001 完成 Speaker 侧索引同步（current_artifact_ref、BC/SEQ refs、write_set/contract_set/boundary contracts/state sequences、status → awaiting-handoff）；`review_snapshot_ref` 仍为 null，属尚未进入 review 的正常状态
+- **production effect**: NONE
+
+## S-0007 | 2026-08-15T21:12:38-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-runtime
+- **type**: HANDOFF_RETURN
+- **target**: HS-001
+- **basis**: S-0005, S-0004, S-0003, S-0006；PuPu `28b1e0ef` 与 unchain `d5b0f71` 上由本 owner 自行只读核对的源码事实（`contributions/HS-001-code-owner-runtime.md` §0 表 F-1..F-14）
+- **decision effect**: 交付 SLOT-002 与 SLOT-005 的 sidecar 侧方案块，并给出 BC-003 consumer、BC-004 producer、SEQ-005、SEQ-006 的 owner 确认与修改意见；正文置于 `contributions/HS-001-code-owner-runtime.md`，供 lead 集成为 PS-002。production effect 保持 NONE
+- **contribution**: P-0000-0007-2026-0815#SLOT-002（`reason` → error code 三级分类器与七 code 全表、`route_memory_v2.py:305-312` message 覆写处置、有界 recovery 编排），P-0000-0007-2026-0815#SLOT-005（delegated / shadow 不补写 root terminal，接受 orchestration 形态 (b) 为长期合法形态），BC-003 consumer owner confirmation = CONFIRMED_CONDITIONAL（修改意见 M-1 未知 reason 表述冲突、M-2 封闭枚举缺 conflict 族、M-3 出网 code allowlist），BC-004 producer owner confirmation = CONFIRMED_CONDITIONAL（M-4 `retryable` 为咨询性而 `code` 为规范；M-5 本次只加 code 不改信封形状；并对 S-0006 defect 2 选择补一条 producer 侧自证验收而非推迟确认），SEQ-005 owner confirmation = CONFIRMED_CONDITIONAL（M-6 补 sidecar 领先 / unchain 回滚的反向 skew 单元格与 `reset` 理由改写），SEQ-006 owner confirmation = CONFIRMED_PARTIAL（运行时 manifest 侧确认；M-7 提出 artifact provenance 侧归属应为 `code-owner-devtools`，建议按 identity key 拆为两条独立序列），AC-011 可验收正文（八个子例，含三项 red-before-green），AC-014 sidecar 侧取证方法（`GET /health` 的 runtime manifest digest + `scripts/release-qa/unchain-artifact.mjs` 既有 evidence 机制，三处 exact-pair 核对），AC-016 建议新增（sidecar rebase error envelope 的封闭性与不泄漏，正向七 code、负向表外 code 降级与全文不泄漏断言）
+- **artifact**: contributions/HS-001-code-owner-runtime.md
+- **remaining unknowns**: U-1 `BoundExecutionJournal.append` 对重复 event_id 的去重或抛出语义（决定跨进程并发恢复的残余竞态是否需要升级为跨进程锁）| code-owner-unchain；U-2 只读 plan 定位辅助是否交付 —— 这是 SLOT-002 自动恢复的硬依赖，不交付则本 owner 结论翻转为「不做自动恢复，`graph_step_seal_missing` / `graph_execution_seal_missing` 直接映射 terminal + quarantine」| code-owner-unchain；U-3 operation / payload / revision / source generation 四类 conflict 是否纳入封闭 reason 枚举 —— 不纳入则 `str(error)` 关键词分类必须永久保留 | code-owner-unchain；U-4 父 run attempt 与 delegated orchestration attempt 是否同 generation 因而同在 validator 扫描集内（AC-007 (b) 安全性的前置条件）| code-owner-unchain；U-5 AC-009 中 `subject` 单字段与总长的具体上限数值（AC-011 子例 5 需要它才能写越界用例）| code-owner-unchain；U-6 renderer 持久化重试上界与 quarantine 形态 | code-owner-chat-core；U-7 SEQ-006 归属 | Speaker / lead
+- **recommended next handoff**: 先 SLOT-003 | code-owner-chat-core —— 把 `context_v2_rebase_journal_incompatible` 纳入 `TERMINAL_REBASE_ERROR_CODES`（quarantine 且保留 frozen payload）、为 `context_v2_rebase_recovery_required` 建立独立于 in_progress 的更短上界、把 `use_chat_stream.js:13397-13416` 的 useRef 计数改为随 outbox 条目持久化；并注意 `context_v2_rebase_unavailable` 今天不在 terminal 集合且 JS 全仓零显式引用，应保持非 terminal 但受同一持久化上界约束。随后 SLOT-004 | code-owner-electron —— 若采纳「只加 code、不改信封」，预期结论为「无需改动，只确认 `context-v2:rebase-session` 链路对新 code 与 409 body 的透传并同步 `.js`/`.cjs` 测试双胞胎」；若 lead 改走新 endpoint 退路方案，则该交棒规模显著变大，请在交棒前先定 §2.2 的取舍。不建议为本案召集 `expert-security`：新增 code 不携带用户内容，message 覆写保留与 AC-016 的不泄漏负向断言已覆盖隐私面
+- **status**: RETURNED
+
+## S-0008 | 2026-08-15T21:32:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: PROPOSAL
+- **target**: P-0000-0007-2026-0815#PS-002
+- **basis**: S-0007 / HS-001 与 `contributions/HS-001-code-owner-runtime.md`；S-0006 defect 1 与 defect 2；S-0003 / PS-001；unchain `d5b0f71` 与 PuPu `28b1e0ef` 上由本 owner 自行只读复核的源码事实
+- **decision effect**: 集成 HS-001 全部交付并冻结 successor 快照 PS-002；定案 U-1 / U-2 / U-3 / U-4 / U-5 五条 unchain 边界内未知；SEQ-006 按 identity key 拆分；production effect 保持 NONE
+- **artifact**: P-0000-0007-2026-0815#PS-002
+- **supersedes**: P-0000-0007-2026-0815#PS-001
+- **boundary object hash**: sha256:48db0adae9134690be1a78b212ec1806937c6697c4f5b4540414e5a97b09810c
+- **content hash**: sha256:f533b4b43f98a950aa119dfc241105495faa659dbc1a09e5b5d2717c0720f730
+- **content hash derivation**: `proposal.md` 中位于 `### PS-002` 标题行之前的全部字节的 SHA-256；boundary object hash 由 `quorum_lint` 的 `quorum.boundary.objects.v1` 算法对全部 BC/SEQ 对象计算，与 PS-001 同法
+- **boundary protocol**: v1 | APPLICABLE；BC-001, BC-002, BC-003, BC-004 / SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
+- **U-1 定案（K-9）**: `SQLiteContextV2Store` 的 journal append（`sqlite_v2.py:1477-1514`）以 **`operation_id`** 而非 `event_id` 为幂等键，重复且逐项相等（`_request_matches_event` :1331-1342 比对 event_id / event_type / attempt / operation / payload / resource_refs）时返回 `duplicate=True` 零新增行，字节分歧或 event_id 撞另一 operation 时抛 `JournalConflictError`，被 `_append` 包成 `GraphCheckpointConflict`（`GraphCheckpointError` 子类）。graph seal 的 `event_id` 与 `operation_id` 同由 `_stable_id({scope_id, event_type, discriminator})` 派生且 payload 是 journal 的确定性函数，故跨进程并发恢复良性。**结论：SLOT-002 的进程内 live-execution 闸足够，不需要升级为跨进程锁**
+- **U-2 定案（K-6）**: **交付只读 plan 定位辅助**，纳入 write_set 与 BC-002，新增 AC-016 取证。理由：替代方案是把 `plan.to_dict()` schema 复制进第二个仓库，正是 BC-002 要消灭的分叉；复用 `PupuUnchainGraphCheckpointHost` 不可行（构造末尾即 `admit()` 一次 append）；不交付则每次 crash window 都需用户介入，用产品体验换十几行只读代码不划算。plan 对象在 PuPu 边界上为**不透明句柄**，sidecar 只可原样交回 unchain，因此不构成新增跨仓 wire contract，不需新开 BC
+- **U-3 定案（K-8）**: **采纳 M-2**，把 operation identity、head revision CAS、source generation、chat binding / create 四族纳入封闭枚举，并要求枚举对 `sqlite_generation_rebase_v2.py` **每一个** raise 点满射（AC-009 增反射断言）；`unavailable` 桶另加基础设施族（`:560` WAL、`:723` schema 不支持、`:727` quick_check、`:741` schema 初始化）。18 处 `GenerationRebaseConflict` raise 点已逐一归族并写入 PS-002。附带记录一处静默重分类：`:1694` 因 message 含 `revision` 今天被判 `context_v2_revision_conflict`，按语义属 source generation 族；两 code 今天同在 renderer terminal 集合内，用户可见行为不变
+- **U-4 定案（K-7）**: SLOT-002 提出的前置条件**不必要**。validator 扫描 `WHERE execution_id = ? AND generation_id = ?`（:1340-1352）即本次要切走的整个 generation；父 run attempt 若在该 generation 内且仍在飞行，其自身组零 terminal → BLOCKED，聚合优先级使整体 preflight 被 Blocked；若不在该 generation 内，它本就不属于本次 rebase 的切换对象。两种情况下 (b) 都不可能放行仍在运行的 chat。已改为由 AC-007 (f) 显式取证，而非写成假设。相邻核实：orchestration attempt 取自 `coordinator.bundle.attempt`（`memory_v2_unchain_graph_checkpoint.py:285-332`），delegated 下 `workflow_run_id` 与 `parent_run_id` 确为不同 run id
+- **U-5 定案**: `subject` 上限定为每字符串值 ≤ 256 字符、键数 ≤ 12、canonical JSON ≤ 2048 字节，宽于任何真实标识符而窄到装不下消息文本或用户内容
+- **HS-001 集成**: 全部吸收 —— 三级分类器与七 code 全表、`journal_incompatible` 用 409、`retryable` 咨询性 / `code` 规范（M-4）、只加 code 不改信封（M-5）、message 覆写保留加出网 code allowlist（M-3）、未知 reason 回退确定性阶梯的表述修正（M-1）、内联三层防护的有界 recovery、server 侧 `(execution_id, generation_id, reason)` 上界、SEQ-005 反向 skew 单元格与 `reset` 理由改写（M-6）、SLOT-005 不补写 root terminal、AC-011 八子例正文、AC-014 sidecar 侧取证方法
+- **S-0006 defect 1 处置**: 已删除 `proposal.md` 原第 383–384 行的 `</content>` 与 `</invoke>` 两行工具标记。它们位于 PS-001 标题之后的尾段，**PS-001 的 content hash 不受影响、无需重算**，本事件按 S-0006 的要求明示这一点
+- **S-0006 defect 2 处置**: 采纳 SLOT-002 的方向（补 producer 侧自证而非推迟确认），但**不设独立 AC 编号**。原因是 HS-001 的 scope 冻结于 S-0005，无法承载在其返回中才诞生的 AC 编号；若照搬 SLOT-002 建议的 AC-016，BC-004 的责任 AC 集合会溢出 HS-001 scope 而使 producer 确认在送裁门禁上立即失效（已由 `quorum_lint` 实测复现），并被迫向 runtime 再开一棒。故把该验收**逐字保留为 AC-011 子例 6**（这正是 SLOT-002 自身采用的结构，其原文即写「作为 AC-011 的引用项，不重复计数」），BC-004 的 positive 改为 `AC-011, AC-012`，producer 侧因而拥有一条有正文的自证 AC。新编号 AC-016 让给 SLOT-001 自己的只读 plan 定位辅助，由 LEAD 确认，不受任何 HS scope 约束
+- **S-0006 observation 处置**: BC-004 不再由同一 AC 兼任正负（现 positive `AC-011, AC-012` / negative `AC-010, AC-012`）。SEQ-004 仍由 AC-012 兼任正负，因其正文尚待 SLOT-003 交付，留待该交棒返回时复核
+- **SEQ-006 拆分（K-10，采纳 M-7 建议 ii）**: 拆为 SEQ-006（runtime protocol manifest 准入与运行时 exact-pair 核对，owner code-owner-runtime，HS-001 已确认）与 SEQ-007（release artifact provenance，owner code-owner-devtools，PENDING_HS）。理由是两半 identity key 本就不同，且 `scripts/release-qa/**` 与 `.github/workflows/**` 属 devtools 写边界，让无该边界写权限的 owner 确认它正是边界协议要防止的形态。代价是串行队列末尾多一棒
+- **ruling-ready status**: NOT_READY | `boundary_revision_set` 仍为 PENDING_CANDIDATE_FREEZE；BC-004 consumer、SEQ-004（chat-core）与 SEQ-007（devtools）的 owner confirmation 为 PENDING_HS；AC-012 正文待交棒；AC-013 需 Chief 授权提供用户库只读副本；`case.md` 需 Speaker 同步 current_artifact_ref 至 PS-002 并把 SEQ-007 加入 state_sequence_refs
+- **待 Chief 决定且影响下一棒规模**: 内联 recovery 使 `rebase_session` 在恢复路径上成为写者（PS-002 风险 R6）。本 owner 采纳内联并已把改写后的写入不变量写进 AC-011 子例 8；若 Chief 认为不可接受，退路是新 endpoint，编排逻辑不变但 SLOT-004 从「确认透传」升级为「新增 channel + preload bridge」。**该取舍宜在 SLOT-004 交棒之前定下**
+- **production effect**: NONE
+- **authorization effect**: NONE | 本快照不授权任何生产代码改动
+
+## S-0009 | 2026-08-15T21:33:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: HANDOFF_REQUEST
+- **target**: P-0000-0007-2026-0815#SLOT-003
+- **basis**: P-0000-0007-2026-0815#PS-002, S-0007
+- **decision effect**: renderer 是 sidecar error code 的终端 consumer，也是热循环终局收敛的唯一决定方；缺该确认则 BC-004 consumer 侧、SEQ-004 与 AC-012 无法形成，方案不可送裁
+- **目标 ownership boundary**: code-owner-chat-core
+- **期待交付**: SLOT-003 的 renderer 侧分类与重试治理，具体为 —— 一、两个新 code 的落位：`context_v2_rebase_journal_incompatible` 纳入 `TERMINAL_REBASE_ERROR_CODES`（quarantine 且保留 frozen payload，不丢弃），`context_v2_rebase_recovery_required` 建立独立于 in_progress 的处理与更短的重试上界（sidecar 已自行恢复过一次）；二、`context_v2_rebase_unavailable` 的处置 —— 它今天不在 terminal 集合且 JS 全仓零显式引用，应保持非 terminal 但受同一持久化上界约束；三、把 `use_chat_stream.js:13397-13416` 的 useRef 重试计数改为随 outbox 条目持久化，使重挂载不归零；四、quarantine 的用户可见语义（条目如何呈现、用户如何取回或丢弃自己的 frozen 编辑）；五、BC-004 consumer owner confirmation 与 SEQ-004 owner confirmation；六、AC-012 的可验收正文，需覆盖 SEQ-004 的七个 REQUIRED 单元格
+- **缺席影响**: BC-004 缺 consumer 确认、SEQ-004 无 owner、AC-012 无正文；PS-002 无法成为 ruling-ready。更实质的是：sidecar 侧上界只覆盖「恢复不收敛」，renderer 侧的重挂载无界重试不被治理，热循环的终局收敛就不成立，本案的核心目标只完成一半
+- **最小访问范围**: P-0000-0007-2026-0815#PS-002, SLOT-003, BC-004, SEQ-004, AC-010, AC-011, AC-012, contributions/HS-001-code-owner-runtime.md, intake/fact-check.md, intake/chief-directive.md
+- **完成后返回**: code-owner-unchain
+
+## S-0010 | 2026-08-15T21:38:40-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: HANDOFF
+- **target**: HS-002
+- **basis**: S-0009, S-0008, S-0007
+- **decision effect**: 授予 code-owner-chat-core 一次有限 owner 交付；HS-001 已于 S-0007 终态 RETURNED，本案再次只有一个 OPEN handoff
+- **from**: code-owner-unchain
+- **to**: code-owner-chat-core
+- **scope**: P-0000-0007-2026-0815#PS-002, SLOT-003, BC-004, SEQ-004, AC-010, AC-011, AC-012, contributions/HS-001-code-owner-runtime.md, intake/fact-check.md, intake/chief-directive.md
+- **scope verification**: 与 S-0009 逐字相同，无需补齐。机械复核：本棒承担 BC-004 consumer 与 SEQ-004 两项确认，其 responsibility criteria 为各自正负 acceptance 并集，即 BC-004 的三个 AC 与 SEQ-004 的一个 AC，全部已在 scope 内；两个确认对象本身亦在 scope 内；scope 内无重复或跨案限定的 BC/SEQ/AC 引用
+- **boundary verification**: 六项交付涉及的写入面（`src/PAGEs/chat/hooks/context_v2_turn_mutation.js`、`src/PAGEs/chat/hooks/use_chat_stream.js`、`src/SERVICEs/turn_mutation_outbox.js`）全部落在 code-owner-chat-core 的 charter 边界内，含显式声明的 `pupu:src/SERVICEs/turn_mutation_outbox.js`；本棒不触及 shared-arteries 残余条款，无需再开一棒
+- **delivery**: 按 S-0009 的六项期待交付：一、两个新 code 的落位（`journal_incompatible` 纳入 terminal 并 quarantine 且保留 frozen payload，`recovery_required` 独立于 in_progress 且上界更短）；二、`unavailable` 保持非 terminal 但受同一持久化上界约束；三、`use_chat_stream.js` 的 useRef 重试计数改为随 outbox 条目持久化，使重挂载不归零；四、quarantine 的用户可见语义；五、BC-004 consumer owner confirmation 与 SEQ-004 owner confirmation；六、AC-012 可验收正文，覆盖 SEQ-004 的七个 REQUIRED 单元格
+- **return_to**: code-owner-unchain
+- **expires at**: 2026-08-15T23:38:00-07:00
+- **expiry effect**: 到期无合格 return 时 Speaker 追加 `NOTICE: HANDOFF_EXPIRED`，随后重新路由、转移 lead 或送 Chief；不把空白视为已完成
+- **status**: OPEN
+
+## S-0011 | 2026-08-15T21:39:10-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: case
+- **basis**: S-0008, S-0009, S-0010, S-0007
+- **decision effect**: 记录 Speaker 对 PS-002 的机械复核结果、剩余串行交棒队列与一项必须呈 Chief 的未决取舍；本通知不作任何实体判断
+- **notice kind**: GATE_FINDING
+- **verified**:
+  - PS-002 content hash | PASS | 按 S-0008 声明的派生方式重算（`### PS-002` 标题行之前的 78243 bytes）得 sha256:f533b4b43f98a950aa119dfc241105495faa659dbc1a09e5b5d2717c0720f730，与声明逐字一致
+  - PS-002 boundary object hash | PASS | `quorum_lint` 以 `quorum.boundary.objects.v1` 重算未报不一致
+  - PS lineage | PASS | PS-002 supersedes PS-001，编号连续
+  - S-0006 defect 1 | CLOSED | `proposal.md` 全文已无 `</content>` / `</invoke>` 残留，文件以 `formed_by` 行正常结束；S-0008 已按要求明示 PS-001 content hash 不受影响
+  - S-0006 defect 2 | CLOSED | BC-004 positive 现为两个 AC，producer 侧取得有正文的自证验收；该 AC 已在 HS-001 冻结 scope 内，producer 确认未溢出，linter 对 BC-004 producer 不再报错
+  - S-0006 observation | PARTIAL | BC-004 不再由同一 AC 兼任正负；SEQ-004 仍兼任，其正文由 HS-002 交付，返回时复核
+  - HS-001 lineage | PASS | S-0007 终态 RETURNED，speaker 精确等于目标 owner，返回时间早于 expires at；BC-003 consumer、BC-004 producer、SEQ-005、SEQ-006 四项确认已通过 linter
+- **剩余串行交棒队列（Speaker 计划，非授权）**: HS-002 · code-owner-chat-core · SLOT-003（进行中）→ code-owner-electron · SLOT-004（两个新 code 与 409 body 的透传确认，`.js`/`.cjs` 测试双胞胎同步）→ code-owner-devtools · SLOT-006 / SEQ-007（release artifact provenance）。每棒仍需当前 owner 提交 `HANDOFF_REQUEST`，Speaker 逐棒校验后路由；本队列不预先授予任何访问权，也不构成对后两棒规模的承诺
+- **carry-forward · R6 内联 recovery 写者**: PS-002 采纳内联方案，使 `rebase_session` 在恢复路径上成为写者；退路是新增独立 endpoint，编排逻辑不变但会把 SLOT-004 从「确认透传」升级为「新增 channel + preload bridge」。按主 owner 推荐先行推进，**该取舍尚未裁定**：Speaker 将其登记为送裁时的 `mandatory responses` 强制回应项，由 Chief 在 PLAN_RULING 中明示处置。lead 已指出宜在 SLOT-004 交棒前定下；若 Chief 在此之前给出方向，Speaker 只作程序记录，不代为选择
+- **production effect**: NONE
+
+## S-0012 | 2026-08-15T21:58:20-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-chat-core
+- **type**: HANDOFF_RETURN
+- **target**: HS-002
+- **basis**: S-0010, S-0009, S-0008, S-0011；PuPu `28b1e0ef` 上由本 owner 自行只读核对的源码事实（`contributions/HS-002-code-owner-chat-core.md` §0 表 F-1..F-14）
+- **decision effect**: 交付 SLOT-003 的 renderer 侧方案块，并给出 BC-004 consumer 与 SEQ-004 的 owner 确认、AC-012 可验收正文与八条修改意见；正文置于 `contributions/HS-002-code-owner-chat-core.md`，供 lead 集成。production effect 保持 NONE
+- **contribution**: P-0000-0007-2026-0815#SLOT-003 六项交付全部完成 —— 一、`context_v2_rebase_journal_incompatible` 落位：加入 `TERMINAL_REBASE_ERROR_CODES` 但**必须同时**新增 `contextV2RebaseTerminalDisposition(code)` 区分 `discard` 与 `quarantine`，否则由 F-2（`use_chat_stream.js:12756-12765` / `:13050-13059` / `:13296-13305` / `:13537-13550` 四处在 fingerprint 未变时 `removeTurnMutation`）该 code **必然**删除用户 frozen payload，与 non_goal 直接冲突；quarantine = 保留条目、payload 逐字节不变、停止自动重试、`retryStatus="quarantined"`。二、`context_v2_rebase_recovery_required` 独立第五类：固定两级退避 250ms / 750ms（无指数尾）、专属上界 `recoveryRequiredAttempts >= 2`（与 sidecar `(execution, generation, reason)` 上界数值对齐但职责不同：renderer 计数跨重启存活），到界转 quarantine；同时计入共享计数。三、`context_v2_rebase_unavailable` 保持非 terminal 且不需显式分支，受共享持久化上界约束，封闭集合穷举（见验收正文子例 11）比手写集合更强。四、useRef → outbox 持久化：`turn_mutation_outbox.js` 新增四个字段 `replayAttempts`(0..12) / `recoveryRequiredAttempts`(0..2) / `retryStatus`("" | paused | quarantined) / `lastFailureCode`(`^[a-z0-9_]{1,64}$`)，**缺失→0、非法→clamp 到上界、绝不 reject**（依据 F-8：任一条目 normalize 失败会使整库 `available:false`，从而锁死每一个 chat 的输入面），不升 `STORAGE_KEY` 版本（依据 F-7：旧 normalizer 是 allowlist 重建，新字段被静默丢弃，rollback 天然安全）；共享上界 12 配 `min(60_000, 250*2^(n-1))` 阶梯（今日 6 配 4s 上限对跨重启预算太小，一次 sidecar 重启即烧光）；**持久化的计数同时恢复阶梯位置** —— 挂载时 `replayAttempts>0` 则按 `delay(n)` 排程而非立即重放，否则重挂载仍能绕过退避；`turnMutationRecoveryAttemptsRef` 六处使用整体删除，不留双份真相；到界行为 = `paused`（区别于 quarantine：语义上仍可能自愈）。五、quarantine 用户可见语义：由 F-4（任一 outbox 条目即 `isTurnMutationBlocked`，禁用发送 / 模型选择 / 消息动作）**保留条目而不给出口 = 永久锁死该 chat**，故处置入口是必需项而非可选项；状态来源必须是 outbox 条目而非 `streamError`（F-5 证明后者只在活动 chat 写入、瞬时、不跨重启）；常驻内联提示 + Retry now（重置两计数，本状态序列 `reset` 单元格的唯一合法 reset）+ Discard（**仅当无 `v2Ack`**，依据 F-11 带 ack 者 journal 已改写、删除会解锁一个 V1 已脏的 chat）+ Discard 时经 `composer_prefill` 把 `entry.text` 写回输入框使丢弃永不销毁用户写过的内容；文案全静态，`CONFLICT_MANUAL` 死常量（F-12）与 `:13554` 内联字面量收敛为一条 `QUARANTINED`；**`"Reopen the task to retry safely."` 删除** —— 它指导的动作恰好就是触发无界重试的那个动作。六、BC-004 consumer owner confirmation = **CONFIRMED_CONDITIONAL**（条件为 M-8 / M-9 / M-10），SEQ-004 owner confirmation = **CONFIRMED_CONDITIONAL**（条件为 M-12），AC-012 可验收正文十四个子例（八正向逐格覆盖该状态序列的七个 REQUIRED 单元格、六负向，其中子例 6 / 9 / 12 必须留 red-before-green）
+- **artifact**: contributions/HS-002-code-owner-chat-core.md
+- **修改意见**: M-8 terminal 必须区分 discard 与 quarantine，`failure semantics` 的「任何失败都不清空 outbox」须限定范围（否则字面上要求推翻九个既有 terminal code 的处置，属未声明范围扩张），`unknown input behavior` 的未知 code 应进 `paused` 而非 `quarantined`（与 BC-003 对未知 reason 的立场必须一致）；M-9 **BC-004 缺 renderer 实际消费表示** —— 由 F-10，Electron 跨 `ipcMain.handle` 丢 `error.code`，main 重建为 `` `[${code}] ${message}` `` 原样透传，renderer 用 `/\[([a-z0-9_]+)\]\s/` 反解，故 `retryable` / `expected_revision` / `actual_revision` **不可达** renderer，CLOSED 的「key set 精确」在 consumer 侧无对象可比对，SLOT-004 的义务应写成「main 不得对 code 做 allowlist / 改写 / 截断」并有测试锁定；M-10 补「计数字段不得使条目 normalize 失败」为与持久化同等强度的准入条款；M-11 `retryable` 的定性由「咨询性遥测」升为「不跨越 IPC 边界」；M-12 SEQ-004 identity key 修正（renderer 无独立 entry id 与 payload_sha256，主键即 `operationId`，同一性由固定 key 顺序的字节稳定 JSON 保证；「重试次数」写成两个具体字段）；M-13 建议 SEQ-004 拆独立负向 AC；M-14 PS-002 §SLOT-002 A 表格第 5 列细化为 terminal-discard / terminal-quarantine；**M-15 R6 退路的影响范围记载不完整** —— 若改走新 endpoint，恢复触发者从 sidecar 变为 renderer，本棒第 2 项交付必须返修（需第三个计数、AC-012 子例 5 重写），该取舍**同时影响 SLOT-003 与 SLOT-004**，若 Chief 选退路需安排 chat-core 第二次交棒
+- **BC-004 与 SEQ-004 覆盖声明**: 本 contribution 显式覆盖 BC-004（consumer 侧逐字段核对与三项条件）与 SEQ-004（七个 REQUIRED 单元格逐格映射到 AC-012 子例 1-8，`reset` 单元格首次获得实现定义）
+- **remaining unknowns**: U-8 AC-012 位置 (D) 的真实 producer 信封 fixture 由谁生成（建议 AC-011 子例 6 的 pytest 顺带写出）| lead / code-owner-runtime / code-owner-devtools；U-9 quarantine 常驻提示是否需要正式 UX 规格 | chief-judge（本 owner 认为不需要）；U-10 sidecar 恢复计数重启归零而 renderer 计数跨重启不归零，最坏情况 renderer 先到界 | code-owner-runtime；U-11 用户显式 Retry 重置 renderer 计数时未重启的 sidecar LRU 仍记着 2，会立刻回 `journal_incompatible` | code-owner-runtime；U-12 上界 12 与 60s 封顶无生产遥测支撑（本仓无 rebase 失败率埋点），数值可调但「必须显著大于 6」是实质意见 | lead
+- **recommended next handoff**: SLOT-004 | code-owner-electron —— 本 owner 已核实（F-10）今天 main 对 code 原样透传且 renderer 正则能吃下两个新 code，**预期结论确实是「无需改动」**，但交付应为两条**新增测试**而非纯确认：(i) `context-v2:rebase-session` 对任意 `[a-z0-9_]+` code 的透传不做 allowlist / 改写 / 截断（今天只由实现细节保证，零测试）；(ii) 409 body 对两个新 code 各一格；`.js` / `.cjs` 双胞胎必须同步。R6 取舍宜在该棒之前定，并请按 M-15 一并考虑对 SLOT-003 的返修影响。不建议为本案召集 `expert-ux` 或 `expert-security`：无新组件与新布局，renderer 新增的持久字段只有两个整数、一个封闭枚举与一个字符集受限的 code token，不承载任何用户内容，AC-012 子例 13 已取不泄漏的负向证据
+- **status**: RETURNED
+
+## S-0013 | 2026-08-15T22:09:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: PROPOSAL
+- **target**: P-0000-0007-2026-0815#PS-003
+- **basis**: S-0012 / HS-002 与 `contributions/HS-002-code-owner-chat-core.md`；S-0011；S-0008 / PS-002；PuPu `28b1e0ef` 上由本 owner 自行只读复核的源码事实
+- **decision effect**: 集成 HS-002 全部交付并冻结 successor 快照 PS-003；定案 U-8 / U-10 / U-11 / U-12；对 M-13 作不采纳裁量并给出替代；production effect 保持 NONE
+- **artifact**: P-0000-0007-2026-0815#PS-003
+- **supersedes**: P-0000-0007-2026-0815#PS-002
+- **boundary object hash**: sha256:44e7f8d69fce30cc9dc8ba71f84cf8ed7e7872836f4134b4e006108f1a7c714d
+- **content hash**: sha256:e9f82e71672d588840e5793691f7585bc4388ba829866e05a2ea0ed64e7103a4
+- **content hash derivation**: `proposal.md` 中位于 `### PS-003` 标题行之前的全部字节的 SHA-256，与 PS-001 / PS-002 同法
+- **boundary protocol**: v1 | APPLICABLE；BC-001, BC-002, BC-003, BC-004 / SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
+- **M-8 采纳（K-11）**: terminal 拆为「是否停止自动重试」与「停止后如何处置条目」两个正交概念。本 owner 回源码复核确认 chat-core 的 F-2：`use_chat_stream.js:12756-12765` 等四处在 fingerprint 未变时 `removeTurnMutation`，而 `journal_incompatible` 必然发生在任何本地提交之前，故 fingerprint 必然未变、删除必然触发 —— 照字面把新 code 放进 terminal 集合会**必然**销毁用户 frozen payload。BC-004 的 `failure semantics` 相应限定范围，不推翻既有九个 conflict code 的 discard；`unknown input behavior` 改为 `paused`（K-13），与 BC-003 对未知 reason 的立场一致
+- **M-9 采纳（K-12）**: BC-004 改写为三跳传输契约。本 owner 复核确认 `electron/main/services/unchain/service.js:180-189` 的注释即写明「Electron strips error.code across ipcMain.handle」，main 因此重建为 `[code] message`，renderer 用 `/\[([a-z0-9_]+)\]\s/` 反解。**CLOSED 的比较对象因此不是 JSON key set 而是 code token 与格式**（`^[a-z0-9_]{1,64}$` 且紧跟空格）；`retryable` / `expected_revision` / `actual_revision` 物理上不跨越 IPC，故 `retryable` 的定性由「咨询性遥测」升为「不可达」（M-11）。载体的逐字保真义务写入 admission details，由 SLOT-004 补契约测试锁定
+- **M-10 采纳**: 「计数字段的任何取值都不得使条目 normalize 失败」写入 BC-004 admission details，与持久化要求同等强度。本 owner 复核确认 `turn_mutation_outbox.js:346-375` 的 `if (!normalized) return { available: false, entries: [] }`，配合 `use_chat_stream.js:1493-1502` 的 `!available` 分支，单条目失败确会锁死每一个 chat 的输入面
+- **M-12 采纳**: SEQ-004 identity key 改为以 `operationId` 为主键、以固定 key 顺序 JSON 字节承担同一性，并把「重试次数」写成 `replayAttempts` 与 `recoveryRequiredAttempts` 两个具体字段
+- **M-14 采纳**: SLOT-002 交付正文 A 表第五列改为 `terminal-discard` / `terminal-quarantine` 两个明确取值
+- **M-15 采纳**: R6 风险条目补齐完整代价 —— 退路同时使 SLOT-003 已交付的 `recovery_required` 退避与上界返修（需第三个计数、AC-012 子例 5 重写），因此**同时影响 SLOT-003 与 SLOT-004**，若 Chief 选退路需在同一次裁定中安排 chat-core 第二次交棒
+- **M-13 不采纳（K-14）**: chat-core 建议把 SEQ-004 的负向拆为独立 AC，并认为本次不存在 scope 溢出问题。**该前提经实测不成立**：HS-002 的 scope 冻结于 S-0010，其 AC 集合为 `AC-010, AC-011, AC-012`；本 owner 在临时副本上给 SEQ-004 增设 `AC-017` 后 `quorum_lint` 立即报 `confirmation handoff HS-002 scope does not cover responsibility criteria ['AC-012', 'AC-017']`（已回滚），后果是刚取得的 chat-core 确认失效并被迫再开一棒。M-13 的实质诉求（验收时逐格追踪）改由 SEQ-004 新增的 **cell 到子例映射**字段满足：七个 REQUIRED 单元格各指向 AC-012 的一个具体子例，负向六子例逐条列明。若 Chief 仍要独立编号，代价是向 chat-core 追加一次纯重新确认的交棒，建议在 RS 阶段一并处置
+- **U-8 定案**: AC-012 位置 (D) 的 producer 信封 fixture 由 **AC-011 子例 6 的 pytest 顺带写出**（该用例本就在真实 Flask 客户端取七个 code 的真实响应，写出 `[{code, http_status, message}]` 是零增量），renderer 侧只读消费且不得手抄。这是唯一能让 renderer 侧「真实 producer → 严格 consumer」成立的来源。该义务已写入 AC-011 正文，属 runtime 边界内的小增量，由 runtime 在 RS 审查时确认
+- **U-10 / U-11 定案（PS-003 §G）**: 均写成 PS 正文的明示行为，由 runtime 在 RS 以 stance 确认，不为此另开一棒。G-1：sidecar 计数重启归零而 renderer 计数跨重启存活，最坏情况 renderer 先到界 —— **这是期望行为**，renderer 是同一 durable 事实跨多个 sidecar 生命周期的唯一有界记忆，否则热循环会以「每次重启重新开始」复活。G-2：用户显式 Retry 后未重启的 sidecar LRU 仍记着 2 会立刻返回 `journal_incompatible` —— **可接受**，用户得到更快更确定的结论；**明确不做**清 server 侧计数的 side channel，那是新的跨进程控制边界，代价过高
+- **U-12 定案（G-3）**: 上界 12 与 60 秒封顶标注为**可在验收时调整的参数**，取 10 还是 12 不改变任何 AC 结构；实质约束是「必须显著大于今日的 6」，理由是改为跨重启终生预算后，6 次会被一次普通 sidecar 重启烧光并把真瞬时故障推进 paused
+- **本 owner 复核时的追加发现**: message 在链路上被覆写**两次**——route 层覆写为 `"Unchain-owned generation request failed"` 之后，Electron main 的 `createContextV2Error(code, "context v2 request failed")`（`service.js:1978-1986`）又把它整体替换为自己的常量。**sidecar 的 message 根本到不了 renderer**。这使 BC-004 的不泄漏性质比 SLOT-002 与 SLOT-003 各自论证的更强：即使某天 sidecar 侧覆写被误删，载体层仍会拦下
+- **S-0011 挂账项 · SEQ-004 正负兼任**: 保持由 AC-012 兼任，但已用 cell 到子例映射恢复逐格可追踪性；不采纳理由同 M-13
+- **ruling-ready status**: NOT_READY | `boundary_revision_set` 仍为 PENDING_CANDIDATE_FREEZE；SEQ-007（devtools）的 owner confirmation 为 PENDING_HS；AC-012 位置 (E) 的载体段正文待 SLOT-004；AC-013 需 Chief 授权提供用户库只读副本；`case.md` 需 Speaker 同步 current_artifact_ref 至 PS-003
+- **production effect**: NONE
+- **authorization effect**: NONE | 本快照不授权任何生产代码改动
+
+## S-0014 | 2026-08-15T22:09:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: HANDOFF_REQUEST
+- **target**: P-0000-0007-2026-0815#SLOT-004
+- **basis**: P-0000-0007-2026-0815#PS-003, S-0012, S-0007
+- **decision effect**: Electron main 是 BC-004 三跳传输契约的中间载体，其逐字保真义务今天零测试覆盖、只由实现细节保证；缺该交付则 AC-012 位置 (E) 无正文，BC-004 的载体段无法验收，方案不可送裁
+- **目标 ownership boundary**: code-owner-electron
+- **期待交付**: SLOT-004 的载体段确认与两条新增测试义务，具体为 —— 一、契约测试锁定 `context-v2:rebase-session` 链路对任意匹配 `^[a-z0-9_]{1,64}$` 的 code **不做 allowlist 过滤、不改写大小写、不截断、不替换**，逐字保留至 renderer 可反解（`electron/main/services/unchain/service.js:180-189` 与 `:1978-1986` 今天已如此实现，但零测试覆盖）；二、409 body 的透传路径对两个新 code（`context_v2_rebase_recovery_required`、`context_v2_rebase_journal_incompatible`）各一格；三、`.js` / `.cjs` 测试双胞胎同步（工程铁律，本仓唯一会静默失效的测试形态）；四、AC-012 位置 (E) 的可验收正文；五、对 BC-004 载体段（sidecar HTTP → main 重建 `[code] message` → renderer 正则反解）的 owner 确认。**关于确认形式的说明**：BC-004 的两个 owner confirmation 字段已分别由 HS-001（producer / runtime）与 HS-002（consumer / chat-core）占用，本棒的确认因此以 contribution 与 RS stance 形式记录，而非写入 BC 字段。若认为载体段必须成为独立 BC 以取得形式确认，请在返回件中说明；本 owner 已评估其代价为拆分 BC-004 会同时使上述两个已冻结确认失效（scope 溢出，本案已实测两次），故未主动拆分
+- **缺席影响**: AC-012 位置 (E) 无正文；BC-004 admission details 中「载体不得对 code 做 allowlist / 改写 / 截断」这条义务无任何测试锁定，M-9 所依赖的整条传输链仍只由实现细节保证；PS-003 无法成为 ruling-ready
+- **最小访问范围**: P-0000-0007-2026-0815#PS-003, SLOT-004, BC-004, AC-010, AC-011, AC-012, contributions/HS-001-code-owner-runtime.md, contributions/HS-002-code-owner-chat-core.md, intake/fact-check.md, intake/chief-directive.md
+- **完成后返回**: code-owner-unchain
+
+## S-0015 | 2026-08-15T22:14:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: HANDOFF
+- **target**: HS-003
+- **basis**: S-0014, S-0013, S-0012
+- **decision effect**: 授予 code-owner-electron 一次有限 owner 交付；HS-002 已于 S-0012 终态 RETURNED，本案再次只有一个 OPEN handoff
+- **from**: code-owner-unchain
+- **to**: code-owner-electron
+- **scope**: P-0000-0007-2026-0815#PS-003, SLOT-004, BC-004, AC-010, AC-011, AC-012, contributions/HS-001-code-owner-runtime.md, contributions/HS-002-code-owner-chat-core.md, intake/fact-check.md, intake/chief-directive.md
+- **scope verification**: 与 S-0014 逐字相同，无需补齐。本棒的责任 AC 是 AC-012 位置 (E)，已在 scope 内；另经机械核对，scope 同时覆盖 BC-004 全部 responsibility criteria 与 BC-004 对象本身，因此即使集成阶段决定把本棒 HS 引用进某个 BC 确认字段，也不会触发 scope 覆盖失败。scope 内无重复引用，无跨案限定的 BC/SEQ/AC 引用
+- **boundary verification**: 五项交付的写入面（`electron/main/services/unchain/service.js`、`context-v2:rebase-session` 的 channel 与 IPC handler、preload bridge、`.js` / `.cjs` 测试双胞胎）全部落在 code-owner-electron 的 charter 边界内。AC-012 位置 (E) 是该 AC 内属于载体段的一节，由本棒作者撰写、由 lead 集成；AC-012 整体仍是单一 AC，chat-core 与 electron 在 RS 时各自对其可负责的部分登记 stance
+- **confirmation form ruling**: 本棒的 BC-004 载体段确认以 contribution 与 RS stance 形式记录，不写入 BC 字段。Speaker 判断该形式**在法典下合法但不等价**，理由与限度见 S-0016；本字段不构成对 BC-004 是否应当拆分的实体判断
+- **delivery**: 按 S-0014 的五项期待交付：一、契约测试锁定 `context-v2:rebase-session` 链路对任意匹配 `^[a-z0-9_]{1,64}$` 的 code 不做 allowlist 过滤、不改写大小写、不截断、不替换；二、409 body 透传路径对两个新 code 各一格；三、`.js` / `.cjs` 测试双胞胎同步；四、AC-012 位置 (E) 可验收正文；五、BC-004 载体段的 owner 确认（以 contribution + stance 形式）
+- **return_to**: code-owner-unchain
+- **expires at**: 2026-08-16T00:14:00-07:00
+- **expiry effect**: 到期无合格 return 时 Speaker 追加 `NOTICE: HANDOFF_EXPIRED`，随后重新路由、转移 lead 或送 Chief；不把空白视为已完成
+- **status**: OPEN
+
+## S-0016 | 2026-08-15T22:14:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: P-0000-0007-2026-0815#PS-003
+- **basis**: S-0013, S-0014, S-0015, S-0012
+- **decision effect**: 记录 Speaker 对 PS-003 的机械复核结果，以及对第三方 owner 确认形式的程序判断；不作任何实体判断
+- **notice kind**: GATE_FINDING
+- **verified**:
+  - PS-003 content hash | PASS | 按 S-0013 声明的派生方式重算（`### PS-003` 标题行之前的 97193 bytes）得 sha256:e9f82e71672d588840e5793691f7585bc4388ba829866e05a2ea0ed64e7103a4，与声明逐字一致
+  - PS-003 boundary object hash | PASS | `quorum_lint` 以 `quorum.boundary.objects.v1` 重算未报不一致
+  - PS lineage | PASS | PS-003 supersedes PS-002，编号连续；`proposal.md` 无工具标记残留
+  - HS-002 lineage | PASS | S-0012 终态 RETURNED，speaker 精确等于目标 owner，返回时间早于 expires at；BC-004 consumer 与 SEQ-004 两项确认已通过 linter
+  - S-0011 挂账项 · SEQ-004 正负兼任 | RESOLVED_BY_ALTERNATIVE | lead 以 cell 到 AC-012 子例的逐格映射满足可追踪性诉求，不新增 AC 编号；Speaker 接受该处置为对挂账项的有效回应，是否仍需独立编号属 Chief 在 RS 或裁定阶段的裁量
+- **confirmation form 判断**: code-owner-electron 以 contribution + RS stance 而非 BC 字段确认 BC-004 载体段 —— **合法，但不等价，且残余必须在 SUMMARY 显名**：
+  - 合法性依据：[交棒、参与与传唤](../../../codex/lifecycle/summons.md)「RETURNED 的 material 交付可以补全回答/方案块，也可以明确确认当前快照中的一项具体、真实的直接回答、实施、回滚或验收责任；完成后该 owner 进入合作 owner 集合」。本棒补全 SLOT-004 并撰写 AC-012 位置 (E)，是无争议的 material 交付，因此 electron 依此进入合作 owner 集合与 `N`，并可在 RS 登记 stance。法典未要求 owner 必须占据某个 BC 字段才能取得该地位
+  - 不等价之处：[边界契约规则](../../../codex/lifecycle/boundary-contracts.md) §四.3 的「非主 owner 确认引用已返回 material HS」这一可机械校验的保证，只附着于 BC 的两个 confirmation 字段。BC-004 现由三方承担义务而字段只有两个，载体段的义务因此只由 admission details 正文、HS-003 contribution 与 RS stance 承载，不进入 linter 的覆盖校验
+  - Speaker 不退回本请求的理由：是否把载体跳拆为独立 BC 属方案实体判断，不在 Speaker 权限内；且 lead 已给出可核验的代价分析。Speaker 独立复核了该机制：拆分会产生一个新 BC 对象，而 `quorum_lint` 对每个非主 owner 确认要求「其 HS scope 覆盖该确认对象与全部责任 AC」（objects 与 criteria 两个子集检查），HS-002 的冻结 scope 不含任何新 BC 编号，故 chat-core 对新 BC 的确认必然失败并被迫追加一次纯重新确认的交棒。lead 的成本判断成立
+  - 强制后果：本项作为**送裁时的 coverage gap 显名项**。SUMMARY 必须列明「BC-004 载体段的 owner 义务由 HS-003 contribution 与 RS stance 承载，未占据 BC confirmation 字段」，由 Chief 决定接受该形式或指令拆分。Speaker 不得以摘要省略此项
+- **production effect**: NONE
+
+## S-0017 | 2026-08-15T22:15:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: case
+- **basis**: S-0013, S-0012, S-0011, S-0015
+- **decision effect**: 记录在 R6 取舍未裁定期间按已集成路径继续推进交棒的程序决定；本通知不选择 R6、不裁定、不授权任何实施
+- **notice kind**: PROCEEDING_DECISION
+- **未决取舍**: R6 —— 内联 recovery 写者（PS-003 已集成路径）vs 新增独立 endpoint（退路）
+- **新增事实（M-15 已入 PS-003 风险条目）**: 退路的代价不止 SLOT-004 升级为「新增 channel + preload bridge」，还使恢复触发者由 sidecar 变为 renderer，从而**同时**要求 SLOT-003 已交付的 `recovery_required` 退避与上界返修（需第三个计数、AC-012 子例 5 重写）。若 Chief 选退路，需在同一次裁定中安排 chat-core 第二次交棒
+- **推进决定**: 按已集成的内联路径继续推进 electron 这一小分支（HS-003）。理由是该棒的核心交付（载体逐字保真的契约测试、409 body 两格、`.js`/`.cjs` 双胞胎同步）在两种取舍下都必需，不构成沉没成本；仅 AC-012 位置 (E) 的正文范围会随取舍变动，返修面小于停摆等待
+- **效力限定**: 这是程序推进决定，不是实体裁定，也不表达 Speaker 对 R6 的任何倾向。R6 仍为 SUMMARY 的 `mandatory responses` 强制回应项，由 Chief 在 PLAN_RULING 明示处置；若 Chief 在 SUMMARY 之前给出方向，Speaker 只作程序记录并按其结果安排返修或追加交棒
+- **authorization effect**: NONE
+- **production effect**: NONE
+
+## S-0018 | 2026-08-15T22:30:03-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-electron
+- **type**: HANDOFF_RETURN
+- **target**: HS-003
+- **basis**: S-0015, S-0014, S-0013, S-0016, S-0017；PuPu `28b1e0ef` 上由本 owner 自行只读核对的源码事实（`contributions/HS-003-code-owner-electron.md` §0 表 F-E1..F-E14），以及本 owner 实跑取得的两项可复现测量（严格 consumer 正则对包裹形式与九类 code 的反解结果；`electron/tests/**` 三槽全量审计 43 个 `.cjs` body，按 shim 的 require 实际目标解析）
+- **decision effect**: 交付 SLOT-004 的 electron 载体段方案块，含载体逐字保真与 409 两格的可执行测试义务、双胞胎清单与同步验证方法、AC-012 位置 (E) 正文、BC-004 载体段 owner 确认与六条修改意见；正文置于 `contributions/HS-003-code-owner-electron.md`，供 lead 集成。production effect 保持 NONE
+- **contribution**: P-0000-0007-2026-0815#SLOT-004 五项交付全部完成，本返回件**显式点名覆盖 BC-004 载体段与 AC-012 位置 (E)** —— 一、**载体逐字保真契约测试义务**：载体在本 owner 边界内实为四段（C1 `readJsonResponse:1750-1800` 取 code 并 `.trim()`；C2 `contextV2Request` catch `:1978-1986` 重建 `[code] 常量`；C3 `ipcMain.handle` 包装 `register_handlers.js:665-677` 只记 code 并原实例 rethrow；C5 preload `context_v2_bridge.js:68-79` 对错误零处理），第五段 C4 是 Electron 自身的 IPC 包装，非我边界。测试位置建议**零新增槽位**方案：追加 `electron/tests/main/context_v2_service.test.cjs` 新 describe（E1–E4、E6–E9）与 `electron/tests/main/ipc_channels.test.cjs` 一格（E5），理由是新建文件会一次性引入三个必须手工同步的槽位、并制造第二份可漂移的 `startService` 夹具；独立文件方案的精确三文件代价已一并写明。断言通用规则：message 一律 `toBe` 全等禁 `toContain`/snapshot；反解正则必须在 electron 测试内**就地重新声明**、禁止 import `src/SERVICEs/bridges/context_v2_bridge.js`（否则 producer 与 consumer 共用同一 helper 互证，违反 cross-boundary-contract-gate）；不 import 任何 `src/**` 生产代码。二、**409 body 两格**：采纳 lead 的追加发现并据此收窄断言对象 —— 只锁 **code token 保真**（`rejection.code` 与反解结果逐字等于 sidecar code）、**message 恒为常量形式**（逐字等于 `` `[${code}] context v2 request failed` ``）、**sidecar message 与 `retryable`/`expected_revision`/`actual_revision` 的任何取值均不出现在 rejection.message 中**，不断言 message 内容透传；并澄清载体**不区分 409 与 503**（只看 `response.ok`），status 不跨 IPC，故 status 断言留在 producer 侧 AC-011 子例 6。三、**双胞胎同步义务**：本仓实为**三槽**而非两槽 —— S1 `electron/tests/<area>/X.test.cjs`（权威 body，`npm run test:electron` 收集）、S2 `electron/tests/<area>/X.test.js`（一行 `require("./X.test.cjs")`，实测**无人收集**）、S3 `src/electron/tests/<area>/X.test.js`（一行 `require("../../../../electron/tests/<area>/X.test.cjs")`，由 `react-scripts test` 经 CRA 固定 `roots=<rootDir>/src` 收集）；今日真正承载「不静默失效」的是 S1↔S3。本次涉及 `context_v2_service` 与 `ipc_channels` 两组，三槽均已齐备且因追加而无需改动。同步验证四步（`test:electron` 用例数严格增加、`--listTests` 的 `/src/electron/tests/` 计数保持 40、`test:frontend -t "carrier fidelity"` 必须匹配到并跑过、独立文件方案时另验两个 shim 单行内容）。四、**该 AC 位置 (E) 的可验收正文**：九格，正向 E1（两个新 code 端到端六项断言，含对 Electron 包裹形式的反解）、E2（producer 真实性 —— 输入逐条读取位置 (D) fixture，缺失/空/缺 key 时**必须 FAIL 而非 skip**，并断言 fixture code 集合与七 code 表加出网 allowlist 的并集一致）、E3（字符集与长度属性锁，含 64 字符硬边界格与明确标注为遥测格的 65 字符格）、E4（分隔符结构锁）、E5（IPC handler 同实例 rethrow 与只记 code 的日志）；负向 E6（表外 code 不被载体拦截或改写 —— 对「载体不得做 allowlist」的正面证明）、E7（非法字符集 fail-closed：大小写/空格/连字符三格反解须返回 null 落 `paused`，另一格证明 `]` 夹带只能反解出第一个括号组、无法把条目伪造成 quarantine）、E8（缺 code 的 409 四格降级为 `context_v2_failed`）、E9（异常 body 四格降级且 `bodyText.slice(0,200)` 的哨兵不泄漏）；E1 两格与 E6、E7 必须保存 red-before-green，取红方法逐条给出；并写明本段**不**保证封闭性、不保证 `{1,64}`、不覆盖 C4、不覆盖第三跳真实实现。编号刻意用 `E1`–`E9` 而非续接子例 15+，以免「子例」一词在同一 AC 内指两类对象、扰动 SEQ-004 已冻结的 cell→子例映射，且不新增任何 AC 编号。五、**该 BC 载体段的 owner confirmation = `CONFIRMED_CONDITIONAL`**（条件为 M-16、M-17；M-18 至 M-21 不构成条件），逐条对照其现有正文的六项载体义务并全部确认属实或接受为持续义务；**载体侧生产代码结论为「无需改动」**，本案在 electron 边界的全部产出是测试与契约正文
+- **artifact**: contributions/HS-003-code-owner-electron.md
+- **BC-004 载体段与 AC-012 位置 (E) 覆盖声明**: 本 contribution 显式覆盖 **BC-004 载体段**（第二跳：sidecar HTTP 409 → main 重建 `[code] message` → 交付第三跳反解）的 owner 确认，与 **AC-012 位置 (E)** 的全部正文。关于确认形式（回应 S-0014 点名与 S-0016 程序判断）：**本 owner 不主张把载体跳拆为独立 BC**，理由为拆分代价已被 lead 与 Speaker 各自独立核实成立（新编号溢出 HS-001/HS-002 冻结 scope，两个已取得确认立即失效并强制两次纯重新确认交棒，本案已两次实测），载体段的实体义务已有 BC-004 `admission details` 正文归宿并由位置 (E) 九格变为可执行断言，所缺仅是 linter 可机械校验的字段槽位而非义务本身。**但本 owner 认为 S-0016 记录的残余形状不完整**：真正的残余不是「载体段没占字段」，而是 BC-004 第三跳有第四个 owner（见 M-17）。因此建议 SUMMARY 的 coverage gap 按**两条并列**显名 —— (a) 载体段义务由 HS-003 contribution 与 RS stance 承载、未占 BC-004 两个 confirmation 字段（S-0016 已记）；(b) BC-004 第三跳的实际反解代码位于 `code-owner-shared-arteries` 边界，该 owner 在本案从未被交棒、既无 contribution 也无 stance（本 owner 新增），其严重程度高于 (a)。**RS 预登记立场**：对自身块登记 **AGREE**，前提是 M-16 与 M-17 被采纳或被 Chief 明示处置；若 M-17 被以「不处理」结案且不作显名，改登记 **OBJECT**，异议仅限「BC-004 自称三跳契约但第三跳无 owner 确认」一条，不涉任何实体设计
+- **修改意见**: M-16 **BC-004 第三跳 canonical representation 不完整**（实质，构成条件）—— renderer 的实际输入是 Electron 再包一层后的 `` `Error invoking remote method '<channel>': Error: [<code>] <message>` ``，不是 main 产出的裸串；本仓 `settings_storage_bridge.js:104` 与其测试 `:718-760` 已明文记载该形式，而 context_v2 侧的第三跳测试只覆盖裸形式。后果是后来者按 BC-004 现有正文很自然会写出**加起始锚定**的 `/^\[([a-z0-9_]+)\]/`（本仓 `run_bundle_storage_bridge.js:16` 正是该写法），在包裹形式下返回 null，整条分类链静默退化为「未知 code → paused」而 `journal_incompatible` 的 quarantine 语义随之丢失，且今天没有任何测试会红；建议在第三跳描述补「反解正则不得加起始锚定」。M-17 **BC-004 consumer 字段漏了第三跳的真实执行者**（实质，构成条件）—— `parseContextV2ErrorCode` 与 `ERROR_CODE_TOKEN_PATTERN` 在 `src/SERVICEs/bridges/context_v2_bridge.js:53-57, 77-82`，属 `pupu:src/SERVICEs/bridges/**` = code-owner-shared-arteries，而 BC-004 consumer 只点名 chat-core 的两个文件；rebase 失败的 code 在 `use_chat_stream.js:4069-4072` 由该 shared-arteries 函数解析后才进 chat-core 分类器，因此这份「三跳契约」实涉**四个** owner，其中一个从未被交棒，而 CLOSED 的准入判据恰由他那一行正则实际执行。给出按代价排序的三选项 (a) 只在 consumer 字段补记并 SUMMARY 显名、(b) 同 (a) 另在 AC-012 位置 (B) 或 (E) 增设一格断言该正则与 electron 侧就地镜像逐字相同且未加锚定（不新增编号、不使任何既冻结确认失效）、(c) 向 shared-arteries 追加 HS-004；本 owner 倾向 **(b) 且必须与 (a) 的显名同时做**。M-18 `admission details` 的「逐字保留」与今日实现的 `.trim()` 有极小出入，建议改为「必须逐字保留任何匹配 `^[a-z0-9_]{1,64}$` 的 code；对集合外输入允许且仅允许首尾空白裁剪」。M-19 SLOT-002 A 表脚注「preload 与 electron 对 409 body 的透传路径已被覆盖」应删改 —— 载体不区分 409 与 503，被覆盖的是共用的 `!response.ok` 路径，409 的真实收益在 renderer 语义一致性而非载体。M-20 PS-003「与 intake 的偏差」第 6 条把 `createContextV2Error` 定位为 `:1978-1986`（那是 `contextV2Request` 的 catch 调用点），定义在 `:185-189`、注释在 `:181-184`（另处写作 `:180-183`，起始行差一）；不影响结论，建议下次集成时分列定义与调用点。M-21 位置 (E) 的 `E1`–`E9` 编号约定属程序性，若 lead 要求改为 15–23 本 owner 不反对，但请同步复核 SEQ-004 `cell 到子例映射` 是否产生「子例」指称歧义
+- **remaining unknowns**: U-13 BC-004 第三跳的 owner 归属如何处置（M-17 三选一）—— 本 owner 认为这是本案剩余最大未闭合项：一份被写作 CLOSED 的三跳契约，其准入判据的实际执行代码没有任何一方确认过 | lead / Speaker / chief-judge；U-14 AC-012 位置 (D) 的 fixture 是否入库 —— E2 把载体格输入绑定到它，这是让载体段成为「真实 producer → 严格 consumer」的唯一途径；若不入库则 `test:electron` 与 `test:frontend` 在未跑 pytest 的环境会红，E2 须退化为「手抄七 code 表 + 与 SLOT-002 A 表的一致性断言」并降一档强度 | code-owner-runtime / lead；U-15 是否需要真实 Electron IPC（C4）证据 —— E1(v) 只是对包裹形式的建模断言，真实证据需 playwright e2e 属 devtools 边界，本 owner 判断**不需要**（包裹形式已由 settings bridge 既有测试独立锁定，且 M-17(b) 若采纳会在第三跳自己的文件上取到断言）| chief-judge / code-owner-devtools；U-16 R6 若改走新 endpoint 时位置 (E) 的返修范围 —— 本 owner 给出量级判断：electron 侧是「**加三格、零返修**」（新 channel 的双侧分类格、preload bridge 的 allowlist 重建格、recovery endpoint 失败码的 E1/E8/E9 同形三格），E1–E9 既有九格**全部继续有效、无一需重写**；**建议 lead 据此收窄 PS-003 风险条目 R6 中对 SLOT-004 的代价描述**（现文「从确认透传升级为新增 channel + preload bridge」暗示整段重做，与实测不符；chat-core 侧 M-15 的返修代价不受影响，仍成立）| chief-judge / lead；U-17 §3.4 审计发现的既有三槽漂移是否要修 | chief-judge
+- **本 owner 审计发现（报告项，不在本案 write_set 内）**: 对 `electron/tests/**` 的 43 个 `.cjs` body 做三槽全量审计。**先记一条方法学更正，本 owner 自己先踩了它**：shim 文件名**不必**与 body 同名（本仓两处真实反例 —— `src/electron/tests/main/unchain_service_loader.test.js` 加载 `unchain_service.test.cjs`，`src/electron/tests/preload/miso_stream_client.test.js` 加载 `unchain_stream_client.test.cjs`），因此按文件名词干配对的审计必然产生假阳性；本 owner 首版审计正是如此、误报 4 项，已改为解析每个 shim 的 `require()` 实际目标重算，`contributions/HS-003-code-owner-electron.md` §3.4 与 metadata 勘误行留有该更正记录。**更正后结论**：43 个 body 中 CRA 侧可达 40（与 `--listTests` 数出的 40 条 `/src/electron/tests/` 互为交叉验证），缺 CRA shim 因而 `react-scripts test` 完全看不见的为 **3 处** —— `main/chat_storage_lifecycle`、`main/ollama_service`、`main/settings_quit_coordinator`；无悬空 shim；`main/boot_readiness_service` 有 S3 而无 S2 却照常被两个 runner 覆盖，是 S2 不承载收集职责的直接证据。**非发布风险** —— release gate 与 CI 同时跑 `test:frontend` 与 `test:electron`（`scripts/release-qa/local-gate-checks.mjs:19,25`；`.github/workflows/release-qa.yml:134,140`），3 处仍在门内由 `test:electron` 执行；真实损失只在 CLAUDE.md 指示的开发回路命令。本 owner **不在本案修补**，属另一主题且会把 electron write_set 从零扩到 3 个文件；此处只作显名记录，见 U-17。本次交付涉及的两组三槽在两版审计下都完整，结论不受该更正影响
+- **recommended next handoff**: 若 M-17 取 (a) 或 (b)（推荐），按 Speaker 在 S-0011 / S-0016 的既定队列继续，下一棒 `code-owner-devtools | SLOT-006 / SEQ-007`（release artifact provenance）；对该棒的两点边界提示：其一，AC-014 要求同一 wheel SHA-256 在契约矩阵、package smoke 与 release report 三处逐字相同，本仓已有 `scripts/release-qa/unchain-artifact.mjs` 与 `run-with-unchain-artifact.mjs` 承担该机制，devtools 应确认其是否已覆盖三处而非两处；其二，若 Chief 采纳 U-15 的真实 C4 证据，请在同一棒交给 devtools，不要为此单开。若 M-17 取 (c) 则需先 `HS-004 | code-owner-shared-arteries`（scope 极小，只需第三跳反解器的 owner 确认与「正则不得加起始锚定」一格），**本 owner 不建议**。不建议为本案召集 `expert-security`：本 owner 独立复核后与 HS-001 / HS-002 结论一致，并补一条它们没有的理由 —— 载体对 code 的不设限透传理论上让被攻陷的 sidecar 把任意 token 送进 renderer 的 `error.message`，但 message 本体是主进程常量、反解结果只用于分类、未知 code 最坏后果是 `paused`（保留 payload 停止自动重试），且经实测 `]` 夹带只能反解出第一个括号组、无法伪造 quarantine 或 discard（E7 已把三点变为断言）；攻陷 sidecar 的攻击者本就能直接发送任何合法 code，透传不构成额外授权面。**实施排序提示（非本棒授权）**：位置 (E) 九格全部只依赖今日已存在的载体实现，不依赖 unchain 或 sidecar 任何改动落地，唯一外部依赖是 U-14 的 fixture；E3/E4/E6/E7/E8/E9 六格立刻可跑，E1/E2/E5 待 fixture。若 Chief 希望尽早锁住「载体不得漂移」这条今天零覆盖的性质，这是本案成本最低、可最先落地的一片
+- **production effect**: NONE | 未改动任何生产代码，未新建任何测试文件，未代写其他 owner 块，主树未 commit
+- **status**: RETURNED
+
+## S-0019 | 2026-08-15T22:45:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: PROPOSAL
+- **target**: P-0000-0007-2026-0815#PS-004
+- **basis**: S-0018 / HS-003 与 `contributions/HS-003-code-owner-electron.md`；S-0016；S-0017；S-0013 / PS-003；PuPu `28b1e0ef` 上由本 owner 自行只读复核的源码事实
+- **decision effect**: 集成 HS-003 全部交付并冻结 successor 快照 PS-004；定案 U-13 / U-14 / U-15 / U-16；采纳 M-16 至 M-21；production effect 保持 NONE
+- **artifact**: P-0000-0007-2026-0815#PS-004
+- **supersedes**: P-0000-0007-2026-0815#PS-003
+- **boundary object hash**: sha256:508b70a69118c54613a3e51e3e16110737a676e3f08f0f7c4fb21c2ad5918f1d
+- **content hash**: sha256:a5b0aa35352cce0116d40834ca9bec4d99bfda5802bfb10f65bf990948582bf0
+- **content hash derivation**: `proposal.md` 中位于 `### PS-004` 标题行之前的全部字节的 SHA-256，与 PS-001 至 PS-003 同法
+- **boundary protocol**: v1 | APPLICABLE；BC-001, BC-002, BC-003, BC-004 / SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
+- **U-13 定案（K-15）· 采纳 M-17 的 (a) 与 (c)，不止步于 (b)**: BC-004 第三跳的 CLOSED 准入判据由 `src/SERVICEs/bridges/context_v2_bridge.js:53-57, :77-82` 的一行正则**实际执行**，该文件属 `pupu:src/SERVICEs/bridges/**` = code-owner-shared-arteries（本 owner 已回 charter 第 15 行核实），而该 owner 在本案从未被交棒。**决定：在 BC-004 consumer 字段与 SUMMARY coverage gap 同时显名，并向 shared-arteries 开 HS-004（新建 SLOT-007）。** 三条理由：其一，(b) 的镜像断言能让漂移变红，却仍未让唯一有权改那行代码的人知道它是跨仓 CLOSED 契约的执行点，下一次改动仍可能在无知情下发生 —— 缺的是**知情与同意**，不是断言；其二，陷阱已证实且有同目录先例（`run_bundle_storage_bridge.js:16` 正是加锚定写法，而第三跳既有测试只覆盖裸形式），防护形状应由拥有该文件的人在自己边界内定义，不应由外部 owner 替他写一条约束；其三，成本对比明确 —— 一棒极小 scope 的交付，对比载体 owner 已声明的「若 M-17 被以不处理结案且不显名则改登记 OBJECT」所必然带来的辩论庭。**队列顺序：shared-arteries 先于 devtools**，因为它直接影响 BC-004 这个已在 artifact 内的对象的完整性，而 SEQ-007 独立且追加
+- **M-16 采纳**: BC-004 第三跳 canonical representation 补入 Electron 包裹形式与「反解正则不得加起始锚定」。本 owner 复核发现**包裹形式有两种记载**：本仓 `settings_storage_bridge.js:100-108` 与其测试 `:718-760` 断言的是 `` `Error invoking remote method '<channel>': [<code>] <message>` ``（无 `Error: `），HS-003 观察到含 `Error: ` 的变体。二者在非锚定约束下都能反解，故 AC-012 位置 (E) 的 E1 要求**对两种变体各取一次断言**，而不是硬编码任一种 —— 这比任一侧原文更强
+- **M-18 采纳**: BC-004 admission details 的「逐字保留」改为「必须逐字保留任何匹配 `^[a-z0-9_]{1,64}$` 的 code；对集合外输入允许且仅允许首尾空白裁剪」，与今日 `readJsonResponse` 的 `.trim()` 一致，并给 E7 的断言一个确定的规格依据
+- **M-19 采纳**: 更正 SLOT-002 A 表脚注 —— 载体只看 `response.ok`、**不区分 409 与 503**，被覆盖的是共用路径；409 的真实收益在 renderer 语义一致性，载体侧不存在 409 专有证据
+- **M-20 采纳**: `createContextV2Error` 的**定义**在 `service.js:185-189`（注释 :181-184）、**调用点**在 `:1978-1986`，PS-003 只记了调用点；E4 要锁的模板在定义处，已分列
+- **M-21 采纳**: AC-012 位置 (E) 保留 `E1`–`E9` 编号（K-16），避免「子例」在同一 AC 内指两类对象并扰动 SEQ-004 已冻结的 cell 映射；与 K-14 同一约束，不新增 AC 编号
+- **U-14 定案（K-17）**: 位置 (D) 的 fixture **入库**。renderer 与 electron 两个 jest runner 都不会跑 pytest，不入库会使 `test:frontend` 与 `test:electron` 在未跑过 pytest 的环境里变红，而 E2 的强度依赖它；入库后由 AC-011 子例 6 负责重新生成并 diff 校验，diff 不一致即失败，兼顾真实性与可离线消费
+- **U-15 定案（PS-004 §I）**: **不要求**真实 Electron IPC（C4）证据。包裹形式已由本仓 settings bridge 既有测试独立锁定，E1 对两种变体都断言，SLOT-007 若落地会在第三跳自己的文件上再取一次；真实 C4 只能来自 playwright e2e（devtools 边界），为一个已被三处独立锁定的框架行为单开不成比例。若 Chief 仍要求，在 SLOT-006 交棒时一并交给 devtools，不单开一棒
+- **U-16 定案 · R6 代价表收窄**: electron 侧退路代价经载体 owner 实测为「**加三格、零返修**」（新 channel 双侧分类格、preload allowlist 重建格、recovery endpoint 失败码的 E1/E8/E9 同形三格），位置 (E) 既有九格**全部继续有效、无一需重写**。PS-003 原文「从确认透传升级为新增 channel + preload bridge」暗示整段重做，与实测不符，已收窄；**chat-core 侧 M-15 的返修代价不受影响，仍成立**
+- **测试落位采纳**: 零新增双胞胎槽位（追加到 `context_v2_service.test.cjs` 与 `ipc_channels.test.cjs`）；反解正则必须 in-file 就地重声明、禁止 import `src/SERVICEs/bridges/context_v2_bridge.js`（否则 producer 与 consumer 共用一份实现互证，违反 cross-boundary-contract-gate）；三槽规则（S1 `.cjs` 权威 body / S2 同目录 shim 实测无人收集 / S3 CRA shim）与四步同步验证已写进 AC-012 位置 (E) 的验收方法
+- **新增风险 R8 / R9**: R8 锚定正则陷阱（已证实、有同目录先例、今天零测试会红）；R9 既有三槽漂移 —— 载体 owner 更正一次方法学假阳性后（shim 文件名不必与 body 同名，须解析 `require()` 实际目标）审计出 43 body / 40 CRA 可达 / **3 处**缺 CRA shim（`main/chat_storage_lifecycle`、`main/ollama_service`、`main/settings_quit_coordinator`），非发布风险（仍在门内由 `test:electron` 执行），本案不修，见 U-17
+- **实施排序建议入卷（PS-004 §J）**: 位置 (E) 九格全部只依赖今日已存在的载体实现，E3/E4/E6/E7/E8/E9 六格立刻可跑，E1/E2/E5 待 fixture；若 Chief 希望尽早锁住「载体不得漂移」这条今天零覆盖的性质，这是本案成本最低、可最先落地的一片
+- **SUMMARY coverage gap 显名要求**: 三条并列 —— (a) 载体段义务由 HS-003 contribution 与 RS stance 承载、未占 BC-004 confirmation 字段（S-0016 强制）；(b) 第三跳反解段由 shared-arteries 拥有，已开 HS-004，但其确认同样只能以 contribution + stance 承载；(c) BC-004 是**四方义务、两个字段**的契约，字段槽位不足是 boundary protocol v1 下的结构性限制而非任何一方疏漏，是否拆分由 Chief 裁量（拆分会使 HS-001 与 HS-002 两个已冻结确认失效，本案已三次实测同一约束）
+- **ruling-ready status**: NOT_READY | `boundary_revision_set` 仍为 PENDING_CANDIDATE_FREEZE；SLOT-007（shared-arteries）与 SLOT-006 / SEQ-007（devtools）两棒未完成；AC-013 需 Chief 授权提供用户库只读副本；`case.md` 需 Speaker 同步 current_artifact_ref 至 PS-004
+- **production effect**: NONE
+- **authorization effect**: NONE | 本快照不授权任何生产代码改动
+
+## S-0020 | 2026-08-15T22:46:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: HANDOFF_REQUEST
+- **target**: P-0000-0007-2026-0815#SLOT-007
+- **basis**: P-0000-0007-2026-0815#PS-004, S-0018, S-0016
+- **decision effect**: BC-004 被写作 CLOSED 三跳契约，其准入判据由 shared-arteries 边界内的一行正则实际执行，而该 owner 在本案从未被交棒、既无 contribution 也无 stance；缺该交付则本案最大的未闭合项保持敞开，且载体 owner 已声明将据此登记 OBJECT
+- **目标 ownership boundary**: code-owner-shared-arteries
+- **期待交付**: SLOT-007，四项 —— 一、对 BC-004 第三跳反解段（`src/SERVICEs/bridges/context_v2_bridge.js` 的 `parseContextV2ErrorCode` 与 `ERROR_CODE_TOKEN_PATTERN`，:53-57 与 :77-82）作为该 CLOSED 契约准入判据实际执行点的 **owner 确认**，并说明是否接受「反解正则**不得加起始锚定**」为该文件的持续义务；二、该义务的**防护形状由你在自己边界内定义** —— 本 owner 不代写。已知事实供参考：同目录 `run_bundle_storage_bridge.js:16` 正是加锚定的 `/^\[([a-z0-9_]+)\]/` 写法，`settings_storage_bridge.js:100-108` 的注释明确记载「a ^-anchored pattern never matches in production」，而 `context_v2_bridge.test.js:190-196` 今天只覆盖裸形式、不覆盖 Electron 包裹形式，因此这条退化今天没有任何测试会红；三、该防护落在哪个取证位置（若落在 `src/SERVICEs/bridges/context_v2_bridge.test.js`，它属 AC-012 的一个新位置，请一并给出可验收正文；若你认为应落在别处请说明）；四、对 AC-010、AC-011、AC-012 中与反解段相关部分的知情确认。**关于确认形式的说明**：BC-004 的两个 owner confirmation 字段已分别由 HS-001（producer / runtime）与 HS-002（分类段 consumer / chat-core）占用，你的确认因此以 contribution 与 RS stance 形式记录，与 HS-003（electron 载体段）同一形式。这是 boundary protocol v1 下「四方义务、两个字段」的结构性限制，已作为 SUMMARY 的 coverage gap 显名；若你认为反解段必须成为独立 BC 才算数，请在返回件中说明，本 owner 已评估拆分代价为使 HS-001 与 HS-002 两个已冻结确认同时失效（本案已三次实测）
+- **缺席影响**: 一份被写作 CLOSED 的跨仓三跳契约，其准入判据的实际执行代码没有任何一方确认过；锚定正则陷阱（R8）无 owner 认领的防护，而它一旦发生会使整条分类链静默退化为「未知 code → paused」、`journal_incompatible` 的 quarantine 语义丢失、用户 frozen payload 的处置回到本案要修复之前的样子，且今天零测试会红。PS-004 无法成为 ruling-ready
+- **最小访问范围**: P-0000-0007-2026-0815#PS-004, SLOT-007, BC-004, AC-010, AC-011, AC-012, AC-016, contributions/HS-001-code-owner-runtime.md, contributions/HS-002-code-owner-chat-core.md, contributions/HS-003-code-owner-electron.md, intake/fact-check.md, intake/chief-directive.md
+- **完成后返回**: code-owner-unchain
+
+## S-0021 | 2026-08-15T22:50:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: HANDOFF
+- **target**: HS-004
+- **basis**: S-0020, S-0019, S-0018
+- **decision effect**: 授予 code-owner-shared-arteries 一次有限 owner 交付；HS-003 已于 S-0018 终态 RETURNED，本案再次只有一个 OPEN handoff
+- **from**: code-owner-unchain
+- **to**: code-owner-shared-arteries
+- **scope**: P-0000-0007-2026-0815#PS-004, SLOT-007, BC-004, AC-010, AC-011, AC-012, AC-016, contributions/HS-001-code-owner-runtime.md, contributions/HS-002-code-owner-chat-core.md, contributions/HS-003-code-owner-electron.md, intake/fact-check.md, intake/chief-directive.md
+- **scope verification**: 与 S-0020 逐字相同，无需补齐。本棒的责任 AC 是 AC-012（若防护落在 `src/SERVICEs/bridges/context_v2_bridge.test.js`，那是该 AC 的一个新取证位置，不新增 AC 编号），已在 scope 内；机械核对亦确认 scope 覆盖 BC-004 对象本身与其全部 responsibility criteria，故即便集成阶段决定引用本棒 HS 进某个 BC 字段也不会触发覆盖失败。scope 内无重复引用、无跨案限定的 BC/SEQ/AC 引用。lead 已主动沿用 S-0015 的防溢出手法
+- **boundary verification**: 交付面 `src/SERVICEs/bridges/context_v2_bridge.js` 与其同目录测试落在 `pupu:src/SERVICEs/bridges/**`，为 code-owner-shared-arteries charter 的显式声明项（非残余条款兜底），边界匹配确定无歧义。SLOT-007 已在 PS-004 中声明为独立 slot，不与 SLOT-003（chat-core 分类段）重叠
+- **confirmation form**: 与 HS-003 同一形式 —— 以 contribution 与 RS stance 记录，不写入 BC 字段。依据与限度见 S-0016；本棒使该残余的形状由两条扩为三条，见 S-0022
+- **delivery**: 按 S-0020 的四项期待交付：一、对 BC-004 第三跳反解段作为 CLOSED 准入判据实际执行点的 owner 确认，并说明是否接受「反解正则不得加起始锚定」为持续义务；二、该义务的防护形状由本棒 owner 在自身边界内定义（lead 明示不代写）；三、防护落在哪个取证位置，若落在自身目录测试则一并给出可验收正文；四、对 AC-010、AC-011、AC-012 中与反解段相关部分的知情确认
+- **return_to**: code-owner-unchain
+- **expires at**: 2026-08-16T00:50:00-07:00
+- **expiry effect**: 到期无合格 return 时 Speaker 追加 `NOTICE: HANDOFF_EXPIRED`，随后重新路由、转移 lead 或送 Chief；不把空白视为已完成
+- **status**: OPEN
+
+## S-0022 | 2026-08-15T22:51:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: P-0000-0007-2026-0815#PS-004
+- **basis**: S-0019, S-0020, S-0021, S-0018, S-0016, S-0017
+- **decision effect**: 记录 Speaker 对 PS-004 的机械复核、coverage gap 的当前形状、AC-012 多 owner 的 RS 影响，以及 R6 的第三次提请；不作任何实体判断
+- **notice kind**: GATE_FINDING
+- **verified**:
+  - PS-004 content hash | PASS | 按 S-0019 声明的派生方式重算（`### PS-004` 标题行之前的 112811 bytes）得 sha256:a5b0aa35352cce0116d40834ca9bec4d99bfda5802bfb10f65bf990948582bf0，与声明逐字一致
+  - PS-004 boundary object hash | PASS | `quorum_lint` 以 `quorum.boundary.objects.v1` 重算未报不一致
+  - PS lineage | PASS | PS-004 supersedes PS-003，编号连续；`proposal.md` 无工具标记残留
+  - AC 编号纪律 | PASS | AC 集合仍为 AC-001 至 AC-016，共 16 条；位置 (E) 用 E1–E9 而非续接子例编号，SLOT-007 的新取证位置同样不新增 AC 编号，三处均未触发已冻结 HS scope 的溢出
+  - HS-003 lineage | PASS | S-0018 终态 RETURNED，speaker 精确等于目标 owner，返回时间早于 expires at
+  - BC-004 字段形态 | PASS | `consumer owner` 仍为单一 owner，未把两个 owner 塞进同一字段。第三跳的 owner 归属改写在 `consumer` 描述字段中显名，这是正确做法：`quorum_lint` 以 `consumer owner` 字段值整体与 HS target 作相等比较，写入两个 owner 会使 HS-002 已取得的确认立即判失效
+- **coverage gap 当前形状（三条并列，SUMMARY 必须逐条显名）**:
+  - (a) 载体段（第二跳，electron）义务由 HS-003 contribution 与 RS stance 承载，未占 BC-004 confirmation 字段 —— S-0016 已强制
+  - (b) 反解段（第三跳，shared-arteries）已由 HS-004 开棒补齐知情与同意，但其确认同样只能以 contribution + stance 承载，形式限制与 (a) 相同
+  - (c) BC-004 实为四方义务而 v1 的 BC 对象只有两个 confirmation 字段。Speaker 判断这是 boundary protocol v1 的**结构性限制**，不是任何一方的疏漏：字段数由协议固定，而本案的传输链客观上有四个责任方。是否拆分 BC 属 Chief 裁量；拆分的机械代价（新对象溢出 HS-001 与 HS-002 的冻结 scope，使两个已取得确认立即失效并强制两次纯重新确认交棒）已由 lead、electron owner 与 Speaker 三方各自独立核实成立，本案已三次实测同一约束
+- **AC-012 的 RS 影响（Speaker 记事，供冻结 RS 时使用）**: AC-012 现由四个 owner 分段撰写 —— 位置 (A)(B)(C) chat-core、(D) fixture 由 runtime 的 AC-011 子例 6 产出、(E) electron、若 SLOT-007 落地则新增反解段位置属 shared-arteries。冻结 RS 时，AC-012 应同时列入这几位 owner 的 owned block 或直接依赖范围，不得只算作 chat-core 的块；否则会出现「有人对自己写的正文无权登记 stance」
+- **R6 第三次提请（S-0011、S-0017 之后）**: R6 取舍仍悬。U-16 已按 electron owner 实测把退路代价收窄为「electron 侧加三格、零返修」，chat-core 侧 M-15 的返修代价不变，仍成立。Speaker 维持 S-0017 的程序推进决定：按已集成的内联路径推进剩余交棒。若至 devtools 棒返回、冻结 RS 之前 Chief 仍未表态，SUMMARY 按既定把 R6 列为 `mandatory responses` 强制回应项呈裁，Speaker 不代为选择、不因未表态而默认任一方案
+- **剩余队列（Speaker 计划，非授权）**: HS-004 · code-owner-shared-arteries · SLOT-007（进行中）→ code-owner-devtools · SLOT-006 / SEQ-007。lead 已将 shared-arteries 排在 devtools 之前，理由是前者直接影响 BC-004 这个已在 artifact 内的对象的完整性、后者独立且追加；Speaker 接受该顺序。electron owner 另建议：若 Chief 采纳 U-15 的真实 C4 证据要求，应并入 devtools 那一棒，不单开
+- **production effect**: NONE
+
+## S-0023 | 2026-08-15T23:03:34-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-shared-arteries
+- **type**: HANDOFF_RETURN
+- **target**: HS-004
+- **basis**: S-0021, S-0020, S-0019, S-0022；PuPu `28b1e0ef` 上由本 owner 自行只读核对的源码事实（`contributions/HS-004-code-owner-shared-arteries.md` §0 表 F-S1..F-S12），其中 F-S5 至 F-S9 为本案未记载事实
+- **decision effect**: 交付 SLOT-007 的反解段方案块，含 BC-004 第三跳反解段 owner 确认、锚定禁令的接受与行为式重述、由本 owner 定义的三层防护形状、AC-012 新取证位置的可验收正文（G1–G8）、对 AC-010/AC-011/AC-012/AC-016 的知情确认与六条修改意见；正文置于 `contributions/HS-004-code-owner-shared-arteries.md`，供 lead 集成。production effect 保持 NONE
+- **contribution**: P-0000-0007-2026-0815#SLOT-007 四项交付全部完成，本返回件**显式点名覆盖 BC-004 第三跳反解段**（`src/SERVICEs/bridges/context_v2_bridge.js` 的 `ERROR_CODE_TOKEN_PATTERN`:57 与 `parseContextV2ErrorCode`:77-82）**与新取证位置 `src/SERVICEs/bridges/context_v2_bridge.test.js` 的 G1–G8 八格（属 AC-012 的一个新取证位置，不新增 AC 编号）** —— 一、**反解段 owner confirmation = 确认，但准入判据须四元素分列**：确认该段属本 owner 边界（`pupu:src/SERVICEs/bridges/**`，charter 显式声明项）且是第三跳 renderer 侧唯一还原分类输入的代码路径；但 PS-004「CLOSED 准入判据由这一行正则实际执行」需精化 —— 该正则执行 (i) 字符集锁 `[a-z0-9_]`、(ii) `] ` 分隔符、(iii) **位置无关的首 token 选择**三项，**不**执行 (iv) `{1,64}` 长度上界（`+` 即 1..∞，消费侧无执行点，属 producer 义务且载体按 E3 明示不得守门）、**不**执行 (v) 封闭集合成员判定（属 chat-core 分类段）。(iv) 在消费侧不执行是**安全的且本 owner 不要求补上**（超长 token 落未知 code → 有界重试 → `paused`）。二、**锚定禁令：接受为本文件持续义务，但须按行为重述** —— 「不得加 `^` 锚定」是语法禁令、欠定，本 owner 逐条推演出**六种满足其字面而破坏效果完全相同**的改法（`^` 锚定 / `startsWith("[")` 前置守卫 / `indexOf("[") !== 0` 守卫 / `split(": ")[0]` 先剥包裹 / `y` sticky 标志 / `$` 尾锚）；本 owner 接受并主张的义务形状为行为式：**「必须能从 message 任意位置还原第一个 `[<code>] ` token；任何使还原结果依赖该 token 位置的改动均被禁止」**，加起始锚定只是其一个特例。三、**防护形状（本 owner 定义，三层加一项否决）**：第一层（**主防护，不可省**）行为断言 G1–G7 落在自有测试文件，调用**真实**解析器，是唯一能检出上述全部六种改法的一层；第二层（从属）G8 源码文本守卫，`fs.readFileSync` 断言不存在位置依赖式解析且正则字面量逐字未变，失败信息须逐字含该 BC 的编号与本案编号 —— 本 owner **如实声明该层不增加检出能力**，它买的是「失败者被导向契约而不是导向改掉测试」，其脆性即其机制（任何对该字面量的改动都会红），采纳与否本 owner 均接受；第三层（**请求授权，不在本交付内执行**）`context_v2_bridge.js:53-56` 注释补写 —— 今天该注释**一个字未提** Electron 包裹形式与锚定禁令，而同目录 `settings_storage_bridge.js:101-109` 两者俱全，**同一份知识在一个文件里有、在另一个文件里没有，而没有的那个恰是本案执行点，这正是陷阱得以存在的直接原因**；纯注释零行为，但仍属生产文件改动，请求在 PLAN_RULING 中一并授权。**已评估并否决目录级 lint 规则**：本仓 eslint 为裸 `react-app` 无 plugin 装载点、CRA lint 在 build 期不构成测试门、且真正的漂移面是语义而非字面，记录为「已考虑并否决」以免重复提议。四、**可验收正文 G1–G8**：G1 裸形式回归锁（**本格在锚定回归下仍绿，这正是其价值**）；G2/G3 两种 Electron 包裹变体（无 `Error: ` 与含 `Error: `），**输入逐条读自位置 (D) fixture、不手抄**，fixture 缺失/非数组/为空/缺 `code` 键时**必须 FAIL 而非 skip**；G4 首 token 胜出与 `]` 夹带不可伪造 quarantine（`[x] [context_v2_rebase_journal_incompatible]` → `"x"` 且显式 `.not.toBe` 该 quarantine code），是位置 (E) E7 走私格在**真实决策点**上的对应格；G5 非法字符集 fail-closed，三 token × 裸/包裹两形式共六断言全部 `toBeNull()`；G6 分隔符承重性（含 `"[context_v2_failed]"` 无尾随空白 → null），**与位置 (E) 的 E4 构成同一不变量的两半**（E4 锁载体恒发射含空格的 `` `[code] ` ``，G6 锁解析器要求该空格，两格同生共死）；G7 防御性输入；G8 源码形状守卫。**red-before-green 要求保存 G2/G3/G4/G8**，统一取红方法为把生产正则临时改为 `/^\[([a-z0-9_]+)\]\s/` 并记录 **G1 保持绿而 G2/G3/G8 变红** —— **该 red 记录本身即本案对 R8 的直接经验证据，现场证明今日覆盖对该退化完全盲，把 R8 从推演升级为实测，是本棒相对于「只在 electron 侧镜像断言」（M-17 的 (b)）无法在别处取得的增量**。执行 `npx react-scripts test --watchAll=false --testPathPattern context_v2_bridge`（禁直接 `npx jest`）；该文件在 `src/**` 内由 `react-scripts test` 收集，**不涉双胞胎规则**（那是 `electron/**` 专有）；同步验证一步 —— `npm run test:frontend` 总用例数相对改动前**严格增加 8**，不接受「全绿」为已运行证据。五、**知情确认**：AC-010 **CONFIRMED 无条件**（边界内无执行点），并附强化事实 —— 其第三款的安全性质**对 R8 回归稳健**，因解析失败得 `context_v2_failed` 而该 code 不在九个 `TERMINAL_REBASE_ERROR_CODES` 内；AC-011 **CONFIRMED**，赞成 U-14 入库定案（`react-scripts test` 同样不跑 pytest），条件仅为 fixture 形状；**本棒责任 AC**（即上述新取证位置所属的那一条）**CONFIRMED_CONDITIONAL**，对其位置 (A)(B)(C)(D)(E) 全部知情无异议，唯一条件见 M-27；AC-016 无依赖无意见。六、**关于反解段是否须独立成 BC：本 owner 明确不要求拆分，且不以此为同意的条件** —— 所需的是知情与同意被留痕，contribution + RS stance 已完整承载；同意 S-0022 (c) 关于 boundary protocol v1 结构性限制的定性；无论 Chief 如何裁定，实体立场不变
+- **artifact**: contributions/HS-004-code-owner-shared-arteries.md
+- **BC-004 反解段覆盖声明**: 本 contribution 显式覆盖 **BC-004 第三跳反解段**的 owner 确认与 **AC-012 新取证位置**（`src/SERVICEs/bridges/context_v2_bridge.test.js` G1–G8）的全部正文。确认形式与 HS-003 相同 —— 以 contribution 与 RS stance 记录、不写入 BC confirmation 字段，本 owner 接受该形式并已在上条声明不要求拆分 BC。**RS 预登记立场：对自身块登记 AGREE，唯一条件为 M-27**（AC-012 的「反解正则不得从实现 import」须明确限定于位置 (E) 载体格）；M-22 至 M-26 为措辞与风险面精化，**不构成**同意的条件。**请求程序性处置**：S-0022 已记 AC-012 现由四个 owner 分段撰写，冻结 RS 时须将 AC-012 列入本 owner 的 owned block 或直接依赖范围，否则将出现对自己撰写的正文无权登记 stance
+- **修改意见**: M-22 **BC-004 `consumer` 字段准入判据须四元素分列**（精化）—— 现文会让下一个改这行的人误以为 `{1,64}` 长度门在此执行。M-23 **`admission details` 的锚定禁令须改为行为式义务**（实质强化）—— 现文为语法禁令，至少六种改法满足其字面而破坏效果相同。M-24 「紧跟一个空格」→「紧跟一个 ASCII 空白字符（实现为 `\s`）」—— 实现比契约文本略宽，建议对齐文本、不改实现。M-25 **风险 R8 扩面并定界（在原条目内修改，不新增编号）** —— (a) 爆炸半径实为 **5 call site / 4 文件 / 3 owner**（`use_chat_stream.js:3979` 与 `:4072` chat-core、`memory_v2_journal_reload.js:274` 与 `memory_v2_pending_reviews.js:180` chat-bubble、`memory_v2_tree_state.js:106/114/445` shared-arteries 残余），本案路径只占其中 2 个；两项现文未提的退化 —— **既有九个 terminal-discard code 一并失效**（从「立即删除条目」退化为「12 次无谓重试后 paused」，陈旧条目堆积）与 `memory_v2_tree_state.js:114` 的严格相等在 null 下恒 false 使**关着的 store 被误呈现为 ERROR**；(b) 同时**定界** —— 两个 rebase call site 均为 `parseContextV2ErrorCode(error) || "context_v2_failed"`，而 `TERMINAL_REBASE_ERROR_CODES`（`context_v2_turn_mutation.js:367-377, :386`，只读核对）为九个 conflict code 的封闭集合、**不含** `context_v2_failed`，故 **frozen payload 不会被销毁**；R8 是语义退化 + 每条至多 12 次无谓重试（60s 退避上限），**不是数据丢失**，本 owner 据此确认 PS-004 对 R8 后果的描述准确无误，并建议把该边界写入以免日后被误判为 P0 数据丢失。M-26 **R8 的「今天没有任何测试会因此变红」应补一句** —— 更精确地说，存在一个**看上去覆盖了该解析器、而在回归下仍保持绿**的测试：`src/COMPONENTs/chat-bubble/trace_chain.memory_v2.test.js:23-26, :101-104` 以 `jest.mock` 替换整个 bridge 并在工厂内**就地重实现**一份**正确的未锚定**正则（因 CRA `resetMocks: true` 而在 `beforeEach` 再次重建）；该 mock 本身是正确做法，问题只在于按函数名 grep 审计覆盖会得到**假阳性**；**chat-bubble 边界内无需任何动作**，本 owner 的 G1–G8 落地后该盲区即闭合。M-27 **AC-012 的「反解正则不得从实现 import、须 in-file 重声明」须明确限定于位置 (E) 载体格**（**构成本 owner 同意的唯一条件**）—— 该规则对 electron 成立且必须保持（那里被测对象是**载体**，共用实现即互证）；但**不能原样套到本位置**，本位置被测对象**就是**该解析器，G1–G7 **必须**调用真实导出的 `parseContextV2ErrorCode`，否则测的是测试自写的正则、与生产代码彻底脱钩、防护归零；就地字面量在本位置只作为 G8 的源码期望值出现，producer 真实性改由「输入逐条读自位置 (D) fixture」保证。本 owner 判断原文立法意图本就只针对载体，多半只是文字覆盖面问题，但因它决定交付能否成立，必须列为条件而非建议
+- **remaining unknowns**: U-18 **AC-012 位置 (D) fixture 的最终路径与形状** —— G2/G3 读 `src/PAGEs/chat/hooks/__fixtures__/context_v2_rebase_error_envelopes.json`，加上位置 (D) 自身与位置 (E) 的 E2，**该 fixture 现有三个 owner 的测试读它**，请求在 PLAN_RULING 中视为稳定引用点；路径若变动需在同一次编辑中更新 G2/G3。**不阻断**，可在实施期解决，不需回棒 | code-owner-runtime / code-owner-chat-core / lead。U-19 **M-27 是否被采纳** —— 本 owner 唯一条件项；若 lead 认为 AC-012 现文本就不约束本位置，集成时明写一句即可，效果等同 | lead。U-20 **§2.3 注释补写是否获授权** —— 本 owner 请求的唯一生产文件改动（纯注释、零行为）；若不授权，第一、二层防护仍成立，只是缺「打开文件那一刻」的那道闸 | chief-judge。U-21 **G8（第二层）是否采纳** —— 本 owner 已如实声明它不增加检出能力且其脆性即其机制；采纳与否均接受，**第一层是不可省的那个** | lead / chief-judge。U-22 **BC-004 是否拆分** —— 本 owner **不要求**，不以此为条件，裁定为何实体立场不变 | chief-judge。U-23 **R6** —— 不在本 owner 边界，**无立场**；但给出量级判断供 Chief 裁定使用：**G1–G8 八格在 R6 两种取舍下全部继续有效、无一需重写**（只依赖 message 字符串形状，不依赖 channel 或 endpoint 拓扑），本位置**零追加、零返修** | chief-judge
+- **本 owner 边界信号（报告项，不在本案 write_set 内）**: 其一，**`run_bundle_storage_bridge.js:13-18` 是一处 latent defect，但当前惰性** —— `parseRunBundleStorageErrorCode` 的 `error.code` 快路径与锚定正则**在生产中均恒失效**（`electron/main/services/run_bundle_storage/register_handlers.js:11-54` 三个 handler 全部 `throw error` 穿过 `ipcMain.handle`，Electron 在此剥掉 `error.code` 并包裹 message），对任何真实 IPC rejection 恒返回 `null`；**但它零消费者**（导出后从未被 import），故无行为依赖它、不是活 bug，而是坐在同一目录里等着被复制的错误范本 —— 它正是 R8 所描述的那次回归**已经在隔壁文件里发生过**的实例。本 owner **不在本案修它**（不在 write_set、无授权、与本案 quiescence 契约无因果关系），**建议另立一案**并一并评估 `memory_vault_bridge.js` 是否需同形守卫。其二，**残余条款边界维护信号（charter 强制）**：`src/SERVICEs/memory_v2_tree_state.js` 不在本 owner charter 任何显式声明项内，仅由残余条款兜底；实测其生产消费者**有且仅有一个** —— `src/COMPONENTs/memory-inspect/memory_v2_tree_view.js`；该文件是单消费者的**视图状态机**，不具备「多方消费、单点定义」的动脉特征，留在 shared-arteries 只因路径恰落在 `src/SERVICEs/` 下，**长期应属 code-owner-settings**（其 charter 显名 memory-inspect 与 diff views）。**本信号不自动扩张本案，也不在本案内请求所有权调整**，须另以方案裁定
+- **recommended next handoff**: **本 owner 边界内不需要再开棒**，本件已覆盖 S-0020 四项交付全部内容。下一棒按 Speaker 在 S-0022 的既定队列：`code-owner-devtools | SLOT-006 / SEQ-007`，本 owner 与该棒无边界交集、无附加要求。**不建议为本案追加任何专家参与** —— 本 owner 独立复核后与 HS-003 §8.3 的安全结论一致，并补一条本 owner 侧的实测支撑：`]` 夹带在**真实解析器**上只能取出第一个括号组（G4 将把它变为断言），故被攻陷的 sidecar 无法把条目伪造成 quarantine 或 discard，且解析失败的最坏后果是 `paused`（保留 payload）而非数据丢失。**实施排序提示（非本棒授权）**：G1、G4、G5、G6、G7、G8 六格**只依赖今日已存在的实现**，不依赖 unchain、sidecar 或 fixture 的任何改动，**立刻可跑**；仅 G2、G3 待位置 (D) fixture。与 electron 位置 (E) 情况相同，本片同样可在 SLOT-001 / SLOT-002 实施之前先行取绿；若 Chief 希望尽早锁住这条今天零覆盖、且已被证实有同目录反例的性质，本片与位置 (E) 是本案成本最低、可最先落地的两片
+- **production effect**: NONE | 未改动任何生产代码，未新建任何测试文件，未新增 AC 或 BC 编号，未修改 `proposal.md`，未代写其他 owner 块，主树未 commit
+- **status**: RETURNED
+
+## S-0024 | 2026-08-16T07:49:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: PROPOSAL
+- **target**: P-0000-0007-2026-0815#PS-005
+- **basis**: S-0023 / HS-004 与 `contributions/HS-004-code-owner-shared-arteries.md`；S-0022；S-0019 / PS-004；PuPu `28b1e0ef` 上由本 owner 自行只读复核的源码事实
+- **decision effect**: 集成 HS-004 全部交付并冻结 successor 快照 PS-005；采纳 M-22 至 M-27（含其唯一条件 M-27）；把 R8 由推演升级为可实测并加定界；把待授权的注释补写纳入 write_set；production effect 保持 NONE
+- **artifact**: P-0000-0007-2026-0815#PS-005
+- **supersedes**: P-0000-0007-2026-0815#PS-004
+- **boundary object hash**: sha256:5fe7960a28d15579da9b2f758fbe255042ad43dd5265e382c733e782dcfe7485
+- **content hash**: sha256:ae57da521030744504cbfe06e5c64fbe24fc4bb8c3fe6ae4314907bdb2ad4fc7
+- **content hash derivation**: `proposal.md` 中位于 `### PS-005` 标题行之前的全部字节的 SHA-256，与 PS-001 至 PS-004 同法
+- **boundary protocol**: v1 | APPLICABLE；BC-001, BC-002, BC-003, BC-004 / SEQ-001 至 SEQ-007
+- **M-27 采纳（K-18）· 该 owner 同意的唯一条件**: AC-012 的「反解正则不得 import 实现、须 in-file 重声明」**只约束位置 (E) 的载体格**，位置 (F) 适用**相反规则** —— G1–G7 必须调用真实导出的 `parseContextV2ErrorCode`。本 owner 复核后认定这不是让步而是对称：该禁令的立法意图是「被测对象是载体时不得与反解段共用实现」，而位置 (F) 的被测对象**就是**反解段，禁 import 会使测试与生产彻底脱钩、防护归零。producer 真实性在该位置改由 fixture 驱动承担。原文已写「写在 electron 测试文件内」，本次把限定范围写死以消除歧义
+- **M-22 采纳**: BC-004 `consumer` 字段改为**五元素分列** —— 该正则执行 (i) 字符集锁、(ii) `] ` 分隔符、(iii) 位置无关的首 token 选择；**不**执行 (iv) `{1,64}` 长度上界（消费侧无执行点，`+` 即 1..∞，属 producer 义务，载体按 E3 明示不得守门）、(v) 封闭集合成员判定（在 chat-core 分类段）。反解段 owner 明确**不要求**补长度门，超长 token 落未知 code 走有界重试到 `paused` 是安全降级
+- **M-23 采纳（K-19）**: 锚定禁令由语法表述升级为**行为表述** —— 「必须能从 message 任意位置还原第一个 `[<code>] ` token；任何使还原结果依赖该 token 位置的改动均被禁止」，「不得加 `^`」标注为其一个特例。理由是语法禁令欠定：六种改法（`^` 锚定 / `startsWith` 守卫 / `indexOf!==0` 守卫 / `split(": ")[0]` / `y` sticky / `$` 尾锚）满足其字面而破坏效果完全相同。防护主体因此必须是行为断言
+- **M-24 采纳**: 「紧跟一个空格」→「紧跟一个 ASCII 空白字符（实现为 `\s`）」，对齐契约文本而不收紧实现
+- **M-25 / M-26 采纳 · R8 扩面并定界（在原条目内修改，不新增编号）**: 本 owner 回源码复核确认 —— 爆炸半径实为 **5 call site / 4 文件 / 3 owner**（`use_chat_stream.js:4072` 与 `:3979` chat-core、`memory_v2_journal_reload.js:274` 与 `memory_v2_pending_reviews.js:180` chat-bubble、`memory_v2_tree_state.js` shared-arteries 残余），本案路径只占 2 个；两项未记载的退化确认属实 —— 既有九个 terminal-discard code 一并失效（从立即删除退化为 12 次重试后 paused、陈旧条目堆积），以及 `memory_v2_tree_state.js` 的 `classifyRejection` 用 `=== STORE_DISABLED_CODE` 严格相等、null 下恒 false，使**关着**的 store 被渲染成 **ERROR**。**同时定界**：两个 rebase call site 均为 `parseContextV2ErrorCode(error) || "context_v2_failed"`，而该 code **不在**九个 `TERMINAL_REBASE_ERROR_CODES` 内，故 frozen payload 被保留 —— R8 是**语义退化 + 每条至多 12 次无谓重试，不是数据丢失**，写入以防日后被误判 P0。另采纳 M-26 的假覆盖点名：`trace_chain.memory_v2.test.js:23-26, :101-104` 以 `jest.mock` 替换整个 bridge 并就地重实现一份**正确的未锚定**正则（CRA `resetMocks: true` 使其在 `beforeEach` 重建），该 mock 本身正确，问题只在按函数名 grep 审计覆盖会得**假阳性**；**chat-bubble 边界内无需动作**，位置 (F) 落地后盲区闭合
+- **AC-012 位置 (F) 集成**: G1–G8 八格并入，编号沿用 `G` 前缀而不续接子例或 E 系（与 K-14 / K-16 同一约束，不新增 AC 编号）。**G2/G3/G4/G8 的 red-before-green 是本棒相对于「只在 electron 侧镜像断言」无法在别处取得的增量** —— 统一取红方法为把生产正则临时改为锚定形式并记录 **G1 保持绿而 G2/G3/G8 变红**，该 red 记录本身即本案对 R8 的直接经验证据，现场证明今日覆盖对该退化完全盲。G8 的定性按该 owner 的诚实自述保留：**不增加检出能力**，买的是失败信息指向契约、对未写出的第七种写法仍会红、使「这行不能随便动」成为源码级事实；其**脆性即其机制**（理解闸而非回归闸）
+- **K-20 · 注释补写纳入 write_set**: 反解段 owner 请求在 `context_v2_bridge.js:53-56` 补契约注释（纯注释、零行为）。本 owner 采纳并纳入实施范围，由 PLAN_RULING 一并授权。理由与该 owner 一致且经本 owner 复核：今天该注释一个字未提包裹形式与锚定禁令，而同目录 `settings_storage_bridge.js:101-109` 两者俱全 —— **同一份知识在一个文件里有、在另一个文件里没有，而没有的那个恰是本案执行点，这正是陷阱得以存在的直接原因**；它作用在人打开文件的那一刻，早于任何测试
+- **目录级 lint 已否决（记录以免重复提议）**: 本仓 eslint 为裸 `react-app` 无 plugin 装载点、CRA lint 在 build 期执行不构成测试门、真正的漂移面是语义而非字面。三条理由由该 owner 在其边界内核实
+- **coverage gap (b) 收口**: 由「第三跳无任何一方确认」收口为「已知情、已同意，仅形式上未占 BC 字段」，与 (a) 同级。该 owner 明确**不要求**拆分 BC 且不以此为同意条件，并同意 S-0022 (c) 关于 boundary protocol v1 结构性限制的定性
+- **两条边界信号入卷（记录不行动）**: N-1 `run_bundle_storage_bridge.js:13-18` 的双死路径 latent defect —— 零消费者故非活 bug，但是「等着被复制的错误范本」，是 R8 所述回归**已在隔壁文件发生过**的实例，建议另立一案；N-2 `memory_v2_tree_state.js` 仅由残余条款兜底、单消费者视图状态机，**长期应属 code-owner-settings**，本案不动，所有权调整须另以方案裁定
+- **ruling-ready status**: NOT_READY | `boundary_revision_set` 仍为 PENDING_CANDIDATE_FREEZE；SLOT-006 / SEQ-007（devtools）末棒未完成；AC-013 需 Chief 授权提供用户库只读副本；`case.md` 需 Speaker 同步至 PS-005；RS 冻结前四项见 PS-005「送裁前仍缺」第 2c 条
+- **production effect**: NONE
+- **authorization effect**: NONE | 本快照不授权任何生产代码改动；§L 的注释补写是**待授权项**，不得在裁定前执行
+
+## S-0025 | 2026-08-16T07:49:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: HANDOFF_REQUEST
+- **target**: P-0000-0007-2026-0815#SLOT-006
+- **basis**: P-0000-0007-2026-0815#PS-005, S-0023, S-0022
+- **decision effect**: SEQ-007（release artifact provenance）是本案唯一仍无 owner 确认的状态序列，AC-014 的 artifact 侧取证也只有 devtools 能给；这是最后一棒，缺它则 PS-005 无法成为 ruling-ready
+- **目标 ownership boundary**: code-owner-devtools
+- **期待交付**: SLOT-006 与 SEQ-007，五项 —— 一、**一次构建、全程复用同一个 wheel 的构建与取证流程**：确认 `scripts/release-qa/unchain-artifact.mjs` 的既有四函数（`buildUnchainArtifactEvidence` / `readAndVerifyUnchainArtifactEvidence` / `verifyWheelRuntimeManifest` / `verifyInstalledUnchainDistribution`）与 `run-with-unchain-artifact.mjs` 是否已覆盖 AC-014 要求的**三处**（契约矩阵、package smoke、release report）而非两处，缺口如何补；二、**AC-014 的 devtools 段可验收正文**：同一 wheel SHA-256 与同一 runtime manifest digest 在三处逐字相同的机械核对方法，以及「不得以可变的相邻 checkout 顶替该 artifact」的执行点（已安装 dist 的 `direct_url.json` 比对）；任一处不一致时结论为 INCOMPLETE 而非 GO；三、**SEQ-007 的 owner confirmation**，并复核其七个单元格（`resume` 与 `reset` 现标 NOT_APPLICABLE 及其理由）是否与你边界内的真实发布流程一致；四、AC-012 位置 (D) fixture 的**发布侧影响**：该 fixture 由 sidecar pytest 产出并入库（K-17），现有三个 owner 的测试读它，请确认 release-qa 流程中它的生成与校验落在哪一步；五、**U-15 尾巴** —— 若 Chief 要求真实 Electron IPC（C4）证据，按 electron 与 shared-arteries 两位 owner 的建议由本棒承接（playwright e2e 属你边界），请给出可行性与代价判断；若 Chief 不要求则本项写 NOT_APPLICABLE。**边界提示**：本棒不涉 renderer / 载体 / 反解段的任何测试，那三段已由 HS-002 / HS-003 / HS-004 交付完毕
+- **缺席影响**: SEQ-007 无 owner 确认，AC-014 的 artifact 侧无可验收正文；exact deployed pair 这条铁律要求的「一次构建全程复用同一 wheel」在本案没有任何一方为其发布侧执行点负责；PS-005 无法成为 ruling-ready，本案无法送裁
+- **最小访问范围**: P-0000-0007-2026-0815#PS-005, SLOT-006, SEQ-006, SEQ-007, BC-001, BC-002, BC-003, BC-004, AC-010, AC-011, AC-012, AC-014, AC-016, contributions/HS-001-code-owner-runtime.md, contributions/HS-002-code-owner-chat-core.md, contributions/HS-003-code-owner-electron.md, contributions/HS-004-code-owner-shared-arteries.md, intake/fact-check.md, intake/chief-directive.md
+- **完成后返回**: code-owner-unchain
+
+## S-0026 | 2026-08-16T07:51:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: HANDOFF
+- **target**: HS-005
+- **basis**: S-0025, S-0024, S-0023
+- **decision effect**: 授予 code-owner-devtools 一次有限 owner 交付；HS-004 已于 S-0023 终态 RETURNED，本案再次只有一个 OPEN handoff。这是本案计划中的最后一棒
+- **from**: code-owner-unchain
+- **to**: code-owner-devtools
+- **scope**: P-0000-0007-2026-0815#PS-005, SLOT-006, SEQ-006, SEQ-007, BC-001, BC-002, BC-003, BC-004, AC-010, AC-011, AC-012, AC-014, AC-016, contributions/HS-001-code-owner-runtime.md, contributions/HS-002-code-owner-chat-core.md, contributions/HS-003-code-owner-electron.md, contributions/HS-004-code-owner-shared-arteries.md, intake/fact-check.md, intake/chief-directive.md
+- **scope verification**: 与 S-0025 逐字相同，无需补齐。机械核对：本棒承担 SEQ-007 的 owner confirmation，其 responsibility criteria 为正负 acceptance 并集，即 AC-014 一条，已在 scope 内；确认对象 SEQ-007 本身亦在 scope 内；七个矩阵单元格全部指向同一 AC 或写明 `NOT_APPLICABLE | <理由>`，无悬空单元格。scope 另含全部四个 BC 与 SEQ-006 作为只读余量，无重复引用、无跨案限定引用
+- **boundary verification**: 五项交付的写入与取证面（`scripts/release-qa/**`、`.github/workflows/release-qa.yml`、以及 U-15 若被要求时的 `e2e/**`）全部落在 code-owner-devtools charter 的显式声明项 `pupu:scripts/**`、`pupu:.github/**`、`pupu:e2e/**` 内，边界匹配无歧义。本棒不涉 renderer / 载体 / 反解段任何测试，那三段已由 HS-002 / HS-003 / HS-004 交付完毕
+- **delivery**: 按 S-0025 的五项期待交付：一、`unchain-artifact.mjs` 既有四函数与 `run-with-unchain-artifact.mjs` 是否已覆盖 AC-014 要求的三处（契约矩阵、package smoke、release report）而非两处，缺口如何补；二、AC-014 devtools 段可验收正文，含三处逐字核对方法与「不得以可变相邻 checkout 顶替 artifact」的执行点，任一不一致时结论为 INCOMPLETE 而非 GO；三、SEQ-007 的 owner confirmation 与七个单元格复核；四、AC-012 位置 (D) fixture 在 release-qa 流程中的生成与校验落点；五、U-15 尾巴（Chief 若要求真实 C4 证据则给可行性与代价判断，否则写 `NOT_APPLICABLE`）
+- **speaker flagged item（非新增交付，供本棒 owner 与 lead 判断）**: AC-012 位置 (E) 采用「零新增双胞胎槽位」方案，其成立前提是 `src/electron/tests/**` 两组三槽今天已齐备（由 HS-003 实测确认）。该目录属 **devtools** 的显式边界 `pupu:src/electron/**`，不属 electron owner。因此：若实施期需要新增或修改任何 S3 CRA shim，写入责任在本棒 owner 而非 HS-003 的交付者，而本案 write_set 目前未含该目录。本棒 owner 若认为该风险需要一句话确认或纳入 SEQ-007/AC-014 之外的记载，请在 return 中说明；lead 可据此决定是否在集成时补记。Speaker 不代为扩大本棒 delivery
+- **return_to**: code-owner-unchain
+- **expires at**: 2026-08-16T09:51:00-07:00
+- **expiry effect**: 到期无合格 return 时 Speaker 追加 `NOTICE: HANDOFF_EXPIRED`，随后重新路由、转移 lead 或送 Chief；不把空白视为已完成
+- **status**: OPEN
+
+## S-0027 | 2026-08-16T07:51:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: case
+- **basis**: S-0024, S-0025, S-0026, S-0023, S-0022, S-0017, S-0011
+- **decision effect**: 记录 PS-005 机械复核、RS-001 冻结前的 Speaker 准备清单与 R6 第四次提请；不作任何实体判断，不预先冻结 electorate
+- **notice kind**: RS_PREPARATION
+- **verified**:
+  - PS-005 content hash | PASS | 按 S-0024 声明的派生方式重算（`### PS-005` 标题行之前的 127275 bytes）得 sha256:ae57da521030744504cbfe06e5c64fbe24fc4bb8c3fe6ae4314907bdb2ad4fc7，与声明逐字一致
+  - PS-005 boundary object hash | PASS | `quorum_lint` 以 `quorum.boundary.objects.v1` 重算未报不一致
+  - PS lineage | PASS | PS-005 supersedes PS-004，PS-001 至 PS-005 编号连续、每个 successor 直连前一个；`proposal.md` 无工具标记残留
+  - AC 编号纪律 | PASS | 五次集成后 AC 集合仍精确为 AC-001 至 AC-016（16 条）。位置 (E) 用 E1–E9、位置 (F) 用 G1–G8、SLOT-007 的新取证位置均未新增 AC 编号，五次交棒无一触发已冻结 scope 溢出
+  - HS-004 lineage | PASS | S-0023 终态 RETURNED，speaker 精确等于目标 owner，返回时间早于 expires at
+  - 修改意见闭环 | PASS | M-1 至 M-27 全部可追溯到一条采纳或明示不采纳记录（M-1..M-7 见 S-0008；M-8..M-15 见 S-0013，其中 M-13 为明示不采纳并给出替代；M-16..M-21 见 S-0019；M-22..M-27 见 S-0024）。无悬空修改意见
+  - SEQ-007 矩阵 | PASS | 七个单元格齐备，`resume` 与 `reset` 写 `NOT_APPLICABLE | <可审查理由>`，其余指向 AC-014；owner confirmation 仍为 `PENDING_HS`，由 HS-005 补齐
+- **RS-001 冻结前 Speaker 准备清单（四项，逐项在冻结时核销）**:
+  - RSP-1 · AC-012 的 stance 权覆盖 | AC-012 现由**五方**分段撰写：位置 (A)(B)(C) chat-core、(D) fixture 源自 runtime 的 AC-011 子例 6、(E) electron、(F) shared-arteries（G1–G8）。冻结 RS 时必须把 AC-012 同时列入这五位 owner 的 owned block 或直接依赖范围，否则会出现「有人对自己撰写的正文无权登记 stance」。shared-arteries 已在 S-0023 明文请求该处置，本项在 S-0016 首次挂账、S-0022 扩为四方、此处补入位置 (F) 扩为五方
+  - RSP-2 · 位置 (D) fixture 作为稳定引用点 | 该 fixture 现由**三个 owner 的测试**读取（位置 (D) 自身、位置 (E) 的 E2、位置 (F) 的 G2/G3）。U-18 请求在 PLAN_RULING 中把其路径视为稳定引用点，路径变动须在同一次编辑中更新全部读取方。Speaker 记录该请求为送裁时须由 Chief 明示处置的项，不代为裁定
+  - RSP-3 · 有条件确认的条件达成核验 | 四位返回 owner 的确认均为 `CONFIRMED_CONDITIONAL` 或附条件的预登记立场：runtime（M-1/M-2/M-3、M-4/M-5、M-6）、chat-core（M-8/M-9/M-10、M-12）、electron（预登记 AGREE，条件为 M-16 与 M-17 被采纳或经 Chief 明示处置）、shared-arteries（预登记 AGREE，唯一条件 M-27）。上表「修改意见闭环」已核实全部条件所指的 M 项在 PS lineage 中均有采纳记录。**但条件是否达成由各 owner 自己在 RS 窗口内以 stance 判断，Speaker 只提供可追溯索引，不代为宣告条件已满足**
+  - RSP-4 · R6 第四次提请 | 见下条
+- **R6 第四次提请（S-0011、S-0017、S-0022 之后）**: 内联 recovery 写者 vs 新增独立 endpoint，仍未裁定。退路代价已由**三侧**各自实测收窄：electron 侧「加三格、零返修」（U-16）、shared-arteries 侧「G1–G8 八格全部继续有效、零追加零返修」（U-23）、**唯 chat-core 侧为真返修**（M-15：需第三个计数、AC-012 子例 5 重写）。Speaker 维持 S-0017 的程序推进决定，按已集成的内联路径完成最后一棒。若至 RS-001 冻结前 Chief 仍未表态，SUMMARY 按既定把 R6 列为 `mandatory responses` 强制回应项呈裁；Speaker 不代为选择，也不因沉默推定任一方案
+- **RS-001 预告（程序说明，不预先冻结任何内容）**: HS-005 返回并由 lead 集成 PS-006 后，本案进入 RS-001 冻结。预计 electorate 为 6 —— lead（code-owner-unchain）与经 material HS 返回的 runtime、chat-core、electron、shared-arteries、devtools，同一底层 agent 去重后每人一票。冻结时按[固定模板](../../../codex/court-records/templates.md) §5 记录当前 PS 与其 content hash、predecessor RS（初始写 `null`）、review kind `ORDINARY`、与当前集合精确相等的 BC/SEQ、相同 boundary object hash、eligible owners、N、`inherited stances: NOT_APPLICABLE`、全部 owner 列入 re-review、四个时区明确的 deadline 与可重算的 RS content hash。**实际 electorate 与 N 以冻结那一刻的 material HS 终态为准，本预告不构成冻结、不授予任何人投票资格**
+- **production effect**: NONE
+
+## S-0028 | 2026-08-16T08:07:21-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-devtools
+- **type**: HANDOFF_RETURN
+- **target**: HS-005
+- **basis**: S-0026, S-0025, S-0027, S-0024；PuPu `28b1e0ef` 上由本 owner 自行只读核对并实测的源码与命令事实（正文见 `contributions/HS-005-code-owner-devtools.md`）
+- **decision effect**: 交付 SLOT-006 的 release artifact provenance 方案块，含 **SEQ-007 的 owner confirmation（`CONFIRMED_CONDITIONAL`）与七个矩阵单元格逐格复核**、**AC-014 artifact 侧（devtools 段）可验收正文**、三处覆盖核对结论与四条补齐义务、位置 (D) fixture 的发布侧落点与 CI 补齐义务、U-15 结论、S-0026 flagged item 表态、五条修改意见与三条 remaining unknowns；正文置于 `contributions/HS-005-code-owner-devtools.md`，供 lead 集成。production effect 保持 NONE
+- **contribution**: P-0000-0007-2026-0815#SLOT-006 五项交付全部完成，本返回件**显式点名覆盖 SEQ-007（Release artifact provenance 与 rollout 回滚）的 owner confirmation 与 AC-014 的 artifact 侧（devtools 段）正文** —— 一、**三处覆盖核对：既不是三处，也不是两处**。精确结论为「三处各自的自校验齐备 3/3，但三处观测到的值一条都没有进入 release report」：契约矩阵（`run-context-v2-contract.mjs:34-48` / `run-run-bundle-contract.mjs:38-52` 经 `verifyWheelRuntimeManifest` 重算字节 + `sys.path.insert` 真实 import 比 manifest）与 package smoke（`package-sidecar-smoke.mjs:116-122` 重算下载物字节 + `/health` 投影 manifest exact JSON 全等）都只把 `executed_tests` 写进 `GITHUB_OUTPUT`，sha 与 digest 仅 `console.log`；report 上唯一存在的一致性断言（`reporting.mjs:391-395`，单测 `reporting.test.mjs:166-186`）比的是**同一份 evidence 文件被 upload/download 搬运后的两个副本**（deterministic ↔ 四个 package 平台），不是任何 runner 的观测值。**可证伪路径**：把契约矩阵两步的 artifact env 改指到另一对自洽的 wheel+evidence，矩阵对 wheel B 自洽通过、报告印出 wheel A、merge 拿 A 比 A 判绿，**全绿无一处变红**；且该路径已铺好 —— `run-with-unchain-artifact.mjs:46-48` 在 env 未设时会就地从可变的相邻 checkout `../unchain` 重新构建一个 wheel。**同时确认已成立的六项**（不重造）：workflow 静态断言 `build-unchain-artifact.mjs` 与 `repository: haoxiang-xu/unchain` 各出现恰 1 次（`artifact-continuity-workflow.test.mjs:14-23`）、构建器拒绝增量与 dirty 源（`build-unchain-artifact.mjs:65-79,90-94`）、evidence 的 `{wheel_count:1, built_once:true}` 被 `validateEvidenceShape:337-340` 每次强校验、`direct_url.json` 反顶替执行点已在三处调用、package job 以 `--bytes-only true` 重算下载物字节、本地门已有 `release worktree remained unchanged` 全工作树指纹。**四条补齐义务（全部测试/脚本层面，零生产代码改动，全部落在 devtools 边界）**：**V-1a** 把 `artifact-continuity-workflow.test.mjs` 从「该模式在文件中出现过」升级为**枚举式排他断言** —— `deterministic-checks` 内全部 artifact 相关 env（含 `Python backend tests` 的 `PYTHONPATH`）逐字取自 `steps.unchain_artifact.outputs.*`、`package-matrix` 内逐字取自 `steps.artifact_verify.outputs.*`、两 job 内不出现其他来源；**V-1b** 两个矩阵 runner 与 package smoke 把**观测值**（矩阵侧 digest 须取自真实 import 回来的 manifest 而非 evidence；smoke 侧 digest 须取自 `/health` 投影）写入 `GITHUB_OUTPUT` 并经 `QA_CHECKS_JSON` 进 job report，`reporting.mjs` 新增「携带观测值的 check 与本 job `unchain` 块不逐字相等即 `failed`」判定；**V-3** smoke 现上报的 `runtime_manifest_digest` 取自 `expectedManifest`（`package-sidecar-smoke.mjs:198`）是同义反复且实测无人消费（`grep steps.sidecar_smoke.outputs` 只命中 `executed_tests`）；**V-4** `packaged-sidecar-smoke.json` 内容从不解析，只被 `collectArtifacts` 按文件名与大小登记。二、**AC-014 devtools 段可验收正文**（六节可粘贴块，见 contribution §2）：A 一次构建全程复用同一 wheel 的四层证明；B 三处逐字核对表（逐处写明观测者/观测量/核对断言，并由 V-1a 的枚举断言钉死接线）；C **「不得以可变相邻 checkout 顶替」的唯一执行点 = 已安装 dist 的 `direct_url.json` 比对**，四项断言（拒 `dir_info.editable`、要求 `archive_info`、basename 逐字等于 `evidence.artifact.name`、`archive_info.hashes.sha256` 逐字等于 evidence sha 去前缀值），调用点三处（release-qa.yml:91-101 与 `build_unchain_server.sh:180-191` / `.ps1:177-186`，后两者在 runtime owner 边界，本段只引用不修改），另加打包侧独立护栏 `unchain_runtime_source` 不得匹配 `editable|checkout|/src/unchain/`，并明示 `source.*` 与 `unchain_revision` 只作 provenance 与遥测、`verifyUnchainTestSourceProvenance` 属 **test-source 选择门**而非 runtime compatibility；D 显名 `playwright-electron` job 不绑定 artifact 且**不在三处之内**（设计如此，防止验收人找不存在的第四条链）；E `INCOMPLETE` 的机械表达（见 M-32）；F red-before-green 义务。三、**SEQ-007 owner confirmation = `CONFIRMED_CONDITIONAL`**，唯一条件为 **V-1 与 V-2 两条补齐义务被写入 AC-014 正文**；条件的实质理由是 SEQ-007 `expected observations` 第一句「三处引用的 wheel SHA-256 逐字相同」今天在报告上无法核验，在缺口有义务归属之前确认它等于确认一条没有执行点的观察。**七格逐格复核**：first use 成立；repeat **成立且为本序列最扎实一格**（同一 wheel 被 4 个平台各消费一次并逐平台比三字段，已有失败单测）；retry 成立但**取证方式必须钉死为「重跑 `package-matrix` 并断言 sha 与首跑逐字相同」**，以绕开 U-24；**resume 的 `NOT_APPLICABLE` 理由成立且本 owner 补出源码执行点** —— `build-unchain-artifact.mjs:74-79` 对已含 wheel 的输出目录**直接抛错**、`run-with-unchain-artifact.mjs:68-72,118-122` 每次 mkdtemp 并在 finally rmSync，代码显式拒绝「接着上次继续」；restart 成立且已有天然取证（smoke 每次 spawn 全新进程 + 全新临时 `UNCHAIN_DATA_DIR`，并显式清空 `PYTHONPATH` 与 `UNCHAIN_SOURCE_PATH`）；**reset 的 `NOT_APPLICABLE` 成立并已实测**（`.github/workflows/` 内零 `delete-artifact` 与零 `overwrite` 用法）；rollback 成立但今天无自动化执行点，须把取证钉为「以 `workflow_dispatch` 的 `unchain_ref` 指向前一版本重跑 release 模式，断言 sha 与 source_ref 已变、三处仍互等、结论不降级」。**另正面确认 SEQ-007 `expected observations` 第二句（`direct_url.json`）与第四句（回滚不删 journal 或证据）今天已完全成立** —— release-qa 全流程零 journal 写入，smoke 数据目录为 `mkdtempSync` 临时目录并在 finally `rmSync`，不触碰任何用户目录。四、**位置 (D) fixture 的发布侧落点**：路径 `src/PAGEs/chat/hooks/__fixtures__/context_v2_rebase_error_envelopes.json`（**实测今天该目录不存在**，符合由实施期创建的预期）；生成与 diff 校验落在 CI 的 `Python backend tests` 步（release-qa.yml:142-148，**CI 中唯一跑 pytest 的地方**）与本地门的 `python backend tests`（`local-gate-checks.mjs:28-33`）；消费落在 `Frontend tests`（位置 (A)(B)(C)(D)(F)）与 `Electron tests` + 经 S3 CRA shim 的 `Frontend tests`（位置 (E)）。**一条必须写入验收正文的顺序事实**：`Frontend tests`(:128) 与 `Electron tests`(:136) 都排在 `Python backend tests`(:142) **之前**，故消费方先读入库 fixture、生产方后重算 diff —— 两者都须绿，正确性不受影响，但**fixture 漂移的失败会归因到 python 步而非前端步**，实施者与验收人须预知。**CI 侧 diff 校验补齐义务 V-7**：本地门已有 `release worktree remained unchanged`（`run-local-gate.mjs:116-132` + `worktree-fingerprint.mjs:19-50`，含 `git diff --binary HEAD` 与全部未跟踪文件内容）作为独立第二重保险，**CI 侧完全没有**；补法为在 `deterministic-checks` 内加基线步（`Install Node dependencies` 之后、`Frontend tests` 之前）与核对步（`Release QA script tests` 之后、写报告之前，`if: always()`），失败时打印 `git status --porcelain=v1 --untracked-files=all` 全文，并纳入 `QA_REQUIRED_CHECKS_JSON`。**前置事实已实测核实该义务不会恒红**：`/.release-qa`（`.gitignore:12`）、`/build` 与 `build/`（:15,:51）已忽略，`prepare-build-version.cjs` **零写入**，`build-web.cjs` 唯一写入落在 `build/build_feature_flags.json`。**另一条 V-8（跨 owner 协作项）**：fixture 生产侧今天**无任何哨兵** —— 子例 6 只跑在 `Python backend tests` 这个 bulk 步里，该 check 既不在 `DETERMINISTIC_REQUIRED_CHECKS` 也不在 `NONZERO_EVIDENCE_CHECKS`，用例被改名或删除时无人变红，而消费侧 E2/G2/G3 却都规定「fixture 缺失即 FAIL 而非 skip」；补法为由 runtime 提供精确 nodeid、由 devtools 加入 `context-v2-contract-matrix.mjs:18-28` 的 `PUPU_ADAPTER_CONTRACT_TESTS`，使其进入既是 required 又是 nonzero-evidence 的门且以精确 nodeid 调用（改名即非零退出）。五、**U-15 = `NOT_APPLICABLE`** —— `intake/chief-directive.md` 全文未要求真实 Electron IPC（C4）证据，其 14 条验收矩阵第 14 项只要求 exact deployed-pair（即 AC-014，本棒已交付），lead 已在 PS-004 §I 定案不要求，Chief 至今无相反表态；**附备查代价判断（本 owner 独立判断，指出 lead 原文未提的真实代价）**：真实 C4 只能来自 `e2e/**` playwright，而要害不在 e2e spec 本身而在**注入通道** —— 本仓无「在 e2e 模式下让主进程按指令抛特定错误」的既有机制，新增它是 `electron/main/**` 的**生产代码改动**，会把本案 write_set 从一处纯注释扩到跨两个 owner 的运行时开关；结论与 lead 一致但理由更硬：为验证一个已被三处独立锁定的框架行为而在生产代码里开测试专用注入口，本身是更大的风险面
+- **artifact**: contributions/HS-005-code-owner-devtools.md
+- **SEQ-007 与 AC-014 覆盖声明**: 本 contribution 显式覆盖 **SEQ-007 的 owner confirmation（`CONFIRMED_CONDITIONAL`，唯一条件为 V-1 与 V-2 写入 AC-014 正文）与其七个矩阵单元格的逐格复核**，以及 **AC-014 的 artifact 侧（devtools 段）全部正文**。机械核对：SEQ-007 的 responsibility criteria 为正负 acceptance 并集即 AC-014 一条，已在 HS-005 scope 内；七个单元格无悬空，两个 `NOT_APPLICABLE` 的理由经复核成立且本件另为其补出源码执行点。**RS 预登记立场：对自身块（SLOT-006 / SEQ-007 / AC-014 artifact 段）登记 AGREE，唯一条件为 V-1 与 V-2 被写入 AC-014 正文**；V-3、V-4、V-7、V-8 为强化项，**不构成**同意的条件。**若 V-2 被以「不处理」结案则改登记 OBJECT**，异议仅限一条：AC-014 运行时段要求 pytest 比对 evidence 文件，而该 pytest 的两处运行环境（CI release-qa.yml:142-148 与本地门 `local-gate-checks.mjs:28-33`）都只给 `PYTHONPATH`、**拿不到 evidence 文件**，该断言在物理上无法实现 —— 不涉本案任何实体设计。**请求程序性处置**：冻结 RS 时须将 **AC-014 列入本 owner 的 owned block 或直接依赖范围**（本件为其撰写了 artifact 段正文），与 S-0027 RSP-1 对 AC-012 五方分段的处置同理，否则将出现对自己撰写的正文无权登记 stance
+- **S-0026 flagged item 表态**: **选 (a) —— 确认现状齐备，实施期预期对 `src/electron/tests/**` 的改动为零，接受「若需改动再按程序补」，不请求把该目录折入 write_set。** 实测证据：两组三槽逐路径 `-f` 测试 **6/6 存在**，四个 shim 逐字读取内容全部正确（S2 = `require("./<name>.test.cjs");`，S3 = `require("../../../../electron/tests/main/<name>.test.cjs");`）；槽位计数以**独立方法**交叉验证 —— 本 owner 用 `find src/electron/tests -name '*.test.js' | wc -l` 得 **40**，与 HS-003 用 `--listTests | grep -c` 得到的 **40** 一致（两法互不依赖：一个数文件系统，一个数 CRA 实际收集面），故 AC-012 位置 (E) 执行步骤第 (2) 步的常量 **40 是对的，可直接冻结**。预期零改动的机制原因：位置 (E) 采「在既有 S1 文件内追加 describe/test」，新增内容全落在 `electron/tests/main/*.test.cjs`，而 S2/S3 是与被 require 文件内容无关的单行 require，只要不新建文件、不改文件名，shim 即无需任何改动。**同时请求一个零成本、不扩 write_set 的机械触发器（M-30）**：把位置 (E) 第 (2) 步的语义由「记录值」升级为「判定阈」—— 该值实施后若不等于 40，即判定为需要新增或改动 S3 槽位，**实施必须就地停止并按程序向 devtools 补一棒，不得由实施者直接在 `src/electron/tests/**` 下写文件**。这使「若需改动再按程序补」从一句约定变成跑一条命令即可判定的闸门
+- **修改意见**: M-28 **SEQ-007 `identity key` 实质勘误** —— 现文含「evidence 文件 digest」，**本仓不存在该可观测量**（无任何脚本计算 evidence 文件自身的 SHA-256；`readAndVerifyUnchainArtifactEvidence` 只解析它并核对它所描述的 wheel）；建议改为「evidence 文件所载三元组（`artifact.sha256` + `runtime_manifest.manifest_digest` + `source.revision`）」，**不建议**真的引入该 digest（多一个必须在三处传递的量而检出能力不增加）。同条另建议把 `resume` 格 `NOT_APPLICABLE` 的理由补上源码执行点，把设计声明升级为源码事实。M-29 **SEQ-007 `ordered events` 少一步** —— 缺紧跟构建之后的**安装与 `direct_url.json` 核对**（release-qa.yml:91-101），而那是 `expected observations` 第二句的**唯一**执行点；另建议在 `expected observations` 末尾写明 **rollout 与 rollback 在本仓是人工步骤**（改 `unchain_ref` 重跑），可观察结果载体是 `release-qa-report.json` 的 `unchain` 块与 `git` 块，否则验收人会去找一个不存在的自动化 rollout 执行点。M-30 **AC-012 位置 (E) 第 (2) 步语义升级为判定阈**（程序性，零成本）—— 见上条 flagged item 表态。M-31 **R9 的边界归属勘误** —— R9 的 3 处缺 CRA shim 经本 owner 独立复核**属实**（`electron/tests/main/{chat_storage_lifecycle,ollama_service,settings_quit_coordinator}.test.cjs` 三者 S1/S2 齐备而 `src/electron/tests/main/` 下无对应 S3），**但 HS-003 称「修它会把 electron 的 write_set 从零扩到 3 个文件」是错的** —— 补 S3 的写入点是 `src/electron/tests/main/*.test.js`，属 **`pupu:src/electron/**` = devtools 边界**，不是 electron 的。本 owner **同意本案不修**（非发布风险：CI 与本地门都同时跑 `test:frontend` 与 `test:electron`，这 3 处仍被后者执行，真实损失只在开发回路），但归属须更正，否则日后为它立案会找错 owner。M-32 **AC-014 的 `INCOMPLETE` 表达须澄清** —— job report schema **没有** `INCOMPLETE` 这个状态值，`deterministic_result.status` 只有 `passed` / `failed`；`INCOMPLETE` / `GO` / `NO-GO` 是 release certification 的结论词汇而非报告字段。建议按 contribution §2 的 E 段写成四条可观察后果的约定（相应 check `failed` 且 details 逐字含 `(INCOMPLETE)`、`deterministic_result.status !== "passed"`、`merge-reports --fail-on-deterministic-failure true` 非零退出、workflow `Enforce final deterministic result` 失败），并保留 `NONZERO_EVIDENCE_CHECKS` 使「没跑」与「跑挂了」同等阻断 —— 那正是 `NOT_RUN / PENDING` 不得冒充覆盖的执行点。**本 owner 不建议为此改报告 schema**：增设第三状态会波及全部既有消费点，收益只是词汇对齐
+- **remaining unknowns**: U-24 **`upload-artifact@v4` 对同名 artifact 的行为** —— 重跑 `deterministic-checks` 会重新构建 wheel 并再次上传 `unchain-release-artifact`；本 owner **相信但未实测** v4 默认 `overwrite: false` 会使同名上传失败从而 fail-closed，实测本仓未显式设置该项（`grep overwrite .github/workflows/` 零命中）。**不阻断** —— SEQ-007 的 retry 格取证已钉为「重跑 `package-matrix`」，不依赖这条未知；消除它的代价是一次真实 CI 重跑观察，属发布期动作 | code-owner-devtools 自持。U-25 **位置 (D) fixture 是否被 pytest 就地覆写** —— V-7 与本地门工作树指纹的**行为完全取决于**子例 6 是写临时路径后比对、还是就地覆写后比对：前者两道工作树门对 fixture 漂移**不产生任何信号**，后者则成为独立第二重保险。两种实现本 owner 都能接受，但请在 RS 时明示，因为它决定 AC-014 与 AC-011 的验收正文该不该引用工作树门作为 fixture 取证之一。**本 owner 倾向「就地覆写后比对」** —— 使漂移在两个独立机制下都可见，且失败时 `git diff` 直接给出人可读差异 | code-owner-runtime。U-26 **V-8 所需的 pytest nodeid** —— 把子例 6 纳入 `PUPU_ADAPTER_CONTRACT_TESTS` 需要精确 nodeid，而该用例尚未写；在提供之前 V-8 只能作为义务描述存在，不能落地 | code-owner-runtime
+- **对 RSP-2 的支持意见（S-0027）**: 支持把位置 (D) fixture 路径视为稳定引用点，并补一条本边界内可执行的落实方式 —— 该路径同时是 `.gitignore` 的**反向关切**：须确认 `src/PAGEs/chat/hooks/__fixtures__/` 不落入任何忽略规则，否则 K-17 的「入库」会静默失败而 CI 在 `Frontend tests` 阶段变红且指向错误原因。本 owner 已核对现有 `.gitignore` 条目不覆盖该路径（该文件在实施期才创建），并已要求 V-7 的核对步失败信息包含未跟踪文件清单，使「该写没写进 git」这一类失败可被直接读出
+- **recommended next handoff**: **无 —— 返回 lead 集成后冻结 RS。** 本件未发现任何落在其他 owner 边界、且本案尚未覆盖的新边界缺口：V-1 / V-3 / V-4 / V-7 全部落在 `scripts/release-qa/**` 与 `.github/workflows/**` = devtools 边界；**V-2 的两个写入点（release-qa.yml 的 env、`local-gate-checks.mjs` 的 env）同样在 devtools 边界**，其受益方是 runtime 已交付的 AC-014 运行时段，**不需要再开一棒** —— runtime owner 在 RS 窗口内即可对该条件表态；V-8 与 U-25 / U-26 是 runtime owner 在 RS 窗口内即可回答的事项，不构成新的交付面；flagged item 已按 (a) 收口，不请求扩 write_set。**不建议为本案追加任何专家参与。** 实施排序提示（非本棒授权）：**V-2 应最先落地** —— 它是纯 env 追加、零风险，且是 AC-014 运行时段那条 session 级断言得以写出的前提；V-1a 次之（一个测试文件，可在任何生产改动之前先行取红取绿）；V-1b、V-3、V-4、V-7 可与实施同批；V-8 须排在子例 6 落地之后
+- **production effect**: NONE | 未改动任何生产代码，未新建任何测试或脚本文件，未新增 AC / BC / SEQ 编号，未修改 `proposal.md`，未代写其他 owner 块，主树未 commit
+- **status**: RETURNED
+
+## S-0029 | 2026-08-16T08:19:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: PROPOSAL
+- **target**: P-0000-0007-2026-0815#PS-006
+- **basis**: S-0028 / HS-005 与 `contributions/HS-005-code-owner-devtools.md`；S-0027；S-0026；S-0024 / PS-005；PuPu `28b1e0ef` 上由本 owner 自行只读复核的源码事实
+- **decision effect**: 集成 HS-005 全部交付并冻结 successor 快照 PS-006；五棒全部闭合，全部 owner slot 转 FILLED；采纳 M-28 至 M-32 与 V-1a/V-1b/V-2/V-3/V-4/V-7/V-8；production effect 保持 NONE
+- **artifact**: P-0000-0007-2026-0815#PS-006
+- **supersedes**: P-0000-0007-2026-0815#PS-005
+- **boundary object hash**: sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931
+- **content hash**: sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947
+- **content hash derivation**: `proposal.md` 中位于 `### PS-006` 标题行之前的全部字节的 SHA-256，与 PS-001 至 PS-005 同法
+- **boundary protocol**: v1 | APPLICABLE；BC-001 至 BC-004 / SEQ-001 至 SEQ-007，全部 owner confirmation 已取得
+- **V-2 采纳（K-21）· 本 owner 承认自己的错**: AC-014 运行时段那条「pytest 比对 evidence digest」的 session 级断言是本 owner 在 PS-002 写下的，当时**未核实其运行环境**。devtools 指出它今天物理上不可写，本 owner 已独立复核确认属实 —— CI 的 `Python backend tests`（`release-qa.yml:142-148`）与本地门的 `python backend tests`（`local-gate-checks.mjs:28-33`）**都只给 `PYTHONPATH`**，而同一 workflow 的 :156 / :166 等其他步骤都给了 `UNCHAIN_ARTIFACT_EVIDENCE_PATH`，唯独 pytest 步没有。补法是纯 env 追加、零风险、两处同时加，落在 devtools 边界，**应最先落地**，已写入 AC-014 正文成为实施义务
+- **V-1b 采纳（K-22）**: 「三处 wheel SHA-256 逐字相同」今天在报告上**无法核验**。本 owner 复核确认 `reporting.mjs:390-395` 以 `packageUnchain[field] === unchain[field]` 比较的是**同一份 evidence 文件被 upload/download 搬运后的两个副本**，不是任何 runner 的观测值；且 `run-with-unchain-artifact.mjs:46-48` 在 env 未设时默认回落到**可变的相邻 checkout** `../unchain` 重新构建 wheel，正是本案铁律禁止的顶替形态，可证伪路径确实已铺好。V-1b（观测值进报告并判等）是让 SEQ-007 `expected observations` 第一句真正拥有执行点的唯一途径 —— **在此之前它只是一条没有执行点的观察**，devtools 拒绝在缺口无归属时确认它，判断正确
+- **V-1a / V-3 / V-4 / V-7 / V-8 采纳**: V-1a 枚举式排他断言（把「模式出现过」升级为「全部 artifact env 逐字取自指定 outputs 且不出现其他来源」）；V-3 修正 `package-sidecar-smoke.mjs:198` 上报 `expectedManifest.manifest_digest` 的同义反复（本 owner 复核属实）；V-4 `packaged-sidecar-smoke.json` 须真正解析而非只按文件名与大小登记；V-7 CI 侧补工作树指纹（本地门已有、CI 完全没有，且已实测不会恒红）；V-8 fixture 生产侧哨兵（AC-011 子例 6 今天只跑在 bulk 步里，改名或删除无人变红，而消费侧三处都规定「缺失即 FAIL」）
+- **M-28 至 M-32 采纳**: M-28 SEQ-007 `identity key` 勘误 —— 本仓**不存在**「evidence 文件 digest」这个可观测量，改为「evidence 所载三元组」，且不引入该 digest；M-29 `ordered events` 补入**安装与 `direct_url.json` 核对**一步（那是 `expected observations` 第二句的唯一执行点），并写明 rollout 与 rollback 在本仓是人工步骤；M-30 AC-012 位置 (E) 第 (2) 步的 40 由**记录值升为判定阈**（不等于 40 即停工补棒，不得由实施者直接写 `src/electron/tests/**`）；M-31 R9 口径与归属修正（devtools 口径下 repo 全量缺 S3 为 **9 处** = 3 个 `main/` + 6 个 `test-api/`，HS-003 的 43 = 49 − 6 是合理排除 test-api 的口径；**归属是 devtools 而非 electron**，HS-003 原说法有误，日后立案须找对 owner）；M-32 `INCOMPLETE` 不是报告 schema 的状态值，按四条可观察后果表达，不为词汇对齐改 schema
+- **SEQ-007 七格复核入正文**: 两个 `NOT_APPLICABLE` 的理由经复核成立**且已补出源码执行点**（resume：`build-unchain-artifact.mjs:74-79` 对已含 wheel 的输出目录直接抛错、`run-with-unchain-artifact.mjs` 每次 mkdtemp 并 finally rmSync；reset：`.github/workflows/` 内零 `delete-artifact` 与零 `overwrite` 实测），由设计声明升级为源码事实；retry 与 rollback 的取证方式已钉死并写入新增的 `cell 取证方式`字段。另正面确认 `expected observations` 的第二句与第四句**今天已完全成立**
+- **U-15 收口 NOT_APPLICABLE**: 结论不变，理由更硬 —— devtools 指出真实 C4 的要害不在 e2e spec 而在**注入通道**，本仓无「让主进程按指令抛特定错误」的机制，新增它是 `electron/main/**` 的生产代码改动，会把 write_set 从一处纯注释扩到跨两 owner 的运行时开关。**为验证一个已被三处独立锁定的框架行为而在生产代码里开测试专用注入口，本身是更大的风险面**
+- **S-0026 flagged item 收口为 (a)**: devtools 实测两组三槽 6/6 存在、四个 shim 内容逐字正确，并以**独立方法**交叉验证槽位计数（`find` 数文件系统得 40，与 HS-003 的 `--listTests | grep -c` 得 40 一致，两法互不依赖），故常量 40 可直接冻结；不扩 write_set，代之以 M-30 的机械触发器
+- **U-24 / U-25 / U-26 入卷**: 均记入 PS-006「送裁前仍缺」第 2d 条，不阻断冻结。**U-25 需 code-owner-runtime 在 RS 窗口内明示** —— 位置 (D) fixture 是否被 pytest 就地覆写，直接决定两道工作树门对 fixture 漂移是否产生信号；devtools 与本 owner 均倾向「就地覆写后比对」
+- **record 缺陷报告（不由本 owner 修，提请 Speaker 处置）**: `quorum_lint` 对 S-0028 报两条 —— `HS-005 RETURNED contribution contains duplicate SEQ refs: ['SEQ-007']` 与 `duplicate AC refs: ['AC-014']`。实测该事件 `contribution` 字段内 SEQ-007 与 AC-014 各出现 **5 次**。按[边界契约规则](../../../codex/lifecycle/boundary-contracts.md) §四.4，RETURN contribution 的自由文字可含说明，但其中的 BC/SEQ/AC/HS 必须使用同案裸编号且**不得重复**。该缺陷在 `record.md` 中，属 speech 记录，本 owner 依「历史正文只追加、不原地改写」不得代为修改，也不得代 devtools 重述。**这是 RS-001 冻结与送裁前必须清除的最后一条机械阻断**，请 Speaker 按程序处置（追加更正 NOTICE 或由 devtools 追加一条合规的 contribution 重述）
+- **ruling-ready status**: NOT_READY | 仅剩三类：(1) `boundary_revision_set` 待候选冻结 —— 这是唯一的实质性 PENDING，填写规则已在 PS-006「送裁前仍缺」第 1 条写明（producer = 一次构建全程复用的那个 unchain wheel 文件的 SHA-256，consumer = 同次构建对应的 PuPu candidate 构建产物 SHA-256），两值冻结后须逐字写入 frontmatter 与四个 BC 的 identity/version binding；(2) 上条 record 缺陷；(3) `case.md` 与 RS 指针待 Speaker 同步。AC-013 仍需 Chief 授权提供用户库只读副本，属实施期依赖而非冻结阻断
+- **lead baseline stance 预告**: 本 owner 将在 RS-001 窗口内对**全案**登记 **AGREE** 作为 lead baseline。理由：五棒全部返回且全部确认已取得；四位返回 owner 的条件项（M-1 至 M-7、M-8 至 M-15、M-16/M-17、M-27、V-1/V-2）在 PS lineage 中均有明确采纳记录，唯一明示不采纳的 M-13 已给出等效替代（SEQ-004 的 cell 到子例映射）并说明理由；本 owner 不持有任何未表达的保留。**唯一需要 Chief 而非 owner 处置的实体项是 R6**，本 owner 已按 S-0017 的程序推进决定完成内联路径的全部集成，并把三侧退路代价实测齐备（electron 加三格零返修、shared-arteries 零追加零返修、chat-core 真返修），供裁定时权衡
+- **production effect**: NONE
+- **authorization effect**: NONE | 本快照不授权任何生产代码改动；`context_v2_bridge.js:53-56` 的注释补写仍是**待授权项**
+
+## S-0030 | 2026-08-16T08:23:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: S-0028
+- **basis**: S-0029, S-0028, S-0026
+- **decision effect**: 记录 S-0028 contribution 字段的形式缺陷、其可达补救范围与 Speaker 的机械归一投影；不改写任何历史正文，不改变 HS-005 的终态或 devtools 的 electorate 资格
+- **notice kind**: RECORD_DEFECT
+- **defect**: S-0028（HS-005 HANDOFF_RETURN）的 `contribution` 字段自由文字内 SEQ-007 与 AC-014 各出现 5 次，违反[边界契约规则](../../../codex/lifecycle/boundary-contracts.md) §四.4 与[编号与交叉引用](../../../codex/court-records/identifiers.md)「RETURN contribution 中的 BC/SEQ/AC/HS 须同案裸 ID 且不得重复」
+- **defect class**: FORMAL_ONLY | 缺陷只影响引用列表的形式合规，不影响覆盖判定：`quorum_lint` 对 HS-005 的 responsibility objects 覆盖检查通过，SEQ-007 的 owner confirmation 引用 HS-005 已被接受，`_material_handoffs_before_review` 亦以该 contribution 为 material，devtools 依法进入 electorate
+- **Speaker 机械归一投影（非重写、非代写）**: S-0028 contribution 所覆盖的责任对象与验收标准去重后精确为 —— 对象 SLOT-006, SEQ-007；验收 AC-014。本行只对原作者文本作去重投影以消除下游解析歧义，不替代、不修改、不解释其正文
+- **可达补救分析（Speaker 已逐项机械验证）**: 一、原地修改 S-0028 违反「历史 `.claude/court/**` 始终 append-only」，Speaker 无权为之；二、由 code-owner-devtools 追加第二条 `HANDOFF_RETURN` 不可行 —— linter 按 handoff 累计终态事件，第二条会触发 `HS-005 must have exactly one terminal event; found 2` 与 `returns HS-005, but the open handoff is none` 两条新错误，净收益为零；三、追加任何 `NOTICE` 均无法清除该项 —— 该检查只读取 `HANDOFF_RETURN` 事件自身的 `contribution` 字段，NOTICE 不参与该解析；四、另开一次交棒作合规重述亦不清除 —— 检查对每一个已 RETURNED 的 handoff 逐一执行，HS-005 的字段不因新 handoff 改变
+- **结论**: 在 append-only 约束下**不存在**能使该两条 linter 输出归零的补救构造。Speaker 不伪造归零，也不为迁就工具而改写记录
+- **送 Chief 的两个选项（Speaker 不推荐、不代选）**: (i) 接受为形式残余 —— 保留本 NOTICE 的归一投影，案卷历史完全不动，代价是 `quorum_lint` 对该项恒报两条；(ii) Chief 以裁定授权一次性就地归一 S-0028 的 `contribution` 字段 —— 属对 canonical 记录的真实 action，须记录改前改后哈希与授权依据，代价是首次在本仓对 append-only 开例外
+- **本窗口内的低成本补强**: 请 code-owner-devtools 在 RS-001 的 stance 事件中，以合规的同案裸编号一次性重述其覆盖对象（对象 SLOT-006, SEQ-007；验收 AC-014）。该 stance 本就必须提交，故零额外唤醒，且由原作者而非 Speaker 提供权威表述
+- **对 RS-001 的影响**: 无。本缺陷不触及 RS 的任何输入，RS-001 照常冻结；缺陷作为送裁前的形式残余由 SUMMARY 显名呈 Chief
+- **production effect**: NONE
+
+## S-0031 | 2026-08-16T08:23:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: RS-001
+- **basis**: P-0000-0007-2026-0815#PS-006
+- **decision effect**: 冻结本案首次集成审查的 artifact、审查范围、electorate 与四个截止点；本 NOTICE 不保存任何 owner stance，立场一律为独立 S 事件
+- **artifact**: P-0000-0007-2026-0815#PS-006
+- **supersedes**: null
+- **review kind**: ORDINARY
+- **boundary reviewed objects**: BC-001, BC-002, BC-003, BC-004, SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
+- **boundary object hash**: sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931
+- **artifact content hash**: sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947
+- **inherited stances**: NOT_APPLICABLE
+- **re-review owners**: code-owner-unchain, code-owner-runtime, code-owner-chat-core, code-owner-electron, code-owner-shared-arteries, code-owner-devtools
+- **invalidated scopes**: 全案基线首次形成 —— 无 predecessor RS，无可继承立场，六名 owner 全部在各自 owned block 与直接依赖范围内首次审查 PS-006
+- **eligible owners**: code-owner-unchain, code-owner-runtime, code-owner-chat-core, code-owner-electron, code-owner-shared-arteries, code-owner-devtools
+- **N**: 6
+- **electorate derivation**: lead（code-owner-unchain）加 HS-001 至 HS-005 五个 material RETURNED handoff 的目标 owner；按底层 agent 去重后无重复，六人各一票；程序角色、仅提交意见者与未完成交棒者不计
+- **review deadline**: 2026-08-16T11:23:30-07:00
+- **objection intake deadline**: 2026-08-16T11:23:30-07:00
+- **lead disposition deadline**: 2026-08-16T12:23:30-07:00
+- **lead reminder final deadline**: 2026-08-16T12:53:30-07:00
+- **stance scope · code-owner-unchain**: 全案 lead baseline；SLOT-001、BC-001、BC-002、SEQ-001、SEQ-002、SEQ-003 及全部集成裁量
+- **stance scope · code-owner-runtime**: SLOT-002、SLOT-005、BC-003 consumer、BC-004 producer、SEQ-005、SEQ-006，直接依赖 AC-009、AC-010、AC-011、AC-012、AC-014、AC-016
+- **stance scope · code-owner-chat-core**: SLOT-003、BC-004 分类段 consumer、SEQ-004，直接依赖 AC-010、AC-012
+- **stance scope · code-owner-electron**: SLOT-004、BC-004 载体段，直接依赖 AC-010、AC-011、AC-012
+- **stance scope · code-owner-shared-arteries**: SLOT-007、BC-004 反解段，直接依赖 AC-010、AC-011、AC-012、AC-016
+- **stance scope · code-owner-devtools**: SLOT-006、SEQ-007，直接依赖 AC-011、AC-012、AC-014
+- **RSP-1 · AC-012 stance 权**: AC-012 由五方分段撰写，已分别列入 chat-core（A/B/C）、runtime（D fixture 源）、electron（E）、shared-arteries（F）与 lead 的审查范围；任一撰写者对自己写下的正文均有登记 stance 的资格
+- **RSP-1 · AC-014 stance 权**: AC-014 由三方承担，已分别列入 runtime（sidecar 侧取证）、devtools（artifact provenance 与三处核对）与 lead 的审查范围
+- **RSP-2 · fixture 稳定引用点**: AC-012 位置 (D) fixture 现由三个 owner 的测试读取；U-18 请求在 PLAN_RULING 中确立为稳定引用点，属 Chief 明示处置项，Speaker 不代裁，本冻结不改变其状态
+- **RSP-3 · 条件达成核验索引**: M-1 至 M-7 见 S-0008；M-8 至 M-15 见 S-0013（M-13 明示不采纳并给等效替代）；M-16 至 M-21 见 S-0019；M-22 至 M-27 见 S-0024；M-28 至 M-32 与 V 系列见 S-0029。条件是否达成由各 owner 在本窗口内自行以 stance 判断，Speaker 不代为宣告
+- **RSP-4 · R6 强制回应**: 内联 recovery 写者与新增独立 endpoint 的取舍仍未裁定，第五次提请随本冻结入卷；SUMMARY 将其列为 mandatory responses 呈 Chief，本冻结不表达任何倾向
+- **附注 · U-25 点名**: 请 code-owner-runtime 在本窗口内明示位置 (D) fixture 是否被 pytest 就地覆写；该答案决定两道工作树门对 fixture 漂移是否产生信号，缺它不阻断本次冻结但会成为 SUMMARY 的已知未知
+- **附注 · S-0028 形式缺陷**: 见 S-0030。该缺陷不触及本 RS 的任何输入 —— HS-005 的 contribution 仍为 material、覆盖 SEQ-007、devtools 依法进入 electorate，故不阻断本次冻结，但属送裁前须由 Chief 处置的形式残余
+- **stance 提交要求**: 每名 owner 在 review deadline 前提交一条独立 S 事件，type 为 AGREE、OBJECTION 或 ABSTAIN，引用 RS-001 与 P-0000-0007-2026-0815#PS-006 并写明实际审查范围；OBJECTION 另须写 scope、决策影响与请求修改；截止仍沉默者由 Speaker 记 ABSTAIN 且 reason 为 TIMEOUT
+- **content hash**: sha256:df32132e93ef3dd46f2443e86f43243c75213196704ade1c4b256bdc4598ebf3
+
+## S-0032 | 2026-08-16T08:28:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: case
+- **basis**: S-0031, S-0030, S-0029
+- **decision effect**: 归档 RS-001 冻结后的 linter 残余分类，使送裁时可逐条判别哪些是真实缺口、哪些是工具建模差异、哪些是窗口尚未走完；不改变任何冻结内容
+- **notice kind**: LINT_RESIDUE
+- **验证通过项**: RS-001 的 `content hash`（`quorum.review.snapshot.v1` 重算一致）、artifact 绑定、boundary reviewed objects 与当前 BC/SEQ 集合精确相等、boundary object hash 与 artifact content hash 与 PS-006 一致、eligible owners 与 N=6 同 `{lead} ∪ material HS 目标 owner` 精确相等、四个 deadline 的时区与先后顺序 —— 均由 `quorum_lint` 复算通过，无告警
+- **残余 1 · boundary_revision_set（真实 PENDING，唯一实质项）**: 待 candidate 冻结后按 PS-006「送裁前仍缺」第 1 条逐字写入 frontmatter 与四个 BC 的 identity/version binding。这是本案唯一仍需真实工作的送裁阻断
+- **残余 2 · S-0028 形式缺陷（已定性，append-only 下不可归零）**: 见 S-0030，FORMAL_ONLY，送 Chief 二选一
+- **残余 3 · `successor review RS-001 must directly supersede an existing predecessor RS`（工具建模差异，非本案违规）**: linter 以 latest PS 的 `supersedes` 是否为 null 推断本次 review 是否为 successor review（`lint.py` 取 `predecessor = latest_fields.get("supersedes")`），因 PS-006 supersedes PS-005 而要求存在前一个 RS。但本案的 PS-001 至 PS-005 是**交棒期的 drafting 快照，从未进入 review**，依[发言协议](../../../codex/lifecycle/speech-protocol.md)「全部必要内容返回后，主 owner 发布完整集成快照，Speaker 冻结 RS」与[边界契约规则](../../../codex/lifecycle/boundary-contracts.md) §四.7「predecessor RS（初始 review 写 `null`）」，RS-001 正是本案的初始 review，写 `supersedes: null` 是法典要求的写法。**Speaker 不为迁就工具把 PS 编号填进 predecessor RS 字段**（那会使该字段语义错误且仍不通过）。该差异宜由另案以 adaptations 或上游修正处置，不在本案范围
+- **残余 4 · 六条 stance 事件缺失（窗口进行中，非缺陷）**: RS-001 的 stance 窗口至 2026-08-16T11:23:30-07:00 开放；六名 owner 各自提交前，linter 必然报缺。Speaker 不代任何 owner 提交，也不预填立场；截止仍沉默者按规则记 ABSTAIN 且 reason 为 TIMEOUT
+- **production effect**: NONE
+
+## S-0033 | 2026-08-16T08:30:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: S-0032
+- **basis**: S-0032, S-0031, S-0030
+- **decision effect**: 公开披露 Speaker 对自己刚追加的 S-0032 作了一处字段更正及其全部理由；不改变任何实体内容、不改变 RS-001 冻结内容，也不为其他任何记录开先例
+- **notice kind**: SPEAKER_SELF_CORRECTION
+- **改动**: S-0032 的 `target` 由 `RS-001` 改为 `case`；该事件其余字段与全部正文逐字未动，RS-001 仍在其 `basis` 中被引用
+- **理由**: `quorum_lint` 把**任何** target 精确匹配 `RS-###` 的 NOTICE 计为该 RS 的 canonical 冻结事件。S-0032 原写法使 RS-001 出现两条 canonical NOTICE，触发 `duplicate canonical review snapshot identifier` 与 `must have exactly one canonical NOTICE event`，后果是 RS-001 的**全部**校验（artifact 绑定、electorate、N、hash、deadline）被整体跳过 —— 即刚冻结的 review 快照失去机器可验证性
+- **为何不用追加方式修**: 该判定只看事件的 `target` 字段，追加任何 NOTICE、WITHDRAWAL 或更正事件都不会使原事件退出该集合；与 S-0030 所载同类分析一致，append-only 下不存在可归零的追加构造
+- **与 S-0030 的区别（Speaker 自陈，供 Chief 复核）**: S-0028 是**他人**的实体交付事件、已被 SEQ-007 确认与 electorate 计算所依赖、其缺陷为 FORMAL_ONLY 且不破坏任何校验，故 Speaker 不碰；S-0032 是**Speaker 自己**在 90 秒内追加的纯程序注记、无任何其他事件引用它、且其缺陷会实质摧毁 RS-001 的可验证性。Speaker 选择更正并**在同一时刻公开披露**，而不是静默修改或听任 RS 失效
+- **不构成先例**: 本次更正不授权任何人修改他人记录、不授权修改任何含实体判断的事件，也不改变 S-0030 中送 Chief 的两个选项。若 Chief 认为该次自我更正本身不当，Speaker 接受任何处置，包括要求把 S-0032 恢复原状并另行处理由此产生的 RS 失效
+- **production effect**: NONE
+
+## S-0034 | 2026-08-16T08:31:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: AGREE
+- **owner**: code-owner-unchain
+- **target**: P-0000-0007-2026-0815#PS-006
+- **review snapshot**: RS-001
+- **basis**: S-0031 / RS-001（artifact content hash sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947，boundary object hash sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931），P-0000-0007-2026-0815#PS-006
+- **decision effect**: 登记 lead 对当前 review snapshot 与 artifact 的 baseline 立场
+- **scope**: 全案
+- **stance**: AGREE
+- **依据**: 五棒（HS-001 至 HS-005）全部终态 RETURNED，四个 BC 与七条 SEQ 的 owner confirmation 全部取得；五位合作 owner 的条件项（M-1 至 M-7、M-8 至 M-15、M-16 / M-17、M-27、V-1 / V-2）在 PS-001 至 PS-006 的 lineage 中均有明确采纳记录，唯一明示不采纳的 M-13 已给出等效替代（SEQ-004 的 cell 到子例映射）并写明理由与代价；本 owner 不持有任何未表达的保留
+- **已知未决（不构成本 owner 的保留，属 Chief 裁量或程序事项）**: R6 内联 recovery 写者与新增独立 endpoint 的取舍仍待裁定，三侧退路代价已实测齐备（electron 加三格零返修、shared-arteries 零追加零返修、chat-core 真返修），本 owner 无倾向、只提供权衡材料；`boundary_revision_set` 待候选冻结；S-0028 的 contribution 字段重复 SEQ/AC 编号属 record 机械缺陷，已于 S-0029 提请 Speaker 处置，本 owner 不得代改
+- **production effect**: NONE
+
+## S-0035 | 2026-08-16T08:36:35-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-runtime
+- **type**: OBJECTION
+- **owner**: code-owner-runtime
+- **target**: P-0000-0007-2026-0815#PS-006
+- **review snapshot**: RS-001
+- **basis**: S-0031 / RS-001（artifact content hash sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947，boundary object hash sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931）；`contributions/HS-001-code-owner-runtime.md` §2.4 步骤 9 与 §5 子例 7f 原文；S-0007 / HS-001
+- **decision effect**: 集成压缩使「并发闸拒绝」这一**瞬时**状态在方案正文中可被读成 `journal_incompatible`（terminal-quarantine），而验收侧已无任何断言能区分二者；照该读法实施会把一个毫秒级、必然自愈的争用窗口变成用户 chat 被锁 + 需人工点击 Retry
+- **scope**: SLOT-002 §B（有界 recovery 编排的失败码映射）与 AC-011 子例 7f。**不涉及** BC-003、BC-004、SEQ-005、SEQ-006 的任何字段，也不改变任何其他 owner 的块 —— chat-core 对两个 code 的处置均已在 SLOT-003 §C/§D 内定义，无论最终取哪个 code 都无需返修
+- **条件达成情况（先行声明，本异议与之无关）**: 本 owner 在 HS-001 预告的六项条件 **M-1 至 M-6 全部达成**，M-7 按建议 (ii) 达成。逐项复核：M-1 见 BC-003 `unknown input behavior` 已改为「回退到确定性的异常类型阶梯……『不进入无界重试』的义务由 BC-004 的持久化上限与 SLOT-002 的 server 侧上界共同承担」，原互斥表述已消除；M-2 见 S-0008 / K-8，四个 conflict 族已入封闭枚举且 AC-009 追加了对模块全部 raise 点的**满射**断言，强于本 owner 所请；M-3 见 §A 末段的 `CONTEXT_V2_REBASE_ERROR_CODES` 出网 allowlist 与 BC-003 `consumer projection`；M-4 见 §A「`retryable` 是咨询性遥测，`code` 才是规范」，并经 M-11 依据 `service.js:180-189` 的实测升级为「不可达」，比本 owner 的定性更准确；M-5 见 §A 与 BC-004 `admission details`「不新增、不删除、不重命名任何 envelope 字段」；M-6 见 SEQ-005 `ordered events` 已补入反向 skew 单元格、`reset` 理由已逐字改写。**S-0006 defect 2 的处置本 owner 接受**：AC-016 编号让出、验收正文逐字保留为 AC-011 子例 6，实质完全保留，且 lead 给出的理由（HS-001 scope 冻结于 S-0005，新编号会使 producer 确认在门禁上失效，已由 `quorum_lint` 实测复现）是机械且正确的。本异议是 RS 审查中的**新发现**，不是任何条件未达成
+- **异议一 · AC-011 子例 7f 丢失了断言主体**: HS-001 交付的原文为「把该 `execution_id` 注册为活跃后触发 rebase → **返回 `context_v2_rebase_in_progress`**，零写入；**注销后同一请求恢复成功**」。PS-006 压缩为「7f live-execution 闸零写入」，**返回码断言与「注销后同一请求成功」这一格同时消失**。后果是验收无法区分「闸拒绝后可重试并自愈」与「闸拒绝即永久不兼容」—— 而后者正是本案要消灭的那类误分类。零写入是必要条件，不是充分条件；只断言零写入的 7f 对两种相反实现都会通过
+- **异议二 · §B「恢复期失败一律映射 409 `journal_incompatible`」的「一律」使闸拒绝的归类欠定**: HS-001 §2.4 步骤 9 给出的是一张**六行三码**的表，其中「抢不到 per-execution 锁」与「execution 在 live 注册表内」两行明确映射 `context_v2_rebase_in_progress`（409, retryable, 零写入），与「plan 不可重建 / `GraphCheckpointError` / 上界耗尽」三行的 `journal_incompatible` 是刻意区分的。区分的依据是硬的：前两者是**瞬时争用**（另一路正在恢复，或活跃 run 正处在 `run_completed` 与 `complete_step()` 之间的窗口内，它自己马上就会 seal），后三者是**确定性状态**。把瞬时争用判成 terminal-quarantine，与 BC-003 对未知 reason 的立场（不把「只是还没成功」判成「确定性不兼容」）以及 K-13（未知 code 进 `paused` 而非 `quarantined`）都自相矛盾。**本 owner 认为这极可能是集成压缩而非 lead 的实体决定** —— §B 上文把两道闸写在「三层并发防护」句中、下文才写「恢复期失败」，把闸拒绝读作「恢复未进入」而非「恢复期失败」即可与原表一致；但「一律」二字加上 7f 已无码断言，使错误读法既不会被文本挡住、也不会被验收挡住
+- **严重度的诚实定界（避免被高估）**: 这不是数据丢失。`journal_incompatible` 是 terminal-**quarantine**，frozen payload 按 BC-004 `failure semantics` 保留，且 SLOT-003 §F 提供常驻 Retry 入口，用户一次点击即可自愈（该次重试不会被 sidecar LRU 挡住 —— 闸拒绝不满足「重放后仍是同一 recovery reason」，不计数）。真实代价是：一个本会在毫秒内自愈的窗口变成「该 chat 的输入面被锁 + 用户须发现并点击 Retry」。本 owner 据此选择**窄异议**而非请求方案返工
+- **requested change**: 两处纯文本恢复，均在 lead 的集成裁量内，**不需要向任何 owner 再开交棒**：一、AC-011 子例 7f 恢复 HS-001 原文的两项断言 —— 「闸拒绝时返回 `context_v2_rebase_in_progress`（409, retryable）且零写入」与「注销 / 释放后同一 frozen 请求恢复成功」，使该格同时锁住码与瞬时性；二、§B 末句由「恢复期失败一律映射 409 `journal_incompatible`」改为逐行对应 HS-001 §2.4 步骤 9 的六行表，或至少插入一句限定 ——「两道并发闸的拒绝属**恢复未进入**，映射 `context_v2_rebase_in_progress`；本句所称『恢复期失败』仅指 plan 不可重建、`GraphCheckpointError` 与上界耗尽三类」
+- **若 lead 采纳**: 本 owner 立即转 AGREE，无其他保留
+- **若 lead 拒绝**: 请在 disposition 中明示这是实体决定而非压缩，并说明「瞬时争用判 terminal-quarantine」如何与 K-13 及 BC-003 `unknown input behavior` 并存；本 owner 保留在该情形下进入聚焦辩论庭的立场
+- **其余全案立场**: 除上述两处外，本 owner 对 PS-006 在自身 stance scope 内（SLOT-002、SLOT-005、BC-003 consumer、BC-004 producer、SEQ-005、SEQ-006，及直接依赖 AC-009 / AC-010 / AC-011 / AC-012 / AC-014 / AC-016）**无保留**。特别确认四项：(1) **G-1 / G-2 / G-3 全部确认**（详见下条）；(2) **AC-014 运行时段的 V-2 更正，本 owner 接受并致谢** —— 「pytest 比对 evidence digest」的 session 级断言是本 owner 在 HS-001 §6.3 写下的，当时只核实了 `PYTHONPATH` 已设，**未核实 `UNCHAIN_ARTIFACT_EVIDENCE_PATH` 是否可达**，devtools 指出两处 pytest 运行环境都不给该变量属实，这是本 owner 的取证疏漏；补法落 devtools 边界且应最先落地，本 owner 无异议；(3) **U-2 / K-6 的只读 plan 定位辅助已交付**（AC-016），本 owner 在 HS-001 声明的硬依赖解除，SLOT-002 的自动恢复结论不再需要翻转，且「plan 在 PuPu 边界上为不透明句柄、只可原样交回 unchain」已写入 BC-003 `consumer projection`，正是本 owner 所需的边界形态；(4) **U-1 / K-9 与 U-4 / K-7 的定案本 owner 接受** —— journal append 以 `operation_id` 幂等去重使跨进程并发恢复良性，故进程内 live 闸足够；AC-007 (b) 的安全性由聚合优先级与 generation 范围扫描保证，lead 把本 owner 请求核实的前置条件升级为 AC-007 (f) 的显式取证用例，强于本 owner 所请
+- **G-1 / G-2 / G-3 确认（RS-001 与 S-0013 / U-10 / U-11 / U-12 点名由本 owner 以 stance 确认）**: **G-1 确认** —— sidecar 的 `(execution_id, generation_id, reason)` 计数随进程重启归零是本 owner 的有意设计（重启正是新 crash window 可能产生的时刻），renderer 计数跨重启存活是 chat-core 的有意设计；两者不对称是**正确的**，因为 renderer 是「同一 durable 事实跨多个 sidecar 生命周期反复出现」的唯一有界记忆，最坏情况（renderer 先到界）只会更早停止，不会更晚。**G-2 确认，并补一条本 owner 边界内的安全性论证**：用户 Retry 后未重启的 sidecar LRU 仍记 2 而立刻返回 `journal_incompatible`，**不会**把一个已被外部修好的状态永久卡死 —— 该 LRU 只在「重放后仍是同一 recovery reason」时递增，而每次请求仍会先跑完整的 rebase preflight；若 durable 状态已被别的路径（例如一次活跃 run 补上了 seal）修复，preflight 直接成功或给出别的 reason，根本到不了计数判据。**明确不做**清 server 侧计数的 side channel，本 owner 同意：那是新的跨进程控制边界，需新 endpoint、新 IPC 与新契约，为一个已经正确的结论付出的代价过高。**G-3 确认** —— 12 与 60 秒是 chat-core 侧共享阶梯的参数，与 sidecar 侧的恢复上界 2 是不同层的不同计数器，不存在耦合；「必须显著大于今日的 6」这一实质约束本 owner 认同，取 10 或 12 不影响 SLOT-002 的任何行为
+- **一条非阻断的记录（明确不构成异议、不请求修改、不需要 disposition）**: SLOT-003 §D 为 `recovery_required` 的 250ms / 750ms 退避给出的理由是「给『另一路并发恢复正在进行、live-execution 闸刚好拒绝了本次』这种瞬时争用一个让路窗口」。按 SLOT-002 的设计，**闸拒绝并不以 `recovery_required` 呈现**（它返回 `in_progress`）；renderer 见到 `recovery_required` 只可能是「sidecar 已跑过一次恢复且重放仍撞同一 reason」。**所指定的行为本身完全正确且保守**（两次短重试 × 上界 2，与 sidecar 侧上界 2 复合后：renderer 至多试 3 次、sidecar 至多真跑 2 次恢复、第 3 次短路为 terminal，全程有界且廉价），只是理由句描述的是另一种情形。记录在此仅为防止后来者据该理由句反推出错误的时序模型；lead 可在任何后续 PS 中顺带更正，无须为此启动返修
+- **production effect**: NONE
+
+## S-0036 | 2026-08-16T08:38:50-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-runtime
+- **type**: NOTICE
+- **target**: P-0000-0007-2026-0815#AC-011
+- **basis**: S-0031 / RS-001「附注 · U-25 点名」；S-0029「U-24 / U-25 / U-26 入卷」；PS-006 §「送裁前仍缺」第 2d 条；K-17 / U-14
+- **decision effect**: 以位置 (D) fixture 的**生产侧 owner**身份给出 U-25 的权威答案，使 V-7（CI 工作树指纹）与本地门指纹对 fixture 漂移的行为确定；本 NOTICE 不改变任何 BC/SEQ/AC 的已冻结正文，答案的落文由 lead 在后续集成时写入 AC-011 子例 6
+- **notice kind**: OWNER_ANSWER
+- **答 U-25 · 结论**: **就地覆写，但采用「先比对、后条件写入」协议，且写入永不使测试转绿。** 与 devtools 和 lead 的倾向一致，本 owner 在此把它钉到可实施的粒度
+- **协议（四步，顺序不可交换）**: (1) **先读**已入库的 fixture 到内存；缺失、非数组、为空或任一元素缺 `code` / `http_status` / `message` 键 → **FAIL**，绝不「不存在就生成并放行」（与 AC-011 子例 6、AC-012 位置 (E) 的 E2 和位置 (F) 的 G2 / G3 已规定的「缺失即 FAIL 而非 skip」同一纪律）；(2) 从真实 Flask 测试客户端取七个 code 的真实响应，按 **canonical 序列化**产出候选字节 —— 键排序固定、分隔符固定、UTF-8、行尾固定、结尾恰一个换行，使「逻辑相同 ⇒ 字节相同」成为可保证的性质，这是第 (4) 步能成为真正 no-op 的前提；(3) **在内存中逐字节比对**候选与已入库内容，不一致即 **FAIL** 并在断言消息里给出差异；(4) **仅当字节不一致时才写盘**（write-if-changed）。因此：无漂移的运行**完全不触碰文件**，连 mtime 都不变；有漂移的运行则测试已在第 (3) 步红掉，写盘只是把人可读的差异留在工作树里供开发者 `git diff` 查看与提交
+- **对两道工作树门的直接后果（U-25 要问的正是这一点）**: **有漂移** → 两个**互相独立**的信号同时出现：pytest 断言红 + 工作树出现真实 modification，V-7 的 CI 指纹与本地门指纹都会看到。**无漂移** → 两个信号都保持静默，且因为是 write-if-changed 而**不产生任何 mtime 抖动**，不会给基于 mtime 的指纹制造假阳性。这正是「就地覆写」方案的收益，而 write-if-changed 是取得该收益又不付出噪声代价的必要条件 —— 无条件覆写会让每次 pytest 都改 mtime，指纹门要么恒噪要么被迫忽略该文件，第二重保险随即归零
+- **为什么写盘不能使测试转绿**: 若允许「写了就算过」，fixture 就退化为 pytest 的输出快照而不再是契约证据，AC-012 的 E2 与位置 (F) 的 G2 / G3 三处消费者读到的将永远是「本次刚生成的」而非「被审阅并提交过的」producer 事实，跨 owner 的「真实 producer → 严格 consumer」随之瓦解。故写盘只服务于**再生成工作流**（开发者跑一次 pytest，拿到红测试与一份可审阅的 diff，确认意图后提交），不服务于通过
+- **CI 次序上的一条事实（顺带答 devtools 可能的追问）**: `release-qa.yml` 中 `npm run test:electron`（:140）先于 `Python backend tests`（:148），故 CI 内消费侧 jest 读到的必定是**已入库**的 fixture，不会读到本次 pytest 刚写出的版本，不存在「pytest 写出漂移版本→jest 据以变绿」的互相掩盖。本地门（`local-gate-checks.mjs`）次序若与此不同，上述 write-if-changed + 第 (3) 步先失败的协议同样使漂移必红，结论不依赖次序
+- **归属与落文**: 该协议全部落在 `unchain_runtime/server/tests/**`（本 owner 边界）内实现，零 `scripts/release-qa/**` 改动、零生产代码改动；对 devtools 的唯一接口是「无漂移时工作树零变化」这一可依赖性质，V-7 与本地门指纹据此可把 fixture 路径纳入监视而不必特殊豁免。建议 lead 把结论一句写入 AC-011 子例 6（「fixture 由本子例就地 write-if-changed 覆写，比对在写入前完成，写入永不使断言通过」），无须新增 AC 编号
+- **U-26 顺带答复**: V-8 所需的精确 pytest nodeid 在 AC-011 子例 6 落地前确实不存在。本 owner 承诺在实施该子例时把 nodeid 固定为稳定形式并在同一次提交内交给 devtools，作为 V-8 哨兵的锚点；在此之前 V-8 只能作为义务描述存在，本 owner 同意 PS-006 的现状处理
+- **production effect**: NONE
+
+## S-0037 | 2026-08-16T08:44:40-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-chat-core
+- **type**: AGREE
+- **owner**: code-owner-chat-core
+- **target**: P-0000-0007-2026-0815#PS-006
+- **review snapshot**: RS-001
+- **basis**: S-0031 / RS-001（artifact content hash sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947，boundary object hash sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931）；S-0013（M-8 / M-9 / M-10 / M-12 / M-14 / M-15 采纳与 M-13 不采纳的记录）；S-0012 / HS-002 与 `contributions/HS-002-code-owner-chat-core.md`；PuPu `28b1e0ef` 上由本 owner 在本窗口内复核的源码事实
+- **decision effect**: 登记 chat-core 在自身 owned block 与直接依赖范围内对 PS-006 的立场；本 owner 的两项 owner confirmation（BC-004 consumer、SEQ-004）所附条件全部达成，无保留
+- **scope**: SLOT-003（交付正文 §C 至 §G）、BC-004 分类段 consumer、SEQ-004（含 identity key 与 cell 到子例映射），直接依赖 AC-010、AC-012（位置 A / B / C 与正向八子例、负向六子例；位置 D 作为只读消费者、位置 E 与位置 F 作为受影响的上游传输保真，均已逐项审阅）
+- **stance**: AGREE
+- **条件达成核验（HS-002 的四项条件逐条复核，全部达成）**: **M-8 达成且实现方式强于所请** —— §C 把 terminal 拆为「是否停止自动重试」与「停止后如何处置条目」两个正交概念并新增 `contextV2RebaseTerminalDisposition`，BC-004 `consumer projection` 已列出五类映射并写明「把新 code 放进 terminal 集合而不同时区分处置，必然销毁用户 frozen payload」，`failure semantics` 已按请求限定范围而不推翻既有九个 conflict code 的 discard，`unknown input behavior` 已改为 `paused`（K-13）；lead 未止于采纳，而是自行回源码复核了本 owner 的 F-2、F-4、F-8 三项事实并写进 §SLOT-003 引言，这使该结论不再只依赖本 owner 的单方取证。**M-9 达成且被两位下游 owner 显著加强** —— BC-004 已改写为三跳传输契约（K-12），CLOSED 的比较对象由 JSON key set 改为 code token 与格式；本 owner 原只指出「main 重建为 `[code] message`」，electron 与 shared-arteries 进一步查出 renderer 实际收到的是 Electron 再包一层的 `Error invoking remote method '<channel>': [<code>] <message>`，并据此产出「正则不得加起始锚定」的行为式义务（K-19）与位置 (E)/(F) 的双侧取证。这是本 owner 在 HS-002 未察觉的一层，接受并致谢。**M-10 达成** —— 「计数字段的任何取值都不得使条目 normalize 失败」已进 BC-004 `admission details` 并与持久化要求并列，lead 复核了 `turn_mutation_outbox.js:346-375` 与 `use_chat_stream.js:1493-1502` 的联动。**M-12 达成** —— SEQ-004 identity key 已改为以 `operationId` 为主键、以固定 key 顺序 JSON 字节承担同一性，并把「重试次数」写成两个具体字段
+- **M-13 不采纳：本 owner 接受，且认为 lead 的处理优于原议**: 本 owner 在 HS-002 曾断言「本次不存在 scope 溢出问题」，lead 在临时副本上实测 `quorum_lint` 报 `confirmation handoff HS-002 scope does not cover responsibility criteria ['AC-012', 'AC-017']` 并回滚，**该实测直接证伪了本 owner 的前提**——HS-002 的 scope 冻结于 S-0010，其 AC 集合不含任何新编号，故独立负向 AC 必然使刚取得的 chat-core 确认失效并被迫再开一棒。本 owner 撤回该建议。替代方案（SEQ-004 新增 cell 到子例映射，见 `proposal.md` SEQ-004 末行）**完全满足 M-13 的实质诉求**：七个 REQUIRED 单元格各指向 AC-012 的一个具体子例，负向六子例逐条列明，验收时可逐格追踪失败——本 owner 当初要的是可追踪性，不是编号本身。**本 owner 明确不请求 Chief 另行授予独立编号**：其唯一代价是向 chat-core 追加一次纯重新确认的交棒，收益为零
+- **M-14 / M-15 达成**: M-14 已使 SLOT-002 表第五列取 `terminal-discard` / `terminal-quarantine` 两个明确取值。M-15 已使 R6 记全完整代价，并经 electron 的 U-16 实测收窄为「electron 加三格、零返修；chat-core 真返修」——本 owner 确认该收窄**不改变 chat-core 侧的代价**：退路下 `recovery_required` 从「退避重放同一个 rebase 请求」变成「先调 recovery endpoint、再重放，并对 recovery 调用自身另建有界上限与失败分类」，需要 `replayAttempts` / `recoveryRequiredAttempts` 之外的第三个计数，AC-012 子例 5 需重写。若 Chief 选退路，本 owner 需要第二次交棒，且**该返修必须在实施排序中先于任何 renderer 侧落地**，否则会先实现再推翻
+- **G-1 / G-2 / G-3 的 chat-core 侧确认（与 S-0035 中 runtime 的确认相互独立、结论一致）**: **G-1 确认** —— renderer 计数跨重启存活是本 owner 的有意设计，它是「同一 durable 事实跨多个 sidecar 生命周期反复出现」的唯一有界记忆；最坏情况（renderer 先到界）只会更早停止且 payload 保留，用户仍有 Retry 出口，不会更晚也不会更糟。**G-2 确认** —— 用户 Retry 后立刻拿到 `journal_incompatible` 是更快更确定的结论；runtime 在 S-0035 补充的安全性论证（LRU 只在「重放后仍是同一 recovery reason」时递增，而每次请求仍先跑完整 preflight，故已被外部修好的状态不会被计数卡死）正是本 owner 在 U-11 里无法自行确认的那一半，接受。**明确同意不做**清 server 侧计数的 side channel。**G-3 确认** —— 12 与 60 秒标注为可在验收时调整的参数，本 owner 认可；实质约束仍是「必须显著大于今日的 6」，理由是改为跨重启终生预算后 6 次会被一次普通 sidecar 重启烧光
+- **对 S-0035 的判断：不波及本 owner 的块，本 owner 以 consumer 身份支持其请求修改**: 逐项核对 runtime 的 scope 声明属实——无论并发闸拒绝最终映射 `context_v2_rebase_in_progress` 还是 `context_v2_rebase_journal_incompatible`，**SLOT-003 都零返修**：两个 code 在 §C / §D 与 BC-004 `consumer projection` 中均已有确定处置，前者落「in_progress 与其余可重试 code」的共享阶梯与共享上界（AC-012 子例 4、11 已覆盖），后者落 terminal-quarantine（子例 9 已覆盖）。**但本 owner 补一条只有分类段 owner 才能给出的事实，供 lead 在 disposition 中权衡**：两个 code 的用户可见后果差距极大，且**代价完全落在 chat-core 的表面上**——`journal_incompatible` 触发 §F 的 quarantine，其定义就是「停止自动重试 + 该 chat 的发送、模型选择与消息动作按钮持续禁用，直到用户主动 Retry 或 Discard」；而 `in_progress` 只是阶梯上的一次 250ms 级重试，用户全程无感。因此把一个毫秒级、必然自愈的争用窗口判成 terminal-quarantine，等于把一次不可见的自愈变成一次可见的会话锁定。这与 K-13（未知 code 进 `paused` 而非 `quarantined`，因为「只是还没成功」不等于「确定性不兼容」）出自同一条原则。**本 owner 因此支持 S-0035 的两处纯文本恢复**，并确认其请求的改动不触及本 owner 的任何块
+- **本 AGREE 与 S-0035 的关系（明示，避免被误读为对立或重复计票）**: 本 owner **不另行登记 OBJECTION**——请求修改的对象在 runtime 的块内、且本 owner 在自身 scope 内无任何需要改动的项，重复登记只会抬高 D 计数而不增加任何新争点。**若 lead 拒绝 S-0035，本 owner 的立场不变，仍为 AGREE，且不会就该项进入辩论庭**：代价虽真实但有界且用户可恢复（payload 按 BC-004 `failure semantics` 保留，§F 的常驻 Retry 入口一次点击即可自愈，且按 runtime 在 S-0035 的分析该次重试不会被 LRU 挡住），不构成本 owner 独立请求返工的理由。仅请求 lead 若拒绝，在 disposition 中明示这是实体决定，并载明上述用户可见代价落在 chat-core 表面这一事实
+- **一条非阻断的文本更正（本 owner 自陈，不构成异议、不请求 disposition、不阻断任何冻结）**: SLOT-003 §D 那句「唯一理由是给『另一路并发恢复正在进行、live-execution 闸刚好拒绝了本次』这种瞬时争用一个让路窗口」**是本 owner 在 HS-002 写下的，其时序模型有误**——按 SLOT-002 的设计闸拒绝不以 `recovery_required` 呈现，runtime 已在 S-0035 末条指出。**所定行为（250ms / 750ms、专属上界 2）不因此改变**，仅理由句需换。若 lead 在任何后续 PS 中顺带更正，本 owner 建议的替换文本为：「renderer 见到 `recovery_required` 只可能是 sidecar 已跑过一次真实恢复且重放仍撞同一 reason；第二次成功的概率很低但非零（例如另一路并发恢复恰在两次之间补上了 seal），故留一次极短重试即判定，不设指数尾」。另一处更小的定位更正：BC-004 `consumer` 字段引 `use_chat_stream.js:4069-4072` 描述「解析后才进入分类段」，该缝合点实际横跨 `:4069-4073`（`:4073` 才是 `isTerminalContextV2RebaseError` 的调用行）；所述关系正确，仅行号区间少一行。两项均为文本层面，可留待任何后续集成顺带处理
+- **已知未决（不构成本 owner 的保留）**: R6 仍待 Chief 裁定，本 owner 无倾向，只重申 M-15 的返修代价与排序要求；`boundary_revision_set` 待候选冻结；S-0028 的形式缺陷属 record 机械问题，处置权在 Chief；AC-012 位置 (D) fixture 的稳定引用点（RSP-2 / U-18）由 Chief 明示，本 owner 作为该 fixture 的三个消费者之一，只要求「若最终落点改变，必须在同一次编辑中更新位置 D / E / F 三处」
+- **production effect**: NONE
+
+## S-0038 | 2026-08-16T08:50:28-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-electron
+- **type**: AGREE
+- **owner**: code-owner-electron
+- **target**: P-0000-0007-2026-0815#PS-006
+- **review snapshot**: RS-001
+- **basis**: S-0031 / RS-001（artifact content hash sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947，boundary object hash sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931）；S-0019（M-16 / M-17 / M-18 / M-19 / M-20 / M-21 采纳与 U-13 / U-14 / U-15 / U-16 定案）；S-0024（K-18 / M-27 限定范围）；S-0029（M-30 / M-31）；S-0018 / HS-003 与 `contributions/HS-003-code-owner-electron.md`；PuPu `28b1e0ef` 上由本 owner 在本窗口内重新核对的源码与测量事实
+- **decision effect**: 登记 electron 在自身 owned block 与直接依赖范围内对 PS-006 的立场；本 owner 在 HS-003 预登记的两项条件全部达成，无保留
+- **scope**: SLOT-004（交付正文 §H 至 §J）、BC-004 载体段（第二跳：sidecar HTTP 409 → main 重建 `[code] message` → 交付第三跳），直接依赖 AC-010、AC-011、AC-012（位置 (E) 的 E1–E9 为本 owner 撰写；位置 (D) 作为 E2 的只读上游、位置 (F) 作为同一不变量的另一半，均已逐项审阅）
+- **stance**: AGREE
+- **条件达成核验（HS-003 预登记的两项条件逐条复核，全部达成，且两项的实现均强于本 owner 所请）**: **M-16 达成且被加强** —— BC-004 `canonical representation` 第三跳已补入 Electron 包裹形式与非锚定约束，并写明加锚定写法在包裹形式下恒返回 null、同目录 `run_bundle_storage_bridge.js:16` 正是该写法、今天零测试会红。lead 复核时另发现本仓存在**两种**包裹记载（`settings_storage_bridge.js:100-108` 及其测试断言的无 `Error: ` 形式，与本 owner 观察到的含 `Error: ` 变体），并据此要求位置 (E) 的 E1 对两种变体各取一次断言而非硬编码任一种 —— 这比本 owner 原文更强，接受。**M-17 达成，且处置远超本 owner 所请** —— 本 owner 在 HS-003 倾向 (b)（只加镜像断言）并要求 (a) 显名，lead 在 K-15 取 **(a) + (c)**：BC-004 `consumer` 字段已把反解段 owner 归属显名、SUMMARY coverage gap 三条并列、并**实际向 shared-arteries 开出 HS-004**。其理由「缺的是知情与同意，不是断言」本 owner 完全认同，且事后证明该判断正确 —— 反解段 owner 在 HS-004 内产出了本 owner 在自身边界内**不可能**取得的增量：六种满足「无 `^`」字面而破坏效果相同的改法枚举（据此把语法禁令升级为行为义务 K-19）、位置 (F) 的 G1–G8 在**真实决策点**上的断言、以及 G2/G3/G8 的 red-before-green 把 R8 由推演升级为实测。**本 owner 在 HS-003 声明的 OBJECT 触发条件（「M-17 被以不处理结案且不作显名」）明确未被触发**，故按预登记转 AGREE
+- **其余采纳项确认**: M-18（「逐字保留」改为「逐字保留任何匹配 `^[a-z0-9_]{1,64}$` 的 code，集合外仅允许首尾空白裁剪」，与 `readJsonResponse` 今日 `.trim()` 一致并给 E7 确定的规格依据）、M-19（SLOT-002 A 表脚注已更正为「载体只看 `response.ok`、不区分 409 与 503，被覆盖的是二者共用路径，status 亦不跨 IPC」）、M-20（`createContextV2Error` 定义 `:185-189` 与调用点 `:1978-1986` 已分列，E4 要锁的模板在定义处）、M-21（位置 (E) 保留 `E1`–`E9` 编号，不扰动 SEQ-004 已冻结的 cell 映射、不新增 AC 编号）四项均已逐字落文，本 owner 核对无误。**U-14 / U-15 / U-16 三条定案与本 owner 交付一致**：fixture 入库使 E2 的强度成立且两个 jest runner 都能离线消费；不要求真实 C4 证据的理由在 S-0029 被 devtools 进一步加硬（要害不在 e2e spec 而在注入通道，为验证一个已被三处独立锁定的框架行为而在生产代码里开测试专用注入口本身是更大的风险面），本 owner 接受该更强的理由；R6 的 electron 侧代价已按本 owner 实测收窄为「加三格、零返修」并写入风险条目
+- **M-30 与 M-31 是对本 owner 交付的两处修正，逐条接受**: **M-30 接受且认为强于原文** —— 位置 (E) 第 (2) 步的 40 由本 owner 写下的**记录值**升为**判定阈**，并追加停工规则：不等于 40 即判定需要新增或改动 S3 CRA shim，实施必须就地停止并向 devtools 补一棒，不得由实施者直接写 `src/electron/tests/**`。这补上了本 owner 原文缺的那一半 —— 本 owner 只写了「数值必须一致」，未写「不一致时谁有权动、动哪里」。**M-31 是对本 owner 一处错误主张的更正，本 owner 明确接受并撤回原说法** —— HS-003 §3.4 与 U-17 称「修 R9 会把 electron 的 write_set 从零扩到 3 个文件」**是错的**：补 S3 的写入点是 `src/electron/tests/main/*.test.js`，属 `pupu:src/electron/**` = **devtools** 边界，不在 `pupu:electron/**` 内。本 owner 当时把「这些 shim 服务于 electron 的测试」误当成「这些 shim 属于 electron」，是边界判断失误，日后为 R9 立案须找 devtools。devtools 对口径的补充（43 = 全量 49 减去合理排除的 6 个 `test-api/`，repo 全量缺 S3 为 9 处）本 owner 同样接受，两个口径并列写入即为准确
+- **本窗口内重新取得的两项测量（支撑上述确认，非新证据请求）**: 其一，位置 (E) 第 (2) 步的常量 **40 在本窗口内仍成立**，本 owner 以 S-0029 所述的两种互不依赖方法各跑一次 —— `CI=true npx react-scripts test --watchAll=false --listTests | grep -c "/src/electron/tests/"` 得 **40**，`find src/electron/tests -name '*.test.js' | wc -l` 得 **40**，与 devtools 的交叉验证结论一致，该判定阈可按现值冻结。其二，`git status --porcelain electron/ src/SERVICEs/bridges/` 为空，即本 owner 在 HS-003 §0 表 F-E1..F-E14 所依据的载体与反解段源码事实自取证以来**逐字未变**，PS-006 中据此写下的全部载体表述仍然准确
+- **对 S-0035 的确认（Speaker 点名事项）· E1–E9 在两种处置下全部存活，零返修、零追加**: 本 owner 在 HS-003 与 U-16 声明过位置 (E) 九格对 code 取值不敏感，**该声明对 S-0035 同样成立**，四条结构性理由：(1) S-0035 请求的是「哪一种**情形**映射到哪个 code」，不新增、不删除、不重命名任何 code，两个候选 code（`context_v2_rebase_in_progress` 与 `context_v2_rebase_journal_incompatible`）在两种处置下都留在七 code 表内；(2) 二者**同为 409**，而载体按 M-19 只看 `response.ok`、根本不区分 status，故即便 status 也改变仍不触及载体；(3) E1 断言的两个 code 是 `recovery_required` 与 `journal_incompatible`，S-0035 不改动其中任何一个的存在与拼写；(4) E2 断言的是「fixture 的 code 集合与七 code 表加出网 allowlist 的并集一致」，`in_progress` 本就在该集合内，情形归类的改变不改变集合。E3 / E4 / E5 / E6 / E7 / E8 / E9 是载体的字符集、长度、分隔符、实例保真与降级属性锁，与 code 语义完全正交。**结论：无论 lead 采纳或拒绝 S-0035，AC-012 位置 (E) 的九格无一需要重写、无一需要追加**
+- **对 S-0035 实体主张的态度（明示：支持其实质，但不登记 OBJECTION）**: 本 owner **不另行登记异议** —— 请求修改的两处（AC-011 子例 7f 与 SLOT-002 §B 末句）完全落在 runtime 的块内，本 owner 的 scope 内无任何需要改动的项，重复登记只会抬高 D 计数而不增加新争点；姿态与 chat-core 在 S-0037 所取相同。**但在原则一致性上支持其实质**，并补一条只有载体 owner 能给的对照：BC-004 `unknown input behavior` 与 K-13 所确立的原则是「『只是没见过 / 还没成功』不得被判成『确定性不兼容』」，而位置 (E) 的 **E7 正是该原则在载体侧的断言化** —— 非法字符集 code 必须反解为 null 并落未知 code 进 `paused`，**不得**被误解析成某个已知 code。把一个毫秒级、必然自愈的并发闸拒绝判成 terminal-quarantine，与 E7 所保护的正是同一条线，只是发生在语义层而非字符层。**若 lead 拒绝 S-0035，本 owner 立场不变仍为 AGREE，且不就该项进入辩论庭**；仅附议 runtime 与 chat-core 的请求 —— 若拒绝，请在 disposition 中明示这是实体决定而非集成压缩
+- **一条非阻断观察（不构成条件、不请求 disposition、不阻断冻结）**: AC-012 位置 (E) 第 (4) 步写「若改用独立文件方案，另断言两个 shim 的内容逐字等于其规定的单行且 require 目标存在」。按 M-31 更正后的归属，该退路所需的 S3 shim（`src/electron/tests/main/*.test.js`）是 **devtools** 的写入点而非 electron 的，因此独立文件方案在今日归属下必然要求一次 devtools 交棒。**本 owner 认为无需改文** —— M-30 的停工触发器已在机械层面覆盖该情形（独立文件方案会使第 (2) 步的计数变为 41 ≠ 40，从而强制停工并转 devtools），文本与机制不冲突。记录在此仅为防止后来者把第 (4) 步单独读成「实施者可自行创建那两个 shim」的授权。本案采纳的是零新增槽位方案，该退路不会被走到
+- **已知未决（不构成本 owner 的保留）**: R6 仍待 Chief 裁定，本 owner 无倾向，只重申已实测的 electron 侧代价为「加三格、零返修」，供权衡使用；`boundary_revision_set` 待候选冻结；S-0028 的 contribution 字段重复编号属 record 机械缺陷，处置权在 Chief，本 owner 不得代改；位置 (D) fixture 的稳定引用点（RSP-2 / U-18）由 Chief 明示，本 owner 作为该 fixture 的消费者之一（E2）只要求「若最终落点改变，须在同一次编辑中同步更新位置 D / E / F 三处」，与 chat-core 在 S-0037 的要求一致
+- **production effect**: NONE
+
+## S-0039 | 2026-08-16T08:55:09-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-shared-arteries
+- **type**: AGREE
+- **owner**: code-owner-shared-arteries
+- **target**: P-0000-0007-2026-0815#PS-006
+- **review snapshot**: RS-001
+- **basis**: S-0031 / RS-001（artifact content hash sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947，boundary object hash sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931）；S-0024（K-18 / M-27 采纳、M-22 至 M-26、K-19、K-20、N-1 / N-2 入卷）；S-0023 / HS-004 与 `contributions/HS-004-code-owner-shared-arteries.md`；S-0035；PuPu `28b1e0ef` 上由本 owner 在本窗口内重新核对的源码事实与 PS-006 正文逐字比对
+- **decision effect**: 登记 shared-arteries 在自身 owned block 与直接依赖范围内对 PS-006 的立场；本 owner 在 HS-004 预登记的唯一条件 M-27 达成，无保留
+- **scope**: SLOT-007（交付正文 §K / §L）、BC-004 反解段（第三跳：Electron 包裹形式 → `parseContextV2ErrorCode` 还原 code token），直接依赖 AC-010、AC-011、AC-012（位置 (F) 的 G1–G8 为本 owner 撰写；位置 (D) 作为 G2/G3 的只读上游、位置 (E) 作为同一不变量的另一半，均已逐项审阅）、AC-016
+- **stance**: AGREE
+- **唯一条件 M-27 的达成核验（本 owner 未采信 S-0024 的集成陈述，回 PS-006 正文逐字比对）**: **达成，且限定写在了两侧而非一侧**。位置 (E) 的禁令段现文为「**该禁令的立法意图只针对载体**：位置 (E) 的被测对象是载体，若 import 反解段实现就成了 producer 与 consumer 共用一份实现互证。**位置 (F) 适用相反规则**……因为那里的被测对象**就是**反解段本身，禁 import 会使测试与生产代码彻底脱钩、防护归零」；位置 (F) 段另有正面表述「G1–G7 **必须调用真实导出的 `parseContextV2ErrorCode`**，禁止在测试内重实现正则……就地字面量只在 G8 作为源码文本的期望值出现」。两处互为镜像，歧义已消除。**本 owner 特别确认 K-18 对该采纳的定性准确**：lead 写「这不是让步而是对称 —— 判据是被测对象是不是那份实现」，这正是本 owner 在 HS-004 §3.3 提出该条时的立法理由，被逐字抓住；采纳的是判据本身而非一次例外，因此日后新增任何取证位置都能由同一判据推出正确答案，无需再回本案查先例
+- **M-22 至 M-26 逐条落文核验（全部达成；三项的实现强于或准于本 owner 原文）**: **M-22 达成** —— BC-004 `consumer` 字段已改为五元素分列，明写「该正则执行 5 项准入元素中的 3 项」并逐项标注 (iv) 长度上界「在**消费侧无任何执行点**（`+` 即 1..∞）」、(v) 封闭集合判定「在 chat-core 的分类段」，且保留了本 owner「明确**不要求**补长度门」的立场与其安全性理由。**M-23 达成并升为 K-19** —— `admission details` 现文为行为式义务「必须能从 message 任意位置还原第一个 `[<code>] ` token；任何使还原结果依赖该 token 在字符串中位置的改动，均被禁止」，并把「不得加起始锚定」标注为**一个特例**、把本 owner 枚举的六种改法（`^` 锚定 / `startsWith("[")` 守卫 / `indexOf("[") !== 0` 守卫 / `split(": ")[0]` / `y` sticky / `$` 尾锚）逐条列出。**M-24 达成** —— 「紧跟一个 ASCII 空白字符（契约文本对齐实现的 `\s`……producer 模板恒发射字面空格，故今日无差异）」，取的是对齐文本而非收紧实现，与本 owner 所请一致。**M-25 / M-26 达成** —— R8 条目已扩为「5 个 call site / 4 个文件 / 3 个 owner」并逐一列出，两项此前未记载的退化（既有九个 terminal-discard code 一并失效致陈旧条目堆积；`memory_v2_tree_state.js:114` 的 `=== STORE_DISABLED_CODE` 在 null 下恒 false 使**关着**的 store 渲染成 ERROR）均已入文，**定界句亦完整保留**（`context_v2_failed` 不在九个 `TERMINAL_REBASE_ERROR_CODES` 内 → frozen payload 保留 → R8 是语义退化加至多 12 次无谓重试、**不是数据丢失**）；假覆盖点名（`trace_chain.memory_v2.test.js:23-26, :101-104`）连同「**chat-bubble 边界内无需任何动作**」的处置一并写入
+- **位置 (F) 集成保真核验（本 owner 逐格比对 HS-004 §3.3 原文）**: G1 至 G8 八格逐字并入，编号沿用 `G` 前缀、不新增 AC 编号；取证位置写明为 `src/SERVICEs/bridges/context_v2_bridge.test.js` 的新增 `describe`。**本 owner 特别确认三处未被稀释**：其一，G1 的「**本格在锚定回归下仍绿 —— 这正是它的价值**」与统一取红方法「记录 G1 保持绿而 G2/G3/G8 变红」完整保留，这是把 R8 由推演升级为实测的那一步；其二，G6 与 E4「**是同一不变量的两半**、两格同生共死」的配对关系保留，使载体模板与解析器要求不会被单侧改动；其三，**G8 的诚实定性被原样保留而非被抬高** —— 现文仍写它「**不增加检出能力**（G2/G3 已覆盖全部六种改法）」、其价值只在三样具体的东西、且「其代价是**脆性**，而**该脆性正是机制本身**：它是一道理解闸不是回归闸」。集成过程没有把一条从属层写成主防护，这一点本 owner 视为该块可被信赖的直接证据
+- **K-20 与两条边界信号的处置确认**: **K-20 采纳** —— `context_v2_bridge.js:53-56` 的契约注释补写已纳入 write_set 并明列为待 PLAN_RULING 授权项（纯注释、零行为），lead 复核后采用了本 owner 的理由原话（同一份知识在 `settings_storage_bridge.js:101-109` 里有、在本案执行点里没有，这正是陷阱得以存在的直接原因）。本 owner 确认在获授权前**不执行**该改动。**N-1 / N-2 已入卷且处置正确** —— 两条均为「记录不行动」：N-1（`run_bundle_storage_bridge.js:13-18` 双死路径、零消费者故非活 bug、是「等着被复制的错误范本」）建议另立一案；N-2（`memory_v2_tree_state.js` 仅由残余条款兜底、单消费者视图状态机、长期应属 code-owner-settings）明示本案不动、所有权调整须另以方案裁定。**本 owner 确认二者都不得在本案实施期被顺手处理**
+- **对 S-0035 的确认（Speaker 点名事项）· G1–G8 全部不受波及，零返修、零追加**: 本 owner 逐格核对后确认**无影响**，四条结构性理由：(1) S-0035 请求的是「哪一种**情形**映射到哪个 code」，**不新增、不删除、不重命名任何 code**；两个候选（`context_v2_rebase_in_progress` 与 `context_v2_rebase_journal_incompatible`）在两种处置下都留在 §A 七 code 表内 —— 本 owner 已回该表实核二者均在，故 G2/G3 所迭代的 fixture code 集合在两种处置下**成员完全相同**；(2) G1 / G5 / G6 / G7 是**形态层**断言（还原、字符集 fail-closed、分隔符承重、防御性输入），对 code 的**语义**完全正交，只把 code 当不透明 token；(3) G4 把 `journal_incompatible` 仅用作**走私靶串**（断言 `[x] [context_v2_rebase_journal_incompatible]` → `"x"` 而非该 quarantine code），其成立只要求该 code 仍存在于封闭集合、且 quarantine 仍是一种处置 —— S-0035 `scope` 已明示「chat-core 对两个 code 的处置均已在 SLOT-003 §C/§D 内定义，无论最终取哪个 code 都无需返修」，故靶串与处置双双不变；(4) G8 只读源码文本，与任何 code 语义无关。**结论：无论 lead 采纳或拒绝 S-0035，位置 (F) 的八格无一需要重写、无一需要追加。** 该结论与 electron 在 S-0038 对位置 (E) 九格所作的判断同构，两个位置在这一点上一致
+- **对 S-0035 实体主张的态度（明示：支持其实质，但不登记 OBJECTION）**: 本 owner **不另行登记异议** —— 请求修改的两处（AC-011 子例 7f 与 SLOT-002 §B 末句）完全落在 runtime 的块内，本 owner scope 内无任何需改动项，重复登记只抬高 D 计数而不增加新争点；姿态与 chat-core（S-0037）、electron（S-0038）相同。**但在原则一致性上支持其实质，并补一条只有反解段 owner 能给的对照**：本案在 K-13 与 BC-004 `unknown input behavior` 上反复确立的一条线是「『只是没见过 / 还没成功』不得被判成『确定性不兼容』」，而**该线在本 owner 边界内的断言化恰恰是 G5** —— 非法字符集必须反解为 `null`、落未知 code 进有界重试到 `paused`，**不得**被误解析成某个已知 code、更不得落进 quarantine。electron 已指出 E7 是同一原则的字符层断言；G5 是它在**真实决策点**上的同一格。把一个毫秒级、必然自愈的并发闸拒绝判成 terminal-quarantine，与 G5 / E7 所保护的是同一条原则，只是发生在语义层。**若 lead 拒绝 S-0035，本 owner 立场不变仍为 AGREE，且不就该项进入辩论庭**；仅附议 runtime、chat-core 与 electron 的共同请求 —— 若拒绝，请在 disposition 中明示这是实体决定而非集成压缩，并说明其与 K-13 如何并存
+- **本窗口内重新取得的两项核验（支撑上述确认，非新证据请求）**: 其一，`git status --porcelain src/SERVICEs/bridges/` 为空，且 `context_v2_bridge.js:57` 仍逐字为 `const ERROR_CODE_TOKEN_PATTERN = /\[([a-z0-9_]+)\]\s/;` —— 即本 owner 在 HS-004 §0 表 F-S1..F-S12 所依据的反解段源码事实自取证以来**逐字未变**，PS-006 据此写下的全部反解段表述与 G8 的期望字面量仍然准确。其二，回 §A 七 code 表实核 `in_progress` 与 `journal_incompatible` 同时在表内，此为上条 S-0035 判断 (1) 的直接依据，非转述
+- **已知未决（不构成本 owner 的保留）**: R6 仍待 Chief 裁定，本 owner **无立场**，只重申已给出的量级判断供权衡 —— G1–G8 在 R6 两种取舍下全部继续有效（只依赖 message 字符串形状，不依赖 channel 或 endpoint 拓扑），本位置**零追加、零返修**；`boundary_revision_set` 待候选冻结；K-20 的注释补写待 Chief 授权，未授权前不执行，且其缺席不影响第一、二层防护成立；位置 (D) fixture 的稳定引用点（RSP-2 / U-18）由 Chief 明示，本 owner 作为该 fixture 的第三个消费者（G2/G3）与 chat-core（S-0037）、electron（S-0038）提出同一要求 —— **若最终落点改变，须在同一次编辑中同步更新位置 D / E / F 三处**；U-25（fixture 是否被 pytest 就地覆写）由 runtime 答，其答案影响 G2/G3 在工作树门下是否能观察到 fixture 漂移，缺它不阻断本立场
+- **production effect**: NONE | 未改动任何生产代码，未改 `proposal.md`，未新增 AC 或 BC 编号，未代写其他 owner 块，主树未 commit
+
+## S-0040 | 2026-08-16T09:00:13-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-devtools
+- **type**: AGREE
+- **owner**: code-owner-devtools
+- **target**: P-0000-0007-2026-0815#PS-006
+- **review snapshot**: RS-001
+- **basis**: S-0031 / RS-001（artifact content hash sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947，boundary object hash sha256:2f3d3d73f29793f7d72992a8888a3753f434f17445be61a509e18fd3e8a33931）；S-0029 / PS-006；S-0036（U-25 与 U-26 的权威答复）；S-0035（在途窄异议）；S-0030（S-0028 形式缺陷定性）；PuPu `28b1e0ef` 上由本 owner 在本窗口内重新只读核对的源码事实
+- **reviewed scope**: SLOT-006, SEQ-007；直接依赖 AC-011, AC-012, AC-014（照 RS-001 `stance scope · code-owner-devtools` 字段，逐字未增未减）
+- **HS-005 覆盖对象的合规重述（应 S-0030 「本窗口内的低成本补强」，由原作者以同案裸编号一次性给出，每个编号恰好出现一次；本条不改写历史，只提供权威表述）**: contribution 覆盖对象 —— SLOT-006, SEQ-007；责任验收 —— AC-014。此即 `contributions/HS-005-code-owner-devtools.md` 全文所交付内容的完整覆盖集合，与 S-0030 的 Speaker 机械归一投影逐字一致。本 owner 确认该投影准确，无遗漏、无多余。**同时确认 S-0030 的 FORMAL_ONLY 定性与其可达补救分析**：本 owner 独立复核后同意 append-only 下不存在使那两条 linter 输出归零的构造，且**不请求**对 canonical 记录开例外；两个选项之间由 Chief 选择，本 owner 对任一选择均无异议。缺陷成因在本 owner 自身的字段书写，非任何他人之过
+- **确认条件的达成判定（本 owner 在 S-0028 预告的唯一条件：V-1 与 V-2 写入 AC-014 正文）**: **已达成**，本 owner 逐字核对 PS-006 的 AC-014 后确认 —— artifact 段（devtools 段）以 A 至 F 六节完整并入，其中 **V-1a 枚举式排他断言**、**V-1b 观测值进报告并判等**、**V-3 同义反复修正**、**V-4 结构化结果须真正解析** 四条写为实施义务；**V-2 单列并标注「最高优先，本 AC 运行时段的前置条件」与「应最先落地」**，且正文逐字保留了本 owner 提出的实测依据（两处 pytest 运行环境都只给 `PYTHONPATH`，同文件其他步骤都给了 evidence 路径而唯独 pytest 步没有）。C 段把 `direct_url.json` 四项断言与三处调用点写死并明示 `verifyUnchainTestSourceProvenance` 属 test-source 选择门；D 段显名 `playwright-electron` 不在三处之内；E 段按 M-32 把 `INCOMPLETE` 表达为四条可观察后果且明确不改报告 schema；F 段规定 V-1a 与 V-1b 必须保存红档并把可证伪路径本身定为取红方法。**本 owner 因此不触发 S-0028 声明的 OBJECT 条件**
+- **SEQ-007 的集成核对**: 逐字核对后确认四项 —— M-28 的 identity key 勘误已落实（改为 evidence 所载三元组，并写明不引入 evidence 文件自身 digest 的理由）；M-29 已把**安装该 wheel 并核对 `direct_url.json`** 补入 ordered events 并标注为期望观察第二句的唯一执行点，同时写明 rollout 与 rollback 在本仓是人工步骤；新增的 `cell 取证方式` 字段把 retry 与 rollback 的取证钉死，retry 取证绕开未实测项因而不受其影响；两个 `NOT_APPLICABLE` 的理由已由设计声明升级为带源码执行点的事实。**expected observations 的三段式诚实标注（第一句标「今天报告上无法核验，由 V-1b 补齐后成立」、第二句与第四句标「今天已完全成立」）本 owner 特别确认为准确**：这正是本 owner 拒绝在缺口无归属时无条件确认该序列的原因，集成后该序列的每一句都能指向一个确定的状态
+- **对其余直接依赖的确认**: AC-012 —— M-30 已落实，位置 (E) 第 (2) 步的 40 由记录值升为**判定阈**，并写明 `src/electron/tests/**` 属 devtools 边界、不等于 40 时实施须就地停止并按程序补棒而不得由实施者直接写该目录；本 owner 对该表述无保留，并再次确认两组三槽今日 6/6 齐备、四个 shim 内容逐字正确、槽位计数 40 已由两种互不依赖的方法交叉验证。AC-011 —— 本 owner 的依赖仅经子例 6（位置 (D) fixture 的生产侧）与 V-8 的哨兵锚点，对其余子例无立场。R9 的口径与归属修正（M-31）已落实，43 与 9 两个数的口径差已写明，归属已改为 devtools
+- **协作义务 V-7 与 V-8 的落位确认**: 两条已入 PS-006 §P。V-7 属本 owner 边界内的补齐，前置事实（`/.release-qa`、`/build` 与 `build/` 已忽略，`prepare-build-version.cjs` 零写入，`build-web.cjs` 唯一写入落在已忽略目录）已实测，该义务不会恒红。V-8 的落地依赖 U-26 的 nodeid，本 owner 接受其在实施期提供
+- **U-25 的接受与一条精确更正（接受，且不构成异议、不请求修改、不需要 disposition）**: **接受 S-0036 的权威答复** —— 位置 (D) fixture 就地覆写、采用先比对后条件写入（write-if-changed）、写盘永不使测试转绿、CI 次序已由生产侧 owner 复核。该协议使 pytest 断言与工作树指纹成为两个真正独立的信号，正是本 owner 在 HS-005 中表达的倾向，且钉到了可实施粒度。**一条精确更正**：S-0036 称「无条件覆写会让每次 pytest 都改 mtime，指纹门要么恒噪要么被迫忽略该文件」—— 该顾虑在一般意义上成立，但**对本案实际使用的指纹实现不适用**。`worktree-fingerprint.mjs` 的 `computeWorktreeFingerprint` 只哈希三样东西：`git status --porcelain=v1 -z --untracked-files=all` 的输出、`git diff --no-ext-diff --no-textconv --binary HEAD --` 的完整内容差、以及每个未跟踪文件的 `mode` / `size` / **文件内容**；**全程不读 mtime**。而该 fixture 按 K-17 是**入库的跟踪文件**，因此走的是内容差那条路径 —— 即使无条件覆写，只要字节相同，`git diff` 为空、指纹不变。故 write-if-changed 对 V-7 与本地门指纹**不是必要条件**。本 owner 仍然接受并赞成该协议，理由改为两条真实收益：其一，它避免 `git status` 每次重新哈希该文件的无谓开销；其二，它为任何将来可能引入的基于 mtime 或时间戳的工具预先消除假阳性面。写下这条只为防止后来者据 S-0036 的理由句反推出「指纹门是 mtime 敏感的」这一错误模型，从而在实施 V-7 时做出不必要的让步（例如把该 fixture 加入指纹的忽略名单 —— 那会使第二重保险真正归零）
+- **对在途异议 S-0035 的影响判断（本 owner 自行判断，不重复登记，不代表任何立场）**: **不波及本 owner 的块。** 三条理由，均经本 owner 核对：其一，该异议的 scope 为 SLOT-002 §B 与 AC-011 子例 7f，而本 owner 对 AC-011 的依赖仅经子例 6（fixture 生产侧），两者是不同子例；其二，该异议**不请求新增任何 error code** —— 其请求是在 `context_v2_rebase_in_progress` 与 `context_v2_rebase_journal_incompatible` 两个**均已在七 code 表内**的既有 code 之间作正确归类，故位置 (D) fixture 的 code 集合在任一结果下都不变，AC-012 位置 (E) E2 与位置 (F) G2 / G3 的「fixture code 集合与七 code 表加出网 allowlist 的并集一致」这条断言、以及 V-8 的哨兵锚点，均不受影响；其三，release-qa 侧的 artifact 同一性与 code 语义正交，AC-014 的任何一段都不引用具体 code 取值。**本 owner 因此不因 S-0035 调整本条立场，也不请求把它并入本 owner 的块。** 另作一句边界内的旁证支持其严重度定界：该异议自陈「不是数据丢失」与本 owner 边界内的观察一致 —— release-qa 全流程零 journal 写入，无论该格取哪个 code，发布门的任何断言都不会因此改变
+- **remaining unknowns 的现状确认**: U-24（`upload-artifact@v4` 同名上传行为未实测）由本 owner 自持，**不阻断** —— SEQ-007 的 retry 取证已钉为「重跑 `package-matrix`」而不依赖它，消除它的代价是一次真实 CI 重跑观察，属发布期动作；U-25 已由 S-0036 权威作答并经本条接受；U-26 由生产侧 owner 承诺在实施子例 6 时同一次提交内交付 nodeid，本 owner 接受。三者均已入 PS-006「送裁前仍缺」第 2d 条，本 owner 确认其现状处理准确
+- **本 owner 不持有任何未表达的保留**: 除上述已落实的条件与两条纯记录（U-25 的指纹实现更正、S-0035 的不波及判断）外，本 owner 对 PS-006 在 reviewed scope 内无保留、无请求修改、无附加条件。`boundary_revision_set` 的候选冻结与 R6 的实体裁定均不在本 owner 的 reviewed scope 内，本 owner 不表达倾向
+- **实施排序建议（重申，非本条立场的条件）**: V-2 应最先落地（纯 env 追加、零风险、两处同时加，且是 AC-014 运行时段那条 session 级断言得以写出的前提）；V-1a 次之（单一测试文件，可在任何生产改动之前先行取红取绿）；V-1b / V-3 / V-4 / V-7 可与实施同批；V-8 须排在子例 6 落地之后
+- **production effect**: NONE | 本条为立场登记，未改动任何生产代码，未改 `proposal.md`，未新增任何编号，主树未 commit
+
+## S-0041 | 2026-08-16T09:07:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: LEAD_DISPOSITION
+- **target**: S-0035
+- **basis**: P-0000-0007-2026-0815#PS-006, RS-001, `contributions/HS-001-code-owner-runtime.md` §2.4 步骤 9 与 §5 子例 7f 原文, S-0037
+- **decision effect**: 接受 code-owner-runtime 的窄异议全部两项请求，集成 successor 快照 PS-007；不进入辩论庭
+- **disposition**: ACCEPT
+- **accepted portion**: 全部（异议一 · AC-011 子例 7f 恢复断言主体；异议二 · §B 恢复六行三码对照并限定「恢复期失败」的所指）
+- **rejected portion**: NOT_APPLICABLE
+- **reason**: 异议属实，且**这是本 owner 的集成压缩，不是实体决定**。逐字比对确认：`contributions/HS-001-code-owner-runtime.md` §2.4 步骤 9 交付的是一张**六行三码**表，其中「抢不到 per-execution 锁」与「execution 在 live 注册表内」两行明确映射 `context_v2_rebase_in_progress`（409, retryable, 零写入），与后三行的 `journal_incompatible` 是刻意区分；本 owner 在 PS-002 集成时把整表压缩为「恢复期失败一律映射 409 `journal_incompatible`，只有真实 I/O 故障映射 503」，前两行连同其区分依据一并丢失。同时 AC-011 子例 7f 被压缩为「live-execution 闸零写入」，HS-001 原文的**返回码断言**与**「注销后同一请求恢复成功」**一格同时消失 —— 异议指出「零写入是必要条件不是充分条件，只断言零写入的 7f 对两种相反实现都会通过」，该判断正确
+- **实体一致性**: 采纳后的表述与本案既有原则**恢复一致**而非新增例外 —— K-13（未知 code 进 `paused` 而非 `quarantined`，因为「只是还没成功」不等于「确定性不兼容」）与 BC-003 `unknown input behavior` 是同一条原则的两次应用；把瞬时争用判成 terminal-quarantine 才是与它们自相矛盾的那一侧。分类段 owner 在 S-0037 从用户可见后果上给出了同向的独立支撑（`journal_incompatible` 触发 quarantine，其定义就是该 chat 的发送、模型选择与消息动作按钮持续禁用直到用户主动 Retry；而 `in_progress` 只是阶梯上一次 250ms 级重试，用户全程无感），并确认无论最终取哪个 code **SLOT-003 都零返修**
+- **集成结果**: PS-007，content hash sha256:6ff723b6a500513c7b804b87b7f83d30c0ac2a6628c30ed3ccba8aeb3df1c316，boundary object hash sha256:b16ed25a4a1516750bcf2bcdc70ddfbe0972846f578b54b6b3105bd1ef9d720b
+- **改动范围（刻意最小化，便于 successor RS 只需窄重审）**: 四处纯文本 —— (1) SLOT-002 §B 末句恢复六行三码逐行对照并写明前两行属**恢复未进入**；(2) AC-011 子例 7f 恢复两项断言；(3) SLOT-003 §D 的 250ms / 750ms 理由句换为撰写该句的 owner 在 S-0037 自行提供的替换文本（所定行为不变，属其自陈更正、非异议）；(4) BC-004 `consumer` 行区间 `:4069-4072` → `:4069-4073`（同为 S-0037 的自陈更正）。**其余全部块逐字未动**：无 BC 的 admission policy / admission details / identity binding 改动，无 SEQ 矩阵单元格改动，无 slot 状态改动，无 AC / BC / SEQ 编号增删，write_set 不变
+- **须提请 Speaker 注意的一项机械后果**: **boundary object hash 发生变化**（PS-006 的 sha256:2f3d3d73… → PS-007 的 sha256:b16ed25a…）。原因**仅**为上述第 (4) 项 —— BC-004 `consumer` 描述字段内的一个行号区间更正；本 owner 已逐对象重算指纹确认**十一个 BC / SEQ 对象中只有 BC-004 变化，其余十个逐字未动**。该变化不触及 BC-004 的任何契约语义（admission policy、admission details、unknown input behavior、failure semantics、identity binding、正负 AC 全部逐字不变），但 successor RS-002 的 `boundary object hash` 字段必须写新值，不得沿用 PS-006 的旧值
+- **对 successor RS-002 的建议受影响范围**: code-owner-runtime 必须重审（其异议对应的两处正是本次改动）；code-owner-chat-core 的两项自陈更正已按其提供的文本逐字采纳，不构成新争点；其余四位 owner（含 lead）的 AGREE 未受实体影响，可按 successor RS 规则以 `owner=S-####@RS-001` 沿用。**本 owner 作为 lead 将在 RS-002 窗口内发布绑定新 RS 与 PS-007 的新 baseline AGREE**
+- **对 S-0035 末条非阻断记录的处置**: runtime 指出 SLOT-003 §D 理由句的时序模型有误，chat-core 在 S-0037 自陈同一问题并提供替换文本；本次一并采纳（改动第 (3) 项），**不因此启动任何返修，也不需要向 chat-core 再开交棒**
+- **production effect**: NONE
+## S-0042 | 2026-08-16T09:12:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: RS-002
+- **basis**: P-0000-0007-2026-0815#PS-007, RS-001
+- **decision effect**: 冻结 successor 审查快照 RS-002，重开受影响范围的审查窗口；electorate 与 N 不变，未受影响立场逐项沿用
+- **artifact**: P-0000-0007-2026-0815#PS-007
+- **supersedes**: RS-001
+- **review kind**: ORDINARY
+- **artifact mapping**: 旧 P-0000-0007-2026-0815#PS-006（sha256:34465da221094f0a5e63d50378508dac4ad5469c62f46da58b5090bd1083e947）→ 新 P-0000-0007-2026-0815#PS-007（sha256:6ff723b6a500513c7b804b87b7f83d30c0ac2a6628c30ed3ccba8aeb3df1c316）
+- **boundary reviewed objects**: BC-001, BC-002, BC-003, BC-004, SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
+- **boundary object hash**: sha256:b16ed25a4a1516750bcf2bcdc70ddfbe0972846f578b54b6b3105bd1ef9d720b
+- **artifact content hash**: sha256:6ff723b6a500513c7b804b87b7f83d30c0ac2a6628c30ed3ccba8aeb3df1c316
+- **boundary fingerprint 变化说明**: 十一个 BC/SEQ 对象中只有 BC-004 的 `consumer` 字段行区间由 :4069-4072 更正为 :4069-4073，其余十个逐字未动；对象集合本身不变，故 boundary object hash 必然改变而 reviewed objects 不变。本 NOTICE 写入 PS-007 的新 hash，绝不沿用 PS-006 的旧值 —— Speaker 已用 `quorum.boundary.objects.v1` 与 `### PS-007` 前 147990 bytes 分别复算两个 hash，均与 PS-007 声明逐字一致
+- **inherited stances**: code-owner-chat-core=S-0037@RS-001, code-owner-electron=S-0038@RS-001, code-owner-shared-arteries=S-0039@RS-001
+- **carried stance 逐项**: code-owner-chat-core | S-0037 | AGREE | 其 owned block（SLOT-003、BC-004 分类段 consumer、SEQ-004）未被本次四处改动触及，SLOT-003 §D 的理由句系该 owner 自陈文本并被逐字采纳，不构成新争点 —— CARRIED_UNCHANGED；code-owner-electron | S-0038 | AGREE | SLOT-004 与 BC-004 载体段未被触及，BC-004 唯一改动是消费侧行区间更正，不改变载体义务 —— CARRIED_UNCHANGED；code-owner-shared-arteries | S-0039 | AGREE | SLOT-007 与 BC-004 反解段未被触及，行区间更正正指向其反解段消费点且与其 HS-004 认定一致 —— CARRIED_UNCHANGED
+- **invalidated scopes**: 仅四处改动块及其直接依赖 —— (1)「SLOT-002 交付正文」§B 末句恢复六行三码对照并限定「恢复期失败」所指；(2) AC-011 子例 7f 恢复两项断言；(3)「SLOT-003 交付正文」§D 的 250ms / 750ms 理由句替换为该句原作者提供的文本；(4) BC-004 `consumer` 字段行区间更正。lead 的 RS-001 baseline 一并失效，须发布绑定 RS-002 的新 baseline
+- **re-review owners**: code-owner-unchain, code-owner-runtime, code-owner-devtools
+- **re-review 理由逐项**: code-owner-unchain | lead 必须为当前 artifact 与当前 RS 发布新的 baseline AGREE，旧 baseline 随 successor 失效；code-owner-runtime | 四处改动中的 (1) 与 (2) 正是其 S-0035 异议所指之处，须由异议人自行判定 ACCEPT 的落文是否满足其请求；code-owner-devtools | 其 RS-001 立场 S-0040 形式不合规，见下条
+- **S-0040 处置（Speaker 程序判断）**: 不沿用，改列 re-review。理由：S-0040 缺 `decision effect`（发言协议列为公共信封必填项），且以 `reviewed scope` 代替规范字段名 `scope`，不满足[编号与交叉引用](../../../codex/court-records/identifiers.md)「普通 AGREE / OBJECT / ABSTAIN 必须引用 RS-###、对应 PS-### 与实际审查范围」的可解析形式。以 `owner=S-0040@RS-001` 沿用会把一条不合规立场原样带进 successor electorate，等于用继承机制洗掉形式缺陷；Speaker 的既定做法是退回原提交者重排，而本次 successor review 恰好提供了零额外成本的重排窗口。**须明确两点**：其一，S-0040 的实体内容无可指摘 —— 它已按 S-0030 的请求完成 HS-005 覆盖对象的合规裸编号重述，并给出条件达成判定、SEQ-007 集成核对与 U-25 接受，本处置只针对信封形式；其二，S-0040 缺 `decision effect` 这一条属逐事件全局校验，无论是否重排都将永久留在 linter 输出中，与 S-0028 同类，Speaker 不伪造归零
+- **objection lineage · S-0035**: 原异议 S-0035（code-owner-runtime，绑定 RS-001，target PS-006，scope SLOT-002 §B 与 AC-011 子例 7f）→ 唯一处置 S-0041 `LEAD_DISPOSITION: ACCEPT`（accepted portion 全部，rejected portion NOT_APPLICABLE）→ 结果 RESOLVED_BY_ACCEPT。ACCEPT 已由 successor artifact PS-007 落文兑现，故 RS-002 **无任何 CARRIED OBJECT**、无 OG、`D = 0`，不触发辩论庭；不使用 `OBJECTION_RETARGET`（该机制仅用于把 `PENDING_RS` 异议确认到冻结快照，本异议自始绑定 RS-001 且已闭合）。异议人是否认为落文满足其请求，由其在本窗口内以新 stance 表达
+- **eligible owners**: code-owner-unchain, code-owner-runtime, code-owner-chat-core, code-owner-electron, code-owner-shared-arteries, code-owner-devtools
+- **N**: 6
+- **electorate 变化**: 无。successor review 不改变 electorate 与 N；继承三人与重审三人互不相交，并集精确等于六人
+- **review deadline**: 2026-08-16T10:42:00-07:00
+- **objection intake deadline**: 2026-08-16T10:42:00-07:00
+- **lead disposition deadline**: 2026-08-16T11:12:00-07:00
+- **lead reminder final deadline**: 2026-08-16T11:27:00-07:00
+- **stance 提交要求**: 三名 re-review owner 各提交一条独立 S 事件，type 为 AGREE、OBJECTION 或 ABSTAIN，公共信封八项齐全（含 `decision effect`），并使用规范字段名 `owner`、`scope`、`stance`，引用 RS-002 与 P-0000-0007-2026-0815#PS-007；OBJECTION 另须写 scope、决策影响与请求修改。继承立场的三名 owner 本窗口内无需动作，其既有 AGREE 继续有效；若认为四处改动影响到自己的块，可在截止前提交新 stance 覆盖
+- **Speaker 观察（非阻断）**: PS-002 至 PS-006 各有一条独立 `type: PROPOSAL` 事件登记集成，PS-007 则由 S-0041 的 `LEAD_DISPOSITION` 一并宣告，未另发 PROPOSAL 事件。法典与 linter 均不强制，且 RS-002 以两个 hash 直接绑定 PS-007，链条可验证，故不退回；仅记录该体例差异
+- **content hash**: sha256:55c81ec001deea19ea0dca96ed66f73472d76abc66f9bb9c0cd3dc17c020b9a7
+
+## S-0043 | 2026-08-16T09:12:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: case
+- **basis**: S-0042, S-0041, S-0030, S-0032
+- **decision effect**: 登记 `boundary_revision_set` 的送裁处置为一项强制回应，并更新送裁时须逐条呈 Chief 的清单与 linter 残余分类；不作任何实体判断，不代 Chief 选择任何选项
+- **notice kind**: RULING_PREPARATION
+- **问题陈述（lead 分析，Speaker 复核成立）**: proposal frontmatter 的 `boundary_revision_set` 要求一次构建、全程复用的 unchain wheel SHA-256 与同次构建的 PuPu candidate 产物 SHA-256 组成的精确 pair。构建属实施动作，而实施须由 PLAN_RULING 授权 —— 因此该字段在裁定前**无法合法填写**。这是[边界契约规则](../../../codex/lifecycle/boundary-contracts.md) §四.6 与「未获准不得实施」之间的协议内生顺序问题，不是本案任何一方的疏漏
+- **选项一（lead 推荐）**: Chief 在 PLAN_RULING 中显式授权「按 PS-007 已写死的填写规则实施第一步构建并回填」，回填值经 Speaker 以 NOTICE 固定后即为冻结 expected pair，此后不得改动。代价是 expected pair 的冻结点从裁定时刻后移到首次构建后的 NOTICE 时刻，须以该 NOTICE 承担不可变性
+- **选项二**: 先以受限授权只做构建、不做任何代码改动，取得 pair 后回到本案形成 successor PS 与 successor RS，再送完整裁定。代价是多一轮 PS/RS 与一次全员重审
+- **选项三**: 维持现状送裁，由 Chief 在裁定中把该字段列为 acceptance 阶段才填写的项，AT 的 verified pair 与 ruling 的 expected pair 因而无法逐字比对。**Speaker 提示这会削弱 §四.6 的核心保证**，但是否接受属 Chief 裁量
+- **Speaker 立场**: 无。三个选项的取舍属实体判断，Speaker 只负责把问题、代价与 lead 的推荐忠实呈上
+- **送裁时须逐条呈 Chief 的强制回应清单（当前五项并列）**: 一、R6 内联 recovery 写者与新增独立 endpoint 的取舍（第六次提请；三侧代价实测齐备，唯 chat-core 为真返修）；二、`boundary_revision_set` 的填写顺序，三选项与 lead 推荐见上；三、S-0028 形式缺陷的二选一（接受为形式残余 / 授权一次性就地归一），见 S-0030；四、coverage gap 三条并列（载体段未占字段 / 反解段同形式 / BC-004 四方义务两个字段的 v1 结构性限制），见 S-0016、S-0022、S-0024；五、RSP-2 位置 (D) fixture 作为稳定引用点的确立请求（U-18）
+- **linter 残余分类更新（RS-002 冻结后）**: (1) `boundary_revision_set` —— 唯一实质项，处置见上；(2)(3) S-0028 两条重复引用 —— 形式残余，append-only 下不可归零；(4) S-0040 缺 `decision effect` —— 逐事件全局校验，与 (2)(3) 同类，devtools 在 RS-002 重排合规立场后仍会保留，Speaker 不伪造归零；(5) `successor review must supersede predecessor` —— 已知模型局限，linter 以 latest PS 的 `supersedes` 推断 review 世代；本案 PS-001 至 PS-006 中只有 PS-006 曾被 review，RS-002 已正确写 `supersedes: RS-001`，若该条仍出现即属工具侧问题，**伪造一个不存在的 predecessor RS 比保留告警更糟**，故按已知例外记录；(6) 三条 re-review stance 缺失 —— 窗口进行中，非缺陷
+- **production effect**: NONE
+
+## S-0044 | 2026-08-16T09:15:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-unchain
+- **type**: AGREE
+- **owner**: code-owner-unchain
+- **target**: P-0000-0007-2026-0815#PS-007
+- **review snapshot**: RS-002
+- **basis**: S-0042 / RS-002（artifact content hash sha256:6ff723b6a500513c7b804b87b7f83d30c0ac2a6628c30ed3ccba8aeb3df1c316，boundary object hash sha256:b16ed25a4a1516750bcf2bcdc70ddfbe0972846f578b54b6b3105bd1ef9d720b，RS content hash sha256:55c81ec0…20b9a7），P-0000-0007-2026-0815#PS-007，S-0041
+- **decision effect**: 发布 lead 绑定 RS-002 与 PS-007 的新 baseline 立场，取代随 successor 失效的 S-0034；不改变任何已冻结对象
+- **scope**: 全案
+- **stance**: AGREE
+- **依据**: PS-007 相对 PS-006 只含四处纯文本改动，全部为本 owner 在 S-0041 采纳的异议落文与两位 owner 的自陈更正，无一改变已获确认的实体设计。逐项自核：(1) SLOT-002 §B 已按 `contributions/HS-001-code-owner-runtime.md` §2.4 步骤 9 恢复六行三码逐行对照，并写明前两行属**恢复未进入**的瞬时争用、映射 `context_v2_rebase_in_progress`；(2) AC-011 子例 7f 已恢复返回码断言与「注销 / 释放后同一 frozen 请求恢复成功」一格；(3) SLOT-003 §D 理由句已换为 S-0037 中该 owner 自行提供的替换文本，所定行为 250ms / 750ms 与专属上界 2 不变；(4) BC-004 `consumer` 行区间已改为 `:4069-4073`。本 owner 不持有任何未表达的保留
+- **boundary object hash 变化的自核**: 已逐对象重算十一个 BC / SEQ 的规范指纹，确认**只有 BC-004 变化，其余十个逐字未动**；BC-004 的变化仅在 `consumer` 描述字段的行号区间，其 admission policy、admission details、unknown input behavior、failure semantics、identity/version binding 与正负 acceptance 全部逐字不变。RS-002 已按此写入新的 boundary object hash，本 owner 确认与 PS-007 一致
+- **已知未决（不构成本 owner 的保留）**: R6 内联 recovery 写者与新增独立 endpoint 的取舍属 Chief 裁量，三侧退路代价已实测齐备（electron 加三格零返修、shared-arteries 零追加零返修、chat-core 真返修），本 owner 无倾向、只提供权衡材料；`boundary_revision_set` 待候选冻结，其在 ruling 前无法合法填写的原因与三个可选处置已在 S-0029 与本 owner 上一轮返回件中说明，需 Chief 在裁定中明示处置
+- **production effect**: NONE
+
+## S-0045 | 2026-08-16T09:16:35-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-runtime
+- **type**: AGREE
+- **owner**: code-owner-runtime
+- **target**: P-0000-0007-2026-0815#PS-007
+- **review snapshot**: RS-002
+- **basis**: S-0042 / RS-002（artifact content hash sha256:6ff723b6a500513c7b804b87b7f83d30c0ac2a6628c30ed3ccba8aeb3df1c316，boundary object hash sha256:b16ed25a4a1516750bcf2bcdc70ddfbe0972846f578b54b6b3105bd1ef9d720b，RS content hash sha256:55c81ec001deea19ea0dca96ed66f73472d76abc66f9bb9c0cd3dc17c020b9a7），S-0041 / LEAD_DISPOSITION ACCEPT，P-0000-0007-2026-0815#PS-007，`contributions/HS-001-code-owner-runtime.md` §2.4 步骤 9 与 §5 子例 7f 原文
+- **decision effect**: 由异议人自行判定 S-0041 的 ACCEPT 在 PS-007 中的落文是否兑现 S-0035 的两项请求；判定为**全部兑现**，故 S-0035 收口为 RESOLVED_BY_ACCEPT，本 owner 转 AGREE，本案在本 owner 侧无任何开放异议，`D` 对本 owner 计 0
+- **scope**: SLOT-002、SLOT-005、BC-003 consumer、BC-004 producer、SEQ-005、SEQ-006，直接依赖 AC-009、AC-010、AC-011、AC-012、AC-014、AC-016（与 RS-001 为本 owner 划定的 stance scope 相同，RS-002 未改变该范围）
+- **stance**: AGREE
+- **请求一 · §B 六行三码表 —— 已兑现，逐行核对**: PS-007 §B 末段与 `contributions/HS-001-code-owner-runtime.md` §2.4 步骤 9 原表**逐行对应、无一遗漏、无一合并**：抢不到 per-execution 锁 → `context_v2_rebase_in_progress`（409, retryable, 零写入）；execution 在 live 注册表内 → 同上；plan helper 不可用 / plan 不可重建 / admitted 非唯一 → `context_v2_rebase_journal_incompatible`（409, non-retryable, 零写入）；`recover()` / `finalize()` 抛 `GraphCheckpointError` → 同上；重放仍 recovery_required 且计数已达上界 → 同上（恢复的一条 seal 已写）；sqlite / OSError / 磁盘 I/O → `context_v2_rebase_unavailable`（503, retryable）。**并且强于本 owner 所请三点**：(i) 显式写入禁令「前两行与后四行是刻意区分，**不得合并为「一律」**」，把本次压缩的具体形态钉成不可复现；(ii) 写明前两行属**恢复未进入**而非恢复期失败，正是本 owner 在 S-0035 指出的、能使原文两种读法归一的那句限定；(iii) 补入区分依据（瞬时争用 vs 确定性状态）、与 K-13 及 BC-003 `unknown input behavior` 的一致性论证，以及用户可见后果（会话锁定直到用户主动 Retry）。`GraphCheckpointError` 不映射 503 的理由亦逐字保留
+- **请求二 · AC-011 子例 7f —— 已兑现，且判据本身被固化**: 7f 现文为「把该 `execution_id` 注册为活跃后触发 rebase，断言**返回 `context_v2_rebase_in_progress`（409, retryable）且零写入**；**注销 / 释放后同一 frozen 请求恢复成功** —— 两项断言同时锁住码与瞬时性」。两项断言逐字恢复，且 `(409, retryable)` 较 HS-001 原文更显式。**超出本 owner 所请的一点**：AC 正文另收录了本 owner 在 S-0035 给出的判据本身 ——「只断言零写入无法区分『闸拒绝后可重试并自愈』与『闸拒绝即永久不兼容』，对两种相反实现都会通过」。把**为什么需要这两项断言**写进 AC，使该格在未来任何一次集成压缩中都能自证不可删，这比只恢复断言更耐久
+- **末条非阻断记录的处置 —— 已被完全消化，本 owner 满意**: S-0035 末条指出 SLOT-003 §D 的理由句时序模型有误；chat-core 在 S-0037 自陈同一问题，S-0041 一并采纳。PS-007 §D 现文与本 owner 的时序模型逐字一致（「renderer 见到 `recovery_required` 只可能是 sidecar 已跑过一次真实恢复且重放仍撞同一 reason」），并补入一个**比本 owner 当时给出的更准确的正当化理由** —— 两次极短重试的价值不在于给闸拒绝让路（那条路返回 `in_progress`），而在于捕捉「另一路并发恢复恰在两次之间补上了 seal」这一概率低但非零的情形，故留一次极短重试即判定、不设指数尾。所定行为（250ms / 750ms，专属上界 2）不变，本 owner 确认该更正不触及 SLOT-002 的任何行为
+- **改动 (4) 的边界纪律声明**: BC-004 `consumer` 行区间 `:4069-4072` → `:4069-4073` 落在 `use_chat_stream.js`，属 code-owner-chat-core 边界，由该 owner 在 S-0037 自陈更正，**本 owner 不代为核验该行号**。本 owner 只核自己作为 BC-004 **producer** 的那一侧，已逐字确认未动：`producer`（信封字段为 code、message、retryable 与可选 expected_revision、actual_revision）、`producer owner`、`admission policy: CLOSED`、`unknown input behavior`、`failure semantics`、`identity/version binding`、`producer owner confirmation: HS-001`、`positive acceptance: AC-011, AC-012`、`negative acceptance: AC-010, AC-012` 全部与本 owner 在 RS-001 审查时所见相同。BC-003 不在 changed blocks 内，本 owner 复核其 consumer 侧全部字段亦未动
+- **boundary object hash 变化的接受依据**: 本 owner 接受 lead（S-0041）与 Speaker（S-0042）各自独立重算得出的结论 —— 十一个 BC / SEQ 对象中只有 BC-004 变化，且变化仅在 `consumer` 描述字段的行号区间。本 owner 在自身可核范围内（BC-003 全部字段、BC-004 producer 侧全部字段、SEQ-005、SEQ-006）逐字复核一致，未发现任何语义漂移；对 `use_chat_stream.js` 行号本身的正确性依边界纪律不表态
+- **RS-001 立场的延续**: 本 owner 在 S-0035 已声明的其余全案立场（条件项 M-1 至 M-7 全部达成、S-0006 defect 2 处置接受、G-1 / G-2 / G-3 三项确认、AC-014 V-2 更正为本 owner 取证疏漏并接受、U-1 / U-2 / U-4 定案接受）在 PS-007 下**逐项继续有效**，四处改动无一触及它们；U-25 与 U-26 的答复见 S-0036，PS-007 未改变其前提，答复继续有效。本 owner 不持有任何未表达的保留
+- **一条措辞观察（明确不构成异议、不请求修改、不需要 disposition）**: §B 新文中「前两行与**后四行**是刻意区分」与其后「前两行是瞬时争用……后**三行**是确定性状态」两处的分组基数不同 —— 后者未把第六行（sqlite / OSError / 磁盘 I/O → 503）纳入任一归类。两句在各自语境下都成立（前者是「瞬时 vs 其余」的二分，后者是「瞬时 vs durable 确定性」的对比，基础设施故障本就两者皆非），且第六行自身的映射写得完全清楚，HS-001 原表同样将其单列。记录于此仅为免除日后逐字比对时的疑问
+- **已知未决（不构成本 owner 的保留，属 Chief 裁量或程序事项）**: R6 内联 recovery 写者与独立 endpoint 的取舍仍待裁定 —— 本 owner 重申无倾向，但提请注意 PS-007 恢复的六行表在两种方案下**都成立**（退路方案里前两行同样是恢复未进入、同样应返回 `in_progress`），故本次改动不增加也不减少任何一侧的返修成本；`boundary_revision_set` 的填写顺序见 S-0043 三选项，属 Chief 裁量；S-0028 与 S-0040 的形式残余属 Speaker 已定性的 record 缺陷，本 owner 不得代改
+- **production effect**: NONE
+
+## S-0046 | 2026-08-16T09:19:52-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: code-owner-devtools
+- **type**: AGREE
+- **owner**: code-owner-devtools
+- **target**: P-0000-0007-2026-0815#PS-007
+- **review snapshot**: RS-002
+- **basis**: S-0042 / RS-002（artifact content hash sha256:6ff723b6a500513c7b804b87b7f83d30c0ac2a6628c30ed3ccba8aeb3df1c316，boundary object hash sha256:b16ed25a4a1516750bcf2bcdc70ddfbe0972846f578b54b6b3105bd1ef9d720b，RS content hash sha256:55c81ec001deea19ea0dca96ed66f73472d76abc66f9bb9c0cd3dc17c020b9a7）；S-0041 / `LEAD_DISPOSITION: ACCEPT` 与其四处改动范围声明；PS-007 的 `changed blocks` 与 `未改动声明`；S-0040（本 owner 绑定 RS-001 的前一条立场，其实体判断在本条内沿用）；S-0045；PuPu `28b1e0ef` 上由本 owner 在本窗口内重新只读核对的 `proposal.md` 事实
+- **decision effect**: 以合规信封重新发布本 owner 绑定 RS-002 与 PS-007 的立场，取代随 successor 失效且形式不合规的 S-0040；确认 PS-007 的四处改动不波及本 owner 的块，S-0040 的全部实体判断继续成立，本案在本 owner 范围内可继续推进至送裁
+- **scope**: SLOT-006, SEQ-007；直接依赖 AC-011, AC-012, AC-014
+- **stance**: AGREE
+- **对 S-0042 处置的接受**: 接受 Speaker 不沿用 S-0040 而改列 re-review 的程序判断，理由本 owner 认同且不申辩 —— S-0040 确实缺公共信封必填的 `decision effect`，且以 `reviewed scope` 代替规范字段名 `scope`，两处均为本 owner 自身的书写疏失。**以继承机制把一条形式不合规的立场带进 successor electorate，确实等于用继承洗掉形式缺陷**，退回原提交者重排是正确做法。同时接受 S-0043 残余分类第 (4) 项的定性：S-0040 缺 `decision effect` 属逐事件全局校验，本次重排后该条仍会永久留在 linter 输出中，本 owner **不请求**对 append-only 开例外、不请求任何归零构造，与本 owner 在 S-0040 中对 S-0028 同类缺陷的表态一致
+- **PS-007 四处改动的波及判定（逐项自核，非援引他人结论）**: **不波及本 owner 的块。** (1) SLOT-002 §B 六行三码表恢复、(2) AC-011 子例 7f 恢复两项断言 —— 二者均属 sidecar 侧失败码归类，而本 owner 对 AC-011 的依赖仅经**子例 6**（位置 (D) fixture 的生产侧）与 V-8 的哨兵锚点，与 7f 是不同子例；本 owner 已复核子例 6 的 fixture 条款逐字未动（fixture 路径在全文仍恰出现一次，未改）。**关键的可波及点是 code 集合，本 owner 已实测其未变**：PS-007 全文的 rebase code 集合仍精确为七个（`context_v2_failed`、`context_v2_generation_conflict`、`context_v2_rebase_in_progress`、`context_v2_rebase_journal_incompatible`、`context_v2_rebase_recovery_required`、`context_v2_rebase_unavailable`、`context_v2_revision_conflict`），恢复的六行三码表只是在**两个既有 code 之间**作正确归类、未引入任何新 code —— 因此 AC-012 位置 (E) 的 E2 与位置 (F) 的 G2 / G3 那条「fixture 的 code 集合与七 code 表加出网 allowlist 的并集一致」的断言、以及 V-8 的哨兵锚点，均不受影响。(3) SLOT-003 §D 理由句、(4) BC-004 `consumer` 行区间 `:4069-4072` → `:4069-4073` —— 均在本 owner 的 scope 之外，且属原作者自陈更正。**另已复核本 owner 自身两个块逐字未动**：SEQ-007 的 `owner confirmation` 仍为 HS-005，其 identity key、ordered events、expected observations、`cell 取证方式` 与七个矩阵单元格全部保持 PS-006 集成后的形态；AC-014 的 artifact 段 A 至 F 六节与 V-1a / V-1b / V-2 / V-3 / V-4 的实施义务标记全部在位。这与 PS-007 `未改动声明`（不触及任何 SEQ 矩阵单元格、不触及任何 BC 的 admission policy / admission details / identity binding、不增删任何编号、write_set 不变）一致
+- **实体判断沿用 S-0040（逐项确认继续成立，不重写全文）**: 一、**确认条件已达成** —— 本 owner 在 S-0028 声明的唯一条件「V-1 与 V-2 写入 AC-014 正文」在 PS-006 已达成，PS-007 未触及 AC-014，故继续成立；本 owner **不触发** S-0028 声明的 OBJECT 条件。二、**HS-005 覆盖对象的合规重述继续有效** —— 应 S-0030 请求所作的权威重述（覆盖对象与责任验收，以同案裸编号给出、每个编号恰好出现一次）已载于 S-0040，其内容与 S-0030 的 Speaker 机械归一投影逐字一致，本条不重复列举编号以免再生重复引用，仅确认该重述继续作为原作者的权威表述。三、**U-25 接受与本 owner 的更正继续有效** —— 接受 S-0036 的「就地覆写 + write-if-changed + 写盘永不转绿」；本 owner 在 S-0040 给出的精确更正同样继续成立：`worktree-fingerprint.mjs` 的 `computeWorktreeFingerprint` 只哈希 `git status --porcelain=v1 -z --untracked-files=all` 输出、`git diff --no-ext-diff --no-textconv --binary HEAD --` 完整内容差、以及每个未跟踪文件的 mode / size / 内容，**全程不读 mtime**，而该 fixture 是入库的跟踪文件，故 write-if-changed 对 V-7 与本地门指纹**不是必要条件**；写下该更正只为防止后来者推出「指纹门是 mtime 敏感的」并在实施 V-7 时把该 fixture 加入忽略名单，那会使第二重保险真正归零。四、**对原 S-0035 的不波及判断在 ACCEPT 落文后依然成立且已获实测加强** —— 本 owner 当时的理由之一是「该异议不请求新增任何 code，故 fixture 的 code 集合在任一结果下都不变」，PS-007 落文后本 owner 已实测确认 code 集合确实未变，该预判得到验证。五、U-24 由本 owner 自持且不阻断（SEQ-007 的 retry 取证已钉为「重跑 `package-matrix`」而不依赖它）；U-26 接受由生产侧 owner 在实施位置 (D) fixture 的生产用例时同一次提交内交付 nodeid
+- **本 owner 不持有任何未表达的保留**: 除上述已落实的条件与两条纯记录（指纹实现的 mtime 更正、四处改动的不波及判定）外，本 owner 对 PS-007 在本条 scope 内无保留、无请求修改、无附加条件。`boundary_revision_set` 的填写顺序三选项（S-0043）与 R6 的实体取舍均不在本条 scope 内，本 owner 不表达倾向；仅确认 S-0043 强制回应清单第三项所指的 S-0028 形式缺陷成因在本 owner 自身，二选一由 Chief 决定
+- **实施排序建议（重申，非本条立场的条件）**: V-2 应最先落地（纯 env 追加、零风险、两处同时加，且是 AC-014 运行时段那条 session 级断言得以写出的前提）；V-1a 次之（单一测试文件，可在任何生产改动之前先行取红取绿）；V-1b / V-3 / V-4 / V-7 可与实施同批；V-8 须排在位置 (D) fixture 的生产用例落地之后
+- **production effect**: NONE | 本条为立场登记，未改动任何生产代码，未改 `proposal.md`，未新增任何编号，主树未 commit
+
+## S-0047 | 2026-08-16T09:24:00-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: P-0000-0007-2026-0815#PS-007
+- **basis**: S-0042 / RS-002, S-0044, S-0045, S-0046, S-0037, S-0038, S-0039, S-0043
+- **decision effect**: 记录送裁前契约完整性门的逐项机械核验结果与参考 linter 的原样输出；本 NOTICE 只陈述可复算事实，不作实体判断，也不宣告 ruling-ready
+- **notice kind**: CONTRACT_GATE_RESULT
+- **门 1 · 每条真实边界有完整 BC**: PASS | 四个 BC 逐一核验 15 个规定字段（producer / producer owner / consumer / consumer owner / canonical representation / consumer projection / admission policy / admission details / unknown input behavior / failure semantics / identity/version binding / 两个 owner confirmation / 正负 acceptance）全部非空，缺字段计数 0；admission policy 取值均在 CLOSED / OPEN / VERSIONED 内（BC-001 CLOSED、BC-002 CLOSED、BC-003 VERSIONED、BC-004 CLOSED）
+- **门 2 · 每个 durable 行为有完整 SEQ**: PASS | 七条 SEQ 逐一核验 10 个规定字段与七个矩阵单元格，缺字段与缺单元格计数均为 0；无静默省略。七条 × 七格共 49 格中 8 格为 `NOT_APPLICABLE`，每格均带可审查理由（发布 artifact 不可 reset、durable journal 事件不可变故无 reset、一次性构建无 resume 等），无一格写空、写 TODO 或写「未测试」
+- **门 3 · BC/SEQ 的 owner、适用性与正负 AC 映射**: PASS | 十一个对象各有唯一 owner 归属与正负 acceptance；`boundary obligations` = BC-001..BC-004 且 `boundary N/A reason` 为 NOT_APPLICABLE（因确有适用边界），`state sequence obligations` = SEQ-001..SEQ-007 且同理；`state character` 显式声明 STATEFUL，非静默省略；`contract_set` 与 BC 集合精确相等
+- **门 4 · 跨 owner BC 的两侧责任确认经串行 HS 取得**: PASS | BC-003 producer = code-owner-unchain（LEAD）/ consumer = code-owner-runtime（HS-001）；BC-004 producer = code-owner-runtime（HS-001）/ consumer = code-owner-chat-core（HS-002）。BC-001 与 BC-002 两侧同属 code-owner-unchain 边界内，由 LEAD 确认，非跨 owner。SEQ-004（HS-002）、SEQ-005 / SEQ-006（HS-001）、SEQ-007（HS-005）均引用已 RETURNED 的 material HS；五次交棒全程串行，同一时刻从未有第二个 OPEN HS
+- **门 5 · PENDING_DISCOVERY 清零**: PASS | `proposal.md` 全文对 `PENDING_DISCOVERY` / `PENDING_HS` / `PENDING_OWNER_INTEGRATION` / `PENDING_HANDOFF` / `UNFILLED` 的匹配计数为 0；七个 SLOT 全部 FILLED
+- **门 6 · NOT_APPLICABLE 与 STATELESS 声明有可核验理由**: PASS | 本案未使用 STATELESS（`state character` 为 STATEFUL）；两条 N/A reason 字段与 8 个 N/A 单元格均给出具体理由，其中 SEQ-007 的 resume / reset 两格的理由已由 SLOT-006 owner 在 HS-005 内补出源码执行点，由设计声明升级为源码事实
+- **门 7 · 唯一未清零项**: `boundary_revision_set` 仍为 `PENDING_CANDIDATE_FREEZE`，另有四个 BC 的 `identity/version binding` 同步待回填（共 6 处）。原因与三选项见 S-0043，属协议内生顺序问题
+- **附记 · AC 覆盖事实**: AC 集合为 AC-001 至 AC-016 共 16 条。BC/SEQ 的正负 acceptance 并集覆盖其中 15 条；**AC-013（用户库隔离副本重放）不被任何 BC/SEQ 引用**，它是独立验收标准而非边界/序列映射项，法典只要求 BC/SEQ 逐项映射到既存 AC，不要求每条 AC 反向挂到 BC/SEQ，故不构成缺口。AC-013 的执行以 Chief 授权提供用户库只读副本为前提
+- **参考门禁命令**: `python3 -B .claude/skills/case/boundary_lint.py .claude/court/cases/P-0000-0007-2026-0815 --phase ruling`
+- **参考门禁退出码**: 1（非零）
+- **参考门禁输出（原样四条，未删改）**: (1) `record.md: S-0040 common envelope is missing concrete field 'decision effect'`；(2) `record.md: HS-005 RETURNED contribution contains duplicate SEQ refs: ['SEQ-007']`；(3) `record.md: HS-005 RETURNED contribution contains duplicate AC refs: ['AC-014']`；(4) `proposal.md: boundary_revision_set must be an exact immutable sha256:<producer>+sha256:<consumer> pair`；末行 `FAIL: 4 issue(s)`
+- **输出逐条定性**: (1)(2)(3) 为 append-only 下不可归零的历史形式残余，定性与可达补救分析见 S-0030 与 S-0042；三条均不影响任何覆盖判定、owner 确认或 electorate。(4) 为唯一实质项
+- **门禁矛盾的呈裁方式**: 法典要求参考门禁非零时退回。但本案 (4) 的非零成因是「填写该字段必须先构建、构建属实施、实施须先获 PLAN_RULING 授权」的协议内生顺序，退回 drafting 不可能使其归零 —— 无论退回多少次，未获授权前该字段都无法合法填写。**Speaker 不宣告 ruling-ready，也不自行豁免该门**：将「门禁非零」这一事实连同其成因、S-0043 的三选项与 lead 推荐，一并作为 SUMMARY 的强制回应项呈 Chief，由 Chief 裁量按选项一在 ruling 内处置，还是按选项二退回走受限构建。(1)(2)(3) 同样如实呈上，不粉饰、不隐藏、不伪造归零
+- **production effect**: NONE
+
+## S-0048 | 2026-08-16T09:24:30-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: SUMMARY
+- **target**: case
+- **basis**: P-0000-0007-2026-0815#PS-007, RS-002, S-0047, S-0043, S-0041, S-0030
+- **decision effect**: 提交当前材料并休庭等待 Chief 的 PLAN_RULING；本 SUMMARY 只忠实引用 canonical 来源，不复制正文形成第二事实源，不表达任何实体倾向
+- **discussion type / procedure mode**: proposal | collaboration
+- **current artifact**: P-0000-0007-2026-0815#PS-007
+- **ruling-ready artifact**: P-0000-0007-2026-0815#PS-007 | content hash sha256:6ff723b6a500513c7b804b87b7f83d30c0ac2a6628c30ed3ccba8aeb3df1c316 | boundary object hash sha256:b16ed25a4a1516750bcf2bcdc70ddfbe0972846f578b54b6b3105bd1ef9d720b
+- **boundary protocol**: v1
+- **boundary contracts / state sequences**: BC-001, BC-002, BC-003, BC-004 / SEQ-001, SEQ-002, SEQ-003, SEQ-004, SEQ-005, SEQ-006, SEQ-007
+- **boundary ruling-ready check**: PARTIAL | 七道门中六道 PASS（BC 字段完整、SEQ 矩阵无静默省略、owner 与正负 AC 映射齐备、跨 owner 两侧确认均经串行 HS、PENDING_DISCOVERY 清零、N/A 理由可核验），逐项依据见 S-0047；唯一未清零项为 `boundary_revision_set` 及四个 BC 的 identity binding 回填，成因是协议内生顺序，处置属 Chief 裁量
+- **unintegrated amendments**: 无 | S-0035 是本案唯一异议，已由 S-0041 `ACCEPT` 全部接受并由 PS-007 落文兑现；不存在「快照 + 未集成 AM」的拼接对象
+- **review positions**: RS-002 | 6/6 AGREE，0 OBJECT，0 ABSTAIN，D=0。直接立场 S-0044（lead 全案 baseline）、S-0045（runtime，确认两项请求全部兑现且被加强）、S-0046（devtools，实测四处改动不波及、code 集合未变）；继承立场 S-0037@RS-001（chat-core）、S-0038@RS-001（electron）、S-0039@RS-001（shared-arteries），三条 lineage 已由参考 linter 复算通过
+- **consensus**: 六名 owner 对 PS-007 全部同意。四位非 lead owner 在交棒期提出的条件（runtime M-1..M-7、chat-core M-8..M-15、electron M-16/M-17、shared-arteries M-27、devtools V-1/V-2）逐条有采纳或明示不采纳记录，唯一明示不采纳的 M-13 已给等效替代并在其 owner 的 AGREE 中被接受
+- **disagreements**: 无稳定分歧 | S-0035 状态 RESOLVED_BY_ACCEPT，无 CARRIED OBJECT、无 OG、无 FV，procedure mode 全程保持 collaboration
+- **known unknowns**: U-24 由 lead 自持；AC-013 的用户库只读副本尚未取得授权，其结论待实施期；位置 (D) fixture 的 relocation 风险（U-18，须一次编辑同步 D/E/F 三处读取方）；R9 所载 CRA shim 既有缺口（devtools 口径 9 处，非发布风险，本案不修）；G-1 / G-2 / G-3 为已写入 PS 的明示接受行为而非未知，列此备查
+- **risks**: R1 收紧（crash window 由静默通过改判 recovery_required）；R2 放宽（orchestration (b) 形态的准入条件必须全满足）；R3 死角（多 terminal 候选判 UNAVAILABLE 而非 recovery）；R4 部署顺序（Unchain 先行时新增 reason 落既有分类）；R5 取证依赖（AC-013 需授权副本）；R6 内联 recovery 使 rebase_session 在恢复路径成为写者（见强制回应一）；R7 见 PS 正文；R8 锚定正则陷阱（已由 G1–G8 与位置 (F) 的 red-before-green 从推演升级为可实测，并已定界为语义退化而非数据丢失）；R9 三槽漂移（非发布风险，本案不修）
+- **evidence flags**: 无质疑登记 | 事实基础为 intake 六路只读取证（sha256:655dd8b8… 与 sha256:32d7e622…）加五棒 owner 各自在其边界内的只读复核与实测；红前绿义务清单已写入 AC 正文 —— AC-011 子例 1 / 4 / 7d / 8，AC-012 子例 6 / 9 / 12 与位置 (E) 的 E1 两格 / E6 / E7，位置 (F) 的 G2 / G3 / G4 / G8，以及 devtools 侧 V-1a / V-1b
+- **BOS status**: NOT_APPLICABLE | 默认协作，未开庭，无 BOS/BO/RC
+- **DES / CR**: NOT_APPLICABLE / NOT_APPLICABLE | 未启动正式证据控制，未创建 Examiner，未抽查
+- **Full vote**: NOT_APPLICABLE | D=0，从未达到发起门槛
+- **mandatory responses**: 五项并列，逐条须 Chief 明示处置 —— 一、**R6 取舍**：内联 recovery 写者（PS-007 已集成路径）vs 新增独立 endpoint（退路）；三侧代价实测 electron 加三格零返修、shared-arteries 零追加零返修、chat-core 真返修且需二次交棒；lead 按 S-0017 的程序推进决定完成内联集成，Speaker 全程不表达倾向，第六次提请。二、**`boundary_revision_set` 与门禁矛盾**：该字段 ruling 前无法合法填写属协议内生顺序，参考门禁因此非零（退出码 1，四条输出见 S-0047）；三选项为选项一 ruling 内授权首次构建并回填后由 Speaker NOTICE 固定为不可改的 expected pair（lead 推荐）、选项二受限授权只构建再回本案做 successor PS/RS、选项三推到 acceptance 阶段填（Speaker 提示会削弱 §四.6 的逐字比对保证）。三、**S-0028 形式缺陷二选一**：FORMAL_ONLY，接受为形式残余或授权一次性就地归一；append-only 下无可归零的追加构造，分析见 S-0030；S-0040 缺 `decision effect` 同类同办。四、**coverage gap 三条并列**：(a) BC-004 载体段义务以 HS-003 contribution 与 RS stance 承载、未占 confirmation 字段；(b) 反解段同形式，已收口为「已知情已同意」；(c) BC-004 实为四方义务而 v1 的 BC 只有两个 confirmation 字段，属协议结构性限制，是否拆分归 Chief，两位相关 owner 均明确不要求拆分。五、**RSP-2 位置 (D) fixture 稳定引用点**：现由三个 owner 的测试读取，U-18 请求在 PLAN_RULING 中确立为稳定引用点，relocation 须一次编辑同步三处
+- **另列待 Chief 处置项**: AC-013 需 Chief 明确授权提供用户库只读副本，是 acceptance 阶段的前提而非本次裁定阻断；K-20 的 `context_v2_bridge.js:53-56` 注释补写已在 write_set 内、标注为待授权，裁定时须明示是否一并授权；实施排序建议为 V-2 的两处 env 追加最先落地（纯 env、零风险、今天物理不可写的断言由此变为可写），随后位置 (E) 的 E3 / E4 / E6 / E7 / E8 / E9 与位置 (F) 的 G1 / G4 / G5 / G6 / G7 / G8 可在 SLOT-001 与 SLOT-002 实施之前独立取绿
+- **coverage gaps**: 见强制回应四；除此之外，最终方案实际命中的写入、契约、实施、回滚与验收责任均已有 owner 交付 —— 七个 SLOT 全部 FILLED，十一个 BC/SEQ 全部取得 owner 确认，无 blocking child，无开放 HS
+- **stop reason**: 没有可降低 rank 的下一增量 —— 全部必要交棒已闭合、唯一异议已被接受并落文、六名合作 owner 立场齐备且无被拒异议；剩余四项全部需要 Chief 的实体或程序裁量，继续在协作模式内推进不会改变任何一项
+- **production effect**: NONE | 至本 SUMMARY 为止本案未改动任何生产代码，主树未 commit
+
+## S-0049 | 2026-08-16T12:49:01-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: chief-judge
+- **type**: DIRECTION
+- **target**: P-0000-0007-2026-0815#PS-007
+- **basis**: Chief Judge user message 2026-08-16；directive-sha256:2a05b0d1d6a2d9fb1cb2fb779f18c60a4de73f841a7cb81961ce91e5780202a2；S-0047；S-0048
+- **decision effect**: 批准把 PS-007 从送裁入口退回 drafting 返修；PS-008 由 lead 集成、RS-003 仅由 Speaker 在 successor artifact 完整后冻结，Codex 只可作送裁前法典审计；本方向不是 PLAN_RULING，不批准 PS-007，也不授权任何生产 action
+- **direction**: RETURN_TO_DRAFTING
+- **Chief authorization quote**: 批准按 RETURN 修复，但执笔权修正一处：codex 无裁决权也不是本案 owner——它的异议入卷作为返修依据，PS-008 由 lead（code-owner-unchain）集成、RS-003 由 Speaker 冻结并这次走满窗口；codex 可受邀对 PS-008 做送裁前法典审计。返修目标即上表 8 项：pair 改契约 digest 语义、E2 断言修正、write_set 补全、#6/#7 以代码证据定案、S-0028/S-0040 走 hash 绑定 erratum（不就地改写也不叫「可接受残余」）、BC-004 拆分在返修中连同重确认成本一并呈你终裁。生产代码在合法 PLAN_RULING + CLOSURE_COMMIT 前保持零改动不变。
+- **directive hash scope**: 上一字段冒号后全部 UTF-8 字节，排除字段名前缀、Markdown 换行与任何首尾空白；SHA-256 为 `2a05b0d1d6a2d9fb1cb2fb779f18c60a4de73f841a7cb81961ce91e5780202a2`
+- **verified return grounds**: 八项异议作为返修依据入卷 —— ruling lint 四项错误未清零；结构性空白不可由一般批准绕过；S-0048 早于 RS-002 review/objection deadline；AC-011 位置 (D) fixture 七 code 与 AC-012 位置 (E) E2 的十一 code 等集断言冲突；现行 write_set 未覆盖 SLOT-003 要求的 renderer 生产行为与 quarantine UI；`run_max_iterations` 活等待语义须以代码证据定案；graph-dead、跨进程 active-run race 与 250ms/750ms 时序须以代码证据消除内部不一致；BC-004 的拆分形状与重新确认成本须在返修中一并呈终裁
+- **record erratum disposition**: S-0028 / S-0040 必须走 hash-bound erratum，不得原地改写，也不得称为可接受形式残余；本方向未定义 erratum schema、canonical overlay 或 linter 语义，故不得由书记员自行发明或实施
+- **authorship**: PS-008 = code-owner-unchain；RS-003 = speaker-of-the-house；Codex = AUDIT_ONLY
+- **successor review requirement**: RS-003 必须在 PS-008 完整集成及所有必要串行 HS 终态后另行冻结，使用新的完整 review/objection/disposition deadlines；不得继承一条尚未经过 successor scope 判定的 stance
+- **authorization effect**: NONE | 无 PLAN_RULING、无 AS、无 SI、无 CLOSURE_COMMIT
+- **production effect**: NONE | 生产代码在合法 PLAN_RULING + CLOSURE_COMMIT 前保持零改动
+
+## S-0050 | 2026-08-16T12:49:02-07:00
+- **case**: P-0000-0007-2026-0815
+- **discussion type**: proposal
+- **procedure mode**: collaboration
+- **speaker**: speaker-of-the-house
+- **type**: NOTICE
+- **target**: S-0048
+- **basis**: S-0049；S-0042（RS-002 review/objection deadline 2026-08-16T10:42:00-07:00）；S-0047（ruling gate exit 1）；boundary-contracts.md §四.2、§四.6、§四.7；case-format.md「review 窗口关闭且 boundary v1 门完整后方可 SUMMARY」
+- **decision effect**: 将过早且错误标注 ruling-ready 的 S-0048 从当前送裁入口撤出，保留其原始字节为不可变历史，并把本案机械路由到 drafting 等待 lead 集成 PS-008；不改写 PS-007、RS-002、任何 owner stance 或 contribution
+- **notice kind**: SUMMARY_INVALIDATED_RETURN_TO_DRAFTING
+- **timing finding**: S-0048 形成于 2026-08-16T09:24:30-07:00，早于 RS-002 review/objection deadline 2026-08-16T10:42:00-07:00；因此其「休庭等待裁定」与 `ruling-ready artifact` 声明不具 current ruling-intake 效力
+- **gate finding**: S-0047 已归档 direct ruling lint 退出码 1；结构性空白与无效记录不能进入 PLAN_RULING intake，Chief 的 S-0049 方向明确选择返修而非豁免
+- **S-0048 disposition**: INVALIDATED_FOR_RULING_INTAKE | immutable historical event preserved；不得作为 PS-007 ruling-ready、PLAN_RULING basis 或 action authority
+- **preserved lineage**: PS-007、RS-002、S-0035、S-0041 与全部 stance/HS 仅作为 successor 集成和 scope-lineage 的历史输入；RS-002 不删除、不重编号、不伪装为 RS-003
+- **next artifact**: P-0000-0007-2026-0815#PS-008 | formed_by code-owner-unchain | NOT_YET_CREATED
+- **next review**: RS-003 | speaker-of-the-house | NOT_YET_CREATED
+- **current gate state**: GATE_BLOCKED_PENDING_RECORD_ERRATUM | direct ruling lint 的 S-0028 重复 SEQ/AC 引用与 S-0040 缺 `decision effect` 仍按原样存在；现有 append-only 事件不能清零，hash-bound erratum mechanism 尚未物化，书记员未发明 overlay、manifest 或 parser 规则
+- **current logical state**: awaiting-ruling → drafting
+- **open handoff**: null | lead 若为 PS-008 发现新的 owner 边界义务，须依次请求新的串行 HS；Speaker 不预建 roster
+- **authorization effect**: NONE | 无 PLAN_RULING、无 AS、无 SI、无 closure bundle 或 CLOSURE_COMMIT
+- **production effect**: NONE | 未改动任何生产代码、proposal、owner contribution 或历史事件

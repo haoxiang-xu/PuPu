@@ -17,7 +17,17 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 
 const ANIM_DURATION = 260; // ms — matches CSS transition
 
-const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => {
+const Modal = ({
+  open,
+  onClose,
+  style,
+  overlayStyle,
+  fullscreen,
+  ariaLabel,
+  ariaLabelledBy,
+  ariaDescribedBy,
+  children,
+}) => {
   const { theme } = useContext(ConfigContext);
   const mt = theme?.modal || {};
 
@@ -54,7 +64,11 @@ const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => 
 
   return ReactDOM.createPortal(
     <div
+      data-pupu-modal-overlay-host="true"
       aria-modal="true"
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      aria-describedby={ariaDescribedBy}
       role="dialog"
       style={{
         position: "fixed",

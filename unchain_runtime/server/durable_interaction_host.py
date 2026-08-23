@@ -5,18 +5,101 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import threading
 import time
 import uuid
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
+
+from context_composition_host import (
+    AVAILABILITY_OPTION as _CONTEXT_COMPOSITION_AVAILABILITY_OPTION,
+    PRIVATE_HINT_OPTION as _CONTEXT_COMPOSITION_PRIVATE_OPTION,
+    canonical_private_context_composition_hint_bytes as _context_composition_private_bytes,
+    context_composition_availability as _context_composition_availability,
+    normalize_context_composition_availability as _normalize_context_composition_availability,
+    normalize_private_context_composition_hint as _normalize_context_composition_private_hint,
+)
 
 
 _CONTEXT_SCHEMA_VERSION = 2
 _CONTEXT_DIRECTORY = "durable_interactions"
+_GRAPH_STEP_CONTEXT_SCHEMA_VERSION = 1
+_GRAPH_STEP_CONTEXT_REVISION = 1
+_GRAPH_STEP_CONTEXT_DIRECTORY = "durable_graph_step_resumes"
 _ATTEMPT_BINDING_SCHEMA_VERSION = 1
 _ATTEMPT_BINDING_DIRECTORY = "execution_attempt_bindings"
+
+_GRAPH_STEP_CONTEXT_RECORD_KEYS = frozenset(
+    {
+        "schema_version",
+        "resume_kind",
+        "revision",
+        "operation_id",
+        "payload_sha256",
+        "created_at_ms",
+        "session_id",
+        "owner_chat_id",
+        "graph_execution_id",
+        "coordinator_attempt_id",
+        "graph_plan_id",
+        "graph_scope_id",
+        "topology_sha256",
+        "step_index",
+        "node_id",
+        "step_attempt_id",
+        "predecessor_attempt_id",
+        "provider",
+        "model",
+        "configuration_sha256",
+        "recipe_identity",
+        "canonical_build_fingerprint",
+        "coordinator_binding_snapshot",
+        "options",
+    }
+)
+_GRAPH_COORDINATOR_BINDING_KEYS = frozenset(
+    {
+        "schema",
+        "owner_chat_id",
+        "session_id",
+        "generation_id",
+        "head_revision",
+        "identity",
+        "grant",
+        "current_input_draft",
+    }
+)
+_GRAPH_COORDINATOR_IDENTITY_KEYS = frozenset(
+    {
+        "execution_id",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+        "parent_run_id",
+        "run_lineage",
+    }
+)
+_GRAPH_COORDINATOR_GRANT_KEYS = frozenset(
+    {
+        "module_key",
+        "capabilities",
+        "delegable_capabilities",
+        "authority",
+    }
+)
+_GRAPH_COORDINATOR_BINDING_SCHEMA = "pupu.memory-v2-run-binding.v2"
+_MEMORY_V2_MODULE_KEY = "memory_v2"
+_MEMORY_EXECUTION_COMPLETE = "memory.execution.complete"
+_GRAPH_RECIPE_IDENTITY_KEYS = frozenset(
+    {"name", "source", "revision", "version", "sha256"}
+)
+_GRAPH_SECRET_HANDLE_MARKER_RE = re.compile(
+    r'<secret-handle label="(?P<label>[^"\r\n]{1,512})" '
+    r'handle="(?P<handle>pvh1_[0-9a-f]{64})"/>'
+)
 
 # Resume state is deliberately an allowlist.  The route accepts arbitrary JSON
 # options, so trying to identify secrets by name is not a safe persistence
@@ -31,6 +114,7 @@ _STABLE_RESUME_OPTION_KEYS = frozenset(
         "agent_orchestration_mode",
         "contextOptimizer",
         "context_optimizer",
+        "_context_composition_hint_v1",
         # Custom-provider definition (design §7). Safe to persist: the def
         # carries NO api key (the key rides the specialised custom_provider_api_key
         # field and is re-supplied by the renderer via _FRESH_SECRET_OPTION_KEYS).
@@ -70,6 +154,7 @@ _STABLE_RESUME_OPTION_KEYS = frozenset(
         "model",
         "modelId",
         "model_id",
+        "_memory_v2_owner_chat_id",
         "optimizer",
         "provider",
         "recipe_name",
@@ -123,6 +208,162 @@ class DurableInteractionHostError(RuntimeError):
         self.retryable = bool(retryable)
 
 
+def _session_execution_guard_call(name: str, **kwargs: Any) -> Any:
+    try:
+        import session_execution_guard
+    except ImportError as exc:
+        raise DurableInteractionHostError(
+            "session_execution_guard_unavailable",
+            "Session execution guard is unavailable",
+            status_code=503,
+            retryable=True,
+        ) from exc
+    operation = getattr(session_execution_guard, name, None)
+    if not callable(operation):
+        raise DurableInteractionHostError(
+            "session_execution_guard_incompatible",
+            "Session execution guard API is incompatible",
+            status_code=503,
+            retryable=False,
+        )
+    try:
+        return operation(**kwargs)
+    except DurableInteractionHostError:
+        raise
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            str(getattr(exc, "code", "session_execution_guard_unavailable") or ""),
+            "Session execution guard rejected the durable interaction transition",
+            status_code=int(getattr(exc, "status_code", 503) or 503),
+            retryable=bool(getattr(exc, "retryable", True)),
+        ) from exc
+
+
+@dataclass(frozen=True, slots=True)
+class DurableInteractionReceiptHandoff:
+    """Internal, digest-validated handoff for one persisted UI response.
+
+    The public confirmation route deliberately returns only receipt identity.
+    Live callbacks receive this separate value so Context V2 can project the
+    exact response that won the durable receipt CAS without trusting the HTTP
+    request a second time.
+    """
+
+    session_id: str
+    receipt_json: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        normalized_session_id = _required_identifier(
+            self.session_id,
+            field_name="session_id",
+        )
+        if not isinstance(self.receipt_json, str) or not self.receipt_json:
+            raise TypeError("receipt_json must be non-empty text")
+        self._load_receipt()
+        object.__setattr__(self, "session_id", normalized_session_id)
+
+    @classmethod
+    def from_persisted_receipt(
+        cls,
+        *,
+        session_id: str,
+        receipt: Any,
+    ) -> "DurableInteractionReceiptHandoff":
+        from unchain.interaction.durable import InteractionReceipt
+
+        bound_receipt = InteractionReceipt.from_dict(receipt)
+        return cls(
+            session_id=session_id,
+            receipt_json=json.dumps(
+                bound_receipt.to_dict(),
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+
+    def _load_receipt(self):
+        from unchain.interaction.durable import InteractionReceipt
+
+        try:
+            raw_receipt = json.loads(self.receipt_json)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise DurableInteractionHostError(
+                "interaction_receipt_integrity_error",
+                "Durable interaction receipt handoff is invalid",
+                status_code=500,
+            ) from exc
+        try:
+            return InteractionReceipt.from_dict(raw_receipt)
+        except Exception as exc:
+            raise DurableInteractionHostError(
+                "interaction_receipt_integrity_error",
+                "Durable interaction receipt handoff failed integrity validation",
+                status_code=500,
+            ) from exc
+
+    @property
+    def receipt_id(self) -> str:
+        return self._load_receipt().receipt_id
+
+    @property
+    def interaction_id(self) -> str:
+        return self._load_receipt().interaction_id
+
+    @property
+    def submitted_by(self) -> str:
+        return self._load_receipt().submitted_by
+
+    @property
+    def response(self) -> Any:
+        return copy.deepcopy(self._load_receipt().response)
+
+
+class DurableInteractionReceiptResult(dict):
+    """Public receipt metadata plus an out-of-band internal handoff."""
+
+    def __init__(
+        self,
+        public_result: dict[str, Any],
+        *,
+        handoff: DurableInteractionReceiptHandoff,
+    ) -> None:
+        if not isinstance(public_result, dict):
+            raise TypeError("public_result must be a dict")
+        if not isinstance(handoff, DurableInteractionReceiptHandoff):
+            raise TypeError("handoff must be a durable interaction receipt handoff")
+        if (
+            str(public_result.get("session_id") or "").strip()
+            != handoff.session_id
+            or str(public_result.get("interaction_id") or "").strip()
+            != handoff.interaction_id
+            or str(public_result.get("receipt_id") or "").strip()
+            != handoff.receipt_id
+        ):
+            raise DurableInteractionHostError(
+                "interaction_receipt_integrity_error",
+                "Public receipt metadata does not match its internal handoff",
+                status_code=500,
+            )
+        super().__init__(copy.deepcopy(public_result))
+        self._handoff = handoff
+
+    @property
+    def handoff(self) -> DurableInteractionReceiptHandoff:
+        return self._handoff
+
+
+def interaction_receipt_handoff(
+    value: Any,
+) -> DurableInteractionReceiptHandoff | None:
+    """Return the non-serializable handoff carried by a local receipt result."""
+
+    if not isinstance(value, DurableInteractionReceiptResult):
+        return None
+    return value.handoff
+
+
 def _normalized_data_dir() -> Path:
     raw = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
     if not raw:
@@ -168,6 +409,30 @@ def _context_path(
             os.chmod(root, 0o700)
             os.chmod(directory, 0o700)
     return directory / f"{_identifier_digest(normalized_run_id)}.json"
+
+
+def _graph_step_context_path(
+    session_id: str,
+    step_attempt_id: str,
+    *,
+    create_directory: bool = False,
+) -> Path:
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    root = _normalized_data_dir() / _GRAPH_STEP_CONTEXT_DIRECTORY
+    directory = root / _identifier_digest(normalized_session_id)[:32]
+    if create_directory:
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if os.name != "nt":
+            os.chmod(root, 0o700)
+            os.chmod(directory, 0o700)
+    return directory / f"{_identifier_digest(normalized_step_attempt_id)}.json"
 
 
 def _attempt_binding_path(
@@ -274,11 +539,82 @@ def _json_safe(value: Any) -> Any:
 def _stable_resume_options(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
-    return {
-        key: _json_safe(value[key])
-        for key in _STABLE_RESUME_OPTION_KEYS
-        if key in value
-    }
+    stable: dict[str, Any] = {}
+    for key in _STABLE_RESUME_OPTION_KEYS:
+        if key not in value:
+            continue
+        if key == _CONTEXT_COMPOSITION_PRIVATE_OPTION:
+            try:
+                stable[key] = _normalize_context_composition_private_hint(
+                    value[key]
+                )
+            except ValueError:
+                # Composition is optional.  An invalid private value is never
+                # made durable, but it cannot block the base resume record.
+                continue
+        else:
+            stable[key] = _json_safe(value[key])
+    return stable
+
+
+def _resolve_context_composition_resume_authority(
+    *,
+    stable_options: dict[str, Any],
+    fresh_options: dict[str, Any] | None,
+) -> dict[str, Any]:
+    resolved = copy.deepcopy(stable_options)
+    fresh = fresh_options if isinstance(fresh_options, dict) else {}
+    incoming_availability = _normalize_context_composition_availability(
+        fresh.get(_CONTEXT_COMPOSITION_AVAILABILITY_OPTION)
+    )
+    if incoming_availability is not None:
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            incoming_availability
+        )
+        return resolved
+
+    baseline_present = _CONTEXT_COMPOSITION_PRIVATE_OPTION in stable_options
+    declaration_present = _CONTEXT_COMPOSITION_PRIVATE_OPTION in fresh
+    baseline = None
+    if baseline_present:
+        try:
+            baseline = _normalize_context_composition_private_hint(
+                stable_options[_CONTEXT_COMPOSITION_PRIVATE_OPTION]
+            )
+        except ValueError:
+            resolved.pop(_CONTEXT_COMPOSITION_PRIVATE_OPTION, None)
+            resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+                _context_composition_availability("resume_hint_invalid")
+            )
+            return resolved
+    if not declaration_present:
+        if baseline is not None:
+            resolved[_CONTEXT_COMPOSITION_PRIVATE_OPTION] = baseline
+        return resolved
+    try:
+        declaration = _normalize_context_composition_private_hint(
+            fresh[_CONTEXT_COMPOSITION_PRIVATE_OPTION]
+        )
+    except ValueError:
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            _context_composition_availability("resume_hint_invalid")
+        )
+        return resolved
+    if baseline is None:
+        resolved.pop(_CONTEXT_COMPOSITION_PRIVATE_OPTION, None)
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            _context_composition_availability("resume_hint_no_baseline")
+        )
+        return resolved
+    if _context_composition_private_bytes(
+        baseline
+    ) != _context_composition_private_bytes(declaration):
+        resolved[_CONTEXT_COMPOSITION_AVAILABILITY_OPTION] = (
+            _context_composition_availability("resume_hint_mismatch")
+        )
+        return resolved
+    resolved[_CONTEXT_COMPOSITION_PRIVATE_OPTION] = baseline
+    return resolved
 
 
 def _fresh_secret_overlay(value: Any) -> dict[str, Any]:
@@ -290,6 +626,531 @@ def _fresh_secret_overlay(value: Any) -> dict[str, Any]:
         if isinstance(secret, str) and secret.strip():
             overlay[key] = secret
     return overlay
+
+
+def _required_graph_sha256(value: Any, *, field_name: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if len(normalized) != 64 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        raise DurableInteractionHostError(
+            f"invalid_{field_name}",
+            f"{field_name} must be a lowercase sha256 hex digest",
+            status_code=400,
+        )
+    return normalized
+
+
+def _sanitize_graph_storage_value(
+    value: Any,
+    *,
+    preserve_vault_handles: bool = False,
+) -> Any:
+    try:
+        from memory_v2_sanitizer import sanitize_text, sanitize_value
+    except ImportError as exc:  # pragma: no cover - packaged-runtime guard
+        raise DurableInteractionHostError(
+            "durable_graph_resume_sanitizer_unavailable",
+            "Graph-step resume metadata sanitizer is unavailable",
+            status_code=503,
+        ) from exc
+    try:
+        storage_value = _json_safe(value)
+        if not preserve_vault_handles:
+            return sanitize_value(storage_value)
+
+        replacements: dict[str, str] = {}
+        placeholder_prefix = f"__PUPU_GRAPH_OPAQUE_REF_{uuid.uuid4().hex}_"
+
+        def protect(inner: Any) -> Any:
+            if isinstance(inner, dict):
+                return {
+                    key: protect(child)
+                    for key, child in inner.items()
+                }
+            if isinstance(inner, list):
+                return [protect(child) for child in inner]
+            if not isinstance(inner, str):
+                return inner
+
+            def replace(match: re.Match[str]) -> str:
+                placeholder = f"{placeholder_prefix}{len(replacements)}__"
+                replacements[placeholder] = (
+                    '<secret-handle label="'
+                    + sanitize_text(match.group("label"))
+                    + '" handle="'
+                    + match.group("handle")
+                    + '"/>'
+                )
+                return placeholder
+
+            return _GRAPH_SECRET_HANDLE_MARKER_RE.sub(replace, inner)
+
+        def restore(inner: Any) -> Any:
+            if isinstance(inner, dict):
+                return {
+                    key: restore(child)
+                    for key, child in inner.items()
+                }
+            if isinstance(inner, list):
+                return [restore(child) for child in inner]
+            if not isinstance(inner, str):
+                return inner
+            restored = inner
+            for placeholder, marker in replacements.items():
+                restored = restored.replace(placeholder, marker)
+            return restored
+
+        return restore(sanitize_value(protect(storage_value)))
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_sanitization_failed",
+            "Graph-step resume metadata could not be sanitized",
+        ) from exc
+
+
+def _canonical_graph_json_bytes(
+    value: Any,
+    *,
+    error_code: str,
+    message: str,
+) -> bytes:
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (RecursionError, TypeError, ValueError, UnicodeError) as exc:
+        raise DurableInteractionHostError(error_code, message) from exc
+
+
+def _normalize_graph_recipe_identity(value: Any) -> dict[str, Any]:
+    if isinstance(value, str):
+        raw = {"name": value}
+    elif isinstance(value, dict):
+        raw = copy.deepcopy(value)
+    else:
+        raise DurableInteractionHostError(
+            "invalid_recipe_identity",
+            "recipe_identity must be text or an object",
+            status_code=400,
+        )
+    if "name" not in raw or not set(raw).issubset(
+        _GRAPH_RECIPE_IDENTITY_KEYS
+    ):
+        raise DurableInteractionHostError(
+            "invalid_recipe_identity",
+            "recipe_identity has unsupported fields",
+            status_code=400,
+        )
+    normalized: dict[str, Any] = {}
+    for key, item in raw.items():
+        if key == "sha256":
+            normalized[key] = _required_graph_sha256(
+                item,
+                field_name="recipe_identity_sha256",
+            )
+            continue
+        if isinstance(item, bool) or not isinstance(item, (str, int)):
+            raise DurableInteractionHostError(
+                "invalid_recipe_identity",
+                "recipe_identity fields must be text or integers",
+                status_code=400,
+            )
+        normalized[key] = item
+    normalized["name"] = _required_identifier(
+        normalized.get("name"),
+        field_name="recipe_identity_name",
+    )
+    sanitized = _sanitize_graph_storage_value(normalized)
+    if not isinstance(sanitized, dict) or set(sanitized) != set(normalized):
+        raise DurableInteractionHostError(
+            "invalid_recipe_identity",
+            "recipe_identity changed shape during sanitization",
+            status_code=400,
+        )
+    return sanitized
+
+
+def _normalize_graph_current_input_draft(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "root graph coordinator requires a current input draft",
+            status_code=400,
+        )
+    kind = str(value.get("kind") or "").strip()
+    if kind == "text":
+        allowed = {"kind", "content", "message_index", "attachments"}
+        required = {"kind", "content", "message_index"}
+        if not required.issubset(value) or not set(value).issubset(allowed):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input has unsupported fields",
+                status_code=400,
+            )
+        if not isinstance(value.get("content"), str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input content must be text",
+                status_code=400,
+            )
+        raw_content = value["content"]
+        message_index = value.get("message_index")
+        if (
+            isinstance(message_index, bool)
+            or not isinstance(message_index, int)
+            or message_index < 0
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input message_index is invalid",
+                status_code=400,
+            )
+        attachments = value.get("attachments", [])
+        if not isinstance(attachments, list) or len(attachments) > 32 or any(
+            not isinstance(item, dict) for item in attachments
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "text coordinator input attachments are invalid",
+                status_code=400,
+            )
+    elif kind == "interaction":
+        if set(value) != {
+            "kind",
+            "interaction_id",
+            "response",
+            "submitted_by",
+        }:
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "interaction coordinator input has unsupported fields",
+                status_code=400,
+            )
+        _required_identifier(
+            value.get("interaction_id"),
+            field_name="coordinator_interaction_id",
+        )
+        _required_identifier(
+            value.get("submitted_by"),
+            field_name="coordinator_submitted_by",
+        )
+    else:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator current input kind is invalid",
+            status_code=400,
+        )
+    storage_value = copy.deepcopy(value)
+    if kind == "text":
+        # A canonical Vault marker is the durable, non-secret identity of the
+        # input. Preserve it so a cold resume rebuilds the same attempt
+        # operation ID; bare handles and all surrounding text are still
+        # processed by the normal storage sanitizer.
+        storage_value["content"] = ""
+    sanitized = _sanitize_graph_storage_value(storage_value)
+    if kind == "text":
+        sanitized["content"] = _sanitize_graph_storage_value(
+            raw_content,
+            preserve_vault_handles=True,
+        )
+    if not isinstance(sanitized, dict) or set(sanitized) != set(value):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator current input changed shape during sanitization",
+            status_code=400,
+        )
+    return sanitized
+
+
+def _normalize_graph_coordinator_binding_snapshot(
+    value: Any,
+    *,
+    owner_chat_id: str,
+    graph_execution_id: str,
+    session_id: str,
+    coordinator_attempt_id: str,
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator_binding_snapshot must be an object",
+            status_code=400,
+        )
+    legacy_fields = {
+        "execution_id",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+        "role",
+        "source_attempt_id",
+    }
+    if set(value).intersection(legacy_fields):
+        raise DurableInteractionHostError(
+            "legacy_coordinator_binding_snapshot",
+            "role-based coordinator binding snapshots cannot be resumed",
+            status_code=409,
+        )
+    if set(value) != _GRAPH_COORDINATOR_BINDING_KEYS:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator_binding_snapshot has unsupported fields",
+            status_code=400,
+        )
+    current_input_draft = copy.deepcopy(value["current_input_draft"])
+    storage_value = copy.deepcopy(value)
+    storage_value["current_input_draft"] = None
+    normalized = _sanitize_graph_storage_value(storage_value)
+    if not isinstance(normalized, dict) or set(normalized) != set(value):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator binding changed shape during sanitization",
+            status_code=400,
+        )
+    if normalized.get("schema") != _GRAPH_COORDINATOR_BINDING_SCHEMA:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator binding schema is unsupported",
+            status_code=400,
+        )
+    binding_fields = (
+        "owner_chat_id",
+        "session_id",
+        "generation_id",
+    )
+    for field_name in binding_fields:
+        if not isinstance(normalized.get(field_name), str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator {field_name} must be text",
+                status_code=400,
+            )
+        normalized[field_name] = _required_identifier(
+            normalized.get(field_name),
+            field_name=f"coordinator_{field_name}",
+        )
+    head_revision = normalized.get("head_revision")
+    if (
+        isinstance(head_revision, bool)
+        or not isinstance(head_revision, int)
+        or head_revision < 1
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator head_revision must be a positive integer",
+            status_code=400,
+        )
+
+    identity = normalized.get("identity")
+    if not isinstance(identity, dict) or set(identity) != (
+        _GRAPH_COORDINATOR_IDENTITY_KEYS
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity has unsupported fields",
+            status_code=400,
+        )
+    for field_name in (
+        "execution_id",
+        "attempt_id",
+        "run_id",
+        "root_run_id",
+    ):
+        if not isinstance(identity.get(field_name), str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator identity {field_name} must be text",
+                status_code=400,
+            )
+        identity[field_name] = _required_identifier(
+            identity.get(field_name),
+            field_name=f"coordinator_identity_{field_name}",
+        )
+    parent_run_id = identity.get("parent_run_id")
+    if parent_run_id is not None:
+        if not isinstance(parent_run_id, str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "coordinator identity parent_run_id must be text or null",
+                status_code=400,
+            )
+        identity["parent_run_id"] = _required_identifier(
+            parent_run_id,
+            field_name="coordinator_identity_parent_run_id",
+        )
+    lineage = identity.get("run_lineage")
+    if (
+        not isinstance(lineage, list)
+        or not lineage
+        or any(not isinstance(item, str) or not item.strip() for item in lineage)
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity run_lineage must contain run IDs",
+            status_code=400,
+        )
+    normalized_lineage = [item.strip() for item in lineage]
+    if len(normalized_lineage) != len(set(normalized_lineage)):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity run_lineage contains duplicate run IDs",
+            status_code=400,
+        )
+    expected_parent_run_id = (
+        normalized_lineage[-2] if len(normalized_lineage) > 1 else None
+    )
+    if (
+        identity["attempt_id"] != identity["run_id"]
+        or normalized_lineage[0] != identity["root_run_id"]
+        or normalized_lineage[-1] != identity["run_id"]
+        or identity["parent_run_id"] != expected_parent_run_id
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator identity lineage is inconsistent",
+            status_code=400,
+        )
+    identity["run_lineage"] = normalized_lineage
+
+    grant = normalized.get("grant")
+    if not isinstance(grant, dict) or set(grant) != _GRAPH_COORDINATOR_GRANT_KEYS:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator grant has unsupported fields",
+            status_code=400,
+        )
+    if not isinstance(grant.get("module_key"), str):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator grant module_key must be text",
+            status_code=400,
+        )
+    grant["module_key"] = _required_identifier(
+        grant.get("module_key"),
+        field_name="coordinator_grant_module_key",
+    )
+    if grant["module_key"] != _MEMORY_V2_MODULE_KEY:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator grant belongs to another module",
+            status_code=400,
+        )
+    for field_name in ("capabilities", "delegable_capabilities"):
+        values = grant.get(field_name)
+        if (
+            not isinstance(values, list)
+            or any(
+                not isinstance(item, str) or not item.strip()
+                for item in values
+            )
+        ):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator grant {field_name} must contain capabilities",
+                status_code=400,
+            )
+        normalized_values = [item.strip() for item in values]
+        if len(normalized_values) != len(set(normalized_values)):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                f"coordinator grant {field_name} contains duplicates",
+                status_code=400,
+            )
+        grant[field_name] = sorted(normalized_values)
+    if not set(grant["delegable_capabilities"]).issubset(
+        grant["capabilities"]
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator delegable capabilities exceed its grant",
+            status_code=400,
+        )
+    authority = grant.get("authority")
+    if authority is not None:
+        if not isinstance(authority, str):
+            raise DurableInteractionHostError(
+                "invalid_coordinator_binding_snapshot",
+                "coordinator grant authority must be text or null",
+                status_code=400,
+            )
+        grant["authority"] = _required_identifier(
+            authority,
+            field_name="coordinator_grant_authority",
+        )
+    completion_authorized = (
+        _MEMORY_EXECUTION_COMPLETE in grant["capabilities"]
+        and grant["authority"] is not None
+    )
+    if (
+        _MEMORY_EXECUTION_COMPLETE in grant["capabilities"]
+        and not completion_authorized
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator completion capability requires an authority",
+            status_code=400,
+        )
+
+    expected_scope = (
+        owner_chat_id,
+        graph_execution_id,
+        session_id,
+        coordinator_attempt_id,
+        coordinator_attempt_id,
+    )
+    actual_scope = (
+        normalized["owner_chat_id"],
+        identity["execution_id"],
+        normalized["session_id"],
+        identity["attempt_id"],
+        identity["run_id"],
+    )
+    if actual_scope != expected_scope:
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "coordinator binding does not match the graph resume scope",
+            status_code=400,
+        )
+    if current_input_draft is not None:
+        normalized["current_input_draft"] = (
+            _normalize_graph_current_input_draft(
+                current_input_draft
+            )
+        )
+    if (
+        identity["parent_run_id"] is not None
+        and current_input_draft is not None
+        and not completion_authorized
+    ):
+        raise DurableInteractionHostError(
+            "invalid_coordinator_binding_snapshot",
+            "a nested coordinator requires authority to own current input",
+            status_code=400,
+        )
+    return normalized
+
+
+def _normalize_graph_stable_options(value: Any) -> dict[str, Any]:
+    stable = _stable_resume_options(value)
+    sanitized = _sanitize_graph_storage_value(stable)
+    if not isinstance(sanitized, dict) or not set(sanitized).issubset(
+        _STABLE_RESUME_OPTION_KEYS
+    ):
+        raise DurableInteractionHostError(
+            "invalid_graph_resume_options",
+            "graph resume options changed shape during sanitization",
+            status_code=400,
+        )
+    _canonical_graph_json_bytes(
+        sanitized,
+        error_code="invalid_graph_resume_options",
+        message="Graph resume options are not canonical JSON",
+    )
+    return sanitized
 
 
 def save_resume_context(
@@ -399,6 +1260,474 @@ def clear_resume_context(session_id: str, run_id: str) -> bool:
         return existed
     except (DurableInteractionHostError, OSError):
         return False
+
+
+def _graph_step_context_semantic_payload(
+    *,
+    session_id: str,
+    step_attempt_id: str,
+    operation_id: str,
+    owner_chat_id: str,
+    graph_execution_id: str,
+    coordinator_attempt_id: str,
+    graph_plan_id: str,
+    graph_scope_id: str,
+    topology_sha256: str,
+    step_index: int,
+    node_id: str,
+    predecessor_attempt_id: str,
+    provider: str,
+    model: str,
+    configuration_sha256: str,
+    recipe_identity: Any,
+    canonical_build_fingerprint: str,
+    coordinator_binding_snapshot: Any,
+    options: Any,
+) -> dict[str, Any]:
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_graph_execution_id = _required_identifier(
+        graph_execution_id,
+        field_name="graph_execution_id",
+    )
+    if normalized_graph_execution_id != normalized_session_id:
+        raise DurableInteractionHostError(
+            "invalid_graph_execution_id",
+            "graph_execution_id must equal the durable interaction session_id",
+            status_code=400,
+        )
+    normalized_owner_chat_id = _required_identifier(
+        owner_chat_id,
+        field_name="owner_chat_id",
+    )
+    normalized_coordinator_attempt_id = _required_identifier(
+        coordinator_attempt_id,
+        field_name="coordinator_attempt_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    if normalized_step_attempt_id == normalized_coordinator_attempt_id:
+        raise DurableInteractionHostError(
+            "invalid_step_attempt_id",
+            "graph step attempt must differ from its coordinator",
+            status_code=400,
+        )
+    if (
+        isinstance(step_index, bool)
+        or not isinstance(step_index, int)
+        or step_index < 0
+    ):
+        raise DurableInteractionHostError(
+            "invalid_step_index",
+            "step_index must be a non-negative integer",
+            status_code=400,
+        )
+    normalized_provider = _required_identifier(
+        provider,
+        field_name="provider",
+    ).casefold()
+    normalized_model = _required_identifier(model, field_name="model")
+    normalized_binding = _normalize_graph_coordinator_binding_snapshot(
+        coordinator_binding_snapshot,
+        owner_chat_id=normalized_owner_chat_id,
+        graph_execution_id=normalized_graph_execution_id,
+        session_id=normalized_session_id,
+        coordinator_attempt_id=normalized_coordinator_attempt_id,
+    )
+    payload = {
+        "schema_version": _GRAPH_STEP_CONTEXT_SCHEMA_VERSION,
+        "resume_kind": "graph_step",
+        "revision": _GRAPH_STEP_CONTEXT_REVISION,
+        "operation_id": _required_identifier(
+            operation_id,
+            field_name="operation_id",
+        ),
+        "session_id": normalized_session_id,
+        "owner_chat_id": normalized_owner_chat_id,
+        "graph_execution_id": normalized_graph_execution_id,
+        "coordinator_attempt_id": normalized_coordinator_attempt_id,
+        "graph_plan_id": _required_identifier(
+            graph_plan_id,
+            field_name="graph_plan_id",
+        ),
+        "graph_scope_id": _required_identifier(
+            graph_scope_id,
+            field_name="graph_scope_id",
+        ),
+        "topology_sha256": _required_graph_sha256(
+            topology_sha256,
+            field_name="topology_sha256",
+        ),
+        "step_index": step_index,
+        "node_id": _required_identifier(node_id, field_name="node_id"),
+        "step_attempt_id": normalized_step_attempt_id,
+        "predecessor_attempt_id": _required_identifier(
+            predecessor_attempt_id,
+            field_name="predecessor_attempt_id",
+        ),
+        "provider": normalized_provider,
+        "model": normalized_model,
+        "configuration_sha256": _required_graph_sha256(
+            configuration_sha256,
+            field_name="configuration_sha256",
+        ),
+        "recipe_identity": _normalize_graph_recipe_identity(recipe_identity),
+        "canonical_build_fingerprint": _required_graph_sha256(
+            canonical_build_fingerprint,
+            field_name="canonical_build_fingerprint",
+        ),
+        "coordinator_binding_snapshot": normalized_binding,
+        "options": _normalize_graph_stable_options(options),
+    }
+    _canonical_graph_json_bytes(
+        payload,
+        error_code="invalid_graph_resume_context",
+        message="Graph-step resume metadata is not canonical JSON",
+    )
+    return payload
+
+
+def _graph_step_context_payload_sha256(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        _canonical_graph_json_bytes(
+            payload,
+            error_code="durable_graph_resume_context_corrupt",
+            message="Graph-step resume metadata is not canonical JSON",
+        )
+    ).hexdigest()
+
+
+def _validate_graph_step_context_record(
+    raw: Any,
+    *,
+    expected_session_id: str,
+    expected_step_attempt_id: str,
+) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata must be an object",
+        )
+    if raw.get("schema_version") != _GRAPH_STEP_CONTEXT_SCHEMA_VERSION:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_incompatible",
+            "Graph-step resume metadata has an unsupported schema",
+        )
+    if set(raw) != _GRAPH_STEP_CONTEXT_RECORD_KEYS:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata has unexpected fields",
+        )
+    created_at_ms = raw.get("created_at_ms")
+    if (
+        isinstance(created_at_ms, bool)
+        or not isinstance(created_at_ms, int)
+        or created_at_ms < 1
+    ):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata has an invalid creation time",
+        )
+    try:
+        semantic = _graph_step_context_semantic_payload(
+            session_id=raw.get("session_id"),
+            step_attempt_id=raw.get("step_attempt_id"),
+            operation_id=raw.get("operation_id"),
+            owner_chat_id=raw.get("owner_chat_id"),
+            graph_execution_id=raw.get("graph_execution_id"),
+            coordinator_attempt_id=raw.get("coordinator_attempt_id"),
+            graph_plan_id=raw.get("graph_plan_id"),
+            graph_scope_id=raw.get("graph_scope_id"),
+            topology_sha256=raw.get("topology_sha256"),
+            step_index=raw.get("step_index"),
+            node_id=raw.get("node_id"),
+            predecessor_attempt_id=raw.get("predecessor_attempt_id"),
+            provider=raw.get("provider"),
+            model=raw.get("model"),
+            configuration_sha256=raw.get("configuration_sha256"),
+            recipe_identity=raw.get("recipe_identity"),
+            canonical_build_fingerprint=raw.get(
+                "canonical_build_fingerprint"
+            ),
+            coordinator_binding_snapshot=raw.get(
+                "coordinator_binding_snapshot"
+            ),
+            options=raw.get("options"),
+        )
+    except DurableInteractionHostError as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata failed structural validation",
+        ) from exc
+    persisted_semantic = {
+        key: copy.deepcopy(value)
+        for key, value in raw.items()
+        if key not in {"payload_sha256", "created_at_ms"}
+    }
+    if semantic != persisted_semantic:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata changed after normalization",
+        )
+    try:
+        payload_sha256 = _required_graph_sha256(
+            raw.get("payload_sha256"),
+            field_name="payload_sha256",
+        )
+    except DurableInteractionHostError as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata has an invalid payload hash",
+        ) from exc
+    if payload_sha256 != _graph_step_context_payload_sha256(semantic):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume metadata payload hash does not match",
+        )
+    if (
+        semantic["session_id"] != expected_session_id
+        or semantic["graph_execution_id"] != expected_session_id
+        or semantic["step_attempt_id"] != expected_step_attempt_id
+    ):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_mismatch",
+            "Graph-step resume metadata belongs to another execution or step",
+        )
+    return copy.deepcopy(raw)
+
+
+def _read_graph_step_context_path(
+    path: Path,
+    *,
+    expected_session_id: str,
+    expected_step_attempt_id: str,
+) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            f"Graph-step resume metadata is corrupt: {exc}",
+        ) from exc
+    return _validate_graph_step_context_record(
+        raw,
+        expected_session_id=expected_session_id,
+        expected_step_attempt_id=expected_step_attempt_id,
+    )
+
+
+def save_graph_step_resume_context(
+    *,
+    session_id: str,
+    step_attempt_id: str,
+    operation_id: str,
+    owner_chat_id: str,
+    graph_execution_id: str,
+    coordinator_attempt_id: str,
+    graph_plan_id: str,
+    graph_scope_id: str,
+    topology_sha256: str,
+    step_index: int,
+    node_id: str,
+    predecessor_attempt_id: str,
+    provider: str,
+    model: str,
+    configuration_sha256: str,
+    recipe_identity: Any,
+    canonical_build_fingerprint: str,
+    coordinator_binding_snapshot: Any,
+    options: dict[str, Any],
+    expected_revision: int = 0,
+) -> dict[str, Any]:
+    """Create one immutable graph-step resume locator with CAS semantics."""
+
+    if expected_revision != 0 or isinstance(expected_revision, bool):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_revision_conflict",
+            "Immutable graph-step resume metadata requires expected_revision=0",
+        )
+    semantic = _graph_step_context_semantic_payload(
+        session_id=session_id,
+        step_attempt_id=step_attempt_id,
+        operation_id=operation_id,
+        owner_chat_id=owner_chat_id,
+        graph_execution_id=graph_execution_id,
+        coordinator_attempt_id=coordinator_attempt_id,
+        graph_plan_id=graph_plan_id,
+        graph_scope_id=graph_scope_id,
+        topology_sha256=topology_sha256,
+        step_index=step_index,
+        node_id=node_id,
+        predecessor_attempt_id=predecessor_attempt_id,
+        provider=provider,
+        model=model,
+        configuration_sha256=configuration_sha256,
+        recipe_identity=recipe_identity,
+        canonical_build_fingerprint=canonical_build_fingerprint,
+        coordinator_binding_snapshot=coordinator_binding_snapshot,
+        options=options,
+    )
+    normalized_session_id = semantic["session_id"]
+    normalized_step_attempt_id = semantic["step_attempt_id"]
+    payload_sha256 = _graph_step_context_payload_sha256(semantic)
+    path = _graph_step_context_path(
+        normalized_session_id,
+        normalized_step_attempt_id,
+        create_directory=True,
+    )
+    lock_path = path.with_name(f".{path.name}.lock")
+    with _exclusive_file_lock(lock_path):
+        existing = _read_graph_step_context_path(
+            path,
+            expected_session_id=normalized_session_id,
+            expected_step_attempt_id=normalized_step_attempt_id,
+        )
+        if existing is not None:
+            existing_semantic = {
+                key: copy.deepcopy(value)
+                for key, value in existing.items()
+                if key not in {"payload_sha256", "created_at_ms"}
+            }
+            if (
+                existing.get("payload_sha256") == payload_sha256
+                and existing_semantic == semantic
+            ):
+                return copy.deepcopy(existing)
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_conflict",
+                "Graph-step resume metadata is already bound to another payload",
+            )
+        record = {
+            **semantic,
+            "payload_sha256": payload_sha256,
+            "created_at_ms": int(time.time() * 1000),
+        }
+        _write_json_atomically(path, record)
+        verified = _read_graph_step_context_path(
+            path,
+            expected_session_id=normalized_session_id,
+            expected_step_attempt_id=normalized_step_attempt_id,
+        )
+        if verified is None or verified.get("payload_sha256") != payload_sha256:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_write_failed",
+                "Graph-step resume metadata write verification failed",
+            )
+        return verified
+
+
+def load_graph_step_resume_context(
+    session_id: str,
+    step_attempt_id: str,
+    *,
+    expected_owner_chat_id: str,
+    expected_provider: str,
+    expected_model: str,
+) -> dict[str, Any] | None:
+    """Load one graph-step locator only for its exact host/model subject."""
+
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    normalized_owner_chat_id = _required_identifier(
+        expected_owner_chat_id,
+        field_name="expected_owner_chat_id",
+    )
+    normalized_provider = _required_identifier(
+        expected_provider,
+        field_name="expected_provider",
+    ).casefold()
+    normalized_model = _required_identifier(
+        expected_model,
+        field_name="expected_model",
+    )
+    record = _read_graph_step_context_path(
+        _graph_step_context_path(
+            normalized_session_id,
+            normalized_step_attempt_id,
+        ),
+        expected_session_id=normalized_session_id,
+        expected_step_attempt_id=normalized_step_attempt_id,
+    )
+    if record is None:
+        return None
+    if (
+        record.get("owner_chat_id") != normalized_owner_chat_id
+        or record.get("provider") != normalized_provider
+        or record.get("model") != normalized_model
+    ):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_subject_mismatch",
+            "Graph-step resume metadata does not match its owner/provider/model",
+        )
+    return record
+
+
+def clear_graph_step_resume_context(
+    session_id: str,
+    step_attempt_id: str,
+    *,
+    expected_payload_sha256: str,
+) -> bool:
+    """CAS-delete one immutable graph-step locator after terminal completion."""
+
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    normalized_step_attempt_id = _required_identifier(
+        step_attempt_id,
+        field_name="step_attempt_id",
+    )
+    normalized_payload_sha256 = _required_graph_sha256(
+        expected_payload_sha256,
+        field_name="expected_payload_sha256",
+    )
+    path = _graph_step_context_path(
+        normalized_session_id,
+        normalized_step_attempt_id,
+    )
+    if not path.exists():
+        return False
+    lock_path = path.with_name(f".{path.name}.lock")
+    with _exclusive_file_lock(lock_path):
+        current = _read_graph_step_context_path(
+            path,
+            expected_session_id=normalized_session_id,
+            expected_step_attempt_id=normalized_step_attempt_id,
+        )
+        if current is None:
+            return False
+        if current.get("payload_sha256") != normalized_payload_sha256:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_conflict",
+                "Graph-step resume metadata changed before deletion",
+            )
+        try:
+            path.unlink()
+            if os.name != "nt":
+                directory_descriptor = os.open(path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_descriptor)
+                finally:
+                    os.close(directory_descriptor)
+        except OSError as exc:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_delete_failed",
+                f"Graph-step resume metadata could not be deleted: {exc}",
+            ) from exc
+    return True
 
 
 def _read_attempt_binding_path(path: Path) -> dict[str, Any] | None:
@@ -616,7 +1945,10 @@ def resolve_resume_options(
             "durable_resume_context_subject_mismatch",
             "Durable resume context provider/model does not match the request",
         )
-    resolved = copy.deepcopy(stable_options)
+    resolved = _resolve_context_composition_resume_authority(
+        stable_options=stable_options,
+        fresh_options=fresh_options,
+    )
     resolved.update(_fresh_secret_overlay(fresh_options or {}))
     # C6: for a custom-provider resume, keep the original ``custom.<slug>:<model>``
     # addressing intact. The persisted context provider/model are the twin
@@ -640,6 +1972,47 @@ def resolve_resume_options(
                 "model": context_model,
             }
         )
+    return resolved
+
+
+def resolve_graph_step_resume_options(
+    *,
+    session_id: str,
+    step_attempt_id: str,
+    owner_chat_id: str,
+    fresh_options: dict[str, Any] | None,
+    expected_provider: str,
+    expected_model: str,
+) -> dict[str, Any]:
+    """Rebuild one graph step from immutable metadata plus fresh credentials."""
+
+    context = load_graph_step_resume_context(
+        session_id,
+        step_attempt_id,
+        expected_owner_chat_id=owner_chat_id,
+        expected_provider=expected_provider,
+        expected_model=expected_model,
+    )
+    if context is None:
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_missing",
+            "No graph-step resume metadata was recorded for this interaction",
+        )
+    stable_options = context.get("options")
+    if not isinstance(stable_options, dict):
+        raise DurableInteractionHostError(
+            "durable_graph_resume_context_corrupt",
+            "Graph-step resume options must be an object",
+        )
+    resolved = _resolve_context_composition_resume_authority(
+        stable_options=stable_options,
+        fresh_options=fresh_options,
+    )
+    resolved.update(_fresh_secret_overlay(fresh_options or {}))
+    # The locator subject identifies the suspended step, while these options
+    # rebuild the whole recipe graph.  Preserve the graph's original base
+    # model; forcing modelId to the step model would change every node that
+    # inherits the recipe default and make a legitimate cold resume drift.
     return resolved
 
 
@@ -732,13 +2105,17 @@ def _execution_control_status(session_id: str, attempt_id: str) -> str:
     return str(getattr(snapshot, "status", "") or "").strip().lower()
 
 
-def _cancel_pending_source_attempt(
+def _cancel_pending_source_attempt_result(
     session_id: str,
     source_attempt_id: str,
     *,
+    expected_interaction_id: str = "",
     reason: str,
-) -> bool:
+) -> tuple[bool, Any | None]:
     interaction_runtime = _interaction_runtime()
+    normalized_expected_interaction_id = str(
+        expected_interaction_id or ""
+    ).strip()
     cancel_pending = getattr(interaction_runtime, "cancel_pending", None)
     if not callable(cancel_pending):
         raise DurableInteractionHostError(
@@ -753,39 +2130,92 @@ def _cancel_pending_source_attempt(
             parameter.kind is inspect.Parameter.VAR_KEYWORD
             for parameter in parameters.values()
         )
+        if (
+            normalized_expected_interaction_id
+            and "expected_interaction_id" not in parameters
+            and not accepts_var_keyword
+        ):
+            raise TypeError(
+                "cancel_pending has no exact-interaction parameter"
+            )
+        interaction_kwargs = (
+            {"expected_interaction_id": normalized_expected_interaction_id}
+            if normalized_expected_interaction_id
+            else {}
+        )
         if "source_run_id" in parameters:
             cancelled_interaction = cancel_pending(
                 session_id,
                 source_run_id=source_attempt_id,
                 reason=reason,
+                **interaction_kwargs,
             )
         elif "attempt_id" in parameters:  # pragma: no cover - compatibility
             cancelled_interaction = cancel_pending(
                 session_id,
                 attempt_id=source_attempt_id,
                 reason=reason,
+                **interaction_kwargs,
             )
         elif accepts_var_keyword:
             cancelled_interaction = cancel_pending(
                 session_id,
                 source_run_id=source_attempt_id,
                 reason=reason,
+                **interaction_kwargs,
             )
         else:  # pragma: no cover - fail closed for incompatible runtime
             raise TypeError("cancel_pending has no exact-attempt parameter")
-        return cancelled_interaction is not None
+        if (
+            normalized_expected_interaction_id
+            and cancelled_interaction is not None
+        ):
+            cancelled_request = getattr(cancelled_interaction, "request", None)
+            cancelled_checkpoint_id = str(
+                getattr(cancelled_interaction, "checkpoint_id", "") or ""
+            ).strip()
+            cancelled_application = getattr(
+                cancelled_interaction,
+                "application",
+                None,
+            )
+            if (
+                cancelled_request is None
+                or str(
+                    getattr(cancelled_request, "interaction_id", "") or ""
+                ).strip()
+                != normalized_expected_interaction_id
+                or str(
+                    getattr(cancelled_request, "source_run_id", "") or ""
+                ).strip()
+                != source_attempt_id
+                or not cancelled_checkpoint_id
+                or not isinstance(cancelled_application, dict)
+                or cancelled_application.get("applied_checkpoint_id")
+                != f"cancelled:{cancelled_checkpoint_id}"
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_cancel_claim_invalid",
+                    "Durable interaction runtime returned a foreign cancel claim",
+                    status_code=409,
+                    retryable=True,
+                )
+        return cancelled_interaction is not None, cancelled_interaction
     except Exception as exc:
         try:
             from unchain.interaction import InteractionNotPendingError
         except ImportError:  # pragma: no cover
             InteractionNotPendingError = ()  # type: ignore
         if isinstance(exc, InteractionNotPendingError):
-            return False
+            return False, None
         try:
             from unchain.interaction import InteractionIntegrityError
         except ImportError:  # pragma: no cover
             InteractionIntegrityError = ()  # type: ignore
-        if isinstance(exc, InteractionIntegrityError):
+        if (
+            isinstance(exc, InteractionIntegrityError)
+            and not normalized_expected_interaction_id
+        ):
             repaired = _reconcile_orphaned_cancelled_interaction(
                 session_id,
                 expected_source_run_id=source_attempt_id,
@@ -793,7 +2223,7 @@ def _cancel_pending_source_attempt(
                 cancel_if_needed=False,
             )
             if repaired:
-                return True
+                return True, None
         if isinstance(exc, TypeError):
             raise DurableInteractionHostError(
                 "execution_cancellation_unavailable",
@@ -802,6 +2232,20 @@ def _cancel_pending_source_attempt(
                 retryable=True,
             ) from exc
         raise
+
+
+def _cancel_pending_source_attempt(
+    session_id: str,
+    source_attempt_id: str,
+    *,
+    reason: str,
+) -> bool:
+    cancelled, _snapshot = _cancel_pending_source_attempt_result(
+        session_id,
+        source_attempt_id,
+        reason=reason,
+    )
+    return cancelled
 
 
 def _ensure_execution_tombstone(
@@ -1463,13 +2907,116 @@ def _presentation_for_request(request: Any) -> dict[str, Any]:
     }
 
 
+def _durable_interaction_guard_owner_attempt(
+    session_id: str,
+    source_attempt_id: str,
+) -> str:
+    graph_record = _read_graph_step_context_path(
+        _graph_step_context_path(session_id, source_attempt_id),
+        expected_session_id=session_id,
+        expected_step_attempt_id=source_attempt_id,
+    )
+    if graph_record is not None:
+        return _required_identifier(
+            graph_record.get("coordinator_attempt_id"),
+            field_name="graph_coordinator_attempt_id",
+        )
+    if source_attempt_id.startswith("graph-step-"):
+        raise DurableInteractionHostError(
+            "session_guard_graph_owner_missing",
+            "Graph interaction has no authoritative coordinator binding",
+            status_code=409,
+            retryable=False,
+        )
+    return source_attempt_id
+
+
+def _reconcile_durable_interaction_session_guard(
+    *,
+    session_id: str,
+    interaction_id: str,
+    source_attempt_id: str,
+    receipt_id: str = "",
+) -> str:
+    owner_attempt_id = _durable_interaction_guard_owner_attempt(
+        session_id,
+        source_attempt_id,
+    )
+    guard_snapshot = _session_execution_guard_call(
+        "snapshot_session_guard",
+        session_id=session_id,
+    )
+    if guard_snapshot is not None:
+        state = str(getattr(guard_snapshot, "state", "") or "").strip()
+        operation = str(
+            getattr(guard_snapshot, "operation", "") or ""
+        ).strip()
+        execution_id = str(
+            getattr(guard_snapshot, "execution_id", "") or ""
+        ).strip()
+        active_attempt_id = str(
+            getattr(guard_snapshot, "attempt_id", "") or ""
+        ).strip()
+        if operation != "run" or execution_id != session_id:
+            raise DurableInteractionHostError(
+                "session_guard_interaction_operation_mismatch",
+                "Durable interaction guard belongs to another operation",
+                status_code=409,
+                retryable=False,
+            )
+        if state == "active" and active_attempt_id != owner_attempt_id:
+            binding = load_execution_attempt_binding(
+                session_id,
+                active_attempt_id,
+            )
+            if (
+                not receipt_id
+                or binding is None
+                or binding.get("source_attempt_id") != source_attempt_id
+            ):
+                raise DurableInteractionHostError(
+                    "session_guard_active_lineage_mismatch",
+                    "Active session guard has no exact durable resume lineage",
+                    status_code=409,
+                    retryable=False,
+                )
+            return "active_resume"
+        if state not in {"active", "parked"}:
+            raise DurableInteractionHostError(
+                "session_guard_record_corrupt",
+                "Session guard state is invalid",
+                status_code=409,
+                retryable=False,
+            )
+    disposition = _session_execution_guard_call(
+        "park_session_guard_from_durable_interaction",
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+        owner_attempt_id=owner_attempt_id,
+    )
+    if disposition == "active_live":
+        return "active_live"
+    if receipt_id:
+        _session_execution_guard_call(
+            "bind_session_guard_receipt",
+            session_id=session_id,
+            interaction_id=interaction_id,
+            source_attempt_id=source_attempt_id,
+            receipt_id=receipt_id,
+        )
+    return str(disposition or "")
+
+
 def get_pending_interaction(session_id: str) -> dict[str, Any]:
     normalized_session_id = str(session_id or "").strip()
-    _reconcile_orphaned_cancelled_interaction(
+    orphan_repaired = _reconcile_orphaned_cancelled_interaction(
         normalized_session_id,
         reason="reconciled cancelled orphaned interaction",
         cancel_if_needed=False,
     )
+    if orphan_repaired:
+        _consume_terminal_session_guard(normalized_session_id)
     runtime = _interaction_runtime()
     try:
         snapshot = runtime.load_active(normalized_session_id)
@@ -1479,11 +3026,23 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         except ImportError:  # pragma: no cover
             InteractionNotPendingError = ()  # type: ignore
         if isinstance(exc, InteractionNotPendingError):
+            _consume_terminal_session_guard(normalized_session_id)
             return {"status": "none", "session_id": normalized_session_id}
         raise
 
     request = snapshot.request
     source_run_id = str(request.source_run_id or "").strip()
+    if source_run_id:
+        _reconcile_durable_interaction_session_guard(
+            session_id=normalized_session_id,
+            interaction_id=str(request.interaction_id or "").strip(),
+            source_attempt_id=source_run_id,
+            receipt_id=(
+                str(snapshot.receipt.receipt_id or "").strip()
+                if snapshot.receipt is not None
+                else ""
+            ),
+        )
     if source_run_id:
         source_registry = _execution_control_snapshot(
             normalized_session_id,
@@ -1510,6 +3069,15 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
                     getattr(source_registry, "reason", "reconciled cancellation")
                     or "reconciled cancellation"
                 ),
+            )
+            _consume_cancelled_session_guard(
+                session_id=normalized_session_id,
+                source_attempt_id=source_run_id,
+                cancelled_attempt_ids=(source_run_id,),
+                expected_interaction_id=str(
+                    request.interaction_id or ""
+                ).strip(),
+                cancelled_snapshot=None,
             )
             return {"status": "none", "session_id": normalized_session_id}
 
@@ -1551,6 +3119,15 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
                         or "reconciled cancellation"
                     ),
                 )
+                _consume_cancelled_session_guard(
+                    session_id=normalized_session_id,
+                    source_attempt_id=source_run_id,
+                    cancelled_attempt_ids=(bound_attempt_id,),
+                    expected_interaction_id=str(
+                        request.interaction_id or ""
+                    ).strip(),
+                    cancelled_snapshot=None,
+                )
                 return {"status": "none", "session_id": normalized_session_id}
 
     context: dict[str, Any] | None = None
@@ -1570,6 +3147,30 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         context = None
         context_unavailable_reason = "durable_resume_context_subject_mismatch"
 
+    graph_context: dict[str, Any] | None = None
+    if context is None and source_run_id:
+        try:
+            candidate = _read_graph_step_context_path(
+                _graph_step_context_path(
+                    normalized_session_id,
+                    source_run_id,
+                ),
+                expected_session_id=normalized_session_id,
+                expected_step_attempt_id=source_run_id,
+            )
+            if candidate is not None:
+                graph_context = load_graph_step_resume_context(
+                    normalized_session_id,
+                    source_run_id,
+                    expected_owner_chat_id=str(
+                        candidate.get("owner_chat_id") or ""
+                    ),
+                    expected_provider=subject_provider,
+                    expected_model=subject_model,
+                )
+        except DurableInteractionHostError as exc:
+            context_unavailable_reason = exc.code
+
     result: dict[str, Any] = {
         "status": (
             "receipt_recorded"
@@ -1584,14 +3185,26 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         "provider": subject_provider,
         "model": subject_model,
         "presentation": _presentation_for_request(request),
-        "resume_available": context is not None,
+        "resume_available": context is not None or graph_context is not None,
         "resume_options": (
-            copy.deepcopy(context.get("options") or {})
-            if isinstance(context, dict)
+            copy.deepcopy(
+                (context or graph_context or {}).get("options") or {}
+            )
+            if isinstance(context or graph_context, dict)
             else {}
         ),
     }
-    if context is None:
+    if graph_context is not None:
+        result.update(
+            {
+                "resume_kind": "graph_step",
+                "graph_step_attempt_id": source_run_id,
+                "graph_coordinator_attempt_id": str(
+                    graph_context.get("coordinator_attempt_id") or ""
+                ),
+            }
+        )
+    if context is None and graph_context is None:
         result["resume_unavailable_reason"] = (
             context_unavailable_reason or "resume_context_missing"
         )
@@ -1745,6 +3358,13 @@ def record_interaction_receipt(
                     source_attempt_id=source_run_id,
                     reason="execution cancelled before interaction receipt",
                 )
+                _consume_cancelled_session_guard(
+                    session_id=normalized_session_id,
+                    source_attempt_id=source_run_id,
+                    cancelled_attempt_ids=(cancelled_owner_id,),
+                    expected_interaction_id=normalized_interaction_id,
+                    cancelled_snapshot=None,
+                )
                 raise DurableInteractionHostError(
                     "execution_cancelled",
                     "The execution for this interaction was cancelled",
@@ -1814,13 +3434,580 @@ def record_interaction_receipt(
             "interaction_receipt_missing",
             "Durable interaction receipt was not persisted",
         )
-    return {
+    _reconcile_durable_interaction_session_guard(
+        session_id=normalized_session_id,
+        interaction_id=normalized_interaction_id,
+        source_attempt_id=source_run_id,
+        receipt_id=persisted.receipt.receipt_id,
+    )
+    public_result = {
         "status": "ok",
         "disposition": "receipt_recorded",
         "session_id": normalized_session_id,
         "interaction_id": normalized_interaction_id,
         "receipt_id": persisted.receipt.receipt_id,
     }
+    return DurableInteractionReceiptResult(
+        public_result,
+        handoff=DurableInteractionReceiptHandoff.from_persisted_receipt(
+            session_id=normalized_session_id,
+            receipt=persisted.receipt,
+        ),
+    )
+
+
+def _cold_interaction_owner_chat_id(
+    session_id: str,
+    source_attempt_id: str,
+    *,
+    explicit_owner_chat_id: str = "",
+) -> str:
+    candidates: list[str] = []
+    explicit = str(explicit_owner_chat_id or "").strip()
+    if explicit:
+        candidates.append(
+            _required_identifier(explicit, field_name="owner_chat_id")
+        )
+    graph_record = _read_graph_step_context_path(
+        _graph_step_context_path(session_id, source_attempt_id),
+        expected_session_id=session_id,
+        expected_step_attempt_id=source_attempt_id,
+    )
+    if graph_record is not None:
+        candidates.append(
+            _required_identifier(
+                graph_record.get("owner_chat_id"),
+                field_name="graph_owner_chat_id",
+            )
+        )
+    resume_record = load_resume_context(session_id, source_attempt_id)
+    if resume_record is not None:
+        options = resume_record.get("options")
+        resume_owner = (
+            str(options.get("_memory_v2_owner_chat_id") or "").strip()
+            if isinstance(options, dict)
+            else ""
+        )
+        if resume_owner:
+            candidates.append(
+                _required_identifier(
+                    resume_owner,
+                    field_name="resume_owner_chat_id",
+                )
+            )
+    if len(set(candidates)) > 1:
+        raise DurableInteractionHostError(
+            "cold_interaction_owner_conflict",
+            "Durable interaction owner authorities disagree",
+            status_code=409,
+        )
+    if candidates:
+        return candidates[0]
+
+    from memory_v2_store_boundary import (
+        STORE_OWNER_UNCHAIN,
+        configured_context_v2_store_owner,
+    )
+
+    if configured_context_v2_store_owner() == STORE_OWNER_UNCHAIN:
+        from memory_v2_unchain_active_bridge import (
+            pupu_unchain_cold_context_interaction_exists,
+        )
+
+        if pupu_unchain_cold_context_interaction_exists(
+            session_id=session_id,
+            execution_id=session_id,
+            source_attempt_id=source_attempt_id,
+        ):
+            raise DurableInteractionHostError(
+                "cold_interaction_owner_required",
+                "Canonical active interaction has no exact chat owner authority",
+                status_code=409,
+                retryable=True,
+            )
+    return ""
+
+
+def _cold_active_interaction_required(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+) -> bool:
+    from memory_v2_store_boundary import (
+        STORE_OWNER_UNCHAIN,
+        configured_context_v2_store_owner,
+    )
+
+    if configured_context_v2_store_owner() != STORE_OWNER_UNCHAIN:
+        return False
+    if not str(owner_chat_id or "").strip():
+        return False
+    from memory_v2_unchain_active_bridge import (
+        pupu_unchain_cold_active_admission,
+    )
+
+    return pupu_unchain_cold_active_admission(
+        owner_chat_id=owner_chat_id,
+        session_id=session_id,
+        execution_id=session_id,
+    )
+
+
+def _interaction_journal_entries_for_source(
+    session_id: str,
+    source_attempt_id: str,
+) -> tuple[tuple[Any, dict[str, Any], bool], ...]:
+    from unchain.interaction import InteractionRequest
+    from unchain.interaction.durable import validate_interaction_journal
+
+    runtime = _interaction_runtime()
+    snapshot = runtime.memory_runtime.load_session_snapshot(session_id)
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    active_id = str(journal.get("active_id") or "").strip()
+    entries: list[tuple[Any, dict[str, Any], bool]] = []
+    for interaction_id in journal.get("order") or ():
+        entry = (journal.get("entries") or {}).get(interaction_id)
+        if not isinstance(entry, dict):
+            continue
+        request = InteractionRequest.from_dict(entry.get("request"))
+        if request.source_run_id != source_attempt_id:
+            continue
+        entries.append(
+            (
+                request,
+                copy.deepcopy(entry),
+                request.interaction_id == active_id,
+            )
+        )
+    return tuple(entries)
+
+
+@dataclass(frozen=True)
+class _InteractionCancelTarget:
+    request: Any
+    entry: dict[str, Any]
+    is_active: bool
+    is_cancelled_applied: bool
+
+
+def _interaction_cancel_target(
+    session_id: str,
+    expected_interaction_id: str,
+) -> _InteractionCancelTarget | None:
+    """Resolve one exact durable target without consulting ambient latest state."""
+
+    from unchain.interaction import InteractionRequest
+    from unchain.interaction.durable import validate_interaction_journal
+
+    runtime = _interaction_runtime()
+    snapshot = runtime.memory_runtime.load_session_snapshot(session_id)
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    entry = (journal.get("entries") or {}).get(expected_interaction_id)
+    if entry is None:
+        return None
+    if not isinstance(entry, dict):
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_corrupt",
+            "Durable interaction target is corrupt",
+            status_code=409,
+        )
+    request = InteractionRequest.from_dict(entry.get("request"))
+    if request.interaction_id != expected_interaction_id:
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_corrupt",
+            "Durable interaction target identity changed",
+            status_code=409,
+        )
+    checkpoint_id = str(entry.get("checkpoint_id") or "").strip()
+    application = entry.get("application")
+    return _InteractionCancelTarget(
+        request=request,
+        entry=copy.deepcopy(entry),
+        is_active=str(journal.get("active_id") or "").strip()
+        == expected_interaction_id,
+        is_cancelled_applied=(
+            isinstance(application, dict)
+            and bool(checkpoint_id)
+            and application.get("applied_checkpoint_id")
+            == f"cancelled:{checkpoint_id}"
+        ),
+    )
+
+
+def _active_interaction_id(session_id: str) -> str:
+    from unchain.interaction.durable import validate_interaction_journal
+
+    runtime = _interaction_runtime()
+    snapshot = runtime.memory_runtime.load_session_snapshot(session_id)
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    return str(journal.get("active_id") or "").strip()
+
+
+def _cold_interaction_reconciliation_required(
+    session_id: str,
+    source_attempt_id: str,
+) -> bool:
+    """Return whether this exact source owns unresolved cold Context work."""
+
+    for _request, entry, is_active in _interaction_journal_entries_for_source(
+        session_id,
+        source_attempt_id,
+    ):
+        if is_active:
+            return True
+        application = entry.get("application")
+        checkpoint_id = str(entry.get("checkpoint_id") or "").strip()
+        if (
+            isinstance(application, dict)
+            and checkpoint_id
+            and application.get("applied_checkpoint_id")
+            == f"cancelled:{checkpoint_id}"
+        ):
+            return True
+    return False
+
+
+def _cancelled_interaction_receipt_handoffs(
+    session_id: str,
+    source_attempt_id: str,
+    *,
+    expected_interaction_id: str = "",
+) -> tuple[DurableInteractionReceiptHandoff, ...]:
+    from unchain.interaction import InteractionReceipt
+
+    candidates: list[DurableInteractionReceiptHandoff] = []
+    for request, entry, _is_active in _interaction_journal_entries_for_source(
+        session_id,
+        source_attempt_id,
+    ):
+        if (
+            expected_interaction_id
+            and request.interaction_id != expected_interaction_id
+        ):
+            continue
+        receipt_raw = entry.get("receipt")
+        application = entry.get("application")
+        checkpoint_id = str(entry.get("checkpoint_id") or "").strip()
+        if receipt_raw is None or not isinstance(application, dict):
+            continue
+        if application.get("applied_checkpoint_id") != f"cancelled:{checkpoint_id}":
+            continue
+        receipt = InteractionReceipt.from_dict(receipt_raw, request=request)
+        candidates.append(
+            DurableInteractionReceiptHandoff.from_persisted_receipt(
+                session_id=session_id,
+                receipt=receipt,
+            )
+        )
+    return tuple(candidates)
+
+
+def _cancelled_snapshot_receipt_handoff(
+    *,
+    session_id: str,
+    source_attempt_id: str,
+    expected_interaction_id: str = "",
+    cancellation_snapshot: Any | None,
+) -> DurableInteractionReceiptHandoff | None:
+    if cancellation_snapshot is None:
+        return None
+    request = getattr(cancellation_snapshot, "request", None)
+    receipt = getattr(cancellation_snapshot, "receipt", None)
+    application = getattr(cancellation_snapshot, "application", None)
+    checkpoint_id = str(
+        getattr(cancellation_snapshot, "checkpoint_id", "") or ""
+    ).strip()
+    if (
+        request is None
+        or receipt is None
+        or not isinstance(application, dict)
+        or not checkpoint_id
+        or str(getattr(request, "source_run_id", "") or "").strip()
+        != source_attempt_id
+        or str(getattr(receipt, "interaction_id", "") or "").strip()
+        != str(getattr(request, "interaction_id", "") or "").strip()
+        or (
+            expected_interaction_id
+            and str(getattr(request, "interaction_id", "") or "").strip()
+            != expected_interaction_id
+        )
+        or application.get("applied_checkpoint_id")
+        != f"cancelled:{checkpoint_id}"
+    ):
+        raise DurableInteractionHostError(
+            "cold_interaction_receipt_integrity_error",
+            "Cancelled interaction snapshot does not match its exact source",
+            status_code=409,
+            retryable=True,
+        )
+    return DurableInteractionReceiptHandoff.from_persisted_receipt(
+        session_id=session_id,
+        receipt=receipt,
+    )
+
+
+def _reconcile_cancelled_interaction_to_context(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+    source_attempt_id: str,
+    expected_interaction_id: str = "",
+    cancellation_applied: bool,
+    cancellation_snapshot: Any | None = None,
+) -> bool:
+    direct_handoff = _cancelled_snapshot_receipt_handoff(
+        session_id=session_id,
+        source_attempt_id=source_attempt_id,
+        expected_interaction_id=expected_interaction_id,
+        cancellation_snapshot=cancellation_snapshot,
+    )
+    candidates = (
+        (direct_handoff,)
+        if direct_handoff is not None
+        else _cancelled_interaction_receipt_handoffs(
+            session_id,
+            source_attempt_id,
+            expected_interaction_id=expected_interaction_id,
+        )
+    )
+    if not candidates and not cancellation_applied:
+        return False
+    if len(candidates) != 1:
+        raise DurableInteractionHostError(
+            "cold_interaction_receipt_ambiguous",
+            "Cancelled active interaction has no unique durable receipt",
+            status_code=409,
+            retryable=True,
+        )
+    from memory_v2_unchain_active_bridge import (
+        persist_pupu_unchain_cold_interaction_resolution,
+    )
+
+    try:
+        persist_pupu_unchain_cold_interaction_resolution(
+            owner_chat_id=owner_chat_id,
+            session_id=session_id,
+            execution_id=session_id,
+            source_attempt_id=source_attempt_id,
+            durable_receipt=candidates[0],
+        )
+    except DurableInteractionHostError:
+        raise
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            "cold_interaction_context_ingress_failed",
+            str(exc),
+            status_code=409,
+            retryable=True,
+        ) from exc
+    return True
+
+
+def reconcile_cancelled_interactions_before_active_run(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+) -> int:
+    """Repair exact cancelled receipts before a fresh active compile.
+
+    Historical/off entries without a canonical Context request are ignored.
+    Exact request intersections are projected only through official ingress.
+    """
+
+    normalized_owner_chat_id = _required_identifier(
+        owner_chat_id,
+        field_name="owner_chat_id",
+    )
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    if not _cold_active_interaction_required(
+        owner_chat_id=normalized_owner_chat_id,
+        session_id=normalized_session_id,
+    ):
+        return 0
+    from memory_v2_unchain_active_bridge import (
+        pupu_unchain_cold_context_request_exists,
+    )
+
+    repaired = 0
+    seen_interactions: set[str] = set()
+    runtime = _interaction_runtime()
+    from unchain.interaction import InteractionRequest
+    from unchain.interaction.durable import validate_interaction_journal
+
+    snapshot = runtime.memory_runtime.load_session_snapshot(
+        normalized_session_id
+    )
+    journal = validate_interaction_journal(
+        snapshot.state.get("interaction_journal")
+    )
+    for interaction_id in journal.get("order") or ():
+        raw_entry = (journal.get("entries") or {}).get(interaction_id)
+        if not isinstance(raw_entry, dict):
+            continue
+        request = InteractionRequest.from_dict(raw_entry.get("request"))
+        checkpoint_id = str(raw_entry.get("checkpoint_id") or "").strip()
+        application = raw_entry.get("application")
+        if (
+            request.interaction_id in seen_interactions
+            or not checkpoint_id
+            or not isinstance(application, dict)
+            or application.get("applied_checkpoint_id")
+            != f"cancelled:{checkpoint_id}"
+        ):
+            continue
+        seen_interactions.add(request.interaction_id)
+        if not pupu_unchain_cold_context_request_exists(
+            session_id=normalized_session_id,
+            execution_id=normalized_session_id,
+            source_attempt_id=request.source_run_id,
+            interaction_id=request.interaction_id,
+        ):
+            continue
+        if not _reconcile_cancelled_interaction_to_context(
+            owner_chat_id=normalized_owner_chat_id,
+            session_id=normalized_session_id,
+            source_attempt_id=request.source_run_id,
+            expected_interaction_id=request.interaction_id,
+            cancellation_applied=True,
+        ):
+            raise DurableInteractionHostError(
+                "cold_interaction_repair_incomplete",
+                "Cancelled interaction repair did not persist canonical input",
+                status_code=409,
+                retryable=True,
+            )
+        repaired += 1
+    return repaired
+
+
+def _consume_cancelled_session_guard(
+    *,
+    session_id: str,
+    source_attempt_id: str,
+    cancelled_attempt_ids: tuple[str, ...],
+    expected_interaction_id: str,
+    cancelled_snapshot: Any,
+) -> None:
+    interaction_id = str(expected_interaction_id or "").strip()
+    if not interaction_id:
+        request_value = getattr(cancelled_snapshot, "request", None)
+        interaction_id = str(
+            getattr(request_value, "interaction_id", "") or ""
+        ).strip()
+    if not interaction_id:
+        raise DurableInteractionHostError(
+            "session_guard_cancel_lineage_missing",
+            "Cancelled durable interaction has no exact guard lineage",
+            status_code=409,
+            retryable=False,
+        )
+    guard = _session_execution_guard_call(
+        "snapshot_session_guard",
+        session_id=session_id,
+    )
+    if guard is not None and str(getattr(guard, "state", "") or "") == "active":
+        active_attempt_id = str(
+            getattr(guard, "attempt_id", "") or ""
+        ).strip()
+        cancellation_lineage = {
+            source_attempt_id,
+            *(str(value or "").strip() for value in cancelled_attempt_ids),
+            *(
+                str(binding.get("attempt_id") or "").strip()
+                for binding in _bindings_for_source_attempt(
+                    session_id,
+                    source_attempt_id,
+                )
+            ),
+        }
+        if active_attempt_id not in cancellation_lineage:
+            raise DurableInteractionHostError(
+                "session_guard_cancel_attempt_mismatch",
+                "Active session guard is outside the cancellation lineage",
+                status_code=409,
+                retryable=False,
+            )
+        if (
+            _execution_control_status(session_id, active_attempt_id)
+            != "cancelled"
+            and _load_execution_cancellation(session_id, active_attempt_id)
+            is None
+        ):
+            raise DurableInteractionHostError(
+                "session_guard_cancel_not_stopped",
+                "Active cancelled session guard still has a live writer",
+                status_code=409,
+                retryable=True,
+            )
+        # The worker still owns an active guard until its cancellation
+        # finalizer proves all writes have stopped.
+        return
+    _reconcile_durable_interaction_session_guard(
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+    )
+    _session_execution_guard_call(
+        "consume_parked_session_guard",
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+    )
+
+
+def _consume_terminal_session_guard(session_id: str) -> bool:
+    """Clear only a parked guard whose exact durable request is applied."""
+
+    guard = _session_execution_guard_call(
+        "snapshot_session_guard",
+        session_id=session_id,
+    )
+    if guard is None or str(getattr(guard, "state", "") or "") != "parked":
+        return False
+    interaction_id = str(getattr(guard, "interaction_id", "") or "").strip()
+    source_attempt_id = str(
+        getattr(guard, "interaction_source_attempt_id", "") or ""
+    ).strip()
+    matches = [
+        (request, entry, is_active)
+        for request, entry, is_active in _interaction_journal_entries_for_source(
+            session_id,
+            source_attempt_id,
+        )
+        if str(getattr(request, "interaction_id", "") or "").strip()
+        == interaction_id
+    ]
+    if len(matches) != 1:
+        raise DurableInteractionHostError(
+            "session_guard_terminal_lineage_missing",
+            "Parked session guard has no unique durable interaction lineage",
+            status_code=409,
+            retryable=False,
+        )
+    _request, entry, is_active = matches[0]
+    if is_active or not isinstance(entry.get("application"), dict):
+        raise DurableInteractionHostError(
+            "session_guard_terminal_state_incomplete",
+            "Parked session guard durable interaction is not terminal",
+            status_code=409,
+            retryable=True,
+        )
+    _session_execution_guard_call(
+        "consume_parked_session_guard",
+        session_id=session_id,
+        interaction_id=interaction_id,
+        source_attempt_id=source_attempt_id,
+    )
+    return True
 
 
 def cancel_chat_execution(
@@ -1828,6 +4015,8 @@ def cancel_chat_execution(
     session_id: str,
     attempt_id: str,
     source_attempt_id: str = "",
+    owner_chat_id: str = "",
+    expected_interaction_id: str = "",
     reason: str = "user_stop",
 ) -> dict[str, Any]:
     """Idempotently cancel one exact PuPu/Unchain execution attempt."""
@@ -1841,6 +4030,14 @@ def cancel_chat_execution(
         field_name="attempt_id",
     )
     normalized_reason = str(reason or "user_stop").strip() or "user_stop"
+    normalized_expected_interaction_id = str(
+        expected_interaction_id or ""
+    ).strip()
+    if normalized_expected_interaction_id:
+        normalized_expected_interaction_id = _required_identifier(
+            normalized_expected_interaction_id,
+            field_name="expected_interaction_id",
+        )
     normalized_source_attempt_id = str(source_attempt_id or "").strip()
     if normalized_source_attempt_id:
         binding = bind_execution_attempt(
@@ -1857,6 +4054,139 @@ def cancel_chat_execution(
         (binding or {}).get("source_attempt_id")
         or normalized_attempt_id
     ).strip()
+    exact_target = (
+        _interaction_cancel_target(
+            normalized_session_id,
+            normalized_expected_interaction_id,
+        )
+        if normalized_expected_interaction_id
+        else None
+    )
+    if normalized_expected_interaction_id and exact_target is None:
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_missing",
+            "Durable interaction cancel target does not exist",
+            status_code=409,
+        )
+    if exact_target is not None:
+        pending_source_attempt_id = _required_identifier(
+            exact_target.request.source_run_id,
+            field_name="interaction_source_attempt_id",
+        )
+        if not exact_target.is_active and not exact_target.is_cancelled_applied:
+            raise DurableInteractionHostError(
+                "interaction_cancel_target_not_pending",
+                "Durable interaction cancel target is no longer pending",
+                status_code=409,
+            )
+    elif _active_interaction_id(normalized_session_id):
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_required",
+            "Durable interaction cancellation requires interaction_id",
+            status_code=409,
+            retryable=True,
+        )
+
+    cold_reconciliation_required = False
+    cold_reconciliation_owners: set[str] = set()
+    for candidate_source_attempt_id in dict.fromkeys(
+        (
+            (pending_source_attempt_id,)
+            if exact_target is not None
+            else (pending_source_attempt_id, normalized_attempt_id)
+        )
+    ):
+        candidate_owner_chat_id = _cold_interaction_owner_chat_id(
+            normalized_session_id,
+            candidate_source_attempt_id,
+            explicit_owner_chat_id=owner_chat_id,
+        )
+        candidate_active = _cold_active_interaction_required(
+            owner_chat_id=candidate_owner_chat_id,
+            session_id=normalized_session_id,
+        )
+        candidate_work = _cold_interaction_reconciliation_required(
+            normalized_session_id,
+            candidate_source_attempt_id,
+        )
+        if candidate_active and candidate_work:
+            cold_reconciliation_required = True
+            cold_reconciliation_owners.add(candidate_owner_chat_id)
+    if len(cold_reconciliation_owners) > 1:
+        raise DurableInteractionHostError(
+            "cold_interaction_owner_conflict",
+            "Cold interaction source authorities disagree",
+            status_code=409,
+        )
+    durable_interaction_cancelled = False
+    cancelled_interaction_snapshot = None
+    cancelled_bound_attempt_ids: tuple[str, ...] = ()
+    if exact_target is not None and exact_target.is_cancelled_applied:
+        active_interaction_id = _active_interaction_id(normalized_session_id)
+        foreign_active_interaction = bool(
+            active_interaction_id
+            and active_interaction_id != normalized_expected_interaction_id
+        )
+        resolved_owner_chat_id = (
+            next(iter(cold_reconciliation_owners))
+            if cold_reconciliation_owners
+            else _cold_interaction_owner_chat_id(
+                normalized_session_id,
+                pending_source_attempt_id,
+                explicit_owner_chat_id=owner_chat_id,
+            )
+        )
+        if foreign_active_interaction:
+            context_interaction_reconciled = False
+            if cold_reconciliation_required:
+                context_interaction_reconciled = (
+                    _reconcile_cancelled_interaction_to_context(
+                        owner_chat_id=resolved_owner_chat_id,
+                        session_id=normalized_session_id,
+                        source_attempt_id=pending_source_attempt_id,
+                        expected_interaction_id=(
+                            normalized_expected_interaction_id
+                        ),
+                        cancellation_applied=True,
+                    )
+                )
+            return {
+                "status": "ok",
+                "execution_id": normalized_session_id,
+                "attempt_id": normalized_attempt_id,
+                "source_attempt_id": pending_source_attempt_id,
+                "interaction_id": normalized_expected_interaction_id,
+                "disposition": "unchanged",
+                "state": _execution_control_status(
+                    normalized_session_id,
+                    normalized_attempt_id,
+                )
+                or "running",
+                "execution": {},
+                "cancellation": None,
+                "durable_interaction_cancelled": False,
+                "context_interaction_reconciled": (
+                    context_interaction_reconciled
+                ),
+            }
+        durable_interaction_cancelled = True
+    elif exact_target is not None:
+        (
+            durable_interaction_cancelled,
+            cancelled_interaction_snapshot,
+        ) = _cancel_pending_source_attempt_result(
+            normalized_session_id,
+            pending_source_attempt_id,
+            expected_interaction_id=normalized_expected_interaction_id,
+            reason=normalized_reason,
+        )
+        if not durable_interaction_cancelled:
+            raise DurableInteractionHostError(
+                "interaction_cancel_target_changed",
+                "Durable interaction cancel target changed before atomic apply",
+                status_code=409,
+                retryable=True,
+            )
 
     try:
         registry_result = _execution_control_cancel(
@@ -1883,7 +4213,24 @@ def cancel_chat_execution(
     )
     disposition = str(registry_payload.get("disposition") or "applied")
     state = str(registry_execution.get("status") or "")
-    if state in {"completed", "failed"}:
+    if state in {"completed", "failed"} and not cold_reconciliation_required:
+        if durable_interaction_cancelled:
+            _consume_cancelled_session_guard(
+                session_id=normalized_session_id,
+                source_attempt_id=pending_source_attempt_id,
+                cancelled_attempt_ids=(normalized_attempt_id,),
+                expected_interaction_id=normalized_expected_interaction_id,
+                cancelled_snapshot=cancelled_interaction_snapshot,
+            )
+        if durable_interaction_cancelled:
+            clear_resume_context(
+                normalized_session_id,
+                pending_source_attempt_id,
+            )
+        clear_resume_context(
+            normalized_session_id,
+            normalized_attempt_id,
+        )
         clear_execution_attempt_binding(
             normalized_session_id,
             normalized_attempt_id,
@@ -1897,7 +4244,7 @@ def cancel_chat_execution(
             "state": state,
             "execution": copy.deepcopy(registry_execution),
             "cancellation": None,
-            "durable_interaction_cancelled": False,
+            "durable_interaction_cancelled": durable_interaction_cancelled,
         }
 
     try:
@@ -1915,18 +4262,24 @@ def cancel_chat_execution(
         ) from exc
 
     if pending_source_attempt_id == normalized_attempt_id:
-        _cancel_bound_resume_attempts(
+        cancelled_bound_attempt_ids = _cancel_bound_resume_attempts(
             normalized_session_id,
             normalized_attempt_id,
             reason=normalized_reason,
         )
 
-    durable_interaction_cancelled = _cancel_pending_source_attempt(
-        normalized_session_id,
-        pending_source_attempt_id,
-        reason=normalized_reason,
-    )
+    if not normalized_expected_interaction_id:
+        (
+            durable_interaction_cancelled,
+            cancelled_interaction_snapshot,
+        ) = _cancel_pending_source_attempt_result(
+            normalized_session_id,
+            pending_source_attempt_id,
+            reason=normalized_reason,
+        )
     if (
+        not normalized_expected_interaction_id
+        and
         not durable_interaction_cancelled
         and pending_source_attempt_id == normalized_attempt_id
     ):
@@ -1939,22 +4292,65 @@ def cancel_chat_execution(
         ).strip()
         if late_source_attempt_id and late_source_attempt_id != normalized_attempt_id:
             pending_source_attempt_id = late_source_attempt_id
-            durable_interaction_cancelled = _cancel_pending_source_attempt(
+            (
+                durable_interaction_cancelled,
+                cancelled_interaction_snapshot,
+            ) = _cancel_pending_source_attempt_result(
                 normalized_session_id,
                 pending_source_attempt_id,
                 reason=normalized_reason,
             )
     if (
+        not normalized_expected_interaction_id
+        and
         not durable_interaction_cancelled
         and pending_source_attempt_id != normalized_attempt_id
     ):
         # Once resume attempt B consumes checkpoint A, a later checkpoint is
         # owned by B itself.  Exact-B fallback cancels that successor without
         # ever touching an unrelated newer owner.
-        durable_interaction_cancelled = _cancel_pending_source_attempt(
+        (
+            fallback_cancelled,
+            fallback_cancelled_snapshot,
+        ) = _cancel_pending_source_attempt_result(
             normalized_session_id,
             normalized_attempt_id,
             reason=normalized_reason,
+        )
+        if fallback_cancelled:
+            pending_source_attempt_id = normalized_attempt_id
+            durable_interaction_cancelled = True
+            cancelled_interaction_snapshot = fallback_cancelled_snapshot
+
+    if normalized_expected_interaction_id and not durable_interaction_cancelled:
+        raise DurableInteractionHostError(
+            "interaction_cancel_target_changed",
+            "Durable interaction cancel target changed before atomic apply",
+            status_code=409,
+            retryable=True,
+        )
+
+    resolved_owner_chat_id = _cold_interaction_owner_chat_id(
+        normalized_session_id,
+        pending_source_attempt_id,
+        explicit_owner_chat_id=owner_chat_id,
+    )
+    cold_active_required = _cold_active_interaction_required(
+        owner_chat_id=resolved_owner_chat_id,
+        session_id=normalized_session_id,
+    )
+
+    context_interaction_reconciled = False
+    if cold_active_required:
+        context_interaction_reconciled = (
+            _reconcile_cancelled_interaction_to_context(
+                owner_chat_id=resolved_owner_chat_id,
+                session_id=normalized_session_id,
+                source_attempt_id=pending_source_attempt_id,
+                expected_interaction_id=normalized_expected_interaction_id,
+                cancellation_applied=durable_interaction_cancelled,
+                cancellation_snapshot=cancelled_interaction_snapshot,
+            )
         )
 
     clear_resume_context(normalized_session_id, normalized_attempt_id)
@@ -1976,6 +4372,18 @@ def cancel_chat_execution(
                 )
     clear_execution_attempt_binding(normalized_session_id, normalized_attempt_id)
 
+    if durable_interaction_cancelled:
+        _consume_cancelled_session_guard(
+            session_id=normalized_session_id,
+            source_attempt_id=pending_source_attempt_id,
+            cancelled_attempt_ids=(
+                normalized_attempt_id,
+                *cancelled_bound_attempt_ids,
+            ),
+            expected_interaction_id=normalized_expected_interaction_id,
+            cancelled_snapshot=cancelled_interaction_snapshot,
+        )
+
     state = state or "cancelled"
     return {
         "status": "ok",
@@ -1991,12 +4399,14 @@ def cancel_chat_execution(
             "reason": str(getattr(cancellation, "reason", normalized_reason) or ""),
         },
         "durable_interaction_cancelled": durable_interaction_cancelled,
+        "context_interaction_reconciled": context_interaction_reconciled,
     }
 
 
 class DurableInteractionIdTracker:
-    def __init__(self) -> None:
+    def __init__(self, *, guard_owner_attempt_id: str = "") -> None:
         self._lock = threading.Lock()
+        self._guard_owner_attempt_id = str(guard_owner_attempt_id or "").strip()
         self._by_key: dict[tuple[str, str], str] = {}
         self._latest_by_kind: dict[str, str] = {}
         self._owner_by_key: dict[tuple[str, str], dict[str, str]] = {}
@@ -2031,6 +4441,16 @@ class DurableInteractionIdTracker:
             return
         if not kind or not isinstance(payload, dict):
             return
+        if interaction_id and session_id and source_run_id:
+            _session_execution_guard_call(
+                "park_session_guard",
+                session_id=session_id,
+                interaction_id=interaction_id,
+                source_attempt_id=source_run_id,
+                owner_attempt_id=(
+                    self._guard_owner_attempt_id or source_run_id
+                ),
+            )
         call_id = str(
             payload.get("call_id") or payload.get("request_id") or ""
         ).strip()
@@ -2094,10 +4514,18 @@ class DurableInteractionIdTracker:
 __all__ = [
     "DurableInteractionHostError",
     "DurableInteractionIdTracker",
+    "DurableInteractionReceiptHandoff",
+    "DurableInteractionReceiptResult",
+    "clear_graph_step_resume_context",
     "clear_resume_context",
     "get_pending_interaction",
+    "load_graph_step_resume_context",
     "load_resume_context",
+    "interaction_receipt_handoff",
     "record_interaction_receipt",
+    "reconcile_cancelled_interactions_before_active_run",
+    "resolve_graph_step_resume_options",
     "resolve_resume_options",
+    "save_graph_step_resume_context",
     "save_resume_context",
 ]

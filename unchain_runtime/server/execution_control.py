@@ -835,15 +835,65 @@ def get_execution_control_registry() -> ExecutionControlRegistry:
 
 
 def register(session_id: str, attempt_id: str) -> ExecutionControlResult:
+    from session_execution_guard import initialize_session_guard_protocol
+
+    initialize_session_guard_protocol()
     return _DEFAULT_REGISTRY.register(session_id, attempt_id)
 
 
 def mark_running(session_id: str, attempt_id: str) -> ExecutionControlResult:
-    return _DEFAULT_REGISTRY.mark_running(session_id, attempt_id)
+    from session_execution_guard import acquire_run_guard, release_run_guard
+
+    guard_disposition = acquire_run_guard(session_id, attempt_id)
+    guard_was_new = guard_disposition in {"acquired", "reclaimed"}
+    try:
+        result = _DEFAULT_REGISTRY.mark_running(session_id, attempt_id)
+    except BaseException:
+        if guard_was_new:
+            release_run_guard(session_id, attempt_id)
+        raise
+    if result.snapshot.terminal or (
+        guard_was_new and result.snapshot.status != "running"
+    ):
+        release_run_guard(session_id, attempt_id)
+    return result
+
+
+def inspect_mark_running_ambiguity(
+    session_id: str,
+    attempt_id: str,
+) -> ExecutionControlResult | None:
+    """Classify a mark-running exception from exact durable state only."""
+
+    snapshot_value = _DEFAULT_REGISTRY.snapshot(session_id, attempt_id)
+    if snapshot_value is None:
+        return None
+    if snapshot_value.status == "running":
+        disposition = (
+            "applied"
+            if (
+                snapshot_value.owner_id == _DEFAULT_REGISTRY._process_owner_id
+                and snapshot_value.owner_pid == _DEFAULT_REGISTRY._process_pid
+            )
+            else "foreign_running"
+        )
+    elif snapshot_value.terminal:
+        disposition = "already_terminal"
+    else:
+        disposition = "not_applied"
+    return ExecutionControlResult(
+        disposition=disposition,
+        snapshot=snapshot_value,
+    )
 
 
 def mark_completed(session_id: str, attempt_id: str) -> ExecutionControlResult:
-    return _DEFAULT_REGISTRY.mark_completed(session_id, attempt_id)
+    from session_execution_guard import release_run_guard
+
+    result = _DEFAULT_REGISTRY.mark_completed(session_id, attempt_id)
+    if result.snapshot.terminal:
+        release_run_guard(session_id, attempt_id)
+    return result
 
 
 def mark_failed(
@@ -852,7 +902,20 @@ def mark_failed(
     *,
     reason: str = "",
 ) -> ExecutionControlResult:
-    return _DEFAULT_REGISTRY.mark_failed(session_id, attempt_id, reason=reason)
+    from session_execution_guard import release_run_guard
+
+    result = _DEFAULT_REGISTRY.mark_failed(session_id, attempt_id, reason=reason)
+    if result.snapshot.terminal:
+        release_run_guard(session_id, attempt_id)
+    return result
+
+
+def finish_cancelled_run(session_id: str, attempt_id: str) -> str:
+    """Release the session only after a cancelled worker has stopped writing."""
+
+    from session_execution_guard import release_run_guard
+
+    return release_run_guard(session_id, attempt_id)
 
 
 def request_cancel(
@@ -861,6 +924,9 @@ def request_cancel(
     *,
     reason: str = "user_stop",
 ) -> ExecutionControlResult:
+    from session_execution_guard import initialize_session_guard_protocol
+
+    initialize_session_guard_protocol()
     return _DEFAULT_REGISTRY.request_cancel(session_id, attempt_id, reason=reason)
 
 
@@ -895,8 +961,10 @@ __all__ = [
     "ExecutionControlSnapshot",
     "cancellation_event",
     "cancellation_token",
+    "finish_cancelled_run",
     "get_execution_control_registry",
     "get_registry",
+    "inspect_mark_running_ambiguity",
     "is_cancelled",
     "mark_completed",
     "mark_failed",

@@ -6,6 +6,7 @@ import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spi
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../appearance";
 import APIKeyInput from "./components/api_key_input";
+import PresetProviderSection from "./components/preset_provider_section";
 import CustomProvidersSection from "./custom-providers";
 import ModelCard from "./components/model_card";
 import ActiveDownloads from "./components/active_downloads";
@@ -39,6 +40,24 @@ const AnthropicSection = () => {
   );
 };
 
+const DeepSeekSection = () => (
+  <PresetProviderSection
+    title="DeepSeek"
+    icon="deepseek"
+    slugs={["deepseek"]}
+    placeholder="sk-..."
+  />
+);
+
+const KimiSection = () => (
+  <PresetProviderSection
+    title="Kimi"
+    icon="kimi"
+    slugs={["kimi", "kimi-cn"]}
+    placeholder="sk-..."
+  />
+);
+
 const OllamaLibraryBrowser = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
@@ -57,10 +76,10 @@ const OllamaLibraryBrowser = ({ isDark }) => {
     retrySearch,
   } = useOllamaLibrary();
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
-  const pillActiveBg = isDark ? "rgba(255,255,255,0.11)" : "rgba(0,0,0,0.08)";
-  const pillHoverBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
-  const pillActiveTxt = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const pillActiveBg = "var(--pupu-overlay-active)";
+  const pillHoverBg = "var(--pupu-overlay-selected)";
+  const pillActiveTxt = "var(--pupu-text-strong)";
   const pillInactiveTxt = isDark
     ? "rgba(255,255,255,0.45)"
     : "rgba(0,0,0,0.42)";
@@ -207,7 +226,7 @@ const OllamaSection = () => {
   const { t } = useTranslation();
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const mutedColor = "var(--pupu-text-faint)";
 
   return (
     <SettingsSection title="Ollama" icon="ollama">
@@ -262,6 +281,8 @@ export const ModelProvidersSettings = () => {
     >
       <OpenAISection />
       <AnthropicSection />
+      {customModelProvidersEnabled && <DeepSeekSection />}
+      {customModelProvidersEnabled && <KimiSection />}
       <OllamaSection />
       {customModelProvidersEnabled && <CustomProvidersSection />}
     </div>

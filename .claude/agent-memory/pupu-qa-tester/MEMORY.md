@@ -1,3 +1,0 @@
-- [Team Roster & Handoff Protocol](team_roster_handoff.md) — feature QA → release-full-test evidence → COO decision, plus MCP/security/dev handoffs
-- [Worktree e2e testbed recipe](worktree-e2e-testbed-recipe.md) — symlinks needed to run app from a worktree; single-instance lock traps; test-api eval/webpack-module tricks
-- [Gate-B computer-use e2e findings](computer-use-gate-b-e2e-findings.md) — 2026-07-18 full enable-path PASS; dead ok field, test-api toolkit staleness, funnel conditions

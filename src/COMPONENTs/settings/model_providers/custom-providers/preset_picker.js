@@ -37,13 +37,13 @@ const PresetPicker = ({ open, onClose, onSelect }) => {
   const isDark = onThemeMode === "dark_mode";
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
-  const textColor = isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.82)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.45)";
-  const borderColor = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
+  const textColor = "var(--pupu-text-strong)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const borderColor = "var(--pupu-border)";
+  const dividerColor = "var(--pupu-border)";
   const accentColor = isDark ? "#7c8cf8" : "#2563eb";
   const badgeBg = isDark ? "rgba(124,140,248,0.16)" : "rgba(37,99,235,0.10)";
-  const cardHoverBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)";
+  const cardHoverBg = "var(--pupu-overlay-ghost)";
 
   const envelopes = readPresetEnvelopes();
 

@@ -2,6 +2,7 @@ import { memo, useContext, useEffect, useRef, useState, useCallback } from "reac
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
+import TurnMutationQuarantine from "../chat-messages/components/turn_mutation_quarantine";
 import CommandPalettePanel from "./components/command_palette_panel";
 import InputActionButtons from "./components/input_action_buttons";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
@@ -46,6 +47,9 @@ const ChatInput = ({
   modelCatalog,
   selectedModelId,
   onSelectModel,
+  reasoningEffortOptions = [],
+  selectedReasoningEffort = null,
+  onSelectReasoningEffort,
   modelSelectDisabled = false,
   showModelSelector = true,
   attachments = [],
@@ -54,6 +58,10 @@ const ChatInput = ({
   attachmentsDisabledReason = "",
   onDropFiles = null,
   showToolSelector = true,
+  /* Memory V2 P0 secret gate: the tool selector is locked while the user is
+     deciding about a detected credential, so the run's tool set cannot change
+     out from under an approval. */
+  toolSelectDisabled = false,
   selectedToolkits = [],
   onToolkitsChange,
   showWorkspaceSelector = true,
@@ -64,11 +72,35 @@ const ChatInput = ({
   recipeOptions = [],
   interjectState,
   onQueueUndo,
+  contextCompositionBundle = null,
+  contextUsageView = null,
+  /* Docked turn-mutation hold: the paused-change banner caps the composer,
+     so the capsule squares its top corners while one is visible. */
+  turnMutationHold = null,
+  onTurnMutationRetry,
+  onTurnMutationDiscard,
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+
+  /* Retain the last hold through its exit animation so the docked banner
+     collapses instead of vanishing; the capsule's top corners morph back in
+     the same window. */
+  const [retainedHold, setRetainedHold] = useState(null);
+  const [holdOpen, setHoldOpen] = useState(false);
+  useEffect(() => {
+    if (turnMutationHold?.operationId) {
+      setRetainedHold(turnMutationHold);
+      setHoldOpen(true);
+      return undefined;
+    }
+    setHoldOpen(false);
+    const timer = setTimeout(() => setRetainedHold(null), 300);
+    return () => clearTimeout(timer);
+  }, [turnMutationHold]);
+  const composerTopDocked = Boolean(retainedHold?.operationId) && holdOpen;
   const inputRef = useRef(null);
   const [focused, setFocused] = useState(false);
   const attachPanelRef = useRef(null);
@@ -476,6 +508,9 @@ const ChatInput = ({
                       showModelSelector={showModelSelector}
                       selectedModelId={selectedModelId}
                       onSelectModel={onSelectModel}
+                      reasoningEffortOptions={reasoningEffortOptions}
+                      selectedReasoningEffort={selectedReasoningEffort}
+                      onSelectReasoningEffort={onSelectReasoningEffort}
                       onGroupToggle={handleGroupToggle}
                       modelSelectDisabled={modelSelectDisabled}
                       isDark={isDark}
@@ -485,6 +520,7 @@ const ChatInput = ({
                       onRemoveAttachment={onRemoveAttachment}
                       isStreaming={isStreaming}
                       showToolSelector={showToolSelector}
+                      toolSelectDisabled={toolSelectDisabled}
                       selectedToolkits={selectedToolkits}
                       onToolkitsChange={onToolkitsChange}
                       showWorkspaceSelector={showWorkspaceSelector}
@@ -495,9 +531,22 @@ const ChatInput = ({
                       recipeOptions={recipeOptions}
                       queueItems={interjectState?.queueItems || []}
                       onQueueUndo={onQueueUndo}
+                      contextCompositionBundle={contextCompositionBundle}
+                      contextUsageView={contextUsageView}
                     />
                   ) : null}
                 </CommandPalettePanel>
+              ) : null
+            }
+            above_section={
+              retainedHold ? (
+                <TurnMutationQuarantine
+                  hold={retainedHold}
+                  open={holdOpen}
+                  isDark={isDark}
+                  onRetry={onTurnMutationRetry}
+                  onDiscard={onTurnMutationDiscard}
+                />
               ) : null
             }
             force_content_active={chatActive}
@@ -516,7 +565,7 @@ const ChatInput = ({
             style={{
               width: "100%",
               margin: 0,
-              borderRadius: 22,
+              borderRadius: composerTopDocked ? "0px 0px 22px 22px" : 22,
               /* border: textfield's own default (theme-aware); softness
                  comes from the wider, lower-alpha shadow */
               boxShadow: isDark

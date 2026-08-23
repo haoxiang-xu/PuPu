@@ -14,11 +14,10 @@ jest.mock("../../../SERVICEs/api", () => ({
   },
 }));
 
-jest.mock("../../settings/model_providers/storage", () => ({
-  readModelProviders: jest.fn(() => ({
-    openai_api_key: "sk-test",
-    anthropic_api_key: "sk-ant-test",
-  })),
+jest.mock("../../../SERVICEs/provider_secret_status", () => ({
+  providerSecretConfigured: jest.fn((id) =>
+    ["openai", "anthropic"].includes(id),
+  ),
 }));
 
 jest.mock("../../../SERVICEs/model_catalog_refresh", () => ({
@@ -44,11 +43,10 @@ describe("useChatInputModels", () => {
   beforeEach(() => {
     api.ollama.listChatModels.mockReset();
     api.ollama.listModels.mockReset();
-    const { readModelProviders } = require("../../settings/model_providers/storage");
-    readModelProviders.mockReturnValue({
-      openai_api_key: "sk-test",
-      anthropic_api_key: "sk-ant-test",
-    });
+    const { providerSecretConfigured } = require("../../../SERVICEs/provider_secret_status");
+    providerSecretConfigured.mockImplementation((id) =>
+      ["openai", "anthropic"].includes(id),
+    );
   });
 
   test("uses chat-only live Ollama models for selector options", async () => {
@@ -114,8 +112,8 @@ describe("useChatInputModels", () => {
   });
 
   test("hides OpenAI and Anthropic groups when no API keys are configured", async () => {
-    const { readModelProviders } = require("../../settings/model_providers/storage");
-    readModelProviders.mockReturnValue({});
+    const { providerSecretConfigured } = require("../../../SERVICEs/provider_secret_status");
+    providerSecretConfigured.mockReturnValue(false);
     api.ollama.listChatModels.mockResolvedValue([]);
 
     render(
@@ -137,8 +135,8 @@ describe("useChatInputModels", () => {
   });
 
   test("shows only OpenAI group when only OpenAI key is configured", async () => {
-    const { readModelProviders } = require("../../settings/model_providers/storage");
-    readModelProviders.mockReturnValue({ openai_api_key: "sk-test" });
+    const { providerSecretConfigured } = require("../../../SERVICEs/provider_secret_status");
+    providerSecretConfigured.mockImplementation((id) => id === "openai");
     api.ollama.listChatModels.mockResolvedValue([]);
 
     render(
@@ -194,6 +192,13 @@ describe("useChatInputModels", () => {
     beforeEach(() => {
       window.localStorage.clear();
       writeFeatureFlags({ enable_custom_model_providers: true });
+      const { providerSecretConfigured } = require("../../../SERVICEs/provider_secret_status");
+      const actualProviderStatus = jest.requireActual(
+        "../../../SERVICEs/provider_secret_status",
+      );
+      providerSecretConfigured.mockImplementation(
+        actualProviderStatus.providerSecretConfigured,
+      );
     });
 
     afterEach(() => {

@@ -130,6 +130,7 @@ const TimelineNode = ({
     span,
     details,
     detailsBare = false,
+    unmountDetailsWhenClosed = false,
     body,
     point,
     status = "pending",
@@ -361,7 +362,10 @@ const TimelineNode = ({
 
         {/* animated details content */}
         {hasDetails && (
-          <AnimatedChildren open={isExpanded}>
+          <AnimatedChildren
+            open={isExpanded}
+            unmountWhenClosed={unmountDetailsWhenClosed}
+          >
             {detailsBare ? (
               <div
                 style={{

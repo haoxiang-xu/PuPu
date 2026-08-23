@@ -1,0 +1,74 @@
+{
+  "base_contract": {
+    "path": "../ps-001-r7/pupu-context-composition-consumer-v1.json",
+    "sha256": "sha256:278149476c4ce35ce7ec53ce67866c5ce117d927f2d42e787f208cdb719d7878"
+  },
+  "change_scope": [
+    "fresh_hint",
+    "private_fresh_projection",
+    "availability_reason"
+  ],
+  "effective_contract_rule": "all base-contract requirements remain exact except the named change_scope objects, which are replaced by this closed successor",
+  "fresh_hint_v2": {
+    "admission": "strict exact-shape/size/enum/integer validation; validate the renderer boundary against authoritative final message, strict-UTF-8 encode that prefix, and require equality with claimed utf8_bytes before atomic private mint",
+    "canonical_utf8_max_bytes": 1024,
+    "contribution_exact_keys": [
+      "category",
+      "subtype",
+      "surface",
+      "prefix_utf16_units",
+      "utf8_bytes",
+      "source_count"
+    ],
+    "contribution_fixed_values": {
+      "category": "skills",
+      "source_count": 1,
+      "subtype": "expanded_invocation",
+      "surface": "messages"
+    },
+    "contributions": "exactly one item when present",
+    "exact_keys": [
+      "schema",
+      "contributions"
+    ],
+    "failure": "all schema/key/enum/type/range/size/boundary/surrogate/scalar/byte-equality failures map to fresh_hint_invalid; never persist or overwrite; ordinary V4/chat/provider/tools/interactions/base RunBundle continues",
+    "field": "context_composition_hint",
+    "fresh_only": "fresh composer/edit with positive final template prefix only; no-composer, programmatic, non-fresh, resume, interject, and zero-template-only paths omit",
+    "independent_authority_limit": "runtime independently verifies UTF-8 bytes from authoritative message plus validated boundary; template-origin provenance is a closed renderer assertion, not independently reconstructed",
+    "prefix_utf16_units": "positive JSON safe integer; bool forbidden; JavaScript UTF-16 code-unit boundary within authoritative final message; may not split a valid surrogate pair",
+    "privacy": "content-free; no composer/rawText/raw content/command/template/plugin name/toolkit/id/path/URL/digest/hash/arbitrary label/extra key",
+    "schema": "pupu.context_composition_hint.v2",
+    "source_count": "literal 1; one aggregate expanded-prefix contribution record; never command/template/plugin count",
+    "strict_scalar_prefix": "unpaired surrogate in selected prefix is invalid; strict UTF-8 only; no replacement encoding",
+    "template_rule": "templateLength===0 omits; mixed zero/nonzero expansion represents only the joined non-empty template prefix as one aggregate",
+    "utf8_bytes": "positive JSON safe integer; bool forbidden; must equal runtime strict-UTF-8 recomputation",
+    "v1_input": "unsupported at the v2 boundary; composition-only fresh_hint_invalid; no heuristic upgrade or dual parser"
+  },
+  "private_projection": {
+    "durable_field": "_context_composition_hint_v1",
+    "output": "existing one-item skills/expanded_invocation/messages tuple with runtime-recomputed utf8_bytes and literal source_count=1",
+    "rule": "atomic mint only after valid v2 admission; public v2 and private v1 are distinct schemas; only private v1 bytes participate in durable resume equality",
+    "schema_stability": "private tuple shape remains unchanged and its hint-derived source_count means one admitted aggregate record"
+  },
+  "schema": "pupu.context_composition.consumer.v2",
+  "successor_availability_reason": {
+    "code": [
+      "capability_unavailable",
+      "extension_missing",
+      "extension_invalid",
+      "fresh_hint_invalid",
+      "resume_hint_invalid",
+      "resume_hint_mismatch",
+      "resume_hint_no_baseline"
+    ],
+    "exact_keys": [
+      "schema",
+      "code"
+    ],
+    "privacy": "content-free; no message, details, path, id, hash, or arbitrary string fields",
+    "removed_code": "fresh_hint_mismatch",
+    "schema": "pupu.context_composition_availability.v2"
+  },
+  "supersedes": "pupu.context_composition.consumer.v1",
+  "version": 2
+}

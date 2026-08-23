@@ -1,7 +1,25 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const REPORT_SCHEMA_VERSION = 1;
+import { validateRuntimeManifestForRelease } from "./unchain-artifact.mjs";
+
+export const REPORT_SCHEMA_VERSION = 2;
+export const CONTEXT_V2_REQUIRED_CHECKS = Object.freeze([
+  "Unchain artifact continuity",
+  "Unchain runtime protocol manifest",
+  "Context V2 boundary contracts",
+]);
+export const RUN_BUNDLE_REQUIRED_CHECKS = Object.freeze([
+  "RunBundle v1 boundary contracts",
+]);
+export const DETERMINISTIC_REQUIRED_CHECKS = Object.freeze([
+  ...CONTEXT_V2_REQUIRED_CHECKS,
+  ...RUN_BUNDLE_REQUIRED_CHECKS,
+]);
+export const PACKAGE_REQUIRED_CHECKS = Object.freeze([
+  "Unchain artifact continuity",
+  "packaged sidecar protocol smoke",
+]);
 
 const PASS_STATUSES = new Set(["pass", "passed", "success", "successful", "ok"]);
 const FAIL_STATUSES = new Set(["fail", "failed", "failure", "error", "timed_out", "timed-out"]);
@@ -18,6 +36,22 @@ const MANUAL_RELEASE_QA = [
 ];
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
+const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
+const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const NONZERO_EVIDENCE_CHECKS = new Set([
+  "Playwright Electron release smoke",
+  "Unchain artifact continuity",
+  "Unchain runtime protocol manifest",
+  "Context V2 boundary contracts",
+  "RunBundle v1 boundary contracts",
+  "packaged sidecar protocol smoke",
+]);
+const RELEASE_PACKAGE_PLATFORMS = Object.freeze([
+  "mac-arm64",
+  "mac-intel",
+  "windows",
+  "linux",
+]);
 
 export function normalizeStatus(value) {
   const normalized = cleanString(value).toLowerCase();
@@ -37,6 +71,10 @@ function normalizeCheck(check) {
     status,
     outcome: cleanString(raw.outcome || raw.conclusion || status) || status,
     details: cleanString(raw.details),
+    executed_tests: Number.isSafeInteger(raw.executed_tests) &&
+        raw.executed_tests >= 0
+      ? raw.executed_tests
+      : undefined,
   };
 }
 
@@ -53,6 +91,7 @@ function normalizeArtifact(artifact) {
     name: cleanString(raw.name) || path.basename(artifactPath),
     path: artifactPath,
     size_bytes: Number.isFinite(raw.size_bytes) ? raw.size_bytes : undefined,
+    sha256: cleanString(raw.sha256) || undefined,
   };
 }
 
@@ -81,18 +120,155 @@ function buildDeterministicResult(checks) {
   };
 }
 
+const normalizeUnchain = (unchain) => {
+  const raw = unchain && typeof unchain === "object" ? unchain : {};
+  return {
+    artifact_name: cleanString(raw.artifact_name),
+    artifact_sha256: cleanString(raw.artifact_sha256),
+    artifact_size_bytes: Number.isSafeInteger(raw.artifact_size_bytes) &&
+        raw.artifact_size_bytes > 0
+      ? raw.artifact_size_bytes
+      : undefined,
+    runtime_manifest_digest: cleanString(raw.runtime_manifest_digest),
+    runtime_manifest: raw.runtime_manifest &&
+        typeof raw.runtime_manifest === "object" &&
+        !Array.isArray(raw.runtime_manifest)
+      ? raw.runtime_manifest
+      : undefined,
+    source_repository: cleanString(raw.source_repository),
+    source_ref: cleanString(raw.source_ref),
+    source_revision: cleanString(raw.source_revision),
+    source_dirty: typeof raw.source_dirty === "boolean"
+      ? raw.source_dirty
+      : undefined,
+  };
+};
+
+const unchainEvidenceFailures = (unchain) => {
+  const failures = [];
+  if (!cleanString(unchain.artifact_name).endsWith(".whl")) {
+    failures.push("artifact wheel name is missing");
+  }
+  if (!SHA256_PATTERN.test(cleanString(unchain.artifact_sha256))) {
+    failures.push("artifact SHA-256 is missing or invalid");
+  }
+  if (!Number.isSafeInteger(unchain.artifact_size_bytes) || unchain.artifact_size_bytes <= 0) {
+    failures.push("artifact size is missing or invalid");
+  }
+  if (!SHA256_PATTERN.test(cleanString(unchain.runtime_manifest_digest))) {
+    failures.push("runtime manifest digest is missing or invalid");
+  }
+  try {
+    validateRuntimeManifestForRelease(unchain.runtime_manifest);
+    if (
+      unchain.runtime_manifest.manifest_digest !==
+      unchain.runtime_manifest_digest
+    ) {
+      failures.push("runtime manifest digest fields differ");
+    }
+  } catch (error) {
+    failures.push(`runtime manifest is invalid: ${error.message}`);
+  }
+  if (!cleanString(unchain.source_repository)) {
+    failures.push("source repository telemetry is missing");
+  }
+  if (!cleanString(unchain.source_ref)) {
+    failures.push("source ref telemetry is missing");
+  }
+  if (!GIT_SHA_PATTERN.test(cleanString(unchain.source_revision))) {
+    failures.push("source revision telemetry is missing or invalid");
+  }
+  if (unchain.source_dirty !== false) {
+    failures.push(
+      unchain.source_dirty === true
+        ? "selected source provenance is dirty"
+        : "selected source provenance cleanliness is unknown",
+    );
+  }
+  return failures;
+};
+
+function enforceRequiredChecks(checks, requiredChecks, unchain) {
+  const normalizedRequired = [...new Set(
+    (requiredChecks || []).map(cleanString).filter(Boolean),
+  )];
+  const effectiveRequired = normalizedRequired;
+  const enforced = checks.map((check) => ({ ...check }));
+
+  for (const requiredName of effectiveRequired) {
+    const index = enforced.findIndex((check) => check.name === requiredName);
+    if (index === -1) {
+      enforced.push(normalizeCheck({
+        name: requiredName,
+        outcome: "failure",
+        details: "required check is missing (INCOMPLETE)",
+      }));
+      continue;
+    }
+    if (enforced[index].status !== "passed") {
+      const reportedStatus = enforced[index].status || "missing";
+      enforced[index] = {
+        ...enforced[index],
+        status: "failed",
+        outcome: "failure",
+        details: [
+          enforced[index].details,
+          `required check reported ${reportedStatus} (INCOMPLETE)`,
+        ].filter(Boolean).join("; "),
+      };
+    }
+    if (
+      NONZERO_EVIDENCE_CHECKS.has(requiredName) &&
+      !(enforced[index].executed_tests > 0)
+    ) {
+      enforced[index] = {
+        ...enforced[index],
+        status: "failed",
+        outcome: "failure",
+        details: [
+          enforced[index].details,
+          "required check has zero or missing execution evidence (INCOMPLETE)",
+        ].filter(Boolean).join("; "),
+      };
+    }
+  }
+
+  if (effectiveRequired.includes("Unchain artifact continuity")) {
+    const evidenceFailures = unchainEvidenceFailures(unchain);
+    if (evidenceFailures.length > 0) {
+      const index = enforced.findIndex(
+        (check) => check.name === "Unchain artifact continuity",
+      );
+      enforced[index] = {
+        ...enforced[index],
+        status: "failed",
+        outcome: "failure",
+        details: [
+          enforced[index].details,
+          `required evidence invalid: ${evidenceFailures.join(", ")}`,
+        ].filter(Boolean).join("; "),
+      };
+    }
+  }
+
+  return enforced;
+}
+
 export function buildJobReport({
   mode = "lite",
   platform = {},
   version = "",
   expectedVersion = "",
   git = {},
+  unchain = {},
+  requiredChecks = [],
   checks = [],
   artifacts = [],
 } = {}) {
-  const normalizedChecks = checks.map(normalizeCheck);
+  let normalizedChecks = checks.map(normalizeCheck);
   const cleanVersion = cleanString(version);
   const cleanExpected = cleanString(expectedVersion);
+  const normalizedUnchain = normalizeUnchain(unchain);
 
   if (cleanExpected) {
     normalizedChecks.push(
@@ -107,6 +283,15 @@ export function buildJobReport({
       }),
     );
   }
+
+  const platformName = cleanString(platform.name) || cleanString(platform.os);
+  normalizedChecks = enforceRequiredChecks(
+    normalizedChecks,
+    platformName === "deterministic"
+      ? [...requiredChecks, ...DETERMINISTIC_REQUIRED_CHECKS]
+      : requiredChecks,
+    normalizedUnchain,
+  );
 
   const normalizedArtifacts = artifacts
     .map(normalizeArtifact)
@@ -127,6 +312,7 @@ export function buildJobReport({
       run_id: cleanString(git.run_id),
       worktree_fingerprint: cleanString(git.worktree_fingerprint),
     },
+    unchain: normalizedUnchain,
     platform: {
       name: cleanString(platform.name) || cleanString(platform.os) || "unknown",
       os: cleanString(platform.os) || cleanString(platform.name) || "unknown",
@@ -139,7 +325,43 @@ export function buildJobReport({
   });
 }
 
-export function mergeReports(reports, { unchainAnalysis } = {}) {
+const enforceExpectedReportTopology = (reports, requiredPlatforms) => {
+  const checks = [];
+  for (const platformName of [...new Set(requiredPlatforms || [])]) {
+    const matches = reports.filter(
+      (report) => report.platform?.name === platformName,
+    );
+    if (matches.length === 0) {
+      checks.push(normalizeCheck({
+        name: `required report ${platformName}`,
+        outcome: "failure",
+        details: "required report is missing (INCOMPLETE)",
+      }));
+      continue;
+    }
+    if (matches.length !== 1) {
+      checks.push(normalizeCheck({
+        name: `required report ${platformName}`,
+        outcome: "failure",
+        details: "required report appears more than once (INCOMPLETE)",
+      }));
+      continue;
+    }
+    if (matches[0].deterministic_result?.status !== "passed") {
+      checks.push(normalizeCheck({
+        name: `required report ${platformName}`,
+        outcome: "failure",
+        details: "required report contains failed, skipped, or zero-evidence checks (INCOMPLETE)",
+      }));
+    }
+  }
+  return checks;
+};
+
+export function mergeReports(
+  reports,
+  { unchainAnalysis, mode: requestedMode = "", requiredReportPlatforms = [] } = {},
+) {
   const normalizedReports = Array.isArray(reports)
     ? reports.filter((report) => report && typeof report === "object")
     : [];
@@ -160,9 +382,83 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
     deterministic_result: report.deterministic_result,
   }));
   const firstReport = normalizedReports[0] || {};
-  const mode = normalizedReports.some((report) => report.mode === "release")
+  const deterministicReport = normalizedReports.find(
+    (report) => report.platform?.name === "deterministic",
+  );
+  const unchain = normalizeUnchain(deterministicReport?.unchain || {});
+  const inferredMode = normalizedReports.some((report) => report.mode === "release")
     ? "release"
     : cleanString(firstReport.mode) || "lite";
+  const mode = cleanString(requestedMode) || inferredMode;
+  const deterministicReports = normalizedReports.filter((report) => {
+    const checkNames = new Set(
+      (report.checks || []).map((check) => cleanString(check.name)),
+    );
+    return report.platform?.name === "deterministic" ||
+      DETERMINISTIC_REQUIRED_CHECKS.every((name) => checkNames.has(name));
+  });
+
+  const requiresDeterministicContractGate = deterministicReports.length > 0 ||
+    normalizedReports.some((report) =>
+    (report.checks || []).some((check) =>
+      DETERMINISTIC_REQUIRED_CHECKS.includes(check.name)
+    )
+  );
+  if (deterministicReports.length === 0) {
+    checks.push(normalizeCheck({
+      name: "deterministic QA report present",
+      outcome: "failure",
+      details: "deterministic job report is missing (INCOMPLETE)",
+    }));
+  }
+  checks.push(
+    ...enforceExpectedReportTopology(normalizedReports, requiredReportPlatforms),
+  );
+  if (mode === "release") {
+    for (const platformName of RELEASE_PACKAGE_PLATFORMS) {
+      const report = normalizedReports.find(
+        (candidate) => candidate.platform?.name === platformName,
+      );
+      if (!report) {
+        checks.push(normalizeCheck({
+          name: `package report ${platformName}`,
+          outcome: "failure",
+          details: "required package report is missing (INCOMPLETE)",
+        }));
+        continue;
+      }
+      const packageUnchain = normalizeUnchain(report.unchain);
+      const continuityMatches = [
+        "artifact_sha256",
+        "runtime_manifest_digest",
+        "source_revision",
+      ].every((field) => packageUnchain[field] === unchain[field]);
+      checks.push(normalizeCheck({
+        name: `artifact continuity ${platformName}`,
+        outcome: continuityMatches ? "success" : "failure",
+        details: continuityMatches
+          ? unchain.artifact_sha256
+          : "package did not consume the deterministic artifact bytes",
+        executed_tests: 1,
+      }));
+      const smoke = (report.checks || []).find(
+        (check) => check.name === "packaged sidecar protocol smoke",
+      );
+      if (normalizeStatus(smoke?.status || smoke?.outcome) !== "passed" ||
+          !(smoke?.executed_tests > 0)) {
+        checks.push(normalizeCheck({
+          name: `packaged sidecar protocol smoke ${platformName}`,
+          outcome: "failure",
+          details: "real authenticated packaged smoke is missing or executed zero checks",
+        }));
+      }
+    }
+  }
+  const enforcedChecks = enforceRequiredChecks(
+    checks,
+    requiresDeterministicContractGate ? DETERMINISTIC_REQUIRED_CHECKS : [],
+    unchain,
+  );
 
   return removeUndefined({
     schema_version: REPORT_SCHEMA_VERSION,
@@ -170,10 +466,11 @@ export function mergeReports(reports, { unchainAnalysis } = {}) {
     mode,
     version: cleanString(firstReport.version),
     git: firstReport.git || {},
+    unchain,
     platforms,
-    checks,
+    checks: enforcedChecks,
     artifacts,
-    deterministic_result: buildDeterministicResult(checks),
+    deterministic_result: buildDeterministicResult(enforcedChecks),
     unchain_analysis: unchainAnalysis || {
       status: "not_run",
       recommendation: "NEEDS-HUMAN-TEST",
@@ -197,6 +494,11 @@ export function renderMarkdown(report) {
     `- Mode: ${report.mode || "lite"}`,
     `- Version: ${report.version || "(unknown)"}`,
     `- Deterministic result: ${statusLabel(deterministicStatus)}`,
+    `- Unchain artifact SHA-256: ${report.unchain?.artifact_sha256 || "(unknown)"}`,
+    `- Runtime manifest digest: ${report.unchain?.runtime_manifest_digest || "(unknown)"}`,
+    `- Unchain source ref: ${report.unchain?.source_ref || "(unknown)"}`,
+    `- Unchain source revision (telemetry): ${report.unchain?.source_revision || "(unknown)"}`,
+    `- Unchain source dirty: ${String(report.unchain?.source_dirty ?? "unknown")}`,
     `- Unchain analysis: ${report.unchain_analysis?.status || "not_run"}`,
     "",
     "## Checks",

@@ -18,6 +18,11 @@ import {
 } from "./storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import {
+  clearRunBundles,
+  isRunBundleStorageAvailable,
+  queryRunBundleTokenUsage,
+} from "../../../SERVICEs/run_bundle_storage";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Constants                                                                                                                  */
@@ -163,6 +168,7 @@ const formatBucketLabel = (key, granularity) => {
 };
 
 const formatTokenCount = (n) => {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
@@ -218,6 +224,9 @@ const useTokenUsageData = ({
     let totalConsumedTokens = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let hasUnknownConsumedTokens = false;
+    let hasUnknownInputTokens = false;
+    let hasUnknownOutputTokens = false;
 
     for (const r of filtered) {
       const k = keyFn(r.timestamp);
@@ -226,31 +235,52 @@ const useTokenUsageData = ({
         input: 0,
         output: 0,
       };
-      bucket.consumed += r.consumed_tokens;
-      bucket.input += r.input_tokens || 0;
-      bucket.output += r.output_tokens || 0;
+      if (typeof r.consumed_tokens === "number") {
+        bucket.consumed += r.consumed_tokens;
+        totalConsumedTokens += r.consumed_tokens;
+      } else {
+        hasUnknownConsumedTokens = true;
+      }
+      if (typeof r.input_tokens === "number") {
+        bucket.input += r.input_tokens;
+        totalInputTokens += r.input_tokens;
+      } else {
+        hasUnknownInputTokens = true;
+      }
+      if (typeof r.output_tokens === "number") {
+        bucket.output += r.output_tokens;
+        totalOutputTokens += r.output_tokens;
+      } else {
+        hasUnknownOutputTokens = true;
+      }
       bucketMap.set(k, bucket);
-      totalConsumedTokens += r.consumed_tokens;
-      totalInputTokens += r.input_tokens || 0;
-      totalOutputTokens += r.output_tokens || 0;
     }
 
     // Sort buckets chronologically
     const sortedKeys = [...bucketMap.keys()].sort();
-    const chartData = sortedKeys.map((k) => ({
-      label: formatBucketLabel(k, granularity),
-      value: bucketMap.get(k)?.consumed || 0,
-    }));
-    const breakdownChartData = sortedKeys.map((k) => ({
-      label: formatBucketLabel(k, granularity),
-      input: bucketMap.get(k)?.input || 0,
-      output: bucketMap.get(k)?.output || 0,
-    }));
+    const chartData = hasUnknownConsumedTokens
+      ? []
+      : sortedKeys.map((k) => ({
+          label: formatBucketLabel(k, granularity),
+          value: bucketMap.get(k)?.consumed || 0,
+        }));
+    const breakdownChartData =
+      hasUnknownInputTokens || hasUnknownOutputTokens
+        ? []
+        : sortedKeys.map((k) => ({
+            label: formatBucketLabel(k, granularity),
+            input: bucketMap.get(k)?.input || 0,
+            output: bucketMap.get(k)?.output || 0,
+          }));
 
     // Stats
     const requestCount = filtered.length;
     const avgConsumedTokens =
-      requestCount > 0 ? Math.round(totalConsumedTokens / requestCount) : 0;
+      hasUnknownConsumedTokens
+        ? null
+        : requestCount > 0
+          ? Math.round(totalConsumedTokens / requestCount)
+          : 0;
 
     // Most used model
     const modelCounts = new Map();
@@ -269,9 +299,9 @@ const useTokenUsageData = ({
     return {
       chartData,
       breakdownChartData,
-      totalConsumedTokens,
-      totalInputTokens,
-      totalOutputTokens,
+      totalConsumedTokens: hasUnknownConsumedTokens ? null : totalConsumedTokens,
+      totalInputTokens: hasUnknownInputTokens ? null : totalInputTokens,
+      totalOutputTokens: hasUnknownOutputTokens ? null : totalOutputTokens,
       requestCount,
       avgConsumedTokens,
       topModel,
@@ -285,7 +315,7 @@ const ChartTitle = ({ title, description, isDark, fontFamily }) => (
       style={{
         fontSize: 13,
         fontWeight: 600,
-        color: isDark ? "#fff" : "#222",
+        color: "var(--pupu-text)",
         fontFamily,
       }}
     >
@@ -296,7 +326,7 @@ const ChartTitle = ({ title, description, isDark, fontFamily }) => (
         style={{
           marginTop: 4,
           fontSize: 11,
-          color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+          color: "var(--pupu-text-faint)",
           fontFamily,
         }}
       >
@@ -324,7 +354,7 @@ const BreakdownLegend = ({ isDark, fontFamily, series }) => (
           alignItems: "center",
           gap: 6,
           fontSize: 11,
-          color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
+          color: "var(--pupu-text-secondary)",
           fontFamily,
         }}
       >
@@ -381,7 +411,7 @@ const TokenBreakdownChart = ({
           justifyContent: "center",
           fontSize: 13,
           fontFamily,
-          color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)",
+          color: "var(--pupu-text-faint)",
         }}
       >
         {emptyMessage}
@@ -426,7 +456,7 @@ const TokenBreakdownChart = ({
               right: 4,
               top: -28,
               fontSize: 9,
-              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+              color: "var(--pupu-text-faint)",
               lineHeight: "12px",
               fontStyle: "italic",
             }}
@@ -444,7 +474,7 @@ const TokenBreakdownChart = ({
                 right: 4,
                 bottom: `calc(${pct}% - 6px)`,
                 fontSize: 10,
-                color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)",
+                color: "var(--pupu-text-faint)",
                 lineHeight: "12px",
               }}
             >
@@ -488,9 +518,7 @@ const TokenBreakdownChart = ({
                   right: 0,
                   bottom: `${pct}%`,
                   height: 1,
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(0,0,0,0.06)",
+                  backgroundColor: "var(--pupu-overlay-selected)",
                 }}
               />
             );
@@ -582,9 +610,7 @@ const TokenBreakdownChart = ({
                           display: "flex",
                           justifyContent: "space-between",
                           gap: 8,
-                          color: isDark
-                            ? "rgba(255,255,255,0.9)"
-                            : "rgba(0,0,0,0.8)",
+                          color: "var(--pupu-text-strong)",
                         }}
                       >
                         <span>{s.label}</span>
@@ -649,7 +675,7 @@ const TokenBreakdownChart = ({
                 ...barGroupStyle,
                 textAlign: "center",
                 fontSize: 10,
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+                color: "var(--pupu-text-faint)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -682,16 +708,14 @@ const StatCard = ({ label, value, isDark, fontFamily }) => {
         minWidth: 0,
         padding: "14px 16px",
         borderRadius: 10,
-        backgroundColor: isDark
-          ? "rgba(255,255,255,0.04)"
-          : "rgba(0,0,0,0.03)",
-        border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+        backgroundColor: "var(--pupu-overlay-ghost)",
+        border: `1px solid ${"var(--pupu-border)"}`,
       }}
     >
       <div
         style={{
           fontSize: 11,
-          color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+          color: "var(--pupu-text-faint)",
           fontFamily,
           textTransform: "uppercase",
           letterSpacing: "0.5px",
@@ -704,7 +728,7 @@ const StatCard = ({ label, value, isDark, fontFamily }) => {
         style={{
           fontSize: 20,
           fontWeight: 400,
-          color: isDark ? "#fff" : "#222",
+          color: "var(--pupu-text)",
           fontFamily,
           lineHeight: 1.2,
           overflowWrap: "anywhere",
@@ -729,32 +753,47 @@ export const TokenUsageSettings = () => {
 
   // State. The initial sync read is the instant paint (full fidelity in
   // fallback mode; legacy snapshot + session appends in SQL mode).
-  const [records, setRecords] = useState(() => readTokenUsageRecords());
+  const runBundleBacked = isRunBundleStorageAvailable();
+  const [records, setRecords] = useState(() =>
+    runBundleBacked ? [] : readTokenUsageRecords(),
+  );
   const [provider, setProvider] = useState(ALL);
   const [model, setModel] = useState(ALL);
   const [range, setRange] = useState("30d");
   const [granularity, setGranularity] = useState("day");
+  const [runBundleQueryFailed, setRunBundleQueryFailed] = useState(false);
+  const [queryAttempt, setQueryAttempt] = useState(0);
 
-  // SQL mode (Electron, Phase 2+): the selected date range runs as a SQL
-  // query instead of pulling the ever-growing full record set into the
-  // renderer (plan §3.2). Fallback mode keeps the legacy sync path — the
-  // effect is a no-op there. Rows arrive oldest-first; past the 50k query
-  // cap the NEWEST rows are kept (see queryTokenUsage in ./storage.js), so
-  // a truncated "All" range under-counts ancient usage, never recent usage.
+  // Active RunBundle storage is authoritative. Legacy token_usage stays a
+  // read-only fallback only when the canonical bridge is unavailable.
   useEffect(() => {
-    if (!isTokenUsageSqlBacked()) return undefined;
+    const sqlBacked = runBundleBacked ? false : isTokenUsageSqlBacked();
+    if (!runBundleBacked && !sqlBacked) return undefined;
     let cancelled = false;
-    queryTokenUsage({ startMs: rangeToCutoff(range), endMs: Date.now() })
+    const query = { startMs: rangeToCutoff(range), endMs: Date.now() };
+    const pending = runBundleBacked
+      ? queryRunBundleTokenUsage(query)
+      : queryTokenUsage(query);
+    pending
       .then((rows) => {
-        if (!cancelled) setRecords(Array.isArray(rows) ? rows : []);
+        if (!cancelled) {
+          setRecords(Array.isArray(rows) ? rows : []);
+          setRunBundleQueryFailed(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setRecords(readTokenUsageRecords());
+        if (!cancelled) {
+          if (runBundleBacked) {
+            setRunBundleQueryFailed(true);
+          } else {
+            setRecords(readTokenUsageRecords());
+          }
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [range]);
+  }, [range, runBundleBacked, queryAttempt]);
 
   // Translated versions of module-level constants
   const rangeOptions = useMemo(() => RANGE_OPTIONS.map(opt => ({
@@ -839,9 +878,66 @@ export const TokenUsageSettings = () => {
 
   // Clear data
   const handleClear = useCallback(() => {
-    clearTokenUsageRecords();
+    if (runBundleBacked) {
+      void clearRunBundles().catch(() => {});
+    } else {
+      clearTokenUsageRecords();
+    }
     setRecords([]);
+  }, [runBundleBacked]);
+
+  const handleRetry = useCallback(() => {
+    setQueryAttempt((attempt) => attempt + 1);
   }, []);
+
+  if (runBundleBacked && runBundleQueryFailed) {
+    return (
+      <div
+        data-testid="token-usage-page"
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          overflowX: "hidden",
+        }}
+      >
+        <SettingsSection title={t("token_usage.usage")}>
+          <div
+            data-testid="token-usage-query-error"
+            role="alert"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 10,
+              padding: "28px 0",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12,
+                fontFamily,
+                color: "#ef4444",
+                textAlign: "center",
+              }}
+            >
+              {t("token_usage.load_failed")}
+            </span>
+            <Button
+              label={t("model_providers.retry")}
+              onClick={handleRetry}
+              style={{
+                fontSize: 12,
+                height: 28,
+                padding: "0 14px",
+                borderRadius: 999,
+              }}
+            />
+          </div>
+        </SettingsSection>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1048,7 +1144,7 @@ export const TokenUsageSettings = () => {
               style={{
                 fontSize: 14,
                 fontFamily,
-                color: isDark ? "#fff" : "#222",
+                color: "var(--pupu-text)",
                 marginBottom: 2,
               }}
             >
@@ -1058,7 +1154,7 @@ export const TokenUsageSettings = () => {
               style={{
                 fontSize: 12,
                 fontFamily,
-                color: isDark ? "#fff" : "#222",
+                color: "var(--pupu-text)",
                 opacity: 0.45,
               }}
             >

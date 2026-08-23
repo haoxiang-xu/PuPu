@@ -6,7 +6,7 @@ test("auto when no custom value; carries derived value from palette", () => {
     "dark_mode",
     { sidebar: "#151515", surface: "#1e1e1e" },
   );
-  expect(st.sidebar.isAuto).toBe(true);
+  expect(st.sidebar.isLinked).toBe(true);
   expect(st.surface.value).toBe("#1e1e1e");
 });
 
@@ -16,6 +16,6 @@ test("override when custom value present", () => {
     "dark_mode",
     { sidebar: "#151515", surface: "#334455" },
   );
-  expect(st.surface.isAuto).toBe(false);
+  expect(st.surface.isLinked).toBe(false);
   expect(st.surface.value).toBe("#334455");
 });
