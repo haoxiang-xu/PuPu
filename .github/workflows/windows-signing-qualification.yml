@@ -100,6 +100,25 @@ jobs:
           }
           New-Item -ItemType Directory -Path $env:QUALIFICATION_ROOT -Force | Out-Null
           Copy-Item -LiteralPath $source -Destination $env:QUALIFICATION_PAYLOAD -Recurse
+
+      - name: Prime Electron Builder elevation helper in the isolated payload
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          $bootstrapOutput = Join-Path $env:QUALIFICATION_ROOT "bootstrap-installer"
+          if (Test-Path -LiteralPath $bootstrapOutput) {
+            throw "qualification bootstrap output unexpectedly already exists: $bootstrapOutput"
+          }
+          npx electron-builder --win nsis --x64 --prepackaged "$env:QUALIFICATION_PAYLOAD" --publish never --config.directories.output="$bootstrapOutput" --config.win.verifyUpdateCodeSignature=false
+          $elevateHelper = Join-Path $env:QUALIFICATION_PAYLOAD "resources\elevate.exe"
+          if (-not (Test-Path -LiteralPath $elevateHelper -PathType Leaf)) {
+            throw "Electron Builder did not add the expected elevation helper: $elevateHelper"
+          }
+
+      - name: Build the exact signing catalogue for the isolated payload
+        shell: pwsh
+        run: |
           $payloadFiles = @(Get-ChildItem -LiteralPath $env:QUALIFICATION_PAYLOAD -File -Recurse |
             Where-Object { $_.Extension -in ".exe", ".dll" })
           if ($payloadFiles.Count -eq 0) {
@@ -168,7 +187,7 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
-          npx electron-builder --win nsis --x64 --prepackaged "$env:QUALIFICATION_PAYLOAD" --publish never --config.win.verifyUpdateCodeSignature=false
+          npx electron-builder --win nsis --x64 --prepackaged "$env:QUALIFICATION_PAYLOAD" --publish never --config.win.verifyUpdateCodeSignature=false --config.nsis.packElevateHelper=false
 
       - name: Resolve the only generated Windows installer
         id: windows_installer

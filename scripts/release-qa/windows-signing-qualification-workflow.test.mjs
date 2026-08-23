@@ -42,6 +42,15 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /resources\\mcp_runtime\\python\\DLLs\\tcl86t\.dll/);
   assert.match(workflow, /resources\\mcp_runtime\\python\\DLLs\\tk86t\.dll/);
   assert.match(workflow, /files-catalog: \$\{\{ env\.QUALIFICATION_PAYLOAD_SIGNING_CATALOG \}\}/);
+  assert.match(workflow, /Prime Electron Builder elevation helper in the isolated payload/);
+  assert.match(workflow, /resources\\elevate\.exe/);
+  assert.match(workflow, /Electron Builder did not add the expected elevation helper/);
+  assert.match(workflow, /--config\.directories\.output="\$bootstrapOutput"/);
+  assert.match(workflow, /--config\.nsis\.packElevateHelper=false/);
+  assert.ok(
+    workflow.indexOf("- name: Prime Electron Builder elevation helper in the isolated payload") <
+      workflow.indexOf("- name: Sign isolated Windows payload with Artifact Signing")
+  );
   const payloadSigningStep = workflow.slice(
     workflow.indexOf("- name: Sign isolated Windows payload with Artifact Signing"),
     workflow.indexOf("- name: Build a non-publishing installer from the signed payload")
