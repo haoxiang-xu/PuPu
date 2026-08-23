@@ -110,6 +110,10 @@ test("every local package chain prepares or reuses one immutable artifact", () =
   assert.match(wrapper, /readAndVerifyUnchainArtifactEvidence/);
   assert.match(wrapper, /UNCHAIN_ARTIFACT_PATH: path\.resolve\(artifactPath\)/);
   assert.match(wrapper, /UNCHAIN_ARTIFACT_EVIDENCE_PATH: path\.resolve\(evidencePath\)/);
+  assert.match(wrapper, /process\.env\.npm_execpath/);
+  assert.match(wrapper, /Windows npm execution requires npm_execpath/);
+  assert.match(wrapper, /\[npmExecPath, \.\.\.childArgs\]/);
+  assert.doesNotMatch(wrapper, /npm\.cmd/);
 });
 
 test("active AI release review requires artifact and protocol continuity, never a SHA lock", () => {

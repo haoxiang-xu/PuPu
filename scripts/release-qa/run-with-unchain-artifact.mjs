@@ -98,10 +98,16 @@ try {
     `[package] Unchain artifact=${evidence.artifact.sha256}; ` +
       `manifest=${evidence.runtime_manifest.manifest_digest}`,
   );
-  const executable = process.platform === "win32" && childCommand === "npm"
-    ? "npm.cmd"
-    : childCommand;
-  const result = spawnSync(executable, childArgs, {
+  const isWindowsNpm = process.platform === "win32" && childCommand === "npm";
+  const npmExecPath = String(process.env.npm_execpath || "");
+  if (isWindowsNpm && !npmExecPath) {
+    throw new Error("Windows npm execution requires npm_execpath");
+  }
+  const executable = isWindowsNpm ? process.execPath : childCommand;
+  const executableArgs = isWindowsNpm
+    ? [npmExecPath, ...childArgs]
+    : childArgs;
+  const result = spawnSync(executable, executableArgs, {
     cwd: ROOT,
     env: {
       ...process.env,
