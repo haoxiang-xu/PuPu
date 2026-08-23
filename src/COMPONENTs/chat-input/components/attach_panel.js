@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -21,10 +22,12 @@ import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import { COMPUTER_TOOLKIT_ID } from "../constants";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import { hasContextCompositionEvidence } from "../../../SERVICEs/context_composition_v1";
 import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../../SERVICEs/feature_flags";
+import ContextCompositionProgress from "./context_composition_progress";
 
 const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
@@ -90,6 +93,252 @@ const HeaderAction = ({ children, onAct, accent = false, isDark, theme }) => {
   );
 };
 
+/* ── model palette effort segment — its own row (palette_footer slot) under
+   the palette's chip/search header, rather than sharing the header line with
+   the search input. Levels come from the selected model's capability
+   declaration, so the set is provider-shaped and runs up to seven entries. ── */
+
+const EFFORT_SHORT_LABELS = {
+  none: "none",
+  minimal: "min",
+  low: "low",
+  medium: "med",
+  high: "high",
+  xhigh: "x-high",
+  max: "max",
+};
+
+/* One capsule, edge to edge, carrying three things at once:
+
+   · WHERE you are — the raised frosted cell, mini_ui's glass-switch puck.
+   · HOW FAR up the ladder that is — the accent fill running from the head of
+     the ladder to the end of the chosen cell. Effort is ordered, and this is
+     the only part of the control that says so.
+   · WHAT the model does untouched — the dashed cell. There is no reset here
+     by design: a level, once chosen, is that model's level from then on
+     (remembered in reasoning_effort_prefs), so the dash marks the state the
+     user is in BEFORE their first pick and never returns after it.
+
+   The label rides inside the capsule, pressed into the same groove the cells
+   sit raised out of. That inset/raised pairing is the switch's own vocabulary
+   and is what says "this end is not a choice" — not merely a dimmer colour. */
+
+/* 28 = 2 x (panel radius 22 - panel padding 8). See the capsule's style. */
+const CAPSULE_HEIGHT = 28;
+
+const EffortCapsuleRow = ({
+  efforts,
+  selected,
+  defaultEffort,
+  onSelect,
+  isDark,
+  theme,
+  t,
+}) => {
+  const levels = Array.isArray(efforts) ? efforts : [];
+  if (levels.length === 0) return null;
+
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
+  const shownLevel = selected || defaultEffort || levels[0];
+  const shownIndex = Math.max(0, levels.indexOf(shownLevel));
+  /* The fill ends at the far edge of the chosen cell, so it reads as "up to
+     and including this level" rather than stopping at the cell's centre. */
+  const fillPercent = selected ? ((shownIndex + 1) / levels.length) * 100 : 0;
+
+  /* Materials lifted verbatim from mini_ui's glass switch (switch.js): the
+     channel is a pressed-in gradient with a light seam beneath it, and the
+     puck is frosted with a white rim. Keeping the exact values means the two
+     controls read as the same material rather than merely similar. */
+  /* Tuned lighter than the switch's channel: that control sits on a page,
+     this one sits inside an already-frosted panel, so the full-strength
+     groove read as a dark bar cut out of the menu. Keeps the pressed-in
+     shape (inset + light seam), drops the contrast that fought the surface. */
+  const grooveBackground = isDark
+    ? "rgba(255,255,255,0.07)"
+    : "linear-gradient(to bottom, rgba(0,0,0,0.065), rgba(0,0,0,0.025))";
+  const grooveShadow = isDark
+    ? "inset 0 1px 2px rgba(0,0,0,0.28)"
+    : "inset 0 1px 2px rgba(0,0,0,0.07), 0 0.75px 0 rgba(255,255,255,0.5)";
+  const labelWellBackground = isDark
+    ? "rgba(0,0,0,0.16)"
+    : "rgba(0,0,0,0.045)";
+  const labelWellShadow = isDark
+    ? "inset 0 1px 2px rgba(0,0,0,0.32)"
+    : "inset 0 1px 2px rgba(0,0,0,0.09)";
+  const puckBackground = isDark
+    ? "rgba(255,255,255,0.14)"
+    : "rgba(255,255,255,0.40)";
+  const puckBorder = isDark
+    ? "1px solid rgba(255,255,255,0.22)"
+    : "1px solid rgba(255,255,255,0.65)";
+  const puckShadow = isDark
+    ? "0 2px 8px rgba(0,0,0,0.5), inset 0 0 0 0.5px rgba(255,255,255,0.14)"
+    : "0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 0.5px rgba(255,255,255,0.7)";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "stretch",
+        width: "100%",
+        /* Concentric with the panel: the panel's radius is 22 and its padding
+           puts this capsule 8px from that edge, so the capsule's own radius
+           must be 22 - 8 = 14 — which for a stadium means a height of exactly
+           28. Height is pinned here rather than left to the cells' padding so
+           the two radii cannot drift apart when type or padding changes. */
+        height: CAPSULE_HEIGHT,
+        /* This repo sets no global border-box, so width:100% plus padding
+           would resolve to 100% + 6px and hang the capsule's right end out
+           past the panel — where the footer's overflow:hidden then clips it. */
+        boxSizing: "border-box",
+        padding: 3,
+        borderRadius: 999,
+        background: grooveBackground,
+        boxShadow: grooveShadow,
+      }}
+    >
+      <span
+        style={{
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          marginRight: 4,
+          padding: "0 8px 0 10px",
+          borderRadius: 999,
+          fontFamily,
+          fontSize: 9.5,
+          letterSpacing: "0.09em",
+          textTransform: "uppercase",
+          whiteSpace: "nowrap",
+          cursor: "default",
+          color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)",
+          background: labelWellBackground,
+          boxShadow: labelWellShadow,
+        }}
+      >
+        {t("chat.attach.effort")}
+      </span>
+
+      <span
+        style={{
+          position: "relative",
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          /* stretch, not center: the cells must fill the groove's full inner
+             height so the raised puck is a stadium concentric with the
+             capsule (capsule radius 14 - capsule padding 3 = 11, and the
+             cell's own radius is its 22px height halved). Centering sizes
+             each cell to its text instead, leaving the puck visibly short. */
+          alignItems: "stretch",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: `${fillPercent}%`,
+            borderRadius: 999,
+            backgroundColor: isDark
+              ? "rgba(154,217,160,0.20)"
+              : "rgba(25,125,65,0.18)",
+            /* No transition: the fill jumps straight to the picked level.
+               Animating a bar this wide drew the eye to the travel rather
+               than to the level that was chosen. */
+            pointerEvents: "none",
+          }}
+        />
+        {levels.map((level) => {
+          const isOn = Boolean(selected) && level === selected;
+          const isDefaultMark = !selected && level === defaultEffort;
+          const restColor = isOn
+            ? isDark
+              ? "rgba(255,255,255,0.92)"
+              : "rgba(0,0,0,0.9)"
+            : isDefaultMark
+              ? isDark
+                ? "rgba(255,255,255,0.68)"
+                : "rgba(0,0,0,0.68)"
+              : isDark
+                ? "rgba(255,255,255,0.44)"
+                : "rgba(0,0,0,0.44)";
+          return (
+            <button
+              key={level}
+              type="button"
+              title={
+                isDefaultMark
+                  ? t("chat.attach.effort_default_hint", { level })
+                  : level
+              }
+              onMouseDown={(e) => {
+                e.preventDefault();
+                /* No clearing: picking is one-way. The remembered per-model
+                   level is what a later chat starts from. */
+                if (typeof onSelect === "function") onSelect(level);
+              }}
+              onMouseEnter={(e) => {
+                if (isOn) return;
+                e.currentTarget.style.color = isDark
+                  ? "rgba(255,255,255,0.85)"
+                  : "rgba(0,0,0,0.8)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = restColor;
+              }}
+              style={{
+                position: "relative",
+                flex: 1,
+                minWidth: 0,
+                /* Same no-global-border-box reason as the capsule: without
+                   this each cell's padding and rim land outside its flex
+                   basis, so seven cells silently claim 42px the row never
+                   budgeted for. */
+                boxSizing: "border-box",
+                cursor: "pointer",
+                borderRadius: 999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 2px",
+                fontFamily,
+                fontSize: 10,
+                fontWeight: isOn ? 500 : 400,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                color: restColor,
+                /* Constant 1px on every cell so neither the dash nor the puck
+                   rim shifts its neighbours when the selection moves. */
+                border: isOn
+                  ? puckBorder
+                  : isDefaultMark
+                    ? `1px dashed ${
+                        isDark
+                          ? "rgba(255,255,255,0.36)"
+                          : "rgba(0,0,0,0.34)"
+                      }`
+                    : "1px solid transparent",
+                background: isOn ? puckBackground : "transparent",
+                backdropFilter: isOn ? "blur(4px)" : "none",
+                WebkitBackdropFilter: isOn ? "blur(4px)" : "none",
+                boxShadow: isOn ? puckShadow : "none",
+                transition:
+                  "background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease",
+              }}
+            >
+              {EFFORT_SHORT_LABELS[level] || level}
+            </button>
+          );
+        })}
+      </span>
+    </div>
+  );
+};
+
 /* ── main component ── */
 
 const AttachPanel = forwardRef(({
@@ -105,6 +354,10 @@ const AttachPanel = forwardRef(({
   showModelSelector = true,
   selectedModelId,
   onSelectModel,
+  reasoningEffortOptions = [],
+  selectedReasoningEffort = null,
+  defaultReasoningEffort = null,
+  onSelectReasoningEffort,
   onGroupToggle,
   modelSelectDisabled,
   isDark,
@@ -114,6 +367,7 @@ const AttachPanel = forwardRef(({
   onRemoveAttachment,
   isStreaming = false,
   showToolSelector = true,
+  toolSelectDisabled = false,
   selectedToolkits = [],
   onToolkitsChange,
   showWorkspaceSelector = true,
@@ -123,6 +377,8 @@ const AttachPanel = forwardRef(({
   onSelectRecipe,
   queueItems = [],
   onQueueUndo,
+  contextCompositionBundle = null,
+  contextUsageView = null,
   onKeyboardActiveChange = () => {},
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
@@ -132,6 +388,13 @@ const AttachPanel = forwardRef(({
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+  const contextCompositionProgressRef = useRef(null);
+  // Provider usage arrives on every call, composition only once a source is
+  // instrumented — so the indicator appears as soon as there is anything true
+  // to show, not only when the full breakdown exists.
+  const hasContextComposition =
+    hasContextCompositionEvidence(contextCompositionBundle) ||
+    Boolean(contextUsageView);
 
   /* Optimistic mirrors for the multi-selects: the checkbox flips against
      LOCAL state instantly (re-rendering just this panel), while the real
@@ -275,6 +538,10 @@ const AttachPanel = forwardRef(({
     [refreshToolkits, onRequestInputFocus],
   );
 
+  const handleContextCompositionOpenChange = useCallback((next) => {
+    setOpenSelector(next ? "context_composition" : null);
+  }, []);
+
   const handleWorkspaceOpenChange = useCallback(
     (next) => {
       setOpenSelector(next ? "workspace" : null);
@@ -291,6 +558,7 @@ const AttachPanel = forwardRef(({
   const kbControls = [];
   if (showModelSelector && modelSelectOptions.length > 0)
     kbControls.push("model");
+  if (hasContextComposition) kbControls.push("context_composition");
   if (onAttachFile) {
     kbControls.push("attach");
     if (onAttachScreenshot) kbControls.push("screenshot");
@@ -349,6 +617,9 @@ const AttachPanel = forwardRef(({
     } else if (id === "workspace") {
       kbOpenedSelectorRef.current = "workspace";
       handleWorkspaceOpenChange(true);
+    } else if (id === "context_composition") {
+      exitKeyboard();
+      contextCompositionProgressRef.current?.open?.();
     } else if (id === "attach") {
       exitKeyboard();
       if (attachmentsEnabled && onAttachFile) onAttachFile();
@@ -582,9 +853,61 @@ const AttachPanel = forwardRef(({
               variant="palette"
               palette_chip="model"
               palette_rail
+              /* Picking a model never closes the palette: the effort row
+                 below is the natural next choice, and switching between
+                 models to compare them is a normal thing to do. The trigger
+                 and an outside click remain the ways out. */
+              keep_open_on_select
+              /* null, not an element that renders null: the footer slot draws
+                 its own separator and padding, so an always-present child
+                 would leave a rule and a band of empty height under every
+                 model that has no effort at all. */
+              palette_footer={
+                reasoningEffortOptions.length > 0 ? (
+                  <EffortCapsuleRow
+                    efforts={reasoningEffortOptions}
+                    selected={selectedReasoningEffort}
+                    defaultEffort={defaultReasoningEffort}
+                    onSelect={onSelectReasoningEffort}
+                    isDark={isDark}
+                    theme={theme}
+                    t={t}
+                  />
+                ) : null
+              }
             />,
             "model",
           )}
+
+        {hasContextComposition ? (
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              borderRadius: 999,
+              /* The row's gap of 6 separates pills from icons, but icon-to-icon
+                 spacing inside the cluster below is 0. Cancel the gap here so
+                 the ring sits flush against the attach controls instead of
+                 reading as pushed away from them. */
+              marginRight: onAttachFile ? -6 : 0,
+            }}
+          >
+            {kbGlow("context_composition")}
+            <ContextCompositionProgress
+              ref={contextCompositionProgressRef}
+              bundle={contextCompositionBundle}
+              usageView={contextUsageView}
+              isDark={isDark}
+              highlight={highlight}
+              // Shares openSelector with the model/tools/workspace menus so
+              // opening one of the other three closes this, and vice versa —
+              // without this it was its own, uncoordinated open/closed island.
+              open={openSelector === "context_composition"}
+              onOpenChange={handleContextCompositionOpenChange}
+            />
+          </div>
+        ) : null}
 
         {onAttachFile && (
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
@@ -648,6 +971,7 @@ const AttachPanel = forwardRef(({
                   filterable={true}
                   filter_mode="panel"
                   search_placeholder={t("toolkit.search_placeholder")}
+                  disabled={toolSelectDisabled}
                   open={openSelector === "tools"}
                   on_open_change={handleToolsOpenChange}
                   dropdown_position="top"

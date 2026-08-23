@@ -39,6 +39,8 @@ from types import SimpleNamespace
 from typing import Any, Dict, Tuple
 from urllib.parse import urlsplit
 
+from net_tls import get_outbound_ssl_context
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -94,7 +96,19 @@ _DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 32768
 # (design §7.3). Values chosen to match each protocol's maxTokens parameter name
 # plus the generic sampling knobs PuPu forwards.
 PROTOCOL_ALLOWED_PAYLOAD_KEYS: Dict[str, Tuple[str, ...]] = {
-    "anthropic": ("temperature", "max_tokens", "top_p", "top_k", "thinking", "stop_sequences"),
+    "anthropic": (
+        "temperature",
+        "max_tokens",
+        "top_p",
+        "top_k",
+        "thinking",
+        # Anthropic's reasoning-effort knob. Admitted here so an anthropic-
+        # protocol custom provider can carry effort at all; whether a given
+        # endpoint honours it is that endpoint's business, and PuPu only
+        # sends it for models that declare `reasoning_efforts`.
+        "output_config",
+        "stop_sequences",
+    ),
     "openai-responses": ("temperature", "max_output_tokens", "top_p", "reasoning"),
     "ollama": ("temperature", "num_predict", "top_p", "top_k"),
 }
@@ -684,7 +698,10 @@ def _probe_model_io(cfg: CustomProviderConfig, model_io: Any, model_id: str) -> 
         else:  # ollama
             import httpx
 
-            with httpx.Client(timeout=_TEST_TIMEOUT_SECONDS) as http_client:
+            with httpx.Client(
+                timeout=_TEST_TIMEOUT_SECONDS,
+                verify=get_outbound_ssl_context(),
+            ) as http_client:
                 resp = http_client.post(
                     f"{cfg.base_url.rstrip('/')}/api/chat",
                     json={

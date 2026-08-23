@@ -42,7 +42,7 @@ export const FEATURE_FLAG_DEFINITIONS = {
   },
   enable_custom_model_providers: {
     description:
-      "Show Custom Model Providers in Settings and allow custom models in catalogs, selectors, connection tests, and chat requests.",
+      "Show Custom Model Providers plus the shipped DeepSeek/Kimi preset sections in Settings, and allow custom models in catalogs, selectors, connection tests, and chat requests.",
     defaultValue: false,
   },
   enable_computer_use: {
@@ -50,10 +50,22 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Ship the Computer toolkit and allow its separate consented user toggle to take effect. Requires an app restart after changing this build flag.",
     defaultValue: false,
   },
+  enable_memory_v2: {
+    description:
+      "Enable Memory V2 admission and its optional Unchain module. This does not add an Agent Builder node.",
+    defaultValue: false,
+  },
 };
 
 const listeners = new Set();
 const buildFeatureFlagDefaults = readBuildFeatureFlagDefaults();
+
+// Sparse persistence format (see writeFeatureFlags below): the storage
+// namespace only ever holds the keys a user has explicitly toggled, wrapped
+// in a versioned envelope so unversioned (pre-sparse) full snapshots can be
+// told apart and discarded on read. "format"/"flags" cannot collide with any
+// FEATURE_FLAG_DEFINITIONS key (all of which are "enable_*").
+const FEATURE_FLAGS_FORMAT_VERSION = 2;
 
 const isObject = (value) =>
   value != null && typeof value === "object" && !Array.isArray(value);
@@ -76,6 +88,30 @@ const normalizeFeatureFlags = (value, fallbackFlags = {}) => {
   return next;
 };
 
+// Reads the persisted namespace and returns only the keys a user has
+// explicitly chosen (true or false), dropping anything else — including a
+// whole unversioned legacy snapshot, which is indistinguishable from a
+// user's real choices and is therefore discarded wholesale rather than
+// migrated key-by-key.
+const readStoredSparseFlags = () => {
+  const raw = readNamespace(FEATURE_FLAGS_NAMESPACE, undefined);
+  const isSparseRecord =
+    isObject(raw) &&
+    raw.format === FEATURE_FLAGS_FORMAT_VERSION &&
+    isObject(raw.flags);
+  if (!isSparseRecord) {
+    return {};
+  }
+
+  const sparse = {};
+  Object.keys(FEATURE_FLAG_DEFINITIONS).forEach((key) => {
+    if (raw.flags[key] === true || raw.flags[key] === false) {
+      sparse[key] = raw.flags[key];
+    }
+  });
+  return sparse;
+};
+
 const emitFeatureFlagsChange = (featureFlags) => {
   listeners.forEach((listener) => {
     try {
@@ -92,10 +128,7 @@ export const readFeatureFlags = () => {
     return buildDefaults;
   }
 
-  return normalizeFeatureFlags(
-    readNamespace(FEATURE_FLAGS_NAMESPACE, {}),
-    buildDefaults,
-  );
+  return normalizeFeatureFlags(readStoredSparseFlags(), buildDefaults);
 };
 
 export const isFeatureFlagEnabled = (key) => {
@@ -107,21 +140,31 @@ export const isFeatureFlagEnabled = (key) => {
 };
 
 export const writeFeatureFlags = (patch = {}) => {
-  const current = readFeatureFlags();
-  const next = { ...current };
+  // Production ignores storage on read (see readFeatureFlags above), so the
+  // merge base there is the empty set — unset keys resolve straight from
+  // build defaults, exactly like the pre-sparse implementation, whose
+  // "current" was already `readFeatureFlags()` (buildDefaults only) in that
+  // runtime. Development merges on top of whatever is already stored.
+  const baseSparse = isProductionBuildRuntime ? {} : readStoredSparseFlags();
+  const nextSparse = { ...baseSparse };
 
   Object.keys(FEATURE_FLAG_DEFINITIONS).forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(patch, key)) {
-      next[key] = patch[key] === true;
+      nextSparse[key] = patch[key] === true;
     }
   });
 
   // Persist failures stay silent: keep in-memory updates available to
   // current subscribers (mirrors the previous try/catch localStorage write).
-  replaceNamespace(FEATURE_FLAGS_NAMESPACE, next).catch(() => {});
+  replaceNamespace(FEATURE_FLAGS_NAMESPACE, {
+    format: FEATURE_FLAGS_FORMAT_VERSION,
+    flags: nextSparse,
+  }).catch(() => {});
 
-  emitFeatureFlagsChange(next);
-  return next;
+  const buildDefaults = normalizeFeatureFlags(buildFeatureFlagDefaults);
+  const resolved = normalizeFeatureFlags(nextSparse, buildDefaults);
+  emitFeatureFlagsChange(resolved);
+  return resolved;
 };
 
 export const subscribeFeatureFlags = (listener) => {

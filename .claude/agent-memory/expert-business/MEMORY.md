@@ -1,0 +1,12 @@
+- [COO 业务操盘授权](coo-business-mandate.md) — 2026-07-21 从质检长升格激进业务操盘手；目标盈利、高话语权、主动给项目走向；每轮出创始人备忘录
+- [Team Roster](team_roster.md) — COO「发」=我；下辖 growth-ops「巡」/market-analyst/release-full-test「检」；全员角色边界
+- [Handoff Protocol](handoff_protocol.md) — 与 release-full-test / qa / MCP curator / security 的交接：谁执行、谁交证据、谁裁决
+- [Registry is a shared FE/BE file](registry-frontend-backend-shared-file.md) — src/SERVICEs/mcp_toolkit_registry.json 被 Python 后端读取；改它必须两侧都跑测试，删条目易炸 backend pytest
+- [Release license/bundling boundary](release-license-bundling-boundary.md) — 安装包真正捆绑啥 vs 运行时 npx/uvx 拉取啥；第三方 NOTICE 聚合缺口；auto-update 走 GitHub releases
+- [react-router-dom jest main 字段坏](react-router-dom-jest-main-field.md) — 5 前端套件同挂 "Cannot find module react-router-dom"，根因 rr-dom 7.x main 指向不存在的 dist/main.js，npm ci 修不了，需 jest moduleNameMapper/换版本
+- [发版 unchain editable 源码耦合（已废止）](release-unchain-editable-source-coupling.md) — 旧 editable-source 打包事故记录；现行规则是 actual-import protocol manifest + 单一 immutable wheel artifact continuity
+- [版本 bump 机制](release-version-bump-mechanics.md) — version:prepare-build 只改 package.json 不 commit；需 --version/PUPU_BUILD_VERSION 入参；发版正确命令序列
+- [electron 测试 glob + build lint 门](electron-test-glob-and-build-lint-gates.md) — test:electron 扫进嵌套 worktree 虚增计数(真值16套/165)；绿 Jest≠绿 build，CI=true build 会因 no-unused-vars 硬挂
+- [冻结产物专属缺陷类](frozen-artifact-only-defect-class.md) — 有一类 bug 只在「PyInstaller 产物+干净机」现形,所有现有门都在 dev/构建机上跑故结构性瞎;重跑免费门=零信息量
+- [unchain 平台化定调（08-04 已拍板）](unchain-platformization-tuning-2026-08-03.md) — 生效红线 R1 管道优先/R2 0.2.0 前不对外/R3 混包逐项授权；生态层脱离 Apache 仓；三窗口裁决
+- [adapter 测试读本机 recipe 泄漏](adapter-tests-local-recipe-leak.md) — MisoAdapterCapabilityCatalogTests 隔离下挂因 stream_chat_events/_create_agent 读 ~/.pupu Default.recipe；已加 setUp hermetic 化（9→3）；剩 3 workspace 测试是陈旧 mock 第二根因

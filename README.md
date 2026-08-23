@@ -12,7 +12,7 @@
       <img src="./public/assets/download_mac.svg" alt="Download for Mac" />
     </a>
     &nbsp;&nbsp;
-    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.9.exe">
+    <a href="#windows">
       <img src="./public/assets/download_windows.svg" alt="Download for Windows" />
     </a>
     &nbsp;&nbsp;
@@ -43,51 +43,22 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 
 ## Get PuPu
 
-Download the latest release:
-
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.9-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>
-
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.9.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
-
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.9.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
-
-### Windows
-
-1. Download the latest `.exe` installer:
-
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.9.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
-
-2. Run the installer.
-3. Launch PuPu from the Start menu.
-
+<!-- release-downloads:start -->
+<a id="macos"></a>
 ### macOS
 
-1. Download the latest `.dmg`:
+Download a verified macOS package from the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
 
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.9-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>
+<a id="windows"></a>
+### Windows
 
-2. Open the disk image.
-3. Drag PuPu into `Applications`.
-4. Launch PuPu from `Applications`.
+Download a verified Windows package from the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
 
+<a id="linux"></a>
 ### Linux
 
-1. Download the latest:
-
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.9.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
-
-2. If you use the `.deb`, install it with:
-
-```bash
-sudo apt install ./PuPu_0.1.9.deb
-```
-
-3. If your system reports a Chromium sandbox permission error, run:
-
-```bash
-sudo chown root:root /opt/PuPu/chrome-sandbox
-sudo chmod 4755 /opt/PuPu/chrome-sandbox
-```
+Download a verified Linux package from the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
+<!-- release-downloads:end -->
 
 ## Quick Start
 

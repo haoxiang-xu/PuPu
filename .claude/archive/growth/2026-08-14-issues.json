@@ -1,0 +1,109 @@
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-28T21:51:00Z","labels":["bug","Unchain"],"num":191,"state":"open","title":"Establish a public API boundary between PuPu and unchain — remove private-module imports, monkey-patching, and undeclared attribute injection"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-21T17:26:18Z","labels":["refactor","Unchain"],"num":187,"state":"open","title":"Rust for unchain"}
+{"author":"holistis","closed":null,"created":"2026-07-20T08:39:39Z","labels":[],"num":186,"state":"open","title":"Register MCP server: Bug Bounty Intelligence (smart contract security, x402 paid)"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-16T21:12:55Z","labels":["bug","UI"],"num":181,"state":"open","title":"if there are multiple permission check and if user click the pervious always allow,user do not need to click the second one, but the second but appear there after streaming"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-13T23:31:28Z","labels":["improvement"],"num":179,"state":"open","title":"Consolidate app settings persistence into a main-process SQLite authority"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-13T18:52:56Z","labels":["bug","improvement","UI"],"num":178,"state":"open","title":"Consolidate the app-wide layering (z-index) system into a single canonical scale"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-13T04:58:16Z","labels":["new feature"],"num":175,"state":"open","title":"Add Context7 to the MCP store registry (good first issue: register a new MCP server)"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-13T04:45:07Z","labels":["bug","UI"],"num":174,"state":"open","title":"i18n: toolkit store category filter tags not translated (missing store_category_* keys in 9 locales)"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-12T04:21:49Z","labels":["improvement","UI","help wanted"],"num":172,"state":"open","title":"Add production 120 Hz UI performance observability and regression budgets"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-12T04:21:47Z","labels":["improvement","refactor","UI"],"num":171,"state":"open","title":"Unmount hidden SideMenu workload after the exit transition"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-12T04:21:46Z","labels":["improvement","refactor","UI"],"num":170,"state":"open","title":"Replace synchronous chat-storage IPC with async renderer bootstrap"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-12T04:21:45Z","labels":["improvement","UI"],"num":169,"state":"open","title":"Optimize sidebar open/close without changing its current visual feel"}
+{"author":"haoxiang-xu","closed":"2026-07-13T05:14:22Z","created":"2026-07-12T04:21:45Z","labels":["improvement","refactor","UI","help wanted"],"num":168,"state":"closed","title":"Unmount collapsed TraceChain subtrees and coalesce tool.delta observations"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-12T04:21:44Z","labels":["improvement","refactor","UI","help wanted"],"num":167,"state":"open","title":"Move live reasoning updates onto the streaming external store"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-12T04:21:43Z","labels":["improvement","refactor","UI","help wanted"],"num":166,"state":"open","title":"Reset the chat message window synchronously on chat switch"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-12T04:21:42Z","labels":["improvement","refactor","UI","help wanted"],"num":165,"state":"open","title":"Make streaming Markdown parsing cursor-based for unclosed tails"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-11T03:32:04Z","labels":["improvement"],"num":164,"state":"open","title":"Security: default-require confirmation for MCP tools (F-FLASK-01) — no more self-declared gating"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-11T03:19:47Z","labels":["new feature","Unchain"],"num":163,"state":"open","title":"Add Gemini provider end-to-end: native driver with streaming, tool calling, and prompt caching (0.1.9)"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-11T02:58:53Z","labels":["new feature","Unchain"],"num":162,"state":"open","title":"Ollama: enable tool calling for models without native tool support (prompt-based emulation)"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-06T01:41:42Z","labels":[],"num":161,"state":"open","title":"input UI bug when scrollable input bottm padding is different"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-07-06T00:49:25Z","labels":["bug","UI"],"num":160,"state":"open","title":"update secrets panel show appear in the same section not at the bottom"}
+{"author":"haoxiang-xu","closed":"2026-07-05T22:32:09Z","created":"2026-06-15T04:58:20Z","labels":["bug"],"num":159,"state":"closed","title":"attach panel workspace should always refresh"}
+{"author":"haoxiang-xu","closed":"2026-07-05T22:31:52Z","created":"2026-06-14T20:00:44Z","labels":["bug","UI"],"num":155,"state":"closed","title":"first iteration streaming with no tool calling will be render as tool call and final response at the same time"}
+{"author":"haoxiang-xu","closed":"2026-06-20T14:48:45Z","created":"2026-06-14T17:17:23Z","labels":["new feature","Unchain"],"num":153,"state":"closed","title":"tool prompt optimizer"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-05-26T05:09:20Z","labels":["bug","UI"],"num":149,"state":"open","title":"subagent timeline content may cause the message list width to be larger"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-05-26T05:07:56Z","labels":["new feature","UI"],"num":148,"state":"open","title":"collect ll possible file render way, investigate and implement how to render file tag, enable click to open"}
+{"author":"haoxiang-xu","closed":"2026-06-07T22:36:02Z","created":"2026-05-25T22:11:22Z","labels":["bug","UI"],"num":147,"state":"closed","title":"UI Bug fix"}
+{"author":"haoxiang-xu","closed":"2026-05-26T04:29:36Z","created":"2026-04-25T17:05:14Z","labels":["new feature","Unchain"],"num":141,"state":"closed","title":"Git toolkit"}
+{"author":"haoxiang-xu","closed":"2026-05-04T23:49:40Z","created":"2026-04-19T21:26:25Z","labels":["bug","improvement","UI"],"num":140,"state":"closed","title":"ui optimize"}
+{"author":"haoxiang-xu","closed":"2026-04-16T05:37:08Z","created":"2026-04-16T03:20:45Z","labels":["new feature"],"num":139,"state":"closed","title":"support multi chat streaming"}
+{"author":"haoxiang-xu","closed":"2026-04-13T16:52:00Z","created":"2026-04-13T16:51:52Z","labels":["bug","UI"],"num":136,"state":"closed","title":"language selector UI bug: can not be shown fully"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-04-13T16:51:15Z","labels":["new feature","Unchain"],"num":135,"state":"open","title":"support for `Claude Code`"}
+{"author":"haoxiang-xu","closed":"2026-05-04T23:49:42Z","created":"2026-04-13T16:48:59Z","labels":["bug","UI"],"num":134,"state":"closed","title":"memory modal has not been translated"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-04-12T00:10:56Z","labels":["bug","Unchain"],"num":129,"state":"open","title":"some ollama model do not support tools that can cause no results"}
+{"author":"haoxiang-xu","closed":"2026-04-11T00:41:37Z","created":"2026-04-11T00:41:23Z","labels":["new feature","improvement"],"num":124,"state":"closed","title":"support for japanese, traditional chinese, korean, etc"}
+{"author":"haoxiang-xu","closed":"2026-04-13T16:50:16Z","created":"2026-04-07T00:43:32Z","labels":["improvement","UI"],"num":123,"state":"closed","title":"support for French"}
+{"author":"haoxiang-xu","closed":"2026-04-11T23:04:13Z","created":"2026-04-06T22:50:29Z","labels":["bug"],"num":121,"state":"closed","title":"rename side menu explorer item show disbale item drag and drop"}
+{"author":"haoxiang-xu","closed":"2026-05-25T22:09:33Z","created":"2026-04-06T22:49:39Z","labels":["bug"],"num":120,"state":"closed","title":"no error message when api key available"}
+{"author":"haoxiang-xu","closed":"2026-05-25T22:09:37Z","created":"2026-04-05T01:23:25Z","labels":["bug"],"num":116,"state":"closed","title":"in app update for windows"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-04-03T04:10:37Z","labels":[],"num":115,"state":"open","title":"select SQL database tech stack"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-04-03T04:10:06Z","labels":[],"num":114,"state":"open","title":"docker container design for web app"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-04-02T17:30:45Z","labels":[],"num":113,"state":"open","title":"PuPu web app"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-04-02T17:26:57Z","labels":["new feature","release"],"num":112,"state":"open","title":"Docker release Pipeline"}
+{"author":"haoxiang-xu","closed":"2026-04-25T03:21:14Z","created":"2026-03-23T20:23:05Z","labels":["new feature"],"num":109,"state":"closed","title":"screenshot"}
+{"author":"haoxiang-xu","closed":"2026-04-11T00:39:14Z","created":"2026-03-21T05:46:49Z","labels":["new feature","improvement"],"num":105,"state":"closed","title":"support for Chinese"}
+{"author":"haoxiang-xu","closed":"2026-03-22T21:11:47Z","created":"2026-03-20T19:38:56Z","labels":["new feature"],"num":104,"state":"closed","title":"export & import chat data"}
+{"author":"haoxiang-xu","closed":"2026-03-22T21:11:41Z","created":"2026-03-19T22:46:40Z","labels":["bug"],"num":103,"state":"closed","title":"[Bug]:  count input/output token instead of consumed token & pause iteration will lost the `bundle` and not count the token usage"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-19T05:10:18Z","labels":["new feature"],"num":102,"state":"open","title":"[Feature]: "}
+{"author":"haoxiang-xu","closed":"2026-04-01T04:34:07Z","created":"2026-03-19T04:36:59Z","labels":["regular","release"],"num":101,"state":"closed","title":"release MAR 2026 B-2"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-19T04:35:13Z","labels":["new feature","UI"],"num":100,"state":"open","title":"file preview modal for current supported file formats"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-19T04:33:02Z","labels":["new feature"],"num":99,"state":"open","title":"Add support for common programming languages and file character type detection"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-19T04:31:19Z","labels":["new feature","UI","regular"],"num":98,"state":"open","title":"Support Different File Formats"}
+{"author":"haoxiang-xu","closed":"2026-03-23T03:12:30Z","created":"2026-03-19T04:27:31Z","labels":["regular","release"],"num":97,"state":"closed","title":"update tags MAR 2026 B-1"}
+{"author":"haoxiang-xu","closed":"2026-03-23T03:12:39Z","created":"2026-03-19T04:25:31Z","labels":["regular","release"],"num":96,"state":"closed","title":"release MAR 2026 B-1"}
+{"author":"haoxiang-xu","closed":"2026-03-20T19:13:15Z","created":"2026-03-19T03:41:38Z","labels":["bug","UI"],"num":95,"state":"closed","title":"make settings > local storage > chats into 2 lines"}
+{"author":"haoxiang-xu","closed":"2026-03-23T03:06:38Z","created":"2026-03-19T02:41:47Z","labels":["bug","UI"],"num":94,"state":"closed","title":"attach panel selector hover error"}
+{"author":"haoxiang-xu","closed":"2026-04-07T03:32:36Z","created":"2026-03-17T05:52:39Z","labels":["new feature"],"num":93,"state":"closed","title":"workspace can be sql database"}
+{"author":"haoxiang-xu","closed":"2026-04-07T00:39:08Z","created":"2026-03-17T05:51:02Z","labels":["new feature","MISO"],"num":92,"state":"closed","title":"recursive agent architecture and make it as default"}
+{"author":"haoxiang-xu","closed":"2026-06-14T16:27:24Z","created":"2026-03-17T05:50:24Z","labels":["new feature","MISO"],"num":91,"state":"closed","title":"MCPs"}
+{"author":"haoxiang-xu","closed":"2026-07-18T16:55:32Z","created":"2026-03-17T05:50:10Z","labels":["new feature","Unchain"],"num":90,"state":"closed","title":"skills"}
+{"author":"haoxiang-xu","closed":"2026-03-20T19:16:20Z","created":"2026-03-13T22:58:37Z","labels":["new feature","UI"],"num":77,"state":"closed","title":"token tracking graph"}
+{"author":"haoxiang-xu","closed":"2026-03-15T03:58:09Z","created":"2026-03-13T19:23:04Z","labels":["improvement","MISO"],"num":76,"state":"closed","title":"pin tools for workspace toolkit also refactor current python workspace toolkit into terminal and workspace toolkit"}
+{"author":"haoxiang-xu","closed":"2026-03-15T18:02:59Z","created":"2026-03-13T15:44:44Z","labels":["bug","improvement"],"num":75,"state":"closed","title":"copy paste chat / resend message memory solution"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-13T15:21:38Z","labels":["new feature","improvement","MISO"],"num":74,"state":"open","title":"support DeepSeek API"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-13T15:19:38Z","labels":["new feature","improvement","MISO"],"num":73,"state":"open","title":"support TongYi API"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-13T15:18:07Z","labels":["new feature","improvement","MISO"],"num":72,"state":"open","title":"support XAI API"}
+{"author":"haoxiang-xu","closed":"2026-03-15T03:59:58Z","created":"2026-03-13T15:14:47Z","labels":["new feature","improvement","MISO"],"num":71,"state":"closed","title":"support Gemini API"}
+{"author":"haoxiang-xu","closed":"2026-03-12T03:27:54Z","created":"2026-03-07T05:23:01Z","labels":["new feature","improvement","UI"],"num":69,"state":"closed","title":"seletor for openAI embadding model"}
+{"author":"haoxiang-xu","closed":"2026-03-13T15:53:47Z","created":"2026-03-07T02:01:34Z","labels":["bug"],"num":68,"state":"closed","title":"do not show embadding model in model selector"}
+{"author":"haoxiang-xu","closed":"2026-03-12T03:27:39Z","created":"2026-03-06T23:15:28Z","labels":["new feature","MISO"],"num":67,"state":"closed","title":"`session memory`"}
+{"author":"haoxiang-xu","closed":"2026-07-05T22:32:21Z","created":"2026-03-06T22:57:22Z","labels":["bug"],"num":66,"state":"closed","title":"pause keep at least already generated message content"}
+{"author":"Max-jzyan","closed":"2026-06-14T16:28:50Z","created":"2026-03-05T06:06:14Z","labels":["bug"],"num":64,"state":"closed","title":"API key disappears after several actions"}
+{"author":"haoxiang-xu","closed":"2026-03-16T02:44:21Z","created":"2026-03-05T01:03:19Z","labels":[],"num":63,"state":"closed","title":"build intel mac version PuPu"}
+{"author":"haoxiang-xu","closed":"2026-03-15T20:48:21Z","created":"2026-03-05T01:01:55Z","labels":["bug","MISO"],"num":62,"state":"closed","title":"`miso` exit error on intel mac"}
+{"author":"haoxiang-xu","closed":"2026-03-03T02:45:23Z","created":"2026-03-03T02:41:21Z","labels":["bug"],"num":60,"state":"closed","title":"chat should save selected toolkit"}
+{"author":"haoxiang-xu","closed":"2026-03-06T23:14:24Z","created":"2026-03-03T02:19:45Z","labels":["bug"],"num":59,"state":"closed","title":"some model does not support tools, and now those models give `does not supoort tools` error"}
+{"author":"haoxiang-xu","closed":"2026-03-06T02:08:33Z","created":"2026-03-02T18:46:04Z","labels":["new feature","improvement"],"num":57,"state":"closed","title":"one click in app update"}
+{"author":"haoxiang-xu","closed":"2026-03-02T18:37:27Z","created":"2026-03-02T18:30:52Z","labels":["new feature","improvement","UI"],"num":54,"state":"closed","title":"add `open folder` button for the `runtime` section inside `settings` page"}
+{"author":"haoxiang-xu","closed":"2026-03-02T19:54:59Z","created":"2026-03-02T18:27:27Z","labels":["bug","improvement","UI"],"num":52,"state":"closed","title":"`model selector` in `attach panel` in `src/COMPONENTs/chat-input/components/attach_panel.js` can not display fully when list become longer"}
+{"author":"haoxiang-xu","closed":"2026-03-12T03:30:45Z","created":"2026-03-02T00:10:23Z","labels":["improvement","UI"],"num":49,"state":"closed","title":"optimize long chat content list"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-01T21:46:24Z","labels":["improvement","UI","MISO"],"num":48,"state":"open","title":"`openAI` reasoning block streaming"}
+{"author":"haoxiang-xu","closed":"2026-03-15T20:47:06Z","created":"2026-03-01T21:33:04Z","labels":["documentation","regular","release"],"num":46,"state":"closed","title":"update tags MAR 2026 A-1"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-01T21:30:02Z","labels":["regular","release"],"num":45,"state":"open","title":"Task: Regularly Update Repository Tags Based on New Features"}
+{"author":"haoxiang-xu","closed":"2026-03-13T23:04:16Z","created":"2026-03-01T21:21:24Z","labels":["improvement","documentation"],"num":44,"state":"closed","title":"add `About` page in settings"}
+{"author":"haoxiang-xu","closed":"2026-03-16T00:41:28Z","created":"2026-03-01T20:50:04Z","labels":["regular","release"],"num":43,"state":"closed","title":"release MAR 2026 A-1"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-01T20:44:37Z","labels":["regular","release"],"num":42,"state":"open","title":"Weekly Regular Release Ticket"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-01T20:32:33Z","labels":["new feature","improvement"],"num":41,"state":"open","title":"summary content to rename chat title"}
+{"author":"haoxiang-xu","closed":"2026-03-03T02:22:09Z","created":"2026-03-01T03:51:03Z","labels":["new feature","MISO"],"num":38,"state":"closed","title":"`miso` toolkit confirm to execute functionality"}
+{"author":"haoxiang-xu","closed":"2026-03-15T03:57:59Z","created":"2026-03-01T03:35:37Z","labels":["bug"],"num":37,"state":"closed","title":"`windows` unable to execute tools"}
+{"author":"haoxiang-xu","closed":"2026-03-01T20:55:08Z","created":"2026-03-01T03:34:23Z","labels":["UI"],"num":36,"state":"closed","title":"`windows` icon resize"}
+{"author":"haoxiang-xu","closed":"2026-03-29T04:23:34Z","created":"2026-03-01T02:23:37Z","labels":["bug","UI"],"num":35,"state":"closed","title":"`local storage` settings page loading case the UI to react slow"}
+{"author":"haoxiang-xu","closed":"2026-03-31T00:59:29Z","created":"2026-03-01T01:34:17Z","labels":["bug","UI"],"num":34,"state":"closed","title":"hide suggested model if API key not provided or service not set up"}
+{"author":"haoxiang-xu","closed":"2026-03-01T21:42:27Z","created":"2026-03-01T01:33:08Z","labels":["bug","UI"],"num":33,"state":"closed","title":"streaming last tool call message"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-01T01:22:43Z","labels":["new feature"],"num":32,"state":"open","title":"Add 5 New Claude Models to miso Model List"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-01T01:22:42Z","labels":["new feature"],"num":31,"state":"open","title":"Add 5 New OpenAI Models to miso Model List"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-03-01T01:08:21Z","labels":["new feature","MISO","regular"],"num":30,"state":"open","title":"Add Generic Model Support Capability to PuPu and Document Integration Workflow"}
+{"author":"haoxiang-xu","closed":"2026-03-15T20:46:38Z","created":"2026-03-01T01:02:56Z","labels":["bug"],"num":29,"state":"closed","title":"`windows` not able to connect to `Ollama` service @`local storage`"}
+{"author":"haoxiang-xu","closed":"2026-03-22T21:11:59Z","created":"2026-02-28T06:23:18Z","labels":["new feature"],"num":24,"state":"closed","title":"Add usage tracking to Settings page: display token usage stats per model"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-02-28T06:15:39Z","labels":["new feature"],"num":23,"state":"open","title":"Add usage tracking to Settings page: display token usage stats per model"}
+{"author":"haoxiang-xu","closed":"2026-03-23T20:23:24Z","created":"2026-02-28T00:44:54Z","labels":["new feature"],"num":22,"state":"closed","title":"Backend: Agent Team API and State Sync (miso integration)"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-02-28T00:44:53Z","labels":["new feature","UI"],"num":21,"state":"open","title":"Frontend: Agent Activity & Interaction Visualization"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-02-28T00:44:53Z","labels":["new feature","UI"],"num":20,"state":"open","title":"Frontend: Multi-Agent Chat UI"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-02-28T00:44:52Z","labels":["new feature","UI"],"num":19,"state":"open","title":"Frontend: Agent Builder Component"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-02-27T22:05:13Z","labels":["new feature"],"num":18,"state":"open","title":"Build overall Agent Teams module"}
+{"author":"haoxiang-xu","closed":null,"created":"2026-02-27T21:59:10Z","labels":["new feature","MISO"],"num":17,"state":"open","title":"`Miso` provides support for `OpenClaw`."}
+{"author":"haoxiang-xu","closed":"2026-04-17T15:26:10Z","created":"2026-02-27T20:00:56Z","labels":["bug","improvement","UI"],"num":15,"state":"closed","title":"In narrow-screen mode, the `chat message list` is wider than the `input textfield`, which makes the UI look unbalanced."}
+{"author":"haoxiang-xu","closed":"2026-02-21T05:37:48Z","created":"2026-01-18T21:34:48Z","labels":["improvement"],"num":14,"state":"closed","title":"Update LLM_endpoint for REST-based provider support"}
+{"author":"haoxiang-xu","closed":"2026-02-21T05:37:53Z","created":"2026-01-18T21:22:39Z","labels":["refactor"],"num":12,"state":"closed","title":"Migrate PuPu storage to Electron file storage"}
+{"author":"zxp19821005","closed":"2025-02-18T07:13:58Z","created":"2025-02-18T02:00:22Z","labels":[],"num":6,"state":"closed","title":"Can't clone the repo!"}

@@ -10,3 +10,11 @@ qdrant-client==1.14.3
 mss==10.0.0
 pynput==1.8.1
 Pillow==10.2.0
+# Outbound TLS trust (see server/net_tls.py). The frozen PyInstaller binary
+# inherits the build machine's compiled-in OPENSSL cert path, which does not
+# exist on a user's machine, so trust must be supplied explicitly.
+# truststore -> OS trust store (also covers corporate MITM proxy roots).
+# certifi is already pulled in transitively by httpx; pinned here because
+# net_tls.py depends on it directly as the fallback bundle.
+truststore==0.10.4
+certifi==2026.2.25

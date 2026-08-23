@@ -1,0 +1,319 @@
+{
+  "internal_route_manifest": {
+    "canonical_utf8_max_bytes": 16384,
+    "context_window_tokens": "JSON safe integer 1..9007199254740991 or null; bool forbidden",
+    "exact_keys": [
+      "schema",
+      "method",
+      "context_window_tokens",
+      "routes"
+    ],
+    "field": "ModelTurnRequest.internal_context_composition_v1",
+    "method": "utf8_heuristic_v1",
+    "presence": "optional_by_absence; null object is invalid",
+    "privacy": "content-free; no raw content, arbitrary name, id, path, URL, hash, secret, hidden reasoning, file/tool/artifact bytes, or source snippet",
+    "provider_behavior": "deeply frozen internal-only metadata; excluded from provider bytes and ProviderWireEnvelope/authority/catalog/request digests; cannot alter provider behavior",
+    "routes": {
+      "canonical_order": [
+        "primary",
+        "openai_previous_response_fallback"
+      ],
+      "contributions": {
+        "canonical_order": "category order, then category-specific subtype order, then surface order",
+        "exact_keys": [
+          "category",
+          "subtype",
+          "surface",
+          "utf8_bytes",
+          "source_count"
+        ],
+        "items": "0..128 per route; unique by (category,subtype,surface)",
+        "source_count": "JSON safe integer 1..9007199254740991; bool forbidden",
+        "surface": [
+          "messages",
+          "tool_schema",
+          "response_schema",
+          "provider_state"
+        ],
+        "token_formula": "for each canonical tuple estimated_tokens=max(1,ceil(utf8_bytes/4)); tuple/category/subtype/attributed totals are checked sums only and never tokenizer-exact or proportionally rescaled",
+        "utf8_bytes": "JSON safe integer 1..9007199254740991; bool forbidden"
+      },
+      "context_mode": [
+        "semantic",
+        "local_replay",
+        "remote_continuation"
+      ],
+      "exact_item_keys": [
+        "route_name",
+        "context_mode",
+        "provider_retained",
+        "manifest_items",
+        "wire_surfaces",
+        "contributions"
+      ],
+      "items": "1..2; unique and sorted by canonical_order",
+      "manifest_items": "JSON safe integer 0..9007199254740991; bool forbidden; total known logical source instances including known uninstrumented instances; >= sum(contributions[*].source_count)",
+      "provider_retained": "JSON bool; indicates a retained-context request only, never exact classification of invisible retained tokens",
+      "route_name": [
+        "primary",
+        "openai_previous_response_fallback"
+      ],
+      "wire_surfaces": "JSON safe integer 0..4; bool forbidden; distinct non-empty authoritative surfaces including known uninstrumented surfaces; >= distinct contribution.surface count"
+    },
+    "schema": "unchain.context/internal_context_composition_v1",
+    "send_ingress": [
+      "ProviderTurnOwnership.fetch_turn",
+      "Context FinalModelToolBoundary -> ContextRuntime._fetch_provider_turn_boundary"
+    ]
+  },
+  "pupu_fresh_hint": {
+    "admission": "sidecar recomputes TextEncoder(UTF-8).encode(text.slice(0, composer.templateLength)).length from authoritative fresh message/composer evidence; only an exact positive-safe-integer match is admitted",
+    "canonical_utf8_max_bytes": 1024,
+    "contribution_exact_keys": [
+      "category",
+      "subtype",
+      "surface",
+      "utf8_bytes",
+      "source_count"
+    ],
+    "contribution_fixed_values": {
+      "category": "skills",
+      "source_count": "JSON safe integer 1..9007199254740991; bool forbidden",
+      "subtype": "expanded_invocation",
+      "surface": "messages",
+      "utf8_bytes": "JSON safe integer 1..9007199254740991; bool forbidden"
+    },
+    "contributions": "exactly one item when present",
+    "exact_keys": [
+      "schema",
+      "contributions"
+    ],
+    "field": "context_composition_hint",
+    "fresh_only": "optional by absence; invalid or mismatched fresh hints are discarded for composition only and never enter durable state",
+    "privacy": "no names, raw content, ids, paths, URLs, hashes, arbitrary labels, or extra keys",
+    "schema": "pupu.context_composition_hint.v1"
+  },
+  "pupu_private_durable_hint": {
+    "authority": "only the stable durable option or its same-transaction freshly admitted value; arbitrary component_state is forbidden",
+    "field": "_context_composition_hint_v1",
+    "fresh_write": "canonical admitted public value is atomically minted byte-identically into the stable durable resume option allowlist",
+    "projection": "semantic/local_replay maps the tuple to messages; remote_continuation with provider_retained=true maps it to provider_state; identical tuples merge with checked safe-integer arithmetic before canonical sort",
+    "rehydration": "graph-step and resume restore the canonical bytes unchanged",
+    "resume": "absent public declaration uses durable private value; exact canonical equality is declaration-only with no write/version advance; malformed, unequal, or present-with-no-baseline cannot mint or overwrite, omits this physical call's composition extension, emits content-free diagnostic, and leaves ordinary V4 resume available"
+  },
+  "physical_call_identity": {
+    "after_send_before_cas": "recovery reuses exact durable subject, fallback parent, route digest, and deterministic physical ordinal",
+    "callback_context": "before-send, after-send, and receipt callbacks receive one immutable ProviderPhysicalSendContext",
+    "cas_validation": [
+      "ProviderRequestSubject",
+      "fallback parent",
+      "ProviderWireRoute digest",
+      "deterministic subject-to-physical ordinal mapping"
+    ],
+    "identity_route": "existing generic provider endpoint semantics remain unchanged",
+    "kernel_attempt_telemetry": "max(legacy attempt count, deterministic physical ordinal); telemetry never defines durable identity",
+    "physical_ordinal": {
+      "openai_previous_response_fallback": "currently allowed primary ordinal 0 maps to fallback physical ordinal 1",
+      "primary": "route-local retry ordinal n maps to physical ordinal n",
+      "primary_retry_gt_0_to_fallback": "unsupported and fail closed; separate P1 authorization required"
+    },
+    "process_send_number": "telemetry only; never durable identity",
+    "receipt_retry_ordinal": "deterministic physical ordinal",
+    "route_selection": "select exact route manifest only after authoritative wire finalization; unmatched route yields unavailable or partial composition and never guesses or changes the send",
+    "wire_evidence": "wire.route_name is exact ProviderRequestSubject.route; wire.route_sha256 is exact ProviderWireRoute digest"
+  },
+  "receipt_extension": {
+    "attributed_tokens": "JSON safe integer 0..9007199254740991; bool forbidden; equals sum(categories[*].tokens)",
+    "categories": {
+      "exact_item_keys": [
+        "id",
+        "tokens",
+        "source_count",
+        "subtypes"
+      ],
+      "items": "0..10; unique; sorted by taxonomy category order; zero entries omitted",
+      "source_count": "JSON safe integer 1..9007199254740991; bool forbidden; equals sum(subtypes[*].source_count)",
+      "subtypes": {
+        "exact_item_keys": [
+          "id",
+          "tokens",
+          "source_count"
+        ],
+        "items": "1..category allowlist length; unique; sorted by category-specific subtype order",
+        "source_count": "JSON safe integer 1..9007199254740991; bool forbidden",
+        "tokens": "JSON safe integer 1..9007199254740991; bool forbidden"
+      },
+      "tokens": "JSON safe integer 1..9007199254740991; bool forbidden; equals sum(subtypes[*].tokens)"
+    },
+    "context_window_tokens": "JSON safe integer 1..9007199254740991 or null; bool forbidden",
+    "coverage": {
+      "exact_keys": [
+        "status",
+        "manifest_items",
+        "matched_items",
+        "wire_surfaces",
+        "matched_surfaces"
+      ],
+      "invariants": [
+        "matched_items <= manifest_items",
+        "matched_surfaces <= wire_surfaces"
+      ],
+      "manifest_items": "JSON safe integer 0..9007199254740991; bool forbidden",
+      "matched_items": "JSON safe integer 0..9007199254740991; bool forbidden",
+      "matched_surfaces": "JSON safe integer 0..9007199254740991; bool forbidden",
+      "status": [
+        "complete",
+        "partial"
+      ],
+      "wire_surfaces": "JSON safe integer 0..9007199254740991; bool forbidden"
+    },
+    "exact_keys": [
+      "schema",
+      "method",
+      "quality",
+      "context_window_tokens",
+      "wire",
+      "categories",
+      "attributed_tokens",
+      "residual_tokens",
+      "coverage"
+    ],
+    "extension_key": "unchain.context/context_composition_v1",
+    "method": "utf8_heuristic_v1",
+    "quality": [
+      "reconciled_estimate",
+      "estimated",
+      "partial"
+    ],
+    "quality_invariants": [
+      "coverage.status=complete iff matched_items=manifest_items and matched_surfaces=wire_surfaces; otherwise coverage.status=partial",
+      "known instrumentation loss is encoded by route manifest_items>sum(contribution.source_count) or wire_surfaces>distinct contribution.surface count and forces quality=partial plus coverage.status=partial",
+      "reconciled_estimate requires coverage.status=complete, non-null residual_tokens, authoritative receipt input total, attributed_tokens<=input total, and residual_tokens=input total-attributed_tokens",
+      "estimated requires coverage.status=complete and residual_tokens=null",
+      "partial requires coverage.status=partial and residual_tokens=null",
+      "attributed overestimate preserves category/subtype estimates and uses estimated when coverage complete or partial when coverage partial, with null residual; no clamp, proportional scaling, residual zero, equality, or percentage claim",
+      "provider input total remains only in receipt.usage.input.total_tokens and is never copied into this extension",
+      "after exact route selection matched_items=sum source_count for declared tuples whose surface is present in authoritative selected-route wire; matched_surfaces=distinct represented surfaces present",
+      "provider-retained invisible context and unmatched authoritative route are never claimed as exactly classified; exact route mismatch omits extension"
+    ],
+    "residual_tokens": "JSON safe integer 0..9007199254740991 or null; bool forbidden",
+    "schema": "unchain.context/context_composition_v1",
+    "wire": {
+      "context_mode": [
+        "semantic",
+        "local_replay",
+        "remote_continuation"
+      ],
+      "envelope_sha256": "sha256:<64 lowercase hex>",
+      "exact_keys": [
+        "envelope_sha256",
+        "route_name",
+        "route_sha256",
+        "context_mode"
+      ],
+      "route_name": [
+        "primary",
+        "openai_previous_response_fallback"
+      ],
+      "route_sha256": "sha256:<64 lowercase hex>"
+    }
+  },
+  "receipt_failure_boundary": {
+    "base_receipt": "composition enrichment may degrade only after a valid base receipt has been constructed",
+    "composition_failure": "omit or reject composition extension with stable unavailable reason while preserving provider call and valid base receipt",
+    "never_swallow": [
+      "base receipt factory error",
+      "ledger error",
+      "lease error",
+      "CAS error"
+    ]
+  },
+  "run_bundle_carriage": {
+    "authoritative_fields": [
+      "provider_calls[*].extensions",
+      "all_call_ids",
+      "provider_call_set_union"
+    ],
+    "integrity": "receipt extension covered by immutable receipt hash; receipt-set carriage covered by RunBundle digest",
+    "parallel_aggregate": "forbidden",
+    "top_level_context_composition_ref": "forbidden"
+  },
+  "runtime_features": {
+    "admission": "composition_availability_only; MUST NOT enter global _REQUIRED_PROTOCOLS or block ordinary V4/provider send, tools, interactions, or base RunBundle creation",
+    "missing_behavior": "Context Composition unavailable with stable reason; breakdown hidden or disabled; existing receipts and bundles remain valid",
+    "slugs": [
+      "context_memory.context_contribution_manifest_v1",
+      "run_bundle.context_composition_ref_v1"
+    ]
+  },
+  "schema": "unchain.context_composition.producer.v1",
+  "taxonomy": {
+    "agent_coordination": [
+      "inherited_context",
+      "handoff_summary",
+      "child_instructions",
+      "subagent_report_roster"
+    ],
+    "conversation": [
+      "current_input",
+      "user_history",
+      "assistant_history",
+      "summary"
+    ],
+    "files_media": [
+      "file_excerpt",
+      "artifact",
+      "image_media",
+      "web_pdf"
+    ],
+    "instructions": [
+      "core_system",
+      "agent_instructions",
+      "user_rules",
+      "runtime_safety",
+      "recipe_workflow"
+    ],
+    "memory": [
+      "short_term_recall",
+      "long_term_recall",
+      "pending_memory"
+    ],
+    "order": [
+      "instructions",
+      "skills",
+      "tool_definitions",
+      "conversation",
+      "tool_activity",
+      "memory",
+      "task_state",
+      "files_media",
+      "agent_coordination",
+      "output_contract"
+    ],
+    "output_contract": [
+      "response_schema",
+      "format_instruction"
+    ],
+    "skills": [
+      "catalog_metadata",
+      "loaded_body",
+      "expanded_invocation"
+    ],
+    "task_state": [
+      "pinned_state",
+      "pending_interaction",
+      "plan_state"
+    ],
+    "tool_activity": [
+      "arguments",
+      "results",
+      "errors_observations"
+    ],
+    "tool_definitions": [
+      "provider_schema",
+      "prompt_guidance",
+      "dynamic_tool"
+    ]
+  },
+  "version": 1
+}

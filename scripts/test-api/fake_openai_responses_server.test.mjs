@@ -18,6 +18,7 @@ const {
   buildResponseEnvelope,
   createFakeOpenAIResponsesServer,
   serializeSse,
+  validateResponseInputItems,
 } = require(fixturePath);
 const {
   buildAgentLongRunPrompt,
@@ -90,6 +91,80 @@ const finalText = (envelope) =>
   envelope.response.output[0]?.content?.[0]?.text || "";
 
 describe("deterministic fake OpenAI Responses fixture", () => {
+  it("accepts legal message content blocks and rejects leaked attachment metadata", () => {
+    const legalBody = {
+      model: "pupu-fake-responses-v1",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          status: "completed",
+          content: [
+            { type: "input_text", text: "describe these attachments" },
+            {
+              type: "input_image",
+              detail: "auto",
+              image_url: "data:image/png;base64,iVBORw0KGgo=",
+            },
+            {
+              type: "input_file",
+              filename: "brief.pdf",
+              file_data: "data:application/pdf;base64,JVBERi0xLjQ=",
+            },
+          ],
+        },
+        {
+          type: "message",
+          id: "msg_contract",
+          role: "assistant",
+          status: "completed",
+          phase: "final_answer",
+          content: [
+            {
+              type: "output_text",
+              annotations: [],
+              logprobs: [],
+              text: "prior answer",
+            },
+          ],
+        },
+        {
+          type: "function_call_output",
+          call_id: "call_contract",
+          output: '{"ok":true}',
+          provider_extension_for_future_tool_items: true,
+        },
+      ],
+    };
+    assert.doesNotThrow(() => validateResponseInputItems(legalBody));
+    assert.equal(buildResponseEnvelope(legalBody).response.object, "response");
+
+    assert.throws(
+      () =>
+        validateResponseInputItems({
+          input: [
+            { role: "system", content: "system" },
+            {
+              role: "user",
+              content: "hello",
+              attachments: [{ kind: "image", artifact_id: "artifact-1" }],
+            },
+          ],
+        }),
+      (error) => {
+        assert.equal(error.status, 400);
+        assert.equal(error.type, "invalid_request_error");
+        assert.equal(error.param, "input[1].attachments");
+        assert.equal(error.code, "unknown_parameter");
+        assert.equal(
+          error.message,
+          "Unknown parameter: 'input[1].attachments'.",
+        );
+        return true;
+      },
+    );
+  });
+
   it("returns byte-identical SSE and IDs for repeated identical bodies", () => {
     const request = soakBody({ lane: "B", phase: "probe", iteration: 17 });
     const first = buildResponseEnvelope(request);
@@ -636,6 +711,39 @@ describe("deterministic fake OpenAI Responses fixture", () => {
     assert.equal(records[0].lane, "C");
     assert.equal(records[0].saw_fyi, false);
     assert.equal(fixture.requests.length, 3);
+  });
+
+  it("fails closed over HTTP when message metadata leaks into Responses input", async (t) => {
+    const fixture = createFakeOpenAIResponsesServer();
+    t.after(() => fixture.stop());
+    const { baseUrl } = await fixture.start();
+
+    const response = await fetch(`${baseUrl}/responses`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "pupu-fake-responses-v1",
+        input: [
+          { role: "system", content: "system" },
+          {
+            role: "user",
+            content: [{ type: "input_text", text: "hello" }],
+            attachments: [{ kind: "image", artifact_id: "artifact-1" }],
+          },
+        ],
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: {
+        type: "invalid_request_error",
+        message: "Unknown parameter: 'input[1].attachments'.",
+        param: "input[1].attachments",
+        code: "unknown_parameter",
+      },
+    });
+    assert.equal(fixture.requests.length, 0);
   });
 
   it("exposes the CLI ready line and --audit contract", async (t) => {

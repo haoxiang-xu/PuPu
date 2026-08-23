@@ -7,6 +7,8 @@ import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
 import { mergePendingConfirmationTraceState } from "./pending_confirmation_trace_frames";
 import ArtifactSummarySections from "./artifact-summary/artifact_summary_sections";
+import { isMemoryV2TraceBundle } from "../../SERVICEs/runtime_events/memory_v2_trace_presenter";
+import { selectRunBundleUsage } from "../../SERVICEs/run_bundle_v1";
 
 const resolveAvatarSrc = (avatar) => {
   const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
@@ -54,6 +56,7 @@ const CharacterChatBubble = ({
   traceFrames = [],
   pendingContinuationRequest,
   onContinuationDecision,
+  resendPresentation = null,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -129,12 +132,20 @@ const CharacterChatBubble = ({
       f.type === "clarify_request",
   );
   const hasVisibleTraceActivity = hasToolActivity;
+  const tokenUsage =
+    isAssistant && message.status === "done"
+      ? selectRunBundleUsage(message.meta?.bundle)
+      : null;
   const hasTokenSummary =
-    isAssistant &&
-    message.status === "done" &&
-    typeof message.meta?.bundle?.consumed_tokens === "number" &&
-    message.meta.bundle.consumed_tokens > 0;
-  const shouldRenderTraceChain = hasVisibleTraceActivity || hasTokenSummary;
+    tokenUsage?.canonical === true ||
+    (typeof tokenUsage?.total === "number" && tokenUsage.total > 0);
+  const completionDiagnostics = message.meta?.completion_diagnostics;
+  const memoryV2Diagnostics =
+    completionDiagnostics?.memory_v2 || message.meta?.bundle?.memory_v2;
+  const hasMemoryV2Audit =
+    isAssistant && isMemoryV2TraceBundle(memoryV2Diagnostics);
+  const shouldRenderTraceChain =
+    hasVisibleTraceActivity || hasTokenSummary || hasMemoryV2Audit;
   const avatarSrc = resolveAvatarSrc(characterAvatar);
   const showImage = Boolean(avatarSrc) && !imageBroken;
   const fallbackInitial = (characterName || "C").charAt(0).toUpperCase();
@@ -169,6 +180,7 @@ const CharacterChatBubble = ({
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
           bundle={message.meta?.bundle}
+          completionDiagnostics={completionDiagnostics}
           subagentFrames={confirmationTraceState.subagentFrames}
           subagentMetaByRunId={message.subagentMetaByRunId}
         />
@@ -349,6 +361,20 @@ const CharacterChatBubble = ({
         </div>
       )}
 
+      {isUser && resendPresentation?.phase && (
+        <span
+          role="status"
+          aria-live="polite"
+          style={{
+            marginTop: 4,
+            fontSize: 11,
+            color: isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.56)",
+          }}
+        >
+          {resendPresentation.phase}
+        </span>
+      )}
+
       <MessageActionBar
         showActionBar={showActionBar}
         hovered={hovered}
@@ -365,6 +391,7 @@ const CharacterChatBubble = ({
         canDeleteMessage={canDeleteMessage}
         onDeleteMessage={onDeleteMessage}
         color={color}
+        resendPresentation={resendPresentation}
       />
     </div>
   );
@@ -389,6 +416,7 @@ const areCharacterChatBubblePropsEqual = (previousProps, nextProps) =>
   previousProps.traceFrames === nextProps.traceFrames &&
   previousProps.pendingContinuationRequest ===
     nextProps.pendingContinuationRequest &&
-  previousProps.onContinuationDecision === nextProps.onContinuationDecision;
+  previousProps.onContinuationDecision === nextProps.onContinuationDecision &&
+  previousProps.resendPresentation === nextProps.resendPresentation;
 
 export default memo(CharacterChatBubble, areCharacterChatBubblePropsEqual);

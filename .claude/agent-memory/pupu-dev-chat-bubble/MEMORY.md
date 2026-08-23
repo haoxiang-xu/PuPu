@@ -1,4 +1,0 @@
-- [Team Roster](team_roster.md) — reporting line (pupu-cto gatekeeper), standing sync-meeting roster, and the 5 peer devs with ownership boundaries
-- [Security Render Sinks](security_render_sinks.md) — chat-bubble 攻击面 + react-showdown 真实威胁模型（createElement≠innerHTML，sanitize_html=false 坑，SEC-001 结论）
-- [Streaming live tail = Markdown](streaming-live-tail-markdown.md) — 反转旧的 plain-text-tail 取舍；live 尾巴走 Markdown+liveFence 虚拟闭合+4KB perf 护栏
-- [测 Timeline 引用稳定的坑](testing-timeline-ref-stability.md) — toBe 比大 React-element 数组会 OOM(塌成布尔);Timeline mock 别 return null/别全局 mock 污染基线

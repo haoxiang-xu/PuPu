@@ -154,6 +154,69 @@ def test_stream_chat_events_snapshots_options_into_channels(monkeypatch):
     assert seen["options"] == run_options
 
 
+def test_resume_chat_interaction_filters_private_memory_v2_options(monkeypatch):
+    seen = {}
+
+    class FakeResumeAgent:
+        provider = "openai"
+        model = "gpt-5"
+        _memory_runtime = {
+            "requested": True,
+            "available": True,
+            "reason": "",
+        }
+        _toolkits = []
+
+        def resume_interaction(self, **kwargs):
+            ch = get_interject_channels("thread-resume-options-test")
+            seen["options"] = ch.options if ch else None
+            kwargs["callback"]({"type": "iteration_started", "iteration": 0})
+            return FakeResult()
+
+    pending = {
+        "status": "receipt_recorded",
+        "session_id": "thread-resume-options-test",
+        "interaction_id": "interaction-options-test",
+        "source_run_id": "source-run-options-test",
+        "provider": "openai",
+        "model": "gpt-5",
+        "resume_available": True,
+    }
+    resolved = {
+        "provider": "openai",
+        "modelId": "gpt-5",
+        "memory_enabled": True,
+        "_memory_v2_existing_private": "must-not-leak",
+    }
+    monkeypatch.setattr(adapter, "get_pending_interaction", lambda _session: pending)
+    monkeypatch.setattr(adapter, "resolve_resume_options", lambda **_kwargs: resolved)
+    monkeypatch.setattr(adapter, "_create_agent", lambda *a, **k: FakeResumeAgent())
+    monkeypatch.setattr(adapter, "save_resume_context", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        adapter,
+        "_cleanup_durable_resume_contexts",
+        lambda *_args, **_kwargs: None,
+    )
+
+    with _no_recipe_patch():
+        list(
+            adapter.resume_chat_interaction_events(
+                session_id="thread-resume-options-test",
+                interaction_id="interaction-options-test",
+                options={
+                    "_memory_v2_requested": True,
+                    "_memory_v2_owner_chat_id": "owner-options-test",
+                    "_memory_v2_memory_agent_config": {"model": "gpt-5"},
+                },
+            )
+        )
+
+    assert seen["options"]["provider"] == "openai"
+    assert seen["options"]["modelId"] == "gpt-5"
+    assert seen["options"]["memory_enabled"] is True
+    assert not any(str(key).startswith("_") for key in seen["options"])
+
+
 def test_setup_failure_before_worker_start_releases_registry(monkeypatch):
     # Regression test: if anything in the setup span between
     # register_interject_channels() and worker.start() raises (agent

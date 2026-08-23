@@ -1,0 +1,58 @@
+{
+  "base_contract": {
+    "path": "../ps-001-r6/unchain-context-composition-producer-v1.json",
+    "sha256": "sha256:5dae9c3d1c6faf5cc1cfea8f5adf4687f0ab90965ed899191a7ab1a9419b5bf2"
+  },
+  "change_scope": [
+    "pupu_fresh_hint",
+    "fresh_hint_availability_codes"
+  ],
+  "effective_contract_rule": "all base-contract requirements remain exact except the named change_scope objects, which are replaced by this closed successor",
+  "fresh_hint_availability_codes": [
+    "capability_unavailable",
+    "extension_missing",
+    "extension_invalid",
+    "fresh_hint_invalid",
+    "resume_hint_invalid",
+    "resume_hint_mismatch",
+    "resume_hint_no_baseline"
+  ],
+  "private_canonicalization": {
+    "durable_field": "_context_composition_hint_v1",
+    "exact_private_tuple": {
+      "category": "skills",
+      "subtype": "expanded_invocation",
+      "surface": "messages",
+      "utf8_bytes": "runtime-computed positive JSON safe integer; bool forbidden",
+      "source_count": "producer-attested positive JSON safe integer; bool forbidden"
+    },
+    "rule": "runtime alone canonicalizes an admitted public v2 object into the existing byte-identical private v1 tuple; public and private schema identifiers are independent",
+    "schema_stability": "private v1 remains valid only because its exact tuple bytes and semantics are unchanged"
+  },
+  "public_fresh_hint_v2": {
+    "canonical_utf8_max_bytes": 1024,
+    "exact_keys": [
+      "schema",
+      "prefix_utf16_code_units",
+      "source_count"
+    ],
+    "field": "context_composition_hint",
+    "fresh_only": "optional by absence on fresh composer/edit sends; no-composer, programmatic, non-fresh, resume, and active-stream interject paths omit",
+    "prefix_utf16_code_units": "positive JSON safe integer; bool forbidden; equals renderer composer.templateLength",
+    "producer_rule": "prefix_utf16_code_units=composer.templateLength and source_count=composer.commands.length at the sole fresh request writer; generic and active fresh provider-run ingresses converge",
+    "privacy": "no composer object, rawText, raw prefix/content, command/name/toolkit/id/path/URL/digest/hash, arbitrary label, contribution array, utf8_bytes claim, or extra key",
+    "schema": "pupu.context_composition_hint.v2",
+    "source_count": "positive JSON safe integer; bool forbidden; renderer-attested expanded-invocation count; runtime validates structure/range only and never claims independent command provenance",
+    "v1_input": "unsupported at the v2 boundary; reject for composition only with fresh_hint_invalid; never heuristically upgrade or dual-parse"
+  },
+  "runtime_admission": {
+    "authoritative_input": "expanded fresh message plus public v2 prefix_utf16_code_units/source_count",
+    "boundary_rule": "interpret prefix_utf16_code_units as JavaScript UTF-16 code units; require 0 < boundary <= authoritative message UTF-16 length; reject a boundary between a valid high/low surrogate pair",
+    "failure": "any schema/key/type/range/boundary/surrogate/scalar violation is fresh_hint_invalid; no private mint/persist; ordinary V4/chat/provider/tools/interactions/base RunBundle continues",
+    "scalar_rule": "selected prefix must be a valid Unicode scalar sequence; any unpaired high or low surrogate in the prefix is invalid and is never replacement-encoded",
+    "utf8_rule": "slice the authoritative message at the validated UTF-16 boundary, then independently compute strict UTF-8 byte length; no renderer utf8_bytes value is accepted"
+  },
+  "schema": "unchain.context_composition.producer.v2",
+  "supersedes": "unchain.context_composition.producer.v1",
+  "version": 2
+}

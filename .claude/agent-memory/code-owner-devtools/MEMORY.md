@@ -1,0 +1,3 @@
+- [发布 flag 快照不入库](build-feature-flag-snapshot-untracked.md) — 正式包的 feature flag 来自 gitignore 的 .local 快照，由「打开 dev Settings-Dev 页」副作用写入；发布前用 --print-flags 核对
+- [Electron 测试双胞胎是三层 shim](electron-test-twins-are-three-layer-shims.md) — 本体只有 .cjs；src/electron/tests 的 .js shim 才被 CRA 收集；审计必须解析 require 目标，按文件名配对必假阳性
+- [release-qa 不可变 wheel 链路](release-qa-immutable-wheel-chain.md) — 一次构建/direct_url.json 反顶替/三处观测值不进报告；契约矩阵与 package smoke 的 sha 只 console.log

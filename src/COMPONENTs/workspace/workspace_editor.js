@@ -36,11 +36,11 @@ const workspaceHue = (seed) => {
 const useThemeColors = (isDark, theme) =>
   useMemo(
     () => ({
-      text: isDark ? "rgba(255,255,255,0.89)" : "rgba(0,0,0,0.85)",
-      muted: isDark ? "rgba(255,255,255,0.46)" : "rgba(0,0,0,0.48)",
-      faint: isDark ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.32)",
-      line: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.075)",
-      hoverFill: isDark ? "rgba(255,255,255,0.055)" : "rgba(0,0,0,0.04)",
+      text: "var(--pupu-text-strong)",
+      muted: "var(--pupu-text-faint)",
+      faint: "var(--pupu-text-faint)",
+      line: "var(--pupu-border)",
+      hoverFill: "var(--pupu-overlay-hover)",
       danger: isDark ? "#f87171" : "#dc2626",
       dangerFill: isDark ? "rgba(248,113,113,0.10)" : "rgba(220,38,38,0.07)",
       success: isDark ? "#4ade80" : "#16a34a",

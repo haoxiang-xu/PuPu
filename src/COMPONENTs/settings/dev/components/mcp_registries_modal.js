@@ -372,7 +372,7 @@ const McpRegistriesModal = ({ open, onClose, isDark }) => {
                 isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
               }`,
               background: isDark ? "rgba(255,255,255,0.04)" : "#fff",
-              color: isDark ? "#fff" : "#222",
+              color: "var(--pupu-text)",
               fontSize: 12,
               fontFamily,
               padding: "8px 10px",

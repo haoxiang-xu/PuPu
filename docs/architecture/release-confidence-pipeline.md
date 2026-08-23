@@ -39,29 +39,37 @@ cost authorization.
 
 ### GitHub on every PR
 
-The `Release QA` workflow runs:
+The `Release QA` workflow builds the selected clean Unchain source exactly once
+as an immutable wheel, then runs:
 
 1. Full frontend Jest suite.
 2. Electron main/preload/Test API Jest suite.
-3. Full Python sidecar pytest suite against the pinned Unchain revision.
-4. Production web build and version checks.
-5. MCP registry validation.
-6. Release QA script tests.
-7. Third-party notice script tests.
+3. Full Python sidecar pytest suite with the immutable Unchain wheel.
+4. Blocking Context V2 and RunBundle contract matrices using the same wheel
+   and tests from its recorded clean source revision.
+5. Independent wheel SHA-256 and complete runtime protocol manifest/digest
+   validation.
+6. Production web build and version checks.
+7. MCP registry, release-QA script, and third-party notice tests.
 8. Playwright Electron smoke on Ubuntu under Xvfb.
-9. Advisory compatibility checks against the moving Unchain `dev` branch.
 
 The deterministic, Playwright, and packaging jobs emit the same machine-readable
 report shape. The final job merges those reports, publishes Markdown/JSON evidence,
-and fails when any deterministic check failed. The moving-Unchain compatibility
-check remains a separate advisory warning.
+and fails when required checks have no executed tests or artifact/manifest evidence
+is missing, malformed, or inconsistent. Runtime compatibility is decided only by
+the loaded code-backed protocol manifest; Git revision and source are provenance
+telemetry, not an admission lock.
 
-### GitHub in release mode
+### GitHub package QA and release candidates
 
 A `v*` tag or manual `qa_mode=release` run adds:
 
 - Playwright Electron on Ubuntu, macOS, and Windows.
 - Unsigned package builds for macOS arm64, macOS Intel, Windows, and Linux.
+- All four package jobs download the exact deterministic wheel/evidence bytes,
+  force-install that wheel into the PyInstaller environment, and start the real
+  packaged sidecar for authenticated `/health` and `/context/v2/status` protocol
+  smoke checks.
 - Version-to-tag validation.
 - Optional API-backed Unchain release analysis only from a protected manual
   `qa_mode=release` run on `main`, when CI secrets are configured.
@@ -70,6 +78,42 @@ macOS and Windows UI runners are release-only because they consume the GitHub
 Free minute allowance faster than Linux. Playwright evidence is retained for 14
 days; package artifacts are retained for 7 days to stay within the smaller Free
 artifact-storage allowance.
+
+`qa_mode=release` is still diagnostic and uses unsigned package commands. It
+never creates a GitHub Release: every package command passes `--publish never`.
+
+The only stageable path is the manual `qa_mode=release-candidate` mode, dispatched
+against an existing `vX.Y.Z` tag with a full immutable Unchain revision. It uses
+the protected `release-signing` Environment, requires macOS signing/notarization
+credentials and Windows signing credentials, emits canonical architecture-bearing
+names, and builds without publishing. A versioned artifact contract requires the
+four v0.1.10 target slots (`macos-arm64`, `macos-x64`, `windows-x64`, and
+`linux-x64`) while declaring Windows/Linux ARM64 as reserved v0.2.0 slots. The
+candidate artifact carries every exact filename, byte size, SHA-256, updater
+metadata reference, tag/commit, candidate Actions run ID, and immutable Unchain
+identity. Updater YAML SHA-512 values are recomputed from the packaged payload
+bytes before they can enter the sealed manifest.
+
+Promotion is deliberately separate from building:
+
+1. `Stage Verified Release Candidate` downloads the retained candidate bytes and
+   the packaged-install qualification receipt from #218, verifies both Actions
+   runs against the exact tag commit and expected workflow path, re-hashes them,
+   and creates or verifies a Draft Release in the protected `release-stage`
+   Environment.
+2. It re-downloads the Draft Release and checks the same manifest before
+   stopping. A missing, renamed, extra, or modified asset fails closed.
+3. `Publish Verified Draft Release` requires the protected `release-publish`
+   Environment plus an explicit `PUBLISH` confirmation. It re-downloads and
+   re-verifies the Draft Release, then changes only its draft state. It contains
+   no build or upload step.
+4. After publication, the same publish run calls the README workflow, which
+   re-downloads the public assets, verifies the manifest again, and opens a
+   deterministic documentation PR. This avoids relying on a `GITHUB_TOKEN`
+   release event to trigger a second workflow.
+
+The optional Unchain/Codex/Claude analysis remains advisory. Missing model
+capacity must never block the deterministic candidate, stage, or publish chain.
 
 ## Coverage model
 

@@ -1,0 +1,215 @@
+{
+  "availability_reason": {
+    "code": [
+      "capability_unavailable",
+      "extension_missing",
+      "extension_invalid",
+      "fresh_hint_invalid",
+      "fresh_hint_mismatch",
+      "resume_hint_invalid",
+      "resume_hint_mismatch",
+      "resume_hint_no_baseline"
+    ],
+    "exact_keys": [
+      "schema",
+      "code"
+    ],
+    "privacy": "content-free; no message, details, path, id, hash, or arbitrary string fields",
+    "schema": "pupu.context_composition_availability.v1"
+  },
+  "admission": {
+    "composition_failure": "closed availability reason only; no provider resend, chat corruption, fabricated zero, or fabricated exact usage",
+    "extension_key": "unchain.context/context_composition_v1",
+    "malformed_extension": "extension_invalid; base ProviderCallReceipt and RunBundle remain valid",
+    "missing_extension": "extension_missing; base ProviderCallReceipt and RunBundle remain valid",
+    "runtime_features": "composition_availability_only; missing slugs return capability_unavailable and never block ordinary V4/provider send, tools, interactions, or base RunBundle"
+  },
+  "electron_persistence": {
+    "continuity": "existing ProviderCallReceipt extension -> RunBundle -> bundle_json -> assistant meta.bundle -> TraceChain",
+    "new_ipc": false,
+    "new_keyed_store": false,
+    "new_table": false
+  },
+  "fresh_hint": {
+    "admission": "fresh-only sidecar authoritative recomputation must exactly match one-item skills/expanded_invocation/messages positive-safe-integer hint before atomic private mint",
+    "canonical_utf8_max_bytes": 1024,
+    "failure": "invalid=fresh_hint_invalid; authoritative mismatch=fresh_hint_mismatch; never persisted; ordinary V4 send continues",
+    "field": "context_composition_hint",
+    "schema": "pupu.context_composition_hint.v1"
+  },
+  "groups": [
+    "instructions",
+    "skills",
+    "tools",
+    "conversation",
+    "memory_task_state",
+    "files_media",
+    "agent_coordination",
+    "output_contract"
+  ],
+  "privacy": {
+    "digests": "call-local envelope/route integrity evidence only; never displayed or indexed across users",
+    "persisted_content": "only frozen category/subtype/surface IDs, bounded counts/tokens/enums, and call-local integrity digests; raw or arbitrary content-bearing fields fail closed"
+  },
+  "quality": {
+    "composition": [
+      "reconciled_estimate",
+      "estimated",
+      "partial"
+    ],
+    "overestimate": "preserve category/subtype estimates; estimated or partial; residual null; percentage null; never normalize to 100%",
+    "provider_total": [
+      "reported",
+      "unavailable"
+    ],
+    "reconciled": "only reconciled_estimate has non-null residual and attributed+residual equality to receipt provider input total",
+    "unreconciled": "estimated or partial requires residual null and percentage null; provider-total unavailable or attributed overestimate also forces percentage null"
+  },
+  "resume_hint": {
+    "durable_field": "_context_composition_hint_v1",
+    "failure": "malformed=resume_hint_invalid; unequal=resume_hint_mismatch; present-with-no-baseline=resume_hint_no_baseline; no mint/overwrite; ordinary V4 resume continues",
+    "rehydration": "byte-identical through stable durable option allowlist, graph-step, and resume; arbitrary component_state is not authority",
+    "rule": "absence uses durable value; exact canonical declaration equality is no-write/no-version-advance"
+  },
+  "rollout_evidence": {
+    "digest_format": "sha256:<64 lowercase hex>",
+    "exact_keys": [
+      "schema",
+      "pupu_candidate_digest",
+      "wheel_sha256",
+      "imported_manifest_digest",
+      "producer_contract_digest",
+      "consumer_contract_digest",
+      "package_smoke_wheel_sha256",
+      "matrix_results"
+    ],
+    "invariants": [
+      "wheel_sha256 is the one immutable wheel used by test matrix and actual import",
+      "package_smoke_wheel_sha256 == wheel_sha256",
+      "producer_contract_digest and consumer_contract_digest equal the approved boundary_revision_set pair",
+      "matrix_results contains every required cell exactly once in canonical id order",
+      "active rollout requires every matrix status PASS; FAIL, NOT_RUN, PENDING, missing, duplicate, unknown, or digest mismatch blocks rollout"
+    ],
+    "matrix_results": {
+      "exact_item_keys": [
+        "id",
+        "status"
+      ],
+      "id_order": [
+        "producer_strict_consumer",
+        "negative_schema",
+        "physical_call_identity",
+        "fresh_resume",
+        "run_tree_union",
+        "persistence_restart",
+        "package_smoke",
+        "runtime_manifest_availability"
+      ],
+      "items": "exactly 8; unique; canonical id order",
+      "status": [
+        "PASS",
+        "FAIL",
+        "NOT_RUN",
+        "PENDING"
+      ]
+    },
+    "schema": "pupu.context_composition_rollout_evidence.v1"
+  },
+  "run_bundle_carriage": {
+    "authoritative_fields": [
+      "provider_calls[*].extensions",
+      "all_call_ids",
+      "provider_call_set_union"
+    ],
+    "parallel_aggregate": "forbidden",
+    "top_level_context_composition_ref": "forbidden"
+  },
+  "scopes": [
+    "model_call",
+    "run_tree"
+  ],
+  "selector_invariants": {
+    "model_call": "one exact physical provider_call_id and its exact authoritative route extension",
+    "no_agent_run": true,
+    "percentage": "non-null only for reconciled_estimate with reported provider total and valid equality",
+    "run_tree": "deterministic set union of existing receipt set and all_call_ids; root/graph/subagent; each physical primary/retry/fallback receipt counted once",
+    "unmatched_route": "composition unavailable or partial; never guess another route",
+    "unknown_or_corrupt": "composition unavailable; never synthesize from legacy totals"
+  },
+  "surface_order": [
+    "messages",
+    "tool_schema",
+    "response_schema",
+    "provider_state"
+  ],
+  "schema": "pupu.context_composition.consumer.v1",
+  "taxonomy": {
+    "agent_coordination": [
+      "inherited_context",
+      "handoff_summary",
+      "child_instructions",
+      "subagent_report_roster"
+    ],
+    "conversation": [
+      "current_input",
+      "user_history",
+      "assistant_history",
+      "summary"
+    ],
+    "files_media": [
+      "file_excerpt",
+      "artifact",
+      "image_media",
+      "web_pdf"
+    ],
+    "instructions": [
+      "core_system",
+      "agent_instructions",
+      "user_rules",
+      "runtime_safety",
+      "recipe_workflow"
+    ],
+    "memory": [
+      "short_term_recall",
+      "long_term_recall",
+      "pending_memory"
+    ],
+    "order": [
+      "instructions",
+      "skills",
+      "tool_definitions",
+      "conversation",
+      "tool_activity",
+      "memory",
+      "task_state",
+      "files_media",
+      "agent_coordination",
+      "output_contract"
+    ],
+    "output_contract": [
+      "response_schema",
+      "format_instruction"
+    ],
+    "skills": [
+      "catalog_metadata",
+      "loaded_body",
+      "expanded_invocation"
+    ],
+    "task_state": [
+      "pinned_state",
+      "pending_interaction",
+      "plan_state"
+    ],
+    "tool_activity": [
+      "arguments",
+      "results",
+      "errors_observations"
+    ],
+    "tool_definitions": [
+      "provider_schema",
+      "prompt_guidance",
+      "dynamic_tool"
+    ]
+  },
+  "version": 1
+}

@@ -123,7 +123,7 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             ["text-embedding-3-large", "text-embedding-3-small"],
         )
 
-    def test_chat_stream_allows_attachments_without_message(self) -> None:
+    def test_legacy_chat_stream_rejects_new_writes_before_provider_send(self) -> None:
         with mock.patch.object(
             miso_routes,
             "stream_chat",
@@ -155,26 +155,18 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                     },
                 },
             )
-            payload_text = response.get_data(as_text=True)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("event: token", payload_text)
-        stream_chat_mock.assert_called_once()
-        self.assertEqual(stream_chat_mock.call_args.kwargs["message"], "")
+        self.assertEqual(response.status_code, 426)
         self.assertEqual(
-            stream_chat_mock.call_args.kwargs["attachments"],
-            [
-                {
-                    "type": "pdf",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "application/pdf",
-                        "data": "abc",
-                        "filename": "demo.pdf",
-                    },
-                }
-            ],
+            response.get_json()["error"],
+            {
+                "code": "run_bundle_protocol_required",
+                "message": (
+                    "Legacy chat writes are disabled; use /chat/stream/v2 "
+                    "or /chat/stream/v4"
+                ),
+            },
         )
+        stream_chat_mock.assert_not_called()
 
     def test_chat_stream_requires_message_or_attachments(self) -> None:
         response = self.client.post(
@@ -223,6 +215,7 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             approved=True,
             reason="looks good",
             modified_arguments=None,
+            durable_receipt=None,
         )
 
     def test_chat_tool_confirmation_returns_not_found_when_missing(self) -> None:

@@ -879,6 +879,53 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
   });
 
+  test("restores canonical selected_values from a cold confirmation projection", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-cold-single",
+          confirmation_id: "confirm-cold-single",
+          requires_confirmation: true,
+          tool_name: "ask_user_question",
+          interact_type: "single",
+          interact_config: {
+            question: "Which stack do you want to use?",
+            options: [
+              { label: "Web Canvas", value: "web_canvas" },
+              { label: "Desktop", value: "desktop" },
+            ],
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_confirmed",
+        payload: {
+          call_id: "call-cold-single",
+          confirmation_id: "confirm-cold-single",
+          tool_name: "ask_user_question",
+          user_response: {
+            selected_values: ["web_canvas"],
+            other_text: null,
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      onToolConfirmationDecision: jest.fn(),
+    });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.getByText("Web Canvas")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+  });
+
   test("restores persisted selector answers from tool results", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),

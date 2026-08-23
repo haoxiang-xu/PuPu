@@ -156,6 +156,7 @@ npm run build:electron:linux       # Linux
 | Document | Covers |
 |----------|--------|
 | **[Architecture](architecture/)** | |
+| [PuPu / Unchain Protocol Atlas](architecture/pupu-unchain-protocols.md) | Current registry for PuPu-internal, PuPu↔Unchain, and Unchain-internal contracts, versions, compatibility paths, and known drift |
 | [Request Flow & Streaming](architecture/request-flow-and-streaming.md) | End-to-end chat streaming, V2/V3 stream paths |
 | [Runtime Events V3](architecture/runtime-events-v3.md) | Typed runtime event store, ActivityTree reducer, TraceChain adapter |
 | [IPC Boundary](architecture/ipc-boundary.md) | Electron IPC patterns, bridge layers, channel registry |
@@ -163,6 +164,7 @@ npm run build:electron:linux       # Linux
 | [Memory System](architecture/memory-system.md) | Embedding resolution, Qdrant integration, session vs long-term memory |
 | [Storage Model](architecture/storage-model.md) | Chat persistence, and App Settings authoritative in `settings.db` (SQLite) with a `localStorage` fallback |
 | [App Settings → SQLite Migration](architecture/settings-sqlite-migration-plan.md) | Settings SQLite architecture, migration state machine, secret storage boundary |
+| [Outbound TLS Trust](architecture/outbound-tls-trust.md) | Trust resolution order (a compatibility contract), `PUPU_TLS_TRUST_SOURCE`, the AST guard, and why the fix does not cover Node |
 | **[Data Models](data-models/)** | |
 | [Chat Session & Messages](data-models/chat-session-and-messages.md) | Session shape, message shape, attachments, trace frames, subagent meta |
 | [Model & Toolkit Catalog](data-models/model-and-toolkit-catalog.md) | Model catalog, toolkit catalog V2, provider structure |

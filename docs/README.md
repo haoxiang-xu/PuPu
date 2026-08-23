@@ -12,6 +12,7 @@ Project documentation lives in this folder. Start with the **Developer Guide** f
 
 ### Architecture
 
+- [PuPu / Unchain Protocol Atlas](./architecture/pupu-unchain-protocols.md) — Current registry for PuPu-internal, PuPu↔Unchain, and Unchain-internal contracts
 - [Request Flow & Streaming](./architecture/request-flow-and-streaming.md) — End-to-end chat streaming, V2/V3 stream paths
 - [Runtime Events V3](./architecture/runtime-events-v3.md) — Typed runtime event store, ActivityTree reducer, TraceChain adapter
 - [IPC Boundary](./architecture/ipc-boundary.md) — Electron IPC patterns, bridge layers, channel registry

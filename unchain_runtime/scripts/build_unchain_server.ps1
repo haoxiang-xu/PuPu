@@ -128,21 +128,20 @@ for root in roots:
 # Resolve root directory (two levels up from this script)
 $ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
-# Unchain source path
-$UNCHAIN_SOURCE_PATH = if ($env:UNCHAIN_SOURCE_PATH) { $env:UNCHAIN_SOURCE_PATH } else { Join-Path $ROOT_DIR "..\unchain" }
-$UNCHAIN_SOURCE_PATH = [System.IO.Path]::GetFullPath($UNCHAIN_SOURCE_PATH)
-
-if (-not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\__init__.py"))) {
-  Write-Error "Invalid unchain source path: $UNCHAIN_SOURCE_PATH`nExpected file: src\unchain\__init__.py"
+# Immutable Unchain artifact produced once by deterministic release QA.
+$UNCHAIN_ARTIFACT_PATH = if ($env:UNCHAIN_ARTIFACT_PATH) { [System.IO.Path]::GetFullPath($env:UNCHAIN_ARTIFACT_PATH) } else { "" }
+$UNCHAIN_ARTIFACT_EVIDENCE_PATH = if ($env:UNCHAIN_ARTIFACT_EVIDENCE_PATH) { [System.IO.Path]::GetFullPath($env:UNCHAIN_ARTIFACT_EVIDENCE_PATH) } else { "" }
+if (-not $UNCHAIN_ARTIFACT_PATH -or -not (Test-Path $UNCHAIN_ARTIFACT_PATH) -or -not $UNCHAIN_ARTIFACT_PATH.EndsWith(".whl")) {
+  Write-Error "UNCHAIN_ARTIFACT_PATH must identify the immutable Unchain wheel"
   exit 1
 }
-
-$CAPABILITY_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources\model_capabilities.json"
-$DEFAULT_PAYLOADS_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources\model_default_payloads.json"
+if (-not $UNCHAIN_ARTIFACT_EVIDENCE_PATH -or -not (Test-Path $UNCHAIN_ARTIFACT_EVIDENCE_PATH)) {
+  Write-Error "UNCHAIN_ARTIFACT_EVIDENCE_PATH must identify artifact evidence JSON"
+  exit 1
+}
 $MCP_REGISTRY_JSON = Join-Path $ROOT_DIR "src\SERVICEs\mcp_toolkit_registry.json"
-
-if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON) -or -not (Test-Path $MCP_REGISTRY_JSON)) {
-  Write-Error "Missing required unchain model metadata files in source path: $UNCHAIN_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON`n  $MCP_REGISTRY_JSON"
+if (-not (Test-Path $MCP_REGISTRY_JSON)) {
+  Write-Error "Missing MCP registry: $MCP_REGISTRY_JSON"
   exit 1
 }
 
@@ -173,10 +172,19 @@ if ($env:UNCHAIN_BUILD_SKIP_INSTALL -ne "1") {
   Write-Host "Installing dependencies into build venv ..."
   & $VENV_PIP install `
     -r (Join-Path $ROOT_DIR "unchain_runtime\server\requirements.txt") `
-    -e $UNCHAIN_SOURCE_PATH `
     "pyinstaller>=6.10"
   if ($LASTEXITCODE -ne 0) { Write-Error "pip install failed"; exit 1 }
+  & $VENV_PIP install --force-reinstall --no-deps $UNCHAIN_ARTIFACT_PATH
+  if ($LASTEXITCODE -ne 0) { Write-Error "Unchain wheel install failed"; exit 1 }
 }
+
+$env:PYTHONPATH = ""
+& node (Join-Path $ROOT_DIR "scripts\release-qa\verify-unchain-artifact.mjs") `
+  --artifact $UNCHAIN_ARTIFACT_PATH `
+  --evidence $UNCHAIN_ARTIFACT_EVIDENCE_PATH `
+  --python $VENV_PY `
+  --installed true
+if ($LASTEXITCODE -ne 0) { Write-Error "Unchain artifact verification failed"; exit 1 }
 
 # Validate Python version
 $pyVersionCheck = @"
@@ -235,14 +243,8 @@ if (Test-Path $exePath) { Remove-Item $exePath -Force }
 
 $ENTRYPOINT = Join-Path $ROOT_DIR "unchain_runtime\server\main.py"
 
-# Set environment for PyInstaller
-$env:UNCHAIN_SOURCE_PATH = $UNCHAIN_SOURCE_PATH
-$existingPythonPath = $env:PYTHONPATH
-if ($existingPythonPath) {
-  $env:PYTHONPATH = "$UNCHAIN_SOURCE_PATH\src;$existingPythonPath"
-} else {
-  $env:PYTHONPATH = "$UNCHAIN_SOURCE_PATH\src"
-}
+# PyInstaller must resolve Unchain only from the installed immutable wheel.
+$env:PYTHONPATH = ""
 
 # Build with PyInstaller
 $runtimeBinaryArgs = Get-PythonRuntimeBinaryArgs -PythonPath $VENV_PY
@@ -259,8 +261,6 @@ $pyinstallerArgs = @(
   "--collect-submodules", "openai",
   "--collect-submodules", "anthropic",
   "--collect-data", "unchain",
-  "--add-data", "${CAPABILITY_JSON};unchain/runtime/resources",
-  "--add-data", "${DEFAULT_PAYLOADS_JSON};unchain/runtime/resources",
   "--add-data", "${MCP_REGISTRY_JSON};resources",
   "--hidden-import", "unchain",
   "--hidden-import", "unchain.runtime",
@@ -277,8 +277,16 @@ $pyinstallerArgs = @(
   "--hidden-import", "unchain.memory",
   "--hidden-import", "unchain.memory.manager",
   "--hidden-import", "unchain.memory.qdrant",
+  "--hidden-import", "vault_sink_worker",
   "--hidden-import", "openai",
   "--hidden-import", "anthropic",
+  # Outbound TLS trust (server/net_tls.py). The frozen binary cannot rely on
+  # OpenSSL's compiled-in cert path, so both trust sources are collected
+  # explicitly. truststore loads its platform backend dynamically.
+  "--collect-submodules", "truststore",
+  "--hidden-import", "truststore",
+  "--collect-data", "certifi",
+  "--hidden-import", "certifi",
   "--collect-submodules", "qdrant_client",
   "--hidden-import", "qdrant_client",
   "--hidden-import", "qdrant_client.http",

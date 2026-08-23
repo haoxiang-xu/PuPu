@@ -72,6 +72,40 @@ test("rejects npm ranges, npm wildcards, Python wildcards, and Python URLs", () 
   }
 });
 
+test("fails when an executable MCP recipe omits the frozen dependency cutoff", () => {
+  const r = runMutatedRegistry((registry) => {
+    const entry = registry.entries.find((item) => item.id === "memory.memory");
+    entry.mcp.args = entry.mcp.args.filter(
+      (arg) => !arg.startsWith("--before="),
+    );
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /stdio recipe must use dependency cutoff/);
+});
+
+test("fails when a packaged stdio entry claims the user must install a runtime", () => {
+  const r = runMutatedRegistry((registry) => {
+    registry.entries.find(
+      (entry) => entry.id === "memory.memory",
+    ).prerequisites = ["Node.js >= 18"];
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /must not require a user-installed runtime/);
+});
+
+test("fails when an upstream-unbounded MCP recipe drops its verified SDK pin", () => {
+  const r = runMutatedRegistry((registry) => {
+    const entry = registry.entries.find(
+      (item) => item.id === "workspace.fetch",
+    );
+    entry.mcp.args = entry.mcp.args.filter(
+      (arg) => arg !== "--with" && arg !== "mcp==1.28.0",
+    );
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /pin the verified transitive SDK/);
+});
+
 test("fails when a needs-review entry is installable", () => {
   const r = runMutatedRegistry((registry) => {
     registry.entries.find((entry) => entry.id === "productivity.discord").installable = true;

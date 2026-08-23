@@ -57,6 +57,12 @@ const allowedOAuthReleaseStatuses = [
   "app_required",
   "disabled",
 ];
+const requiredMcpSdkPins = new Map([
+  // These upstream releases declared only a lower bound and broke when mcp
+  // 2.0.0 landed. Keep the last verified 1.x SDK explicit in their recipes.
+  ["workspace.fetch", "mcp==1.28.0"],
+  ["workspace.sqlite", "mcp==1.28.0"],
+]);
 
 const stdioPackageSpec = (entry) => {
   const command = entry?.mcp?.command;
@@ -148,9 +154,34 @@ for (const entry of registry.entries || []) {
   }
 
   if (["npx", "uvx"].includes(entry?.mcp?.command)) {
+    const hostRuntimePrerequisite = (entry.prerequisites || []).find((item) =>
+      /\b(?:node(?:\.js)?|npm|npx|uv|uvx|python)\b/i.test(String(item)),
+    );
+    if (hostRuntimePrerequisite) {
+      fail(
+        `${tag}: packaged stdio entries must not require a user-installed runtime ` +
+          `(got "${hostRuntimePrerequisite}")`,
+      );
+    }
     const spec = stdioPackageSpec(entry);
     if (!isPinnedPackageSpec(spec, entry.mcp.command)) {
       fail(`${tag}: stdio package must use an exact pinned version (got "${spec}")`);
+    }
+    const cutoffFlag =
+      entry.mcp.command === "npx"
+        ? `--before=${registry.dependencyCutoff}`
+        : `--exclude-newer=${registry.dependencyCutoff}`;
+    if (!(entry.mcp.args || []).includes(cutoffFlag)) {
+      fail(`${tag}: stdio recipe must use dependency cutoff ${cutoffFlag}`);
+    }
+    const requiredMcpSdkPin = requiredMcpSdkPins.get(entry.id);
+    if (requiredMcpSdkPin) {
+      const pinIndex = (entry.mcp.args || []).indexOf(requiredMcpSdkPin);
+      if (pinIndex < 1 || entry.mcp.args[pinIndex - 1] !== "--with") {
+        fail(
+          `${tag}: stdio recipe must pin the verified transitive SDK with --with ${requiredMcpSdkPin}`,
+        );
+      }
     }
   }
 

@@ -91,29 +91,17 @@ const OllamaSection = ({ isDark }) => {
         fontWeight: 500,
         padding: "1px 8px",
         borderRadius: 999,
+        /* A pill in its resting state is neutral chrome: its fill is an
+           overlay of the label colour, so it follows whatever Label is set
+           to instead of sitting on a fixed grey. The amber variant is the
+           warning role, so it rides the warning token's tint family. */
         border: `1px solid ${
-          amber
-            ? isDark
-              ? "rgba(255,160,0,0.25)"
-              : "rgba(200,120,0,0.18)"
-            : isDark
-              ? "rgba(255,255,255,0.07)"
-              : "rgba(0,0,0,0.07)"
+          amber ? "var(--pupu-warning-tint-border)" : "var(--pupu-border)"
         }`,
         backgroundColor: amber
-          ? isDark
-            ? "rgba(255,160,0,0.12)"
-            : "rgba(200,120,0,0.08)"
-          : isDark
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(0,0,0,0.05)",
-        color: amber
-          ? isDark
-            ? "rgba(255,180,60,0.85)"
-            : "rgba(160,90,0,0.85)"
-          : isDark
-            ? "rgba(255,255,255,0.35)"
-            : "rgba(0,0,0,0.38)",
+          ? "var(--pupu-warning-tint)"
+          : "var(--pupu-overlay-hover)",
+        color: amber ? "var(--pupu-warning)" : "var(--pupu-text-faint)",
         lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
@@ -207,7 +195,7 @@ const OllamaSection = ({ isDark }) => {
               padding: "6px 10px",
               borderRadius: 6,
               backgroundColor: isDark ? "rgba(0,0,0,0.30)" : "rgba(0,0,0,0.06)",
-              color: isDark ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.55)",
+              color: "var(--pupu-text-secondary)",
               userSelect: "text",
             }}
           >
@@ -222,12 +210,10 @@ const OllamaSection = ({ isDark }) => {
             margin: "4px 0 12px",
             padding: "12px 14px",
             borderRadius: 8,
-            backgroundColor: isDark
-              ? "rgba(255,255,255,0.04)"
-              : "rgba(0,0,0,0.03)",
-            border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+            backgroundColor: "var(--pupu-overlay-ghost)",
+            border: `1px solid ${"var(--pupu-border)"}`,
             fontSize: 12,
-            color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+            color: "var(--pupu-text-faint)",
             fontFamily: theme?.font?.fontFamily || "inherit",
           }}
         >
@@ -266,7 +252,7 @@ const OllamaSection = ({ isDark }) => {
               padding: "6px 10px",
               borderRadius: 6,
               backgroundColor: isDark ? "rgba(0,0,0,0.30)" : "rgba(0,0,0,0.06)",
-              color: isDark ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.55)",
+              color: "var(--pupu-text-secondary)",
               userSelect: "text",
             }}
           >
@@ -283,7 +269,7 @@ const OllamaSection = ({ isDark }) => {
                 textAlign: "center",
                 padding: "32px 0",
                 fontSize: 13,
-                color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+                color: "var(--pupu-text-disabled)",
                 fontFamily: theme?.font?.fontFamily || "inherit",
               }}
             >
@@ -389,7 +375,7 @@ const RuntimeFileRow = ({
           gap: 10,
           padding: "9px 0",
           borderBottom: `1px solid ${
-            isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+            "var(--pupu-overlay-ghost)"
           }`,
         }}
       >
@@ -398,7 +384,7 @@ const RuntimeFileRow = ({
           {iconSrc && (
             <Icon
               src={iconSrc}
-              color={isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.60)"}
+              color={"var(--pupu-text-secondary)"}
             />
           )}
         </div>
@@ -410,7 +396,7 @@ const RuntimeFileRow = ({
             minWidth: 0,
             fontSize: 12,
             fontFamily: "'SF Mono', 'Fira Code', monospace",
-            color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+            color: "var(--pupu-text-secondary)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -435,7 +421,7 @@ const RuntimeFileRow = ({
               fontSize: 11,
               width: 60,
               textAlign: "right",
-              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+              color: "var(--pupu-text-faint)",
               fontVariantNumeric: "tabular-nums",
             }}
           >
@@ -582,29 +568,17 @@ const RuntimeSection = ({ isDark }) => {
         fontWeight: 500,
         padding: "1px 8px",
         borderRadius: 999,
+        /* A pill in its resting state is neutral chrome: its fill is an
+           overlay of the label colour, so it follows whatever Label is set
+           to instead of sitting on a fixed grey. The amber variant is the
+           warning role, so it rides the warning token's tint family. */
         border: `1px solid ${
-          amber
-            ? isDark
-              ? "rgba(255,160,0,0.25)"
-              : "rgba(200,120,0,0.18)"
-            : isDark
-              ? "rgba(255,255,255,0.07)"
-              : "rgba(0,0,0,0.07)"
+          amber ? "var(--pupu-warning-tint-border)" : "var(--pupu-border)"
         }`,
         backgroundColor: amber
-          ? isDark
-            ? "rgba(255,160,0,0.12)"
-            : "rgba(200,120,0,0.08)"
-          : isDark
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(0,0,0,0.05)",
-        color: amber
-          ? isDark
-            ? "rgba(255,180,60,0.85)"
-            : "rgba(160,90,0,0.85)"
-          : isDark
-            ? "rgba(255,255,255,0.35)"
-            : "rgba(0,0,0,0.38)",
+          ? "var(--pupu-warning-tint)"
+          : "var(--pupu-overlay-hover)",
+        color: amber ? "var(--pupu-warning)" : "var(--pupu-text-faint)",
         lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
@@ -715,7 +689,7 @@ const RuntimeSection = ({ isDark }) => {
             textAlign: "center",
             padding: "32px 0",
             fontSize: 13,
-            color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+            color: "var(--pupu-text-disabled)",
             fontFamily: theme?.font?.fontFamily || "inherit",
           }}
         >
@@ -869,29 +843,17 @@ const CharactersSection = ({ isDark }) => {
         fontWeight: 500,
         padding: "1px 8px",
         borderRadius: 999,
+        /* A pill in its resting state is neutral chrome: its fill is an
+           overlay of the label colour, so it follows whatever Label is set
+           to instead of sitting on a fixed grey. The amber variant is the
+           warning role, so it rides the warning token's tint family. */
         border: `1px solid ${
-          amber
-            ? isDark
-              ? "rgba(255,160,0,0.25)"
-              : "rgba(200,120,0,0.18)"
-            : isDark
-              ? "rgba(255,255,255,0.07)"
-              : "rgba(0,0,0,0.07)"
+          amber ? "var(--pupu-warning-tint-border)" : "var(--pupu-border)"
         }`,
         backgroundColor: amber
-          ? isDark
-            ? "rgba(255,160,0,0.12)"
-            : "rgba(200,120,0,0.08)"
-          : isDark
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(0,0,0,0.05)",
-        color: amber
-          ? isDark
-            ? "rgba(255,180,60,0.85)"
-            : "rgba(160,90,0,0.85)"
-          : isDark
-            ? "rgba(255,255,255,0.35)"
-            : "rgba(0,0,0,0.38)",
+          ? "var(--pupu-warning-tint)"
+          : "var(--pupu-overlay-hover)",
+        color: amber ? "var(--pupu-warning)" : "var(--pupu-text-faint)",
         lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
@@ -969,7 +931,7 @@ const CharactersSection = ({ isDark }) => {
         style={{
           paddingBottom: 10,
           fontSize: 12,
-          color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.42)",
+          color: "var(--pupu-text-faint)",
           fontFamily: theme?.font?.fontFamily || "inherit",
         }}
       >
@@ -1015,7 +977,7 @@ const CharactersSection = ({ isDark }) => {
             textAlign: "center",
             padding: "32px 0",
             fontSize: 13,
-            color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+            color: "var(--pupu-text-disabled)",
             fontFamily: theme?.font?.fontFamily || "inherit",
           }}
         >
@@ -1087,9 +1049,9 @@ const SettingsDatabaseSection = ({ isDark }) => {
         fontWeight: 500,
         padding: "1px 8px",
         borderRadius: 999,
-        border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-        backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)",
-        color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
+        border: `1px solid ${"var(--pupu-border)"}`,
+        backgroundColor: "var(--pupu-overlay-hover)",
+        color: "var(--pupu-text-faint)",
         lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
@@ -1150,7 +1112,7 @@ const SettingsDatabaseSection = ({ isDark }) => {
         style={{
           paddingBottom: 10,
           fontSize: 12,
-          color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.42)",
+          color: "var(--pupu-text-faint)",
           fontFamily: theme?.font?.fontFamily || "inherit",
         }}
       >
@@ -1168,7 +1130,7 @@ const SettingsDatabaseSection = ({ isDark }) => {
                 gap: 10,
                 padding: "9px 0",
                 borderBottom: `1px solid ${
-                  isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+                  "var(--pupu-overlay-ghost)"
                 }`,
               }}
             >
@@ -1178,7 +1140,7 @@ const SettingsDatabaseSection = ({ isDark }) => {
                   minWidth: 0,
                   fontSize: 12,
                   fontFamily: "'SF Mono', 'Fira Code', monospace",
-                  color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+                  color: "var(--pupu-text-secondary)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -1204,9 +1166,7 @@ const SettingsDatabaseSection = ({ isDark }) => {
                     fontSize: 11,
                     width: 60,
                     textAlign: "right",
-                    color: isDark
-                      ? "rgba(255,255,255,0.35)"
-                      : "rgba(0,0,0,0.35)",
+                    color: "var(--pupu-text-faint)",
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
@@ -1381,13 +1341,9 @@ export const LocalStorageSettings = () => {
                     fontWeight: 500,
                     padding: "1px 8px",
                     borderRadius: 999,
-                    border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.07)"
-                      : "rgba(0,0,0,0.05)",
-                    color: isDark
-                      ? "rgba(255,255,255,0.35)"
-                      : "rgba(0,0,0,0.38)",
+                    border: `1px solid ${"var(--pupu-border)"}`,
+                    backgroundColor: "var(--pupu-overlay-hover)",
+                    color: "var(--pupu-text-faint)",
                     lineHeight: 1.5,
                     fontVariantNumeric: "tabular-nums",
                     whiteSpace: "nowrap",
@@ -1402,13 +1358,9 @@ export const LocalStorageSettings = () => {
                     fontWeight: 500,
                     padding: "1px 8px",
                     borderRadius: 999,
-                    border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.07)"
-                      : "rgba(0,0,0,0.05)",
-                    color: isDark
-                      ? "rgba(255,255,255,0.35)"
-                      : "rgba(0,0,0,0.38)",
+                    border: `1px solid ${"var(--pupu-border)"}`,
+                    backgroundColor: "var(--pupu-overlay-hover)",
+                    color: "var(--pupu-text-faint)",
                     lineHeight: 1.5,
                     fontVariantNumeric: "tabular-nums",
                     whiteSpace: "nowrap",
@@ -1426,13 +1378,9 @@ export const LocalStorageSettings = () => {
                   fontWeight: 500,
                   padding: "1px 8px",
                   borderRadius: 999,
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.07)"
-                    : "rgba(0,0,0,0.05)",
-                  color: isDark
-                    ? "rgba(255,255,255,0.35)"
-                    : "rgba(0,0,0,0.38)",
+                  border: `1px solid ${"var(--pupu-border)"}`,
+                  backgroundColor: "var(--pupu-overlay-hover)",
+                  color: "var(--pupu-text-faint)",
                   lineHeight: 1.5,
                   fontVariantNumeric: "tabular-nums",
                   whiteSpace: "nowrap",
@@ -1491,7 +1439,7 @@ export const LocalStorageSettings = () => {
               textAlign: "center",
               padding: "32px 0",
               fontSize: 13,
-              color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+              color: "var(--pupu-text-disabled)",
               fontFamily: theme?.font?.fontFamily || "inherit",
             }}
           >
@@ -1503,7 +1451,7 @@ export const LocalStorageSettings = () => {
               textAlign: "center",
               padding: "32px 0",
               fontSize: 13,
-              color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+              color: "var(--pupu-text-disabled)",
               fontFamily: theme?.font?.fontFamily || "inherit",
             }}
           >

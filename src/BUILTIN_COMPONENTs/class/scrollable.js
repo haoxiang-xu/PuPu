@@ -1,5 +1,6 @@
 import { useEffect, useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { Z } from "../layer/z_layers";
 
 /**
  * Pure-overlay custom scrollbar — sibling-overlay approach.
@@ -150,7 +151,10 @@ const Scrollable = () => {
         height: "0",
         overflow: "visible",
         pointerEvents: "none",
-        zIndex: "9999",
+        /* 就地 append 到 parent 的命令式 overlay(不是 portal),必须盖过该
+           容器内的一切内容,但不参与跨层竞争 —— 低于 APP_CHROME。迁移前的
+           9999 与 modal 同值纯属巧合。 */
+        zIndex: String(Z.SCROLL_OVERLAY),
       });
       parent.appendChild(overlay);
 

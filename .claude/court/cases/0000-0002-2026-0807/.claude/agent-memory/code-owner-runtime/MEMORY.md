@@ -1,0 +1,2 @@
+- [Memory V2 两条平面与 Curator 门](memory-v2-two-planes-curator-gate.md) — Curator 轴只在 active bridge 缺席时产出；active 有 typed 回执但零出口 —— 负向 grep 搜不到「返回值型」产出者
+- [memory_v2 trace 白名单丢键](memory-v2-trace-allowlist-drop.md) — 后端 7 个诊断键 6 个被 presenter TOP_LEVEL_KEYS 静默丢弃；两侧键表各写各的、无测试比对

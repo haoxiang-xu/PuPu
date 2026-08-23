@@ -45,7 +45,8 @@ describe("PresetPicker", () => {
   test("renders a card with the Official badge and description", () => {
     renderPicker();
     expect(screen.getByText("SAP Hyperspace (local proxy)")).toBeTruthy();
-    expect(screen.getByText("Official")).toBeTruthy();
+    // Multiple preset cards now carry the Official badge; assert at least one.
+    expect(screen.getAllByText("Official").length).toBeGreaterThan(0);
   });
 
   test("selecting a card hands the full envelope up (same pipeline as import)", () => {

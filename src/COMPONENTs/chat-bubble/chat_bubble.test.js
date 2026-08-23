@@ -76,6 +76,23 @@ const toolConfirmationUiStateById = {
 };
 
 describe("chat bubble continuation prompts", () => {
+  test("renders resend preparation independently from a backend response", () => {
+    renderWithConfig(
+      <ChatBubble
+        message={{
+          id: "user-resend-1",
+          role: "user",
+          content: "Send this again",
+          createdAt: 1710000000000,
+        }}
+        onResendMessage={jest.fn()}
+        resendPresentation={{ phase: "Preparing resend…" }}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Preparing resend…");
+  });
+
   test("shows tool confirmation controls for plain assistant streams without trace activity", () => {
     const onToolConfirmationDecision = jest.fn();
 

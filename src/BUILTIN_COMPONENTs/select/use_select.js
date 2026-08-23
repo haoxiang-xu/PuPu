@@ -261,6 +261,7 @@ const useSelect = ({
   open,
   on_open_change = () => {},
   on_group_toggle = () => {},
+  keep_open_on_select,
 }) => {
   /* ── controlled / uncontrolled value ── */
   const is_value_controlled = value !== undefined;
@@ -374,10 +375,26 @@ const useSelect = ({
         /* keep dropdown open in multi mode */
       } else {
         update_value(opt.value, opt);
-        emit_open_change(false);
+        /* Single-select normally closes on pick. A caller can keep the panel
+           open when the choice reveals further controls in the same panel
+           (the model palette's effort row) — closing there would hide the
+           thing the user still has to set. Boolean or per-option predicate;
+           absent means the historical close-on-select. */
+        const shouldStayOpen =
+          typeof keep_open_on_select === "function"
+            ? keep_open_on_select(opt) === true
+            : keep_open_on_select === true;
+        if (!shouldStayOpen) emit_open_change(false);
       }
     },
-    [disabled, emit_open_change, update_value, multi, selectedValue],
+    [
+      disabled,
+      emit_open_change,
+      update_value,
+      multi,
+      selectedValue,
+      keep_open_on_select,
+    ],
   );
 
   /* ── keyboard navigation ── */

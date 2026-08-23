@@ -323,3 +323,47 @@ describe("buildInterjectionRecord", () => {
     expect(record.ts).toBe(42);
   });
 });
+
+describe("createQueuedTurnBuffer — secret-gate disposition", () => {
+  test("push carries only the plain_user_approved disposition", () => {
+    const buffer = createQueuedTurnBuffer();
+    buffer.push("clean one");
+    buffer.push("approved one", "plain_user_approved");
+    buffer.push("forged one", "quarantined");
+    const items = buffer.snapshot();
+    expect(items[0].disposition).toBeUndefined();
+    expect(items[1].disposition).toBe("plain_user_approved");
+    expect(items[2].disposition).toBeUndefined();
+  });
+
+  test("peekMerged reports the approval when any queued item carries it", () => {
+    const buffer = createQueuedTurnBuffer();
+    buffer.push("clean one");
+    expect(buffer.peekMerged().disposition).toBe("");
+    buffer.push("approved one", "plain_user_approved");
+    const merged = buffer.peekMerged();
+    expect(merged.disposition).toBe("plain_user_approved");
+    expect(merged.text).toContain("clean one");
+    expect(merged.text).toContain("approved one");
+  });
+
+  test("the approval survives a hydrate round-trip (durable outbox reload)", () => {
+    const buffer = createQueuedTurnBuffer();
+    buffer.push("approved one", "plain_user_approved");
+    const persisted = buffer.snapshot();
+
+    const restored = createQueuedTurnBuffer(persisted);
+    expect(restored.snapshot()[0].disposition).toBe("plain_user_approved");
+    expect(restored.peekMerged().disposition).toBe("plain_user_approved");
+  });
+
+  test("relayed items do not contribute their approval to the next merge", () => {
+    const buffer = createQueuedTurnBuffer();
+    const id = buffer.push("approved one", "plain_user_approved");
+    buffer.push("clean one");
+    buffer.markRelayed([id]);
+    // Only the still-queued (clean) item is merged now, so no approval leaks
+    // into a relay that no longer contains the approved text.
+    expect(buffer.peekMerged().disposition).toBe("");
+  });
+});

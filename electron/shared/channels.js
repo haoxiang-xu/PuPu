@@ -2,6 +2,30 @@ const CHANNELS = Object.freeze({
   APP: Object.freeze({
     GET_VERSION: "app:get-version",
   }),
+  BOOT: Object.freeze({
+    // Boot readiness gate. The renderer's full-screen boot overlay must not let
+    // the user into the app until the local backend it depends on is actually
+    // up — the sidecar (unchain/Flask) AND the MCP environment. This namespace
+    // is deliberately SEPARATE from UNCHAIN: the unchain bridge is already an
+    // oversized, high-blast-radius surface, and the boot gate aggregates more
+    // than one subsystem, so it gets its own small, auditable surface.
+    //
+    // Boundary conditions for this namespace:
+    //   * READ-ONLY status plus ONE control verb (RETRY). No configuration,
+    //     no paths, no ports, no auth tokens ever cross it — the payload is a
+    //     fixed-shape readiness projection with a stable failure CODE and a
+    //     short human message that main composes itself.
+    //   * RETRY only re-runs the sidecar start sequence main already owns. It
+    //     takes no arguments, so a compromised renderer cannot use it to point
+    //     the sidecar anywhere.
+    //   * GET_READINESS (invoke) + READINESS_CHANGED (push) is the same
+    //     get-state/state-changed pair the update service uses: the push alone
+    //     would race the renderer's subscription during boot, which is exactly
+    //     the window this gate exists for.
+    GET_READINESS: "boot:get-readiness",
+    READINESS_CHANGED: "boot:readiness-changed",
+    RETRY: "boot:retry",
+  }),
   CHAT_STORAGE: Object.freeze({
     BOOTSTRAP_READ: "chat-storage:bootstrap-read",
     READ_MESSAGES: "chat-storage:read-messages",
@@ -77,6 +101,87 @@ const CHANNELS = Object.freeze({
     QUIT_DRAIN_REQUEST: "settings-storage:quit-drain-request",
     QUIT_DRAIN_RESULT: "settings-storage:quit-drain-result",
     QUIT_DRAIN_ABORT: "settings-storage:quit-drain-abort",
+  }),
+  RUN_BUNDLE_STORAGE: Object.freeze({
+    // RunBundle v1 is a separate, versioned accounting boundary. These
+    // channels never append to token_usage_records: one keyed UPSERT replaces
+    // the bundle and all of its usage slices in a single SQLite transaction.
+    UPSERT: "run-bundle-storage:upsert",
+    QUERY: "run-bundle-storage:query",
+    CLEAR: "run-bundle-storage:clear",
+  }),
+  MEMORY_VAULT: Object.freeze({
+    // Memory V2 P0 vault control plane. Storage / opaque handle / descriptor /
+    // grant ONLY. DEPOSIT is the single channel that may carry plaintext and
+    // only in the renderer → main direction (immediate safeStorage
+    // encryption). There is deliberately NO read/resolve/decrypt channel —
+    // stored secrets never travel back over IPC in any form (security
+    // sign-off condition; sink resolution is a deferred, separately-reviewed
+    // phase). Every mutation carries an operationId and is idempotent.
+    DEPOSIT: "memory-vault:deposit",
+    LIST_DESCRIPTORS: "memory-vault:list-descriptors",
+    DELETE: "memory-vault:delete",
+    GRANT: "memory-vault:grant",
+    REVOKE: "memory-vault:revoke",
+    GET_STATUS: "memory-vault:get-status",
+  }),
+  CONTEXT_V2: Object.freeze({
+    // Memory / Context V2 P0 control plane. A SEPARATE namespace from UNCHAIN
+    // on purpose: the unchain bridge is already an oversized, high-blast-radius
+    // surface, and Context V2 needs a small, individually auditable set of
+    // explicitly authenticated operations rather than N more methods bolted
+    // onto it.
+    //
+    // Hard boundary conditions for this namespace (mirrored in the main
+    // handlers, the preload bridge and the parity tests):
+    //   * NO generic method/path/url/fetch channel — every capability the
+    //     renderer has is one named channel with a fixed Flask route.
+    //   * The unchain auth token, the sidecar port and any filesystem path
+    //     never cross these channels in either direction.
+    //   * Internal-only Flask surface (event append/bootstrap, job
+    //     claim/heartbeat/complete/fail, arbitrary long-term namespaces,
+    //     space/entry mutation) is deliberately NOT represented here.
+    //   * The promotion target namespace is server-bound and is never accepted
+    //     from the renderer.
+    //   * CHAT DELETION IS NOT A RENDERER CAPABILITY. There is deliberately no
+    //     delete-chat channel: a renderer-driven delete could destroy one
+    //     store's context while the other stores kept theirs. Deletion is
+    //     initiated by the chat store and completed by the main-process
+    //     deletion outbox, which drives unchainService.deleteContextV2Chat
+    //     internally and survives a restart. Re-adding a channel here would
+    //     reintroduce the partial-delete window and needs a fresh security
+    //     review, not a one-line edit.
+    GET_STATUS: "context-v2:get-status",
+    LIST_EVENTS: "context-v2:list-events",
+    READ_CONTENT: "context-v2:read-content",
+    GET_SESSION_HEAD: "context-v2:get-session-head",
+    REBASE_SESSION: "context-v2:rebase-session",
+    LIST_SPACES: "context-v2:list-spaces",
+    GET_TREE: "context-v2:get-tree",
+    LIST_ENTRIES: "context-v2:list-entries",
+    SEARCH_ENTRIES: "context-v2:search-entries",
+    LIST_CANDIDATES: "context-v2:list-candidates",
+    LIST_JOBS: "context-v2:list-jobs",
+    LIST_PROMOTIONS: "context-v2:list-promotions",
+    DECIDE_CANDIDATE: "context-v2:decide-candidate",
+    CREATE_PROMOTION: "context-v2:create-promotion",
+    DECIDE_PROMOTION: "context-v2:decide-promotion",
+    // schema-v4 candidate-review triad. A review is the human-visible diff a
+    // curator job PROPOSES; the renderer may read the queue, read one review,
+    // and decide it (apply/reject) — nothing else.
+    //
+    // Deliberately absent from this triad, for the same reasons the rest of the
+    // namespace is bounded:
+    //   * review CREATION (propose_job_candidate_review) is a curator-job
+    //     product, not a renderer capability — the renderer may not manufacture
+    //     a diff for itself to approve,
+    //   * the job LEASE the proposal rides on (claim/heartbeat/complete/fail)
+    //     stays main/worker-internal,
+    //   * review content bodies are read through the existing READ_CONTENT
+    //     ref grammar, not a second content channel.
+    LIST_CANDIDATE_REVIEWS: "context-v2:list-candidate-reviews",
+    GET_CANDIDATE_REVIEW: "context-v2:get-candidate-review",
+    DECIDE_CANDIDATE_REVIEW: "context-v2:decide-candidate-review",
   }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",

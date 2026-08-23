@@ -77,6 +77,10 @@ dmypy.json
 
 # generated at build time by scripts/generate-third-party-notices.cjs
 /THIRD_PARTY_NOTICES.txt
+
+# generated at build time from unchain_runtime/mcp_runtime_pins.json
+/unchain_runtime/mcp_runtime/
+
 .gitnexus
 # superpowers — skill runtime cache (.superpowers/) + design docs (docs/superpowers/)
 .superpowers/

@@ -1,4 +1,11 @@
-import { memo, useState, useContext, useMemo, useCallback } from "react";
+import {
+  memo,
+  useState,
+  useContext,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import {
   colorWithAlpha,
@@ -25,6 +32,15 @@ import {
   FINALITY,
   getFrameFinality,
 } from "../../PAGEs/chat/utils/message_finality";
+import { presentMemoryV2Audit } from "../../SERVICEs/runtime_events/memory_v2_trace_presenter";
+import {
+  MemoryAgentAudit,
+  MemoryV2ContextAudit,
+} from "./memory_v2_trace_audit";
+import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
+import { selectRunBundleUsage } from "../../SERVICEs/run_bundle_v1";
+import { hasContextCompositionEvidence } from "../../SERVICEs/context_composition_v1";
+import ContextCompositionModal from "./context-composition/context_composition_modal";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -347,13 +363,13 @@ const ToolTag = ({ name, isDark, compact = false }) => (
       alignItems: "center",
       padding: compact ? "1px 6px" : "1px 7px",
       borderRadius: compact ? 4 : 5,
-      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+      background: "var(--pupu-overlay-selected)",
       /* off by default; themes opt in via the JSON details channel */
       border: "1px solid var(--pupu-chip-border, transparent)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: compact ? "0.74em" : "0.82em",
       letterSpacing: 0.1,
-      color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.65)",
+      color: "var(--pupu-text-secondary)",
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -373,11 +389,11 @@ const CountBadge = ({ count, isDark }) => (
       minWidth: 16,
       height: 16,
       borderRadius: 8,
-      background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.055)",
+      background: "var(--pupu-overlay-hover)",
       border: "1px solid var(--pupu-chip-border, transparent)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       fontSize: "0.72em",
-      color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
+      color: "var(--pupu-text-faint)",
       userSelect: "none",
       WebkitUserSelect: "none",
     }}
@@ -443,7 +459,7 @@ const getSubagentStatusColor = (status, isDark) => {
     normalized === "timeout" ||
     normalized === "partial_failure"
   ) {
-    return isDark ? "rgba(252,165,165,0.9)" : "rgba(220,38,38,0.85)";
+    return "var(--pupu-danger)";
   }
   if (
     normalized === "completed" ||
@@ -451,9 +467,9 @@ const getSubagentStatusColor = (status, isDark) => {
     normalized === "running" ||
     normalized === "spawned"
   ) {
-    return isDark ? "rgba(110,231,183,0.88)" : "rgba(5,150,105,0.85)";
+    return "var(--pupu-success)";
   }
-  return isDark ? "rgba(255,255,255,0.56)" : "rgba(0,0,0,0.46)";
+  return "var(--pupu-text-secondary)";
 };
 
 const getSubagentTraceStatus = (status) => {
@@ -490,7 +506,7 @@ const BranchExpandArrow = ({ open, onClick, isDark }) => (
       border: "none",
       cursor: "pointer",
       fontSize: "10px",
-      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+      color: "var(--pupu-text-faint)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
       outline: "none",
       userSelect: "none",
@@ -527,7 +543,7 @@ const HammerPoint = ({ isDark }) => (
       height: 10,
       borderRadius: "50%",
       background: "transparent",
-      border: `1px solid ${isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.22)"}`,
+      border: `1px solid ${"var(--pupu-border)"}`,
       flexShrink: 0,
       boxSizing: "border-box",
     }}
@@ -542,7 +558,7 @@ const ErrorPoint = () => (
       width: 16,
       height: 16,
       flexShrink: 0,
-      color: "#ef4444",
+      color: "var(--pupu-danger)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -579,40 +595,88 @@ const AccentPoint = ({ color }) => (
 
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
-const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }) => {
+const TokenSummary = ({ usage, isDark, bundle }) => {
+  const [compositionOpen, setCompositionOpen] = useState(false);
+  const triggerRef = useRef(null);
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "\u2013";
-  const color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)";
-  const cacheColor = isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.2)";
-  const hasCacheRead = typeof cacheRead === "number" && cacheRead > 0;
-  const hasCacheCreation = typeof cacheCreation === "number" && cacheCreation > 0;
+  const color = "var(--pupu-text-faint)";
+  const cacheColor = "var(--pupu-text-disabled)";
+  const hasCacheRead = typeof usage.cacheRead === "number" && usage.cacheRead > 0;
+  const hasCacheCreation =
+    typeof usage.cacheWrite === "number" && usage.cacheWrite > 0;
+  const hasReasoning =
+    typeof usage.reasoning === "number" && usage.reasoning > 0;
   const hasCache = hasCacheRead || hasCacheCreation;
-  const totalInput = (typeof input === "number" ? input : 0)
-    + (hasCacheRead ? cacheRead : 0)
-    + (hasCacheCreation ? cacheCreation : 0);
-  const displayInput = hasCache ? totalInput : input;
-  return (
-    <span
-      style={{
-        fontSize: 10,
-        fontFamily: "Menlo, Monaco, Consolas, monospace",
-        color,
-        userSelect: "none",
-        letterSpacing: "0.01em",
-      }}
-    >
-      {fmt(displayInput)} in
+  const hasComposition = hasContextCompositionEvidence(bundle);
+  const content = (
+    <>
+      {fmt(usage.input)} in
       {hasCache && (
         <span style={{ color: cacheColor }}>
           {" ("}
-          {hasCacheRead && <>{fmt(cacheRead)} cached</>}
+          {hasCacheRead && <>{fmt(usage.cacheRead)} cached</>}
           {hasCacheRead && hasCacheCreation && " + "}
-          {hasCacheCreation && <>{fmt(cacheCreation)} new</>}
+          {hasCacheCreation && <>{fmt(usage.cacheWrite)} cache write</>}
           {")"}
         </span>
       )}
-      {" "}&middot; {fmt(output)} out &middot; {fmt(total)} total
-    </span>
+      {" "}&middot; {fmt(usage.output)} out
+      {hasReasoning && (
+        <span style={{ color: cacheColor }}>
+          {" ("}{fmt(usage.reasoning)} reasoning{")"}
+        </span>
+      )}
+      {" "}&middot; {fmt(usage.total)} total
+    </>
+  );
+  const textStyle = {
+    fontSize: 10,
+    fontFamily: "Menlo, Monaco, Consolas, monospace",
+    color,
+    userSelect: "none",
+    letterSpacing: "0.01em",
+  };
+
+  if (!hasComposition) {
+    return (
+      <span data-testid="token-summary" style={textStyle}>
+        {content}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        data-testid="token-summary"
+        aria-label="Open context composition"
+        aria-haspopup="dialog"
+        aria-expanded={compositionOpen}
+        title="View context composition"
+        onClick={() => setCompositionOpen(true)}
+        style={{
+          ...textStyle,
+          display: "inline",
+          border: 0,
+          background: "transparent",
+          padding: 0,
+          margin: 0,
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        {content}
+      </button>
+      <ContextCompositionModal
+        open={compositionOpen}
+        onClose={() => setCompositionOpen(false)}
+        bundle={bundle}
+        returnFocusRef={triggerRef}
+      />
+    </>
   );
 };
 
@@ -629,6 +693,7 @@ const TraceChain = ({
   toolConfirmationUiStateById = {},
   onClarifyResolve,
   bundle,
+  completionDiagnostics,
   subagentFrames,
   subagentMetaByRunId,
   showContainerHeader = true,
@@ -669,6 +734,11 @@ const TraceChain = ({
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
   const [bodyOpen, setBodyOpen] = useState(true);
+  const [memoryV2JournalProjection, setMemoryV2JournalProjection] =
+    useState(null);
+  const handleMemoryV2JournalProjection = useCallback((projection) => {
+    setMemoryV2JournalProjection(projection);
+  }, []);
 
   /* ── branch expand state for subagent fork/merge ── */
   const [branchState, setBranchState] = useState(() => new Map());
@@ -868,22 +938,6 @@ const TraceChain = ({
     return map;
   }, [effectiveSubagentMetaByRunId]);
 
-  const confirmationUserResponseByCallId = useMemo(() => {
-    const map = new Map();
-    for (const frame of frames) {
-      if (
-        (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
-        !frame?.payload?.call_id ||
-        frame?.payload?.user_response === undefined
-      ) {
-        continue;
-      }
-
-      map.set(frame.payload.call_id, frame.payload.user_response);
-    }
-    return map;
-  }, [frames]);
-
   const interactTypeByCallId = useMemo(() => {
     const map = new Map();
     for (const frame of frames) {
@@ -900,6 +954,29 @@ const TraceChain = ({
     }
     return map;
   }, [frames]);
+
+  const confirmationUserResponseByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (
+        (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
+        !frame?.payload?.call_id ||
+        frame?.payload?.user_response === undefined
+      ) {
+        continue;
+      }
+
+      const normalized = normalizePersistedInteractionResponse(
+        interactTypeByCallId.get(frame.payload.call_id) || "",
+        frame.payload.user_response,
+      );
+      map.set(
+        frame.payload.call_id,
+        normalized === undefined ? frame.payload.user_response : normalized,
+      );
+    }
+    return map;
+  }, [frames, interactTypeByCallId]);
 
   const toolResultUserResponseByCallId = useMemo(() => {
     const map = new Map();
@@ -978,7 +1055,7 @@ const TraceChain = ({
                 lineHeight={1.65}
                 style={{
                   ...TRACE_DETAIL_MARKDOWN_STYLE,
-                  color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
+                  color: "var(--pupu-text-secondary)",
                 }}
               />
             ) : undefined,
@@ -1018,9 +1095,7 @@ const TraceChain = ({
                     fontFamily: "inherit",
                     whiteSpace: "pre-wrap",
                     wordBreak: "break-word",
-                    color: isDark
-                      ? "rgba(255,255,255,0.68)"
-                      : "rgba(0,0,0,0.62)",
+                    color: "var(--pupu-text-secondary)",
                   }}
                 >
                   {typeof m?.text === "string" ? m.text : ""}
@@ -1055,9 +1130,7 @@ const TraceChain = ({
                   style={{
                     fontSize: 11.5,
                     lineHeight: 1.55,
-                    color: isDark
-                      ? "rgba(255,255,255,0.42)"
-                      : "rgba(0,0,0,0.4)",
+                    color: "var(--pupu-text-faint)",
                   }}
                 >
                   {question}
@@ -1071,9 +1144,7 @@ const TraceChain = ({
                   lineHeight={1.65}
                   style={{
                     ...TRACE_DETAIL_MARKDOWN_STYLE,
-                    color: isDark
-                      ? "rgba(255,255,255,0.75)"
-                      : "rgba(0,0,0,0.7)",
+                    color: "var(--pupu-text-secondary)",
                   }}
                 />
               )}
@@ -1113,12 +1184,8 @@ const TraceChain = ({
           ? { value: defaultClarifyOption.value }
           : undefined;
         const clarifyStatusColor = isClarifyResolved
-          ? isDark
-            ? "rgba(110,231,183,0.95)"
-            : "rgba(5,150,105,0.95)"
-          : isDark
-            ? "rgba(255,255,255,0.6)"
-            : "rgba(0,0,0,0.52)";
+          ? "var(--pupu-success)"
+          : "var(--pupu-text-secondary)";
 
         items.push({
           key: `${frame.seq}-clarify`,
@@ -1341,21 +1408,13 @@ const TraceChain = ({
           const labelStyle = {
             fontSize: "0.82em",
             fontFamily: "Menlo, Monaco, Consolas, monospace",
-            color: isDark
-              ? "rgba(255,255,255,0.35)"
-              : "rgba(0,0,0,0.3)",
+            color: "var(--pupu-text-faint)",
             userSelect: "none",
           };
           const statusStyle = {
             fontSize: "0.82em",
             fontFamily: "Menlo, Monaco, Consolas, monospace",
-            color: failed
-              ? isDark
-                ? "rgba(252,165,165,0.9)"
-                : "rgba(220,38,38,0.85)"
-              : isDark
-                ? "rgba(110,231,183,0.8)"
-                : "rgba(5,150,105,0.8)",
+            color: failed ? "var(--pupu-danger)" : "var(--pupu-success)",
             userSelect: "none",
           };
 
@@ -1466,9 +1525,7 @@ const TraceChain = ({
                   style={{
                     fontSize: 11,
                     fontFamily: "Menlo, Monaco, Consolas, monospace",
-                    color: isDark
-                      ? "rgba(255,255,255,0.3)"
-                      : "rgba(0,0,0,0.25)",
+                    color: "var(--pupu-text-faint)",
                     padding: "4px 0",
                     userSelect: "none",
                   }}
@@ -1643,17 +1700,13 @@ const TraceChain = ({
             !isSubmitting &&
             typeof onToolConfirmationDecision === "function";
 
+          /* approved / denied / pending are success, danger and neutral —
+             three roles the palette already owns, so they follow it. */
           const statusColor = isResolved
             ? resolvedDecision === "approved"
-              ? isDark
-                ? "rgba(110,231,183,0.95)"
-                : "rgba(5,150,105,0.95)"
-              : isDark
-                ? "rgba(252,165,165,0.95)"
-                : "rgba(220,38,38,0.95)"
-            : isDark
-              ? "rgba(255,255,255,0.6)"
-              : "rgba(0,0,0,0.52)";
+              ? "var(--pupu-success)"
+              : "var(--pupu-danger)"
+            : "var(--pupu-text-secondary)";
 
           toolPointEl = <HammerPoint isDark={isDark} />;
           toolStatus = "done";
@@ -1738,7 +1791,7 @@ const TraceChain = ({
             <KVPanel
               sections={[{ pairs }]}
               isDark={isDark}
-              color={isDark ? "#f87171" : "#dc2626"}
+              color="var(--pupu-danger)"
             />
           ),
         });
@@ -1859,9 +1912,7 @@ const TraceChain = ({
                   lineHeight={1.65}
                   style={{
                     ...TRACE_DETAIL_MARKDOWN_STYLE,
-                    color: isDark
-                      ? "rgba(255,255,255,0.6)"
-                      : "rgba(0,0,0,0.55)",
+                    color: "var(--pupu-text-secondary)",
                   }}
                 />
               ),
@@ -1913,24 +1964,87 @@ const TraceChain = ({
       });
     }
 
-    /* ── token summary at the end of the timeline ── */
+    /* ── durable Memory V2 audit + token summary at the end ── */
+    const memoryV2Audit = mergeMemoryV2AuditWithJournal(
+      presentMemoryV2Audit(
+        completionDiagnostics?.memory_v2 || bundle?.memory_v2,
+        {
+        runStatus: status,
+        },
+      ),
+      memoryV2JournalProjection?.ownerChatId === chatId
+        ? memoryV2JournalProjection
+        : null,
+    );
+    if (memoryV2Audit) {
+      grouped.push({
+        key: "__memory_v2_audit__",
+        title: (
+          <span data-testid="memory-v2-trace-title">
+            Memory V2 · {memoryV2Audit.status}
+          </span>
+        ),
+        span:
+          memoryV2Audit.pressure.percent !== null
+            ? `${memoryV2Audit.pressure.percent}% context`
+            : memoryV2Audit.modeLabel,
+        status:
+          memoryV2Audit.status === "Unavailable" ? "pending" : "done",
+        unmountDetailsWhenClosed: true,
+        details: (
+          <MemoryV2ContextAudit
+            audit={memoryV2Audit}
+            ownerChatId={chatId}
+            isDark={isDark}
+            onJournalProjection={handleMemoryV2JournalProjection}
+          />
+        ),
+      });
+
+      if (memoryV2Audit.agentRuns.length > 0) {
+        const memoryAgentActive = memoryV2Audit.agentRuns.some((run) =>
+          ["Pending", "Running", "Leased"].includes(run.status),
+        );
+        grouped.push({
+          key: "__memory_agent_audit__",
+          title: (
+            <span data-testid="memory-agent-trace-title">
+              Memory Agent · {memoryV2Audit.agentRuns.length === 1
+                ? memoryV2Audit.agentRuns[0].status
+                : `${memoryV2Audit.agentRuns.length} runs`}
+            </span>
+          ),
+          span:
+            memoryV2Audit.agentRuns.length === 1
+              ? memoryV2Audit.agentRuns[0].model ||
+                memoryV2Audit.agentRuns[0].provider ||
+                ""
+              : "",
+          status: memoryAgentActive ? "active" : "done",
+          details: (
+            <MemoryAgentAudit
+              runs={memoryV2Audit.agentRuns}
+              ownerChatId={chatId}
+              isDark={isDark}
+            />
+          ),
+        });
+      }
+    }
+
+    const tokenUsage = selectRunBundleUsage(bundle);
     if (
       status === "done" &&
-      bundle &&
-      typeof bundle === "object" &&
-      typeof bundle.consumed_tokens === "number" &&
-      bundle.consumed_tokens > 0
+      (tokenUsage.canonical === true ||
+        (typeof tokenUsage.total === "number" && tokenUsage.total > 0))
     ) {
       grouped.push({
         key: "__token_summary__",
         title: (
           <TokenSummary
-            input={bundle.input_tokens}
-            output={bundle.output_tokens}
-            total={bundle.consumed_tokens}
-            cacheRead={bundle.cache_read_input_tokens}
-            cacheCreation={bundle.cache_creation_input_tokens}
+            usage={tokenUsage}
             isDark={isDark}
+            bundle={bundle}
           />
         ),
         status: "done",
@@ -1963,6 +2077,9 @@ const TraceChain = ({
     theme,
     status,
     bundle,
+    completionDiagnostics,
+    memoryV2JournalProjection,
+    handleMemoryV2JournalProjection,
     compact,
     hideTrack,
     _depth,

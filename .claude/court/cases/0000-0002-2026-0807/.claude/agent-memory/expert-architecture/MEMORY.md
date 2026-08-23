@@ -1,0 +1,2 @@
+- [出鉴定的判据与纪律](architecture-judgment-criteria.md) — 8 条可复用判据 + 「不成立」的收窄纪律；新体制下只判成立性不判取舍
+- [鉴定先例 0000-0002 Memory V2 trace](rulings-0000-0002-memory-v2-trace.md) — 有条件成立 + 两项不成立及其翻转条件；帧载荷无产端 schema 是根因；事后验证待回填

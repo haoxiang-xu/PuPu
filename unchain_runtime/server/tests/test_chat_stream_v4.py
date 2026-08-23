@@ -10,6 +10,7 @@ if str(SERVER_ROOT) not in sys.path:
 
 import app as miso_app  # noqa: E402
 import routes as miso_routes  # noqa: E402
+import route_chat  # noqa: E402
 
 
 def _parse_sse_blocks(payload_text: str) -> list[tuple[str, dict]]:
@@ -57,6 +58,137 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "invalid_request")
         self.assertIn("attempt_id", payload["error"]["message"])
 
+    def test_fresh_run_continuation_is_allowlisted_from_top_level_only(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=iter(
+                [
+                    {
+                        "type": "final_message",
+                        "run_id": "run-fresh",
+                        "iteration": 0,
+                        "content": "done",
+                    }
+                ]
+            ),
+        ) as stream_events:
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "start fresh",
+                    "threadId": "chat-fresh",
+                    "attempt_id": "attempt-fresh",
+                    "continued_from_run_id": "run-paused",
+                    "options": {
+                        "_run_bundle_continued_from_run_id": "attacker-run"
+                    },
+                },
+            )
+            response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            stream_events.call_args.kwargs["options"][
+                "_run_bundle_continued_from_run_id"
+            ],
+            "run-paused",
+        )
+
+    def test_continuation_rejects_invalid_or_resume_inputs(self) -> None:
+        invalid_payloads = (
+            {
+                "message": "fresh",
+                "attempt_id": "attempt-fresh",
+                "continued_from_run_id": {"run": "old"},
+            },
+            {
+                "mode": "resume_interaction",
+                "threadId": "chat-resume",
+                "attempt_id": "attempt-resume",
+                "interaction_id": "interaction-resume",
+                "source_attempt_id": "attempt-paused",
+                "continued_from_run_id": "attempt-paused",
+            },
+        )
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.client.post("/chat/stream/v4", json=payload)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.get_json()["error"]["code"],
+                    "invalid_request",
+                )
+
+    def test_memory_v2_agent_config_is_allowlisted_into_private_options(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=iter(
+                [
+                    {
+                        "type": "final_message",
+                        "run_id": "run-memory-v2",
+                        "iteration": 0,
+                        "content": "done",
+                    }
+                ]
+            ),
+        ) as stream_events:
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "remember the constraints",
+                    "threadId": "session-memory-v2",
+                    "owner_chat_id": "chat-memory-v2",
+                    "attempt_id": "attempt-memory-v2",
+                    "memory_v2_requested": True,
+                    "memory_agent_config": {
+                        "displayName": "  Curator  ",
+                        "additionalInstructions": "Keep source links.",
+                        "provider": "openai",
+                        "modelId": "gpt-5-mini",
+                    },
+                },
+            )
+            response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            stream_events.call_args.kwargs["options"][
+                "_memory_v2_memory_agent_config"
+            ],
+            {
+                "displayName": "Curator",
+                "additionalInstructions": "Keep source links.",
+                "provider": "openai",
+                "modelId": "gpt-5-mini",
+            },
+        )
+
+    def test_memory_v2_agent_config_rejects_unknown_or_partial_fields(self) -> None:
+        base = {
+            "message": "hello",
+            "threadId": "session-memory-v2",
+            "owner_chat_id": "chat-memory-v2",
+            "attempt_id": "attempt-memory-v2",
+            "memory_v2_requested": True,
+        }
+        for config in (
+            {"displayName": "Curator", "apiKey": "must-not-pass"},
+            {"displayName": "Curator", "provider": "openai", "modelId": ""},
+        ):
+            with self.subTest(config=config):
+                response = self.client.post(
+                    "/chat/stream/v4",
+                    json={**base, "memory_agent_config": config},
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.get_json()["error"]["code"],
+                    "context_v2_invalid_memory_agent_config",
+                )
+
     def test_pending_interaction_lookup_returns_normal_none_response(self) -> None:
         with mock.patch.object(
             miso_routes,
@@ -93,6 +225,8 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 json={
                     "execution_id": "chat-1",
                     "attempt_id": "attempt-1",
+                    "owner_chat_id": "owner-chat-1",
+                    "interaction_id": "interaction-1",
                     "reason": "user_stop",
                     "idempotency_key": "stop:chat-1:attempt-1",
                 },
@@ -104,6 +238,8 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             session_id="chat-1",
             attempt_id="attempt-1",
             source_attempt_id="",
+            owner_chat_id="owner-chat-1",
+            expected_interaction_id="interaction-1",
             reason="user_stop",
         )
 
@@ -111,15 +247,84 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         with mock.patch.object(miso_routes, "cancel_chat_execution") as cancel:
             response = self.client.post(
                 "/chat/executions/cancel",
-                json={"execution_id": "chat-1"},
+                json={
+                    "execution_id": "chat-1",
+                    "owner_chat_id": "owner-chat-1",
+                },
             )
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("attempt_id", response.get_json()["error"]["message"])
         cancel.assert_not_called()
 
+    def test_execution_cancel_route_requires_exact_owner_chat_id(self) -> None:
+        with mock.patch.object(miso_routes, "cancel_chat_execution") as cancel:
+            missing = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "execution-1",
+                    "attempt_id": "attempt-1",
+                },
+            )
+            invalid = self.client.post(
+                "/chat/executions/cancel",
+                json={
+                    "execution_id": "execution-1",
+                    "attempt_id": "attempt-1",
+                    "owner_chat_id": "not valid owner",
+                },
+            )
+
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("owner_chat_id", missing.get_json()["error"]["message"])
+        cancel.assert_not_called()
+
     def test_confirmation_persists_receipt_before_waking_live_waiter(self) -> None:
+        from durable_interaction_host import (
+            DurableInteractionReceiptHandoff,
+            DurableInteractionReceiptResult,
+        )
+        from unchain.interaction import (
+            INTERACTION_KIND_TOOL_APPROVAL,
+            build_interaction_receipt,
+            build_interaction_request,
+        )
+
         call_order = []
+        durable_request = build_interaction_request(
+            session_id="chat-1",
+            kind=INTERACTION_KIND_TOOL_APPROVAL,
+            source_run_id="run-1",
+            occurrence="call-route-handoff",
+            payload={"call_id": "call-route-handoff"},
+            response_contract={"type": "object"},
+            created_revision=1,
+        )
+        receipt = build_interaction_receipt(
+            durable_request,
+            {
+                "approved": True,
+                "reason": "",
+                "modified_arguments": None,
+            },
+            submitted_by="ui:test",
+            submitted_at_ms=1,
+        )
+        handoff = DurableInteractionReceiptHandoff.from_persisted_receipt(
+            session_id="chat-1",
+            receipt=receipt,
+        )
+        durable_result = DurableInteractionReceiptResult(
+            {
+                "status": "ok",
+                "disposition": "receipt_recorded",
+                "session_id": "chat-1",
+                "interaction_id": durable_request.interaction_id,
+                "receipt_id": receipt.receipt_id,
+            },
+            handoff=handoff,
+        )
         with mock.patch.object(
             miso_routes,
             "submit_tool_confirmation",
@@ -128,14 +333,50 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             miso_routes,
             "record_interaction_receipt",
             side_effect=lambda **_kwargs: call_order.append("durable")
-            or {
-                "status": "ok",
-                "disposition": "receipt_recorded",
-                "session_id": "chat-1",
-                "interaction_id": "interaction-1",
-                "receipt_id": "receipt-1",
-            },
+            or durable_result,
         ) as durable_submit:
+            response = self.client.post(
+                "/chat/tool/confirmation",
+                json={
+                    "confirmation_id": durable_request.interaction_id,
+                    "session_id": "chat-1",
+                    "approved": True,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["disposition"], "live_continues")
+        self.assertTrue(response.get_json()["durable"])
+        self.assertNotIn("response", response.get_json())
+        self.assertNotIn("submitted_by", response.get_json())
+        self.assertNotIn("receipt_json", response.get_json())
+        self.assertEqual(call_order, ["durable", "live"])
+        live_submit.assert_called_once()
+        self.assertIs(
+            live_submit.call_args.kwargs["durable_receipt"],
+            handoff,
+        )
+        durable_submit.assert_called_once()
+
+    def test_confirmation_journal_failure_after_receipt_does_not_report_continuation(self) -> None:
+        call_order = []
+        receipt = {
+            "status": "ok",
+            "disposition": "receipt_recorded",
+            "session_id": "chat-1",
+            "interaction_id": "interaction-1",
+            "receipt_id": "receipt-1",
+        }
+        with mock.patch.object(
+            miso_routes,
+            "record_interaction_receipt",
+            side_effect=lambda **_kwargs: call_order.append("durable") or receipt,
+        ), mock.patch.object(
+            miso_routes,
+            "submit_tool_confirmation",
+            side_effect=lambda **_kwargs: call_order.append("journal")
+            or (_ for _ in ()).throw(RuntimeError("raw storage failure")),
+        ):
             response = self.client.post(
                 "/chat/tool/confirmation",
                 json={
@@ -145,12 +386,13 @@ class ChatStreamV4RouteTests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json()["disposition"], "live_continues")
-        self.assertTrue(response.get_json()["durable"])
-        self.assertEqual(call_order, ["durable", "live"])
-        live_submit.assert_called_once()
-        durable_submit.assert_called_once()
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(call_order, ["durable", "journal"])
+        self.assertEqual(
+            response.get_json()["error"]["code"],
+            "interaction_resolution_persistence_failed",
+        )
+        self.assertNotIn("raw storage failure", str(response.get_json()))
 
     def test_confirmation_requires_a_json_boolean_decision(self) -> None:
         with mock.patch.object(
@@ -442,6 +684,138 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertIn("run.completed", event_types)
         self.assertIn("done", [name for name, _ in _parse_sse_blocks(payload_text)])
 
+    def test_chat_stream_v4_forwards_only_sanitized_completion_bundle(self) -> None:
+        mocked_events = iter(
+            [
+                {
+                    "type": "stream_summary",
+                    "bundle": {
+                        "model": "gpt-5",
+                        "memory_v2": {
+                            "mode": "active",
+                            "context_build": {
+                                "pressure_ratio": 0.91,
+                                "checkpoint_ref": "pupu://artifact/checkpoint-1@1",
+                            },
+                        },
+                        "provider_request": {"api_key": "must-not-leak"},
+                    },
+                },
+                {
+                    "type": "run_completed",
+                    "run_id": "run-summary",
+                    "iteration": 0,
+                    "status": "completed",
+                },
+            ]
+        )
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=mocked_events,
+        ), mock.patch.object(
+            route_chat,
+            "_execution_attempt_cancelled",
+            return_value=False,
+        ):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "hello",
+                    "attempt_id": "attempt-v4-summary",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        done_payload = next(
+            payload
+            for event_name, payload in _parse_sse_blocks(payload_text)
+            if event_name == "done"
+        )
+        self.assertEqual(done_payload["bundle"]["model"], "gpt-5")
+        self.assertEqual(done_payload["bundle"]["memory_v2"]["mode"], "active")
+        self.assertNotIn("provider_request", done_payload["bundle"])
+        self.assertNotIn("must-not-leak", payload_text)
+
+    def test_completion_bundle_with_schema_never_falls_back_to_legacy(self) -> None:
+        from run_bundle_adapter import RunBundleProjectionError
+
+        for bundle in (
+            {"schema": "unchain.run_bundle.v999", "consumed_tokens": 12},
+            {"schema": "unchain.run_bundle.v1", "consumed_tokens": 12},
+        ):
+            with self.subTest(schema=bundle["schema"]):
+                with self.assertRaises(RunBundleProjectionError):
+                    route_chat._sanitize_v4_completion_bundle(bundle)
+
+    def test_chat_stream_v4_forwards_completion_diagnostics_beside_bundle(self) -> None:
+        from completion_diagnostics import build_completion_diagnostics
+
+        diagnostics = build_completion_diagnostics(
+            {
+                "schema_version": "memory_v2.context.v1",
+                "mode": "shadow",
+                "trace_status": "partial",
+                "available_input_tokens": 42_000,
+                "unknown": "drop-me",
+            }
+        )
+        mocked_events = iter(
+            [
+                {
+                    "type": "stream_summary",
+                    "bundle": {"model": "gpt-5", "status": "completed"},
+                    "completion_diagnostics": diagnostics,
+                },
+                {
+                    "type": "run_completed",
+                    "run_id": "run-diagnostics",
+                    "iteration": 0,
+                    "status": "completed",
+                },
+            ]
+        )
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=mocked_events,
+        ), mock.patch.object(
+            route_chat,
+            "_execution_attempt_cancelled",
+            return_value=False,
+        ):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "hello",
+                    "attempt_id": "attempt-v4-diagnostics",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+        diagnostics_done = [
+            payload
+            for event_name, payload in _parse_sse_blocks(payload_text)
+            if event_name == "done" and "completion_diagnostics" in payload
+        ]
+        self.assertEqual(len(diagnostics_done), 1, payload_text)
+        done_payload = diagnostics_done[0]
+        self.assertEqual(done_payload["bundle"]["model"], "gpt-5")
+        self.assertEqual(
+            done_payload["completion_diagnostics"]["memory_v2"],
+            {
+                "available_input_tokens": 42_000,
+                "mode": "shadow",
+                "schema_version": "memory_v2.context.v1",
+                "trace_status": "partial",
+            },
+        )
+
     def test_chat_stream_v4_resume_mode_requires_existing_thread_id(self) -> None:
         with mock.patch.object(
             miso_routes,
@@ -496,6 +870,95 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         self.assertEqual(failed["schema_version"], "v4")
         self.assertEqual(failed["payload"]["error"]["message"], "boom")
         self.assertEqual(failed["payload"]["error"]["code"], "stream_failed")
+
+    def test_chat_stream_v4_seals_failed_bundle_before_error_done(self) -> None:
+        from unchain.run_bundle import (
+            RunBundleReducer,
+            RunIdentity,
+            RunLifecycle,
+        )
+
+        failed_bundle = RunBundleReducer.reduce(
+            identity=RunIdentity(
+                execution_id="thread-failed-bundle",
+                attempt_id="attempt-v4-failed-bundle",
+                root_run_id="attempt-v4-failed-bundle",
+                run_id="attempt-v4-failed-bundle",
+                parent_run_id=None,
+                relation="root",
+            ),
+            lifecycle=RunLifecycle(
+                status="failed",
+                started_at="2026-08-14T00:00:00.000000000Z",
+                completed_at="2026-08-14T00:00:01.000000000Z",
+            ),
+            receipts=(),
+        ).to_dict()
+
+        def failing_stream_chat_events(**_kwargs):
+            yield {
+                "type": "stream_summary",
+                "run_id": "attempt-v4-failed-bundle",
+                "iteration": 0,
+                "bundle": failed_bundle,
+            }
+            raise RuntimeError("provider failed")
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            side_effect=failing_stream_chat_events,
+        ):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "hello",
+                    "threadId": "thread-failed-bundle",
+                    "attempt_id": "attempt-v4-failed-bundle",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        done_payload = next(
+            payload
+            for event_name, payload in _parse_sse_blocks(payload_text)
+            if event_name == "done"
+        )
+        self.assertEqual(done_payload["error"]["code"], "stream_failed")
+        self.assertEqual(done_payload["bundle"], failed_bundle)
+        self.assertEqual(done_payload["bundle"]["lifecycle"]["status"], "failed")
+        self.assertNotIn("provider failed", json.dumps(done_payload["bundle"]))
+
+    def test_context_v2_stream_error_exposes_only_allowlisted_reason(self) -> None:
+        class ProjectionError(RuntimeError):
+            code = "context_v2_journal_message_projection_invalid"
+
+            def __init__(self, reason: str) -> None:
+                self.reason = reason
+                super().__init__(self.code)
+
+        code, message = route_chat._normalize_stream_error(
+            ProjectionError("terminal_scope_conflict")
+        )
+        self.assertEqual(code, "context_v2_journal_message_projection_invalid")
+        self.assertEqual(
+            message,
+            "context_v2_journal_message_projection_invalid: terminal_scope_conflict",
+        )
+
+        code, message = route_chat._normalize_stream_error(
+            ProjectionError("private/path/or/provider-body")
+        )
+        self.assertEqual(code, "context_v2_journal_message_projection_invalid")
+        self.assertEqual(message, "context_v2_journal_message_projection_invalid")
+
+        unknown = ProjectionError("terminal_scope_conflict")
+        unknown.code = "context_v2_private/path"
+        code, message = route_chat._normalize_stream_error(unknown)
+        self.assertEqual(code, "context_v2_failed")
+        self.assertEqual(message, "context_v2_failed")
 
 
 if __name__ == "__main__":

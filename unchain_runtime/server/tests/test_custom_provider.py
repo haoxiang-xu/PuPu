@@ -6,6 +6,7 @@ branch, silent-fallback elimination, the key-non-crossover property family
 stream_started modelId echo, and the twin's 4.5→4-5 normalization skip.
 """
 import copy
+import json
 import os
 import sys
 import unittest
@@ -395,6 +396,42 @@ class BuildPayloadTests(unittest.TestCase):
         self.assertEqual(payload, {"max_output_tokens": 100})
         payload = unchain_adapter._build_payload("ollama", {"maxTokens": 100})
         self.assertEqual(payload, {"num_predict": 100})
+
+
+class PresetAnthropicRouteTests(unittest.TestCase):
+    def test_deepseek_and_kimi_presets_use_the_hyperspace_tool_route(self):
+        presets_path = SERVER_ROOT.parents[1] / "src" / "SERVICEs" / "custom_provider_presets.json"
+        presets = json.loads(presets_path.read_text(encoding="utf-8"))
+        providers = {
+            item["provider"]["id"]: item["provider"]
+            for item in presets
+            if isinstance(item, dict) and isinstance(item.get("provider"), dict)
+        }
+        expected_urls = {
+            "deepseek": "https://api.deepseek.com/anthropic",
+            "kimi": "https://api.moonshot.ai/anthropic",
+            "kimi-cn": "https://api.moonshot.cn/anthropic",
+        }
+
+        for provider_id, base_url in expected_urls.items():
+            with self.subTest(provider_id=provider_id):
+                raw = providers[provider_id]
+                cfg = cp.parse_custom_provider({"custom_provider": raw})
+                self.assertEqual(cfg.protocol, "anthropic")
+                self.assertEqual(cfg.twin, "hyperspace")
+                self.assertEqual(cfg.base_url, base_url)
+                model = cfg.default_model_id()
+                factory = cp.make_custom_model_io_factory(cfg, "provider-key")
+                spec = SimpleNamespace(
+                    provider="hyperspace",
+                    model=model,
+                    api_key=None,
+                )
+                with mock.patch("anthropic.Anthropic"):
+                    model_io = factory(spec, None)
+                self.assertEqual(model_io.provider, "hyperspace")
+                self.assertEqual(model_io.base_url, base_url)
+                self.assertTrue(model_io.model_capabilities[model]["supports_tools"])
 
 
 # ── Silent-fallback elimination (design §7.2 / A5) ───────────────────────────

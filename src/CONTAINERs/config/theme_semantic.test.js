@@ -10,7 +10,12 @@ import {
   persistBootPalette,
   BOOT_PALETTE_STORAGE_KEY,
 } from "./theme_semantic";
-import { SEMANTIC_DEFAULTS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+import {
+  SEMANTIC_DEFAULTS,
+  SEMANTIC_FAMILIES,
+  SEMANTIC_PRESETS,
+} from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+import { hexToHsl } from "../../BUILTIN_COMPONENTs/theme/color_derive";
 
 describe("hexToRgbTriplet", () => {
   test("converts 6-digit hex to 'r,g,b'", () => {
@@ -79,16 +84,19 @@ describe("semanticCssVars border strength tiers", () => {
     expect(BORDER_TIER_ALPHA).toEqual({ strong: 0.9, mid: 0.55, subtle: 0.3 });
   });
 
-  test("does not emit strength vars for other palette keys", () => {
+  test("border's strength names stay exclusive to border", () => {
     const vars = semanticCssVars({ accent: "#65c466" });
     expect(vars["--pupu-accent-strong"]).toBeUndefined();
     expect(vars["--pupu-accent-mid"]).toBeUndefined();
     expect(vars["--pupu-accent-subtle"]).toBeUndefined();
+    /* accent carries the STATUS ladder instead — a different vocabulary
+       on purpose: border tiers are strokes, status tints are fills. */
+    expect(vars["--pupu-accent-tint"]).toBe("rgba(101,196,102, 0.14)");
   });
 });
 
-describe("applySemanticPaletteToTheme modal border uses BORDER_TIER_ALPHA.strong", () => {
-  test("modal border alpha matches the strong tier constant (single source of truth)", () => {
+describe("applySemanticPaletteToTheme modal border references the border-strong var", () => {
+  test("modal border defers to --pupu-border-strong instead of recomputing it", () => {
     const themed = applySemanticPaletteToTheme(
       { modal: {} },
       {
@@ -99,31 +107,65 @@ describe("applySemanticPaletteToTheme modal border uses BORDER_TIER_ALPHA.strong
         textMuted: "#445566",
         border: "#2e2e2e",
         success: "#00aa00",
+        warning: "#aa8800",
         danger: "#aa0000",
+        info: "#0000aa",
       },
     );
-    expect(themed.modal.border).toBe(
-      `1px solid rgba(46,46,46, ${BORDER_TIER_ALPHA.strong})`,
+    /* Recomputing the alpha here duplicated the var AND ignored a user's
+       borderAlphaStrong override, so modal borders silently never followed
+       it. Referencing the var fixes both. */
+    expect(themed.modal.border).toBe("1px solid var(--pupu-border-strong)");
+  });
+
+  test("modal.warningAccent is finally populated (confirm_interact reads it)", () => {
+    const themed = applySemanticPaletteToTheme(
+      { modal: {} },
+      {
+        accent: "#112233", background: "#abcdef", surface: "#fedcba",
+        text: "#010203", textMuted: "#445566", border: "#2e2e2e",
+        success: "#00aa00", warning: "#aa8800", danger: "#aa0000", info: "#0000aa",
+      },
     );
+    expect(themed.modal.warningAccent).toBe("#aa8800");
   });
 });
 
 describe("DETAIL_DEFAULTS", () => {
-  test("holds the fallback details values (chipBorder transparent + tier alphas)", () => {
-    expect(DETAIL_DEFAULTS).toEqual({
-      chipBorder: "transparent",
-      menuBorder: "transparent",
-      cardBorder: "transparent",
-      borderAlphaStrong: BORDER_TIER_ALPHA.strong,
-      borderAlphaMid: BORDER_TIER_ALPHA.mid,
-      borderAlphaSubtle: BORDER_TIER_ALPHA.subtle,
-    });
+  /* v2: bucketed per mode so that per-mode strength alphas can ride the
+     details channel that already resolves per mode. The three published
+     border alphas are mode-invariant, so this bucketing changed no
+     shipped value. */
+  test("is bucketed per mode and keeps the published literals + border alphas", () => {
+    expect(Object.keys(DETAIL_DEFAULTS).sort()).toEqual([
+      "dark_mode",
+      "light_mode",
+    ]);
+    for (const mode of ["light_mode", "dark_mode"]) {
+      expect(DETAIL_DEFAULTS[mode].chipBorder).toBe("transparent");
+      expect(DETAIL_DEFAULTS[mode].menuBorder).toBe("transparent");
+      expect(DETAIL_DEFAULTS[mode].cardBorder).toBe("transparent");
+      expect(DETAIL_DEFAULTS[mode].borderAlphaStrong).toBe(BORDER_TIER_ALPHA.strong);
+      expect(DETAIL_DEFAULTS[mode].borderAlphaMid).toBe(BORDER_TIER_ALPHA.mid);
+      expect(DETAIL_DEFAULTS[mode].borderAlphaSubtle).toBe(BORDER_TIER_ALPHA.subtle);
+    }
+  });
+
+  test("carries the per-mode strength alphas that differ between modes", () => {
+    expect(DETAIL_DEFAULTS.dark_mode.textFaintAlpha).toBe(0.38);
+    expect(DETAIL_DEFAULTS.light_mode.textFaintAlpha).toBe(0.35);
+    expect(DETAIL_DEFAULTS.dark_mode.overlayHoverAlpha).toBe(0.08);
+    expect(DETAIL_DEFAULTS.light_mode.overlayHoverAlpha).toBe(0.07);
+    /* one shared knob for all five status hues */
+    expect(DETAIL_DEFAULTS.light_mode.statusTintAlpha).toBe(0.14);
+    expect(DETAIL_DEFAULTS.dark_mode.statusTintAlpha).toBe(0.14);
   });
 });
 
 describe("resolveThemeDetails", () => {
   test("returns defaults when no preset/details given", () => {
-    expect(resolveThemeDetails("light_mode", {})).toEqual(DETAIL_DEFAULTS);
+    expect(resolveThemeDetails("light_mode", {})).toEqual(DETAIL_DEFAULTS.light_mode);
+    expect(resolveThemeDetails("dark_mode", {})).toEqual(DETAIL_DEFAULTS.dark_mode);
   });
 
   test("preset details override defaults (high_contrast chipBorder)", () => {
@@ -176,7 +218,7 @@ describe("semanticCssVars with details (chipBorder + border tier alpha overrides
   test("with a details arg, emits --pupu-chip-border", () => {
     const vars = semanticCssVars(
       { border: "#2e2e2e" },
-      { ...DETAIL_DEFAULTS, chipBorder: "#ff0000" },
+      { ...DETAIL_DEFAULTS.light_mode, chipBorder: "#ff0000" },
     );
     expect(vars["--pupu-chip-border"]).toBe("#ff0000");
   });
@@ -184,7 +226,7 @@ describe("semanticCssVars with details (chipBorder + border tier alpha overrides
   test("with a details arg, emits --pupu-card-border", () => {
     const vars = semanticCssVars(
       { border: "#2e2e2e" },
-      { ...DETAIL_DEFAULTS, cardBorder: "#00ffee" },
+      { ...DETAIL_DEFAULTS.light_mode, cardBorder: "#00ffee" },
     );
     expect(vars["--pupu-card-border"]).toBe("#00ffee");
   });
@@ -193,7 +235,7 @@ describe("semanticCssVars with details (chipBorder + border tier alpha overrides
     const vars = semanticCssVars(
       { border: "#2e2e2e" },
       {
-        ...DETAIL_DEFAULTS,
+        ...DETAIL_DEFAULTS.light_mode,
         borderAlphaStrong: 0.99,
         borderAlphaMid: 0.5,
         borderAlphaSubtle: 0.1,
@@ -218,7 +260,7 @@ describe("applySemanticCssVars", () => {
     applySemanticCssVars(
       { border: "#2e2e2e" },
       el,
-      { ...DETAIL_DEFAULTS, chipBorder: "#00ff00" },
+      { ...DETAIL_DEFAULTS.light_mode, chipBorder: "#00ff00" },
     );
     expect(el.style.getPropertyValue("--pupu-chip-border")).toBe("#00ff00");
   });
@@ -303,6 +345,25 @@ describe("resolveSemanticPalette auto-derivation", () => {
     });
     expect(p.surface).toBe("#333333");
   });
+
+  test("derives every SEMANTIC_FAMILIES child when its root is customized (table-driven gate)", () => {
+    for (const [root, fam] of Object.entries(SEMANTIC_FAMILIES)) {
+      const palette = resolveSemanticPalette("dark_mode", {
+        custom: { dark_mode: { [root]: "#0b1620" } },
+      });
+      for (const child of fam.children) {
+        expect(palette[child]).not.toBe(SEMANTIC_DEFAULTS.dark_mode[child]);
+      }
+    }
+  });
+
+  test("customizing a non-family token derives nothing", () => {
+    const palette = resolveSemanticPalette("dark_mode", {
+      custom: { dark_mode: { text: "#aabbcc" } },
+    });
+    expect(palette.sidebar).toBe(SEMANTIC_DEFAULTS.dark_mode.sidebar);
+    expect(palette.surface).toBe(SEMANTIC_DEFAULTS.dark_mode.surface);
+  });
 });
 
 describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
@@ -326,7 +387,22 @@ describe("applySemanticPaletteToTheme deep background family (phase 3)", () => {
     // non-color keys preserved
     expect(out.code.fontSize).toBe(12);
     expect(out.markdown.pre.padding).toBe(10);
-    expect(out.markdown.table.borderColor).toBe("#333333");
+    /* borderColor used to sit in the list above as a stand-in for "left
+       alone", which only held because nothing themed it yet. It is a colour,
+       and prose rules are strokes, so it belongs to the border family now —
+       the preservation check moved to a key that really is non-colour. */
+    expect(out.markdown.table.borderColor).toBe("var(--pupu-border)");
+  });
+
+  /* Rendered prose is the surface a custom Label is most visible on, and it
+     was the last one still painted from fixed hex. */
+  test("markdown prose follows the Label ladder, and its rules the border token", () => {
+    const palette = resolveSemanticPalette("dark_mode", {});
+    const out = applySemanticPaletteToTheme(BASE, palette, "dark_mode");
+    expect(out.markdown.color).toBe("var(--pupu-markdown-body)");
+    expect(out.markdown.blockquote.color).toBe("var(--pupu-markdown-quote)");
+    expect(out.markdown.blockquote.borderColor).toBe("var(--pupu-border)");
+    expect(out.markdown.hr.borderColor).toBe("var(--pupu-border)");
   });
 
   test("light mode maps deep sinks to sidebar tier", () => {
@@ -417,5 +493,226 @@ describe("persistBootPalette", () => {
     const parsed = JSON.parse(window.localStorage.getItem(BOOT_PALETTE_STORAGE_KEY));
     expect(parsed.accent).toBe(palette.accent);
     expect(parsed.background).toBe(palette.background);
+  });
+});
+
+describe("taxonomy v2 — emitted variable set (whitelist increment lock)", () => {
+  /* Replaces the old "byte-identical output" lock. That lock said "do not
+     silently change behaviour"; v2 only ADDS, so the stronger statement is
+     "the set of emitted names is exactly this list". Anything appearing
+     here that a human did not write down is a contract leak. */
+  const FULL_PALETTE = {
+    accent: "#65c466", background: "#121212", sidebar: "#151515",
+    surface: "#1e1e1e", text: "#ffffff", textMuted: "#8a8a8a",
+    border: "#2e2e2e", success: "#4ade80", warning: "#fbbf24",
+    danger: "#f87171", info: "#60a5fa",
+  };
+
+  test("emits exactly the declared variable names", () => {
+    const vars = semanticCssVars(FULL_PALETTE, resolveThemeDetails("dark_mode", {}));
+    const names = Object.keys(vars).sort();
+
+    const roots = [
+      "accent", "background", "sidebar", "surface", "text", "text-muted",
+      "border", "success", "warning", "danger", "info",
+    ];
+    const expected = [];
+    for (const r of roots) expected.push(`--pupu-${r}`, `--pupu-${r}-rgb`);
+    expected.push(
+      "--pupu-text-strong", "--pupu-text-secondary",
+      "--pupu-text-faint", "--pupu-text-disabled",
+      /* Markdown section: prose is an alpha of Label like every other step,
+         so rendered answers follow a custom Label instead of a fixed hex. */
+      "--pupu-markdown-body", "--pupu-markdown-quote",
+      "--pupu-overlay-hover", "--pupu-overlay-active",
+      "--pupu-overlay-selected", "--pupu-overlay-ghost",
+      "--pupu-border-strong", "--pupu-border-mid", "--pupu-border-subtle",
+      "--pupu-chip-border", "--pupu-menu-border", "--pupu-card-border",
+    );
+    for (const hue of ["accent", "success", "warning", "danger", "info"]) {
+      expected.push(
+        `--pupu-${hue}-tint`, `--pupu-${hue}-tint-hover`,
+        `--pupu-${hue}-tint-active`, `--pupu-${hue}-tint-border`,
+      );
+    }
+    expect(names).toEqual(expected.sort());
+  });
+
+  test("strength steps read their alpha from the mode-resolved details", () => {
+    const dark = semanticCssVars(FULL_PALETTE, resolveThemeDetails("dark_mode", {}));
+    const light = semanticCssVars(FULL_PALETTE, resolveThemeDetails("light_mode", {}));
+    expect(dark["--pupu-text-faint"]).toBe("rgba(255,255,255, 0.38)");
+    expect(light["--pupu-text-faint"]).toBe("rgba(255,255,255, 0.35)");
+    expect(dark["--pupu-overlay-selected"]).toBe("rgba(255,255,255, 0.1)");
+    expect(light["--pupu-overlay-selected"]).toBe("rgba(255,255,255, 0.06)");
+  });
+
+  test("a user alpha override flows through the details channel", () => {
+    const vars = semanticCssVars(
+      FULL_PALETTE,
+      resolveThemeDetails("dark_mode", {
+        details: { dark_mode: { textFaintAlpha: 0.5 } },
+      }),
+    );
+    expect(vars["--pupu-text-faint"]).toBe("rgba(255,255,255, 0.5)");
+  });
+
+  test("a partial palette emits no orphan strength steps", () => {
+    const vars = semanticCssVars({ accent: "#65c466" }, resolveThemeDetails("dark_mode", {}));
+    expect(vars["--pupu-text-faint"]).toBeUndefined();
+    expect(vars["--pupu-danger-tint"]).toBeUndefined();
+    expect(vars["--pupu-accent-tint"]).toBe("rgba(101,196,102, 0.14)");
+  });
+});
+
+describe("taxonomy v2 — per-node minStep stops the sidebar drift", () => {
+  /* The old global minStep 0.04 was LARGER than the shipped sidebar offset
+     (default dark #121212 -> #151515 is 0.0118 in HSL-L), so the floor
+     fired on every customisation and pushed sidebar to ~#1c1c1c — a
+     permanent, silent drift away from the preset the moment a user touched
+     background. */
+  test("pinning background to its preset value reproduces the preset tier LIGHTNESS", () => {
+    for (const preset of Object.keys(SEMANTIC_PRESETS)) {
+      for (const mode of ["light_mode", "dark_mode"]) {
+        const ref = SEMANTIC_PRESETS[preset][mode];
+        const resolved = resolveSemanticPalette(mode, {
+          preset,
+          custom: { [mode]: { background: ref.background } },
+        });
+        for (const tier of ["sidebar", "surface"]) {
+          const deltaL =
+            Math.abs(hexToHsl(resolved[tier]).l - hexToHsl(ref[tier]).l) * 255;
+          expect(deltaL).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  /* KNOWN GAP, deliberately locked in as-is rather than silently fixed.
+     deriveTier transplants LIGHTNESS only; it reuses the base colour's
+     saturation. So when a preset's authored sidebar/surface has a
+     different saturation from its background — which most tinted presets
+     do — customising background reproduces the preset's lightness but not
+     its chroma. Worst measured case is `warm` light sidebar: authored
+     #f6efe7 (a warm grey) derives as #ffeede (a noticeably pinker cream),
+     dS = 0.545.
+
+     This predates v2. Closing it needs deriveTier's matchSaturation, but
+     matchSaturation's achromatic fallback caps saturation at 0.20 — muted
+     TEXT semantics, which applied to a shell tier would desaturate a
+     user's deliberately coloured sidebar toward grey. That is a contract
+     decision on a shared pure function, so it is escalated, not improvised
+     here. This test pins current behaviour so the fix is visible when it
+     lands. */
+  test("KNOWN GAP: tier saturation still follows the base, not the preset", () => {
+    const warmLight = SEMANTIC_PRESETS.warm.light_mode;
+    const resolved = resolveSemanticPalette("light_mode", {
+      preset: "warm",
+      custom: { light_mode: { background: warmLight.background } },
+    });
+    expect(hexToHsl(resolved.sidebar).s).toBeCloseTo(
+      hexToHsl(warmLight.background).s,
+      2,
+    );
+    expect(hexToHsl(resolved.sidebar).s).not.toBeCloseTo(
+      hexToHsl(warmLight.sidebar).s,
+      2,
+    );
+  });
+});
+
+/* A Button reads its label colour from theme.button.root.color and hands its
+   icon theme.icon.color. Mapping only the icon split the two halves of one
+   control apart: on the default dark palette the icon moved to #ffffff while
+   the label stayed on the JSON's #CCCCCC, and on a custom palette they
+   drifted properly. The settings side menu is where it showed first, but
+   every plain Button in the app had it. */
+describe("applySemanticPaletteToTheme keeps a button's label with its icon", () => {
+  const semantic = {
+    accent: "#112233",
+    background: "#abcdef",
+    surface: "#fedcba",
+    text: "#010203",
+    textMuted: "#445566",
+    border: "#2e2e2e",
+    success: "#00aa00",
+    warning: "#aa8800",
+    danger: "#aa0000",
+    info: "#0000aa",
+  };
+
+  test("label and icon land on the same text token", () => {
+    const themed = applySemanticPaletteToTheme(
+      { button: { root: { color: "#CCCCCC", fontSize: 16 } }, icon: {} },
+      semantic,
+    );
+
+    expect(themed.button.root.color).toBe(semantic.text);
+    expect(themed.button.root.color).toBe(themed.icon.color);
+  });
+
+  test("the rest of the button theme survives the mapping", () => {
+    const themed = applySemanticPaletteToTheme(
+      {
+        button: {
+          root: { color: "#CCCCCC", fontSize: 16 },
+          background: { hoverBackgroundColor: "#101010" },
+        },
+        icon: {},
+      },
+      semantic,
+    );
+
+    expect(themed.button.root.fontSize).toBe(16);
+    expect(themed.button.background.hoverBackgroundColor).toBe("#101010");
+  });
+
+  test("a theme with no button section does not blow up", () => {
+    const themed = applySemanticPaletteToTheme({ icon: {} }, semantic);
+    expect(themed.button.root.color).toBe(semantic.text);
+  });
+});
+
+/* The trace chain reads its palette out of theme.timeline, which the JSON
+   filled with fixed neutrals — so the row title, the "detail" toggle and the
+   elapsed-time indicator were the last things in a message still ignoring a
+   custom Label. */
+describe("applySemanticPaletteToTheme wires the trace chain to Label", () => {
+  const palette = resolveSemanticPalette("dark_mode", {});
+  const out = applySemanticPaletteToTheme(
+    { timeline: { spanFontSize: "11px", titleColor: "#CCCCCC" } },
+    palette,
+    "dark_mode",
+  );
+
+  test("title, elapsed time and the detail toggle take label steps", () => {
+    expect(out.timeline.titleColor).toBe("var(--pupu-text-strong)");
+    expect(out.timeline.spanColor).toBe("var(--pupu-text-faint)");
+    expect(out.timeline.seeDetailsColor).toBe("var(--pupu-text-faint)");
+  });
+
+  /* Deliberately off-ladder: these four encode done-vs-pending, and one
+     shared rung would flatten the rail into a single tone. They still follow
+     Label — that is the part that must not regress. */
+  test("the rail and its points follow Label while keeping their own alphas", () => {
+    for (const key of [
+      "lineColor",
+      "lineDoneColor",
+      "pointDoneColor",
+      "pointPendingColor",
+    ]) {
+      expect(out.timeline[key]).toMatch(/^rgba\(var\(--pupu-text-rgb\),0\.\d+\)$/);
+    }
+    const alphas = [
+      out.timeline.lineColor,
+      out.timeline.lineDoneColor,
+      out.timeline.pointDoneColor,
+      out.timeline.pointPendingColor,
+    ];
+    expect(new Set(alphas).size).toBe(4);
+  });
+
+  test("non-colour timeline keys survive the merge", () => {
+    expect(out.timeline.spanFontSize).toBe("11px");
   });
 });

@@ -18,6 +18,13 @@ import {
   now,
 } from "./chat_storage_constants";
 import { sanitizeSystemPromptSections } from "../system_prompt_sections";
+import { sanitizeMemoryV2TraceBundle } from "../runtime_events/memory_v2_trace_presenter";
+import { normalizeCompletionDiagnosticsV1 } from "../completion_diagnostics_v1";
+import {
+  RUN_BUNDLE_V1_SCHEMA,
+  normalizeRendererRunBundleV1,
+} from "../run_bundle_v1";
+import { RUN_BUNDLE_V2_SCHEMA, normalizeRunBundleV2 } from "../run_bundle_v2";
 
 export const DEFAULT_CHAT_KIND = "default";
 export const CHARACTER_CHAT_KIND = "character";
@@ -216,6 +223,15 @@ export const sanitizeModel = (model) => {
 
   if (Number.isFinite(Number(model.maxTokens))) {
     cleaned.maxTokens = Math.max(0, Math.floor(Number(model.maxTokens)));
+  }
+
+  if (
+    typeof model.reasoningEffort === "string" &&
+    model.reasoningEffort.trim()
+  ) {
+    cleaned.reasoningEffort = trimText(model.reasoningEffort, 32)
+      .trim()
+      .toLowerCase();
   }
 
   return cleaned;
@@ -728,14 +744,41 @@ export const sanitizeMessage = (message) => {
 
     if (isObject(message.meta.bundle)) {
       const b = message.meta.bundle;
-      const bundle = {};
-      if (typeof b.consumed_tokens === "number") bundle.consumed_tokens = b.consumed_tokens;
-      if (typeof b.input_tokens === "number") bundle.input_tokens = b.input_tokens;
-      if (typeof b.output_tokens === "number") bundle.output_tokens = b.output_tokens;
-      if (typeof b.cache_read_input_tokens === "number") bundle.cache_read_input_tokens = b.cache_read_input_tokens;
-      if (typeof b.cache_creation_input_tokens === "number") bundle.cache_creation_input_tokens = b.cache_creation_input_tokens;
-      if (typeof b.model === "string" && b.model.trim()) bundle.model = trimText(b.model, 200);
-      if (Object.keys(bundle).length > 0) meta.bundle = bundle;
+      if (b.schema === RUN_BUNDLE_V1_SCHEMA || b.schema === RUN_BUNDLE_V2_SCHEMA) {
+        try {
+          meta.bundle = b.schema === RUN_BUNDLE_V2_SCHEMA
+            ? normalizeRunBundleV2(b)
+            : normalizeRendererRunBundleV1(b);
+        } catch {
+          // A malformed canonical claim is never downgraded into a legacy
+          // token bundle during durable reload.
+        }
+      } else {
+        const bundle = {};
+        if (typeof b.consumed_tokens === "number") bundle.consumed_tokens = b.consumed_tokens;
+        if (typeof b.input_tokens === "number") bundle.input_tokens = b.input_tokens;
+        if (typeof b.output_tokens === "number") bundle.output_tokens = b.output_tokens;
+        if (typeof b.cache_read_input_tokens === "number") bundle.cache_read_input_tokens = b.cache_read_input_tokens;
+        if (typeof b.cache_creation_input_tokens === "number") bundle.cache_creation_input_tokens = b.cache_creation_input_tokens;
+        if (typeof b.model === "string" && b.model.trim()) bundle.model = trimText(b.model, 200);
+        const memoryV2 = sanitizeMemoryV2TraceBundle(b.memory_v2);
+        if (memoryV2) bundle.memory_v2 = memoryV2;
+        if (Object.keys(bundle).length > 0) meta.bundle = bundle;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(message.meta, "completion_diagnostics")) {
+      try {
+        const completionDiagnostics = normalizeCompletionDiagnosticsV1(
+          message.meta.completion_diagnostics,
+        );
+        if (completionDiagnostics) {
+          meta.completion_diagnostics = completionDiagnostics;
+        }
+      } catch {
+        // Durable chat loading is fail-closed for malformed diagnostics: keep
+        // the message, but never replay an unadmitted renderer envelope.
+      }
     }
 
     if (Object.keys(meta).length > 0) {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../icon/icon";
+import { Z } from "../layer/z_layers";
 import SlidingHighlight from "../class/sliding_highlight";
 
 /**
@@ -115,7 +116,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
         position: "fixed",
         top,
         left,
-        zIndex: 99999,
+        zIndex: Z.POPOVER,
         backgroundColor: isDark
           ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
           : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)",

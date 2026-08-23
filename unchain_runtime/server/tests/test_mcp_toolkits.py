@@ -1,8 +1,11 @@
+import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +23,7 @@ import mcp_managed_runtime  # noqa: E402
 from mcp_managed_runtime import McpManagedRuntimeError  # noqa: E402
 from mcp_toolkits import (  # noqa: E402
     McpToolkitError,
+    _default_toolkit_factory,
     build_mcp_runtime_toolkit,
     check_mcp_toolkit_health,
     configure_mcp_toolkit,
@@ -992,6 +996,187 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertTrue(toolkit.connected)
         self.assertEqual(toolkit.kwargs["command"], "npx")
 
+    def test_default_runtime_toolkit_marks_only_top_level_string_secret_fields(self):
+        toolkit_class = _default_toolkit_factory()
+        toolkit = object.__new__(toolkit_class)
+        toolkit._pupu_vault_mcp_toolkit_id = "mcp.example.secure"
+        schema = {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "description": "Delivery token",
+                    "x-pupu-secret": True,
+                },
+                "nested": {
+                    "type": "object",
+                    "properties": {
+                        "password": {
+                            "type": "string",
+                            "x-pupu-secret": True,
+                        }
+                    },
+                },
+                "numeric_secret": {
+                    "type": "integer",
+                    "x-pupu-secret": True,
+                },
+                "ordinary": {
+                    "type": "string",
+                    "x-pupu-secret": False,
+                },
+            },
+            "required": ["token"],
+        }
+        converted = toolkit._convert_mcp_tool(
+            SimpleNamespace(
+                name="deliver",
+                description="Deliver a message",
+                inputSchema=schema,
+                annotations=None,
+            )
+        )
+
+        expected_fingerprint = hashlib.sha256(
+            json.dumps(
+                schema,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        self.assertEqual(converted._pupu_vault_secret_fields, ("token",))
+        self.assertEqual(
+            converted._pupu_vault_schema_fingerprint,
+            expected_fingerprint,
+        )
+        self.assertEqual(
+            converted._pupu_vault_mcp_toolkit_id,
+            "mcp.example.secure",
+        )
+        descriptions = {
+            parameter.name: parameter.description
+            for parameter in converted.parameters
+        }
+        self.assertIn("Opaque Vault handle only", descriptions["token"])
+        self.assertIn("Delivery token", descriptions["token"])
+        self.assertNotIn("Opaque Vault handle only", descriptions["nested"])
+        self.assertNotIn(
+            "Opaque Vault handle only",
+            descriptions["numeric_secret"],
+        )
+
+    def test_runtime_binds_vault_toolkit_identity_before_custom_factory_connect(self):
+        class BindingAwareToolkit(FakeMCPToolkit):
+            def connect(self):
+                self.bound_toolkit_id_at_connect = getattr(
+                    self,
+                    "_pupu_vault_mcp_toolkit_id",
+                    "",
+                )
+                self.worker_mode_at_connect = getattr(
+                    self,
+                    "_pupu_vault_worker_mode",
+                    None,
+                )
+                return super().connect()
+
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=BindingAwareToolkit,
+            vault_worker_mode=True,
+        )
+
+        self.assertEqual(
+            toolkit.bound_toolkit_id_at_connect,
+            "mcp.memory.memory",
+        )
+        self.assertTrue(toolkit.worker_mode_at_connect)
+        self.assertEqual(toolkit._pupu_vault_redaction_values, ())
+
+    def test_vault_worker_binds_persisted_mcp_credentials_for_output_redaction(self):
+        install_mcp_toolkit(
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
+            secrets={
+                FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                FIXTURE_SECRET_KEY_B: "fixture-b-value",
+            },
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        toolkit = build_mcp_runtime_toolkit(
+            FIXTURE_STDIO_SECRET_TOOLKIT_ID,
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+            vault_worker_mode=True,
+        )
+
+        self.assertEqual(
+            set(toolkit._pupu_vault_redaction_values),
+            {"fixture-a-value", "fixture-b-value"},
+        )
+
+    def test_runtime_preserves_slotted_custom_factory_fail_closed_behavior(self):
+        class SlottedToolkit:
+            __slots__ = ("connected", "kwargs", "tools")
+
+            def __init__(self, **kwargs):
+                self.connected = False
+                self.kwargs = kwargs
+                self.tools = {}
+
+            def connect(self):
+                self.connected = True
+                return self
+
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=SlottedToolkit,
+            vault_worker_mode=True,
+        )
+
+        self.assertTrue(toolkit.connected)
+        self.assertFalse(hasattr(toolkit, "_pupu_vault_mcp_toolkit_id"))
+        self.assertFalse(hasattr(toolkit, "_pupu_vault_redaction_values"))
+
+    def test_vault_worker_stdio_transport_discards_server_stderr(self):
+        toolkit_class = _default_toolkit_factory()
+        toolkit = object.__new__(toolkit_class)
+        toolkit._pupu_vault_worker_mode = True
+        toolkit._transport = "stdio"
+        toolkit._command = "/usr/bin/false"
+        toolkit._args = []
+        toolkit._env = {}
+        toolkit._cwd = None
+        sentinel = object()
+
+        with mock.patch(
+            "mcp.client.stdio.stdio_client",
+            return_value=sentinel,
+        ) as stdio_client:
+            transport = toolkit._create_transport()
+
+        self.assertIs(transport, sentinel)
+        self.assertEqual(toolkit._stderr_file.name, os.devnull)
+        stdio_client.assert_called_once()
+        toolkit._stderr_file.close()
+
     def test_stdio_discovery_health_and_runtime_share_unpersisted_workdir(self):
         install_mcp_toolkit(
             "memory.memory",
@@ -1350,6 +1535,164 @@ class McpToolkitServiceTests(unittest.TestCase):
             str(self.data_dir / "mcp_runtime" / "cache" / "npm"),
         )
 
+    def test_bundled_runtime_persists_logical_recipe_and_rebinds_on_connect(self):
+        self.managed_runtime_patch.stop()
+        self.managed_runtime_patch = mock.patch(
+            "mcp_toolkits.resolve_managed_stdio_runtime",
+            side_effect=[
+                {
+                    "command": "/Applications/PuPu-v1.app/Resources/mcp_runtime/node/bin/node",
+                    "args_prefix": [
+                        "/Applications/PuPu-v1.app/Resources/mcp_runtime/node/npx-cli.js"
+                    ],
+                    "managed_env": {
+                        "PATH": "/Applications/PuPu-v1.app/Resources/mcp_runtime/node/bin",
+                        "NODE_USE_SYSTEM_CA": "1",
+                    },
+                    "ephemeral_env": {
+                        "HTTPS_PROXY": "http://user:secret@proxy.test:8080"
+                    },
+                    "managed_runtime": {
+                        "kind": "node",
+                        "version": "v24.6.0",
+                        "source": "bundled",
+                        "source_command": "npx",
+                        "target": "darwin-arm64",
+                    },
+                },
+                {
+                    "command": "/Applications/PuPu-v2.app/Resources/mcp_runtime/node/bin/node",
+                    "args_prefix": [
+                        "/Applications/PuPu-v2.app/Resources/mcp_runtime/node/npx-cli.js"
+                    ],
+                    "managed_env": {
+                        "PATH": "/Applications/PuPu-v2.app/Resources/mcp_runtime/node/bin",
+                        "NODE_USE_SYSTEM_CA": "1",
+                    },
+                    "ephemeral_env": {
+                        "HTTPS_PROXY": "http://user:secret@proxy.test:8080"
+                    },
+                    "managed_runtime": {
+                        "kind": "node",
+                        "version": "v24.6.0",
+                        "source": "bundled",
+                        "source_command": "npx",
+                        "target": "darwin-arm64",
+                    },
+                },
+            ],
+        )
+        self.managed_runtime_patch.start()
+
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        discovery = FakeMCPToolkit.instances[-1].kwargs
+        self.assertIn("PuPu-v1.app", discovery["command"])
+        self.assertIn("PuPu-v1.app", discovery["args"][0])
+        self.assertEqual(
+            discovery["env"]["HTTPS_PROXY"],
+            "http://user:secret@proxy.test:8080",
+        )
+
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        record = persisted["toolkits"][0]
+        self.assertEqual(record["command"], "npx")
+        self.assertEqual(
+            record["args"],
+            [
+                "-y",
+                "--before=2026-07-28T00:00:00Z",
+                "@modelcontextprotocol/server-memory@2026.7.4",
+            ],
+        )
+        self.assertNotIn("managed_env", record)
+        self.assertNotIn("proxy.test", json.dumps(record))
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertIn("PuPu-v2.app", toolkit.kwargs["command"])
+        self.assertIn("PuPu-v2.app", toolkit.kwargs["args"][0])
+        self.assertEqual(toolkit.kwargs["env"]["NODE_USE_SYSTEM_CA"], "1")
+
+    def test_legacy_logical_record_adopts_bundled_runtime_on_connect(self):
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        record = persisted["toolkits"][0]
+        self.assertEqual(record["command"], "npx")
+        self.assertNotIn("managed_runtime", record)
+
+        self.managed_runtime_patch.stop()
+        self.managed_runtime_patch = mock.patch(
+            "mcp_toolkits.resolve_managed_stdio_runtime",
+            return_value={
+                "command": "/Applications/PuPu.app/Resources/mcp_runtime/node/bin/node",
+                "args_prefix": [
+                    "/Applications/PuPu.app/Resources/mcp_runtime/node/npx-cli.js"
+                ],
+                "managed_env": {"NODE_USE_SYSTEM_CA": "1"},
+                "ephemeral_env": {},
+                "managed_runtime": {
+                    "kind": "node",
+                    "version": "v24.11.1",
+                    "source": "bundled",
+                    "source_command": "npx",
+                    "target": "darwin-arm64",
+                },
+            },
+        )
+        self.managed_runtime_patch.start()
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertIn("mcp_runtime/node/bin/node", toolkit.kwargs["command"])
+        self.assertIn("mcp_runtime/node/npx-cli.js", toolkit.kwargs["args"][0])
+        self.assertEqual(toolkit.kwargs["env"]["NODE_USE_SYSTEM_CA"], "1")
+
+    def test_curated_runtime_adopts_current_dependency_policy_on_connect(self):
+        install_mcp_toolkit(
+            "workspace.fetch",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        store_path = self.data_dir / "mcp_toolkits.json"
+        persisted = json.loads(store_path.read_text(encoding="utf-8"))
+        persisted["toolkits"][0]["args"] = [
+            "mcp-server-fetch==2026.7.10"
+        ]
+        store_path.write_text(json.dumps(persisted), encoding="utf-8")
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.workspace.fetch",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        self.assertIn(
+            "--exclude-newer=2026-07-28T00:00:00Z",
+            toolkit.kwargs["args"],
+        )
+        with_index = toolkit.kwargs["args"].index("--with")
+        self.assertEqual(
+            toolkit.kwargs["args"][with_index + 1],
+            "mcp==1.28.0",
+        )
+
     def test_managed_runtime_error_does_not_persist_failed_install(self):
         self.managed_runtime_patch.stop()
         self.managed_runtime_patch = mock.patch(
@@ -1465,6 +1808,7 @@ class McpToolkitServiceTests(unittest.TestCase):
             "mcp.productivity.notion-remote",
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
+            vault_worker_mode=True,
         )
 
         self.assertTrue(toolkit.connected)
@@ -1472,6 +1816,10 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertEqual(
             toolkit.kwargs["headers"]["Authorization"],
             "Bearer notion-access-token",
+        )
+        self.assertEqual(
+            set(toolkit._pupu_vault_redaction_values),
+            {"Bearer notion-access-token", "notion-access-token"},
         )
 
 
