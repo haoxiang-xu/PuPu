@@ -100,16 +100,40 @@ jobs:
           }
           New-Item -ItemType Directory -Path $env:QUALIFICATION_ROOT -Force | Out-Null
           Copy-Item -LiteralPath $source -Destination $env:QUALIFICATION_PAYLOAD -Recurse
-          $signableFiles = @(Get-ChildItem -LiteralPath $env:QUALIFICATION_PAYLOAD -File -Recurse |
+          $payloadFiles = @(Get-ChildItem -LiteralPath $env:QUALIFICATION_PAYLOAD -File -Recurse |
             Where-Object { $_.Extension -in ".exe", ".dll" })
-          if ($signableFiles.Count -eq 0) {
+          if ($payloadFiles.Count -eq 0) {
             throw "unpacked Windows payload contains no .exe or .dll files"
           }
+          $unsignedPayloadRelativePaths = @(
+            "resources\mcp_runtime\python\DLLs\tcl86t.dll",
+            "resources\mcp_runtime\python\DLLs\tk86t.dll"
+          )
+          $unsignedPayloadFiles = @($payloadFiles | Where-Object {
+            [System.IO.Path]::GetRelativePath($env:QUALIFICATION_PAYLOAD, $_.FullName) -in $unsignedPayloadRelativePaths
+          })
+          $unsignedPayloadActualPaths = @($unsignedPayloadFiles | ForEach-Object {
+            [System.IO.Path]::GetRelativePath($env:QUALIFICATION_PAYLOAD, $_.FullName)
+          })
+          $missingUnsignedPayloadPaths = @($unsignedPayloadRelativePaths | Where-Object {
+            $_ -notin $unsignedPayloadActualPaths
+          })
+          if ($missingUnsignedPayloadPaths.Count -ne 0 -or $unsignedPayloadFiles.Count -ne $unsignedPayloadRelativePaths.Count) {
+            throw "the controlled unsigned payload exception set did not match exactly: $($missingUnsignedPayloadPaths -join ', ')"
+          }
+          $signableFiles = @($payloadFiles | Where-Object {
+            [System.IO.Path]::GetRelativePath($env:QUALIFICATION_PAYLOAD, $_.FullName) -notin $unsignedPayloadRelativePaths
+          })
           $signableFiles | ForEach-Object { $_.IsReadOnly = $false }
           $readOnlySignableFiles = @($signableFiles | Where-Object { $_.IsReadOnly })
           if ($readOnlySignableFiles.Count -ne 0) {
             throw "isolated signing payload still contains read-only .exe or .dll files"
           }
+          $signingCatalog = Join-Path $env:QUALIFICATION_ROOT "payload-signing-files.txt"
+          $signableFiles | ForEach-Object {
+            [System.IO.Path]::GetRelativePath($env:QUALIFICATION_ROOT, $_.FullName)
+          } | Set-Content -LiteralPath $signingCatalog -Encoding utf8
+          "QUALIFICATION_PAYLOAD_SIGNING_CATALOG=$signingCatalog" >> $env:GITHUB_ENV
 
       - name: Azure login for Windows Artifact Signing
         uses: azure/login@v3
@@ -124,9 +148,7 @@ jobs:
           endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
           signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
-          files-folder: ${{ env.QUALIFICATION_PAYLOAD }}
-          files-folder-filter: exe,dll
-          files-folder-recurse: true
+          files-catalog: ${{ env.QUALIFICATION_PAYLOAD_SIGNING_CATALOG }}
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
@@ -179,16 +201,35 @@ jobs:
           exclude-azure-developer-cli-credential: true
           exclude-interactive-browser-credential: true
 
-      - name: Verify every signed payload file and installer
+      - name: Verify every signable payload file and installer
         shell: pwsh
         run: |
           $payloadFiles = @(Get-ChildItem -LiteralPath $env:QUALIFICATION_PAYLOAD -File -Recurse |
             Where-Object { $_.Extension -in ".exe", ".dll" })
+          $unsignedPayloadRelativePaths = @(
+            "resources\mcp_runtime\python\DLLs\tcl86t.dll",
+            "resources\mcp_runtime\python\DLLs\tk86t.dll"
+          )
+          $unsignedPayloadFiles = @($payloadFiles | Where-Object {
+            [System.IO.Path]::GetRelativePath($env:QUALIFICATION_PAYLOAD, $_.FullName) -in $unsignedPayloadRelativePaths
+          })
+          $unsignedPayloadActualPaths = @($unsignedPayloadFiles | ForEach-Object {
+            [System.IO.Path]::GetRelativePath($env:QUALIFICATION_PAYLOAD, $_.FullName)
+          })
+          $missingUnsignedPayloadPaths = @($unsignedPayloadRelativePaths | Where-Object {
+            $_ -notin $unsignedPayloadActualPaths
+          })
+          if ($missingUnsignedPayloadPaths.Count -ne 0 -or $unsignedPayloadFiles.Count -ne $unsignedPayloadRelativePaths.Count) {
+            throw "the controlled unsigned payload exception set did not match exactly: $($missingUnsignedPayloadPaths -join ', ')"
+          }
+          $signablePayloadFiles = @($payloadFiles | Where-Object {
+            [System.IO.Path]::GetRelativePath($env:QUALIFICATION_PAYLOAD, $_.FullName) -notin $unsignedPayloadRelativePaths
+          })
           $installers = @(Get-ChildItem -LiteralPath (Join-Path $PWD "dist") -File -Filter "*-windows-x64-setup.exe")
           if ($installers.Count -ne 1) {
             throw "expected exactly one Windows x64 installer, found $($installers.Count)"
           }
-          $signedFiles = @($payloadFiles) + @($installers)
+          $signedFiles = @($signablePayloadFiles) + @($installers)
           $evidence = foreach ($file in $signedFiles) {
             $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
             if ($signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
@@ -201,13 +242,25 @@ jobs:
               signer_thumbprint = $signature.SignerCertificate.Thumbprint
             }
           }
+          $unsignedPayloadExceptions = foreach ($file in $unsignedPayloadFiles) {
+            $relativePath = [System.IO.Path]::GetRelativePath($env:QUALIFICATION_PAYLOAD, $file.FullName)
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            [ordered]@{
+              path = $relativePath
+              sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+              authenticode_status = $signature.Status.ToString()
+              reason = "upstream Tcl/Tk DLL rejected by SignTool as not Authenticode-compatible (0x800700C1)"
+            }
+          }
           $report = [ordered]@{
             schema = "pupu.windows-signing-qualification.v1"
             status = "passed"
             run_id = $env:GITHUB_RUN_ID
             source_revision = $env:GITHUB_SHA
             payload_file_count = $payloadFiles.Count
+            signable_payload_file_count = $signablePayloadFiles.Count
             installer_file_count = $installers.Count
+            unsigned_payload_exceptions = @($unsignedPayloadExceptions)
             signed_files = @($evidence)
           }
           $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "windows-signing-qualification.v1.json" -Encoding utf8

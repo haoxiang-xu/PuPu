@@ -39,6 +39,18 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /build:electron:win:unpacked/);
   assert.match(workflow, /\$signableFiles \| ForEach-Object \{ \$_\.IsReadOnly = \$false \}/);
   assert.match(workflow, /isolated signing payload still contains read-only \.exe or \.dll files/);
+  assert.match(workflow, /resources\\mcp_runtime\\python\\DLLs\\tcl86t\.dll/);
+  assert.match(workflow, /resources\\mcp_runtime\\python\\DLLs\\tk86t\.dll/);
+  assert.match(workflow, /files-catalog: \$\{\{ env\.QUALIFICATION_PAYLOAD_SIGNING_CATALOG \}\}/);
+  const payloadSigningStep = workflow.slice(
+    workflow.indexOf("- name: Sign isolated Windows payload with Artifact Signing"),
+    workflow.indexOf("- name: Build a non-publishing installer from the signed payload")
+  );
+  assert.doesNotMatch(payloadSigningStep, /files-folder:/);
+  assert.match(workflow, /controlled unsigned payload exception set did not match exactly/);
+  assert.match(workflow, /unsigned_payload_exceptions/);
+  assert.match(workflow, /signable_payload_file_count/);
+  assert.match(workflow, /not Authenticode-compatible \(0x800700C1\)/);
   assert.match(workflow, /--prepackaged/);
   assert.match(workflow, /--publish never/);
   assert.match(workflow, /Get-AuthenticodeSignature/);
