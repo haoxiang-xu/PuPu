@@ -18,8 +18,13 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.deepEqual(document.errors.map((error) => error.message), []);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /SIGN_WINDOWS_QUALIFICATION/);
-  assert.match(workflow, /environment: release-signing/);
+  assert.match(workflow, /qualification must run from refs\/heads\/dev/);
+  assert.match(workflow, /environment: windows-signing-qualification/);
+  assert.doesNotMatch(workflow, /environment: release-signing/);
   assert.match(workflow, /id-token: write/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /Require protected isolated signing environment/);
+  assert.match(workflow, /verify-github-environment\.mjs --environment windows-signing-qualification/);
   assert.match(workflow, /\$env:RUNNER_TEMP/);
   assert.doesNotMatch(workflow, /\$\{\{\s*runner\.temp\s*\}\}/);
   assert.match(workflow, /Checkout Unchain source for the qualification build/);
@@ -66,6 +71,7 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /pupu\.windows-signing-qualification\.v1/);
   assert.match(workflow, /name: windows-signing-qualification/);
   assert.match(workflow, /path: windows-signing-qualification\.v1\.json/);
+  assert.match(workflow, /secret-material-denylist\.mjs/);
   const evidenceUploadStep = workflow.slice(workflow.indexOf("- name: Upload signing qualification evidence only"));
   assert.match(evidenceUploadStep, /if:\s*\$\{\{ success\(\) \}\}/);
   assert.doesNotMatch(evidenceUploadStep, /if:\s*always\(\)/);

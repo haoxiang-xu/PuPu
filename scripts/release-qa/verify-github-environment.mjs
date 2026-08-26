@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 export function assertProtectedReleaseEnvironment(environment, expectedName) {
   if (!environment || typeof environment !== "object" || Array.isArray(environment)) {
@@ -27,7 +28,7 @@ function parseArgs(argv) {
   return { environment: index >= 0 ? argv[index + 1] || "" : "" };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const { environment } = parseArgs(process.argv.slice(2));
     if (!environment) throw new Error("--environment is required");

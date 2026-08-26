@@ -1,4 +1,5 @@
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const has = (environment, key) =>
   typeof environment[key] === "string" && environment[key].trim().length > 0;
@@ -61,7 +62,7 @@ function parseArgs(argv) {
   return args;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const { platform } = parseArgs(process.argv.slice(2));
     assertReleaseSigningCredentials(platform);

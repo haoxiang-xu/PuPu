@@ -15,9 +15,10 @@ jobs:
   windows-signing-qualification:
     name: Build and verify Windows Artifact Signing
     runs-on: windows-latest
-    environment: release-signing
+    environment: windows-signing-qualification
     permissions:
       contents: read
+      actions: read
       id-token: write
 
     steps:
@@ -25,9 +26,13 @@ jobs:
         shell: pwsh
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
+          QUALIFICATION_REF: ${{ github.ref }}
         run: |
           if ($env:CONFIRMATION -ne "SIGN_WINDOWS_QUALIFICATION") {
             throw "confirmation must equal SIGN_WINDOWS_QUALIFICATION"
+          }
+          if ($env:QUALIFICATION_REF -ne "refs/heads/dev") {
+            throw "qualification must run from refs/heads/dev"
           }
 
       - name: Initialize isolated qualification paths
@@ -40,6 +45,15 @@ jobs:
 
       - name: Checkout the selected source revision
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Require protected isolated signing environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$env:GITHUB_REPOSITORY/environments/windows-signing-qualification" |
+            node scripts/release-qa/verify-github-environment.mjs --environment windows-signing-qualification
 
       - name: Checkout Unchain source for the qualification build
         uses: actions/checkout@v4
@@ -47,6 +61,7 @@ jobs:
           repository: haoxiang-xu/unchain
           ref: dev
           path: .qualification-unchain
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -118,6 +133,15 @@ jobs:
           azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
           azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
           azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+
+      - name: Reject sensitive signing material before evidence upload
+        if: ${{ success() }}
+        shell: pwsh
+        run: |
+          node scripts/release-qa/secret-material-denylist.mjs `
+            --root "$env:GITHUB_WORKSPACE" `
+            --path "windows-signing-qualification.v1.json"
+
       - name: Upload signing qualification evidence only
         if: ${{ success() }}
         uses: actions/upload-artifact@v4

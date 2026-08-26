@@ -72,12 +72,14 @@ jobs:
         with:
           ref: ${{ inputs.release_tag }}
           path: pupu
+          persist-credentials: false
 
       - name: Checkout immutable N-1 fixture source
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.from_tag }}
           path: fixture-source
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -143,6 +145,7 @@ jobs:
           repository: haoxiang-xu/unchain
           ref: ${{ steps.fixture_unchain.outputs.unchain_revision }}
           path: fixture-unchain
+          persist-credentials: false
 
       - name: Verify immutable N-1 fixture prerequisites
         shell: bash

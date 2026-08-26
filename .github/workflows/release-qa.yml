@@ -87,7 +87,7 @@ jobs:
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
 
-  package-matrix:
+  package-non-windows:
     name: Package ${{ matrix.name }}
     needs:
       - deterministic-checks
@@ -96,7 +96,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -107,9 +106,6 @@ jobs:
           - name: mac-intel
             target_id: macos-x64
             signing_platform: macos
-          - name: windows
-            target_id: windows-x64
-            signing_platform: windows
           - name: linux
             target_id: linux-x64
             signing_platform: linux
@@ -123,6 +119,50 @@ jobs:
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
+
+  package-windows:
+    name: Package windows
+    needs:
+      - deterministic-checks
+      - release-candidate-environment-preflight
+    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/_shared-release-package.yml
+    with:
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      target_id: windows-x64
+      platform_name: windows
+      signing_platform: windows
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'dev' }}
+      source_ref: ${{ github.ref }}
+      source_sha: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
+
+  package-matrix:
+    name: Package release matrix
+    needs:
+      - deterministic-checks
+      - release-candidate-environment-preflight
+      - package-non-windows
+      - package-windows
+    if: ${{ always() && needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Require every package target to pass
+        env:
+          NON_WINDOWS_RESULT: ${{ needs.package-non-windows.result }}
+          WINDOWS_RESULT: ${{ needs.package-windows.result }}
+        run: |
+          if [ "$NON_WINDOWS_RESULT" != "success" ] || [ "$WINDOWS_RESULT" != "success" ]; then
+            echo "::error title=Package matrix failed::non-Windows=$NON_WINDOWS_RESULT Windows=$WINDOWS_RESULT"
+            exit 1
+          fi
+
   final-report:
     name: Final Release QA Report
     if: ${{ always() }}

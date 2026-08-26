@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { releaseSigningFailures } from "./release-signing.mjs";
+
+const releaseSigningScript = fileURLToPath(new URL("./release-signing.mjs", import.meta.url));
 
 test("release signing credentials require macOS code signing plus notarization and Windows Artifact Signing", () => {
   assert.match(releaseSigningFailures("macos", {}).join(" "), /CSC_LINK/);
@@ -26,4 +31,15 @@ test("release signing credentials require macOS code signing plus notarization a
     WIN_CSC_LINK: "legacy-certificate",
     WIN_CSC_KEY_PASSWORD: "legacy-password",
   }).join(" "), /AZURE_CLIENT_ID/);
+});
+
+test("release signing executes its fail-closed CLI entrypoint with a portable URL guard", () => {
+  const result = spawnSync(process.execPath, [releaseSigningScript, "--platform", "windows"], {
+    encoding: "utf8",
+    env: {},
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /AZURE_CLIENT_ID/);
+  assert.match(fs.readFileSync(releaseSigningScript, "utf8"), /pathToFileURL\(process\.argv\[1\]\)\.href/);
 });

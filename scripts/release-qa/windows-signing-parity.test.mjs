@@ -83,5 +83,6 @@ test("formal candidate and qualification signing share one guarded implementatio
     evidenceOutput: "windows-signing-evidence\\.v1\\.json",
   });
   assert.match(candidate, /steps\.windows_artifact_signing\.outcome/);
-  assert.match(qualification, /environment: release-signing/);
+  assert.match(qualification, /environment: windows-signing-qualification/);
+  assert.doesNotMatch(qualification, /environment: release-signing/);
 });
