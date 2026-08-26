@@ -15,18 +15,51 @@ const assertValidYaml = (source, label) => {
 test("electron-builder uses canonical architecture-bearing names and every package command blocks implicit publish", () => {
   const packageJson = JSON.parse(read("package.json"));
   const scripts = packageJson.scripts;
+  const packagedBuilds = [
+    ["build:electron", "npm run build:unchain"],
+    ["build:electron:mac", "npm run build:unchain:mac"],
+    ["build:electron:mac:unsigned", "npm run build:unchain:mac"],
+    ["build:electron:mac:release", "npm run build:unchain:mac"],
+    ["build:electron:mac:intel", "npm run build:unchain:mac:intel"],
+    ["build:electron:mac:intel:unsigned", "npm run build:unchain:mac:intel"],
+    ["build:electron:mac:intel:release", "npm run build:unchain:mac:intel"],
+    ["build:electron:linux", "npm run build:unchain:linux"],
+  ];
+  for (const [scriptName, unchainCommand] of packagedBuilds) {
+    const command = scripts[scriptName];
+    assert.match(command, /--publish never/, `${scriptName} must never implicitly publish`);
+    assert.doesNotMatch(
+      command,
+      /cross-env-shell/,
+      `${scriptName} must not use the command-dropping cross-env-shell wrapper`,
+    );
+    assert.match(
+      command,
+      /cross-env PUPU_VERSION_PREPARED=1 npm run build:web/,
+      `${scriptName} must make the controlled feature snapshot mandatory for the Web build`,
+    );
+
+    const orderedCommands = [
+      "npm run version:prepare-build",
+      unchainCommand,
+      "cross-env PUPU_VERSION_PREPARED=1 npm run build:web",
+      "npm run notices:check",
+      "electron-builder",
+    ];
+    let previousIndex = -1;
+    for (const expectedCommand of orderedCommands) {
+      const commandIndex = command.indexOf(expectedCommand);
+      assert.ok(
+        commandIndex > previousIndex,
+        `${scriptName} must execute ${expectedCommand} after the preceding package stage`,
+      );
+      previousIndex = commandIndex;
+    }
+  }
   for (const scriptName of [
-    "build:electron",
-    "build:electron:mac",
-    "build:electron:mac:unsigned",
-    "build:electron:mac:release",
-    "build:electron:mac:intel",
-    "build:electron:mac:intel:unsigned",
-    "build:electron:mac:intel:release",
     "build:win:chain",
     "build:win:chain:unsigned",
     "build:win:chain:unpacked",
-    "build:electron:linux",
   ]) {
     assert.match(scripts[scriptName], /--publish never/, `${scriptName} must never implicitly publish`);
   }
