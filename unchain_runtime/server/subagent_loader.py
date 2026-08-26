@@ -356,6 +356,7 @@ def _build_child_agent(
     instructions: str,
     optimizer_module_factory: Any | None = None,
     model_io_factory: Any | None = None,
+    context_modules: tuple[Any, ...] = (),
 ) -> Any:
     """Construct the inner Agent instance wrapped inside a SubagentTemplate.
 
@@ -375,6 +376,7 @@ def _build_child_agent(
         optimizer_module = optimizer_module_factory()
         if optimizer_module is not None:
             child_modules.append(optimizer_module)
+    child_modules.extend(tuple(context_modules))
     agent_kwargs: dict[str, Any] = {
         "name": name,
         "instructions": instructions,
@@ -417,6 +419,7 @@ def load_templates(
     SubagentTemplate: Any,
     optimizer_module_factory: Any | None = None,
     model_io_factory: Any | None = None,
+    context_modules: tuple[Any, ...] = (),
 ) -> tuple[Any, ...]:
     """Scan user_dir + workspace_dir, parse files, validate, apply precedence,
     intersect allowed_tools against main agent's tools, and return a tuple of
@@ -467,6 +470,7 @@ def load_templates(
             optimizer_module = optimizer_module_factory()
             if optimizer_module is not None:
                 child_modules.append(optimizer_module)
+        child_modules.extend(tuple(context_modules))
 
         child_agent_kwargs: dict[str, Any] = {
             "name": tpl.name,

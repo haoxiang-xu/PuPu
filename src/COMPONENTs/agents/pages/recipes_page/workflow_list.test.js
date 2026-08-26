@@ -3,6 +3,7 @@ import { act } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import RecipesPage from "../recipes_page";
 import { api } from "../../../../SERVICEs/api";
+import { writeFeatureFlags } from "../../../../SERVICEs/feature_flags";
 
 const STORAGE_KEY = "agent_folder_tree_v1";
 const mockExplorerProps = [];
@@ -60,14 +61,15 @@ jest.mock("../../../../BUILTIN_COMPONENTs/explorer/explorer", () => {
     const { data, root } = props;
     mockExplorerProps.push(props);
     const renderNode = (id) => {
-      const node = data[id];
-      if (!node) return null;
+      const explorerItem = data[id];
+      if (!explorerItem) return null;
+      const { children: childIds = [] } = explorerItem;
       return (
         <div key={id}>
-          <button type="button" onClick={node.on_click}>
-            {node.custom_label || node.label}
+          <button type="button" onClick={explorerItem.on_click}>
+            {explorerItem.custom_label || explorerItem.label}
           </button>
-          {(node.children || []).map(renderNode)}
+          {childIds.map(renderNode)}
         </div>
       );
     };
@@ -114,6 +116,36 @@ test("recipe list shows Explore as a workflow", async () => {
     expect(api.unchain.getRecipe).toHaveBeenLastCalledWith("Explore"),
   );
   expect(screen.queryByText("Agent Templates")).not.toBeInTheDocument();
+});
+
+test("Memory V2 stays off the Agent Builder surface when enabled", async () => {
+  window.localStorage.clear();
+  mockExplorerProps.length = 0;
+  writeFeatureFlags({ enable_memory_v2: true });
+  api.unchain.listRecipes.mockResolvedValue({
+    recipes: [{ name: "Default" }, { name: "Explore" }],
+  });
+  api.unchain.getRecipe.mockImplementation(async (name) => ({
+    name,
+    nodes: [],
+    edges: [],
+  }));
+
+  render(
+    <RecipesPage
+      isDark={false}
+      selectedNodeId={null}
+      onSelectNode={() => {}}
+      fullscreen={false}
+    />,
+  );
+
+  expect(await screen.findByText("Default")).toBeInTheDocument();
+  expect(screen.queryByText("Memory Agent")).not.toBeInTheDocument();
+  expect(screen.queryByText("System Agents")).not.toBeInTheDocument();
+  const explorerProps = mockExplorerProps.at(-1);
+  expect(explorerProps.root).toEqual(["Default", "Explore"]);
+  expect(Object.keys(explorerProps.data)).toEqual(["Default", "Explore"]);
 });
 
 test("recipe list uses Explorer drag reorder and the generic add icon", async () => {

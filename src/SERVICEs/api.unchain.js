@@ -846,6 +846,372 @@ const normalizeUnchainV2Payload = (payload) => {
   return injectCustomProviderIntoPayload(payloadWithProviderKey);
 };
 
+const DURABLE_INTERACTION_STATUSES = new Set([
+  "none",
+  "awaiting_response",
+  "receipt_recorded",
+]);
+const DURABLE_INTERACTION_KINDS = new Set([
+  "human_input",
+  "max_budget",
+  "tool_approval",
+]);
+const TOOL_CONFIRMATION_DISPOSITIONS = new Set([
+  "live_continues",
+  "receipt_recorded",
+  "live_only",
+]);
+const PENDING_INTERACTION_BASE_KEYS = [
+  "status",
+  "session_id",
+  "interaction_id",
+  "source_run_id",
+  "active_attempt_id",
+  "kind",
+  "provider",
+  "model",
+  "presentation",
+  "resume_available",
+  "resume_options",
+];
+
+const boundaryString = (value) =>
+  typeof value === "string" ? value.trim() : "";
+
+const hasExactKeys = (value, expectedKeys) => {
+  const keys = Object.keys(value);
+  return (
+    keys.length === expectedKeys.length &&
+    expectedKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  );
+};
+
+const DURABLE_PRESENTATION_KEYS = ["trace_frame", "tool_call"];
+const DURABLE_TRACE_FRAME_KEYS = [
+  "seq",
+  "ts",
+  "type",
+  "run_id",
+  "stage",
+  "payload",
+];
+const DURABLE_TOOL_CALL_KEYS = [
+  "tool_name",
+  "tool_display_name",
+  "toolkit_id",
+  "toolkit_name",
+  "call_id",
+  "arguments",
+  "description",
+  "confirmation_id",
+  "requires_confirmation",
+  "interact_type",
+  "interact_config",
+];
+const DURABLE_MAX_BUDGET_TOOL_CALL_KEYS = DURABLE_TOOL_CALL_KEYS.filter(
+  (key) => key !== "toolkit_id" && key !== "toolkit_name",
+);
+const HUMAN_INPUT_ARGUMENT_KEYS = [
+  "request_id",
+  "kind",
+  "title",
+  "question",
+  "selection_mode",
+  "options",
+  "allow_other",
+  "other_label",
+  "other_placeholder",
+  "min_selected",
+  "max_selected",
+];
+const HUMAN_INPUT_OPTION_KEYS = ["label", "value", "description"];
+const MAX_BUDGET_CONFIG_KEYS = [
+  "effective_max",
+  "suggested_extra_iterations",
+];
+
+const jsonValuesEqual = (left, right) => {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => jsonValuesEqual(value, right[index]))
+    );
+  }
+  if (!isObject(left) || !isObject(right)) return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] && jsonValuesEqual(left[key], right[key]),
+    )
+  );
+};
+
+const isCanonicalHumanInputPayload = (toolCall) => {
+  const payload = toolCall.arguments;
+  return Boolean(
+    isObject(payload) &&
+      hasExactKeys(payload, HUMAN_INPUT_ARGUMENT_KEYS) &&
+      jsonValuesEqual(payload, toolCall.interact_config) &&
+      boundaryString(payload.request_id) === boundaryString(toolCall.call_id) &&
+      payload.kind === "selector" &&
+      boundaryString(payload.title) &&
+      boundaryString(payload.question) &&
+      ["single", "multiple"].includes(payload.selection_mode) &&
+      Array.isArray(payload.options) &&
+      payload.options.length > 0 &&
+      payload.options.every(
+        (option) =>
+          isObject(option) &&
+          hasExactKeys(option, HUMAN_INPUT_OPTION_KEYS) &&
+          boundaryString(option.label) &&
+          boundaryString(option.value) &&
+          typeof option.description === "string",
+      ) &&
+      typeof payload.allow_other === "boolean" &&
+      typeof payload.other_label === "string" &&
+      typeof payload.other_placeholder === "string" &&
+      Number.isInteger(payload.min_selected) &&
+      Number.isInteger(payload.max_selected) &&
+      toolCall.description === payload.question &&
+      toolCall.interact_type ===
+        (payload.selection_mode === "single" ? "single" : "multi"),
+  );
+};
+
+const isCanonicalDurablePresentation = (
+  presentation,
+  { kind, interactionId, sourceRunId },
+) => {
+  if (!isObject(presentation) || !hasExactKeys(presentation, DURABLE_PRESENTATION_KEYS)) {
+    return false;
+  }
+  const traceFrame = presentation.trace_frame;
+  const toolCall = presentation.tool_call;
+  const expectedToolKeys =
+    kind === "max_budget"
+      ? DURABLE_MAX_BUDGET_TOOL_CALL_KEYS
+      : DURABLE_TOOL_CALL_KEYS;
+  if (
+    !isObject(traceFrame) ||
+    !hasExactKeys(traceFrame, DURABLE_TRACE_FRAME_KEYS) ||
+    traceFrame.seq !== 0 ||
+    !Number.isSafeInteger(traceFrame.ts) ||
+    traceFrame.ts < 0 ||
+    traceFrame.type !== "tool_call" ||
+    boundaryString(traceFrame.run_id) !== sourceRunId ||
+    traceFrame.stage !== "durable_recovery" ||
+    !isObject(toolCall) ||
+    !isObject(traceFrame.payload) ||
+    !hasExactKeys(toolCall, expectedToolKeys) ||
+    !hasExactKeys(traceFrame.payload, expectedToolKeys) ||
+    !jsonValuesEqual(toolCall, traceFrame.payload) ||
+    boundaryString(toolCall.confirmation_id) !== interactionId ||
+    toolCall.requires_confirmation !== true ||
+    !boundaryString(toolCall.call_id) ||
+    !boundaryString(toolCall.tool_name) ||
+    typeof toolCall.tool_display_name !== "string" ||
+    !isObject(toolCall.arguments) ||
+    typeof toolCall.description !== "string" ||
+    !boundaryString(toolCall.interact_type) ||
+    (!isObject(toolCall.interact_config) &&
+      !Array.isArray(toolCall.interact_config))
+  ) {
+    return false;
+  }
+  if (
+    kind === "human_input" &&
+    (toolCall.tool_name !== "ask_user_question" ||
+      toolCall.tool_display_name !== "Ask User" ||
+      toolCall.toolkit_id !== "core" ||
+      toolCall.toolkit_name !== "Core" ||
+      !isCanonicalHumanInputPayload(toolCall))
+  ) {
+    return false;
+  }
+  if (
+    kind === "max_budget" &&
+    (toolCall.tool_name !== "__continuation__" ||
+      toolCall.tool_display_name !== "Continue?" ||
+      toolCall.call_id !== `continuation-${interactionId}` ||
+      !hasExactKeys(toolCall.arguments, []) ||
+      toolCall.description !==
+        "Agent reached its iteration limit without a final response." ||
+      toolCall.interact_type !== "confirmation" ||
+      !isObject(toolCall.interact_config) ||
+      !hasExactKeys(toolCall.interact_config, MAX_BUDGET_CONFIG_KEYS) ||
+      !Number.isInteger(toolCall.interact_config.effective_max) ||
+      !Number.isInteger(
+        toolCall.interact_config.suggested_extra_iterations,
+      ))
+  ) {
+    return false;
+  }
+  return true;
+};
+
+const normalizePendingInteractionResponse = (response, expectedSessionId) => {
+  if (!isObject(response)) {
+    throw new FrontendApiError(
+      "invalid_pending_interaction_response",
+      "Unchain returned an invalid pending interaction response",
+    );
+  }
+  const status = boundaryString(response.status);
+  const sessionId = boundaryString(response.session_id);
+  const invalidIdentity =
+    !DURABLE_INTERACTION_STATUSES.has(status) ||
+    !sessionId ||
+    sessionId !== expectedSessionId;
+  if (status === "none") {
+    if (
+      invalidIdentity ||
+      !hasExactKeys(response, ["status", "session_id"])
+    ) {
+      throw new FrontendApiError(
+        "invalid_pending_interaction_response",
+        "Unchain returned a pending interaction for an invalid status or identity",
+      );
+    }
+    return { status: "none", session_id: sessionId };
+  }
+
+  const interactionId = boundaryString(response.interaction_id);
+  const kind = boundaryString(response.kind);
+  const sourceRunId = boundaryString(response.source_run_id);
+  const activeAttemptId = boundaryString(response.active_attempt_id);
+  const hasGraphResumeKeys = [
+    "resume_kind",
+    "graph_step_attempt_id",
+    "graph_coordinator_attempt_id",
+  ].some((key) => Object.prototype.hasOwnProperty.call(response, key));
+  const hasUnavailableReason = Object.prototype.hasOwnProperty.call(
+    response,
+    "resume_unavailable_reason",
+  );
+  const resumeKeys = hasGraphResumeKeys
+    ? [
+        "resume_kind",
+        "graph_step_attempt_id",
+        "graph_coordinator_attempt_id",
+      ]
+    : hasUnavailableReason
+      ? ["resume_unavailable_reason"]
+      : [];
+  const statusKeys =
+    status === "receipt_recorded" ? ["receipt_id", "resolution"] : [];
+  if (
+    invalidIdentity ||
+    !interactionId ||
+    !DURABLE_INTERACTION_KINDS.has(kind) ||
+    !sourceRunId ||
+    !activeAttemptId ||
+    activeAttemptId !== sourceRunId ||
+    typeof response.provider !== "string" ||
+    typeof response.model !== "string" ||
+    !isCanonicalDurablePresentation(response.presentation, {
+      kind,
+      interactionId,
+      sourceRunId,
+    }) ||
+    typeof response.resume_available !== "boolean" ||
+    !isObject(response.resume_options) ||
+    (hasGraphResumeKeys &&
+      (response.resume_kind !== "graph_step" || hasUnavailableReason)) ||
+    (!hasGraphResumeKeys && response.resume_kind !== undefined) ||
+    (response.resume_available === false && !hasUnavailableReason) ||
+    (response.resume_available === true && hasUnavailableReason) ||
+    !hasExactKeys(response, [
+      ...PENDING_INTERACTION_BASE_KEYS,
+      ...resumeKeys,
+      ...statusKeys,
+    ])
+  ) {
+    throw new FrontendApiError(
+      "invalid_pending_interaction_response",
+      "Unchain returned a pending interaction for an invalid status or identity",
+    );
+  }
+  return response;
+};
+
+const normalizeToolConfirmationResponse = (
+  response,
+  { confirmationId, sessionId },
+) => {
+  const invalidResponse = () =>
+    new FrontendApiError(
+      "invalid_confirmation_response",
+      "Unchain returned an invalid tool confirmation response",
+    );
+  if (!isObject(response)) {
+    throw invalidResponse();
+  }
+
+  const disposition = boundaryString(response.disposition);
+  const interactionId = boundaryString(response.interaction_id);
+  if (
+    response.status !== "ok" ||
+    !TOOL_CONFIRMATION_DISPOSITIONS.has(disposition) ||
+    !interactionId ||
+    interactionId !== confirmationId
+  ) {
+    throw invalidResponse();
+  }
+
+  if (disposition === "live_only") {
+    if (
+      response.durable !== false ||
+      !hasExactKeys(response, [
+        "status",
+        "disposition",
+        "durable",
+        "interaction_id",
+      ])
+    ) {
+      throw invalidResponse();
+    }
+    return {
+      status: "ok",
+      disposition,
+      durable: false,
+      interaction_id: interactionId,
+    };
+  }
+
+  const responseSessionId = boundaryString(response.session_id);
+  const receiptId = boundaryString(response.receipt_id);
+  if (
+    response.durable !== true ||
+    !sessionId ||
+    responseSessionId !== sessionId ||
+    !receiptId ||
+    !hasExactKeys(response, [
+      "status",
+      "disposition",
+      "durable",
+      "session_id",
+      "interaction_id",
+      "receipt_id",
+    ])
+  ) {
+    throw invalidResponse();
+  }
+  return {
+    status: "ok",
+    disposition,
+    durable: true,
+    session_id: responseSessionId,
+    interaction_id: interactionId,
+    receipt_id: receiptId,
+  };
+};
+
 export const createUnchainApi = () => {
   const unchainApi = {
     isBridgeAvailable: () =>
@@ -1609,9 +1975,7 @@ export const createUnchainApi = () => {
           "unchain_pending_interaction_timeout",
           "Pending interaction request timed out",
         );
-        return isObject(response)
-          ? response
-          : { status: "none", session_id: sessionId };
+        return normalizePendingInteractionResponse(response, sessionId);
       } catch (error) {
         throw toFrontendApiError(
           error,
@@ -1630,10 +1994,14 @@ export const createUnchainApi = () => {
           typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
         const attemptId =
           typeof attemptIdRaw === "string" ? attemptIdRaw.trim() : "";
-        if (!sessionId || !attemptId) {
+        const ownerChatIdRaw =
+          payload?.owner_chat_id || payload?.ownerChatId;
+        const ownerChatId =
+          typeof ownerChatIdRaw === "string" ? ownerChatIdRaw.trim() : "";
+        if (!ownerChatId || !sessionId || !attemptId) {
           throw new FrontendApiError(
             "invalid_execution_cancel_request",
-            "session_id and attempt_id are required",
+            "owner_chat_id, session_id, and attempt_id are required",
           );
         }
         const reasonRaw = payload?.reason;
@@ -1653,18 +2021,26 @@ export const createUnchainApi = () => {
           typeof sourceAttemptIdRaw === "string"
             ? sourceAttemptIdRaw.trim()
             : "";
+        const interactionIdRaw =
+          payload?.interaction_id || payload?.interactionId;
+        const interactionId =
+          typeof interactionIdRaw === "string"
+            ? interactionIdRaw.trim()
+            : "";
         const requestIdRaw = payload?.request_id || payload?.requestId;
         const requestId =
           typeof requestIdRaw === "string" ? requestIdRaw.trim() : "";
         const response = await withTimeout(
           () =>
             method({
+              owner_chat_id: ownerChatId,
               session_id: sessionId,
               attempt_id: attemptId,
               reason,
               ...(sourceAttemptId
                 ? { source_attempt_id: sourceAttemptId }
                 : {}),
+              ...(interactionId ? { interaction_id: interactionId } : {}),
               ...(requestId ? { request_id: requestId } : {}),
               ...(idempotencyKey
                 ? { idempotency_key: idempotencyKey }
@@ -1736,8 +2112,10 @@ export const createUnchainApi = () => {
         }
 
         const response = await method(requestPayload);
-
-        return isObject(response) ? response : { status: "ok" };
+        return normalizeToolConfirmationResponse(response, {
+          confirmationId,
+          sessionId,
+        });
       } catch (error) {
         throw toFrontendApiError(
           error,

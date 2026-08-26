@@ -1,0 +1,88 @@
+{
+  "admission": {
+    "composition_failure": "stable unavailable reason; no provider resend, chat corruption, fabricated zero, or fabricated exact usage",
+    "extension_key": "unchain.context/context_composition_v1",
+    "malformed_extension": "composition unavailable; base ProviderCallReceipt and RunBundle remain valid",
+    "runtime_features": "composition_availability_only; missing slugs never block ordinary V4/provider send, tools, interactions, or base RunBundle"
+  },
+  "categories": [
+    "instructions",
+    "skills",
+    "tool_definitions",
+    "conversation",
+    "tool_activity",
+    "memory",
+    "task_state",
+    "files_media",
+    "agent_coordination",
+    "output_contract"
+  ],
+  "electron_persistence": {
+    "continuity": "existing ProviderCallReceipt extension -> RunBundle -> bundle_json -> assistant meta.bundle -> TraceChain",
+    "new_ipc": false,
+    "new_keyed_store": false,
+    "new_table": false
+  },
+  "groups": [
+    "instructions",
+    "skills",
+    "tools",
+    "conversation",
+    "memory_task_state",
+    "files_media",
+    "agent_coordination",
+    "output_contract"
+  ],
+  "privacy": {
+    "digests": "call-local envelope/route integrity evidence only; never displayed or indexed across users",
+    "persisted_content": "only allowlisted category IDs, empty V1 subtype arrays, bounded counts/tokens/enums, and call-local integrity digests; raw/content-bearing fields fail closed"
+  },
+  "quality": {
+    "composition": [
+      "reconciled_estimate",
+      "estimated",
+      "partial"
+    ],
+    "overestimate": "preserve category estimates; estimated or partial; residual null; coverage unreconciled; percentage null; never normalize to 100%",
+    "provider_total": [
+      "reported",
+      "unavailable"
+    ],
+    "reconciled": "only reconciled_estimate has non-null residual and attributed+residual equality to receipt provider input total",
+    "unreconciled": "estimated or partial requires residual null and percentage null; provider-total unavailable also forces percentage null"
+  },
+  "run_bundle_carriage": {
+    "authoritative_fields": [
+      "provider_calls[*].extensions",
+      "all_call_ids",
+      "provider_call_set_union"
+    ],
+    "parallel_aggregate": "forbidden",
+    "top_level_context_composition_ref": "forbidden"
+  },
+  "scopes": [
+    "model_call",
+    "run_tree"
+  ],
+  "selector_invariants": {
+    "model_call": "one exact physical provider_call_id",
+    "no_agent_run": true,
+    "percentage": "non-null only for reconciled_estimate with reported provider total and valid equality",
+    "run_tree": "deterministic set union of existing receipt set and all_call_ids; root/graph/subagent; each physical primary/retry/fallback receipt counted once",
+    "unknown_or_corrupt": "composition unavailable; never synthesize from legacy totals"
+  },
+  "subtype_allowlist": {
+    "agent_coordination": [],
+    "conversation": [],
+    "files_media": [],
+    "instructions": [],
+    "memory": [],
+    "output_contract": [],
+    "skills": [],
+    "task_state": [],
+    "tool_activity": [],
+    "tool_definitions": []
+  },
+  "schema": "pupu.context_composition.consumer.v1",
+  "version": 1
+}

@@ -1,0 +1,77 @@
+{
+  "base_contract": {
+    "path": "../ps-001-r6/unchain-context-composition-producer-v1.json",
+    "sha256": "sha256:5dae9c3d1c6faf5cc1cfea8f5adf4687f0ab90965ed899191a7ab1a9419b5bf2"
+  },
+  "change_scope": [
+    "pupu_fresh_hint",
+    "pupu_private_durable_hint.fresh_projection",
+    "fresh_hint_availability_codes"
+  ],
+  "effective_contract_rule": "all base-contract requirements remain exact except the named change_scope objects, which are replaced by this closed successor",
+  "fresh_hint_availability_codes": [
+    "capability_unavailable",
+    "extension_missing",
+    "extension_invalid",
+    "fresh_hint_invalid",
+    "resume_hint_invalid",
+    "resume_hint_mismatch",
+    "resume_hint_no_baseline"
+  ],
+  "private_canonicalization": {
+    "durable_field": "_context_composition_hint_v1",
+    "exact_private_tuple": {
+      "category": "skills",
+      "source_count": 1,
+      "subtype": "expanded_invocation",
+      "surface": "messages",
+      "utf8_bytes": "runtime-recomputed positive JSON safe integer; bool forbidden"
+    },
+    "fresh_projection": "runtime alone canonicalizes an admitted public v2 contribution into the existing private one-item tuple; public v2 bytes are never compared to private v1 bytes",
+    "resume_rule": "renderer omits public v2 on resume; durable private v1 rehydrates byte-identically and existing private absence/equality/conflict rules remain exact",
+    "schema_stability": "private v1 remains valid because its exact tuple shape is unchanged and hint-derived source_count now denotes one admitted aggregate record"
+  },
+  "public_fresh_hint_v2": {
+    "canonical_utf8_max_bytes": 1024,
+    "contribution_exact_keys": [
+      "category",
+      "subtype",
+      "surface",
+      "prefix_utf16_units",
+      "utf8_bytes",
+      "source_count"
+    ],
+    "contribution_fixed_values": {
+      "category": "skills",
+      "source_count": 1,
+      "subtype": "expanded_invocation",
+      "surface": "messages"
+    },
+    "contributions": "exactly one item when present",
+    "exact_keys": [
+      "schema",
+      "contributions"
+    ],
+    "field": "context_composition_hint",
+    "fresh_only": "optional by absence; only fresh composer/edit expansion with final templateLength > 0 emits; no-composer, programmatic, non-fresh, resume, active-stream interject, and zero-template-only paths omit",
+    "prefix_utf16_units": "positive JSON safe integer; bool forbidden; equals final renderer composer.templateLength in JavaScript UTF-16 code units",
+    "producer_rule": "prefix_utf16_units=templateLength; utf8_bytes=TextEncoder().encode(finalMessage.slice(0, templateLength)).length; source_count=1; generic and active fresh provider-run ingresses converge at the same builder/writer",
+    "privacy": "no composer object, rawText, raw prefix/content, command/template/plugin name, toolkit/id/path/URL/digest/hash, arbitrary label, or extra key",
+    "schema": "pupu.context_composition_hint.v2",
+    "source_count_semantics": "literal 1 means one privacy-preserving aggregate expanded-prefix contribution record, never a command/template/plugin count or independently proven provenance",
+    "template_rule": "zero-template-only commands omit without error or coverage gap; mixed zero/nonzero expansion emits one aggregate covering the joined non-empty template prefix and zero-byte routing commands add no contribution or count",
+    "utf8_bytes": "positive JSON safe integer; bool forbidden; renderer claim must be independently recomputed by runtime from authoritative final message plus validated UTF-16 boundary",
+    "v1_input": "unsupported at the v2 boundary; reject for composition only with fresh_hint_invalid; never heuristically upgrade or dual-parse"
+  },
+  "runtime_admission": {
+    "authoritative_input": "expanded authoritative final message plus the public v2 contribution",
+    "boundary_rule": "interpret prefix_utf16_units as JavaScript UTF-16 code units; require 0 < boundary <= authoritative message UTF-16 length; reject a boundary between a valid high/low surrogate pair",
+    "failure": "any schema/key/enum/type/range/size/boundary/surrogate/scalar/byte-equality violation is fresh_hint_invalid; no private mint/persist/overwrite; ordinary V4/chat/provider/tools/interactions/base RunBundle continues",
+    "provenance_limit": "runtime independently verifies the claimed byte total against the authoritative message prefix selected by the validated boundary; it does not independently prove the renderer assertion that the boundary originated from template expansion",
+    "scalar_rule": "selected prefix must be a valid Unicode scalar sequence; any unpaired high or low surrogate is invalid and is never replacement-encoded",
+    "utf8_rule": "strict-UTF-8 encode the authoritative prefix and require exact equality with public utf8_bytes before atomic private canonicalization"
+  },
+  "schema": "unchain.context_composition.producer.v2",
+  "supersedes": "unchain.context_composition.producer.v1",
+  "version": 2
+}

@@ -1,0 +1,24 @@
+- [入职契约](onboarding-contract.md) — 架构师=技术权威/CTO=交付;reports to CTO 但技术上 CTO defer;单一指挥链(我设计→CTO派活→我验收);强制走 codex exec -p architect(gpt-5.5/xhigh/read-only)+GitNexus 取证
+- [hybrid 执行分层政策](hybrid-codex-policy.md) — A/B/C 三模式;我=Mode A 且是这条标准 owner;dev-backend=B 仅试点、过指标才扩;B 永不进 chat-core/electron
+- [常驻 agent 愿景(心跳/记忆/感知/缓存)](always-on-agent-vision.md) — 2026-06-20 CEO 愿景会取证+立场;sidecar 绑前台GUI而死、记忆只在turn-end提交、无scheduler;one-way-door=PuPu是前台chat app还是常驻daemon
+- [trace #155/#66 finality 重评定案](trace-finality-decision.md) — 2026-06-20 partial-yes:NOW finality 字段是重构真子集(保留~90-95%,CEO白烧token前提不成立);typed-tree+后端snapshot押后;后端OWN terminal=单向门
+- [listener node + 三块石头定案](listener-node-and-boulders.md) — 2026-06-20 常驻agent三件架构事:start_node→typed listener_node+flow_event.v1 envelope;三石头落位(寄生sidecar+memory≠job store+C拆成两个gate);单向门=event-ledger-first+归一化envelope;立场=UI晚做但运行时契约M0就定
+- [生成式UI(ultra app)契约定案](generative-ui-contract.md) — 2026-06-20 ui_surface.v1声明契约+ui_edit_event.v1回流(走onToolConfirmationDecision血管→flow_event.v1);落位=第三契约面非第三条腿;加判=fail-closed校验+snapshot→operable才是真单向门;单向门=词汇表append-only+安全边界
+- [Agent teams 战略定案](agent-teams-decision.md) — 2026-06-20 C now/B destination;整套多agent runtime在私有wheel(只配policy不own loop)→A死路;team=root agent经tool升级进的执行策略(对用户+recipe都不可见);team_comm.v1是job-store内record族非独立ledger;第一刀=envelope+append-only recorder pass-through镜像flow_event切法
+- [computer use 混合方案设计定案](computer-use-hybrid-design.md) — 2026-07-13 browser=捆绑playwright-mcp先发/computer=sidecar手+Anthropic predefined;七单向门;本次CEO豁免Codex管线(Fable 5推理)
+- [0.1.9-0.2.0 三份前置设计定案](roadmap-predesigns-019-020.md) — 2026-07-05 Gemini=native kernel(compat判死)+白名单收敛;skills=hybrid渐进披露全Flask侧;external runner=进程边界实现subagent抽象+0.2.0冻结面
+- [computer use 门B启用路径定案](computer-use-gate-b-enable-path.md) — 2026-07-18 渲染层期望态+POST runtime override 不重启;红线=funnel门1永不读request flag;memory_factory私有副本必须收敛
+- [skill 展开岔口2定案](skill-expansion-fork2-decision.md) — 2026-07-18 裁D(A契约+渲染折叠sidecar composer.v1);否决B隐藏注入(content=模型真相是承重不变量);always模式才走before_model
+- [2026-07 健康评估基线](code-health-baseline-2026-07.md) — use_chat_stream实测12k行/adapter 7.3k/routes已拆完;五项优先级+不动名单+GitNexus动态import盲区
+- [AGPL 换证评读定案](license-agpl-switch-review.md) — 2026-07-21 硬门PASS/CLA §4已覆盖relicense/建议0.1.9放大发布前换/unchain保持Apache;真单向门=CLA管线非license文本
+- [Phase4 secret 描述符契约审查](phase4-secret-descriptor-contract-review.md) — 2026-07-25 REVISE:renderer secret注入有4条路非3条(漏injectOpenAIEmbeddingKeyIfNeeded L279);单描述符无法载"embedding-openai+model双secret"→须改带channel列表;冻结形状=单向门;B2 replaceMisoSessionMemory须strip+inject;N+1删legacy前configuredCredentials须live-refresh
+- [unchain 专属团队三问裁决](unchain-team-ruling.md) — 2026-07-28 三簇否决CTO两簇(强连通核心不可切);我统管双repo(90天可逆+复评触发);跨仓签核改role-based;Mission 0=正名public API(jobs._worker渗漏)
+- [unchain 替换裁决](harness-replacement-adjudication.md) — 2026-07-28 不换内核;90%深绑定/LangGraph~73%覆盖;先建 runtime contract+provider gateway;pilot 条件触发;单向门=删unchain backend
+- [sidecar TLS+managed runtime 裁决](sidecar-tls-and-managed-runtime-ruling.md) — 2026-07-28 擎net_tls保留随0.1.9;Electron内置Node=否决陷阱;v2立项P1-P5(darwin-only/不钉版/惰性物料化/企业断点);半单向门=trust解析顺序
+- [PO 角色 vs project ledger 裁定](po-role-vs-project-ledger.md) — 2026-07-31 草案:PO 三诉求=ledger工件+DRI字段+cadence盯梢,不新增agent;实测subagent无Task工具→PO派dev物理不可行;issue已证伪(#42僵尸)
+- [plugin五类+hosts.*契约拍板](plugin-five-types-hosts-contract-ratified.md) — 2026-08-04 生效:artifact二分/payloads-capabilities拆分/信封三+一铁律/mount维度/JSON默认存储;单向门清单+被否点(勿复推SQLite);spec在docs/superpowers/specs
+- [主题v2 P1终审](semantic-theme-v2-p1-signoff.md) — 2026-08-04 pin存储法则定案(缺键=跟随/在键=固定,值对比归一化被证伪勿复议);textMuted留根押P2;P2派生饱和度契约;GitNexus const幽灵节点盲区→grep为ground truth
+- [Memory V2 四态判定的三层划分](memory-v2-four-state-layering.md) — 2026-08-08 0008案:L1提取/L2分类/L3呈现,只收前两层;"N份拷贝"计数本身是错的;归一落sidecar;对我前案"只有指派能解"的经验校准
+- [接缝盲区(取证准则)](seam-evidence-blindspot.md) — 取证单元是边界、缺陷常在接缝;跨侧主张须有被主张一侧的证据;先做减法再读内部;我自己犯过
+- [跨边界契约现行判例](../../codex/precedents/cross-boundary-contract-evidence.md) — 接缝实例化为 BC、时间序列实例化为 SEQ；事实与项目 profile 只链接 canonical 文档，不在 memory 复制
+- [0005案 降级信号被丢弃 鉴定先例](memory-v2-drop-case-0005-precedent.md) — 根因收窄:缺的是两侧对账非产端声明;sanitize不在持久化边界上;单向门三条轴;形状D=规避判不成立

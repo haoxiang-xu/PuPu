@@ -3,10 +3,11 @@
   "$id": "https://pupu.local/schemas/mcp_toolkit_registry.schema.json",
   "title": "PuPu MCP Toolkit Registry",
   "type": "object",
-  "required": ["version", "entries"],
+  "required": ["version", "dependencyCutoff", "entries"],
   "additionalProperties": true,
   "properties": {
     "version": { "type": "integer", "minimum": 1 },
+    "dependencyCutoff": { "type": "string", "format": "date-time" },
     "name": { "type": "string" },
     "publisher": { "type": "string" },
     "homepage": { "type": "string", "format": "uri" },

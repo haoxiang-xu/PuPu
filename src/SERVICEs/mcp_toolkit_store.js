@@ -234,10 +234,18 @@ export function resolveMcpIcon(toolkit) {
   if (customIcon) {
     return customIcon;
   }
+  /* A curated Store entry is the authority for every surface. If it omits
+     an icon, do not let a stale icon persisted by an older installation (or
+     returned by the runtime catalog) make Installed / Detail / Attach differ
+     from Store. Custom MCPs that have no registry entry can still use their
+     runtime-provided icon below. */
+  if (entry) {
+    return DEFAULT_MCP_ICON;
+  }
   if (isExplicitMcpIcon(toolkit?.toolkitIcon)) {
     return toolkit.toolkitIcon;
   }
-  if (isMcpToolkit(toolkit) || entry) {
+  if (isMcpToolkit(toolkit)) {
     return DEFAULT_MCP_ICON;
   }
   if (metadataIcon) {

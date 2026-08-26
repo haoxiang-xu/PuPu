@@ -18,8 +18,18 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
         cancel: jest.fn(),
       })),
       cancelExecution: jest.fn(async () => ({ status: "cancel_requested" })),
-      getPendingInteraction: jest.fn(async () => ({ status: "none" })),
-      respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
+      getPendingInteraction: jest.fn(async ({ session_id: sessionId } = {}) => ({
+        status: "none",
+        session_id: sessionId || "",
+      })),
+      respondToolConfirmation: jest.fn(
+        async ({ confirmation_id: confirmationId } = {}) => ({
+          status: "ok",
+          disposition: "live_only",
+          durable: false,
+          interaction_id: confirmationId || "",
+        }),
+      ),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
@@ -152,19 +162,23 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
 
   test("forwards an exact execution cancellation identity", async () => {
     await api.unchain.cancelExecution({
+      ownerChatId: " owner-chat-1 ",
       sessionId: " chat-1 ",
       attemptId: " attempt-1 ",
       reason: " user_stop ",
       idempotencyKey: " stop-1 ",
       sourceAttemptId: " attempt-source-1 ",
+      interactionId: " interaction-1 ",
       requestId: " request-1 ",
     });
 
     expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      owner_chat_id: "owner-chat-1",
       session_id: "chat-1",
       attempt_id: "attempt-1",
       reason: "user_stop",
       source_attempt_id: "attempt-source-1",
+      interaction_id: "interaction-1",
       request_id: "request-1",
       idempotency_key: "stop-1",
     });
@@ -172,7 +186,22 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
 
   test("rejects execution cancellation without an exact attempt", async () => {
     await expect(
-      api.unchain.cancelExecution({ session_id: "chat-1" }),
+      api.unchain.cancelExecution({
+        owner_chat_id: "owner-chat-1",
+        session_id: "chat-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_execution_cancel_request",
+    });
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
+
+  test("rejects execution cancellation without an exact chat owner", async () => {
+    await expect(
+      api.unchain.cancelExecution({
+        session_id: "character-session-1",
+        attempt_id: "attempt-1",
+      }),
     ).rejects.toMatchObject({
       code: "invalid_execution_cancel_request",
     });
@@ -189,6 +218,182 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
       code: "invalid_confirmation_request",
     });
     expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+  });
+
+  test("fails closed on malformed or mismatched pending interaction descriptors", async () => {
+    const invalidResponses = [
+      null,
+      [],
+      { status: "future_status", session_id: "chat-1" },
+      { status: "none", session_id: "chat-other" },
+      { status: "none", session_id: "chat-1", unexpected: true },
+      {
+        status: "awaiting_response",
+        session_id: "chat-1",
+        interaction_id: "",
+      },
+    ];
+
+    for (const response of invalidResponses) {
+      window.unchainAPI.getPendingInteraction.mockResolvedValueOnce(response);
+      await expect(
+        api.unchain.getPendingInteraction({ session_id: "chat-1" }),
+      ).rejects.toMatchObject({
+        code: "invalid_pending_interaction_response",
+      });
+    }
+
+    const exactToolCall = {
+      tool_name: "shell",
+      tool_display_name: "Shell",
+      toolkit_id: "core",
+      toolkit_name: "Core",
+      call_id: "call-1",
+      arguments: { command: "npm install" },
+      description: "Run npm install",
+      confirmation_id: "interaction-1",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+      interact_config: {},
+    };
+    const exactPending = {
+      status: "awaiting_response",
+      session_id: "chat-1",
+      interaction_id: "interaction-1",
+      source_run_id: "attempt-1",
+      active_attempt_id: "attempt-1",
+      kind: "tool_approval",
+      provider: "openai",
+      model: "gpt-5",
+      presentation: {
+        trace_frame: {
+          seq: 0,
+          ts: 100,
+          type: "tool_call",
+          run_id: "attempt-1",
+          stage: "durable_recovery",
+          payload: { ...exactToolCall },
+        },
+        tool_call: { ...exactToolCall },
+      },
+      resume_available: true,
+      resume_options: {},
+    };
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce(exactPending);
+    await expect(
+      api.unchain.getPendingInteraction({ session_id: "chat-1" }),
+    ).resolves.toEqual(exactPending);
+
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce({
+      ...exactPending,
+      unexpected: true,
+    });
+    await expect(
+      api.unchain.getPendingInteraction({ session_id: "chat-1" }),
+    ).rejects.toMatchObject({
+      code: "invalid_pending_interaction_response",
+    });
+
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce({
+      ...exactPending,
+      presentation: {
+        ...exactPending.presentation,
+        tool_call: {
+          ...exactPending.presentation.tool_call,
+          secret: "must-not-cross-the-boundary",
+        },
+      },
+    });
+    await expect(
+      api.unchain.getPendingInteraction({ session_id: "chat-1" }),
+    ).rejects.toMatchObject({
+      code: "invalid_pending_interaction_response",
+    });
+
+    window.unchainAPI.getPendingInteraction.mockResolvedValueOnce({
+      ...exactPending,
+      presentation: {
+        ...exactPending.presentation,
+        tool_call: {
+          ...exactPending.presentation.tool_call,
+          tool_name: "foreign_tool",
+        },
+      },
+    });
+    await expect(
+      api.unchain.getPendingInteraction({ session_id: "chat-1" }),
+    ).rejects.toMatchObject({
+      code: "invalid_pending_interaction_response",
+    });
+  });
+
+  test("admits only closed confirmation dispositions with exact identities", async () => {
+    const invalidResponses = [
+      null,
+      [],
+      { status: "ok" },
+      {
+        status: "ok",
+        disposition: "future_disposition",
+        durable: false,
+        interaction_id: "interaction-1",
+      },
+      {
+        status: "ok",
+        disposition: "live_only",
+        durable: false,
+        interaction_id: "interaction-other",
+      },
+      {
+        status: "ok",
+        disposition: "receipt_recorded",
+        durable: true,
+        session_id: "chat-1",
+        interaction_id: "interaction-1",
+        receipt_id: "",
+      },
+      {
+        status: "ok",
+        disposition: "live_only",
+        durable: false,
+        interaction_id: "interaction-1",
+        unexpected: true,
+      },
+    ];
+
+    for (const response of invalidResponses) {
+      window.unchainAPI.respondToolConfirmation.mockResolvedValueOnce(response);
+      await expect(
+        api.unchain.respondToolConfirmation({
+          confirmation_id: "interaction-1",
+          session_id: "chat-1",
+          approved: true,
+        }),
+      ).rejects.toMatchObject({ code: "invalid_confirmation_response" });
+    }
+
+    window.unchainAPI.respondToolConfirmation.mockResolvedValueOnce({
+      status: "ok",
+      disposition: "receipt_recorded",
+      durable: true,
+      session_id: "chat-1",
+      interaction_id: "interaction-1",
+      receipt_id: "receipt-1",
+    });
+    await expect(
+      api.unchain.respondToolConfirmation({
+        confirmation_id: "interaction-1",
+        session_id: "chat-1",
+        approved: true,
+      }),
+    ).resolves.toEqual({
+      status: "ok",
+      disposition: "receipt_recorded",
+      durable: true,
+      session_id: "chat-1",
+      interaction_id: "interaction-1",
+      receipt_id: "receipt-1",
+    });
   });
 
   test("respects explicit memory_enabled=false even when memory setting is enabled", () => {

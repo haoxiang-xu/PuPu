@@ -5,6 +5,7 @@ import {
   ThemeContext,
 } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
+import { resolveQueueRelaySessionOwner } from "./hooks/use_chat_stream";
 import {
   createChatInSelectedContext,
   getChatsStore,
@@ -35,6 +36,27 @@ import {
   writePendingFyi,
   writeQueuedTurnsForAttempt,
 } from "../../SERVICEs/queued_turn_outbox";
+import { computeCompletionDiagnosticsDigestV1 } from "../../SERVICEs/completion_diagnostics_v1";
+
+const {
+  buildRunBundleV1,
+} = require("../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+const {
+  computeRunBundleDigest,
+} = require("../../../electron/shared/run_bundle_v1");
+
+const completionDiagnosticsFor = (memoryV2) => ({
+  schema: "pupu.completion_diagnostics.v1",
+  diagnostics_digest: computeCompletionDiagnosticsDigestV1(memoryV2),
+  memory_v2: memoryV2,
+});
+
+const failedRunBundleV1 = () => {
+  const bundle = buildRunBundleV1();
+  bundle.lifecycle.status = "failed";
+  bundle.bundle_digest = computeRunBundleDigest(bundle);
+  return bundle;
+};
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -172,13 +194,21 @@ describe("ChatInterface stop flow", () => {
         status: "none",
         session_id: sessionId || "",
       })),
-      respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
+      respondToolConfirmation: jest.fn(
+        async ({ confirmation_id: confirmationId } = {}) => ({
+          status: "ok",
+          disposition: "live_only",
+          durable: false,
+          interaction_id: confirmationId || "",
+        }),
+      ),
     };
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
     delete window.unchainAPI;
+    delete window.runBundleStorageAPI;
     delete window.__pupuTestBridge;
   });
 
@@ -532,6 +562,7 @@ describe("ChatInterface stop flow", () => {
       status: "cancel_requested",
     });
     expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      owner_chat_id: chatAId,
       session_id: chatAId,
       attempt_id: `attempt-${chatAId}`,
       request_id: `attempt-${chatAId}`,
@@ -880,11 +911,14 @@ describe("ChatInterface stop flow", () => {
       source_run_id: sourceRunId,
       active_attempt_id: activeAttemptId,
       kind: "tool_approval",
+      provider: "openai",
+      model: "gpt-5",
       presentation: {
         trace_frame: {
           seq: 0,
           ts: 100,
           type: "tool_call",
+          run_id: sourceRunId,
           stage: "durable_recovery",
           payload: toolCall,
         },
@@ -911,8 +945,11 @@ describe("ChatInterface stop flow", () => {
     };
   };
 
-  const installDurableBridge = ({ resolvePending }) => {
+  const installDurableBridge = ({ resolvePending, cancelExecution }) => {
     const runs = [];
+    if (typeof cancelExecution === "function") {
+      window.unchainAPI.cancelExecution.mockImplementation(cancelExecution);
+    }
     window.unchainAPI.getPendingInteraction = jest.fn(
       async ({ session_id: sessionId } = {}) =>
         (await resolvePending(sessionId)) || {
@@ -1074,6 +1111,7 @@ describe("ChatInterface stop flow", () => {
 
     await waitFor(() => {
       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: activeChatId,
         session_id: activeChatId,
         attempt_id: "attempt-v4-1",
         request_id: "attempt-v4-1",
@@ -1085,9 +1123,10 @@ describe("ChatInterface stop flow", () => {
 
     await act(async () => {
       resolveCancellation({
-        status: "cancelled",
-        session_id: activeChatId,
+        status: "ok",
+        execution_id: activeChatId,
         attempt_id: "attempt-v4-1",
+        state: "cancelled",
       });
       await Promise.resolve();
     });
@@ -1103,7 +1142,12 @@ describe("ChatInterface stop flow", () => {
     window.unchainAPI.cancelExecution = jest
       .fn()
       .mockRejectedValueOnce(new Error("sidecar restarting"))
-      .mockResolvedValueOnce({ status: "ok", state: "cancelled" });
+      .mockImplementationOnce(async (payload) => ({
+        status: "ok",
+        execution_id: payload.session_id,
+        attempt_id: payload.attempt_id,
+        state: "cancelled",
+      }));
     window.unchainAPI.startStreamV4 = jest
       .fn()
       .mockImplementationOnce(() => ({
@@ -1160,6 +1204,7 @@ describe("ChatInterface stop flow", () => {
 
       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(2);
       expect(window.unchainAPI.cancelExecution).toHaveBeenNthCalledWith(2, {
+        owner_chat_id: activeChatId,
         session_id: activeChatId,
         attempt_id: "attempt-v4-retry",
         request_id: "attempt-v4-retry",
@@ -1530,6 +1575,7 @@ describe("ChatInterface stop flow", () => {
       fireEvent.click(screen.getByTestId("stop-button"));
       await waitFor(() => {
         expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+          owner_chat_id: chatAId,
           session_id: chatAId,
           attempt_id: runA.attemptId,
           request_id: runA.attemptId,
@@ -2180,6 +2226,94 @@ describe("ChatInterface stop flow", () => {
     expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
   });
 
+  test("keeps a reattached terminal stream pending until canonical accounting is durable", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    const bundle = buildRunBundleV1();
+    const completionDiagnostics = completionDiagnosticsFor({
+      mode: "shadow",
+      trace_status: "complete",
+      shadow_only: true,
+    });
+    let resolveUpsert;
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      ),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({
+          bundle,
+          completion_diagnostics: completionDiagnostics,
+        });
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "late-after-accounting-barrier",
+            type: "step.delta",
+            seq: 99,
+            payload: {
+              step_id: "model:late:response",
+              step_type: "model_response",
+              kind: "text",
+              delta: "LATE ACCOUNTING FRAME MUST BE IGNORED",
+            },
+          }),
+          { streamSeq: 99 },
+        );
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(window.runBundleStorageAPI.upsert).toHaveBeenCalledTimes(1);
+    });
+    expect(getChatsStore().chatsById[chatId].messages[1].status).toBe(
+      "streaming",
+    );
+
+    await act(async () => {
+      resolveUpsert({
+        ok: true,
+        status: "inserted",
+        bundleId: bundle.bundle_id,
+        revision: bundle.revision,
+        bundleDigest: bundle.bundle_digest,
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(getChatsStore().chatsById[chatId].messages[1]).toMatchObject({
+        status: "done",
+        meta: {
+          bundle,
+          completion_diagnostics: completionDiagnostics,
+        },
+      });
+    });
+    expect(getChatsStore().chatsById[chatId].messages[1].content).not.toContain(
+      "LATE ACCOUNTING FRAME MUST BE IGNORED",
+    );
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
   test("restores an unresolved replay interaction with exact chat ownership", async () => {
     const chatId = getChatsStore().activeChatId;
     seedPersistedV4Attempt({ chatId });
@@ -2352,6 +2486,157 @@ describe("ChatInterface stop flow", () => {
       });
     });
     expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+  });
+
+  test("persists admitted accounting for a reattached failed canonical run", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId, content: "safe failed partial" });
+    const bundle = failedRunBundleV1();
+    const completionDiagnostics = completionDiagnosticsFor({
+      mode: "active",
+      trace_status: "partial",
+      active_applied: false,
+    });
+    let resolveUpsert;
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      ),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onRuntimeEvent(
+          buildReattachEvent({
+            chatId,
+            id: "reattach-canonical-failed",
+            type: "run.failed",
+            seq: 1,
+            payload: {
+              status: "failed",
+              error: {
+                code: "reattach_failed",
+                message: "reattach failed safely",
+              },
+            },
+          }),
+          { streamSeq: 1 },
+        );
+        handlers.onDone({
+          error: {
+            code: "reattach_failed",
+            message: "reattach failed safely",
+          },
+          bundle,
+          completion_diagnostics: completionDiagnostics,
+        });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      expect(window.runBundleStorageAPI.upsert).toHaveBeenCalledWith(bundle);
+    });
+    expect(getChatsStore().chatsById[chatId].messages[1].status).toBe(
+      "streaming",
+    );
+
+    await act(async () => {
+      resolveUpsert({
+        ok: true,
+        status: "inserted",
+        bundleId: bundle.bundle_id,
+        revision: bundle.revision,
+        bundleDigest: bundle.bundle_digest,
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(getChatsStore().chatsById[chatId].messages[1]).toMatchObject({
+        status: "error",
+        meta: {
+          bundle,
+          completion_diagnostics: completionDiagnostics,
+          error: {
+            code: "reattach_failed",
+            message: "reattach failed safely",
+          },
+        },
+      });
+    });
+  });
+
+  test("fails closed when reattached failed-run accounting rejects", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId, content: "untrusted failed partial" });
+    const bundle = failedRunBundleV1();
+    const completionDiagnostics = completionDiagnosticsFor({
+      mode: "shadow",
+      trace_status: "complete",
+      shadow_only: true,
+    });
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(async () => {
+        throw new Error("reattach ledger unavailable");
+      }),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+    window.unchainAPI.startStreamV4 = jest.fn();
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({
+          error: {
+            code: "reattach_failed",
+            message: "untrusted raw failure",
+          },
+          bundle,
+          completion_diagnostics: completionDiagnostics,
+        });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+
+    renderChat();
+    await waitForReady();
+    await waitFor(() => {
+      const assistant = getChatsStore().chatsById[chatId].messages[1];
+      expect(assistant).toMatchObject({
+        status: "error",
+        meta: {
+          error: {
+            code: "run_bundle_accounting_failed",
+            message:
+              "The failed recovered run could not be admitted to the Run Bundle ledger.",
+          },
+        },
+      });
+      expect(assistant.meta?.bundle).toBeUndefined();
+      expect(assistant.meta?.completion_diagnostics).toBeUndefined();
+    });
   });
 
   test("preserves cancelled semantics when an attached stream is cancelled", async () => {
@@ -3072,7 +3357,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("persists agent orchestration between turns and records token usage from bundle.model", async () => {
+  test("persists agent orchestration while leaving legacy token usage read-only", async () => {
     const seeded = getChatsStore();
     setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
 
@@ -3129,16 +3414,7 @@ describe("ChatInterface stop flow", () => {
     expect(
       getChatsStore().chatsById[getChatsStore().activeChatId].model,
     ).toEqual({ id: "openai:gpt-5" });
-    expect(readTokenUsageRecords()).toEqual([
-      expect.objectContaining({
-        provider: "openai",
-        model: "gpt-4.1",
-        model_id: "openai:gpt-4.1",
-        consumed_tokens: 21,
-        input_tokens: 13,
-        output_tokens: 8,
-      }),
-    ]);
+    expect(readTokenUsageRecords()).toEqual([]);
 
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: "Proceed" },
@@ -3231,7 +3507,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("rehydrates an awaiting durable interaction without starting a stream and blocks send", async () => {
+  test("rehydrates an awaiting durable interaction without cancelling or auto-resuming it", async () => {
     const interactionId = "interaction-awaiting";
     const sessionId = seedActiveChatMessages([
       {
@@ -3285,13 +3561,377 @@ describe("ChatInterface stop flow", () => {
     expect(bridge.resumeRuns()).toHaveLength(0);
     expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
     expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
-    expect(lastChatInputProps?.sendDisabled).toBe(true);
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(lastChatInputProps?.sendDisabled).toBe(false);
     expect(
       findConfirmationFrames(
         lastChatMessagesProps?.messages,
         interactionId,
       ).filter(({ frame }) => frame.type === "tool_call"),
     ).toHaveLength(1);
+  });
+
+  test("keeps a failed durable human-input request actionable and records its submitted answer as confirmed", async () => {
+    const interactionId = "interaction-human-input-after-error";
+    const callId = "call-human-input-after-error";
+    const sourceRunId = "attempt-human-input-after-error";
+    const sessionId = getChatsStore().activeChatId;
+    const interactConfig = {
+      request_id: callId,
+      kind: "selector",
+      title: "Choose a stack",
+      question: "Which stack should be used?",
+      selection_mode: "single",
+      options: [{ label: "Web", value: "web", description: "" }],
+      allow_other: false,
+      other_label: "Other",
+      other_placeholder: "",
+      min_selected: 1,
+      max_selected: 1,
+    };
+    const toolCall = {
+      call_id: callId,
+      confirmation_id: interactionId,
+      requires_confirmation: true,
+      toolkit_id: "core",
+      toolkit_name: "Core",
+      tool_name: "ask_user_question",
+      tool_display_name: "Ask User",
+      arguments: interactConfig,
+      description: interactConfig.question,
+      interact_type: "single",
+      interact_config: interactConfig,
+    };
+    const buildHumanInputPending = (status) => ({
+      status,
+      session_id: sessionId,
+      interaction_id: interactionId,
+      source_run_id: sourceRunId,
+      active_attempt_id: sourceRunId,
+      kind: "human_input",
+      provider: "openai",
+      model: "gpt-5",
+      presentation: {
+        trace_frame: {
+          seq: 0,
+          ts: 100,
+          run_id: sourceRunId,
+          type: "tool_call",
+          stage: "durable_recovery",
+          payload: toolCall,
+        },
+        tool_call: { ...toolCall },
+      },
+      resume_available: true,
+      resume_options: {
+        modelId: "openai:gpt-5",
+        memory_enabled: true,
+        maxTokens: 512,
+      },
+      ...(status === "receipt_recorded"
+        ? {
+            receipt_id: "receipt-human-input-after-error",
+            resolution: {
+              outcome: "submitted",
+              response: {
+                request_id: interactConfig.request_id,
+                selected_values: ["web"],
+                other_text: null,
+              },
+            },
+          }
+        : {}),
+    });
+    let authoritativePending = { status: "none", session_id: sessionId };
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? authoritativePending
+          : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        authoritativePending = { status: "none", session_id: sessionId };
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
+    });
+    window.unchainAPI.respondToolConfirmation.mockImplementation(async () => {
+      authoritativePending = buildHumanInputPending("receipt_recorded");
+      return {
+        status: "ok",
+        disposition: "receipt_recorded",
+        durable: true,
+        session_id: sessionId,
+        interaction_id: interactionId,
+        receipt_id: "receipt-human-input-after-error",
+      };
+    });
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Ask me which stack to use" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(bridge.runs).toHaveLength(1);
+    });
+    const runHandlers = bridge.runs[0].handlers;
+
+    act(() => {
+      runHandlers.onRuntimeEvent(
+        {
+          schema_version: "v4",
+          timestamp: "2026-08-14T12:00:00.000Z",
+          session_id: sessionId,
+          event_id: "event-human-input-after-error",
+          seq: 1,
+          run_id: sourceRunId,
+          agent_id: "developer",
+          turn_id: `${sourceRunId}:turn-1`,
+          type: "interaction.requested",
+          links: {
+            tool_call_id: callId,
+            interaction_id: interactionId,
+          },
+          surface: { slot: "trace_inline", scope: "turn" },
+          visibility: "user",
+          metadata: {},
+          payload: {
+            interaction_id: interactionId,
+            kind: "human_input",
+            renderer: "single",
+            title: interactConfig.title,
+            prompt: interactConfig.question,
+            selection_mode: interactConfig.selection_mode,
+            options: interactConfig.options,
+            allow_other: interactConfig.allow_other,
+            min_selected: interactConfig.min_selected,
+            max_selected: interactConfig.max_selected,
+            target: {
+              tool_call_id: callId,
+              tool_name: "ask_user_question",
+              toolkit_id: "core",
+              arguments: interactConfig,
+            },
+          },
+        },
+        { streamSeq: 1 },
+      );
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
+      ).toBeDefined();
+    });
+
+    const lookupCountBeforeFailure =
+      window.unchainAPI.getPendingInteraction.mock.calls.length;
+    authoritativePending = buildHumanInputPending("awaiting_response");
+    act(() => {
+      runHandlers.onError({
+        code: "context_execution_bundle_error",
+        message: "durable host event could not be bound",
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        window.unchainAPI.getPendingInteraction.mock.calls.length,
+      ).toBeGreaterThan(lookupCountBeforeFailure);
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
+      ).toBeDefined();
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.[interactionId],
+      ).toEqual(
+        expect.objectContaining({
+          status: "idle",
+          resolved: false,
+          decision: "",
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.messages?.find(
+          (message) => message.role === "assistant",
+        )?.status,
+      ).toBe("error");
+    });
+
+    const userResponse = { value: "web" };
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: interactionId,
+        approved: true,
+        userResponse,
+      });
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: sessionId,
+        session_id: sessionId,
+        attempt_id: sourceRunId,
+        source_attempt_id: sourceRunId,
+        interaction_id: interactionId,
+        reason: "interaction_suspended",
+        idempotency_key: `interaction-pause:${sourceRunId}:${interactionId}`,
+      });
+    });
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: interactionId,
+      session_id: sessionId,
+      approved: true,
+      reason: "",
+      modified_arguments: { user_response: userResponse },
+    });
+    const decisionFrames = findConfirmationFrames(
+      lastChatMessagesProps?.messages,
+      interactionId,
+    ).map(({ frame }) => frame);
+    expect(decisionFrames.filter((frame) => frame.type === "tool_confirmed"))
+      .toHaveLength(1);
+    expect(decisionFrames.filter((frame) => frame.type === "tool_denied"))
+      .toHaveLength(0);
+    expect(bridge.resumeRuns()).toHaveLength(0);
+  });
+
+  test("cold fresh send seals the exact awaiting attempt before starting one normal run", async () => {
+    const interactionId = "interaction-fresh-send";
+    const sourceRunId = "attempt-fresh-send-paused";
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-fresh-send-paused",
+        role: "user",
+        content: "Wait for the old approval",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    let authoritativePending = buildPendingInteraction({
+      sessionId,
+      interactionId,
+      callId: "call-fresh-send",
+      sourceRunId,
+    });
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? authoritativePending
+          : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        authoritativePending = { status: "none", session_id: sessionId };
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          interactionId
+        ],
+      ).toBeDefined();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Start a clean task" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: sessionId,
+        session_id: sessionId,
+        attempt_id: sourceRunId,
+        source_attempt_id: sourceRunId,
+        interaction_id: interactionId,
+        reason: "interaction_abandoned_for_new_message",
+        idempotency_key: `fresh-send-abandon:${sourceRunId}:${interactionId}`,
+      });
+    });
+    await waitFor(() => {
+      expect(
+        window.unchainAPI.startStreamV2.mock.calls.length +
+          bridge.runs.length,
+      ).toBe(1);
+    });
+    expect(bridge.resumeRuns()).toHaveLength(0);
+    const freshPayload =
+      window.unchainAPI.startStreamV2.mock.calls[0]?.[0] ||
+      bridge.runs[0]?.payload;
+    expect(freshPayload).toEqual(
+      expect.objectContaining({
+        threadId: sessionId,
+        message: "Start a clean task",
+        continued_from_run_id: sourceRunId,
+      }),
+    );
+    expect(
+      lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
+    ).toBeUndefined();
+  });
+
+  test("fresh send fails closed when authoritative lookup still reports the paused run", async () => {
+    const interactionId = "interaction-fresh-send-still-pending";
+    const sourceRunId = "attempt-fresh-send-still-pending";
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-fresh-send-still-pending",
+        role: "user",
+        content: "Keep this paused turn",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    const authoritativePending = buildPendingInteraction({
+      sessionId,
+      interactionId,
+      callId: "call-fresh-send-still-pending",
+      sourceRunId,
+    });
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? authoritativePending
+          : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => ({
+        status: "ok",
+        attempt_id: payload.attempt_id,
+        source_attempt_id: payload.source_attempt_id,
+      }),
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Do not send unless cancellation is visible" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
+    });
+    expect(bridge.runs).toHaveLength(0);
+    expect(screen.getByTestId("chat-input")).toHaveValue(
+      "Do not send unless cancellation is visible",
+    );
+    expect(
+      lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
+    ).toBeDefined();
   });
 
   test("rolls back an unacknowledged mutation when an authoritative pending attempt owns the chat", async () => {
@@ -3417,7 +4057,7 @@ describe("ChatInterface stop flow", () => {
     ).toBe(false);
     expect(bridge.resumeRuns()).toHaveLength(0);
     expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
-    expect(lastChatInputProps?.sendDisabled).toBe(true);
+    expect(lastChatInputProps?.sendDisabled).toBe(false);
 
     await act(async () => {
       resolveStaleReplace?.({ applied: true });
@@ -3466,9 +4106,11 @@ describe("ChatInterface stop flow", () => {
 
     await waitFor(() => {
       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: sessionId,
         session_id: sessionId,
         attempt_id: sourceRunId,
         source_attempt_id: sourceRunId,
+        interaction_id: interactionId,
         reason: "user_stop",
         idempotency_key: `stop:${sourceRunId}`,
       });
@@ -3476,7 +4118,7 @@ describe("ChatInterface stop flow", () => {
     expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
   });
 
-  test("automatically resumes a recorded durable receipt exactly once", async () => {
+  test("seals a recorded durable receipt on reload without auto-resuming", async () => {
     const interactionId = "interaction-recorded";
     const sessionId = seedActiveChatMessages([
       {
@@ -3487,7 +4129,7 @@ describe("ChatInterface stop flow", () => {
         updatedAt: 1,
       },
     ]);
-    const pending = buildPendingInteraction({
+    let authoritativePending = buildPendingInteraction({
       sessionId,
       status: "receipt_recorded",
       interactionId,
@@ -3496,40 +4138,102 @@ describe("ChatInterface stop flow", () => {
     const bridge = installDurableBridge({
       resolvePending: async (requestedSessionId) =>
         requestedSessionId === sessionId
-          ? pending
+          ? authoritativePending
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        authoritativePending = { status: "none", session_id: sessionId };
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
 
     renderChat();
     await waitForBoot();
 
     await waitFor(() => {
-      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: sessionId,
+        session_id: sessionId,
+        attempt_id: `attempt-${interactionId}`,
+        source_attempt_id: `attempt-${interactionId}`,
+        interaction_id: interactionId,
+        reason: "interaction_suspended",
+        idempotency_key: `interaction-pause:attempt-${interactionId}:${interactionId}`,
+      });
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
     });
 
-    expect(bridge.resumeRuns()[0].payload).toEqual(
-      expect.objectContaining({
-        mode: "resume_interaction",
-        threadId: sessionId,
-        interaction_id: interactionId,
-        message: "",
-        options: expect.objectContaining({
-          modelId: "openai:gpt-5",
-          memory_enabled: true,
-          maxTokens: 512,
-        }),
-      }),
-    );
+    expect(bridge.resumeRuns()).toHaveLength(0);
     expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
     expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 75));
-    });
-    expect(bridge.resumeRuns()).toHaveLength(1);
+    expect(
+      findConfirmationFrames(lastChatMessagesProps?.messages, interactionId)
+        .filter(({ frame }) => frame.type === "tool_confirmed"),
+    ).toHaveLength(1);
   });
 
-  test("retries a durable resume after a transient execution lease conflict", async () => {
+  test("keeps an explicit durable tool-approval denial denied", async () => {
+    const interactionId = "interaction-recorded-denial";
+    const sessionId = seedActiveChatMessages([
+      {
+        id: "user-recorded-denial",
+        role: "user",
+        content: "Do not run the protected tool",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    let authoritativePending = {
+      ...buildPendingInteraction({
+        sessionId,
+        status: "receipt_recorded",
+        interactionId,
+        callId: "call-recorded-denial",
+      }),
+      resolution: {
+        outcome: "denied",
+        response: {
+          approved: false,
+          reason: "User denied the operation",
+        },
+      },
+    };
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? authoritativePending
+          : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        authoritativePending = { status: "none", session_id: sessionId };
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
+    });
+
+    renderChat();
+    await waitForBoot();
+
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
+    });
+    const decisionFrames = findConfirmationFrames(
+      lastChatMessagesProps?.messages,
+      interactionId,
+    ).map(({ frame }) => frame);
+    expect(decisionFrames.filter((frame) => frame.type === "tool_denied"))
+      .toHaveLength(1);
+    expect(decisionFrames.filter((frame) => frame.type === "tool_confirmed"))
+      .toHaveLength(0);
+    expect(bridge.resumeRuns()).toHaveLength(0);
+  });
+
+  test("retries sealing a durable receipt after a transient cancellation failure", async () => {
     const interactionId = "interaction-lease-retry";
     const sessionId = seedActiveChatMessages([
       {
@@ -3540,46 +4244,45 @@ describe("ChatInterface stop flow", () => {
         updatedAt: 1,
       },
     ]);
-    const pending = buildPendingInteraction({
+    let authoritativePending = buildPendingInteraction({
       sessionId,
       status: "receipt_recorded",
       interactionId,
       callId: "call-lease-retry",
     });
+    let failuresRemaining = 1;
     const bridge = installDurableBridge({
       resolvePending: async (requestedSessionId) =>
         requestedSessionId === sessionId
-          ? pending
+          ? authoritativePending
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        if (failuresRemaining > 0) {
+          failuresRemaining -= 1;
+          throw new Error("temporary cancellation transport failure");
+        }
+        authoritativePending = { status: "none", session_id: sessionId };
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
 
     renderChat();
     await waitForBoot();
-    await waitFor(() => {
-      expect(bridge.resumeRuns()).toHaveLength(1);
-    });
-
-    act(() => {
-      bridge.resumeRuns()[0].handlers.onError({
-        code: "execution_lease_conflict",
-        message: "another executor still owns the session lease",
-      });
-    });
 
     await waitFor(
       () => {
-        expect(bridge.resumeRuns()).toHaveLength(2);
+        expect(window.unchainAPI.cancelExecution.mock.calls.length)
+          .toBeGreaterThanOrEqual(2);
+        expect(lastChatInputProps?.sendDisabled).toBe(false);
       },
       { timeout: 2500 },
     );
-    expect(bridge.resumeRuns()[1].payload).toEqual(
-      expect.objectContaining({
-        mode: "resume_interaction",
-        threadId: sessionId,
-        interaction_id: interactionId,
-        message: "",
-      }),
-    );
+    expect(bridge.resumeRuns()).toHaveLength(0);
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
   });
 
   test("adopts a newer awaiting interaction instead of retrying a stale durable receipt", async () => {
@@ -3611,21 +4314,23 @@ describe("ChatInterface stop flow", () => {
         requestedSessionId === sessionId
           ? authoritativePending
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        if (authoritativePending === pendingA) {
+          authoritativePending = pendingB;
+        }
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
 
     try {
       renderChat();
       await waitForBoot();
       await waitFor(() => {
-        expect(bridge.resumeRuns()).toHaveLength(1);
-      });
-
-      authoritativePending = pendingB;
-      act(() => {
-        bridge.resumeRuns()[0].handlers.onError({
-          code: "execution_lease_conflict",
-          message: "another executor advanced to the next interaction",
-        });
+        expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
       });
 
       await act(async () => {
@@ -3647,7 +4352,7 @@ describe("ChatInterface stop flow", () => {
           }),
         );
       });
-      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(bridge.resumeRuns()).toHaveLength(0);
       expect(
         lastChatMessagesProps?.pendingToolConfirmationRequests?.[
           pendingA.interaction_id
@@ -3669,7 +4374,7 @@ describe("ChatInterface stop flow", () => {
           pendingB.interaction_id,
         ).filter(({ frame }) => frame.type === "tool_call"),
       ).toHaveLength(1);
-      expect(lastChatInputProps?.sendDisabled).toBe(true);
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
     } finally {
       jest.clearAllTimers();
       jest.useRealTimers();
@@ -3715,30 +4420,22 @@ describe("ChatInterface stop flow", () => {
         }
         return pendingB;
       },
+      cancelExecution: async (payload) => {
+        phase = "recovering";
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
 
     try {
       renderChat();
       await waitForBoot();
       await waitFor(() => {
-        expect(bridge.resumeRuns()).toHaveLength(1);
+        expect(recoveryLookupCount).toBeGreaterThanOrEqual(1);
       });
-
-      phase = "recovering";
-      act(() => {
-        bridge.resumeRuns()[0].handlers.onError({
-          code: "execution_lease_conflict",
-          message: "another executor may have advanced the session",
-        });
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(recoveryLookupCount).toBe(1);
-      expect(bridge.resumeRuns()).toHaveLength(1);
 
       await act(async () => {
         jest.advanceTimersByTime(1000);
@@ -3753,9 +4450,9 @@ describe("ChatInterface stop flow", () => {
           ],
         ).toBeDefined();
       });
-      expect(recoveryLookupCount).toBe(2);
-      expect(bridge.resumeRuns()).toHaveLength(1);
-      expect(lastChatInputProps?.sendDisabled).toBe(true);
+      expect(recoveryLookupCount).toBeGreaterThanOrEqual(2);
+      expect(bridge.resumeRuns()).toHaveLength(0);
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
     } finally {
       jest.clearAllTimers();
       jest.useRealTimers();
@@ -3785,44 +4482,27 @@ describe("ChatInterface stop flow", () => {
         requestedSessionId === sessionId
           ? authoritativePending
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        authoritativePending = {
+          status: "none",
+          session_id: sessionId,
+        };
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
 
     try {
       renderChat();
       await waitForBoot();
       await waitFor(() => {
-        expect(bridge.resumeRuns()).toHaveLength(1);
-      });
-      const lookupCountBeforeError =
-        window.unchainAPI.getPendingInteraction.mock.calls.length;
-      authoritativePending = {
-        status: "none",
-        session_id: sessionId,
-      };
-
-      act(() => {
-        bridge.resumeRuns()[0].handlers.onError({
-          code: "interaction_not_found",
-          message: "No durable interaction found for this session and ID",
-        });
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      await waitFor(() => {
-        expect(
-          window.unchainAPI.getPendingInteraction.mock.calls.length,
-        ).toBeGreaterThan(lookupCountBeforeError);
-      });
-      await waitFor(() => {
+        expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
         expect(lastChatInputProps?.sendDisabled).toBe(false);
       });
-      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(bridge.resumeRuns()).toHaveLength(0);
       expect(
         lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
       ).toBeUndefined();
@@ -3843,7 +4523,7 @@ describe("ChatInterface stop flow", () => {
     }
   });
 
-  test("resumes a replacement recorded interaction exactly once after a stale resume error", async () => {
+  test("seals a replacement recorded interaction without resuming either receipt", async () => {
     jest.useFakeTimers();
     const sessionId = seedActiveChatMessages([
       {
@@ -3872,48 +4552,64 @@ describe("ChatInterface stop flow", () => {
         requestedSessionId === sessionId
           ? authoritativePending
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        if (
+          payload.attempt_id === pendingA.active_attempt_id &&
+          authoritativePending === pendingA
+        ) {
+          authoritativePending = pendingB;
+        } else if (
+          payload.attempt_id === pendingB.active_attempt_id &&
+          authoritativePending === pendingB
+        ) {
+          authoritativePending = {
+            status: "none",
+            session_id: sessionId,
+          };
+        }
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
 
     try {
       renderChat();
       await waitForBoot();
       await waitFor(() => {
-        expect(bridge.resumeRuns()).toHaveLength(1);
+        expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
       });
 
-      authoritativePending = pendingB;
-      act(() => {
-        bridge.resumeRuns()[0].handlers.onError({
-          code: "interaction_not_found",
-          message: "No durable interaction found for this session and ID",
-        });
-      });
       await act(async () => {
-        jest.advanceTimersByTime(0);
+        jest.advanceTimersByTime(1000);
         await Promise.resolve();
         await Promise.resolve();
         await Promise.resolve();
       });
 
       await waitFor(() => {
-        expect(bridge.resumeRuns()).toHaveLength(2);
+        expect(lastChatInputProps?.sendDisabled).toBe(false);
       });
       expect(
-        bridge.resumeRuns().map((run) => run.payload.interaction_id),
-      ).toEqual([pendingA.interaction_id, pendingB.interaction_id]);
-
-      await act(async () => {
-        jest.advanceTimersByTime(60_000);
-        await Promise.resolve();
-      });
-      expect(bridge.resumeRuns()).toHaveLength(2);
+        window.unchainAPI.cancelExecution.mock.calls.map(
+          ([payload]) => payload.attempt_id,
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          pendingA.active_attempt_id,
+          pendingB.active_attempt_id,
+        ]),
+      );
+      expect(bridge.resumeRuns()).toHaveLength(0);
     } finally {
       jest.clearAllTimers();
       jest.useRealTimers();
     }
   });
 
-  test("stopping a durable retry wait cancels its scheduled resume", async () => {
+  test("stopping a durable cancellation retry prevents any later auto-resume", async () => {
     jest.useFakeTimers();
     const beyondAllRetryDelaysMs = 120_000;
     const interactionId = "interaction-stop-retry";
@@ -3937,20 +4633,16 @@ describe("ChatInterface stop flow", () => {
         requestedSessionId === sessionId
           ? pending
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async () => {
+        throw new Error("cancellation service unavailable");
+      },
     });
 
     try {
       renderChat();
       await waitForBoot();
       await waitFor(() => {
-        expect(bridge.resumeRuns()).toHaveLength(1);
-      });
-
-      act(() => {
-        bridge.resumeRuns()[0].handlers.onError({
-          code: "execution_lease_conflict",
-          message: "another executor still owns the session lease",
-        });
+        expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
       });
 
       expect(screen.getByTestId("stop-button")).toBeInTheDocument();
@@ -3960,14 +4652,12 @@ describe("ChatInterface stop flow", () => {
         await Promise.resolve();
       });
 
-      /* The failed resume transport is already terminal while this retry is
-         waiting. Stop therefore tombstones the authoritative source attempt,
-         which is what prevents both the scheduled resume and a remount from
-         reviving the interaction. */
       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: sessionId,
         session_id: sessionId,
         attempt_id: pending.source_run_id,
         source_attempt_id: pending.source_run_id,
+        interaction_id: pending.interaction_id,
         reason: "user_stop",
         idempotency_key: `stop:${pending.source_run_id}`,
       });
@@ -3979,7 +4669,7 @@ describe("ChatInterface stop flow", () => {
         await Promise.resolve();
       });
 
-      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(bridge.resumeRuns()).toHaveLength(0);
     } finally {
       jest.clearAllTimers();
       jest.useRealTimers();
@@ -4033,15 +4723,17 @@ describe("ChatInterface stop flow", () => {
 
     expect(bridge.resumeRuns()).toHaveLength(0);
     expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      owner_chat_id: sessionId,
       session_id: sessionId,
       attempt_id: pending.active_attempt_id,
       source_attempt_id: pending.source_run_id,
+      interaction_id: pending.interaction_id,
       reason: "user_stop",
       idempotency_key: `stop:${pending.active_attempt_id}`,
     });
   });
 
-  test("keeps a late background durable resume scoped to its original chat", async () => {
+  test("keeps a late background receipt seal scoped to its original chat", async () => {
     const snapshotMessages = (messages = []) =>
       messages.map(({ id, role, content, status }) => ({
         id,
@@ -4095,11 +4787,22 @@ describe("ChatInterface stop flow", () => {
       interactionId,
       callId: "call-late-chat-a",
     });
+    let chatASealed = false;
     const bridge = installDurableBridge({
       resolvePending: async (sessionId) =>
         sessionId === chatAId
-          ? chatALookup
+          ? chatASealed
+            ? { status: "none", session_id: chatAId }
+            : chatALookup
           : { status: "none", session_id: sessionId },
+      cancelExecution: async (payload) => {
+        chatASealed = true;
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
 
     renderChat();
@@ -4130,17 +4833,18 @@ describe("ChatInterface stop flow", () => {
       await Promise.resolve();
     });
     await waitFor(() => {
-      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: chatAId,
+        session_id: chatAId,
+        attempt_id: pendingA.active_attempt_id,
+        source_attempt_id: pendingA.source_run_id,
+        interaction_id: pendingA.interaction_id,
+        reason: "interaction_suspended",
+        idempotency_key: `interaction-pause:${pendingA.source_run_id}:${interactionId}`,
+      });
     });
 
-    const [resumeA] = bridge.resumeRuns();
-    expect(resumeA.payload).toEqual(
-      expect.objectContaining({
-        mode: "resume_interaction",
-        threadId: chatAId,
-        interaction_id: interactionId,
-      }),
-    );
+    expect(bridge.resumeRuns()).toHaveLength(0);
     expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId);
     expect(snapshotMessages(lastChatMessagesProps?.messages)).toEqual(
       visibleBBefore,
@@ -4177,20 +4881,16 @@ describe("ChatInterface stop flow", () => {
               interactionId,
               callId: "call-other-winner",
             }),
+      cancelExecution: async () => {
+        completedElsewhere = true;
+        throw new Error("the other executor completed first");
+      },
     });
 
     renderChat();
     await waitForBoot();
     await waitFor(() => {
-      expect(bridge.resumeRuns()).toHaveLength(1);
-    });
-
-    completedElsewhere = true;
-    act(() => {
-      bridge.resumeRuns()[0].handlers.onError({
-        code: "execution_lease_conflict",
-        message: "another executor still owns the session lease",
-      });
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
     });
 
     await waitFor(
@@ -4199,10 +4899,10 @@ describe("ChatInterface stop flow", () => {
       },
       { timeout: 2500 },
     );
-    expect(bridge.resumeRuns()).toHaveLength(1);
+    expect(bridge.resumeRuns()).toHaveLength(0);
   });
 
-  test("resuming after a durable receipt does not append a duplicate user message", async () => {
+  test("sealing after a durable decision does not append a duplicate user message", async () => {
     const interactionId = "interaction-no-duplicate";
     const sessionId = seedActiveChatMessages([
       {
@@ -4217,13 +4917,23 @@ describe("ChatInterface stop flow", () => {
     const bridge = installDurableBridge({
       resolvePending: async (requestedSessionId) =>
         requestedSessionId === sessionId
-          ? buildPendingInteraction({
-              sessionId,
-              status: phase,
-              interactionId,
-              callId: "call-no-duplicate",
-            })
+          ? phase === "none"
+            ? { status: "none", session_id: sessionId }
+            : buildPendingInteraction({
+                sessionId,
+                status: phase,
+                interactionId,
+                callId: "call-no-duplicate",
+              })
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        phase = "none";
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
     window.unchainAPI.respondToolConfirmation.mockImplementation(
       async () => {
@@ -4231,9 +4941,10 @@ describe("ChatInterface stop flow", () => {
         return {
           status: "ok",
           disposition: "receipt_recorded",
+          durable: true,
           session_id: sessionId,
           interaction_id: interactionId,
-          receipt_id: "receipt-no-duplicate",
+          receipt_id: `receipt-${interactionId}`,
         };
       },
     );
@@ -4260,8 +4971,9 @@ describe("ChatInterface stop flow", () => {
     });
 
     await waitFor(() => {
-      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
     });
+    expect(bridge.resumeRuns()).toHaveLength(0);
     expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
       confirmation_id: interactionId,
       session_id: sessionId,
@@ -4276,10 +4988,16 @@ describe("ChatInterface stop flow", () => {
   });
 
   test("does not start a second stream when a live confirmation continues", async () => {
-    window.unchainAPI.respondToolConfirmation.mockResolvedValue({
-      status: "ok",
-      disposition: "live_continues",
-    });
+    window.unchainAPI.respondToolConfirmation.mockImplementation(
+      async ({ confirmation_id: confirmationId, session_id: sessionId }) => ({
+        status: "ok",
+        disposition: "live_continues",
+        durable: true,
+        session_id: sessionId,
+        interaction_id: confirmationId,
+        receipt_id: "receipt-live",
+      }),
+    );
 
     renderChat();
     await waitForReady();
@@ -4331,6 +5049,198 @@ describe("ChatInterface stop flow", () => {
     });
     expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
     expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(lastChatInputProps?.isStreaming).toBe(true);
+  });
+
+  test("keeps a durable card actionable when confirmation admission fails closed", async () => {
+    window.unchainAPI.respondToolConfirmation.mockResolvedValueOnce(null);
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run only after an admitted receipt" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "tool_call",
+        payload: {
+          call_id: "call-invalid-admission",
+          confirmation_id: "confirm-invalid-admission",
+          requires_confirmation: true,
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "pwd" },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          "confirm-invalid-admission"
+        ],
+      ).toBeDefined();
+    });
+
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: "confirm-invalid-admission",
+        approved: true,
+      });
+    });
+
+    expect(
+      lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+        "confirm-invalid-admission"
+      ],
+    ).toBeDefined();
+    expect(
+      lastChatMessagesProps?.toolConfirmationUiStateById?.[
+        "confirm-invalid-admission"
+      ],
+    ).toEqual(
+      expect.objectContaining({
+        status: "error",
+        resolved: false,
+        decision: "",
+      }),
+    );
+    expect(
+      findConfirmationFrames(
+        lastChatMessagesProps?.messages,
+        "confirm-invalid-admission",
+      ).filter(({ frame }) => frame.type === "tool_confirmed"),
+    ).toHaveLength(0);
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
+
+  test("seals an authoritative recorded receipt once even while the old stream flag is stale", async () => {
+    const sessionId = getChatsStore().activeChatId;
+    const interactionId = "interaction-stale-stream-receipt";
+    const callId = "call-stale-stream-receipt";
+    const sourceRunId = `attempt-${interactionId}`;
+    let pendingState = { status: "none", session_id: sessionId };
+    const bridge = installDurableBridge({
+      resolvePending: async (requestedSessionId) =>
+        requestedSessionId === sessionId
+          ? pendingState
+          : { status: "none", session_id: requestedSessionId || "" },
+      cancelExecution: async (payload) => {
+        pendingState = { status: "none", session_id: sessionId };
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
+    });
+    window.unchainAPI.respondToolConfirmation.mockImplementation(
+      async ({ confirmation_id: confirmationId, session_id: requestedSessionId }) => {
+        pendingState = buildPendingInteraction({
+          sessionId,
+          status: "receipt_recorded",
+          interactionId,
+          callId,
+          sourceRunId,
+        });
+        return {
+          status: "ok",
+          disposition: "receipt_recorded",
+          durable: true,
+          session_id: requestedSessionId,
+          interaction_id: confirmationId,
+          receipt_id: `receipt-${interactionId}`,
+        };
+      },
+    );
+
+    renderChat();
+    await waitForBoot();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run the protected tool" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => {
+      expect(bridge.runs).toHaveLength(1);
+      expect(lastChatInputProps?.isStreaming).toBe(true);
+    });
+
+    act(() => {
+      bridge.runs[0].handlers.onRuntimeEvent({
+        schema_version: "v4",
+        timestamp: "2026-08-14T12:00:00.000Z",
+        session_id: sessionId,
+        event_id: "event-stale-stream-receipt",
+        seq: 1,
+        run_id: sourceRunId,
+        agent_id: "developer",
+        turn_id: `${sourceRunId}:turn-1`,
+        type: "interaction.requested",
+        links: {
+          tool_call_id: callId,
+          interaction_id: interactionId,
+        },
+        surface: { slot: "trace_inline", scope: "turn" },
+        visibility: "user",
+        metadata: {},
+        payload: {
+          interaction_id: interactionId,
+          kind: "tool_approval",
+          renderer: "confirmation",
+          prompt: "Approve protected tool",
+          target: {
+            tool_call_id: callId,
+            toolkit_id: "core",
+            tool_name: "shell",
+            arguments: { action: "run", command: "pwd" },
+          },
+        },
+      }, { streamSeq: 1 });
+    });
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[interactionId],
+      ).toBeDefined();
+    });
+
+    await act(async () => {
+      await lastChatMessagesProps.onToolConfirmationDecision({
+        confirmationId: interactionId,
+        approved: true,
+      });
+    });
+
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: interactionId,
+      session_id: sessionId,
+      approved: true,
+      reason: "",
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.getPendingInteraction).toHaveBeenLastCalledWith({
+        session_id: sessionId,
+      });
+    });
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: sessionId,
+        session_id: sessionId,
+        attempt_id: sourceRunId,
+        source_attempt_id: sourceRunId,
+        interaction_id: interactionId,
+        reason: "interaction_suspended",
+        idempotency_key: `interaction-pause:${sourceRunId}:${interactionId}`,
+      });
+    });
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    expect(bridge.runs).toHaveLength(1);
+    expect(bridge.resumeRuns()).toHaveLength(0);
     expect(lastChatInputProps?.isStreaming).toBe(true);
   });
 
@@ -5116,13 +6026,23 @@ describe("ChatInterface stop flow", () => {
     const bridge = installDurableBridge({
       resolvePending: async (requestedSessionId) =>
         requestedSessionId === sessionId
-          ? buildPendingInteraction({
-              sessionId,
-              status: phase,
-              interactionId,
-              callId: "call-owner",
-            })
+          ? phase === "none"
+            ? { status: "none", session_id: sessionId }
+            : buildPendingInteraction({
+                sessionId,
+                status: phase,
+                interactionId,
+                callId: "call-owner",
+              })
           : { status: "none", session_id: requestedSessionId },
+      cancelExecution: async (payload) => {
+        phase = "none";
+        return {
+          status: "ok",
+          attempt_id: payload.attempt_id,
+          source_attempt_id: payload.source_attempt_id,
+        };
+      },
     });
     window.unchainAPI.respondToolConfirmation.mockImplementation(
       async () => {
@@ -5130,9 +6050,10 @@ describe("ChatInterface stop flow", () => {
         return {
           status: "ok",
           disposition: "receipt_recorded",
+          durable: true,
           session_id: sessionId,
           interaction_id: interactionId,
-          receipt_id: "receipt-owner",
+          receipt_id: `receipt-${interactionId}`,
         };
       },
     );
@@ -5157,7 +6078,7 @@ describe("ChatInterface stop flow", () => {
     });
 
     await waitFor(() => {
-      expect(bridge.resumeRuns()).toHaveLength(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalled();
       const owner = lastChatMessagesProps.messages.find(
         (message) => message.id === ownerMessageId,
       );
@@ -5172,6 +6093,7 @@ describe("ChatInterface stop flow", () => {
         ]),
       );
     });
+    expect(bridge.resumeRuns()).toHaveLength(0);
 
     const resolutionsOnOtherMessages = lastChatMessagesProps.messages
       .filter((message) => message.id !== ownerMessageId)
@@ -5376,7 +6298,12 @@ describe("ChatInterface stop flow", () => {
     });
 
     await act(async () => {
-      resolveConfirmation({ status: "ok" });
+      resolveConfirmation({
+        status: "ok",
+        disposition: "live_only",
+        durable: false,
+        interaction_id: "confirm-1",
+      });
       await confirmationPromise;
     });
 
@@ -6732,7 +7659,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("persists token usage breakdown from the done bundle into localStorage", async () => {
+  test("keeps legacy done usage read-only during the RunBundle v1 cutover", async () => {
     renderChat();
     await waitForReady();
 
@@ -6755,18 +7682,349 @@ describe("ChatInterface stop flow", () => {
     });
 
     await waitFor(() => {
-      const tokenUsage = JSON.parse(
-        window.localStorage.getItem("token_usage") || "{}",
+      expect(lastChatMessagesProps?.messages?.some(
+        (message) => message.role === "assistant" && message.status === "done",
+      )).toBe(true);
+    });
+    expect(readTokenUsageRecords()).toEqual([]);
+  });
+
+  test("projects a canonical done bundle into the keyed RunBundle store", async () => {
+    const bundle = buildRunBundleV1();
+    bundle.descriptor.agent_orchestration = "developer_waiting_approval";
+    bundle.bundle_digest = computeRunBundleDigest(bundle);
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(async () => ({
+        ok: true,
+        status: "stored",
+        bundleId: bundle.bundle_id,
+        revision: bundle.revision,
+        bundleDigest: bundle.bundle_digest,
+      })),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Canonical usage bundle" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+    streamHandlers.onDone({ bundle });
+
+    await waitFor(() => {
+      expect(window.runBundleStorageAPI.upsert).toHaveBeenCalledTimes(1);
+      expect(lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      )?.status).toBe("done");
+      expect(
+        getChatsStore().chatsById[getChatsStore().activeChatId]
+          .agentOrchestration,
+      ).toEqual({ mode: "developer_waiting_approval" });
+    });
+    expect(window.runBundleStorageAPI.upsert).toHaveBeenCalledWith(bundle);
+    expect(readTokenUsageRecords()).toEqual([]);
+  });
+
+  test("keeps the assistant streaming until canonical accounting is durable", async () => {
+    const bundle = buildRunBundleV1();
+    let resolveUpsert;
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      ),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+    const completionDiagnostics = completionDiagnosticsFor({
+      mode: "active",
+      trace_status: "complete",
+      active_applied: true,
+    });
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Accounting barrier" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(streamHandlers).toBeTruthy());
+    act(() => {
+      streamHandlers.onDone({
+        bundle,
+        completion_diagnostics: completionDiagnostics,
+      });
+    });
+    await waitFor(() => {
+      expect(window.runBundleStorageAPI.upsert).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      )?.status,
+    ).toBe("streaming");
+
+    await act(async () => {
+      resolveUpsert({
+        ok: true,
+        status: "inserted",
+        bundleId: bundle.bundle_id,
+        revision: bundle.revision,
+        bundleDigest: bundle.bundle_digest,
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
       );
-      expect(tokenUsage.records).toHaveLength(1);
-      expect(tokenUsage.records[0]).toEqual(
-        expect.objectContaining({
-          consumed_tokens: 21,
-          input_tokens: 13,
-          output_tokens: 8,
-          chatId: expect.any(String),
+      expect(assistant?.status).toBe("done");
+      expect(assistant?.meta?.bundle).toEqual(bundle);
+      expect(assistant?.meta?.completion_diagnostics).toEqual(
+        completionDiagnostics,
+      );
+    });
+  });
+
+  test("turns accounting rejection into a terminal error without persisting raw bundle", async () => {
+    const bundle = buildRunBundleV1();
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(async () => {
+        throw new Error("ledger unavailable");
+      }),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Reject false complete" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(streamHandlers).toBeTruthy());
+    act(() => streamHandlers.onDone({ bundle }));
+
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant?.status).toBe("error");
+      expect(assistant?.meta?.bundle).toBeUndefined();
+      expect(assistant?.meta?.error?.message).toContain("ledger unavailable");
+    });
+  });
+
+  test("persists admitted V2 failed-run accounting before publishing the error", async () => {
+    const bundle = failedRunBundleV1();
+    const completionDiagnostics = completionDiagnosticsFor({
+      mode: "active",
+      trace_status: "partial",
+      active_applied: false,
+    });
+    let resolveUpsert;
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      ),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "V2 failed accounting" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(streamHandlers).toBeTruthy());
+    act(() => {
+      streamHandlers.onDone({
+        error: { code: "provider_failed", message: "provider failed safely" },
+        bundle,
+        completion_diagnostics: completionDiagnostics,
+      });
+    });
+
+    await waitFor(() => {
+      expect(window.runBundleStorageAPI.upsert).toHaveBeenCalledWith(bundle);
+    });
+    expect(
+      lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      )?.status,
+    ).toBe("streaming");
+
+    await act(async () => {
+      resolveUpsert({
+        ok: true,
+        status: "inserted",
+        bundleId: bundle.bundle_id,
+        revision: bundle.revision,
+        bundleDigest: bundle.bundle_digest,
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant).toMatchObject({
+        status: "error",
+        meta: {
+          bundle,
+          completion_diagnostics: completionDiagnostics,
+          error: {
+            code: "provider_failed",
+            message: "provider failed safely",
+          },
+        },
+      });
+    });
+  });
+
+  test("holds a V4 run.failed projection until failed accounting is durable", async () => {
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const bundle = failedRunBundleV1();
+    const completionDiagnostics = completionDiagnosticsFor({
+      mode: "shadow",
+      trace_status: "complete",
+      shadow_only: true,
+    });
+    let resolveUpsert;
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      ),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "V4 failed accounting" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+    act(() => {
+      runs[0].handlers.onRuntimeEvent(
+        buildReattachEvent({
+          chatId,
+          id: "foreground-v4-failed",
+          type: "run.failed",
+          seq: 1,
+          payload: {
+            status: "failed",
+            error: { code: "v4_failed", message: "V4 failed safely" },
+          },
         }),
+        { streamSeq: 1 },
       );
+      runs[0].handlers.onDone({
+        error: { code: "v4_failed", message: "V4 failed safely" },
+        bundle,
+        completion_diagnostics: completionDiagnostics,
+      });
+    });
+
+    await waitFor(() => {
+      expect(window.runBundleStorageAPI.upsert).toHaveBeenCalledWith(bundle);
+    });
+    expect(
+      lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      )?.status,
+    ).toBe("streaming");
+
+    await act(async () => {
+      resolveUpsert({
+        ok: true,
+        status: "inserted",
+        bundleId: bundle.bundle_id,
+        revision: bundle.revision,
+        bundleDigest: bundle.bundle_digest,
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant).toMatchObject({
+        status: "error",
+        meta: {
+          bundle,
+          completion_diagnostics: completionDiagnostics,
+          error: { code: "v4_failed", message: "V4 failed safely" },
+        },
+      });
+    });
+  });
+
+  test("fails closed when failed-run accounting rejects without persisting raw evidence", async () => {
+    const bundle = failedRunBundleV1();
+    const completionDiagnostics = completionDiagnosticsFor({
+      mode: "active",
+      trace_status: "complete",
+      active_applied: true,
+    });
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(async () => {
+        throw new Error("failed ledger unavailable");
+      }),
+      query: jest.fn(async () => ({ ok: true, records: [] })),
+      clear: jest.fn(async () => ({ ok: true, deleted: 0 })),
+    };
+
+    renderChat();
+    await waitForReady();
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Reject failed accounting" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(streamHandlers).toBeTruthy());
+    act(() => {
+      streamHandlers.onDone({
+        error: { code: "provider_failed", message: "raw provider failure" },
+        bundle,
+        completion_diagnostics: completionDiagnostics,
+      });
+    });
+
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant).toMatchObject({
+        status: "error",
+        meta: {
+          error: {
+            code: "run_bundle_accounting_failed",
+            message:
+              "The failed run could not be admitted to the Run Bundle ledger.",
+          },
+        },
+      });
+      expect(assistant?.meta?.bundle).toBeUndefined();
+      expect(assistant?.meta?.completion_diagnostics).toBeUndefined();
     });
   });
 
@@ -7022,7 +8280,12 @@ describe("ChatInterface stop flow", () => {
       });
     });
     await act(async () => {
-      resolveOldDecision({ status: "ok" });
+      resolveOldDecision({
+        status: "ok",
+        disposition: "live_only",
+        durable: false,
+        interaction_id: "continue-old",
+      });
       await oldDecisionPromise;
     });
     expect(lastChatMessagesProps?.pendingContinuationRequest).toEqual(
@@ -7840,6 +9103,331 @@ describe("ChatInterface stop flow", () => {
     expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
   });
 
+  test("queue relay fails closed without a proven execution session owner", () => {
+    expect(resolveQueueRelaySessionOwner()).toBe("");
+    expect(
+      resolveQueueRelaySessionOwner({
+        sourceSessionId: " ",
+        activeSessionId: "",
+        runContextSessionId: null,
+      }),
+    ).toBe("");
+  });
+
+  test("queue relay fails closed when exact session owners disagree", () => {
+    expect(
+      resolveQueueRelaySessionOwner({
+        sourceSessionId: "execution-a",
+        activeSessionId: "execution-a",
+        runContextSessionId: "execution-b",
+      }),
+    ).toBe("");
+  });
+
+  test("holds an exact queued successor behind an authoritative suspended interaction", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-behind-suspension",
+          text: "Run only after the suspended interaction is sealed",
+          status: "queued",
+        },
+      ],
+    });
+    const pending = buildPendingInteraction({
+      sessionId: chatId,
+      interactionId: "interaction-queued-suspension",
+      callId: "call-queued-suspension",
+      sourceRunId: "attempt-reattach",
+    });
+    window.unchainAPI.getPendingInteraction = jest.fn(
+      async ({ session_id: sessionId } = {}) =>
+        sessionId === chatId
+          ? pending
+          : { status: "none", session_id: sessionId || "" },
+    );
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          active: false,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    window.unchainAPI.startStreamV4 = jest.fn();
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({
+        session_id: chatId,
+      });
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.[
+          pending.interaction_id
+        ],
+      ).toBeDefined();
+    });
+
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")?.items).toEqual([
+      expect.objectContaining({
+        id: "queue-behind-suspension",
+        status: "queued",
+      }),
+    ]);
+  });
+
+  test("keeps a queued successor when a wrong-session none conflicts with its bound run", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const wrongSessionId = "execution-wrong-session";
+    seedPersistedV4Attempt({ chatId });
+    const seededMessages = getChatsStore().chatsById[chatId].messages;
+    setChatMessages(
+      chatId,
+      seededMessages.map((message) =>
+        message.role === "assistant"
+          ? {
+              ...message,
+              meta: {
+                ...message.meta,
+                executionSessionId: wrongSessionId,
+              },
+            }
+          : message,
+      ),
+      { source: "test" },
+    );
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-behind-wrong-session-none",
+          text: "Do not run against a guessed session",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.getPendingInteraction = jest.fn(
+      async ({ session_id: sessionId } = {}) => ({
+        status: "none",
+        session_id: sessionId || "",
+      }),
+    );
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: wrongSessionId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          active: false,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    window.unchainAPI.startStreamV4 = jest.fn();
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalledWith({
+        session_id: chatId,
+      });
+      expect(window.unchainAPI.attachStreamV4).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    });
+
+    expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")?.items).toEqual([
+      expect.objectContaining({
+        id: "queue-behind-wrong-session-none",
+        status: "queued",
+      }),
+    ]);
+  });
+
+  test("seals a cold recorded receipt before relaying its exact queued successor", async () => {
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = "interaction-cold-queued-receipt";
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-after-cold-receipt",
+          text: "Run after the cold receipt is sealed",
+          status: "queued",
+        },
+      ],
+    });
+    const receipt = buildPendingInteraction({
+      sessionId: chatId,
+      status: "receipt_recorded",
+      interactionId,
+      callId: "call-cold-queued-receipt",
+      sourceRunId: "attempt-reattach",
+    });
+    let pendingState = { status: "none", session_id: chatId };
+    window.unchainAPI.getPendingInteraction = jest.fn(
+      async ({ session_id: sessionId } = {}) =>
+        sessionId === chatId
+          ? pendingState
+          : { status: "none", session_id: sessionId || "" },
+    );
+    window.unchainAPI.cancelExecution.mockImplementation(async (payload) => {
+      pendingState = { status: "none", session_id: chatId };
+      return {
+        status: "ok",
+        attempt_id: payload.attempt_id,
+        source_attempt_id: payload.source_attempt_id,
+      };
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        pendingState = receipt;
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          active: false,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    const relayRuns = [];
+    window.unchainAPI.startStreamV4 = jest.fn((payload, handlers = {}) => {
+      relayRuns.push({ payload, handlers });
+      return {
+        requestId: "request-after-cold-receipt",
+        executionId: payload.threadId,
+        attemptId: "attempt-after-cold-receipt",
+        detach: jest.fn(),
+        disconnect: jest.fn(),
+        cancel: jest.fn(),
+      };
+    });
+
+    renderChat();
+    await waitForBoot();
+    await waitFor(() => {
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: chatId,
+        session_id: chatId,
+        attempt_id: "attempt-reattach",
+        source_attempt_id: "attempt-reattach",
+        interaction_id: interactionId,
+        reason: "interaction_suspended",
+        idempotency_key: `interaction-pause:attempt-reattach:${interactionId}`,
+      });
+      expect(relayRuns).toHaveLength(1);
+    });
+
+    expect(
+      window.unchainAPI.cancelExecution.mock.invocationCallOrder[0],
+    ).toBeLessThan(window.unchainAPI.startStreamV4.mock.invocationCallOrder[0]);
+    expect(relayRuns[0].payload).toEqual(
+      expect.objectContaining({
+        message: "Run after the cold receipt is sealed",
+      }),
+    );
+    expect(
+      window.unchainAPI.startStreamV4.mock.calls.some(
+        ([payload]) => payload?.mode === "resume_interaction",
+      ),
+    ).toBe(false);
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+  });
+
+  test("keeps the exact relay outbox queued while authoritative lookup fails", async () => {
+    jest.useFakeTimers();
+    const chatId = getChatsStore().activeChatId;
+    seedPersistedV4Attempt({ chatId });
+    writeQueuedTurnsForAttempt({
+      chatId,
+      attemptId: "attempt-reattach",
+      items: [
+        {
+          id: "queue-during-lookup-failure",
+          text: "Keep this queued through lookup failure",
+          status: "queued",
+        },
+      ],
+    });
+    window.unchainAPI.getPendingInteraction = jest.fn(async () => {
+      throw new Error("pending lookup unavailable");
+    });
+    window.unchainAPI.attachStreamV4 = jest.fn(
+      async (_identity, handlers = {}) => {
+        handlers.onDone({ finished_at: Date.now() });
+        return {
+          requestId: "request-reattach",
+          executionId: chatId,
+          attemptId: "attempt-reattach",
+          terminal: true,
+          active: false,
+          detach: jest.fn(),
+          disconnect: jest.fn(),
+          cancel: jest.fn(),
+        };
+      },
+    );
+    window.unchainAPI.startStreamV4 = jest.fn();
+
+    try {
+      renderChat();
+      await waitForBoot();
+      await waitFor(() => {
+        expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled();
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(1250);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(
+        window.unchainAPI.getPendingInteraction.mock.calls.length,
+      ).toBeGreaterThan(1);
+      expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-reattach")?.items,
+      ).toEqual([
+        expect.objectContaining({
+          id: "queue-during-lookup-failure",
+          status: "queued",
+        }),
+      ]);
+    } finally {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
   test("returned relay handle keeps the new-attempt outbox until authoritative acceptance", async () => {
     const chatId = getChatsStore().activeChatId;
     seedPersistedV4Attempt({ chatId });
@@ -8167,6 +9755,7 @@ describe("ChatInterface stop flow", () => {
 
       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+        owner_chat_id: chatId,
         session_id: chatId,
         attempt_id: "attempt-watchdog-1",
         request_id: "request-watchdog-1",
@@ -8266,6 +9855,70 @@ describe("ChatInterface stop flow", () => {
     },
   );
 
+  test.each([
+    {
+      lifecycleReason: "app_windows_closed",
+      cancelResponse: {
+        status: "ok",
+        disposition: "cancelled_before_register",
+        state: "cancelled",
+        execution: {
+          registered_at_ms: null,
+          reason: "app_windows_closed",
+        },
+      },
+    },
+    {
+      lifecycleReason: "system_suspend",
+      cancelResponse: {
+        status: "ok",
+        disposition: "unchanged",
+        state: "cancelled",
+        execution: { registered_at_ms: null },
+        cancellation: { reason: "system_suspend" },
+      },
+    },
+  ])(
+    "never auto-retries a never-registered queue relay stopped by $lifecycleReason",
+    async ({ lifecycleReason, cancelResponse }) => {
+      const chatId = getChatsStore().activeChatId;
+      const queueId = `queue-watchdog-${lifecycleReason}`;
+      const queueText = `Do not resume after ${lifecycleReason}`;
+      const runs = installSilentQueueRelayWatchdog({
+        chatId,
+        queueId,
+        queueText,
+        attachErrorCode: "stream_not_found",
+        cancelResponse,
+      });
+
+      renderChat();
+      await waitForBoot();
+      await waitFor(
+        () => {
+          expect(
+            [...getChatsStore().chatsById[chatId].messages]
+              .reverse()
+              .find((message) => message.role === "assistant")?.meta?.error,
+          ).toMatchObject({ code: "queue_relay_stream_not_found" });
+        },
+        { timeout: 3500 },
+      );
+
+      expect(runs).toHaveLength(1);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+      expect(
+        readQueuedTurnsForAttempt(chatId, "attempt-watchdog-1")?.items,
+      ).toEqual([
+        expect.objectContaining({ id: queueId, status: "relayed" }),
+      ]);
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      });
+      expect(runs).toHaveLength(1);
+    },
+  );
+
   test("queue relay replay gaps cancel exact ownership and never auto-retry", async () => {
     const chatId = getChatsStore().activeChatId;
     const runs = installSilentQueueRelayWatchdog({
@@ -8295,6 +9948,7 @@ describe("ChatInterface stop flow", () => {
 
     expect(runs).toHaveLength(1);
     expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      owner_chat_id: chatId,
       session_id: chatId,
       attempt_id: "attempt-watchdog-1",
       request_id: "request-watchdog-1",

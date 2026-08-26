@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import ReactDOM from "react-dom";
 import AnimatedChildren from "../class/animated_children";
+import { Z } from "../layer/z_layers";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -31,6 +32,20 @@ const INDENT = 16;
 const LINE_LEFT = 9;
 const DRAG_THRESHOLD = 5;
 const AUTO_EXPAND_DELAY = 500;
+/* Modal overlays live at 9999 (modal.js). A label preview that originates
+   outside a modal must stay below that barrier; a preview that originates
+   inside one is portalled into that modal's own stacking context. */
+const MODAL_OVERLAY_SELECTOR = "[data-pupu-modal-overlay-host='true']";
+/* A page-mounted preview sits just UNDER modals on purpose. resolveLabelPreviewLayer
+   already suppresses it whenever any modal is open, so this is defence in depth:
+   if that guard ever regresses, a stale ghost still cannot cover a modal — which
+   is exactly the class of bug #178 set out to make structurally impossible. It is
+   derived from Z.MODAL rather than written as a number so it tracks the scale. */
+const PAGE_LABEL_PREVIEW_Z_INDEX = Z.MODAL - 1;
+/* A modal-owned preview is portalled INTO that modal, so it only competes inside
+   that stacking context; Z.TOOLTIP carries the same "passive hint, below menus"
+   meaning it has everywhere else. */
+const MODAL_LABEL_PREVIEW_Z_INDEX = Z.TOOLTIP;
 const DRAG_BLOCK_SELECTOR = [
   "input",
   "textarea",
@@ -39,6 +54,36 @@ const DRAG_BLOCK_SELECTOR = [
   "[contenteditable='true']",
   "[data-explorer-drag-disabled='true']",
 ].join(",");
+
+const resolveLabelPreviewLayer = (row) => {
+  if (
+    !row ||
+    !row.isConnected ||
+    typeof document === "undefined" ||
+    !document.body
+  ) {
+    return null;
+  }
+
+  const owningModal = row.closest?.(MODAL_OVERLAY_SELECTOR) || null;
+  const openModals = Array.from(
+    document.querySelectorAll(MODAL_OVERLAY_SELECTOR),
+  );
+  const topModal = openModals[openModals.length - 1] || null;
+
+  /* Same-z-index modal portals stack in DOM order. Only the top modal may
+     surface its own preview; page rows and covered modals are blocked. */
+  if (owningModal ? owningModal !== topModal : topModal !== null) {
+    return null;
+  }
+
+  return {
+    portalHost: owningModal || document.body,
+    zIndex: owningModal
+      ? MODAL_LABEL_PREVIEW_Z_INDEX
+      : PAGE_LABEL_PREVIEW_Z_INDEX,
+  };
+};
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Helpers                                                                                                                      */
@@ -495,6 +540,7 @@ const ExplorerRowBase = ({
   isLockedExpanded,
   rowHeight = ROW_HEIGHT,
   rowRadius = 5,
+  rowHover = true,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -517,13 +563,20 @@ const ExplorerRowBase = ({
     [node.id, registerRowRef],
   );
 
-  /* ── visual tokens ─────────────────────────────────── */
+  /* ── visual tokens ───────────────────────────────────
+     ONE definition, used by both the default row and the custom-component
+     row below. These two used to be duplicated verbatim, which is exactly
+     how one of them silently drifts. */
   const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
   const activeBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
   /* When a context menu is open, only the targeted row shows hover bg */
   const isContextMenuTarget = contextMenuNodeId != null && node.id === contextMenuNodeId;
   const suppressHover = contextMenuNodeId != null && !isContextMenuTarget;
-  const showBg = ((hovered && !suppressHover) || isContextMenuTarget || pressed) && !isSource;
+  /* rowHover=false drops the HOVER affordance but keeps PRESS: these rows
+     are still clickable (folders toggle), and a clickable row with no
+     feedback at all is a lost affordance, not a cleaner one. */
+  const hoverVisible = rowHover && hovered && !suppressHover;
+  const showBg = (hoverVisible || (rowHover && isContextMenuTarget) || pressed) && !isSource;
 
   const expandIcon = node.expand_icon
     ? node.expand_icon
@@ -536,10 +589,29 @@ const ExplorerRowBase = ({
     if (labelRef.current) {
       const el = labelRef.current;
       if (el.scrollWidth > el.clientWidth) {
+        if (hoverTimer.current) clearTimeout(hoverTimer.current);
         hoverTimer.current = setTimeout(() => {
-          if (rowRef.current) {
-            setGhostRect(rowRef.current.getBoundingClientRect());
+          hoverTimer.current = null;
+          const row = rowRef.current;
+          const label = labelRef.current;
+          const layer = resolveLabelPreviewLayer(row);
+          if (
+            !layer ||
+            !label ||
+            label.scrollWidth <= label.clientWidth
+          ) {
+            setShowFull(false);
+            setGhostRect(null);
+            return;
           }
+          const rect = row.getBoundingClientRect();
+          setGhostRect({
+            top: rect.top,
+            left: rect.left,
+            right: rect.right,
+            height: rect.height,
+            ...layer,
+          });
           setShowFull(true);
         }, 600);
       }
@@ -547,10 +619,46 @@ const ExplorerRowBase = ({
   }, []);
 
   const clearOverflow = useCallback(() => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
     setShowFull(false);
     setGhostRect(null);
   }, []);
+
+  /* A row can disappear with a delayed preview still queued (folder close,
+     filter, modal transition). Never let that timer write into an unmounted
+     row or resurrect a stale body portal. */
+  useEffect(
+    () => () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    },
+    [],
+  );
+
+  /* If a modal mounts after a page-level preview is already visible, remove
+     the preview rather than merely leaving a hidden portal behind that could
+     flash back when the modal exits. The observer exists only for the single
+     row currently showing a preview. */
+  useEffect(() => {
+    if (
+      !showFull ||
+      typeof document === "undefined" ||
+      typeof MutationObserver === "undefined"
+    ) {
+      return undefined;
+    }
+    const dismissIfBlocked = () => {
+      if (!resolveLabelPreviewLayer(rowRef.current)) clearOverflow();
+    };
+    dismissIfBlocked();
+    const observer = new MutationObserver(dismissIfBlocked);
+    /* Modal portals are direct body children. Watching only that boundary
+       avoids re-checking on unrelated chat streaming / markdown updates. */
+    observer.observe(document.body, { childList: true });
+    return () => observer.disconnect();
+  }, [showFull, clearOverflow]);
 
   /* dismiss ghost on any scroll */
   useEffect(() => {
@@ -605,6 +713,11 @@ const ExplorerRowBase = ({
 
   const handleMouseDown = useCallback(
     (e) => {
+      /* 任何按下都立刻收起截断标签的 ghost。按下往往意味着打开 modal 或右键菜单,
+         而指针仍停在原行上,mouseleave 永远不会触发 —— 此前 ghost 会一直悬在
+         新开的界面前面。放在 shouldSkipRowDragStart 之前:即使这次按下不启动拖拽
+         (例如按在 trailing 元素上),交互已经开始,提示就该让位。 */
+      clearOverflow();
       if (shouldSkipRowDragStart(e.target)) {
         return;
       }
@@ -613,17 +726,11 @@ const ExplorerRowBase = ({
         onDragStart(e, node.id);
       }
     },
-    [draggable, node.id, onDragStart],
+    [clearOverflow, draggable, node.id, onDragStart],
   );
 
   /* ── custom component path ─────────────────────────── */
   if (node.component) {
-    const isContextMenuTarget = contextMenuNodeId != null && node.id === contextMenuNodeId;
-    const suppressHover = contextMenuNodeId != null && !isContextMenuTarget;
-    const showBg = ((hovered && !suppressHover) || isContextMenuTarget || pressed) && !isSource;
-    const hoverBgC = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
-    const activeBgC = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
-
     return (
       <div
         ref={combinedRef}
@@ -683,7 +790,7 @@ const ExplorerRowBase = ({
             left: pressed ? depth * INDENT + 4 : depth * INDENT + 3,
             right: pressed ? 4 : 3,
             borderRadius: pressed ? 4 : 5,
-            backgroundColor: pressed ? activeBgC : hoverBgC,
+            backgroundColor: pressed ? activeBg : hoverBg,
             transform: showBg ? "scale(1)" : "scale(0.97, 0)",
             opacity: showBg ? 1 : 0,
             transition: showBg
@@ -1009,7 +1116,9 @@ const ExplorerRowBase = ({
               borderRadius: 5,
               whiteSpace: "nowrap",
               pointerEvents: "none",
-              zIndex: 999999,
+              /* Resolved per mount point — see resolveLabelPreviewLayer. Both
+                 values come from layer/z_layers.js; neither is a literal. */
+              zIndex: ghostRect.zIndex,
             }}
           >
             <span
@@ -1112,7 +1221,7 @@ const ExplorerRowBase = ({
               </span>
             )}
           </div>,
-          document.body,
+          ghostRect.portalHost,
         )}
     </div>
   );
@@ -1171,6 +1280,7 @@ const ExplorerBranch = ({
   lockedExpandedIds,
   rowHeight,
   rowRadius,
+  rowHover,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1206,6 +1316,7 @@ const ExplorerBranch = ({
           isLockedExpanded={isLockedExpanded}
           rowHeight={rowHeight}
           rowRadius={rowRadius}
+          rowHover={rowHover}
         />
         {isFolder && (
           <AnimatedChildren
@@ -1255,6 +1366,7 @@ const ExplorerBranch = ({
                   highlightColor={highlightColor}
                   rowHeight={rowHeight}
                   rowRadius={rowRadius}
+                  rowHover={rowHover}
                   lockedExpandedIds={lockedExpandedIds}
                 />
               )}
@@ -1447,6 +1559,7 @@ const Explorer = ({
   active_node_id,
   context_menu_node_id,
   locked_expanded,
+  row_hover = true,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1866,12 +1979,16 @@ const Explorer = ({
         ...style,
       }}
     >
-      {/* ── scope highlight indicator ────────────────── */}
+      {/* ── scope highlight indicator ──────────────────
+          Goes away with row_hover: it is the same affordance family (a
+          hover-driven wash), and keeping it while killing the per-row
+          hover leaves the odd state of "the row doesn't light up but a
+          box around it does". */}
       <BackgroundIndicator
         top={indicator.top}
         height={indicator.height}
         left={indicator.left}
-        visible={indicator.visible}
+        visible={row_hover && indicator.visible}
         isDark={isDark}
       />
 
@@ -1891,6 +2008,7 @@ const Explorer = ({
         onDragStart={handleRowDragStart}
         rowHeight={row_height}
         rowRadius={row_radius}
+        rowHover={row_hover}
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
@@ -1938,7 +2056,7 @@ const Explorer = ({
               whiteSpace: "nowrap",
               cursor: "grabbing",
               pointerEvents: "none",
-              zIndex: 999999,
+              zIndex: Z.DRAG_GHOST,
               willChange: "transform",
             }}
           >

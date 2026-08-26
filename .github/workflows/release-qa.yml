@@ -16,11 +16,16 @@ on:
         options:
           - lite
           - release
+          - release-candidate
         default: lite
       run_unchain_analysis:
         description: "Run optional Unchain advisory analysis"
         type: boolean
         default: true
+      unchain_ref:
+        description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
+        type: string
+        default: dev
 
 permissions:
   contents: read
@@ -29,465 +34,155 @@ permissions:
 jobs:
   deterministic-checks:
     name: Deterministic QA
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/_shared-release-deterministic.yml
+    with:
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'dev' }}
+      source_ref: ${{ github.ref }}
+      source_sha: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
+
+  release-candidate-environment-preflight:
+    name: Release candidate environment preflight
+    needs: deterministic-checks
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
-      QA_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && 'release' || 'lite' }}
+      QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
     steps:
-      - name: Checkout PuPu
-        uses: actions/checkout@v4
-        with:
-          path: pupu
-
-      - name: Checkout unchain
-        uses: actions/checkout@v4
-        with:
-          repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
-          path: unchain
-
-      - name: Set up Node
+      - name: Set up Node for release environment verifier
+        if: env.QA_MODE == 'release-candidate'
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: pupu/package-lock.json
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Node dependencies
-        working-directory: pupu
-        run: npm ci
-
-      - name: Install Python dependencies
-        working-directory: pupu
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r unchain_runtime/server/requirements.txt -e ../unchain pytest
-
-      - name: Resolve QA version
-        working-directory: pupu
-        shell: bash
-        run: |
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION=""
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            TAG_VERSION="${GITHUB_REF_NAME#v}"
-          fi
-          BUILD_VERSION="${TAG_VERSION:-$PACKAGE_VERSION}"
-          {
-            echo "QA_VERSION=$PACKAGE_VERSION"
-            echo "QA_EXPECTED_VERSION=$TAG_VERSION"
-            echo "PUPU_BUILD_VERSION=$BUILD_VERSION"
-          } >> "$GITHUB_ENV"
-
-      - name: Frontend tests
-        id: frontend
-        continue-on-error: true
-        working-directory: pupu
-        env:
-          CI: true
-        run: npm run test:frontend -- --passWithNoTests
-
-      - name: Electron tests
-        id: electron
-        continue-on-error: true
-        working-directory: pupu
-        run: npm run test:electron
-
-      - name: Python backend tests
-        id: python
-        continue-on-error: true
-        working-directory: pupu/unchain_runtime/server
-        env:
-          PYTHONPATH: ${{ github.workspace }}/unchain/src
-        run: python -m pytest tests/ -q --tb=short
-
-      - name: Web build and version check
-        id: web_build
-        continue-on-error: true
-        working-directory: pupu
-        env:
-          CI: true
-        run: npm run build
-
-      - name: Validate MCP registry
-        id: mcp_registry
-        continue-on-error: true
-        working-directory: pupu
-        run: npm run validate:mcp
-
-      - name: Release QA script tests
-        id: release_qa_scripts
-        continue-on-error: true
-        working-directory: pupu
-        run: npm run test:release-qa
-
-      - name: Third-party notice script tests
-        id: notice_scripts
-        continue-on-error: true
-        working-directory: pupu
-        run: npm run test:notices
-
-      - name: Write deterministic QA report
-        if: always()
-        working-directory: pupu
-        env:
-          QA_PLATFORM_NAME: deterministic
-          QA_CHECKS_JSON: |
-            [
-              {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},
-              {"name":"electron tests","command":"npm run test:electron","outcome":"${{ steps.electron.outcome }}"},
-              {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
-              {"name":"web build and version check","command":"npm run build","outcome":"${{ steps.web_build.outcome }}"},
-              {"name":"MCP registry validation","command":"npm run validate:mcp","outcome":"${{ steps.mcp_registry.outcome }}"},
-              {"name":"release QA script tests","command":"npm run test:release-qa","outcome":"${{ steps.release_qa_scripts.outcome }}"},
-              {"name":"third-party notice script tests","command":"npm run test:notices","outcome":"${{ steps.notice_scripts.outcome }}"}
-            ]
-        run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
-
-      - name: Upload deterministic QA report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-qa-job-report-deterministic
-          path: pupu/release-qa-job-report.json
-
-      - name: Deterministic release gate
-        if: always()
-        working-directory: pupu
-        run: |
-          node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status === 'failed') { console.error('Deterministic Release QA failed'); process.exit(1); }"
-
-  unchain-dev-compatibility:
-    name: Unchain Dev Compatibility
-    runs-on: ubuntu-latest
-    # Advisory drift radar: tracks the MOVING unchain dev ref on purpose, so it
-    # must never hard-block a PuPu release — unchain-side churn is not a PuPu
-    # regression. The pytest step soft-fails and only emits a warning.
-    permissions:
-      contents: read
-    env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
-    steps:
-      - name: Checkout PuPu
+      - name: Checkout release environment verifier
+        if: env.QA_MODE == 'release-candidate'
         uses: actions/checkout@v4
-        with:
-          path: pupu
 
-      - name: Checkout current Unchain dev
-        uses: actions/checkout@v4
-        with:
-          repository: haoxiang-xu/unchain
-          ref: dev
-          path: unchain
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install compatibility test dependencies
-        working-directory: pupu
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r unchain_runtime/server/requirements.txt -e ../unchain pytest
-
-      - name: Run PuPu-Unchain compatibility contracts
-        id: compat
-        continue-on-error: true
-        working-directory: pupu/unchain_runtime/server
+      - name: Require protected release-signing Environment
+        if: env.QA_MODE == 'release-candidate'
         env:
-          PYTHONPATH: ${{ github.workspace }}/unchain/src
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python -m pytest \
-            tests/test_memory_factory.py \
-            tests/test_session_transcript_media.py \
-            tests/test_durable_interaction_host.py \
-            -q --tb=short
-
-      - name: Warn on unchain dev drift (advisory only)
-        if: steps.compat.outcome != 'success'
-        run: |
-          echo "::warning title=Unchain dev drift::PuPu is not compatible with the current unchain dev branch (advisory only — release not blocked). Sync the memory-contract proxy before the next unchain upgrade."
+          gh api "repos/$GITHUB_REPOSITORY/environments/release-signing" \
+            | node scripts/release-qa/verify-github-environment.mjs --environment release-signing
 
   playwright-electron:
     name: Playwright Electron (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON((startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
-    env:
-      QA_MODE: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release') && 'release' || 'lite' }}
-    steps:
-      - name: Checkout PuPu
-        uses: actions/checkout@v4
+        os: ${{ fromJSON(((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/_shared-release-playwright.yml
+    with:
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      runner_selector: ${{ matrix.os }}
+      source_ref: ${{ github.ref }}
+      source_sha: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Install Electron runtime dependencies
-        if: runner.os == 'Linux'
-        run: npx playwright install-deps chromium
-
-      # Electron's SUID sandbox helper aborts on Linux runners unless it is
-      # root-owned with mode 4755 (the spawn in e2e/fixtures/pupu_app.js runs
-      # with sandboxing on).
-      - name: Configure Electron SUID sandbox (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo chown root:root node_modules/electron/dist/chrome-sandbox
-          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-
-      - name: Run Playwright Electron release smoke
-        id: playwright
-        continue-on-error: true
-        shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            xvfb-run -a npm run test:e2e
-          else
-            npm run test:e2e
-          fi
-
-      - name: Write Playwright QA report
-        if: always()
-        env:
-          QA_PLATFORM_NAME: playwright-${{ runner.os }}
-          QA_PLATFORM_COMMAND: npm run test:e2e
-          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
-          QA_CHECKS_JSON: |
-            [
-              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}"}
-            ]
-        run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
-
-      - name: Upload Playwright QA report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-qa-job-report-playwright-${{ runner.os }}
-          path: release-qa-job-report.json
-          retention-days: 30
-
-      - name: Upload Playwright evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-evidence-${{ runner.os }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: |
-            playwright-report/**/*
-            test-results/playwright/**/*
-
-  package-matrix:
+  package-non-windows:
     name: Package ${{ matrix.name }}
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.qa_mode == 'release' }}
-    runs-on: ${{ matrix.os }}
+    needs:
+      - deterministic-checks
+      - release-candidate-environment-preflight
+    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: mac-arm64
-            os: macos-latest
-            command: npm run build:electron:mac:unsigned
+            target_id: macos-arm64
+            signing_platform: macos
           - name: mac-intel
-            os: macos-15-intel
-            command: npm run build:electron:mac:intel:unsigned
-          - name: windows
-            os: windows-latest
-            command: npm run build:electron:win:unsigned
+            target_id: macos-x64
+            signing_platform: macos
           - name: linux
-            os: ubuntu-latest
-            command: npm run build:electron:linux
-    env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
-      QA_MODE: release
+            target_id: linux-x64
+            signing_platform: linux
+    uses: ./.github/workflows/_shared-release-package.yml
+    with:
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      target_id: ${{ matrix.target_id }}
+      platform_name: ${{ matrix.name }}
+      signing_platform: ${{ matrix.signing_platform }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'dev' }}
+      source_ref: ${{ github.ref }}
+      source_sha: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
+
+  package-windows:
+    name: Package windows
+    needs:
+      - deterministic-checks
+      - release-candidate-environment-preflight
+    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/_shared-release-package.yml
+    with:
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      target_id: windows-x64
+      platform_name: windows
+      signing_platform: windows
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'dev' }}
+      source_ref: ${{ github.ref }}
+      source_sha: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
+
+  package-matrix:
+    name: Package release matrix
+    needs:
+      - deterministic-checks
+      - release-candidate-environment-preflight
+      - package-non-windows
+      - package-windows
+    if: ${{ always() && needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - name: Checkout PuPu
-        uses: actions/checkout@v4
-        with:
-          path: pupu
-
-      - name: Checkout unchain
-        uses: actions/checkout@v4
-        with:
-          repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
-          path: unchain
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: pupu/package-lock.json
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Node dependencies
-        working-directory: pupu
-        run: npm ci
-
-      - name: Resolve QA version
-        working-directory: pupu
-        shell: bash
-        run: |
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION=""
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            TAG_VERSION="${GITHUB_REF_NAME#v}"
-          fi
-          BUILD_VERSION="${TAG_VERSION:-$PACKAGE_VERSION}"
-          {
-            echo "QA_VERSION=$PACKAGE_VERSION"
-            echo "QA_EXPECTED_VERSION=$TAG_VERSION"
-            echo "PUPU_BUILD_VERSION=$BUILD_VERSION"
-          } >> "$GITHUB_ENV"
-
-      - name: Build unsigned package
-        id: package
-        continue-on-error: true
-        working-directory: pupu
-        run: ${{ matrix.command }}
-
-      - name: Write package QA report
-        if: always()
-        working-directory: pupu
-        shell: bash
+      - name: Require every package target to pass
         env:
-          QA_PLATFORM_NAME: ${{ matrix.name }}
-          QA_PLATFORM_COMMAND: ${{ matrix.command }}
-          QA_ARTIFACT_GLOBS_JSON: '["dist/**/*","unchain_runtime/dist/**/*"]'
-          QA_CHECKS_JSON: |
-            [
-              {"name":"unsigned package build","command":"${{ matrix.command }}","outcome":"${{ steps.package.outcome }}"}
-            ]
-        run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
-
-      - name: Upload package QA report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-qa-job-report-${{ matrix.name }}
-          path: pupu/release-qa-job-report.json
-
-      - name: Upload package artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pupu-package-${{ matrix.name }}
-          if-no-files-found: warn
-          retention-days: 7
-          path: |
-            pupu/dist/**/*
-            pupu/unchain_runtime/dist/**/*
+          NON_WINDOWS_RESULT: ${{ needs.package-non-windows.result }}
+          WINDOWS_RESULT: ${{ needs.package-windows.result }}
+        run: |
+          if [ "$NON_WINDOWS_RESULT" != "success" ] || [ "$WINDOWS_RESULT" != "success" ]; then
+            echo "::error title=Package matrix failed::non-Windows=$NON_WINDOWS_RESULT Windows=$WINDOWS_RESULT"
+            exit 1
+          fi
 
   final-report:
     name: Final Release QA Report
     if: ${{ always() }}
-    runs-on: ubuntu-latest
     needs:
       - deterministic-checks
-      - unchain-dev-compatibility
       - playwright-electron
       - package-matrix
-    env:
-      UNCHAIN_SOURCE_PATH: ${{ github.workspace }}/unchain
-    steps:
-      - name: Checkout PuPu
-        uses: actions/checkout@v4
-        with:
-          path: pupu
-
-      - name: Checkout unchain
-        uses: actions/checkout@v4
-        with:
-          repository: haoxiang-xu/unchain
-          ref: 7847da75b8e63e36235b4c3726debd4cc5f19ab2
-          path: unchain
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Download job reports
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release-qa-job-report-*
-          path: qa-job-reports
-          merge-multiple: false
-
-      - name: Merge deterministic report
-        working-directory: pupu
-        run: |
-          node scripts/release-qa/merge-reports.mjs \
-            --input-dir ../qa-job-reports \
-            --out-json release-qa-report.json \
-            --out-md release-qa-report.md
-
-      - name: Install optional Unchain analyst dependencies
-        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.qa_mode == 'release' && inputs.run_unchain_analysis }}
-        continue-on-error: true
-        working-directory: pupu
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ../unchain openai anthropic
-
-      - name: Run optional Unchain analyst
-        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.qa_mode == 'release' && inputs.run_unchain_analysis }}
-        continue-on-error: true
-        working-directory: pupu
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          PUPU_QA_PROVIDER: ${{ vars.PUPU_QA_PROVIDER || 'openai' }}
-          PUPU_QA_MODEL: ${{ vars.PUPU_QA_MODEL }}
-        run: |
-          python scripts/release-qa/unchain-qa-analyst.py \
-            --report release-qa-report.json \
-            --out release-qa-analysis.json
-
-      - name: Write final report
-        if: always()
-        working-directory: pupu
-        shell: bash
-        run: |
-          ANALYSIS_ARGS=()
-          if [[ -f release-qa-analysis.json ]]; then
-            ANALYSIS_ARGS=(--analysis-json release-qa-analysis.json)
-          fi
-          node scripts/release-qa/merge-reports.mjs \
-            --input-dir ../qa-job-reports \
-            --out-json release-qa-report.json \
-            --out-md release-qa-report.md \
-            "${ANALYSIS_ARGS[@]}"
-          cat release-qa-report.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload final QA report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-qa-report
-          path: |
-            pupu/release-qa-report.json
-            pupu/release-qa-report.md
-            pupu/release-qa-analysis.json
-          if-no-files-found: ignore
-
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/_shared-release-report.yml
+    with:
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      source_ref: ${{ github.ref }}
+      source_sha: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
+      deterministic_result: ${{ needs.deterministic-checks.result }}
+      playwright_result: ${{ needs.playwright-electron.result }}
+      package_result: ${{ needs.package-matrix.result }}
+      run_unchain_analysis: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.event.inputs.qa_mode == 'release' && github.event.inputs.run_unchain_analysis }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

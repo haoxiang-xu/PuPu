@@ -16,7 +16,9 @@ import {
 jest.mock("../components/toolkit_icon", () => ({
   __esModule: true,
   ...jest.requireActual("../components/toolkit_icon"),
-  ToolkitIconFrame: () => <span data-testid="icon" />,
+  ToolkitIconFrame: ({ icon }) => (
+    <span data-testid="icon" data-icon-name={icon?.name || ""} />
+  ),
 }));
 
 jest.mock("../../../BUILTIN_COMPONENTs/markdown/markdown", () => ({
@@ -85,6 +87,17 @@ const NOTION_ENTRY = {
   skills: [{ name: "summarize", title: "Summarize", description: "Summarize a page." }],
 };
 
+const NO_ICON_MCP_ENTRY = {
+  id: "detail-no-icon",
+  toolkitId: "mcp.custom.detail-no-icon",
+  toolkitName: "No Icon MCP",
+  toolkitDescription: "An MCP entry without a curated icon.",
+  source: "mcp",
+  status: "available",
+  installable: true,
+  tools: [],
+};
+
 const renderPage = (props = {}) => {
   const presentation =
     props.presentation || toPluginPresentation(props.entry || PLAN_ENTRY);
@@ -149,6 +162,12 @@ describe("PluginDetailPage — install state pill", () => {
 /* M5: the header source pill used to render the raw source slug
    ("mcp_registry") verbatim instead of a localized label. */
 describe("PluginDetailPage — source pill", () => {
+  test("uses the generic mcp icon when a store entry omits its icon", () => {
+    renderPage({ entry: NO_ICON_MCP_ENTRY, forceInstalled: false });
+
+    expect(screen.getByTestId("icon")).toHaveAttribute("data-icon-name", "mcp");
+  });
+
   test("renders the localized SOURCE_CONFIG label instead of the raw source slug", () => {
     renderPage({ entry: NOTION_ENTRY, forceInstalled: false });
     expect(screen.getByText("mcp")).toBeInTheDocument();

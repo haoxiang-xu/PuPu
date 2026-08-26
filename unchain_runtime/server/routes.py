@@ -24,6 +24,7 @@ from durable_interaction_host import (
     DurableInteractionHostError,
     cancel_chat_execution,
     get_pending_interaction,
+    interaction_receipt_handoff,
     record_interaction_receipt,
 )
 from mcp_toolkits import (
@@ -72,6 +73,7 @@ import route_chat  # noqa: F401
 import route_projection  # noqa: F401
 import route_characters  # noqa: F401
 import route_memory  # noqa: F401
+import route_memory_v2  # noqa: F401
 import route_recipes  # noqa: F401
 import route_mcp  # noqa: F401
 import route_skillpacks  # noqa: F401
@@ -127,6 +129,7 @@ __all__ = [
     "submit_tool_confirmation",
     "DurableInteractionHostError",
     "get_pending_interaction",
+    "interaction_receipt_handoff",
     "record_interaction_receipt",
     "delete_mcp_store_registry",
     "import_mcp_store_registry",

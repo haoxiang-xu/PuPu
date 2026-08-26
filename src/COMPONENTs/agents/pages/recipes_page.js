@@ -251,25 +251,25 @@ export default function RecipesPage({
 
       {/* ── Floating inspector (right detail panel) ── */}
       <div
-        style={{
-          ...overlayPanel,
-          top: 6,
-          right: 6,
-          bottom: 6,
-          width: 300,
-          opacity: selectedNodeId ? 1 : 0,
-          transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
-          transition:
-            "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-          pointerEvents: selectedNodeId ? "auto" : "none",
-        }}
-      >
-        <DetailPanel
-          recipe={activeRecipe}
-          selectedNodeId={selectedNodeId}
-          onChange={handleRecipeChange}
-          onChangeSilent={handleRecipeChangeSilent}
-        />
+          style={{
+            ...overlayPanel,
+            top: 6,
+            right: 6,
+            bottom: 6,
+            width: 300,
+            opacity: selectedNodeId ? 1 : 0,
+            transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
+            transition:
+              "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+            pointerEvents: selectedNodeId ? "auto" : "none",
+          }}
+        >
+          <DetailPanel
+            recipe={activeRecipe}
+            selectedNodeId={selectedNodeId}
+            onChange={handleRecipeChange}
+            onChangeSilent={handleRecipeChangeSilent}
+          />
       </div>
     </div>
   );

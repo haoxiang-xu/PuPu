@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PuPu · Plugins Discover 重设计 · 第二轮</title>
+<style>
+@font-face {
+  font-family: "JostLocal";
+  src: url("../../src/BUILTIN_COMPONENTs/fonts/Jost/Jost-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: block;
+}
+
+:root {
+  --pd-page-bg: #0a0a0c;
+  --pd-page-panel: #131316;
+  --pd-page-line: rgba(255,255,255,0.09);
+  --pd-page-text: rgba(255,255,255,0.93);
+  --pd-page-dim: rgba(255,255,255,0.54);
+  --pd-page-faint: rgba(255,255,255,0.32);
+  --pd-page-accent: #8b9bff;
+  --pd-page-warn: #f0a868;
+  --pd-page-good: #6fd48d;
+
+  /* PuPu dark palette — SEMANTIC_DEFAULTS.dark_mode */
+  --pupu-background: #121212;
+  --pupu-text-rgb: 255,255,255;
+  --pupu-pill: #9aa8ff;
+  --pupu-pill-bg: rgba(124,140,248,0.12);
+  --pupu-quiet: rgba(255,255,255,0.045);
+
+  /* option 5 — Loadout */
+  --pk-rig-live: #7cc7ff;
+  --pk-rig-halo: rgba(74,150,255,0.20);
+  --pk-rig-core-hi: #7d92ff;
+  --pk-rig-core-lo: #3a48b4;
+  /* option 6 — Vignette */
+  --pk-vig-ok: #6fd48d;
+  /* option 7 — Spine. The plain board is deliberately WARM and lighter than
+     any cloth spine: kraft vs cloth is the whole point, and a cool dark grey
+     board reads as "another dark spine" instead of another material. */
+  --pk-board-hi: #5b554c;
+  --pk-board-lo: #413c35;
+  --pk-board-ink: 236,231,222;
+  --pk-shelf-hi: #3b362e;
+  --pk-shelf-lo: #22201b;
+  --pk-shelf-sel: rgba(150,175,255,0.5);
+  /* option 8 — Constellation */
+  --pk-sky-top: #191c25;
+  --pk-sky-bottom: #101013;
+  --pk-sky-live: #8fb6ff;
+  --pk-sky-halo: rgba(115,160,255,0.24);
+  /* option 9 — Wish */
+  --pk-wish-a: rgba(120,140,255,0.32);
+  --pk-wish-b: rgba(255,140,200,0.24);
+  --pk-wish-field: rgba(255,255,255,0.055);
+  --pk-wish-edge: rgba(255,255,255,0.10);
+  --pk-wish-ink: #9aa8ff;
+  --pk-wish-tint: rgba(124,140,248,0.16);
+}
+
+/* PuPu light palette — SEMANTIC_DEFAULTS.light_mode. Applied to mock pads only. */
+[data-mock="light"] {
+  --pupu-background: #ffffff;
+  --pupu-text-rgb: 34,34,34;
+  --pupu-pill: #2563eb;
+  --pupu-pill-bg: rgba(37,99,235,0.08);
+  --pupu-quiet: rgba(0,0,0,0.035);
+
+  --pk-rig-live: #2f7fd0;
+  --pk-rig-halo: rgba(60,130,220,0.16);
+  --pk-rig-core-hi: #8ba0ff;
+  --pk-rig-core-lo: #4353c4;
+  --pk-vig-ok: #2f9e5c;
+  --pk-board-hi: #ece7dd;
+  --pk-board-lo: #d6d0c3;
+  --pk-board-ink: 60,54,46;
+  --pk-shelf-hi: #ded8cd;
+  --pk-shelf-lo: #bdb6a8;
+  --pk-shelf-sel: rgba(60,110,200,0.38);
+  --pk-sky-top: #f2f5fc;
+  --pk-sky-bottom: #ffffff;
+  --pk-sky-live: #4a72c8;
+  --pk-sky-halo: rgba(70,120,220,0.16);
+  --pk-wish-a: rgba(120,150,255,0.30);
+  --pk-wish-b: rgba(255,150,200,0.28);
+  --pk-wish-field: rgba(255,255,255,0.88);
+  --pk-wish-edge: rgba(0,0,0,0.07);
+  --pk-wish-ink: #2563eb;
+  --pk-wish-tint: rgba(37,99,235,0.10);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--pd-page-bg);
+  color: var(--pd-page-text);
+  font-family: "JostLocal", "Jost", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pd-wrap { max-width: 1500px; margin: 0 auto; padding: 0 40px 140px; }
+
+/* ─────────────── masthead ─────────────── */
+.pd-masthead { position: relative; padding: 78px 0 46px; overflow: hidden; }
+.pd-masthead::before {
+  content: ""; position: absolute; left: -120px; top: -80px; width: 620px; height: 380px;
+  background: radial-gradient(48% 60% at 30% 45%, rgba(120,140,255,0.20), transparent 70%),
+              radial-gradient(46% 56% at 70% 55%, rgba(255,140,200,0.14), transparent 70%);
+  filter: blur(48px); pointer-events: none;
+}
+.pd-masthead > * { position: relative; }
+.pd-kicker {
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--pd-page-faint); margin-bottom: 20px;
+}
+.pd-h1 { font-size: 52px; font-weight: 300; line-height: 1.1; margin: 0 0 20px; letter-spacing: -0.02em; }
+.pd-lede { font-size: 17.5px; color: var(--pd-page-dim); max-width: 800px; margin: 0; font-weight: 300; }
+.pd-lede strong { color: var(--pd-page-text); font-weight: 400; }
+
+/* ─────────────── sections ─────────────── */
+.pd-section { padding: 60px 0 0; }
+.pd-section-label {
+  font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--pd-page-faint); margin-bottom: 12px;
+}
+.pd-h2 { font-size: 30px; font-weight: 300; margin: 0 0 16px; letter-spacing: -0.012em; }
+.pd-body { font-size: 15px; color: var(--pd-page-dim); max-width: 840px; font-weight: 300; }
+.pd-body strong { color: var(--pd-page-text); font-weight: 500; }
+.pd-body code, .pd-find code, .pd-notes code {
+  font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--pd-page-text);
+  background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 4px;
+}
+
+/* ─────────────── findings ─────────────── */
+.pd-findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 28px; }
+.pd-find { background: var(--pd-page-panel); border: 1px solid var(--pd-page-line); border-radius: 14px; padding: 22px 24px; }
+.pd-find-tag {
+  display: inline-block; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 2px 9px; border-radius: 999px; margin-bottom: 13px;
+}
+.pd-tag-block { background: rgba(240,168,104,0.14); color: var(--pd-page-warn); }
+.pd-tag-fact  { background: rgba(139,155,255,0.14); color: var(--pd-page-accent); }
+.pd-tag-gap   { background: rgba(111,212,141,0.13); color: var(--pd-page-good); }
+.pd-find h3 { font-size: 16.5px; font-weight: 500; margin: 0 0 9px; }
+.pd-find p { font-size: 13.5px; color: var(--pd-page-dim); margin: 0; font-weight: 300; line-height: 1.65; }
+
+/* ─────────────── toolbar ─────────────── */
+.pd-toolbar {
+  position: sticky; top: 0; z-index: 30; background: rgba(10,10,12,0.9);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--pd-page-line);
+  display: flex; align-items: center; gap: 14px; padding: 13px 40px; margin: 0 -40px;
+}
+.pd-toolbar-title { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--pd-page-faint); }
+.pd-seg { display: flex; gap: 2px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 9px; margin-left: auto; }
+.pd-seg button {
+  font-family: inherit; font-size: 12.5px; border: 0; cursor: pointer;
+  background: transparent; color: var(--pd-page-dim); padding: 5px 17px; border-radius: 7px;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.pd-seg button:hover { background: rgba(255,255,255,0.07); color: var(--pd-page-text); }
+.pd-seg button[aria-pressed="true"] { background: rgba(255,255,255,0.13); color: var(--pd-page-text); }
+
+/* ─────────────── option blocks ─────────────── */
+.pd-option { padding: 86px 0 0; }
+.pd-option-head { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 30px; }
+.pd-option-num {
+  flex: 0 0 auto; width: 52px; height: 52px; border-radius: 15px;
+  border: 1px solid var(--pd-page-line); display: flex; align-items: center; justify-content: center;
+  font-size: 19px; color: var(--pd-page-dim); font-weight: 300;
+}
+.pd-option-title { font-size: 30px; font-weight: 300; margin: 0 0 8px; letter-spacing: -0.012em; }
+.pd-option-claim { font-size: 16px; color: var(--pd-page-dim); margin: 0; font-weight: 300; max-width: 800px; line-height: 1.62; }
+.pd-option-claim strong { color: var(--pd-page-text); font-weight: 400; }
+
+.pd-stage { display: grid; grid-template-columns: 660px 1fr; gap: 48px; align-items: start; }
+@media (max-width: 1200px) { .pd-stage { grid-template-columns: 1fr; } }
+
+.pd-pad {
+  background:
+    radial-gradient(70% 60% at 50% 0%, rgba(255,255,255,0.035), transparent 70%),
+    repeating-conic-gradient(rgba(255,255,255,0.02) 0% 25%, transparent 0% 50%) 50% / 22px 22px;
+  border: 1px solid var(--pd-page-line); border-radius: 18px; padding: 26px;
+  display: flex; justify-content: center;
+}
+
+.pd-notes { padding-top: 6px; }
+.pd-notes h4 {
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--pd-page-faint); margin: 0 0 13px; font-weight: 400;
+}
+.pd-notes h4:not(:first-child) { margin-top: 32px; }
+.pd-notes ul { margin: 0; padding: 0; list-style: none; }
+.pd-notes li {
+  font-size: 13.5px; color: var(--pd-page-dim); font-weight: 300;
+  padding: 0 0 11px 18px; position: relative; line-height: 1.62;
+}
+.pd-notes li::before {
+  content: ""; position: absolute; left: 0; top: 9px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--pd-page-faint);
+}
+.pd-notes li strong { color: var(--pd-page-text); font-weight: 500; }
+.pd-metrics { display: flex; gap: 28px; margin-top: 28px; flex-wrap: wrap; }
+.pd-metric-v { font-size: 27px; font-weight: 300; line-height: 1.1; }
+.pd-metric-l { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pd-page-faint); margin-top: 5px; }
+
+/* ─────────────── appendix thumbnails ─────────────── */
+.pd-thumbs { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }
+.pd-thumb-frame {
+  width: 100%; height: 330px; border: 1px solid var(--pd-page-line); border-radius: 14px;
+  overflow: hidden; display: flex; justify-content: center; align-items: flex-start;
+  background: repeating-conic-gradient(rgba(255,255,255,0.02) 0% 25%, transparent 0% 50%) 50% / 22px 22px;
+}
+.pd-thumb-frame .pk-modal { transform: scale(0.55); transform-origin: top center; margin-top: 12px; }
+.pd-thumb-cap { font-size: 13px; color: var(--pd-page-dim); font-weight: 300; margin-top: 12px; }
+.pd-thumb-cap b { color: var(--pd-page-text); font-weight: 500; display: block; font-size: 14.5px; margin-bottom: 3px; }
+
+/* ══════════════════════════════════════════════════════
+   THE MOCK — a faithful 600x600 PuPu plugins modal
+   ══════════════════════════════════════════════════════ */
+.pk-modal {
+  width: 600px; height: 600px; flex: 0 0 auto;
+  background: var(--pupu-background); color: rgba(var(--pupu-text-rgb),0.9);
+  border-radius: 14px; overflow: hidden; display: flex;
+  font-family: "JostLocal", "Jost", sans-serif; font-size: 13px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+  position: relative;
+}
+[data-mock="light"] .pk-modal { box-shadow: 0 30px 80px rgba(0,0,0,0.3); }
+
+.pk-side {
+  width: 140px; flex-shrink: 0; padding: 16px 10px 10px;
+  background: rgba(var(--pupu-text-rgb),0.035);
+  border-right: 1px solid rgba(var(--pupu-text-rgb),0.06);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.pk-side-title {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px;
+  color: rgba(var(--pupu-text-rgb),0.3); padding: 8px 12px 12px;
+}
+.pk-nav {
+  display: flex; align-items: center; gap: 9px; padding: 8px 12px;
+  border-radius: 7px; font-size: 13px; color: rgba(var(--pupu-text-rgb),1); opacity: 0.65;
+}
+.pk-nav.pk-on { opacity: 1; }
+.pk-nav svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.pk-nav-count {
+  margin-left: auto; font-size: 10.5px; font-weight: 500;
+  background: rgba(var(--pupu-text-rgb),0.10); border-radius: 999px; padding: 1px 7px;
+}
+
+.pk-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.pk-head { flex-shrink: 0; padding: 20px 26px 0; }
+.pk-title { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; color: rgba(var(--pupu-text-rgb),0.90); }
+.pk-sub { font-size: 12px; font-weight: 300; color: rgba(var(--pupu-text-rgb),0.45); margin-top: 3px; }
+.pk-body { flex: 1; overflow: hidden; padding: 8px 26px 26px; position: relative; }
+.pk-close {
+  position: absolute; top: 12px; right: 12px; width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center; opacity: 0.45; z-index: 4;
+  color: rgba(var(--pupu-text-rgb),1);
+}
+.pk-close svg { width: 14px; height: 14px; }
+.pk-fold {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 26px;
+  background: linear-gradient(to bottom, transparent, var(--pupu-background) 78%);
+  pointer-events: none;
+}
+
+.pk-sec { display: flex; align-items: baseline; gap: 6px; padding: 11px 0 3px; }
+.pk-sec-l { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(var(--pupu-text-rgb),0.35); }
+.pk-sec-a { margin-left: auto; font-size: 10.5px; font-weight: 500; color: var(--pupu-pill); padding: 2px 6px; border-radius: 6px; }
+
+.pk-ic { border-radius: 9px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.pk-ic svg { display: block; }
+.pk-ic-plain { background: rgba(var(--pupu-text-rgb),0.06); }
+
+.pk-pill {
+  font-size: 11px; font-weight: 500; padding: 3px 13px; border-radius: 999px;
+  color: var(--pupu-pill); background: var(--pupu-pill-bg); flex: 0 0 auto; white-space: nowrap;
+}
+.pk-pill-open { color: rgba(var(--pupu-text-rgb),0.55); background: rgba(var(--pupu-text-rgb),0.07); }
+.pk-pill-hero { color: #fff; background: rgba(255,255,255,0.16); }
+
+.pk-row { display: flex; align-items: center; gap: 11px; padding: 8px 0; }
+.pk-row + .pk-row { border-top: 1px solid rgba(var(--pupu-text-rgb),0.05); }
+.pk-row-txt { flex: 1; min-width: 0; }
+.pk-name { font-size: 12.5px; font-weight: 500; color: rgba(var(--pupu-text-rgb),0.90); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-desc { font-size: 10.5px; font-weight: 300; color: rgba(var(--pupu-text-rgb),0.44); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pk-band { display: flex; align-items: center; gap: 14px; border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; }
+.pk-band-kick { font-size: 9px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.62); }
+.pk-band-title { font-size: 14.5px; font-weight: 500; color: #fff; margin-top: 2px; }
+.pk-band-blurb { font-size: 11px; font-weight: 300; color: rgba(255,255,255,0.66); margin-top: 2px; line-height: 1.45; }
+
+.pk-brick { display: flex; flex-direction: column; gap: 7px; padding: 11px 12px; border-radius: 11px; background: var(--pupu-quiet); }
+</style>
+</head>
+<body>
+<div class="pd-wrap">
+
+  <header class="pd-masthead">
+    <div class="pd-kicker">PuPu · Plugins · Discover · 第二轮</div>
+    <h1 class="pd-h1">五个更大胆的 Discover</h1>
+    <p class="pd-lede">
+      第一轮四个方案都在算密度，没有一个在想“好看”。这一轮换了个问法：
+      <strong>这一页凭什么让人想多待十秒。</strong>
+      PuPu 自己已经有一整套视觉语汇没被用上 ——
+      <code>shader_blob_background</code>、<code>aurora_background</code>、<code>dot_matrix</code>、
+      <code>grainy_background</code>、3D tilt card。下面五个方案各挑一件来用，而且都必须
+      同时扛住那三条硬约束。上一轮的四个收在页尾。
+    </p>
+  </header>
+
+  <div class="pd-toolbar">
+    <span class="pd-toolbar-title">全部按 PuPu 真实 token 渲染 · 真实 600 × 600 画布</span>
+    <div class="pd-seg" role="group" aria-label="主题切换">
+      <button type="button" data-theme="dark" aria-pressed="true">Dark</button>
+      <button type="button" data-theme="light" aria-pressed="false">Light</button>
+    </div>
+  </div>
+
+  <!-- ═══════════ 约束回顾 ═══════════ -->
+  <section class="pd-section">
+    <div class="pd-section-label">仍然成立</div>
+    <h2 class="pd-h2">想象力可以放开，这三条不行</h2>
+    <div class="pd-findings">
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-block">硬约束 · 已裁决</span>
+        <h3>39% 的插件必须长成同一块灰砖</h3>
+        <p>
+          <code>ccac3ede</code> 的 icon 品牌归属准则：图标必须是该 server 发布方本人的官方标识，
+          否则清空。18 条里 7 条现在都渲染同一个灰 <code>mcp</code> 字形。
+          monogram 与派生色片<strong>已被明确否决</strong>。
+          下面每个方案我都标了它怎么扛这条 —— 有两个是直接把它变成了美学。
+        </p>
+      </div>
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-fact">硬约束 · 数据</span>
+        <h3>零凭据不变量</h3>
+        <p>
+          Essentials 与 Collections 的每个条目必须
+          <code>available + installable + secrets.length === 0</code>，
+          因为这两处有内联 GET pill。featured 豁免（整卡路由 detail）。
+          由 <code>plugin_presentation.test.js</code> 硬编码。
+        </p>
+      </div>
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-fact">硬约束 · 工程</span>
+        <h3>460 × 523 —— 就这么大</h3>
+        <p>
+          <code>toolkit_modal.js</code> 把宽高锁死 600（min/max 同值），减掉 140px 侧栏与页头，
+          可画区域是 <strong>460 × 523</strong>。下面每一张都是这个真实尺寸，没有放大。
+          按钮仍走 BUILTIN Button 默认形态。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 5 ═══════════ -->
+  <section class="pd-option">
+    <div class="pd-option-head">
+      <div class="pd-option-num">5</div>
+      <div>
+        <h2 class="pd-option-title">装配台 · Loadout</h2>
+        <p class="pd-option-claim">
+          把“你拥有一个 agent”这件事画出来。中间那颗核就是你的 agent，
+          六个卡槽围着它 —— 装上的会发光并连上线，空的是虚线加一个加号。
+          <strong>Discover 不再是货架，是你角色的装备栏。</strong>
+        </p>
+      </div>
+    </div>
+    <div class="pd-stage">
+      <div class="pd-pad"><div class="pk-modal" id="mock5"></div></div>
+      <div class="pd-notes">
+        <h4>为什么它好看</h4>
+        <ul>
+          <li>它有一个<strong>视觉中心</strong>。前四个方案都是从上往下的列表，眼睛没有落点；这个有。</li>
+          <li>用了 PuPu 已有的 <code>dot_matrix</code> 做环境底，加一层核心辉光 —— 亮，但只亮一处，不像现在的粉紫 hero 那样整块糊在脸上。</li>
+          <li>“3 / 6” 直接写在核心上。<strong>装机进度第一次成为页面的主语</strong>，而不是一个 Installed tab 上的角标。</li>
+        </ul>
+        <h4>它怎么扛灰砖</h4>
+        <ul>
+          <li>卡槽是<strong>能力位</strong>，标签写“网页 / 文件 / 记忆”。空槽根本没有图标，装上后图标只是槽里的一个填充物，不承担辨认。</li>
+        </ul>
+        <h4>代价</h4>
+        <ul>
+          <li><strong>不可扩展。</strong>六个槽是设计上限，18 个插件放不进环里 —— 必须配一个“全部”入口，环只呈现精选。</li>
+          <li>能力→插件是多对多（playwright 和 chrome-devtools 都是“网页”），一个槽装两个东西时怎么画，需要专门解。</li>
+          <li>游戏感强，可能显得轻浮。这是风格赌注，不是中性选择。</li>
+        </ul>
+        <div class="pd-metrics">
+          <div class="pd-metric"><div class="pd-metric-v" data-count="mock5">–</div><div class="pd-metric-l">首屏可点单元 · 实测</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">1</div><div class="pd-metric-l">视觉焦点</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">高</div><div class="pd-metric-l">风格赌注</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 6 ═══════════ -->
+  <section class="pd-option">
+    <div class="pd-option-head">
+      <div class="pd-option-num">6</div>
+      <div>
+        <h2 class="pd-option-title">对话预演 · Vignette</h2>
+        <p class="pd-option-claim">
+          PuPu 是个聊天应用。那就<strong>用对话本身来卖插件</strong> ——
+          每张卡是一小段真实的对话切片：你的气泡、一条压缩的工具调用帧、agent 的回话。
+          用户看到的不是“Playwright 是什么”，而是“装上以后我能这么说话”。
+        </p>
+      </div>
+    </div>
+    <div class="pd-stage">
+      <div class="pd-pad"><div class="pk-modal" id="mock6"></div></div>
+      <div class="pd-notes">
+        <h4>为什么它好看</h4>
+        <ul>
+          <li>它<strong>递归引用了产品自己</strong>：气泡用 PuPu 真实的 16px 圆角、10×16 内距、<code>rgba(255,255,255,0.08)</code> 底；trace chip 用 PuPu 自己的工具调用词汇。整页不需要发明任何新视觉语言。</li>
+          <li>等宽字体的 <code>github · get_pull_request</code> 那一行，是整页唯一的“机器质感”，跟中文正文形成对比 —— 这是它的排版张力来源。</li>
+          <li>三张卡是三段小故事，比三行说明书耐看得多。</li>
+        </ul>
+        <h4>它怎么扛灰砖</h4>
+        <ul>
+          <li><strong>最彻底的一个。</strong>识别完全由对话内容承担，图标缩到 15px 只作为 trace chip 的前缀。第三张卡故意选了 Memory（灰砖）—— 它照样卖得动。</li>
+        </ul>
+        <h4>代价</h4>
+        <ul>
+          <li><strong>每个插件都要人写一段可信的对话。</strong>18 条 × 11 种语言。写砸了会非常尴尬 —— 这是全场文案成本最高的方案。</li>
+          <li>密度最低：一屏三张。适合做首屏精选，撑不起整个目录。</li>
+          <li>示例对话是承诺。写了“抓成表格”就得真能抓成表格，否则是虚假宣传。</li>
+        </ul>
+        <div class="pd-metrics">
+          <div class="pd-metric"><div class="pd-metric-v" data-count="mock6">–</div><div class="pd-metric-l">首屏可点单元 · 实测</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">0</div><div class="pd-metric-l">新视觉语言</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">最高</div><div class="pd-metric-l">文案成本</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 7 ═══════════ -->
+  <section class="pd-option">
+    <div class="pd-option-head">
+      <div class="pd-option-num">7</div>
+      <div>
+        <h2 class="pd-option-title">书脊墙 · Spine</h2>
+        <p class="pd-option-claim">
+          一排立着的书脊。<strong>官方出品的插件得到彩色布面书脊，社区实现是素色纸板脊</strong> ——
+          那条“不许伪造品牌感”的裁决，在这里从限制变成了这一页的核心美学。
+          抽出来的那一本在下面摊开。
+        </p>
+      </div>
+    </div>
+    <div class="pd-stage">
+      <div class="pd-pad"><div class="pk-modal" id="mock7"></div></div>
+      <div class="pd-notes">
+        <h4>为什么它好看</h4>
+        <ul>
+          <li>竖排文字 + 书脊比例 + 一条带阴影的搁板 —— <strong>实体感</strong>是四个前作里完全缺席的东西。460px 宽正好放得下 8 本。</li>
+          <li>内阴影（右侧压暗 + 左侧一道高光）让书脊有厚度；抽出的那本只是上移 14px 加一圈描边，就读出了“被拿起来”。</li>
+          <li>灰砖不再是缺陷，而是一种<strong>材质</strong>。素色纸板脊和彩色布面脊放一起，是有意的对比，不是残缺。</li>
+        </ul>
+        <h4>它怎么扛灰砖</h4>
+        <ul>
+          <li>正面处理。书脊靠<strong>排版</strong>认，不靠图标；有官方标的才在脊底压一个小标。这是唯一一个把约束变成卖点的方案。</li>
+          <li>需要确认：书脊底色是 UI 材质还是会被读成品牌标识？我按“材质”处理，但<strong>这条要你拍板</strong> —— 它离那条被否决的派生色片方案很近。</li>
+        </ul>
+        <h4>代价</h4>
+        <ul>
+          <li>竖排文字对长名字不友好（“Chrome DevTools”已经贴着上限）；中文竖排还得单独调。</li>
+          <li>横向排列在桌面端没有触控，第 9 本之后需要明确的滚动提示。</li>
+        </ul>
+        <div class="pd-metrics">
+          <div class="pd-metric"><div class="pd-metric-v" data-count="mock7">–</div><div class="pd-metric-l">首屏可点单元 · 实测</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">8</div><div class="pd-metric-l">一排放得下</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">✓</div><div class="pd-metric-l">约束变卖点</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 8 ═══════════ -->
+  <section class="pd-option">
+    <div class="pd-option-head">
+      <div class="pd-option-num">8</div>
+      <div>
+        <h2 class="pd-option-title">星图 · Constellation
+          <a href="./constellation.html" style="font-size:14px;font-weight:400;color:var(--pd-page-accent);
+             text-decoration:none;margin-left:14px;vertical-align:middle;padding:4px 12px;border-radius:999px;
+             background:rgba(143,182,255,0.13)">看深化稿 →</a>
+        </h2>
+        <p class="pd-option-claim">
+          18 颗星，你点亮了 9 颗。装过的插件是亮着的节点，没装的是空心环，
+          Collections 就是把几颗星连起来的<strong>星座</strong>。
+          “把 Local Knowledge 这个星座补完”比“再装一个 SQLite”有吸引力得多。
+        </p>
+      </div>
+    </div>
+    <div class="pd-stage">
+      <div class="pd-pad"><div class="pk-modal" id="mock8"></div></div>
+      <div class="pd-notes">
+        <h4>为什么它好看</h4>
+        <ul>
+          <li>唯一一个<strong>一眼能看出全局</strong>的方案：装了多少、还差什么、哪些是一伙的，不用读一个字。</li>
+          <li>和 PuPu 的记忆知识图谱是同一套视觉修辞 —— 它看起来就该长在这个产品里。<code>dot_matrix</code> 做星尘，径向渐变做天光。</li>
+          <li>“收集欲”是免费的动力。星座缺一颗，比 GET 按钮更能让人点。</li>
+        </ul>
+        <h4>它怎么扛灰砖</h4>
+        <ul>
+          <li>没装的插件<strong>根本不显示图标</strong>，只是一个空心环 —— 灰砖在首屏消失了。装上之后图标才出现，那时候用户已经知道它是什么了。</li>
+        </ul>
+        <h4>代价</h4>
+        <ul>
+          <li><strong>坐标要人工编排。</strong>18 颗还能手摆，涨到 40 个插件就需要一个布局算法，否则会乱成一团。这是最大的长期风险。</li>
+          <li>不可扫描：想找某个具体插件，星图是最差的界面。必须配搜索。</li>
+          <li>亮色下天空梯度几乎消失，只剩点阵和连线 —— 实际渲染出来比预期能看（右上角切 Light 自己看），但“夜空”这个隐喻在亮色主题里是不成立的，等于两个主题讲两个故事。</li>
+        </ul>
+        <div class="pd-metrics">
+          <div class="pd-metric"><div class="pd-metric-v" data-count="mock8">–</div><div class="pd-metric-l">首屏可点单元 · 实测</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">9/18</div><div class="pd-metric-l">进度可见</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">差</div><div class="pd-metric-l">可扫描性</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 9 ═══════════ -->
+  <section class="pd-option">
+    <div class="pd-option-head">
+      <div class="pd-option-num">9</div>
+      <div>
+        <h2 class="pd-option-title">许愿框 · Wish</h2>
+        <p class="pd-option-claim">
+          整页就是一句话：<strong>“我想让 agent 会…”</strong>。
+          你说结果，它给做法 —— 而且明说取舍：一个最准但要连账号，一个零凭据现在就能装。
+          这是唯一一个把 AI 产品该有的输入方式，用在了自己的商店上。
+        </p>
+      </div>
+    </div>
+    <div class="pd-stage">
+      <div class="pd-pad"><div class="pk-modal" id="mock9"></div></div>
+      <div class="pd-notes">
+        <h4>为什么它好看</h4>
+        <ul>
+          <li>一个大输入框 + 背后一团柔光晕，其余全部留白。<strong>整页只有一个动作</strong> —— 这是全场最自信的版式。</li>
+          <li>光晕是 <code>shader_blob_background</code> 那套语言的克制版：同样的色相，从 186px 的广告牌缩成输入框背后的一层氛围。</li>
+          <li>底部“别人还想让 agent 会…”的一排 chip，把冷启动问题顺手解了 —— 不知道该许什么愿的人有东西可点。</li>
+        </ul>
+        <h4>它怎么扛灰砖</h4>
+        <ul>
+          <li>结果按<strong>做法</strong>排，每条带一句“为什么是它”和一个取舍徽章（最准 / 零凭据）。图标只是 30px 的辅助，不承担识别。</li>
+        </ul>
+        <h4>代价</h4>
+        <ul>
+          <li><strong>需要一个真的意图→插件映射。</strong>关键词匹配会当场露馅（“看懂设计稿”里没有任何一个词命中 figma 或 playwright）。要么人工写映射表，要么调一次模型 —— 后者意味着商店首页要联网推理。</li>
+          <li>空状态就是整页空白。第一印象取决于占位文案写得好不好。</li>
+          <li>它其实取消了“逛”。策展彻底退居二线，这和“编辑推荐”的运营方向是冲突的。</li>
+        </ul>
+        <div class="pd-metrics">
+          <div class="pd-metric"><div class="pd-metric-v" data-count="mock9">–</div><div class="pd-metric-l">首屏可点单元 · 实测</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">1</div><div class="pd-metric-l">页面动作</div></div>
+          <div class="pd-metric"><div class="pd-metric-v">需后端</div><div class="pd-metric-l">意图映射</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 判断 ═══════════ -->
+  <section class="pd-section" style="padding-top:96px">
+    <div class="pd-section-label">怎么选</div>
+    <h2 class="pd-h2">这五个不在同一个维度上</h2>
+    <p class="pd-body">
+      前一轮四个是同一件事的四种排法，可以横向比。这一轮不是 ——
+      它们赌的东西不一样，所以下面按“赌什么”分，不按分数排。
+    </p>
+    <p class="pd-body" style="font-size:13px;margin-top:14px">
+      每张稿子上那个“首屏可点单元”是浏览器实时量的（数完整落在 600px 折叠线以内的可点元素），
+      不是我填的数字。<strong>但这五个数不可横向比</strong> ——
+      星图的一个节点和对话预演的一整段对话不是同一种东西。它只用来验证“这版真的填满了画布”，
+      不用来排名次。
+    </p>
+    <div class="pd-findings">
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-good" style="background:rgba(111,212,141,0.13);color:var(--pd-page-good)">最稳的漂亮</span>
+        <h3>7 · 书脊墙</h3>
+        <p>
+          唯一一个<strong>把已有约束变成美学</strong>的方案，不需要新数据、不需要新文案、不需要后端。
+          风险集中在一个可以当场判断的问题上：书脊底色算不算品牌标识。
+          如果你说算，这个方案立刻降级成全素色书脊 —— 仍然好看，只是少一层对比。
+        </p>
+      </div>
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-fact">最贴产品</span>
+        <h3>6 · 对话预演</h3>
+        <p>
+          它是唯一一个<strong>只有聊天应用能做</strong>的商店首页 —— 别的产品抄不走。
+          也是转化率上最有说服力的：看见对话比看见描述更容易按下 GET。
+          成本全在文案，而文案成本是可以分批付的（先写 4 条精选，其余走方案 1 的行）。
+        </p>
+      </div>
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-block">最大的赌</span>
+        <h3>5 · 装配台 / 8 · 星图</h3>
+        <p>
+          两个都非常有记忆点，也都有<strong>同一个结构性问题：不可扩展</strong>。
+          六个槽 / 手摆坐标，在 18 个插件时很美，在 40 个时会崩。
+          要选它们，得先接受“Discover 只呈现精选，目录另有其页”这个前提。
+        </p>
+      </div>
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-block">最远的</span>
+        <h3>9 · 许愿框</h3>
+        <p>
+          方向上最对（AI 产品的商店本来就该这么找东西），但它<strong>不是一次改版，是一个功能</strong> ——
+          需要意图映射，可能需要一次模型调用。
+          建议当成 0.2.0 的候选，而不是这一版的重设计。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 附录：上一轮 ═══════════ -->
+  <section class="pd-section" style="padding-top:96px">
+    <div class="pd-section-label">附录</div>
+    <h2 class="pd-h2">上一轮的四个（保守组）</h2>
+    <p class="pd-body">
+      仍然可用，尤其是它们的<strong>地基部分</strong>：干掉 WebGL hero、把 186px 的广告牌压成 76px 编辑条、
+      给 skill packs 开入口 —— 这三件事上面五个方案全都需要，可以先单独做掉。
+    </p>
+    <div class="pd-thumbs">
+      <div>
+        <div class="pd-thumb-frame"><div class="pk-modal" id="mock1"></div></div>
+        <div class="pd-thumb-cap"><b>1 · 静默编目</b>排版化名录，图标降级成行首标记</div>
+      </div>
+      <div>
+        <div class="pd-thumb-frame"><div class="pk-modal" id="mock2"></div></div>
+        <div class="pd-thumb-cap"><b>2 · 能力优先</b>一级单元是能力，不是包名</div>
+      </div>
+      <div>
+        <div class="pd-thumb-frame"><div class="pk-modal" id="mock3"></div></div>
+        <div class="pd-thumb-cap"><b>3 · 货架</b>hero 减肥 + 可横滑的精选架</div>
+      </div>
+      <div>
+        <div class="pd-thumb-frame"><div class="pk-modal" id="mock4"></div></div>
+        <div class="pd-thumb-cap"><b>4 · 单栏</b>搜索上首屏，Discover 与 Store 合并</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="./pd_icons.js"></script>
+<script src="./core.js"></script>
+<script src="./bold.js"></script>
+<script>
+(function () {
+  var all = Object.assign({}, window.PD_BASE, window.PD_BOLD);
+  Object.keys(all).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = all[id]();
+  });
+
+  /* Fill every [data-count] with a real measurement of how many curated
+     units land fully inside the 600px modal — never a typed-in guess. */
+  function countAboveFold(id) {
+    var m = document.getElementById(id);
+    if (!m) return null;
+    var body = m.querySelector(".pk-body");
+    var bb = body.getBoundingClientRect();
+    return Array.from(m.querySelectorAll(".pk-row, .pk-brick, [data-item]")).filter(function (e) {
+      var r = e.getBoundingClientRect();
+      return r.bottom <= bb.bottom - 2 && r.top >= bb.top - 2;
+    }).length;
+  }
+  document.querySelectorAll("[data-count]").forEach(function (el) {
+    var n = countAboveFold(el.dataset.count);
+    el.textContent = n === null ? "–" : String(n);
+  });
+
+  var buttons = document.querySelectorAll(".pd-seg button");
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      var mode = b.dataset.theme;
+      buttons.forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+      document.querySelectorAll(".pd-pad, .pd-thumb-frame").forEach(function (p) {
+        if (mode === "light") p.setAttribute("data-mock", "light");
+        else p.removeAttribute("data-mock");
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

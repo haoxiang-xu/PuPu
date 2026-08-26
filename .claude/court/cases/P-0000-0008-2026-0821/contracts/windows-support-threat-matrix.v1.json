@@ -1,0 +1,82 @@
+{
+  "schema": "pupu.memory_v2.windows_support_threat_matrix.v1",
+  "status": "DRAFT_ONLY",
+  "case_id": "P-0000-0008-2026-0821",
+  "purpose": "W0 support/threat framing; not an Active admission, implementation decision, or owner confirmation.",
+  "candidate_identity": "PENDING_OWNER_INTEGRATION",
+  "platforms": [
+    {
+      "os": "windows-10",
+      "arch": "x64",
+      "support_disposition": "shadow_only",
+      "active_disposition": "blocked",
+      "reason": "W0 has no approved containment implementation, installed-candidate proof, or release gate."
+    },
+    {
+      "os": "windows-11",
+      "arch": "x64",
+      "support_disposition": "shadow_only",
+      "active_disposition": "blocked",
+      "reason": "W0 has no approved containment implementation, installed-candidate proof, or release gate."
+    },
+    {
+      "os": "windows-10-or-11",
+      "arch": "arm64",
+      "support_disposition": "unsupported",
+      "active_disposition": "blocked",
+      "reason": "No Windows ARM64 candidate or containment qualification is in scope."
+    }
+  ],
+  "sinks": [
+    {
+      "sink": "shell_secret_env",
+      "support_disposition": "disabled_pending_threat_ruling",
+      "reason": "A Job Object alone is cooperative lifecycle containment, not a defense against WMI, scheduled-task, service, or parent-spoof broker escape."
+    },
+    {
+      "sink": "shell_secret_stdin",
+      "support_disposition": "disabled_pending_threat_ruling",
+      "reason": "A Job Object alone is cooperative lifecycle containment, not a defense against WMI, scheduled-task, service, or parent-spoof broker escape."
+    },
+    {
+      "sink": "mcp_schema_secret",
+      "support_disposition": "disabled_pending_threat_ruling",
+      "reason": "The broker/control-channel and schema-secret boundary require a closed consumer contract and Windows lifecycle proof."
+    },
+    {
+      "sink": "computer_input",
+      "support_disposition": "unsupported",
+      "reason": "No pre-decrypt Windows containment path is available; do not decrypt or register this sink."
+    }
+  ],
+  "containment_claims": {
+    "job_object": {
+      "status": "not_implemented_not_approved",
+      "permitted_future_claim": "cooperative normal CreateProcess descendant lifecycle containment only",
+      "prohibited_claim": "OS-wide sandbox or hostile-child escape prevention"
+    },
+    "broker_control_channel": {
+      "status": "not_registered",
+      "required_before_active": [
+        "strict versioned contract",
+        "pre-decrypt readiness receipt",
+        "tree-drain/recovery proof",
+        "installed-candidate evidence"
+      ]
+    }
+  },
+  "non_negotiable_order": [
+    "capability admission",
+    "containment readiness",
+    "secret decryption",
+    "child spawn",
+    "control receipt",
+    "tree drain",
+    "cleanup"
+  ],
+  "owner_confirmations": {
+    "code-owner-runtime": "FRAMING_ONLY",
+    "code-owner-electron": "PENDING_HANDOFF",
+    "code-owner-devtools": "PENDING_HANDOFF"
+  }
+}

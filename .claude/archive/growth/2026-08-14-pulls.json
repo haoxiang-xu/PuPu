@@ -1,0 +1,82 @@
+{"author":"haoxiang-xu","created":"2026-08-02T20:06:15Z","merged":null,"num":193,"state":"open","title":"Consolidate app-wide layering into one canonical z-index scale (#178)","updated":"2026-08-02T20:21:49Z"}
+{"author":"haoxiang-xu","created":"2026-07-31T23:07:28Z","merged":"2026-07-31T23:11:32Z","num":192,"state":"closed","title":"fix(explorer): keep the truncated-label ghost under menus and dismiss it on press","updated":"2026-07-31T23:26:52Z"}
+{"author":"haoxiang-xu","created":"2026-07-28T04:49:37Z","merged":"2026-07-28T05:19:33Z","num":190,"state":"closed","title":"Dev","updated":"2026-07-28T05:19:33Z"}
+{"author":"haoxiang-xu","created":"2026-07-28T03:09:12Z","merged":null,"num":189,"state":"closed","title":"docs(release): draft 0.1.9 release notes","updated":"2026-07-28T04:49:18Z"}
+{"author":"haoxiang-xu","created":"2026-07-27T05:44:46Z","merged":null,"num":188,"state":"closed","title":"Harden SQL migration and release durability","updated":"2026-07-28T04:49:01Z"}
+{"author":"haoxiang-xu","created":"2026-07-19T22:41:37Z","merged":"2026-07-19T22:46:02Z","num":185,"state":"closed","title":"feat(plugins): Computer Use moves into the plugins panel + per-plugin settings contract","updated":"2026-07-19T22:46:02Z"}
+{"author":"haoxiang-xu","created":"2026-07-19T20:27:23Z","merged":"2026-07-19T20:30:58Z","num":184,"state":"closed","title":"feat(computer-use): last-mile attach path — settings nav panel + per-chat Computer entry + capability from status","updated":"2026-07-19T20:30:59Z"}
+{"author":"haoxiang-xu","created":"2026-07-19T05:06:24Z","merged":"2026-07-19T05:21:43Z","num":183,"state":"closed","title":"feat(computer-use): Gate B user-writable enable path (settings toggle + consent + runtime override)","updated":"2026-07-19T05:21:43Z"}
+{"author":"haoxiang-xu","created":"2026-07-17T16:29:30Z","merged":"2026-07-17T20:56:31Z","num":182,"state":"closed","title":"feat(computer-use): M2 — GUI screen control (screenshot + mouse/keyboard), flag-off by default","updated":"2026-07-17T20:56:31Z"}
+{"author":"haoxiang-xu","created":"2026-07-16T04:45:36Z","merged":"2026-07-16T05:32:23Z","num":180,"state":"closed","title":"Feat/custom model providers","updated":"2026-07-16T05:32:23Z"}
+{"author":"haoxiang-xu","created":"2026-07-13T18:25:31Z","merged":"2026-07-13T18:43:31Z","num":177,"state":"closed","title":"Dev","updated":"2026-07-13T18:44:29Z"}
+{"author":"Copilot","created":"2026-07-13T05:05:50Z","merged":"2026-07-13T05:33:19Z","num":176,"state":"closed","title":"Move deterministic release gate out of final report job","updated":"2026-07-13T05:33:19Z"}
+{"author":"haoxiang-xu","created":"2026-07-12T20:28:04Z","merged":null,"num":173,"state":"closed","title":"Integrate durable Unchain session semantics","updated":"2026-07-13T18:52:08Z"}
+{"author":"haoxiang-xu","created":"2026-06-14T20:34:06Z","merged":"2026-06-14T20:34:15Z","num":158,"state":"closed","title":"fix(docs): correct image syntax for PuPu showcase in README","updated":"2026-06-14T20:36:57Z"}
+{"author":"haoxiang-xu","created":"2026-06-14T20:31:33Z","merged":"2026-06-14T20:31:42Z","num":157,"state":"closed","title":"fix(tests): update test files to include LocaleContext and improve ar…","updated":"2026-06-14T20:34:31Z"}
+{"author":"haoxiang-xu","created":"2026-06-14T20:03:33Z","merged":"2026-06-14T20:09:23Z","num":156,"state":"closed","title":"Dev","updated":"2026-06-14T20:09:23Z"}
+{"author":"haoxiang-xu","created":"2026-06-14T19:47:15Z","merged":"2026-06-14T19:47:22Z","num":154,"state":"closed","title":"Codex/runtime events v4","updated":"2026-06-15T00:09:08Z"}
+{"author":"Copilot","created":"2026-06-07T22:15:51Z","merged":"2026-06-07T22:31:36Z","num":152,"state":"closed","title":"Update merge-source enforcement to follow dev/main target-branch policy","updated":"2026-06-27T03:58:06Z"}
+{"author":"Copilot","created":"2026-06-07T22:10:10Z","merged":"2026-06-07T22:31:51Z","num":151,"state":"closed","title":"Fix dense chart tooltip clipping and strengthen dense-scroll coverage","updated":"2026-06-27T03:58:05Z"}
+{"author":"huangse199","created":"2026-06-01T16:59:44Z","merged":"2026-06-07T22:26:48Z","num":150,"state":"closed","title":"Fix dense token usage chart overflow","updated":"2026-06-07T22:26:48Z"}
+{"author":"haoxiang-xu","created":"2026-05-25T04:22:33Z","merged":"2026-05-25T04:26:04Z","num":146,"state":"closed","title":"Dev","updated":"2026-05-25T04:44:47Z"}
+{"author":"haoxiang-xu","created":"2026-05-24T22:04:03Z","merged":"2026-05-24T22:21:04Z","num":145,"state":"closed","title":"Feature/runtime events v3","updated":"2026-06-15T00:09:10Z"}
+{"author":"haoxiang-xu","created":"2026-05-08T14:25:29Z","merged":"2026-05-08T14:25:39Z","num":144,"state":"closed","title":"Update README.md","updated":"2026-05-26T22:41:30Z"}
+{"author":"zzmjeremy","created":"2026-05-02T05:09:45Z","merged":"2026-05-09T23:50:07Z","num":143,"state":"closed","title":"Issue120: no error message when api key available","updated":"2026-05-09T23:50:07Z"}
+{"author":"haoxiang-xu","created":"2026-04-27T02:43:46Z","merged":"2026-04-27T02:43:59Z","num":142,"state":"closed","title":"Dev","updated":"2026-04-27T02:45:30Z"}
+{"author":"zzmjeremy","created":"2026-04-15T04:36:56Z","merged":"2026-05-08T23:13:27Z","num":138,"state":"closed","title":"Issue116: in app update for windows","updated":"2026-05-08T23:13:40Z"}
+{"author":"zzmjeremy","created":"2026-04-15T00:54:22Z","merged":"2026-04-19T19:37:10Z","num":137,"state":"closed","title":"Issue109: screenshot","updated":"2026-04-19T19:37:11Z"}
+{"author":"haoxiang-xu","created":"2026-04-13T05:51:48Z","merged":"2026-04-13T06:03:50Z","num":133,"state":"closed","title":"fix(docs): update UI preview image in README to latest version","updated":"2026-04-13T06:03:51Z"}
+{"author":"haoxiang-xu","created":"2026-04-12T19:15:33Z","merged":"2026-04-12T19:15:46Z","num":132,"state":"closed","title":"Dev","updated":"2026-04-12T19:17:48Z"}
+{"author":"Copilot","created":"2026-04-12T19:07:45Z","merged":"2026-04-12T19:15:09Z","num":131,"state":"closed","title":"feat: auto-update README download links on new release","updated":"2026-04-12T19:15:15Z"}
+{"author":"haoxiang-xu","created":"2026-04-12T19:06:22Z","merged":"2026-04-12T19:06:30Z","num":130,"state":"closed","title":"Dev","updated":"2026-04-12T19:10:08Z"}
+{"author":"haoxiang-xu","created":"2026-04-11T20:10:14Z","merged":"2026-04-11T20:28:30Z","num":128,"state":"closed","title":"Dev","updated":"2026-04-11T20:28:30Z"}
+{"author":"haoxiang-xu","created":"2026-04-11T03:49:15Z","merged":"2026-04-11T03:49:49Z","num":127,"state":"closed","title":"Dev","updated":"2026-04-11T03:59:24Z"}
+{"author":"haoxiang-xu","created":"2026-04-11T03:33:58Z","merged":"2026-04-11T03:48:15Z","num":126,"state":"closed","title":"Feat/i18n","updated":"2026-04-29T04:35:03Z"}
+{"author":"zzmjeremy","created":"2026-04-11T00:43:39Z","merged":null,"num":125,"state":"closed","title":"Issue120: no error message when api key available","updated":"2026-05-02T04:42:49Z"}
+{"author":"haoxiang-xu","created":"2026-04-06T23:38:29Z","merged":"2026-04-06T23:38:55Z","num":122,"state":"closed","title":"Dev","updated":"2026-04-06T23:42:30Z"}
+{"author":"haoxiang-xu","created":"2026-04-06T20:08:52Z","merged":"2026-04-06T20:09:36Z","num":119,"state":"closed","title":"Dev","updated":"2026-04-06T20:11:33Z"}
+{"author":"haoxiang-xu","created":"2026-04-06T19:35:07Z","merged":"2026-04-06T19:35:21Z","num":118,"state":"closed","title":"Feature/UI perf optimization","updated":"2026-04-06T19:36:39Z"}
+{"author":"Max-jzyan","created":"2026-04-06T06:16:27Z","merged":null,"num":117,"state":"closed","title":"ignore: test","updated":"2026-05-31T16:12:57Z"}
+{"author":"haoxiang-xu","created":"2026-03-31T02:11:08Z","merged":"2026-03-31T02:11:24Z","num":111,"state":"closed","title":"Contactors","updated":"2026-03-31T02:11:31Z"}
+{"author":"ehz2","created":"2026-03-30T02:48:29Z","merged":"2026-03-31T00:56:23Z","num":110,"state":"closed","title":"#34 hide suggested models","updated":"2026-03-31T00:59:54Z"}
+{"author":"haoxiang-xu","created":"2026-03-22T21:10:42Z","merged":"2026-03-22T21:10:48Z","num":108,"state":"closed","title":"Dev","updated":"2026-03-22T21:15:14Z"}
+{"author":"haoxiang-xu","created":"2026-03-21T18:09:27Z","merged":"2026-03-21T18:09:41Z","num":107,"state":"closed","title":"feat: update README.md with new download icons for macOS and Linux","updated":"2026-03-21T18:12:34Z"}
+{"author":"haoxiang-xu","created":"2026-03-21T18:02:53Z","merged":"2026-03-21T18:03:00Z","num":106,"state":"closed","title":"Dev","updated":"2026-03-21T18:05:37Z"}
+{"author":"haoxiang-xu","created":"2026-03-17T01:35:55Z","merged":"2026-03-17T01:36:02Z","num":89,"state":"closed","title":"Dev","updated":"2026-03-17T01:38:59Z"}
+{"author":"ehz2","created":"2026-03-16T01:07:11Z","merged":"2026-03-16T01:08:15Z","num":88,"state":"closed","title":"testing pr","updated":"2026-03-16T01:08:15Z"}
+{"author":"ehz2","created":"2026-03-16T01:04:07Z","merged":"2026-03-16T01:05:56Z","num":87,"state":"closed","title":"testing pr","updated":"2026-03-16T01:16:06Z"}
+{"author":"haoxiang-xu","created":"2026-03-16T00:59:40Z","merged":"2026-03-16T00:59:57Z","num":86,"state":"closed","title":"Revert \"Timeout change for x86 architecture \"","updated":"2026-03-16T01:16:02Z"}
+{"author":"haoxiang-xu","created":"2026-03-16T00:57:53Z","merged":"2026-03-16T00:58:17Z","num":85,"state":"closed","title":"Revert \"Timeout change for x86 architecture \"","updated":"2026-03-16T00:59:53Z"}
+{"author":"haoxiang-xu","created":"2026-03-16T00:54:29Z","merged":"2026-03-16T00:54:35Z","num":84,"state":"closed","title":"Dev","updated":"2026-03-16T00:56:54Z"}
+{"author":"ehz2","created":"2026-03-16T00:52:58Z","merged":"2026-03-16T00:54:14Z","num":83,"state":"closed","title":"Timeout change for x86 architecture ","updated":"2026-03-16T00:54:14Z"}
+{"author":"haoxiang-xu","created":"2026-03-15T23:29:27Z","merged":"2026-03-15T23:29:36Z","num":82,"state":"closed","title":"refactor: enhance AttachPanel to refresh toolkits on selector open; a…","updated":"2026-03-15T23:33:00Z"}
+{"author":"haoxiang-xu","created":"2026-03-15T23:07:44Z","merged":"2026-03-15T23:07:56Z","num":81,"state":"closed","title":"Dev","updated":"2026-03-15T23:11:48Z"}
+{"author":"Max-jzyan","created":"2026-03-15T23:05:05Z","merged":"2026-03-15T23:06:26Z","num":80,"state":"closed","title":"update miso_adpater to support external api tool accordingly","updated":"2026-03-16T01:16:09Z"}
+{"author":"Max-jzyan","created":"2026-03-15T22:21:48Z","merged":"2026-03-15T22:23:17Z","num":79,"state":"closed","title":"Cleanup legacy fix","updated":"2026-03-16T01:16:10Z"}
+{"author":"Max-jzyan","created":"2026-03-15T21:44:47Z","merged":"2026-03-15T21:54:16Z","num":78,"state":"closed","title":"fixed the legacy issue - still searching python_workspace","updated":"2026-03-16T01:16:17Z"}
+{"author":"haoxiang-xu","created":"2026-03-12T06:07:12Z","merged":"2026-03-12T06:07:19Z","num":70,"state":"closed","title":"Dev","updated":"2026-03-12T06:13:17Z"}
+{"author":"haoxiang-xu","created":"2026-03-05T07:00:48Z","merged":"2026-03-05T07:00:59Z","num":65,"state":"closed","title":"Dev","updated":"2026-03-05T07:05:50Z"}
+{"author":"Copilot","created":"2026-03-02T19:21:07Z","merged":"2026-03-02T23:14:41Z","num":58,"state":"closed","title":"Add workflow to enforce only `dev` merges into `main`","updated":"2026-03-02T23:14:45Z"}
+{"author":"haoxiang-xu","created":"2026-03-02T18:38:09Z","merged":"2026-03-02T18:38:22Z","num":56,"state":"closed","title":"feat: add tool confirmation endpoint and related functionality","updated":"2026-03-02T19:14:36Z"}
+{"author":"Copilot","created":"2026-03-02T18:30:57Z","merged":"2026-03-02T18:37:26Z","num":55,"state":"closed","title":"Add \"Open Folder\" button to Runtime settings page","updated":"2026-03-02T18:37:31Z"}
+{"author":"Copilot","created":"2026-03-02T18:27:33Z","merged":"2026-03-02T19:15:28Z","num":53,"state":"closed","title":"Fix model selector dropdown: max height, scrollable, collapse groups by default","updated":"2026-03-02T19:15:42Z"}
+{"author":"haoxiang-xu","created":"2026-03-02T01:50:36Z","merged":"2026-03-02T01:50:43Z","num":51,"state":"closed","title":"V0.1.1","updated":"2026-03-02T01:50:43Z"}
+{"author":"haoxiang-xu","created":"2026-03-02T00:49:02Z","merged":"2026-03-02T00:49:09Z","num":50,"state":"closed","title":"feat: update README and add new UI showcase images for version 0.1.0 …","updated":"2026-03-02T00:49:24Z"}
+{"author":"haoxiang-xu","created":"2026-03-01T21:34:18Z","merged":"2026-03-01T21:41:28Z","num":47,"state":"closed","title":"feat: show intermediate AI responses in timeline and stream content in trace","updated":"2026-03-01T21:41:28Z"}
+{"author":"Copilot","created":"2026-03-01T20:06:40Z","merged":null,"num":40,"state":"closed","title":"[WIP] Add regular updates for repo tags based on new features","updated":"2026-03-01T20:08:39Z"}
+{"author":"haoxiang-xu","created":"2026-03-01T17:56:11Z","merged":"2026-03-01T17:56:17Z","num":39,"state":"closed","title":"feat: add Windows build script and update packaging for Windows support","updated":"2026-03-02T00:49:27Z"}
+{"author":"skywalker007-cpu","created":"2026-03-01T00:20:44Z","merged":"2026-03-01T01:00:51Z","num":28,"state":"closed","title":"fix the window bug","updated":"2026-03-01T01:00:55Z"}
+{"author":"haoxiang-xu","created":"2026-02-28T20:19:15Z","merged":"2026-02-28T20:19:20Z","num":27,"state":"closed","title":"feat: enhance build script to support macOS target architecture options","updated":"2026-03-02T00:49:28Z"}
+{"author":"haoxiang-xu","created":"2026-02-28T18:55:08Z","merged":"2026-02-28T18:55:16Z","num":26,"state":"closed","title":"feat: update README and add SVG assets for download options and icons","updated":"2026-02-28T18:55:16Z"}
+{"author":"haoxiang-xu","created":"2026-02-28T18:18:17Z","merged":"2026-02-28T18:18:25Z","num":25,"state":"closed","title":"V0.1","updated":"2026-02-28T18:18:25Z"}
+{"author":"haoxiang-xu","created":"2026-02-27T21:12:54Z","merged":"2026-02-27T21:13:04Z","num":16,"state":"closed","title":"V0.1","updated":"2026-02-27T21:13:04Z"}
+{"author":"Copilot","created":"2026-01-18T21:34:07Z","merged":null,"num":13,"state":"closed","title":"Add Anthropic Claude and Google Gemini REST providers with tool calling support","updated":"2026-02-24T05:40:56Z"}
+{"author":"Copilot","created":"2026-01-18T21:05:25Z","merged":null,"num":11,"state":"closed","title":"Migrate from localStorage to Electron file-based storage","updated":"2026-02-24T05:41:06Z"}
+{"author":"haoxiang-xu","created":"2025-03-04T18:28:23Z","merged":"2025-03-04T18:28:29Z","num":10,"state":"closed","title":"Major styling change","updated":"2025-03-08T05:08:57Z"}
+{"author":"haoxiang-xu","created":"2025-02-27T00:37:57Z","merged":"2025-02-27T00:38:02Z","num":9,"state":"closed","title":"X term","updated":"2026-02-24T05:41:35Z"}
+{"author":"haoxiang-xu","created":"2025-02-26T06:10:49Z","merged":"2025-02-26T06:10:58Z","num":8,"state":"closed","title":"merge from main","updated":"2025-02-26T06:10:58Z"}
+{"author":"haoxiang-xu","created":"2025-02-25T02:58:50Z","merged":"2025-02-25T03:00:09Z","num":7,"state":"closed","title":"X term","updated":"2025-02-25T03:00:10Z"}
+{"author":"haoxiang-xu","created":"2025-02-18T00:33:41Z","merged":"2025-02-18T00:33:49Z","num":5,"state":"closed","title":"X term","updated":"2025-02-18T00:33:49Z"}
+{"author":"haoxiang-xu","created":"2025-02-13T18:07:39Z","merged":"2025-02-13T18:07:46Z","num":3,"state":"closed","title":"X term","updated":"2025-02-13T18:07:46Z"}
+{"author":"haoxiang-xu","created":"2025-02-13T17:51:13Z","merged":"2025-02-13T17:51:19Z","num":2,"state":"closed","title":"X term","updated":"2025-02-13T17:51:19Z"}
+{"author":"haoxiang-xu","created":"2025-02-07T06:13:24Z","merged":"2025-02-07T06:13:31Z","num":1,"state":"closed","title":"Local storage refactor","updated":"2025-02-11T01:35:33Z"}

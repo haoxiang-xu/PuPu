@@ -1,45 +1,196 @@
-{
-  "format": "pupu-model-provider",
-  "format_version": 1,
-  "exported_at": "2026-07-15T10:00:00Z",
-  "provider": {
-    "config_version": 1,
-    "id": "sap-hyperspace",
-    "display_name": "SAP Hyperspace (local proxy)",
-    "description": "SAP 内部 LLM proxy，经本机 hai CLI 转发 Claude 模型",
-    "protocol": "anthropic",
-    "base_url": "http://localhost:6655/anthropic",
-    "auth": {
-      "mode": "x-api-key",
-      "key_label": "Hyperspace API Key (x-api-key)",
-      "key_hint": "先运行 `hai proxy start`，key 见 `hai proxy status` 或 Hyperspace 账户页。"
-    },
-    "timeout_seconds": 600,
-    "default_model": "anthropic--claude-4.5-haiku",
-    "models": [
-      {
-        "id": "anthropic--claude-4.5-haiku",
-        "display_name": "Claude 4.5 Haiku",
-        "capabilities": {
-          "supports_tools": true,
-          "supports_vision": true,
-          "max_tokens": 8192,
-          "max_context_window_tokens": 200000
-        }
+[
+  {
+    "format": "pupu-model-provider",
+    "format_version": 1,
+    "exported_at": "2026-07-15T10:00:00Z",
+    "provider": {
+      "config_version": 1,
+      "id": "sap-hyperspace",
+      "display_name": "SAP Hyperspace (local proxy)",
+      "description": "SAP 内部 LLM proxy，经本机 hai CLI 转发 Claude 模型",
+      "protocol": "anthropic",
+      "base_url": "http://localhost:6655/anthropic",
+      "auth": {
+        "mode": "x-api-key",
+        "key_label": "Hyperspace API Key (x-api-key)",
+        "key_hint": "先运行 `hai proxy start`，key 见 `hai proxy status` 或 Hyperspace 账户页。"
       },
-      {
-        "id": "anthropic--claude-4.5-sonnet",
-        "display_name": "Claude 4.5 Sonnet",
-        "capabilities": {
-          "supports_tools": true,
-          "supports_vision": true,
-          "supports_reasoning": true,
-          "max_tokens": 16384,
-          "max_context_window_tokens": 200000
+      "timeout_seconds": 600,
+      "default_model": "anthropic--claude-4.5-haiku",
+      "models": [
+        {
+          "id": "anthropic--claude-4.5-haiku",
+          "display_name": "Claude 4.5 Haiku",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": true,
+            "max_tokens": 8192,
+            "max_context_window_tokens": 200000
+          }
+        },
+        {
+          "id": "anthropic--claude-4.5-sonnet",
+          "display_name": "Claude 4.5 Sonnet",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": true,
+            "supports_reasoning": true,
+            "max_tokens": 16384,
+            "max_context_window_tokens": 200000
+          }
         }
-      }
-    ],
-    "metadata": { "revision": 1 },
-    "notes": "使用前先在终端运行 `hai proxy start`。"
+      ],
+      "metadata": { "revision": 1 },
+      "notes": "使用前先在终端运行 `hai proxy start`。"
+    }
+  },
+  {
+    "format": "pupu-model-provider",
+    "format_version": 1,
+    "exported_at": "2026-08-19T00:00:00Z",
+    "provider": {
+      "config_version": 1,
+      "id": "deepseek",
+      "display_name": "DeepSeek",
+      "description": "Official DeepSeek API via its Anthropic-compatible endpoint.",
+      "protocol": "anthropic",
+      "base_url": "https://api.deepseek.com/anthropic",
+      "auth": {
+        "mode": "x-api-key",
+        "key_label": "DeepSeek API Key",
+        "key_hint": "Create an API key at platform.deepseek.com."
+      },
+      "timeout_seconds": 600,
+      "default_model": "deepseek-v4-flash",
+      "models": [
+        {
+          "id": "deepseek-v4-pro",
+          "display_name": "DeepSeek V4 Pro",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 65536,
+            "max_context_window_tokens": 1000000
+          }
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "display_name": "DeepSeek V4 Flash",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 65536,
+            "max_context_window_tokens": 1000000
+          }
+        }
+      ],
+      "metadata": { "revision": 1 }
+    }
+  },
+  {
+    "format": "pupu-model-provider",
+    "format_version": 1,
+    "exported_at": "2026-08-19T00:00:00Z",
+    "provider": {
+      "config_version": 1,
+      "id": "kimi",
+      "display_name": "Kimi (Moonshot)",
+      "description": "Official Moonshot AI Kimi API (international, api.moonshot.ai) via its Anthropic-compatible endpoint.",
+      "protocol": "anthropic",
+      "base_url": "https://api.moonshot.ai/anthropic",
+      "auth": {
+        "mode": "bearer",
+        "key_label": "Moonshot API Key",
+        "key_hint": "Create an API key at platform.kimi.ai. For the China platform use the Kimi (China) preset."
+      },
+      "timeout_seconds": 600,
+      "default_model": "kimi-k3",
+      "models": [
+        {
+          "id": "kimi-k3",
+          "display_name": "Kimi K3",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 1000000
+          }
+        },
+        {
+          "id": "kimi-k2.7-code",
+          "display_name": "Kimi K2.7 Code",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          }
+        },
+        {
+          "id": "kimi-k2.6",
+          "display_name": "Kimi K2.6",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          }
+        }
+      ],
+      "metadata": { "revision": 1 }
+    }
+  },
+  {
+    "format": "pupu-model-provider",
+    "format_version": 1,
+    "exported_at": "2026-08-19T00:00:00Z",
+    "provider": {
+      "config_version": 1,
+      "id": "kimi-cn",
+      "display_name": "Kimi (China)",
+      "description": "Official Moonshot AI Kimi API (China, api.moonshot.cn) via its Anthropic-compatible endpoint.",
+      "protocol": "anthropic",
+      "base_url": "https://api.moonshot.cn/anthropic",
+      "auth": {
+        "mode": "bearer",
+        "key_label": "Moonshot API Key",
+        "key_hint": "Create an API key at platform.kimi.com."
+      },
+      "timeout_seconds": 600,
+      "default_model": "kimi-k3",
+      "models": [
+        {
+          "id": "kimi-k3",
+          "display_name": "Kimi K3",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 1000000
+          }
+        },
+        {
+          "id": "kimi-k2.7-code",
+          "display_name": "Kimi K2.7 Code",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          }
+        },
+        {
+          "id": "kimi-k2.6",
+          "display_name": "Kimi K2.6",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          }
+        }
+      ],
+      "metadata": { "revision": 1 }
+    }
   }
-}
+]

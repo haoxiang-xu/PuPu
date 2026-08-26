@@ -1,8 +1,18 @@
-name: Update README Download Links
+name: Render README Download Links from Verified Release Manifest
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Published vX.Y.Z tag whose verified assets should be rendered"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Published vX.Y.Z tag whose verified assets should be rendered"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,71 +27,59 @@ jobs:
         with:
           ref: main
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          TAG="${{ github.event.release.tag_name }}"
-          VERSION="${TAG#v}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
-      - name: Fetch release assets
-        id: assets
+      - name: Install manifest verifier dependencies
+        run: npm ci
+
+      - name: Download the published release evidence and exact public assets
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          ASSETS=$(gh release view "${{ steps.version.outputs.tag }}" --json assets --jq '[.assets[].name] | join(" ")')
-          echo "names=$ASSETS" >> "$GITHUB_OUTPUT"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir release-assets --clobber
 
-      - name: Check and update README download links
-        id: update
+      - name: Verify public release bytes before rendering links
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          # Find the old version string used in download links (pattern: digits.digits.digits)
-          # Only look at lines that are part of download URLs or install commands
-          OLD_VERSION=$(grep -P 'releases/latest/download|apt install' README.md \
-            | grep -oP '\d+\.\d+\.\d+' | head -1)
-
-          if [ -z "$OLD_VERSION" ]; then
-            echo "No versioned download links found in README."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+          if [ -z "$TAG_COMMIT" ]; then
+            echo "::error title=Release tag missing::Could not resolve $RELEASE_TAG"
+            exit 1
           fi
+          node scripts/release-qa/verify-release-candidate.mjs \
+            --manifest release-assets/release-assets.v1.json \
+            --asset-dir release-assets \
+            --qa-report release-assets/release-qa-report.json \
+            --qualification release-assets/release-qualification.v1.json \
+            --require-qualification true \
+            --require-restart-qualification true \
+            --allow-extra release-assets.v1.json \
+            --allow-extra release-qa-report.json \
+            --allow-extra release-qualification.v1.json \
+            --allow-extra windows-signing-evidence.v1.json \
+            --tag "$RELEASE_TAG" \
+            --commit "$TAG_COMMIT"
 
-          if [ "$OLD_VERSION" = "$VERSION" ]; then
-            echo "README already references version $VERSION — no update needed."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+      - name: Render README download links from the verified manifest
+        run: node scripts/update-readme-links.cjs --manifest release-assets/release-assets.v1.json
 
-          # Replace the old version with the new version only on download/install lines,
-          # so unrelated occurrences of the version string elsewhere are untouched.
-          echo "Replacing $OLD_VERSION -> $VERSION in README.md (download/install lines only)"
-          sed -i "/releases\/latest\/download\|apt install/s/$OLD_VERSION/$VERSION/g" README.md
-
-          if git diff --quiet README.md; then
-            echo "No changes after substitution."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create pull request
-        if: steps.update.outputs.changed == 'true'
+      - name: Create documentation pull request
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: auto/update-readme-downloads-v${{ steps.version.outputs.version }}
+          token: ${{ github.token }}
+          branch: auto/update-readme-downloads-${{ inputs.release_tag }}
           base: main
-          commit-message: "docs: update README download links to v${{ steps.version.outputs.version }}"
-          title: "docs: update README download links to v${{ steps.version.outputs.version }}"
+          commit-message: "docs: render verified download links for ${{ inputs.release_tag }}"
+          title: "docs: render verified download links for ${{ inputs.release_tag }}"
           body: |
-            Automated update of README download links.
+            Deterministic README update generated from the published release manifest.
 
-            - Old version: `${{ steps.update.outputs.old_version }}`
-            - New version: `${{ steps.version.outputs.version }}`
-
-            Triggered by release ${{ github.event.release.tag_name }}.
+            The workflow re-downloaded and verified every public release asset before rendering these links.
           labels: documentation

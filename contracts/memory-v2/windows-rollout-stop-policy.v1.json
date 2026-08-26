@@ -1,0 +1,27 @@
+{
+  "schema": "pupu.windows-rollout-stop-policy.v1",
+  "channels": {
+    "internal": {
+      "authority": "unavailable",
+      "promotion_allowed": false,
+      "required_authority": "managed_device_force_install",
+      "rollback_mode": "shadow",
+      "stop_actions": [
+        "stop_new_admission",
+        "stop_vault_use",
+        "install_shadow_descendant"
+      ]
+    },
+    "public": {
+      "authority": "unavailable",
+      "promotion_allowed": false,
+      "required_authority": "signed_remote_stop_or_forced_update",
+      "rollback_mode": "shadow",
+      "stop_actions": [
+        "stop_new_admission",
+        "stop_vault_use",
+        "install_shadow_descendant"
+      ]
+    }
+  }
+}

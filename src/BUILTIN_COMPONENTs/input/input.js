@@ -702,9 +702,7 @@ const FloatingInput = ({
     : "0 12px 36px rgba(0, 0, 0, 0.10), 0 3px 8px rgba(0, 0, 0, 0.06)";
   const labelColor = focused
     ? baseColor
-    : isDark
-      ? "rgba(255,255,255,0.4)"
-      : "rgba(0,0,0,0.4)";
+    : "var(--pupu-text-faint)";
   const padding = Math.round(fontSize * 0.75);
 
   const hasPrefix =
@@ -936,8 +934,7 @@ const Input = ({
   postfix_label,
   postfix_component,
 }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
+  const { theme } = useContext(ConfigContext);
   const tf = theme?.textfield || {};
 
   const [defaultValue, setDefaultValue] = useState("");
@@ -958,15 +955,14 @@ const Input = ({
   const fontFamily =
     style?.fontFamily || theme?.font?.fontFamily || "Jost, sans-serif";
   const borderRadius = style?.borderRadius || tf.borderRadius || 7;
-  const baseColor = style?.color || theme?.color || (isDark ? "#CCC" : "#222");
-  const placeholderColor = isDark
-    ? "rgba(255,255,255,0.35)"
-    : "rgba(0,0,0,0.35)";
-  const hoverBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const activeBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)";
-  const faintBorder = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.12)";
+  /* Reading theme?.color pinned this to the committed palette, so an input
+     sat still while the rest of the shell followed a live preview. The
+     neutral pairs below were the strength ladder written by hand. */
+  const baseColor = style?.color || "var(--pupu-text)";
+  const placeholderColor = "var(--pupu-text-faint)";
+  const hoverBg = "var(--pupu-overlay-hover)";
+  const activeBg = "var(--pupu-overlay-active)";
+  const faintBorder = "1px solid var(--pupu-border)";
   const paddingV = style?.paddingVertical ?? 6;
   const paddingH = style?.paddingHorizontal ?? 12;
   const iconSize = style?.iconSize || Math.round(fontSize * 1.05);

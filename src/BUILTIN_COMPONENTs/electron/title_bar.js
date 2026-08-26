@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../input/button";
+import { Z } from "../layer/z_layers";
 import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 
 const TOP_BAR_HEIGHT = 50;
@@ -65,8 +66,16 @@ const TitleBar = () => {
     windowStateBridge.sendWindowAction(action);
   };
 
-  const topBarBackground = theme?.backgroundColor || "rgba(22, 22, 24, 0.86)";
-  const topBarForeground = theme?.color || "rgba(255, 255, 255, 0.92)";
+  /* Read the live CSS variables, not the JS theme. The title bar's fade sits
+     directly over the message list, so a stale value reads as the top of the
+     list refusing to follow the rest of the shell: `theme` only moves when
+     the theme editor commits, while --pupu-* move on every preview frame.
+     The JS value stays as the var's fallback — same value, just demoted to
+     the role it can actually fill. */
+  const themeBackground = theme?.backgroundColor || "rgba(22, 22, 24, 0.86)";
+  const themeForeground = theme?.color || "rgba(255, 255, 255, 0.92)";
+  const topBarBackground = `var(--pupu-background, ${themeBackground})`;
+  const topBarForeground = `var(--pupu-text, ${themeForeground})`;
 
   // Create gradient background (solid at top, transparent at bottom)
   const gradientBackground = `linear-gradient(180deg, ${topBarBackground} 32%, transparent 100%)`;
@@ -84,7 +93,7 @@ const TitleBar = () => {
         width: 40,
         height: 30,
         borderRadius: 3,
-        color: theme?.icon?.color || topBarForeground,
+        color: `var(--pupu-text, ${theme?.icon?.color || themeForeground})`,
         backgroundColor: defaultBackgroundColor,
         iconSize: 13,
         paddingVertical: 0,
@@ -132,7 +141,7 @@ const TitleBar = () => {
         left: 0,
         right: 0,
         height: TOP_BAR_HEIGHT,
-        zIndex: 2048,
+        zIndex: Z.APP_CHROME,
         background: gradientBackground,
 
         WebkitBackdropFilter: "blur(20px)",

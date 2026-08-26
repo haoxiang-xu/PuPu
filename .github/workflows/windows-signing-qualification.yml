@@ -1,0 +1,152 @@
+name: Windows Signing Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type SIGN_WINDOWS_QUALIFICATION to build and sign a non-publishing Windows qualification package"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows-signing-qualification:
+    name: Build and verify Windows Artifact Signing
+    runs-on: windows-latest
+    environment: windows-signing-qualification
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Require explicit non-publishing signing confirmation
+        shell: pwsh
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          QUALIFICATION_REF: ${{ github.ref }}
+        run: |
+          if ($env:CONFIRMATION -ne "SIGN_WINDOWS_QUALIFICATION") {
+            throw "confirmation must equal SIGN_WINDOWS_QUALIFICATION"
+          }
+          if ($env:QUALIFICATION_REF -ne "refs/heads/dev") {
+            throw "qualification must run from refs/heads/dev"
+          }
+
+      - name: Initialize isolated qualification paths
+        shell: pwsh
+        run: |
+          $qualificationRoot = Join-Path $env:RUNNER_TEMP "pupu-windows-signing-$env:GITHUB_RUN_ID"
+          $qualificationPayload = Join-Path $qualificationRoot "payload"
+          "QUALIFICATION_ROOT=$qualificationRoot" >> $env:GITHUB_ENV
+          "QUALIFICATION_PAYLOAD=$qualificationPayload" >> $env:GITHUB_ENV
+
+      - name: Checkout the selected source revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Require protected isolated signing environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$env:GITHUB_REPOSITORY/environments/windows-signing-qualification" |
+            node scripts/release-qa/verify-github-environment.mjs --environment windows-signing-qualification
+
+      - name: Checkout Unchain source for the qualification build
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: dev
+          path: .qualification-unchain
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python runtime dependencies for wheel manifest inspection
+        run: python -m pip install -r unchain_runtime/server/requirements.txt
+
+      - name: Install build dependencies
+        run: npm ci
+
+      - name: Create controlled Memory V2 build snapshot
+        shell: pwsh
+        run: |
+          $snapshotRoot = Join-Path $env:RUNNER_TEMP "pupu-memory-snapshot-$env:GITHUB_RUN_ID"
+          $snapshotPath = Join-Path $snapshotRoot "build_feature_flags.snapshot.json"
+          node scripts/write-build-feature-snapshot.cjs --out "$snapshotPath" --profile contracts/memory-v2/release-profile.shadow.v1.json
+          "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshotPath" >> $env:GITHUB_ENV
+
+      - name: Resolve non-interactive build version
+        shell: pwsh
+        run: |
+          $buildVersion = node -p "require('./package.json').version"
+          if ([string]::IsNullOrWhiteSpace($buildVersion)) {
+            throw "package.json did not provide a build version"
+          }
+          "PUPU_BUILD_VERSION=$buildVersion" >> $env:GITHUB_ENV
+
+      - name: Build an unsigned unpacked Windows payload
+        env:
+          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/.qualification-unchain
+          UNCHAIN_ARTIFACT_SOURCE_REF: dev
+        run: npm run build:electron:win:unpacked
+
+      - name: Copy the exact payload into an isolated signing directory
+        shell: pwsh
+        run: |
+          $source = Join-Path $PWD "dist\win-unpacked"
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            throw "missing unpacked Windows payload: $source"
+          }
+          if (Test-Path -LiteralPath $env:QUALIFICATION_ROOT) {
+            throw "qualification directory unexpectedly already exists: $env:QUALIFICATION_ROOT"
+          }
+          New-Item -ItemType Directory -Path $env:QUALIFICATION_ROOT -Force | Out-Null
+          Copy-Item -LiteralPath $source -Destination $env:QUALIFICATION_PAYLOAD -Recurse
+
+      - name: Sign and verify isolated Windows qualification payload
+        id: windows_artifact_signing
+        uses: ./.github/actions/windows-artifact-signing
+        with:
+          working-directory: .
+          signing-root-path: ${{ env.QUALIFICATION_ROOT }}
+          payload-path: ${{ env.QUALIFICATION_PAYLOAD }}
+          bootstrap-output-path: ${{ env.QUALIFICATION_ROOT }}\\bootstrap-installer
+          installer-path: ${{ github.workspace }}\dist\PuPu-${{ env.PUPU_BUILD_VERSION }}-windows-x64-setup.exe
+          evidence-output: windows-signing-qualification.v1.json
+          evidence-schema: pupu.windows-signing-qualification.v1
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+
+      - name: Reject sensitive signing material before evidence upload
+        if: ${{ success() }}
+        shell: pwsh
+        run: |
+          node scripts/release-qa/secret-material-denylist.mjs `
+            --root "$env:GITHUB_WORKSPACE" `
+            --path "windows-signing-qualification.v1.json"
+
+      - name: Upload signing qualification evidence only
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-signing-qualification
+          path: windows-signing-qualification.v1.json
+          if-no-files-found: error
+          retention-days: 30

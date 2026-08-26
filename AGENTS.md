@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **PuPu** (16685 symbols, 38648 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **PuPu** (28664 symbols, 62483 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -56,6 +56,7 @@ These are load-bearing — violating them breaks the build or the architecture. 
 - Custom router `BUILTIN_COMPONENTs/mini_react/mini_router.js` for internal routing — not react-router-dom.
 - React never touches `ipcRenderer`. System access goes through preload bridges (`window.unchainAPI`, `ollamaAPI`, `themeAPI`, etc.). IPC channel constants in `electron/shared/` must match both ends.
 - localStorage writes go only through helpers in `src/SERVICEs/`, never directly from components.
+- Overlay `zIndex` comes from `Z` in `BUILTIN_COMPONENTs/layer/z_layers.js` — never a literal — for anything portalled to `document.body` or `position: fixed`. `z_layers_guard` enforces this, but only for literals ≥1000 (`CONTENT_RAISED: 10` and `SCROLL_OVERLAY: 500` are legitimately small), so sub-1000 literals and wrong-layer choices are review's job: `Z.MODAL` where `Z.POPOVER` belongs passes the guard and is still wrong.
 - Electron tests have both `.js` and `.cjs` variants — keep them in sync.
 
 **Backend (`unchain_runtime/server/`):**
@@ -66,6 +67,11 @@ These are load-bearing — violating them breaks the build or the architecture. 
 **General:**
 - Run GitNexus impact analysis before editing any symbol (see the GitNexus block above). Warn on HIGH / CRITICAL.
 - Match the surrounding code's style and idiom. No unrelated refactoring.
-- Do NOT `git commit` — leave the dirty tree for the CEO to commit.
+- Do NOT `git commit` — leave the dirty tree for the project owner to commit.
+- The agent currently implementing a direct Release child may refine that issue's GitHub body before or during implementation. `[DRAFT]` is initial intent, not a delivery gate; this body-only authority does not permit scope, title, label, Project-field, assignee, parent/child, release-membership, defer/cancel, or closure changes. GitHub assignee alone does not establish implementation responsibility.
 
-**Mode B pilot (Codex-primary writing):** When Codex writes code here under the `pupu-dev-backend` Mode B pilot, a Claude agent reviews the diff and reruns the relevant tests before acceptance. Do NOT change model-visible behavior (`pupu-llm-expert` holds veto) or security-sensitive code (MCP OAuth / secrets — `pupu-security-expert`) without sign-off. See `.claude/agents/HYBRID_CODEX_POLICY.md`.
+**Retired mechanisms:** Do not use code-owner routing, owner confirmations, Quorum/court roles, cases, hearings, proposals, rulings, handoffs, or acceptance-trial records for new work. Never invoke `.claude/skills/case`, create a new directory under `.claude/court/cases/`, or treat legacy court/agent files as authorization or a delivery gate. They are read-only history only.
+
+**Release workflow:** Prefer the smallest matching release skill: `release-open-sprint`, `release-draft-ticket`, `release-refine-ticket`, `release-feature-audit`, or `release-close-sprint`. These skills plus the Release issue, a direct implementation plan when needed, and evidence-backed tests are the project workflow. If a skill is unavailable, proceed with the equivalent direct workflow; never fall back to a retired mechanism.
+
+**Cross-boundary work:** Any change crossing a repository, process, provider, serialization, persistence, or durable-state boundary must follow `.claude/rules/cross-boundary-contract-gate.md`. Record `BC-###`, applicable `SEQ-###`, and `AC-###` directly in the Release issue or implementation plan, then test the exact deployed artifact pair before active rollout. No owner field, confirmation, proposal, ruling, or court record is permitted or required.

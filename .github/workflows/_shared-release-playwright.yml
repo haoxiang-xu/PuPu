@@ -1,0 +1,127 @@
+name: Shared Release Playwright
+
+on:
+  workflow_call:
+    inputs:
+      qa_mode:
+        description: "Closed QA mode: lite, release, or release-candidate."
+        required: true
+        type: string
+      runner_selector:
+        description: "Closed Playwright runner selector."
+        required: true
+        type: string
+      source_ref:
+        description: Exact caller Git ref.
+        required: true
+        type: string
+      source_sha:
+        description: Exact caller commit SHA.
+        required: true
+        type: string
+      release_tag:
+        description: Exact caller ref name.
+        required: true
+        type: string
+
+jobs:
+  playwright:
+    name: Playwright Electron (${{ inputs.runner_selector }})
+    runs-on: ${{ inputs.runner_selector == 'ubuntu-latest' && 'ubuntu-latest' || inputs.runner_selector == 'macos-latest' && 'macos-latest' || inputs.runner_selector == 'windows-latest' && 'windows-latest' || 'ubuntu-latest' }}
+    env:
+      QA_MODE: ${{ inputs.qa_mode }}
+      RUNNER_SELECTOR: ${{ inputs.runner_selector }}
+      SOURCE_REF: ${{ inputs.source_ref }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    permissions:
+      contents: read
+    steps:
+      - name: Validate closed shared Playwright inputs
+        shell: bash
+        run: |
+          if [ "$SOURCE_REF" != "$GITHUB_REF" ] || [ "$SOURCE_SHA" != "$GITHUB_SHA" ] || [ "$RELEASE_TAG" != "$GITHUB_REF_NAME" ]; then
+            echo "::error title=Source identity mismatch::shared Playwright inputs must match the caller ref, SHA, and ref name"
+            exit 1
+          fi
+          case "$QA_MODE:$RUNNER_SELECTOR" in
+            lite:ubuntu-latest) ;;
+            release:ubuntu-latest|release:macos-latest|release:windows-latest) ;;
+            release-candidate:ubuntu-latest|release-candidate:macos-latest|release-candidate:windows-latest) ;;
+            *) echo "::error title=Unsupported shared Playwright input tuple::$QA_MODE:$RUNNER_SELECTOR"; exit 1 ;;
+          esac
+
+      - name: Checkout PuPu
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Electron runtime dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+
+      # Electron's SUID sandbox helper aborts on Linux runners unless it is
+      # root-owned with mode 4755 (the spawn in e2e/fixtures/pupu_app.js runs
+      # with sandboxing on).
+      - name: Configure Electron SUID sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Run Playwright Electron release smoke
+        id: playwright
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a npm run test:e2e
+          else
+            npm run test:e2e
+          fi
+
+      - name: Verify nonzero Playwright execution evidence
+        id: playwright_evidence
+        if: always()
+        continue-on-error: true
+        run: node scripts/release-qa/verify-playwright-execution.mjs --results test-results/playwright/results.json
+
+      - name: Write Playwright QA report
+        if: always()
+        env:
+          QA_PLATFORM_NAME: playwright-${{ runner.os }}
+          QA_PLATFORM_COMMAND: npm run test:e2e
+          QA_REQUIRED_CHECKS_JSON: '["Playwright Electron release smoke"]'
+          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
+          QA_CHECKS_JSON: |
+            [
+              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}
+            ]
+        run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
+
+      - name: Upload Playwright QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-qa-job-report-playwright-${{ runner.os }}
+          path: release-qa-job-report.json
+          retention-days: 30
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence-${{ runner.os }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            playwright-report/**/*
+            test-results/playwright/**/*

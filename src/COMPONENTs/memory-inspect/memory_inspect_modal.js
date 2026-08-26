@@ -8,6 +8,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { Scatter } from "../../BUILTIN_COMPONENTs/scatter";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
+import MemoryV2TreeView from "./memory_v2_tree_view";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
@@ -319,16 +320,36 @@ function SelectedCard({ point, isDark, fontFamily, color }) {
 /*    open      — boolean                                                  */
 /*    onClose   — () => void                                               */
 /*    sessionId — string  (chat session ID, e.g. "chat-1772850432671-...")*/
-/*    chatTitle — string  (optional, for the header)                      */
 /*    mode      — "session" | "long_term" (default: "session")        */
+/*    ownerChatId — string (V2 context_v2 owner key). Supplied ONLY by     */
+/*                the side-menu mount. The settings/long_term mount passes  */
+/*                no owner at all, so this is undefined there and the tree  */
+/*                view is not offered — see MEMORY_V2_TREE_STATES.DISABLED */
+/*                (reason `no_owner`) for the degradation contract.         */
+/*                                                                         */
+/*  The V2 tree renders as two floating panels ON TOP of the scatter rather */
+/*  than by wrapping it in a conditional, which is what REVISION 1 asks for  */
+/*  on its own merits: the scatter is permanently the background, never      */
+/*  switched away from.                                                      */
+/*                                                                          */
+/*  AC-2 froze the vector view. REVISION 1 could satisfy it absolutely —     */
+/*  every hunk here was an insertion, zero pre-existing lines removed.       */
+/*  REVISION 2 narrowed AC-2 to "scatter rendering and its data fetch" and   */
+/*  spent that narrower authority on exactly one thing: deleting this        */
+/*  modal's own title/subtitle header. So the zero-removed-lines check no    */
+/*  longer holds and is no longer the right one; what still holds is that    */
+/*  nothing touching the Scatter, its projection request or its point state  */
+/*  has been altered. The `chatTitle` prop went with the header — the        */
+/*  side-menu mount still passes one (it belongs to the AC-4 object          */
+/*  parameter, which REVISION 2 leaves alone) and it is now ignored here.    */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const MemoryInspectModal = ({
   open,
   onClose,
   sessionId,
-  chatTitle,
   mode = "session",
+  ownerChatId,
 }) => {
   useModalLifecycle("memory-inspect-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -347,6 +368,13 @@ const MemoryInspectModal = ({
 
   /* ── Profile side-panel toggle (long-term only) ── */
   const [showProfile, setShowProfile] = useState(false);
+
+  /* ── V2 tree overlay ──
+     Derived, never stored: without an ownerChatId there is no V2 owner to
+     scope a tree to, so the overlay is not mounted at all rather than mounted
+     into a state it cannot serve. There is no vector/tree selection to keep —
+     the scatter is permanently the background and the tree floats over it. */
+  const treeOffered = Boolean(ownerChatId);
 
   /* ── Scatter controls ── */
   const [x_pc, set_x_pc] = useState(0); // 0 = PC1, 1 = PC2 …
@@ -647,70 +675,41 @@ const MemoryInspectModal = ({
         }}
       />
 
-      {/* ━━ Overlay: Header (top-left) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div
-        style={{
-          position: "absolute",
-          top: 20,
-          left: 24,
-          zIndex: 3,
-          pointerEvents: "none",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
-            color,
-            userSelect: "none",
-            WebkitUserSelect: "none",
-            textShadow: isDark
-              ? "0 1px 6px rgba(0,0,0,0.5)"
-              : "0 1px 6px rgba(255,255,255,0.6)",
-          }}
-        >
-          {mode === "long_term"
-            ? t("memory_inspect.title_long_term")
-            : t("memory_inspect.title")}
-        </div>
-        {chatTitle && (
-          <div
-            style={{
-              fontSize: 12,
-              fontFamily,
-              color: meta_color,
-              marginTop: 2,
-              userSelect: "none",
-              WebkitUserSelect: "none",
-            }}
-          >
-            {chatTitle}
-          </div>
-        )}
-        {mode === "long_term" && profiles.length > 0 && (
-          <div style={{ marginTop: 10, pointerEvents: "auto" }}>
-            <Button
-              label={t("memory_inspect.profiles")}
-              onClick={() => {
-                setShowProfile((prev) => {
-                  if (!prev) setSelectedPoint(null);
-                  return !prev;
-                });
-              }}
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 10,
-                borderRadius: 6,
-                fontSize: 11,
-                opacity: showProfile ? 1 : 0.5,
-              }}
-            />
-          </div>
-        )}
-      </div>
+      {/* ━━ Overlay: Profiles toggle (top-left) ━━━━━━━━━━━━━━━━━━━━━━━━
+          What is left of the old header. REVISION 2 of case
+          0000-0010-2026-0810 removed the "Memory" title and the chat-title
+          subtitle from this corner — the modal is opened from a named chat
+          by an explicit action, so both were restating what the user had
+          just done, and together they cost the left overlay its top 62px.
 
-      {/* ━━ Overlay: Variance bar (top-left, below header) ━━━━━━━━━━━━ */}
+          The Profiles toggle is NOT decorative and stays. It moves up into
+          the space the title vacated (top:20 instead of ~top:72), and it can
+          do that without colliding with the tree's expand handle at (14,14):
+          it only renders in long_term mode, which supplies no ownerChatId,
+          which is exactly the condition under which `treeOffered` is false
+          and the tree overlay is not mounted at all. */}
+      {mode === "long_term" && profiles.length > 0 && (
+        <div style={{ position: "absolute", top: 20, left: 24, zIndex: 3 }}>
+          <Button
+            label={t("memory_inspect.profiles")}
+            onClick={() => {
+              setShowProfile((prev) => {
+                if (!prev) setSelectedPoint(null);
+                return !prev;
+              });
+            }}
+            style={{
+              paddingVertical: 4,
+              paddingHorizontal: 10,
+              borderRadius: 6,
+              fontSize: 11,
+              opacity: showProfile ? 1 : 0.5,
+            }}
+          />
+        </div>
+      )}
+
+      {/* ━━ Overlay: Variance bar (top-right, under the close button) ━━ */}
       {status === "ready" && (variance[x_pc] > 0 || variance[y_pc] > 0) && (
         <div style={{ position: "absolute", top: 56, right: 16, zIndex: 2 }}>
           <VarianceBar
@@ -952,6 +951,17 @@ const MemoryInspectModal = ({
           ) : null}
         </div>
       </div>
+
+      {/* ━━ Overlay: V2 tree + entry detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          LAST child on purpose. Both of its panels carry z-index 3, the same
+          layer as the header, the scatter controls and the vector detail card,
+          so painting after them is what lets them float over — and they stay
+          below the close button (z-index 4), which serves the whole modal.
+          Nothing above is conditioned on this being here: the scatter renders
+          exactly as it did before, permanently, underneath. */}
+      {treeOffered && (
+        <MemoryV2TreeView open={open} ownerChatId={ownerChatId} />
+      )}
     </Modal>
   );
 };

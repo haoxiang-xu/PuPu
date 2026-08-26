@@ -22,6 +22,18 @@ const GATE_CHECKPOINT = "durable-pause";
 const PROGRESS_CHECKPOINT = "steady-progress";
 const FAIL_ONCE_KEY = "fixed-fail-once";
 const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
+const MESSAGE_INPUT_ITEM_FIELDS = new Set([
+  "content",
+  "phase",
+  "role",
+  "status",
+  "type",
+]);
+const ASSISTANT_MESSAGE_INPUT_ITEM_FIELDS = new Set([
+  ...MESSAGE_INPUT_ITEM_FIELDS,
+  "id",
+]);
+const MESSAGE_ROLES = new Set(["assistant", "developer", "system", "user"]);
 const VALID_LANES = new Set(["A", "B", "C"]);
 const PHASE_ALIASES = Object.freeze({
   coding: "probe",
@@ -87,6 +99,33 @@ const inputItems = (body) =>
     : body?.input == null
       ? []
       : [body.input];
+
+const validateResponseInputItems = (body) => {
+  inputItems(body).forEach((item, index) => {
+    if (!item || Array.isArray(item) || typeof item !== "object") return;
+    const isMessage =
+      item.type === "message" ||
+      (typeof item.role === "string" && MESSAGE_ROLES.has(item.role));
+    if (!isMessage) return;
+
+    const allowedFields =
+      item.role === "assistant"
+        ? ASSISTANT_MESSAGE_INPUT_ITEM_FIELDS
+        : MESSAGE_INPUT_ITEM_FIELDS;
+    const unknown = Object.keys(item)
+      .filter((key) => !allowedFields.has(key))
+      .sort();
+    if (!unknown.length) return;
+
+    const param = `input[${index}].${unknown[0]}`;
+    throw Object.assign(new Error(`Unknown parameter: '${param}'.`), {
+      status: 400,
+      type: "invalid_request_error",
+      param,
+      code: "unknown_parameter",
+    });
+  });
+};
 
 const latestUserText = (body) => {
   const items = inputItems(body);
@@ -894,6 +933,7 @@ const planResponse = (body = {}) => {
 
 const buildResponseEnvelope = (body = {}) => {
   const normalizedBody = body && typeof body === "object" ? body : {};
+  validateResponseInputItems(normalizedBody);
   const plan = planResponse(normalizedBody);
   const requestDigest = digest(normalizedBody);
   const model =
@@ -1110,10 +1150,13 @@ const createFakeOpenAIResponsesServer = ({
       sendJson(response, Number(error?.status || 500), {
         error: {
           type:
-            Number(error?.status) === 400
+            error?.type ||
+            (Number(error?.status) === 400
               ? "invalid_request_error"
-              : "server_error",
+              : "server_error"),
           message: String(error?.message || "fixture request failed"),
+          ...(error?.param ? { param: error.param } : {}),
+          ...(error?.code ? { code: error.code } : {}),
         },
       });
     }
@@ -1218,6 +1261,7 @@ module.exports = {
   planResponse,
   serializeSse,
   stableStringify,
+  validateResponseInputItems,
 };
 
 if (require.main === module) {

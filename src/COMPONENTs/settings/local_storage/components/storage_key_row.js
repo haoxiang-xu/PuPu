@@ -54,7 +54,7 @@ const StorageKeyRow = ({
           gap: 12,
           padding: "9px 0",
           borderBottom: `1px solid ${
-            isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+            "var(--pupu-overlay-ghost)"
           }`,
           transition: "opacity 0.15s",
         }}
@@ -72,7 +72,7 @@ const StorageKeyRow = ({
             style={{
               fontSize: 12,
               fontFamily: "'SF Mono', 'Fira Code', monospace",
-              color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+              color: "var(--pupu-text-secondary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -100,12 +100,8 @@ const StorageKeyRow = ({
                       fontSize: 11,
                       padding: "1px 6px",
                       borderRadius: 99,
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.07)"
-                        : "rgba(0,0,0,0.06)",
-                      color: isDark
-                        ? "rgba(255,255,255,0.45)"
-                        : "rgba(0,0,0,0.40)",
+                      backgroundColor: "var(--pupu-overlay-hover)",
+                      color: "var(--pupu-text-faint)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -120,12 +116,8 @@ const StorageKeyRow = ({
                       fontSize: 11,
                       padding: "1px 6px",
                       borderRadius: 99,
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.07)"
-                        : "rgba(0,0,0,0.06)",
-                      color: isDark
-                        ? "rgba(255,255,255,0.45)"
-                        : "rgba(0,0,0,0.40)",
+                      backgroundColor: "var(--pupu-overlay-hover)",
+                      color: "var(--pupu-text-faint)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -139,12 +131,8 @@ const StorageKeyRow = ({
                       fontSize: 11,
                       padding: "1px 6px",
                       borderRadius: 99,
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.07)"
-                        : "rgba(0,0,0,0.06)",
-                      color: isDark
-                        ? "rgba(255,255,255,0.45)"
-                        : "rgba(0,0,0,0.40)",
+                      backgroundColor: "var(--pupu-overlay-hover)",
+                      color: "var(--pupu-text-faint)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -169,7 +157,7 @@ const StorageKeyRow = ({
               fontSize: 11,
               width: 52,
               textAlign: "right",
-              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+              color: "var(--pupu-text-faint)",
               fontVariantNumeric: "tabular-nums",
               letterSpacing: "0.2px",
             }}

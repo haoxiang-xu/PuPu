@@ -1,0 +1,215 @@
+{
+  "internal_carrier": {
+    "canonical_utf8_max_bytes": 16384,
+    "categories": {
+      "exact_item_keys": [
+        "id",
+        "utf8_bytes",
+        "source_count"
+      ],
+      "id_order": [
+        "instructions",
+        "skills",
+        "tool_definitions",
+        "conversation",
+        "tool_activity",
+        "memory",
+        "task_state",
+        "files_media",
+        "agent_coordination",
+        "output_contract"
+      ],
+      "items": "0..10; sorted by id_order; unique id; zero entries omitted",
+      "source_count": "JSON safe integer 1..9007199254740991; bool forbidden",
+      "utf8_bytes": "JSON safe integer 1..9007199254740991; bool forbidden"
+    },
+    "exact_keys": [
+      "schema",
+      "method",
+      "categories",
+      "manifest_items",
+      "matched_items"
+    ],
+    "field": "ModelTurnRequest.internal_context_composition_v1",
+    "invariants": [
+      "matched_items <= manifest_items",
+      "sum(categories[*].source_count) == matched_items",
+      "object is deeply frozen",
+      "same object is carried unchanged by both provider send ingress surfaces"
+    ],
+    "manifest_items": "JSON safe integer 0..9007199254740991; bool forbidden",
+    "matched_items": "JSON safe integer 0..9007199254740991; bool forbidden",
+    "method": "utf8_heuristic_v1",
+    "presence": "optional_by_absence; null is invalid",
+    "prohibited": [
+      "extra keys",
+      "per-item records",
+      "subtype records",
+      "dimensions",
+      "arbitrary strings",
+      "hashes",
+      "text",
+      "paths",
+      "IDs",
+      "raw bytes",
+      "provider fields"
+    ],
+    "schema": "unchain.context/internal_context_composition_v1",
+    "wire_exclusion": "excluded from provider request bytes, ProviderWireEnvelope, authority digest, catalog digest, and request digest; cannot alter provider behavior"
+  },
+  "physical_call_identity": {
+    "after_send_before_cas": "recovery reuses the exact durable subject, fallback parent, route digest, and deterministic physical ordinal",
+    "callback_context": "before-send, after-send, and receipt callbacks receive one immutable ProviderPhysicalSendContext",
+    "cas_validation": [
+      "ProviderRequestSubject",
+      "fallback parent",
+      "ProviderWireRoute digest",
+      "deterministic subject-to-physical ordinal mapping"
+    ],
+    "identity_route": "existing generic provider endpoint semantics remain unchanged",
+    "kernel_attempt_telemetry": "max(legacy attempt count, deterministic physical ordinal); telemetry never defines durable identity",
+    "physical_ordinal": {
+      "openai_previous_response_fallback": "primary ordinal 0 maps to fallback physical ordinal 1",
+      "primary": "route-local retry ordinal n maps to physical ordinal n",
+      "primary_retry_gt_0_to_fallback": "unsupported and fail closed; separate P1 authorization required"
+    },
+    "process_send_number": "telemetry only; never durable identity",
+    "receipt_retry_ordinal": "deterministic physical ordinal",
+    "wire_evidence": "wire.route_name is exact ProviderRequestSubject.route; wire.route_sha256 is exact ProviderWireRoute digest"
+  },
+  "privacy": {
+    "allowlisted_digests": "call-local envelope and route digests only; never UI content or a cross-user index",
+    "forbidden_persisted_content": [
+      "prompt or message text",
+      "tool arguments",
+      "hidden reasoning",
+      "secrets",
+      "paths",
+      "URLs",
+      "file bytes",
+      "tool result bytes",
+      "artifact bytes",
+      "source snippets",
+      "arbitrary source labels",
+      "ordinary cross-user content hashes"
+    ]
+  },
+  "receipt_extension": {
+    "attributed_tokens": "JSON safe integer 0..9007199254740991; bool forbidden; equals sum(categories[*].tokens)",
+    "categories": {
+      "exact_item_keys": [
+        "id",
+        "tokens",
+        "source_count",
+        "subtypes"
+      ],
+      "id_order": [
+        "instructions",
+        "skills",
+        "tool_definitions",
+        "conversation",
+        "tool_activity",
+        "memory",
+        "task_state",
+        "files_media",
+        "agent_coordination",
+        "output_contract"
+      ],
+      "items": "0..10; sorted by id_order; unique id; zero entries omitted",
+      "source_count": "JSON safe integer 1..9007199254740991; bool forbidden",
+      "subtypes": "exactly []; non-empty is unsupported-version/invalid in V1",
+      "tokens": "JSON safe integer 1..9007199254740991; bool forbidden"
+    },
+    "context_window_tokens": "JSON safe integer 0..9007199254740991 or null; bool forbidden",
+    "coverage": {
+      "exact_keys": [
+        "status",
+        "manifest_items",
+        "matched_items",
+        "wire_surfaces",
+        "matched_surfaces"
+      ],
+      "invariants": [
+        "matched_items <= manifest_items",
+        "matched_surfaces <= wire_surfaces"
+      ],
+      "manifest_items": "JSON safe integer 0..9007199254740991; bool forbidden",
+      "matched_items": "JSON safe integer 0..9007199254740991; bool forbidden",
+      "matched_surfaces": "JSON safe integer 0..9007199254740991; bool forbidden",
+      "status": [
+        "reconciled",
+        "unreconciled"
+      ],
+      "wire_surfaces": "JSON safe integer 0..9007199254740991; bool forbidden"
+    },
+    "exact_keys": [
+      "schema",
+      "method",
+      "quality",
+      "context_window_tokens",
+      "wire",
+      "categories",
+      "attributed_tokens",
+      "residual_tokens",
+      "coverage"
+    ],
+    "extension_key": "unchain.context/context_composition_v1",
+    "method": "utf8_heuristic_v1",
+    "quality": [
+      "reconciled_estimate",
+      "estimated",
+      "partial"
+    ],
+    "quality_invariants": [
+      "reconciled_estimate requires coverage.status=reconciled, non-null residual_tokens, reported receipt input total, and attributed_tokens + residual_tokens == receipt.usage.input.total_tokens",
+      "estimated requires coverage.status=unreconciled and residual_tokens=null",
+      "partial requires coverage.status=unreconciled, residual_tokens=null, and incomplete source or wire coverage",
+      "attributed overestimate preserves category estimates and uses estimated or partial with null residual; no clamp, proportional scaling, residual zero, equality, or percentage claim",
+      "provider input total remains only in receipt.usage.input.total_tokens and is never copied into this extension"
+    ],
+    "residual_tokens": "JSON safe integer 0..9007199254740991 or null; bool forbidden",
+    "schema": "unchain.context/context_composition_v1",
+    "wire": {
+      "context_mode": "bounded NFC runtime closed enum from authoritative ProviderWireEnvelope",
+      "envelope_sha256": "sha256:<64 lowercase hex>",
+      "exact_keys": [
+        "envelope_sha256",
+        "route_name",
+        "route_sha256",
+        "context_mode"
+      ],
+      "route_name": "exact closed ProviderRequestSubject.route",
+      "route_sha256": "sha256:<64 lowercase hex>"
+    }
+  },
+  "receipt_failure_boundary": {
+    "base_receipt": "composition enrichment may degrade only after a valid base receipt has been constructed",
+    "composition_failure": "omit or reject the composition extension with a stable availability reason while preserving the provider call and valid base receipt",
+    "never_swallow": [
+      "base receipt factory error",
+      "ledger error",
+      "lease error",
+      "CAS error"
+    ]
+  },
+  "run_bundle_carriage": {
+    "authoritative_fields": [
+      "provider_calls[*].extensions",
+      "all_call_ids",
+      "provider_call_set_union"
+    ],
+    "integrity": "receipt extension is covered by immutable receipt hash; receipt-set carriage is covered by RunBundle digest",
+    "parallel_aggregate": "forbidden",
+    "top_level_context_composition_ref": "forbidden"
+  },
+  "runtime_features": {
+    "admission": "composition_availability_only; MUST NOT enter global _REQUIRED_PROTOCOLS or block ordinary V4/provider send, tools, interactions, or base RunBundle creation",
+    "missing_behavior": "Context Composition unavailable with stable reason; breakdown hidden or disabled; existing receipts and bundles remain valid",
+    "slugs": [
+      "context_memory.context_contribution_manifest_v1",
+      "run_bundle.context_composition_ref_v1"
+    ]
+  },
+  "schema": "unchain.context_composition.producer.v1",
+  "version": 1
+}

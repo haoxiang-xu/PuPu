@@ -5,6 +5,8 @@ import os
 from types import SimpleNamespace
 from typing import Any, Callable
 
+from net_tls import get_outbound_ssl_context
+
 
 def _root():
     import memory_factory as root_module
@@ -45,7 +47,11 @@ def _ollama_reachable(base_url: str) -> bool:
     try:
         import httpx
 
-        resp = httpx.get(f"{base_url}/api/tags", timeout=2.0)
+        resp = httpx.get(
+            f"{base_url}/api/tags",
+            timeout=2.0,
+            verify=get_outbound_ssl_context(),
+        )
         return resp.status_code == 200
     except Exception:
         return False
@@ -221,6 +227,7 @@ def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], 
                     f"{base_url}/api/embeddings",
                     json={"model": model, "prompt": text},
                     timeout=30.0,
+                    verify=get_outbound_ssl_context(),
                 )
                 resp.raise_for_status()
                 vectors.append(resp.json()["embedding"])

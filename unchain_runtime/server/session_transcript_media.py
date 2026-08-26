@@ -412,6 +412,74 @@ def _contains_computer_typed_text(state: Any) -> bool:
     return found["hit"]
 
 
+def _prune_completed_sensitive_computer_interactions(state: Any) -> Any:
+    """Drop applied Computer approvals whose typed text cannot stay durable.
+
+    Computer typed text is persisted in the short-lived media store rather than
+    inline in the session JSON.  An interaction request digest, however, binds
+    the original arguments.  Keeping an already-applied request after its media
+    expires therefore turns an otherwise healthy journal into an integrity
+    failure.  Applied entries no longer participate in resume, so remove only
+    this exact completed/sensitive shape while preserving active and unrelated
+    journal entries fail-closed.
+    """
+
+    if not isinstance(state, dict):
+        return state
+    journal = state.get("interaction_journal")
+    if not isinstance(journal, dict):
+        return state
+    entries = journal.get("entries")
+    order = journal.get("order")
+    active_id = journal.get("active_id")
+    if not isinstance(entries, dict) or not isinstance(order, list):
+        return state
+
+    def has_typed_text(arguments: Any) -> bool:
+        if not isinstance(arguments, dict):
+            return False
+        candidates = [arguments, *(arguments.get("actions") or [])]
+        return any(
+            isinstance(action, dict)
+            and str(action.get("type") or action.get("action") or "").strip()
+            in {"type", "type_text"}
+            and (
+                isinstance(action.get("text"), str)
+                or action.get("text_omitted") is True
+            )
+            for action in candidates
+        )
+
+    removable: set[str] = set()
+    for interaction_id, entry in entries.items():
+        if interaction_id == active_id or not isinstance(entry, dict):
+            continue
+        if entry.get("receipt") is None or entry.get("application") is None:
+            continue
+        request = entry.get("request")
+        if not isinstance(request, dict) or request.get("kind") != "tool_approval":
+            continue
+        payload = request.get("payload")
+        if not isinstance(payload, dict) or payload.get("tool_name") != "computer":
+            continue
+        if has_typed_text(payload.get("arguments")):
+            removable.add(interaction_id)
+
+    if not removable:
+        return state
+    out = copy.deepcopy(state)
+    next_journal = out["interaction_journal"]
+    next_entries = next_journal["entries"]
+    for interaction_id in removable:
+        next_entries.pop(interaction_id, None)
+    next_journal["order"] = [
+        interaction_id
+        for interaction_id in next_journal["order"]
+        if interaction_id not in removable
+    ]
+    return out
+
+
 def _strip_typed_text_arguments(arguments: dict, session_id: str) -> dict:
     from tool_media_store import store_media
 
@@ -477,6 +545,9 @@ def _rehydrate_typed_text_arguments(
 def strip_transcript_sensitive_data(state: Any, session_id: str) -> Any:
     """Strip screenshots and Computer typed text from the persisted copy."""
     media_stripped = strip_transcript_media(state, session_id)
+    media_stripped = _prune_completed_sensitive_computer_interactions(
+        media_stripped
+    )
     if not _contains_computer_typed_text(media_stripped):
         return media_stripped
     out = (
@@ -584,6 +655,11 @@ def rehydrate_transcript_media(
     there are no markers."""
     if not isinstance(state, dict):
         return state
+
+    pruned = _prune_completed_sensitive_computer_interactions(state)
+    if pruned is not state:
+        state.clear()
+        state.update(pruned)
 
     call_scopes = _collect_tool_call_scopes(state)
 

@@ -52,6 +52,70 @@ describe("normalizeModelCatalog", () => {
     });
   });
 
+  test("keeps declared reasoning effort levels and drops malformed entries", () => {
+    const normalized = normalizeModelCatalog({
+      providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },
+      model_capabilities: {
+        "openai:gpt-5": {
+          input_modalities: ["text"],
+          reasoning_efforts: ["  MINIMAL ", "low", 42, "", "low", "high"],
+        },
+        "openai:gpt-5-codex": {
+          input_modalities: ["text"],
+          reasoning_efforts: [null, "", 7],
+        },
+      },
+    });
+
+    expect(normalized.modelCapabilities["openai:gpt-5"].reasoning_efforts).toEqual([
+      "minimal",
+      "low",
+      "high",
+    ]);
+    // All entries malformed → the key stays absent, callers hide the selector.
+    expect(
+      normalized.modelCapabilities["openai:gpt-5-codex"].reasoning_efforts,
+    ).toBeUndefined();
+  });
+
+  test("carries a declared default effort only when it is on the ladder", () => {
+    const normalized = normalizeModelCatalog({
+      providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },
+      model_capabilities: {
+        "openai:on-ladder": {
+          input_modalities: ["text"],
+          reasoning_efforts: ["low", "medium", "high"],
+          default_reasoning_effort: " MEDIUM ",
+        },
+        "openai:off-ladder": {
+          input_modalities: ["text"],
+          reasoning_efforts: ["low", "high"],
+          // "medium" is not offered — marking it default would render a
+          // selected pill the user can never reach.
+          default_reasoning_effort: "medium",
+        },
+        "openai:no-efforts": {
+          input_modalities: ["text"],
+          default_reasoning_effort: "high",
+        },
+      },
+    });
+
+    expect(
+      normalized.modelCapabilities["openai:on-ladder"]
+        .default_reasoning_effort,
+    ).toBe("medium");
+    expect(
+      normalized.modelCapabilities["openai:off-ladder"]
+        .default_reasoning_effort,
+    ).toBeUndefined();
+    // No ladder at all → no default either.
+    expect(
+      normalized.modelCapabilities["openai:no-efforts"]
+        .default_reasoning_effort,
+    ).toBeUndefined();
+  });
+
   test("falls back to text-only defaults for invalid capability payloads", () => {
     const normalized = normalizeModelCatalog({
       active: {

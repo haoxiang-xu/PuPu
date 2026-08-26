@@ -413,6 +413,7 @@ class LoadTemplatesTests(unittest.TestCase):
         workspace_dir=None,
         toolkit_tools=("read", "grep"),
         optimizer_module_factory=None,
+        context_modules=(),
     ):
         return load_templates(
             toolkits=(_FakeToolkit(toolkit_tools),),
@@ -427,6 +428,7 @@ class LoadTemplatesTests(unittest.TestCase):
             PoliciesModule=_FakePoliciesModule,
             SubagentTemplate=_FakeSubagentTemplate,
             optimizer_module_factory=optimizer_module_factory,
+            context_modules=context_modules,
         )
 
     def test_empty_dirs_returns_empty(self):
@@ -464,6 +466,20 @@ class LoadTemplatesTests(unittest.TestCase):
             self.assertIsInstance(modules[0], _FakeToolsModule)
             self.assertIsInstance(modules[1], _FakePoliciesModule)
             self.assertIs(modules[2], created[0])
+
+    def test_explicit_context_modules_are_mounted_on_template_child(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "A.skeleton").write_text(
+                json.dumps({"name": "A", "description": "d", "instructions": "i"})
+            )
+            shadow = object()
+
+            templates = self._call(
+                user_dir=Path(d),
+                context_modules=(shadow,),
+            )
+
+            self.assertIs(templates[0].agent.modules[-1], shadow)
 
     def test_nonexistent_workspace_dir_falls_back(self):
         with tempfile.TemporaryDirectory() as d:

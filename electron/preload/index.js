@@ -3,6 +3,9 @@ const { CHANNELS } = require("../shared/channels");
 const { createMisoStreamClient } = require("./stream/unchain_stream_client");
 const { createAppInfoBridge } = require("./bridges/app_info_bridge");
 const { createAppUpdateBridge } = require("./bridges/app_update_bridge");
+const {
+  createBootReadinessBridge,
+} = require("./bridges/boot_readiness_bridge");
 const { createOllamaBridge } = require("./bridges/ollama_bridge");
 const {
   createOllamaLibraryBridge,
@@ -17,6 +20,15 @@ const {
 const {
   createSettingsStorageBridge,
 } = require("./bridges/settings_storage_bridge");
+const {
+  createMemoryVaultBridge,
+} = require("./bridges/memory_vault_bridge");
+const {
+  createContextV2Bridge,
+} = require("./bridges/context_v2_bridge");
+const {
+  createRunBundleStorageBridge,
+} = require("./bridges/run_bundle_storage_bridge");
 
 const runtimeInfo = {
   isElectron: true,
@@ -48,6 +60,10 @@ ipcRenderer.on(CHANNELS.UNCHAIN.RUNTIME_LOG, (_event, payload = {}) => {
 contextBridge.exposeInMainWorld("runtime", runtimeInfo);
 contextBridge.exposeInMainWorld("appInfoAPI", createAppInfoBridge(ipcRenderer));
 contextBridge.exposeInMainWorld("appUpdateAPI", createAppUpdateBridge(ipcRenderer));
+contextBridge.exposeInMainWorld(
+  "bootReadinessAPI",
+  createBootReadinessBridge(ipcRenderer),
+);
 contextBridge.exposeInMainWorld("osInfo", {
   platform: process.platform,
 });
@@ -76,6 +92,18 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld(
   "settingsStorageAPI",
   createSettingsStorageBridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "memoryVaultAPI",
+  createMemoryVaultBridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "contextV2API",
+  createContextV2Bridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "runBundleStorageAPI",
+  createRunBundleStorageBridge(ipcRenderer),
 );
 
 const { install: installTestBridge } = require("./test_bridge_preload");

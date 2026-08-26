@@ -57,6 +57,137 @@ class MemoryFactoryTests(unittest.TestCase):
             ],
         )
 
+    def test_durable_kernel_runtime_is_qdrant_and_embedding_independent(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(
+                os.environ,
+                {"UNCHAIN_DATA_DIR": data_dir},
+                clear=False,
+            ), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch.object(
+                memory_factory,
+                "_get_or_create_qdrant_client",
+                side_effect=AssertionError("qdrant must not be initialized"),
+            ) as build_qdrant, \
+            mock.patch.object(
+                memory_factory,
+                "resolve_embedding_config",
+                side_effect=AssertionError("embedding config must not be resolved"),
+            ) as resolve_embedding, \
+            mock.patch.object(
+                memory_factory,
+                "_build_embed_runtime",
+                side_effect=AssertionError("embedding runtime must not be built"),
+            ) as build_embedding:
+            runtime, reason = (
+                memory_factory.create_durable_kernel_runtime_with_diagnostics(
+                    {"memory_enabled": True},
+                    session_id="chat-durable",
+                )
+            )
+            self.assertIsNotNone(runtime)
+            self.assertEqual(reason, "")
+            for capability in (
+                "load_execution_checkpoint",
+                "save_execution_checkpoint",
+                "save_interaction_session_state",
+            ):
+                self.assertTrue(callable(getattr(runtime, capability, None)))
+            runtime.save_session_state(
+                "chat-durable",
+                {"durable_probe": "persisted"},
+            )
+
+            recreated, recreated_reason = (
+                memory_factory.create_durable_kernel_runtime_with_diagnostics(
+                    {"memory_enabled": True},
+                    session_id="chat-durable",
+                )
+            )
+            self.assertIsNotNone(recreated)
+            self.assertEqual(recreated_reason, "")
+            self.assertEqual(
+                recreated.load_session_state("chat-durable").get("durable_probe"),
+                "persisted",
+            )
+
+        build_qdrant.assert_not_called()
+        resolve_embedding.assert_not_called()
+        build_embedding.assert_not_called()
+
+    def test_durable_kernel_runtime_prerequisite_diagnostics_are_stable(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir, mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": data_dir},
+            clear=False,
+        ):
+            self.assertEqual(
+                memory_factory.create_durable_kernel_runtime_with_diagnostics(
+                    {"memory_enabled": False},
+                    session_id="chat-durable",
+                ),
+                (None, "memory_disabled"),
+            )
+            self.assertEqual(
+                memory_factory.create_durable_kernel_runtime_with_diagnostics(
+                    {"memory_enabled": True},
+                    session_id="  ",
+                ),
+                (None, "missing_session_id"),
+            )
+
+        with mock.patch.object(memory_factory, "_data_dir", return_value=""):
+            self.assertEqual(
+                memory_factory.create_durable_kernel_runtime_with_diagnostics(
+                    {"memory_enabled": True},
+                    session_id="chat-durable",
+                ),
+                (None, "missing_data_dir"),
+            )
+
+    def test_durable_kernel_runtime_import_error_fails_closed(self) -> None:
+        missing_runtime_module = types.ModuleType("unchain.memory")
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(
+                os.environ,
+                {"UNCHAIN_DATA_DIR": data_dir},
+                clear=False,
+            ), \
+            mock.patch.dict(
+                sys.modules,
+                {"unchain.memory": missing_runtime_module},
+            ):
+            self.assertEqual(
+                memory_factory.create_durable_kernel_runtime_with_diagnostics(
+                    {"memory_enabled": True},
+                    session_id="chat-durable",
+                ),
+                (None, "durable_runtime_import_failed"),
+            )
+
+    def test_durable_kernel_runtime_init_error_fails_closed(self) -> None:
+        from unchain.memory import KernelMemoryRuntime
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(
+                os.environ,
+                {"UNCHAIN_DATA_DIR": data_dir},
+                clear=False,
+            ), \
+            mock.patch.object(
+                KernelMemoryRuntime,
+                "from_config",
+                side_effect=RuntimeError("unstable provider detail"),
+            ):
+            self.assertEqual(
+                memory_factory.create_durable_kernel_runtime_with_diagnostics(
+                    {"memory_enabled": True},
+                    session_id="chat-durable",
+                ),
+                (None, "durable_runtime_init_failed"),
+            )
+
     def _build_fake_qdrant_modules(
         self,
         *,

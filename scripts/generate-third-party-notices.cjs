@@ -3,18 +3,19 @@
  * Generates THIRD_PARTY_NOTICES.txt — the third-party attribution bundle that
  * ships inside the PuPu installer.
  *
- * PuPu (Apache-2.0) redistributes three sets of third-party code:
+ * PuPu (Apache-2.0) redistributes four sets of third-party code:
  *   - the production npm dependency graph (bundled into the React build/)
  *   - the Python deps frozen into the `unchain-server` PyInstaller binary
  *     (Flask/Werkzeug/httpx/mcp/openai/anthropic/qdrant-client + transitives)
+ *   - the pinned Node/uv/CPython runtimes bundled for local MCP servers
  *   - small, explicitly pinned vendored-source adapters
  * Those permissive licenses (MIT/BSD/Apache/ISC/…) require us to preserve their
  * copyright + license text when we redistribute. This script aggregates them so
  * the obligation is satisfied in the shipped artifact.
  *
- * Third-party MCP servers are NOT covered here on purpose: they are fetched at
- * runtime via npx/uvx or called as remote endpoints, never bundled, so their
- * licenses do not bind our redistribution.
+ * Third-party MCP server packages are NOT covered here on purpose: they are
+ * fetched at runtime via npx/uvx or called as remote endpoints, never bundled.
+ * The Node/uv/CPython executors that PuPu itself ships ARE covered here.
  *
  * Usage:
  *   node scripts/generate-third-party-notices.cjs            # generate + warn
@@ -31,11 +32,25 @@ const root = path.resolve(__dirname, "..");
 const OUT = path.join(root, "THIRD_PARTY_NOTICES.txt");
 const VENV =
   process.env.UNCHAIN_BUILD_VENV || path.join(root, ".venv-unchain-build");
+const MCP_RUNTIME_DIR =
+  process.env.PUPU_MCP_RUNTIME_NOTICES_DIR ||
+  path.join(root, "unchain_runtime", "mcp_runtime");
+const MCP_RUNTIME_PINS = path.join(
+  root,
+  "unchain_runtime",
+  "mcp_runtime_pins.json",
+);
 const CHECK = process.argv.includes("--check");
 
 // Build-time helper packages that get temporarily installed into the build venv
 // to run pip-licenses; they are not part of the shipped artifact.
-const PY_IGNORE = ["pip-licenses", "prettytable", "wcwidth", "pip", "setuptools"];
+const PY_IGNORE = [
+  "pip-licenses",
+  "prettytable",
+  "wcwidth",
+  "pip",
+  "setuptools",
+];
 
 // First-party code (PuPu itself + the unchain core library we author) is covered
 // by our own LICENSE/NOTICE, so it is excluded from third-party attribution and
@@ -62,6 +77,7 @@ const COPYLEFT_LICENSE_RE = /gpl|mpl|epl|cddl|eupl/i;
 const COPYLEFT_SOURCE_OFFERS = {
   // pynput (LGPL-3.0) — dynamic import only, unmodified; C1 computer-control dep.
   pynput: "https://github.com/moses-palmer/pynput",
+  "python-xlib": "https://github.com/python-xlib/python-xlib",
   "axe-core": "https://github.com/dequelabs/axe-core",
   "harmony-reflect": "https://github.com/tvcutsem/harmony-reflect",
   "node-forge": "https://github.com/digitalbazaar/forge",
@@ -91,7 +107,7 @@ function resolveSourceOffer(ecosystem, name, version, license) {
   if (!url) {
     problems.push(
       `[${ecosystem}] ${name}@${version}: copyleft license "${license}" has no registered upstream source offer ` +
-        "(add it to COPYLEFT_SOURCE_OFFERS for LGPL/GPL §4/§6 compliance)"
+        "(add it to COPYLEFT_SOURCE_OFFERS for LGPL/GPL §4/§6 compliance)",
     );
     return "";
   }
@@ -113,7 +129,7 @@ function header() {
     "",
     "Copyleft components (e.g. LGPL/GPL) additionally carry a written offer naming",
     "their upstream source, so you can obtain, modify, and replace them (LGPL/GPL",
-    "§4/§6). Look for \"Written offer\" beneath the relevant package below.",
+    '§4/§6). Look for "Written offer" beneath the relevant package below.',
     "",
     SEP,
     "",
@@ -152,7 +168,13 @@ function collectNode() {
     }
     const version = id.slice(id.lastIndexOf("@") + 1);
     const sourceOffer = resolveSourceOffer("node", name, version, license);
-    pkgs.push({ id, license, publisher: info.publisher || "", text, sourceOffer });
+    pkgs.push({
+      id,
+      license,
+      publisher: info.publisher || "",
+      text,
+      sourceOffer,
+    });
   }
   console.log(`  OK: ${pkgs.length} npm packages`);
   return pkgs;
@@ -180,8 +202,15 @@ function collectPython() {
     // so this does not change what PyInstaller shipped).
     execFileSync(
       py,
-      ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", "pip-licenses"],
-      { cwd: root, stdio: "ignore" }
+      [
+        "-m",
+        "pip",
+        "install",
+        "--quiet",
+        "--disable-pip-version-check",
+        "pip-licenses",
+      ],
+      { cwd: root, stdio: "ignore" },
     );
     const raw = execFileSync(
       py,
@@ -194,7 +223,7 @@ function collectPython() {
         "--ignore-packages",
         ...PY_IGNORE,
       ],
-      { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 }
+      { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 },
     );
     data = JSON.parse(raw);
   } catch (e) {
@@ -209,8 +238,15 @@ function collectPython() {
     if (!p.License || /unknown|unlicensed/i.test(license)) {
       problems.push(`[python] ${id}: unresolved license "${license}"`);
     }
-    const text = (p.LicenseText && p.LicenseText !== "UNKNOWN" ? p.LicenseText : "").trim();
-    const sourceOffer = resolveSourceOffer("python", p.Name, p.Version, license);
+    const text = (
+      p.LicenseText && p.LicenseText !== "UNKNOWN" ? p.LicenseText : ""
+    ).trim();
+    const sourceOffer = resolveSourceOffer(
+      "python",
+      p.Name,
+      p.Version,
+      license,
+    );
     pkgs.push({ id, license, publisher: "", text, sourceOffer });
   }
   console.log(`  OK: ${pkgs.length} python packages`);
@@ -223,7 +259,7 @@ function collectVendored() {
     "unchain_runtime",
     "server",
     "computer_control",
-    "CLICK3_NOTICE.md"
+    "CLICK3_NOTICE.md",
   );
   if (!fs.existsSync(noticePath)) {
     problems.push("[vendored] clickclickclick notice file is missing");
@@ -240,12 +276,174 @@ function collectVendored() {
   ];
 }
 
+function collectBundledMcpRuntimes({
+  runtimeDir = MCP_RUNTIME_DIR,
+  pinsPath = MCP_RUNTIME_PINS,
+  check = CHECK,
+  problemSink = problems,
+  warn = (message) => console.warn(message),
+} = {}) {
+  const failOrWarn = (message) => {
+    const detail = `[bundled-mcp-runtime] ${message}`;
+    if (check) {
+      problemSink.push(detail);
+    } else {
+      warn(`${detail} — SKIPPED`);
+    }
+  };
+  const loadJson = (filePath, label) => {
+    try {
+      return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch (error) {
+      failOrWarn(
+        `${label} is unavailable or invalid at ${filePath}: ${error.message}`,
+      );
+      return null;
+    }
+  };
+  const loadLicense = (relativePath, label) => {
+    const filePath = path.join(runtimeDir, relativePath);
+    try {
+      const text = fs.readFileSync(filePath, "utf8").trim();
+      if (!text) throw new Error("file is empty");
+      return text;
+    } catch (error) {
+      failOrWarn(
+        `${label} license is unavailable at ${filePath}: ${error.message}`,
+      );
+      return "";
+    }
+  };
+
+  if (!fs.existsSync(runtimeDir)) {
+    failOrWarn(
+      `staged runtime not found at ${runtimeDir}; run prepare:mcp-runtime before the license gate`,
+    );
+    return [];
+  }
+
+  const manifest = loadJson(
+    path.join(runtimeDir, "manifest.json"),
+    "runtime manifest",
+  );
+  const pins = loadJson(pinsPath, "runtime pins");
+  if (!manifest || !pins) return [];
+
+  const entries = [];
+  const runtimeSpecs = [
+    {
+      key: "node",
+      displayName: "Node.js",
+      license: "MIT and bundled third-party licenses",
+      licensePaths: ["node/LICENSE"],
+    },
+    {
+      key: "uv",
+      displayName: "uv",
+      license: "Apache-2.0 OR MIT",
+      licensePaths: ["uv/LICENSE-APACHE", "uv/LICENSE-MIT"],
+    },
+    {
+      key: "python",
+      displayName: "CPython standalone",
+      license: "Python-2.0 and bundled third-party licenses",
+      licensePaths: ["python/LICENSE"],
+    },
+  ];
+
+  for (const spec of runtimeSpecs) {
+    const staged = manifest.runtimes && manifest.runtimes[spec.key];
+    const pinned = pins.runtimes && pins.runtimes[spec.key];
+    if (!staged || !pinned || !staged.version || !staged.source_url) {
+      failOrWarn(
+        `${spec.displayName} metadata is missing from the staged manifest or pins`,
+      );
+      continue;
+    }
+    if (staged.version !== pinned.version) {
+      failOrWarn(
+        `${spec.displayName} staged version ${staged.version} does not match pin ${pinned.version}`,
+      );
+      continue;
+    }
+
+    const licenseTexts = spec.licensePaths.map((licensePath) => ({
+      licensePath,
+      text: loadLicense(licensePath, spec.displayName),
+    }));
+    if (licenseTexts.some(({ text }) => !text)) continue;
+    const text = licenseTexts
+      .map(({ licensePath, text: licenseText }) => {
+        if (licenseTexts.length === 1) return licenseText;
+        return `${path.basename(licensePath)}:\n\n${licenseText}`;
+      })
+      .join("\n\n");
+    const sourceOffer = resolveSourceOffer(
+      "bundled-mcp-runtime",
+      spec.displayName,
+      staged.version,
+      spec.license,
+    );
+    entries.push({
+      id: `${spec.displayName}@${staged.version}`,
+      license: spec.license,
+      publisher: "",
+      source: staged.source_url,
+      text,
+      sourceOffer,
+    });
+  }
+
+  const bootstrap =
+    pins.runtimes && pins.runtimes.python && pins.runtimes.python.bootstrap;
+  if (!bootstrap || !Array.isArray(bootstrap.packages)) {
+    failOrWarn("Python bootstrap package pins are missing");
+    return entries;
+  }
+  const bootstrapLicenses = {
+    truststore: "MIT",
+    certifi: "MPL-2.0",
+  };
+  for (const name of ["truststore", "certifi"]) {
+    const pinned = bootstrap.packages.find((pkg) => pkg.name === name);
+    if (!pinned || !pinned.version || !pinned.url) {
+      failOrWarn(`${name} bootstrap metadata is missing from the runtime pins`);
+      continue;
+    }
+    const relativePath = path.join(
+      "python_bootstrap",
+      `${name}-${pinned.version}.dist-info`,
+      "licenses",
+      "LICENSE",
+    );
+    const text = loadLicense(relativePath, name);
+    if (!text) continue;
+    const license = bootstrapLicenses[name];
+    entries.push({
+      id: `${name}@${pinned.version}`,
+      license,
+      publisher: "",
+      source: pinned.url,
+      text,
+      sourceOffer: resolveSourceOffer(
+        "bundled-mcp-runtime",
+        name,
+        pinned.version,
+        license,
+      ),
+    });
+  }
+
+  return entries;
+}
+
 function renderSection(title, pkgs) {
   const lines = [SEP, title, SEP, ""];
   for (const p of pkgs.sort((a, b) => a.id.localeCompare(b.id))) {
     lines.push(`--- ${p.id} ---`);
     lines.push(`License: ${p.license}`);
     if (p.publisher) lines.push(`Publisher: ${p.publisher}`);
+    if (p.source) lines.push(`Source: ${p.source}`);
     if (p.sourceOffer) {
       lines.push("");
       lines.push(p.sourceOffer);
@@ -262,6 +460,7 @@ function renderSection(title, pkgs) {
 function main() {
   const node = collectNode();
   const python = collectPython();
+  const bundledMcpRuntimes = collectBundledMcpRuntimes();
   const vendored = collectVendored();
 
   const body =
@@ -270,11 +469,16 @@ function main() {
     "\n" +
     renderSection(`PYTHON PACKAGES (${python.length})`, python) +
     "\n" +
+    renderSection(
+      `BUNDLED MCP RUNTIMES (${bundledMcpRuntimes.length})`,
+      bundledMcpRuntimes,
+    ) +
+    "\n" +
     renderSection(`VENDORED SOURCE (${vendored.length})`, vendored);
 
   fs.writeFileSync(OUT, body, "utf8");
   console.log(
-    `\nWrote ${path.relative(root, OUT)} (${node.length + python.length + vendored.length} packages)`
+    `\nWrote ${path.relative(root, OUT)} (${node.length + python.length + bundledMcpRuntimes.length + vendored.length} packages)`,
   );
 
   if (problems.length) {
@@ -284,7 +488,9 @@ function main() {
       console.error("\nLicense gate FAILED — not safe to publish.");
       process.exit(1);
     }
-    console.warn("\n(warnings only; run with --check to enforce as a release gate)");
+    console.warn(
+      "\n(warnings only; run with --check to enforce as a release gate)",
+    );
   } else {
     console.log("\nLicense gate PASSED.");
   }
@@ -300,6 +506,7 @@ module.exports = {
   resolveSourceOffer,
   renderSection,
   collectVendored,
+  collectBundledMcpRuntimes,
   problems,
 };
 

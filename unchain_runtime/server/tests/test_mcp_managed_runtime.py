@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import sys
 import tarfile
 import tempfile
@@ -23,8 +24,14 @@ class ManagedMcpRuntimeTests(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.data_dir = Path(self.tmpdir.name)
         self.runtime_root = self.data_dir / "mcp_runtime"
+        self.env_patcher = mock.patch.dict(
+            os.environ,
+            {mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: ""},
+        )
+        self.env_patcher.start()
 
     def tearDown(self):
+        self.env_patcher.stop()
         self.tmpdir.cleanup()
 
     def _write_manifest_runtime(self, kind, command_name):
@@ -48,6 +55,335 @@ class ManagedMcpRuntimeTests(unittest.TestCase):
             encoding="utf-8",
         )
         return command_path
+
+    def _write_bundled_runtime(self, target="darwin-arm64"):
+        bundle_root = self.data_dir / "bundled-runtime"
+        node_command = bundle_root / "node" / "bin" / "node"
+        npx_cli = (
+            bundle_root
+            / "node"
+            / "lib"
+            / "node_modules"
+            / "npm"
+            / "bin"
+            / "npx-cli.js"
+        )
+        uv_command = bundle_root / "uv" / "uvx"
+        python_command = bundle_root / "python" / "bin" / "python3"
+        python_bootstrap = bundle_root / "python_bootstrap"
+        for path in (node_command, npx_cli, uv_command, python_command):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture", encoding="utf-8")
+            path.chmod(0o755)
+        python_bootstrap.mkdir(parents=True, exist_ok=True)
+        (python_bootstrap / "sitecustomize.py").write_text(
+            "import truststore\n",
+            encoding="utf-8",
+        )
+        (bundle_root / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "target": target,
+                    "runtimes": {
+                        "node": {
+                            "version": "v24.6.0",
+                            "command": "node/bin/node",
+                            "bin_dir": "node/bin",
+                            "args_prefix": [
+                                "node/lib/node_modules/npm/bin/npx-cli.js"
+                            ],
+                        },
+                        "uv": {
+                            "version": "0.8.0",
+                            "command": "uv/uvx",
+                            "bin_dir": "uv",
+                            "args_prefix": [],
+                        },
+                        "python": {
+                            "version": "3.12.11",
+                            "command": "python/bin/python3",
+                            "bin_dir": "python/bin",
+                            "bootstrap_dir": "python_bootstrap",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return bundle_root, node_command, npx_cli, uv_command, python_command
+
+    def test_bundled_node_uses_node_cli_and_nonpersistent_network_env(self):
+        (
+            bundle_root,
+            node_command,
+            npx_cli,
+            _uv_command,
+            _python_command,
+        ) = self._write_bundled_runtime()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(bundle_root),
+                    "HTTPS_PROXY": "http://user:secret@proxy.test:8080",
+                    "SSL_CERT_FILE": "/tmp/admin-ca.pem",
+                },
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+        ):
+            result = resolve_managed_stdio_runtime(
+                "npx",
+                {},
+                data_dir=self.data_dir,
+            )
+
+        self.assertEqual(result["command"], str(node_command.resolve()))
+        self.assertEqual(result["args_prefix"], [str(npx_cli.resolve())])
+        self.assertEqual(result["managed_runtime"]["source"], "bundled")
+        self.assertEqual(result["managed_runtime"]["source_command"], "npx")
+        self.assertEqual(result["managed_env"]["NODE_USE_SYSTEM_CA"], "1")
+        self.assertEqual(result["managed_env"]["NODE_USE_ENV_PROXY"], "1")
+        self.assertRegex(
+            Path(result["managed_env"]["NPM_CONFIG_CACHE"]).as_posix(),
+            r"/cache/npm/[a-f0-9]{12}$",
+        )
+        self.assertNotIn("HTTPS_PROXY", result["managed_env"])
+        self.assertNotIn("SSL_CERT_FILE", result["managed_env"])
+        self.assertEqual(
+            result["ephemeral_env"]["HTTPS_PROXY"],
+            "http://user:secret@proxy.test:8080",
+        )
+        self.assertEqual(
+            result["ephemeral_env"]["NODE_EXTRA_CA_CERTS"],
+            "/tmp/admin-ca.pem",
+        )
+
+    def test_bundled_uv_requires_and_pins_bundled_python(self):
+        (
+            bundle_root,
+            _node_command,
+            _npx_cli,
+            uv_command,
+            python_command,
+        ) = self._write_bundled_runtime()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(bundle_root)},
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+        ):
+            result = resolve_managed_stdio_runtime(
+                "uvx",
+                {},
+                data_dir=self.data_dir,
+            )
+
+        self.assertEqual(result["command"], str(uv_command.resolve()))
+        self.assertEqual(
+            result["managed_env"]["UV_PYTHON"],
+            str(python_command.resolve()),
+        )
+        self.assertEqual(result["managed_env"]["UV_PYTHON_DOWNLOADS"], "never")
+        self.assertEqual(result["managed_env"]["UV_SYSTEM_CERTS"], "true")
+        self.assertEqual(
+            result["managed_env"]["PYTHONPATH"],
+            str((bundle_root / "python_bootstrap").resolve()),
+        )
+        self.assertEqual(result["managed_env"]["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertEqual(result["managed_env"]["PYTHONNOUSERSITE"], "1")
+
+    def test_bundled_uv_maps_explicit_ca_for_python_http_clients(self):
+        bundle_root, *_paths = self._write_bundled_runtime()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(bundle_root),
+                    "SSL_CERT_FILE": "/tmp/admin-ca.pem",
+                },
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+        ):
+            result = resolve_managed_stdio_runtime(
+                "uvx",
+                {},
+                data_dir=self.data_dir,
+            )
+
+        self.assertEqual(
+            result["ephemeral_env"]["REQUESTS_CA_BUNDLE"],
+            "/tmp/admin-ca.pem",
+        )
+        self.assertEqual(
+            result["ephemeral_env"]["CURL_CA_BUNDLE"],
+            "/tmp/admin-ca.pem",
+        )
+        self.assertEqual(
+            result["ephemeral_env"]["PIP_CERT"],
+            "/tmp/admin-ca.pem",
+        )
+
+    def test_bundled_uv_tool_cache_changes_with_python_runtime_version(self):
+        bundle_root, *_paths = self._write_bundled_runtime()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(bundle_root)},
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+        ):
+            first = resolve_managed_stdio_runtime(
+                "uvx",
+                {},
+                data_dir=self.data_dir,
+            )
+            manifest_path = bundle_root / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["runtimes"]["python"]["version"] = "3.12.12"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            second = resolve_managed_stdio_runtime(
+                "uvx",
+                {},
+                data_dir=self.data_dir,
+            )
+
+        self.assertNotEqual(
+            first["managed_env"]["UV_TOOL_DIR"],
+            second["managed_env"]["UV_TOOL_DIR"],
+        )
+
+    def test_bundled_node_cache_changes_with_runtime_version(self):
+        bundle_root, *_paths = self._write_bundled_runtime()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(bundle_root)},
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+        ):
+            first = resolve_managed_stdio_runtime(
+                "npx",
+                {},
+                data_dir=self.data_dir,
+            )
+            manifest_path = bundle_root / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["runtimes"]["node"]["version"] = "v24.11.2"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            second = resolve_managed_stdio_runtime(
+                "npx",
+                {},
+                data_dir=self.data_dir,
+            )
+
+        self.assertNotEqual(
+            first["managed_env"]["NPM_CONFIG_CACHE"],
+            second["managed_env"]["NPM_CONFIG_CACHE"],
+        )
+
+    def test_packaged_bundle_missing_fails_without_network_fallback(self):
+        missing_root = self.data_dir / "missing-bundle"
+        with (
+            mock.patch.dict(
+                os.environ,
+                {mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(missing_root)},
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+            mock.patch.object(mcp_managed_runtime, "_install_node_runtime") as install,
+        ):
+            with self.assertRaises(McpManagedRuntimeError) as ctx:
+                resolve_managed_stdio_runtime(
+                    "npx",
+                    {},
+                    data_dir=self.data_dir,
+                )
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_bundle_missing")
+        install.assert_not_called()
+
+    def test_bundled_runtime_rejects_wrong_target(self):
+        bundle_root, *_paths = self._write_bundled_runtime(
+            target="darwin-x64"
+        )
+        with (
+            mock.patch.dict(
+                os.environ,
+                {mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(bundle_root)},
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+        ):
+            with self.assertRaises(McpManagedRuntimeError) as ctx:
+                resolve_managed_stdio_runtime(
+                    "npx",
+                    {},
+                    data_dir=self.data_dir,
+                )
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_bundle_invalid")
+
+    def test_bundled_runtime_rejects_unknown_manifest_schema(self):
+        bundle_root, *_paths = self._write_bundled_runtime()
+        manifest_path = bundle_root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["schema_version"] = 2
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with (
+            mock.patch.dict(
+                os.environ,
+                {mcp_managed_runtime.BUNDLED_RUNTIME_DIR_ENV: str(bundle_root)},
+            ),
+            mock.patch.object(mcp_managed_runtime.sys, "platform", "darwin"),
+            mock.patch.object(
+                mcp_managed_runtime.platform,
+                "machine",
+                return_value="arm64",
+            ),
+        ):
+            with self.assertRaises(McpManagedRuntimeError) as ctx:
+                resolve_managed_stdio_runtime(
+                    "npx",
+                    {},
+                    data_dir=self.data_dir,
+                )
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_bundle_invalid")
 
     def test_reuses_manifest_node_runtime_for_npx_on_macos(self):
         command_path = self._write_manifest_runtime("node", "npx")

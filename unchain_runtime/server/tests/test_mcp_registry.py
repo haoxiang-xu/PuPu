@@ -77,7 +77,15 @@ class McpRegistryTests(unittest.TestCase):
         self.assertTrue(entry["installable"])
         self.assertEqual(entry["mcp"]["transport"], "stdio")
         self.assertEqual(entry["mcp"]["command"], "uvx")
-        self.assertEqual(entry["mcp"]["args"], ["markitdown-mcp==0.0.1a4"])
+        self.assertEqual(
+            entry["mcp"]["args"],
+            [
+                "--exclude-newer=2026-07-28T00:00:00Z",
+                "--from",
+                "markitdown-mcp==0.0.1a4",
+                "markitdown-mcp",
+            ],
+        )
         self.assertEqual(
             entry["metadata"]["request"]["url"],
             "https://api.github.com/repos/microsoft/markitdown",
@@ -179,7 +187,15 @@ class McpRegistryTests(unittest.TestCase):
         self.assertTrue(grafana["installable"])
         self.assertEqual(grafana["mcp"]["transport"], "stdio")
         self.assertEqual(grafana["mcp"]["command"], "uvx")
-        self.assertEqual(grafana["mcp"]["args"], ["mcp-grafana==0.17.2"])
+        self.assertEqual(
+            grafana["mcp"]["args"],
+            [
+                "--exclude-newer=2026-07-28T00:00:00Z",
+                "--from",
+                "mcp-grafana==0.17.2",
+                "mcp-grafana",
+            ],
+        )
         self.assertEqual(
             [secret["key"] for secret in grafana["secrets"]],
             ["GRAFANA_URL", "GRAFANA_SERVICE_ACCOUNT_TOKEN"],
@@ -217,6 +233,7 @@ class McpRegistryTests(unittest.TestCase):
             entry["mcp"]["args"],
             [
                 "-y",
+                "--before=2026-07-28T00:00:00Z",
                 "chrome-devtools-mcp@1.6.0",
                 "--no-usage-statistics",
                 "--no-performance-crux",

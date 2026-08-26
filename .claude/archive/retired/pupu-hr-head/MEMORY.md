@@ -1,0 +1,5 @@
+- [Org Chart](org-chart.md) — PuPu 跨部门 agent 花名册（source of truth），任何 org review 前必读
+- [Team Roster](team_roster.md) — HR head 视角全 22 人花名册 + 顶层 3 线 + HR advisory 红线 + HR 三人分工
+- [Org Review Precedents](org-review-precedents.md) — git authorship 无法测贡献(方法论特例) + 建制提案三道自约束闸门 + span 双标 + 切分线按热度不按行数
+- [Artifact vs Headcount](artifact-vs-headcount-precedents.md) — 台账已死过两次(records/+issues)且死因相同 + 建制规则须有内生上界 + subagent 不常驻不能治遗忘 + 遗忘先查章程禁令
+- [Incentive Mechanism Precedents](incentive-mechanism-precedents.md) — 激励对 LLM agent 是隐喻(坍缩为可见性+复利);三载体charter/memory/dispatch;dispatch 唯一稀缺却无 hook 看不见;先摆 CEO 目标岔口 G1..G5;不做排行榜/不建激励官

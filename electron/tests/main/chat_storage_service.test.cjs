@@ -441,6 +441,190 @@ describeIfSqlite("chat storage service (sqlite)", () => {
     expect(service.readMessages("chat-a")).toEqual(beforeMessages);
   });
 
+  // A whole-store import is a bulk DELETE for every chat the incoming store
+  // does not carry. Those chats still own Context V2 sessions and Vault
+  // secrets, and `DELETE FROM chats` cannot clean either up — so the stale
+  // ones must land in the durable deletion outbox, in the SAME transaction.
+  describe("import_store enqueues stale chats into the deletion outbox", () => {
+    const outboxRows = () => {
+      const { DatabaseSync } = sqlite;
+      const raw = new DatabaseSync(path.join(dir, "chats.db"));
+      try {
+        return raw
+          .prepare(
+            "SELECT owner_chat_id, status FROM chat_deletion_outbox " +
+              "ORDER BY owner_chat_id",
+          )
+          .all();
+      } finally {
+        raw.close();
+      }
+    };
+    const queuedChatIds = () => outboxRows().map((row) => row.owner_chat_id);
+
+    // A store carrying exactly the given chat ids, all else structurally valid.
+    const storeWithChats = (chatIds, activeChatId = chatIds[0]) => ({
+      schemaVersion: 2,
+      updatedAt: 1720000000000,
+      activeChatId,
+      lruChatIds: [...chatIds],
+      tree: {
+        root: chatIds.map((chatId) => `node-${chatId}`),
+        nodesById: Object.fromEntries(
+          chatIds.map((chatId) => [
+            `node-${chatId}`,
+            { id: `node-${chatId}`, entity: "chat", chatId },
+          ]),
+        ),
+        selectedNodeId: `node-${activeChatId}`,
+        expandedFolderIds: [],
+      },
+      chatsById: Object.fromEntries(
+        chatIds.map((chatId) => [
+          chatId,
+          {
+            id: chatId,
+            title: chatId,
+            updatedAt: 1720000000000,
+            messages: [{ role: "user", content: "hi" }],
+          },
+        ]),
+      ),
+    });
+
+    test("only stale chats are queued — retained and new ones are not", () => {
+      const service = makeService();
+      service.init();
+      // Existing: chat-a, chat-b, chat-c.
+      service.applyOps([
+        { type: "import_store", store: storeWithChats(["chat-a", "chat-b", "chat-c"]) },
+      ]);
+      expect(queuedChatIds()).toEqual([]);
+
+      // Incoming keeps chat-b, drops chat-a and chat-c, adds chat-d.
+      service.applyOps([
+        { type: "import_store", store: storeWithChats(["chat-b", "chat-d"]) },
+      ]);
+
+      // Stale only, in sorted order. chat-b (retained) and chat-d (new) must
+      // NOT be queued — queuing them would delete live context.
+      expect(queuedChatIds()).toEqual(["chat-a", "chat-c"]);
+      expect(queuedChatIds()).not.toContain("chat-b");
+      expect(queuedChatIds()).not.toContain("chat-d");
+      expect(outboxRows().every((row) => row.status === "pending")).toBe(true);
+
+      // The import itself still applied.
+      const snapshot = service.getBootstrapSnapshot();
+      expect(Object.keys(snapshot.chatMetasById).sort()).toEqual([
+        "chat-b",
+        "chat-d",
+      ]);
+    });
+
+    test("the enqueue and the row removal are ONE transaction — a failure rolls both back", () => {
+      const service = makeService();
+      service.init();
+      service.applyOps([
+        { type: "import_store", store: storeWithChats(["chat-a", "chat-b"]) },
+      ]);
+      const before = service.getBootstrapSnapshot();
+
+      // A batch whose LAST op throws: the import (and its outbox rows) must
+      // not survive the rollback.
+      expect(() =>
+        service.applyOps([
+          { type: "import_store", store: storeWithChats(["chat-z"]) },
+          { type: "put_chat_meta", meta: { id: "boom" } },
+        ]),
+      ).toThrow();
+
+      expect(queuedChatIds()).toEqual([]);
+      expect(service.getBootstrapSnapshot()).toEqual(before);
+    });
+
+    test("queued deletions survive a restart and are still drainable", () => {
+      const first = makeService();
+      first.init();
+      first.applyOps([
+        { type: "import_store", store: storeWithChats(["chat-a", "chat-b"]) },
+      ]);
+      first.applyOps([
+        { type: "import_store", store: storeWithChats(["chat-b"]) },
+      ]);
+      expect(queuedChatIds()).toEqual(["chat-a"]);
+      first.close();
+
+      // A fresh process sees the same durable work item — the outbox is the
+      // crash-safe half of the delete, not in-memory state.
+      const restarted = makeService();
+      restarted.init();
+      expect(queuedChatIds()).toEqual(["chat-a"]);
+    });
+
+    test("re-importing the same store is idempotent — no duplicate outbox rows", () => {
+      const service = makeService();
+      service.init();
+      service.applyOps([
+        { type: "import_store", store: storeWithChats(["chat-a", "chat-b"]) },
+      ]);
+      const incoming = storeWithChats(["chat-b"]);
+      service.applyOps([{ type: "import_store", store: incoming }]);
+      service.applyOps([{ type: "import_store", store: incoming }]);
+      service.applyOps([{ type: "import_store", store: incoming }]);
+
+      // chat-a is queued exactly once: enqueue() replays an already-active
+      // deletion instead of appending a second row.
+      expect(queuedChatIds()).toEqual(["chat-a"]);
+    });
+
+    test("an invalid incoming chat id is rejected before ANY durable write", () => {
+      const service = makeService();
+      service.init();
+      service.applyOps([
+        { type: "import_store", store: storeWithChats(["chat-a", "chat-b"]) },
+      ]);
+      const before = service.getBootstrapSnapshot();
+      const beforeMessages = service.readMessages("chat-a");
+
+      // Ids that violate the frozen contract the deletion outbox enforces.
+      // A chat with such an id could be written but never deleted, stranding
+      // its Context V2 and Vault state forever.
+      for (const badChatId of [
+        "-leading-dash",
+        ".leading-dot",
+        "has space",
+        "has/slash",
+        "has\\backslash",
+        "__proto__",
+        "bad\nnewline",
+        "x".repeat(129),
+        "",
+      ]) {
+        const store = storeWithChats(["chat-keep"]);
+        store.chatsById[badChatId] = {
+          id: badChatId,
+          title: "hostile",
+          updatedAt: 1720000000000,
+          messages: [],
+        };
+        let error;
+        try {
+          service.applyOps([{ type: "import_store", store }]);
+        } catch (caught) {
+          error = caught;
+        }
+        expect(error).toMatchObject({ code: "chat_legacy_source_invalid" });
+        // Static message — the hostile id is never echoed into logs.
+        expect(error.message).not.toContain(badChatId || " never");
+      }
+
+      // Nothing was deleted, nothing was queued, nothing was written.
+      expect(queuedChatIds()).toEqual([]);
+      expect(service.getBootstrapSnapshot()).toEqual(before);
+      expect(service.readMessages("chat-a")).toEqual(beforeMessages);
+    });
+  });
+
   describe("import_store isGenerating derivation (legacy stranded streams)", () => {
     // Pre-V3 stores have no isGenerating meta field; if the app crashed
     // mid-stream, the last assistant message is stranded with

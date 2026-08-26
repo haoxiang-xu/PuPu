@@ -1,6 +1,7 @@
 import inspect
 import json
 import importlib
+import hashlib
 import logging
 import os
 import base64
@@ -40,15 +41,25 @@ from custom_provider import (
     redact_secrets,
 )
 from durable_job_runtime import get_durable_jobs_runtime
-
+from secret_scrub_registry import register_secret_values
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
 _computer_use_logger = logging.getLogger(__name__ + ".computer_use")
+_execution_owner_logger = logging.getLogger(__name__ + ".execution_owner")
+
+
+def _run_bundle_timestamp() -> str:
+    """Return one RFC3339 UTC instant with nanosecond-width precision."""
+
+    seconds, nanos = divmod(time.time_ns(), 1_000_000_000)
+    return f"{time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(seconds))}.{nanos:09d}Z"
 
 try:
     import httpx as _httpx
 except ImportError:  # pragma: no cover
     _httpx = None  # type: ignore
+
+from net_tls import get_outbound_ssl_context
 
 # Ensure unchain source is on sys.path (dev mode uses UNCHAIN_SOURCE_PATH env)
 def _ensure_unchain_on_path() -> None:
@@ -68,12 +79,1118 @@ def _ensure_unchain_on_path() -> None:
 
 _ensure_unchain_on_path()
 
+from memory_v2_context import (  # noqa: E402
+    MemoryV2PersistenceError as _MemoryV2PersistenceError,
+    _apply_chat_admission_record as _memory_v2_apply_chat_admission_record,
+    admission_from_options as _memory_v2_admission_from_options,
+    bootstrap_memory_v2_current_request as _bootstrap_memory_v2_current_request,
+    build_memory_v2_optimizer_module as _build_memory_v2_optimizer_module,
+    build_memory_v2_tool_runtime_config as _build_memory_v2_tool_runtime_config,
+    effective_max_context_window_tokens as _memory_v2_effective_max_context,
+    import_memory_v2_history as _import_memory_v2_history,
+    inspect_memory_v2_rollout_intent as _inspect_memory_v2_rollout_intent,
+    memory_v2_bundle_payload as _memory_v2_bundle_payload,
+    options_with_admission as _options_with_memory_v2_admission,
+    persist_memory_v2_run_started as _persist_memory_v2_run_started,
+    persist_memory_v2_semantic_event as _persist_memory_v2_semantic_event,
+    resolve_memory_v2_admission as _resolve_memory_v2_admission,
+)
+from memory_v2_error_contract import safe_context_v2_message  # noqa: E402
+
+
+def _memory_v2_failure_reason(error: Any) -> str:
+    if isinstance(error, _MemoryV2PersistenceError):
+        return "journal_partial"
+    return safe_context_v2_message(error) or str(error or "")
+
+
+_MEMORY_V2_LONG_TERM_NAMESPACE = "user:local"
+_MEMORY_V2_LONG_TERM_SPACE_NAME = "user:local"
+_MEMORY_V2_LONG_TERM_SPACE_DESCRIPTION = "Long-term memory"
+_MEMORY_V2_RECALLED_REFS_OPTION = "_memory_v2_recalled_long_term_refs"
+_MEMORY_V2_DURABLE_CONTENT_REF_RE = re.compile(
+    r"^(?:pupu://artifact/[A-Za-z0-9._:-]+@[1-9][0-9]*|"
+    r"pupu://context/checkpoint/[A-Za-z0-9._:-]+|"
+    r"pupu://context/event/[A-Za-z0-9._:-]+/content)$"
+)
+_MEMORY_V2_CONTENT_REF_FIELDS = frozenset(
+    {
+        "artifact_ref",
+        "artifact_refs",
+        "checkpoint_ref",
+        "checkpoint_refs",
+        "content_ref",
+        "full_output_ref",
+        "handoff_ref",
+        "handoff_refs",
+    }
+)
+_MEMORY_V2_UNTRUSTED_ARGUMENT_FIELDS = frozenset(
+    {"args", "arguments", "input", "modified_arguments", "tool_input"}
+)
+_MEMORY_V2_DISCLOSURE_PAGE_SIZE = 500
+_MEMORY_V2_DISCLOSURE_MAX_PAGES = 128
+_MEMORY_V2_VAULT_HANDLE_RE = re.compile(r"\bpvh1_[0-9a-f]{64}\b")
+
+
+def _memory_v2_collect_disclosed_content_refs(
+    value: Any,
+    output: set[str],
+) -> None:
+    """Collect refs only from server-owned reference fields.
+
+    Tool arguments are skipped deliberately: ``tool.started`` is journaled
+    before dispatch, so treating an argument as prior disclosure would let a
+    caller authorize the opaque ref it is currently trying to read.
+    """
+
+    def collect_ref_value(candidate: Any) -> None:
+        if isinstance(candidate, str):
+            normalized = candidate.strip()
+            if _MEMORY_V2_DURABLE_CONTENT_REF_RE.fullmatch(normalized):
+                output.add(normalized)
+            return
+        if isinstance(candidate, (list, tuple)):
+            for item in candidate:
+                collect_ref_value(item)
+            return
+        if not isinstance(candidate, dict):
+            return
+        for key, item in candidate.items():
+            normalized_key = str(key or "").strip().lower()
+            if normalized_key in _MEMORY_V2_CONTENT_REF_FIELDS or normalized_key in {
+                "ref",
+                "uri",
+            }:
+                collect_ref_value(item)
+
+    def walk(candidate: Any, depth: int) -> None:
+        if depth > 16:
+            return
+        if isinstance(candidate, (list, tuple)):
+            for item in candidate:
+                walk(item, depth + 1)
+            return
+        if not isinstance(candidate, dict):
+            return
+        for key, item in candidate.items():
+            normalized_key = str(key or "").strip().lower()
+            if normalized_key in _MEMORY_V2_UNTRUSTED_ARGUMENT_FIELDS:
+                continue
+            if normalized_key in _MEMORY_V2_CONTENT_REF_FIELDS:
+                collect_ref_value(item)
+                continue
+            walk(item, depth + 1)
+
+    walk(value, 0)
+
+
+def _memory_v2_build_content_ref_authorizer(admission: Any):
+    """Return a dynamic, chat-bound disclosed-ref predicate for one run."""
+
+    lock = threading.Lock()
+    refs: set[str] = set()
+    cursor = 0
+
+    def refresh_visible_state() -> None:
+        diagnostics = getattr(admission, "diagnostics", None)
+        if callable(diagnostics):
+            try:
+                _memory_v2_collect_disclosed_content_refs(diagnostics(), refs)
+            except Exception:
+                pass
+        _memory_v2_collect_disclosed_content_refs(
+            getattr(admission, "handoff_messages", ()) or (),
+            refs,
+        )
+
+    def is_disclosed(ref: str) -> bool:
+        nonlocal cursor
+        normalized_ref = str(ref or "").strip()
+        if not _MEMORY_V2_DURABLE_CONTENT_REF_RE.fullmatch(normalized_ref):
+            return False
+        with lock:
+            refresh_visible_state()
+            if normalized_ref in refs:
+                return True
+            runtime = getattr(admission, "runtime", None)
+            load_events = getattr(runtime, "load_events", None)
+            owner_chat_id = str(
+                getattr(admission, "owner_chat_id", "") or ""
+            ).strip()
+            session_id = str(getattr(admission, "session_id", "") or "").strip()
+            if not callable(load_events) or not owner_chat_id or not session_id:
+                return False
+            for _page_index in range(_MEMORY_V2_DISCLOSURE_MAX_PAGES):
+                previous_cursor = cursor
+                try:
+                    raw = load_events(
+                        owner_chat_id=owner_chat_id,
+                        after=cursor,
+                        limit=_MEMORY_V2_DISCLOSURE_PAGE_SIZE,
+                        session_id=session_id,
+                        attempt_id="",
+                        include_payload=True,
+                    )
+                except Exception:
+                    return False
+                records = (
+                    raw.get("events") or raw.get("items") or []
+                    if isinstance(raw, dict)
+                    else raw
+                )
+                if not isinstance(records, list) or not records:
+                    return normalized_ref in refs
+                _memory_v2_collect_disclosed_content_refs(records, refs)
+                for record in records:
+                    if not isinstance(record, dict):
+                        continue
+                    raw_cursor = record.get("cursor") or record.get("store_seq")
+                    if isinstance(raw_cursor, int) and not isinstance(raw_cursor, bool):
+                        cursor = max(cursor, raw_cursor)
+                next_after = raw.get("next_after") if isinstance(raw, dict) else None
+                if isinstance(next_after, int) and not isinstance(next_after, bool):
+                    cursor = max(cursor, next_after)
+                if normalized_ref in refs:
+                    return True
+                has_more = (
+                    bool(raw.get("has_more"))
+                    if isinstance(raw, dict)
+                    else len(records) >= _MEMORY_V2_DISCLOSURE_PAGE_SIZE
+                )
+                if not has_more or cursor <= previous_cursor:
+                    break
+            return normalized_ref in refs
+
+    return is_disclosed
+_MEMORY_V2_TRACE_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9._:-]{1,256}$")
+_MEMORY_V2_TRACE_MODEL_RE = re.compile(r"^[A-Za-z0-9._:/+-]{1,256}$")
+
+
+def _memory_v2_safe_error_code(error: BaseException, fallback: str) -> str:
+    explicit = str(getattr(error, "code", "") or "").strip().lower()
+    if explicit and re.fullmatch(r"[a-z0-9_.:-]{1,96}", explicit):
+        return explicit
+    type_name = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        type(error).__name__.lower(),
+    ).strip("_")
+    return type_name[:96] or fallback
+
+
+def _memory_v2_merge_diagnostics(admission: Any, **values: Any) -> None:
+    if admission is None or not callable(getattr(admission, "update_diagnostics", None)):
+        return
+    current = (
+        admission.diagnostics()
+        if callable(getattr(admission, "diagnostics", None))
+        else {}
+    )
+    merged = dict(current) if isinstance(current, dict) else {}
+    merged.update(copy.deepcopy(values))
+    admission.update_diagnostics(merged)
+
+
+def _memory_v2_current_query(message: Any) -> str:
+    if not isinstance(message, dict) or message.get("role") != "user":
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content.strip()[:1024]
+    if not isinstance(content, list):
+        return ""
+    text_parts: list[str] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        text = block.get("text")
+        if isinstance(text, str) and text.strip():
+            text_parts.append(text.strip())
+    return "\n".join(text_parts)[:1024]
+
+
+def _memory_v2_bootstrap_event_id(receipt: Any) -> str:
+    if not isinstance(receipt, dict):
+        return ""
+    event = receipt.get("event")
+    if isinstance(event, dict):
+        event_id = str(event.get("event_id") or event.get("id") or "").strip()
+        if event_id:
+            return event_id
+    ref = str(receipt.get("event_ref") or "").strip()
+    prefix = "pupu://context/event/"
+    return ref[len(prefix):] if ref.startswith(prefix) else ""
+
+
+def _memory_v2_bind_recalled_refs(admission: Any, options: Any) -> None:
+    if admission is None or not getattr(admission, "is_active", False):
+        return
+    safe_options = options if isinstance(options, dict) else None
+    current = getattr(admission, "_memory_v2_recalled_long_term_refs", ()) or ()
+    if not current and safe_options is not None:
+        raw = safe_options.get(_MEMORY_V2_RECALLED_REFS_OPTION)
+        if isinstance(raw, (list, tuple)) and len(raw) <= 5:
+            current = tuple(
+                str(ref).strip()
+                for ref in raw
+                if isinstance(ref, str) and ref.strip()
+            )
+    if not current:
+        return
+    normalized = tuple(dict.fromkeys(str(ref).strip() for ref in current if str(ref).strip()))
+    if len(normalized) > 5:
+        raise RuntimeError("Memory V2 recalled reference scope exceeds the limit")
+    setattr(admission, "_memory_v2_recalled_long_term_refs", normalized)
+    if safe_options is not None:
+        safe_options[_MEMORY_V2_RECALLED_REFS_OPTION] = list(normalized)
+        handoff_messages = getattr(admission, "handoff_messages", None)
+        if isinstance(handoff_messages, list) and handoff_messages:
+            safe_options["_memory_v2_handoff_messages"] = copy.deepcopy(
+                handoff_messages
+            )
+
+
+def _memory_v2_persist_audit_event(
+    admission: Any,
+    event_type: str,
+    *,
+    run_id: str,
+    fields: Dict[str, Any],
+) -> Dict[str, Any] | None:
+    event = {
+        "type": event_type,
+        "run_id": str(run_id or getattr(admission, "attempt_id", "") or ""),
+        "agent_id": "system.memory_agent",
+        "visibility": "internal",
+        **copy.deepcopy(fields),
+    }
+    receipt = _persist_memory_v2_semantic_event(admission, event)
+    return copy.deepcopy(receipt) if isinstance(receipt, dict) else None
+
+
+def _memory_v2_bind_legacy_v1_runtime(admission: Any) -> Any:
+    """Bind V1 reference reads to the canonical V2 long-term space."""
+
+    runtime = getattr(admission, "runtime", None)
+    ensure_space = getattr(runtime, "ensure_space", None)
+    if runtime is None or not callable(ensure_space):
+        raise RuntimeError("Memory V2 long-term space binding is unavailable")
+    arguments = {
+        "scope_kind": "long_term",
+        "scope_key": _MEMORY_V2_LONG_TERM_NAMESPACE,
+        "owner_chat_id": "",
+        "namespace": _MEMORY_V2_LONG_TERM_NAMESPACE,
+        "name": _MEMORY_V2_LONG_TERM_SPACE_NAME,
+        "description": _MEMORY_V2_LONG_TERM_SPACE_DESCRIPTION,
+    }
+    operation_digest = hashlib.sha256(
+        json.dumps(
+            arguments,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    space = ensure_space(
+        **arguments,
+        operation_id=f"legacy-v1-long-term-space:{operation_digest}",
+    )
+    space_id = str(
+        space.get("space_id") if isinstance(space, dict) else ""
+    ).strip()
+    if not space_id:
+        raise RuntimeError("Memory V2 long-term space binding returned no space")
+
+    from memory_v2_legacy_adapter import LegacyV1CompositeRuntime
+
+    composite = LegacyV1CompositeRuntime(
+        runtime=runtime,
+        namespace=_MEMORY_V2_LONG_TERM_NAMESPACE,
+        space_id=space_id,
+    )
+    admission.runtime = composite
+    return composite
+
+
+def _prepare_memory_v2_first_message_recall(
+    admission: Any,
+    message: Any,
+    bootstrap_receipt: Any,
+) -> Dict[str, Any] | None:
+    """Attach reference-only long-term recall to the first active V2 turn."""
+
+    if admission is None or not getattr(admission, "is_active", False):
+        return None
+    if not (
+        isinstance(bootstrap_receipt, dict)
+        and bootstrap_receipt.get("pinned_task_state_created") is True
+    ):
+        return None
+    query = _memory_v2_current_query(message)
+    if not query:
+        return None
+    run_id = str(getattr(admission, "attempt_id", "") or "")
+    try:
+        from memory_v2_recall import recall_long_term_references
+
+        runtime = _memory_v2_bind_legacy_v1_runtime(admission)
+        recalled = recall_long_term_references(
+            runtime,
+            _MEMORY_V2_LONG_TERM_NAMESPACE,
+            query,
+        )
+    except Exception as exc:
+        summary = {
+            "status": "Degraded",
+            "reason": _memory_v2_safe_error_code(
+                exc,
+                "long_term_recall_failed",
+            ),
+            "trigger": "first_user_message",
+            "namespace": _MEMORY_V2_LONG_TERM_NAMESPACE,
+            "input_refs": [],
+        }
+        _memory_v2_persist_audit_event(
+            admission,
+            "memory.recall.completed",
+            run_id=run_id,
+            fields=summary,
+        )
+        _memory_v2_merge_diagnostics(admission, long_term_recall=summary)
+        return summary
+
+    references = [
+        copy.deepcopy(item)
+        for item in (recalled.get("references") or [])
+        if isinstance(item, dict)
+    ]
+    input_refs = [
+        str(item.get("ref") or "")
+        for item in references
+        if str(item.get("ref") or "").strip()
+    ]
+    candidate = None
+    if recalled.get("requires_curator") is True and references:
+        source_event_id = _memory_v2_bootstrap_event_id(bootstrap_receipt)
+        review_receipt = _memory_v2_persist_audit_event(
+            admission,
+            "memory.recall.completed",
+            run_id=run_id,
+            fields={
+                "status": "NeedsCurator",
+                "reason": str(recalled.get("reason") or "ambiguous_recall"),
+                "trigger": "first_user_message",
+                "namespace": _MEMORY_V2_LONG_TERM_NAMESPACE,
+                "input_refs": input_refs,
+                "reference_count": len(input_refs),
+                "content_inlined": False,
+            },
+        )
+        review_event_id = str(
+            (review_receipt or {}).get("event_id")
+            or (review_receipt or {}).get("id")
+            or ""
+        ).strip()
+        source_event_ids = tuple(
+            dict.fromkeys(
+                event_id
+                for event_id in (source_event_id, review_event_id)
+                if event_id
+            )
+        )
+        candidate_payload = {
+            "schema_version": "memory_v2.recall_candidate.v1",
+            "trigger": "long_term_recall_review",
+            "fingerprint": str(recalled.get("fingerprint") or ""),
+            "reason": str(recalled.get("reason") or "ambiguous_recall"),
+            "references": references,
+        }
+        operation_seed = (
+            f"{getattr(admission, 'owner_chat_id', '')}:"
+            f"{getattr(admission, 'session_id', '')}:"
+            f"{getattr(admission, 'attempt_id', '')}:"
+            f"{recalled.get('fingerprint', '')}"
+        )
+        candidate = runtime.create_candidate(
+            owner_chat_id=admission.owner_chat_id,
+            session_id=admission.session_id,
+            attempt_id=admission.attempt_id,
+            source_agent_run_id=run_id,
+            source_event_ids=source_event_ids,
+            target_space_id="",
+            target_path="",
+            kind="file",
+            description="long_term_recall_review",
+            mime_type="application/json",
+            content=json.dumps(
+                candidate_payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8"),
+            rationale=(
+                "Resolve ambiguous or conflicting long-term references without "
+                "injecting their content into the root model context."
+            ),
+            confidence=1.0,
+            sensitivity="normal",
+            operation_id=(
+                "memory-recall-candidate:"
+                + hashlib.sha256(operation_seed.encode("utf-8")).hexdigest()
+            ),
+        )
+    else:
+        context_message = recalled.get("context_message")
+        if isinstance(context_message, dict):
+            admission.handoff_messages.append(copy.deepcopy(context_message))
+            setattr(
+                admission,
+                "_memory_v2_recalled_long_term_refs",
+                tuple(input_refs),
+            )
+
+    summary = {
+        "status": (
+            "CandidateCreated"
+            if isinstance(candidate, dict)
+            else "InjectedReferences"
+            if input_refs
+            else "NoOp"
+        ),
+        "reason": str(recalled.get("reason") or "high_confidence_references"),
+        "trigger": "first_user_message",
+        "namespace": _MEMORY_V2_LONG_TERM_NAMESPACE,
+        "input_refs": input_refs,
+        "candidate_id": (
+            str(candidate.get("candidate_id") or "")
+            if isinstance(candidate, dict)
+            else ""
+        ),
+        "reference_count": len(input_refs),
+        "content_inlined": False,
+    }
+    _memory_v2_persist_audit_event(
+        admission,
+        (
+            "memory.recall.candidate_created"
+            if isinstance(candidate, dict)
+            else "memory.recall.completed"
+        ),
+        run_id=run_id,
+        fields=summary,
+    )
+    _memory_v2_merge_diagnostics(admission, long_term_recall=summary)
+    return summary
+
+
+def _memory_v2_provider_default(provider: str) -> Dict[str, str] | None:
+    normalized = str(provider or "").strip().lower()
+    if normalized not in {"openai", "anthropic", "ollama"}:
+        return None
+    model_id = str(_provider_default_model(normalized) or "").strip()
+    return (
+        {"provider": normalized, "modelId": model_id}
+        if model_id
+        else None
+    )
+
+
+def _memory_v2_curator_trace_summary(summary: Any) -> Dict[str, Any]:
+    """Project a Curator result to the bounded, content-free Trace contract."""
+
+    source = summary if isinstance(summary, dict) else {}
+
+    def identifier(value: Any) -> str:
+        normalized = str(value or "").strip()
+        return normalized if _MEMORY_V2_TRACE_IDENTIFIER_RE.fullmatch(normalized) else ""
+
+    def model_value(value: Any) -> str:
+        normalized = str(value or "").strip()
+        return normalized if _MEMORY_V2_TRACE_MODEL_RE.fullmatch(normalized) else ""
+
+    model = source.get("model") if isinstance(source.get("model"), dict) else {}
+    run_id = identifier(source.get("run_id"))
+    job_id = identifier(source.get("job_id"))
+    provider = model_value(model.get("provider"))
+    model_id = model_value(model.get("model_id") or model.get("modelId"))
+    model_source = identifier(model.get("source"))
+    input_refs = []
+    for item in (source.get("input_refs") or [])[:32]:
+        if not isinstance(item, dict):
+            continue
+        candidate_id = identifier(item.get("candidate_id"))
+        revision = item.get("revision")
+        if (
+            not candidate_id
+            or not isinstance(revision, int)
+            or isinstance(revision, bool)
+        ):
+            continue
+        if not 1 <= revision <= 2**31 - 1:
+            continue
+        input_refs.append({"candidate_id": candidate_id, "revision": revision})
+
+    status = identifier(source.get("status")) or "Unknown"
+    enqueue_status = identifier(source.get("enqueue_status"))
+    reason = identifier(source.get("reason"))
+    trigger = identifier(source.get("trigger"))
+    lifecycle = identifier(source.get("lifecycle"))
+    worker_status = identifier(source.get("worker_status"))
+    candidate_count = source.get("candidate_count")
+    token_usage = source.get("token_usage")
+    cost = source.get("cost")
+    return {
+        "status": status,
+        **({"enqueue_status": enqueue_status} if enqueue_status else {}),
+        **({"reason": reason} if reason else {}),
+        **({"trigger": trigger} if trigger else {}),
+        **({"lifecycle": lifecycle} if lifecycle else {}),
+        **({"run_id": run_id} if run_id else {}),
+        **({"job_id": job_id} if job_id else {}),
+        "input_refs": input_refs,
+        "candidate_count": (
+            candidate_count
+            if isinstance(candidate_count, int)
+            and not isinstance(candidate_count, bool)
+            and 0 <= candidate_count <= 500
+            else 0
+        ),
+        **({"provider": provider} if provider else {}),
+        **({"model_id": model_id} if model_id else {}),
+        **({"model_source": model_source} if model_source else {}),
+        **({"worker_status": worker_status} if worker_status else {}),
+        "consumed_tokens": (
+            token_usage
+            if isinstance(token_usage, int)
+            and not isinstance(token_usage, bool)
+            and 0 <= token_usage <= 2**63 - 1
+            else 0
+        ),
+        "cost_usd": (
+            float(cost)
+            if isinstance(cost, (int, float))
+            and not isinstance(cost, bool)
+            and 0 <= float(cost) <= 1_000_000
+            else 0
+        ),
+    }
+
+
+class _MemoryV2CuratorAgentError(RuntimeError):
+    def __init__(self, code: str) -> None:
+        self.code = str(code or "curator_agent_error")
+        super().__init__(self.code)
+
+
+class _MemoryV2CuratorAgentAdapter:
+    """Narrow request-dict adapter around the real Unchain Agent contract."""
+
+    def __init__(
+        self,
+        agent: Any,
+        *,
+        provider: str,
+        model_id: str,
+        payload: Dict[str, Any],
+        display_name: str,
+    ) -> None:
+        self._agent = agent
+        self.provider = str(provider or "")
+        self.model_id = str(model_id or "")
+        self.display_name = str(display_name or "Memory Curator")
+        self._payload = copy.deepcopy(payload)
+        if getattr(agent, "_memory_v2_admission", None) is not None:
+            raise _MemoryV2CuratorAgentError("curator_recursion_boundary_violation")
+        if str(getattr(agent, "provider", "") or "") != self.provider:
+            raise _MemoryV2CuratorAgentError("curator_provider_integrity_failed")
+        if str(getattr(agent, "model", "") or "") != self.model_id:
+            raise _MemoryV2CuratorAgentError("curator_model_integrity_failed")
+
+    @staticmethod
+    def _bounded_tokens(value: Any) -> int:
+        if not isinstance(value, int) or isinstance(value, bool):
+            return 0
+        return max(0, min(value, 2**63 - 1))
+
+    def run(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(request, dict):
+            raise _MemoryV2CuratorAgentError("invalid_curator_request")
+        try:
+            request_json = json.dumps(
+                request,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise _MemoryV2CuratorAgentError("invalid_curator_request") from exc
+
+        promotion_call_ids: set[str] = set()
+        anonymous_promotion_count = 0
+
+        def on_event(event: Any) -> None:
+            nonlocal anonymous_promotion_count
+            if not isinstance(event, dict):
+                return
+            event_type = str(event.get("type") or "").strip().lower()
+            tool = event.get("tool") if isinstance(event.get("tool"), dict) else {}
+            tool_name = str(
+                event.get("tool_name")
+                or event.get("name")
+                or tool.get("name")
+                or ""
+            ).strip()
+            if tool_name != "memory_promote" or event_type not in {
+                "tool_result",
+                "tool.completed",
+                "tool_completed",
+                "tool.complete",
+            }:
+                return
+            if event.get("error") is not None or event.get("is_error") is True:
+                return
+            call_id = str(
+                event.get("call_id")
+                or event.get("tool_call_id")
+                or event.get("event_id")
+                or ""
+            ).strip()
+            if call_id:
+                promotion_call_ids.add(call_id)
+            else:
+                anonymous_promotion_count += 1
+
+        result = self._agent.run(
+            messages=[{"role": "user", "content": request_json}],
+            payload=copy.deepcopy(self._payload),
+            callback=on_event,
+        )
+        result_status = str(
+            getattr(result, "status", "completed") or "completed"
+        ).strip().lower()
+        if result_status not in {"complete", "completed"}:
+            raise _MemoryV2CuratorAgentError("curator_agent_run_incomplete")
+        return {
+            "status": "completed",
+            "proposal_count": len(promotion_call_ids) + anonymous_promotion_count,
+            "consumed_tokens": self._bounded_tokens(
+                getattr(result, "consumed_tokens", 0)
+            ),
+            "cost": 0,
+        }
+
+
+def _create_memory_v2_curator_agent(
+    *,
+    options: Dict[str, Any],
+    provider: str,
+    model_id: str,
+    system_prompt: str,
+    toolkit: Any,
+    display_name: str,
+) -> _MemoryV2CuratorAgentAdapter:
+    """Create an isolated Curator using the frozen job provider/model."""
+
+    normalized_provider = str(provider or "").strip()
+    normalized_model = str(model_id or "").strip()
+    if normalized_provider not in _SUPPORTED_PROVIDERS or not normalized_model:
+        raise _MemoryV2CuratorAgentError("curator_provider_configuration_unavailable")
+    if _UnchainAgent is None or _ToolsModule is None or _PoliciesModule is None:
+        raise _MemoryV2CuratorAgentError("curator_agent_runtime_unavailable")
+
+    custom_config = parse_custom_provider(options)
+    selected_custom_config = (
+        custom_config
+        if custom_config is not None
+        and custom_config.twin == normalized_provider
+        and custom_config.has_model(normalized_model)
+        else None
+    )
+    model_io_factory = None
+    if selected_custom_config is not None:
+        api_key = _resolve_agent_api_key(
+            options,
+            normalized_provider,
+            cfg=selected_custom_config,
+        )
+        model_io_factory = make_custom_model_io_factory(
+            selected_custom_config,
+            api_key,
+        )
+        payload = _build_payload(normalized_provider, options)
+    else:
+        api_key = _resolve_agent_api_key(options, normalized_provider)
+        payload_options = {
+            key: options.get(key)
+            for key in ("temperature", "maxTokens")
+            if isinstance(options.get(key), (int, float))
+            and not isinstance(options.get(key), bool)
+        }
+        payload = _build_payload(normalized_provider, payload_options)
+
+    modules = (
+        _ToolsModule(tools=(toolkit,)),
+        _PoliciesModule(max_iterations=32),
+    )
+    agent_kwargs: Dict[str, Any] = {
+        "name": "pupu_memory_curator",
+        "instructions": str(system_prompt or ""),
+        "provider": normalized_provider,
+        "model": normalized_model,
+        "api_key": api_key or None,
+        "modules": modules,
+    }
+    if model_io_factory is not None:
+        agent_kwargs["model_io_factory"] = model_io_factory
+    raw_agent = _UnchainAgent(**agent_kwargs)
+    return _MemoryV2CuratorAgentAdapter(
+        raw_agent,
+        provider=normalized_provider,
+        model_id=normalized_model,
+        payload=payload,
+        display_name=display_name,
+    )
+
+
+def _memory_v2_curator_agent_factory(options: Dict[str, Any]):
+    """Capture request-local provider credentials/config without persisting it."""
+
+    def create(**kwargs: Any) -> _MemoryV2CuratorAgentAdapter:
+        return _create_memory_v2_curator_agent(
+            options=options,
+            provider=kwargs.get("provider", ""),
+            model_id=kwargs.get("model_id", ""),
+            system_prompt=kwargs.get("system_prompt", ""),
+            toolkit=kwargs.get("toolkit"),
+            display_name=kwargs.get("display_name", "Memory Curator"),
+        )
+
+    return create
+
+
+def _memory_v2_curator_audit_fields(event: Any) -> Dict[str, Any]:
+    """Allowlist only content-free Curator audit fields for the journal."""
+
+    source = event if isinstance(event, dict) else {}
+    projected: Dict[str, Any] = {}
+    for key in (
+        "job_id",
+        "owner_chat_id",
+        "session_id",
+        "attempt_id",
+        "run_id",
+        "provider",
+        "model_id",
+        "result_status",
+        "error_code",
+    ):
+        value = str(source.get(key) or "").strip()
+        if value and _MEMORY_V2_TRACE_MODEL_RE.fullmatch(value):
+            projected[key] = value
+    for key in (
+        "candidate_count",
+        "proposal_count",
+        "duration_ms",
+        "token_usage",
+    ):
+        value = source.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 2**63 - 1:
+            projected[key] = value
+    if isinstance(source.get("model_invoked"), bool):
+        projected["model_invoked"] = source["model_invoked"]
+    cost = source.get("cost")
+    if (
+        isinstance(cost, (int, float))
+        and not isinstance(cost, bool)
+        and 0 <= float(cost) <= 1_000_000
+    ):
+        projected["cost"] = float(cost)
+    return projected
+
+
+def _finalize_memory_v2_curator(
+    admission: Any,
+    options: Any,
+    *,
+    run_id: str,
+    lifecycle: str,
+) -> Dict[str, Any] | None:
+    """Enqueue and inline-run an eligible root Memory Curator job."""
+
+    if admission is None or not getattr(admission, "is_active", False):
+        return None
+    safe_options = options if isinstance(options, dict) else {}
+    if safe_options.get("_recipe_subagent_run") is True:
+        return None
+    runtime = getattr(admission, "runtime", None)
+    try:
+        capture = runtime.get_capture_task_state(
+            owner_chat_id=admission.owner_chat_id,
+            session_id=admission.session_id,
+            attempt_id=admission.attempt_id,
+        )
+    except Exception as exc:
+        capture = None
+        capture_error = _memory_v2_safe_error_code(
+            exc,
+            "capture_state_unavailable",
+        )
+    else:
+        capture_error = ""
+    capture_outcome = (
+        str(capture.get("capture_quality") or "").strip().lower()
+        if isinstance(capture, dict)
+        else ""
+    )
+    if capture_outcome != "complete":
+        summary = {
+            "status": "Isolated",
+            "reason": capture_error or f"capture_{capture_outcome or 'unavailable'}",
+            "trigger": "completed_root_run",
+            "lifecycle": lifecycle,
+            "run_id": str(run_id or ""),
+            "input_refs": [],
+            "model": {},
+            "worker_status": "NotScheduled",
+        }
+        _memory_v2_persist_audit_event(
+            admission,
+            "memory.curator.isolated",
+            run_id=run_id,
+            fields=summary,
+        )
+        _memory_v2_merge_diagnostics(
+            admission,
+            memory_curator=summary,
+            memory_agent_runs=[_memory_v2_curator_trace_summary(summary)],
+        )
+        return summary
+
+    from memory_v2_curator import MemoryV2Curator
+
+    enqueue_curator = MemoryV2Curator(
+        runtime,
+        namespace=_MEMORY_V2_LONG_TERM_NAMESPACE,
+    )
+    result = enqueue_curator.enqueue_for_completed_root_run(
+        owner_chat_id=admission.owner_chat_id,
+        session_id=admission.session_id,
+        attempt_id=admission.attempt_id,
+        run_id=str(run_id or admission.attempt_id),
+        run_status="complete",
+        capture_outcome=capture_outcome,
+        is_root_run=True,
+        memory_agent_config=safe_options.get("_memory_v2_memory_agent_config"),
+        provider_default=_memory_v2_provider_default(admission.provider),
+        chat_provider=admission.provider,
+        chat_model_id=admission.model,
+    )
+    job = result.get("job") if isinstance(result.get("job"), dict) else {}
+    payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+    candidate_refs = [
+        {
+            "candidate_id": str(item.get("candidate_id") or ""),
+            "revision": int(item.get("revision") or 0),
+        }
+        for item in (payload.get("candidates") or [])
+        if isinstance(item, dict) and item.get("candidate_id")
+    ]
+    model = (
+        copy.deepcopy(result.get("model"))
+        if isinstance(result.get("model"), dict)
+        else copy.deepcopy(payload.get("model"))
+        if isinstance(payload.get("model"), dict)
+        else {}
+    )
+    enqueue_status = str(result.get("status") or "Failed")
+    candidate_count = int(result.get("candidate_count") or 0)
+    worker_result: Dict[str, Any] | None = None
+    job_status = str(job.get("status") or "").strip().lower()
+    if enqueue_status == "Enqueued" and candidate_count > 0:
+        if job_status == "completed":
+            worker_result = {
+                "status": "AlreadyCompleted",
+                "reason": "durable_job_completed",
+                "job_id": str(job.get("job_id") or ""),
+                "token_usage": 0,
+                "cost": 0,
+            }
+        elif job_status in {"failed", "cancelled"}:
+            worker_result = {
+                "status": "Failed",
+                "reason": f"durable_job_{job_status}",
+                "job_id": str(job.get("job_id") or ""),
+                "token_usage": 0,
+                "cost": 0,
+            }
+        else:
+            job_id = str(job.get("job_id") or "").strip()
+            worker_id = "memory_curator_inline_" + hashlib.sha256(
+                f"{admission.owner_chat_id}:{admission.attempt_id}:{job_id}".encode(
+                    "utf-8"
+                )
+            ).hexdigest()[:24]
+            claim_operation_id = "memory_curator_claim:" + hashlib.sha256(
+                f"{job_id}:{worker_id}".encode("utf-8")
+            ).hexdigest()
+            try:
+                claim = runtime.claim_specific_consolidation_job(
+                    owner_chat_id=admission.owner_chat_id,
+                    job_id=job_id,
+                    expected_revision=int(job.get("revision") or 0),
+                    worker_id=worker_id,
+                    operation_id=claim_operation_id,
+                    lease_ms=10 * 60 * 1000,
+                )
+                claimed_job = (
+                    claim.get("job")
+                    if isinstance(claim, dict) and isinstance(claim.get("job"), dict)
+                    else None
+                )
+                if claimed_job is None:
+                    raise _MemoryV2CuratorAgentError("curator_specific_claim_failed")
+
+                def persist_audit(event: Dict[str, Any]) -> None:
+                    event_type = str(event.get("type") or "").strip()
+                    _memory_v2_persist_audit_event(
+                        admission,
+                        event_type or "memory.curator.audit",
+                        run_id=str(event.get("run_id") or run_id or ""),
+                        fields=_memory_v2_curator_audit_fields(event),
+                    )
+
+                worker_curator = MemoryV2Curator(
+                    runtime,
+                    agent_factory=_memory_v2_curator_agent_factory(safe_options),
+                    event_callback=persist_audit,
+                    namespace=_MEMORY_V2_LONG_TERM_NAMESPACE,
+                )
+                worker_result = worker_curator.run_job(
+                    job=claimed_job,
+                    memory_agent_config=safe_options.get(
+                        "_memory_v2_memory_agent_config"
+                    ),
+                    worker_id=worker_id,
+                )
+            except Exception as exc:
+                reason = _memory_v2_safe_error_code(
+                    exc,
+                    "curator_inline_worker_failed",
+                )
+                worker_result = {
+                    "status": (
+                        "Pending"
+                        if reason in {
+                            "context_v2_job_not_claimable",
+                            "context_v2_job_not_ready",
+                        }
+                        else "Failed"
+                    ),
+                    "reason": reason,
+                    "job_id": job_id,
+                    "token_usage": 0,
+                    "cost": 0,
+                }
+
+    final_status = (
+        str(worker_result.get("status") or "Failed")
+        if isinstance(worker_result, dict)
+        else "Pending"
+        if enqueue_status == "Enqueued"
+        else enqueue_status
+    )
+    final_reason = (
+        str(worker_result.get("reason") or "curator_inline_worker_failed")
+        if isinstance(worker_result, dict)
+        else str(result.get("reason") or "curator_enqueue_failed")
+    )
+    summary = {
+        "status": final_status,
+        "enqueue_status": enqueue_status,
+        "reason": final_reason,
+        "trigger": "completed_root_run",
+        "lifecycle": lifecycle,
+        "run_id": str(run_id or ""),
+        "job_id": str(job.get("job_id") or ""),
+        "input_refs": candidate_refs,
+        "candidate_count": candidate_count,
+        "model": model,
+        "worker_status": (
+            str(worker_result.get("status") or "Failed")
+            if isinstance(worker_result, dict)
+            else "Pending"
+            if enqueue_status == "Enqueued"
+            else "NotScheduled"
+        ),
+        "proposal_count": (
+            int(worker_result.get("proposal_count") or 0)
+            if isinstance(worker_result, dict)
+            else 0
+        ),
+        "token_usage": (
+            int(worker_result.get("token_usage") or 0)
+            if isinstance(worker_result, dict)
+            else 0
+        ),
+        "cost": (
+            float(worker_result.get("cost") or 0)
+            if isinstance(worker_result, dict)
+            else 0
+        ),
+    }
+    event_type = {
+        "Enqueued": "memory.curator.enqueued",
+        "NoOp": "memory.curator.noop",
+        "Isolated": "memory.curator.isolated",
+        "Pending": "memory.curator.pending",
+        "Completed": "memory.curator.completed",
+        "AlreadyCompleted": "memory.curator.completed",
+    }.get(final_status, "memory.curator.failed")
+    _memory_v2_persist_audit_event(
+        admission,
+        event_type,
+        run_id=run_id,
+        fields=summary,
+    )
+    _memory_v2_merge_diagnostics(
+        admission,
+        memory_curator=summary,
+        memory_agent_runs=[_memory_v2_curator_trace_summary(summary)],
+    )
+    return summary
+
+
+def _refresh_memory_v2_bundle(bundle: Any, admission: Any) -> None:
+    if isinstance(bundle, dict) and bundle.get("schema") in {
+        "unchain.run_bundle.v1",
+        "unchain.run_bundle.v2",
+    }:
+        # Canonical run bundles are content-addressed, closed records.  Memory
+        # admission diagnostics remain available through their own stream and
+        # must not be appended after the bundle digest has been computed.
+        return
+    if (
+        not isinstance(bundle, dict)
+        or admission is None
+        or not getattr(admission, "is_active", False)
+    ):
+        return
+    fresh = _memory_v2_bundle_payload(admission)
+    existing = bundle.get("memory_v2")
+    merged = dict(existing) if isinstance(existing, dict) else {}
+    if isinstance(fresh, dict):
+        merged.update(copy.deepcopy(fresh))
+    bundle["memory_v2"] = merged
+
 # Import unchain agent modules
 try:
     from unchain.agent import Agent as _UnchainAgent
     from unchain.agent import InteractionModule as _InteractionModule
     from unchain.agent.modules import ToolsModule as _ToolsModule
     from unchain.agent.modules import MemoryModule as _MemoryModule
+    from unchain.agent.modules import DurabilityModule as _DurabilityModule
     from unchain.agent.modules import PoliciesModule as _PoliciesModule
     from unchain.agent.modules import OptimizersModule as _OptimizersModule
     from unchain.agent.modules import SubagentModule as _SubagentModule
@@ -94,6 +1211,7 @@ except ImportError:
     _InteractionModule = None  # type: ignore
     _ToolsModule = None  # type: ignore
     _MemoryModule = None  # type: ignore
+    _DurabilityModule = None  # type: ignore
     _PoliciesModule = None  # type: ignore
     _OptimizersModule = None  # type: ignore
     _SubagentModule = None  # type: ignore
@@ -139,13 +1257,28 @@ from interaction_channels import (
 from durable_interaction_host import (
     DurableInteractionHostError,
     DurableInteractionIdTracker,
+    DurableInteractionReceiptHandoff,
     bind_execution_attempt,
     cancel_chat_execution,
     clear_execution_attempt_binding,
+    clear_graph_step_resume_context,
     clear_resume_context,
     get_pending_interaction,
+    load_graph_step_resume_context,
+    resolve_graph_step_resume_options,
     resolve_resume_options,
+    save_graph_step_resume_context,
     save_resume_context,
+)
+from memory_v2_unchain_host_event_boundary import (
+    HOST_EVENT_ORIGIN_FALLBACK_FINAL,
+    HOST_EVENT_ORIGIN_HUMAN_INPUT,
+    HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION,
+    HOST_EVENT_ORIGIN_MAX_BUDGET,
+    HOST_EVENT_ORIGIN_TOOL_APPROVAL,
+    PupuUnchainHostEventAuthority,
+    PupuUnchainHostEventBoundary,
+    PupuUnchainHostEventBoundaryError,
 )
 
 
@@ -160,6 +1293,35 @@ def _execution_control_call(name: str, *args: Any, **kwargs: Any) -> Any:
     if not callable(operation):
         return None
     return operation(*args, **kwargs)
+
+
+def _session_execution_guard_transition(name: str, **kwargs: Any) -> Any:
+    try:
+        import session_execution_guard
+    except ImportError as exc:
+        raise DurableInteractionHostError(
+            "session_execution_guard_unavailable",
+            "Session execution guard is unavailable",
+            status_code=503,
+            retryable=True,
+        ) from exc
+    operation = getattr(session_execution_guard, name, None)
+    if not callable(operation):
+        raise DurableInteractionHostError(
+            "session_execution_guard_incompatible",
+            "Session execution guard API is incompatible",
+            status_code=503,
+            retryable=False,
+        )
+    try:
+        return operation(**kwargs)
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            str(getattr(exc, "code", "session_execution_guard_unavailable") or ""),
+            "Session execution guard rejected the continuation transition",
+            status_code=int(getattr(exc, "status_code", 503) or 503),
+            retryable=bool(getattr(exc, "retryable", True)),
+        ) from exc
 
 
 def _execution_cancellation_token(session_id: str, attempt_id: str) -> Any:
@@ -216,6 +1378,462 @@ def _execution_result_status(result: Any) -> str:
 
 def _execution_result_is_terminal(result: Any) -> bool:
     return _execution_result_status(result) in {"completed", "failed", "cancelled"}
+
+
+class _AppliedExecutionOwnerScope:
+    """Own cleanup only for the attempt this call moved into running."""
+
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        attempt_id: str,
+        running: Any,
+        execution_token: Any,
+    ) -> None:
+        self._session_id = str(session_id or "").strip()
+        self._attempt_id = str(attempt_id or "").strip()
+        self._execution_token = execution_token
+        self._owns = bool(
+            self._session_id
+            and self._attempt_id
+            and str(getattr(running, "disposition", "") or "") == "applied"
+            and not _execution_result_is_terminal(running)
+        )
+        self._handed_off = False
+        self._deferred = False
+        self._settled = False
+
+    def __enter__(self) -> "_AppliedExecutionOwnerScope":
+        return self
+
+    def __exit__(self, error_type, error, traceback) -> bool:
+        if self._deferred and error is None:
+            return False
+        try:
+            self.cleanup(error=error)
+        except BaseException:
+            if error is None:
+                raise
+            _execution_owner_logger.exception(
+                "execution owner cleanup failed while preserving the original error"
+            )
+        return False
+
+    def handoff(self) -> None:
+        self._deferred = False
+        self._handed_off = True
+
+    def defer_cleanup(self) -> None:
+        """Carry ownership into an immediately following guarded setup block."""
+
+        self._deferred = True
+
+    def cleanup(self, *, error: BaseException | None = None) -> None:
+        if not self._owns or self._handed_off or self._settled:
+            return
+        cancelled = bool(
+            (error is not None and _is_execution_cancelled_error(error))
+            or _execution_is_cancelled(self._execution_token)
+        )
+        if cancelled:
+            _execution_control_call(
+                "finish_cancelled_run",
+                self._session_id,
+                self._attempt_id,
+            )
+            clear_execution_attempt_binding(
+                self._session_id,
+                self._attempt_id,
+            )
+        else:
+            failure = error or RuntimeError(
+                "execution setup exited before cleanup ownership handoff"
+            )
+            terminal = _execution_control_call(
+                "mark_failed",
+                self._session_id,
+                self._attempt_id,
+                reason=_memory_v2_failure_reason(failure),
+            )
+            if _execution_result_status(terminal) in {"completed", "failed"}:
+                clear_execution_attempt_binding(
+                    self._session_id,
+                    self._attempt_id,
+                )
+        self._settled = True
+
+
+_MEMORY_V2_TAKEOVER_RECOVERY_CODE = "memory_v2_takeover_recovery_required"
+_MEMORY_V2_TAKEOVER_RECOVERY_MESSAGE = (
+    "This Memory V2 attempt has durable history from a stopped worker. "
+    "It was not restarted because prior tool effects cannot be proven safe. "
+    "Review Trace and start a new attempt."
+)
+
+
+def _execution_result_snapshot(result: Any) -> Any:
+    snapshot = getattr(result, "snapshot", None)
+    if snapshot is not None:
+        return snapshot
+    if isinstance(result, dict):
+        nested = result.get("execution")
+        return nested if isinstance(nested, dict) else result
+    return None
+
+
+def _execution_result_value(result: Any, name: str, default: Any = None) -> Any:
+    snapshot = _execution_result_snapshot(result)
+    if isinstance(snapshot, dict):
+        return snapshot.get(name, default)
+    return getattr(snapshot, name, default)
+
+
+def _execution_reclaimed_stopped_owner(registration: Any, running: Any) -> bool:
+    """Recognize only the existing registry's explicit dead-owner takeover.
+
+    This is deliberately narrower than retry or replay detection.  It says
+    nothing about exactly-once execution; it only identifies the transition
+    from a prior running owner to the current process after ``mark_running``.
+    """
+
+    if _execution_result_status(registration) != "running":
+        return False
+    if _execution_result_status(running) != "running":
+        return False
+    if str(getattr(running, "disposition", "") or "") != "applied":
+        return False
+    previous_revision = _execution_result_value(registration, "revision", 0)
+    current_revision = _execution_result_value(running, "revision", 0)
+    if (
+        not isinstance(previous_revision, int)
+        or isinstance(previous_revision, bool)
+        or not isinstance(current_revision, int)
+        or isinstance(current_revision, bool)
+        or current_revision <= previous_revision
+    ):
+        return False
+    previous_owner = (
+        str(_execution_result_value(registration, "owner_id", "") or ""),
+        _execution_result_value(registration, "owner_pid", None),
+    )
+    current_owner = (
+        str(_execution_result_value(running, "owner_id", "") or ""),
+        _execution_result_value(running, "owner_pid", None),
+    )
+    return previous_owner != current_owner and bool(current_owner[0])
+
+
+def _memory_v2_takeover_scope(options: Any) -> Dict[str, Any]:
+    safe_options = options if isinstance(options, dict) else {}
+    admission = _memory_v2_admission_from_options(safe_options)
+    owner_chat_id = str(
+        getattr(admission, "owner_chat_id", "")
+        or safe_options.get("_memory_v2_owner_chat_id")
+        or ""
+    ).strip()
+    if not owner_chat_id:
+        return {"state": "inactive", "runtime": None, "owner_chat_id": ""}
+
+    rollout = _inspect_memory_v2_rollout_intent(
+        safe_options,
+        owner_chat_id=owner_chat_id,
+    )
+    rollout_target = str(rollout.get("target_mode") or "").strip().lower()
+    try:
+        from memory_v2_store_boundary import (
+            STORE_OWNER_UNCHAIN,
+            configured_context_v2_store_owner,
+        )
+
+        official_owner = (
+            configured_context_v2_store_owner() == STORE_OWNER_UNCHAIN
+        )
+    except Exception:
+        official_owner = rollout_target == "active"
+    if official_owner:
+        raw_data_dir = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
+        if not raw_data_dir:
+            return {
+                "state": "unknown" if rollout_target == "active" else "inactive",
+                "runtime": None,
+                "owner_chat_id": owner_chat_id,
+            }
+        root_dir = Path(raw_data_dir).expanduser().resolve() / "memory_v2"
+        try:
+            from memory_v2_unchain_atomic_bootstrap import (
+                pupu_unchain_sticky_active_required,
+            )
+
+            sticky_active = pupu_unchain_sticky_active_required(
+                root_dir=root_dir,
+                owner_chat_id=owner_chat_id,
+            )
+        except Exception:
+            return {
+                "state": "unknown",
+                "runtime": None,
+                "owner_chat_id": owner_chat_id,
+            }
+        if not sticky_active:
+            return {
+                "state": "unknown" if rollout_target == "active" else "inactive",
+                "runtime": None,
+                "owner_chat_id": owner_chat_id,
+            }
+        try:
+            from memory_v2_unchain_read_adapter import (
+                open_pupu_unchain_memory_v2_reader,
+            )
+
+            official_reader = open_pupu_unchain_memory_v2_reader(
+                root_dir=root_dir,
+                owner_chat_id=owner_chat_id,
+            )
+        except Exception:
+            return {
+                "state": "unknown",
+                "runtime": None,
+                "owner_chat_id": owner_chat_id,
+            }
+        return {
+            "state": "active",
+            "runtime": official_reader,
+            "owner_chat_id": owner_chat_id,
+        }
+
+    runtime = getattr(admission, "runtime", None)
+    if runtime is None:
+        runtime = safe_options.get("_memory_v2_runtime")
+    if runtime is None:
+        try:
+            from memory_v2_runtime import get_memory_v2_runtime
+
+            runtime = get_memory_v2_runtime(required=False)
+        except Exception:
+            runtime = None
+
+    admission_mode = str(getattr(admission, "mode", "") or "").strip().lower()
+    if admission_mode == "active":
+        return {
+            "state": "active",
+            "runtime": runtime,
+            "owner_chat_id": owner_chat_id,
+        }
+    if admission_mode in {"off", "shadow"}:
+        return {
+            "state": "inactive",
+            "runtime": runtime,
+            "owner_chat_id": owner_chat_id,
+        }
+
+    fallback_state = "active" if rollout_target == "active" else "inactive"
+    if runtime is None:
+        return {
+            "state": "unknown" if fallback_state == "active" else "inactive",
+            "runtime": None,
+            "owner_chat_id": owner_chat_id,
+        }
+
+    get_chat_admission = getattr(runtime, "get_chat_admission", None)
+    if not callable(get_chat_admission):
+        return {
+            "state": "unknown" if fallback_state == "active" else "inactive",
+            "runtime": runtime,
+            "owner_chat_id": owner_chat_id,
+        }
+    try:
+        sticky = get_chat_admission(owner_chat_id=owner_chat_id)
+    except Exception:
+        return {
+            "state": "unknown" if fallback_state == "active" else "inactive",
+            "runtime": runtime,
+            "owner_chat_id": owner_chat_id,
+        }
+    if isinstance(sticky, dict):
+        sticky_target = str(sticky.get("target_mode") or "").strip().lower()
+        if sticky_target == "active":
+            state = "active"
+        elif sticky_target in {"off", "shadow"}:
+            state = "inactive"
+        else:
+            state = "unknown" if fallback_state == "active" else "inactive"
+    else:
+        state = fallback_state
+    return {
+        "state": state,
+        "runtime": runtime,
+        "owner_chat_id": owner_chat_id,
+    }
+
+
+def _memory_v2_takeover_recovery_event(
+    *,
+    attempt_id: str,
+    inspection_status: str,
+) -> Dict[str, Any]:
+    return {
+        "type": "error",
+        "run_id": str(attempt_id or ""),
+        "iteration": 0,
+        "timestamp": time.time(),
+        "code": _MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+        "message": _MEMORY_V2_TAKEOVER_RECOVERY_MESSAGE,
+        "status": "Partial",
+        "recovery_required": True,
+        "journal_inspection": inspection_status,
+    }
+
+
+def _memory_v2_guard_reclaimed_execution(
+    *,
+    options: Any,
+    session_id: str,
+    attempt_id: str,
+    registration: Any,
+    running: Any,
+) -> Dict[str, Any] | None:
+    """Fail closed when an active V2 takeover already has durable history."""
+
+    if not _execution_reclaimed_stopped_owner(registration, running):
+        return None
+    scope = _memory_v2_takeover_scope(options)
+    scope_state = str(scope.get("state") or "unknown")
+    if scope_state == "inactive":
+        return None
+    runtime = scope.get("runtime")
+    owner_chat_id = str(scope.get("owner_chat_id") or "")
+    if scope_state == "unknown" or runtime is None:
+        _execution_control_call(
+            "mark_failed",
+            session_id,
+            attempt_id,
+            reason=_MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+        )
+        return _memory_v2_takeover_recovery_event(
+            attempt_id=attempt_id,
+            inspection_status="unavailable",
+        )
+    load_events = getattr(runtime, "load_events", None)
+    if not callable(load_events):
+        _execution_control_call(
+            "mark_failed",
+            session_id,
+            attempt_id,
+            reason=_MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+        )
+        return _memory_v2_takeover_recovery_event(
+            attempt_id=attempt_id,
+            inspection_status="unavailable",
+        )
+
+    try:
+        page = load_events(
+            owner_chat_id=owner_chat_id,
+            after=0,
+            limit=32,
+            session_id=session_id,
+            attempt_id=attempt_id,
+            include_payload=False,
+        )
+    except Exception:
+        _execution_control_call(
+            "mark_failed",
+            session_id,
+            attempt_id,
+            reason=_MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+        )
+        return _memory_v2_takeover_recovery_event(
+            attempt_id=attempt_id,
+            inspection_status="unavailable",
+        )
+
+    records = page.get("events") if isinstance(page, dict) else None
+    if not isinstance(records, list):
+        _execution_control_call(
+            "mark_failed",
+            session_id,
+            attempt_id,
+            reason=_MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+        )
+        return _memory_v2_takeover_recovery_event(
+            attempt_id=attempt_id,
+            inspection_status="unavailable",
+        )
+    if not records:
+        return None
+
+    prior_types = {
+        str(item.get("type") or "").strip()
+        for item in records
+        if isinstance(item, dict)
+    }
+    digest = hashlib.sha256(
+        f"{owner_chat_id}:{session_id}:{attempt_id}:dead-owner-takeover".encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    recovery_event = {
+        "type": "run_failed",
+        "event_id": f"ctx_takeover_{digest}",
+        "run_id": attempt_id,
+        "iteration": 0,
+        "status": "partial",
+        "code": _MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+        "reason": _MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+        "recovery_required": True,
+        "prior_event_count_lower_bound": min(len(records), 32),
+        "prior_tool_history_present": bool(
+            prior_types.intersection({"tool_call", "tool_result"})
+        ),
+        "visibility": "internal",
+    }
+    append_event = getattr(runtime, "append_semantic_event", None)
+    mark_outcome = getattr(runtime, "mark_attempt_outcome", None)
+    seal_task = getattr(runtime, "seal_task", None)
+    if callable(append_event):
+        try:
+            append_event(
+                owner_chat_id=owner_chat_id,
+                session_id=session_id,
+                attempt_id=attempt_id,
+                event=recovery_event,
+                operation_id=f"takeover-recovery-event:{digest}",
+            )
+        except Exception:
+            pass
+    if callable(mark_outcome):
+        try:
+            mark_outcome(
+                owner_chat_id=owner_chat_id,
+                session_id=session_id,
+                attempt_id=attempt_id,
+                outcome="partial",
+                operation_id=f"takeover-recovery-outcome:{digest}",
+            )
+        except Exception:
+            pass
+    if callable(seal_task):
+        try:
+            seal_task(
+                owner_chat_id=owner_chat_id,
+                session_id=session_id,
+                attempt_id=attempt_id,
+                outcome="failed",
+                operation_id=f"takeover-recovery-seal:{digest}",
+            )
+        except Exception:
+            pass
+    _execution_control_call(
+        "mark_failed",
+        session_id,
+        attempt_id,
+        reason=_MEMORY_V2_TAKEOVER_RECOVERY_CODE,
+    )
+    return _memory_v2_takeover_recovery_event(
+        attempt_id=attempt_id,
+        inspection_status="history_present",
+    )
 
 
 def _wait_for_cancel_or_done(
@@ -388,7 +2006,7 @@ _TOOLKIT_NAME_ALIASES = {
     "agentreachtoolkit": "AgentReachToolkit",
     "AgentReachToolkit": "AgentReachToolkit",
 }
-_DEFAULT_MAX_ITERATIONS = 32
+_DEFAULT_MAX_ITERATIONS = 128
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _AGENT_ORCHESTRATION_DEFAULT = "default"
 _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"
@@ -498,6 +2116,99 @@ def _build_modular_prompt(
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
+_LIVE_CONFIRMATION_RECEIPT_CLAIM_LIMIT = 4096
+_live_confirmation_receipt_claims: Dict[
+    tuple[str, str],
+    Dict[str, Any],
+] = {}
+
+
+def _live_confirmation_receipt_identity(
+    durable_receipt: object,
+) -> tuple[str, str, str] | None:
+    if not isinstance(durable_receipt, DurableInteractionReceiptHandoff):
+        return None
+    return (
+        durable_receipt.session_id,
+        durable_receipt.interaction_id,
+        durable_receipt.receipt_id,
+    )
+
+
+def _matching_live_confirmation_claim_locked(
+    receipt_identity: tuple[str, str, str] | None,
+) -> bool:
+    if receipt_identity is None:
+        return False
+    session_id, interaction_id, receipt_id = receipt_identity
+    claim = _live_confirmation_receipt_claims.get(
+        (session_id, interaction_id)
+    )
+    if claim is None:
+        return False
+    if str(claim.get("receipt_id") or "") != receipt_id:
+        raise DurableInteractionHostError(
+            "interaction_receipt_conflict",
+            "Live interaction already consumed a different durable receipt",
+            status_code=409,
+        )
+    return True
+
+
+def _record_live_confirmation_claim_locked(
+    receipt_identity: tuple[str, str, str] | None,
+    *,
+    cancel_event: object,
+) -> None:
+    if receipt_identity is None:
+        return
+    session_id, interaction_id, receipt_id = receipt_identity
+    key = (session_id, interaction_id)
+    existing = _live_confirmation_receipt_claims.get(key)
+    if existing is not None:
+        if str(existing.get("receipt_id") or "") != receipt_id:
+            raise DurableInteractionHostError(
+                "interaction_receipt_conflict",
+                "Live interaction already consumed a different durable receipt",
+                status_code=409,
+            )
+        return
+    _ensure_live_confirmation_claim_capacity_locked(receipt_identity)
+    _live_confirmation_receipt_claims[key] = {
+        "receipt_id": receipt_id,
+        "cancel_event": cancel_event,
+    }
+
+
+def _ensure_live_confirmation_claim_capacity_locked(
+    receipt_identity: tuple[str, str, str] | None,
+) -> None:
+    if receipt_identity is None:
+        return
+    session_id, interaction_id, _receipt_id = receipt_identity
+    if (session_id, interaction_id) in _live_confirmation_receipt_claims:
+        return
+    if len(_live_confirmation_receipt_claims) >= (
+        _LIVE_CONFIRMATION_RECEIPT_CLAIM_LIMIT
+    ):
+        for claim_key, claim in tuple(
+            _live_confirmation_receipt_claims.items()
+        ):
+            claim_cancel_event = claim.get("cancel_event")
+            if (
+                isinstance(claim_cancel_event, threading.Event)
+                and claim_cancel_event.is_set()
+            ):
+                _live_confirmation_receipt_claims.pop(claim_key, None)
+    if len(_live_confirmation_receipt_claims) >= (
+        _LIVE_CONFIRMATION_RECEIPT_CLAIM_LIMIT
+    ):
+        raise DurableInteractionHostError(
+            "live_interaction_claim_capacity",
+            "Live interaction receipt claim capacity is exhausted",
+            status_code=503,
+            retryable=True,
+        )
 
 def _compose_agent_prompt(sections: dict[str, str]) -> str:
     """Convenience: build an agent-only prompt (no user/builtin modules).
@@ -567,6 +2278,362 @@ def _normalize_tool_confirmation_response(raw: object) -> Dict[str, Any]:
         "reason": reason,
         "modified_arguments": modified_arguments,
     }
+
+
+def _interaction_resolution_event(
+    *,
+    interaction_id: str,
+    kind: str,
+    outcome: str,
+    receipt_id: str = "",
+    session_id: str = "",
+    source_run_id: str = "",
+    event_run_id: str = "",
+) -> Dict[str, Any]:
+    normalized_interaction_id = str(interaction_id or "").strip()
+    normalized_kind = str(kind or "").strip()
+    normalized_outcome = str(outcome or "").strip().lower()
+    if normalized_outcome not in {"approved", "denied", "submitted"}:
+        normalized_outcome = "submitted"
+    normalized_receipt_id = str(receipt_id or "").strip()
+    normalized_session_id = str(session_id or "").strip()
+    normalized_source_run_id = str(source_run_id or "").strip()
+    normalized_event_run_id = str(event_run_id or "").strip()
+    identity = {
+        "interaction_id": normalized_interaction_id,
+        "kind": normalized_kind,
+        "outcome": normalized_outcome,
+        "receipt_id": normalized_receipt_id,
+        "session_id": normalized_session_id,
+        "source_run_id": normalized_source_run_id,
+    }
+    event: Dict[str, Any] = {
+        "type": "interaction_resolved",
+        "event_id": "interaction_resolved_"
+        + hashlib.sha256(
+            json.dumps(identity, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:32],
+        "interaction_id": normalized_interaction_id,
+        "kind": normalized_kind,
+        "outcome": normalized_outcome,
+        "source_refs": {
+            key: value
+            for key, value in (
+                ("session_id", normalized_session_id),
+                ("source_run_id", normalized_source_run_id),
+            )
+            if value
+        },
+    }
+    if normalized_receipt_id:
+        event["receipt_id"] = normalized_receipt_id
+    if normalized_event_run_id:
+        event["run_id"] = normalized_event_run_id
+    elif normalized_source_run_id:
+        # Legacy/off callers historically used source ownership as event
+        # ownership. Active Context V2 always supplies event_run_id explicitly.
+        event["run_id"] = normalized_source_run_id
+    return event
+
+
+def _interaction_owner_source_run_id(
+    owner: Dict[str, str],
+    *,
+    fallback_run_id: str = "",
+) -> str:
+    if not isinstance(owner, dict):
+        owner = {}
+    return str(
+        owner.get("source_run_id")
+        or owner.get("event_run_id")
+        or fallback_run_id
+        or ""
+    ).strip()
+
+
+def _active_host_event_authority(
+    boundary: PupuUnchainHostEventBoundary,
+    *,
+    interaction_id: str = "",
+    origin: str,
+    source_attempt_id: str = "",
+    interaction_kind: str = "",
+) -> PupuUnchainHostEventAuthority:
+    normalized_source_attempt_id = str(source_attempt_id or "").strip()
+    if origin in {
+        HOST_EVENT_ORIGIN_TOOL_APPROVAL,
+        HOST_EVENT_ORIGIN_HUMAN_INPUT,
+        HOST_EVENT_ORIGIN_MAX_BUDGET,
+        HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION,
+    } and normalized_source_attempt_id != boundary.attempt_id:
+        raise PupuUnchainHostEventBoundaryError(
+            "live interaction owner does not match the active attempt"
+        )
+    return PupuUnchainHostEventAuthority(
+        execution_id=boundary.execution_id,
+        attempt_id=boundary.attempt_id,
+        interaction_id=interaction_id,
+        origin=origin,
+        source_attempt_id=normalized_source_attempt_id,
+        interaction_kind=interaction_kind,
+    )
+
+
+def _emit_interaction_presentation_event(
+    emit_event,
+    event: Dict[str, Any],
+    *,
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None,
+    interaction_id: str,
+    origin: str,
+    source_attempt_id: str,
+    interaction_kind: str,
+) -> None:
+    if active_host_event_boundary is None:
+        emit_event(event)
+        return
+    authority = _active_host_event_authority(
+        active_host_event_boundary,
+        interaction_id=interaction_id,
+        origin=origin,
+        source_attempt_id=source_attempt_id,
+        interaction_kind=interaction_kind,
+    )
+    active_host_event_boundary.deliver(
+        active_host_event_boundary.bind_presentation(
+            event,
+            authority=authority,
+        )
+    )
+
+
+def _persist_active_fallback_final(
+    active_bridge: Any,
+    event: Dict[str, Any],
+    *,
+    execution_id: str,
+    attempt_id: str,
+) -> Dict[str, Any]:
+    delivered: list[Dict[str, Any]] = []
+    boundary = PupuUnchainHostEventBoundary(
+        active_bridge=active_bridge,
+        execution_id=execution_id,
+        attempt_id=attempt_id,
+        enqueue=lambda value: delivered.append(copy.deepcopy(value)),
+    )
+    authority = _active_host_event_authority(
+        boundary,
+        origin=HOST_EVENT_ORIGIN_FALLBACK_FINAL,
+    )
+    boundary.deliver(
+        boundary.bind_semantic(
+            event,
+            authority=authority,
+        )
+    )
+    if len(delivered) != 1:
+        raise PupuUnchainHostEventBoundaryError(
+            "fallback final was not delivered exactly once"
+        )
+    return delivered[0]
+
+
+def _make_interaction_resolution_writer(
+    emit_event,
+    *,
+    interaction_id: str,
+    kind: str,
+    session_id: str = "",
+    source_run_id: str = "",
+    require_durable_receipt: bool = False,
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
+):
+    class PersistedCallbackResolution:
+        __slots__ = ("callback_response", "event")
+
+        def __init__(
+            self,
+            *,
+            callback_response: Dict[str, Any],
+            event: Dict[str, Any] | None,
+        ) -> None:
+            self.callback_response = copy.deepcopy(callback_response)
+            self.event = copy.deepcopy(event) if isinstance(event, dict) else None
+
+    def write_resolution(
+        *,
+        outcome: str,
+        durable_receipt: DurableInteractionReceiptHandoff | Dict[str, Any] | None = None,
+        modified_arguments: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any] | PersistedCallbackResolution | None:
+        receipt = durable_receipt if isinstance(durable_receipt, dict) else {}
+        receipt_handoff = (
+            durable_receipt
+            if isinstance(durable_receipt, DurableInteractionReceiptHandoff)
+            else None
+        )
+        receipt_id = (
+            receipt_handoff.receipt_id
+            if receipt_handoff is not None
+            else str(receipt.get("receipt_id") or "").strip()
+        )
+        if require_durable_receipt and not receipt_id:
+            raise DurableInteractionHostError(
+                "interaction_receipt_required",
+                "A durable interaction receipt is required before live continuation",
+                status_code=409,
+            )
+        if receipt_handoff is not None:
+            if (
+                receipt_handoff.session_id != session_id
+                or receipt_handoff.interaction_id != interaction_id
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_receipt_handoff_mismatch",
+                    "Persisted interaction receipt does not match the live waiter",
+                    status_code=409,
+                )
+            _session_execution_guard_transition(
+                "resume_live_session_guard",
+                session_id=receipt_handoff.session_id,
+                interaction_id=interaction_id,
+                source_attempt_id=source_run_id,
+                receipt_id=receipt_handoff.receipt_id,
+            )
+        normalized_outcome = str(outcome or "").strip().lower()
+        if kind == "human_input" and normalized_outcome == "approved":
+            normalized_outcome = "submitted"
+        callback_response: Dict[str, Any] | None = None
+        if active_host_event_boundary is not None:
+            if receipt_handoff is None:
+                raise DurableInteractionHostError(
+                    "interaction_receipt_handoff_required",
+                    "Active interaction continuation requires the persisted receipt response",
+                    status_code=409,
+                )
+            if (
+                receipt_handoff.session_id != active_host_event_boundary.execution_id
+                or receipt_handoff.interaction_id != interaction_id
+            ):
+                raise DurableInteractionHostError(
+                    "interaction_receipt_handoff_mismatch",
+                    "Persisted interaction receipt does not match the live waiter",
+                    status_code=409,
+                )
+            persisted_response = receipt_handoff.response
+            if kind == "human_input":
+                if not isinstance(persisted_response, dict):
+                    raise DurableInteractionHostError(
+                        "interaction_receipt_integrity_error",
+                        "Persisted human-input response must be an object",
+                        status_code=500,
+                    )
+                normalized_outcome = "submitted"
+                callback_response = {
+                    "approved": True,
+                    "reason": "",
+                    "modified_arguments": {
+                        "user_response": copy.deepcopy(persisted_response),
+                    },
+                }
+            elif kind == "max_budget":
+                if not isinstance(persisted_response, dict) or not isinstance(
+                    persisted_response.get("approved"),
+                    bool,
+                ):
+                    raise DurableInteractionHostError(
+                        "interaction_receipt_integrity_error",
+                        "Persisted max-budget response must contain approved",
+                        status_code=500,
+                    )
+                approved = persisted_response["approved"]
+                normalized_outcome = "approved" if approved else "denied"
+                callback_response = {
+                    "approved": approved,
+                    "reason": "",
+                    "modified_arguments": None,
+                }
+            elif kind == "tool_approval":
+                if not isinstance(persisted_response, dict) or not isinstance(
+                    persisted_response.get("approved"),
+                    bool,
+                ):
+                    raise DurableInteractionHostError(
+                        "interaction_receipt_integrity_error",
+                        "Persisted tool-approval response must contain approved",
+                        status_code=500,
+                    )
+                approved = persisted_response["approved"]
+                persisted_modified = persisted_response.get("modified_arguments")
+                callback_response = {
+                    "approved": approved,
+                    "reason": str(persisted_response.get("reason") or ""),
+                    "modified_arguments": (
+                        copy.deepcopy(persisted_modified)
+                        if isinstance(persisted_modified, dict)
+                        else None
+                    ),
+                }
+                normalized_outcome = "approved" if approved else "denied"
+            else:
+                raise DurableInteractionHostError(
+                    "interaction_receipt_integrity_error",
+                    "Persisted interaction receipt has an unsupported kind",
+                    status_code=500,
+                )
+        if active_host_event_boundary is not None and kind == "tool_approval" and (
+            normalized_outcome == "denied"
+            or isinstance(callback_response.get("modified_arguments"), dict)
+        ):
+            # Unchain emits tool_denied/tool_confirmed after this callback
+            # returns. Those runtime events are the single graph resolution
+            # authority for these two branches; persisting a host resolution
+            # here would create an ambiguous second resolution.
+            return PersistedCallbackResolution(
+                callback_response=callback_response,
+                event=None,
+            )
+        event = _interaction_resolution_event(
+            interaction_id=interaction_id,
+            kind=kind,
+            outcome=normalized_outcome,
+            receipt_id=receipt_id,
+            session_id=(
+                receipt_handoff.session_id
+                if receipt_handoff is not None
+                else (receipt.get("session_id") or session_id)
+            ),
+            source_run_id=source_run_id,
+            event_run_id=(
+                active_host_event_boundary.attempt_id
+                if active_host_event_boundary is not None
+                else source_run_id
+            ),
+        )
+        if active_host_event_boundary is None:
+            emit_event(event)
+        else:
+            authority = _active_host_event_authority(
+                active_host_event_boundary,
+                interaction_id=interaction_id,
+                origin=HOST_EVENT_ORIGIN_INTERACTION_RESOLUTION,
+                source_attempt_id=source_run_id,
+                interaction_kind=kind,
+            )
+            active_host_event_boundary.deliver_interaction_resolution(
+                active_host_event_boundary.bind_interaction_resolution(
+                    event,
+                    authority=authority,
+                    durable_receipt=receipt_handoff,
+                )
+            )
+            return PersistedCallbackResolution(
+                callback_response=callback_response,
+                event=event,
+            )
+        return event
+
+    return write_resolution
 
 
 def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, Any]:
@@ -655,21 +2722,54 @@ def submit_tool_confirmation(
     approved: bool,
     reason: str = "",
     modified_arguments: Dict[str, Any] | None = None,
+    durable_receipt: DurableInteractionReceiptHandoff | Dict[str, Any] | None = None,
 ) -> bool:
     normalized_id = confirmation_id.strip() if isinstance(confirmation_id, str) else ""
     if not normalized_id:
         return False
+    receipt_identity = _live_confirmation_receipt_identity(durable_receipt)
+    if (
+        receipt_identity is not None
+        and receipt_identity[1] != normalized_id
+    ):
+        raise DurableInteractionHostError(
+            "interaction_receipt_handoff_mismatch",
+            "Persisted interaction receipt does not match the live waiter",
+            status_code=409,
+        )
 
     with _pending_confirmations_lock:
+        if _matching_live_confirmation_claim_locked(receipt_identity):
+            return True
         pending = _pending_confirmations.get(normalized_id)
         if pending is None:
             return False
 
-        pending["response"] = {
+        response = {
             "approved": bool(approved),
             "reason": reason if isinstance(reason, str) else str(reason or ""),
             "modified_arguments": modified_arguments if isinstance(modified_arguments, dict) else None,
         }
+        _ensure_live_confirmation_claim_capacity_locked(receipt_identity)
+        resolution_writer = pending.get("resolution_writer")
+        if callable(resolution_writer):
+            persisted_resolution = resolution_writer(
+                outcome="approved" if approved else "denied",
+                durable_receipt=durable_receipt,
+                modified_arguments=modified_arguments,
+            )
+            persisted_callback_response = getattr(
+                persisted_resolution,
+                "callback_response",
+                None,
+            )
+            if isinstance(persisted_callback_response, dict):
+                response = copy.deepcopy(persisted_callback_response)
+        _record_live_confirmation_claim_locked(
+            receipt_identity,
+            cancel_event=pending.get("cancel_event"),
+        )
+        pending["response"] = response
         event = pending.get("event")
         if isinstance(event, threading.Event):
             event.set()
@@ -699,6 +2799,17 @@ def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> in
             event = pending.get("event")
             if isinstance(event, threading.Event):
                 event.set()
+
+        for claim_key, claim in tuple(
+            _live_confirmation_receipt_claims.items()
+        ):
+            claim_cancel_event = claim.get("cancel_event")
+            if (
+                isinstance(cancel_event, threading.Event)
+                and claim_cancel_event is not cancel_event
+            ):
+                continue
+            _live_confirmation_receipt_claims.pop(claim_key, None)
 
     return cancelled
 
@@ -738,6 +2849,7 @@ def _make_tool_confirm_callback(
     require_durable_interaction_id: bool = False,
     root_session_id: str = "",
     root_run_id: str = "",
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
 ):
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
@@ -784,10 +2896,23 @@ def _make_tool_confirm_callback(
         if not confirmation_id:
             confirmation_id = str(_uuid.uuid4())
         request_payload["confirmation_id"] = confirmation_id
+        interaction_source_run_id = _interaction_owner_source_run_id(
+            interaction_owner,
+            fallback_run_id=root_run_id,
+        )
         waiter = {
             "event": threading.Event(),
             "response": None,
             "cancel_event": normalized_cancel_event,
+            "resolution_writer": _make_interaction_resolution_writer(
+                emit_event,
+                interaction_id=confirmation_id,
+                kind="tool_approval",
+                session_id=(interaction_owner.get("session_id") or root_session_id),
+                source_run_id=interaction_source_run_id,
+                require_durable_receipt=require_durable_interaction_id,
+                active_host_event_boundary=active_host_event_boundary,
+            ),
         }
 
         with _pending_confirmations_lock:
@@ -800,7 +2925,15 @@ def _make_tool_confirm_callback(
                     for key, value in request_payload.items()
                     if key != "_skip_emit_event"
                 }
-                emit_event(emit_payload)
+                _emit_interaction_presentation_event(
+                    emit_event,
+                    emit_payload,
+                    active_host_event_boundary=active_host_event_boundary,
+                    interaction_id=confirmation_id,
+                    origin=HOST_EVENT_ORIGIN_TOOL_APPROVAL,
+                    source_attempt_id=interaction_source_run_id,
+                    interaction_kind="tool_approval",
+                )
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
             event = waiter.get("event")
@@ -832,14 +2965,23 @@ def _make_continuation_callback(
     cancel_event: threading.Event | None = None,
     interaction_id_tracker: DurableInteractionIdTracker | None = None,
     require_durable_interaction_id: bool = False,
+    root_session_id: str = "",
+    root_run_id: str = "",
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
 ):
     def on_continuation_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
-        durable_interaction_id = (
-            interaction_id_tracker.resolve("max_budget", allow_latest=True)
+        interaction_owner = (
+            interaction_id_tracker.resolve_owner(
+                "max_budget",
+                allow_latest=True,
+            )
             if interaction_id_tracker is not None
-            else ""
+            else {}
         )
+        durable_interaction_id = str(
+            interaction_owner.get("interaction_id") or ""
+        ).strip()
         if require_durable_interaction_id and not durable_interaction_id:
             raise DurableInteractionHostError(
                 "durable_interaction_id_unavailable",
@@ -847,10 +2989,23 @@ def _make_continuation_callback(
                 status_code=500,
             )
         confirmation_id = durable_interaction_id or str(_uuid.uuid4())
+        interaction_source_run_id = _interaction_owner_source_run_id(
+            interaction_owner,
+            fallback_run_id=root_run_id,
+        )
         waiter: Dict[str, Any] = {
             "event": threading.Event(),
             "response": None,
             "cancel_event": normalized_cancel_event,
+            "resolution_writer": _make_interaction_resolution_writer(
+                emit_event,
+                interaction_id=confirmation_id,
+                kind="max_budget",
+                session_id=(interaction_owner.get("session_id") or root_session_id),
+                source_run_id=interaction_source_run_id,
+                require_durable_receipt=require_durable_interaction_id,
+                active_host_event_boundary=active_host_event_boundary,
+            ),
         }
 
         with _pending_confirmations_lock:
@@ -858,7 +3013,7 @@ def _make_continuation_callback(
 
         iteration = payload.get("iteration", 0)
         try:
-            emit_event({
+            presentation_event = {
                 "type": "tool_call",
                 "tool_name": "__continuation__",
                 "tool_display_name": "Continue?",
@@ -869,7 +3024,16 @@ def _make_continuation_callback(
                 "interact_config": {},
                 "arguments": {},
                 "description": f"Agent reached {iteration} iterations without a final response.",
-            })
+            }
+            _emit_interaction_presentation_event(
+                emit_event,
+                presentation_event,
+                active_host_event_boundary=active_host_event_boundary,
+                interaction_id=confirmation_id,
+                origin=HOST_EVENT_ORIGIN_MAX_BUDGET,
+                source_attempt_id=interaction_source_run_id,
+                interaction_kind="max_budget",
+            )
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
             event = waiter.get("event")
@@ -1345,6 +3509,37 @@ def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[s
     }
     if raw_capabilities.get("supports_tools") is False:
         normalized["supports_tools"] = False
+    # Optional: the renderer needs a denominator to show context pressure. It is
+    # omitted rather than zero-filled when unknown (live Ollama models are not in
+    # the packaged capability file), so the consumer can tell "no window
+    # reported" apart from a real number and never invents a percentage.
+    window_tokens = raw_capabilities.get("max_context_window_tokens")
+    if (
+        isinstance(window_tokens, (int, float))
+        and not isinstance(window_tokens, bool)
+        and window_tokens > 0
+    ):
+        normalized["max_context_window_tokens"] = int(window_tokens)
+    # Optional: selectable reasoning-effort levels, declared per model in the
+    # capability file. Omitted (never empty-filled) when a model has none, so
+    # the renderer hides the whole effort control instead of rendering an
+    # empty one.
+    raw_efforts = raw_capabilities.get("reasoning_efforts")
+    if isinstance(raw_efforts, list):
+        efforts = [
+            level.strip()
+            for level in raw_efforts
+            if isinstance(level, str) and level.strip()
+        ]
+        if efforts:
+            normalized["reasoning_efforts"] = efforts
+            # Optional: the level the model uses when the request carries no
+            # effort field. Only forwarded when it is one of the declared
+            # levels, so the renderer can never mark an unreachable pill as
+            # the default.
+            raw_default = raw_capabilities.get("default_reasoning_effort")
+            if isinstance(raw_default, str) and raw_default.strip() in efforts:
+                normalized["default_reasoning_effort"] = raw_default.strip()
     return normalized
 
 
@@ -1398,7 +3593,11 @@ def _fetch_ollama_models(chat_only: bool = False) -> List[str]:
 
     ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
     try:
-        response = _httpx.get(f"{ollama_host}/api/tags", timeout=3.0)
+        response = _httpx.get(
+            f"{ollama_host}/api/tags",
+            timeout=3.0,
+            verify=get_outbound_ssl_context(),
+        )
         response.raise_for_status()
         data = response.json()
         models = data.get("models") or []
@@ -1944,8 +4143,8 @@ def _get_runtime_toolkit_metadata(toolkit_obj: Any) -> Dict[str, str]:
     }
 
 
-def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, str]]:
-    index: Dict[str, Dict[str, str]] = {}
+def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, Any]]:
+    index: Dict[str, Dict[str, Any]] = {}
     for toolkit_obj in toolkits:
         tools = getattr(toolkit_obj, "tools", None)
         if not isinstance(tools, dict):
@@ -1955,13 +4154,18 @@ def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, st
         toolkit_name = toolkit_meta.get("toolkit_name", "")
         if not toolkit_id:
             continue
-        for tool_name in tools:
+        toolkit_vault_routed = bool(
+            getattr(toolkit_obj, "_pupu_vault_routed", False)
+        )
+        for tool_name, tool_obj in tools.items():
             normalized_tool_name = str(tool_name or "").strip()
             if not normalized_tool_name:
                 continue
             index[normalized_tool_name] = {
                 "toolkit_id": toolkit_id,
                 "toolkit_name": toolkit_name or toolkit_id,
+                "vault_routed": toolkit_vault_routed
+                or getattr(tool_obj, "_pupu_vault_plugin", None) is not None,
             }
     return index
 
@@ -2089,7 +4293,7 @@ def _redact_tool_result_images(event: Dict[str, Any], session_id: str = "") -> N
 
 def _enrich_tool_event_with_toolkit_metadata(
     event: Dict[str, Any],
-    toolkit_meta_by_tool_name: Dict[str, Dict[str, str]],
+    toolkit_meta_by_tool_name: Dict[str, Dict[str, Any]],
     session_id: str = "",
 ) -> Dict[str, Any]:
     event_type = str(event.get("type", "") or "").strip()
@@ -2108,8 +4312,27 @@ def _enrich_tool_event_with_toolkit_metadata(
         if isinstance(result, dict):
             tool_name = str(result.get("tool", "") or "").strip()
 
+    try:
+        serialized_arguments = json.dumps(
+            event.get("arguments"),
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+    except Exception:
+        # Unknown argument containers are not allowed to disable the taint
+        # boundary.  Conservatively classify them when arguments are present.
+        arguments_contain_vault_handle = event.get("arguments") is not None
+    else:
+        arguments_contain_vault_handle = bool(
+            _MEMORY_V2_VAULT_HANDLE_RE.search(serialized_arguments)
+        )
     if not tool_name:
-        return event
+        if not arguments_contain_vault_handle:
+            return event
+        enriched = dict(event)
+        enriched["_memory_v2_storage_trust"] = "vault_tainted"
+        return enriched
 
     toolkit_meta = toolkit_meta_by_tool_name.get(tool_name)
     if not toolkit_id and toolkit_meta:
@@ -2126,6 +4349,10 @@ def _enrich_tool_event_with_toolkit_metadata(
         _redact_tool_result_images(event, session_id)
 
     enriched = dict(event)
+    if arguments_contain_vault_handle or bool(
+        (toolkit_meta or {}).get("vault_routed", False)
+    ):
+        enriched["_memory_v2_storage_trust"] = "vault_tainted"
     if event_type == "tool_call" and toolkit_id == "builtin.computer":
         from computer_control.protocol import redact_sensitive_arguments
 
@@ -3014,6 +5241,30 @@ _CUSTOM_MAX_TOKENS_PARAM_BY_PROTOCOL = {
 }
 
 
+# Union of every level any supported provider declares. This is an admission
+# allowlist only — which levels a given model actually offers comes from that
+# model's `reasoning_efforts` capability, and the renderer only ever offers
+# those. A level outside this tuple is dropped rather than forwarded.
+_REASONING_EFFORT_LEVELS = (
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+)
+
+# Anthropic's effort ladder has no "none"/"minimal" rung; a request carrying
+# one would be rejected, so it is dropped and the provider default applies.
+_ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+# Per-protocol wire key for custom providers. Both shapes are the respective
+# protocol's own documented one, so an Anthropic-compatible endpoint gets the
+# Anthropic shape and an OpenAI-Responses-compatible one gets the OpenAI shape.
+_CUSTOM_EFFORT_PROTOCOLS = ("anthropic", "openai-responses")
+
+
 def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:
     payload: Dict[str, float] = {}
 
@@ -3039,6 +5290,34 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
             payload["max_tokens"] = max_tokens_value
         else:
             payload["num_predict"] = max_tokens_value
+
+    # Reasoning effort: declared per model in the capability file, selected by
+    # the renderer, and shipped through each provider's native request key
+    # (already present in allowed_payload_keys). Unknown levels and providers
+    # without a mapping are silently omitted — the provider default applies.
+    #
+    # Anthropic's key is `output_config.effort`, NOT a thinking budget. Effort
+    # replaced the fixed-budget knob on Opus 4.7 and later, and every Anthropic
+    # model that declares `reasoning_efforts` is in that generation — sending
+    # `thinking: {type: "enabled", budget_tokens: N}` to one is a 400, so the
+    # whole effort feature failed closed on Claude before this mapping existed.
+    effort = options.get("reasoningEffort")
+    if isinstance(effort, str):
+        normalized_effort = effort.strip().lower()
+        if normalized_effort in _REASONING_EFFORT_LEVELS:
+            if cfg is not None:
+                # Custom providers speak their declared protocol's shape. A
+                # protocol without an effort concept (ollama) gets nothing.
+                if cfg.protocol == "anthropic":
+                    if normalized_effort in _ANTHROPIC_EFFORT_LEVELS:
+                        payload["output_config"] = {"effort": normalized_effort}
+                elif cfg.protocol == "openai-responses":
+                    payload["reasoning"] = {"effort": normalized_effort}
+            elif provider == "openai":
+                payload["reasoning"] = {"effort": normalized_effort}
+            elif provider == "anthropic":
+                if normalized_effort in _ANTHROPIC_EFFORT_LEVELS:
+                    payload["output_config"] = {"effort": normalized_effort}
 
     return payload
 
@@ -3345,6 +5624,7 @@ def _extract_api_key_from_options(options: Dict[str, object] | None, provider: s
     for candidate in candidates:
         normalized = _normalize_key_candidate(candidate)
         if normalized:
+            register_secret_values((normalized,), source="provider")
             return normalized
 
     return ""
@@ -3917,6 +6197,7 @@ def _resolve_agent_api_key(
                 "custom_provider_missing_api_key",
                 f"custom provider {cfg.provider_key} requires an API key",
             )
+        register_secret_values((custom_key,), source="provider")
         return custom_key
 
     api_key = (
@@ -3934,6 +6215,7 @@ def _resolve_agent_api_key(
             f"Provider '{provider}' requires API key. "
             "Set UNCHAIN_API_KEY or provider-specific API key env vars."
         )
+    register_secret_values((api_key,), source="provider")
     return api_key
 
 
@@ -3941,16 +6223,66 @@ def _resolve_memory_runtime(
     options: Dict[str, object] | None = None,
     *,
     session_id: str = "",
+    memory_v2_admission: Any = None,
 ) -> tuple[Dict[str, Any], Any]:
+    if bool(getattr(memory_v2_admission, "is_active", False)):
+        memory_runtime = {
+            "kind": "v2_durability",
+            "requested": True,
+            "required": True,
+            "available": False,
+            "reason": "",
+            "durability_available": False,
+            "durability_reason": "",
+            "legacy_context_available": False,
+            "legacy_context_reason": "",
+        }
+        durable_options = dict(options) if isinstance(options, dict) else {}
+        # Active V2 is a server admission.  Its durability must not depend on
+        # the renderer's legacy Context Memory toggle.
+        durable_options["memory_enabled"] = True
+        try:
+            from memory_factory import (
+                create_durable_kernel_runtime_with_diagnostics,
+            )
+
+            runtime, reason = create_durable_kernel_runtime_with_diagnostics(
+                durable_options,
+                session_id=session_id,
+            )
+            if runtime is not None:
+                memory_runtime["available"] = True
+                memory_runtime["durability_available"] = True
+                return memory_runtime, runtime
+            memory_runtime["reason"] = (
+                str(reason).strip() if reason else "durable_runtime_unavailable"
+            )
+            memory_runtime["durability_reason"] = memory_runtime["reason"]
+        except Exception:
+            memory_runtime["reason"] = "durable_runtime_factory_failed"
+            memory_runtime["durability_reason"] = memory_runtime["reason"]
+        return memory_runtime, None
+
     memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
+    durability_required = bool(
+        isinstance(options, dict)
+        and options.get("durable_interactions_required") is True
+    )
     memory_runtime = {
+        "kind": "legacy_context",
         "requested": memory_requested,
+        "required": durability_required,
         "available": False,
         "reason": "",
+        "durability_available": False,
+        "durability_reason": "",
+        "legacy_context_available": False,
+        "legacy_context_reason": "",
     }
     memory_manager = None
     if memory_requested and not session_id:
         memory_runtime["reason"] = "missing_session_id"
+        memory_runtime["legacy_context_reason"] = "missing_session_id"
 
     if session_id and isinstance(options, dict) and memory_requested:
         try:
@@ -3963,13 +6295,54 @@ def _resolve_memory_runtime(
             if mm is not None:
                 memory_manager = mm
                 memory_runtime["available"] = True
+                memory_runtime["durability_available"] = True
+                memory_runtime["legacy_context_available"] = True
             else:
                 memory_runtime["reason"] = (
                     str(memory_reason).strip() if memory_reason else "memory_manager_unavailable"
                 )
+                memory_runtime["legacy_context_reason"] = memory_runtime["reason"]
         except Exception as memory_error:
             memory_runtime["reason"] = f"memory_factory_failed: {memory_error}"
+            memory_runtime["legacy_context_reason"] = memory_runtime["reason"]
+
+    if durability_required and memory_manager is None:
+        if not session_id:
+            memory_runtime["durability_reason"] = "missing_session_id"
+            return memory_runtime, None
+        durable_options = dict(options) if isinstance(options, dict) else {}
+        durable_options["memory_enabled"] = True
+        try:
+            from memory_factory import (
+                create_durable_kernel_runtime_with_diagnostics,
+            )
+
+            runtime, durable_reason = create_durable_kernel_runtime_with_diagnostics(
+                durable_options,
+                session_id=session_id,
+            )
+            if runtime is not None:
+                memory_runtime["durability_available"] = True
+                return memory_runtime, runtime
+            memory_runtime["durability_reason"] = (
+                str(durable_reason).strip()
+                if durable_reason
+                else "durable_runtime_unavailable"
+            )
+        except Exception:
+            memory_runtime["durability_reason"] = "durable_runtime_factory_failed"
     return memory_runtime, memory_manager
+
+
+def _memory_runtime_uses_durability_only(memory_runtime: Any) -> bool:
+    if not isinstance(memory_runtime, dict):
+        return False
+    if str(memory_runtime.get("kind") or "").strip() == "v2_durability":
+        return True
+    return bool(
+        memory_runtime.get("durability_available")
+        and not memory_runtime.get("legacy_context_available")
+    )
 
 
 def _build_requested_toolkits(
@@ -3980,6 +6353,69 @@ def _build_requested_toolkits(
     toolkits = _build_selected_toolkits(options, session_id=session_id)
     _validate_unique_tool_names(toolkits)
     return toolkits
+
+
+def _append_memory_v2_normal_toolkit(
+    toolkits: list,
+    admission: Any,
+    *,
+    run_id: str,
+) -> list:
+    """Append the server-scoped normal Memory V2 toolkit for an active run.
+
+    The admission object is created by the server after provider/model/window
+    resolution.  Renderer options are never consulted for namespace or scope.
+    Off and shadow callers return the original list object unchanged.
+    """
+
+    if admission is None or not getattr(admission, "is_active", False):
+        return toolkits
+    owner_chat_id = str(getattr(admission, "owner_chat_id", "") or "").strip()
+    bound_session_id = str(getattr(admission, "session_id", "") or "").strip()
+    attempt_id = str(getattr(admission, "attempt_id", "") or "").strip()
+    bound_run_id = str(run_id or attempt_id).strip()
+    runtime = getattr(admission, "runtime", None)
+    if not owner_chat_id or not bound_session_id or not attempt_id or not bound_run_id:
+        raise RuntimeError("active Memory V2 toolkit scope is incomplete")
+    if runtime is None:
+        raise RuntimeError("active Memory V2 toolkit runtime is unavailable")
+
+    from memory_v2_toolkit import build_memory_v2_toolkit
+
+    recalled_long_term_refs = tuple(
+        str(ref).strip()
+        for ref in (
+            getattr(admission, "_memory_v2_recalled_long_term_refs", ()) or ()
+        )
+        if str(ref).strip()
+    )
+    toolkit_arguments: Dict[str, Any] = {
+        "owner_chat_id": owner_chat_id,
+        "session_id": bound_session_id,
+        "attempt_id": attempt_id,
+        "run_id": bound_run_id,
+        "curator": False,
+        "namespace": "",
+        "content_ref_authorizer": _memory_v2_build_content_ref_authorizer(
+            admission
+        ),
+    }
+    if recalled_long_term_refs:
+        toolkit_arguments.update(
+            {
+                "namespace": _MEMORY_V2_LONG_TERM_NAMESPACE,
+                "allowed_long_term_refs": recalled_long_term_refs,
+            }
+        )
+    memory_toolkit = build_memory_v2_toolkit(runtime, **toolkit_arguments)
+    _set_runtime_toolkit_metadata(
+        memory_toolkit,
+        toolkit_id="system.memory_v2",
+        toolkit_name="Memory V2",
+    )
+    effective = [*toolkits, memory_toolkit]
+    _validate_unique_tool_names(effective)
+    return effective
 
 
 def _disconnect_runtime_toolkits(toolkits: Iterable[Any]) -> None:
@@ -4060,12 +6496,44 @@ class _WorkflowRecipeSubagentAgent:
         name: str,
         instructions: str = "",
         expected_output: str = "",
+        modules: tuple[Any, ...] = (),
     ) -> None:
         self.recipe = recipe
         self.options = dict(options) if isinstance(options, dict) else {}
         self.name = name
         self.instructions = instructions
         self.expected_output = expected_output
+        self.spec = SimpleNamespace(modules=tuple(modules or ()))
+
+    def clone(
+        self,
+        *,
+        modules: tuple[Any, ...] | None = None,
+        **overrides,
+    ):
+        """Preserve the wrapper protocol used by Unchain template children.
+
+        Recipe references execute through PuPu's workflow host instead of a
+        second KernelAgent, but Unchain still needs an Agent-like immutable
+        module view in order to bind the exact parent Context runtime.
+        """
+
+        return _WorkflowRecipeSubagentAgent(
+            recipe=overrides.get("recipe", self.recipe),
+            options=overrides.get("options", self.options),
+            name=str(overrides.get("name", self.name) or self.name),
+            instructions=str(
+                overrides.get("instructions", self.instructions) or ""
+            ),
+            expected_output=str(
+                overrides.get("expected_output", self.expected_output) or ""
+            ),
+            modules=(
+                tuple(self.spec.modules)
+                if modules is None
+                else tuple(modules)
+            ),
+        )
 
     def fork_for_subagent(
         self,
@@ -4082,6 +6550,7 @@ class _WorkflowRecipeSubagentAgent:
             name=subagent_name or self.name,
             instructions=instructions,
             expected_output=expected_output,
+            modules=tuple(self.spec.modules),
         )
 
     def run(
@@ -4093,6 +6562,7 @@ class _WorkflowRecipeSubagentAgent:
         max_iterations: int | None = None,
         callback=None,
         run_id: str = "",
+        runtime_context=None,
         **_kwargs,
     ):
         message = _workflow_subagent_input_text(
@@ -4102,13 +6572,106 @@ class _WorkflowRecipeSubagentAgent:
         )
         options = dict(self.options)
         options["_recipe_subagent_run"] = True
+        if isinstance(input_messages, list):
+            options["_memory_v2_handoff_messages"] = copy.deepcopy(
+                [item for item in input_messages if isinstance(item, dict)]
+            )
+        inherited_tool_config = _kwargs.get("tool_runtime_config")
+        inherited_scope = (
+            inherited_tool_config.get("memory_v2_context")
+            if isinstance(inherited_tool_config, dict)
+            else None
+        )
+        graph_session_id = session_id
+        if isinstance(inherited_scope, dict):
+            for source_key, option_key in (
+                ("owner_chat_id", "_memory_v2_owner_chat_id"),
+                ("attempt_id", "_memory_v2_attempt_id"),
+                ("source_attempt_id", "_memory_v2_source_attempt_id"),
+            ):
+                value = str(inherited_scope.get(source_key) or "").strip()
+                if value:
+                    options[option_key] = value
+            inherited_session_id = str(
+                inherited_scope.get("session_id") or ""
+            ).strip()
+            if inherited_session_id:
+                # Recipe-ref workers receive an ephemeral child session from
+                # the generic Subagent host.  Context V2 attempts must remain
+                # in the parent's durable execution/generation while keeping
+                # their own independent attempt identity.
+                graph_session_id = inherited_session_id
+        memory_v2_runtime_context = None
+        if runtime_context is not None:
+            from unchain.memory import MEMORY_V2_MODULE_KEY
+            from unchain.runtime import AgentRuntimeContext
+
+            if not isinstance(runtime_context, AgentRuntimeContext):
+                raise TypeError(
+                    "recipe-ref runtime_context must be an AgentRuntimeContext"
+                )
+            if runtime_context.grant_for(MEMORY_V2_MODULE_KEY) is not None:
+                memory_v2_runtime_context = runtime_context
+        if memory_v2_runtime_context is not None:
+            identity = memory_v2_runtime_context.identity
+            if (
+                graph_session_id != session_id
+                and graph_session_id != identity.execution_id
+            ):
+                raise RuntimeError(
+                    "recipe-ref Context V2 execution identity changed"
+                )
+            if run_id and run_id != identity.run_id:
+                raise RuntimeError(
+                    "recipe-ref Context V2 run identity changed"
+                )
+            run_id = identity.run_id
+            graph_session_id = identity.execution_id
+            options["_memory_v2_attempt_id"] = identity.attempt_id
+            if identity.parent_run_id is not None:
+                options["_memory_v2_source_attempt_id"] = (
+                    identity.parent_run_id
+                )
         if memory_namespace:
             options["memory_namespace"] = memory_namespace
         if max_iterations:
             options["max_iterations"] = max_iterations
+        if memory_v2_runtime_context is not None:
+            prepared_inputs = []
+            seen_runtimes = set()
+            for module in tuple(self.spec.modules or ()):
+                runtime = getattr(module, "runtime", None)
+                resolver = getattr(runtime, "prepared_subagent_input", None)
+                if not callable(resolver) or id(runtime) in seen_runtimes:
+                    continue
+                seen_runtimes.add(id(runtime))
+                prepared = resolver(run_id)
+                if prepared is not None:
+                    prepared_inputs.append((runtime, prepared))
+            if len(prepared_inputs) != 1:
+                raise RuntimeError(
+                    "recipe-ref Context V2 input has no unique prepared handoff"
+                )
+            prepared_runtime, prepared_input = prepared_inputs[0]
+            bind_prepared = getattr(
+                prepared_runtime,
+                "bind_prepared_subagent_input",
+                None,
+            )
+            if not callable(bind_prepared):
+                raise RuntimeError(
+                    "recipe-ref Context V2 runtime cannot bind its prepared handoff"
+                )
+            child_bundle = bind_prepared(run_id)
+            if getattr(child_bundle, "attempt", None) != prepared_input.child_attempt:
+                raise RuntimeError(
+                    "recipe-ref Context V2 prepared handoff changed its child attempt"
+                )
+            options["_memory_v2_prepared_subagent_input"] = prepared_input
 
         final_text = ""
         error_message = ""
+        run_bundle = None
         try:
             for event in _stream_recipe_graph_events(
                 recipe=self.recipe,
@@ -4116,9 +6679,10 @@ class _WorkflowRecipeSubagentAgent:
                 history=[],
                 attachments=[],
                 options=options,
-                session_id=session_id,
+                session_id=graph_session_id,
                 cancel_event=None,
                 run_id_override=run_id,
+                runtime_context=runtime_context,
             ):
                 if callable(callback):
                     callback(event)
@@ -4129,6 +6693,12 @@ class _WorkflowRecipeSubagentAgent:
                 elif event.get("type") == "error":
                     error_message = str(event.get("message") or "workflow subagent failed")
                     break
+                elif event.get("type") == "stream_summary":
+                    raw_bundle = event.get("bundle")
+                    if raw_bundle is not None:
+                        from run_bundle_adapter import project_run_bundle
+
+                        run_bundle = project_run_bundle(raw_bundle)
         except Exception as exc:
             error_message = str(exc)
 
@@ -4149,6 +6719,7 @@ class _WorkflowRecipeSubagentAgent:
                 {"role": "assistant", "content": final_text},
             ],
             human_input_request=None,
+            run_bundle=run_bundle,
         )
 
 
@@ -4168,6 +6739,7 @@ def _materialize_recipe_subagents(
     optimizer_module_factory=None,
     optimizer_config: Any | None = None,
     model_io_factory: Any | None = None,
+    context_memory_v2_modules: tuple[Any, ...] = (),
 ) -> tuple:
     """Build SubagentTemplate instances from a Recipe's subagent_pool.
 
@@ -4256,6 +6828,7 @@ def _materialize_recipe_subagents(
                 recipe=child_recipe,
                 options=child_options,
                 name=recipe_name,
+                modules=tuple(context_memory_v2_modules or ()),
             )
             profile = getattr(child_recipe, "subagent_profile", None)
             built.append(
@@ -4338,6 +6911,7 @@ def _materialize_recipe_subagents(
             instructions=parsed.instructions,
             optimizer_module_factory=optimizer_module_factory,
             model_io_factory=model_io_factory,
+            context_modules=context_memory_v2_modules,
         )
         built.append(
             SubagentTemplate(
@@ -5211,6 +7785,8 @@ def _build_developer_agent(
     max_iterations: int,
     toolkits: list,
     memory_manager: Any,
+    DurabilityModule=None,
+    memory_durability_only: bool = False,
     jobs_module: Any | None = None,
     planning_turn: bool = False,
     enable_subagents: bool = True,
@@ -5219,31 +7795,121 @@ def _build_developer_agent(
     optimizer_config: Any | None = None,
     fyi_channel: Any | None = None,
     model_io_factory: Any | None = None,
+    memory_v2_run_id: str = "",
+    vault_runtime: Any | None = None,
+    context_memory_v2_modules: tuple[Any, ...] = (),
+    official_context_v2_active: bool = False,
 ):
     if recipe is not None:
         toolkits = _resolve_recipe_toolkits(toolkits, recipe, options=options)
 
+    memory_v2_admission = _memory_v2_admission_from_options(options)
+    if official_context_v2_active:
+        if memory_v2_admission is None or not memory_v2_admission.is_active:
+            raise RuntimeError(
+                "official Context V2 modules require an active admission"
+            )
+        if not context_memory_v2_modules:
+            raise RuntimeError(
+                "official Context V2 active admission requires host modules"
+            )
+    else:
+        toolkits = _append_memory_v2_normal_toolkit(
+            toolkits,
+            memory_v2_admission,
+            run_id=memory_v2_run_id,
+        )
+    base_toolkits = toolkits
+    if vault_runtime is not None:
+        from vault_sink_runtime import (
+            VaultSinkAgentModule,
+            augment_toolkits_for_vault,
+            clone_toolkits_for_vault,
+        )
+
+        toolkits = clone_toolkits_for_vault(base_toolkits)
+        augment_toolkits_for_vault(toolkits, vault_runtime)
+
     modules: list = []
     if toolkits:
         modules.append(ToolsModule(tools=tuple(toolkits)))
+    if vault_runtime is not None:
+        modules.append(VaultSinkAgentModule(plugin=vault_runtime))
     if jobs_module is not None:
         modules.append(jobs_module)
     if memory_manager is not None:
-        modules.append(MemoryModule(memory=memory_manager))
+        if memory_durability_only:
+            if DurabilityModule is None:
+                raise RuntimeError(
+                    "Unchain DurabilityModule is required for durability-only memory"
+                )
+            modules.append(DurabilityModule(runtime=memory_manager))
+        else:
+            modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
+    composition_options = options if isinstance(options, dict) else {}
+    composition_private_hint = composition_options.get(
+        "_context_composition_hint_v1"
+    )
+    if (
+        composition_private_hint is not None
+        and "_context_composition_availability_v2" not in composition_options
+    ):
+        from context_composition_host import (
+            build_context_composition_bootstrap_module,
+        )
+
+        composition_module = build_context_composition_bootstrap_module(
+            composition_private_hint
+        )
+        if composition_module is not None:
+            modules.append(composition_module)
+    modules.extend(tuple(context_memory_v2_modules))
 
     selected_optimizer_config = _select_agent_optimizer_config(
         options,
         optimizer_config,
     )
+    def memory_v2_window_resolver(resolved_provider: str, resolved_model: str) -> int:
+        if (
+            memory_v2_admission is not None
+            and str(resolved_provider or "").strip().lower()
+            == memory_v2_admission.provider
+            and str(resolved_model or "").strip() == memory_v2_admission.model
+        ):
+            return memory_v2_admission.real_context_window_tokens
+        return get_max_context_window_tokens(resolved_provider, resolved_model)
+
+    def memory_v2_optimizer_module():
+        if memory_v2_admission is None or official_context_v2_active:
+            return None
+        return _build_memory_v2_optimizer_module(
+            memory_v2_admission,
+            OptimizersModule=_OptimizersModule,
+            model_window_resolver=memory_v2_window_resolver,
+        )
 
     # ── Context window optimizers ──
-    optimizer_module = _build_context_optimizer_module(selected_optimizer_config)
-    if optimizer_module is not None:
-        modules.append(optimizer_module)
+    if memory_v2_admission is None or not memory_v2_admission.is_active:
+        optimizer_module = _build_context_optimizer_module(selected_optimizer_config)
+        if optimizer_module is not None:
+            modules.append(optimizer_module)
+    v2_optimizer_module = memory_v2_optimizer_module()
+    if v2_optimizer_module is not None:
+        modules.append(v2_optimizer_module)
 
     def optimizer_module_factory():
-        return _build_context_optimizer_module(selected_optimizer_config)
+        legacy_module = None
+        if memory_v2_admission is None or not memory_v2_admission.is_active:
+            legacy_module = _build_context_optimizer_module(selected_optimizer_config)
+        v2_module = memory_v2_optimizer_module()
+        if legacy_module is None:
+            return v2_module
+        if v2_module is None:
+            return legacy_module
+        legacy_harnesses = tuple(getattr(legacy_module, "harnesses", ()) or ())
+        v2_harnesses = tuple(getattr(v2_module, "harnesses", ()) or ())
+        return _OptimizersModule(harnesses=legacy_harnesses + v2_harnesses)
 
     templates: tuple = ()
     if (
@@ -5256,7 +7922,7 @@ def _build_developer_agent(
             try:
                 templates = _materialize_recipe_subagents(
                     recipe=recipe,
-                    toolkits=tuple(toolkits),
+                    toolkits=tuple(base_toolkits),
                     provider=provider,
                     model=model,
                     api_key=api_key or None,
@@ -5269,6 +7935,7 @@ def _build_developer_agent(
                     optimizer_module_factory=optimizer_module_factory,
                     optimizer_config=selected_optimizer_config,
                     model_io_factory=model_io_factory,
+                    context_memory_v2_modules=context_memory_v2_modules,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -5282,7 +7949,7 @@ def _build_developer_agent(
 
                 workspace_dir = _resolve_workspace_subagent_dir_for_loader(options)
                 templates = load_templates(
-                    toolkits=tuple(toolkits),
+                    toolkits=tuple(base_toolkits),
                     provider=provider,
                     model=model,
                     api_key=api_key or None,
@@ -5295,6 +7962,7 @@ def _build_developer_agent(
                     SubagentTemplate=SubagentTemplate,
                     optimizer_module_factory=optimizer_module_factory,
                     model_io_factory=model_io_factory,
+                    context_modules=context_memory_v2_modules,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -5303,21 +7971,24 @@ def _build_developer_agent(
                 templates = ()
 
         if templates:
-            modules.append(
-                SubagentModule(
-                    templates=templates,
-                    policy=SubagentPolicy(
-                        max_depth=6,
-                        max_children_per_parent=10,
-                        max_total_subagents=50,
-                        max_parallel_workers=4,
-                        worker_timeout_seconds=60.0,
-                        allow_dynamic_workers=False,
-                        allow_dynamic_delegate=False,
-                        handoff_requires_template=True,
-                    ),
-                )
+            subagent_module = SubagentModule(
+                templates=templates,
+                policy=SubagentPolicy(
+                    max_depth=6,
+                    max_children_per_parent=10,
+                    max_total_subagents=50,
+                    max_parallel_workers=4,
+                    worker_timeout_seconds=60.0,
+                    allow_dynamic_workers=False,
+                    allow_dynamic_delegate=False,
+                    handoff_requires_template=True,
+                ),
             )
+            if vault_runtime is not None:
+                from vault_sink_runtime import VaultGuardedSubagentModule
+
+                subagent_module = VaultGuardedSubagentModule(subagent_module)
+            modules.append(subagent_module)
 
     if fyi_channel is not None:
         modules.append(_InteractionModule(fyi_channel=fyi_channel))
@@ -5359,17 +8030,22 @@ def _build_developer_agent(
     }
     if model_io_factory is not None:
         agent_kwargs["model_io_factory"] = model_io_factory
-    return UnchainAgent(**agent_kwargs)
+    agent = UnchainAgent(**agent_kwargs)
+    if memory_v2_admission is not None and memory_v2_admission.is_active:
+        agent._memory_v2_effective_toolkits = toolkits
+    return agent
 
 
 def _create_agent(
     options: Dict[str, object] | None = None,
     session_id: str = "",
     fyi_channel: Any | None = None,
+    memory_v2_shadow_run: Any | None = None,
 ):
     UnchainAgent = _UnchainAgent
     ToolsModule = _ToolsModule
     MemoryModule = _MemoryModule
+    DurabilityModule = _DurabilityModule
     PoliciesModule = _PoliciesModule
     SubagentModule = _SubagentModule
     SubagentTemplate = _SubagentTemplate
@@ -5377,7 +8053,10 @@ def _create_agent(
     if UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
 
-    options = options or {}
+    options = dict(options) if isinstance(options, dict) else {}
+    # This proof is created only by the host preflight below.  Discard any
+    # renderer-supplied value before rollout admission is resolved.
+    options.pop("_memory_v2_unchain_active_preflight", None)
 
     # Custom provider (design §7): parse + fully revalidate. None for built-in
     # requests — everything below is gated on `cfg is not None` so the built-in
@@ -5414,16 +8093,257 @@ def _create_agent(
     api_key = _resolve_agent_api_key(options, selected_config["provider"], cfg=cfg)
     if cfg is not None:
         custom_factory = make_custom_model_io_factory(cfg, api_key)
-    memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
+    raw_max_ctx = get_max_context_window_tokens(
+        selected_config["provider"], selected_config["model"], cfg=cfg,
+    )
+    memory_v2_active_preflight = None
+    memory_v2_agent_selection = None
+    memory_v2_admission_holder: Dict[str, Any] = {"value": None}
+
+    def host_model_window_fallback(
+        resolved_provider: str,
+        resolved_model: str,
+    ) -> int:
+        if (
+            str(resolved_provider or "").strip().lower()
+            == str(selected_config["provider"] or "").strip().lower()
+            and str(resolved_model or "").strip()
+            == str(selected_config["model"] or "").strip()
+        ):
+            return max(8_192, int(raw_max_ctx or 0))
+        return max(
+            8_192,
+            int(
+                get_max_context_window_tokens(
+                    resolved_provider,
+                    resolved_model,
+                )
+                or 0
+            ),
+        )
+
+    def mark_host_partial(_value: object, error: Exception) -> None:
+        admission = memory_v2_admission_holder.get("value")
+        if admission is None:
+            return
+        if admission.is_active:
+            _memory_v2_merge_diagnostics(
+                admission,
+                unchain_context_status="partial",
+                unchain_context_error_code=_memory_v2_safe_error_code(
+                    error,
+                    "context_v2_persistence_failed",
+                ),
+            )
+        else:
+            _memory_v2_merge_diagnostics(
+                admission,
+                unchain_shadow_status="partial",
+                unchain_shadow_error_code=_memory_v2_safe_error_code(
+                    error,
+                    "context_v2_shadow_persistence_failed",
+                ),
+            )
+
+    if memory_v2_shadow_run is not None and options.get("_memory_v2_requested") is True:
+        owner_chat_id = str(options.get("_memory_v2_owner_chat_id") or "").strip()
+        rollout_intent = _inspect_memory_v2_rollout_intent(
+            options,
+            owner_chat_id=owner_chat_id,
+        )
+        from memory_v2_store_boundary import (
+            STORE_OWNER_UNCHAIN,
+            configured_context_v2_store_owner,
+        )
+
+        store_owner = configured_context_v2_store_owner()
+        rollout_requires_active = (
+            str(rollout_intent.get("target_mode") or "") == "active"
+        )
+        sticky_requires_active = False
+        if store_owner == STORE_OWNER_UNCHAIN:
+            from memory_v2_unchain_atomic_bootstrap import (
+                pupu_unchain_sticky_active_required,
+            )
+
+            raw_data_dir = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
+            if not raw_data_dir:
+                if rollout_requires_active:
+                    raise RuntimeError(
+                        "Unchain-owned active storage requires UNCHAIN_DATA_DIR"
+                    )
+            else:
+                sticky_requires_active = pupu_unchain_sticky_active_required(
+                    root_dir=(
+                        Path(raw_data_dir).expanduser().resolve() / "memory_v2"
+                    ),
+                    owner_chat_id=owner_chat_id,
+                )
+        if rollout_requires_active and store_owner != STORE_OWNER_UNCHAIN:
+            raise RuntimeError(
+                "active Context V2 requires the Unchain store owner"
+            )
+        if rollout_requires_active or sticky_requires_active:
+            from memory_v2_unchain_active_bridge import (
+                preflight_pupu_unchain_active_host,
+            )
+            from memory_v2_unchain_agent_selection import (
+                select_pupu_memory_agent_invoker,
+            )
+
+            pending_interaction = get_pending_interaction(
+                memory_v2_shadow_run.session_id
+            )
+            pending_status = (
+                str(pending_interaction.get("status") or "").strip()
+                if isinstance(pending_interaction, dict)
+                else ""
+            )
+            legacy_durable_state_clear = pending_status == "none"
+            memory_v2_agent_selection = select_pupu_memory_agent_invoker(
+                options=options,
+                chat_provider=selected_config["provider"],
+                chat_model_id=selected_config["model"],
+                provider_default_resolver=_memory_v2_provider_default,
+            )
+
+            memory_v2_active_preflight = preflight_pupu_unchain_active_host(
+                owner_chat_id=owner_chat_id,
+                run=memory_v2_shadow_run,
+                bootstrap_history=(
+                    options.get("_memory_v2_bootstrap_history") or ()
+                ),
+                no_unfinished_durable_checkpoint=legacy_durable_state_clear,
+                no_pending_interaction=legacy_durable_state_clear,
+                model_window_fallback=host_model_window_fallback,
+                partial_attempt_sink=mark_host_partial,
+                memory_agent_enabled=True,
+                memory_agent_model_invoker_factory=(
+                    memory_v2_agent_selection.host_invoker_factory()
+                ),
+            )
+            if memory_v2_active_preflight is None:
+                raise RuntimeError(
+                    "active Context V2 preflight did not construct an Unchain host"
+                )
+            options["_memory_v2_unchain_active_preflight"] = True
+
+    memory_v2_admission = _resolve_memory_v2_admission(
+        options,
+        provider=selected_config["provider"],
+        model=selected_config["model"],
+        real_context_window_tokens=raw_max_ctx,
+        session_id=session_id,
+    )
+    memory_v2_admission_holder["value"] = memory_v2_admission
+    if memory_v2_admission.is_active and memory_v2_shadow_run is None:
+        raise RuntimeError(
+            "active Context V2 requires an official Unchain run preflight"
+        )
+    memory_runtime, memory_manager = _resolve_memory_runtime(
+        options,
+        session_id=session_id,
+        memory_v2_admission=memory_v2_admission,
+    )
+    memory_v2_shadow_bridge = None
+    memory_v2_active_bridge = None
+    memory_v2_active_bootstrap_receipt = None
+    if memory_v2_shadow_run is not None:
+        if memory_v2_admission.is_active and memory_v2_active_preflight is not None:
+            from memory_v2_unchain_active_bridge import (
+                bind_pupu_unchain_active_bridge,
+            )
+
+            memory_v2_active_bridge = bind_pupu_unchain_active_bridge(
+                admission=memory_v2_admission,
+                preflight=memory_v2_active_preflight,
+            )
+            if memory_v2_active_bridge is None:
+                raise RuntimeError(
+                    "active Context V2 admission did not bind an Unchain host"
+                )
+        elif memory_v2_admission.is_shadow:
+            from memory_v2_unchain_shadow_bridge import (
+                prepare_pupu_unchain_shadow_bridge,
+            )
+
+            memory_v2_shadow_bridge = prepare_pupu_unchain_shadow_bridge(
+                admission=memory_v2_admission,
+                run=memory_v2_shadow_run,
+                model_window_fallback=host_model_window_fallback,
+                partial_attempt_sink=mark_host_partial,
+            )
     toolkits = _build_requested_toolkits(options, session_id=session_id)
     durable_jobs_runtime = get_durable_jobs_runtime()
     user_modules = _extract_user_prompt_modules(options)
+    official_context_v2_active = memory_v2_active_bridge is not None
+    if official_context_v2_active:
+        from memory_v2_unchain_lazy_bootstrap import (
+            bootstrap_pupu_unchain_active_chat,
+        )
+
+        memory_v2_active_bootstrap_receipt = (
+            bootstrap_pupu_unchain_active_chat(
+                preflight=memory_v2_active_preflight,
+                admission=memory_v2_admission,
+            )
+        )
+        bootstrap_admission = memory_v2_active_bootstrap_receipt.get(
+            "admission"
+        )
+        if not isinstance(bootstrap_admission, dict):
+            raise RuntimeError(
+                "active Context V2 bootstrap did not return sticky admission"
+            )
+        _memory_v2_apply_chat_admission_record(
+            memory_v2_admission,
+            bootstrap_admission,
+        )
+    else:
+        _memory_v2_bind_recalled_refs(memory_v2_admission, options)
+        _import_memory_v2_history(
+            memory_v2_admission,
+            options.get("_memory_v2_bootstrap_history"),
+        )
+        memory_v2_bootstrap_receipt = _bootstrap_memory_v2_current_request(
+            memory_v2_admission,
+            options.get("_memory_v2_current_user_message"),
+        )
+        _prepare_memory_v2_first_message_recall(
+            memory_v2_admission,
+            options.get("_memory_v2_current_user_message"),
+            memory_v2_bootstrap_receipt,
+        )
+        _memory_v2_bind_recalled_refs(memory_v2_admission, options)
+    context_safe_options = dict(options)
+    context_safe_options.pop("_memory_v2_bootstrap_history", None)
+    context_safe_options.pop("_memory_v2_current_user_message", None)
+    context_safe_options.pop("_memory_v2_unchain_active_preflight", None)
+    agent_options = _options_with_memory_v2_admission(
+        context_safe_options,
+        memory_v2_admission,
+    )
+    vault_runtime = None
+    if memory_v2_admission.is_active:
+        from vault_sink_client import get_process_vault_sink_client
+
+        vault_client = get_process_vault_sink_client()
+        if vault_client is not None:
+            from vault_sink_runtime import VaultSinkRuntimePlugin
+
+            vault_runtime = VaultSinkRuntimePlugin(
+                client=vault_client,
+                owner_chat_id=memory_v2_admission.owner_chat_id,
+                session_id=memory_v2_admission.session_id,
+                attempt_id=memory_v2_admission.attempt_id,
+            )
 
     # Developer agent is the sole agent with optional delegate/worker subagents.
     agent = _build_developer_agent(
         UnchainAgent=UnchainAgent,
         ToolsModule=ToolsModule,
         MemoryModule=MemoryModule,
+        DurabilityModule=DurabilityModule,
         PoliciesModule=PoliciesModule,
         SubagentModule=SubagentModule,
         SubagentTemplate=SubagentTemplate,
@@ -5435,15 +8355,30 @@ def _create_agent(
         max_iterations=max_iterations,
         toolkits=toolkits,
         memory_manager=memory_manager,
+        memory_durability_only=_memory_runtime_uses_durability_only(
+            memory_runtime
+        ),
         jobs_module=(
             durable_jobs_runtime.module
             if durable_jobs_runtime is not None
             else None
         ),
-        options=options,
+        options=agent_options,
         recipe=recipe,
         fyi_channel=fyi_channel,
         model_io_factory=custom_factory,
+        memory_v2_run_id=memory_v2_admission.attempt_id,
+        vault_runtime=vault_runtime,
+        context_memory_v2_modules=(
+            memory_v2_active_bridge.modules
+            if memory_v2_active_bridge is not None
+            else (
+                memory_v2_shadow_bridge.modules
+                if memory_v2_shadow_bridge is not None
+                else ()
+            )
+        ),
+        official_context_v2_active=official_context_v2_active,
     )
     agent._orchestration_role = "developer"
     agent._orchestration_mode = _AGENT_ORCHESTRATION_DEFAULT
@@ -5451,19 +8386,34 @@ def _create_agent(
 
     agent._memory_runtime = memory_runtime
     agent._max_iterations = max_iterations
-    agent._toolkits = toolkits
+    agent._toolkits = getattr(agent, "_memory_v2_effective_toolkits", toolkits)
     agent._display_model = display_model
     agent._selected_model = display_model
     agent._developer_model_id = display_model
     agent._general_model_id = display_model
-    raw_max_ctx = get_max_context_window_tokens(
-        selected_config["provider"], selected_config["model"], cfg=cfg,
+    agent._memory_v2_admission = memory_v2_admission
+    if memory_v2_agent_selection is not None:
+        agent._memory_v2_memory_agent_selection = memory_v2_agent_selection
+    if memory_v2_shadow_bridge is not None:
+        agent._memory_v2_unchain_shadow_bridge = memory_v2_shadow_bridge
+        agent._memory_v2_unchain_shadow_preparation = (
+            memory_v2_shadow_bridge.preparation
+        )
+    if memory_v2_active_bridge is not None:
+        agent._memory_v2_unchain_active_bridge = memory_v2_active_bridge
+        agent._memory_v2_unchain_active_preparation = (
+            memory_v2_active_bridge.preparation
+        )
+        agent._memory_v2_unchain_bootstrap_receipt = (
+            memory_v2_active_bootstrap_receipt
+        )
+    # Off and shadow retain the legacy 40% effective context exactly.  Active
+    # exposes the real model window; the V2 compiler owns output reserve,
+    # transport margin, and its 90% compression trigger.
+    agent._max_context_window_tokens = _memory_v2_effective_max_context(
+        raw_max_ctx,
+        memory_v2_admission,
     )
-    # Use 40% of the real context window as the effective budget.
-    # This keeps the agent well within the quality zone (~60% is where
-    # output quality starts degrading) and leaves headroom for tool
-    # schemas, system prompts, and the current turn's output.
-    agent._max_context_window_tokens = int(raw_max_ctx * 0.40)
     return agent
 
 
@@ -5485,11 +8435,47 @@ def _extract_last_assistant_text(messages: List[Dict[str, Any]]) -> str:
 def _memory_runtime_from_agent(agent: Any) -> Dict[str, Any]:
     raw_runtime = getattr(agent, "_memory_runtime", None)
     if not isinstance(raw_runtime, dict):
-        return {"requested": False, "available": False, "reason": ""}
+        return {
+            "kind": "none",
+            "requested": False,
+            "required": False,
+            "available": False,
+            "reason": "",
+            "durability_available": False,
+            "durability_reason": "",
+            "legacy_context_available": False,
+            "legacy_context_reason": "",
+        }
+    requested = bool(raw_runtime.get("requested"))
+    required = bool(raw_runtime.get("required"))
+    available = bool(raw_runtime.get("available"))
+    reason = str(raw_runtime.get("reason") or "").strip()
+    kind = str(raw_runtime.get("kind") or "").strip() or (
+        "legacy_context" if requested else "none"
+    )
     return {
-        "requested": bool(raw_runtime.get("requested")),
-        "available": bool(raw_runtime.get("available")),
-        "reason": str(raw_runtime.get("reason") or "").strip(),
+        "kind": kind,
+        "requested": requested,
+        "required": required,
+        "available": available,
+        "reason": reason,
+        "durability_available": bool(
+            raw_runtime.get("durability_available", available)
+        ),
+        "durability_reason": str(
+            raw_runtime.get("durability_reason")
+            or (reason if required or kind == "v2_durability" else "")
+        ).strip(),
+        "legacy_context_available": bool(
+            raw_runtime.get(
+                "legacy_context_available",
+                available if kind != "v2_durability" else False,
+            )
+        ),
+        "legacy_context_reason": str(
+            raw_runtime.get("legacy_context_reason")
+            or (reason if requested and kind != "v2_durability" else "")
+        ).strip(),
     }
 
 
@@ -5548,7 +8534,15 @@ def _build_bundle_from_result(
     orchestration_mode: str | None = None,
 ) -> Dict[str, Any]:
     """Build a PuPu-compatible bundle dict from a KernelRunResult."""
-    return {
+    from run_bundle_adapter import project_kernel_result_bundle
+
+    canonical_bundle = project_kernel_result_bundle(result)
+    if canonical_bundle is not None:
+        return canonical_bundle
+
+    # Compatibility is absence-only.  A present malformed v1 bundle raises at
+    # the strict adapter above and must never be disguised as legacy totals.
+    bundle = {
         "model": str(model or getattr(agent, "model", "") or ""),
         "display_model": str(getattr(agent, "_display_model", "") or ""),
         "active_agent": str(active_agent or getattr(agent, "_orchestration_role", "general") or "general"),
@@ -5564,6 +8558,117 @@ def _build_bundle_from_result(
         "iteration": int(getattr(result, "iteration", 0) or 0),
         "previous_response_id": getattr(result, "previous_response_id", None),
     }
+    memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
+    if (
+        memory_v2_admission is not None
+        and str(getattr(memory_v2_admission, "mode", "off") or "off") != "off"
+    ):
+        bundle["memory_v2"] = _memory_v2_bundle_payload(memory_v2_admission)
+    return bundle
+
+
+def _bind_completion_diagnostics_to_run_bundle(
+    bundle: Dict[str, Any],
+    completion_diagnostics: Dict[str, Any] | None,
+    *,
+    active_context_bridge: Any = None,
+    run_bundle_ledger: Any = None,
+    run_id: str,
+) -> Dict[str, Any]:
+    """Reproject and persist the one safe host diagnostics reference."""
+
+    if (
+        not isinstance(bundle, dict)
+        or bundle.get("schema") != "unchain.run_bundle.v1"
+        or completion_diagnostics is None
+    ):
+        return bundle
+    from completion_diagnostics import (
+        reproject_run_bundle_with_completion_diagnostics,
+    )
+
+    projected = reproject_run_bundle_with_completion_diagnostics(
+        bundle,
+        completion_diagnostics,
+    )
+    if (
+        projected.get("revision") == bundle.get("revision")
+        and projected.get("bundle_digest") == bundle.get("bundle_digest")
+    ):
+        return projected
+
+    normalized_run_id = str(run_id or "").strip()
+    if not normalized_run_id:
+        raise RuntimeError("RunBundle diagnostics has no owning run_id")
+    if active_context_bridge is not None:
+        from unchain.run_bundle import RunBundle
+
+        attempt_runtime = active_context_bridge.attempt_for_run(
+            normalized_run_id
+        )
+        ledger = attempt_runtime.bundle.run_bundle_ledger
+        if ledger is None:
+            raise RuntimeError(
+                "RunBundle diagnostics has no authoritative ledger"
+            )
+        ledger.persist_bundle(RunBundle.from_dict(projected))
+    elif run_bundle_ledger is not None:
+        from unchain.run_bundle import RunBundle
+
+        run_bundle_ledger.persist_bundle(RunBundle.from_dict(projected))
+    else:
+        from run_bundle_ledger import ledger_from_environment
+
+        ledger = ledger_from_environment()
+        if ledger is None:
+            raise RuntimeError(
+                "RunBundle diagnostics has no durable sidecar ledger"
+            )
+        ledger.upsert(projected)
+    return projected
+
+
+def _failed_run_summary_event(
+    error: BaseException,
+    *,
+    admission: Any,
+    active_context_bridge: Any,
+    run_bundle_ledger: Any = None,
+    run_id: str,
+    iteration: int,
+) -> Dict[str, Any] | None:
+    """Project only a typed, content-free failed RunBundle carrier."""
+
+    from unchain.kernel import kernel_run_failure_from_exception
+
+    failure = kernel_run_failure_from_exception(error)
+    if failure is None:
+        return None
+    bundle = failure.run_bundle.to_dict()
+    completion_diagnostics = None
+    if admission is not None:
+        from completion_diagnostics import build_completion_diagnostics
+
+        completion_diagnostics = build_completion_diagnostics(
+            _memory_v2_bundle_payload(admission)
+        )
+        bundle = _bind_completion_diagnostics_to_run_bundle(
+            bundle,
+            completion_diagnostics,
+            active_context_bridge=active_context_bridge,
+            run_bundle_ledger=run_bundle_ledger,
+            run_id=run_id,
+        )
+    summary: Dict[str, Any] = {
+        "type": "stream_summary",
+        "run_id": run_id,
+        "iteration": max(0, int(iteration)),
+        "timestamp": time.time(),
+        "bundle": bundle,
+    }
+    if completion_diagnostics is not None:
+        summary["completion_diagnostics"] = completion_diagnostics
+    return summary
 
 
 def _make_human_input_callback(
@@ -5572,6 +8677,9 @@ def _make_human_input_callback(
     toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
     interaction_id_tracker: DurableInteractionIdTracker | None = None,
     require_durable_interaction_id: bool = False,
+    root_session_id: str = "",
+    root_run_id: str = "",
+    active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
 ):
     """Create an on_human_input blocking callback for unchain ask_user_question.
 
@@ -5582,11 +8690,14 @@ def _make_human_input_callback(
 
     def on_human_input(request):
         request_id = str(getattr(request, "request_id", "") or "")
-        durable_interaction_id = (
-            interaction_id_tracker.resolve("human_input", request_id)
+        interaction_owner = (
+            interaction_id_tracker.resolve_owner("human_input", request_id)
             if interaction_id_tracker is not None
-            else ""
+            else {}
         )
+        durable_interaction_id = str(
+            interaction_owner.get("interaction_id") or ""
+        ).strip()
         if require_durable_interaction_id and not durable_interaction_id:
             raise DurableInteractionHostError(
                 "durable_interaction_id_unavailable",
@@ -5594,6 +8705,10 @@ def _make_human_input_callback(
                 status_code=500,
             )
         confirmation_id = durable_interaction_id or str(_uuid.uuid4())
+        interaction_source_run_id = _interaction_owner_source_run_id(
+            interaction_owner,
+            fallback_run_id=root_run_id,
+        )
         interact_config = request.to_dict()
         toolkit_meta = (
             toolkit_meta_by_tool_name.get(_ASK_USER_QUESTION_TOOL_NAME, {})
@@ -5621,13 +8736,30 @@ def _make_human_input_callback(
             "event": threading.Event(),
             "response": None,
             "cancel_event": normalized_cancel_event,
+            "resolution_writer": _make_interaction_resolution_writer(
+                emit_event,
+                interaction_id=confirmation_id,
+                kind="human_input",
+                session_id=(interaction_owner.get("session_id") or root_session_id),
+                source_run_id=interaction_source_run_id,
+                require_durable_receipt=require_durable_interaction_id,
+                active_host_event_boundary=active_host_event_boundary,
+            ),
         }
         with _pending_confirmations_lock:
             _pending_confirmations[confirmation_id] = waiter
 
         try:
             if callable(emit_event):
-                emit_event(emit_payload)
+                _emit_interaction_presentation_event(
+                    emit_event,
+                    emit_payload,
+                    active_host_event_boundary=active_host_event_boundary,
+                    interaction_id=confirmation_id,
+                    origin=HOST_EVENT_ORIGIN_HUMAN_INPUT,
+                    source_attempt_id=interaction_source_run_id,
+                    interaction_kind="human_input",
+                )
 
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
@@ -5674,6 +8806,152 @@ def _make_human_input_callback(
     return on_human_input
 
 
+def _memory_v2_graph_step_run_id(
+    workflow_run_id: str,
+    index: int,
+    agent_id: str,
+) -> str:
+    binding = "\0".join(
+        (
+            str(workflow_run_id or "").strip(),
+            str(index),
+            str(agent_id or "").strip(),
+        )
+    )
+    return "graph-step-" + hashlib.sha256(binding.encode("utf-8")).hexdigest()
+
+
+def _memory_v2_graph_recipe_identity(
+    recipe: Any,
+    compiled: Dict[str, Any],
+) -> Dict[str, Any]:
+    name = str(getattr(recipe, "name", "") or "recipe-graph").strip()
+    payload = {
+        "schema": "pupu.recipe_graph_identity.v1",
+        "name": name,
+        "model": str(getattr(recipe, "model", "") or ""),
+        "max_iterations": getattr(recipe, "max_iterations", None),
+        "compiled": copy.deepcopy(compiled),
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "name": name,
+        "source": "pupu-runtime",
+        "sha256": digest,
+    }
+
+
+def _memory_v2_graph_coordinator_input_draft(value: Any) -> Any:
+    """Rebuild the immutable coordinator draft used by durable registration."""
+
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise RuntimeError("graph resume coordinator input draft is invalid")
+    from memory_v2_unchain_run_binding import (
+        PupuMemoryV2InteractionInputDraft,
+        PupuMemoryV2TextInputDraft,
+    )
+
+    kind = str(value.get("kind") or "").strip()
+    if kind == "text":
+        attachments = value.get("attachments") or ()
+        if not isinstance(attachments, (list, tuple)):
+            raise RuntimeError(
+                "graph resume coordinator attachments are invalid"
+            )
+        return PupuMemoryV2TextInputDraft(
+            content=str(value.get("content") or ""),
+            message_index=value.get("message_index"),
+            attachments=tuple(copy.deepcopy(attachments)),
+        )
+    if kind == "interaction":
+        return PupuMemoryV2InteractionInputDraft(
+            interaction_id=str(value.get("interaction_id") or ""),
+            response=copy.deepcopy(value.get("response")),
+            submitted_by=str(value.get("submitted_by") or ""),
+        )
+    raise RuntimeError("graph resume coordinator input draft kind is invalid")
+
+
+def _memory_v2_active_graph_candidate(options: Dict[str, object]) -> bool:
+    """Pre-route only graphs that can prove active admission in the inner gate."""
+
+    if options.get("_memory_v2_requested") is not True:
+        return False
+    owner_chat_id = str(
+        options.get("_memory_v2_owner_chat_id") or ""
+    ).strip()
+    rollout_intent = _inspect_memory_v2_rollout_intent(
+        options,
+        owner_chat_id=owner_chat_id,
+    )
+    if str(rollout_intent.get("target_mode") or "") == "active":
+        return True
+    if not owner_chat_id:
+        return False
+    from memory_v2_store_boundary import (
+        STORE_OWNER_UNCHAIN,
+        configured_context_v2_store_owner,
+    )
+
+    if configured_context_v2_store_owner() != STORE_OWNER_UNCHAIN:
+        return False
+    raw_data_dir = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
+    if not raw_data_dir:
+        return False
+    from memory_v2_unchain_atomic_bootstrap import (
+        pupu_unchain_sticky_active_required,
+    )
+
+    return pupu_unchain_sticky_active_required(
+        root_dir=Path(raw_data_dir).expanduser().resolve() / "memory_v2",
+        owner_chat_id=owner_chat_id,
+    )
+
+
+def _memory_v2_root_runtime_context(
+    *,
+    options: Dict[str, object],
+    execution_id: str,
+    run_id: str,
+    source_run_id: str = "",
+):
+    """Issue PuPu's root Memory grant at the product-host boundary."""
+
+    if options.get("_memory_v2_requested") is not True:
+        return None
+    owner_chat_id = str(
+        options.get("_memory_v2_owner_chat_id") or ""
+    ).strip()
+    normalized_run_id = str(run_id or "").strip()
+    normalized_source = str(source_run_id or "").strip()
+    lineage = (
+        (normalized_source, normalized_run_id)
+        if normalized_source and normalized_source != normalized_run_id
+        else (normalized_run_id,)
+    )
+    from memory_v2_unchain_runtime_context import (
+        build_pupu_memory_v2_root_runtime_context,
+    )
+
+    return build_pupu_memory_v2_root_runtime_context(
+        owner_chat_id=owner_chat_id,
+        execution_id=execution_id,
+        attempt_id=normalized_run_id,
+        run_id=normalized_run_id,
+        run_lineage=lineage,
+    )
+
+
 def _stream_recipe_graph_events(
     *,
     recipe: Any,
@@ -5685,11 +8963,33 @@ def _stream_recipe_graph_events(
     cancel_event: threading.Event | None = None,
     run_id_override: str = "",
     execution_token: Any = None,
+    runtime_context=None,
 ) -> Iterable[Dict[str, Any]]:
     if _UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
 
+    options = dict(options)
+    graph_prepared_subagent_input = options.pop(
+        "_memory_v2_prepared_subagent_input",
+        None,
+    )
+    graph_resume_context = options.pop(
+        "_memory_v2_graph_resume_context",
+        None,
+    )
+    if graph_resume_context is not None and not isinstance(
+        graph_resume_context,
+        dict,
+    ):
+        raise RuntimeError("graph resume context must be an object")
     compiled = _compile_recipe_graph_for_runtime(recipe)
+    graph_recipe_identity = _memory_v2_graph_recipe_identity(recipe, compiled)
+    if (
+        graph_resume_context is not None
+        and graph_resume_context.get("recipe_identity")
+        != graph_recipe_identity
+    ):
+        raise RuntimeError("graph resume recipe identity changed")
     # Custom provider factory for graph steps (design §7.3:穿透 recipe graph 构造).
     graph_cfg = parse_custom_provider(options)
     graph_custom_factory = None
@@ -5711,9 +9011,317 @@ def _stream_recipe_graph_events(
         and not options.get("max_iterations")
     ):
         max_iterations = int(recipe.max_iterations)
+    graph_durable_interactions_required = bool(
+        options.get("durable_interactions_required") is True
+    )
 
-    memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
-    if memory_runtime["requested"] and not memory_runtime["available"]:
+    workflow_run_id = str(
+        (
+            graph_resume_context.get("coordinator_attempt_id")
+            if graph_resume_context is not None
+            else ""
+        )
+        or run_id_override
+        or _uuid.uuid4()
+    )
+    graph_execution_id = str(
+        (
+            graph_resume_context.get("graph_execution_id")
+            if graph_resume_context is not None
+            else ""
+        )
+        or session_id
+        or workflow_run_id
+    ).strip()
+    from unchain.run_bundle import RunIdentity
+    from unchain.runtime import AgentRuntimeContext
+
+    if isinstance(runtime_context, AgentRuntimeContext):
+        runtime_identity = runtime_context.identity
+        if (
+            runtime_identity.execution_id != graph_execution_id
+            or runtime_identity.run_id != workflow_run_id
+        ):
+            raise RuntimeError(
+                "recipe graph RunBundle identity disagrees with its runtime context"
+            )
+        graph_bundle_identity = RunIdentity(
+            execution_id=runtime_identity.execution_id,
+            attempt_id=runtime_identity.attempt_id,
+            root_run_id=runtime_identity.root_run_id,
+            run_id=runtime_identity.run_id,
+            parent_run_id=runtime_identity.parent_run_id,
+            relation=(
+                "root"
+                if runtime_identity.parent_run_id is None
+                else "recipe_node"
+            ),
+        )
+    else:
+        graph_bundle_identity = RunIdentity(
+            execution_id=graph_execution_id,
+            attempt_id=workflow_run_id,
+            root_run_id=workflow_run_id,
+            run_id=workflow_run_id,
+            parent_run_id=None,
+            relation="root",
+        )
+    graph_context_run = None
+    graph_active_preflight = None
+    graph_active_bridge = None
+    graph_shadow_bridge = None
+    graph_completion_authorized = False
+    graph_admission_holder: Dict[str, Any] = {"value": None}
+
+    base_raw_max_ctx = get_max_context_window_tokens(
+        selected_config["provider"],
+        selected_config["model"],
+        cfg=graph_cfg,
+    )
+    if options.get("_memory_v2_requested") is True:
+        from memory_v2_unchain_graph_identity import (
+            build_pupu_unchain_graph_run_draft,
+        )
+        from unchain.memory import (
+            MEMORY_EXECUTION_COMPLETE,
+            MEMORY_V2_MODULE_KEY,
+        )
+        from unchain.runtime import AgentRuntimeContext
+
+        if not isinstance(runtime_context, AgentRuntimeContext):
+            raise RuntimeError(
+                "Context V2 graph requires an explicit AgentRuntimeContext"
+            )
+        graph_grant = runtime_context.grant_for(MEMORY_V2_MODULE_KEY)
+        if graph_grant is None:
+            raise RuntimeError(
+                "Context V2 graph runtime has no Memory V2 grant"
+            )
+        graph_completion_authorized = graph_grant.allows(
+            MEMORY_EXECUTION_COMPLETE
+        ) and bool(graph_grant.authority)
+
+        if graph_resume_context is None:
+            graph_context_run = build_pupu_unchain_graph_run_draft(
+                options=options,
+                runtime_context=runtime_context,
+                execution_id=graph_execution_id,
+                workflow_run_id=workflow_run_id,
+                message=message,
+                attachment_blocks=tuple(
+                    copy.deepcopy(item)
+                    for item in (attachments or [])
+                    if isinstance(item, dict)
+                ),
+            )
+        else:
+            from memory_v2_unchain_shadow_bridge import (
+                PupuUnchainShadowRunDraft,
+            )
+            from memory_v2_unchain_runtime_context import (
+                runtime_context_from_memory_binding_snapshot,
+            )
+
+            coordinator = graph_resume_context.get(
+                "coordinator_binding_snapshot"
+            )
+            if not isinstance(coordinator, dict):
+                raise RuntimeError(
+                    "graph resume coordinator binding is unavailable"
+                )
+            snapshot_context = runtime_context_from_memory_binding_snapshot(
+                coordinator
+            )
+            snapshot_grant = snapshot_context.grant_for(
+                MEMORY_V2_MODULE_KEY
+            )
+            if (
+                runtime_context.identity != snapshot_context.identity
+                or graph_grant != snapshot_grant
+            ):
+                raise RuntimeError(
+                    "graph resume runtime context changed its coordinator binding"
+                )
+            if (
+                runtime_context.identity.execution_id != graph_execution_id
+                or runtime_context.identity.attempt_id != workflow_run_id
+                or runtime_context.identity.run_id != workflow_run_id
+            ):
+                raise RuntimeError(
+                    "graph resume runtime context changed its execution identity"
+                )
+            graph_context_run = PupuUnchainShadowRunDraft(
+                session_id=str(coordinator.get("session_id") or ""),
+                identity=runtime_context.identity,
+                grant=graph_grant,
+                current_input_draft=(
+                    _memory_v2_graph_coordinator_input_draft(
+                        coordinator.get("current_input_draft")
+                    )
+                ),
+            )
+        options["_memory_v2_attempt_id"] = graph_context_run.attempt_id
+        if graph_context_run.parent_run_id is not None:
+            options["_memory_v2_source_attempt_id"] = (
+                graph_context_run.parent_run_id
+            )
+        graph_owner_chat_id = str(
+            options.get("_memory_v2_owner_chat_id") or ""
+        ).strip()
+        graph_rollout_intent = _inspect_memory_v2_rollout_intent(
+            options,
+            owner_chat_id=graph_owner_chat_id,
+        )
+        from memory_v2_store_boundary import (
+            STORE_OWNER_UNCHAIN,
+            configured_context_v2_store_owner,
+        )
+
+        store_owner = configured_context_v2_store_owner()
+        rollout_requires_active = (
+            str(graph_rollout_intent.get("target_mode") or "") == "active"
+        )
+        sticky_graph_active = False
+        if store_owner == STORE_OWNER_UNCHAIN:
+            from memory_v2_unchain_atomic_bootstrap import (
+                pupu_unchain_sticky_active_required,
+            )
+
+            raw_data_dir = os.environ.get("UNCHAIN_DATA_DIR", "").strip()
+            sticky_graph_active = (
+                pupu_unchain_sticky_active_required(
+                    root_dir=(
+                        Path(raw_data_dir).expanduser().resolve() / "memory_v2"
+                    ),
+                    owner_chat_id=graph_owner_chat_id,
+                )
+                if raw_data_dir
+                else False
+            )
+        if rollout_requires_active and store_owner != STORE_OWNER_UNCHAIN:
+            raise RuntimeError(
+                "active Context V2 graph execution requires the Unchain store owner"
+            )
+        if rollout_requires_active or sticky_graph_active:
+            from memory_v2_unchain_active_bridge import (
+                preflight_pupu_unchain_active_host,
+            )
+            from memory_v2_unchain_agent_selection import (
+                select_pupu_memory_agent_invoker,
+            )
+
+            def graph_model_window_fallback(
+                resolved_provider: str,
+                resolved_model: str,
+            ) -> int:
+                if (
+                    str(resolved_provider or "").strip().lower()
+                    == str(selected_config["provider"] or "").strip().lower()
+                    and str(resolved_model or "").strip()
+                    == str(selected_config["model"] or "").strip()
+                ):
+                    return max(8_192, int(base_raw_max_ctx or 0))
+                return max(
+                    8_192,
+                    int(
+                        get_max_context_window_tokens(
+                            resolved_provider,
+                            resolved_model,
+                        )
+                        or 0
+                    ),
+                )
+
+            def mark_graph_active_partial(
+                _value: object,
+                error: Exception,
+            ) -> None:
+                admission = graph_admission_holder.get("value")
+                if admission is not None:
+                    _memory_v2_merge_diagnostics(
+                        admission,
+                        unchain_context_status="partial",
+                        unchain_context_error_code=_memory_v2_safe_error_code(
+                            error,
+                            "context_v2_graph_persistence_failed",
+                        ),
+                    )
+
+            pending_interaction = get_pending_interaction(
+                graph_context_run.session_id
+            )
+            pending_status = (
+                str(pending_interaction.get("status") or "").strip()
+                if isinstance(pending_interaction, dict)
+                else ""
+            )
+            legacy_durable_state_clear = pending_status == "none"
+            graph_agent_selection = select_pupu_memory_agent_invoker(
+                options=options,
+                chat_provider=selected_config["provider"],
+                chat_model_id=selected_config["model"],
+                provider_default_resolver=_memory_v2_provider_default,
+            )
+            graph_active_preflight = preflight_pupu_unchain_active_host(
+                owner_chat_id=graph_owner_chat_id,
+                run=graph_context_run,
+                bootstrap_history=(
+                    options.get("_memory_v2_bootstrap_history") or ()
+                ),
+                no_unfinished_durable_checkpoint=legacy_durable_state_clear,
+                no_pending_interaction=legacy_durable_state_clear,
+                model_window_fallback=graph_model_window_fallback,
+                partial_attempt_sink=mark_graph_active_partial,
+                memory_agent_enabled=True,
+                memory_agent_model_invoker_factory=(
+                    graph_agent_selection.host_invoker_factory()
+                ),
+            )
+            if graph_active_preflight is None:
+                raise RuntimeError(
+                    "active Context V2 graph preflight did not construct a host"
+                )
+            options = dict(options)
+            options["_memory_v2_unchain_active_preflight"] = True
+    graph_memory_v2_admission = _resolve_memory_v2_admission(
+        options,
+        provider=selected_config["provider"],
+        model=selected_config["model"],
+        real_context_window_tokens=base_raw_max_ctx,
+        session_id=graph_execution_id,
+    )
+    graph_admission_holder["value"] = graph_memory_v2_admission
+    if (
+        graph_memory_v2_admission.is_active
+        and graph_active_preflight is None
+    ):
+        raise RuntimeError(
+            "active Context V2 graph requires an official Unchain run preflight"
+        )
+    if (
+        graph_durable_interactions_required
+        and not graph_memory_v2_admission.is_active
+    ):
+        raise DurableInteractionHostError(
+            "durable_recipe_graph_unsupported",
+            "Durable interaction resume requires an active Context V2 recipe graph",
+            status_code=422,
+        )
+    memory_runtime, memory_manager = _resolve_memory_runtime(
+        options,
+        session_id=graph_execution_id,
+        memory_v2_admission=graph_memory_v2_admission,
+    )
+    durability_unavailable = bool(
+        memory_runtime.get("required")
+        and not memory_runtime.get("durability_available")
+    )
+    legacy_context_unavailable = bool(
+        memory_runtime.get("kind") == "legacy_context"
+        and memory_runtime.get("requested")
+        and not memory_runtime.get("legacy_context_available")
+    )
+    if durability_unavailable or legacy_context_unavailable:
         fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
         yield {
             "type": "memory_prepare",
@@ -5724,7 +9332,7 @@ def _stream_recipe_graph_events(
             "applied": False,
             "fallback_reason": fallback_reason,
         }
-        if not history:
+        if durability_unavailable or not history:
             yield {
                 "type": "error",
                 "run_id": "",
@@ -5752,7 +9360,104 @@ def _stream_recipe_graph_events(
     runtime_toolkits_to_disconnect = list(user_toolkits)
     durable_jobs_runtime = get_durable_jobs_runtime()
 
-    workflow_run_id = str(run_id_override or _uuid.uuid4())
+    if graph_context_run is not None:
+        def graph_shadow_window_fallback(
+            resolved_provider: str,
+            resolved_model: str,
+        ) -> int:
+            if (
+                str(resolved_provider or "").strip().lower()
+                == graph_memory_v2_admission.provider
+                and str(resolved_model or "").strip()
+                == graph_memory_v2_admission.model
+            ):
+                return graph_memory_v2_admission.real_context_window_tokens
+            return max(
+                8_192,
+                int(
+                    get_max_context_window_tokens(
+                        resolved_provider,
+                        resolved_model,
+                    )
+                    or 0
+                ),
+            )
+
+        def mark_graph_shadow_partial(
+            _value: object,
+            error: Exception,
+        ) -> None:
+            _memory_v2_merge_diagnostics(
+                graph_memory_v2_admission,
+                unchain_shadow_status="partial",
+                unchain_shadow_error_code=_memory_v2_safe_error_code(
+                    error,
+                    "context_v2_shadow_persistence_failed",
+                ),
+            )
+
+        if graph_memory_v2_admission.is_active:
+            if graph_active_preflight is None:
+                raise RuntimeError(
+                    "active Context V2 graph admission requires preflight"
+                )
+            from memory_v2_unchain_active_bridge import (
+                bind_pupu_unchain_active_bridge,
+            )
+            from memory_v2_unchain_lazy_bootstrap import (
+                bootstrap_pupu_unchain_active_chat,
+            )
+
+            graph_active_bridge = bind_pupu_unchain_active_bridge(
+                admission=graph_memory_v2_admission,
+                preflight=graph_active_preflight,
+            )
+            if graph_active_bridge is None:
+                raise RuntimeError(
+                    "active Context V2 graph admission did not bind an Unchain host"
+                )
+            if graph_completion_authorized:
+                graph_bootstrap_receipt = bootstrap_pupu_unchain_active_chat(
+                    preflight=graph_active_preflight,
+                    admission=graph_memory_v2_admission,
+                )
+                graph_bootstrap_admission = graph_bootstrap_receipt.get(
+                    "admission"
+                )
+                if not isinstance(graph_bootstrap_admission, dict):
+                    raise RuntimeError(
+                        "active Context V2 graph bootstrap did not return "
+                        "sticky admission"
+                    )
+                _memory_v2_apply_chat_admission_record(
+                    graph_memory_v2_admission,
+                    graph_bootstrap_admission,
+                )
+            elif graph_memory_v2_admission.v2_bootstrapped is not True:
+                raise RuntimeError(
+                    "active Context V2 delegated graph requires a completed "
+                    "chat bootstrap"
+                )
+        elif graph_memory_v2_admission.is_shadow:
+            from memory_v2_unchain_shadow_bridge import (
+                prepare_pupu_unchain_shadow_bridge,
+            )
+
+            graph_shadow_bridge = prepare_pupu_unchain_shadow_bridge(
+                admission=graph_memory_v2_admission,
+                run=graph_context_run,
+                model_window_fallback=graph_shadow_window_fallback,
+                partial_attempt_sink=mark_graph_shadow_partial,
+            )
+            if graph_context_run.parent_run_id is not None:
+                from memory_v2_unchain_graph_checkpoint import (
+                    bootstrap_pupu_unchain_recipe_graph_input,
+                )
+
+                bootstrap_pupu_unchain_recipe_graph_input(
+                    bridge=graph_shadow_bridge,
+                    prepared_subagent_input=graph_prepared_subagent_input,
+                )
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
     output_holder: Dict[str, object] = {
@@ -5762,10 +9467,47 @@ def _stream_recipe_graph_events(
         "last_iteration": 0,
         "bundle": None,
         "final_text": "",
+        "last_step_run_id": workflow_run_id,
+        "suspended": False,
+        "suspended_step_index": None,
     }
 
     base_messages = _normalize_messages(history, message, attachments)
     messages_without_attachments = _normalize_messages(history, message, [])
+    if graph_active_bridge is None:
+        _memory_v2_bind_recalled_refs(graph_memory_v2_admission, options)
+        _import_memory_v2_history(
+            graph_memory_v2_admission,
+            options.get("_memory_v2_bootstrap_history"),
+        )
+        graph_memory_v2_bootstrap_receipt = _bootstrap_memory_v2_current_request(
+            graph_memory_v2_admission,
+            options.get("_memory_v2_current_user_message"),
+        )
+        _prepare_memory_v2_first_message_recall(
+            graph_memory_v2_admission,
+            options.get("_memory_v2_current_user_message"),
+            graph_memory_v2_bootstrap_receipt,
+        )
+        _memory_v2_bind_recalled_refs(graph_memory_v2_admission, options)
+    options = dict(options)
+    options.pop("_memory_v2_bootstrap_history", None)
+    options.pop("_memory_v2_current_user_message", None)
+    options.pop("_memory_v2_unchain_active_preflight", None)
+    if graph_memory_v2_admission.is_active:
+        graph_handoff_messages = getattr(
+            graph_memory_v2_admission,
+            "handoff_messages",
+            [],
+        )
+        if graph_handoff_messages:
+            options["_memory_v2_handoff_messages"] = copy.deepcopy(
+                graph_handoff_messages
+            )
+        # Active input is reconstructed from the durable journal.  The
+        # renderer hydration field is never concatenated into model input.
+        base_messages = _normalize_messages([], message, attachments)
+        messages_without_attachments = _normalize_messages([], message, [])
     confirmation_cancel_signal = threading.Event()
     run_done_event = threading.Event()
 
@@ -5803,9 +9545,12 @@ def _stream_recipe_graph_events(
 
     def run_workflow() -> None:
         execution_guard = None
+        graph_bundle_started_at = _run_bundle_timestamp()
+        materialize_graph_bundle = None
         try:
             if (
                 memory_manager is not None
+                and not graph_memory_v2_admission.is_active
                 and session_id
                 and str(run_id_override or "").strip()
             ):
@@ -5819,17 +9564,15 @@ def _stream_recipe_graph_events(
             memory_session_revision: int | None = None
             memory_commit_allowed = False
             runtime_messages = base_messages
-            if memory_manager is not None:
+            if memory_manager is not None and not graph_memory_v2_admission.is_active:
                 try:
-                    raw_max_ctx = get_max_context_window_tokens(
-                        selected_config["provider"],
-                        selected_config["model"],
-                        cfg=graph_cfg,
-                    )
                     runtime_messages = memory_manager.prepare_messages(
                         session_id=session_id,
                         incoming=base_messages,
-                        max_context_window_tokens=int(raw_max_ctx * 0.40),
+                        max_context_window_tokens=_memory_v2_effective_max_context(
+                            base_raw_max_ctx,
+                            graph_memory_v2_admission,
+                        ),
                         model=selected_config["model"],
                         memory_namespace=memory_namespace or None,
                         provider=selected_config["provider"],
@@ -5877,12 +9620,443 @@ def _stream_recipe_graph_events(
             }
 
             agents = list(compiled["agents"])
+            graph_checkpoint_host = None
+            graph_resume_step_index = None
+            if (
+                graph_active_bridge is not None
+                or graph_shadow_bridge is not None
+            ):
+                from memory_v2_unchain_graph_checkpoint import (
+                    PupuUnchainGraphStepDescriptor,
+                    prepare_pupu_unchain_graph_checkpoint_host,
+                )
+
+                graph_step_descriptors = []
+                for descriptor_index, descriptor_node in enumerate(agents):
+                    descriptor_id = str(
+                        descriptor_node.get("id")
+                        or f"agent_{descriptor_index + 1}"
+                    )
+                    descriptor_override = (
+                        descriptor_node.get("override")
+                        if isinstance(descriptor_node.get("override"), dict)
+                        else {}
+                    )
+                    descriptor_optimizer = _select_agent_optimizer_config(
+                        options,
+                        (
+                            descriptor_override.get("optimizer")
+                            if isinstance(
+                                descriptor_override.get("optimizer"),
+                                dict,
+                            )
+                            else None
+                        ),
+                    )
+                    descriptor_config = dict(selected_config)
+                    descriptor_model = str(
+                        descriptor_override.get("model") or ""
+                    ).strip()
+                    if descriptor_model:
+                        if ":" in descriptor_model:
+                            descriptor_provider, resolved_model = (
+                                descriptor_model.split(":", 1)
+                            )
+                            descriptor_config.update(
+                                {
+                                    "provider": descriptor_provider,
+                                    "model": resolved_model,
+                                }
+                            )
+                        else:
+                            descriptor_config["model"] = descriptor_model
+                    graph_step_descriptors.append(
+                        PupuUnchainGraphStepDescriptor(
+                            index=descriptor_index,
+                            node_id=descriptor_id,
+                            attempt_id=_memory_v2_graph_step_run_id(
+                                workflow_run_id,
+                                descriptor_index,
+                                descriptor_id,
+                            ),
+                            provider=descriptor_config["provider"],
+                            model=descriptor_config["model"],
+                            prompt=_resolve_graph_agent_prompt(descriptor_node),
+                            configuration={
+                                "schema": "pupu.graph_node_execution.v1",
+                                "node": copy.deepcopy(descriptor_node),
+                                "optimizer": copy.deepcopy(
+                                    descriptor_optimizer
+                                ),
+                                "max_iterations": max_iterations,
+                            },
+                        )
+                    )
+                graph_checkpoint_host = (
+                    prepare_pupu_unchain_graph_checkpoint_host(
+                        active_bridge=(
+                            graph_active_bridge or graph_shadow_bridge
+                        ),
+                        steps=tuple(graph_step_descriptors),
+                        prepared_subagent_input=(
+                            graph_prepared_subagent_input
+                            if graph_context_run.parent_run_id is not None
+                            else None
+                        ),
+                    )
+                )
+                if graph_resume_context is not None:
+                    graph_resume_step_index = (
+                        graph_checkpoint_host.validate_resume_context(
+                            graph_resume_context
+                        )
+                    )
+            graph_bundle_values: Dict[str, Dict[str, Any]] = {}
+            graph_bundle_missing = False
+            official_run_bundle_ledger = None
+            provider_turn_ownership_factory = None
+            if graph_active_bridge is not None:
+                root_attempt_runtime = graph_active_bridge.attempt_for_run(
+                    workflow_run_id
+                )
+                official_run_bundle_ledger = (
+                    root_attempt_runtime.bundle.run_bundle_ledger
+                )
+                if official_run_bundle_ledger is None:
+                    raise RuntimeError(
+                        "active graph has no durable RunBundle ledger"
+                    )
+            else:
+                from production_run_ownership import (
+                    production_ownership_factory_for_agent,
+                )
+
+                provider_turn_ownership_factory = (
+                    production_ownership_factory_for_agent()
+                )
+
+            def ensure_official_run_bundle_ledger():
+                nonlocal official_run_bundle_ledger
+                if official_run_bundle_ledger is not None:
+                    return official_run_bundle_ledger
+                if provider_turn_ownership_factory is None:
+                    raise RuntimeError(
+                        "graph has no provider-turn ownership factory"
+                    )
+                graph_root_owner = provider_turn_ownership_factory.bind(
+                    identity=graph_bundle_identity
+                )
+                official_run_bundle_ledger = graph_root_owner.ledger
+                output_holder["run_bundle_ledger"] = (
+                    official_run_bundle_ledger
+                )
+                return official_run_bundle_ledger
+
+            graph_continued_from_run_id = None
+            requested_continuation = str(
+                options.get("_run_bundle_continued_from_run_id") or ""
+            ).strip()
+            if (
+                requested_continuation
+                and graph_bundle_identity.parent_run_id is None
+            ):
+                ensure_official_run_bundle_ledger()
+                from unchain.run_bundle_ledger import (
+                    RunBundleContinuationError,
+                    RunBundleContinuationLedger,
+                )
+
+                if not isinstance(
+                    official_run_bundle_ledger,
+                    RunBundleContinuationLedger,
+                ):
+                    raise RunBundleContinuationError(
+                        "continuation_ledger_unavailable"
+                    )
+                predecessor = official_run_bundle_ledger.claim_continuation(
+                    successor=graph_bundle_identity,
+                    requested_run_id=requested_continuation,
+                )
+                if (
+                    predecessor is None
+                    or predecessor.identity.run_id
+                    != requested_continuation
+                ):
+                    raise RunBundleContinuationError(
+                        "continued_from_not_claimable"
+                    )
+                graph_continued_from_run_id = predecessor.identity.run_id
+
+            def remember_graph_bundle(raw_bundle: Dict[str, Any]) -> None:
+                from run_bundle_adapter import project_run_bundle
+
+                projected = project_run_bundle(raw_bundle)
+                bundle_id = projected["bundle_id"]
+                current = graph_bundle_values.get(bundle_id)
+                if current is not None:
+                    current_revision = int(current["revision"])
+                    next_revision = int(projected["revision"])
+                    if next_revision < current_revision:
+                        return
+                    if (
+                        next_revision == current_revision
+                        and projected["bundle_digest"]
+                        != current["bundle_digest"]
+                    ):
+                        raise RuntimeError(
+                            "graph RunBundle revision changed its digest"
+                        )
+                graph_bundle_values[bundle_id] = projected
+
+            def materialize_graph_bundle(status: str) -> Dict[str, Any] | None:
+                from run_bundle_adapter import RunBundleProjectionError
+
+                if graph_bundle_values:
+                    ensure_official_run_bundle_ledger()
+                canonical_required = (
+                    official_run_bundle_ledger is not None
+                    or provider_turn_ownership_factory is not None
+                )
+                if graph_bundle_missing and (
+                    canonical_required or graph_bundle_values
+                ):
+                    raise RunBundleProjectionError(
+                        "graph_bundle_coverage_incomplete"
+                    )
+                if not graph_bundle_values:
+                    return None
+
+                from run_bundle_adapter import merge_run_bundles
+                from unchain.run_bundle import RunDescriptor
+
+                prior_root_bundle = None
+                if official_run_bundle_ledger is not None:
+                    prior_roots = tuple(
+                        official_run_bundle_ledger.list_bundles(
+                            root_run_id=graph_bundle_identity.root_run_id,
+                            run_id=graph_bundle_identity.run_id,
+                            attempt_id=graph_bundle_identity.attempt_id,
+                        )
+                    )
+                    list_compact_bundles = getattr(
+                        official_run_bundle_ledger,
+                        "list_compact_bundles",
+                        None,
+                    )
+                    if callable(list_compact_bundles):
+                        prior_roots += tuple(
+                            list_compact_bundles(
+                                root_run_id=graph_bundle_identity.root_run_id,
+                                run_id=graph_bundle_identity.run_id,
+                                attempt_id=graph_bundle_identity.attempt_id,
+                            )
+                        )
+                    if len({item.bundle_id for item in prior_roots}) > 1:
+                        raise RuntimeError(
+                            "graph root resolved multiple RunBundles"
+                        )
+                    if prior_roots:
+                        head_revision = max(item.revision for item in prior_roots)
+                        heads = tuple(
+                            item
+                            for item in prior_roots
+                            if item.revision == head_revision
+                        )
+                        if len(heads) != 1:
+                            raise RuntimeError(
+                                "graph root resolved conflicting RunBundle schemas"
+                            )
+                        prior_root_bundle = heads[0].to_dict()
+
+                prior_lifecycle = (
+                    prior_root_bundle.get("lifecycle", {})
+                    if isinstance(prior_root_bundle, dict)
+                    else {}
+                )
+                started_at = str(
+                    prior_lifecycle.get("started_at")
+                    or graph_bundle_started_at
+                )
+                completed_at = None
+                if status != "running":
+                    completed_at = (
+                        str(prior_lifecycle.get("completed_at") or "")
+                        if prior_lifecycle.get("status") == status
+                        else ""
+                    ) or _run_bundle_timestamp()
+                continued_from_run_id = str(
+                    prior_lifecycle.get("continued_from_run_id")
+                    or graph_continued_from_run_id
+                    or ""
+                ).strip() or None
+                candidate_revision = int(
+                    (prior_root_bundle or {}).get("revision") or 1
+                )
+                descriptor = RunDescriptor(
+                    model=str(selected_config["model"]),
+                    display_model=display_model,
+                    active_agent="developer",
+                    agent_orchestration=_AGENT_ORCHESTRATION_DEFAULT,
+                    iteration=int(output_holder.get("last_iteration") or 0),
+                )
+                merge_kwargs = {
+                    "execution_id": graph_bundle_identity.execution_id,
+                    "attempt_id": graph_bundle_identity.attempt_id,
+                    "root_run_id": graph_bundle_identity.root_run_id,
+                    "run_id": graph_bundle_identity.run_id,
+                    "parent_run_id": graph_bundle_identity.parent_run_id,
+                    "relation": graph_bundle_identity.relation,
+                    "status": status,
+                    "started_at": started_at,
+                    "completed_at": completed_at,
+                    "continued_from_run_id": continued_from_run_id,
+                    "descriptor": descriptor,
+                    "revision": candidate_revision,
+                    "extensions": (
+                        prior_root_bundle.get("extensions")
+                        if isinstance(prior_root_bundle, dict)
+                        else None
+                    ),
+                    "details_ledger": official_run_bundle_ledger,
+                }
+                bundle = merge_run_bundles(
+                    list(graph_bundle_values.values()),
+                    **merge_kwargs,
+                )
+                if (
+                    prior_root_bundle is not None
+                    and prior_root_bundle["bundle_digest"]
+                    != bundle["bundle_digest"]
+                ):
+                    bundle = merge_run_bundles(
+                        list(graph_bundle_values.values()),
+                        **{
+                            **merge_kwargs,
+                            "revision": candidate_revision + 1,
+                        },
+                    )
+                if official_run_bundle_ledger is not None:
+                    from unchain.run_bundle import RunBundle
+                    from unchain.run_bundle_v2 import (
+                        CompactRunBundle,
+                        run_bundle_from_dict,
+                    )
+
+                    parsed_bundle = run_bundle_from_dict(bundle)
+                    if type(parsed_bundle) is RunBundle:
+                        official_run_bundle_ledger.persist_bundle(parsed_bundle)
+                    elif type(parsed_bundle) is CompactRunBundle:
+                        official_run_bundle_ledger.load_compact_bundle_details(
+                            bundle=parsed_bundle
+                        )
+                output_holder["bundle"] = bundle
+                return bundle
+
             last_result = None
             last_agent = None
             for index, agent_node in enumerate(agents):
                 _execution_raise_if_cancelled(execution_token)
                 is_last = index == len(agents) - 1
                 agent_id = str(agent_node.get("id") or f"agent_{index + 1}")
+                step_run_id = _memory_v2_graph_step_run_id(
+                    workflow_run_id,
+                    index,
+                    agent_id,
+                )
+                step_runtime_context = None
+                if graph_checkpoint_host is not None:
+                    from memory_v2_unchain_runtime_context import (
+                        runtime_context_for_memory_binding,
+                    )
+
+                    step_binding = graph_checkpoint_host.register_step(index)
+                    step_run_id = step_binding.run_id
+                    step_runtime_context = runtime_context_for_memory_binding(
+                        step_binding
+                    )
+                if step_runtime_context is not None:
+                    step_identity = step_runtime_context.identity
+                    step_bundle_identity = RunIdentity(
+                        execution_id=step_identity.execution_id,
+                        attempt_id=step_identity.attempt_id,
+                        root_run_id=step_identity.root_run_id,
+                        run_id=step_identity.run_id,
+                        parent_run_id=step_identity.parent_run_id,
+                        relation="graph_node",
+                    )
+                else:
+                    step_bundle_identity = RunIdentity(
+                        execution_id=graph_bundle_identity.execution_id,
+                        attempt_id=step_run_id,
+                        root_run_id=graph_bundle_identity.root_run_id,
+                        run_id=step_run_id,
+                        parent_run_id=graph_bundle_identity.run_id,
+                        relation="graph_node",
+                    )
+                output_holder["last_step_run_id"] = step_run_id
+                if (
+                    graph_checkpoint_host is not None
+                    and graph_checkpoint_host.should_skip(index)
+                ):
+                    ensure_official_run_bundle_ledger()
+                    recovered_envelope = (
+                        graph_checkpoint_host.read_completed_output(index)
+                    )
+                    if (
+                        not isinstance(recovered_envelope, dict)
+                        or recovered_envelope.get("schema")
+                        != "unchain.graph_step_output.v1"
+                        or recovered_envelope.get("status") != "completed"
+                        or not isinstance(recovered_envelope.get("output"), str)
+                    ):
+                        raise RuntimeError(
+                            "completed graph step output is not canonical"
+                        )
+                    recovered_bundle = None
+                    if official_run_bundle_ledger is not None:
+                        durable_bundles = official_run_bundle_ledger.list_bundles(
+                            root_run_id=step_bundle_identity.root_run_id,
+                            run_id=step_bundle_identity.run_id,
+                            attempt_id=step_bundle_identity.attempt_id,
+                        )
+                        if len(durable_bundles) > 1:
+                            raise RuntimeError(
+                                "completed graph step resolved multiple RunBundles"
+                            )
+                        if durable_bundles:
+                            recovered_bundle = durable_bundles[0].to_dict()
+                    if recovered_bundle is None:
+                        graph_bundle_missing = True
+                    else:
+                        remember_graph_bundle(recovered_bundle)
+                    recovered_output = recovered_envelope["output"]
+                    variables[agent_id] = {"output": recovered_output}
+                    output_holder["final_text"] = recovered_output
+                    if (
+                        graph_resume_context is not None
+                        and graph_resume_step_index == index
+                    ):
+                        clear_graph_step_resume_context(
+                            graph_execution_id,
+                            step_run_id,
+                            expected_payload_sha256=str(
+                                graph_resume_context.get("payload_sha256") or ""
+                            ),
+                        )
+                    if not is_last:
+                        emit(
+                            {
+                                "type": "workflow_step_final",
+                                "run_id": workflow_run_id,
+                                "iteration": 0,
+                                "timestamp": time.time(),
+                                "workflow_node_id": agent_id,
+                                "workflow_step_index": index,
+                                "content": recovered_output,
+                                "recovered": True,
+                            }
+                        )
+                    continue
                 override = (
                     agent_node.get("override")
                     if isinstance(agent_node.get("override"), dict)
@@ -5932,7 +10106,6 @@ def _stream_recipe_graph_events(
                     user_toolkits,
                     options,
                 )
-                runtime_toolkits_to_disconnect.extend(step_toolkits)
                 step_subagents = _resolve_graph_agent_subagents(agent_node, compiled)
                 instructions = _replace_workflow_variables(
                     _resolve_graph_agent_prompt(agent_node),
@@ -5944,10 +10117,83 @@ def _stream_recipe_graph_events(
                     subagent_pool=step_subagents,
                     merge_with_user_selected=True,
                 )
+                # C5: a built-in step must not read its context window from the
+                # custom provider model table.  Resolve the real window before
+                # agent construction so V2 admission and all three legacy 40%
+                # gates switch atomically.
+                raw_max_ctx = get_max_context_window_tokens(
+                    step_config["provider"],
+                    step_config["model"],
+                    cfg=step_cfg,
+                )
+                step_admission_options = dict(options)
+                step_context_modules = ()
+                if graph_checkpoint_host is not None:
+                    graph_step = graph_checkpoint_host.plan.steps[index]
+                    step_admission_options.update(
+                        {
+                            "_memory_v2_attempt_id": step_run_id,
+                            "_memory_v2_source_attempt_id": (
+                                graph_step.source_attempt.attempt_id
+                            ),
+                        }
+                    )
+                    if graph_active_bridge is not None:
+                        step_admission_options[
+                            "_memory_v2_unchain_active_preflight"
+                        ] = True
+                    if graph_resume_step_index == index:
+                        step_context_modules = (
+                            graph_checkpoint_host.resume_step_modules(
+                                index,
+                                interaction_id=str(
+                                    graph_resume_context.get(
+                                        "_interaction_id"
+                                    )
+                                    or ""
+                                ),
+                                response=copy.deepcopy(
+                                    graph_resume_context.get(
+                                        "_interaction_response"
+                                    )
+                                ),
+                                submitted_by=str(
+                                    graph_resume_context.get(
+                                        "_interaction_submitted_by"
+                                    )
+                                    or "user"
+                                ),
+                            )
+                        )
+                    else:
+                        step_context_modules = (
+                            graph_checkpoint_host.step_modules(index)
+                        )
+                step_memory_v2_admission = _resolve_memory_v2_admission(
+                    step_admission_options,
+                    provider=step_config["provider"],
+                    model=step_config["model"],
+                    real_context_window_tokens=raw_max_ctx,
+                    session_id=graph_execution_id,
+                )
+                if graph_checkpoint_host is None:
+                    _memory_v2_bind_recalled_refs(
+                        step_memory_v2_admission,
+                        options,
+                    )
+                step_admission_options.pop(
+                    "_memory_v2_unchain_active_preflight",
+                    None,
+                )
+                step_options = _options_with_memory_v2_admission(
+                    step_admission_options,
+                    step_memory_v2_admission,
+                )
                 step_agent = _build_developer_agent(
                     UnchainAgent=_UnchainAgent,
                     ToolsModule=_ToolsModule,
                     MemoryModule=_MemoryModule,
+                    DurabilityModule=_DurabilityModule,
                     PoliciesModule=_PoliciesModule,
                     SubagentModule=_SubagentModule,
                     SubagentTemplate=_SubagentTemplate,
@@ -5958,39 +10204,98 @@ def _stream_recipe_graph_events(
                     user_modules=_extract_user_prompt_modules(options),
                     max_iterations=max_iterations,
                     toolkits=step_toolkits,
-                    memory_manager=None,
+                    memory_manager=(
+                        memory_manager
+                        if graph_memory_v2_admission.is_active
+                        else None
+                    ),
+                    memory_durability_only=(
+                        graph_memory_v2_admission.is_active
+                        and _memory_runtime_uses_durability_only(memory_runtime)
+                    ),
                     jobs_module=(
                         durable_jobs_runtime.module
                         if durable_jobs_runtime is not None
                         else None
                     ),
-                    options=options,
+                    options=step_options,
                     recipe=step_recipe,
                     optimizer_config=step_optimizer_config,
                     model_io_factory=step_factory,
+                    memory_v2_run_id=(
+                        step_run_id
+                        if (
+                            graph_checkpoint_host is not None
+                            or graph_shadow_bridge is not None
+                        )
+                        else f"{workflow_run_id}:{agent_id}"
+                    ),
+                    context_memory_v2_modules=(
+                        step_context_modules
+                        if graph_checkpoint_host is not None
+                        else (
+                            graph_shadow_bridge.modules
+                            if graph_shadow_bridge is not None
+                            else ()
+                        )
+                    ),
+                    official_context_v2_active=(
+                        graph_active_bridge is not None
+                    ),
                 )
+                step_toolkits = getattr(
+                    step_agent,
+                    "_memory_v2_effective_toolkits",
+                    step_toolkits,
+                )
+                runtime_toolkits_to_disconnect.extend(step_toolkits)
                 step_agent._toolkits = step_toolkits
                 step_agent._display_model = _format_model_id(
                     step_config["provider"],
                     step_config["model"],
                 )
                 step_agent._max_iterations = max_iterations
-                # C5: same gate — a built-in step must not read its context
-                # window from the custom cfg's model table.
-                raw_max_ctx = get_max_context_window_tokens(
-                    step_config["provider"],
-                    step_config["model"],
-                    cfg=step_cfg,
+                step_agent._memory_v2_admission = step_memory_v2_admission
+                if graph_shadow_bridge is not None:
+                    step_agent._memory_v2_unchain_shadow_bridge = (
+                        graph_shadow_bridge
+                    )
+                    step_agent._memory_v2_unchain_shadow_preparation = (
+                        graph_shadow_bridge.preparation
+                    )
+                if graph_active_bridge is not None:
+                    step_agent._memory_v2_unchain_active_bridge = (
+                        graph_active_bridge
+                    )
+                    step_agent._memory_v2_unchain_active_preparation = (
+                        graph_active_bridge.preparation
+                    )
+                step_agent._max_context_window_tokens = _memory_v2_effective_max_context(
+                    raw_max_ctx,
+                    step_memory_v2_admission,
                 )
-                step_agent._max_context_window_tokens = int(raw_max_ctx * 0.40)
 
                 toolkit_meta = _build_toolkit_tool_index(step_toolkits)
                 step_final_holder = {"text": ""}
+                interaction_id_tracker = DurableInteractionIdTracker(
+                    guard_owner_attempt_id=str(
+                        options.get("_memory_v2_attempt_id")
+                        or workflow_run_id
+                    ).strip(),
+                )
 
-                def step_emit(event: Dict[str, Any], *, _is_last=is_last, _agent_id=agent_id, _index=index) -> None:
+                def step_emit(
+                    event: Dict[str, Any],
+                    *,
+                    _is_last=is_last,
+                    _agent_id=agent_id,
+                    _index=index,
+                    _step_run_id=step_run_id,
+                ) -> None:
                     if not isinstance(event, dict):
                         return
                     _execution_raise_if_cancelled(execution_token)
+                    interaction_id_tracker.observe(event)
                     if (
                         execution_guard is not None
                         and event.get("type") != "token_delta"
@@ -5999,14 +10304,19 @@ def _stream_recipe_graph_events(
                     event = _enrich_tool_event_with_toolkit_metadata(event, toolkit_meta, session_id)
                     event_run_id = event.get("run_id")
                     event_is_current_step = not isinstance(event_run_id, str) or not event_run_id
+                    if not event_is_current_step:
+                        event_is_current_step = event_run_id == _step_run_id
                     if event_is_current_step:
-                        event["run_id"] = workflow_run_id
-                    else:
-                        event_is_current_step = event_run_id == workflow_run_id
-                    if event_is_current_step:
+                        if graph_checkpoint_host is None:
+                            event["run_id"] = workflow_run_id
                         event.setdefault("workflow_node_id", _agent_id)
                         event.setdefault("workflow_step_index", _index)
                         event.setdefault("workflow_step_count", len(agents))
+                    if graph_checkpoint_host is None:
+                        _persist_memory_v2_semantic_event(
+                            getattr(step_agent, "_memory_v2_admission", None),
+                            event,
+                        )
                     event_type = event.get("type")
                     if event_is_current_step and event_type == "final_message":
                         content = event.get("content")
@@ -6048,52 +10358,293 @@ def _stream_recipe_graph_events(
                         output_holder["last_iteration"] = iteration
                     emit(event)
 
+                step_active_host_event_boundary = (
+                    PupuUnchainHostEventBoundary(
+                        active_bridge=graph_active_bridge,
+                        execution_id=graph_active_bridge.execution_id,
+                        attempt_id=step_run_id,
+                        enqueue=step_emit,
+                    )
+                    if graph_active_bridge is not None
+                    else None
+                )
+
+                def step_host_emit(event: Dict[str, Any]) -> None:
+                    _execution_raise_if_cancelled(execution_token)
+                    if graph_active_bridge is not None:
+                        raise PupuUnchainHostEventBoundaryError(
+                            "active graph host events require the typed boundary"
+                        )
+                    step_emit(event)
+
                 human_input_cb = _make_human_input_callback(
-                    step_emit,
+                    step_host_emit,
                     cancel_event=confirmation_cancel_signal,
                     toolkit_meta_by_tool_name=toolkit_meta,
+                    interaction_id_tracker=interaction_id_tracker,
+                    require_durable_interaction_id=(
+                        graph_durable_interactions_required
+                    ),
+                    root_session_id=graph_execution_id,
+                    root_run_id=step_run_id,
+                    active_host_event_boundary=step_active_host_event_boundary,
                 )
                 if options.get("_recipe_subagent_run"):
                     confirm_cb = None
                     max_iterations_cb = None
                 else:
                     confirm_cb = _make_tool_confirm_callback(
-                        step_emit,
+                        step_host_emit,
                         cancel_event=confirmation_cancel_signal,
                         toolkit_meta_by_tool_name=toolkit_meta,
+                        interaction_id_tracker=interaction_id_tracker,
+                        require_durable_interaction_id=(
+                            graph_durable_interactions_required
+                        ),
+                        root_session_id=graph_execution_id,
+                        root_run_id=step_run_id,
+                        active_host_event_boundary=(
+                            step_active_host_event_boundary
+                        ),
                     )
                     max_iterations_cb = _make_continuation_callback(
-                        step_emit,
+                        step_host_emit,
                         cancel_event=confirmation_cancel_signal,
+                        interaction_id_tracker=interaction_id_tracker,
+                        require_durable_interaction_id=(
+                            graph_durable_interactions_required
+                        ),
+                        root_session_id=graph_execution_id,
+                        root_run_id=step_run_id,
+                        active_host_event_boundary=(
+                            step_active_host_event_boundary
+                        ),
                     )
                 step_messages = runtime_messages if index == 0 else messages_without_attachments
                 _execution_raise_if_cancelled(execution_token)
                 if execution_guard is not None:
                     execution_guard.assert_active()
-                result = step_agent.run(
-                    messages=step_messages,
-                    payload=_build_payload(step_config["provider"], options),
-                    callback=step_emit,
-                    max_iterations=max_iterations,
-                    max_context_window_tokens=step_agent._max_context_window_tokens or None,
-                    on_tool_confirm=confirm_cb,
-                    on_human_input=human_input_cb,
-                    on_max_iterations=max_iterations_cb,
-                    run_id=workflow_run_id,
-                    execution_owner_id=(
-                        workflow_run_id if str(run_id_override or "").strip() else None
-                    ),
-                    _execution_guard=execution_guard,
-                    **({"session_id": session_id} if session_id else {}),
+                step_memory_v2_tool_config = (
+                    {}
+                    if graph_checkpoint_host is not None
+                    else _build_memory_v2_tool_runtime_config(
+                        getattr(step_agent, "_memory_v2_admission", None),
+                        run_id=step_run_id,
+                        agent_id=agent_id,
+                    )
                 )
+                if graph_checkpoint_host is None:
+                    _persist_memory_v2_run_started(
+                        getattr(step_agent, "_memory_v2_admission", None),
+                        run_id=step_run_id,
+                        agent_id=agent_id,
+                    )
+                step_runtime_callback = (
+                    graph_shadow_bridge.compose_event_callback(step_emit)
+                    if graph_shadow_bridge is not None
+                    else step_emit
+                )
+                graph_resume_record = None
+                if (
+                    graph_checkpoint_host is not None
+                    and graph_active_bridge is not None
+                ):
+                    graph_step = graph_checkpoint_host.plan.steps[index]
+                    if graph_resume_step_index == index:
+                        graph_resume_record = graph_resume_context
+                    else:
+                        graph_resume_record = save_graph_step_resume_context(
+                            session_id=graph_execution_id,
+                            step_attempt_id=graph_step.attempt.attempt_id,
+                            operation_id=(
+                                "graph-resume-context-"
+                                + hashlib.sha256(
+                                    (
+                                        graph_checkpoint_host.canonical_build_fingerprint
+                                        + "\0"
+                                        + graph_step.attempt.attempt_id
+                                    ).encode("utf-8")
+                                ).hexdigest()
+                            ),
+                            owner_chat_id=(
+                                graph_active_bridge.preparation.binding.owner_chat_id
+                            ),
+                            graph_execution_id=graph_execution_id,
+                            coordinator_attempt_id=(
+                                graph_checkpoint_host.plan.orchestration_attempt.attempt_id
+                            ),
+                            graph_plan_id=graph_checkpoint_host.plan.plan_id,
+                            graph_scope_id=graph_checkpoint_host.plan.scope_id,
+                            topology_sha256=(
+                                graph_checkpoint_host.plan.topology_sha256
+                            ),
+                            step_index=index,
+                            node_id=graph_step.node_id,
+                            predecessor_attempt_id=(
+                                graph_step.source_attempt.attempt_id
+                            ),
+                            provider=graph_step.provider,
+                            model=graph_step.model,
+                            configuration_sha256=(
+                                graph_step.configuration_sha256
+                            ),
+                            recipe_identity=_memory_v2_graph_recipe_identity(
+                                recipe,
+                                compiled,
+                            ),
+                            canonical_build_fingerprint=(
+                                graph_checkpoint_host.canonical_build_fingerprint
+                            ),
+                            coordinator_binding_snapshot=(
+                                graph_checkpoint_host.coordinator_binding_snapshot
+                            ),
+                            options=step_options,
+                            expected_revision=0,
+                        )
+                if graph_resume_step_index == index:
+                    if graph_checkpoint_host is None:
+                        raise RuntimeError(
+                            "graph step resume requires a canonical checkpoint host"
+                        )
+                    result = step_agent.resume_interaction(
+                        session_id=graph_execution_id,
+                        payload=_build_payload(
+                            step_config["provider"],
+                            options,
+                        ),
+                        callback=step_runtime_callback,
+                        on_tool_confirm=confirm_cb,
+                        on_human_input=human_input_cb,
+                        on_max_iterations=max_iterations_cb,
+                        run_id=step_run_id,
+                        execution_owner_id=step_run_id,
+                        runtime_context=step_runtime_context,
+                        _run_bundle_identity=step_bundle_identity,
+                        **(
+                            {
+                                "_provider_turn_ownership_factory": (
+                                    provider_turn_ownership_factory
+                                )
+                            }
+                            if provider_turn_ownership_factory is not None
+                            else {}
+                        ),
+                    )
+                else:
+                    result = step_agent.run(
+                        messages=step_messages,
+                        payload=_build_payload(step_config["provider"], options),
+                        callback=step_runtime_callback,
+                        max_iterations=max_iterations,
+                        max_context_window_tokens=step_agent._max_context_window_tokens or None,
+                        on_tool_confirm=confirm_cb,
+                        on_human_input=human_input_cb,
+                        on_max_iterations=max_iterations_cb,
+                        run_id=step_run_id,
+                        execution_owner_id=(
+                            step_run_id
+                            if (
+                                graph_checkpoint_host is not None
+                                or graph_shadow_bridge is not None
+                            )
+                            else (
+                                workflow_run_id
+                                if str(run_id_override or "").strip()
+                                else None
+                            )
+                        ),
+                        _execution_guard=execution_guard,
+                        _run_bundle_identity=step_bundle_identity,
+                        **(
+                            {
+                                "_provider_turn_ownership_factory": (
+                                    provider_turn_ownership_factory
+                                )
+                            }
+                            if provider_turn_ownership_factory is not None
+                            else {}
+                        ),
+                        **(
+                            {"runtime_context": step_runtime_context}
+                            if step_runtime_context is not None
+                            else {}
+                        ),
+                        **(
+                            {"tool_runtime_config": step_memory_v2_tool_config}
+                            if step_memory_v2_tool_config
+                            else {}
+                        ),
+                        **(
+                            {
+                                "session_id": (
+                                    graph_execution_id
+                                    if graph_checkpoint_host is not None
+                                    else session_id
+                                )
+                            }
+                            if (
+                                graph_checkpoint_host is not None
+                                or session_id
+                            )
+                            else {}
+                        ),
+                    )
                 _execution_raise_if_cancelled(execution_token)
                 if execution_guard is not None:
                     execution_guard.assert_active()
                 last_result = result
                 last_agent = step_agent
+                from run_bundle_adapter import (
+                    ExpectedRunBundleIdentity,
+                    project_kernel_result_bundle,
+                )
+
+                step_bundle = project_kernel_result_bundle(
+                    result,
+                    expected=ExpectedRunBundleIdentity(
+                        execution_id=step_bundle_identity.execution_id,
+                        attempt_id=step_bundle_identity.attempt_id,
+                        root_run_id=step_bundle_identity.root_run_id,
+                        run_id=step_bundle_identity.run_id,
+                    ),
+                )
+                if step_bundle is None:
+                    graph_bundle_missing = True
+                else:
+                    remember_graph_bundle(step_bundle)
+                result_status = str(
+                    getattr(result, "status", "") or ""
+                ).strip()
+                if result_status in {
+                    "awaiting_human_input",
+                    "awaiting_interaction",
+                }:
+                    output_holder["suspended"] = True
+                    output_holder["suspended_step_index"] = index
+                    break
                 final_text = step_final_holder["text"] or _extract_last_assistant_text(getattr(result, "messages", []) or [])
+                if graph_checkpoint_host is not None:
+                    graph_checkpoint_host.complete_step(
+                        index,
+                        full_output=final_text,
+                    )
+                if isinstance(graph_resume_record, dict):
+                    clear_graph_step_resume_context(
+                        graph_execution_id,
+                        step_run_id,
+                        expected_payload_sha256=str(
+                            graph_resume_record.get("payload_sha256") or ""
+                        ),
+                    )
                 variables[agent_id] = {"output": final_text}
                 output_holder["final_text"] = final_text
+
+            if graph_bundle_values or graph_bundle_missing:
+                materialize_graph_bundle(
+                    "suspended"
+                    if output_holder.get("suspended")
+                    else "running"
+                )
 
             final_text = str(output_holder.get("final_text") or "")
             _execution_raise_if_cancelled(execution_token)
@@ -6150,18 +10701,83 @@ def _stream_recipe_graph_events(
                         "fallback_reason": f"memory_commit_failed: {exc}",
                     })
 
-            if last_result is not None and last_agent is not None:
+            if graph_bundle_values and not output_holder.get("suspended"):
+                materialize_graph_bundle("completed")
+            elif (
+                not graph_bundle_values
+                and last_result is not None
+                and last_agent is not None
+            ):
+                # Absence-only compatibility for old/fake Agent runtimes.  A
+                # mixed canonical/legacy graph is rejected above rather than
+                # presenting the final node as the whole graph.
                 bundle = _build_bundle_from_result(
                     last_result,
                     last_agent,
-                    model=str(getattr(last_agent, "_display_model", "") or display_model),
+                    model=str(
+                        getattr(last_agent, "_display_model", "")
+                        or display_model
+                    ),
                     active_agent="developer",
                     orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
                 )
                 if bundle:
                     output_holder["bundle"] = bundle
+
+            # The externally visible graph terminal is last.  A complete
+            # unique-call union must already be durable before checkpoint
+            # finalization can make the graph appear finished after restart.
+            if (
+                graph_checkpoint_host is not None
+                and not output_holder.get("suspended")
+            ):
+                if (
+                    graph_active_bridge is not None
+                    and graph_completion_authorized
+                ):
+                    from memory_v2_unchain_graph_root_completion import (
+                        complete_pupu_unchain_graph_root,
+                    )
+
+                    output_holder["graph_root_completion"] = (
+                        complete_pupu_unchain_graph_root(
+                            graph_checkpoint_host,
+                            agent_name=str(
+                                getattr(recipe, "name", "")
+                                or "Recipe graph"
+                            ),
+                        )
+                    )
+                else:
+                    graph_checkpoint_host.finalize()
         except Exception as run_error:
             import traceback as _tb
+
+            current_bundle = output_holder.get("bundle")
+            if (
+                callable(materialize_graph_bundle)
+                and isinstance(current_bundle, dict)
+                and current_bundle.get("lifecycle", {}).get("status")
+                in {"running", "completed"}
+            ):
+                try:
+                    failed_bundle = materialize_graph_bundle("failed")
+                    if isinstance(failed_bundle, dict):
+                        from unchain.kernel.failure import (
+                            attach_kernel_run_failure,
+                        )
+                        from unchain.run_bundle import RunBundle
+
+                        attach_kernel_run_failure(
+                            run_error,
+                            error_category="graph_runtime",
+                            error_code="graph_run_failed",
+                            run_bundle=RunBundle.from_dict(failed_bundle),
+                        )
+                except Exception as accounting_error:
+                    output_holder["bundle_accounting_error"] = (
+                        accounting_error
+                    )
 
             if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
                 execution_token
@@ -6192,14 +10808,23 @@ def _stream_recipe_graph_events(
                         "mark_failed",
                         token_session_id,
                         token_attempt_id,
-                        reason=str(output_holder.get("error") or ""),
+                        reason=_memory_v2_failure_reason(output_holder.get("error")),
                     )
                 elif not (
                     output_holder.get("cancelled")
                     or _execution_is_cancelled(execution_token)
+                    or output_holder.get("suspended")
                 ):
                     _execution_control_call(
                         "mark_completed",
+                        token_session_id,
+                        token_attempt_id,
+                    )
+                elif output_holder.get("cancelled") or _execution_is_cancelled(
+                    execution_token
+                ):
+                    _execution_control_call(
+                        "finish_cancelled_run",
                         token_session_id,
                         token_attempt_id,
                     )
@@ -6225,31 +10850,83 @@ def _stream_recipe_graph_events(
         tb = output_holder.get("error_traceback", "")
         if tb:
             print(f"[unchain workflow error]\n{tb}", file=sys.stderr, flush=True)
+        if isinstance(error, BaseException):
+            failure_summary = _failed_run_summary_event(
+                error,
+                admission=graph_memory_v2_admission,
+                active_context_bridge=graph_active_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=workflow_run_id,
+                iteration=int(output_holder.get("last_iteration") or 0),
+            )
+            if failure_summary is not None:
+                yield failure_summary
+            raise error
         raise RuntimeError(str(error))
 
     if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
         return
 
-    if not output_holder.get("seen_final_message"):
+    if (
+        not output_holder.get("suspended")
+        and not output_holder.get("seen_final_message")
+    ):
         final_text = str(output_holder.get("final_text") or "")
         if final_text:
-            yield {
+            fallback_event = {
                 "type": "final_message",
                 "run_id": workflow_run_id,
                 "iteration": int(output_holder.get("last_iteration") or 0),
                 "timestamp": time.time(),
                 "content": final_text,
             }
+            if graph_shadow_bridge is not None:
+                shadow_fallback_event = copy.deepcopy(fallback_event)
+                shadow_fallback_event["run_id"] = str(
+                    output_holder.get("last_step_run_id") or workflow_run_id
+                )
+                graph_shadow_bridge.persist(shadow_fallback_event)
+            if graph_active_bridge is None:
+                _persist_memory_v2_semantic_event(
+                    graph_memory_v2_admission,
+                    fallback_event,
+                )
+            yield fallback_event
 
+    if graph_active_bridge is None and not output_holder.get("suspended"):
+        _finalize_memory_v2_curator(
+            graph_memory_v2_admission,
+            options,
+            run_id=workflow_run_id,
+            lifecycle="graph",
+        )
     bundle = output_holder.get("bundle")
     if isinstance(bundle, dict) and bundle:
-        yield {
+        _refresh_memory_v2_bundle(bundle, graph_memory_v2_admission)
+        completion_diagnostics = None
+        if graph_memory_v2_admission is not None:
+            from completion_diagnostics import build_completion_diagnostics
+
+            completion_diagnostics = build_completion_diagnostics(
+                _memory_v2_bundle_payload(graph_memory_v2_admission)
+            )
+            bundle = _bind_completion_diagnostics_to_run_bundle(
+                bundle,
+                completion_diagnostics,
+                active_context_bridge=graph_active_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=workflow_run_id,
+            )
+        summary_event = {
             "type": "stream_summary",
             "run_id": workflow_run_id,
             "iteration": int(output_holder.get("last_iteration") or 0),
             "timestamp": time.time(),
             "bundle": bundle,
         }
+        if completion_diagnostics is not None:
+            summary_event["completion_diagnostics"] = completion_diagnostics
+        yield summary_event
 
 
 def stream_chat(
@@ -6264,6 +10941,20 @@ def stream_chat(
     if _recipe_has_graph(recipe):
         final_text = ""
         streamed = False
+        graph_run_id = (
+            str(_uuid.uuid4())
+            if options.get("_memory_v2_requested") is True
+            else ""
+        )
+        graph_runtime_context = (
+            _memory_v2_root_runtime_context(
+                options=options,
+                execution_id=(session_id or graph_run_id),
+                run_id=graph_run_id,
+            )
+            if graph_run_id
+            else None
+        )
         for event in _stream_recipe_graph_events(
             recipe=recipe,
             message=message,
@@ -6272,6 +10963,8 @@ def stream_chat(
             options=options,
             session_id=session_id,
             cancel_event=None,
+            run_id_override=graph_run_id,
+            runtime_context=graph_runtime_context,
         ):
             event_type = event.get("type")
             if event_type == "token_delta":
@@ -6290,8 +10983,12 @@ def stream_chat(
     agent = _create_agent(options, session_id=session_id)
     memory_runtime = _memory_runtime_from_agent(agent)
     if (
-        memory_runtime["requested"]
-        and not memory_runtime["available"]
+        memory_runtime["required"]
+        and not memory_runtime["durability_available"]
+    ) or (
+        memory_runtime["kind"] == "legacy_context"
+        and memory_runtime["requested"]
+        and not memory_runtime["legacy_context_available"]
         and not history
     ):
         reason = memory_runtime["reason"] or "memory_manager_unavailable"
@@ -6359,6 +11056,8 @@ def stream_chat(
 
     error = output_holder.get("error")
     if error is not None:
+        if isinstance(error, BaseException):
+            raise error
         raise RuntimeError(str(error))
 
     if not output_holder.get("has_streamed_delta"):
@@ -6367,6 +11066,24 @@ def stream_chat(
             final_text = _extract_last_assistant_text(output_holder.get("messages") or [])
         if final_text:
             yield final_text
+
+
+def _public_interject_options(options: Any) -> Dict[str, object]:
+    """Return the run snapshot allowed to flow into interject side calls.
+
+    Underscore-prefixed transport fields are internal capabilities, not
+    user-selected model options.  Filter them at the registration boundary so
+    adding a new private field cannot silently expose it through normal or
+    resumed interject execution.
+    """
+
+    if not isinstance(options, dict):
+        return {}
+    return {
+        key: value
+        for key, value in options.items()
+        if not str(key).startswith("_")
+    }
 
 
 def stream_chat_events(
@@ -6381,6 +11098,11 @@ def stream_chat_events(
 ) -> Iterable[Dict[str, Any]]:
     normalized_session_id = str(session_id or "").strip()
     normalized_attempt_id = str(attempt_id or "").strip()
+    options = dict(options) if isinstance(options, dict) else {}
+    if normalized_session_id:
+        options["_memory_v2_session_id"] = normalized_session_id
+    if normalized_attempt_id:
+        options["_memory_v2_attempt_id"] = normalized_attempt_id
     execution_token = None
     registration = None
     if normalized_session_id and normalized_attempt_id:
@@ -6411,11 +11133,20 @@ def stream_chat_events(
         and options.get("durable_interactions_required") is True
     )
     recipe = _load_recipe_from_options(options)
-    if _recipe_has_graph(recipe) and not (
-        durable_interactions_required
-        and _recipe_supports_durable_flat_projection(recipe)
+    recipe_has_graph = _recipe_has_graph(recipe)
+    active_graph_candidate = (
+        recipe_has_graph
+        and durable_interactions_required
+        and _memory_v2_active_graph_candidate(options)
+    )
+    if recipe_has_graph and (
+        active_graph_candidate
+        or not (
+            durable_interactions_required
+            and _recipe_supports_durable_flat_projection(recipe)
+        )
     ):
-        if durable_interactions_required:
+        if durable_interactions_required and not active_graph_candidate:
             raise DurableInteractionHostError(
                 "durable_recipe_graph_unsupported",
                 "Durable interactions are not supported for recipe graphs",
@@ -6426,47 +11157,68 @@ def stream_chat_events(
             normalized_session_id,
             normalized_attempt_id,
         ) if normalized_session_id and normalized_attempt_id else None
-        if normalized_session_id and normalized_attempt_id and (
-            str(getattr(running, "disposition", "") or "") != "applied"
-            or _execution_result_is_terminal(running)
-            or _execution_is_cancelled(execution_token)
-        ):
-            return
-        try:
-            yield from _stream_recipe_graph_events(
-                recipe=recipe,
-                message=message,
-                history=history,
-                attachments=attachments,
-                options=options,
-                session_id=session_id,
-                cancel_event=cancel_event,
-                run_id_override=normalized_attempt_id,
-                execution_token=execution_token,
-            )
-        except BaseException as graph_error:
-            if not (
-                isinstance(graph_error, GeneratorExit)
-                or _is_execution_cancelled_error(graph_error)
+        with _AppliedExecutionOwnerScope(
+            session_id=normalized_session_id,
+            attempt_id=normalized_attempt_id,
+            running=running,
+            execution_token=execution_token,
+        ) as execution_owner:
+            if normalized_session_id and normalized_attempt_id and (
+                str(getattr(running, "disposition", "") or "") != "applied"
+                or _execution_result_is_terminal(running)
                 or _execution_is_cancelled(execution_token)
             ):
-                _execution_control_call(
-                    "mark_failed",
-                    normalized_session_id,
-                    normalized_attempt_id,
-                )
-            if _is_execution_cancelled_error(graph_error) or _execution_is_cancelled(
-                execution_token
-            ):
                 return
-            raise
-        else:
-            if normalized_session_id and normalized_attempt_id:
-                _execution_control_call(
-                    "mark_completed",
-                    normalized_session_id,
-                    normalized_attempt_id,
+            takeover_error = _memory_v2_guard_reclaimed_execution(
+                options=options,
+                session_id=normalized_session_id,
+                attempt_id=normalized_attempt_id,
+                registration=registration,
+                running=running,
+            )
+            if takeover_error is not None:
+                yield takeover_error
+                return
+            graph_run_id = (
+                normalized_attempt_id
+                or (
+                    str(_uuid.uuid4())
+                    if options.get("_memory_v2_requested") is True
+                    else ""
                 )
+            )
+            graph_runtime_context = (
+                _memory_v2_root_runtime_context(
+                    options=options,
+                    execution_id=(normalized_session_id or graph_run_id),
+                    run_id=graph_run_id,
+                )
+                if options.get("_memory_v2_requested") is True
+                else None
+            )
+            try:
+                graph_events = _stream_recipe_graph_events(
+                    recipe=recipe,
+                    message=message,
+                    history=history,
+                    attachments=attachments,
+                    options=options,
+                    session_id=session_id,
+                    cancel_event=cancel_event,
+                    run_id_override=graph_run_id,
+                    execution_token=execution_token,
+                    runtime_context=graph_runtime_context,
+                )
+                for graph_event in graph_events:
+                    execution_owner.handoff()
+                    yield graph_event
+            except BaseException as graph_error:
+                if _is_execution_cancelled_error(
+                    graph_error
+                ) or _execution_is_cancelled(execution_token):
+                    return
+                raise
+            execution_owner.handoff()
         return
 
     running = _execution_control_call(
@@ -6474,30 +11226,100 @@ def stream_chat_events(
         normalized_session_id,
         normalized_attempt_id,
     ) if normalized_session_id and normalized_attempt_id else None
-    if normalized_session_id and normalized_attempt_id and (
-        str(getattr(running, "disposition", "") or "") != "applied"
-        or _execution_result_is_terminal(running)
-        or _execution_is_cancelled(execution_token)
-    ):
-        return
-
-    event_queue: "queue.Queue[object]" = queue.Queue()
-    done_marker = object()
-    interject_key = session_id or f"session-{id(event_queue)}"
-    interject_channels = register_interject_channels(
-        interject_key, str(message or ""), options=options
+    execution_owner = _AppliedExecutionOwnerScope(
+        session_id=normalized_session_id,
+        attempt_id=normalized_attempt_id,
+        running=running,
+        execution_token=execution_token,
     )
+    with execution_owner:
+        if normalized_session_id and normalized_attempt_id and (
+            str(getattr(running, "disposition", "") or "") != "applied"
+            or _execution_result_is_terminal(running)
+            or _execution_is_cancelled(execution_token)
+        ):
+            return
+        takeover_error = _memory_v2_guard_reclaimed_execution(
+            options=options,
+            session_id=normalized_session_id,
+            attempt_id=normalized_attempt_id,
+            registration=registration,
+            running=running,
+        )
+        if takeover_error is not None:
+            yield takeover_error
+            return
 
-    durable_context_saved = False
-    execution_run_id = normalized_attempt_id or str(_uuid.uuid4())
+        event_queue: "queue.Queue[object]" = queue.Queue()
+        done_marker = object()
+        interject_key = session_id or f"session-{id(event_queue)}"
+        interject_channels = register_interject_channels(
+            interject_key,
+            str(message or ""),
+            options=_public_interject_options(options),
+        )
+
+        durable_context_saved = False
+        execution_run_id = normalized_attempt_id or str(_uuid.uuid4())
+        memory_v2_shadow_run = None
+        memory_v2_runtime_context = None
+        if options.get("_memory_v2_requested") is True:
+            from memory_v2_unchain_run_binding import PupuMemoryV2TextInputDraft
+            from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
+            from unchain.memory import MEMORY_V2_MODULE_KEY
+
+            memory_v2_runtime_context = _memory_v2_root_runtime_context(
+                options=options,
+                execution_id=(normalized_session_id or execution_run_id),
+                run_id=execution_run_id,
+            )
+            memory_v2_grant = memory_v2_runtime_context.grant_for(
+                MEMORY_V2_MODULE_KEY
+            )
+            if memory_v2_grant is None:
+                raise RuntimeError("root Context V2 run has no Memory V2 grant")
+
+            current_input_draft = (
+                PupuMemoryV2TextInputDraft(content=message)
+                if isinstance(message, str) and message.strip()
+                else None
+            )
+            memory_v2_shadow_run = PupuUnchainShadowRunDraft(
+                session_id=(normalized_session_id or execution_run_id),
+                identity=memory_v2_runtime_context.identity,
+                grant=memory_v2_grant,
+                current_input_draft=current_input_draft,
+                attachment_blocks=tuple(
+                    copy.deepcopy(item)
+                    for item in (attachments or [])
+                    if isinstance(item, dict)
+                ),
+            )
+        execution_owner.defer_cleanup()
     agent = None
     try:
-        agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)
-        messages = _normalize_messages(history, message, attachments)
+        agent = _create_agent(
+            options,
+            session_id=session_id,
+            fyi_channel=interject_channels.fyi,
+            memory_v2_shadow_run=memory_v2_shadow_run,
+        )
+        memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
+        messages = _normalize_messages(
+            [] if getattr(memory_v2_admission, "is_active", False) else history,
+            message,
+            attachments,
+        )
         payload = _build_payload(agent.provider, options)
         memory_runtime = _memory_runtime_from_agent(agent)
-        if durable_interactions_required and not memory_runtime["available"]:
-            fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
+        if (
+            durable_interactions_required or memory_runtime["required"]
+        ) and not memory_runtime["durability_available"]:
+            fallback_reason = (
+                memory_runtime["durability_reason"]
+                or memory_runtime["reason"]
+                or "durable_runtime_unavailable"
+            )
             raise DurableInteractionHostError(
                 "durable_memory_unavailable",
                 "Durable interactions require a memory-ready session: "
@@ -6505,8 +11327,17 @@ def stream_chat_events(
                 status_code=503,
                 retryable=True,
             )
-        if memory_runtime["requested"] and not memory_runtime["available"]:
-            fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
+        if (
+            memory_runtime["kind"] == "legacy_context"
+            and
+            memory_runtime["requested"]
+            and not memory_runtime["legacy_context_available"]
+        ):
+            fallback_reason = (
+                memory_runtime["legacy_context_reason"]
+                or memory_runtime["reason"]
+                or "memory_manager_unavailable"
+            )
             yield {
                 "type": "memory_prepare",
                 "run_id": "",
@@ -6542,12 +11373,15 @@ def stream_chat_events(
         if (
             durable_interactions_required
             and session_id
-            and memory_runtime["available"]
+            and memory_runtime["durability_available"]
         ):
+            resume_context_options = dict(options)
+            resume_context_options.pop("_memory_v2_bootstrap_history", None)
+            resume_context_options.pop("_memory_v2_current_user_message", None)
             save_resume_context(
                 session_id=session_id,
                 run_id=execution_run_id,
-                options=options,
+                options=resume_context_options,
                 provider=str(getattr(agent, "provider", "") or ""),
                 model=str(getattr(agent, "model", "") or ""),
             )
@@ -6568,6 +11402,20 @@ def stream_chat_events(
         )
 
         interaction_id_tracker = DurableInteractionIdTracker()
+        active_context_bridge = getattr(
+            agent,
+            "_memory_v2_unchain_active_bridge",
+            None,
+        )
+        provider_turn_ownership_factory = None
+        if active_context_bridge is None:
+            from production_run_ownership import (
+                production_ownership_factory_for_agent,
+            )
+
+            provider_turn_ownership_factory = (
+                production_ownership_factory_for_agent()
+            )
 
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
@@ -6579,6 +11427,11 @@ def stream_chat_events(
                 _toolkit_meta_by_tool_name,
                 session_id,
             )
+            if active_context_bridge is None:
+                _persist_memory_v2_semantic_event(
+                    getattr(agent, "_memory_v2_admission", None),
+                    event,
+                )
             event_type = event.get("type")
             # Suppress unchain-native events that are replaced by our callbacks
             if event_type == "human_input_requested":
@@ -6605,7 +11458,37 @@ def stream_chat_events(
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
+            if active_context_bridge is not None:
+                raise PupuUnchainHostEventBoundaryError(
+                    "active root host events require the typed boundary"
+                )
+            _persist_memory_v2_semantic_event(
+                getattr(agent, "_memory_v2_admission", None),
+                event,
+            )
             event_queue.put(event)
+
+        active_host_event_boundary = (
+            PupuUnchainHostEventBoundary(
+                active_bridge=active_context_bridge,
+                execution_id=active_context_bridge.execution_id,
+                attempt_id=execution_run_id,
+                enqueue=event_queue.put,
+            )
+            if active_context_bridge is not None
+            else None
+        )
+
+        shadow_bridge = getattr(
+            agent,
+            "_memory_v2_unchain_shadow_bridge",
+            None,
+        )
+        runtime_event_callback = (
+            shadow_bridge.compose_event_callback(on_event)
+            if shadow_bridge is not None
+            else on_event
+        )
 
         confirmation_cancel_signal = threading.Event()
         run_done_event = threading.Event()
@@ -6617,6 +11500,7 @@ def stream_chat_events(
             require_durable_interaction_id=durable_interactions_required,
             root_session_id=normalized_session_id,
             root_run_id=execution_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,
@@ -6624,12 +11508,18 @@ def stream_chat_events(
             toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
+            root_session_id=normalized_session_id,
+            root_run_id=execution_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         max_iterations_cb = _make_continuation_callback(
             emit_if_active,
             cancel_event=confirmation_cancel_signal,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=durable_interactions_required,
+            root_session_id=normalized_session_id,
+            root_run_id=execution_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         if isinstance(cancel_event, threading.Event):
             def watch_stream_cancel() -> None:
@@ -6674,10 +11564,29 @@ def stream_chat_events(
                 resolved_max_ctx = int(
                     getattr(agent, "_max_context_window_tokens", 0) or 0
                 )
+                memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
+                memory_v2_tool_config = (
+                    {}
+                    if active_context_bridge is not None
+                    else _build_memory_v2_tool_runtime_config(
+                        memory_v2_admission,
+                        run_id=execution_run_id,
+                        agent_id="developer",
+                    )
+                )
+                continued_from_run_id = str(
+                    options.get("_run_bundle_continued_from_run_id") or ""
+                ).strip()
+                if active_context_bridge is None:
+                    _persist_memory_v2_run_started(
+                        memory_v2_admission,
+                        run_id=execution_run_id,
+                        agent_id="developer",
+                    )
                 result = agent.run(
                     messages=messages,
                     payload=payload,
-                    callback=on_event,
+                    callback=runtime_event_callback,
                     max_iterations=resolved_max_iterations,
                     max_context_window_tokens=resolved_max_ctx or None,
                     on_tool_confirm=confirm_cb,
@@ -6685,8 +11594,36 @@ def stream_chat_events(
                     on_max_iterations=max_iterations_cb,
                     run_id=execution_run_id,
                     execution_owner_id=(normalized_attempt_id or None),
+                    **(
+                        {"runtime_context": memory_v2_runtime_context}
+                        if (
+                            shadow_bridge is not None
+                            or active_context_bridge is not None
+                        )
+                        and memory_v2_runtime_context is not None
+                        else {}
+                    ),
+                    **(
+                        {"tool_runtime_config": memory_v2_tool_config}
+                        if memory_v2_tool_config
+                        else {}
+                    ),
                     **({"session_id": session_id} if session_id else {}),
                     **({"memory_namespace": memory_namespace} if memory_namespace else {}),
+                    **(
+                        {"_continued_from_run_id": continued_from_run_id}
+                        if continued_from_run_id
+                        else {}
+                    ),
+                    **(
+                        {
+                            "_provider_turn_ownership_factory": (
+                                provider_turn_ownership_factory
+                            )
+                        }
+                        if provider_turn_ownership_factory is not None
+                        else {}
+                    ),
                 )
                 result_status = str(getattr(result, "status", "") or "").strip()
                 output_holder["messages"] = result.messages
@@ -6703,8 +11640,37 @@ def stream_chat_events(
                 )
                 if bundle:
                     output_holder["bundle"] = bundle
+                    if (
+                        provider_turn_ownership_factory is not None
+                        and bundle.get("schema") in {
+                            "unchain.run_bundle.v1",
+                            "unchain.run_bundle.v2",
+                        }
+                    ):
+                        from unchain.run_bundle import RunIdentity
+
+                        owner = provider_turn_ownership_factory.bind(
+                            identity=RunIdentity.from_dict(bundle["identity"])
+                        )
+                        output_holder["run_bundle_ledger"] = owner.ledger
             except Exception as run_error:
                 import traceback as _tb
+
+                if provider_turn_ownership_factory is not None:
+                    from unchain.kernel import (
+                        kernel_run_failure_from_exception,
+                    )
+
+                    failure = kernel_run_failure_from_exception(run_error)
+                    if failure is not None:
+                        failed_owner = (
+                            provider_turn_ownership_factory.bind(
+                                identity=failure.run_bundle.identity
+                            )
+                        )
+                        output_holder["run_bundle_ledger"] = (
+                            failed_owner.ledger
+                        )
 
                 if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
                     execution_token
@@ -6720,6 +11686,7 @@ def stream_chat_events(
                             "mark_failed",
                             normalized_session_id,
                             normalized_attempt_id,
+                            reason=_memory_v2_failure_reason(output_holder.get("error")),
                         )
                     elif (
                         not output_holder.get("cancelled")
@@ -6729,6 +11696,14 @@ def stream_chat_events(
                     ):
                         _execution_control_call(
                             "mark_completed",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
+                    elif output_holder.get("cancelled") or _execution_is_cancelled(
+                        execution_token
+                    ):
+                        _execution_control_call(
+                            "finish_cancelled_run",
                             normalized_session_id,
                             normalized_attempt_id,
                         )
@@ -6744,7 +11719,13 @@ def stream_chat_events(
 
         worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
         worker.start()
+        execution_owner.handoff()
     except BaseException as setup_error:  # also catch GeneratorExit on abandoned SSE setup
+        setup_cancelled = bool(
+            _is_execution_cancelled_error(setup_error)
+            or _execution_is_cancelled(execution_token)
+        )
+        execution_owner.cleanup(error=setup_error)
         if durable_context_saved:
             _cleanup_durable_resume_contexts(
                 session_id,
@@ -6755,20 +11736,7 @@ def stream_chat_events(
         release_interject_channels(interject_key, interject_channels)
         if "run_done_event" in locals():
             run_done_event.set()
-        if not (
-            isinstance(setup_error, GeneratorExit)
-            or _is_execution_cancelled_error(setup_error)
-            or _execution_is_cancelled(execution_token)
-        ) and normalized_session_id and normalized_attempt_id:
-            _execution_control_call(
-                "mark_failed",
-                normalized_session_id,
-                normalized_attempt_id,
-                reason=str(setup_error),
-            )
-        if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
-            execution_token
-        ):
+        if setup_cancelled:
             return
         raise
 
@@ -6786,6 +11754,16 @@ def stream_chat_events(
             import sys as _sys
             print(f"[unchain run_agent error]\n{tb}", file=_sys.stderr, flush=True)
         if isinstance(error, BaseException):
+            failure_summary = _failed_run_summary_event(
+                error,
+                admission=getattr(agent, "_memory_v2_admission", None),
+                active_context_bridge=active_context_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=execution_run_id,
+                iteration=int(output_holder.get("last_iteration") or 0),
+            )
+            if failure_summary is not None:
+                yield failure_summary
             raise error
         raise RuntimeError(str(error))
 
@@ -6795,23 +11773,69 @@ def stream_chat_events(
     if not output_holder.get("seen_final_message"):
         final_text = _extract_last_assistant_text(output_holder.get("messages") or [])
         if final_text:
-            yield {
+            fallback_event = {
                 "type": "final_message",
-                "run_id": output_holder.get("last_run_id", ""),
+                "run_id": (
+                    output_holder.get("last_run_id", "") or execution_run_id
+                ),
                 "iteration": output_holder.get("last_iteration", 0),
                 "timestamp": time.time(),
                 "content": final_text,
             }
+            if active_context_bridge is not None:
+                fallback_event = _persist_active_fallback_final(
+                    active_context_bridge,
+                    fallback_event,
+                    execution_id=active_context_bridge.execution_id,
+                    attempt_id=execution_run_id,
+                )
+            elif shadow_bridge is not None:
+                shadow_bridge.persist(fallback_event)
+            if active_context_bridge is None:
+                _persist_memory_v2_semantic_event(
+                    getattr(agent, "_memory_v2_admission", None),
+                    fallback_event,
+                )
+            yield fallback_event
 
+    if active_context_bridge is None:
+        _finalize_memory_v2_curator(
+            getattr(agent, "_memory_v2_admission", None),
+            options,
+            run_id=execution_run_id,
+            lifecycle="normal",
+        )
     bundle = output_holder.get("bundle")
     if isinstance(bundle, dict) and bundle:
-        yield {
+        memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
+        _refresh_memory_v2_bundle(
+            bundle,
+            memory_v2_admission,
+        )
+        completion_diagnostics = None
+        if memory_v2_admission is not None:
+            from completion_diagnostics import build_completion_diagnostics
+
+            completion_diagnostics = build_completion_diagnostics(
+                _memory_v2_bundle_payload(memory_v2_admission)
+            )
+            bundle = _bind_completion_diagnostics_to_run_bundle(
+                bundle,
+                completion_diagnostics,
+                active_context_bridge=active_context_bridge,
+                run_bundle_ledger=output_holder.get("run_bundle_ledger"),
+                run_id=execution_run_id,
+            )
+        summary_event = {
             "type": "stream_summary",
             "run_id": str(output_holder.get("last_run_id") or ""),
             "iteration": int(output_holder.get("last_iteration") or 0),
             "timestamp": time.time(),
             "bundle": bundle,
         }
+        if completion_diagnostics is not None:
+            summary_event["completion_diagnostics"] = completion_diagnostics
+        yield summary_event
 
 
 def resume_chat_interaction_events(
@@ -6920,15 +11944,117 @@ def resume_chat_interaction_events(
             )
             return
 
-    resolved_options = resolve_resume_options(
-        session_id=normalized_session_id,
-        run_id=source_run_id,
-        fresh_options=options if isinstance(options, dict) else {},
-        expected_provider=str(pending_state.get("provider") or ""),
-        expected_model=str(pending_state.get("model") or ""),
+    fresh_options = options if isinstance(options, dict) else {}
+    fresh_owner_chat_id = str(
+        fresh_options.get("_memory_v2_owner_chat_id") or ""
+    ).strip()
+    graph_step_resume = (
+        str(pending_state.get("resume_kind") or "").strip()
+        == "graph_step"
     )
+    graph_resume_context = None
+    if graph_step_resume:
+        if not fresh_owner_chat_id:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_owner_required",
+                "Graph-step resume requires the current chat owner",
+                status_code=409,
+            )
+        graph_resume_context = load_graph_step_resume_context(
+            normalized_session_id,
+            source_run_id,
+            expected_owner_chat_id=fresh_owner_chat_id,
+            expected_provider=str(pending_state.get("provider") or ""),
+            expected_model=str(pending_state.get("model") or ""),
+        )
+        if graph_resume_context is None:
+            raise DurableInteractionHostError(
+                "durable_graph_resume_context_missing",
+                "No graph-step resume metadata was recorded for this interaction",
+                status_code=409,
+            )
+        resolved_options = resolve_graph_step_resume_options(
+            session_id=normalized_session_id,
+            step_attempt_id=source_run_id,
+            owner_chat_id=fresh_owner_chat_id,
+            fresh_options=fresh_options,
+            expected_provider=str(pending_state.get("provider") or ""),
+            expected_model=str(pending_state.get("model") or ""),
+        )
+    else:
+        resolved_options = resolve_resume_options(
+            session_id=normalized_session_id,
+            run_id=source_run_id,
+            fresh_options=fresh_options,
+            expected_provider=str(pending_state.get("provider") or ""),
+            expected_model=str(pending_state.get("model") or ""),
+        )
+    resolved_options = dict(resolved_options)
+    from context_composition_host import (
+        AVAILABILITY_OPTION as _CONTEXT_COMPOSITION_AVAILABILITY_OPTION,
+        normalize_context_composition_availability,
+    )
+
+    resolved_context_composition_availability = (
+        normalize_context_composition_availability(
+            resolved_options.get(
+                _CONTEXT_COMPOSITION_AVAILABILITY_OPTION
+            )
+        )
+    )
+
+    def with_context_composition_availability(
+        event: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if resolved_context_composition_availability is None:
+            return event
+        projected = dict(event)
+        projected["context_composition_availability"] = copy.deepcopy(
+            resolved_context_composition_availability
+        )
+        return projected
+
+    resolved_options["_memory_v2_requested"] = (
+        graph_step_resume
+        or fresh_options.get("_memory_v2_requested") is True
+    )
+    if fresh_owner_chat_id:
+        resolved_options["_memory_v2_owner_chat_id"] = fresh_owner_chat_id
+    fresh_memory_agent_config = fresh_options.get(
+        "_memory_v2_memory_agent_config"
+    )
+    if isinstance(fresh_memory_agent_config, dict):
+        resolved_options["_memory_v2_memory_agent_config"] = copy.deepcopy(
+            fresh_memory_agent_config
+        )
+    resolved_options["_memory_v2_session_id"] = normalized_session_id
+    resolved_options["_memory_v2_attempt_id"] = normalized_attempt_id
+    resolved_options["_memory_v2_source_attempt_id"] = source_run_id
     recipe = _load_recipe_from_options(resolved_options)
-    if _recipe_has_graph(recipe) and not _recipe_supports_durable_flat_projection(
+    if graph_step_resume:
+        if not _recipe_has_graph(recipe):
+            raise DurableInteractionHostError(
+                "durable_graph_resume_recipe_missing",
+                "Graph-step resume metadata no longer resolves to a recipe graph",
+                status_code=409,
+            )
+        pending_resolution = (
+            pending_state.get("resolution")
+            if isinstance(pending_state.get("resolution"), dict)
+            else {}
+        )
+        graph_resume_context = copy.deepcopy(graph_resume_context)
+        graph_resume_context["_interaction_id"] = normalized_interaction_id
+        graph_resume_context["_interaction_response"] = copy.deepcopy(
+            pending_resolution.get("response")
+        )
+        graph_resume_context["_interaction_submitted_by"] = "user"
+        resolved_options["_memory_v2_graph_resume_context"] = (
+            graph_resume_context
+        )
+        resolved_options["_memory_v2_requested"] = True
+        resolved_options["_memory_v2_owner_chat_id"] = fresh_owner_chat_id
+    elif _recipe_has_graph(recipe) and not _recipe_supports_durable_flat_projection(
         recipe
     ):
         raise DurableInteractionHostError(
@@ -6937,53 +12063,274 @@ def resume_chat_interaction_events(
             status_code=422,
         )
 
-    running = _execution_control_call(
-        "mark_running",
-        normalized_session_id,
-        normalized_attempt_id,
-    ) if normalized_attempt_id else None
+    transfer = None
+    if normalized_attempt_id:
+        transfer = _session_execution_guard_transition(
+            "prepare_parked_session_guard_transfer",
+            session_id=normalized_session_id,
+            interaction_id=normalized_interaction_id,
+            source_attempt_id=source_run_id,
+            receipt_id=str(pending_state.get("receipt_id") or "").strip(),
+            attempt_id=normalized_attempt_id,
+        )
+    try:
+        running = _execution_control_call(
+            "mark_running",
+            normalized_session_id,
+            normalized_attempt_id,
+        ) if normalized_attempt_id else None
+    except BaseException:
+        if transfer is None:
+            raise
+        ambiguity = _execution_control_call(
+            "inspect_mark_running_ambiguity",
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        ambiguity_disposition = str(
+            getattr(ambiguity, "disposition", "") or ""
+        )
+        if ambiguity_disposition == "applied":
+            _session_execution_guard_transition(
+                "validate_parked_session_guard_transfer",
+                transfer=transfer,
+            )
+            _execution_owner_logger.warning(
+                "continuing after an ambiguous mark-running commit"
+            )
+            running = ambiguity
+        elif ambiguity_disposition == "already_terminal":
+            _session_execution_guard_transition(
+                "release_parked_session_guard_transfer",
+                transfer=transfer,
+            )
+            running = ambiguity
+        elif ambiguity is None or ambiguity_disposition == "not_applied":
+            _session_execution_guard_transition(
+                "rollback_parked_session_guard_transfer",
+                transfer=transfer,
+            )
+            raise
+        else:
+            raise
+    if (
+        transfer is not None
+        and str(getattr(running, "disposition", "") or "") == "unchanged"
+        and _execution_result_status(running) == "running"
+    ):
+        ambiguity = _execution_control_call(
+            "inspect_mark_running_ambiguity",
+            normalized_session_id,
+            normalized_attempt_id,
+        )
+        if str(getattr(ambiguity, "disposition", "") or "") != "applied":
+            raise DurableInteractionHostError(
+                "execution_running_owner_ambiguous",
+                "Durable resume execution owner cannot be verified",
+                status_code=409,
+                retryable=False,
+            )
+        _session_execution_guard_transition(
+            "validate_parked_session_guard_transfer",
+            transfer=transfer,
+        )
+        running = ambiguity
+    execution_owner = _AppliedExecutionOwnerScope(
+        session_id=normalized_session_id,
+        attempt_id=normalized_attempt_id,
+        running=running,
+        execution_token=execution_token,
+    )
     if normalized_attempt_id and (
         str(getattr(running, "disposition", "") or "") != "applied"
         or _execution_result_is_terminal(running)
         or _execution_is_cancelled(execution_token)
     ):
-        if _execution_result_status(running) in {"completed", "failed"}:
+        execution_owner.cleanup()
+        if _execution_result_is_terminal(running):
             clear_execution_attempt_binding(
                 normalized_session_id,
                 normalized_attempt_id,
             )
         return
+    try:
+        takeover_error = _memory_v2_guard_reclaimed_execution(
+            options=resolved_options,
+            session_id=normalized_session_id,
+            attempt_id=normalized_attempt_id,
+            registration=registration,
+            running=running,
+        )
+    except BaseException as takeover_failure:
+        execution_owner.cleanup(error=takeover_failure)
+        raise
+    if takeover_error is not None:
+        execution_owner.cleanup()
+        yield takeover_error
+        return
 
-    event_queue: "queue.Queue[object]" = queue.Queue()
-    done_marker = object()
-    interject_key = normalized_session_id
-    interject_channels = register_interject_channels(
-        interject_key,
-        "",
-        options=resolved_options,
-    )
+    if graph_step_resume:
+        with execution_owner:
+            coordinator_snapshot = graph_resume_context.get(
+                "coordinator_binding_snapshot"
+            )
+            if not isinstance(coordinator_snapshot, dict):
+                raise DurableInteractionHostError(
+                    "durable_graph_resume_binding_missing",
+                    "Graph-step resume has no canonical coordinator binding",
+                    status_code=409,
+                )
+            from memory_v2_unchain_runtime_context import (
+                runtime_context_from_memory_binding_snapshot,
+            )
 
-    agent = None
-    resume_run_id = ""
+            graph_runtime_context = (
+                runtime_context_from_memory_binding_snapshot(
+                    coordinator_snapshot
+                )
+            )
+            graph_summary_seen = False
+            try:
+                graph_events = _stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="",
+                    history=[],
+                    attachments=[],
+                    options=resolved_options,
+                    session_id=normalized_session_id,
+                    cancel_event=cancel_event,
+                    run_id_override="",
+                    execution_token=execution_token,
+                    runtime_context=graph_runtime_context,
+                )
+                for graph_event in graph_events:
+                    if (
+                        isinstance(graph_event, dict)
+                        and graph_event.get("type") == "stream_summary"
+                    ):
+                        graph_summary_seen = True
+                        graph_event = with_context_composition_availability(
+                            graph_event
+                        )
+                    execution_owner.handoff()
+                    yield graph_event
+                if (
+                    resolved_context_composition_availability is not None
+                    and not graph_summary_seen
+                ):
+                    yield with_context_composition_availability(
+                        {
+                            "type": "stream_summary",
+                            "run_id": source_run_id,
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                        }
+                    )
+            except BaseException as graph_resume_error:
+                if (
+                    not isinstance(graph_resume_error, GeneratorExit)
+                    and resolved_context_composition_availability is not None
+                    and not graph_summary_seen
+                ):
+                    yield with_context_composition_availability(
+                        {
+                            "type": "stream_summary",
+                            "run_id": source_run_id,
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                        }
+                    )
+                if _is_execution_cancelled_error(
+                    graph_resume_error
+                ) or _execution_is_cancelled(execution_token):
+                    return
+                raise
+            finally:
+                if normalized_attempt_id:
+                    execution_snapshot = _execution_control_call(
+                        "snapshot",
+                        normalized_session_id,
+                        normalized_attempt_id,
+                    )
+                    if bool(getattr(execution_snapshot, "terminal", False)):
+                        clear_execution_attempt_binding(
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
+            execution_owner.handoff()
+        return
+
+    with execution_owner:
+        event_queue: "queue.Queue[object]" = queue.Queue()
+        done_marker = object()
+        interject_key = normalized_session_id
+        interject_channels = register_interject_channels(
+            interject_key,
+            "",
+            options=_public_interject_options(resolved_options),
+        )
+
+        agent = None
+        resume_run_id = normalized_attempt_id or str(_uuid.uuid4())
+        memory_v2_shadow_run = None
+        memory_v2_runtime_context = None
+        if resolved_options.get("_memory_v2_requested") is True:
+            from memory_v2_unchain_run_binding import (
+                PupuMemoryV2InteractionInputDraft,
+            )
+            from memory_v2_unchain_shadow_bridge import PupuUnchainShadowRunDraft
+            from unchain.memory import MEMORY_V2_MODULE_KEY
+
+            memory_v2_runtime_context = _memory_v2_root_runtime_context(
+                options=resolved_options,
+                execution_id=normalized_session_id,
+                run_id=resume_run_id,
+                source_run_id=source_run_id,
+            )
+            memory_v2_grant = memory_v2_runtime_context.grant_for(
+                MEMORY_V2_MODULE_KEY
+            )
+            if memory_v2_grant is None:
+                raise RuntimeError("resumed Context V2 run has no Memory V2 grant")
+
+            pending_resolution = (
+                pending_state.get("resolution")
+                if isinstance(pending_state.get("resolution"), dict)
+                else {}
+            )
+            memory_v2_shadow_run = PupuUnchainShadowRunDraft(
+                session_id=normalized_session_id,
+                identity=memory_v2_runtime_context.identity,
+                grant=memory_v2_grant,
+                current_input_draft=PupuMemoryV2InteractionInputDraft(
+                    interaction_id=normalized_interaction_id,
+                    response=pending_resolution.get("response"),
+                    submitted_by="user",
+                ),
+            )
+        execution_owner.defer_cleanup()
     try:
         agent = _create_agent(
             resolved_options,
             session_id=normalized_session_id,
             fyi_channel=interject_channels.fyi,
+            memory_v2_shadow_run=memory_v2_shadow_run,
         )
         memory_runtime = _memory_runtime_from_agent(agent)
-        if not memory_runtime["available"]:
+        if not memory_runtime["durability_available"]:
             raise DurableInteractionHostError(
                 "memory_unavailable",
                 "Durable interaction resume requires a memory-ready session",
                 status_code=503,
             )
 
-        resume_run_id = normalized_attempt_id or str(_uuid.uuid4())
+        resume_context_options = dict(resolved_options)
+        resume_context_options.pop("_memory_v2_bootstrap_history", None)
+        resume_context_options.pop("_memory_v2_current_user_message", None)
         save_resume_context(
             session_id=normalized_session_id,
             run_id=resume_run_id,
-            options=resolved_options,
+            options=resume_context_options,
             provider=str(getattr(agent, "provider", "") or ""),
             model=str(getattr(agent, "model", "") or ""),
         )
@@ -7000,6 +12347,11 @@ def resume_chat_interaction_events(
             getattr(agent, "_toolkits", []),
         )
         interaction_id_tracker = DurableInteractionIdTracker()
+        active_context_bridge = getattr(
+            agent,
+            "_memory_v2_unchain_active_bridge",
+            None,
+        )
 
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
@@ -7014,6 +12366,11 @@ def resume_chat_interaction_events(
                 toolkit_meta_by_tool_name,
                 normalized_session_id,
             )
+            if active_context_bridge is None:
+                _persist_memory_v2_semantic_event(
+                    getattr(agent, "_memory_v2_admission", None),
+                    event,
+                )
             if event_type in {"human_input_requested", "run_max_iterations"}:
                 return
             if _is_bare_ask_user_question_tool_call(event):
@@ -7034,7 +12391,37 @@ def resume_chat_interaction_events(
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
+            if active_context_bridge is not None:
+                raise PupuUnchainHostEventBoundaryError(
+                    "active resume host events require the typed boundary"
+                )
+            _persist_memory_v2_semantic_event(
+                getattr(agent, "_memory_v2_admission", None),
+                event,
+            )
             event_queue.put(event)
+
+        active_host_event_boundary = (
+            PupuUnchainHostEventBoundary(
+                active_bridge=active_context_bridge,
+                execution_id=active_context_bridge.execution_id,
+                attempt_id=resume_run_id,
+                enqueue=event_queue.put,
+            )
+            if active_context_bridge is not None
+            else None
+        )
+
+        shadow_bridge = getattr(
+            agent,
+            "_memory_v2_unchain_shadow_bridge",
+            None,
+        )
+        runtime_event_callback = (
+            shadow_bridge.compose_event_callback(on_event)
+            if shadow_bridge is not None
+            else on_event
+        )
 
         confirmation_cancel_signal = threading.Event()
         run_done_event = threading.Event()
@@ -7046,6 +12433,7 @@ def resume_chat_interaction_events(
             require_durable_interaction_id=True,
             root_session_id=normalized_session_id,
             root_run_id=resume_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,
@@ -7053,12 +12441,18 @@ def resume_chat_interaction_events(
             toolkit_meta_by_tool_name=toolkit_meta_by_tool_name,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
+            root_session_id=normalized_session_id,
+            root_run_id=resume_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
         max_iterations_cb = _make_continuation_callback(
             emit_if_active,
             cancel_event=confirmation_cancel_signal,
             interaction_id_tracker=interaction_id_tracker,
             require_durable_interaction_id=True,
+            root_session_id=normalized_session_id,
+            root_run_id=resume_run_id,
+            active_host_event_boundary=active_host_event_boundary,
         )
 
         if isinstance(cancel_event, threading.Event):
@@ -7099,15 +12493,75 @@ def resume_chat_interaction_events(
                 memory_namespace = str(
                     resolved_options.get("memory_namespace") or ""
                 ).strip()
+                memory_v2_admission = getattr(
+                    agent,
+                    "_memory_v2_admission",
+                    None,
+                )
+                memory_v2_tool_config = (
+                    {}
+                    if active_context_bridge is not None
+                    else _build_memory_v2_tool_runtime_config(
+                        memory_v2_admission,
+                        run_id=resume_run_id,
+                        agent_id="developer",
+                    )
+                )
+                if active_context_bridge is None:
+                    _persist_memory_v2_run_started(
+                        memory_v2_admission,
+                        run_id=resume_run_id,
+                        agent_id="developer",
+                    )
+                pending_resolution = (
+                    pending_state.get("resolution")
+                    if isinstance(pending_state.get("resolution"), dict)
+                    else {}
+                )
+                resumed_resolution_event = _interaction_resolution_event(
+                    interaction_id=normalized_interaction_id,
+                    kind=str(pending_state.get("kind") or ""),
+                    outcome=str(
+                        pending_resolution.get("outcome") or "submitted"
+                    ),
+                    receipt_id=str(pending_state.get("receipt_id") or ""),
+                    session_id=normalized_session_id,
+                    source_run_id=source_run_id,
+                    event_run_id=(
+                        resume_run_id
+                        if active_host_event_boundary is not None
+                        else source_run_id
+                    ),
+                )
+                if active_host_event_boundary is None:
+                    emit_if_active(resumed_resolution_event)
+                # Active Context V2 already admits this resolution through
+                # PupuMemoryV2InteractionInputDraft during kernel bootstrap.
+                # Re-emitting it here would either announce success before
+                # bootstrap or create a second journal representation.
                 result = agent.resume_interaction(
                     session_id=normalized_session_id,
                     payload=_build_payload(agent.provider, resolved_options),
-                    callback=on_event,
+                    callback=runtime_event_callback,
                     on_tool_confirm=confirm_cb,
                     on_human_input=human_input_cb,
                     on_max_iterations=max_iterations_cb,
                     run_id=resume_run_id,
                     execution_owner_id=(normalized_attempt_id or None),
+                    **(
+                        {"runtime_context": memory_v2_runtime_context}
+                        if (
+                            shadow_bridge is not None
+                            or active_context_bridge is not None
+                        )
+                        and memory_v2_runtime_context is not None
+                        else {}
+                    ),
+                    **(
+                        {"tool_runtime_config": memory_v2_tool_config}
+                        if memory_v2_tool_config
+                        else {}
+                    ),
                     **(
                         {"memory_namespace": memory_namespace}
                         if memory_namespace
@@ -7149,7 +12603,7 @@ def resume_chat_interaction_events(
                             "mark_failed",
                             normalized_session_id,
                             normalized_attempt_id,
-                            reason=str(output_holder.get("error") or ""),
+                            reason=_memory_v2_failure_reason(output_holder.get("error")),
                         )
                     elif (
                         not output_holder.get("cancelled")
@@ -7159,6 +12613,14 @@ def resume_chat_interaction_events(
                     ):
                         terminal_transition = _execution_control_call(
                             "mark_completed",
+                            normalized_session_id,
+                            normalized_attempt_id,
+                        )
+                    elif output_holder.get("cancelled") or _execution_is_cancelled(
+                        execution_token
+                    ):
+                        _execution_control_call(
+                            "finish_cancelled_run",
                             normalized_session_id,
                             normalized_attempt_id,
                         )
@@ -7184,7 +12646,13 @@ def resume_chat_interaction_events(
             name="unchain-resume-events",
             daemon=True,
         ).start()
+        execution_owner.handoff()
     except BaseException as setup_error:
+        setup_cancelled = bool(
+            _is_execution_cancelled_error(setup_error)
+            or _execution_is_cancelled(execution_token)
+        )
+        execution_owner.cleanup(error=setup_error)
         _cleanup_durable_resume_contexts(
             normalized_session_id,
             (source_run_id, resume_run_id),
@@ -7194,28 +12662,7 @@ def resume_chat_interaction_events(
         release_interject_channels(interject_key, interject_channels)
         if "run_done_event" in locals():
             run_done_event.set()
-        if not (
-            isinstance(setup_error, GeneratorExit)
-            or _is_execution_cancelled_error(setup_error)
-            or _execution_is_cancelled(execution_token)
-        ) and normalized_attempt_id:
-            terminal_transition = _execution_control_call(
-                "mark_failed",
-                normalized_session_id,
-                normalized_attempt_id,
-                reason=str(setup_error),
-            )
-            if _execution_result_status(terminal_transition) in {
-                "completed",
-                "failed",
-            }:
-                clear_execution_attempt_binding(
-                    normalized_session_id,
-                    normalized_attempt_id,
-                )
-        if _is_execution_cancelled_error(setup_error) or _execution_is_cancelled(
-            execution_token
-        ):
+        if setup_cancelled:
             return
         raise
 
@@ -7235,9 +12682,40 @@ def resume_chat_interaction_events(
                 file=sys.stderr,
                 flush=True,
             )
+        failure_summary = _failed_run_summary_event(
+            error,
+            admission=getattr(agent, "_memory_v2_admission", None),
+            active_context_bridge=active_context_bridge,
+            run_id=resume_run_id,
+            iteration=int(output_holder.get("last_iteration") or 0),
+        )
+        if failure_summary is not None:
+            yield with_context_composition_availability(failure_summary)
+        elif resolved_context_composition_availability is not None:
+            yield with_context_composition_availability(
+                {
+                    "type": "stream_summary",
+                    "run_id": resume_run_id,
+                    "iteration": int(
+                        output_holder.get("last_iteration") or 0
+                    ),
+                    "timestamp": time.time(),
+                }
+            )
         raise error
 
     if output_holder.get("cancelled") or _execution_is_cancelled(execution_token):
+        if resolved_context_composition_availability is not None:
+            yield with_context_composition_availability(
+                {
+                    "type": "stream_summary",
+                    "run_id": resume_run_id,
+                    "iteration": int(
+                        output_holder.get("last_iteration") or 0
+                    ),
+                    "timestamp": time.time(),
+                }
+            )
         return
 
     if not output_holder.get("seen_final_message"):
@@ -7245,20 +12723,72 @@ def resume_chat_interaction_events(
             output_holder.get("messages") or []
         )
         if final_text:
-            yield {
+            fallback_event = {
                 "type": "final_message",
-                "run_id": output_holder.get("last_run_id", ""),
+                "run_id": output_holder.get("last_run_id", "") or resume_run_id,
                 "iteration": output_holder.get("last_iteration", 0),
                 "timestamp": time.time(),
                 "content": final_text,
             }
+            if active_context_bridge is not None:
+                fallback_event = _persist_active_fallback_final(
+                    active_context_bridge,
+                    fallback_event,
+                    execution_id=active_context_bridge.execution_id,
+                    attempt_id=resume_run_id,
+                )
+            elif shadow_bridge is not None:
+                shadow_bridge.persist(fallback_event)
+            if active_context_bridge is None:
+                _persist_memory_v2_semantic_event(
+                    getattr(agent, "_memory_v2_admission", None),
+                    fallback_event,
+                )
+            yield fallback_event
 
+    if active_context_bridge is None:
+        _finalize_memory_v2_curator(
+            getattr(agent, "_memory_v2_admission", None),
+            resolved_options,
+            run_id=resume_run_id,
+            lifecycle="resume",
+        )
     bundle = output_holder.get("bundle")
     if isinstance(bundle, dict) and bundle:
-        yield {
+        memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
+        _refresh_memory_v2_bundle(
+            bundle,
+            memory_v2_admission,
+        )
+        completion_diagnostics = None
+        if memory_v2_admission is not None:
+            from completion_diagnostics import build_completion_diagnostics
+
+            completion_diagnostics = build_completion_diagnostics(
+                _memory_v2_bundle_payload(memory_v2_admission)
+            )
+            bundle = _bind_completion_diagnostics_to_run_bundle(
+                bundle,
+                completion_diagnostics,
+                active_context_bridge=active_context_bridge,
+                run_id=resume_run_id,
+            )
+        summary_event = {
             "type": "stream_summary",
             "run_id": str(output_holder.get("last_run_id") or ""),
             "iteration": int(output_holder.get("last_iteration") or 0),
             "timestamp": time.time(),
             "bundle": bundle,
         }
+        if completion_diagnostics is not None:
+            summary_event["completion_diagnostics"] = completion_diagnostics
+        yield with_context_composition_availability(summary_event)
+    elif resolved_context_composition_availability is not None:
+        yield with_context_composition_availability(
+            {
+                "type": "stream_summary",
+                "run_id": str(output_holder.get("last_run_id") or ""),
+                "iteration": int(output_holder.get("last_iteration") or 0),
+                "timestamp": time.time(),
+            }
+        )

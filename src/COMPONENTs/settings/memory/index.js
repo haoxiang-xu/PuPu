@@ -12,6 +12,18 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 import { MemoryInspectModal } from "../../memory-inspect/memory_inspect_modal";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../../SERVICEs/feature_flags";
+
+/* Memory V2 copy is intentionally untranslated for now: these strings only
+   render behind the `enable_memory_v2` flag, and adding keys would churn all
+   12 locale files before the Memory V2 wording is frozen. */
+const LEGACY_CONTEXT_SECTION_TITLE = "Legacy Context Memory";
+const LEGACY_CONTEXT_SECTION_BODY =
+  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory V2 runs as an optional Unchain module and is not an Agent Builder node.";
+const LEGACY_SECTION_SUFFIX = " (Legacy)";
 
 const PROVIDER_OPTIONS = [
   { value: "auto", label: "Auto" },
@@ -32,9 +44,8 @@ const formatThresholdValue = (value) => {
 };
 
 export const MemorySettings = ({ onNavigate }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
-  const isDark = onThemeMode === "dark_mode";
   const {
     models: openaiEmbeddingModels,
     loading: openaiEmbeddingLoading,
@@ -48,6 +59,16 @@ export const MemorySettings = ({ onNavigate }) => {
 
   const [settings, setSettings] = useState(() => readMemorySettings());
   const [inspectOpen, setInspectOpen] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
+
+  // The settings view can stay mounted while flags are toggled elsewhere
+  // (e.g. the Dev page), so re-read on mount and subscribe to changes.
+  useEffect(() => {
+    setFeatureFlags(readFeatureFlags());
+    return subscribeFeatureFlags(setFeatureFlags);
+  }, []);
+
+  const memoryV2Enabled = featureFlags.enable_memory_v2 === true;
 
   const update = useCallback((patch) => {
     setSettings((prev) => {
@@ -63,7 +84,7 @@ export const MemorySettings = ({ onNavigate }) => {
     [update],
   );
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const mutedColor = "var(--pupu-text-faint)";
   const normalizedCurrentOpenAIModel =
     typeof settings.openai_embedding_model === "string"
       ? settings.openai_embedding_model.trim()
@@ -145,18 +166,12 @@ export const MemorySettings = ({ onNavigate }) => {
               paddingVertical: 5,
               paddingHorizontal: 14,
               borderRadius: 6,
-              hoverBackgroundColor: isDark
-                ? "rgba(255,255,255,0.14)"
-                : "rgba(0,0,0,0.10)",
+              hoverBackgroundColor: "var(--pupu-overlay-active)",
               background: {
-                hoverBackgroundColor: isDark
-                  ? "rgba(255,255,255,0.14)"
-                  : "rgba(0,0,0,0.10)",
+                hoverBackgroundColor: "var(--pupu-overlay-active)",
               },
               root: {
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.08)"
-                  : "rgba(0,0,0,0.05)",
+                backgroundColor: "var(--pupu-overlay-hover)",
               },
             }}
           />
@@ -221,7 +236,7 @@ export const MemorySettings = ({ onNavigate }) => {
                   height: 20,
                   fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
-                  color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                  color: "var(--pupu-text-strong)",
                 }}
               />
             </SettingsRow>
@@ -249,11 +264,9 @@ export const MemorySettings = ({ onNavigate }) => {
                   fontSize: 12,
                   padding: "5px 14px",
                   borderRadius: 6,
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.15)"}`,
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.04)",
-                  color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                  border: `1px solid ${"var(--pupu-border)"}`,
+                  backgroundColor: "var(--pupu-overlay-hover)",
+                  color: "var(--pupu-text-strong)",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
@@ -304,7 +317,7 @@ export const MemorySettings = ({ onNavigate }) => {
                   height: 20,
                   fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
-                  color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                  color: "var(--pupu-text-strong)",
                 }}
               />
             </SettingsRow>
@@ -324,7 +337,22 @@ export const MemorySettings = ({ onNavigate }) => {
         )}
       </SettingsSection>
 
-      {/* ── Context strategy ── */}
+      {/* ── Context strategy (legacy note under Memory V2) ── */}
+      {memoryV2Enabled ? (
+        <SettingsSection title={LEGACY_CONTEXT_SECTION_TITLE}>
+          <div
+            style={{
+              fontSize: 12,
+              fontFamily: theme?.font?.fontFamily || "inherit",
+              color: "var(--pupu-text-secondary)",
+              padding: "12px 0",
+              lineHeight: 1.5,
+            }}
+          >
+            {LEGACY_CONTEXT_SECTION_BODY}
+          </div>
+        </SettingsSection>
+      ) : (
       <SettingsSection title={t("memory.context_strategy")}>
         <SettingsRow
           label={t("memory.last_n_turns", { count: settings.last_n_turns })}
@@ -372,8 +400,15 @@ export const MemorySettings = ({ onNavigate }) => {
           />
         </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection title={t("memory.long_term_memory")}>
+      <SettingsSection
+        title={
+          memoryV2Enabled
+            ? `${t("memory.long_term_memory")}${LEGACY_SECTION_SUFFIX}`
+            : t("memory.long_term_memory")
+        }
+      >
         <SettingsRow
           label={t("memory.extract_every_n", { count: settings.long_term_extract_every_n_turns })}
           description={t("memory.extract_every_n_desc")}

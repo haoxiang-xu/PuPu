@@ -8,8 +8,18 @@ import {
   within,
 } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { resolveSemanticPalette } from "../../../CONTAINERs/config/theme_semantic";
+import {
+  roleWindow,
+  bandsContain,
+  relativeLuminance,
+} from "../../../BUILTIN_COMPONENTs/theme/contrast_window";
 import ThemeEditor from "./theme_editor";
-import { readThemeSettings, writeThemeDetails } from "./storage";
+import {
+  readThemeSettings,
+  writeThemeDetails,
+  writeThemeCustomColor,
+} from "./storage";
 
 jest.mock("../../../SERVICEs/toast", () => ({
   toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() },
@@ -44,7 +54,7 @@ describe("ThemeEditor", () => {
     for (const label of [
       "Accent",
       "Background color",
-      "Text",
+      "Label",
       "Muted text",
       "Border",
       "Success",
@@ -170,6 +180,37 @@ describe("ThemeEditor", () => {
         semantic: expect.objectContaining({ background: previewed }),
       }),
     );
+  });
+
+  /* The card is a pure function of the palette it is handed, so the whole
+     question is whether that palette was DERIVED or just key-patched. A
+     shallow `{...palette, [key]: value}` moves only the root, leaving every
+     tier that hangs off it — sidebar, surface — on its committed value: the
+     card's own background jumps while its sidebar strip and bubble wait for
+     the commit. The live CSS vars never had this problem because they go
+     through resolveSemanticPalette; the card has to take the same road. */
+  test("previewing a root color re-derives its tiers inside the preview card", () => {
+    renderWithCtx();
+
+    const bgOf = (id) => screen.getByTestId(id).style.backgroundColor;
+    const before = {
+      card: bgOf("theme-preview-card"),
+      sidebar: bgOf("theme-preview-sidebar"),
+      bubble: bgOf("theme-preview-bubble"),
+    };
+
+    fireEvent.click(screen.getByRole("button", { name: "Background color" }));
+    /* Light mode, so this has to be a light color — the picker clamps a dark
+       one into the legal shell window and the exact landing value is the
+       constraint's business, not this test's. What matters is that all three
+       regions move together. */
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#f2e4e4" },
+    });
+
+    expect(bgOf("theme-preview-card")).not.toBe(before.card);
+    expect(bgOf("theme-preview-sidebar")).not.toBe(before.sidebar);
+    expect(bgOf("theme-preview-bubble")).not.toBe(before.bubble);
   });
 
   test("renders preset selector with MiniUI Select instead of native select", () => {
@@ -334,7 +375,12 @@ describe("ThemeEditor", () => {
     try {
       renderWithCtx();
 
-      fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
+      const resetButton = screen.getByRole("button", {
+        name: "Reset to default",
+      });
+      expect(resetButton).toHaveStyle({ backgroundColor: "transparent" });
+
+      fireEvent.click(resetButton);
       expect(
         screen.getByRole("button", { name: "Confirm reset" }),
       ).toBeInTheDocument();
@@ -343,9 +389,12 @@ describe("ThemeEditor", () => {
         jest.advanceTimersByTime(3100);
       });
 
-      expect(
-        screen.getByRole("button", { name: "Reset to default" }),
-      ).toBeInTheDocument();
+      const restoredResetButton = screen.getByRole("button", {
+        name: "Reset to default",
+      });
+      expect(restoredResetButton).toHaveStyle({
+        backgroundColor: "transparent",
+      });
       expect(readThemeSettings().custom?.light_mode?.accent).toBeUndefined();
     } finally {
       jest.useRealTimers();
@@ -385,11 +434,11 @@ describe("ThemeEditor", () => {
     expect(readThemeSettings().details.dark_mode.chipBorder).toBe("#ff0000");
   });
 
-  test("Background expander shows an auto ×N badge that drops as tiers are customized", () => {
+  test("Background expander shows a linked ×N badge that drops as tiers are customized", () => {
     renderWithCtx();
     fireEvent.click(screen.getByText("Background"));
     // Both background-family tiers (sidebar, surface) start auto-derived.
-    expect(screen.getByText("auto ×2")).toBeInTheDocument();
+    expect(screen.getByText("linked ×2")).toBeInTheDocument();
 
     // Commit a custom Surface color — one tier is no longer auto.
     fireEvent.click(screen.getByRole("button", { name: "Surface" }));
@@ -398,7 +447,7 @@ describe("ThemeEditor", () => {
     });
     fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
 
-    expect(screen.getByText("auto ×1")).toBeInTheDocument();
+    expect(screen.getByText("linked ×1")).toBeInTheDocument();
   });
 });
 
@@ -415,7 +464,7 @@ describe("theme_editor.js armed reset carries a --pupu-danger affordance", () =>
   );
 
   test("armed (danger) icon color resolves to var(--pupu-danger)", () => {
-    expect(src).toMatch(/color: danger\s*\n\s*\?\s*"var\(--pupu-danger\)"/);
+    expect(src).toMatch(/color: danger\s*\??\s*\n?\s*\??\s*"var\(--pupu-danger\)"/);
   });
 
   test("armed (danger) background resolves to a tinted --pupu-danger-rgb fill", () => {
@@ -430,3 +479,423 @@ describe("theme_editor.js armed reset carries a --pupu-danger affordance", () =>
 // row's expanded-folder region tint now comes from the BUILTIN Explorer
 // itself (src/BUILTIN_COMPONENTs/explorer/explorer.js's BackgroundIndicator /
 // ExplorerRow hoverBg), which carries its own coverage in explorer.test.js.
+
+describe("ThemeEditor — taxonomy v2 editor", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
+  });
+
+  test("the two new roots get their own rows", () => {
+    renderWithCtx();
+    expect(screen.getByRole("button", { name: "Warning" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Info" })).toBeInTheDocument();
+  });
+
+  /* There is no show/hide switch any more: every tier the editor knows about
+     is on screen from the first frame, and depth is expressed by the
+     Explorer's own expanders. */
+  test("strength steps are on screen with no toggle to reveal them", () => {
+    renderWithCtx();
+    for (const name of ["Show all tiers", "Hide tiers"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+
+    /* Overlay is a reference row, not a root: it has no picker of its own
+       and says where it derives from. */
+    expect(screen.getByText("Overlay")).toBeInTheDocument();
+    /* Markdown arrived as a second group off the same mechanism, so the
+       "follows Label" caption is no longer unique — assert one per group
+       rather than one in the document. */
+    expect(screen.getByText("Markdown")).toBeInTheDocument();
+    expect(screen.getAllByText("follows Label")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Overlay" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Markdown" })).toBeNull();
+  });
+
+  test("no editor view preference leaks into the exported theme shape", () => {
+    renderWithCtx();
+    const theme = readThemeSettings();
+    expect(theme.theme_editor_show_tiers).toBeUndefined();
+    expect(Object.keys(theme).sort()).toEqual(["custom", "preset"]);
+  });
+
+  test("pinning a linked tier freezes the value it currently shows", () => {
+    /* customise the root BEFORE mounting, so the derived tier differs from
+       the preset value — see the documented no-op case below for why that
+       distinction currently matters */
+    writeThemeCustomColor("light_mode", "background", "#e8e8e8");
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Background"));
+
+    const shown = readThemeSettings();
+    expect(shown.custom.light_mode.sidebar).toBeUndefined();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Sidebar: following Background, click to pin",
+      }),
+    );
+
+    const after = readThemeSettings();
+    expect(after.custom.light_mode.sidebar).toBeDefined();
+    expect(after.custom.light_mode.sidebar).not.toBe("#f5f5f5");
+  });
+
+  test("unpinning drops the key and returns the tier to following", () => {
+    writeThemeCustomColor("light_mode", "background", "#e8e8e8");
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Background"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Sidebar: following Background, click to pin",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Sidebar: pinned, click to follow Background",
+      }),
+    );
+    expect(readThemeSettings().custom.light_mode.sidebar).toBeUndefined();
+  });
+
+  /* The case that used to be a no-op: pinning before the parent has been
+     touched, when the child still equals its preset value. This is the
+     most natural moment to reach for Pin ("keep this one where it is
+     while I go change the background"), so it has to work. */
+  test("pinning a tier that still equals its preset value sticks", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Background"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Sidebar: following Background, click to pin",
+      }),
+    );
+    expect(readThemeSettings().custom.light_mode.sidebar).toBe("#f5f5f5");
+  });
+
+  test("a pin taken before the parent moves actually holds the tier still", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Background"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Sidebar: following Background, click to pin",
+      }),
+    );
+    /* now move the parent — a pinned child must NOT follow */
+    act(() => {
+      writeThemeCustomColor("light_mode", "background", "#c8c8c8");
+    });
+    expect(readThemeSettings().custom.light_mode.sidebar).toBe("#f5f5f5");
+  });
+
+  test("a pin at the preset value is visible in the exported theme, and reset undoes it", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Background"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Sidebar: following Background, click to pin",
+      }),
+    );
+
+    /* export serialises exactly what readThemeSettings returns */
+    const exported = JSON.parse(JSON.stringify(readThemeSettings()));
+    expect(exported.custom.light_mode.sidebar).toBe("#f5f5f5");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm reset" }));
+    expect(readThemeSettings().custom.light_mode.sidebar).toBeUndefined();
+  });
+
+  /* Symmetry with the hex tiers: pinning an alpha step at exactly its
+     ladder default must stick too, and it must land in the details bucket
+     rather than the custom bag. */
+  test("pinning an alpha step at its ladder default sticks, via the details channel", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Label"));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Strong: following Label, click to pin",
+      }),
+    );
+
+    const pinned = readThemeSettings();
+    expect(pinned.custom.light_mode.textStrong).toBeUndefined();
+    expect(pinned.details.light_mode.textStrongAlpha).toBe(0.88);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Strong: pinned, click to follow Label",
+      }),
+    );
+    expect(
+      readThemeSettings().details.light_mode.textStrongAlpha,
+    ).toBeUndefined();
+  });
+
+  test("an alpha step is edited through the details channel, never the custom bag", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Label"));
+
+    act(() => {
+      writeThemeDetails({ light_mode: { textStrongAlpha: 0.5 }, dark_mode: {} });
+    });
+    const theme = readThemeSettings();
+    /* strength steps never enter custom — that is what keeps the palette
+       shape, the four-key boot cache and the export contract untouched */
+    expect(theme.custom.light_mode.textStrong).toBeUndefined();
+    expect(theme.details.light_mode.textStrongAlpha).toBe(0.5);
+  });
+});
+
+describe("ThemeEditor — import clamping (composed machine gate)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
+    jest.clearAllMocks();
+  });
+
+  /* Import is asynchronous end to end: FileReader.onload fires on a later
+     task, and settings persistence is fire-and-forget. So the helper has to
+     wait for an observable COMPLETION signal — the component reporting its
+     outcome — before any assertion reads storage.
+
+     What it must NOT do is await the preview card: that element is rendered
+     from the first paint, so awaiting it resolves immediately and only
+     looks like a flush. That mistake made these assertions race the reader,
+     and the race was winnable often enough to pass locally and then lose on
+     a base whose module-load timing differed. */
+  const importFile = async (payload) => {
+    const { toast } = require("../../../SERVICEs/toast");
+    const settled = () =>
+      toast.success.mock.calls.length + toast.error.mock.calls.length;
+    const before = settled();
+
+    const input = document.querySelector('input[type="file"]');
+    const file = new File([JSON.stringify(payload)], "theme.json", {
+      type: "application/json",
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(settled()).toBe(before + 1));
+  };
+
+  /* A hand-edited file is the only entry point that can carry an illegal
+     palette — the picker cannot produce one. This gate exists so that
+     deleting the clamp call, or quietly dropping the disclosure, turns the
+     suite red instead of shipping a theme that can blind the user. */
+  test("an illegal imported palette is clamped token by token, and the count is disclosed", async () => {
+    const { toast } = require("../../../SERVICEs/toast");
+    renderWithCtx();
+
+    await importFile({
+      preset: "default",
+      custom: {
+        /* a light shell in the dark theme, plus an accent that vanishes
+           into it; and the mirror-image violation in light mode */
+        dark_mode: { background: "#ffffff", accent: "#fbfbfb" },
+        light_mode: { background: "#000000" },
+      },
+    });
+
+    const stored = readThemeSettings();
+    let checked = 0;
+    for (const mode of ["light_mode", "dark_mode"]) {
+      const palette = resolveSemanticPalette(mode, {
+        preset: stored.preset,
+        custom: stored.custom,
+      });
+      for (const key of Object.keys(stored.custom[mode])) {
+        const bands = roleWindow(key, mode, palette);
+        expect(bands.length).toBeGreaterThan(0);
+        expect(
+          bandsContain(bands, relativeLuminance(stored.custom[mode][key])),
+        ).toBe(true);
+        checked += 1;
+      }
+    }
+    /* Non-vacuity: an empty custom bag would satisfy every assertion above
+       without checking anything. If the import silently stops persisting,
+       this is the line that notices. */
+    expect(checked).toBe(3);
+
+    /* nothing survived unchanged */
+    expect(stored.custom.dark_mode.background).not.toBe("#ffffff");
+    expect(stored.custom.light_mode.background).not.toBe("#000000");
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Theme imported · 3 colors adjusted for readability",
+      ),
+    );
+  });
+
+  test("the disclosure is singular for a single adjustment", async () => {
+    const { toast } = require("../../../SERVICEs/toast");
+    renderWithCtx();
+
+    await importFile({
+      preset: "default",
+      custom: { dark_mode: { background: "#ffffff" }, light_mode: {} },
+    });
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Theme imported · 1 color adjusted for readability",
+      ),
+    );
+  });
+
+  test("a legal palette imports untouched and says nothing about adjustments", async () => {
+    const { toast } = require("../../../SERVICEs/toast");
+    renderWithCtx();
+
+    await importFile({
+      preset: "default",
+      custom: { dark_mode: { background: "#0d0d0d" }, light_mode: {} },
+    });
+
+    expect(readThemeSettings().custom.dark_mode.background).toBe("#0d0d0d");
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Theme imported"),
+    );
+  });
+});
+
+/* The follow toggle names the STATE: following shows the whole chain, pinned
+   shows the broken one, so reading a column is a glance rather than a
+   translation. The two glyphs differ only by the corner marks, and the
+   accessible name describes the state either way, so nothing but a
+   glyph-level assertion can catch this pair being wired backwards. The hover
+   tooltip carries the action in words. */
+describe("ThemeEditor follow toggle — state glyph and hover tooltip", () => {
+  const UNLINK_CORNERS = "M17 17H22V19H19V22H17V17ZM7 7H2V5H5V2H7V7Z";
+  const glyphOf = (el) =>
+    Array.from(el.querySelectorAll("path"))
+      .map((p) => p.getAttribute("d"))
+      .join(" ");
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
+  });
+
+  const toggleFor = (name) => screen.getByRole("button", { name });
+
+  test("following shows the whole chain; pinning flips it to the broken one", async () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Accent"));
+
+    /* Icon resolves its glyph asynchronously, so every assertion has to wait
+       on the path data itself — waiting on "an svg exists" would just re-read
+       the previous glyph and pass for the wrong reason. */
+    const following = toggleFor("Tint border: following Accent, click to pin");
+    await waitFor(() =>
+      expect(glyphOf(following)).toContain("20.3164 10.7545 20.3164 7.58866"),
+    );
+    expect(glyphOf(following)).not.toContain(UNLINK_CORNERS);
+
+    fireEvent.click(following);
+
+    await waitFor(() => {
+      const pinned = toggleFor("Tint border: pinned, click to follow Accent");
+      expect(glyphOf(pinned)).toContain(UNLINK_CORNERS);
+    });
+  });
+
+  test("hovering the toggle says which state it is in", async () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByText("Accent"));
+
+    fireEvent.mouseEnter(
+      toggleFor("Tint border: following Accent, click to pin"),
+    );
+
+    expect(
+      await screen.findByText("Following Accent — click to pin"),
+    ).toBeInTheDocument();
+  });
+});
+
+/* Two things have to stay true while a colour is being dragged: the token
+   tree must not be rebuilt (nothing in it reads the draft), and the
+   frame-coalesced CSS writes must never land after a commit. Both are
+   invisible in the rendered output — a rebuilt tree looks identical, and a
+   late frame only shows up as the app repainting a colour the user already
+   moved off — so both are asserted through their side effects. */
+describe("ThemeEditor decouples drag feedback from recoloring", () => {
+  const contrastWindow = require("../../../BUILTIN_COMPONENTs/theme/contrast_window");
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("previewing a colour does not rebuild the token tree", () => {
+    renderWithCtx();
+    fireEvent.click(screen.getByRole("button", { name: "Background color" }));
+
+    /* roleWindow has two callers, and they ask different questions.
+       resolveSemanticPalette asks about derived TIERS while clamping them, and
+       that is expected on every preview — it is how the card gets its colours.
+       The token tree asks about every top-level ROOT, once per row, and
+       nowhere else. So "was any root queried" is a direct read on whether the
+       tree was rebuilt, and it does not go off merely because a palette was
+       resolved. */
+    const roleWindow = jest.spyOn(contrastWindow, "roleWindow");
+    const cardBefore =
+      screen.getByTestId("theme-preview-card").style.backgroundColor;
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "#f2e4e4" },
+    });
+
+    /* the preview genuinely happened … */
+    expect(screen.getByTestId("theme-preview-card").style.backgroundColor).not.toBe(
+      cardBefore,
+    );
+    /* … and not one row was rebuilt to pay for it */
+    const rolesAsked = roleWindow.mock.calls.map((call) => call[0]);
+    const TREE_ONLY_ROOTS = ["accent", "background", "text", "border", "danger"];
+    for (const root of TREE_ONLY_ROOTS) {
+      expect(rolesAsked).not.toContain(root);
+    }
+  });
+
+  test("a coalesced frame cannot repaint over a commit", () => {
+    jest.useFakeTimers();
+    try {
+      renderWithCtx();
+      fireEvent.click(screen.getByRole("button", { name: "Accent" }));
+      fireEvent.change(screen.getByRole("textbox"), {
+        target: { value: "#112233" },
+      });
+      const previewed =
+        document.documentElement.style.getPropertyValue("--pupu-accent");
+
+      /* a second move in the same frame is the one that would be left pending */
+      fireEvent.change(screen.getByRole("textbox"), {
+        target: { value: "#445566" },
+      });
+      fireEvent.click(screen.getByTestId("color-picker-event-blocker"));
+      const committed =
+        document.documentElement.style.getPropertyValue("--pupu-accent");
+
+      act(() => {
+        jest.advanceTimersByTime(64);
+      });
+
+      expect(
+        document.documentElement.style.getPropertyValue("--pupu-accent"),
+      ).toBe(committed);
+      expect(committed).not.toBe(previewed);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});

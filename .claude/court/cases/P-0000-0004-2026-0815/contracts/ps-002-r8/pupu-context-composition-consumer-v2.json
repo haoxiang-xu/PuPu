@@ -1,0 +1,54 @@
+{
+  "base_contract": {
+    "path": "../ps-001-r7/pupu-context-composition-consumer-v1.json",
+    "sha256": "sha256:278149476c4ce35ce7ec53ce67866c5ce117d927f2d42e787f208cdb719d7878"
+  },
+  "change_scope": [
+    "fresh_hint",
+    "availability_reason.code"
+  ],
+  "effective_contract_rule": "all base-contract requirements remain exact except the named change_scope objects, which are replaced by this closed successor",
+  "fresh_hint_v2": {
+    "admission": "strict exact-shape/range validation followed by runtime computation of UTF-8 bytes from authoritative expanded message and validated JavaScript UTF-16 boundary; source_count is producer-attested structural metadata",
+    "canonical_utf8_max_bytes": 1024,
+    "exact_keys": [
+      "schema",
+      "prefix_utf16_code_units",
+      "source_count"
+    ],
+    "failure": "all schema/key/type/range/boundary/surrogate/scalar failures map to fresh_hint_invalid; never persist or overwrite; ordinary V4/chat/provider/tools/interactions/base RunBundle continues",
+    "field": "context_composition_hint",
+    "independent_authority_limit": "runtime independently verifies boundary range/scalar safety and computes utf8_bytes; it does not independently infer template semantic provenance or command count",
+    "prefix_utf16_code_units": "positive JSON safe integer; bool forbidden; JavaScript UTF-16 code-unit boundary within authoritative message; may not split a valid surrogate pair",
+    "privacy": "content-free; no composer/rawText/raw content/command/name/toolkit/id/path/URL/digest/hash/arbitrary label/contribution array/utf8_bytes claim/extra key",
+    "schema": "pupu.context_composition_hint.v2",
+    "source_count": "positive JSON safe integer; bool forbidden; renderer-attested and structurally validated only",
+    "strict_scalar_prefix": "unpaired surrogate in selected prefix is invalid; strict UTF-8 only; no replacement encoding",
+    "v1_input": "unsupported at the v2 boundary; composition-only fresh_hint_invalid; no heuristic upgrade or dual parser"
+  },
+  "private_projection": {
+    "durable_field": "_context_composition_hint_v1",
+    "output": "existing one-item skills/expanded_invocation/messages tuple with runtime-computed utf8_bytes and structurally admitted source_count",
+    "rule": "atomic mint only after valid v2 admission; exact private bytes/semantics remain unchanged"
+  },
+  "schema": "pupu.context_composition.consumer.v2",
+  "successor_availability_reason": {
+    "code": [
+      "capability_unavailable",
+      "extension_missing",
+      "extension_invalid",
+      "fresh_hint_invalid",
+      "resume_hint_invalid",
+      "resume_hint_mismatch",
+      "resume_hint_no_baseline"
+    ],
+    "exact_keys": [
+      "schema",
+      "code"
+    ],
+    "removed_code": "fresh_hint_mismatch",
+    "schema": "pupu.context_composition_availability.v2"
+  },
+  "supersedes": "pupu.context_composition.consumer.v1",
+  "version": 2
+}

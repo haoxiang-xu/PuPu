@@ -1,0 +1,2 @@
+- [mini_ui 移植损伤已实测确认](mini-ui-port-loss-verified.md) — 上游是设计源头仓；损伤形态是「多一个键截断回退链」，比键集合而不是比取值
+- [timeline 原语的静默失效点](timeline-primitive-hazards.md) — point 槽被 isPassThrough 吞掉、未知 status 静默落 pending；v1 只有一个消费者，两个 timeline 都零测试

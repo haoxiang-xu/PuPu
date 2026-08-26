@@ -20,6 +20,7 @@ from computer_control.click3_adapter import (
     local_computer_tool_schema,
 )
 from computer_control.protocol import normalize_batch, validate_batch
+from net_tls import get_outbound_ssl_context
 
 PROBE_TTL_SECONDS = 24 * 60 * 60
 PROBE_TIMEOUT_SECONDS = 45.0
@@ -45,7 +46,13 @@ def _request_json(
         method=method,
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(request, timeout=max(0.1, timeout)) as response:
+    with urllib.request.urlopen(
+        request,
+        timeout=max(0.1, timeout),
+        # OLLAMA_HOST may point at a remote https endpoint; the context is
+        # ignored for the default plain-http localhost case.
+        context=get_outbound_ssl_context(),
+    ) as response:
         decoded = json.loads(response.read().decode("utf-8"))
     if not isinstance(decoded, dict):
         raise ValueError("Ollama returned a non-object response")

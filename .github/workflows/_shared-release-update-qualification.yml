@@ -1,0 +1,126 @@
+name: Shared Release Update Qualification
+
+on:
+  workflow_call:
+    inputs:
+      candidate_run_id:
+        description: Exact successful Release 1 candidate run ID.
+        required: true
+        type: string
+      release_tag:
+        description: Exact immutable release tag.
+        required: true
+        type: string
+      tag_commit:
+        description: Exact commit resolved from the release tag by caller preflight.
+        required: true
+        type: string
+      target_id:
+        description: Closed installed-qualification target ID.
+        required: true
+        type: string
+      runner_selector:
+        description: Closed hosted-runner selector for the target.
+        required: true
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  installed-package:
+    name: Qualify installed ${{ inputs.target_id }} candidate
+    runs-on: ${{ inputs.runner_selector == 'macos-latest' && 'macos-latest' || inputs.runner_selector == 'macos-15-intel' && 'macos-15-intel' || inputs.runner_selector == 'windows-latest' && 'windows-latest' || 'ubuntu-latest' }}
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      TAG_COMMIT: ${{ inputs.tag_commit }}
+      TARGET_ID: ${{ inputs.target_id }}
+      RUNNER_SELECTOR: ${{ inputs.runner_selector }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Validate closed shared installed-qualification inputs
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
+            echo "::error title=Source identity mismatch::shared installed qualification must run from the exact release tag commit"
+            exit 1
+          fi
+          case "$TARGET_ID:$RUNNER_SELECTOR" in
+            macos-arm64:macos-latest|macos-x64:macos-15-intel|windows-x64:windows-latest|linux-x64:ubuntu-latest) ;;
+            *) echo "::error title=Unsupported shared installed-qualification input tuple::$TARGET_ID:$RUNNER_SELECTOR"; exit 1 ;;
+          esac
+          if [ -z "$CANDIDATE_RUN_ID" ]; then
+            echo "::error title=Missing candidate run ID::shared installed qualification requires an exact candidate"
+            exit 1
+          fi
+
+      - name: Checkout the exact release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install qualification dependencies
+        run: npm ci
+
+      - name: Install Linux display dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes xvfb
+
+      - name: Download and verify exact candidate bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir candidate
+          node scripts/release-qa/verify-release-candidate.mjs \
+            --manifest candidate/release-assets.v1.json \
+            --asset-dir candidate/assets \
+            --qa-report candidate/release-qa-report.json \
+            --tag "$RELEASE_TAG" \
+            --commit "$TAG_COMMIT" \
+            --candidate-run-id "$CANDIDATE_RUN_ID"
+
+      - name: Run installed-package qualification
+        id: installed
+        continue-on-error: true
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a node scripts/release-qa/installed-package-qualification.mjs \
+              --candidate-dir candidate \
+              --target "$TARGET_ID" \
+              --out installed-package-qualification.json
+          else
+            node scripts/release-qa/installed-package-qualification.mjs \
+              --candidate-dir candidate \
+              --target "$TARGET_ID" \
+              --out installed-package-qualification.json
+          fi
+
+      - name: Upload installed-package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-qualification-${{ inputs.target_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            installed-package-qualification.json
+
+      - name: Enforce installed-package result
+        if: always()
+        env:
+          INSTALLED_OUTCOME: ${{ steps.installed.outcome }}
+        run: |
+          if [ "$INSTALLED_OUTCOME" != "success" ]; then
+            echo "::error title=Installed candidate qualification failed::$TARGET_ID did not pass exact installed-package checks"
+            exit 1
+          fi

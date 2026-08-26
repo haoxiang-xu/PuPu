@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 import mcp_registry
+from net_tls import get_outbound_ssl_context
 
 
 class McpStoreMetadataError(RuntimeError):
@@ -112,7 +113,11 @@ def _default_http_json_fetcher(
 ) -> Dict[str, Any]:
     _require_https_url(url, code="mcp_metadata_fetch_failed")
     request = Request(url, headers=headers or {}, method="GET")
-    with urlopen(request, timeout=timeout) as response:
+    with urlopen(
+        request,
+        timeout=timeout,
+        context=get_outbound_ssl_context(),
+    ) as response:
         raw = response.read()
     parsed = json.loads(raw.decode("utf-8"))
     if not isinstance(parsed, dict):
@@ -127,7 +132,11 @@ def _default_icon_fetcher(
 ) -> Dict[str, Any]:
     _require_https_url(url, code="mcp_metadata_fetch_failed")
     request = Request(url, method="GET")
-    with urlopen(request, timeout=timeout) as response:
+    with urlopen(
+        request,
+        timeout=timeout,
+        context=get_outbound_ssl_context(),
+    ) as response:
         content = response.read(max_bytes + 1)
         mime_type = str(response.headers.get_content_type() or "").strip()
     if len(content) > max_bytes:

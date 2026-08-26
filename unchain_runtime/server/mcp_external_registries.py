@@ -15,6 +15,7 @@ from mcp_permission_audit import (
     audit_mcp_registry_entry,
     recipe_hash_for_entry,
 )
+from net_tls import get_outbound_ssl_context
 
 
 class McpExternalRegistryError(RuntimeError):
@@ -136,7 +137,11 @@ def _default_registry_fetcher(
         headers={"Accept": "application/json", "User-Agent": "PuPu-MCP-Registry/1.0"},
         method="GET",
     )
-    with urlopen(request, timeout=timeout) as response:
+    with urlopen(
+        request,
+        timeout=timeout,
+        context=get_outbound_ssl_context(),
+    ) as response:
         raw = response.read(max_bytes + 1)
     if len(raw) > max_bytes:
         raise McpExternalRegistryError(

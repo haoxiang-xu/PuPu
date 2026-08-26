@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "dependencyCutoff": "2026-07-28T00:00:00Z",
   "categories": ["all", "browser", "dev", "devops", "productivity", "workspace", "memory", "communication"],
   "entries": [
     {
@@ -40,10 +41,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@playwright/mcp@0.0.78"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@playwright/mcp@0.0.78"]
       },
       "setupPreview": "npx -y @playwright/mcp@0.0.78",
-      "prerequisites": ["Node.js >= 18"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "browser_navigate", "title": "Navigate", "requiresConfirmation": false },
@@ -74,7 +75,7 @@
       "icon": {
         "type": "file",
         "mimeType": "image/svg+xml",
-        "content": "<svg viewBox=\"-24 -24 148 148\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"-24\" y=\"-24\" width=\"148\" height=\"148\" rx=\"28\" fill=\"#18181B\"/><path d=\"M97.8916 39.0448C82.6177 33.1997 95.2199 10.8169 74.212 11.3849C48.5413 12.0793 8.31528 52.4518 12.4236 78.6851C14.4652 91.6755 24.6096 86.2218 29.3732 88.1154C32.5364 89.3652 36.2792 95.0083 40.3245 95.9047C22.4293 106.193 -0.556809 96.397 0.0102912 74.3423C0.829435 41.86 47.7474 -5.25386 81.1937 0.477571C99.8702 3.68414 102.189 23.5422 97.8916 39.0448Z\" fill=\"#FE750E\"/><path d=\"M24.8115 57.7541L39.6068 71.7166C49.0332 80.1875 74.061 94.9706 85.403 84.9469C98.774 73.1306 70.495 32.3162 57.4769 25.802L68.9069 20.6639C86.7138 33.6796 113.783 75.9836 91.7294 94.4025C77.5014 106.282 54.5655 96.2204 41.0811 87.3707C30.8103 80.6294 15.9647 70.9591 24.8115 57.7415V57.7541Z\" fill=\"#FE750E\"/><path d=\"M40.3373 4.75723C35.5485 4.88347 31.8055 11.1199 28.2895 12.2182C25.1642 13.1903 20.8414 10.5266 16.1408 14.0487C11.0495 17.8613 12.7891 36.0655 3.02233 40.5976C-2.98893 22.9362 0.75354 1.8789 22.4672 0.0736228C24.1433 -0.0652445 42.7822 1.17195 40.3373 4.74463V4.75723Z\" fill=\"#FE750E\"/><path d=\"M76.1025 57.754C84.1175 71.0348 69.5871 86.2092 57.489 74.1025L76.1025 57.754Z\" fill=\"#FE750E\"/></svg>"
+        "content": "<svg viewBox=\"-24 -24 148 148\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"-24\" y=\"-24\" width=\"148\" height=\"148\" rx=\"28\" fill=\"#18181B\"/><path d=\"M97.8916 39.0448C82.6177 33.1997 95.2199 10.8169 74.212 11.3849C48.5413 12.0793 8.31528 52.4518 12.4236 78.6851C14.4652 91.6755 24.6096 86.2218 29.3732 88.1154C32.5364 89.3652 36.2792 95.0083 40.3245 95.9047C22.4293 106.193 -0.556809 96.397 0.0102912 74.3423C0.829435 41.86 47.7474 -5.25386 81.1937 0.477571C99.8702 3.68414 102.189 23.5422 97.8916 39.0448Z\" fill=\"#ffffff\"/><path d=\"M24.8115 57.7541L39.6068 71.7166C49.0332 80.1875 74.061 94.9706 85.403 84.9469C98.774 73.1306 70.495 32.3162 57.4769 25.802L68.9069 20.6639C86.7138 33.6796 113.783 75.9836 91.7294 94.4025C77.5014 106.282 54.5655 96.2204 41.0811 87.3707C30.8103 80.6294 15.9647 70.9591 24.8115 57.7415V57.7541Z\" fill=\"#ffffff\"/><path d=\"M40.3373 4.75723C35.5485 4.88347 31.8055 11.1199 28.2895 12.2182C25.1642 13.1903 20.8414 10.5266 16.1408 14.0487C11.0495 17.8613 12.7891 36.0655 3.02233 40.5976C-2.98893 22.9362 0.75354 1.8789 22.4672 0.0736228C24.1433 -0.0652445 42.7822 1.17195 40.3373 4.74463V4.75723Z\" fill=\"#ffffff\"/><path d=\"M76.1025 57.754C84.1175 71.0348 69.5871 86.2092 57.489 74.1025L76.1025 57.754Z\" fill=\"#ffffff\"/></svg>"
       },
       "metadata": {
         "type": "http_json",
@@ -100,10 +101,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["--from", "browser-use[cli]==0.13.6", "browser-use", "--mcp"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "browser-use[cli]==0.13.6", "browser-use", "--mcp"]
       },
       "setupPreview": "uvx --from browser-use[cli]==0.13.6 browser-use --mcp",
-      "prerequisites": ["uv / uvx", "Python >= 3.11"],
+      "prerequisites": [],
       "secrets": [{ "key": "OPENAI_API_KEY", "label": "OpenAI API key" }],
       "tools": [
         { "name": "browser_navigate", "title": "Navigate", "requiresConfirmation": false },
@@ -116,7 +117,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 2
       },
-      "readmeMarkdown": "## Browser Use\n\nRuns the browser-use CLI as an MCP server for LLM-driven browsing. Requires `uv`/`uvx` and an `OPENAI_API_KEY`."
+      "readmeMarkdown": "## Browser Use\n\nRuns the browser-use CLI as an MCP server for LLM-driven browsing. PuPu supplies the MCP runtime; you only need an `OPENAI_API_KEY`."
     },
     {
       "id": "browser.chrome-devtools",
@@ -161,10 +162,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "chrome-devtools-mcp@1.6.0", "--no-usage-statistics", "--no-performance-crux"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "chrome-devtools-mcp@1.6.0", "--no-usage-statistics", "--no-performance-crux"]
       },
       "setupPreview": "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
-      "prerequisites": ["Node.js LTS", "npm", "Chrome current stable or newer"],
+      "prerequisites": ["Chrome current stable or newer"],
       "secrets": [],
       "tools": [
         { "name": "navigate_page", "title": "Navigate page", "requiresConfirmation": false },
@@ -490,10 +491,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-grafana==0.17.2"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-grafana==0.17.2", "mcp-grafana"]
       },
       "setupPreview": "uvx mcp-grafana==0.17.2",
-      "prerequisites": ["uv / uvx", "Grafana instance or Grafana Cloud", "Grafana service account token"],
+      "prerequisites": ["Grafana instance or Grafana Cloud", "Grafana service account token"],
       "secrets": [
         { "key": "GRAFANA_URL", "label": "Grafana URL" },
         { "key": "GRAFANA_SERVICE_ACCOUNT_TOKEN", "label": "Grafana service account token" }
@@ -649,7 +650,6 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
-      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"fs\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#5CA6FF\"/><stop offset=\"1\" stop-color=\"#2E68E6\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#fs)\"/><path d=\"M4.6 7.9a1.7 1.7 0 0 1 1.7-1.7h2.6c.5 0 1 .2 1.3.6l.9 1h6.6a1.7 1.7 0 0 1 1.7 1.7v6.3a1.7 1.7 0 0 1-1.7 1.7H6.3a1.7 1.7 0 0 1-1.7-1.7V7.9Z\" fill=\"#fff\"/><path d=\"M4.6 11.4h14.8v4.4a1.7 1.7 0 0 1-1.7 1.7H6.3a1.7 1.7 0 0 1-1.7-1.7v-4.4Z\" fill=\"#0B3D91\" opacity=\".14\"/></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -679,10 +679,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.7.10", "${WORKSPACE}"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@modelcontextprotocol/server-filesystem@2026.7.10", "${WORKSPACE}"]
       },
       "setupPreview": "npx -y @modelcontextprotocol/server-filesystem@2026.7.10 ${WORKSPACE}",
-      "prerequisites": ["Node.js >= 18"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "read_file", "title": "Read file", "requiresConfirmation": false },
@@ -710,7 +710,6 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/microsoft/markitdown",
       "docsUrl": "https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp",
-      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"md\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#565E70\"/><stop offset=\"1\" stop-color=\"#323846\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#md)\"/><g transform=\"translate(2.4 2.4) scale(0.8)\" fill=\"#fff\"><path d=\"M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -735,10 +734,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["markitdown-mcp==0.0.1a4"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "markitdown-mcp==0.0.1a4", "markitdown-mcp"]
       },
       "setupPreview": "uvx markitdown-mcp==0.0.1a4",
-      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "convert_to_markdown", "title": "Convert to Markdown", "requiresConfirmation": true }
@@ -763,7 +762,6 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
-      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"mm\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#A98BFB\"/><stop offset=\"1\" stop-color=\"#7A34E8\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#mm)\"/><g stroke=\"#fff\" stroke-width=\"1.5\" stroke-linecap=\"round\" opacity=\".92\"><path d=\"M12 12 7 7.7M12 12l5.6.6M12 12 8.8 17\"/></g><g fill=\"#fff\"><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><circle cx=\"7\" cy=\"7.7\" r=\"1.9\"/><circle cx=\"17.6\" cy=\"12.6\" r=\"1.9\"/><circle cx=\"8.8\" cy=\"17\" r=\"1.9\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -788,10 +786,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-memory@2026.7.4"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@modelcontextprotocol/server-memory@2026.7.4"]
       },
       "setupPreview": "npx -y @modelcontextprotocol/server-memory@2026.7.4",
-      "prerequisites": ["Node.js >= 18"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "search_nodes", "title": "Search nodes", "requiresConfirmation": false },
@@ -905,7 +903,6 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
-      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"ft\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#2AD3E6\"/><stop offset=\"1\" stop-color=\"#0895B8\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#ft)\"/><g stroke=\"#fff\" fill=\"none\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 5.4v8.1\"/><path d=\"M8.3 10 12 13.8 15.7 10\"/><path d=\"M6.3 15.4v1.3c0 .8.6 1.4 1.4 1.4h8.6c.8 0 1.4-.6 1.4-1.4v-1.3\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -930,10 +927,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-fetch==2026.7.10"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-server-fetch==2026.7.10", "--with", "mcp==1.28.0", "mcp-server-fetch"]
       },
       "setupPreview": "uvx mcp-server-fetch==2026.7.10",
-      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "fetch", "title": "Fetch URL", "requiresConfirmation": true }
@@ -958,12 +955,6 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/IQAIcom/mcp-discord",
       "docsUrl": "https://github.com/IQAIcom/mcp-discord",
-      "icon": {
-        "type": "file",
-        "mimeType": "image/svg+xml",
-        "displayScale": 0.82,
-        "content": "<svg fill=\"#5865F2\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Discord</title><path d=\"M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z\"/></svg>"
-      },
       "metadata": {
         "type": "http_json",
         "request": {
@@ -988,10 +979,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@iqai/mcp-discord@0.0.6"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@iqai/mcp-discord@0.0.6"]
       },
       "setupPreview": "npx -y @iqai/mcp-discord@0.0.6",
-      "prerequisites": ["Node.js >= 18", "Discord bot token from the Developer Portal"],
+      "prerequisites": ["Discord bot token from the Developer Portal"],
       "secrets": [
         { "key": "DISCORD_TOKEN", "label": "Discord bot token" }
       ],
@@ -1039,12 +1030,6 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/IQAIcom/mcp-telegram",
       "docsUrl": "https://github.com/IQAIcom/mcp-telegram",
-      "icon": {
-        "type": "file",
-        "mimeType": "image/svg+xml",
-        "displayScale": 0.82,
-        "content": "<svg fill=\"#26A5E4\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Telegram</title><path d=\"M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z\"/></svg>"
-      },
       "metadata": {
         "type": "http_json",
         "request": {
@@ -1069,10 +1054,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "npx",
-        "args": ["-y", "@iqai/mcp-telegram@0.1.4"]
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@iqai/mcp-telegram@0.1.4"]
       },
       "setupPreview": "npx -y @iqai/mcp-telegram@0.1.4",
-      "prerequisites": ["Node.js >= 18", "Telegram bot token from @BotFather"],
+      "prerequisites": ["Telegram bot token from @BotFather"],
       "secrets": [
         { "key": "TELEGRAM_BOT_TOKEN", "label": "Telegram bot token" }
       ],
@@ -1103,7 +1088,6 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers-archived",
       "docsUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
-      "icon": {"type": "file", "mimeType": "image/svg+xml", "content": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><defs><linearGradient id=\"sq\" x1=\"12\" y1=\"0\" x2=\"12\" y2=\"24\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#5CBCF0\"/><stop offset=\"1\" stop-color=\"#0A5C8A\"/></linearGradient></defs><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"url(#sq)\"/><g transform=\"translate(3.7 3.7) scale(0.7)\" fill=\"#fff\"><path d=\"M21.678.521c-1.032-.92-2.28-.55-3.513.544a8.71 8.71 0 0 0-.547.535c-2.109 2.237-4.066 6.38-4.674 9.544.237.48.422 1.093.544 1.561a13.044 13.044 0 0 1 .164.703s-.019-.071-.096-.296l-.05-.146a1.689 1.689 0 0 0-.033-.08c-.138-.32-.518-.995-.686-1.289-.143.423-.27.818-.376 1.176.484.884.778 2.4.778 2.4s-.025-.099-.147-.442c-.107-.303-.644-1.244-.772-1.464-.217.804-.304 1.346-.226 1.478.152.256.296.698.422 1.186.286 1.1.485 2.44.485 2.44l.017.224a22.41 22.41 0 0 0 .056 2.748c.095 1.146.273 2.13.5 2.657l.155-.084c-.334-1.038-.47-2.399-.41-3.967.09-2.398.642-5.29 1.661-8.304 1.723-4.55 4.113-8.201 6.3-9.945-1.993 1.8-4.692 7.63-5.5 9.788-.904 2.416-1.545 4.684-1.931 6.857.666-2.037 2.821-2.912 2.821-2.912s1.057-1.304 2.292-3.166c-.74.169-1.955.458-2.362.629-.6.251-.762.337-.762.337s1.945-1.184 3.613-1.72C21.695 7.9 24.195 2.767 21.678.521m-18.573.543A1.842 1.842 0 0 0 1.27 2.9v16.608a1.84 1.84 0 0 0 1.835 1.834h9.418a22.953 22.953 0 0 1-.052-2.707c-.006-.062-.011-.141-.016-.2a27.01 27.01 0 0 0-.473-2.378c-.121-.47-.275-.898-.369-1.057-.116-.197-.098-.31-.097-.432 0-.12.015-.245.037-.386a9.98 9.98 0 0 1 .234-1.045l.217-.028c-.017-.035-.014-.065-.031-.097l-.041-.381a32.8 32.8 0 0 1 .382-1.194l.2-.019c-.008-.016-.01-.038-.018-.053l-.043-.316c.63-3.28 2.587-7.443 4.8-9.791.066-.069.133-.128.198-.194Z\"/></g></svg>"},
       "metadata": {
         "type": "http_json",
         "request": {
@@ -1135,10 +1119,10 @@
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
-        "args": ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
+        "args": ["--exclude-newer=2026-07-28T00:00:00Z", "--from", "mcp-server-sqlite==2025.4.25", "--with", "mcp==1.28.0", "mcp-server-sqlite", "--db-path", "${WORKSPACE}/pupu-mcp.sqlite"]
       },
       "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}/pupu-mcp.sqlite",
-      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "prerequisites": [],
       "secrets": [],
       "tools": [
         { "name": "read_query", "title": "Run SELECT query", "requiresConfirmation": false },

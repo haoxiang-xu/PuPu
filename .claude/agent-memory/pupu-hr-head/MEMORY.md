@@ -1,2 +1,0 @@
-- [Org Chart](org-chart.md) — PuPu 跨部门 agent 花名册（source of truth），任何 org review 前必读
-- [Team Roster](team_roster.md) — HR head 视角全 22 人花名册 + 顶层 3 线 + HR advisory 红线 + HR 三人分工
