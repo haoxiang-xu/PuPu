@@ -283,6 +283,14 @@ function requireOneApplication(root, location) {
   return applications[0];
 }
 
+export function certificateExtractionArguments(certificatePrefix, appPath) {
+  return [
+    "--display",
+    `--extract-certificates=${certificatePrefix}`,
+    appPath,
+  ];
+}
+
 function readPlistValue(appPath, key) {
   const plistPath = path.join(appPath, "Contents", "Info.plist");
   return runChecked("/usr/bin/plutil", ["-extract", key, "raw", "-o", "-", plistPath], `read ${key}`).trim();
@@ -292,7 +300,11 @@ function parseCertificate(appPath) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-macos-certificate-"));
   const certificatePrefix = path.join(tempRoot, "certificate-");
   try {
-    runChecked("/usr/bin/codesign", ["--display", "--extract-certificates", certificatePrefix, appPath], "extract signing certificate");
+    runChecked(
+      "/usr/bin/codesign",
+      certificateExtractionArguments(certificatePrefix, appPath),
+      "extract signing certificate",
+    );
     const leafPath = `${certificatePrefix}0`;
     if (!fs.existsSync(leafPath)) throw new Error("extract signing certificate failed");
     const details = runChecked(

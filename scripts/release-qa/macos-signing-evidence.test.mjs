@@ -7,6 +7,7 @@ import test from "node:test";
 import YAML from "yaml";
 
 import {
+  certificateExtractionArguments,
   createMacSigningEvidence,
   readAndValidateMacUpdaterMetadata,
   validateMacSigningEvidence,
@@ -20,6 +21,17 @@ const TARGET_ID = "macos-arm64";
 const SOURCE_COMMIT = "a".repeat(40);
 const UNCHAIN_REF = "b".repeat(40);
 const ZIP_NAME = `PuPu-${VERSION}-macos-arm64.zip`;
+
+test("macOS certificate extraction passes the output prefix as one codesign option", () => {
+  assert.deepEqual(
+    certificateExtractionArguments("/tmp/pupu-certificate-", "/tmp/PuPu.app"),
+    [
+      "--display",
+      "--extract-certificates=/tmp/pupu-certificate-",
+      "/tmp/PuPu.app",
+    ],
+  );
+});
 
 function artifact(format, name, sha256, sizeBytes) {
   return { format, name, sha256, size_bytes: sizeBytes };
