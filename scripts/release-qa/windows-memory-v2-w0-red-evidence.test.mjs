@@ -54,14 +54,21 @@ test("W0 RED: release Playwright launches source Electron, not an installed cand
 });
 
 test("W0-06 GREEN: final release enforcement uses a frozen mode-aware report topology", () => {
-  const source = readRepoFile(".github/workflows/release-qa.yml");
-  const enforcement = source.slice(source.indexOf("- name: Enforce final required report topology"));
+  const workflow = readRepoFile(".github/workflows/release-qa.yml");
+  const sharedReport = readRepoFile(".github/workflows/_shared-release-report.yml");
+  const enforcement = sharedReport.slice(sharedReport.indexOf("- name: Enforce final required report topology"));
 
-  assert.match(enforcement, /DETERMINISTIC_JOB_RESULT:\s*\$\{\{ needs\.deterministic-checks\.result \}\}/);
-  assert.match(enforcement, /PLAYWRIGHT_JOB_RESULT:\s*\$\{\{ needs\.playwright-electron\.result \}\}/);
-  assert.match(enforcement, /PACKAGE_JOB_RESULT:\s*\$\{\{ needs\.package-matrix\.result \}\}/);
-  assert.match(source, /release-qa-report-topology\.v1\.json/);
-  assert.match(source, /windows-active-qualification/);
+  assert.match(workflow, /deterministic_result:\s*\$\{\{ needs\.deterministic-checks\.result \}\}/);
+  assert.match(workflow, /playwright_result:\s*\$\{\{ needs\.playwright-electron\.result \}\}/);
+  assert.match(workflow, /package_result:\s*\$\{\{ needs\.package-matrix\.result \}\}/);
+  assert.match(sharedReport, /DETERMINISTIC_JOB_RESULT: \$\{\{ inputs\.deterministic_result \}\}/);
+  assert.match(sharedReport, /PLAYWRIGHT_JOB_RESULT: \$\{\{ inputs\.playwright_result \}\}/);
+  assert.match(sharedReport, /PACKAGE_JOB_RESULT: \$\{\{ inputs\.package_result \}\}/);
+  assert.match(enforcement, /\$DETERMINISTIC_JOB_RESULT/);
+  assert.match(enforcement, /\$PLAYWRIGHT_JOB_RESULT/);
+  assert.match(enforcement, /\$PACKAGE_JOB_RESULT/);
+  assert.match(sharedReport, /release-qa-report-topology\.v1\.json/);
+  assert.doesNotMatch(workflow, /windows-active-qualification/);
 });
 
 test("W0-08 GREEN: unavailable rollback authority blocks promotion and requires a Shadow descendant", () => {

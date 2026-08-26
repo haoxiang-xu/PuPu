@@ -17,7 +17,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: release-publish-${{ inputs.release_tag }}
+  group: release-promotion-${{ inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -47,6 +47,7 @@ jobs:
     environment: release-publish
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Require explicit publish confirmation
         env:
@@ -71,6 +72,16 @@ jobs:
       - name: Install release verifier dependencies
         run: npm ci
 
+      - name: Require dispatch from the exact release tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+          if [ -z "$TAG_COMMIT" ] || [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
+            echo "::error title=Tag dispatch required::Publish must execute the exact workflow revision at the immutable release tag"
+            exit 1
+          fi
+
       - name: Require an existing Draft Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -88,17 +99,35 @@ jobs:
         run: |
           TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir draft-assets --clobber
+          CANDIDATE_RUN_ID="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync("draft-assets/release-assets.v1.json", "utf8")); process.stdout.write(String(manifest?.release?.candidate_run_id || ""))')"
+          QUALIFICATION_RUN_ID="$(node -e 'const fs = require("fs"); const receipt = JSON.parse(fs.readFileSync("draft-assets/release-qualification.v1.json", "utf8")); process.stdout.write(String(receipt?.qualification_run_id || ""))')"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+            | node scripts/release-qa/verify-actions-run-provenance.mjs \
+              --run-id "$CANDIDATE_RUN_ID" \
+              --tag "$RELEASE_TAG" \
+              --commit "$TAG_COMMIT" \
+              --workflow-path .github/workflows/release-qa.yml
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFICATION_RUN_ID" \
+            | node scripts/release-qa/verify-actions-run-provenance.mjs \
+              --run-id "$QUALIFICATION_RUN_ID" \
+              --tag "$RELEASE_TAG" \
+              --commit "$TAG_COMMIT" \
+              --workflow-path .github/workflows/release-qualification.yml
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest draft-assets/release-assets.v1.json \
             --asset-dir draft-assets \
             --qa-report draft-assets/release-qa-report.json \
             --qualification draft-assets/release-qualification.v1.json \
             --require-qualification true \
+            --require-restart-qualification true \
             --allow-extra release-assets.v1.json \
             --allow-extra release-qa-report.json \
             --allow-extra release-qualification.v1.json \
+            --allow-extra windows-signing-evidence.v1.json \
             --tag "$RELEASE_TAG" \
-            --commit "$TAG_COMMIT"
+            --commit "$TAG_COMMIT" \
+            --candidate-run-id "$CANDIDATE_RUN_ID" \
+            --qualification-run-id "$QUALIFICATION_RUN_ID"
 
       - name: Publish without rebuilding or uploading
         env:

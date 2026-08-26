@@ -18,6 +18,7 @@ const createUpdateService = ({ app, webContents, autoUpdater, fs, path }) => {
   let autoUpdaterConfigured = false;
   let updateCheckInFlight = false;
   let updateDownloaded = false;
+  let updateInstallRequested = false;
   let appUpdateState = {
     stage: UPDATE_STAGES.IDLE,
     currentVersion: app.getVersion(),
@@ -242,14 +243,16 @@ const createUpdateService = ({ app, webContents, autoUpdater, fs, path }) => {
       return { started: false };
     }
 
-    if (appUpdateState.stage !== UPDATE_STAGES.DOWNLOADED || !updateDownloaded) {
+    if (appUpdateState.stage !== UPDATE_STAGES.DOWNLOADED || !updateDownloaded || updateInstallRequested) {
       return { started: false };
     }
 
     try {
+      updateInstallRequested = true;
       autoUpdater.quitAndInstall(false, true);
       return { started: true };
     } catch (error) {
+      updateInstallRequested = false;
       setAppUpdateState({
         stage: UPDATE_STAGES.ERROR,
         message: normalizeUpdateMessage(error),

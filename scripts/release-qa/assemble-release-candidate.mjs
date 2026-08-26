@@ -15,6 +15,7 @@ import {
   verifyRawPackageOutputDirectory,
   writeJson,
 } from "./release-artifact-manifest.mjs";
+import { validateWindowsReleaseCandidateSigningEvidence } from "./windows-release-candidate-signing.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -219,8 +220,12 @@ function main() {
     candidateRunId: runId,
     unchain,
   });
+  const windowsSigningEvidencePath = oneFileNamed(packageDir, "windows-signing-evidence.v1.json");
+  const windowsSigningEvidence = readJson(windowsSigningEvidencePath);
+  validateWindowsReleaseCandidateSigningEvidence({ evidence: windowsSigningEvidence, manifest });
   writeJson(path.join(outDir, "release-assets.v1.json"), manifest);
   fs.copyFileSync(qaReportPath, path.join(outDir, "release-qa-report.json"));
+  fs.copyFileSync(windowsSigningEvidencePath, path.join(outDir, "windows-signing-evidence.v1.json"));
   console.log(`[release-candidate] assembled ${manifest.assets.length} package assets; manifest=${manifest.manifest_digest}`);
 }
 

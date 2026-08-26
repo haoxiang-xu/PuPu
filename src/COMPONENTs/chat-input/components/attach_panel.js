@@ -996,6 +996,7 @@ const AttachPanel = forwardRef(({
                     <div style={{ position: "relative" }}>
                       <Button
                         prefix_icon="tool"
+                        ariaLabel={t("chat.attach.select_toolkits")}
                         title={t("chat.attach.select_toolkits")}
                         style={{
                           ...iconBtnStyle,

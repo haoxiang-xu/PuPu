@@ -163,7 +163,10 @@ const jobReport = buildJobReport({
     { name: "Playwright JSON report", path: "test-results/playwright/results.json" },
   ].filter((artifact) => fs.existsSync(path.join(ROOT, artifact.path))),
 });
-const merged = mergeReports([jobReport]);
+// This local gate validates source, runtime boundary and Electron behavior; it
+// intentionally does not build the four hosted installers. Keep the report in
+// release mode while opting out only of the hosted package-matrix requirement.
+const merged = mergeReports([jobReport], { requirePackageReports: false });
 
 writeJson(path.join(OUTPUT_DIR, "release-qa-job-report.json"), jobReport);
 writeJson(path.join(OUTPUT_DIR, "release-qa-report.json"), merged);

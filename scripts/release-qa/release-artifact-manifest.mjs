@@ -7,12 +7,15 @@ import YAML from "yaml";
 export const RELEASE_ARTIFACT_CONTRACT_SCHEMA = "pupu.release-artifact-contract.v1";
 export const RELEASE_ASSET_MANIFEST_SCHEMA = "pupu.release-assets.v1";
 export const RELEASE_QUALIFICATION_SCHEMA = "pupu.release-qualification.v1";
+export const RELEASE_UPDATE_QUALIFICATION_SCHEMA = "pupu.release-update-qualification.v1";
 
 const MANIFEST_DIGEST_DOMAIN = "pupu.release-assets.v1\u0000";
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const GITHUB_RUN_ID_PATTERN = /^[1-9]\d*$/;
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const STABLE_TAG_PATTERN = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const RESTART_UPDATE_TARGET_IDS = Object.freeze(["macos-arm64", "macos-x64", "windows-x64"]);
 const UTF8_COMPARE = (left, right) => Buffer.compare(
   Buffer.from(left, "utf8"),
   Buffer.from(right, "utf8"),
@@ -625,6 +628,9 @@ export function verifyReleaseAssetDirectory({ manifest, contract, assetDir, allo
 
 export function validateQualificationReceipt(receipt, manifest, contract) {
   validateReleaseAssetManifest(manifest, contract);
+  if (receipt?.schema === RELEASE_UPDATE_QUALIFICATION_SCHEMA) {
+    return validateReleaseUpdateQualificationReceipt(receipt, manifest, contract);
+  }
   exactKeys(receipt, ["candidate_run_id", "manifest_digest", "qualification_run_id", "release", "schema", "status", "targets"], "release qualification receipt");
   if (receipt.schema !== RELEASE_QUALIFICATION_SCHEMA) {
     throw new Error(`release qualification receipt schema must be ${RELEASE_QUALIFICATION_SCHEMA}`);
@@ -656,6 +662,96 @@ export function validateQualificationReceipt(receipt, manifest, contract) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error("release qualification receipt targets must match all required release targets");
   }
+  return receipt;
+}
+
+const validateReceiptTargets = ({ receipt, key, expected, label }) => {
+  const actual = requiredArray(receipt[key], `release update qualification receipt ${key}`)
+    .map((target, index) => {
+      exactKeys(target, ["id", "status"], `release update qualification receipt ${key}[${index}]`);
+      if (target.status !== "passed") {
+        throw new Error(`release update qualification ${key} target ${target.id} must be passed`);
+      }
+      return requiredString(target.id, `release update qualification receipt ${key}[${index}].id`);
+    });
+  requireSortedUnique(actual, `release update qualification receipt ${key}`, (value) => value);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`release update qualification receipt ${key} must match required targets`);
+  }
+};
+
+const parseStableTag = (value, label) => {
+  const match = STABLE_TAG_PATTERN.exec(requiredString(value, label));
+  if (!match) throw new Error(`${label} must be a stable vX.Y.Z tag`);
+  return match.slice(1).map(Number);
+};
+
+const compareVersionParts = (left, right) => {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return 0;
+};
+
+export function validateReleaseUpdateQualificationReceipt(receipt, manifest, contract) {
+  validateReleaseAssetManifest(manifest, contract);
+  exactKeys(
+    receipt,
+    [
+      "candidate_run_id",
+      "fixture_source",
+      "fresh_targets",
+      "manifest_digest",
+      "qualification_run_id",
+      "release",
+      "restart_targets",
+      "schema",
+      "status",
+    ],
+    "release update qualification receipt",
+  );
+  if (receipt.schema !== RELEASE_UPDATE_QUALIFICATION_SCHEMA) {
+    throw new Error(`release update qualification receipt schema must be ${RELEASE_UPDATE_QUALIFICATION_SCHEMA}`);
+  }
+  if (receipt.status !== "passed") {
+    throw new Error("release update qualification receipt status must be passed");
+  }
+  if (receipt.manifest_digest !== manifest.manifest_digest) {
+    throw new Error("release update qualification receipt manifest_digest does not match candidate manifest");
+  }
+  if (receipt.candidate_run_id !== manifest.release.candidate_run_id) {
+    throw new Error("release update qualification receipt candidate_run_id does not match candidate manifest");
+  }
+  assertRunId(receipt.candidate_run_id, "release update qualification receipt candidate_run_id");
+  assertRunId(receipt.qualification_run_id, "release update qualification receipt qualification_run_id");
+  exactKeys(receipt.release, ["commit", "tag", "version"], "release update qualification receipt release");
+  for (const field of ["commit", "tag", "version"]) {
+    if (receipt.release[field] !== manifest.release[field]) {
+      throw new Error(`release update qualification receipt ${field} does not match candidate manifest`);
+    }
+  }
+  exactKeys(receipt.fixture_source, ["from_commit", "from_tag", "from_version"], "release update qualification receipt fixture_source");
+  const fromVersion = parseStableTag(receipt.fixture_source.from_tag, "release update qualification receipt fixture_source.from_tag");
+  if (receipt.fixture_source.from_version !== fromVersion.join(".")) {
+    throw new Error("release update qualification receipt fixture_source.from_version does not match from_tag");
+  }
+  if (!GIT_SHA_PATTERN.test(receipt.fixture_source.from_commit || "")) {
+    throw new Error("release update qualification receipt fixture_source.from_commit must be a Git commit");
+  }
+  const toVersion = parseStableTag(manifest.release.tag, "candidate release tag");
+  if (compareVersionParts(fromVersion, toVersion) >= 0) {
+    throw new Error("release update qualification receipt fixture source must precede the candidate release");
+  }
+  validateReceiptTargets({
+    receipt,
+    key: "fresh_targets",
+    expected: requiredTargets(contract).map((target) => target.id).sort(UTF8_COMPARE),
+  });
+  validateReceiptTargets({
+    receipt,
+    key: "restart_targets",
+    expected: [...RESTART_UPDATE_TARGET_IDS].sort(UTF8_COMPARE),
+  });
   return receipt;
 }
 

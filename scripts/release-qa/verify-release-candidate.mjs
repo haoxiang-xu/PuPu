@@ -10,6 +10,7 @@ import {
   validateReleaseAssetManifest,
   verifyReleaseAssetDirectory,
 } from "./release-artifact-manifest.mjs";
+import { validateWindowsReleaseCandidateSigningEvidence } from "./windows-release-candidate-signing.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -56,7 +57,8 @@ function assertQaReport(report, manifest) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const contractPath = args.contract ? path.resolve(args.contract) : path.join(ROOT, "contracts/release/release-artifact-contract.v1.json");
-  const manifest = readJson(requiredPath(args, "manifest"));
+  const manifestPath = requiredPath(args, "manifest");
+  const manifest = readJson(manifestPath);
   const assetDir = requiredPath(args, "asset-dir");
   const qaReport = readJson(requiredPath(args, "qa-report"));
   const contract = readReleaseArtifactContract(contractPath);
@@ -67,9 +69,17 @@ function main() {
     throw new Error("requested candidate run ID does not match the candidate manifest");
   }
   assertQaReport(qaReport, manifest);
+  validateWindowsReleaseCandidateSigningEvidence({
+    evidence: readJson(path.join(path.dirname(manifestPath), "windows-signing-evidence.v1.json")),
+    manifest,
+  });
   if (args["require-qualification"] === "true") {
     const qualification = readJson(requiredPath(args, "qualification"));
     validateQualificationReceipt(qualification, manifest, contract);
+    if (args["require-restart-qualification"] === "true" &&
+        qualification.schema !== "pupu.release-update-qualification.v1") {
+      throw new Error("qualification receipt must include complete restart-update evidence");
+    }
     if (args["qualification-run-id"] &&
         args["qualification-run-id"] !== qualification.qualification_run_id) {
       throw new Error("requested qualification run ID does not match the qualification receipt");

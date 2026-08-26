@@ -145,6 +145,21 @@ test("lite merge passes with one deterministic artifact and required matrices", 
   assert.equal(merged.unchain.artifact_sha256, unchainEvidence().artifact_sha256);
 });
 
+test("local deterministic gates retain their Unchain evidence when the platform has an architecture-bearing name", () => {
+  const merged = mergeReports([
+    buildJobReport({
+      mode: "release",
+      platform: { name: "local-darwin-arm64", os: "darwin", arch: "arm64" },
+      version: "0.1.10",
+      unchain: unchainEvidence(),
+      checks: deterministicChecks(),
+    }),
+  ], { requirePackageReports: false });
+  assert.equal(merged.unchain.artifact_sha256, unchainEvidence().artifact_sha256);
+  assert.equal(merged.unchain.runtime_manifest_digest, runtimeManifest.manifest_digest);
+  assert.equal(merged.deterministic_result.status, "passed");
+});
+
 test("release merge requires all package platforms, identical bytes, and real smoke", () => {
   const deterministic = buildJobReport({
     mode: "release",

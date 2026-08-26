@@ -11,6 +11,10 @@ on:
         description: "Existing vX.Y.Z tag represented by that candidate"
         required: true
         type: string
+      from_tag:
+        description: "Existing lower stable vX.Y.Z tag used to build the signed N-1 update fixture"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -30,6 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag_commit: ${{ steps.tag.outputs.tag_commit }}
+      fixture_tag: ${{ steps.fixture.outputs.from_tag }}
+      fixture_commit: ${{ steps.fixture.outputs.from_commit }}
+      fixture_version: ${{ steps.fixture.outputs.from_version }}
     steps:
       - name: Checkout the requested release tag
         uses: actions/checkout@v4
@@ -101,10 +108,27 @@ jobs:
             --commit "$TAG_COMMIT" \
             --candidate-run-id "$CANDIDATE_RUN_ID"
 
+      - name: Resolve exact signed N-1 fixture source
+        id: fixture
+        env:
+          FROM_TAG: ${{ inputs.from_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          git fetch --no-tags origin "refs/tags/$FROM_TAG:refs/tags/$FROM_TAG"
+          FROM_COMMIT="$(git rev-list -n 1 "$FROM_TAG")"
+          FROM_VERSION="$(git show "$FROM_TAG:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')"
+          node scripts/release-qa/validate-update-fixture-source.mjs \
+            --candidate-dir candidate \
+            --from-tag "$FROM_TAG" \
+            --from-version "$FROM_VERSION" \
+            --from-commit "$FROM_COMMIT"
+          echo "from_tag=$FROM_TAG" >> "$GITHUB_OUTPUT"
+          echo "from_version=$FROM_VERSION" >> "$GITHUB_OUTPUT"
+          echo "from_commit=$FROM_COMMIT" >> "$GITHUB_OUTPUT"
+
   installed-package-matrix:
     name: Qualify installed ${{ matrix.target_id }} candidate
     needs: candidate-preflight
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -117,85 +141,40 @@ jobs:
             os: windows-latest
           - target_id: linux-x64
             os: ubuntu-latest
-    steps:
-      - name: Checkout the exact release tag
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/_shared-release-update-qualification.yml
+    with:
+      candidate_run_id: ${{ inputs.candidate_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      tag_commit: ${{ needs.candidate-preflight.outputs.tag_commit }}
+      target_id: ${{ matrix.target_id }}
+      runner_selector: ${{ matrix.os }}
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install qualification dependencies
-        run: npm ci
-
-      - name: Install Linux display dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes xvfb
-
-      - name: Download and verify exact candidate bytes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          TAG_COMMIT: ${{ needs.candidate-preflight.outputs.tag_commit }}
-        run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name pupu-release-candidate --dir candidate
-          node scripts/release-qa/verify-release-candidate.mjs \
-            --manifest candidate/release-assets.v1.json \
-            --asset-dir candidate/assets \
-            --qa-report candidate/release-qa-report.json \
-            --tag "$RELEASE_TAG" \
-            --commit "$TAG_COMMIT" \
-            --candidate-run-id "$CANDIDATE_RUN_ID"
-
-      - name: Run installed-package qualification
-        id: installed
-        continue-on-error: true
-        env:
-          TARGET_ID: ${{ matrix.target_id }}
-        run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run -a node scripts/release-qa/installed-package-qualification.mjs \
-              --candidate-dir candidate \
-              --target "$TARGET_ID" \
-              --out installed-package-qualification.json
-          else
-            node scripts/release-qa/installed-package-qualification.mjs \
-              --candidate-dir candidate \
-              --target "$TARGET_ID" \
-              --out installed-package-qualification.json
-          fi
-
-      - name: Upload installed-package evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: installed-qualification-${{ matrix.target_id }}
-          if-no-files-found: warn
-          retention-days: 30
-          path: |
-            installed-package-qualification.json
-
-      - name: Enforce installed-package result
-        if: always()
-        env:
-          INSTALLED_OUTCOME: ${{ steps.installed.outcome }}
-        run: |
-          if [ "$INSTALLED_OUTCOME" != "success" ]; then
-            echo "::error title=Installed candidate qualification failed::${{ matrix.target_id }} did not pass exact installed-package checks"
-            exit 1
-          fi
+  windows-restart-update:
+    name: Qualify signed Windows N-1 restart update
+    needs: candidate-preflight
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/_shared-release-windows-restart-update.yml
+    with:
+      candidate_run_id: ${{ inputs.candidate_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      tag_commit: ${{ needs.candidate-preflight.outputs.tag_commit }}
+      from_tag: ${{ needs.candidate-preflight.outputs.fixture_tag }}
+      from_version: ${{ needs.candidate-preflight.outputs.fixture_version }}
+      from_commit: ${{ needs.candidate-preflight.outputs.fixture_commit }}
+    secrets: inherit
 
   qualification-receipt:
     name: Seal installed-package qualification receipt
     needs:
       - candidate-preflight
       - installed-package-matrix
+      - windows-restart-update
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -230,17 +209,29 @@ jobs:
           path: installed-reports
           merge-multiple: false
 
-      - name: Build strict qualification receipt
+      - name: Download all restart-update reports
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: restart-update-qualification-*
+          path: restart-reports
+          merge-multiple: false
+
+      - name: Build strict fresh-install and restart-update qualification receipt
         id: receipt
         if: always()
         continue-on-error: true
         env:
           QUALIFICATION_RUN_ID: ${{ github.run_id }}
         run: |
-          node scripts/release-qa/build-release-qualification.mjs \
+          node scripts/release-qa/build-release-update-qualification.mjs \
             --candidate-dir candidate \
-            --reports-dir installed-reports \
+            --fresh-reports-dir installed-reports \
+            --restart-reports-dir restart-reports \
             --qualification-run-id "$QUALIFICATION_RUN_ID" \
+            --from-tag "${{ needs.candidate-preflight.outputs.fixture_tag }}" \
+            --from-version "${{ needs.candidate-preflight.outputs.fixture_version }}" \
+            --from-commit "${{ needs.candidate-preflight.outputs.fixture_commit }}" \
             --out release-qualification.v1.json
 
       - name: Upload qualification receipt
@@ -258,9 +249,10 @@ jobs:
         env:
           PREFLIGHT_RESULT: ${{ needs.candidate-preflight.result }}
           MATRIX_RESULT: ${{ needs.installed-package-matrix.result }}
+          WINDOWS_RESTART_UPDATE_RESULT: ${{ needs.windows-restart-update.result }}
           RECEIPT_OUTCOME: ${{ steps.receipt.outcome }}
         run: |
-          if [ "$PREFLIGHT_RESULT" != "success" ] || [ "$MATRIX_RESULT" != "success" ] || [ "$RECEIPT_OUTCOME" != "success" ]; then
-            echo "::error title=Release qualification incomplete::candidate provenance, every installed package, and the strict receipt must pass"
+          if [ "$PREFLIGHT_RESULT" != "success" ] || [ "$MATRIX_RESULT" != "success" ] || [ "$WINDOWS_RESTART_UPDATE_RESULT" != "success" ] || [ "$RECEIPT_OUTCOME" != "success" ]; then
+            echo "::error title=Release qualification incomplete::candidate provenance, every fresh install, the Windows restart-update, and the strict receipt must pass"
             exit 1
           fi

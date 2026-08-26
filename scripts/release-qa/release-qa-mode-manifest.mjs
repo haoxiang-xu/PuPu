@@ -3,7 +3,6 @@ const MODES = Object.freeze([
   "lite",
   "release",
   "release-candidate",
-  "windows-active-qualification",
 ]);
 
 const isObject = (value) =>

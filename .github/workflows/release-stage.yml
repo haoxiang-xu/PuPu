@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       qualification_run_id:
-        description: "Run ID holding the #218 qualification receipt (omit only when the receipt is in the candidate Release QA run)"
+        description: "Run ID holding the installed qualification receipt (omit only when the receipt is in the candidate Release QA run)"
         required: false
         default: ""
         type: string
@@ -22,7 +22,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: release-stage-${{ inputs.release_tag }}
+  group: release-promotion-${{ inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -79,6 +79,16 @@ jobs:
             exit 1
           fi
           echo "tag_commit=$TAG_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Require dispatch from the exact release tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
+            echo "::error title=Tag dispatch required::Stage must execute the exact workflow revision at the immutable release tag"
+            exit 1
+          fi
 
       - name: Verify candidate Actions run provenance
         env:
@@ -139,6 +149,7 @@ jobs:
             --qa-report candidate/release-qa-report.json \
             --qualification qualification/release-qualification.v1.json \
             --require-qualification true \
+            --require-restart-qualification true \
             --tag "$RELEASE_TAG" \
             --commit "$TAG_COMMIT" \
             --candidate-run-id "$CANDIDATE_RUN_ID" \
@@ -172,6 +183,7 @@ jobs:
             candidate/assets/* \
             candidate/release-assets.v1.json \
             candidate/release-qa-report.json \
+            candidate/windows-signing-evidence.v1.json \
             qualification/release-qualification.v1.json
 
       - name: Re-download and verify Draft Release bytes
@@ -189,9 +201,11 @@ jobs:
             --qa-report draft-assets/release-qa-report.json \
             --qualification draft-assets/release-qualification.v1.json \
             --require-qualification true \
+            --require-restart-qualification true \
             --allow-extra release-assets.v1.json \
             --allow-extra release-qa-report.json \
             --allow-extra release-qualification.v1.json \
+            --allow-extra windows-signing-evidence.v1.json \
             --tag "$RELEASE_TAG" \
             --commit "$TAG_COMMIT" \
             --candidate-run-id "$CANDIDATE_RUN_ID" \

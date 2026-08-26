@@ -217,7 +217,7 @@ const assertSnapshot = (asarPath) => {
   return { fingerprint, sha256: hashBytes(bytes) };
 };
 
-const inspectResources = ({ resourceRoot, executablePath, sidecarPlatform }) => {
+export const inspectResources = ({ resourceRoot, executablePath, sidecarPlatform }) => {
   const asarPath = path.join(resourceRoot, "app.asar");
   const sidecarPath = path.join(
     resourceRoot,
@@ -253,7 +253,7 @@ const inspectResources = ({ resourceRoot, executablePath, sidecarPlatform }) => 
 const appRootFromAsar = (root) => path.dirname(oneFile(root, (filePath) =>
   path.basename(filePath) === "app.asar", "installed app.asar"));
 
-const installMacDmg = ({ installerPath, tempRoot }) => {
+export const installMacDmg = ({ installerPath, tempRoot }) => {
   if (process.platform !== "darwin") throw new Error("DMG qualification requires macOS");
   const mountPath = path.join(tempRoot, "mounted-dmg");
   const installRoot = path.join(tempRoot, "installed");
@@ -309,7 +309,7 @@ const installMacDmg = ({ installerPath, tempRoot }) => {
   }
 };
 
-const installWindowsNsis = ({ installerPath, tempRoot }) => {
+export const installWindowsNsis = ({ installerPath, tempRoot }) => {
   if (process.platform !== "win32") throw new Error("NSIS qualification requires Windows");
   const installRoot = path.join(tempRoot, "installed");
   fs.mkdirSync(installRoot, { recursive: true });

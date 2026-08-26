@@ -8,6 +8,10 @@ import YAML from "yaml";
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const workflowPath = path.join(ROOT, ".github/workflows/windows-signing-qualification.yml");
 const workflow = fs.readFileSync(workflowPath, "utf8");
+const signingAction = fs.readFileSync(
+  path.join(ROOT, ".github/actions/windows-artifact-signing/action.yml"),
+  "utf8",
+);
 
 test("Windows signing qualification is an explicit, protected, non-publishing Artifact Signing check", () => {
   const document = YAML.parseDocument(workflow, { uniqueKeys: true });
@@ -30,40 +34,35 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /write-build-feature-snapshot\.cjs/);
   assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
   assert.match(workflow, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=\$snapshotPath/);
-  assert.match(workflow, /azure\/login@v3/);
-  assert.equal((workflow.match(/azure\/artifact-signing-action@v2/g) || []).length, 2);
+  assert.match(workflow, /uses: \.\/\.github\/actions\/windows-artifact-signing/);
+  assert.doesNotMatch(workflow, /uses: azure\/(?:login|artifact-signing-action)/);
   assert.match(workflow, /AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME/);
   assert.match(workflow, /Resolve non-interactive build version/);
   assert.match(workflow, /PUPU_BUILD_VERSION=\$buildVersion/);
   assert.match(workflow, /package\.json did not provide a build version/);
   assert.match(workflow, /build:electron:win:unpacked/);
-  assert.match(workflow, /\$signableFiles \| ForEach-Object \{ \$_\.IsReadOnly = \$false \}/);
-  assert.match(workflow, /isolated signing payload still contains read-only \.exe or \.dll files/);
-  assert.match(workflow, /resources\\mcp_runtime\\python\\DLLs\\tcl86t\.dll/);
-  assert.match(workflow, /resources\\mcp_runtime\\python\\DLLs\\tk86t\.dll/);
-  assert.match(workflow, /files-catalog: \$\{\{ env\.QUALIFICATION_PAYLOAD_SIGNING_CATALOG \}\}/);
-  assert.match(workflow, /Prime Electron Builder elevation helper in the isolated payload/);
-  assert.match(workflow, /resources\\elevate\.exe/);
-  assert.match(workflow, /Electron Builder did not add the expected elevation helper/);
-  assert.match(workflow, /--config\.directories\.output="\$bootstrapOutput"/);
-  assert.match(workflow, /--config\.nsis\.packElevateHelper=false/);
-  assert.ok(
-    workflow.indexOf("- name: Prime Electron Builder elevation helper in the isolated payload") <
-      workflow.indexOf("- name: Sign isolated Windows payload with Artifact Signing")
-  );
-  const payloadSigningStep = workflow.slice(
-    workflow.indexOf("- name: Sign isolated Windows payload with Artifact Signing"),
-    workflow.indexOf("- name: Build a non-publishing installer from the signed payload")
-  );
-  assert.doesNotMatch(payloadSigningStep, /files-folder:/);
-  assert.match(workflow, /controlled unsigned payload exception set did not match exactly/);
-  assert.match(workflow, /unsigned_payload_exceptions/);
-  assert.match(workflow, /signable_payload_file_count/);
-  assert.match(workflow, /not Authenticode-compatible \(0x800700C1\)/);
-  assert.match(workflow, /--prepackaged/);
-  assert.match(workflow, /--publish never/);
-  assert.match(workflow, /Get-AuthenticodeSignature/);
-  assert.match(workflow, /Status -ne "Valid"/);
+  assert.match(workflow, /evidence-schema: pupu\.windows-signing-qualification\.v1/);
+  assert.match(workflow, /evidence-output: windows-signing-qualification\.v1\.json/);
+  assert.doesNotMatch(workflow, /Get-AuthenticodeSignature/);
+  assert.equal((signingAction.match(/azure\/artifact-signing-action@v2/g) || []).length, 2);
+  assert.match(signingAction, /azure\/login@v3/);
+  assert.match(signingAction, /\$signableFiles \| ForEach-Object \{ \$_\.IsReadOnly = \$false \}/);
+  assert.match(signingAction, /contains read-only \.exe or \.dll files/);
+  assert.match(signingAction, /resources\\mcp_runtime\\python\\DLLs\\tcl86t\.dll/);
+  assert.match(signingAction, /resources\\mcp_runtime\\python\\DLLs\\tk86t\.dll/);
+  assert.match(signingAction, /files-catalog:/);
+  assert.doesNotMatch(signingAction, /files-folder:/);
+  assert.match(signingAction, /Electron Builder did not add the expected elevation helper/);
+  assert.match(signingAction, /--config\.directories\.output="\$bootstrapOutput"/);
+  assert.match(signingAction, /--config\.nsis\.packElevateHelper=false/);
+  assert.match(signingAction, /controlled unsigned payload exception set did not match exactly/);
+  assert.match(signingAction, /unsigned_payload_exceptions/);
+  assert.match(signingAction, /signable_payload_file_count/);
+  assert.match(signingAction, /not Authenticode-compatible \(0x800700C1\)/);
+  assert.match(signingAction, /--prepackaged/);
+  assert.match(signingAction, /--publish never/);
+  assert.match(signingAction, /Get-AuthenticodeSignature/);
+  assert.match(signingAction, /Status -ne "Valid"/);
   assert.match(workflow, /pupu\.windows-signing-qualification\.v1/);
   assert.match(workflow, /name: windows-signing-qualification/);
   assert.match(workflow, /path: windows-signing-qualification\.v1\.json/);

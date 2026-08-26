@@ -361,7 +361,12 @@ const enforceExpectedReportTopology = (reports, requiredPlatforms) => {
 
 export function mergeReports(
   reports,
-  { unchainAnalysis, mode: requestedMode = "", requiredReportPlatforms = [] } = {},
+  {
+    unchainAnalysis,
+    mode: requestedMode = "",
+    requiredReportPlatforms = [],
+    requirePackageReports,
+  } = {},
 ) {
   const normalizedReports = Array.isArray(reports)
     ? reports.filter((report) => report && typeof report === "object")
@@ -383,10 +388,6 @@ export function mergeReports(
     deterministic_result: report.deterministic_result,
   }));
   const firstReport = normalizedReports[0] || {};
-  const deterministicReport = normalizedReports.find(
-    (report) => report.platform?.name === "deterministic",
-  );
-  const unchain = normalizeUnchain(deterministicReport?.unchain || {});
   const inferredMode = normalizedReports.some((report) => report.mode === "release")
     ? "release"
     : cleanString(firstReport.mode) || "lite";
@@ -398,6 +399,10 @@ export function mergeReports(
     return report.platform?.name === "deterministic" ||
       DETERMINISTIC_REQUIRED_CHECKS.every((name) => checkNames.has(name));
   });
+  const deterministicReport = normalizedReports.find(
+    (report) => report.platform?.name === "deterministic",
+  ) || deterministicReports[0];
+  const unchain = normalizeUnchain(deterministicReport?.unchain || {});
 
   const requiresDeterministicContractGate = deterministicReports.length > 0 ||
     normalizedReports.some((report) =>
@@ -415,7 +420,11 @@ export function mergeReports(
   checks.push(
     ...enforceExpectedReportTopology(normalizedReports, requiredReportPlatforms),
   );
-  if (RELEASE_PACKAGE_MODES.has(mode)) {
+  const packageReportsRequired =
+    typeof requirePackageReports === "boolean"
+      ? requirePackageReports
+      : RELEASE_PACKAGE_MODES.has(mode);
+  if (packageReportsRequired) {
     for (const platformName of RELEASE_PACKAGE_PLATFORMS) {
       const report = normalizedReports.find(
         (candidate) => candidate.platform?.name === platformName,

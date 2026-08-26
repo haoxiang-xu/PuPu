@@ -11,36 +11,47 @@ test("release builds Unchain once and every test/package consumes the same bytes
     path.join(ROOT, ".github/workflows/release-qa.yml"),
     "utf8",
   );
+  const sharedPackage = fs.readFileSync(
+    path.join(ROOT, ".github/workflows/_shared-release-package.yml"),
+    "utf8",
+  );
+  const sharedDeterministic = fs.readFileSync(
+    path.join(ROOT, ".github/workflows/_shared-release-deterministic.yml"),
+    "utf8",
+  );
   assert.equal(
-    workflow.match(/build-unchain-artifact\.mjs/g)?.length,
+    sharedDeterministic.match(/build-unchain-artifact\.mjs/g)?.length,
     1,
     "the selected source must be built exactly once",
   );
   assert.equal(
-    workflow.match(/repository: haoxiang-xu\/unchain/g)?.length,
+    sharedDeterministic.match(/repository: haoxiang-xu\/unchain/g)?.length,
     1,
     "only the deterministic producer may checkout Unchain",
   );
-  assert.match(workflow, /name: unchain-release-artifact/);
-  assert.match(workflow, /Create the single controlled Memory V2 build snapshot/);
-  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
-  assert.match(workflow, /name: memory-v2-build-feature-snapshot/);
-  assert.match(workflow, /Download the immutable Memory V2 build snapshot/);
-  assert.match(workflow, /Verify the downloaded Memory V2 build snapshot bytes/);
-  assert.match(workflow, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=/);
-  assert.match(workflow, /Download the deterministic Unchain artifact/);
-  assert.match(workflow, /UNCHAIN_ARTIFACT_PATH/);
-  assert.match(workflow, /UNCHAIN_ARTIFACT_EVIDENCE_PATH/);
-  assert.match(workflow, /package-sidecar-smoke\.mjs/);
-  assert.match(workflow, /--snapshot "\$PUPU_BUILD_FEATURE_SNAPSHOT_PATH"/);
-  assert.match(workflow, /executed_tests/);
-  assert.match(workflow, /--bytes-only true/);
+  assert.match(workflow, /uses: \.\/\.github\/workflows\/_shared-release-deterministic\.yml/);
+  assert.match(sharedDeterministic, /Validate closed shared deterministic inputs/);
+  assert.match(sharedDeterministic, /name: unchain-release-artifact/);
+  assert.match(sharedDeterministic, /Create the single controlled Memory V2 build snapshot/);
+  assert.match(sharedDeterministic, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
+  assert.match(sharedDeterministic, /name: memory-v2-build-feature-snapshot/);
+  assert.match(workflow, /uses: \.\/\.github\/workflows\/_shared-release-package\.yml/);
+  assert.match(sharedPackage, /Download the immutable Memory V2 build snapshot/);
+  assert.match(sharedPackage, /Verify the downloaded Memory V2 build snapshot bytes/);
+  assert.match(sharedPackage, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=/);
+  assert.match(sharedPackage, /Download the deterministic Unchain artifact/);
+  assert.match(sharedPackage, /UNCHAIN_ARTIFACT_PATH/);
+  assert.match(sharedPackage, /UNCHAIN_ARTIFACT_EVIDENCE_PATH/);
+  assert.match(sharedPackage, /package-sidecar-smoke\.mjs/);
+  assert.match(sharedPackage, /--snapshot "\$PUPU_BUILD_FEATURE_SNAPSHOT_PATH"/);
+  assert.match(sharedPackage, /executed_tests/);
+  assert.match(sharedPackage, /--bytes-only true/);
   assert.match(
-    workflow,
+    sharedPackage,
     /UNCHAIN_ARTIFACT_PATH: \$\{\{ steps\.artifact_verify\.outputs\.artifact_path \}\}/,
   );
   assert.match(
-    workflow,
+    sharedPackage,
     /UNCHAIN_ARTIFACT_EVIDENCE_PATH: \$\{\{ steps\.artifact_verify\.outputs\.evidence_path \}\}/,
   );
   assert.doesNotMatch(workflow, /UNCHAIN_ARTIFACT_PATH=\$PWD/);
@@ -48,12 +59,18 @@ test("release builds Unchain once and every test/package consumes the same bytes
     workflow,
     /resolve-unchain-revision|verify-pinned-unchain|pinned Unchain checkout|UNCHAIN_LOCKED_SHA|UNCHAIN_TESTED_SHA/,
   );
-  const parsed = YAML.parseDocument(workflow, { uniqueKeys: true });
-  assert.deepEqual(
-    parsed.errors.map((error) => error.message),
-    [],
-    "release workflow must be valid YAML with unique mapping keys",
-  );
+  for (const [label, source] of [
+    ["release workflow", workflow],
+    ["shared deterministic workflow", sharedDeterministic],
+    ["shared package workflow", sharedPackage],
+  ]) {
+    const parsed = YAML.parseDocument(source, { uniqueKeys: true });
+    assert.deepEqual(
+      parsed.errors.map((error) => error.message),
+      [],
+      `${label} must be valid YAML with unique mapping keys`,
+    );
+  }
 });
 
 test("active build and local QA paths contain no compatibility lock or dirty bypass", () => {

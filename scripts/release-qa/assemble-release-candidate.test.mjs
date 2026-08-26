@@ -7,8 +7,11 @@ import test from "node:test";
 
 import YAML from "yaml";
 
+import { refreshWindowsUpdaterMetadata } from "./refresh-windows-updater-metadata.mjs";
+
 import {
   expectedTargetAssets,
+  hashFileSha256,
   hashFileSha512,
   readJson,
   readReleaseArtifactContract,
@@ -55,6 +58,65 @@ function writeRawUpdater(target, distDir, targetAssets) {
   }), "utf8");
 }
 
+function writeWindowsSigningEvidence(packageDir) {
+  const windowsDistDir = path.join(packageDir, packageArtifactNames["windows-x64"], "dist");
+  const installer = expectedTargetAssets(CONTRACT, VERSION).find((asset) =>
+    asset.target_id === "windows-x64" && asset.role === "installer" && asset.format === "exe"
+  );
+  const evidencePath = path.join(
+    packageDir,
+    packageArtifactNames["windows-x64"],
+    "windows-signing-evidence.v1.json",
+  );
+  const signature = {
+    signer_subject: "CN=PuPu release signing test",
+    signer_thumbprint: "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+  };
+  fs.writeFileSync(evidencePath, `${JSON.stringify({
+    schema: "pupu.windows-release-candidate-signing.v1",
+    status: "passed",
+    candidate_run_id: "554433",
+    source_revision: COMMIT,
+    package_version: VERSION,
+    target_id: "windows-x64",
+    payload_file_count: 4,
+    signable_payload_file_count: 2,
+    installer_file_count: 1,
+    unsigned_payload_exceptions: [
+      {
+        path: "resources\\mcp_runtime\\python\\DLLs\\tcl86t.dll",
+        sha256: "1".repeat(64),
+        authenticode_status: "UnknownError",
+        reason: "upstream Tcl/Tk DLL rejected by SignTool as not Authenticode-compatible (0x800700C1)",
+      },
+      {
+        path: "resources\\mcp_runtime\\python\\DLLs\\tk86t.dll",
+        sha256: "2".repeat(64),
+        authenticode_status: "UnknownError",
+        reason: "upstream Tcl/Tk DLL rejected by SignTool as not Authenticode-compatible (0x800700C1)",
+      },
+    ],
+    signed_files: [
+      {
+        path: ".release-qa\\windows-unpacked\\PuPu.exe",
+        sha256: "3".repeat(64),
+        ...signature,
+      },
+      {
+        path: ".release-qa\\windows-unpacked\\resources\\elevate.exe",
+        sha256: "4".repeat(64),
+        ...signature,
+      },
+      {
+        path: `dist\\${installer.name}`,
+        sha256: hashFileSha256(path.join(windowsDistDir, installer.name)).slice("sha256:".length),
+        ...signature,
+      },
+    ],
+  }, null, 2)}\n`, "utf8");
+  return evidencePath;
+}
+
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-release-candidate-"));
   const packageDir = path.join(root, "package-artifacts");
@@ -69,6 +131,7 @@ function fixture() {
     }
     writeRawUpdater(target, distDir, targetAssets);
   }
+  const windowsSigningEvidencePath = writeWindowsSigningEvidence(packageDir);
   const reportPath = path.join(root, "release-qa-report.json");
   fs.writeFileSync(reportPath, `${JSON.stringify({
     mode: "release-candidate",
@@ -77,7 +140,13 @@ function fixture() {
     unchain: UNCHAIN,
     deterministic_result: { status: "passed" },
   }, null, 2)}\n`, "utf8");
-  return { root, packageDir, reportPath, outDir: path.join(root, "candidate") };
+  return {
+    root,
+    packageDir,
+    reportPath,
+    outDir: path.join(root, "candidate"),
+    windowsSigningEvidencePath,
+  };
 }
 
 function run(command, args) {
@@ -108,7 +177,7 @@ function writeQualificationReceipt(root, manifest, qualificationRunId = "665544"
 }
 
 test("candidate assembler merges architecture-specific updater metadata and seals exact bytes", () => {
-  const { packageDir, reportPath, outDir } = fixture();
+  const { packageDir, reportPath, outDir, windowsSigningEvidencePath } = fixture();
   const assembled = run(ASSEMBLER, [
     "--package-dir", packageDir,
     "--qa-report", reportPath,
@@ -122,6 +191,10 @@ test("candidate assembler merges architecture-specific updater metadata and seal
   const manifestPath = path.join(outDir, "release-assets.v1.json");
   const manifest = readJson(manifestPath);
   validateReleaseAssetManifest(manifest, CONTRACT);
+  assert.deepEqual(
+    readJson(path.join(outDir, "windows-signing-evidence.v1.json")),
+    readJson(windowsSigningEvidencePath),
+  );
   const mac = YAML.parse(fs.readFileSync(path.join(outDir, "assets", "latest-mac.yml"), "utf8"));
   assert.deepEqual(mac.files.map((file) => file.url), [
     "PuPu-0.1.10-macos-arm64.zip",
@@ -136,6 +209,53 @@ test("candidate assembler merges architecture-specific updater metadata and seal
     "--commit", COMMIT,
   ]);
   assert.equal(verified.status, 0, verified.stderr);
+});
+
+test("candidate assembler and verifier bind Windows signing evidence to the sealed installer", () => {
+  const { packageDir, reportPath, outDir, windowsSigningEvidencePath } = fixture();
+  const evidence = readJson(windowsSigningEvidencePath);
+  evidence.signed_files.at(-1).sha256 = "f".repeat(64);
+  fs.writeFileSync(windowsSigningEvidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  const rejected = run(ASSEMBLER, [
+    "--package-dir", packageDir,
+    "--qa-report", reportPath,
+    "--out-dir", outDir,
+    "--tag", TAG,
+    "--version", VERSION,
+    "--commit", COMMIT,
+    "--run-id", "554433",
+  ]);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /installer SHA-256/);
+});
+
+test("candidate verifier rejects a retained Windows signing proof with a missing helper", () => {
+  const { packageDir, reportPath, outDir } = fixture();
+  const assembled = run(ASSEMBLER, [
+    "--package-dir", packageDir,
+    "--qa-report", reportPath,
+    "--out-dir", outDir,
+    "--tag", TAG,
+    "--version", VERSION,
+    "--commit", COMMIT,
+    "--run-id", "554433",
+  ]);
+  assert.equal(assembled.status, 0, assembled.stderr);
+  const evidencePath = path.join(outDir, "windows-signing-evidence.v1.json");
+  const evidence = readJson(evidencePath);
+  evidence.signed_files = evidence.signed_files.filter((file) => !file.path.endsWith("resources\\elevate.exe"));
+  evidence.signable_payload_file_count -= 1;
+  evidence.payload_file_count -= 1;
+  fs.writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  const rejected = run(VERIFIER, [
+    "--manifest", path.join(outDir, "release-assets.v1.json"),
+    "--asset-dir", path.join(outDir, "assets"),
+    "--qa-report", path.join(outDir, "release-qa-report.json"),
+    "--tag", TAG,
+    "--commit", COMMIT,
+  ]);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /elevation helper/);
 });
 
 test("candidate verifier binds QA report and qualification receipt to the requested Actions runs", () => {
@@ -171,6 +291,15 @@ test("candidate verifier binds QA report and qualification receipt to the reques
   const wrongQualification = [...command];
   wrongQualification[wrongQualification.indexOf("--qualification-run-id") + 1] = "665543";
   assert.match(run(VERIFIER, wrongQualification).stderr, /qualification run ID/);
+  const missingRestartEvidence = [
+    ...command,
+    "--require-restart-qualification",
+    "true",
+  ];
+  assert.match(
+    run(VERIFIER, missingRestartEvidence).stderr,
+    /complete restart-update evidence/,
+  );
 });
 
 test("candidate assembler rejects missing updater metadata instead of guessing it", () => {
@@ -207,6 +336,47 @@ test("candidate assembler rejects updater metadata with a fake payload SHA-512",
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /SHA-512/);
+});
+
+test("candidate assembly accepts a Windows installer only after post-sign metadata refresh", () => {
+  const { root, packageDir, reportPath, outDir, windowsSigningEvidencePath } = fixture();
+  const windowsDist = path.join(packageDir, "pupu-package-windows", "dist");
+  const installer = expectedTargetAssets(CONTRACT, VERSION).find((asset) =>
+    asset.target_id === "windows-x64" && asset.role === "installer" && asset.format === "exe"
+  );
+  const installerPath = path.join(windowsDist, installer.name);
+  const metadataPath = path.join(windowsDist, "latest.yml");
+
+  // Model the final Azure Authenticode write: the installer evidence is updated,
+  // while electron-builder's pre-sign updater metadata is deliberately stale.
+  fs.appendFileSync(installerPath, "Authenticode signature envelope\n", "utf8");
+  const evidence = readJson(windowsSigningEvidencePath);
+  evidence.signed_files.at(-1).sha256 = hashFileSha256(installerPath).slice("sha256:".length);
+  fs.writeFileSync(windowsSigningEvidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+
+  const stale = run(ASSEMBLER, [
+    "--package-dir", packageDir,
+    "--qa-report", reportPath,
+    "--out-dir", path.join(root, "stale-candidate"),
+    "--tag", TAG,
+    "--version", VERSION,
+    "--commit", COMMIT,
+    "--run-id", "554433",
+  ]);
+  assert.notEqual(stale.status, 0);
+  assert.match(stale.stderr, /SHA-512/);
+
+  refreshWindowsUpdaterMetadata({ installerPath, metadataPath });
+  const assembled = run(ASSEMBLER, [
+    "--package-dir", packageDir,
+    "--qa-report", reportPath,
+    "--out-dir", outDir,
+    "--tag", TAG,
+    "--version", VERSION,
+    "--commit", COMMIT,
+    "--run-id", "554433",
+  ]);
+  assert.equal(assembled.status, 0, assembled.stderr);
 });
 
 test("candidate assembler rejects a QA report from another Actions run", () => {

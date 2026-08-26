@@ -104,6 +104,39 @@ const waitForSelectableToolkit = async (testApi) => {
   );
 };
 
+const waitForToolCapableModel = async (testApi) => {
+  const deadline = Date.now() + 30000;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    try {
+      const catalog = await debugEval(
+        testApi,
+        "return window.unchainAPI.getModelCatalog()",
+      );
+      const providers = catalog?.providers || {};
+      const capabilities = catalog?.model_capabilities || {};
+      const candidates = ["openai", "anthropic", "ollama"].flatMap((provider) =>
+        (Array.isArray(providers[provider]) ? providers[provider] : []).map(
+          (model) => `${provider}:${model}`,
+        ),
+      );
+      const modelId = candidates.find(
+        (candidate) => capabilities[candidate]?.supports_tools !== false,
+      );
+      if (modelId) return modelId;
+      lastError = new Error("model catalog had no tool-capable entry");
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(
+    `Timed out waiting for a tool-capable model: ${
+      lastError?.message || "unknown error"
+    }`,
+  );
+};
+
 test("immediate app.quit persists pending chat UI state across a same-userData restart", async ({
   pupu,
 }, testInfo) => {
@@ -112,7 +145,11 @@ test("immediate app.quit persists pending chat UI state across a same-userData r
   await enterFirstRunApp(pupu.appWindow);
   const chatTitle = `unload-restart-${Date.now()}`;
   const draftText = `draft-before-quit-${Date.now()}`;
-  const created = await pupu.testApi.post("/chats", { title: chatTitle });
+  const modelId = await waitForToolCapableModel(pupu.testApi);
+  const created = await pupu.testApi.post("/chats", {
+    title: chatTitle,
+    model: modelId,
+  });
   const chatId = created.chat_id;
   expect(chatId).toBeTruthy();
   await expect

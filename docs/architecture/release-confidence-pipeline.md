@@ -1,5 +1,8 @@
 # Release Confidence Pipeline
 
+> Active implementation roadmap:
+> [GitHub Actions reorganization and naming roadmap](./github-actions-reorganization-roadmap.md).
+
 PuPu uses a hybrid release pipeline: deterministic gates run locally and on
 GitHub, while AI reviewers add change-aware risk analysis without replacing
 tests. The same app-control contract used by Playwright is intended to become

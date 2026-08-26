@@ -59,9 +59,11 @@ jobs:
             --qa-report release-assets/release-qa-report.json \
             --qualification release-assets/release-qualification.v1.json \
             --require-qualification true \
+            --require-restart-qualification true \
             --allow-extra release-assets.v1.json \
             --allow-extra release-qa-report.json \
             --allow-extra release-qualification.v1.json \
+            --allow-extra windows-signing-evidence.v1.json \
             --tag "$RELEASE_TAG" \
             --commit "$TAG_COMMIT"
 
