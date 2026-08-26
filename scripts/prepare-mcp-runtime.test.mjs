@@ -17,6 +17,7 @@ const {
   parseArgs,
   prepareMcpRuntime,
   readPinsManifest,
+  renameSealedDirectory,
   sha256Tree,
   validatePinsManifest,
   verifyMcpRuntime,
@@ -284,6 +285,17 @@ async function fakeExtractor(
       path.join(runtimeRoot, "lib", "node_modules", "npm", "bin"),
       { recursive: true },
     );
+    const iconvTableDirectory = path.join(
+      runtimeRoot,
+      "lib",
+      "node_modules",
+      "npm",
+      "node_modules",
+      "iconv-lite",
+      "encodings",
+      "tables",
+    );
+    await fs.mkdir(iconvTableDirectory, { recursive: true });
     await fs.writeFile(path.join(runtimeRoot, "LICENSE"), "node license");
     await fs.writeFile(path.join(runtimeRoot, "bin", "node"), "node");
     await fs.writeFile(
@@ -293,6 +305,10 @@ async function fakeExtractor(
     await fs.writeFile(
       path.join(runtimeRoot, "lib", "node_modules", "npm", "bin", "npx-cli.js"),
       "npx",
+    );
+    await fs.writeFile(
+      path.join(iconvTableDirectory, "big5-added.json"),
+      '[["8740","䏰䰲"]]\n',
     );
     return;
   }
@@ -440,19 +456,32 @@ test("Electron build scripts stage the matching target and package only runtime 
   );
   assert.match(
     packageJson.scripts["build:unchain:mac"],
+    /build:unchain:mac:raw/,
+  );
+  assert.match(
+    packageJson.scripts["build:unchain:mac:raw"],
     /--target darwin-arm64/,
   );
   assert.match(
     packageJson.scripts["build:unchain:mac:intel"],
+    /build:unchain:mac:intel:raw/,
+  );
+  assert.match(
+    packageJson.scripts["build:unchain:mac:intel:raw"],
     /UNCHAIN_TARGET_ARCH=x86_64/,
   );
   assert.doesNotMatch(
-    packageJson.scripts["build:unchain:mac:intel"],
+    packageJson.scripts["build:unchain:mac:intel:raw"],
     /MISO_TARGET_ARCH/,
   );
-  assert.match(packageJson.scripts["build:unchain:win"], /--target win32-x64/);
+  assert.match(packageJson.scripts["build:unchain:win"], /build:unchain:win:raw/);
+  assert.match(packageJson.scripts["build:unchain:win:raw"], /--target win32-x64/);
   assert.match(
     packageJson.scripts["build:unchain:linux"],
+    /build:unchain:linux:raw/,
+  );
+  assert.match(
+    packageJson.scripts["build:unchain:linux:raw"],
     /--target linux-x64/,
   );
   assert.equal(
@@ -503,8 +532,8 @@ test("tree checksums use bytewise path ordering", async () => {
   const directory = await makeTempDir();
   const treeRoot = path.join(directory, "tree");
   const files = [
-    ["a", "lowercase"],
-    ["A", "uppercase"],
+    ["z", "letter"],
+    ["0", "digit"],
     ["_", "underscore"],
   ];
   await fs.mkdir(treeRoot, { recursive: true });
@@ -556,6 +585,29 @@ test("preparation seals runtimes and replaces a prior stage", async () => {
     assert.equal(pythonMode & 0o222, 0);
     assert.equal(executableMode & 0o222, 0);
   }
+});
+
+test("atomic replacement temporarily unlocks a sealed root and restores its mode", async () => {
+  const directory = await makeTempDir();
+  const tempDir = path.join(directory, ".mcp_runtime.tmp-fixture");
+  const outputDir = path.join(directory, "mcp_runtime");
+  const payloadPath = path.join(tempDir, "payload.json");
+  await fs.mkdir(tempDir);
+  await fs.writeFile(payloadPath, '{"fixture":"字节"}\n');
+  await fs.chmod(payloadPath, 0o444);
+  await fs.chmod(tempDir, 0o555);
+
+  let sourceWasWritable = false;
+  await renameSealedDirectory(tempDir, outputDir, {
+    rename: async (source, destination) => {
+      sourceWasWritable = ((await fs.stat(source)).mode & 0o200) !== 0;
+      await fs.rename(source, destination);
+    },
+  });
+
+  assert.equal(sourceWasWritable, true);
+  assert.equal((await fs.stat(outputDir)).mode & 0o222, 0);
+  assert.equal((await fs.stat(path.join(outputDir, "payload.json"))).mode & 0o222, 0);
 });
 
 test("prepares and verifies Node/npm/npx, uv/uvx, and CPython", async () => {
@@ -757,6 +809,47 @@ test("afterPack restages a writable cache-polluted runtime", async () => {
     assert.notEqual(pythonDirectory.mode & 0o222, 0);
     assert.equal(manifest.mode & 0o222, 0);
   }
+});
+
+test("afterPack unlocks only the verified macOS package copy for codesign", async () => {
+  const directory = await makeTempDir();
+  const { pinsPath, payloads } = await writeFakePins(directory);
+  const resourcesDir = path.join(directory, "app-out", "resources");
+  const outputDir = path.join(resourcesDir, "mcp_runtime");
+  const cacheDir = path.join(directory, "cache");
+  const target = currentHostTarget() === "darwin-arm64"
+    ? "darwin-x64"
+    : "darwin-arm64";
+
+  await verifyPackagedMcpRuntime(
+    {
+      electronPlatformName: "darwin",
+      arch: target.endsWith("arm64") ? "arm64" : "x64",
+      appOutDir: path.join(directory, "app-out"),
+      packager: {
+        getResourcesDir: () => resourcesDir,
+      },
+    },
+    {
+      pinsPath,
+      stageMcpRuntime: fakeRuntimeStager(payloads, cacheDir),
+    },
+  );
+
+  const binaryLikeDataPath = path.join(
+    outputDir,
+    "node",
+    "lib",
+    "node_modules",
+    "npm",
+    "node_modules",
+    "iconv-lite",
+    "encodings",
+    "tables",
+    "big5-added.json",
+  );
+  assert.notEqual((await fs.stat(binaryLikeDataPath)).mode & 0o200, 0);
+  await verifyMcpRuntime({ target, pinsPath, outputDir });
 });
 
 test("afterPack executes every bundled runtime natively without mutating it", async () => {

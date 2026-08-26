@@ -588,6 +588,17 @@ async function makeTreeDirectoriesWritable(root) {
   await walkTree(root, makeWritable);
 }
 
+async function makeTreeOwnerWritable(root) {
+  const makeWritable = async ({ absolutePath, stat }) => {
+    if (stat.isSymbolicLink()) return;
+    const ownerMode = stat.isDirectory() ? 0o700 : 0o600;
+    await fsp.chmod(absolutePath, stat.mode | ownerMode);
+  };
+  const rootStat = await fsp.lstat(root);
+  await makeWritable({ absolutePath: root, stat: rootStat });
+  await walkTree(root, makeWritable);
+}
+
 async function applyPostStageRules({
   runtimeRoot,
   runtimeName,
@@ -924,23 +935,56 @@ async function replaceDirectoryAtomically(tempDir, outputDir) {
   );
   let hadPrevious = false;
   try {
-    await fsp.rename(outputDir, backupDir);
+    await renameSealedDirectory(outputDir, backupDir);
     hadPrevious = true;
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
 
   try {
-    await fsp.rename(tempDir, outputDir);
+    await renameSealedDirectory(tempDir, outputDir);
   } catch (error) {
     if (hadPrevious) {
-      await fsp.rename(backupDir, outputDir);
+      await renameSealedDirectory(backupDir, outputDir);
     }
     throw error;
   }
   if (hadPrevious) {
     await makeTreeDirectoriesWritable(backupDir);
     await fsp.rm(backupDir, { recursive: true, force: true });
+  }
+}
+
+async function renameSealedDirectory(
+  sourceDir,
+  destinationDir,
+  { rename = fsp.rename } = {},
+) {
+  const sourceStat = await fsp.lstat(sourceDir);
+  if (!sourceStat.isDirectory()) {
+    throw new Error(`MCP runtime atomic source must be a directory: ${sourceDir}`);
+  }
+  const sealedMode = sourceStat.mode;
+  const writableMode = sealedMode | 0o700;
+  const needsTemporaryUnlock = writableMode !== sealedMode;
+  if (needsTemporaryUnlock) {
+    await fsp.chmod(sourceDir, writableMode);
+  }
+
+  let renamed = false;
+  try {
+    await rename(sourceDir, destinationDir);
+    renamed = true;
+    if (needsTemporaryUnlock) {
+      await fsp.chmod(destinationDir, sealedMode);
+    }
+  } catch (error) {
+    if (needsTemporaryUnlock) {
+      await fsp
+        .chmod(renamed ? destinationDir : sourceDir, sealedMode)
+        .catch(() => {});
+    }
+    throw error;
   }
 }
 
@@ -1141,9 +1185,11 @@ module.exports = {
   extractArchive,
   extractWheel,
   makeTreeDirectoriesWritable,
+  makeTreeOwnerWritable,
   parseArgs,
   prepareMcpRuntime,
   readPinsManifest,
+  renameSealedDirectory,
   sha256File,
   sha256Tree,
   usage,
