@@ -173,7 +173,7 @@ test("stage workflow only promotes verified retained candidate bytes into a Draf
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
   assert.match(workflow, /--candidate-run-id "\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /--qualification-run-id "\$QUALIFICATION_RUN_ID"/);
-  assert.match(workflow, /Distinct run ID holding an eligible update or v0\.1\.10 bootstrap qualification receipt/);
+  assert.match(workflow, /Distinct run ID holding an eligible update or v0\.1\.11 bootstrap qualification receipt/);
   assert.doesNotMatch(workflow, /#218/);
   assert.match(workflow, /gh release create/);
   assert.match(workflow, /--draft/);

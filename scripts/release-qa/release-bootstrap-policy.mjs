@@ -4,8 +4,8 @@ import fs from "node:fs";
 export const RELEASE_BOOTSTRAP_POLICY_SCHEMA = "pupu.release-bootstrap-policy.v1";
 export const RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA = "pupu.release-bootstrap-qualification.v1";
 export const LEGACY_RELEASE_PROJECTION_SCHEMA = "pupu.legacy-release-projection.v1";
-export const RELEASE_BOOTSTRAP_BASELINE_TAG = "v0.1.10";
-export const RELEASE_BOOTSTRAP_CONFIRMATION = "BOOTSTRAP_V0_1_10";
+export const RELEASE_BOOTSTRAP_BASELINE_TAG = "v0.1.11";
+export const RELEASE_BOOTSTRAP_CONFIRMATION = "BOOTSTRAP_V0_1_11";
 export const RELEASE_BOOTSTRAP_WORKFLOW_PATH = ".github/workflows/release-bootstrap-qualification.yml";
 export const RELEASE_UPDATE_WORKFLOW_PATH = ".github/workflows/release-qualification.yml";
 

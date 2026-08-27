@@ -1,6 +1,6 @@
 # Deterministic Release Promotion
 
-This is the v0.1.10 promotion path. It separates building, testing, staging,
+This is the v0.1.11 promotion path. It separates building, testing, staging,
 and publishing so a public release can never be rebuilt or renamed after it has
 been qualified.
 
@@ -13,6 +13,7 @@ Create these GitHub Environments before attempting a release:
 | `release-signing` | Signed candidate packages | Required reviewers; environment-scoped `CSC_LINK`, `CSC_KEY_PASSWORD`, Windows certificate/password when separate, and one supported Apple notarization credential set. |
 | `release-stage` | Draft Release creation | Required reviewers. |
 | `release-publish` | Public release state transition | Required reviewers; use a stricter approval policy than stage. |
+| `release-qualification` | One-time bootstrap operator gate | Reviewer `haoxiang-xu`; no secrets; exact `v0.1.11` tag only. |
 
 Keep signing credentials in `release-signing`, not in source files, workflow
 inputs, logs, or an LLM prompt. The deterministic path does not require an
@@ -25,7 +26,7 @@ advisory and cannot gate stage or publish.
    is `X.Y.Z`.
 2. From that tag, manually dispatch **Release QA** with
    `qa_mode=release-candidate` and a full 40-character lowercase Unchain source
-   revision. It waits for `release-signing` approval, builds the four v0.1.10
+   revision. It waits for `release-signing` approval, builds the four v0.1.11
    targets, and uses `--publish never` for every electron-builder invocation.
 3. Record the successful Actions run ID. Its `pupu-release-candidate` artifact
    contains the exact packages, updater YAML, machine-readable manifest, and
@@ -33,9 +34,9 @@ advisory and cannot gate stage or publish.
    Actions run ID; the stage workflow also verifies that its source was a
    successful manual `Release QA` run for the exact tag commit.
 4. Run the qualification path selected by the release identity:
-   - for the one-time `v0.1.10` modern baseline, dispatch
+   - for the one-time `v0.1.11` modern baseline, dispatch
      `.github/workflows/release-bootstrap-qualification.yml` from the exact tag,
-     enter `BOOTSTRAP_V0_1_10`, and require all four fresh-installed targets;
+     enter `BOOTSTRAP_V0_1_11`, and require all four fresh-installed targets;
      its closed receipt records restart update as `NOT_RUN` and cannot be reused
      for another tag;
    - for every later normal release, dispatch
@@ -60,9 +61,9 @@ advisory and cannot gate stage or publish.
 
 ## Asset contract
 
-v0.1.10 requires macOS `arm64` and `x64`, Windows `x64`, and Linux `x64`.
+v0.1.11 requires macOS `arm64` and `x64`, Windows `x64`, and Linux `x64`.
 Windows/Linux `arm64` are explicit reserved entries for #222/v0.2.0, not missing
-v0.1.10 assets. Public filenames use only `arm64` and `x64`; never infer or
+v0.1.11 assets. Public filenames use only `arm64` and `x64`; never infer or
 substitute `intel` or `amd64`.
 
 macOS publishes both DMG and ZIP update payloads, Windows publishes its NSIS

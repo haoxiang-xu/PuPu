@@ -51,10 +51,9 @@ jobs:
       SOURCE_SHA: ${{ inputs.source_sha }}
       RELEASE_TAG: ${{ inputs.release_tag }}
       PUPU_REQUIRE_NATIVE_MCP_SMOKE: "1"
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
+    # Permissions are deliberately inherited from the caller.  Only the
+    # Windows caller grants id-token: write for Azure Artifact Signing;
+    # macOS and Linux retain contents/actions read only.
     steps:
       - name: Validate closed shared package inputs
         shell: bash

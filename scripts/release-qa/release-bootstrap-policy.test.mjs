@@ -29,12 +29,12 @@ const bootstrapReceipt = () => ({
   scope: "bootstrap-fresh-install-only",
   candidate_run_id: "12345",
   qualification_run_id: "67890",
-  release: { tag: "v0.1.10", version: "0.1.10", commit: "a".repeat(40) },
+  release: { tag: "v0.1.11", version: "0.1.11", commit: "a".repeat(40) },
   bootstrap: { policy_digest: computeReleaseBootstrapPolicyDigest(policy) },
 });
 
-test("bootstrap policy freezes v0.1.10 and the exact public v0.1.9 legacy projection", () => {
-  assert.equal(validateReleaseBootstrapPolicy(policy).baseline.tag, "v0.1.10");
+test("bootstrap policy freezes v0.1.11 and the exact public v0.1.9 legacy projection", () => {
+  assert.equal(validateReleaseBootstrapPolicy(policy).baseline.tag, "v0.1.11");
   assert.match(computeReleaseBootstrapPolicyDigest(policy), /^sha256:[0-9a-f]{64}$/);
   const projection = projectLegacyReleaseApi(apiRelease(), policy, policy.legacy_release.tag_commit);
   assert.equal(projection.schema, LEGACY_RELEASE_PROJECTION_SCHEMA);
@@ -45,7 +45,7 @@ test("bootstrap policy and legacy projection fail closed on scope or asset drift
   const wrongBaseline = structuredClone(policy);
   wrongBaseline.baseline.tag = "v0.2.0";
   wrongBaseline.baseline.version = "0.2.0";
-  assert.throws(() => validateReleaseBootstrapPolicy(wrongBaseline), /baseline must be v0\.1\.10/);
+  assert.throws(() => validateReleaseBootstrapPolicy(wrongBaseline), /baseline must be v0\.1\.11/);
 
   const changedAsset = apiRelease();
   changedAsset.assets[0].size += 1;
@@ -73,7 +73,7 @@ test("receipt schema selects one closed qualification workflow and rejects old f
     bootstrapPolicy: policy,
     candidateRunId: "12345",
     qualificationRunId: "67890",
-    releaseTag: "v0.1.10",
+    releaseTag: "v0.1.11",
     releaseCommit: "a".repeat(40),
   }), RELEASE_BOOTSTRAP_WORKFLOW_PATH);
 
@@ -83,7 +83,7 @@ test("receipt schema selects one closed qualification workflow and rejects old f
     bootstrapPolicy: policy,
     candidateRunId: "12345",
     qualificationRunId: "67890",
-    releaseTag: "v0.1.10",
+    releaseTag: "v0.1.11",
     releaseCommit: "a".repeat(40),
   }), RELEASE_UPDATE_WORKFLOW_PATH);
 
@@ -92,7 +92,7 @@ test("receipt schema selects one closed qualification workflow and rejects old f
     bootstrapPolicy: policy,
     candidateRunId: "12345",
     qualificationRunId: "67890",
-    releaseTag: "v0.1.10",
+    releaseTag: "v0.1.11",
     releaseCommit: "a".repeat(40),
   }), /not eligible for promotion/);
   assert.throws(() => qualificationWorkflowPath({
@@ -100,7 +100,7 @@ test("receipt schema selects one closed qualification workflow and rejects old f
     bootstrapPolicy: policy,
     candidateRunId: "12345",
     qualificationRunId: "12345",
-    releaseTag: "v0.1.10",
+    releaseTag: "v0.1.11",
     releaseCommit: "a".repeat(40),
   }), /must be different/);
 });

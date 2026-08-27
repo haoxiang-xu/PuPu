@@ -28,7 +28,7 @@ const createManifest = () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-bootstrap-qualification-"));
   const assetDir = path.join(root, "assets");
   fs.mkdirSync(assetDir);
-  for (const asset of expectedTargetAssets(contract, "0.1.10")) {
+  for (const asset of expectedTargetAssets(contract, "0.1.11")) {
     fs.writeFileSync(path.join(assetDir, asset.name), `${asset.name}\n`, "utf8");
   }
   const writeUpdater = (name, names, primaryName) => {
@@ -39,21 +39,21 @@ const createManifest = () => {
     }));
     const primary = files.find((entry) => entry.url === primaryName);
     fs.writeFileSync(path.join(assetDir, name), YAML.stringify({
-      version: "0.1.10",
+      version: "0.1.11",
       files,
       path: primaryName,
       sha512: primary.sha512,
     }), "utf8");
   };
-  writeUpdater("latest-mac.yml", ["PuPu-0.1.10-macos-arm64.zip", "PuPu-0.1.10-macos-x64.zip"], "PuPu-0.1.10-macos-x64.zip");
-  writeUpdater("latest.yml", ["PuPu-0.1.10-windows-x64-setup.exe"], "PuPu-0.1.10-windows-x64-setup.exe");
+  writeUpdater("latest-mac.yml", ["PuPu-0.1.11-macos-arm64.zip", "PuPu-0.1.11-macos-x64.zip"], "PuPu-0.1.11-macos-x64.zip");
+  writeUpdater("latest.yml", ["PuPu-0.1.11-windows-x64-setup.exe"], "PuPu-0.1.11-windows-x64-setup.exe");
   return {
     root,
     manifest: buildReleaseAssetManifest({
       contract,
       assetDir,
-      tag: "v0.1.10",
-      version: "0.1.10",
+      tag: "v0.1.11",
+      version: "0.1.11",
       commit: "a".repeat(40),
       candidateRunId: "12345",
       unchain: {
@@ -94,7 +94,7 @@ const reports = (manifest) => [
 ];
 const projection = () => ({ schema: LEGACY_RELEASE_PROJECTION_SCHEMA, release: structuredClone(policy.legacy_release) });
 
-test("bootstrap receipt binds exact v0.1.10, four fresh targets, policy, and explicit restart NOT_RUN", () => {
+test("bootstrap receipt binds exact v0.1.11, four fresh targets, policy, and explicit restart NOT_RUN", () => {
   const { root, manifest } = createManifest();
   try {
     const receipt = buildReleaseBootstrapQualificationReceipt({
@@ -104,7 +104,7 @@ test("bootstrap receipt binds exact v0.1.10, four fresh targets, policy, and exp
       legacyProjection: projection(),
       reports: reports(manifest),
       qualificationRunId: "67890",
-      confirmation: "BOOTSTRAP_V0_1_10",
+      confirmation: "BOOTSTRAP_V0_1_11",
     });
     assert.equal(receipt.schema, "pupu.release-bootstrap-qualification.v1");
     assert.equal(receipt.restart_disposition.status, "not_run");
@@ -125,7 +125,7 @@ test("bootstrap receipt rejects wrong confirmation, same run, and legacy or targ
     legacyProjection: projection(),
     reports: reports(manifest),
     qualificationRunId: "67890",
-    confirmation: "BOOTSTRAP_V0_1_10",
+    confirmation: "BOOTSTRAP_V0_1_11",
   };
   try {
     assert.throws(() => buildReleaseBootstrapQualificationReceipt({ ...input, confirmation: "PUBLISH" }), /confirmation/);
