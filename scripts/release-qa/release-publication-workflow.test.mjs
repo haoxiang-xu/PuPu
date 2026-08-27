@@ -66,7 +66,7 @@ test("electron-builder uses canonical architecture-bearing names and every packa
   assert.match(scripts["build:electron:win:unpacked"], /build:win:chain:unpacked/);
   assert.equal(packageJson.build.mac.artifactName, "${productName}-${version}-macos-${arch}.${ext}");
   assert.equal(packageJson.build.nsis.artifactName, "${productName}-${version}-windows-${arch}-setup.${ext}");
-  assert.equal(packageJson.build.linux.artifactName, "${productName}-${version}-linux-${arch}.${ext}");
+  assert.equal(packageJson.build.linux.artifactName, "${productName}-${version}-linux-x64.${ext}");
   assert.equal(packageJson.build.linux.publish, null, "Linux must not generate updater metadata before #200");
 });
 
@@ -94,6 +94,7 @@ test("release QA keeps its public candidate contract while delegating package ex
   assert.match(sharedPackage, /build:electron:mac:release/);
   assert.match(sharedPackage, /build:electron:mac:intel:release/);
   assert.match(sharedPackage, /build:electron:win:unpacked/);
+  assert.match(sharedPackage, /working-directory: pupu\n        shell: bash/, "Windows package commands use Bash syntax");
   assert.match(sharedPackage, /release-signing\.mjs/);
   assert.match(sharedPackage, /uses: \.\/pupu\/\.github\/actions\/windows-artifact-signing/);
   assert.match(sharedPackage, /name: pupu-package-\$\{\{ inputs\.platform_name \}\}/);

@@ -190,7 +190,7 @@
       ],
       "icon": "public/logo512.png",
       "category": "Utility",
-      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "artifactName": "${productName}-${version}-linux-x64.${ext}",
       "publish": null
     },
     "toolsets": {

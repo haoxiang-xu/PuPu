@@ -196,6 +196,7 @@ jobs:
         id: package
         continue-on-error: true
         working-directory: pupu
+        shell: bash
         env:
           UNCHAIN_ARTIFACT_PATH: ${{ steps.artifact_verify.outputs.artifact_path }}
           UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
