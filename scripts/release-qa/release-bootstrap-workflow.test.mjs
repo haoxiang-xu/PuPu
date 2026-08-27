@@ -13,10 +13,10 @@ test("bootstrap qualification is exact-tag, approval-gated, fresh-only, and non-
   YAML.parse(workflow, { uniqueKeys: true });
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /release_tag:/);
-  assert.match(workflow, /BOOTSTRAP_V0_1_11/);
+  assert.match(workflow, /BOOTSTRAP_V0_1_10/);
   assert.match(workflow, /environment: release-qualification/);
   assert.match(workflow, /verify-github-environment\.mjs --environment release-qualification/);
-  assert.match(workflow, /RELEASE_TAG" != "v0\.1\.11/);
+  assert.match(workflow, /RELEASE_TAG" != "v0\.1\.10/);
   assert.match(workflow, /validate-legacy-release-gap\.mjs/);
   assert.match(workflow, /uses: \.\/\.github\/workflows\/_shared-release-update-qualification\.yml/);
   for (const target of ["macos-arm64", "macos-x64", "windows-x64", "linux-x64"]) assert.match(workflow, new RegExp(target));
@@ -37,6 +37,6 @@ test("promotion resolves receipt schema to one workflow and preserves the bootst
   assert.match(publish, /qualification-provenance\.mjs/);
   assert.match(stage, /required: true[\s\S]*Distinct run ID/);
   assert.doesNotMatch(stage, /inputs\.qualification_run_id \|\| inputs\.candidate_run_id/);
-  assert.match(stage, /Existing v0\.1\.9 and v0\.1\.10 users may need to install this version manually/);
+  assert.match(stage, /Existing v0\.1\.9 users may need to install this version manually/);
   assert.match(stage, /automatic update was not qualified/);
 });

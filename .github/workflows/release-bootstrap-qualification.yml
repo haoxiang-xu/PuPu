@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       candidate_run_id:
-        description: "Successful v0.1.11 release-candidate Release QA run ID"
+        description: "Successful v0.1.10 release-candidate Release QA run ID"
         required: true
         type: string
       release_tag:
-        description: "Frozen bootstrap baseline tag (must be v0.1.11)"
+        description: "Frozen bootstrap baseline tag (must be v0.1.10)"
         required: true
         type: string
       confirmation:
-        description: "Type BOOTSTRAP_V0_1_11 to acknowledge restart-update is not qualified"
+        description: "Type BOOTSTRAP_V0_1_10 to acknowledge restart-update is not qualified"
         required: true
         type: string
 
@@ -73,17 +73,17 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
-          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$RELEASE_TAG" != "v0.1.11" ]; then
-            echo "::error title=Bootstrap tag required::Run the one-time bootstrap from exact v0.1.11"
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$RELEASE_TAG" != "v0.1.10" ]; then
+            echo "::error title=Bootstrap tag required::Run the one-time bootstrap from exact v0.1.10"
             exit 1
           fi
-          if [ "$CONFIRMATION" != "BOOTSTRAP_V0_1_11" ]; then
-            echo "::error title=Bootstrap confirmation required::Enter BOOTSTRAP_V0_1_11"
+          if [ "$CONFIRMATION" != "BOOTSTRAP_V0_1_10" ]; then
+            echo "::error title=Bootstrap confirmation required::Enter BOOTSTRAP_V0_1_10"
             exit 1
           fi
           TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
           if [ -z "$TAG_COMMIT" ] || [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
-            echo "::error title=Wrong bootstrap revision::workflow SHA must equal the immutable v0.1.11 tag commit"
+            echo "::error title=Wrong bootstrap revision::workflow SHA must equal the immutable v0.1.10 tag commit"
             exit 1
           fi
           echo "tag_commit=$TAG_COMMIT" >> "$GITHUB_OUTPUT"

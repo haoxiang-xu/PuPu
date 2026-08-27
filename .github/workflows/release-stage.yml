@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       qualification_run_id:
-        description: "Distinct run ID holding an eligible update or v0.1.11 bootstrap qualification receipt"
+        description: "Distinct run ID holding an eligible update or v0.1.10 bootstrap qualification receipt"
         required: true
         type: string
 
@@ -169,9 +169,9 @@ jobs:
           QUALIFICATION_SCHEMA="$(node -e 'const fs = require("fs"); const receipt = JSON.parse(fs.readFileSync("qualification/release-qualification.v1.json", "utf8")); process.stdout.write(String(receipt.schema || ""))')"
           if [ "$QUALIFICATION_SCHEMA" = "pupu.release-bootstrap-qualification.v1" ]; then
             cat > release-notes.md <<'EOF'
-          PuPu v0.1.11 is the first modern release baseline. Its signed packages passed the four-target fresh-install qualification.
+          PuPu v0.1.10 is the first modern release baseline. Its signed packages passed the four-target fresh-install qualification.
 
-          Existing v0.1.9 and v0.1.10 users may need to install this version manually. Legacy-to-v0.1.11 automatic update was not qualified and is not claimed by this release.
+          Existing v0.1.9 users may need to install this version manually. Legacy-to-v0.1.10 automatic update was not qualified and is not claimed by this release.
           EOF
           else
             echo "Deterministically staged from verified release candidate and complete restart-update qualification artifacts." > release-notes.md

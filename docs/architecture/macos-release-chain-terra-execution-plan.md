@@ -530,15 +530,16 @@ v2 必须新增并严格绑定：
 
 ### Gate G4 修订决定（project owner，2026-08-26）
 
-`v0.1.10` 已锁定为未发布失败 tag：Release QA 在启动阶段因共享 workflow 的 OIDC 权限提升被 GitHub
-拒绝，未运行 job、未生成资产，且该 tag 不移动、不复用。首个 modern baseline `B` 因此顺延为
-**`v0.1.11`**。本版本只通过 bootstrap receipt 声明四目标 fresh-installed qualification，不声称
-`v0.1.9 -> v0.1.11` 或 `v0.1.10 -> v0.1.11` 自动更新完成；第一次严格的现代版本间升级链使用
-`v0.1.11` 作为 `from_tag`，目标版本安排到 `v0.2.0`。
+此前失败的预发布 `v0.1.10` tag 在修复前已按 project owner 的明确授权删除：Release QA 曾在启动阶段因
+共享 workflow 的 OIDC 权限提升被 GitHub 拒绝，未运行 job、未生成资产，也没有创建 GitHub Release。
+修复后的同名 tag 只会在最终内容推送后重新建立，并从那一刻起保持不可变。首个 modern baseline `B` 为
+**`v0.1.10`**。本版本只通过 bootstrap receipt 声明四目标 fresh-installed qualification，不声称
+`v0.1.9 -> v0.1.10` 自动更新完成；第一次严格的现代版本间升级链使用 `v0.1.10` 作为 `from_tag`，
+目标版本安排到 `v0.2.0`。
 
 `windows-arm64`、`linux-arm64` 继续保持 artifact contract 中的 `reserved / planned_release: 0.2.0`，
-不进入 v0.1.11 bootstrap 的 required target set。该决定不冻结 #208 的其余产品 scope，也不自动关闭
-#200；#200 只能在真实 `v0.1.11 -> N` production canary 后关闭。
+不进入 v0.1.10 bootstrap 的 required target set。该决定不冻结 #208 的其余产品 scope，也不自动关闭
+#200；#200 只能在真实 `v0.1.10 -> N` production canary 后关闭。
 
 ### 新增文件
 
@@ -552,11 +553,11 @@ v2 必须新增并严格绑定：
 
 policy 锁死：
 
-- exact `B=v0.1.11`、confirmation `BOOTSTRAP_V0_1_11`、required fresh targets、`required_restart_targets=[]`；
+- exact `B=v0.1.10`、confirmation `BOOTSTRAP_V0_1_10`、required fresh targets、`required_restart_targets=[]`；
 - `v0.1.9` tag commit、GitHub Release ID、draft/prerelease state；
 - 三个现有 public assets 的 exact ID/name/size/GitHub SHA-256 digest；
 - reason：legacy release lacks versioned manifest/updater metadata/Intel Mac/immutable Unchain identity；
-- `next_strict_from_tag=v0.1.11`。
+- `next_strict_from_tag=v0.1.10`。
 
 不要下载、重建或补写 `v0.1.9` 来伪造历史证据。
 
@@ -578,8 +579,8 @@ restart_disposition { status=not_run, reason_code=legacy-source-not-admissible }
 
 - only manual dispatch on exact B tag；
 - protected Environment 固定为 `release-qualification`：required reviewer `haoxiang-xu`、
-  `prevent_self_review=false`、`can_admins_bypass=false`、只允许 exact tag `v0.1.11`，且不存放 Secret；
-- exact confirmation `BOOTSTRAP_V0_1_11`；
+  `prevent_self_review=false`、`can_admins_bypass=false`、只允许 exact tag `v0.1.10`，且不存放 Secret；
+- exact confirmation `BOOTSTRAP_V0_1_10`；
 - 验证 candidate provenance/retained bytes 和 legacy API projection；
 - 复用四目标 fresh-installed workflow；
 - 不构建、不签名、不跑 restart、不写 Release；

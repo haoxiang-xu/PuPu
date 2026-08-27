@@ -90,7 +90,7 @@ against an existing `vX.Y.Z` tag with a full immutable Unchain revision. It uses
 the protected `release-signing` Environment, requires macOS signing/notarization
 credentials and Windows signing credentials, emits canonical architecture-bearing
 names, and builds without publishing. A versioned artifact contract requires the
-four v0.1.11 target slots (`macos-arm64`, `macos-x64`, `windows-x64`, and
+four v0.1.10 target slots (`macos-arm64`, `macos-x64`, `windows-x64`, and
 `linux-x64`) while declaring Windows/Linux ARM64 as reserved v0.2.0 slots. The
 candidate artifact carries every exact filename, byte size, SHA-256, updater
 metadata reference, tag/commit, candidate Actions run ID, and immutable Unchain
