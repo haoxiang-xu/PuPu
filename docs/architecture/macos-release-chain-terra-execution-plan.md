@@ -528,16 +528,15 @@ v2 必须新增并严格绑定：
 
 ## Phase 5 — 一次性 modern baseline bootstrap
 
-### 必须先由 owner 裁定的 Gate G4
+### Gate G4 决定（project owner，2026-08-26）
 
-当前 #208 `Release v0.2.0` scope 尚未冻结，同时 artifact contract 把 `windows-arm64`、
-`linux-arm64` 标为 `planned_release: 0.2.0`。owner 必须先决定：
+首个 modern baseline `B` 冻结为 **`v0.1.10`**。本版本只通过 bootstrap receipt 声明四目标
+fresh-installed qualification，不声称 `v0.1.9 -> v0.1.10` 自动更新完成；第一次严格的现代版本间
+升级链使用 `v0.1.10` 作为 `from_tag`，目标版本安排到 `v0.2.0`。
 
-1. 首个 modern baseline `B` 是否就是 `v0.2.0`；
-2. 两个 reserved ARM64 target 是在 B 交付，还是通过单独、版本化的 contract/ticket 决定延期。
-
-Terra 不得擅自做这个产品 scope 决定。以下设计中的 policy 必须在 G4 后锁死 exact B；若 B 不是
-`v0.2.0`，confirmation 和 `next_strict_from_tag` 同步使用 exact B。
+`windows-arm64`、`linux-arm64` 继续保持 artifact contract 中的 `reserved / planned_release: 0.2.0`，
+不进入 v0.1.10 bootstrap 的 required target set。该决定不冻结 #208 的其余产品 scope，也不自动关闭
+#200；#200 只能在真实 `v0.1.10 -> N` production canary 后关闭。
 
 ### 新增文件
 
@@ -551,11 +550,11 @@ Terra 不得擅自做这个产品 scope 决定。以下设计中的 policy 必�
 
 policy 锁死：
 
-- exact B tag、confirmation string、required fresh targets、`required_restart_targets=[]`；
+- exact `B=v0.1.10`、confirmation `BOOTSTRAP_V0_1_10`、required fresh targets、`required_restart_targets=[]`；
 - `v0.1.9` tag commit、GitHub Release ID、draft/prerelease state；
 - 三个现有 public assets 的 exact ID/name/size/GitHub SHA-256 digest；
 - reason：legacy release lacks versioned manifest/updater metadata/Intel Mac/immutable Unchain identity；
-- `next_strict_from_tag=B`。
+- `next_strict_from_tag=v0.1.10`。
 
 不要下载、重建或补写 `v0.1.9` 来伪造历史证据。
 
@@ -576,7 +575,9 @@ restart_disposition { status=not_run, reason_code=legacy-source-not-admissible }
 ### Bootstrap workflow
 
 - only manual dispatch on exact B tag；
-- exact confirmation，例如 B 为 v0.2.0 时 `BOOTSTRAP_V0_2_0`；
+- protected Environment 固定为 `release-qualification`：required reviewer `haoxiang-xu`、
+  `prevent_self_review=false`、`can_admins_bypass=false`、只允许 exact tag `v0.1.10`，且不存放 Secret；
+- exact confirmation `BOOTSTRAP_V0_1_10`；
 - 验证 candidate provenance/retained bytes 和 legacy API projection；
 - 复用四目标 fresh-installed workflow；
 - 不构建、不签名、不跑 restart、不写 Release；

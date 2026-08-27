@@ -58,6 +58,7 @@ jobs:
             --asset-dir release-assets \
             --qa-report release-assets/release-qa-report.json \
             --qualification release-assets/release-qualification.v1.json \
+            --bootstrap-policy contracts/release/release-bootstrap-policy.v1.json \
             --require-qualification true \
             --require-restart-qualification true \
             --allow-extra release-assets.v1.json \

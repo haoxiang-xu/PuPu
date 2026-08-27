@@ -10,6 +10,10 @@ import {
   validateReleaseAssetManifest,
   verifyReleaseAssetDirectory,
 } from "./release-artifact-manifest.mjs";
+import {
+  RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA,
+  readReleaseBootstrapPolicy,
+} from "./release-bootstrap-policy.mjs";
 import { validateWindowsReleaseCandidateSigningEvidence } from "./windows-release-candidate-signing.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -75,10 +79,13 @@ function main() {
   });
   if (args["require-qualification"] === "true") {
     const qualification = readJson(requiredPath(args, "qualification"));
-    validateQualificationReceipt(qualification, manifest, contract);
+    const bootstrapPolicy = args["bootstrap-policy"]
+      ? readReleaseBootstrapPolicy(path.resolve(args["bootstrap-policy"]))
+      : null;
+    validateQualificationReceipt(qualification, manifest, contract, { bootstrapPolicy });
     if (args["require-restart-qualification"] === "true" &&
-        qualification.schema !== "pupu.release-update-qualification.v1") {
-      throw new Error("qualification receipt must include complete restart-update evidence");
+        !["pupu.release-update-qualification.v1", RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA].includes(qualification.schema)) {
+      throw new Error("qualification receipt must include complete restart-update evidence or the frozen one-time bootstrap admission");
     }
     if (args["qualification-run-id"] &&
         args["qualification-run-id"] !== qualification.qualification_run_id) {

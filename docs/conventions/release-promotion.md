@@ -32,15 +32,19 @@ advisory and cannot gate stage or publish.
    release QA report. The manifest and report both carry that same decimal
    Actions run ID; the stage workflow also verifies that its source was a
    successful manual `Release QA` run for the exact tag commit.
-4. Run #218's fresh-install qualification against that candidate. Its
-   `pupu-release-qualification` artifact must contain
-   `release-qualification.v1.json`, marked `passed`, and bind the candidate run
-   ID plus manifest digest and its own decimal `qualification_run_id`. It may be
-   stored in the same `Release QA` run or a separate
-   `.github/workflows/release-qualification.yml` run, but either source must be
-   a successful manual run for the same tag commit.
+4. Run the qualification path selected by the release identity:
+   - for the one-time `v0.1.10` modern baseline, dispatch
+     `.github/workflows/release-bootstrap-qualification.yml` from the exact tag,
+     enter `BOOTSTRAP_V0_1_10`, and require all four fresh-installed targets;
+     its closed receipt records restart update as `NOT_RUN` and cannot be reused
+     for another tag;
+   - for every later normal release, dispatch
+     `.github/workflows/release-qualification.yml` with an explicit lower modern
+     `from_tag` and require the complete fresh-install plus restart-update receipt.
+   The candidate and qualification run IDs must be distinct, and the receipt
+   schema selects exactly one admissible workflow path.
 5. Dispatch **Stage Verified Release Candidate** with the candidate run ID, tag,
-   and (if different) qualification run ID. It re-downloads and hashes every
+   and the distinct qualification run ID. It re-downloads and hashes every
    asset, recomputes every updater SHA-512, and verifies Actions-run provenance
    before it creates or updates a Draft Release. If any asset is missing,
    renamed, extra, stale, or has different bytes, it stops.

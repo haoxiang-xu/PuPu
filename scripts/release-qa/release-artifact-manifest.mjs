@@ -4,10 +4,17 @@ import path from "node:path";
 
 import YAML from "yaml";
 
+import {
+  RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA,
+  computeReleaseBootstrapPolicyDigest,
+  validateReleaseBootstrapPolicy,
+} from "./release-bootstrap-policy.mjs";
+
 export const RELEASE_ARTIFACT_CONTRACT_SCHEMA = "pupu.release-artifact-contract.v1";
 export const RELEASE_ASSET_MANIFEST_SCHEMA = "pupu.release-assets.v1";
 export const RELEASE_QUALIFICATION_SCHEMA = "pupu.release-qualification.v1";
 export const RELEASE_UPDATE_QUALIFICATION_SCHEMA = "pupu.release-update-qualification.v1";
+export { RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA };
 
 const MANIFEST_DIGEST_DOMAIN = "pupu.release-assets.v1\u0000";
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
@@ -626,10 +633,14 @@ export function verifyReleaseAssetDirectory({ manifest, contract, assetDir, allo
   return manifest;
 }
 
-export function validateQualificationReceipt(receipt, manifest, contract) {
+export function validateQualificationReceipt(receipt, manifest, contract, { bootstrapPolicy = null } = {}) {
   validateReleaseAssetManifest(manifest, contract);
   if (receipt?.schema === RELEASE_UPDATE_QUALIFICATION_SCHEMA) {
     return validateReleaseUpdateQualificationReceipt(receipt, manifest, contract);
+  }
+  if (receipt?.schema === RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA) {
+    if (!bootstrapPolicy) throw new Error("bootstrap qualification receipt requires the frozen bootstrap policy");
+    return validateReleaseBootstrapQualificationReceipt(receipt, manifest, contract, bootstrapPolicy);
   }
   exactKeys(receipt, ["candidate_run_id", "manifest_digest", "qualification_run_id", "release", "schema", "status", "targets"], "release qualification receipt");
   if (receipt.schema !== RELEASE_QUALIFICATION_SCHEMA) {
@@ -661,6 +672,99 @@ export function validateQualificationReceipt(receipt, manifest, contract) {
   requireSortedUnique(actual, "release qualification receipt targets", (value) => value);
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error("release qualification receipt targets must match all required release targets");
+  }
+  return receipt;
+}
+
+export function validateReleaseBootstrapQualificationReceipt(receipt, manifest, contract, policy) {
+  validateReleaseAssetManifest(manifest, contract);
+  validateReleaseBootstrapPolicy(policy);
+  exactKeys(
+    receipt,
+    [
+      "bootstrap",
+      "candidate_run_id",
+      "fresh_targets",
+      "manifest_digest",
+      "qualification_run_id",
+      "release",
+      "restart_disposition",
+      "restart_targets",
+      "schema",
+      "scope",
+      "status",
+    ],
+    "release bootstrap qualification receipt",
+  );
+  if (receipt.schema !== RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA) {
+    throw new Error(`release bootstrap qualification receipt schema must be ${RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA}`);
+  }
+  if (receipt.status !== "passed" || receipt.scope !== "bootstrap-fresh-install-only") {
+    throw new Error("release bootstrap qualification receipt must be a passed fresh-install-only bootstrap");
+  }
+  if (receipt.manifest_digest !== manifest.manifest_digest) {
+    throw new Error("release bootstrap qualification receipt manifest_digest does not match candidate manifest");
+  }
+  if (receipt.candidate_run_id !== manifest.release.candidate_run_id) {
+    throw new Error("release bootstrap qualification receipt candidate_run_id does not match candidate manifest");
+  }
+  assertRunId(receipt.candidate_run_id, "release bootstrap qualification receipt candidate_run_id");
+  assertRunId(receipt.qualification_run_id, "release bootstrap qualification receipt qualification_run_id");
+  if (receipt.candidate_run_id === receipt.qualification_run_id) {
+    throw new Error("release bootstrap qualification candidate and qualification runs must be different");
+  }
+  exactKeys(receipt.release, ["commit", "tag", "version"], "release bootstrap qualification receipt release");
+  for (const field of ["commit", "tag", "version"]) {
+    if (receipt.release[field] !== manifest.release[field]) {
+      throw new Error(`release bootstrap qualification receipt ${field} does not match candidate manifest`);
+    }
+  }
+  if (manifest.release.tag !== policy.baseline.tag || manifest.release.version !== policy.baseline.version) {
+    throw new Error("release bootstrap qualification is only valid for the frozen baseline release");
+  }
+  exactKeys(
+    receipt.bootstrap,
+    ["legacy_release", "next_strict_from_tag", "policy_digest", "reason_code"],
+    "release bootstrap qualification receipt bootstrap",
+  );
+  if (receipt.bootstrap.policy_digest !== computeReleaseBootstrapPolicyDigest(policy)) {
+    throw new Error("release bootstrap qualification policy digest does not match the frozen policy");
+  }
+  if (receipt.bootstrap.reason_code !== policy.reason_code ||
+      receipt.bootstrap.next_strict_from_tag !== policy.baseline.next_strict_from_tag) {
+    throw new Error("release bootstrap qualification disposition does not match the frozen policy");
+  }
+  exactKeys(
+    receipt.bootstrap.legacy_release,
+    ["release_id", "tag", "tag_commit", "version"],
+    "release bootstrap qualification receipt legacy_release",
+  );
+  for (const field of ["release_id", "tag", "tag_commit", "version"]) {
+    if (receipt.bootstrap.legacy_release[field] !== policy.legacy_release[field]) {
+      throw new Error(`release bootstrap qualification legacy_release.${field} does not match the frozen policy`);
+    }
+  }
+  const expectedFreshTargets = requiredTargets(contract).map((target) => target.id).sort(UTF8_COMPARE);
+  if (JSON.stringify(policy.required_fresh_targets) !== JSON.stringify(expectedFreshTargets)) {
+    throw new Error("release bootstrap policy fresh targets do not match the artifact contract");
+  }
+  const actualFreshTargets = requiredArray(receipt.fresh_targets, "release bootstrap qualification receipt fresh_targets")
+    .map((target, index) => {
+      exactKeys(target, ["id", "status"], `release bootstrap qualification receipt fresh_targets[${index}]`);
+      if (target.status !== "passed") throw new Error(`release bootstrap fresh target ${target.id} must be passed`);
+      return requiredString(target.id, `release bootstrap qualification receipt fresh_targets[${index}].id`);
+    });
+  requireSortedUnique(actualFreshTargets, "release bootstrap qualification receipt fresh_targets");
+  if (JSON.stringify(actualFreshTargets) !== JSON.stringify(expectedFreshTargets)) {
+    throw new Error("release bootstrap qualification receipt fresh_targets must match all required release targets");
+  }
+  if (!Array.isArray(receipt.restart_targets) || receipt.restart_targets.length !== 0 || policy.required_restart_targets.length !== 0) {
+    throw new Error("release bootstrap qualification receipt restart_targets must be empty");
+  }
+  exactKeys(receipt.restart_disposition, ["reason_code", "status"], "release bootstrap qualification receipt restart_disposition");
+  if (receipt.restart_disposition.status !== "not_run" ||
+      receipt.restart_disposition.reason_code !== "legacy-source-not-admissible") {
+    throw new Error("release bootstrap qualification restart disposition must preserve the legacy gap");
   }
   return receipt;
 }

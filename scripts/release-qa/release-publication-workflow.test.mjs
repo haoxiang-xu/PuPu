@@ -159,12 +159,13 @@ test("stage workflow only promotes verified retained candidate bytes into a Draf
   assert.match(workflow, /actions: read/);
   assert.match(workflow, /--name pupu-release-candidate/);
   assert.match(workflow, /--name pupu-release-qualification/);
-  assert.match(workflow, /QUALIFICATION_RUN_ID: \$\{\{ inputs\.qualification_run_id \|\| inputs\.candidate_run_id \}\}/);
+  assert.match(workflow, /QUALIFICATION_RUN_ID: \$\{\{ inputs\.qualification_run_id \}\}/);
   assert.match(workflow, /gh api "repos\/\$GITHUB_REPOSITORY\/actions\/runs\/\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /gh api "repos\/\$GITHUB_REPOSITORY\/actions\/runs\/\$QUALIFICATION_RUN_ID"/);
   assert.match(workflow, /verify-actions-run-provenance\.mjs/);
   assert.match(workflow, /--workflow-path \.github\/workflows\/release-qa\.yml/);
   assert.match(workflow, /--workflow-path "\$QUALIFICATION_WORKFLOW_PATH"/);
+  assert.match(workflow, /qualification-provenance\.mjs/);
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /--require-qualification true/);
   assert.match(workflow, /--require-restart-qualification true/);
@@ -172,7 +173,7 @@ test("stage workflow only promotes verified retained candidate bytes into a Draf
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
   assert.match(workflow, /--candidate-run-id "\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /--qualification-run-id "\$QUALIFICATION_RUN_ID"/);
-  assert.match(workflow, /Run ID holding the installed qualification receipt/);
+  assert.match(workflow, /Distinct run ID holding an eligible update or v0\.1\.10 bootstrap qualification receipt/);
   assert.doesNotMatch(workflow, /#218/);
   assert.match(workflow, /gh release create/);
   assert.match(workflow, /--draft/);
@@ -195,10 +196,12 @@ test("publish workflow has a protected manual transition and cannot rebuild or u
   assert.match(workflow, /actions\/runs\/\$CANDIDATE_RUN_ID/);
   assert.match(workflow, /actions\/runs\/\$QUALIFICATION_RUN_ID/);
   assert.match(workflow, /publish-draft:[\s\S]*?permissions:\s+contents: write\s+actions: read/);
-  assert.match(workflow, /--workflow-path \.github\/workflows\/release-qualification\.yml/);
+  assert.match(workflow, /qualification-provenance\.mjs/);
+  assert.match(workflow, /--workflow-path "\$QUALIFICATION_WORKFLOW_PATH"/);
   assert.match(workflow, /--candidate-run-id "\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /--qualification-run-id "\$QUALIFICATION_RUN_ID"/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
+  assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/);
   assert.match(workflow, /gh release edit .*--draft=false --latest/);
   assert.match(workflow, /render-readme:/);
   assert.match(workflow, /needs: publish-draft/);
@@ -220,6 +223,7 @@ test("README workflow is explicitly called after publication and never regex-rew
   assert.match(workflow, /gh release download/);
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
+  assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/);
   assert.match(workflow, /update-readme-links\.cjs --manifest/);
   assert.match(workflow, /inputs\.release_tag/);
   assert.ok(workflow.indexOf("verify-release-candidate.mjs") < workflow.indexOf("update-readme-links.cjs"));
