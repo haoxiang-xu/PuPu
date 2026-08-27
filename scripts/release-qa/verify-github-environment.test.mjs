@@ -36,3 +36,19 @@ test("environment verifier executes its fail-closed CLI entrypoint with a portab
   assert.match(result.stderr, /must require reviewers/);
   assert.match(fs.readFileSync(environmentVerifierScript, "utf8"), /pathToFileURL\(process\.argv\[1\]\)\.href/);
 });
+
+test("environment verifier accepts reviewer-protected JSON through streamed standard input", () => {
+  const result = spawnSync(process.execPath, [environmentVerifierScript, "--environment", "release-signing"], {
+    encoding: "utf8",
+    input: JSON.stringify({
+      name: "release-signing",
+      protection_rules: [{
+        type: "required_reviewers",
+        reviewers: [{ type: "User", reviewer: { login: "owner" } }],
+      }],
+    }),
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /release-signing has required reviewers/);
+});

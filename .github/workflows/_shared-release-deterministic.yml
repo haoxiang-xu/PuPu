@@ -209,6 +209,7 @@ jobs:
         working-directory: pupu
         env:
           CI: true
+          PUPU_BUILD_FEATURE_SNAPSHOT_PATH: ${{ steps.build_feature_snapshot.outputs.snapshot_path }}
         run: npm run build
 
       - name: Validate MCP registry

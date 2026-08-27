@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -28,15 +27,24 @@ function parseArgs(argv) {
   return { environment: index >= 0 ? argv[index + 1] || "" : "" };
 }
 
+export async function readStandardInput() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try {
-    const { environment } = parseArgs(process.argv.slice(2));
-    if (!environment) throw new Error("--environment is required");
-    const payload = JSON.parse(fs.readFileSync(0, "utf8"));
-    assertProtectedReleaseEnvironment(payload, environment);
-    console.log(`[release-environment] ${environment} has required reviewers`);
-  } catch (error) {
-    console.error(`[release-environment] ${error.message || String(error)}`);
-    process.exit(1);
-  }
+  const main = async () => {
+    try {
+      const { environment } = parseArgs(process.argv.slice(2));
+      if (!environment) throw new Error("--environment is required");
+      const payload = JSON.parse(await readStandardInput());
+      assertProtectedReleaseEnvironment(payload, environment);
+      console.log(`[release-environment] ${environment} has required reviewers`);
+    } catch (error) {
+      console.error(`[release-environment] ${error.message || String(error)}`);
+      process.exitCode = 1;
+    }
+  };
+  await main();
 }

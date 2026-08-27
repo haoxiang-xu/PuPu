@@ -36,6 +36,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.release_tag }}
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Validate closed shared Playwright inputs
         shell: bash
@@ -61,8 +62,39 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install Node dependencies
         run: npm ci
+
+      - name: Download the deterministic Unchain artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: .release-qa/unchain-artifact
+
+      - name: Verify and install the exact Unchain runtime
+        id: artifact_verify
+        shell: bash
+        run: |
+          WHEEL_PATH="$(find .release-qa/unchain-artifact -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          EVIDENCE_PATH=".release-qa/unchain-artifact/unchain-artifact.json"
+          if [ -z "$WHEEL_PATH" ] || [ ! -f "$EVIDENCE_PATH" ]; then
+            echo "::error title=Missing deterministic Unchain artifact::Playwright requires the wheel and evidence emitted by Deterministic QA"
+            exit 1
+          fi
+          python -m pip install --upgrade pip
+          python -m pip install -r unchain_runtime/server/requirements.txt
+          python -m pip install --force-reinstall --no-deps "$WHEEL_PATH"
+          node scripts/release-qa/verify-unchain-artifact.mjs \
+            --artifact "$WHEEL_PATH" \
+            --evidence "$EVIDENCE_PATH" \
+            --python python \
+            --installed true
+          printf 'python_command=%s\n' "$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_OUTPUT"
 
       - name: Install Electron runtime dependencies
         if: runner.os == 'Linux'
@@ -81,6 +113,8 @@ jobs:
         id: playwright
         continue-on-error: true
         shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             xvfb-run -a npm run test:e2e
@@ -99,11 +133,13 @@ jobs:
         env:
           QA_PLATFORM_NAME: playwright-${{ runner.os }}
           QA_PLATFORM_COMMAND: npm run test:e2e
-          QA_REQUIRED_CHECKS_JSON: '["Playwright Electron release smoke"]'
+          QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Playwright Electron release smoke"]'
           QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
           QA_CHECKS_JSON: |
             [
-              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}
+              {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
 
