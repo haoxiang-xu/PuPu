@@ -392,39 +392,63 @@ function extractZipAndInspect(zipPath) {
   }
 }
 
-export function readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, zipName, version }) {
+export function readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, dmgPath, zipName, dmgName, version }) {
   const metadata = YAML.parse(fs.readFileSync(metadataPath, "utf8"));
   if (!isPlainObject(metadata)) throw new Error("latest-mac.yml must be an object");
   if (metadata.version !== version) {
     throw new Error("latest-mac.yml version must equal package version");
   }
   const records = Array.isArray(metadata.files) ? metadata.files : [];
-  if (records.length !== 1 || !isPlainObject(records[0]) || records[0].url !== zipName) {
-    throw new Error("latest-mac.yml must describe the final ZIP exactly once");
+  const expectedPayloads = [
+    { label: "ZIP", name: zipName, path: zipPath },
+    { label: "DMG", name: dmgName, path: dmgPath },
+  ];
+  const recordsByName = new Map();
+  if (records.length !== expectedPayloads.length || records.some((record) => !isPlainObject(record))) {
+    throw new Error("latest-mac.yml must describe the final ZIP and DMG exactly once");
   }
-  if (!fs.existsSync(zipPath) || !fs.statSync(zipPath).isFile()) {
-    throw new Error("final ZIP is missing for updater metadata verification");
+  for (const record of records) {
+    if (!expectedPayloads.some((payload) => payload.name === record.url) || recordsByName.has(record.url)) {
+      throw new Error("latest-mac.yml must describe the final ZIP and DMG exactly once");
+    }
+    recordsByName.set(record.url, record);
   }
-  const zipRecord = records[0];
-  const actualSha512 = hashFileSha512(zipPath);
-  const actualSize = fs.statSync(zipPath).size;
+  if (expectedPayloads.some((payload) => !recordsByName.has(payload.name))) {
+    throw new Error("latest-mac.yml must describe the final ZIP and DMG exactly once");
+  }
+  const actualPayloads = expectedPayloads.map((payload) => {
+    if (!fs.existsSync(payload.path) || !fs.statSync(payload.path).isFile()) {
+      throw new Error(`final ${payload.label} is missing for updater metadata verification`);
+    }
+    return {
+      ...payload,
+      sha512: hashFileSha512(payload.path),
+      size: fs.statSync(payload.path).size,
+      record: recordsByName.get(payload.name),
+    };
+  });
+  const zip = actualPayloads.find((payload) => payload.label === "ZIP");
   if (
-    metadata.path !== zipName ||
-    metadata.sha512 !== actualSha512 ||
-    zipRecord.sha512 !== actualSha512 ||
-    zipRecord.size !== actualSize
+    metadata.path !== zip.name ||
+    metadata.sha512 !== zip.sha512 ||
+    zip.record.sha512 !== zip.sha512 ||
+    zip.record.size !== zip.size
   ) {
     throw new Error("latest-mac.yml must exact-bind the real ZIP SHA-512 and size");
   }
-  if (!SHA512_PATTERN.test(requiredString(actualSha512, "final ZIP SHA-512"))) {
+  const dmg = actualPayloads.find((payload) => payload.label === "DMG");
+  if (dmg.record.sha512 !== dmg.sha512 || dmg.record.size !== dmg.size) {
+    throw new Error("latest-mac.yml must exact-bind the real DMG SHA-512 and size");
+  }
+  if (!SHA512_PATTERN.test(requiredString(zip.sha512, "final ZIP SHA-512"))) {
     throw new Error("final ZIP SHA-512 must be base64");
   }
-  requiredPositiveInteger(actualSize, "final ZIP size");
+  requiredPositiveInteger(zip.size, "final ZIP size");
   return {
     metadata_name: path.basename(metadataPath),
     payload_name: zipName,
-    payload_sha512: actualSha512,
-    payload_size_bytes: actualSize,
+    payload_sha512: zip.sha512,
+    payload_size_bytes: zip.size,
   };
 }
 
@@ -507,7 +531,9 @@ export function createMacSigningEvidence({
     updater: readAndValidateMacUpdaterMetadata({
       metadataPath: path.join(resolvedDistDir, metadataName),
       zipPath: path.join(resolvedDistDir, zipName),
+      dmgPath: path.join(resolvedDistDir, dmgName),
       zipName,
+      dmgName,
       version,
     }),
     checks: { codesign: true, hardened_runtime: true, notarization: true, gatekeeper: true },
