@@ -165,15 +165,34 @@ const requestJson = async (url, token = "") => {
   return { status: response.status, payload };
 };
 
-const terminateChild = async (child) => {
+const waitForChildExit = (child, timeoutMs) => new Promise((resolve) => {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    resolve(true);
+    return;
+  }
+  let settled = false;
+  const settle = (exited) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    child.off("exit", onExit);
+    resolve(exited);
+  };
+  const onExit = () => settle(true);
+  const timer = setTimeout(() => settle(false), timeoutMs);
+  child.once("exit", onExit);
+});
+
+export const terminateChild = async (
+  child,
+  { gracefulTimeoutMs = 2_000, forcedTimeoutMs = 2_000 } = {},
+) => {
   if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    sleep(2_000),
-  ]);
-  if (child.exitCode === null && child.signalCode === null) {
-    child.kill("SIGKILL");
+  if (await waitForChildExit(child, gracefulTimeoutMs)) return;
+  child.kill("SIGKILL");
+  if (!await waitForChildExit(child, forcedTimeoutMs)) {
+    throw new Error("packaged sidecar did not terminate after SIGKILL");
   }
 };
 
@@ -274,7 +293,12 @@ export async function runPackagedSidecarSmoke({
     };
   } finally {
     await terminateChild(child);
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    fs.rmSync(dataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
   }
 }
 

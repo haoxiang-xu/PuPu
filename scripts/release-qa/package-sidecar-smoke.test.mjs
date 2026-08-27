@@ -4,9 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createRequire } from "node:module";
+import { EventEmitter } from "node:events";
 
 import {
   runPackagedSidecarSmoke,
+  terminateChild,
   validateCompatibleRuntimeProjection,
 } from "./package-sidecar-smoke.mjs";
 import {
@@ -130,6 +132,27 @@ test("package projection requires the compatible tuple and exact artifact manife
     ),
     /packaged runtime/,
   );
+});
+
+test("packaged smoke waits for forced sidecar termination before cleanup", async () => {
+  const child = new EventEmitter();
+  child.exitCode = null;
+  child.signalCode = null;
+  const signals = [];
+  child.kill = (signal) => {
+    signals.push(signal);
+    if (signal === "SIGKILL") {
+      setTimeout(() => {
+        child.signalCode = "SIGKILL";
+        child.emit("exit", null, "SIGKILL");
+      }, 5);
+    }
+    return true;
+  };
+
+  await terminateChild(child, { gracefulTimeoutMs: 1, forcedTimeoutMs: 100 });
+  assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+  assert.equal(child.signalCode, "SIGKILL");
 });
 
 test("real child process smoke proves auth, health, status, and nonzero execution", async () => {
