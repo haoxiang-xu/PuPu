@@ -153,7 +153,8 @@ test("manual Windows Playwright scope reuses deterministic QA and skips packagin
 
   for (const jobName of [
     "release-candidate-environment-preflight",
-    "package-non-windows",
+    "package-macos",
+    "package-linux",
     "package-windows",
     "package-matrix",
   ]) {
