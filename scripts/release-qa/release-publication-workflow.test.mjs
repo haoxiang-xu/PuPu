@@ -89,7 +89,7 @@ test("release QA keeps its public candidate contract while delegating package ex
   assert.match(workflow, /source_ref: \$\{\{ github\.ref \}\}/);
   assert.match(workflow, /source_sha: \$\{\{ github\.sha \}\}/);
   assert.match(workflow, /release_tag: \$\{\{ github\.ref_name \}\}/);
-  assert.match(sharedPackage, /environment: \$\{\{ inputs\.qa_mode == 'release-candidate' && 'release-signing' \|\| 'release-qa' \}\}/);
+  assert.match(sharedPackage, /environment: \$\{\{ inputs\.qa_mode == 'release-candidate' && inputs\.signing_platform != 'linux' && 'release-signing' \|\| 'release-qa' \}\}/);
   assert.match(sharedPackage, /Validate closed shared package inputs/);
   for (const [label, source] of [
     ["deterministic", sharedDeterministic],

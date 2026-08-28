@@ -96,7 +96,7 @@ jobs:
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
 
-  package-non-windows:
+  package-macos:
     name: Package ${{ matrix.name }}
     needs:
       - deterministic-checks
@@ -115,15 +115,33 @@ jobs:
           - name: mac-intel
             target_id: macos-x64
             signing_platform: macos
-          - name: linux
-            target_id: linux-x64
-            signing_platform: linux
     uses: ./.github/workflows/_shared-release-package.yml
     with:
       qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
       target_id: ${{ matrix.target_id }}
       platform_name: ${{ matrix.name }}
       signing_platform: ${{ matrix.signing_platform }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || 'dev' }}
+      source_ref: ${{ github.ref }}
+      source_sha: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  package-linux:
+    name: Package linux
+    needs:
+      - deterministic-checks
+      - release-candidate-environment-preflight
+    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/_shared-release-package.yml
+    with:
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      target_id: linux-x64
+      platform_name: linux
+      signing_platform: linux
       unchain_ref: ${{ github.event.inputs.unchain_ref || 'dev' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
@@ -149,13 +167,15 @@ jobs:
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
+    secrets: inherit
 
   package-matrix:
     name: Package release matrix
     needs:
       - deterministic-checks
       - release-candidate-environment-preflight
-      - package-non-windows
+      - package-macos
+      - package-linux
       - package-windows
     if: ${{ always() && needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
     runs-on: ubuntu-latest
@@ -164,11 +184,12 @@ jobs:
     steps:
       - name: Require every package target to pass
         env:
-          NON_WINDOWS_RESULT: ${{ needs.package-non-windows.result }}
+          MACOS_RESULT: ${{ needs.package-macos.result }}
+          LINUX_RESULT: ${{ needs.package-linux.result }}
           WINDOWS_RESULT: ${{ needs.package-windows.result }}
         run: |
-          if [ "$NON_WINDOWS_RESULT" != "success" ] || [ "$WINDOWS_RESULT" != "success" ]; then
-            echo "::error title=Package matrix failed::non-Windows=$NON_WINDOWS_RESULT Windows=$WINDOWS_RESULT"
+          if [ "$MACOS_RESULT" != "success" ] || [ "$LINUX_RESULT" != "success" ] || [ "$WINDOWS_RESULT" != "success" ]; then
+            echo "::error title=Package matrix failed::macOS=$MACOS_RESULT Linux=$LINUX_RESULT Windows=$WINDOWS_RESULT"
             exit 1
           fi
 
