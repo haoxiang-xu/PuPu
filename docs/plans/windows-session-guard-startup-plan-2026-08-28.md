@@ -6,9 +6,13 @@ Producer: Electron passes `UNCHAIN_DATA_DIR` to the Python sidecar. Consumer:
 the Python session guard creates and strictly validates its closed v1 protocol
 marker. The durable marker shape and migration receipt are unchanged. Windows
 must establish its own process identity with a handle-sized Win32 API result
-before it can write the marker; for the current sidecar process it uses the
-non-closeable `GetCurrentProcess` pseudo-handle, while foreign-PID checks still
-use `OpenProcess`; failure remains fail-closed.
+before it can write the marker. Windows never uses `os.kill(pid, 0)`: signal
+zero is `CTRL_C_EVENT` there, so CPython uses `GenerateConsoleCtrlEvent` rather
+than the POSIX no-op liveness semantics. The current sidecar process uses the
+non-closeable `GetCurrentProcess` pseudo-handle. Foreign-PID checks use
+`OpenProcess` with query and synchronize rights, `WaitForSingleObject`, and
+creation time; an exited or nonexistent PID is `dead`, while access or API
+uncertainty remains fail-closed as `unknown`.
 
 Admission is **CLOSED**. The protocol marker must have exactly `schema`,
 `protocol_version`, and `compatibility`; the launcher receipt must have exactly
@@ -29,7 +33,8 @@ With a fresh `UNCHAIN_DATA_DIR`, the actual `main.py` sidecar starts, exposes
 an authenticated `/health` receipt, and creates the exact protocol marker. A
 second registry in the same data directory validates the existing marker
 without migration. A Windows release runner executes this sequence with the
-same Python environment used by Electron Playwright.
+same Python environment used by Electron Playwright and starts the smoke
+sidecar with `CREATE_NO_WINDOW`, matching the Electron-managed launch boundary.
 
 The required matrix is: fresh start; existing marker/repeat start; unavailable
 identity or lock (fail closed); a cold sidecar restart with durable resume/replay
@@ -169,6 +174,12 @@ matrix before rollout.
 - **AC-036:** targeted scope fails closed and cannot reach package, signing,
   Release creation, publication, or promotion.
 - **AC-037:** a targeted Windows pass does not satisfy full-matrix acceptance.
+- **AC-038:** Windows process identity dispatch never calls `os.kill(pid, 0)`;
+  a no-console `main.py` sidecar reaches the exact ready receipt and marker.
+- **AC-039:** a signaled or nonexistent foreign Windows PID is `dead` and can
+  be reclaimed; access denial, unexpected wait results, and Win32 API failure
+  remain `unknown` and fail closed. The hosted smoke exercises one real
+  no-console foreign process through `alive → exited → dead`.
 
 ## Local evidence · 2026-08-28
 
@@ -192,3 +203,11 @@ matrix before rollout.
   must use the exact pushed revision through `qa_scope=windows-playwright`;
   this local evidence does not claim that the runner-specific root cause is
   fixed.
+- Targeted Windows run `33206921939` tested PuPu
+  `fd22a139b5ba254cadb005a4bd585cec3373e369`. Its standalone startup smoke
+  passed, but all four actual Electron launches retained the sole diagnostic
+  `session_guard_process_identity_unavailable`. The renderer, preload boundary,
+  and test API were healthy; the managed no-console Python sidecar never
+  reached a ready receipt. This is red evidence for AC-038 and proves the old
+  shell-owned-console smoke was not representative. Hosted green evidence for
+  the direct Win32 dispatch remains `PENDING`.

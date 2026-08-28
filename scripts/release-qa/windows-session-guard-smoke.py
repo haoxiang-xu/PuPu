@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Callable
 
 
 _STARTUP_TIMEOUT_SECONDS = 60
@@ -86,6 +87,37 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
         process.wait(timeout=5)
 
 
+def _sidecar_creation_flags() -> int:
+    if os.name == "nt":
+        # Electron launches the managed Python sidecar without a console.
+        # Reproduce that boundary so Windows signal/handle assumptions cannot
+        # pass this smoke only because GitHub's shell owns a console.
+        return subprocess.CREATE_NO_WINDOW
+    return 0
+
+
+def _verify_windows_foreign_process_identity(
+    process_identity: Callable[[int], tuple[str, str]],
+) -> None:
+    if os.name != "nt":
+        return
+    transient = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=_sidecar_creation_flags(),
+    )
+    try:
+        state, token = process_identity(transient.pid)
+        if state != "alive" or not token:
+            raise RuntimeError("live foreign Windows process identity is unavailable")
+    finally:
+        _stop(transient)
+    state, token = process_identity(transient.pid)
+    if state != "dead" or token:
+        raise RuntimeError("exited foreign Windows process was not reported dead")
+
+
 def main() -> None:
     data_dir = Path(os.environ["UNCHAIN_DATA_DIR"])
     server_root = Path(__file__).resolve().parents[2] / "unchain_runtime" / "server"
@@ -110,6 +142,7 @@ def main() -> None:
         env=environment,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        creationflags=_sidecar_creation_flags(),
     )
     try:
         _wait_for_ready_health(process, port=port, auth_token=auth_token)
@@ -122,8 +155,12 @@ def main() -> None:
 
     if str(server_root) not in sys.path:
         sys.path.insert(0, str(server_root))
-    from session_execution_guard import SessionExecutionGuardRegistry
+    from session_execution_guard import (
+        SessionExecutionGuardRegistry,
+        _process_identity,
+    )
 
+    _verify_windows_foreign_process_identity(_process_identity)
     restarted = SessionExecutionGuardRegistry(data_dir)
     restarted.initialize_protocol()
     evidence_path = os.environ.get("SESSION_GUARD_SMOKE_EVIDENCE_PATH", "").strip()

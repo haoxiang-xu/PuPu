@@ -221,6 +221,8 @@ class SessionExecutionGuardTests(unittest.TestCase):
         kernel32 = types.SimpleNamespace(
             OpenProcess=mock.Mock(return_value=handle),
             GetProcessTimes=mock.Mock(),
+            WaitForSingleObject=mock.Mock(return_value=0x00000102),
+            GetLastError=mock.Mock(return_value=0),
             CloseHandle=mock.Mock(return_value=True),
         )
 
@@ -266,10 +268,39 @@ class SessionExecutionGuardTests(unittest.TestCase):
             ),
         )
         self.assertIs(kernel32.GetProcessTimes.restype, fake_wintypes.BOOL)
+        self.assertEqual(
+            kernel32.WaitForSingleObject.argtypes,
+            (fake_wintypes.HANDLE, fake_wintypes.DWORD),
+        )
+        self.assertIs(kernel32.WaitForSingleObject.restype, fake_wintypes.DWORD)
+        self.assertEqual(kernel32.GetLastError.argtypes, ())
+        self.assertIs(kernel32.GetLastError.restype, fake_wintypes.DWORD)
         self.assertEqual(kernel32.CloseHandle.argtypes, (fake_wintypes.HANDLE,))
         self.assertIs(kernel32.CloseHandle.restype, fake_wintypes.BOOL)
-        kernel32.OpenProcess.assert_called_once_with(0x1000, False, 321)
+        kernel32.OpenProcess.assert_called_once_with(0x101000, False, 321)
+        kernel32.WaitForSingleObject.assert_called_once_with(handle, 0)
+        kernel32.GetLastError.assert_not_called()
         kernel32.CloseHandle.assert_called_once_with(handle)
+
+    def test_windows_process_identity_bypasses_posix_signal_probe(self) -> None:
+        windows_identity = ("alive", "windows-incarnation")
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.object(
+                guard.os,
+                "kill",
+                side_effect=OSError("Windows signal probe is forbidden"),
+            ) as kill,
+            mock.patch.object(
+                guard,
+                "_windows_process_identity",
+                return_value=windows_identity,
+            ) as native_identity,
+        ):
+            self.assertEqual(guard._process_identity(321), windows_identity)
+
+        kill.assert_not_called()
+        native_identity.assert_called_once_with(321)
 
     def test_windows_process_identity_uses_current_process_pseudo_handle(self) -> None:
         class FakeFileTime:
@@ -288,6 +319,8 @@ class SessionExecutionGuardTests(unittest.TestCase):
             OpenProcess=mock.Mock(),
             GetCurrentProcess=mock.Mock(return_value=handle),
             GetProcessTimes=mock.Mock(return_value=True),
+            WaitForSingleObject=mock.Mock(),
+            GetLastError=mock.Mock(return_value=0),
             CloseHandle=mock.Mock(return_value=True),
         )
         fake_ctypes = types.SimpleNamespace(
@@ -310,7 +343,147 @@ class SessionExecutionGuardTests(unittest.TestCase):
         self.assertIs(kernel32.GetCurrentProcess.restype, fake_wintypes.HANDLE)
         kernel32.GetCurrentProcess.assert_called_once_with()
         kernel32.OpenProcess.assert_not_called()
+        kernel32.WaitForSingleObject.assert_not_called()
+        kernel32.GetLastError.assert_not_called()
         kernel32.CloseHandle.assert_not_called()
+
+    def test_windows_process_identity_reports_exited_process_dead(self) -> None:
+        class FakeFileTime:
+            def __init__(self) -> None:
+                self.dwHighDateTime = 0
+                self.dwLowDateTime = 0
+
+        fake_wintypes = types.SimpleNamespace(
+            DWORD=object(),
+            BOOL=object(),
+            HANDLE=object(),
+            FILETIME=FakeFileTime,
+        )
+        handle = object()
+        kernel32 = types.SimpleNamespace(
+            OpenProcess=mock.Mock(return_value=handle),
+            GetProcessTimes=mock.Mock(),
+            WaitForSingleObject=mock.Mock(return_value=0x00000000),
+            GetLastError=mock.Mock(return_value=0),
+            CloseHandle=mock.Mock(return_value=True),
+        )
+        fake_ctypes = types.SimpleNamespace(
+            windll=types.SimpleNamespace(kernel32=kernel32),
+            POINTER=lambda value: ("pointer", value),
+            byref=lambda value: value,
+            wintypes=fake_wintypes,
+        )
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.dict(sys.modules, {"ctypes": fake_ctypes}),
+        ):
+            self.assertEqual(guard._windows_process_identity(321), ("dead", ""))
+
+        kernel32.GetProcessTimes.assert_not_called()
+        kernel32.CloseHandle.assert_called_once_with(handle)
+
+    def test_windows_process_identity_reports_missing_process_dead(self) -> None:
+        class FakeFileTime:
+            pass
+
+        fake_wintypes = types.SimpleNamespace(
+            DWORD=object(),
+            BOOL=object(),
+            HANDLE=object(),
+            FILETIME=FakeFileTime,
+        )
+        kernel32 = types.SimpleNamespace(
+            OpenProcess=mock.Mock(return_value=None),
+            GetProcessTimes=mock.Mock(),
+            WaitForSingleObject=mock.Mock(),
+            GetLastError=mock.Mock(return_value=87),
+            CloseHandle=mock.Mock(),
+        )
+        fake_ctypes = types.SimpleNamespace(
+            windll=types.SimpleNamespace(kernel32=kernel32),
+            POINTER=lambda value: ("pointer", value),
+            byref=lambda value: value,
+            wintypes=fake_wintypes,
+        )
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.dict(sys.modules, {"ctypes": fake_ctypes}),
+        ):
+            self.assertEqual(guard._windows_process_identity(321), ("dead", ""))
+
+        kernel32.GetLastError.assert_called_once_with()
+        kernel32.GetProcessTimes.assert_not_called()
+        kernel32.CloseHandle.assert_not_called()
+
+    def test_windows_process_identity_fails_closed_on_access_denial(self) -> None:
+        class FakeFileTime:
+            pass
+
+        fake_wintypes = types.SimpleNamespace(
+            DWORD=object(),
+            BOOL=object(),
+            HANDLE=object(),
+            FILETIME=FakeFileTime,
+        )
+        kernel32 = types.SimpleNamespace(
+            OpenProcess=mock.Mock(return_value=None),
+            GetProcessTimes=mock.Mock(),
+            WaitForSingleObject=mock.Mock(),
+            GetLastError=mock.Mock(return_value=5),
+            CloseHandle=mock.Mock(),
+        )
+        fake_ctypes = types.SimpleNamespace(
+            windll=types.SimpleNamespace(kernel32=kernel32),
+            POINTER=lambda value: ("pointer", value),
+            byref=lambda value: value,
+            wintypes=fake_wintypes,
+        )
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.dict(sys.modules, {"ctypes": fake_ctypes}),
+        ):
+            self.assertEqual(guard._windows_process_identity(321), ("unknown", ""))
+
+        kernel32.GetLastError.assert_called_once_with()
+        kernel32.GetProcessTimes.assert_not_called()
+        kernel32.CloseHandle.assert_not_called()
+
+    def test_windows_process_identity_fails_closed_on_unexpected_wait(self) -> None:
+        class FakeFileTime:
+            pass
+
+        fake_wintypes = types.SimpleNamespace(
+            DWORD=object(),
+            BOOL=object(),
+            HANDLE=object(),
+            FILETIME=FakeFileTime,
+        )
+        handle = object()
+        kernel32 = types.SimpleNamespace(
+            OpenProcess=mock.Mock(return_value=handle),
+            GetProcessTimes=mock.Mock(),
+            WaitForSingleObject=mock.Mock(return_value=0xFFFFFFFF),
+            GetLastError=mock.Mock(return_value=0),
+            CloseHandle=mock.Mock(return_value=True),
+        )
+        fake_ctypes = types.SimpleNamespace(
+            windll=types.SimpleNamespace(kernel32=kernel32),
+            POINTER=lambda value: ("pointer", value),
+            byref=lambda value: value,
+            wintypes=fake_wintypes,
+        )
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.dict(sys.modules, {"ctypes": fake_ctypes}),
+        ):
+            self.assertEqual(guard._windows_process_identity(321), ("unknown", ""))
+
+        kernel32.GetProcessTimes.assert_not_called()
+        kernel32.CloseHandle.assert_called_once_with(handle)
 
     def test_windows_process_identity_fails_closed_when_handle_is_rejected(self) -> None:
         class FakeFileTime:
@@ -328,6 +501,8 @@ class SessionExecutionGuardTests(unittest.TestCase):
         kernel32 = types.SimpleNamespace(
             OpenProcess=mock.Mock(return_value=handle),
             GetProcessTimes=mock.Mock(return_value=False),
+            WaitForSingleObject=mock.Mock(return_value=0x00000102),
+            GetLastError=mock.Mock(return_value=0),
             CloseHandle=mock.Mock(return_value=True),
         )
         fake_ctypes = types.SimpleNamespace(
@@ -344,6 +519,87 @@ class SessionExecutionGuardTests(unittest.TestCase):
             self.assertEqual(guard._windows_process_identity(321), ("unknown", ""))
 
         kernel32.CloseHandle.assert_called_once_with(handle)
+
+    def test_session_guard_smoke_launches_windows_sidecar_without_console(self) -> None:
+        repo_root = SERVER_ROOT.parents[1]
+        smoke_path = (
+            repo_root / "scripts" / "release-qa" / "windows-session-guard-smoke.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "pupu_session_guard_smoke_launch_contract",
+            smoke_path,
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        smoke = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(smoke)
+
+        with (
+            mock.patch.object(smoke.os, "name", "nt"),
+            mock.patch.object(
+                smoke.subprocess,
+                "CREATE_NO_WINDOW",
+                0x08000000,
+                create=True,
+            ),
+        ):
+            self.assertEqual(smoke._sidecar_creation_flags(), 0x08000000)
+
+        with mock.patch.object(smoke.os, "name", "posix"):
+            self.assertEqual(smoke._sidecar_creation_flags(), 0)
+
+    def test_session_guard_smoke_probes_real_windows_foreign_process_lifecycle(
+        self,
+    ) -> None:
+        repo_root = SERVER_ROOT.parents[1]
+        smoke_path = (
+            repo_root / "scripts" / "release-qa" / "windows-session-guard-smoke.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "pupu_session_guard_smoke_process_contract",
+            smoke_path,
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        smoke = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(smoke)
+
+        transient = mock.Mock(pid=321)
+        transient.poll.return_value = None
+        process_identity = mock.Mock(
+            side_effect=[
+                ("alive", "foreign-incarnation"),
+                ("dead", ""),
+            ]
+        )
+        with (
+            mock.patch.object(smoke.os, "name", "nt"),
+            mock.patch.object(
+                smoke.subprocess,
+                "CREATE_NO_WINDOW",
+                0x08000000,
+                create=True,
+            ),
+            mock.patch.object(
+                smoke.subprocess,
+                "Popen",
+                return_value=transient,
+            ) as popen,
+        ):
+            smoke._verify_windows_foreign_process_identity(process_identity)
+
+        process_identity.assert_has_calls([mock.call(321), mock.call(321)])
+        transient.terminate.assert_called_once_with()
+        transient.wait.assert_called_once_with(timeout=10)
+        popen.assert_called_once()
+        self.assertEqual(popen.call_args.kwargs["creationflags"], 0x08000000)
+
+        with (
+            mock.patch.object(smoke.os, "name", "posix"),
+            mock.patch.object(smoke.subprocess, "Popen") as posix_popen,
+        ):
+            smoke._verify_windows_foreign_process_identity(process_identity)
+        posix_popen.assert_not_called()
 
     def test_session_guard_smoke_imports_the_sidecar_without_pythonpath(self) -> None:
         repo_root = SERVER_ROOT.parents[1]

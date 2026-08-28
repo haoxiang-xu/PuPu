@@ -1100,6 +1100,13 @@ def _digest(value: str) -> str:
 
 
 def _process_identity(process_id: int) -> tuple[str, str]:
+    if os.name == "nt":  # pragma: no cover - exercised by packaged Windows smoke
+        # os.kill(pid, 0) is not a POSIX-style liveness probe on Windows.
+        # Signal zero is CTRL_C_EVENT there, so CPython tries to generate a
+        # console event that a no-console Electron sidecar cannot use. Use the
+        # native handle path for every Windows PID without signalling it.
+        return _windows_process_identity(process_id)
+
     try:
         os.kill(process_id, 0)
     except ProcessLookupError:
@@ -1120,8 +1127,6 @@ def _process_identity(process_id: int) -> tuple[str, str]:
         except (OSError, UnicodeError, IndexError, ValueError):
             return "unknown", ""
 
-    if os.name == "nt":  # pragma: no cover - exercised by packaged Windows smoke
-        return _windows_process_identity(process_id)
     try:
         completed = subprocess.run(
             ["ps", "-o", "lstart=", "-p", str(process_id)],
@@ -1150,6 +1155,10 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
         from ctypes import wintypes
 
         query_limited_information = 0x1000
+        synchronize = 0x00100000
+        wait_object_0 = 0x00000000
+        wait_timeout = 0x00000102
+        error_invalid_parameter = 87
         kernel32 = ctypes.windll.kernel32
         filetime_pointer = ctypes.POINTER(wintypes.FILETIME)
         # ctypes defaults function results to c_int. That truncates a 64-bit
@@ -1169,6 +1178,13 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
             filetime_pointer,
         )
         kernel32.GetProcessTimes.restype = wintypes.BOOL
+        kernel32.WaitForSingleObject.argtypes = (
+            wintypes.HANDLE,
+            wintypes.DWORD,
+        )
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.GetLastError.argtypes = ()
+        kernel32.GetLastError.restype = wintypes.DWORD
         kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
         kernel32.CloseHandle.restype = wintypes.BOOL
         is_current_process = process_id == os.getpid()
@@ -1181,13 +1197,24 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
             handle = kernel32.GetCurrentProcess()
         else:
             handle = kernel32.OpenProcess(
-                query_limited_information,
+                query_limited_information | synchronize,
                 False,
                 process_id,
             )
         if not handle:
+            if (
+                not is_current_process
+                and kernel32.GetLastError() == error_invalid_parameter
+            ):
+                return "dead", ""
             return "unknown", ""
         try:
+            if not is_current_process:
+                wait_result = kernel32.WaitForSingleObject(handle, 0)
+                if wait_result == wait_object_0:
+                    return "dead", ""
+                if wait_result != wait_timeout:
+                    return "unknown", ""
             creation = wintypes.FILETIME()
             exit_time = wintypes.FILETIME()
             kernel = wintypes.FILETIME()
