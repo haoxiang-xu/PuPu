@@ -14,7 +14,8 @@ test("Playwright release QA consumes Deterministic QA's exact sidecar artifact",
   const steps = shared.jobs.playwright.steps;
   const downloadStep = steps.find((step) => step.name === "Download the deterministic Unchain artifact");
   const artifactStep = steps.find((step) => step.id === "artifact_verify");
-  const smokeStep = steps.find((step) => step.id === "playwright");
+  const sessionGuardSmokeStep = steps.find((step) => step.id === "session_guard_smoke");
+  const playwrightStep = steps.find((step) => step.id === "playwright");
   const reportStep = steps.find((step) => step.name === "Write Playwright QA report");
 
   assert.equal(caller.jobs["playwright-electron"].needs, "deterministic-checks");
@@ -24,10 +25,34 @@ test("Playwright release QA consumes Deterministic QA's exact sidecar artifact",
   assert.equal(downloadStep.with.path, ".release-qa/unchain-artifact");
   assert.match(artifactStep.run, /--installed true/);
   assert.match(artifactStep.run, /unchain_runtime\/server\/requirements\.txt/);
-  assert.equal(smokeStep.env.UNCHAIN_PYTHON_BIN, "${{ steps.artifact_verify.outputs.python_command }}");
+  assert.equal(
+    sessionGuardSmokeStep.env.UNCHAIN_PYTHON_BIN,
+    "${{ steps.artifact_verify.outputs.python_command }}",
+  );
+  assert.equal(
+    sessionGuardSmokeStep.env.UNCHAIN_DATA_DIR,
+    "${{ runner.temp }}/pupu-session-guard-smoke",
+  );
+  assert.equal(
+    sessionGuardSmokeStep.env.SESSION_GUARD_SMOKE_EVIDENCE_PATH,
+    "test-results/session-guard-smoke.json",
+  );
+  assert.match(sessionGuardSmokeStep.run, /windows-session-guard-smoke\.py/);
+  assert.equal(
+    playwrightStep.env.UNCHAIN_PYTHON_BIN,
+    "${{ steps.artifact_verify.outputs.python_command }}",
+  );
   assert.equal(
     reportStep.env.QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH,
     "${{ steps.artifact_verify.outputs.evidence_path }}",
+  );
+  assert.deepEqual(
+    JSON.parse(reportStep.env.QA_ARTIFACT_GLOBS_JSON),
+    [
+      "playwright-report/**/*",
+      "test-results/playwright/**/*",
+      "test-results/session-guard-smoke.json",
+    ],
   );
 });
 
@@ -37,16 +62,26 @@ test("Playwright QA report checks are valid JSON after Actions expressions resol
   const resolved = reportStep.env.QA_CHECKS_JSON
     .replace(/\$\{\{ steps\.artifact_verify\.outcome \}\}/g, "success")
     .replace(/\$\{\{ steps\.artifact_verify\.outputs\.executed_tests \|\| 0 \}\}/g, "2")
+    .replace(/\$\{\{ steps\.session_guard_smoke\.outcome \}\}/g, "success")
+    .replace(/\$\{\{ steps\.session_guard_smoke\.outcome == 'success' && 1 \|\| 0 \}\}/g, "1")
     .replace(/\$\{\{ steps\.playwright\.outcome \}\}/g, "success")
     .replace(/\$\{\{ steps\.playwright_evidence\.outputs\.executed_tests \|\| 0 \}\}/g, "2");
   const checks = JSON.parse(resolved);
 
   assert.deepEqual(
     checks.map((check) => check.name),
-    ["Unchain artifact continuity", "Playwright Electron release smoke"],
+    [
+      "Unchain artifact continuity",
+      "Session guard startup smoke",
+      "Playwright Electron release smoke",
+    ],
   );
   assert.deepEqual(
     JSON.parse(reportStep.env.QA_REQUIRED_CHECKS_JSON),
-    ["Unchain artifact continuity", "Playwright Electron release smoke"],
+    [
+      "Unchain artifact continuity",
+      "Session guard startup smoke",
+      "Playwright Electron release smoke",
+    ],
   );
 });

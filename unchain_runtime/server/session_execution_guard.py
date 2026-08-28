@@ -1067,7 +1067,28 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
         from ctypes import wintypes
 
         query_limited_information = 0x1000
-        handle = ctypes.windll.kernel32.OpenProcess(
+        kernel32 = ctypes.windll.kernel32
+        filetime_pointer = ctypes.POINTER(wintypes.FILETIME)
+        # ctypes defaults function results to c_int. That truncates a 64-bit
+        # Windows HANDLE before GetProcessTimes receives it, which makes a
+        # fresh sidecar fail closed while establishing its own identity.
+        kernel32.OpenProcess.argtypes = (
+            wintypes.DWORD,
+            wintypes.BOOL,
+            wintypes.DWORD,
+        )
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetProcessTimes.argtypes = (
+            wintypes.HANDLE,
+            filetime_pointer,
+            filetime_pointer,
+            filetime_pointer,
+            filetime_pointer,
+        )
+        kernel32.GetProcessTimes.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(
             query_limited_information,
             False,
             process_id,
@@ -1079,7 +1100,7 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
             exit_time = wintypes.FILETIME()
             kernel = wintypes.FILETIME()
             user = wintypes.FILETIME()
-            if not ctypes.windll.kernel32.GetProcessTimes(
+            if not kernel32.GetProcessTimes(
                 handle,
                 ctypes.byref(creation),
                 ctypes.byref(exit_time),
@@ -1090,7 +1111,7 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
             ticks = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
             return "alive", _digest(f"win:{process_id}:{ticks}")
         finally:
-            ctypes.windll.kernel32.CloseHandle(handle)
+            kernel32.CloseHandle(handle)
     except Exception:
         return "unknown", ""
 

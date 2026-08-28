@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import multiprocessing
 import os
+import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -198,6 +200,134 @@ class SessionExecutionGuardTests(unittest.TestCase):
                 (descriptor, FakeMsvcrt.LK_NBLCK, 1),
                 (descriptor, FakeMsvcrt.LK_UNLCK, 1),
             ],
+        )
+
+    def test_windows_process_identity_uses_handle_sized_win32_bindings(self) -> None:
+        class FakeFileTime:
+            def __init__(self) -> None:
+                self.dwHighDateTime = 0
+                self.dwLowDateTime = 0
+
+        fake_wintypes = types.SimpleNamespace(
+            DWORD=object(),
+            BOOL=object(),
+            HANDLE=object(),
+            FILETIME=FakeFileTime,
+        )
+        handle = object()
+        kernel32 = types.SimpleNamespace(
+            OpenProcess=mock.Mock(return_value=handle),
+            GetProcessTimes=mock.Mock(),
+            CloseHandle=mock.Mock(return_value=True),
+        )
+
+        def set_process_times(
+            _handle: object,
+            creation: FakeFileTime,
+            _exit_time: FakeFileTime,
+            _kernel: FakeFileTime,
+            _user: FakeFileTime,
+        ) -> bool:
+            creation.dwHighDateTime = 7
+            creation.dwLowDateTime = 11
+            return True
+
+        kernel32.GetProcessTimes.side_effect = set_process_times
+        fake_ctypes = types.SimpleNamespace(
+            windll=types.SimpleNamespace(kernel32=kernel32),
+            POINTER=lambda value: ("pointer", value),
+            byref=lambda value: value,
+            wintypes=fake_wintypes,
+        )
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.dict(sys.modules, {"ctypes": fake_ctypes}),
+        ):
+            state, token = guard._windows_process_identity(321)
+
+        self.assertEqual(state, "alive")
+        self.assertTrue(token)
+        self.assertEqual(
+            kernel32.OpenProcess.argtypes,
+            (fake_wintypes.DWORD, fake_wintypes.BOOL, fake_wintypes.DWORD),
+        )
+        self.assertIs(kernel32.OpenProcess.restype, fake_wintypes.HANDLE)
+        self.assertEqual(
+            kernel32.GetProcessTimes.argtypes,
+            (
+                fake_wintypes.HANDLE,
+                ("pointer", FakeFileTime),
+                ("pointer", FakeFileTime),
+                ("pointer", FakeFileTime),
+                ("pointer", FakeFileTime),
+            ),
+        )
+        self.assertIs(kernel32.GetProcessTimes.restype, fake_wintypes.BOOL)
+        self.assertEqual(kernel32.CloseHandle.argtypes, (fake_wintypes.HANDLE,))
+        self.assertIs(kernel32.CloseHandle.restype, fake_wintypes.BOOL)
+        kernel32.OpenProcess.assert_called_once_with(0x1000, False, 321)
+        kernel32.CloseHandle.assert_called_once_with(handle)
+
+    def test_windows_process_identity_fails_closed_when_handle_is_rejected(self) -> None:
+        class FakeFileTime:
+            def __init__(self) -> None:
+                self.dwHighDateTime = 0
+                self.dwLowDateTime = 0
+
+        fake_wintypes = types.SimpleNamespace(
+            DWORD=object(),
+            BOOL=object(),
+            HANDLE=object(),
+            FILETIME=FakeFileTime,
+        )
+        handle = object()
+        kernel32 = types.SimpleNamespace(
+            OpenProcess=mock.Mock(return_value=handle),
+            GetProcessTimes=mock.Mock(return_value=False),
+            CloseHandle=mock.Mock(return_value=True),
+        )
+        fake_ctypes = types.SimpleNamespace(
+            windll=types.SimpleNamespace(kernel32=kernel32),
+            POINTER=lambda value: ("pointer", value),
+            byref=lambda value: value,
+            wintypes=fake_wintypes,
+        )
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.dict(sys.modules, {"ctypes": fake_ctypes}),
+        ):
+            self.assertEqual(guard._windows_process_identity(321), ("unknown", ""))
+
+        kernel32.CloseHandle.assert_called_once_with(handle)
+
+    def test_session_guard_smoke_imports_the_sidecar_without_pythonpath(self) -> None:
+        repo_root = SERVER_ROOT.parents[1]
+        smoke = repo_root / "scripts" / "release-qa" / "windows-session-guard-smoke.py"
+        evidence = Path(self.temp_dir.name) / "session-guard-smoke.json"
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        environment["UNCHAIN_DATA_DIR"] = str(Path(self.temp_dir.name) / "smoke-data")
+        environment["SESSION_GUARD_SMOKE_EVIDENCE_PATH"] = str(evidence)
+
+        completed = subprocess.run(
+            [sys.executable, str(smoke)],
+            cwd=repo_root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            json.loads(evidence.read_text(encoding="utf-8")),
+            {
+                "schema": "pupu.session-guard-startup-smoke.v1",
+                "executed_tests": 1,
+                "protocol_version": 1,
+            },
         )
 
     def test_parked_receipt_resume_and_cancel_require_exact_lineage(self) -> None:

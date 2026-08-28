@@ -109,6 +109,17 @@ jobs:
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
 
+      - name: Verify session guard startup
+        id: session_guard_smoke
+        continue-on-error: true
+        shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          UNCHAIN_DATA_DIR: ${{ runner.temp }}/pupu-session-guard-smoke
+          SESSION_GUARD_SMOKE_EVIDENCE_PATH: test-results/session-guard-smoke.json
+        run: |
+          "$UNCHAIN_PYTHON_BIN" scripts/release-qa/windows-session-guard-smoke.py
+
       - name: Run Playwright Electron release smoke
         id: playwright
         continue-on-error: true
@@ -134,11 +145,12 @@ jobs:
           QA_PLATFORM_NAME: playwright-${{ runner.os }}
           QA_PLATFORM_COMMAND: npm run test:e2e
           QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
-          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Playwright Electron release smoke"]'
-          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
+          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Session guard startup smoke","Playwright Electron release smoke"]'
+          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*","test-results/session-guard-smoke.json"]'
           QA_CHECKS_JSON: |
             [
               {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"Session guard startup smoke","command":"python scripts/release-qa/windows-session-guard-smoke.py","outcome":"${{ steps.session_guard_smoke.outcome }}","executed_tests":${{ steps.session_guard_smoke.outcome == 'success' && 1 || 0 }}},
               {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
