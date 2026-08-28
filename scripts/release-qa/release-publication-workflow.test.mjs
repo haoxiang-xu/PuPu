@@ -91,8 +91,21 @@ test("release QA keeps its public candidate contract while delegating package ex
   assert.match(workflow, /release_tag: \$\{\{ github\.ref_name \}\}/);
   assert.match(sharedPackage, /environment: \$\{\{ inputs\.qa_mode == 'release-candidate' && 'release-signing' \|\| 'release-qa' \}\}/);
   assert.match(sharedPackage, /Validate closed shared package inputs/);
+  for (const [label, source] of [
+    ["deterministic", sharedDeterministic],
+    ["package", sharedPackage],
+    ["Playwright", sharedPlaywright],
+    ["report", sharedReport],
+  ]) {
+    assert.match(source, /release-candidate-ref\.mjs/, `${label} workflow must use the closed RC identity parser`);
+    assert.match(source, /effectiveVersion/, `${label} workflow must propagate the full effective RC version`);
+  }
   assert.match(sharedPackage, /build:electron:mac:release/);
   assert.match(sharedPackage, /build:electron:mac:intel:release/);
+  assert.match(sharedPackage, /--config\.mac\.bundleShortVersion="\$QA_BASE_VERSION"/);
+  assert.match(sharedPackage, /--config\.mac\.bundleVersion="\$QA_BASE_VERSION"/);
+  assert.match(sharedPackage, /CFBundleShortVersionString/);
+  assert.match(sharedPackage, /CFBundleVersion/);
   assert.match(sharedPackage, /build:electron:win:unpacked/);
   assert.match(sharedPackage, /working-directory: pupu\n        shell: bash/, "Windows package commands use Bash syntax");
   assert.match(sharedPackage, /release-signing\.mjs/);
@@ -177,6 +190,10 @@ test("stage workflow only promotes verified retained candidate bytes into a Draf
   assert.match(workflow, /Distinct run ID holding an eligible update or v0\.1\.10 bootstrap qualification receipt/);
   assert.doesNotMatch(workflow, /#218/);
   assert.match(workflow, /gh release create/);
+  assert.match(workflow, /--policy promotion/);
+  for (const mutation of ["gh release create", "gh release edit", "gh release upload"]) {
+    assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf(mutation));
+  }
   assert.match(workflow, /--draft/);
   assert.match(workflow, /gh release upload/);
   assert.match(workflow, /gh release download/);
@@ -193,6 +210,9 @@ test("publish workflow has a protected manual transition and cannot rebuild or u
   assert.match(workflow, /confirmation/);
   assert.match(workflow, /CONFIRMATION.*PUBLISH/s);
   assert.match(workflow, /gh release download/);
+  assert.match(workflow, /--policy promotion/);
+  assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release download"));
+  assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release edit"));
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /actions\/runs\/\$CANDIDATE_RUN_ID/);
   assert.match(workflow, /actions\/runs\/\$QUALIFICATION_RUN_ID/);
@@ -222,6 +242,8 @@ test("README workflow is explicitly called after publication and never regex-rew
   assert.match(workflow, /required: true/);
   assert.doesNotMatch(workflow, /\n  release:|github\.event\.release|workflow_run/);
   assert.match(workflow, /gh release download/);
+  assert.match(workflow, /--policy promotion/);
+  assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release download"));
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
   assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/);

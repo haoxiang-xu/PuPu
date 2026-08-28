@@ -36,6 +36,16 @@ jobs:
       - name: Install manifest verifier dependencies
         run: npm ci
 
+      - name: Reject prerelease tags before public Release access
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          STABLE_VERSION="${RELEASE_TAG#v}"
+          node scripts/release-qa/release-candidate-ref.mjs \
+            --tag "$RELEASE_TAG" \
+            --package-version "$STABLE_VERSION" \
+            --policy promotion >/dev/null
+
       - name: Download the published release evidence and exact public assets
         env:
           GH_TOKEN: ${{ github.token }}

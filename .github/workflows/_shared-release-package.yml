@@ -146,14 +146,23 @@ jobs:
         shell: bash
         run: |
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION=""
-          if [[ "$SOURCE_REF" == refs/tags/v* ]]; then
-            TAG_VERSION="${RELEASE_TAG#v}"
+          BUILD_VERSION="$PACKAGE_VERSION"
+          EXPECTED_VERSION=""
+          RELEASE_LANE="branch"
+          if [[ "$SOURCE_REF" == refs/tags/* ]]; then
+            RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \
+              --tag "$RELEASE_TAG" \
+              --package-version "$PACKAGE_VERSION" \
+              --policy candidate)"
+            BUILD_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).effectiveVersion)' "$RELEASE_IDENTITY")"
+            EXPECTED_VERSION="$BUILD_VERSION"
+            RELEASE_LANE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).lane)' "$RELEASE_IDENTITY")"
           fi
-          BUILD_VERSION="${TAG_VERSION:-$PACKAGE_VERSION}"
           {
-            echo "QA_VERSION=$PACKAGE_VERSION"
-            echo "QA_EXPECTED_VERSION=$TAG_VERSION"
+            echo "QA_VERSION=$BUILD_VERSION"
+            echo "QA_EXPECTED_VERSION=$EXPECTED_VERSION"
+            echo "QA_BASE_VERSION=$PACKAGE_VERSION"
+            echo "QA_RELEASE_LANE=$RELEASE_LANE"
             echo "PUPU_BUILD_VERSION=$BUILD_VERSION"
           } >> "$GITHUB_ENV"
 
@@ -214,16 +223,16 @@ jobs:
         run: |
           if [ "$QA_MODE" = "release-candidate" ]; then
             case "$TARGET_ID" in
-              macos-arm64) command="npm run build:electron:mac:release"; npm run build:electron:mac:release ;;
-              macos-x64) command="npm run build:electron:mac:intel:release"; npm run build:electron:mac:intel:release ;;
+              macos-arm64) command="npm run build:electron:mac:release with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:release -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
+              macos-x64) command="npm run build:electron:mac:intel:release with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:intel:release -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
               windows-x64) command="npm run build:electron:win:unpacked"; npm run build:electron:win:unpacked ;;
               linux-x64) command="npm run build:electron:linux"; npm run build:electron:linux ;;
               *) echo "::error title=Unsupported package target::$TARGET_ID"; exit 1 ;;
             esac
           else
             case "$TARGET_ID" in
-              macos-arm64) command="npm run build:electron:mac:unsigned"; npm run build:electron:mac:unsigned ;;
-              macos-x64) command="npm run build:electron:mac:intel:unsigned"; npm run build:electron:mac:intel:unsigned ;;
+              macos-arm64) command="npm run build:electron:mac:unsigned with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:unsigned -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
+              macos-x64) command="npm run build:electron:mac:intel:unsigned with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:intel:unsigned -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
               windows-x64) command="npm run build:electron:win:unsigned"; npm run build:electron:win:unsigned ;;
               linux-x64) command="npm run build:electron:linux"; npm run build:electron:linux ;;
               *) echo "::error title=Unsupported package target::$TARGET_ID"; exit 1 ;;
@@ -304,6 +313,12 @@ jobs:
               APP_PATH="$(find dist -maxdepth 2 -type d -name 'PuPu.app' -print -quit)"
               if [ -z "$APP_PATH" ]; then
                 echo "::error title=Missing macOS application::could not verify signing/notarization"
+                exit 1
+              fi
+              NATIVE_SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
+              NATIVE_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
+              if [ "$NATIVE_SHORT_VERSION" != "$QA_BASE_VERSION" ] || [ "$NATIVE_BUNDLE_VERSION" != "$QA_BASE_VERSION" ]; then
+                echo "::error title=Invalid macOS native version projection::short=$NATIVE_SHORT_VERSION bundle=$NATIVE_BUNDLE_VERSION expected=$QA_BASE_VERSION"
                 exit 1
               fi
               codesign --verify --deep --strict --verbose=4 "$APP_PATH"

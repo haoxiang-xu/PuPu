@@ -20,6 +20,39 @@ inputs, logs, or an LLM prompt. The deterministic path does not require an
 OpenAI, Anthropic, Copilot, Codex, or Claude key. Any optional analysis step is
 advisory and cannot gate stage or publish.
 
+## RC validation lane (not promotion)
+
+Use `vX.Y.Z-rc.N` only to validate a release candidate before the final stable
+tag, where `N` is a positive decimal integer without leading zeroes. The
+checked-in `package.json` at the tag remains the stable base `X.Y.Z`; build
+preparation stamps the isolated runner copy of `package.json` and its lockfile
+to `X.Y.Z-rc.N` without committing that temporary change. The tag, effective
+package version, generated package metadata, sealed manifest version, and
+public-style artifact filenames must all carry the same full `X.Y.Z-rc.N`
+identity. The manifest tag remains `vX.Y.Z-rc.N`.
+
+macOS is the only explicit native projection: both
+`CFBundleShortVersionString` and electron-builder `buildVersion` (emitted as
+`CFBundleVersion`) use the numeric base `X.Y.Z`, while the package, manifest,
+filenames, tag, commit, Actions run ID, and manifest digest retain and bind the
+full RC identity. This projection must not make an RC artifact admissible as
+the stable `X.Y.Z` release.
+
+An RC run may build and sign the four release targets and run fresh-installed
+qualification on macOS arm64, macOS x64, Windows x64, and Linux x64. That
+qualification produces the generic `pupu.release-qualification.v1` receipt.
+It deliberately omits restart-update evidence and is never promotion-eligible:
+Stage, Publish, and README rendering must reject the RC tag and its receipt
+before any Draft Release, public Release, asset, or documentation PR is
+created or changed.
+
+Treat every pushed RC tag as immutable. If validation finds a defect, create a
+new commit and increment the suffix (`rc.1` → `rc.2`); never force-move or reuse
+an existing RC tag. The final `vX.Y.Z` stable tag must use package version
+`X.Y.Z`, build a new sealed candidate, and complete the stable qualification
+path. RC candidate bytes, run IDs, reports, and receipts cannot be reused to
+stage or publish the stable release.
+
 ## Candidate to public release
 
 1. Create and push the final `vX.Y.Z` tag only after its `package.json` version

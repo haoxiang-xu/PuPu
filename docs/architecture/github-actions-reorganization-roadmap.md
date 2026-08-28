@@ -38,6 +38,10 @@
 8. **升级链采用发布前 gate + 发布后 canary。** GitHub Draft 对生产 updater 不可见，因此
    Release 2 使用隔离 qualification feed 验证 exact candidate；Release 4 公开后，再让 exact
    public `N-1` 通过真实 GitHub feed 升级到 `N`。两类证据不得互相冒充。
+9. **RC 是 fresh-only、不可晋级的验证通道。** `vX.Y.Z-rc.N`、package、manifest 与 artifact
+   filenames 使用同一完整 RC identity；macOS native version 只投影为 numeric base `X.Y.Z`。
+   RC 只生成四路 fresh-install generic receipt，禁止进入 Stage、Publish 或 README。稳定版必须
+   用新的 `vX.Y.Z` tag 重建并完成稳定资格验收，不能复用 RC bytes、run 或 receipt。
 
 ## 1. 范围与非目标
 
@@ -179,6 +183,23 @@ Release 2 的 strict receipt 是 Stage 的前置 gate；Release 4 canary 不是�
 但必须是版本收尾与路线图 `COMPLETE` 的前置条件。`from_tag` 必须由 dispatch 显式给出并验证
 `from_version < candidate_version`，禁止从“latest”、最近成功 run 或 mutable branch 推断。
 
+### 3.4 RC fresh-install 验证通道
+
+RC 通道只用于在稳定 tag 之前验证真实签名安装包。它接受严格的 `vX.Y.Z-rc.N` tag（`N` 为
+无前导零的正整数）；tag commit 中 checked-in `package.json` 保持 base `X.Y.Z`，构建准备阶段把隔离
+workspace 的 effective package version、manifest version、package metadata 与 artifact filenames
+统一 stamp 为 `X.Y.Z-rc.N`，不得提交这个临时版本变化。macOS 的 `CFBundleShortVersionString` 与 electron-builder
+`buildVersion`（写入 `CFBundleVersion`）受 native numeric contract 限制，显式投影为 base `X.Y.Z`；
+sealed manifest 仍用完整 RC identity 绑定 tag、commit、candidate run、bytes digest 与四个平台报告，
+不能把该 native projection 解释成 stable identity。
+
+RC qualification 只运行 macOS arm64/x64、Windows x64 与 Linux x64 四个 fresh-install target，
+生成 generic `pupu.release-qualification.v1` receipt；不运行 `N-1 → N` restart-update，也不接收
+`from_tag` 作为完成条件。该 schema 与 RC tag 在 Stage、Publish、README 三个 consumer 均为
+fail-closed、non-promotable。RC 缺陷只能通过新 commit 和递增 `rc.N` 修复；已推送 tag 不得移动、
+覆盖或复用。最终 stable tag 必须重新构建 candidate、重新运行稳定资格链并产生新的 promotion-
+eligible receipt。
+
 ## 4. 跨边界契约
 
 本计划适用 `.claude/rules/cross-boundary-contract-gate.md`。所有未完成 AC 均使对应 rollout
@@ -199,6 +220,8 @@ Release 2 的 strict receipt 是 Stage 的前置 gate；Release 4 canary 不是�
 | `BC-ACT-009` | Release 1 metadata/payload → qualification feed → signed `N-1` updater | `VERSIONED + CLOSED`。按 target 绑定 candidate manifest digest、metadata filename/hash、payload filename/SHA-512、`from_tag`、fixture digest/signer 和 feed contract version；feed 只监听 runner-local/隔离地址。 | 任一 metadata/payload 混批、未知 key/schema、错误 target/arch/version、非 exact candidate、任意外部 URL 或 fixture 差异未登记即失败。 |
 | `BC-ACT-010` | `N-1` userData/update cache → installed `N` → upgrade report | `CLOSED`。隔离 userData 内建立非敏感 sentinel；报告绑定 target、from/to version、candidate digest、事件序列、最终 binary signature、sidecar/runtime identity 和 sentinel digest。 | 未重启、版本未变化、签名/sidecar/Memory snapshot 漂移、用户状态丢失、残留旧进程或报告缺字段即失败。 |
 | `BC-ACT-011` | public GitHub Release `N` → exact public `N-1` updater → production canary | `VERSIONED + CLOSED`。只接受 manifest 中已公开的 metadata/assets 和未修改 public `N-1`；记录 Release URL、asset IDs/hashes、from/to tags、runner target 和最终签名。 | Draft/prerelease 被当 stable、资产回下载漂移、非 public `N-1`、错误 channel/arch 或 updater 未发现 `N` 即 `NO-GO`。 |
+| `BC-ACT-012` | immutable RC tag/base source package → package matrix → sealed RC candidate | `VERSIONED + CLOSED`。checked-in package version 必须等于 tag base `X.Y.Z`；唯一 candidate identity 为 tag `vX.Y.Z-rc.N` 与 build-stamped package/manifest/metadata/filenames `X.Y.Z-rc.N`，并同时绑定 tag commit、run ID 与 bytes digest。macOS native `CFBundleShortVersionString` 与 `buildVersion`/`CFBundleVersion` 仅投影为 base `X.Y.Z`。 | 未知 prerelease、`rc.0`、前导零、tag base/source package 错配、effective package/manifest/filename 漂移、native projection 缺失或 tag 被移动/复用均在 candidate sealing 前失败。 |
+| `BC-ACT-013` | sealed RC candidate → four-target fresh-install reports → generic receipt / promotion consumers | `VERSIONED + CLOSED`。只接受 manifest 内 exact bytes 和 macOS arm64/x64、Windows x64、Linux x64 四个报告；输出 `pupu.release-qualification.v1`，显式 non-promotable。Stage、Publish、README 只接受各自稳定版契约。 | 缺失/额外 target、identity/digest 漂移、混用 candidate run，或 RC/generic receipt 到达任一 promotion consumer 时必须在写入 Release/README 前失败；stable 不得复用 RC receipt。 |
 
 ### 4.2 Stateful sequences
 
@@ -212,6 +235,7 @@ Release 2 的 strict receipt 是 Stage 的前置 gate；Release 4 canary 不是�
 | `SEQ-ACT-006` | signed `N-1` fixture installed → sentinel persisted → app cold start → check → download → downloaded → user restart/install → relaunch `N` | 逐步观察 updater stage、PID/exit/relaunch、精确 `N` resource identity、签名、sidecar 和 sentinel；Windows 以继承的隔离 `APPDATA` 保留 userData，不能依赖 NSIS 会丢弃的任意启动参数。三个 supported target 各自产生严格报告。`no_update` 由 `SEQ-ACT-008` 证明。 |
 | `SEQ-ACT-007` | update download interrupted/error → same identity retry → downloaded → restart | 首次失败不能生成 complete report；重试不得换 candidate/from_tag，缓存 payload 仍须按 metadata 重验；恢复成功与失败原因都进入报告。 |
 | `SEQ-ACT-008` | Publish `N` → install exact public `N-1` → production discovery/download/install/relaunch → second check | canary 必须通过真实 GitHub provider，并以 `no_update` 结束；成功关闭生产升级链，失败标记 release `NO-GO` 并保留现场，不自动 unpublish。 |
+| `SEQ-ACT-009` | create immutable `vX.Y.Z-rc.N` → build/sign/seal → four-target fresh install → generic receipt → next RC or new stable candidate | identity key 为 tag、tag commit、candidate run ID 与 manifest digest。相同 immutable RC 可用新 run ID 重试，但报告不得跨 run 混合；缺陷必须新 commit + `rc.N+1`，不得移动/复用 tag。最终 `vX.Y.Z` 必须重建重验，RC 永不进入 Stage/Publish/README。 |
 
 #### 4.2.1 Restart-update 状态矩阵
 
@@ -220,6 +244,12 @@ Release 2 的 strict receipt 是 Stage 的前置 gate；Release 4 canary 不是�
 | `SEQ-ACT-006` | `target + from_tag + candidate_manifest_digest`；干净安装 `N-1`、空 updater cache | 第一次检查必须下载；安装重启到 exact N；重复点击 install 不得启动第二安装器 | app `userData`、updater cache、安装目录、Memory snapshot/runtime manifest | `BC-ACT-009/010`；`AC-ACT-011`、`AC-W2-006..011` |
 | `SEQ-ACT-007` | 与首次尝试完全相同的 identity；在下载中断/metadata 错误状态开始 | retry 可恢复但不可换 bytes；reset 必须清除隔离 cache；错误 metadata/payload 必须 fail closed | updater cache 与 qualification report journal | `BC-ACT-009/010`；`AC-W2-009/010` |
 | `SEQ-ACT-008` | `public from_tag + public to_tag + release asset IDs`；exact public `N-1` | canary 可用同一 identity 重试并记录 attempt；不得用 staging fixture 替代 | public GitHub Release、真实 app userData、安装目录 | `BC-ACT-011`；`AC-ACT-012` |
+
+#### 4.2.2 RC qualification 状态矩阵
+
+| Sequence | Identity key / initial state | Repeat、retry、restart | Persistence boundary | 关联 contract / AC |
+| --- | --- | --- | --- | --- |
+| `SEQ-ACT-009` | `rc_tag + tag_commit + candidate_run_id + manifest_digest`；不存在同名 Draft/Public Release | 相同 tag 只允许在同一 commit 上产生新的独立 run；每个 run 独立 seal/report。失败后 reset runner workspace；产品 restart-update 为 `N/A`，因为 RC lane 明确 fresh-only | immutable Git tag、GitHub Actions retained candidate/report/receipt；不得写 Draft/Public Release 或 README PR | `BC-ACT-012/013`；`AC-ACT-013..016` |
 
 Memory/message interaction 基线在本计划中为 `N/A`：升级验收不发起模型消息或 provider interaction；
 它通过既有非敏感状态/sentinel 验证持久化边界。若实施时加入真实聊天操作，则 normal/graph/retry/
@@ -241,6 +271,10 @@ sidecar cold-restart 的适用单元格必须在 W2 plan 中补为 `PENDING` 并
 | `AC-ACT-010` | Actions runtime 弃用警告清零；并发、最小权限和 retention policy 有静态测试。 | run annotations + workflow tests |
 | `AC-ACT-011` | Release 2 在 macOS arm64/x64、Windows x64 完成 signed `N-1 → exact N`，并证明重启、版本、签名、sidecar、Memory snapshot 和状态保留。 | three-target upgrade reports + strict receipt |
 | `AC-ACT-012` | Publish 后 exact public `N-1` 通过真实 GitHub feed 升级到 public `N`，随后第二次检查为 `no_update`；canary 绑定 public asset IDs/hashes。 | Release 4 production canary artifact |
+| `AC-ACT-013` | strict RC parser 接受 exact `vX.Y.Z-rc.N`，拒绝未知 prerelease、`rc.0`、前导零、大小写/whitespace 与任何 tag/package/manifest/filename mismatch；macOS native projection 精确为 base `X.Y.Z`。 | parser、manifest、workflow contract unit tests |
+| `AC-ACT-014` | 同一 hosted RC candidate 的四个 retained target 均完成 fresh-install，报告绑定同一 tag commit/run/manifest digest，并生成唯一 generic non-promotable receipt。 | candidate run + four installed reports + `pupu.release-qualification.v1` |
+| `AC-ACT-015` | RC tag 或 generic receipt 到达 Stage、Publish、README 时均在任何 Release/asset/PR 写入前失败，且没有 Draft/Public Release 或 README PR side effect。 | negative provenance tests + hosted rejection evidence |
+| `AC-ACT-016` | RC 失败后只接受新 commit 的递增 `rc.N+1`；最终 `vX.Y.Z` 使用新 candidate run 与 stable promotion receipt，验证器拒绝复用任一 RC bytes、run、report 或 receipt。 | immutable-tag checks + stable negative/positive provenance evidence |
 
 ## 5. 七个实施工作流
 
@@ -800,6 +834,7 @@ GitNexus detect-changes against expected scope
 | 2026-08-24 | W2 Windows restart-update integration | local / uncommitted | LOCAL PASS / EXTERNAL PENDING | Fixture-evidence contract, fixed loopback feed port, and actual `N-1 → N` runner are now called by a protected Windows Release 2 job; its fixture/signing/feed/restart evidence is retained but never published. macOS and the complete three-target update receipt remain pending Apple enrollment. |
 | 2026-08-25 | Linux x64 release closeout | local / uncommitted | LOCAL PASS / EXTERNAL PENDING | Linux remains a manual-update target by closed contract: exact AppImage + deb assets, both retained package forms in installed qualification, no updater metadata/provider, and the product gate rejects in-app update before provider/timer use. Dedicated static/runtime contract tests added; first hosted Ubuntu candidate/qualification report remains pending push and Actions execution. |
 | 2026-08-25 | W1/W2 promotion-chain repairs | local / uncommitted | LOCAL PASS / EXTERNAL PENDING | `BC-ACT-003/004`: Windows signer now rebuilds blockmap and refreshes `latest.yml` after Authenticode; stale-metadata red/green test passes. `BC-ACT-010/SEQ-ACT-006`: Windows restart runner uses inherited isolated AppData and validates relaunched root/Sidecar/exact identity instead of a lost CDP argument. Release 2 now seals complete fresh + restart receipt; Stage/Publish share per-tag concurrency and reverify both Actions runs. Hosted signed candidate/restart evidence remains pending. |
+| 2026-08-28 | RC fresh-only validation contract | local / uncommitted | LOCAL PASS / HOSTED PENDING | `BC-ACT-012/013`、`SEQ-ACT-009`、`AC-ACT-013..016` 已落实：strict RC parser、full effective RC identity、macOS numeric projection、四路 fresh-only generic receipt，以及 Stage/Publish/README stable-only guard。Release QA 166/166 与 long-run harness 62/62 通过；exact `v0.1.10-rc.1` hosted candidate、四路安装及无发布副作用证据待提交推送后执行。 |
 | — | W5 main activation | — | NOT_STARTED | — |
 | — | W6 ghost workflow retirement | — | NOT_STARTED | — |
 | — | W7 maintenance + final naming | — | NOT_STARTED | — |

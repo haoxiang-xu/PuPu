@@ -40,13 +40,13 @@ const packageArtifactNames = {
   "linux-x64": "pupu-package-linux",
 };
 
-function writeRawUpdater(target, distDir, targetAssets) {
+function writeRawUpdater(target, distDir, targetAssets, version = VERSION) {
   if (!target.updater_channel) return;
   const payload = targetAssets.find((asset) =>
     asset.role === "updater-payload" || (target.id === "windows-x64" && asset.format === "exe")
   );
   fs.writeFileSync(path.join(distDir, target.updater_channel), YAML.stringify({
-    version: VERSION,
+    version,
     files: [{
       url: payload.name,
       sha512: hashFileSha512(path.join(distDir, payload.name)),
@@ -58,9 +58,9 @@ function writeRawUpdater(target, distDir, targetAssets) {
   }), "utf8");
 }
 
-function writeWindowsSigningEvidence(packageDir) {
+function writeWindowsSigningEvidence(packageDir, version = VERSION) {
   const windowsDistDir = path.join(packageDir, packageArtifactNames["windows-x64"], "dist");
-  const installer = expectedTargetAssets(CONTRACT, VERSION).find((asset) =>
+  const installer = expectedTargetAssets(CONTRACT, version).find((asset) =>
     asset.target_id === "windows-x64" && asset.role === "installer" && asset.format === "exe"
   );
   const evidencePath = path.join(
@@ -77,7 +77,7 @@ function writeWindowsSigningEvidence(packageDir) {
     status: "passed",
     candidate_run_id: "554433",
     source_revision: COMMIT,
-    package_version: VERSION,
+    package_version: version,
     target_id: "windows-x64",
     payload_file_count: 4,
     signable_payload_file_count: 2,
@@ -117,25 +117,25 @@ function writeWindowsSigningEvidence(packageDir) {
   return evidencePath;
 }
 
-function fixture() {
+function fixture(version = VERSION) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-release-candidate-"));
   const packageDir = path.join(root, "package-artifacts");
   fs.mkdirSync(packageDir);
   for (const target of CONTRACT.targets.filter((candidate) => candidate.status === "required")) {
     const distDir = path.join(packageDir, packageArtifactNames[target.id], "dist");
     fs.mkdirSync(distDir, { recursive: true });
-    const targetAssets = expectedTargetAssets(CONTRACT, VERSION)
+    const targetAssets = expectedTargetAssets(CONTRACT, version)
       .filter((asset) => asset.target_id === target.id);
     for (const asset of targetAssets) {
       fs.writeFileSync(path.join(distDir, asset.name), `${asset.name}\n`, "utf8");
     }
-    writeRawUpdater(target, distDir, targetAssets);
+    writeRawUpdater(target, distDir, targetAssets, version);
   }
-  const windowsSigningEvidencePath = writeWindowsSigningEvidence(packageDir);
+  const windowsSigningEvidencePath = writeWindowsSigningEvidence(packageDir, version);
   const reportPath = path.join(root, "release-qa-report.json");
   fs.writeFileSync(reportPath, `${JSON.stringify({
     mode: "release-candidate",
-    version: VERSION,
+    version,
     git: { sha: COMMIT, run_id: "554433" },
     unchain: UNCHAIN,
     deterministic_result: { status: "passed" },
@@ -209,6 +209,30 @@ test("candidate assembler merges architecture-specific updater metadata and seal
     "--commit", COMMIT,
   ]);
   assert.equal(verified.status, 0, verified.stderr);
+});
+
+test("candidate assembler seals a full RC identity without stable-version filenames", () => {
+  const version = "0.1.10-rc.1";
+  const tag = `v${version}`;
+  const { packageDir, reportPath, outDir } = fixture(version);
+  const assembled = run(ASSEMBLER, [
+    "--package-dir", packageDir,
+    "--qa-report", reportPath,
+    "--out-dir", outDir,
+    "--tag", tag,
+    "--version", version,
+    "--commit", COMMIT,
+    "--run-id", "554433",
+  ]);
+  assert.equal(assembled.status, 0, assembled.stderr);
+  const manifest = readJson(path.join(outDir, "release-assets.v1.json"));
+  assert.equal(manifest.release.tag, tag);
+  assert.equal(manifest.release.version, version);
+  assert.ok(manifest.assets.every((asset) => asset.name.includes(version)));
+  const mac = YAML.parse(fs.readFileSync(path.join(outDir, "assets", "latest-mac.yml"), "utf8"));
+  const windows = YAML.parse(fs.readFileSync(path.join(outDir, "assets", "latest.yml"), "utf8"));
+  assert.equal(mac.version, version);
+  assert.equal(windows.version, version);
 });
 
 test("candidate assembler and verifier bind Windows signing evidence to the sealed installer", () => {

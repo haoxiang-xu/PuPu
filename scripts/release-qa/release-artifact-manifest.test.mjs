@@ -29,11 +29,11 @@ const UNCHAIN = {
   source_revision: "d".repeat(40),
 };
 
-const createFixture = () => {
+const createFixture = (version = VERSION) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-release-assets-"));
   const assetDir = path.join(root, "assets");
   fs.mkdirSync(assetDir);
-  const assets = expectedTargetAssets(CONTRACT, VERSION);
+  const assets = expectedTargetAssets(CONTRACT, version);
   for (const asset of assets) {
     fs.writeFileSync(path.join(assetDir, asset.name), `${asset.name}\n`, "utf8");
   }
@@ -45,7 +45,7 @@ const createFixture = () => {
     }));
     const primary = files.find((file) => file.url === primaryName);
     fs.writeFileSync(path.join(assetDir, name), YAML.stringify({
-      version: VERSION,
+      version,
       files,
       path: primaryName,
       sha512: primary.sha512,
@@ -54,19 +54,19 @@ const createFixture = () => {
   };
   buildUpdater(
     "latest-mac.yml",
-    ["PuPu-0.1.10-macos-arm64.zip", "PuPu-0.1.10-macos-x64.zip"],
-    "PuPu-0.1.10-macos-x64.zip",
+    [`PuPu-${version}-macos-arm64.zip`, `PuPu-${version}-macos-x64.zip`],
+    `PuPu-${version}-macos-x64.zip`,
   );
   buildUpdater(
     "latest.yml",
-    ["PuPu-0.1.10-windows-x64-setup.exe"],
-    "PuPu-0.1.10-windows-x64-setup.exe",
+    [`PuPu-${version}-windows-x64-setup.exe`],
+    `PuPu-${version}-windows-x64-setup.exe`,
   );
   const manifest = buildReleaseAssetManifest({
     contract: CONTRACT,
     assetDir,
-    tag: TAG,
-    version: VERSION,
+    tag: `v${version}`,
+    version,
     commit: COMMIT,
     candidateRunId: "12345",
     unchain: UNCHAIN,
@@ -96,6 +96,17 @@ test("valid release asset manifest and exact directory pass with merged Mac and 
     manifest.updater_metadata.find((metadata) => metadata.name === "latest-mac.yml").references.map((reference) => reference.name),
     ["PuPu-0.1.10-macos-arm64.zip", "PuPu-0.1.10-macos-x64.zip"],
   );
+});
+
+test("RC manifest keeps the full prerelease identity in tag, metadata, and filenames", () => {
+  const version = "0.1.10-rc.1";
+  const { assetDir, manifest } = createFixture(version);
+  assert.equal(validateReleaseAssetManifest(manifest, CONTRACT).release.tag, `v${version}`);
+  assert.equal(manifest.release.version, version);
+  assert.ok(manifest.assets.every((asset) => asset.name.includes(version)));
+  assert.equal(YAML.parse(fs.readFileSync(path.join(assetDir, "latest-mac.yml"), "utf8")).version, version);
+  assert.equal(YAML.parse(fs.readFileSync(path.join(assetDir, "latest.yml"), "utf8")).version, version);
+  assert.equal(verifyReleaseAssetDirectory({ manifest, contract: CONTRACT, assetDir }).release.version, version);
 });
 
 test("missing, extra, renamed, and byte-changed assets fail closed", () => {

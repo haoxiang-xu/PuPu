@@ -32,6 +32,18 @@ jobs:
 
       - name: Checkout release environment verifier
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Reject prerelease tags before publish approval
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          node scripts/release-qa/release-candidate-ref.mjs \
+            --tag "$RELEASE_TAG" \
+            --package-version "$PACKAGE_VERSION" \
+            --policy promotion >/dev/null
 
       - name: Require protected release-publish Environment
         env:
@@ -71,6 +83,16 @@ jobs:
 
       - name: Install release verifier dependencies
         run: npm ci
+
+      - name: Reconfirm stable promotion identity before Release access
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          node scripts/release-qa/release-candidate-ref.mjs \
+            --tag "$RELEASE_TAG" \
+            --package-version "$PACKAGE_VERSION" \
+            --policy promotion >/dev/null
 
       - name: Require dispatch from the exact release tag
         env:

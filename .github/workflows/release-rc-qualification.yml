@@ -1,0 +1,206 @@
+name: Qualify Installed RC (Fresh Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful signed release-candidate run ID"
+        required: true
+        type: string
+      release_tag:
+        description: "Existing immutable vX.Y.Z-rc.N tag represented by that candidate"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release-rc-qualification-${{ inputs.candidate_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  candidate-preflight:
+    name: Verify sealed RC candidate provenance
+    runs-on: ubuntu-latest
+    outputs:
+      tag_commit: ${{ steps.tag.outputs.tag_commit }}
+    steps:
+      - name: Checkout the requested RC tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install verification dependencies
+        run: npm ci
+
+      - name: Require an exact immutable RC tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ]; then
+            echo "::error title=RC tag dispatch required::Run RC qualification from the exact immutable RC tag"
+            exit 1
+          fi
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \
+            --tag "$RELEASE_TAG" \
+            --package-version "$PACKAGE_VERSION" \
+            --policy candidate)"
+          RELEASE_LANE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).lane)' "$RELEASE_IDENTITY")"
+          if [ "$RELEASE_LANE" != "rc" ]; then
+            echo "::error title=RC tag required::$RELEASE_TAG is not a numbered release candidate"
+            exit 1
+          fi
+
+      - name: Resolve immutable RC tag commit
+        id: tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+          if [ -z "$TAG_COMMIT" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
+            echo "::error title=Wrong RC revision::workflow SHA must equal the immutable RC tag commit"
+            exit 1
+          fi
+          echo "tag_commit=$TAG_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Verify candidate Actions run provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+            | node scripts/release-qa/verify-actions-run-provenance.mjs \
+              --run-id "$CANDIDATE_RUN_ID" \
+              --tag "$RELEASE_TAG" \
+              --commit "$TAG_COMMIT" \
+              --workflow-path .github/workflows/release-qa.yml
+
+      - name: Download and verify exact retained RC candidate bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
+        run: |
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir candidate
+          node scripts/release-qa/verify-release-candidate.mjs \
+            --manifest candidate/release-assets.v1.json \
+            --asset-dir candidate/assets \
+            --qa-report candidate/release-qa-report.json \
+            --tag "$RELEASE_TAG" \
+            --commit "$TAG_COMMIT" \
+            --candidate-run-id "$CANDIDATE_RUN_ID"
+
+  installed-package-matrix:
+    name: Fresh-install ${{ matrix.target_id }} RC
+    needs: candidate-preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_id: macos-arm64
+            os: macos-latest
+          - target_id: macos-x64
+            os: macos-15-intel
+          - target_id: windows-x64
+            os: windows-latest
+          - target_id: linux-x64
+            os: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/_shared-release-update-qualification.yml
+    with:
+      candidate_run_id: ${{ inputs.candidate_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      tag_commit: ${{ needs.candidate-preflight.outputs.tag_commit }}
+      target_id: ${{ matrix.target_id }}
+      runner_selector: ${{ matrix.os }}
+
+  qualification-receipt:
+    name: Seal non-promotable RC fresh-install receipt
+    needs:
+      - candidate-preflight
+      - installed-package-matrix
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the exact RC tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install receipt dependencies
+        run: npm ci
+
+      - name: Download exact candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir candidate
+          mkdir -p installed-reports
+
+      - name: Download all fresh-install reports
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: installed-qualification-*
+          path: installed-reports
+          merge-multiple: false
+
+      - name: Build generic non-promotable qualification receipt
+        id: receipt
+        if: always()
+        continue-on-error: true
+        env:
+          QUALIFICATION_RUN_ID: ${{ github.run_id }}
+        run: |
+          node scripts/release-qa/build-release-qualification.mjs \
+            --candidate-dir candidate \
+            --reports-dir installed-reports \
+            --qualification-run-id "$QUALIFICATION_RUN_ID" \
+            --out release-qualification.v1.json
+
+      - name: Upload RC qualification receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pupu-release-qualification
+          if-no-files-found: warn
+          retention-days: 30
+          path: release-qualification.v1.json
+
+      - name: Enforce complete four-target fresh qualification
+        if: always()
+        env:
+          PREFLIGHT_RESULT: ${{ needs.candidate-preflight.result }}
+          MATRIX_RESULT: ${{ needs.installed-package-matrix.result }}
+          RECEIPT_OUTCOME: ${{ steps.receipt.outcome }}
+        run: |
+          if [ "$PREFLIGHT_RESULT" != "success" ] || [ "$MATRIX_RESULT" != "success" ] || [ "$RECEIPT_OUTCOME" != "success" ]; then
+            echo "::error title=RC qualification incomplete::candidate provenance, all four fresh installs, and the generic receipt must pass"
+            exit 1

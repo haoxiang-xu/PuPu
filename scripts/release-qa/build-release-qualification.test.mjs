@@ -16,11 +16,10 @@ import YAML from "yaml";
 const digest = (letter) => `sha256:${letter.repeat(64)}`;
 const fingerprint = "f".repeat(64);
 const contract = readReleaseArtifactContract("contracts/release/release-artifact-contract.v1.json");
-const createManifest = () => {
+const createManifest = (version = "0.1.10") => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-qualification-"));
   const assetDir = path.join(root, "assets");
   fs.mkdirSync(assetDir);
-  const version = "0.1.10";
   for (const asset of expectedTargetAssets(contract, version)) {
     fs.writeFileSync(path.join(assetDir, asset.name), `${asset.name}\n`, "utf8");
   }
@@ -39,16 +38,16 @@ const createManifest = () => {
     }), "utf8");
   };
   writeUpdater("latest-mac.yml", [
-    "PuPu-0.1.10-macos-arm64.zip",
-    "PuPu-0.1.10-macos-x64.zip",
-  ], "PuPu-0.1.10-macos-x64.zip");
-  writeUpdater("latest.yml", ["PuPu-0.1.10-windows-x64-setup.exe"], "PuPu-0.1.10-windows-x64-setup.exe");
+    `PuPu-${version}-macos-arm64.zip`,
+    `PuPu-${version}-macos-x64.zip`,
+  ], `PuPu-${version}-macos-x64.zip`);
+  writeUpdater("latest.yml", [`PuPu-${version}-windows-x64-setup.exe`], `PuPu-${version}-windows-x64-setup.exe`);
   return {
     root,
     manifest: buildReleaseAssetManifest({
       contract,
       assetDir,
-      tag: "v0.1.10",
+      tag: `v${version}`,
       version,
       commit: "a".repeat(40),
       candidateRunId: "12345",
@@ -108,6 +107,24 @@ test("builds a strict qualification receipt from all required targets", () => {
     assert.deepEqual(receipt.targets.map((target) => target.id), [
       "linux-x64", "macos-arm64", "macos-x64", "windows-x64",
     ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("builds the same non-promotable fresh-install receipt for an exact RC identity", () => {
+  const { root, manifest } = createManifest("0.1.10-rc.1");
+  try {
+    const receipt = buildReleaseQualificationReceipt({
+      manifest,
+      contract,
+      reports: reports(manifest),
+      qualificationRunId: "76543",
+    });
+    assert.equal(receipt.schema, "pupu.release-qualification.v1");
+    assert.equal(receipt.release.tag, "v0.1.10-rc.1");
+    assert.equal(receipt.release.version, "0.1.10-rc.1");
+    assert.equal(receipt.targets.length, 4);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
