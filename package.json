@@ -205,6 +205,7 @@
     "extract-zip": "2.0.1"
   },
   "overrides": {
-    "shell-quote": "1.9.0"
+    "shell-quote": "1.9.0",
+    "websocket-driver": "0.7.5"
   }
 }
