@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
@@ -162,6 +163,42 @@ class SessionExecutionGuardTests(unittest.TestCase):
             release.set()
             process.join(timeout=8)
         self.assertEqual(process.exitcode, 0)
+
+    def test_windows_lock_opens_backing_file_in_binary_mode(self) -> None:
+        lock_path = Path(self.temp_dir.name) / "windows.lock"
+        descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        observed_open_flags: list[int] = []
+        observed_lock_calls: list[tuple[int, int, int]] = []
+
+        class FakeMsvcrt:
+            LK_NBLCK = 1
+            LK_UNLCK = 2
+
+            @staticmethod
+            def locking(file_descriptor: int, mode: int, length: int) -> None:
+                observed_lock_calls.append((file_descriptor, mode, length))
+
+        def open_lock_file(_path: Path, flags: int, _mode: int) -> int:
+            observed_open_flags.append(flags)
+            return descriptor
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.object(guard, "_WINDOWS_BINARY_FLAG", 0x8000),
+            mock.patch.object(guard.os, "open", side_effect=open_lock_file),
+            mock.patch.dict(sys.modules, {"msvcrt": FakeMsvcrt}),
+        ):
+            with guard._exclusive_file_lock(lock_path):
+                pass
+
+        self.assertEqual(observed_open_flags, [os.O_RDWR | os.O_CREAT | 0x8000])
+        self.assertEqual(
+            observed_lock_calls,
+            [
+                (descriptor, FakeMsvcrt.LK_NBLCK, 1),
+                (descriptor, FakeMsvcrt.LK_UNLCK, 1),
+            ],
+        )
 
     def test_parked_receipt_resume_and_cancel_require_exact_lineage(self) -> None:
         self.registry.acquire(

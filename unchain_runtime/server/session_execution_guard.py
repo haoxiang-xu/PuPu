@@ -26,6 +26,7 @@ _VALID_OPERATIONS = frozenset({"run", "rebase"})
 _PROCESS_OWNER_ID = uuid.uuid4().hex
 _MIGRATION_RECEIPT_SCHEMA = "pupu.session-guard-migration"
 _MIGRATION_RECEIPT_VERSION = 1
+_WINDOWS_BINARY_FLAG = getattr(os, "O_BINARY", 0)
 
 
 class SessionExecutionGuardError(RuntimeError):
@@ -1096,8 +1097,14 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
 
 @contextmanager
 def _exclusive_file_lock(path: Path) -> Iterator[None]:
+    open_flags = os.O_RDWR | os.O_CREAT
+    if os.name == "nt":
+        # msvcrt.locking requires the backing file descriptor to be opened
+        # in binary mode. Without this flag, a fresh Windows data directory
+        # makes the session-guard migration receipt fail closed at startup.
+        open_flags |= _WINDOWS_BINARY_FLAG
     try:
-        file_descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        file_descriptor = os.open(path, open_flags, 0o600)
     except OSError as exc:
         raise SessionExecutionGuardError(
             "session_execution_guard_unavailable",
