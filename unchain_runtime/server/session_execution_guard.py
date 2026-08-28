@@ -1088,11 +1088,20 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
         kernel32.GetProcessTimes.restype = wintypes.BOOL
         kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
         kernel32.CloseHandle.restype = wintypes.BOOL
-        handle = kernel32.OpenProcess(
-            query_limited_information,
-            False,
-            process_id,
-        )
+        is_current_process = process_id == os.getpid()
+        if is_current_process:
+            # A pseudo-handle is always valid for the current process and
+            # avoids an access-checked OpenProcess call during sidecar import.
+            # It must not be passed to CloseHandle.
+            kernel32.GetCurrentProcess.argtypes = ()
+            kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+            handle = kernel32.GetCurrentProcess()
+        else:
+            handle = kernel32.OpenProcess(
+                query_limited_information,
+                False,
+                process_id,
+            )
         if not handle:
             return "unknown", ""
         try:
@@ -1111,7 +1120,8 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
             ticks = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
             return "alive", _digest(f"win:{process_id}:{ticks}")
         finally:
-            kernel32.CloseHandle(handle)
+            if not is_current_process:
+                kernel32.CloseHandle(handle)
     except Exception:
         return "unknown", ""
 

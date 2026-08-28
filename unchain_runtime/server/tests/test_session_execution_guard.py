@@ -268,6 +268,47 @@ class SessionExecutionGuardTests(unittest.TestCase):
         kernel32.OpenProcess.assert_called_once_with(0x1000, False, 321)
         kernel32.CloseHandle.assert_called_once_with(handle)
 
+    def test_windows_process_identity_uses_current_process_pseudo_handle(self) -> None:
+        class FakeFileTime:
+            def __init__(self) -> None:
+                self.dwHighDateTime = 0
+                self.dwLowDateTime = 0
+
+        fake_wintypes = types.SimpleNamespace(
+            DWORD=object(),
+            BOOL=object(),
+            HANDLE=object(),
+            FILETIME=FakeFileTime,
+        )
+        handle = object()
+        kernel32 = types.SimpleNamespace(
+            OpenProcess=mock.Mock(),
+            GetCurrentProcess=mock.Mock(return_value=handle),
+            GetProcessTimes=mock.Mock(return_value=True),
+            CloseHandle=mock.Mock(return_value=True),
+        )
+        fake_ctypes = types.SimpleNamespace(
+            windll=types.SimpleNamespace(kernel32=kernel32),
+            POINTER=lambda value: ("pointer", value),
+            byref=lambda value: value,
+            wintypes=fake_wintypes,
+        )
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.object(guard.os, "getpid", return_value=321),
+            mock.patch.dict(sys.modules, {"ctypes": fake_ctypes}),
+        ):
+            state, token = guard._windows_process_identity(321)
+
+        self.assertEqual(state, "alive")
+        self.assertTrue(token)
+        self.assertEqual(kernel32.GetCurrentProcess.argtypes, ())
+        self.assertIs(kernel32.GetCurrentProcess.restype, fake_wintypes.HANDLE)
+        kernel32.GetCurrentProcess.assert_called_once_with()
+        kernel32.OpenProcess.assert_not_called()
+        kernel32.CloseHandle.assert_not_called()
+
     def test_windows_process_identity_fails_closed_when_handle_is_rejected(self) -> None:
         class FakeFileTime:
             def __init__(self) -> None:
@@ -327,6 +368,7 @@ class SessionExecutionGuardTests(unittest.TestCase):
                 "schema": "pupu.session-guard-startup-smoke.v1",
                 "executed_tests": 1,
                 "protocol_version": 1,
+                "startup_entrypoint": "main.py",
             },
         )
 

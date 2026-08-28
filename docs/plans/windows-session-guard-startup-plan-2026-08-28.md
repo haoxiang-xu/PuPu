@@ -6,7 +6,9 @@ Producer: Electron passes `UNCHAIN_DATA_DIR` to the Python sidecar. Consumer:
 the Python session guard creates and strictly validates its closed v1 protocol
 marker. The durable marker shape and migration receipt are unchanged. Windows
 must establish its own process identity with a handle-sized Win32 API result
-before it can write the marker; failure remains fail-closed.
+before it can write the marker; for the current sidecar process it uses the
+non-closeable `GetCurrentProcess` pseudo-handle, while foreign-PID checks still
+use `OpenProcess`; failure remains fail-closed.
 
 Admission is **CLOSED**. The protocol marker must have exactly `schema`,
 `protocol_version`, and `compatibility`; the launcher receipt must have exactly
@@ -23,10 +25,11 @@ provenance only.
 
 ## SEQ-010 — fresh start and restart
 
-With a fresh `UNCHAIN_DATA_DIR`, sidecar startup creates the exact protocol
-marker. A second registry in the same data directory validates the existing
-marker without migration. A Windows release runner executes this sequence with
-the same Python environment used by Electron Playwright.
+With a fresh `UNCHAIN_DATA_DIR`, the actual `main.py` sidecar starts, exposes
+an authenticated `/health` receipt, and creates the exact protocol marker. A
+second registry in the same data directory validates the existing marker
+without migration. A Windows release runner executes this sequence with the
+same Python environment used by Electron Playwright.
 
 The required matrix is: fresh start; existing marker/repeat start; unavailable
 identity or lock (fail closed); a cold sidecar restart with durable resume/replay
@@ -44,3 +47,6 @@ evidence for a successful retry, resume, or external effect by itself.
 - **AC-024:** Windows Playwright proves a cold app restart can restore pending
   durable state after the startup smoke has passed, using the exact candidate,
   wheel SHA-256, and imported runtime-manifest digest reported by Release QA.
+- **AC-025:** The startup smoke invokes the same `main.py` entrypoint and
+  authenticated health boundary as the sidecar; a direct registry import alone
+  is not accepted as release evidence.
